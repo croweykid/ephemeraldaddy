@@ -59,6 +59,19 @@ def _install_pyside_stubs():
 
 _install_pyside_stubs()
 
+style_stub = ModuleType("ephemeraldaddy.gui.style")
+style_stub.DARK_THEME = {
+    "background": "#111111",
+    "foreground": "#eeeeee",
+    "wheel_circle": "#dddddd",
+    "house_line": "#555555",
+}
+style_stub.CHART_DATA_HIGHLIGHT_COLOR = "#c8945c"
+style_stub.CHART_DATA_DIVIDER = "────────────────"
+style_stub.blend_hex_colors = lambda first, second, ratio=0.5: first
+style_stub.format_chart_header = lambda *_args, **_kwargs: ""
+sys.modules.setdefault("ephemeraldaddy.gui.style", style_stub)
+
 from ephemeraldaddy.gui.features.charts.similarities_analysis import (  # noqa: E402
     build_dissimilarity_export_sections,
 )
@@ -168,3 +181,25 @@ def test_dissimilarity_export_sections_include_unique_bazi_signs():
         "Snake": "chart_1",
         "Rat": "chart_2",
     }
+
+
+def test_dissimilarity_factor_counts_use_shared_aspect_display_rules():
+    from ephemeraldaddy.gui.features.charts.similarities_analysis import _build_similarity_factor_counts
+
+    chart = _chart(
+        birthtime_unknown=False,
+        positions={"Sun": 15.0, "Moon": 75.0, "AS": 0.0, "MC": 120.0, "DS": 180.0},
+        houses=[index * 30.0 for index in range(12)],
+    )
+    chart.aspects = [
+        {"p1": "AS", "p2": "MC", "type": "trine", "delta": 0.0},
+        {"p1": "AS", "p2": "DS", "type": "opposition", "delta": 0.0},
+        {"p1": "Sun", "p2": "Moon", "type": "sextile", "delta": 0.0},
+    ]
+    provider = FakeDissimilarityProvider({1: chart})
+
+    counts, _totals = _build_similarity_factor_counts(provider, [1])["Aspects in contrast"]
+
+    assert "AS trine MC" in counts
+    assert "Moon sextile Sun" in counts
+    assert "AS opposition DS" not in counts

@@ -16,6 +16,11 @@ from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
 )
 from ephemeraldaddy.analysis.dnd.species_assigner_v2 import assign_top_three_species_with_evidence
 from ephemeraldaddy.analysis.human_design import build_human_design_result
+from ephemeraldaddy.core.aspect_display import (
+    ASPECT_DISPLAY_ANGLE_BODIES,
+    is_structural_aspect_tautology,
+    iter_displayable_aspects,
+)
 from ephemeraldaddy.core.aspects import ASPECT_DEFS
 from ephemeraldaddy.core.chart import Chart, apply_unknown_sign_metadata
 from ephemeraldaddy.core.curse_scoring import AspectRecord, MOST_CURSED_SCORE, chart_cursedness
@@ -329,29 +334,7 @@ def _synastry_pair_weight(
 
 
 def _is_structural_tautology(asp: dict) -> bool:
-    aspect_label = _aspect_label(asp["type"])
-    if aspect_label not in {"Opposition", "Square"}:
-        return False
-    pair = frozenset(
-        {
-            _normalize_aspect_body(asp["p1"]),
-            _normalize_aspect_body(asp["p2"]),
-        }
-    )
-    structural_pairs = {
-        "Opposition": {
-            frozenset({"AS", "DS"}),
-            frozenset({"MC", "IC"}),
-            frozenset({"Rahu", "Ketu"}),
-        },
-        "Square": {
-            frozenset({"AS", "MC"}),
-            frozenset({"AS", "IC"}),
-            frozenset({"MC", "DS"}),
-            frozenset({"DS", "IC"}),
-        },
-    }
-    return pair in structural_pairs.get(aspect_label, set())
+    return is_structural_aspect_tautology(asp)
 
 
 def format_chart_text(
@@ -372,7 +355,7 @@ def format_chart_text(
     aspect_info_map: dict[int, dict[str, object]] = {}
     species_info_map: dict[int, list[dict[str, object]]] = {}
     use_houses = chart_uses_houses(chart)
-    angular_bodies = {"AS", "MC", "DS", "IC"}
+    angular_bodies = ASPECT_DISPLAY_ANGLE_BODIES
 
     def _degree_in_sign_text(lon_value: float) -> str:
         lon_normalized = lon_value % 360.0
@@ -418,17 +401,17 @@ def format_chart_text(
     houses = getattr(chart, "houses", None) if use_houses else None
     aspects = getattr(chart, "aspects", None)
     filtered_aspects: list[dict] = []
+    positions = getattr(chart, "positions", {})
     if aspects:
-        filtered_aspects = [asp for asp in aspects if not _is_structural_tautology(asp)]
-        if not use_houses:
-            filtered_aspects = [
-                asp
-                for asp in filtered_aspects
-                if asp["p1"] not in angular_bodies and asp["p2"] not in angular_bodies
-            ]
+        filtered_aspects = list(
+            iter_displayable_aspects(
+                aspects,
+                use_houses=use_houses,
+                known_positions=positions,
+            )
+        )
     cursedness_line = ""
     if filtered_aspects and show_cursedness:
-        positions = getattr(chart, "positions", {})
         curse_aspects: list[AspectRecord] = []
         for asp in filtered_aspects:
             lon_a = positions.get(asp["p1"])
@@ -1130,7 +1113,7 @@ def format_compact_transit_chart_text(
     """Build compact Transit View chart text with glyph aliases and hover spans."""
     use_houses = chart_uses_houses(chart)
     houses = getattr(chart, "houses", None) if use_houses else None
-    angular_bodies = {"AS", "MC", "DS", "IC"}
+    angular_bodies = ASPECT_DISPLAY_ANGLE_BODIES
     tooltip_spans: dict[int, list[dict[str, object]]] = {}
     lines: list[str] = [CHART_DATA_DIVIDER, "POSITIONS", CHART_DATA_DIVIDER]
 
@@ -1237,14 +1220,15 @@ def format_compact_transit_chart_text(
 
     aspects = getattr(chart, "aspects", None)
     filtered_aspects: list[dict] = []
+    positions = getattr(chart, "positions", {})
     if aspects:
-        filtered_aspects = [asp for asp in aspects if not _is_structural_tautology(asp)]
-        if not use_houses:
-            filtered_aspects = [
-                asp
-                for asp in filtered_aspects
-                if asp["p1"] not in angular_bodies and asp["p2"] not in angular_bodies
-            ]
+        filtered_aspects = list(
+            iter_displayable_aspects(
+                aspects,
+                use_houses=use_houses,
+                known_positions=positions,
+            )
+        )
     if filtered_aspects:
         lines.extend([CHART_DATA_DIVIDER, "ASPECTS", CHART_DATA_DIVIDER])
         dominant_planet_weights = getattr(

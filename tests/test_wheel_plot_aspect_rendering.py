@@ -17,6 +17,10 @@ style_stub.DARK_THEME = {
     "wheel_circle": "#dddddd",
     "house_line": "#555555",
 }
+style_stub.CHART_DATA_HIGHLIGHT_COLOR = "#c8945c"
+style_stub.CHART_DATA_DIVIDER = "────────────────"
+style_stub.blend_hex_colors = lambda first, second, ratio=0.5: first
+style_stub.format_chart_header = lambda *_args, **_kwargs: ""
 sys.modules.setdefault("ephemeraldaddy.gui.style", style_stub)
 
 from ephemeraldaddy.graphics.wheel_plot import _aspect_endpoint_xy, draw_chart_wheel

@@ -5,6 +5,7 @@ import heapq
 from math import sqrt
 from typing import Callable, Iterable
 
+from ephemeraldaddy.core.aspect_display import display_aspect_key
 from ephemeraldaddy.core.chart import Chart, chart_uses_houses
 from ephemeraldaddy.core.human_design_system import calculate_human_design
 from ephemeraldaddy.core.interpretations import (
@@ -112,7 +113,6 @@ BODY_WEIGHTS: dict[str, float] = {
     "IC": 1.0,
 }
 
-NATAL_ANGLES: frozenset[str] = frozenset({"AS", "IC", "MC", "DS"})
 
 MODE_BY_SIGN_NAME: dict[str, str] = {
     str(sign): str(mode_name).lower()
@@ -718,39 +718,30 @@ def _placement_similarity(
     return max(0.0, min(1.0, similarity * luminary_multiplier))
 
 
-def _canonical_aspect_key(aspect: dict) -> tuple[tuple[str, str], str] | None:
-    a = str(aspect.get("p1") or "").strip()
-    b = str(aspect.get("p2") or "").strip()
-    asp_type = str(aspect.get("type") or "").strip().lower()
-    if not a or not b or not asp_type:
-        return None
-    left, right = sorted((a, b))
-    return (left, right), asp_type
-
-
-def _is_tautological_angle_aspect(body_a: str, body_b: str) -> bool:
-    return body_a in NATAL_ANGLES and body_b in NATAL_ANGLES
-
-
-def _is_tautological_node_opposition(body_a: str, body_b: str, aspect_type: str) -> bool:
-    if str(aspect_type).strip().lower() != "opposition":
-        return False
-    return {str(body_a).strip(), str(body_b).strip()} == {"Rahu", "Ketu"}
+def _canonical_aspect_key(
+    aspect: dict,
+    *,
+    use_houses: bool = True,
+    known_positions: dict | None = None,
+) -> tuple[tuple[str, str], str] | None:
+    return display_aspect_key(
+        aspect,
+        use_houses=use_houses,
+        known_positions=known_positions,
+    )
 
 
 def _aspect_map(chart: Chart) -> dict[tuple[tuple[str, str], str], list[float]]:
     aspect_map: dict[tuple[tuple[str, str], str], list[float]] = {}
-    include_angle_aspects = chart_uses_houses(chart)
+    use_houses = chart_uses_houses(chart)
+    positions = getattr(chart, "positions", None) or None
     for aspect in getattr(chart, "aspects", None) or []:
-        key = _canonical_aspect_key(aspect)
+        key = _canonical_aspect_key(
+            aspect,
+            use_houses=use_houses,
+            known_positions=positions,
+        )
         if key is None:
-            continue
-        (a, b), aspect_type = key
-        if not include_angle_aspects and (a in NATAL_ANGLES or b in NATAL_ANGLES):
-            continue
-        if _is_tautological_angle_aspect(a, b):
-            continue
-        if _is_tautological_node_opposition(a, b, aspect_type):
             continue
         orb = abs(float(aspect.get("delta", 0.0) or 0.0))
         aspect_map.setdefault(key, []).append(orb)

@@ -549,6 +549,11 @@ from ephemeraldaddy.core.ephemeris import (
     is_offline_mode as ephemeris_offline_mode,
 )
 from ephemeraldaddy.core.retcon import RETCON_BODIES
+from ephemeraldaddy.core.aspect_display import (
+    ASPECT_DISPLAY_ANGLE_BODIES,
+    aspect_is_displayable,
+    iter_displayable_aspects,
+)
 from ephemeraldaddy.core.aspects import ASPECT_DEFS
 from ephemeraldaddy.core.composite import (
     PERSONAL_TRANSIT_MODE_DAILY_VIBE,
@@ -859,7 +864,6 @@ from ephemeraldaddy.gui.features.charts.text_summary import (
     _display_body_name,
     _display_body_with_glyph,
     _format_popout_aspect_endpoint,
-    _is_structural_tautology,
     _normalize_aspect_body,
     _normalize_planet_weight_map,
     _overlay_aspect_segments,
@@ -6467,7 +6471,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         chart_info_output = self._build_popout_left_panel(
             layout,
             chart_info_placeholder="Click the ⓘ in chart summary text to see details/interpretation.",
-            aspect_entries=list(getattr(chart, "aspects", []) or []),
+            aspect_entries=list(
+                iter_displayable_aspects(
+                    getattr(chart, "aspects", []) or [],
+                    use_houses=_chart_uses_houses(chart),
+                    known_positions=getattr(chart, "positions", {}) or {},
+                )
+            ),
             export_file_stem=f"{_sanitize_export_token(chart.name)}-transit_aspect_distribution",
             weighted_score_for_entry=lambda entry: max(
                 0.0,
@@ -7803,7 +7813,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         match_counts: dict[str, int] = {}
         total_counts_by_label: dict[str, int] = {}
         time_specific_chart_count = sum(1 for chart in charts if _chart_uses_houses(chart))
-        angular_bodies = {"AS", "MC", "DS", "IC"}
+        angular_bodies = ASPECT_DISPLAY_ANGLE_BODIES
         for body in PLANET_ORDER:
             signs_by_body: dict[str, int] = {}
             for chart in charts:
@@ -8061,7 +8071,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if chart_count < 2:
             return []
 
-        angular_bodies = {"AS", "MC", "DS", "IC"}
+        angular_bodies = ASPECT_DISPLAY_ANGLE_BODIES
         aspect_counts: dict[str, int] = {}
         total_counts_by_label: dict[str, int] = {}
         time_specific_chart_count = sum(1 for chart in charts if _chart_uses_houses(chart))
@@ -8069,16 +8079,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             chart_aspects: set[str] = set()
             use_houses = _chart_uses_houses(chart)
             for aspect in getattr(chart, "aspects", []) or []:
-                if _is_structural_tautology(aspect):
+                if not aspect_is_displayable(
+                    aspect,
+                    use_houses=use_houses,
+                    known_positions=getattr(chart, "positions", {}) or {},
+                ):
                     continue
                 raw_p1 = aspect.get("p1", "")
                 raw_p2 = aspect.get("p2", "")
-                if raw_p1 in angular_bodies and raw_p2 in angular_bodies:
-                    continue
-                if not use_houses and (
-                    raw_p1 in angular_bodies or raw_p2 in angular_bodies
-                ):
-                    continue
                 p1 = self._similarities_body_label(raw_p1)
                 p2 = self._similarities_body_label(raw_p2)
                 aspect_type = aspect.get("type", "")
@@ -8369,14 +8377,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 include = label in top_three
             elif section_title == "Aspects in common":
                 for aspect in getattr(chart, "aspects", []) or []:
-                    if _is_structural_tautology(aspect):
+                    if not aspect_is_displayable(
+                        aspect,
+                        use_houses=use_houses,
+                        known_positions=getattr(chart, "positions", {}) or {},
+                    ):
                         continue
                     raw_p1 = aspect.get("p1", "")
                     raw_p2 = aspect.get("p2", "")
-                    if raw_p1 in {"AS", "MC", "DS", "IC"} and raw_p2 in {"AS", "MC", "DS", "IC"}:
-                        continue
-                    if not use_houses and (raw_p1 in {"AS", "MC", "DS", "IC"} or raw_p2 in {"AS", "MC", "DS", "IC"}):
-                        continue
                     p1 = self._similarities_body_label(raw_p1)
                     p2 = self._similarities_body_label(raw_p2)
                     aspect_type = aspect.get("type", "")
@@ -17727,21 +17735,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if chart is None:
             return float("-inf")
         use_houses = _chart_uses_houses(chart)
-        angular_bodies = {"AS", "MC", "DS", "IC"}
         houses = getattr(chart, "houses", None) if use_houses else None
         aspects = getattr(chart, "aspects", None) or []
-        filtered_aspects = [
-            aspect
-            for aspect in aspects
-            if not _is_structural_tautology(aspect)
-            and (
-                use_houses
-                or (
-                    aspect.get("p1") not in angular_bodies
-                    and aspect.get("p2") not in angular_bodies
-                )
+        filtered_aspects = list(
+            iter_displayable_aspects(
+                aspects,
+                use_houses=use_houses,
+                known_positions=getattr(chart, "positions", {}) or {},
             )
-        ]
+        )
         if not filtered_aspects:
             return float("-inf")
 
@@ -26451,14 +26453,13 @@ class MainWindow(QMainWindow):
             "| --- | --- | --- | ---: | ---: | ---: |",
         ])
         aspects = getattr(chart, "aspects", None) or []
-        filtered_aspects = [asp for asp in aspects if not _is_structural_tautology(asp)]
-        if not use_houses:
-            angular_bodies = {"AS", "MC", "DS", "IC"}
-            filtered_aspects = [
-                asp
-                for asp in filtered_aspects
-                if asp.get("p1") not in angular_bodies and asp.get("p2") not in angular_bodies
-            ]
+        filtered_aspects = list(
+            iter_displayable_aspects(
+                aspects,
+                use_houses=use_houses,
+                known_positions=getattr(chart, "positions", {}) or {},
+            )
+        )
         dominant_planet_weights = getattr(chart, "dominant_planet_weights", None)
         if not dominant_planet_weights:
             dominant_planet_weights = _calculate_dominant_planet_weights(chart)
@@ -31798,7 +31799,13 @@ class MainWindow(QMainWindow):
         chart_info_output = self._build_popout_left_panel(
             layout,
             chart_info_placeholder="Click the ⓘ next to a position or aspect to see details/interpretation.",
-            aspect_entries=list(getattr(self._latest_chart, "aspects", []) or []),
+            aspect_entries=list(
+                iter_displayable_aspects(
+                    getattr(self._latest_chart, "aspects", []) or [],
+                    use_houses=_chart_uses_houses(self._latest_chart),
+                    known_positions=getattr(self._latest_chart, "positions", {}) or {},
+                )
+            ),
             export_file_stem=f"{_sanitize_export_token(self._latest_chart.name)}-natal_aspect_distribution",
             weighted_score_for_entry=_weighted_natal_score,
         )
@@ -31948,7 +31955,13 @@ class MainWindow(QMainWindow):
         chart_info_output = self._build_popout_left_panel(
             layout,
             chart_info_placeholder="Click a center on the bodygraph to see center info here.",
-            aspect_entries=list(getattr(self._latest_chart, "aspects", []) or []),
+            aspect_entries=list(
+                iter_displayable_aspects(
+                    getattr(self._latest_chart, "aspects", []) or [],
+                    use_houses=_chart_uses_houses(self._latest_chart),
+                    known_positions=getattr(self._latest_chart, "positions", {}) or {},
+                )
+            ),
             export_file_stem=f"{_sanitize_export_token(self._latest_chart.name)}-natal_aspect_distribution",
             weighted_score_for_entry=_weighted_natal_score,
             show_aspect_distribution=False,

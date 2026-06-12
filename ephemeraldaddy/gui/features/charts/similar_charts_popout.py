@@ -51,6 +51,7 @@ from ephemeraldaddy.analysis.get_astro_twin import (
     normalize_placement_weighting_mode,
     normalize_similar_charts_algorithm_mode,
 )
+from ephemeraldaddy.core.aspect_display import display_aspect_key
 from ephemeraldaddy.core.chart import chart_uses_houses
 from ephemeraldaddy.core.interpretations import (
     ALIGNMENT_SCALE,
@@ -320,7 +321,6 @@ _SIMILARITY_TOKEN_COLORS.update(
 _NAKSHATRA_INDEX_BY_NAME: dict[str, int] = {
     str(name): idx for idx, (name, *_range_data) in enumerate(NAKSHATRA_RANGES)
 }
-_ANGLE_POINTS: frozenset[str] = frozenset({"AS", "IC", "MC", "DS"})
 _DEFAULT_ALGORITHM_COMPONENT_WEIGHTS: dict[str, float] = {
     "placement": 0.38,
     "aspect": 0.27,
@@ -544,12 +544,6 @@ def build_similar_charts_export_lines(
     return lines
 
 
-def _is_tautological_node_opposition(p1: str, p2: str, aspect_type: str) -> bool:
-    if str(aspect_type).strip().lower() != "opposition":
-        return False
-    return {str(p1).strip(), str(p2).strip()} == {"Rahu", "Ketu"}
-
-
 def _house_for_longitude(houses: list[float] | None, longitude: float | None) -> int | None:
     if not houses or longitude is None or len(houses) < 12:
         return None
@@ -716,30 +710,25 @@ def _differing_placement_labels_with_weight_details(
     return differences
 
 
-def _common_aspect_labels(subject_chart: Any, compared_chart: Any) -> list[str]:
-    def _canonical(aspect: dict[str, Any]) -> tuple[tuple[str, str], str] | None:
-        p1 = str(aspect.get("p1") or "").strip()
-        p2 = str(aspect.get("p2") or "").strip()
-        aspect_type = str(aspect.get("type") or "").strip().lower()
-        if not p1 or not p2 or not aspect_type:
-            return None
-        if p1 in _ANGLE_POINTS and p2 in _ANGLE_POINTS:
-            return None
-        if _is_tautological_node_opposition(p1, p2, aspect_type):
-            return None
-        left, right = sorted((p1, p2))
-        return (left, right), aspect_type
+def _chart_display_aspect_key(aspect: dict[str, Any], chart: Any) -> tuple[tuple[str, str], str] | None:
+    return display_aspect_key(
+        aspect,
+        use_houses=chart_uses_houses(chart),
+        known_positions=getattr(chart, "positions", None) or None,
+    )
 
-    subject_keys = {
+
+def _chart_display_aspect_keys(chart: Any) -> set[tuple[tuple[str, str], str]]:
+    return {
         key
-        for aspect in (getattr(subject_chart, "aspects", None) or [])
-        if (key := _canonical(aspect)) is not None
+        for aspect in (getattr(chart, "aspects", None) or [])
+        if (key := _chart_display_aspect_key(aspect, chart)) is not None
     }
-    common_keys = {
-        key
-        for aspect in (getattr(compared_chart, "aspects", None) or [])
-        if (key := _canonical(aspect)) is not None and key in subject_keys
-    }
+
+
+def _common_aspect_labels(subject_chart: Any, compared_chart: Any) -> list[str]:
+    subject_keys = _chart_display_aspect_keys(subject_chart)
+    common_keys = _chart_display_aspect_keys(compared_chart) & subject_keys
     labels: list[str] = []
     for (left, right), aspect_type in sorted(common_keys):
         labels.append(f"{left} {_aspect_label(aspect_type).lower()} {right}")
@@ -747,25 +736,12 @@ def _common_aspect_labels(subject_chart: Any, compared_chart: Any) -> list[str]:
 
 
 def _common_aspect_labels_with_relevance(subject_chart: Any, compared_chart: Any) -> list[tuple[str, float]]:
-    def _canonical(aspect: dict[str, Any]) -> tuple[tuple[str, str], str] | None:
-        p1 = str(aspect.get("p1") or "").strip()
-        p2 = str(aspect.get("p2") or "").strip()
-        aspect_type = str(aspect.get("type") or "").strip().lower()
-        if not p1 or not p2 or not aspect_type:
-            return None
-        if p1 in _ANGLE_POINTS and p2 in _ANGLE_POINTS:
-            return None
-        if _is_tautological_node_opposition(p1, p2, aspect_type):
-            return None
-        left, right = sorted((p1, p2))
-        return (left, right), aspect_type
-
     def _aspect_base_weight(chart: Any, key: tuple[tuple[str, str], str]) -> float:
         (left, right), aspect_type = key
         planet_weights = getattr(chart, "dominant_planet_weights", None) or None
         matching_orbs: list[float] = []
         for aspect in (getattr(chart, "aspects", None) or []):
-            canonical = _canonical(aspect)
+            canonical = _chart_display_aspect_key(aspect, chart)
             if canonical != key:
                 continue
             matching_orbs.append(abs(float(aspect.get("delta", 0.0) or 0.0)))
@@ -791,16 +767,8 @@ def _common_aspect_labels_with_relevance(subject_chart: Any, compared_chart: Any
         )
         return orb_weighted_base if orb_weighted_base > 0.0 else fallback_base
 
-    subject_keys = {
-        key
-        for aspect in (getattr(subject_chart, "aspects", None) or [])
-        if (key := _canonical(aspect)) is not None
-    }
-    common_keys = {
-        key
-        for aspect in (getattr(compared_chart, "aspects", None) or [])
-        if (key := _canonical(aspect)) is not None and key in subject_keys
-    }
+    subject_keys = _chart_display_aspect_keys(subject_chart)
+    common_keys = _chart_display_aspect_keys(compared_chart) & subject_keys
     sorted_keys = sorted(common_keys)
     if not sorted_keys:
         return []
@@ -824,25 +792,12 @@ def _common_aspect_labels_with_relevance(subject_chart: Any, compared_chart: Any
 
 
 def _common_aspect_labels_with_weight_details(subject_chart: Any, compared_chart: Any) -> list[str]:
-    def _canonical(aspect: dict[str, Any]) -> tuple[tuple[str, str], str] | None:
-        p1 = str(aspect.get("p1") or "").strip()
-        p2 = str(aspect.get("p2") or "").strip()
-        aspect_type = str(aspect.get("type") or "").strip().lower()
-        if not p1 or not p2 or not aspect_type:
-            return None
-        if p1 in _ANGLE_POINTS and p2 in _ANGLE_POINTS:
-            return None
-        if _is_tautological_node_opposition(p1, p2, aspect_type):
-            return None
-        left, right = sorted((p1, p2))
-        return (left, right), aspect_type
-
     def _aspect_base_weight(chart: Any, key: tuple[tuple[str, str], str]) -> tuple[float, float, float]:
         (left, right), aspect_type = key
         planet_weights = getattr(chart, "dominant_planet_weights", None) or None
         matching_orbs: list[float] = []
         for aspect in (getattr(chart, "aspects", None) or []):
-            canonical = _canonical(aspect)
+            canonical = _chart_display_aspect_key(aspect, chart)
             if canonical != key:
                 continue
             matching_orbs.append(abs(float(aspect.get("delta", 0.0) or 0.0)))
@@ -865,16 +820,8 @@ def _common_aspect_labels_with_weight_details(subject_chart: Any, compared_chart
         base_weight = orb_weighted_base if orb_weighted_base > 0.0 else fallback_base
         return base_weight, type_weight, pair_weight
 
-    subject_keys = {
-        key
-        for aspect in (getattr(subject_chart, "aspects", None) or [])
-        if (key := _canonical(aspect)) is not None
-    }
-    common_keys = {
-        key
-        for aspect in (getattr(compared_chart, "aspects", None) or [])
-        if (key := _canonical(aspect)) is not None and key in subject_keys
-    }
+    subject_keys = _chart_display_aspect_keys(subject_chart)
+    common_keys = _chart_display_aspect_keys(compared_chart) & subject_keys
     sorted_keys = sorted(common_keys)
     if not sorted_keys:
         return []
@@ -923,29 +870,8 @@ def _differing_aspect_labels(subject_chart: Any, compared_chart: Any) -> list[st
     subject_label = _chart_possessive_label(subject_chart, "Chart 1")
     compared_label = _chart_possessive_label(compared_chart, "Chart 2")
 
-    def _canonical(aspect: dict[str, Any]) -> tuple[tuple[str, str], str] | None:
-        p1 = str(aspect.get("p1") or "").strip()
-        p2 = str(aspect.get("p2") or "").strip()
-        aspect_type = str(aspect.get("type") or "").strip().lower()
-        if not p1 or not p2 or not aspect_type:
-            return None
-        if p1 in _ANGLE_POINTS and p2 in _ANGLE_POINTS:
-            return None
-        if _is_tautological_node_opposition(p1, p2, aspect_type):
-            return None
-        left, right = sorted((p1, p2))
-        return (left, right), aspect_type
-
-    subject_keys = {
-        key
-        for aspect in (getattr(subject_chart, "aspects", None) or [])
-        if (key := _canonical(aspect)) is not None
-    }
-    compared_keys = {
-        key
-        for aspect in (getattr(compared_chart, "aspects", None) or [])
-        if (key := _canonical(aspect)) is not None
-    }
+    subject_keys = _chart_display_aspect_keys(subject_chart)
+    compared_keys = _chart_display_aspect_keys(compared_chart)
     only_subject = sorted(subject_keys - compared_keys)
     only_compared = sorted(compared_keys - subject_keys)
     differences: list[str] = []

@@ -21,6 +21,7 @@ from ephemeraldaddy.analysis.get_astro_twin import (
     normalize_similar_charts_algorithm_mode,
 )
 from ephemeraldaddy.analysis.human_design_reference import canonicalize_hd_authority_label
+from ephemeraldaddy.core.aspect_display import ASPECT_DISPLAY_ANGLE_BODIES, aspect_is_displayable
 from ephemeraldaddy.core.chart import Chart
 from ephemeraldaddy.core.interpretations import NATAL_WEIGHT, PLANET_ORDER
 from ephemeraldaddy.gui.features.charts.metrics import (
@@ -32,7 +33,7 @@ from ephemeraldaddy.gui.features.charts.metrics import (
 )
 from ephemeraldaddy.gui.features.charts.presentation import get_nakshatra, sign_for_longitude
 from ephemeraldaddy.gui.features.charts.similarities_export import similarities_label_has_excluded_bodies
-from ephemeraldaddy.gui.features.charts.text_summary import _aspect_label, _is_structural_tautology
+from ephemeraldaddy.gui.features.charts.text_summary import _aspect_label
 
 
 @dataclass(slots=True)
@@ -251,7 +252,7 @@ def _build_similarity_factor_counts(
     charts = [chart for chart in charts if chart is not None]
     chart_count = len(charts)
     time_specific_chart_count = sum(1 for chart in charts if chart_uses_houses(chart))
-    angular_bodies = {"AS", "MC", "DS", "IC"}
+    angular_bodies = ASPECT_DISPLAY_ANGLE_BODIES
 
     sections: dict[str, tuple[dict[str, int], dict[str, int]]] = {}
 
@@ -329,15 +330,16 @@ def _build_similarity_factor_counts(
             add("Dominant nakshatras in contrast", name)
 
         chart_aspects: dict[str, int] = {}
+        positions = getattr(chart, "positions", {}) or {}
         for aspect in getattr(chart, "aspects", []) or []:
-            if _is_structural_tautology(aspect):
+            if not aspect_is_displayable(
+                aspect,
+                use_houses=use_houses,
+                known_positions=positions,
+            ):
                 continue
             raw_p1 = aspect.get("p1", "")
             raw_p2 = aspect.get("p2", "")
-            if raw_p1 in angular_bodies and raw_p2 in angular_bodies:
-                continue
-            if not use_houses and (raw_p1 in angular_bodies or raw_p2 in angular_bodies):
-                continue
             p1_label = provider._similarities_body_label(raw_p1)
             p2_label = provider._similarities_body_label(raw_p2)
             aspect_type = aspect.get("type", "")

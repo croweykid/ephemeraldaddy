@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.figure import Figure
 from matplotlib.patches import Circle
+from ephemeraldaddy.core.aspect_display import iter_displayable_aspects
 from ephemeraldaddy.core.chart import chart_uses_houses
 from ephemeraldaddy.gui.style import DARK_THEME
 
@@ -30,33 +31,13 @@ TRANSIT_OUTER_GLYPH_COLOR = "#ff0000" #red outer glyphs (event transit or person
 CHARTWHEEL_SIGN_SLICE_ALPHA = 0.36  # 36% softer zodiac-slice backgrounds for glyph/line legibility
 
 
-ANGULAR_BODIES = frozenset({"AS", "MC", "DS", "IC"})
-
-
-def _normalize_aspect_body(body):
-    return str(body or "").strip()
-
-
-def _is_structural_aspect_tautology(asp):
-    """Return True for house/axis aspects hidden from the textual Aspects list."""
-    asp_type = str(asp.get("type", "")).replace(" ", "_").lower()
-    pair = frozenset(
-        {_normalize_aspect_body(asp.get("p1")), _normalize_aspect_body(asp.get("p2"))}
+def _iter_relevant_chart_aspects(chart, *, use_houses):
+    positions = getattr(chart, "positions", {}) or {}
+    yield from iter_displayable_aspects(
+        getattr(chart, "aspects", []) or [],
+        use_houses=use_houses,
+        known_positions=positions,
     )
-    if asp_type == "opposition":
-        return pair in {
-            frozenset({"AS", "DS"}),
-            frozenset({"MC", "IC"}),
-            frozenset({"Rahu", "Ketu"}),
-        }
-    if asp_type == "square":
-        return pair in {
-            frozenset({"AS", "MC"}),
-            frozenset({"AS", "IC"}),
-            frozenset({"MC", "DS"}),
-            frozenset({"DS", "IC"}),
-        }
-    return False
 
 
 def _aspect_endpoint_xy(longitude_deg, radius):
@@ -70,20 +51,6 @@ def _aspect_endpoint_xy(longitude_deg, radius):
     """
     theta = np.radians(float(longitude_deg) % 360.0)
     return radius * np.cos(theta), -radius * np.sin(theta)
-
-
-def _iter_relevant_chart_aspects(chart, *, use_houses):
-    positions = getattr(chart, "positions", {}) or {}
-    for asp in getattr(chart, "aspects", []) or []:
-        p1 = asp.get("p1")
-        p2 = asp.get("p2")
-        if p1 not in positions or p2 not in positions:
-            continue
-        if _is_structural_aspect_tautology(asp):
-            continue
-        if not use_houses and (p1 in ANGULAR_BODIES or p2 in ANGULAR_BODIES):
-            continue
-        yield asp
 
 
 def _overlay_aspect_entry(overlay_asp):
