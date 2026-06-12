@@ -26,6 +26,7 @@ from ephemeraldaddy.core.interpretations import (
 from ephemeraldaddy.gui.style import (
     CHART_DATA_COLON_LABELS,
     CHART_DATA_COMMON_LABELS,
+    CHART_DATA_DIVIDER,
     CHART_DATA_DND_SUBHEADER_BOLD,
     CHART_DATA_DND_SUBHEADER_NOTE_BOLD,
     CHART_DATA_DND_SUBHEADER_NOTE_ITALIC,
@@ -172,6 +173,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         self._emphasize_dnd_class_headers = bool(emphasize_dnd_class_headers)
         self._emphasize_species_info_headers = bool(emphasize_species_info_headers)
         self._human_design_synastry_mode = bool(human_design_synastry_mode)
+        self._section_header_names = {header.upper() for header in CHART_DATA_SECTION_HEADERS}
         self._unknown_format = QTextCharFormat()
         self._unknown_format.setForeground(QColor("#666666"))
         self._unknown_format.setFontItalic(True)
@@ -904,6 +906,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                 self.setFormat(start_qt, length_qt, text_format)
 
         self._apply_hd_gate_side_color(text, stripped_text)
+        self._apply_positions_row_colors(text, stripped_text)
         if stripped_text.startswith("Environment:"):
             environment_value = stripped_text.partition(":")[2].strip().removesuffix("ⓘ").strip()
             environment_color_key = environment_value.split("(", 1)[0].strip().title()
@@ -912,6 +915,95 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                 name_start = text.find(environment_value)
                 if name_start >= 0:
                     self.setFormat(self._qt_index(text, name_start), self._qt_len(environment_value), environment_fmt)
+
+
+    def _current_chart_data_section(self) -> str:
+        block = self.currentBlock()
+        while block.isValid():
+            block_text = block.text().strip()
+            normalized_block_text = block_text.upper()
+            if normalized_block_text in self._section_header_names:
+                return normalized_block_text
+            block = block.previous()
+        return ""
+
+    def _planet_format_for_body_cell(self, body_cell: str) -> QTextCharFormat | None:
+        normalized_body_cell = body_cell.strip()
+        if not normalized_body_cell:
+            return None
+        for body, text_format in sorted(
+            self._planet_formats.items(), key=lambda item: len(item[0]), reverse=True
+        ):
+            glyph = PLANET_GLYPHS.get(body)
+            if body in normalized_body_cell or (glyph and glyph in normalized_body_cell):
+                return text_format
+        for alias, text_format in sorted(
+            self._planet_alias_formats.items(), key=lambda item: len(item[0]), reverse=True
+        ):
+            if alias in normalized_body_cell:
+                return text_format
+        return None
+
+    @staticmethod
+    def _split_padded_columns(text: str) -> list[tuple[str, int, int]]:
+        columns: list[tuple[str, int, int]] = []
+        cursor = 0
+        for separator in re.finditer(r" {2,}", text):
+            if separator.start() > cursor:
+                columns.append((text[cursor:separator.start()], cursor, separator.start()))
+            cursor = separator.end()
+        if cursor < len(text):
+            columns.append((text[cursor:], cursor, len(text)))
+        return columns
+
+    def _apply_positions_row_colors(self, text: str, stripped_text: str) -> None:
+        if self._current_chart_data_section() != "POSITIONS":
+            return
+        if not stripped_text or stripped_text == "POSITIONS" or stripped_text == CHART_DATA_DIVIDER:
+            return
+        columns = self._split_padded_columns(text.rstrip())
+        if len(columns) < 4:
+            return
+
+        has_info_icon = columns[-1][0].strip() == "ⓘ"
+        data_columns = columns[:-1] if has_info_icon else columns
+        if len(data_columns) < 4:
+            return
+
+        body_text = data_columns[0][0].strip()
+        sign_text, _sign_start, _sign_end = data_columns[1]
+        degree_text, degree_start, degree_end = data_columns[2]
+        sign_name = sign_text.strip()
+        degree_value = degree_text.strip()
+        sign_format = self._sign_formats.get(sign_name)
+        if sign_format is None or not re.fullmatch(r"\d{1,2}°\d{2}'(?:\s+\(Я\))?", degree_value):
+            return
+
+        self.setFormat(
+            self._qt_index(text, degree_start),
+            self._qt_len(text[degree_start:degree_end]),
+            sign_format,
+        )
+
+        if len(data_columns) >= 6:
+            gate_line_text, gate_line_start, gate_line_end = data_columns[5]
+            if re.fullmatch(r"\d{1,2}\.[1-6]", gate_line_text.strip()):
+                self.setFormat(
+                    self._qt_index(text, gate_line_start),
+                    self._qt_len(text[gate_line_start:gate_line_end]),
+                    sign_format,
+                )
+
+        if has_info_icon:
+            icon_text, icon_start, _icon_end = columns[-1]
+            icon_offset = icon_text.find("ⓘ")
+            body_format = self._planet_format_for_body_cell(body_text)
+            if icon_offset != -1 and body_format is not None:
+                self.setFormat(
+                    self._qt_index(text, icon_start + icon_offset),
+                    self._qt_len("ⓘ"),
+                    body_format,
+                )
 
     def _highlight_planet_glyphs(self, text: str) -> None:
         for glyph, text_format in self._planet_glyph_formats.items():
