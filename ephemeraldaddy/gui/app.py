@@ -20343,6 +20343,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._similar_charts_algo_comprehensive_radio = similarity_controls["comprehensive_radio"]
         self._similar_charts_algo_all_or_nothing_radio = similarity_controls["all_or_nothing_radio"]
         self._similar_charts_algo_custom_radio = similarity_controls["custom_radio"]
+        self._similarity_calculator_custom_fields_frame = similarity_controls["custom_fields_frame"]
         self._similarity_calculator_checkboxes = similarity_controls["calculator_checkboxes"]
         self._similarity_calculator_weights = similarity_controls["calculator_weights"]
         self._similarity_calculator_total_label = similarity_controls["calculator_total_label"]
@@ -20480,6 +20481,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         all_or_nothing_radio = getattr(self, "_similar_charts_algo_all_or_nothing_radio", None)
         custom_radio = getattr(self, "_similar_charts_algo_custom_radio", None)
         all_or_nothing_combo = getattr(self, "_similarity_calculator_all_or_nothing_component_combo", None)
+        custom_fields_frame = getattr(self, "_similarity_calculator_custom_fields_frame", None)
         if (
             default_radio is None
             or generic_astro_radio is None
@@ -20500,6 +20502,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         custom_radio.setChecked(normalized == SIMILAR_CHARTS_ALGORITHM_CUSTOM)
         if isinstance(all_or_nothing_combo, QComboBox):
             all_or_nothing_combo.setVisible(normalized == SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING)
+        if isinstance(custom_fields_frame, QWidget):
+            custom_fields_frame.setVisible(normalized == SIMILAR_CHARTS_ALGORITHM_CUSTOM)
         del blocker_default
         del blocker_generic_astro
         del blocker_comprehensive
@@ -20563,6 +20567,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             all_or_nothing_combo.setVisible(
                 getattr(self, "_similar_charts_algorithm_mode", SIMILAR_CHARTS_ALGORITHM_DEFAULT)
                 == SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING
+            )
+        custom_fields_frame = getattr(self, "_similarity_calculator_custom_fields_frame", None)
+        if isinstance(custom_fields_frame, QWidget):
+            custom_fields_frame.setVisible(
+                getattr(self, "_similar_charts_algorithm_mode", SIMILAR_CHARTS_ALGORITHM_DEFAULT)
+                == SIMILAR_CHARTS_ALGORITHM_CUSTOM
             )
         granular_checkbox = getattr(self, "_astrotwin_granular_explanation_checkbox", None)
         if isinstance(granular_checkbox, QCheckBox):
