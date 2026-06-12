@@ -1248,6 +1248,9 @@ from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
     set_enneagram_category_weights as _set_enneagram_category_weights,
     set_enneagram_scoring_options as _set_enneagram_scoring_options,
 )
+from ephemeraldaddy.gui.features.charts.distinguishing_factors import (
+    build_distinguishing_factors_html as _build_distinguishing_factors_html,
+)
 from ephemeraldaddy.gui.features.charts.dnd_predictions import (
     build_dnd_statblock_popout_info_html as _build_dnd_statblock_popout_info_html,
     configure_dnd_top_three_summary_label as _configure_dnd_top_three_summary_label,
@@ -31131,6 +31134,8 @@ class MainWindow(QMainWindow):
         self.enneagram_prediction_canvas = None
         self.dnd_prediction_statblock_canvas = None
         self.dnd_prediction_top_three_label = None
+        if getattr(self, "distinguishing_factors_label", None) is not None:
+            self.distinguishing_factors_label.setText("Database distinction scan: —")
         self.chart_type_label = None #this might be in the wrong order - should mayb ebe below planet_dynamics_summary_label
         self.planet_dynamics_summary_label = None
         if getattr(self, "enneagram_prediction_tritype_label", None) is not None:
@@ -31539,6 +31544,32 @@ class MainWindow(QMainWindow):
             calculate_house_weights=_similarity_house_dominance_weights,
             chart_uses_houses=_chart_uses_houses,
         )
+
+    def _prediction_norm_charts(self) -> list[Chart]:
+        norm_charts: list[Chart] = []
+        for row in getattr(self, "_chart_rows", ()) or ():
+            try:
+                chart_id = int(row[0])
+            except Exception:
+                continue
+            chart = self._get_chart_for_filter(chart_id)
+            if chart is None or self._is_placeholder_chart(chart):
+                continue
+            norm_charts.append(chart)
+        return norm_charts
+
+    def _render_distinguishing_factors(self, chart: Chart | None) -> None:
+        label = getattr(self, "distinguishing_factors_label", None)
+        if label is None:
+            return
+        if chart is None or self._is_placeholder_chart(chart):
+            label.setText(
+                "<span style='color:#f5f5f5;'>"
+                + ("No chart loaded." if chart is None else "No data for placeholder/hypothetical charts.")
+                + "</span>"
+            )
+            return
+        label.setText(_build_distinguishing_factors_html(chart, self._prediction_norm_charts()))
 
     def _draw_enneagram_predictions(self, ax, chart: Chart) -> None:
         _draw_enneagram_predictions_chart(

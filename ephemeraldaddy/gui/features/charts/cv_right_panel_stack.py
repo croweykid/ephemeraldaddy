@@ -462,6 +462,9 @@ def schedule_chart_render_for_active_right_panel(owner: object) -> None:
         render_token = _chart_right_panel_prediction_render_token(owner, chart)
         if state is not None and state.last_render_chart_token == render_token:
             return
+        render_distinguishing = getattr(owner, "_render_distinguishing_factors", None)
+        if callable(render_distinguishing):
+            render_distinguishing(chart)
         owner._render_enneagram_predictions(chart)
         owner._render_dndification_predictions(chart)
         if state is not None:
