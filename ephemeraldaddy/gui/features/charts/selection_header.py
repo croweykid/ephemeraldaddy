@@ -37,6 +37,7 @@ class SelectionSummaryCounts:
     search_results: int
     current_collection: int
     database: int
+    hidden_selected: int = 0
 
     @classmethod
     def from_values(
@@ -46,14 +47,21 @@ class SelectionSummaryCounts:
         search_results: object,
         current_collection: object,
         database: object,
+        hidden_selected: object = 0,
     ) -> "SelectionSummaryCounts":
         """Build clamped integer counts from UI-provided values."""
 
+        normalized_selected = _coerce_non_negative_int(selected)
+        normalized_hidden = min(
+            normalized_selected,
+            _coerce_non_negative_int(hidden_selected),
+        )
         return cls(
-            selected=_coerce_non_negative_int(selected),
+            selected=normalized_selected,
             search_results=_coerce_non_negative_int(search_results),
             current_collection=_coerce_non_negative_int(current_collection),
             database=_coerce_non_negative_int(database),
+            hidden_selected=normalized_hidden,
         )
 
 
@@ -68,8 +76,16 @@ def format_selection_summary(
 
     collection_id = normalize_collection_id(active_collection_id)
     has_filtered_results = bool(active_filters)
+    hidden_selected = counts.hidden_selected
+    visible_selected = max(0, counts.selected - hidden_selected)
 
     if collection_id == DEFAULT_COLLECTION_ALL:
+        if hidden_selected > 0:
+            return (
+                f"Charts Selected: {counts.selected} total, {visible_selected} visible "
+                f"in {counts.search_results} results. {hidden_selected} hidden by filters. "
+                f"{counts.database} in database"
+            )
         if has_filtered_results:
             return (
                 f"Charts Selected: {counts.selected} of {counts.search_results} results. "
@@ -81,6 +97,13 @@ def format_selection_summary(
         collection_id,
         custom_collections=custom_collections,
     )
+    if hidden_selected > 0:
+        return (
+            f"Charts Selected: {counts.selected} total, {visible_selected} visible "
+            f"in {counts.search_results} results. {hidden_selected} hidden by filters. "
+            f"{counts.current_collection} in {collection_name} collection. "
+            f"({counts.database} in database)"
+        )
     if has_filtered_results:
         return (
             f"Charts Selected: {counts.selected} of {counts.search_results} results. "
@@ -104,9 +127,18 @@ def format_selection_summary_html(
     prefix = f"<b>{escape(_SELECTION_SUMMARY_PREFIX)}</b>"
     collection_id = normalize_collection_id(active_collection_id)
     has_filtered_results = bool(active_filters)
+    hidden_selected = counts.hidden_selected
+    visible_selected = max(0, counts.selected - hidden_selected)
+    hidden_by_filters = _highlight_summary_text(f"{hidden_selected} hidden by filters")
     #highlighted_database = _highlight_summary_text("database") #swap "database" with "{highlighted_database}" if yo wat to use this
 
     if collection_id == DEFAULT_COLLECTION_ALL:
+        if hidden_selected > 0:
+            return (
+                f"{prefix} {counts.selected} total, {visible_selected} visible "
+                f"in {counts.search_results} results. {hidden_by_filters}. "
+                f"{counts.database} in database"
+            )
         if has_filtered_results:
             return (
                 f"{prefix} {counts.selected} of {counts.search_results} results. "
@@ -120,6 +152,13 @@ def format_selection_summary_html(
             custom_collections=custom_collections,
         )
     )
+    if hidden_selected > 0:
+        return (
+            f"{prefix} {counts.selected} total, {visible_selected} visible "
+            f"in {counts.search_results} results. {hidden_by_filters}. "
+            f"{counts.current_collection} in {collection_name} collection. "
+            f"({counts.database} in database)"
+        )
     if has_filtered_results:
         return (
             f"{prefix} {counts.selected} of {counts.search_results} results. "

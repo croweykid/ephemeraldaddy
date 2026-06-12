@@ -5,12 +5,19 @@ from ephemeraldaddy.gui.features.charts.selection_header import (
 )
 
 
-def _counts(selected=2, search_results=5, current_collection=7, database=11):
+def _counts(
+    selected=2,
+    search_results=5,
+    current_collection=7,
+    database=11,
+    hidden_selected=0,
+):
     return SelectionSummaryCounts.from_values(
         selected=selected,
         search_results=search_results,
         current_collection=current_collection,
         database=database,
+        hidden_selected=hidden_selected,
     )
 
 
@@ -78,4 +85,32 @@ def test_custom_collection_name_is_used_and_counts_are_hardened():
             },
         )
         == "Charts Selected: 0 of 0 results. 3 in Favorites collection. (0 in database)"
+    )
+
+
+def test_all_collection_filtered_shows_hidden_selection_count():
+    assert (
+        format_selection_summary(
+            counts=_counts(selected=2, search_results=8, database=11, hidden_selected=1),
+            active_collection_id="all",
+            active_filters=True,
+        )
+        == "Charts Selected: 2 total, 1 visible in 8 results. 1 hidden by filters. 11 in database"
+    )
+
+
+def test_non_all_collection_filtered_shows_hidden_selection_count():
+    assert (
+        format_selection_summary(
+            counts=_counts(
+                selected=3,
+                search_results=8,
+                current_collection=9,
+                database=11,
+                hidden_selected=2,
+            ),
+            active_collection_id="personal",
+            active_filters=True,
+        )
+        == "Charts Selected: 3 total, 1 visible in 8 results. 2 hidden by filters. 9 in Personal collection. (11 in database)"
     )

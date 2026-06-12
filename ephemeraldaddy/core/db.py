@@ -6,6 +6,7 @@ import json
 import csv
 import shutil
 import sqlite3
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -49,6 +50,7 @@ BODY_DYNAMICS_ROLE_VALUES: set[str] = {"antagonist", "enabler", "escalator"}
 
 CHART_DB_EXPORT_LOCKED_COLUMNS: set[str] = {
     "id",
+    "chart_uid",
     "name",
     "datetime_iso",
     "birth_place",
@@ -78,6 +80,7 @@ CHART_EXPORT_LABEL_OVERRIDES: dict[str, str] = {
 }
 
 CHART_EXPORT_DEFAULTS: dict[str, Any] = {
+    "chart_uid": "",
     "body_dynamics_roles": "",
     "alias": "",
     "from_whence": "",
@@ -246,7 +249,9 @@ def _is_personal_chart_type_for_age_inference(value: Optional[str]) -> bool:
     return normalized in {CHART_TYPE_PERSONAL, SOURCE_USER_SUBMITTED}
 
 
-SCHEMA_VERSION = 14
+SCHEMA_VERSION = 15
+
+CHART_UID_LENGTH = 16
 
 _SENTIMENT_CANONICAL_BY_KEY = {
     option.strip().lower(): option for option in SENTIMENT_OPTIONS
@@ -276,11 +281,53 @@ def _charts_table_exists(conn: sqlite3.Connection) -> bool:
     return row is not None
 
 
+def _normalize_chart_uid(value: Any) -> str | None:
+    text = str(value or "").strip().upper()
+    if not text:
+        return None
+    normalized = "".join(character for character in text if character.isalnum())
+    if len(normalized) < 8:
+        return None
+    return normalized[:64]
+
+
+def _generate_chart_uid(existing_uids: set[str] | None = None) -> str:
+    existing = existing_uids if existing_uids is not None else set()
+    while True:
+        candidate = uuid.uuid4().hex[:CHART_UID_LENGTH].upper()
+        if candidate not in existing:
+            existing.add(candidate)
+            return candidate
+
+
+def _ensure_chart_uids(conn: sqlite3.Connection) -> None:
+    if not _charts_table_exists(conn):
+        return
+    columns = _table_columns(conn, "charts")
+    if "chart_uid" not in columns:
+        conn.execute("ALTER TABLE charts ADD COLUMN chart_uid TEXT")
+
+    rows = conn.execute("SELECT id, chart_uid FROM charts ORDER BY id ASC").fetchall()
+    seen: set[str] = set()
+    for chart_id, raw_uid in rows:
+        normalized_uid = _normalize_chart_uid(raw_uid)
+        if normalized_uid is None or normalized_uid in seen:
+            normalized_uid = _generate_chart_uid(seen)
+        else:
+            seen.add(normalized_uid)
+        if normalized_uid != raw_uid:
+            conn.execute(
+                "UPDATE charts SET chart_uid = ? WHERE id = ?",
+                (normalized_uid, int(chart_id)),
+            )
+
+
 def _create_charts_table(conn: sqlite3.Connection) -> None:
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS charts (
             id                INTEGER PRIMARY KEY AUTOINCREMENT,
+            chart_uid         TEXT,
             name              TEXT NOT NULL,
             alias             TEXT,
             from_whence       TEXT,
@@ -375,6 +422,13 @@ def _create_indexes(conn: sqlite3.Connection) -> None:
         ON charts(birth_month, birth_day)
         """
     )
+    conn.execute(
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_charts_chart_uid
+        ON charts(chart_uid)
+        WHERE chart_uid IS NOT NULL AND chart_uid != ''
+        """
+    )
 
 
 def _create_duplicate_exclusions_table(conn: sqlite3.Connection) -> None:
@@ -417,6 +471,13 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
     columns = _table_columns(conn, "charts")
     added_year_first_encountered = False
     added_familiarity = False
+    if "chart_uid" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE charts
+            ADD COLUMN chart_uid TEXT
+            """
+        )
     if "is_current" not in columns:
         conn.execute(
             """
@@ -890,6 +951,7 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
 
     _ensure_alignment_score_nullable(conn)
     _ensure_sentiment_metrics_nullable(conn)
+    _ensure_chart_uids(conn)
 
     if added_year_first_encountered:
         _sync_year_first_encountered_from_age(conn)
@@ -1076,6 +1138,13 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
         if _charts_table_exists(conn):
             _clear_dominant_weight_caches(conn)
         conn.execute("PRAGMA user_version = 14")
+        user_version = 14
+
+    if user_version < 15:
+        _migrate_charts_columns(conn)
+        _ensure_chart_uids(conn)
+        _create_indexes(conn)
+        conn.execute("PRAGMA user_version = 15")
 
 
 def _get_conn() -> sqlite3.Connection:
@@ -2111,6 +2180,13 @@ def append_database(source: Path) -> dict[str, Any]:
         source_columns = _table_columns(source_conn, "charts")
         target_max_id_row = target_conn.execute("SELECT COALESCE(MAX(id), 0) FROM charts").fetchone()
         target_max_id = int(target_max_id_row[0] or 0) if target_max_id_row else 0
+        target_uids = {
+            str(row[0]).strip().upper()
+            for row in target_conn.execute(
+                "SELECT chart_uid FROM charts WHERE chart_uid IS NOT NULL AND chart_uid != ''"
+            ).fetchall()
+            if str(row[0]).strip()
+        }
 
         source_rows = source_conn.execute("SELECT * FROM charts ORDER BY id ASC").fetchall()
         now_iso = datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -2134,6 +2210,28 @@ def append_database(source: Path) -> dict[str, Any]:
                     )
 
                 new_chart_id = target_max_id + source_id
+                source_chart_uid = _normalize_chart_uid(
+                    row["chart_uid"] if "chart_uid" in source_columns else None
+                )
+                if source_chart_uid is None:
+                    new_chart_uid = _generate_chart_uid(target_uids)
+                elif source_chart_uid in target_uids:
+                    new_chart_uid = _generate_chart_uid(target_uids)
+                    warned += 1
+                    issues.append(
+                        {
+                            "chart_id": new_chart_id,
+                            "name": str(row["name"] or "Unnamed") if "name" in source_columns else "Unnamed",
+                            "severity": "warning",
+                            "error": (
+                                "Imported chart UID collided with an existing chart; "
+                                "assigned a new UID while preserving the source row data."
+                            ),
+                        }
+                    )
+                else:
+                    new_chart_uid = source_chart_uid
+                    target_uids.add(new_chart_uid)
 
                 chart_name = (
                     str(row["name"]).strip()
@@ -2238,7 +2336,7 @@ def append_database(source: Path) -> dict[str, Any]:
                 target_conn.execute(
                     """
                     INSERT INTO charts
-                        (id, name, alias, from_whence, gender, birth_place, datetime_iso, tz_name,
+                        (id, chart_uid, name, alias, from_whence, gender, birth_place, datetime_iso, tz_name,
                          lat, lon, used_utc_fallback, sentiments, relationship_types, tags, comments, rectification_notes, biography, chart_data_source,
                          positive_sentiment_intensity, negative_sentiment_intensity, familiarity,
                          alignment_score, matched_expectations, familiarity_factors, age_when_first_met, year_first_encountered, data_rating,
@@ -2253,10 +2351,11 @@ def append_database(source: Path) -> dict[str, Any]:
                          is_placeholder, is_deceased, birth_month, birth_day, birth_year,
                          death_month, death_day, death_year, deathtime_unknown, death_hour, death_minute, death_place,
                          created_at, is_current)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         new_chart_id,
+                        new_chart_uid,
                         chart_name,
                         _row_value("alias"),
                         _row_value("from_whence"),
@@ -2586,6 +2685,20 @@ def save_chart(
             ),
         )
         chart_id = cur.lastrowid
+        chart_uid = _generate_chart_uid(
+            {
+                str(row[0]).strip().upper()
+                for row in conn.execute(
+                    "SELECT chart_uid FROM charts WHERE chart_uid IS NOT NULL AND chart_uid != ''"
+                ).fetchall()
+                if str(row[0]).strip()
+            }
+        )
+        conn.execute(
+            "UPDATE charts SET chart_uid = ? WHERE id = ?",
+            (chart_uid, int(chart_id)),
+        )
+        setattr(chart, "chart_uid", chart_uid)
     conn.close()
     return chart_id
 
@@ -2972,6 +3085,7 @@ def list_charts() -> List[
     ] = []
     for (
         chart_id,
+        chart_uid,
         name,
         alias,
         gender,
@@ -3135,6 +3249,34 @@ def delete_charts(chart_ids: List[int]) -> int:
     conn.close()
     return cur.rowcount
 
+def get_chart_uid_map(chart_ids: Iterable[int] | None = None) -> dict[int, str]:
+    """Return stable chart UIDs keyed by local integer chart id."""
+    conn = _get_conn()
+    try:
+        if chart_ids is None:
+            rows = conn.execute(
+                "SELECT id, chart_uid FROM charts WHERE chart_uid IS NOT NULL AND chart_uid != ''"
+            ).fetchall()
+        else:
+            normalized_ids = sorted({int(chart_id) for chart_id in chart_ids})
+            if not normalized_ids:
+                return {}
+            placeholders = ", ".join("?" for _ in normalized_ids)
+            rows = conn.execute(
+                f"SELECT id, chart_uid FROM charts WHERE id IN ({placeholders})",
+                tuple(normalized_ids),
+            ).fetchall()
+        return {int(chart_id): str(chart_uid) for chart_id, chart_uid in rows if chart_uid}
+    finally:
+        conn.close()
+
+
+def get_chart_uid(chart_id: int | None) -> str | None:
+    if chart_id is None:
+        return None
+    return get_chart_uid_map([int(chart_id)]).get(int(chart_id))
+
+
 def load_chart(chart_id: int):
     """
     Load a chart from the DB and reconstruct a Chart instance.
@@ -3160,7 +3302,7 @@ def load_chart(chart_id: int):
     )
     cur = conn.execute(
         f"""
-        SELECT name, alias, from_whence, gender, birth_place, datetime_iso, tz_name, lat, lon,
+        SELECT chart_uid, name, alias, from_whence, gender, birth_place, datetime_iso, tz_name, lat, lon,
                used_utc_fallback, sentiments, relationship_types,
                tags, comments, rectification_notes, biography, chart_data_source,
                positive_sentiment_intensity, negative_sentiment_intensity,
@@ -3260,6 +3402,8 @@ def load_chart(chart_id: int):
 
     if bool(is_placeholder):
         placeholder = SimpleNamespace()
+        placeholder.id = int(chart_id)
+        placeholder.chart_uid = str(chart_uid or "")
         placeholder.name = name
         placeholder.alias = alias
         placeholder.from_whence = from_whence
@@ -3354,6 +3498,8 @@ def load_chart(chart_id: int):
         dt = dt.replace(tzinfo=ZoneInfo(tz_name))
 
     chart = Chart(name, dt, lat, lon, tz=None, alias=alias, from_whence=from_whence)
+    chart.id = int(chart_id)
+    chart.chart_uid = str(chart_uid or "")
     chart.gender = gender
     chart.birth_place = birth_place
     chart.used_utc_fallback = bool(used_utc_fallback)
