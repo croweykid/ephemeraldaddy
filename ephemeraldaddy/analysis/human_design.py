@@ -264,6 +264,7 @@ def _build_hd_positions_lines(
         line_text = (
             f"{body_label:<{body_width}}  {sign_text:<11}  {activation.longitude:>8.3f}°  "
             f"{gl_text:<{gl_width}}  {color_text:<{c_width}}  {tone_text:<{t_width}}  {base_text:<{b_width}}"
+            " ⓘ"
         )
         lines.append(line_text)
         gl_start = line_text.find(gl_text)
@@ -271,14 +272,26 @@ def _build_hd_positions_lines(
         tone_start = line_text.find(tone_text, color_start + len(color_text)) if color_start != -1 else -1
         line_entries: list[dict[str, object]] = []
         if gl_start != -1:
+            first_gate_line_entry: dict[str, object] | None = None
             for gl_match in re.finditer(rf"(?<![\d.])({_GATE_NUMBER_PATTERN})\.([1-6])(?![\d.])", gl_text):
+                gate_line_entry = {
+                    "kind": "hd_gate_line",
+                    "gate": int(gl_match.group(1)),
+                    "line": int(gl_match.group(2)),
+                    "span_start": gl_start + gl_match.start(),
+                    "span_end": gl_start + gl_match.end(),
+                }
+                if first_gate_line_entry is None:
+                    first_gate_line_entry = gate_line_entry
+                line_entries.append(gate_line_entry)
+            icon_index = line_text.rfind("ⓘ")
+            if first_gate_line_entry is not None and icon_index != -1:
                 line_entries.append(
                     {
-                        "kind": "hd_gate_line",
-                        "gate": int(gl_match.group(1)),
-                        "line": int(gl_match.group(2)),
-                        "span_start": gl_start + gl_match.start(),
-                        "span_end": gl_start + gl_match.end(),
+                        **first_gate_line_entry,
+                        "span_start": icon_index,
+                        "span_end": icon_index + len("ⓘ"),
+                        "icon_index": icon_index,
                     }
                 )
         if color_start != -1:
