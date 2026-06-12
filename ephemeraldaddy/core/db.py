@@ -3085,7 +3085,6 @@ def list_charts() -> List[
     ] = []
     for (
         chart_id,
-        chart_uid,
         name,
         alias,
         gender,
