@@ -408,11 +408,14 @@ def _chart_right_panel_prediction_render_token(owner: object, chart: object) -> 
     """Return a stable token for prediction renders in the right-panel tab."""
     cache_token = getattr(owner, "_chart_analytics_cache_token", None)
     if callable(cache_token):
-        return str(cache_token(chart))
-    chart_id = getattr(owner, "current_chart_id", None)
-    if chart_id is not None:
-        return f"id:{chart_id}"
-    return f"object:{id(chart)}"
+        chart_token = str(cache_token(chart))
+    else:
+        chart_id = getattr(owner, "current_chart_id", None)
+        chart_token = f"id:{chart_id}" if chart_id is not None else f"object:{id(chart)}"
+
+    norms_token_fn = getattr(owner, "_prediction_norms_render_token", None)
+    norms_token = str(norms_token_fn()) if callable(norms_token_fn) else "prediction_norms:unavailable"
+    return f"{chart_token}|{norms_token}"
 
 
 def _chart_right_panel_analytics_has_stale_sections(owner: object, chart: object) -> bool:
