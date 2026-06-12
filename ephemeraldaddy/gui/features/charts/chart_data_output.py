@@ -387,6 +387,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         }
         self._hd_gate_side_cache_revision = -1
         self._hd_gate_side_cache: dict[tuple[int, int], set[str]] = {}
+        self._hd_gate_only_side_cache: dict[int, set[str]] = {}
         self._hd_synastry_gate_owners: dict[int, set[str]] = {}
         self._hd_synastry_gate_line_owners: dict[tuple[int, int], set[str]] = {}
 
@@ -440,20 +441,38 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
             return self._hd_gate_side_cache
         all_text = document.toPlainText()
         gate_line_sides: dict[tuple[int, int], set[str]] = {}
+        gate_sides: dict[int, set[str]] = {}
         for text_line in all_text.splitlines():
-            activation_match = re.search(
-                r"^\s*(Personality|Design)\s+[A-Za-z]+\s+.+?\s+([1-9]|[1-5][0-9]|6[0-4])\.([1-6])\b",
-                text_line,
-            )
-            if not activation_match:
+            side_match = re.match(r"^\s*(?:(Personality|Design)|([PD])\.)\s+", text_line)
+            if not side_match:
                 continue
-            side_key = activation_match.group(1).strip().lower()
-            gate = int(activation_match.group(2))
-            line = int(activation_match.group(3))
-            gate_line_sides.setdefault((gate, line), set()).add(side_key)
+            side_token = (side_match.group(1) or side_match.group(2) or "").strip().lower()
+            side_key = {"p": "personality", "d": "design"}.get(side_token.rstrip("."), side_token)
+            if side_key not in {"personality", "design"}:
+                continue
+            for activation_match in re.finditer(
+                r"\b([1-9]|[1-5][0-9]|6[0-4])\.([1-6])\b",
+                text_line,
+            ):
+                gate = int(activation_match.group(1))
+                line = int(activation_match.group(2))
+                gate_line_sides.setdefault((gate, line), set()).add(side_key)
+                gate_sides.setdefault(gate, set()).add(side_key)
         self._hd_gate_side_cache_revision = revision
         self._hd_gate_side_cache = gate_line_sides
+        self._hd_gate_only_side_cache = gate_sides
         return gate_line_sides
+
+    def _get_hd_gate_sides(self) -> dict[int, set[str]]:
+        self._get_hd_gate_line_sides()
+        return self._hd_gate_only_side_cache
+
+    def _format_for_hd_sides(self, sides: set[str]) -> QTextCharFormat | None:
+        if "personality" in sides:
+            return self._hd_personality_gate_format
+        if "design" in sides:
+            return self._hd_design_gate_format
+        return None
 
     def _hd_time_variant_segment_formats(
         self,
@@ -490,7 +509,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         if not re.fullmatch(r"\d{1,3}(?:\.\d+)?°", degree_value):
             return
 
-        variant_columns = data_columns[3:7]
+        variant_columns = [data_columns[1], *data_columns[3:7]]
         parsed_variant_fields: list[tuple[int, re.Match[str], list[str]]] = []
         row_has_three_way_variant = False
         for value_text, value_start, _value_end in variant_columns:
@@ -522,25 +541,34 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
     def _apply_hd_gate_side_color(self, text: str, stripped_text: str) -> None:
         if not stripped_text:
             return
-        if not re.fullmatch(r"(?:\d{1,2}\.[1-6])(?:,\s*\d{1,2}\.[1-6])*", stripped_text):
+        current_section = self._current_chart_data_section()
+        if current_section not in {"GATES & LINES", "CHANNELS"}:
             return
-        gate_line_sides = self._get_hd_gate_line_sides()
-        for match in re.finditer(r"\b([1-9]|[1-5][0-9]|6[0-4])\.([1-6])\b", text):
-            gate = int(match.group(1))
-            line = int(match.group(2))
-            sides = gate_line_sides.get((gate, line), set())
-            if not sides:
-                continue
-            text_format = (
-                self._hd_personality_gate_format
-                if "personality" in sides
-                else self._hd_design_gate_format
-            )
-            self.setFormat(
-                self._qt_index(text, match.start(1)),
-                self._qt_len(match.group(1)),
-                text_format,
-            )
+        if current_section == "GATES & LINES":
+            gate_line_sides = self._get_hd_gate_line_sides()
+            for match in re.finditer(r"\b([1-9]|[1-5][0-9]|6[0-4])\.([1-6])\b", text):
+                gate = int(match.group(1))
+                line = int(match.group(2))
+                text_format = self._format_for_hd_sides(gate_line_sides.get((gate, line), set()))
+                if text_format is None:
+                    continue
+                self.setFormat(
+                    self._qt_index(text, match.start(1)),
+                    self._qt_len(match.group(1)),
+                    text_format,
+                )
+            return
+        gate_sides = self._get_hd_gate_sides()
+        for match in re.finditer(r"\b([1-9]|[1-5][0-9]|6[0-4])-([1-9]|[1-5][0-9]|6[0-4])\b", text):
+            for group_index in (1, 2):
+                text_format = self._format_for_hd_sides(gate_sides.get(int(match.group(group_index)), set()))
+                if text_format is None:
+                    continue
+                self.setFormat(
+                    self._qt_index(text, match.start(group_index)),
+                    self._qt_len(match.group(group_index)),
+                    text_format,
+                )
 
     def _format_for_hd_synastry_owners(self, owners: set[str]) -> QTextCharFormat | None:
         if "chart_1" in owners:

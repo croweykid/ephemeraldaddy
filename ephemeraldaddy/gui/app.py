@@ -878,11 +878,14 @@ from ephemeraldaddy.analysis.human_design import (
     gate_lines_for_gate,
 )
 from ephemeraldaddy.analysis.hd_incarnation_crosses import find_cross_by_name
+from ephemeraldaddy.core.human_design_system import MANDALA_GATE_ORDER, MANDALA_START_DEGREE
 from ephemeraldaddy.analysis.human_design_reference import (
     HD_AUTHORITIES,
     HD_CENTERS,
     HD_CHANNELS,
     HD_COLORS,
+    HD_BASES,
+    HD_CIRCUIT_GROUPS,
     HD_DIGESTION_NAMES,
     HD_ENVIRONMENT_COLORS,
     HD_ENVIRONMENTS,
@@ -27205,6 +27208,16 @@ class MainWindow(QMainWindow):
                             self._show_sign_keyword_info(
                                 str(entry.get("sign", "")),
                                 body_name=str(entry.get("body", "")),
+                                display_body_label=str(entry.get("display_body", "")),
+                            )
+                            return True
+                        if entry.get("kind") == "hd_position_body":
+                            self._show_planet_keyword_info(
+                                str(entry.get("body", "")),
+                                sign_name=str(entry.get("sign", "")),
+                                house_num=None,
+                                chart_uses_houses=False,
+                                display_body_label=str(entry.get("display_body", "")),
                             )
                             return True
                         if entry.get("kind") == "decan_keyword":
@@ -27250,6 +27263,9 @@ class MainWindow(QMainWindow):
                         if entry.get("kind") == "hd_tone":
                             self._show_human_design_tone_info(int(entry.get("tone", 0)))
                             return True
+                        if entry.get("kind") == "hd_base":
+                            self._show_human_design_base_info(int(entry.get("base", 0)))
+                            return True
                 selected_entry = None
                 icon_entries = [
                     entry
@@ -27288,6 +27304,18 @@ class MainWindow(QMainWindow):
                         return True
                     if selected_entry.get("kind") == "hd_tone":
                         self._show_human_design_tone_info(int(selected_entry.get("tone", 0)))
+                        return True
+                    if selected_entry.get("kind") == "hd_base":
+                        self._show_human_design_base_info(int(selected_entry.get("base", 0)))
+                        return True
+                    if selected_entry.get("kind") == "hd_position_body":
+                        self._show_planet_keyword_info(
+                            str(selected_entry.get("body", "")),
+                            sign_name=str(selected_entry.get("sign", "")),
+                            house_num=None,
+                            chart_uses_houses=False,
+                            display_body_label=str(selected_entry.get("display_body", "")),
+                        )
                         return True
                     self._show_position_info(
                         selected_entry["body"],
@@ -27619,9 +27647,10 @@ class MainWindow(QMainWindow):
         sign_name: str = "",
         house_num: int | None = None,
         chart_uses_houses: bool | None = None,
+        display_body_label: str = "",
     ) -> None:
         body_name = str(body or "").strip()
-        display_body = _display_body_name(body_name)
+        display_body = str(display_body_label or "").strip() or _display_body_name(body_name)
         verbs = PLANET_KEYWORDS.get(body_name, {}).get("verbs", [])
         clean_verbs = [str(item).strip() for item in verbs if str(item).strip()]
         if not clean_verbs:
@@ -27672,6 +27701,7 @@ class MainWindow(QMainWindow):
         sign_name: str,
         body_name: str = "",
         longitude: object | None = None,
+        display_body_label: str = "",
     ) -> None:
         sign_key = str(sign_name or "").strip().title()
         body_key = str(body_name or "").strip()
@@ -27699,7 +27729,7 @@ class MainWindow(QMainWindow):
         plain_fmt.setFontWeight(QFont.Normal)
         plain_fmt.setFontItalic(False)
 
-        display_body = _display_body_name(body_key) if body_key else "Body"
+        display_body = str(display_body_label or "").strip() or (_display_body_name(body_key) if body_key else "Body")
         cursor.insertText(f"{display_body} in {sign_key}\n\n", title_fmt)
         theme = DOMINANT_BODY_MEANINGS.get(body_key, {}).get("core_theme", "")
         if theme:
@@ -27748,6 +27778,48 @@ class MainWindow(QMainWindow):
         lines = [f"H{house_num}", "", *(f"• {keyword}" for keyword in clean_keywords)]
         self.chart_info_output.setPlainText("\n".join(lines))
 
+
+    @staticmethod
+    def _format_hd_zodiac_degree(longitude: float) -> str:
+        normalized = float(longitude) % 360.0
+        sign_index = int(normalized // 30) % 12
+        degree_in_sign = normalized - (sign_index * 30)
+        whole_degrees = int(degree_in_sign)
+        minutes = int(round((degree_in_sign - whole_degrees) * 60))
+        if minutes == 60:
+            whole_degrees += 1
+            minutes = 0
+        if whole_degrees == 30:
+            whole_degrees = 0
+            sign_index = (sign_index + 1) % 12
+        return f"{whole_degrees}°{minutes:02d}' {ZODIAC_NAMES[sign_index]}"
+
+    @classmethod
+    def _hd_gate_degree_range_text(cls, gate_number: int) -> str:
+        try:
+            gate_index = MANDALA_GATE_ORDER.index(int(gate_number))
+        except ValueError:
+            return "degree range unknown"
+        gate_width = 360.0 / 64.0
+        start_longitude = (MANDALA_START_DEGREE + (gate_index * gate_width)) % 360.0
+        end_longitude = (start_longitude + gate_width) % 360.0
+        return f"{cls._format_hd_zodiac_degree(start_longitude)}–{cls._format_hd_zodiac_degree(end_longitude)}"
+
+    @staticmethod
+    def _hd_gate_circuit_group(gate_number: int) -> str:
+        for group_name, group_data in HD_CIRCUIT_GROUPS.items():
+            gates = group_data.get("gates", ()) if isinstance(group_data, dict) else ()
+            try:
+                if int(gate_number) in {int(gate) for gate in gates}:
+                    return str(group_name).strip().lower()
+            except (TypeError, ValueError):
+                continue
+        return "circuit unknown"
+
+    @classmethod
+    def _hd_gate_header_suffix(cls, gate_number: int) -> str:
+        return f"{cls._hd_gate_circuit_group(gate_number)}, {cls._hd_gate_degree_range_text(gate_number)}"
+
     def _show_human_design_gate_line_info(
         self,
         gate: int,
@@ -27762,9 +27834,7 @@ class MainWindow(QMainWindow):
             {"name": "Unknown Gate", "meaning": "No gate reference available."},
         )
 
-        title = f"Gate {gate_number} • {gate_info['name']}"
-        if line_number is not None:
-            title = f"Gate {gate_number} • Line {line_number}"
+        title = f"Gate {gate_number} • {gate_info['name']} ({self._hd_gate_header_suffix(gate_number)})"
 
         self.chart_info_output.clear()
         cursor = self.chart_info_output.textCursor()
@@ -28256,6 +28326,25 @@ class MainWindow(QMainWindow):
                 f"• Meaning: {meaning}.",
             ],
             accent_color=accent_color,
+        )
+
+
+    def _show_human_design_base_info(self, base_value: int) -> None:
+        base_entry = next(
+            (
+                entry
+                for entry in HD_BASES
+                if isinstance(entry, dict) and int(entry.get("value", -1)) == int(base_value)
+            ),
+            {},
+        )
+        base_name = str(base_entry.get("name", "Unknown")).strip() or "Unknown"
+        self._set_human_design_info_text(
+            f"Base {base_value}: {base_name}",
+            [
+                "• B represents Human Design Base (1–5), the most granular subdivision shown in this output.",
+                f"• Name: {base_name}.",
+            ],
         )
 
     def _show_human_design_line_info(self, line_value: int) -> None:

@@ -213,6 +213,21 @@ def _activation_display_values(activation, variants: tuple[object, object, objec
     )
 
 
+def _sign_name_for_longitude(longitude: float) -> str:
+    return ZODIAC_NAMES[int((float(longitude) % 360.0) // 30) % 12]
+
+
+def _activation_sign_display_value(activation, variants: tuple[object, object, object] | None) -> str:
+    if variants is None:
+        return _sign_name_for_longitude(activation.longitude)
+    sign_tokens = tuple(_sign_name_for_longitude(item.longitude) for item in variants)
+    return _format_time_variant_field(sign_tokens)
+
+
+def _hd_activation_consciousness_label(side: str) -> str:
+    return "Conscious" if str(side).strip().lower() == "personality" else "Subconscious"
+
+
 _HD_ACTIVATION_SIDE_DISPLAY_ALIASES = {
     "personality": "P.",
     "design": "D.",
@@ -242,16 +257,21 @@ def _build_hd_positions_lines(
             activation,
             variant_lookup.get(_activation_key(activation)),
         )
-        activation_rows.append((activation, _hd_activation_body_display_label(activation), display_values))
+        sign_text = _activation_sign_display_value(
+            activation,
+            variant_lookup.get(_activation_key(activation)),
+        )
+        activation_rows.append((activation, _hd_activation_body_display_label(activation), sign_text, display_values))
     body_width = max(
         len("Body"),
-        *(len(body_label) for _activation, body_label, _display_values in activation_rows),
+        *(len(body_label) for _activation, body_label, _sign_text, _display_values in activation_rows),
     )
-    gl_width = max(7, *(len(display_values[0]) for _activation, _body_label, display_values in activation_rows))
-    c_width = max(1, *(len(display_values[1]) for _activation, _body_label, display_values in activation_rows))
-    t_width = max(1, *(len(display_values[2]) for _activation, _body_label, display_values in activation_rows))
-    b_width = max(1, *(len(display_values[3]) for _activation, _body_label, display_values in activation_rows))
-    header_line = f"{'Body':<{body_width}}  {'Sign':<11}  {'Degree':<11}  {'G/L':<{gl_width}}  {'C':<{c_width}}  {'T':<{t_width}}  {'B':<{b_width}}"
+    sign_width = max(11, *(len(sign_text) for _activation, _body_label, sign_text, _display_values in activation_rows))
+    gl_width = max(7, *(len(display_values[0]) for _activation, _body_label, _sign_text, display_values in activation_rows))
+    c_width = max(1, *(len(display_values[1]) for _activation, _body_label, _sign_text, display_values in activation_rows))
+    t_width = max(1, *(len(display_values[2]) for _activation, _body_label, _sign_text, display_values in activation_rows))
+    b_width = max(1, *(len(display_values[3]) for _activation, _body_label, _sign_text, display_values in activation_rows))
+    header_line = f"{'Body':<{body_width}}  {'Sign':<{sign_width}}  {'Degree':<11}  {'G/L':<{gl_width}}  {'C':<{c_width}}  {'T':<{t_width}}  {'B':<{b_width}}"
     lines = [
         "POSITIONS",
         CHART_DATA_DIVIDER,
@@ -259,18 +279,46 @@ def _build_hd_positions_lines(
         CHART_DATA_DIVIDER,
     ]
     info_map: dict[int, list[dict[str, object]]] = {}
-    for activation, body_label, (gl_text, color_text, tone_text, base_text) in activation_rows:
-        sign_text = ZODIAC_NAMES[int((activation.longitude % 360.0) // 30) % 12]
+    for activation, body_label, sign_text, (gl_text, color_text, tone_text, base_text) in activation_rows:
         line_text = (
-            f"{body_label:<{body_width}}  {sign_text:<11}  {activation.longitude:>8.3f}°  "
+            f"{body_label:<{body_width}}  {sign_text:<{sign_width}}  {activation.longitude:>8.3f}°  "
             f"{gl_text:<{gl_width}}  {color_text:<{c_width}}  {tone_text:<{t_width}}  {base_text:<{b_width}}"
             " ⓘ"
         )
         lines.append(line_text)
+        body_start = line_text.find(body_label)
+        sign_start = line_text.find(sign_text, body_start + len(body_label)) if body_start != -1 else line_text.find(sign_text)
         gl_start = line_text.find(gl_text)
         color_start = line_text.find(color_text, gl_start + len(gl_text))
         tone_start = line_text.find(tone_text, color_start + len(color_text)) if color_start != -1 else -1
+        base_start = line_text.find(base_text, tone_start + len(tone_text)) if tone_start != -1 else -1
         line_entries: list[dict[str, object]] = []
+        display_body_label = f"{activation.body} ({_hd_activation_consciousness_label(activation.side)})"
+        if body_start != -1:
+            line_entries.append(
+                {
+                    "kind": "hd_position_body",
+                    "body": str(activation.body),
+                    "side": str(activation.side),
+                    "sign": _sign_name_for_longitude(activation.longitude),
+                    "display_body": display_body_label,
+                    "span_start": body_start,
+                    "span_end": body_start + len(body_label),
+                }
+            )
+        if sign_start != -1:
+            for sign_match in re.finditer("|".join(re.escape(name) for name in ZODIAC_NAMES), sign_text):
+                sign_name = sign_match.group(0)
+                line_entries.append(
+                    {
+                        "kind": "sign_keyword",
+                        "sign": sign_name,
+                        "body": str(activation.body),
+                        "display_body": display_body_label,
+                        "span_start": sign_start + sign_match.start(),
+                        "span_end": sign_start + sign_match.end(),
+                    }
+                )
         if gl_start != -1:
             first_gate_line_entry: dict[str, object] | None = None
             for gl_match in re.finditer(rf"(?<![\d.])({_GATE_NUMBER_PATTERN})\.([1-6])(?![\d.])", gl_text):
@@ -295,25 +343,33 @@ def _build_hd_positions_lines(
                     }
                 )
         if color_start != -1:
-            first_color = color_text.split("->", 1)[0]
-            if first_color.isdigit():
+            for color_match in re.finditer(r"(?<!\d)([1-6])(?!\d)", color_text):
                 line_entries.append(
                     {
                         "kind": "hd_color",
-                        "color": int(first_color),
-                        "span_start": color_start,
-                        "span_end": color_start + len(first_color),
+                        "color": int(color_match.group(1)),
+                        "span_start": color_start + color_match.start(1),
+                        "span_end": color_start + color_match.end(1),
                     }
                 )
         if tone_start != -1:
-            first_tone = tone_text.split("->", 1)[0]
-            if first_tone.isdigit():
+            for tone_match in re.finditer(r"(?<!\d)([1-6])(?!\d)", tone_text):
                 line_entries.append(
                     {
                         "kind": "hd_tone",
-                        "tone": int(first_tone),
-                        "span_start": tone_start,
-                        "span_end": tone_start + len(first_tone),
+                        "tone": int(tone_match.group(1)),
+                        "span_start": tone_start + tone_match.start(1),
+                        "span_end": tone_start + tone_match.end(1),
+                    }
+                )
+        if base_start != -1:
+            for base_match in re.finditer(r"(?<!\d)([1-5])(?!\d)", base_text):
+                line_entries.append(
+                    {
+                        "kind": "hd_base",
+                        "base": int(base_match.group(1)),
+                        "span_start": base_start + base_match.start(1),
+                        "span_end": base_start + base_match.end(1),
                     }
                 )
         if line_entries:
