@@ -251,7 +251,7 @@ def _build_hd_positions_lines(
     c_width = max(1, *(len(display_values[1]) for _activation, _body_label, display_values in activation_rows))
     t_width = max(1, *(len(display_values[2]) for _activation, _body_label, display_values in activation_rows))
     b_width = max(1, *(len(display_values[3]) for _activation, _body_label, display_values in activation_rows))
-    header_line = f"{'Body':<{body_width}}  {'Sign':<11}  {'Longitude':<11}  {'G/L':<{gl_width}}  {'C':<{c_width}}  {'T':<{t_width}}  {'B':<{b_width}}"
+    header_line = f"{'Body':<{body_width}}  {'Sign':<11}  {'Degree':<11}  {'G/L':<{gl_width}}  {'C':<{c_width}}  {'T':<{t_width}}  {'B':<{b_width}}"
     lines = [
         "POSITIONS",
         CHART_DATA_DIVIDER,

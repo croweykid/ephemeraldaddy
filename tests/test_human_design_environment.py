@@ -81,6 +81,14 @@ def test_chart_data_environment_uses_correct_variable_sources(monkeypatch) -> No
     assert "Thirst  — Hot (Tone 3)" in property_values
 
 
+def test_positions_header_labels_longitude_as_degree() -> None:
+    lines, _info_map = hd_output._build_hd_positions_lines(_hd_result())
+    header_line = lines[2]
+
+    assert "Degree" in header_line
+    assert "Longitude" not in header_line
+
+
 def test_positions_lines_use_compact_side_display_aliases_only() -> None:
     lines, _info_map = hd_output._build_hd_positions_lines(_hd_result())
     rendered = "\n".join(lines)
