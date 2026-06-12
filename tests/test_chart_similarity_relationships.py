@@ -198,10 +198,85 @@ def test_relationship_migration_rekeys_existing_integer_relationships(tmp_path):
 
     content = json.loads(relationship_path.read_text(encoding="utf-8"))
     uid_key = "uid:ABC12345ZZZZ9999|uid:DEF67890YYYY8888"
+    backup_path = relationship_path.with_name("chart_similarity_relationships.pre_uid_migration.json")
+    backup_content = json.loads(backup_path.read_text(encoding="utf-8"))
+
+    assert backup_path.exists()
+    assert backup_content["relationships"]["1|2"]["relationship_key"] == "1|2"
     assert content["schema_version"] == 2
+    assert content["uid_migration"]["migrated_relationships"] == 1
     assert set(content["relationships"]) == {uid_key}
     assert content["relationships"][uid_key]["chart_ids"] == [1, 2]
+    assert content["relationships"][uid_key]["legacy_relationship_key"] == "1|2"
+    assert content["relationships"][uid_key]["legacy_chart_ids"] == [1, 2]
     assert content["relationships"][uid_key]["chart_uids"] == [
         "ABC12345ZZZZ9999",
         "DEF67890YYYY8888",
     ]
+
+
+def test_relationship_migration_can_resolve_ids_from_legacy_key_without_chart_ids(tmp_path):
+    from ephemeraldaddy.gui.features.charts.chart_similarity_relationships import (
+        migrate_chart_similarity_relationship_file_to_chart_uids,
+    )
+
+    relationship_path = tmp_path / "chart_similarity_relationships.json"
+    relationship_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "relationships": {
+                    "12|4": {
+                        "relationship_key": "12|4",
+                        "user_reported_accuracy": 60,
+                        "user_perceived_similarity_score": 60,
+                        "not_applicable": False,
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    migrate_chart_similarity_relationship_file_to_chart_uids(
+        chart_id_to_uid={4: "FOURUID00000001", 12: "TWELVEUID000001"},
+        path=relationship_path,
+    )
+
+    content = json.loads(relationship_path.read_text(encoding="utf-8"))
+    uid_key = "uid:FOURUID00000001|uid:TWELVEUID000001"
+    assert set(content["relationships"]) == {uid_key}
+    assert content["relationships"][uid_key]["chart_ids"] == [12, 4]
+    assert content["relationships"][uid_key]["chart_uids"] == [
+        "TWELVEUID000001",
+        "FOURUID00000001",
+    ]
+    assert content["relationships"][uid_key]["legacy_relationship_key"] == "12|4"
+
+
+def test_relationship_migration_leaves_unmapped_relationships_unchanged(tmp_path):
+    from ephemeraldaddy.gui.features.charts.chart_similarity_relationships import (
+        migrate_chart_similarity_relationship_file_to_chart_uids,
+    )
+
+    relationship_path = tmp_path / "chart_similarity_relationships.json"
+    original_payload = {
+        "schema_version": 1,
+        "relationships": {
+            "1|999": {
+                "relationship_key": "1|999",
+                "chart_ids": [1, 999],
+                "user_reported_accuracy": 45,
+                "not_applicable": False,
+            }
+        },
+    }
+    relationship_path.write_text(json.dumps(original_payload), encoding="utf-8")
+
+    migrate_chart_similarity_relationship_file_to_chart_uids(
+        chart_id_to_uid={1: "ONEUID000000001"},
+        path=relationship_path,
+    )
+
+    assert json.loads(relationship_path.read_text(encoding="utf-8")) == original_payload
+    assert not relationship_path.with_name("chart_similarity_relationships.pre_uid_migration.json").exists()

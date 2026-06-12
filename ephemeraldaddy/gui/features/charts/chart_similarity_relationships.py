@@ -114,6 +114,42 @@ def _read_relationship_file(path: Path) -> dict[str, Any]:
     return payload
 
 
+def _legacy_chart_ids_from_key(key: object) -> tuple[int | None, int | None]:
+    parts = str(key or "").split("|")
+    if len(parts) < 2:
+        return None, None
+    return _coerce_chart_id(parts[0]), _coerce_chart_id(parts[1])
+
+
+def _backup_relationship_file_before_uid_migration(path: Path) -> Path | None:
+    if not path.exists():
+        return None
+    backup_path = path.with_name(f"{path.stem}.pre_uid_migration{path.suffix}")
+    if backup_path.exists():
+        return backup_path
+    backup_path.write_bytes(path.read_bytes())
+    return backup_path
+
+
+def _chart_ids_from_relationship_state(
+    state: Mapping[str, Any],
+    relationship_key: object,
+) -> tuple[int | None, int | None]:
+    chart_ids = state.get("chart_ids") if isinstance(state.get("chart_ids"), list) else []
+    first_id = _coerce_chart_id(chart_ids[0]) if len(chart_ids) > 0 else None
+    second_id = _coerce_chart_id(chart_ids[1]) if len(chart_ids) > 1 else None
+    if first_id is not None and second_id is not None:
+        return first_id, second_id
+
+    first_id, second_id = _legacy_chart_ids_from_key(relationship_key)
+    if first_id is not None and second_id is not None:
+        return first_id, second_id
+
+    legacy_key = state.get("legacy_relationship_key")
+    first_id, second_id = _legacy_chart_ids_from_key(legacy_key)
+    return first_id, second_id
+
+
 def save_chart_similarity_relationship(
     *,
     chart_1_id: int | None,
@@ -196,36 +232,58 @@ def migrate_chart_similarity_relationship_file_to_chart_uids(
     }
     migrated: dict[str, Any] = {}
     changed = False
+    migrated_count = 0
+    unmapped_count = 0
     for original_key, raw_state in relationships.items():
         if not isinstance(raw_state, Mapping):
             migrated[str(original_key)] = raw_state
             continue
         state = dict(raw_state)
-        chart_ids = state.get("chart_ids") if isinstance(state.get("chart_ids"), list) else []
-        first_id = _coerce_chart_id(chart_ids[0]) if len(chart_ids) > 0 else None
-        second_id = _coerce_chart_id(chart_ids[1]) if len(chart_ids) > 1 else None
-        first_uid = _coerce_chart_uid((state.get("chart_uids") or [None, None])[0]) if isinstance(state.get("chart_uids"), list) and len(state.get("chart_uids") or []) > 0 else None
-        second_uid = _coerce_chart_uid((state.get("chart_uids") or [None, None])[1]) if isinstance(state.get("chart_uids"), list) and len(state.get("chart_uids") or []) > 1 else None
+        first_id, second_id = _chart_ids_from_relationship_state(state, original_key)
+        chart_uids = state.get("chart_uids") if isinstance(state.get("chart_uids"), list) else []
+        first_uid = (
+            _coerce_chart_uid(chart_uids[0]) if len(chart_uids) > 0 else None
+        )
+        second_uid = (
+            _coerce_chart_uid(chart_uids[1]) if len(chart_uids) > 1 else None
+        )
         first_uid = first_uid or (normalized_map.get(first_id) if first_id is not None else None)
         second_uid = second_uid or (normalized_map.get(second_id) if second_id is not None else None)
+
+        if first_id is None or second_id is None or not first_uid or not second_uid:
+            unmapped_count += 1
+            migrated[str(original_key)] = state
+            continue
+
         new_key = chart_similarity_relationship_key(
             chart_1_id=first_id,
             chart_2_id=second_id,
             chart_1_uid=first_uid,
             chart_2_uid=second_uid,
         )
-        if first_uid and second_uid:
-            state["chart_uids"] = [first_uid, second_uid]
+        state["chart_ids"] = [first_id, second_id]
+        state["chart_uids"] = [first_uid, second_uid]
+        if str(original_key) != new_key:
+            state.setdefault("legacy_relationship_key", str(original_key))
+            state.setdefault("legacy_chart_ids", [first_id, second_id])
         state["relationship_key"] = new_key
         if new_key != original_key or state != raw_state:
             changed = True
-        migrated[new_key if new_key != "unknown|unknown" else str(original_key)] = state
+            migrated_count += 1
+        migrated[new_key] = state
 
     if changed:
         relationships_path.parent.mkdir(parents=True, exist_ok=True)
+        backup_path = _backup_relationship_file_before_uid_migration(relationships_path)
         timestamp_text = _utc_timestamp()
         payload["schema_version"] = 2
         payload["relationships"] = migrated
+        payload["uid_migration"] = {
+            "migrated_at_utc": timestamp_text,
+            "migrated_relationships": migrated_count,
+            "unmapped_relationships": unmapped_count,
+            "backup_path": str(backup_path) if backup_path is not None else "",
+        }
         payload["updated_at_utc"] = timestamp_text
         temporary_path = relationships_path.with_suffix(relationships_path.suffix + ".tmp")
         temporary_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -326,10 +384,8 @@ def load_chart_similarity_relationship_states(
         return states
     for key, state in relationships.items():
         if isinstance(state, Mapping):
-            chart_ids = state.get("chart_ids") if isinstance(state.get("chart_ids"), list) else []
+            first_id, second_id = _chart_ids_from_relationship_state(state, key)
             chart_uids = state.get("chart_uids") if isinstance(state.get("chart_uids"), list) else []
-            first_id = chart_ids[0] if len(chart_ids) > 0 else None
-            second_id = chart_ids[1] if len(chart_ids) > 1 else None
             first_uid = chart_uids[0] if len(chart_uids) > 0 else None
             second_uid = chart_uids[1] if len(chart_uids) > 1 else None
             normalized_key = chart_similarity_relationship_key(
