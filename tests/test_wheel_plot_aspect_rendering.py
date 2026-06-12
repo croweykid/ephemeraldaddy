@@ -6,6 +6,7 @@ import matplotlib
 matplotlib.use("Agg")
 
 import pytest
+from matplotlib.backend_bases import MouseEvent
 from matplotlib.figure import Figure
 
 
@@ -87,3 +88,34 @@ def test_structural_axis_tautologies_are_hidden_from_chart_wheel_aspects():
     expected_end = _aspect_endpoint_xy(90, 0.65)
     assert tuple(line.get_xdata()) == pytest.approx((expected_start[0], expected_end[0]))
     assert tuple(line.get_ydata()) == pytest.approx((expected_start[1], expected_end[1]))
+
+
+def test_hovering_aspect_endpoint_shows_endpoint_aspect_label():
+    chart = SimpleNamespace(
+        name="Endpoint hover test",
+        positions={"Sun": 30.0, "Moon": 90.0},
+        aspects=[
+            {"p1": "Sun", "p2": "Moon", "type": "sextile", "angle": 60.0, "delta": 0.0},
+        ],
+        birthtime_unknown=False,
+    )
+    fig = Figure(figsize=(4, 4))
+
+    draw_chart_wheel(fig, chart, show_title=False)
+    fig.canvas.draw()
+
+    aspect_axes = _cartesian_aspect_axes(fig)
+    endpoint_xy = _aspect_endpoint_xy(30, 0.65)
+    endpoint_display_xy = aspect_axes.transData.transform(endpoint_xy)
+    event = MouseEvent(
+        "motion_notify_event",
+        fig.canvas,
+        endpoint_display_xy[0],
+        endpoint_display_xy[1],
+    )
+
+    fig.canvas.callbacks.process("motion_notify_event", event)
+
+    visible_labels = [text.get_text() for text in aspect_axes.texts if text.get_visible()]
+    assert any("Sun: Taurus 00°00'" in label for label in visible_labels)
+    assert any("Sun Sextile Moon" in label for label in visible_labels)

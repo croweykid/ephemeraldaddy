@@ -97,6 +97,18 @@ def _overlay_aspect_entry(overlay_asp):
             "type": str(aspect_type),
             "lon1_deg": float(lon1) % 360.0,
             "lon2_deg": float(lon2) % 360.0,
+            "p1": str(
+                overlay_asp.get("p1")
+                or overlay_asp.get("body1")
+                or overlay_asp.get("endpoint1_label")
+                or "Endpoint 1"
+            ),
+            "p2": str(
+                overlay_asp.get("p2")
+                or overlay_asp.get("body2")
+                or overlay_asp.get("endpoint2_label")
+                or "Endpoint 2"
+            ),
         },
         float(overlay_asp.get("score", 1.0)),
     )
@@ -140,6 +152,34 @@ def _format_degree_minutes(value):
         deg += 1
         minutes = 0
     return f"{deg:02d}°{minutes:02d}'"
+
+def _format_aspect_type_label(aspect_type):
+    return str(aspect_type or "Aspect").replace("_", " ").title()
+
+
+def _aspect_endpoint_position_label(body, lon_deg):
+    normalized_lon = float(lon_deg) % 360.0
+    sign_index = int(normalized_lon // 30.0) % 12
+    sign_name = ZODIAC_NAMES[sign_index]
+    return f"{body}: {sign_name} {_format_degree_minutes(normalized_lon % 30.0)}"
+
+
+def _aspect_endpoint_hover_label(*, endpoint_body, other_body, aspect_type, lon_deg):
+    aspect_label = _format_aspect_type_label(aspect_type)
+    return "\n".join(
+        (
+            _aspect_endpoint_position_label(endpoint_body, lon_deg),
+            f"{endpoint_body} {aspect_label} {other_body}",
+        )
+    )
+
+
+def _aspect_endpoint_body_labels(asp):
+    return (
+        str(asp.get("p1") or asp.get("body1") or asp.get("endpoint1_label") or "Endpoint 1"),
+        str(asp.get("p2") or asp.get("body2") or asp.get("endpoint2_label") or "Endpoint 2"),
+    )
+
 
 def _draw_chart_wheel(
     fig,
@@ -328,6 +368,7 @@ def _draw_chart_wheel(
     outer_base_r_label = 1.20
     plotted_angles = {"inner": [], "outer": []}
     hover_targets = []
+    aspect_endpoint_hover_targets = []
 
     outer_bodies = {
         "Chiron",
@@ -511,6 +552,29 @@ def _draw_chart_wheel(
 
         x1, y1 = _aspect_endpoint_xy(lon1_deg, r_aspect)
         x2, y2 = _aspect_endpoint_xy(lon2_deg, r_aspect)
+        body1, body2 = _aspect_endpoint_body_labels(asp)
+        aspect_endpoint_hover_targets.extend(
+            (
+                {
+                    "xy": (x1, y1),
+                    "label": _aspect_endpoint_hover_label(
+                        endpoint_body=body1,
+                        other_body=body2,
+                        aspect_type=asp_type,
+                        lon_deg=lon1_deg,
+                    ),
+                },
+                {
+                    "xy": (x2, y2),
+                    "label": _aspect_endpoint_hover_label(
+                        endpoint_body=body2,
+                        other_body=body1,
+                        aspect_type=asp_type,
+                        lon_deg=lon2_deg,
+                    ),
+                },
+            )
+        )
 
         if score_span <= 0:
             norm = 1.0
@@ -559,10 +623,65 @@ def _draw_chart_wheel(
     hover_note.set_clip_on(False)
     hover_note.set_visible(False)
 
+    endpoint_hover_note = ax_cart.annotate(
+        "",
+        xy=(0, 0),
+        xycoords="data",
+        textcoords="offset points",
+        xytext=(8, 8),
+        ha="left",
+        va="bottom",
+        fontsize=9 * symbol_scale,
+        color=DARK_THEME["foreground"],
+        bbox=dict(
+            boxstyle="round,pad=0.3",
+            fc=DARK_THEME["background"],
+            ec=DARK_THEME["foreground"],
+            lw=0.8,
+        ),
+        annotation_clip=False,
+    )
+    endpoint_hover_note.set_clip_on(False)
+    endpoint_hover_note.set_visible(False)
+
+    def _hide_hover_notes():
+        changed = False
+        if hover_note.get_visible():
+            hover_note.set_visible(False)
+            changed = True
+        if endpoint_hover_note.get_visible():
+            endpoint_hover_note.set_visible(False)
+            changed = True
+        return changed
+
     def _on_move(event):
         if event.x is None or event.y is None:
             return
         if fig.canvas is None:
+            return
+
+        endpoint_hit_radius_px = 9.0
+        endpoint_hits = []
+        for item in aspect_endpoint_hover_targets:
+            try:
+                endpoint_x, endpoint_y = ax_cart.transData.transform(item["xy"])
+            except Exception:
+                continue
+            if np.hypot(event.x - endpoint_x, event.y - endpoint_y) <= endpoint_hit_radius_px:
+                endpoint_hits.append(item)
+
+        if endpoint_hits:
+            first_hit = endpoint_hits[0]
+            labels = []
+            for hit in endpoint_hits:
+                label = hit["label"]
+                if label not in labels:
+                    labels.append(label)
+            hover_note.set_visible(False)
+            endpoint_hover_note.xy = first_hit["xy"]
+            endpoint_hover_note.set_text("\n---\n".join(labels[:4]))
+            endpoint_hover_note.set_visible(True)
+            fig.canvas.draw_idle()
             return
 
         renderer = fig.canvas.get_renderer()
@@ -597,12 +716,12 @@ def _draw_chart_wheel(
                 hover_note.set_text(
                     f"{item['body']}: {item['sign_name']} {_format_degree_minutes(degree_in_sign)}"
                 )
+                endpoint_hover_note.set_visible(False)
                 hover_note.set_visible(True)
                 fig.canvas.draw_idle()
                 return
 
-        if hover_note.get_visible():
-            hover_note.set_visible(False)
+        if _hide_hover_notes():
             fig.canvas.draw_idle()
 
     target_canvas = canvas or fig.canvas
