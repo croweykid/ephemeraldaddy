@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from PySide6.QtCore import QSize, Qt
+from PySide6.QtCore import QEvent, QObject, QSize, Qt, QTimer
 from PySide6.QtGui import QIcon, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QFileDialog,
@@ -20,6 +20,20 @@ from PySide6.QtWidgets import (
 )
 
 from ephemeraldaddy.gui.style import apply_button_cursor
+
+
+class _PopoutShareButtonPositioner(QObject):
+    """Keep a popout share/export button pinned after window layout changes."""
+
+    def __init__(self, output_widget: QPlainTextEdit, button: QToolButton) -> None:
+        super().__init__(button)
+        self._output_widget = output_widget
+        self._button = button
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if event.type() in (QEvent.Resize, QEvent.Show, QEvent.LayoutRequest):
+            position_popout_share_button(self._output_widget, self._button)
+        return super().eventFilter(watched, event)
 
 
 def register_popout_close_shortcuts(dialog: QWidget) -> None:
@@ -86,7 +100,16 @@ def attach_popout_share_button(
 
     share_button.clicked.connect(_export_clicked)
     share_button.resize(22, 22)
+
+    positioner = _PopoutShareButtonPositioner(output_widget, share_button)
+    share_button._popout_share_button_positioner = positioner
+    host_window = output_widget.window()
+    if isinstance(host_window, QWidget):
+        host_window.installEventFilter(positioner)
+    output_widget.viewport().installEventFilter(positioner)
+
     position_popout_share_button(output_widget, share_button)
+    QTimer.singleShot(0, lambda: position_popout_share_button(output_widget, share_button))
     return share_button
 
 
