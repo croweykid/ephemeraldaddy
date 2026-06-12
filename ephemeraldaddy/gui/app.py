@@ -2142,6 +2142,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._sort_descending = False
         self._chart_rows = []
         self._active_chart_rows_by_id: dict[int, tuple[Any, ...]] = {}
+        self._displayed_chart_rows_by_id: dict[int, tuple[Any, ...]] = {}
         self._prediction_norms_revision = 0
         self._chart_cache = {}
         # Dialog-side chart selection/render state mirrors MainWindow attributes
@@ -17927,6 +17928,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_total_count = len(display_database_rows)
         rows = [row for row in display_database_rows if self._chart_in_active_collection(row)]
         self._active_chart_rows_by_id = {int(row[0]): row for row in rows}
+        self._displayed_chart_rows_by_id = {}
         self._active_collection_total_count = len(rows)
         if self._sort_mode == "alpha":
             rows.sort(key=lambda r: (r[1] or "").lower(), reverse=self._sort_descending)
@@ -18018,6 +18020,28 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     matches_filters = False
                 if not matches_filters:
                     continue
+                self._displayed_chart_rows_by_id[int(cid)] = (
+                    cid,
+                    name,
+                    alias,
+                    gender,
+                    dt_iso,
+                    birth_place,
+                    _created_at,
+                    used_fallback,
+                    birthtime_unknown,
+                    retcon_time_used,
+                    _familiarity,
+                    _age_when_first_met,
+                    _year_first_encountered,
+                    _social_score,
+                    _source,
+                    is_placeholder,
+                    is_deceased,
+                    _birth_month,
+                    _birth_day,
+                    _birth_year,
+                )
                 display_name = name or "Unnamed"
                 chart = self._get_chart_for_filter(cid)
                 from_whence_text = ((getattr(chart, "from_whence", "") if chart is not None else "") or "").strip()
@@ -31550,13 +31574,17 @@ class MainWindow(QMainWindow):
         )
 
     def _prediction_norm_rows(self) -> list[Any]:
-        rows = getattr(self, "_chart_rows", None)
-        if rows:
-            return list(rows)
+        displayed_rows_by_id = getattr(self, "_displayed_chart_rows_by_id", None)
+        if displayed_rows_by_id is not None:
+            return list(displayed_rows_by_id.values())
         manage_dialog = getattr(self, "_manage_charts_dialog", None)
-        dialog_rows = getattr(manage_dialog, "_chart_rows", None) if manage_dialog is not None else None
-        if dialog_rows:
-            return list(dialog_rows)
+        dialog_displayed_rows_by_id = (
+            getattr(manage_dialog, "_displayed_chart_rows_by_id", None)
+            if manage_dialog is not None
+            else None
+        )
+        if dialog_displayed_rows_by_id is not None:
+            return list(dialog_displayed_rows_by_id.values())
         try:
             return list(list_charts())
         except Exception:
