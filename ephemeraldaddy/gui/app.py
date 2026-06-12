@@ -741,6 +741,10 @@ from ephemeraldaddy.gui.features.charts.tagging import (
 from ephemeraldaddy.gui.features.charts.tag_search import (
     chart_matches_tag_filters,
 )
+from ephemeraldaddy.gui.features.charts.search_text import (
+    database_search_text_is_active,
+    database_search_text_matches,
+)
 
 from ephemeraldaddy.gui.features.charts.database_analytics import DatabaseAnalyticsChartsMixin
 from ephemeraldaddy.gui.features.charts.db_analytics_panel import (
@@ -10558,7 +10562,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             and selected_human_design_type == "Any"
             and selected_human_design_profile == "Any"
             and not selected_human_design_defined_centers
-            and not self.search_text_input.text().strip()
+            and not database_search_text_is_active(self.search_text_input.text())
             and (
                 self._search_location_country_input is None
                 or not self._search_location_country_input.text().strip()
@@ -18236,7 +18240,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         birthtime_unknown_state = self.birthtime_unknown_checkbox.mode()
         retconned_state = self.retconned_checkbox.mode()
         living_state = self.living_checkbox.mode() if self.living_checkbox is not None else QuadStateSlider.MODE_EMPTY
-        search_text = self.search_text_input.text().strip()
+        search_text = self.search_text_input.text()
         search_country = (
             self._search_location_country_input.text().strip()
             if isinstance(self._search_location_country_input, QLineEdit)
@@ -18629,9 +18633,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 or search_state.casefold() not in canonical_state.casefold()
             ):
                 return False
-        if search_text:
+        if database_search_text_is_active(search_text):
             def matches(value: str | None) -> bool:
-                return bool(value) and search_text.casefold() in value.casefold()
+                return database_search_text_matches(search_text, value)
 
             name_value = chart_row[1] if chart_row else None
             alias_value = chart_row[2] if chart_row else None
