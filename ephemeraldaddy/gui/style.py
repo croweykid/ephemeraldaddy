@@ -526,6 +526,7 @@ CHART_DATA_COMMON_LABELS = (
     "Official Time:",
     "Retcon Time:",
     "Place:",
+    "Chart ID:",
     "Birthplace:",
     "Location:",
     "When/Where:",

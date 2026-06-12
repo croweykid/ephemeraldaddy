@@ -45,6 +45,7 @@ SETTINGS_KEY_PREDICTIONS_ALIGNMENT_DEFAULT_ZERO = (
     "similar_charts/predictions_alignment_default_zero_when_unassigned"
 )
 SETTINGS_KEY_WIKIPEDIA_BACKUP_SEARCH = "astrotheme/wikipedia_backup_search_enabled"
+SETTINGS_KEY_CHART_DATA_SHOW_CHART_UID = "developer_tools/chart_data_show_chart_uid"
 
 SETTINGS_KEY_DATABASE_VIEW_ROW_INFO = "manage_charts/database_view_row_info"
 SETTINGS_KEY_HIDE_HYPOTHETICAL_CHARTS = "manage_charts/hide_hypothetical_charts"
@@ -97,6 +98,12 @@ def _save_database_view_row_info_visibility(settings, visibility: dict[str, bool
         },
     )
 
+
+def _load_chart_data_show_chart_uid(settings, *, fallback: bool = False) -> bool:
+    return _settings_bool(
+        settings.value(SETTINGS_KEY_CHART_DATA_SHOW_CHART_UID, int(fallback)),
+        fallback,
+    )
 
 def _birth_components_form_complete_date(
     birth_month: object,
@@ -2097,6 +2104,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             SETTINGS_KEY_WIKIPEDIA_BACKUP_SEARCH,
             int(self._wikipedia_backup_search_enabled),
         )
+        self._chart_data_show_chart_uid = _load_chart_data_show_chart_uid(
+            self._settings,
+            fallback=False,
+        )
+        self._settings.setValue(
+            SETTINGS_KEY_CHART_DATA_SHOW_CHART_UID,
+            int(self._chart_data_show_chart_uid),
+        )
         self._database_view_row_info_visibility = _load_database_view_row_info_visibility(
             self._settings
         )
@@ -3000,7 +3015,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         return {
             "show_cursedness": self._visibility.get("chart_data.cursedness"),
             "show_dnd_output": False,
+            "show_chart_uid": bool(getattr(self, "_chart_data_show_chart_uid", False)),
         }
+
     def _expanded_database_metric_sections(self) -> list[str]:
         section_order = [
             "planetary_sign_prevalence",
@@ -20489,6 +20506,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         wikipedia_backup_search_checkbox.toggled.connect(self._on_wikipedia_backup_search_toggled)
         dev_tools_section.addWidget(wikipedia_backup_search_checkbox)
 
+        chart_data_uid_checkbox = QCheckBox("Chart Data Output: show chart UID")
+        chart_data_uid_checkbox.setChecked(
+            bool(getattr(self, "_chart_data_show_chart_uid", False))
+        )
+        chart_data_uid_checkbox.setToolTip(
+            "When enabled, Chart Data Output shows the current chart's unique ID in the header."
+        )
+        chart_data_uid_checkbox.toggled.connect(self._on_chart_data_show_chart_uid_toggled)
+        dev_tools_section.addWidget(chart_data_uid_checkbox)
+
         add_batch_tagging_terminal_debug_setting(
             section_layout=dev_tools_section,
             is_enabled=bool(getattr(self, "_batch_tagging_terminal_debug", BATCH_TAGGING_TERMINAL_DEBUG_DEFAULT)),
@@ -20838,6 +20865,21 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 SETTINGS_KEY_WIKIPEDIA_BACKUP_SEARCH,
                 int(self._wikipedia_backup_search_enabled),
             )
+
+    def _on_chart_data_show_chart_uid_toggled(self, checked: bool) -> None:
+        self._chart_data_show_chart_uid = bool(checked)
+        self._settings.setValue(
+            SETTINGS_KEY_CHART_DATA_SHOW_CHART_UID,
+            int(self._chart_data_show_chart_uid),
+        )
+        parent = self.parent()
+        if isinstance(parent, MainWindow):
+            parent._chart_data_show_chart_uid = self._chart_data_show_chart_uid
+            parent._settings.setValue(
+                SETTINGS_KEY_CHART_DATA_SHOW_CHART_UID,
+                int(self._chart_data_show_chart_uid),
+            )
+            parent._refresh_chart_summary()
 
     def _on_batch_tagging_terminal_debug_toggled(self, checked: bool) -> None:
         self._batch_tagging_terminal_debug = bool(checked)
@@ -22273,6 +22315,14 @@ class MainWindow(QMainWindow):
         self._settings.setValue(
             SETTINGS_KEY_WIKIPEDIA_BACKUP_SEARCH,
             int(self._wikipedia_backup_search_enabled),
+        )
+        self._chart_data_show_chart_uid = _load_chart_data_show_chart_uid(
+            self._settings,
+            fallback=False,
+        )
+        self._settings.setValue(
+            SETTINGS_KEY_CHART_DATA_SHOW_CHART_UID,
+            int(self._chart_data_show_chart_uid),
         )
         self._enneagram_predictions_debug = load_enneagram_predictions_debug_enabled(
             self._settings,
@@ -26567,6 +26617,7 @@ class MainWindow(QMainWindow):
         return {
             "show_cursedness": self._visibility.get("chart_data.cursedness"),
             "show_dnd_output": False,
+            "show_chart_uid": bool(getattr(self, "_chart_data_show_chart_uid", False)),
         }
 
     def _refresh_chart_summary(self, chart: Chart | None = None) -> None:
