@@ -124,16 +124,16 @@ def close_similar_charts_loading_progress(
 def _perceived_accuracy_status_text(state: Mapping[str, Any] | None) -> str:
     """Return the visible saved-rating status for a Similar Charts row."""
     if not isinstance(state, Mapping) or not state:
-        return "Not yet recorded"
+        return ""
     if bool(state.get("not_applicable", False)):
-        return "Recorded: n/a"
+        return f"Recorded: n/a"
     raw_score = state.get("user_reported_accuracy")
     if raw_score is None:
-        return "Recorded: blank"
+        return f"Recorded: blank"
     try:
         return f"Recorded: {max(0, min(100, int(raw_score)))}"
     except (TypeError, ValueError):
-        return "Recorded"
+        return f"Recorded"
 
 
 def _set_checkbox_checked_silently(checkbox: QCheckBox, checked: bool) -> None:
