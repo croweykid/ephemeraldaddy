@@ -276,6 +276,8 @@ def _overlay_aspect_segments(aspect_hits: list[Any]) -> list[dict[str, float | s
                 "lon2_deg": float(lon2),
                 "type": str(hit.aspect),
                 "score": float(getattr(hit, "exactness", 0.0)) * float(getattr(hit, "weight", 1.0)),
+                "p1": _display_body_name(getattr(hit.a, "name", "Endpoint 1")),
+                "p2": _display_body_name(getattr(hit.b, "name", "Endpoint 2")),
             }
         )
     return segments
