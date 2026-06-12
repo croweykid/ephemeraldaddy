@@ -508,6 +508,7 @@ from ephemeraldaddy.gui.features.charts.similarities_algorithm_log import (
 )
 from ephemeraldaddy.gui.features.charts.chart_similarity_relationships import (
     load_chart_similarity_relationship_states,
+    migrate_chart_similarity_relationship_file_to_chart_uids,
     save_chart_similarity_relationship,
 )
 from ephemeraldaddy.gui.window_placement import (
@@ -576,6 +577,7 @@ from ephemeraldaddy.core.db import (
     list_charts,
     load_chart,
     load_dominant_sign_weights,
+    get_chart_uid_map,
     delete_charts,
     invalidate_all_dominant_weight_caches,
     update_chart,
@@ -23896,6 +23898,9 @@ class MainWindow(QMainWindow):
         except (TypeError, ValueError):
             subject_chart_id = None
         compared_chart_id = self._extract_similar_match_chart_id(match)
+        chart_uid_map = get_chart_uid_map(
+            chart_id for chart_id in (subject_chart_id, compared_chart_id) if chart_id is not None
+        )
         compared_name = str(getattr(match, "chart_name", "") or f"Chart #{compared_chart_id or '?'}").strip()
         if not compared_name:
             compared_name = "Unknown chart"
@@ -23905,6 +23910,8 @@ class MainWindow(QMainWindow):
                 chart_1_name=subject_name,
                 chart_2_id=compared_chart_id,
                 chart_2_name=compared_name,
+                chart_1_uid=chart_uid_map.get(subject_chart_id) if subject_chart_id is not None else None,
+                chart_2_uid=chart_uid_map.get(compared_chart_id) if compared_chart_id is not None else None,
                 user_reported_accuracy=score,
                 not_applicable=not_applicable,
             )
@@ -24686,9 +24693,14 @@ class MainWindow(QMainWindow):
                 SIMILARITY_PERCEIVED_ACCURACY_CONTROLS_DEFAULT,
             )
         )
-        perceived_accuracy_states = (
-            load_chart_similarity_relationship_states() if show_perceived_accuracy_controls else None
-        )
+        if show_perceived_accuracy_controls:
+            chart_uid_map = get_chart_uid_map()
+            migrate_chart_similarity_relationship_file_to_chart_uids(
+                chart_id_to_uid=chart_uid_map
+            )
+            perceived_accuracy_states = load_chart_similarity_relationship_states()
+        else:
+            perceived_accuracy_states = None
         dialog = build_similar_charts_popout_dialog(
             parent=self,
             subject_name=subject_name,

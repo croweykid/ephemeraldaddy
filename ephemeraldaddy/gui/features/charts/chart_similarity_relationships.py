@@ -24,8 +24,32 @@ def resolve_chart_similarity_relationships_path(path: str | os.PathLike[str] | N
     return Path.home() / ".ephemeraldaddy" / CHART_SIMILARITY_RELATIONSHIPS_FILENAME
 
 
-def chart_similarity_relationship_key(*, chart_1_id: int | None, chart_2_id: int | None) -> str:
-    """Return the stable chart-pair key for user-perceived similarity."""
+def _coerce_chart_uid(value: Any) -> str | None:
+    text = str(value or "").strip().upper()
+    if not text:
+        return None
+    normalized = "".join(character for character in text if character.isalnum())
+    return normalized or None
+
+
+def chart_similarity_relationship_key(
+    *,
+    chart_1_id: int | None,
+    chart_2_id: int | None,
+    chart_1_uid: str | None = None,
+    chart_2_uid: str | None = None,
+) -> str:
+    """Return the stable chart-pair key for user-perceived similarity.
+
+    New relationship records prefer immutable chart UIDs. Integer IDs remain
+    supported for legacy logs and for UI alias lookups during migration.
+    """
+
+    first_uid = _coerce_chart_uid(chart_1_uid)
+    second_uid = _coerce_chart_uid(chart_2_uid)
+    if first_uid and second_uid:
+        first, second = sorted((first_uid, second_uid))
+        return f"uid:{first}|uid:{second}"
 
     def _id_token(value: int | None) -> str:
         try:
@@ -68,8 +92,8 @@ def _score_value(user_reported_accuracy: int | None, not_applicable: bool) -> in
 
 def _empty_relationship_file() -> dict[str, Any]:
     return {
-        "schema_version": 1,
-        "description": "User-scored perceived similarity relationships between chart IDs.",
+        "schema_version": 2,
+        "description": "User-scored perceived similarity relationships between stable chart UIDs, with legacy integer IDs retained as metadata.",
         "relationships": {},
     }
 
@@ -96,7 +120,9 @@ def save_chart_similarity_relationship(
     chart_1_name: str,
     chart_2_id: int | None,
     chart_2_name: str,
-    user_reported_accuracy: int | None,
+    chart_1_uid: str | None = None,
+    chart_2_uid: str | None = None,
+    user_reported_accuracy: int | None = None,
     not_applicable: bool,
     path: str | os.PathLike[str] | None = None,
     timestamp: _datetime.datetime | None = None,
@@ -112,7 +138,17 @@ def save_chart_similarity_relationship(
 
     first_id = _coerce_chart_id(chart_1_id)
     second_id = _coerce_chart_id(chart_2_id)
-    key = chart_similarity_relationship_key(chart_1_id=first_id, chart_2_id=second_id)
+    first_uid = _coerce_chart_uid(chart_1_uid)
+    second_uid = _coerce_chart_uid(chart_2_uid)
+    key = chart_similarity_relationship_key(
+        chart_1_id=first_id,
+        chart_2_id=second_id,
+        chart_1_uid=first_uid,
+        chart_2_uid=second_uid,
+    )
+    legacy_key = chart_similarity_relationship_key(chart_1_id=first_id, chart_2_id=second_id)
+    if key != legacy_key:
+        relationships.pop(legacy_key, None)
     score = _score_value(user_reported_accuracy, bool(not_applicable))
     timestamp_text = _utc_timestamp(timestamp)
     user_knows_similarity = bool(score is not None and not not_applicable)
@@ -120,6 +156,7 @@ def save_chart_similarity_relationship(
 
     relationships[key] = {
         "relationship_key": key,
+        "chart_uids": [first_uid, second_uid] if first_uid and second_uid else [],
         "chart_ids": [first_id, second_id],
         "user_knows_similarity": user_knows_similarity,
         "user_perceived_similarity_score": score,
@@ -127,11 +164,72 @@ def save_chart_similarity_relationship(
         "not_applicable": bool(not_applicable),
         "updated_at_utc": timestamp_text,
     }
+    payload["schema_version"] = 2
     payload["updated_at_utc"] = timestamp_text
 
     temporary_path = relationships_path.with_suffix(relationships_path.suffix + ".tmp")
     temporary_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     temporary_path.replace(relationships_path)
+    return relationships_path
+
+def migrate_chart_similarity_relationship_file_to_chart_uids(
+    *,
+    chart_id_to_uid: Mapping[int, str],
+    path: str | os.PathLike[str] | None = None,
+) -> Path:
+    """Rewrite existing relationship JSON records from integer keys to UID keys.
+
+    Integer chart IDs are retained as metadata and lookup aliases, but the stored
+    relationship key becomes UID-backed when both chart IDs can be resolved.
+    """
+    relationships_path = resolve_chart_similarity_relationships_path(path)
+    payload = _read_relationship_file(relationships_path)
+    relationships = payload.setdefault("relationships", {})
+    if not isinstance(relationships, dict):
+        relationships = {}
+        payload["relationships"] = relationships
+
+    normalized_map = {
+        int(chart_id): uid
+        for chart_id, raw_uid in chart_id_to_uid.items()
+        if (uid := _coerce_chart_uid(raw_uid))
+    }
+    migrated: dict[str, Any] = {}
+    changed = False
+    for original_key, raw_state in relationships.items():
+        if not isinstance(raw_state, Mapping):
+            migrated[str(original_key)] = raw_state
+            continue
+        state = dict(raw_state)
+        chart_ids = state.get("chart_ids") if isinstance(state.get("chart_ids"), list) else []
+        first_id = _coerce_chart_id(chart_ids[0]) if len(chart_ids) > 0 else None
+        second_id = _coerce_chart_id(chart_ids[1]) if len(chart_ids) > 1 else None
+        first_uid = _coerce_chart_uid((state.get("chart_uids") or [None, None])[0]) if isinstance(state.get("chart_uids"), list) and len(state.get("chart_uids") or []) > 0 else None
+        second_uid = _coerce_chart_uid((state.get("chart_uids") or [None, None])[1]) if isinstance(state.get("chart_uids"), list) and len(state.get("chart_uids") or []) > 1 else None
+        first_uid = first_uid or (normalized_map.get(first_id) if first_id is not None else None)
+        second_uid = second_uid or (normalized_map.get(second_id) if second_id is not None else None)
+        new_key = chart_similarity_relationship_key(
+            chart_1_id=first_id,
+            chart_2_id=second_id,
+            chart_1_uid=first_uid,
+            chart_2_uid=second_uid,
+        )
+        if first_uid and second_uid:
+            state["chart_uids"] = [first_uid, second_uid]
+        state["relationship_key"] = new_key
+        if new_key != original_key or state != raw_state:
+            changed = True
+        migrated[new_key if new_key != "unknown|unknown" else str(original_key)] = state
+
+    if changed:
+        relationships_path.parent.mkdir(parents=True, exist_ok=True)
+        timestamp_text = _utc_timestamp()
+        payload["schema_version"] = 2
+        payload["relationships"] = migrated
+        payload["updated_at_utc"] = timestamp_text
+        temporary_path = relationships_path.with_suffix(relationships_path.suffix + ".tmp")
+        temporary_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        temporary_path.replace(relationships_path)
     return relationships_path
 
 
@@ -163,6 +261,7 @@ def _legacy_relationship_from_payload(payload: Mapping[str, Any]) -> tuple[str, 
         score = None
     state = {
         "relationship_key": key,
+        "chart_uids": [],
         "chart_ids": [first_id, second_id],
         "user_knows_similarity": bool(score is not None and not not_applicable),
         "user_perceived_similarity_score": score,
@@ -227,15 +326,26 @@ def load_chart_similarity_relationship_states(
         return states
     for key, state in relationships.items():
         if isinstance(state, Mapping):
+            chart_ids = state.get("chart_ids") if isinstance(state.get("chart_ids"), list) else []
+            chart_uids = state.get("chart_uids") if isinstance(state.get("chart_uids"), list) else []
+            first_id = chart_ids[0] if len(chart_ids) > 0 else None
+            second_id = chart_ids[1] if len(chart_ids) > 1 else None
+            first_uid = chart_uids[0] if len(chart_uids) > 0 else None
+            second_uid = chart_uids[1] if len(chart_uids) > 1 else None
             normalized_key = chart_similarity_relationship_key(
-                chart_1_id=(state.get("chart_ids") or [None, None])[0]
-                if isinstance(state.get("chart_ids"), list)
-                else None,
-                chart_2_id=(state.get("chart_ids") or [None, None])[1]
-                if isinstance(state.get("chart_ids"), list) and len(state.get("chart_ids") or []) > 1
-                else None,
+                chart_1_id=first_id,
+                chart_2_id=second_id,
+                chart_1_uid=first_uid,
+                chart_2_uid=second_uid,
             )
-            states[normalized_key if normalized_key != "unknown|unknown" else str(key)] = dict(state)
+            state_copy = dict(state)
+            states[normalized_key if normalized_key != "unknown|unknown" else str(key)] = state_copy
+            legacy_key = chart_similarity_relationship_key(
+                chart_1_id=first_id,
+                chart_2_id=second_id,
+            )
+            if legacy_key != "unknown|unknown":
+                states[legacy_key] = state_copy
     return states
 
 
@@ -243,11 +353,18 @@ def perceived_accuracy_state_key(
     *,
     chart_1_id: int | None,
     chart_2_id: int | None,
+    chart_1_uid: str | None = None,
+    chart_2_uid: str | None = None,
     analysis_context: str | None = None,
 ) -> str:
     """Return the relationship key used by existing perceived-accuracy UI code."""
     del analysis_context
-    return chart_similarity_relationship_key(chart_1_id=chart_1_id, chart_2_id=chart_2_id)
+    return chart_similarity_relationship_key(
+        chart_1_id=chart_1_id,
+        chart_2_id=chart_2_id,
+        chart_1_uid=chart_1_uid,
+        chart_2_uid=chart_2_uid,
+    )
 
 
 load_similarity_perceived_accuracy_states = load_chart_similarity_relationship_states

@@ -130,3 +130,78 @@ def test_relationship_file_overrides_legacy_algorithm_log_for_same_pair(tmp_path
 
     assert states["4|12"]["user_reported_accuracy"] == 20
     assert "source" not in states["4|12"]
+
+
+def test_chart_similarity_relationship_uses_uid_key_when_available(tmp_path):
+    relationship_path = tmp_path / "chart_similarity_relationships.json"
+    save_chart_similarity_relationship(
+        chart_1_id=1,
+        chart_1_uid="ABC12345ZZZZ9999",
+        chart_1_name="Chart One",
+        chart_2_id=2,
+        chart_2_uid="DEF67890YYYY8888",
+        chart_2_name="Chart Two",
+        user_reported_accuracy=82,
+        not_applicable=False,
+        path=relationship_path,
+    )
+
+    content = json.loads(relationship_path.read_text(encoding="utf-8"))
+    uid_key = chart_similarity_relationship_key(
+        chart_1_id=1,
+        chart_2_id=2,
+        chart_1_uid="ABC12345ZZZZ9999",
+        chart_2_uid="DEF67890YYYY8888",
+    )
+    states = load_chart_similarity_relationship_states(
+        relationship_path,
+        include_legacy_algorithm_log=False,
+    )
+
+    assert set(content["relationships"]) == {uid_key}
+    assert content["relationships"][uid_key]["chart_uids"] == [
+        "ABC12345ZZZZ9999",
+        "DEF67890YYYY8888",
+    ]
+    assert states[uid_key]["user_reported_accuracy"] == 82
+    assert states["1|2"] == states[uid_key]
+
+
+def test_relationship_migration_rekeys_existing_integer_relationships(tmp_path):
+    from ephemeraldaddy.gui.features.charts.chart_similarity_relationships import (
+        migrate_chart_similarity_relationship_file_to_chart_uids,
+    )
+
+    relationship_path = tmp_path / "chart_similarity_relationships.json"
+    relationship_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "relationships": {
+                    "1|2": {
+                        "relationship_key": "1|2",
+                        "chart_ids": [1, 2],
+                        "user_reported_accuracy": 55,
+                        "user_perceived_similarity_score": 55,
+                        "not_applicable": False,
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    migrate_chart_similarity_relationship_file_to_chart_uids(
+        chart_id_to_uid={1: "ABC12345ZZZZ9999", 2: "DEF67890YYYY8888"},
+        path=relationship_path,
+    )
+
+    content = json.loads(relationship_path.read_text(encoding="utf-8"))
+    uid_key = "uid:ABC12345ZZZZ9999|uid:DEF67890YYYY8888"
+    assert content["schema_version"] == 2
+    assert set(content["relationships"]) == {uid_key}
+    assert content["relationships"][uid_key]["chart_ids"] == [1, 2]
+    assert content["relationships"][uid_key]["chart_uids"] == [
+        "ABC12345ZZZZ9999",
+        "DEF67890YYYY8888",
+    ]
