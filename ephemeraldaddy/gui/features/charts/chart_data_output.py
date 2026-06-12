@@ -174,7 +174,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         "Channel",
         "Body",
         "Sign",
-        "Longitude",
+        "Degree",
         "G/L",
         "C",
         "T",
@@ -699,7 +699,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                         )
             break
         if re.search(r"\bBody\b", stripped_text) and re.search(r"\bSign\b", stripped_text) and "G/L" in stripped_text:
-            for header_token in ("Body", "Sign", "Longitude", "G/L", "C", "T", "B"):
+            for header_token in ("Body", "Sign", "Degree", "Longitude", "G/L", "C", "T", "B"):
                 token_start = 0
                 while True:
                     token_start = text.find(header_token, token_start)
@@ -1028,6 +1028,15 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
             return
 
         body_text = data_columns[0][0].strip()
+        body_format = self._planet_format_for_body_cell(body_text)
+        body_prefix_match = re.match(r"^\s*[PD]\.", text)
+        if body_prefix_match and body_format is not None:
+            self.setFormat(
+                self._qt_index(text, body_prefix_match.start()),
+                self._qt_len(text[body_prefix_match.start():body_prefix_match.end()]),
+                body_format,
+            )
+
         sign_text, _sign_start, _sign_end = data_columns[1]
         sign_format = self._format_for_sign_cell(sign_text)
 
@@ -1043,27 +1052,38 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                     sign_format,
                 )
 
-            gate_line_column: tuple[str, int, int] | None = None
-            if len(data_columns) >= 4 and is_hd_longitude:
-                gate_line_column = data_columns[3]
-            elif len(data_columns) >= 6:
-                gate_line_column = data_columns[5]
-            if gate_line_column is not None:
-                gate_line_text, gate_line_start, gate_line_end = gate_line_column
-                if re.fullmatch(
-                    r"(?:[1-9]|[1-5][0-9]|6[0-4])\.[1-6](?:->(?:[1-9]|[1-5][0-9]|6[0-4])\.[1-6])*",
-                    gate_line_text.strip(),
-                ):
+            if is_hd_longitude:
+                for value_text, value_start, value_end in data_columns[3:7]:
+                    value_match = re.search(r"\S+(?:->\S+)*", value_text)
+                    if value_match is None:
+                        continue
                     self.setFormat(
-                        self._qt_index(text, gate_line_start),
-                        self._qt_len(text[gate_line_start:gate_line_end]),
+                        self._qt_index(text, value_start + value_match.start()),
+                        self._qt_len(value_text[value_match.start():value_match.end()]),
                         sign_format,
                     )
+            else:
+                gate_line_column: tuple[str, int, int] | None = data_columns[5] if len(data_columns) >= 6 else None
+                if gate_line_column is not None:
+                    gate_line_text, gate_line_start, gate_line_end = gate_line_column
+                    if re.fullmatch(
+                        r"(?:[1-9]|[1-5][0-9]|6[0-4])\.[1-6](?:->(?:[1-9]|[1-5][0-9]|6[0-4])\.[1-6])*",
+                        gate_line_text.strip(),
+                    ):
+                        self.setFormat(
+                            self._qt_index(text, gate_line_start),
+                            self._qt_len(text[gate_line_start:gate_line_end]),
+                            sign_format,
+                        )
 
-        if has_info_icon:
-            icon_text, icon_start, _icon_end = columns[-1]
+        icon_column = columns[-1] if has_info_icon else None
+        if icon_column is None and columns:
+            last_text, last_start, _last_end = columns[-1]
+            if "ⓘ" in last_text:
+                icon_column = (last_text, last_start, _last_end)
+        if icon_column is not None:
+            icon_text, icon_start, _icon_end = icon_column
             icon_offset = icon_text.find("ⓘ")
-            body_format = self._planet_format_for_body_cell(body_text)
             if icon_offset != -1 and body_format is not None:
                 self.setFormat(
                     self._qt_index(text, icon_start + icon_offset),
