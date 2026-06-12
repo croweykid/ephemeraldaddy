@@ -29,6 +29,79 @@ TRANSIT_OUTER_WHEEL_SLICES = ("#ff8080", "#ff4d4d") #red outer wheel (event tran
 TRANSIT_OUTER_GLYPH_COLOR = "#ff0000" #red outer glyphs (event transit or person 2)
 CHARTWHEEL_SIGN_SLICE_ALPHA = 0.36  # 36% softer zodiac-slice backgrounds for glyph/line legibility
 
+
+ANGULAR_BODIES = frozenset({"AS", "MC", "DS", "IC"})
+
+
+def _normalize_aspect_body(body):
+    return str(body or "").strip()
+
+
+def _is_structural_aspect_tautology(asp):
+    """Return True for house/axis aspects hidden from the textual Aspects list."""
+    asp_type = str(asp.get("type", "")).replace(" ", "_").lower()
+    pair = frozenset(
+        {_normalize_aspect_body(asp.get("p1")), _normalize_aspect_body(asp.get("p2"))}
+    )
+    if asp_type == "opposition":
+        return pair in {
+            frozenset({"AS", "DS"}),
+            frozenset({"MC", "IC"}),
+            frozenset({"Rahu", "Ketu"}),
+        }
+    if asp_type == "square":
+        return pair in {
+            frozenset({"AS", "MC"}),
+            frozenset({"AS", "IC"}),
+            frozenset({"MC", "DS"}),
+            frozenset({"DS", "IC"}),
+        }
+    return False
+
+
+def _aspect_endpoint_xy(longitude_deg, radius):
+    """Map a true ecliptic longitude to the cartesian overlay used by the wheel.
+
+    The zodiac wheel's polar axes put 0° at East and increase clockwise.  The
+    aspect-line overlay is a normal cartesian axes, where positive y is up, so
+    the sine term must be inverted.  Keeping this transform in one helper makes
+    aspect endpoints come from body longitudes only, not house cusps, sector
+    labels, or collision-adjusted glyph positions.
+    """
+    theta = np.radians(float(longitude_deg) % 360.0)
+    return radius * np.cos(theta), -radius * np.sin(theta)
+
+
+def _iter_relevant_chart_aspects(chart, *, use_houses):
+    positions = getattr(chart, "positions", {}) or {}
+    for asp in getattr(chart, "aspects", []) or []:
+        p1 = asp.get("p1")
+        p2 = asp.get("p2")
+        if p1 not in positions or p2 not in positions:
+            continue
+        if _is_structural_aspect_tautology(asp):
+            continue
+        if not use_houses and (p1 in ANGULAR_BODIES or p2 in ANGULAR_BODIES):
+            continue
+        yield asp
+
+
+def _overlay_aspect_entry(overlay_asp):
+    lon1 = overlay_asp.get("lon1_deg")
+    lon2 = overlay_asp.get("lon2_deg")
+    aspect_type = overlay_asp.get("type")
+    if lon1 is None or lon2 is None or not aspect_type:
+        return None
+    return (
+        {
+            "type": str(aspect_type),
+            "lon1_deg": float(lon1) % 360.0,
+            "lon2_deg": float(lon2) % 360.0,
+        },
+        float(overlay_asp.get("score", 1.0)),
+    )
+
+
 def _angular_diff(a, b):
     diff = abs(a - b) % (2 * np.pi)
     return min(diff, 2 * np.pi - diff)
@@ -411,51 +484,14 @@ def _draw_chart_wheel(
 
     aspect_entries: list[tuple[dict, float]] = []
     dominant_planet_weights = getattr(chart, "dominant_planet_weights", None)
-    angular_bodies = {"AS", "MC", "DS", "IC"}
     if not overlay_aspects_only:
-        for asp in getattr(chart, "aspects", []):
-            p1 = asp["p1"]
-            p2 = asp["p2"]
-
-            if p1 not in chart.positions or p2 not in chart.positions:
-                continue
-            if not use_houses and (p1 in angular_bodies or p2 in angular_bodies):
-                continue
+        for asp in _iter_relevant_chart_aspects(chart, use_houses=use_houses):
             aspect_entries.append((asp, aspect_score(asp, planet_weights=dominant_planet_weights)))
 
     for overlay_asp in overlay_aspects or []:
-        lon1 = overlay_asp.get("lon1_deg")
-        lon2 = overlay_asp.get("lon2_deg")
-        aspect_type = overlay_asp.get("type")
-        if lon1 is None or lon2 is None or not aspect_type:
-            continue
-        aspect_entries.append(
-            (
-                {
-                    "type": str(aspect_type),
-                    "lon1_deg": float(lon1) % 360.0,
-                    "lon2_deg": float(lon2) % 360.0,
-                },
-                float(overlay_asp.get("score", 1.0)),
-            )
-        )
-
-    for overlay_asp in overlay_aspects or []:
-        lon1 = overlay_asp.get("lon1_deg")
-        lon2 = overlay_asp.get("lon2_deg")
-        aspect_type = overlay_asp.get("type")
-        if lon1 is None or lon2 is None or not aspect_type:
-            continue
-        aspect_entries.append(
-            (
-                {
-                    "type": str(aspect_type),
-                    "lon1_deg": float(lon1) % 360.0,
-                    "lon2_deg": float(lon2) % 360.0,
-                },
-                float(overlay_asp.get("score", 1.0)),
-            )
-        )
+        entry = _overlay_aspect_entry(overlay_asp)
+        if entry is not None:
+            aspect_entries.append(entry)
 
     scores = [score for _asp, score in aspect_entries]
     min_score = min(scores) if scores else 0.0
@@ -465,18 +501,16 @@ def _draw_chart_wheel(
     for asp, score in aspect_entries:
         asp_type = asp["type"]
         if "lon1_deg" in asp and "lon2_deg" in asp:
-            theta1 = np.radians(float(asp["lon1_deg"]))
-            theta2 = np.radians(float(asp["lon2_deg"]))
+            lon1_deg = float(asp["lon1_deg"])
+            lon2_deg = float(asp["lon2_deg"])
         else:
             p1 = asp["p1"]
             p2 = asp["p2"]
-            theta1 = np.radians(chart.positions[p1])
-            theta2 = np.radians(chart.positions[p2])
+            lon1_deg = float(chart.positions[p1])
+            lon2_deg = float(chart.positions[p2])
 
-        x1 = r_aspect * np.cos(theta1)
-        y1 = r_aspect * np.sin(theta1)
-        x2 = r_aspect * np.cos(theta2)
-        y2 = r_aspect * np.sin(theta2)
+        x1, y1 = _aspect_endpoint_xy(lon1_deg, r_aspect)
+        x2, y2 = _aspect_endpoint_xy(lon2_deg, r_aspect)
 
         if score_span <= 0:
             norm = 1.0
