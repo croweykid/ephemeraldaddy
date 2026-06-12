@@ -28,7 +28,12 @@ from ephemeraldaddy.analysis.dnd.species_assigner_v2 import (
     assign_top_three_species,
     assign_top_three_species_with_evidence,
 )
-from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR, DND_STAT_EARTHTONE_COLORS, get_cycled_earthtone_colors
+from ephemeraldaddy.gui.style import (
+    CHART_DATA_HIGHLIGHT_COLOR,
+    DND_STAT_EARTHTONE_COLORS,
+    apply_chart_info_link_cursor,
+    get_cycled_earthtone_colors,
+)
 
 
 def _style_prediction_bar_chart(ax: Any, *, labels: list[str], max_value: float, apply_standard_bar_axes: Any) -> None:
@@ -402,6 +407,7 @@ def configure_dnd_top_three_summary_label(
     label.setTextFormat(Qt.RichText)
     label.setTextInteractionFlags(Qt.LinksAccessibleByMouse | Qt.TextSelectableByMouse)
     label.setOpenExternalLinks(False)
+    apply_chart_info_link_cursor(label)
     label.setText(build_dnd_top_three_summary_html(chart, linked=True))
 
 def connect_dnd_statblock_popout_pick_handler(

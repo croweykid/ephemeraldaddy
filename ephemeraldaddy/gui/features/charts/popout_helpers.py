@@ -19,6 +19,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ephemeraldaddy.gui.style import apply_button_cursor
+
 
 def register_popout_close_shortcuts(dialog: QWidget) -> None:
     """Install Ctrl/Cmd+W close shortcuts on a popout dialog/window."""
@@ -67,7 +69,7 @@ def attach_popout_share_button(
     else:
         share_button.setText("↗")
     share_button.setAutoRaise(True)
-    share_button.setCursor(Qt.PointingHandCursor)
+    apply_button_cursor(share_button)
     share_button.setToolTip("Export chart data output as Markdown or text")
 
     def _export_clicked(

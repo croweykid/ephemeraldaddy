@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 
 from ephemeraldaddy.gui.features.retcon.workers import SwissEphemerisPrefetchWorker
 from ephemeraldaddy.gui.style import (
+    apply_button_cursor,
     COLLAPSIBLE_SECTION_CONTENT_STYLE,
     DATABASE_ANALYTICS_CHART_CONTENT_MARGINS,
     DATABASE_ANALYTICS_CHART_CONTAINER_DEBUG_STYLE,
@@ -107,7 +108,7 @@ class ChartAnalysisSectionsController:
             export_button.setText("↗")
         export_button.setFlat(True)
         export_button.setFixedSize(*DATABASE_ANALYTICS_EXPORT_BUTTON_SIZE)
-        export_button.setCursor(Qt.PointingHandCursor)
+        apply_button_cursor(export_button)
         export_button.setToolTip(f"Export {title_text} as CSV")
         export_button.clicked.connect(
             lambda _checked=False, key=chart_key, title=title_text: self._on_export_chart_csv(

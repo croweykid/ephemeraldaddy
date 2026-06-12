@@ -46,6 +46,7 @@ from ephemeraldaddy.gui.features.retcon.workers import RetconSearchWorker
 from ephemeraldaddy.io.geocode import LocationLookupError, geocode_location
 from ephemeraldaddy.gui.style import (
     MIDDLE_PANEL_ACCENT_COLOR,
+    apply_chart_info_link_cursor,
     configure_share_export_icon_button,
 )
 
@@ -178,7 +179,7 @@ class RetconEngineDialog(QDialog):
             '<i>Hint: Start with large steps and large spans of time; '
             "then narrow search field with successive passes.</i>"
         )
-        step_hint_label.setCursor(Qt.PointingHandCursor)
+        apply_chart_info_link_cursor(step_hint_label)
         options_row.addWidget(step_hint_label)
         options_row.addSpacing(12)
         options_row.addWidget(_make_bold_label("Max Results"))

@@ -31,6 +31,8 @@ from ephemeraldaddy.analysis.human_design_reference import (
 from ephemeraldaddy.gui.style import (
     COLLAPSIBLE_SECTION_CONTENT_STYLE,
     DATABASE_ANALYTICS_COLLAPSIBLE_TOGGLE_STYLE,
+    apply_button_cursor,
+    apply_chart_info_link_cursor,
     configure_collapsible_header_toggle,
 )
 
@@ -176,7 +178,7 @@ def build_human_design_analytics_panel(
     hd_analytics_toggle.setChecked(True)
     hd_analytics_toggle.setAutoRaise(True)
     hd_analytics_toggle.setArrowType(Qt.LeftArrow)
-    hd_analytics_toggle.setCursor(Qt.PointingHandCursor)
+    apply_button_cursor(hd_analytics_toggle)
     hd_analytics_toggle.setToolTip("Collapse HD analytics panel")
     hd_analytics_toggle.setStyleSheet(
         "QToolButton { border: none; color: #B8860B; padding: 4px 2px; background: transparent; }"
@@ -471,6 +473,8 @@ def build_human_design_analytics_panel(
 
     for metric_canvas in (hd_line_chart_canvas, hd_color_chart_canvas, hd_tone_chart_canvas):
         metric_canvas.mpl_connect("pick_event", _on_metric_bar_pick)
+        if on_metric_selected is not None:
+            apply_chart_info_link_cursor(metric_canvas)
 
     hd_analytics_layout.addStretch(1)
     hd_analytics_scroll.setWidget(hd_analytics_panel)
