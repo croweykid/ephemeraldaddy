@@ -722,15 +722,25 @@ def _canonical_aspect_key(
     aspect: dict,
     *,
     use_houses: bool = True,
+    known_positions: dict | None = None,
 ) -> tuple[tuple[str, str], str] | None:
-    return display_aspect_key(aspect, use_houses=use_houses)
+    return display_aspect_key(
+        aspect,
+        use_houses=use_houses,
+        known_positions=known_positions,
+    )
 
 
 def _aspect_map(chart: Chart) -> dict[tuple[tuple[str, str], str], list[float]]:
     aspect_map: dict[tuple[tuple[str, str], str], list[float]] = {}
     use_houses = chart_uses_houses(chart)
+    positions = getattr(chart, "positions", None) or None
     for aspect in getattr(chart, "aspects", None) or []:
-        key = _canonical_aspect_key(aspect, use_houses=use_houses)
+        key = _canonical_aspect_key(
+            aspect,
+            use_houses=use_houses,
+            known_positions=positions,
+        )
         if key is None:
             continue
         orb = abs(float(aspect.get("delta", 0.0) or 0.0))

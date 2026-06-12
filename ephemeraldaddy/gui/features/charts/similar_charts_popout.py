@@ -711,7 +711,11 @@ def _differing_placement_labels_with_weight_details(
 
 
 def _chart_display_aspect_key(aspect: dict[str, Any], chart: Any) -> tuple[tuple[str, str], str] | None:
-    return display_aspect_key(aspect, use_houses=chart_uses_houses(chart))
+    return display_aspect_key(
+        aspect,
+        use_houses=chart_uses_houses(chart),
+        known_positions=getattr(chart, "positions", None) or None,
+    )
 
 
 def _chart_display_aspect_keys(chart: Any) -> set[tuple[tuple[str, str], str]]:

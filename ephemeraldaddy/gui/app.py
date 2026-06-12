@@ -6468,7 +6468,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         chart_info_output = self._build_popout_left_panel(
             layout,
             chart_info_placeholder="Click the ⓘ in chart summary text to see details/interpretation.",
-            aspect_entries=list(iter_displayable_aspects(getattr(chart, "aspects", []) or [], use_houses=_chart_uses_houses(chart))),
+            aspect_entries=list(
+                iter_displayable_aspects(
+                    getattr(chart, "aspects", []) or [],
+                    use_houses=_chart_uses_houses(chart),
+                    known_positions=getattr(chart, "positions", {}) or {},
+                )
+            ),
             export_file_stem=f"{_sanitize_export_token(chart.name)}-transit_aspect_distribution",
             weighted_score_for_entry=lambda entry: max(
                 0.0,
@@ -8070,7 +8076,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             chart_aspects: set[str] = set()
             use_houses = _chart_uses_houses(chart)
             for aspect in getattr(chart, "aspects", []) or []:
-                if not aspect_is_displayable(aspect, use_houses=use_houses):
+                if not aspect_is_displayable(
+                    aspect,
+                    use_houses=use_houses,
+                    known_positions=getattr(chart, "positions", {}) or {},
+                ):
                     continue
                 raw_p1 = aspect.get("p1", "")
                 raw_p2 = aspect.get("p2", "")
@@ -8364,7 +8374,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 include = label in top_three
             elif section_title == "Aspects in common":
                 for aspect in getattr(chart, "aspects", []) or []:
-                    if not aspect_is_displayable(aspect, use_houses=use_houses):
+                    if not aspect_is_displayable(
+                        aspect,
+                        use_houses=use_houses,
+                        known_positions=getattr(chart, "positions", {}) or {},
+                    ):
                         continue
                     raw_p1 = aspect.get("p1", "")
                     raw_p2 = aspect.get("p2", "")
@@ -17720,7 +17734,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         use_houses = _chart_uses_houses(chart)
         houses = getattr(chart, "houses", None) if use_houses else None
         aspects = getattr(chart, "aspects", None) or []
-        filtered_aspects = list(iter_displayable_aspects(aspects, use_houses=use_houses))
+        filtered_aspects = list(
+            iter_displayable_aspects(
+                aspects,
+                use_houses=use_houses,
+                known_positions=getattr(chart, "positions", {}) or {},
+            )
+        )
         if not filtered_aspects:
             return float("-inf")
 
@@ -26430,7 +26450,13 @@ class MainWindow(QMainWindow):
             "| --- | --- | --- | ---: | ---: | ---: |",
         ])
         aspects = getattr(chart, "aspects", None) or []
-        filtered_aspects = list(iter_displayable_aspects(aspects, use_houses=use_houses))
+        filtered_aspects = list(
+            iter_displayable_aspects(
+                aspects,
+                use_houses=use_houses,
+                known_positions=getattr(chart, "positions", {}) or {},
+            )
+        )
         dominant_planet_weights = getattr(chart, "dominant_planet_weights", None)
         if not dominant_planet_weights:
             dominant_planet_weights = _calculate_dominant_planet_weights(chart)
@@ -31684,7 +31710,13 @@ class MainWindow(QMainWindow):
         chart_info_output = self._build_popout_left_panel(
             layout,
             chart_info_placeholder="Click the ⓘ next to a position or aspect to see details/interpretation.",
-            aspect_entries=list(iter_displayable_aspects(getattr(self._latest_chart, "aspects", []) or [], use_houses=_chart_uses_houses(self._latest_chart))),
+            aspect_entries=list(
+                iter_displayable_aspects(
+                    getattr(self._latest_chart, "aspects", []) or [],
+                    use_houses=_chart_uses_houses(self._latest_chart),
+                    known_positions=getattr(self._latest_chart, "positions", {}) or {},
+                )
+            ),
             export_file_stem=f"{_sanitize_export_token(self._latest_chart.name)}-natal_aspect_distribution",
             weighted_score_for_entry=_weighted_natal_score,
         )
@@ -31834,7 +31866,13 @@ class MainWindow(QMainWindow):
         chart_info_output = self._build_popout_left_panel(
             layout,
             chart_info_placeholder="Click a center on the bodygraph to see center info here.",
-            aspect_entries=list(iter_displayable_aspects(getattr(self._latest_chart, "aspects", []) or [], use_houses=_chart_uses_houses(self._latest_chart))),
+            aspect_entries=list(
+                iter_displayable_aspects(
+                    getattr(self._latest_chart, "aspects", []) or [],
+                    use_houses=_chart_uses_houses(self._latest_chart),
+                    known_positions=getattr(self._latest_chart, "positions", {}) or {},
+                )
+            ),
             export_file_stem=f"{_sanitize_export_token(self._latest_chart.name)}-natal_aspect_distribution",
             weighted_score_for_entry=_weighted_natal_score,
             show_aspect_distribution=False,

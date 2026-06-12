@@ -399,11 +399,17 @@ def format_chart_text(
     houses = getattr(chart, "houses", None) if use_houses else None
     aspects = getattr(chart, "aspects", None)
     filtered_aspects: list[dict] = []
+    positions = getattr(chart, "positions", {})
     if aspects:
-        filtered_aspects = list(iter_displayable_aspects(aspects, use_houses=use_houses))
+        filtered_aspects = list(
+            iter_displayable_aspects(
+                aspects,
+                use_houses=use_houses,
+                known_positions=positions,
+            )
+        )
     cursedness_line = ""
     if filtered_aspects and show_cursedness:
-        positions = getattr(chart, "positions", {})
         curse_aspects: list[AspectRecord] = []
         for asp in filtered_aspects:
             lon_a = positions.get(asp["p1"])
@@ -1212,8 +1218,15 @@ def format_compact_transit_chart_text(
 
     aspects = getattr(chart, "aspects", None)
     filtered_aspects: list[dict] = []
+    positions = getattr(chart, "positions", {})
     if aspects:
-        filtered_aspects = list(iter_displayable_aspects(aspects, use_houses=use_houses))
+        filtered_aspects = list(
+            iter_displayable_aspects(
+                aspects,
+                use_houses=use_houses,
+                known_positions=positions,
+            )
+        )
     if filtered_aspects:
         lines.extend([CHART_DATA_DIVIDER, "ASPECTS", CHART_DATA_DIVIDER])
         dominant_planet_weights = getattr(

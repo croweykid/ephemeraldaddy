@@ -60,6 +60,12 @@ def _install_pyside_stubs():
 _install_pyside_stubs()
 
 style_stub = ModuleType("ephemeraldaddy.gui.style")
+style_stub.DARK_THEME = {
+    "background": "#111111",
+    "foreground": "#eeeeee",
+    "wheel_circle": "#dddddd",
+    "house_line": "#555555",
+}
 style_stub.CHART_DATA_HIGHLIGHT_COLOR = "#c8945c"
 style_stub.CHART_DATA_DIVIDER = "────────────────"
 style_stub.blend_hex_colors = lambda first, second, ratio=0.5: first

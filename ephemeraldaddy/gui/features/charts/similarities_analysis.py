@@ -330,8 +330,13 @@ def _build_similarity_factor_counts(
             add("Dominant nakshatras in contrast", name)
 
         chart_aspects: dict[str, int] = {}
+        positions = getattr(chart, "positions", {}) or {}
         for aspect in getattr(chart, "aspects", []) or []:
-            if not aspect_is_displayable(aspect, use_houses=use_houses):
+            if not aspect_is_displayable(
+                aspect,
+                use_houses=use_houses,
+                known_positions=positions,
+            ):
                 continue
             raw_p1 = aspect.get("p1", "")
             raw_p2 = aspect.get("p2", "")
