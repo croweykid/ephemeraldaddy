@@ -30447,8 +30447,10 @@ class MainWindow(QMainWindow):
     def _on_retcon_time_toggled(self, _checked: bool) -> None:
         self._update_time_input_visibility()
         self._update_time_input_text_colors()
-        self._refresh_chart_preview()
-        self._autosave_checkbox_state()
+        if not self._suppress_lucygoosey:
+            self._reset_metric_canvases_for_retcon_timing_update()
+            self._refresh_chart_preview()
+            self._autosave_checkbox_state()
 
     def _on_birth_time_changed(self, _time: QTime) -> None:
         if (
@@ -30459,9 +30461,16 @@ class MainWindow(QMainWindow):
         self._update_time_input_text_colors()
 
     def _on_retcon_time_changed(self, _time: QTime) -> None:
+        should_refresh_retcon_preview = (
+            not self._suppress_lucygoosey
+            and self.retcon_time_checkbox.isChecked()
+        )
         if not self._suppress_lucygoosey:
             self._retcon_time_user_overridden = True
         self._update_time_input_text_colors()
+        if should_refresh_retcon_preview:
+            self._reset_metric_canvases_for_retcon_timing_update()
+            self._refresh_chart_preview()
 
     def _update_time_input_visibility(self) -> None:
         self.time_edit.setVisible(not self.time_unknown_checkbox.isChecked())
@@ -30481,6 +30490,36 @@ class MainWindow(QMainWindow):
         )
         self.time_edit.setStyleSheet(f"color: {birth_time_color};")
         self.retcon_time_edit.setStyleSheet(f"color: {retcon_time_color};")
+
+    def _reset_metric_canvases_for_retcon_timing_update(self) -> None:
+        """Reset only Chart View metric canvases affected by retcon timing edits."""
+        canvas_layout_pairs = (
+            ("sign_chart_canvas", "sign_chart_container_layout"),
+            ("planet_chart_canvas", "planet_chart_container_layout"),
+            ("house_chart_canvas", "house_chart_container_layout"),
+            ("element_chart_canvas", "element_chart_container_layout"),
+            ("nakshatra_wordcloud_canvas", "nakshatra_wordcloud_container_layout"),
+            ("modal_distribution_canvas", "modal_distribution_container_layout"),
+            ("gender_guesser_canvas", "gender_guesser_container_layout"),
+            ("planet_dynamics_canvas", "planet_dynamics_container_layout"),
+            ("enneagram_prediction_canvas", "enneagram_prediction_chart_layout"),
+            ("dnd_prediction_statblock_canvas", "dnd_predictions_chart_layout"),
+        )
+        for canvas_attr, layout_attr in canvas_layout_pairs:
+            canvas = getattr(self, canvas_attr, None)
+            layout = getattr(self, layout_attr, None)
+            if canvas is None or layout is None:
+                continue
+            try:
+                canvas_is_visible = canvas.isVisible()
+            except RuntimeError:
+                self._unregister_metric_chart(canvas)
+                setattr(self, canvas_attr, None)
+                continue
+            if not canvas_is_visible:
+                continue
+            self._clear_layout_widgets(layout)
+            setattr(self, canvas_attr, None)
 
     def _refresh_chart_preview(self) -> None:
         if self._suppress_lucygoosey or self._latest_chart is None:
