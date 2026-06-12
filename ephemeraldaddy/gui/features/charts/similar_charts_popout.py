@@ -83,6 +83,28 @@ from ephemeraldaddy.gui.style import (
 )
 
 
+_PERCEIVED_ACCURACY_INPUT_BASE_STYLE = "font-size: 10px; padding: 1px;"
+_PERCEIVED_ACCURACY_CHECKBOX_BASE_STYLE = "QCheckBox { font-size: 8pt; color: #f5f5f5; spacing: 3px; }"
+_PERCEIVED_ACCURACY_RECORDED_INPUT_STYLE = (
+    _PERCEIVED_ACCURACY_INPUT_BASE_STYLE
+    + " border: 1px solid #35d07f; background-color: rgba(53, 208, 127, 0.24); color: #f5fff8;"
+)
+_PERCEIVED_ACCURACY_RECORDED_CHECKBOX_STYLE = (
+    "QCheckBox { font-size: 8pt; color: #7CFC98; spacing: 3px; }"
+    "QCheckBox::indicator { border: 1px solid #35d07f; background-color: rgba(53, 208, 127, 0.24); }"
+    "QCheckBox::indicator:checked { background-color: #35d07f; }"
+)
+_PERCEIVED_ACCURACY_FAILED_INPUT_STYLE = (
+    _PERCEIVED_ACCURACY_INPUT_BASE_STYLE
+    + " border: 1px solid #d9534f; background-color: rgba(217, 83, 79, 0.18);"
+)
+_PERCEIVED_ACCURACY_FAILED_CHECKBOX_STYLE = (
+    "QCheckBox { font-size: 8pt; color: #ffb3b3; spacing: 3px; }"
+    "QCheckBox::indicator { border: 1px solid #d9534f; background-color: rgba(217, 83, 79, 0.18); }"
+    "QCheckBox::indicator:checked { background-color: #d9534f; }"
+)
+
+
 def show_similar_charts_loading_progress(
     *,
     parent: QWidget | None,
@@ -121,25 +143,96 @@ def close_similar_charts_loading_progress(
     QApplication.processEvents(QEventLoop.AllEvents, 50)
 
 
-def _perceived_accuracy_status_text(state: Mapping[str, Any] | None) -> str:
-    """Return the visible saved-rating status for a Similar Charts row."""
-    if not isinstance(state, Mapping) or not state:
-        return ""
-    if bool(state.get("not_applicable", False)):
-        return f"Recorded: n/a"
-    raw_score = state.get("user_reported_accuracy")
-    if raw_score is None:
-        return f"Recorded: blank"
-    try:
-        return f"Recorded: {max(0, min(100, int(raw_score)))}"
-    except (TypeError, ValueError):
-        return f"Recorded"
-
-
 def _set_checkbox_checked_silently(checkbox: QCheckBox, checked: bool) -> None:
     blocker = QSignalBlocker(checkbox)
     checkbox.setChecked(checked)
     del blocker
+
+
+def _set_perceived_accuracy_recorded_style(
+    line_edit: QLineEdit,
+    na_checkbox: QCheckBox,
+    *,
+    recorded: bool,
+    failed: bool = False,
+) -> None:
+    if failed:
+        line_edit.setStyleSheet(_PERCEIVED_ACCURACY_FAILED_INPUT_STYLE)
+        na_checkbox.setStyleSheet(_PERCEIVED_ACCURACY_FAILED_CHECKBOX_STYLE)
+        line_edit.setToolTip("Perceived accuracy was not recorded. Try editing this value again.")
+        na_checkbox.setToolTip("No opinion / not enough familiarity was not recorded. Try toggling again.")
+        return
+    if recorded:
+        line_edit.setStyleSheet(_PERCEIVED_ACCURACY_RECORDED_INPUT_STYLE)
+        na_checkbox.setStyleSheet(_PERCEIVED_ACCURACY_RECORDED_CHECKBOX_STYLE)
+        line_edit.setToolTip("Perceived accuracy for this match (0-100). Green means this value has been recorded.")
+        na_checkbox.setToolTip("No opinion / not enough familiarity; green means this value has been recorded.")
+        return
+    line_edit.setStyleSheet(_PERCEIVED_ACCURACY_INPUT_BASE_STYLE)
+    na_checkbox.setStyleSheet(_PERCEIVED_ACCURACY_CHECKBOX_BASE_STYLE)
+    line_edit.setToolTip("Perceived accuracy for this match (0-100).")
+    na_checkbox.setToolTip("No opinion / not enough familiarity; ignore this data point.")
+
+
+def _chart_tags_for_generated_bio(chart: Any | None) -> list[str]:
+    if chart is None:
+        return []
+    raw_tags = getattr(chart, "tags", None)
+    if raw_tags is None:
+        metadata = getattr(chart, "metadata", None)
+        if isinstance(metadata, Mapping):
+            raw_tags = metadata.get("tags")
+    if isinstance(raw_tags, str):
+        candidates = re.split(r"[,;\n]", raw_tags)
+    elif isinstance(raw_tags, (list, tuple, set)):
+        candidates = list(raw_tags)
+    else:
+        candidates = []
+    tags: list[str] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        tag = str(candidate or "").strip()
+        if not tag:
+            continue
+        key = tag.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        tags.append(tag)
+    return tags
+
+
+def build_similar_chart_biography_text(*, compared_chart: Any | None) -> str:
+    if compared_chart is None:
+        return ""
+    biography_text = str(getattr(compared_chart, "biography", "") or "").strip()
+    if not biography_text:
+        biography_text = str(getattr(compared_chart, "bio", "") or "").strip()
+    chart_metadata = getattr(compared_chart, "metadata", None)
+    if not biography_text and isinstance(chart_metadata, Mapping):
+        biography_text = str(chart_metadata.get("bio") or chart_metadata.get("biography") or "").strip()
+    if biography_text:
+        return biography_text
+
+    generated_lines: list[str] = []
+    from_value = str(getattr(compared_chart, "from_whence", "") or "").strip()
+    if not from_value:
+        from_value = str(getattr(compared_chart, "from", "") or "").strip()
+    if not from_value and isinstance(chart_metadata, Mapping):
+        from_value = str(chart_metadata.get("from") or chart_metadata.get("from_whence") or "").strip()
+    if from_value:
+        generated_lines.append(f"from: {from_value}")
+
+    alias_value = str(getattr(compared_chart, "alias", "") or "").strip()
+    if not alias_value and isinstance(chart_metadata, Mapping):
+        alias_value = str(chart_metadata.get("alias") or "").strip()
+    if alias_value:
+        generated_lines.append(f"aka: {alias_value}")
+
+    tags = _chart_tags_for_generated_bio(compared_chart)
+    if tags:
+        generated_lines.append(f"tags: {', '.join(tags)}")
+    return "\n".join(generated_lines)
 
 
 def _sentiment_scale_bucket(value: float) -> tuple[str, str, str]:
@@ -430,6 +523,8 @@ def build_similar_chart_bio_panel_content(*, compared_name: str, biography_text:
     ]
     alignment_value = getattr(compared_chart, "alignment_score", None) if compared_chart is not None else None
 
+    if not biography_text:
+        biography_text = build_similar_chart_biography_text(compared_chart=compared_chart)
     if biography_text:
         bio_html = f"<div style='margin-top:8px;color:#f5f5f5'>{html.escape(biography_text).replace(chr(10), '<br>')}</div>"
         bio_plain = biography_text
@@ -2754,7 +2849,6 @@ def build_similar_charts_popout_dialog(
                 match: Any,
                 line_edit: QLineEdit,
                 na_checkbox: QCheckBox,
-                status_label: QLabel,
             ) -> None:
                 if on_perceived_accuracy_changed is None:
                     return
@@ -2769,7 +2863,6 @@ def build_similar_charts_popout_dialog(
                         normalized = str(score)
                         if normalized != text_value:
                             line_edit.setText(normalized)
-                status_label.setText("Recording…")
                 recorded = on_perceived_accuracy_changed(
                     dialog,
                     match,
@@ -2778,28 +2871,23 @@ def build_similar_charts_popout_dialog(
                     bool(na_checkbox.isChecked()),
                 )
                 if recorded is False:
-                    status_label.setText("Recording failed")
+                    _set_perceived_accuracy_recorded_style(line_edit, na_checkbox, recorded=False, failed=True)
                     return
-                recorded_text = (
-                    "n/a" if na_checkbox.isChecked() else (str(score) if score is not None else "blank")
-                )
-                status_label.setText(f"Recorded: {recorded_text}")
+                _set_perceived_accuracy_recorded_style(line_edit, na_checkbox, recorded=True)
 
             def _on_accuracy_edit_finished(
                 match: Any,
                 line_edit: QLineEdit,
                 na_checkbox: QCheckBox,
-                status_label: QLabel,
             ) -> None:
                 if na_checkbox.isChecked():
                     return
-                _emit_accuracy_change(match, line_edit, na_checkbox, status_label)
+                _emit_accuracy_change(match, line_edit, na_checkbox)
 
             def _on_na_checkbox_changed(
                 match: Any,
                 line_edit: QLineEdit,
                 na_checkbox: QCheckBox,
-                status_label: QLabel,
             ) -> None:
                 if na_checkbox.isChecked():
                     if line_edit.text().strip():
@@ -2814,13 +2902,13 @@ def build_similar_charts_popout_dialog(
                         if response != QMessageBox.Yes:
                             _set_checkbox_checked_silently(na_checkbox, False)
                             line_edit.setEnabled(True)
-                            status_label.setText("Numeric score kept; n/a not recorded")
+                            _set_perceived_accuracy_recorded_style(line_edit, na_checkbox, recorded=False)
                             return
                         line_edit.clear()
                     line_edit.setEnabled(False)
                 else:
                     line_edit.setEnabled(True)
-                _emit_accuracy_change(match, line_edit, na_checkbox, status_label)
+                _emit_accuracy_change(match, line_edit, na_checkbox)
 
             for rank, match in enumerate(matches, start=1):
                 match_widget = QWidget()
@@ -2858,11 +2946,9 @@ def build_similar_charts_popout_dialog(
                 accuracy_input.setValidator(QIntValidator(0, 100, accuracy_input))
                 accuracy_input.setFixedWidth(38)
                 accuracy_input.setPlaceholderText("0-100")
-                accuracy_input.setToolTip("Perceived accuracy for this match (0-100).")
-                accuracy_input.setStyleSheet("font-size: 10px; padding: 1px;")
                 na_checkbox = QCheckBox("n/a")
-                na_checkbox.setToolTip("No opinion / not enough familiarity; ignore this data point.")
-                na_checkbox.setStyleSheet("QCheckBox { font-size: 6pt; color: #f5f5f5; spacing: 1px; }")
+                na_checkbox.setMinimumWidth(34)
+                _set_perceived_accuracy_recorded_style(accuracy_input, na_checkbox, recorded=False)
                 state = _accuracy_state_for(match)
                 if bool(state.get("not_applicable", False)):
                     na_checkbox.setChecked(True)
@@ -2873,35 +2959,38 @@ def build_similar_charts_popout_dialog(
                         accuracy_input.setText(str(max(0, min(100, int(raw_score)))))
                     except (TypeError, ValueError):
                         pass
-                status_label = QLabel(_perceived_accuracy_status_text(state))
-                status_label.setStyleSheet("font-size: 8pt; color: #cfcfcf;")
-                status_label.setToolTip("Latest saved perceived-accuracy record for this chart match and panel.")
+                has_recorded_state = isinstance(state, Mapping) and bool(state)
+                if has_recorded_state:
+                    _set_perceived_accuracy_recorded_style(accuracy_input, na_checkbox, recorded=True)
+                accuracy_input.textEdited.connect(
+                    lambda _text, line_edit=accuracy_input, checkbox=na_checkbox: _set_perceived_accuracy_recorded_style(
+                        line_edit,
+                        checkbox,
+                        recorded=False,
+                    )
+                )
                 accuracy_input.editingFinished.connect(
-                    lambda match=match, line_edit=accuracy_input, checkbox=na_checkbox, status=status_label: _on_accuracy_edit_finished(  # noqa: E501
+                    lambda match=match, line_edit=accuracy_input, checkbox=na_checkbox: _on_accuracy_edit_finished(
                         match,
                         line_edit,
                         checkbox,
-                        status,
                     )
                 )
                 na_checkbox.stateChanged.connect(
-                    lambda _state, match=match, line_edit=accuracy_input, checkbox=na_checkbox, status=status_label: _on_na_checkbox_changed(  # noqa: E501
+                    lambda _state, match=match, line_edit=accuracy_input, checkbox=na_checkbox: _on_na_checkbox_changed(
                         match,
                         line_edit,
                         checkbox,
-                        status,
                     )
                 )
                 row_layout.addWidget(accuracy_input, 0, Qt.AlignTop | Qt.AlignRight)
                 row_layout.addWidget(na_checkbox, 0, Qt.AlignTop | Qt.AlignRight)
-                row_layout.addWidget(status_label, 0, Qt.AlignTop | Qt.AlignRight)
                 match_layout.addLayout(row_layout)
                 content_layout.addWidget(match_widget)
                 try:
                     accuracy_widgets[int(getattr(match, "chart_id", 0))] = {
                         "input": accuracy_input,
                         "not_applicable_checkbox": na_checkbox,
-                        "status_label": status_label,
                         "panel_key": panel_key,
                     }
                 except (TypeError, ValueError):
