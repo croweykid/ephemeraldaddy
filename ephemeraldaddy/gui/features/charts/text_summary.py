@@ -343,7 +343,6 @@ def format_chart_text(
     *,
     show_cursedness: bool = True,
     show_dnd_output: bool = True,
-    show_chart_uid: bool = False,
 ) -> tuple[
     str,
     dict[int, list[dict[str, object]]],
@@ -399,9 +398,6 @@ def format_chart_text(
             lon=chart.lon,
         )
     )
-    if show_chart_uid:
-        chart_uid = str(getattr(chart, "chart_uid", "") or "").strip() or "Unavailable"
-        lines.append(f"Chart ID: {chart_uid}")
     houses = getattr(chart, "houses", None) if use_houses else None
     aspects = getattr(chart, "aspects", None)
     filtered_aspects: list[dict] = []
