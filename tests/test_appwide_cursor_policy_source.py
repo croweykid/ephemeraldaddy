@@ -48,3 +48,36 @@ def test_chart_view_and_database_view_graphs_use_shared_popout_cursor():
         render_chart_start : app_source.index("    def _clear_chart_displays", render_chart_start)
     ]
     assert "apply_popout_cursor(canvas)" in render_chart
+
+
+def test_feature_panels_import_shared_cursor_helpers_instead_of_raw_button_cursors():
+    paths = [
+        "ephemeraldaddy/gui/app.py",
+        "ephemeraldaddy/gui/dev_tools.py",
+        "ephemeraldaddy/gui/features/controllers/main_window.py",
+        "ephemeraldaddy/gui/features/controllers/chart_view_window.py",
+        "ephemeraldaddy/gui/features/controllers/db_info.py",
+        "ephemeraldaddy/gui/features/charts/anagrams.py",
+        "ephemeraldaddy/gui/features/charts/aspect_weight_graphs.py",
+        "ephemeraldaddy/gui/features/charts/db_info_panel.py",
+        "ephemeraldaddy/gui/features/charts/popout_helpers.py",
+        "ephemeraldaddy/gui/features/charts/similar_charts_popout.py",
+    ]
+
+    for relative_path in paths:
+        source = (REPO_ROOT / relative_path).read_text()
+        assert "apply_button_cursor" in source
+        assert "setCursor(Qt.CursorShape.PointingHandCursor)" not in source
+
+
+def test_chart_info_detail_links_use_question_cursor_helper():
+    paths = [
+        "ephemeraldaddy/gui/features/charts/db_info_panel.py",
+        "ephemeraldaddy/gui/features/charts/dnd_predictions.py",
+        "ephemeraldaddy/gui/features/charts/human_design_analytics_panel.py",
+        "ephemeraldaddy/gui/features/dialogues.py",
+    ]
+
+    for relative_path in paths:
+        source = (REPO_ROOT / relative_path).read_text()
+        assert "apply_chart_info_link_cursor" in source

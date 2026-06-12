@@ -48,6 +48,7 @@ from ephemeraldaddy.gui.features.charts.anagrams import AnagramsPresenter, build
 from ephemeraldaddy.gui.features.charts.loading_overlay import ChartLoadingOverlay
 from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import build_chart_right_panel_stack
 from ephemeraldaddy.gui.features.controllers.chart_right_panel import ChartRightPanelController
+from ephemeraldaddy.gui.style import apply_button_cursor
 from ephemeraldaddy.gui.features.charts.tagging import (
     normalize_tag_list,
     parse_tag_text,
@@ -673,7 +674,7 @@ def build_chart_view_left_panel(
 
     owner.chart_info_toggle_button = QPushButton("ⓘ")
     owner.chart_info_toggle_button.setCheckable(True)
-    owner.chart_info_toggle_button.setCursor(Qt.PointingHandCursor)
+    apply_button_cursor(owner.chart_info_toggle_button)
     owner.chart_info_toggle_button.setMinimumHeight(24)
     owner.chart_info_toggle_button.clicked.connect(
         lambda: owner._set_chart_info_panel_mode("chart_info")
@@ -681,7 +682,7 @@ def build_chart_view_left_panel(
 
     owner.chart_bio_toggle_button = QPushButton("👤") #Biography / #Bio
     owner.chart_bio_toggle_button.setCheckable(True)
-    owner.chart_bio_toggle_button.setCursor(Qt.PointingHandCursor)
+    apply_button_cursor(owner.chart_bio_toggle_button)
     owner.chart_bio_toggle_button.setMinimumHeight(24)
     owner.chart_bio_toggle_button.clicked.connect(
         lambda: owner._set_chart_info_panel_mode("biography")
@@ -689,7 +690,7 @@ def build_chart_view_left_panel(
 
     owner.chart_comments_toggle_button = QPushButton("💭") #Personal thoughts / #Comments
     owner.chart_comments_toggle_button.setCheckable(True)
-    owner.chart_comments_toggle_button.setCursor(Qt.PointingHandCursor)
+    apply_button_cursor(owner.chart_comments_toggle_button)
     owner.chart_comments_toggle_button.setMinimumHeight(24)
     owner.chart_comments_toggle_button.clicked.connect(
         lambda: owner._set_chart_info_panel_mode("comments")
@@ -697,7 +698,7 @@ def build_chart_view_left_panel(
 
     owner.chart_rectification_toggle_button = QPushButton("⏳💬") #Rectification Notes
     owner.chart_rectification_toggle_button.setCheckable(True)
-    owner.chart_rectification_toggle_button.setCursor(Qt.PointingHandCursor)
+    apply_button_cursor(owner.chart_rectification_toggle_button)
     owner.chart_rectification_toggle_button.setMinimumHeight(24)
     owner.chart_rectification_toggle_button.clicked.connect(
         lambda: owner._set_chart_info_panel_mode("rectification")
@@ -705,7 +706,7 @@ def build_chart_view_left_panel(
 
     owner.chart_source_toggle_button = QPushButton("🌐") #Source
     owner.chart_source_toggle_button.setCheckable(True)
-    owner.chart_source_toggle_button.setCursor(Qt.PointingHandCursor)
+    apply_button_cursor(owner.chart_source_toggle_button)
     owner.chart_source_toggle_button.setMinimumHeight(24)
     owner.chart_source_toggle_button.clicked.connect(
         lambda: owner._set_chart_info_panel_mode("source")

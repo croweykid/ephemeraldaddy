@@ -19,7 +19,11 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from ephemeraldaddy.gui.style import DATABASE_VIEW_PANEL_HEADER_STYLE
+from ephemeraldaddy.gui.style import (
+    DATABASE_VIEW_PANEL_HEADER_STYLE,
+    apply_button_cursor,
+    apply_chart_info_link_cursor,
+)
 
 
 from ephemeraldaddy.gui.features.charts.similarities_db_norm import (
@@ -271,7 +275,7 @@ class DBInfoPanel(QWidget):
 
         self.close_button = QToolButton(header)
         self.close_button.setText("✕")
-        self.close_button.setCursor(Qt.PointingHandCursor)
+        apply_button_cursor(self.close_button)
         self.close_button.setAutoRaise(True)
         self.close_button.setToolTip("Close DB Info Panel")
         self.close_button.setFixedSize(20, 20)
@@ -328,7 +332,7 @@ def add_similarity_match_row(
         label_widget.setTextFormat(Qt.RichText)
         label_widget.setTextInteractionFlags(Qt.TextBrowserInteraction)
         label_widget.setOpenExternalLinks(False)
-        label_widget.setCursor(Qt.PointingHandCursor)
+        apply_chart_info_link_cursor(label_widget)
         label_widget.linkActivated.connect(on_info_target_requested)
     else:
         label_widget = QLabel(f"({match_count}) {label}")

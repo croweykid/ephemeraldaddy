@@ -1128,6 +1128,7 @@ from ephemeraldaddy.gui.style import (
     SETTINGS_SECTION_SUBHEADER_STYLE,
     DEFAULT_DROPDOWN_STYLE,
     WINDOW_CHROME_MENU_STYLE,
+    apply_button_cursor,
     apply_chart_info_link_cursor,
     apply_popout_cursor,
     apply_shared_dropdown_style,
@@ -1849,7 +1850,7 @@ def _configure_similarities_export_button(
     button.setMinimumWidth(button.sizeHint().width())
     button.setFixedHeight(20)
     button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
-    button.setCursor(Qt.PointingHandCursor)
+    apply_button_cursor(button)
     button.setToolTip(tooltip)
 
 
@@ -2765,7 +2766,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             popout_button.setIconSize(QSize(*DATABASE_ANALYTICS_EXPORT_ICON_SIZE))
         popout_button.setFlat(True)
         popout_button.setFixedSize(*DATABASE_ANALYTICS_EXPORT_BUTTON_SIZE)
-        popout_button.setCursor(Qt.PointingHandCursor)
+        apply_button_cursor(popout_button)
         popout_button.setToolTip(f"Open {title_text} graph in a larger popout window")
         popout_button.clicked.connect(
             lambda _checked=False, key=chart_key, title=title_text: self._show_database_analytics_popout(
@@ -2784,7 +2785,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             export_button.setText("↗")
         export_button.setFlat(True)
         export_button.setFixedSize(*DATABASE_ANALYTICS_EXPORT_BUTTON_SIZE)
-        export_button.setCursor(Qt.PointingHandCursor)
+        apply_button_cursor(export_button)
         export_button.setToolTip(f"Export {title_text} as CSV")
         export_button.clicked.connect(
             lambda _checked=False, key=chart_key, title=title_text: self._export_database_analysis_chart_csv(
@@ -13533,7 +13534,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         batch_familiarity_calculator_button.setAutoRaise(True)
         batch_familiarity_calculator_button.setStyleSheet("QToolButton { border: none; background: transparent; padding: 0; }")
         batch_familiarity_calculator_button.setToolTip("Open Familiarity Calculator")
-        batch_familiarity_calculator_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        apply_button_cursor(batch_familiarity_calculator_button)
         batch_familiarity_calculator_button.clicked.connect(self._open_batch_familiarity_calculator)
         familiarity_label_layout.addWidget(batch_familiarity_calculator_button)
         familiarity_label_widget.setLayout(familiarity_label_layout)
@@ -16909,7 +16910,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
 
         save_button = QPushButton("✅")
-        save_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        apply_button_cursor(save_button)
         save_button.setToolTip("Save chart name")
         save_button.setFixedWidth(34)
         save_button.setStyleSheet(
@@ -21209,7 +21210,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         container_layout.setSpacing(4)
 
         button = QPushButton(title)
-        button.setCursor(Qt.PointingHandCursor)
+        apply_button_cursor(button)
         button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         button.clicked.connect(callback)
         container_layout.addWidget(button)
@@ -22934,7 +22935,7 @@ class MainWindow(QMainWindow):
         familiarity_calculator_button.setAutoRaise(True)
         familiarity_calculator_button.setStyleSheet("QToolButton { border: none; background: transparent; padding: 0; }")
         familiarity_calculator_button.setToolTip("Open Familiarity Calculator")
-        familiarity_calculator_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        apply_button_cursor(familiarity_calculator_button)
         familiarity_calculator_button.clicked.connect(self._open_chart_familiarity_calculator)
         familiarity_label_layout.addWidget(familiarity_calculator_button)
         familiarity_label_widget.setLayout(familiarity_label_layout)
@@ -23102,7 +23103,7 @@ class MainWindow(QMainWindow):
         else:
             self.output_share_button.setText("↗")
         self.output_share_button.setAutoRaise(True)
-        self.output_share_button.setCursor(Qt.PointingHandCursor)
+        apply_button_cursor(self.output_share_button)
         self.output_share_button.setToolTip("Export chart data output as Markdown or text")
         self.output_share_button.clicked.connect(self._export_chart_data_output)
         self.output_share_button.resize(22, 22)
@@ -23381,7 +23382,7 @@ class MainWindow(QMainWindow):
         else:
             export_button.setText("↗")
         export_button.setAutoRaise(True)
-        export_button.setCursor(Qt.PointingHandCursor)
+        apply_button_cursor(export_button)
         export_button.setToolTip("Export similar charts as TXT or Markdown")
         export_button.clicked.connect(self._export_similar_charts_share)
         header_layout.addWidget(export_button, 0, Qt.AlignRight)
@@ -23402,7 +23403,7 @@ class MainWindow(QMainWindow):
         more_button = QToolButton()
         more_button.setText("More...")
         more_button.setAutoRaise(True)
-        more_button.setCursor(Qt.PointingHandCursor)
+        apply_button_cursor(more_button)
         more_button.setStyleSheet(
             (
                 "QToolButton {"
@@ -32084,7 +32085,7 @@ class MainWindow(QMainWindow):
         else:
             summary_share_button.setText("↗")
         summary_share_button.setAutoRaise(True)
-        summary_share_button.setCursor(Qt.PointingHandCursor)
+        apply_button_cursor(summary_share_button)
         summary_share_button.setToolTip("Export chart data output as Markdown or text")
         summary_share_button.setFixedSize(22, 22)
         summary_share_button.clicked.connect(
