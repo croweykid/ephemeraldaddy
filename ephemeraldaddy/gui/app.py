@@ -18556,15 +18556,32 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if not selected_ids:
             return
         menu = QMenu(self.list_widget)
-        label = (
-            "Hide selected chart"
-            if len(selected_ids) == 1
-            else f"Hide {len(selected_ids)} selected charts"
-        )
-        hide_action = menu.addAction(label)
+        hidden_chart_ids = set(getattr(self, "_hidden_chart_ids", set()))
+        selected_hidden_ids = [chart_id for chart_id in selected_ids if chart_id in hidden_chart_ids]
+        selected_visible_ids = [chart_id for chart_id in selected_ids if chart_id not in hidden_chart_ids]
+        hide_action = None
+        unhide_action = None
+        if selected_visible_ids:
+            label = (
+                "Hide selected chart"
+                if len(selected_visible_ids) == 1
+                else f"Hide {len(selected_visible_ids)} selected charts"
+            )
+            hide_action = menu.addAction(label)
+        if getattr(self, "_show_hidden_charts", False) and selected_hidden_ids:
+            label = (
+                "Unhide selected chart"
+                if len(selected_hidden_ids) == 1
+                else f"Unhide {len(selected_hidden_ids)} selected charts"
+            )
+            unhide_action = menu.addAction(label)
+        if menu.isEmpty():
+            return
         chosen_action = menu.exec(self.list_widget.viewport().mapToGlobal(position))
         if chosen_action is hide_action:
-            self._hide_selected_charts(selected_ids)
+            self._hide_selected_charts(selected_visible_ids)
+        elif chosen_action is unhide_action:
+            self._unhide_selected_charts(selected_hidden_ids)
 
     def _hide_selected_charts(self, chart_ids: list[int]) -> None:
         normalized_ids = {int(chart_id) for chart_id in chart_ids}
@@ -18574,6 +18591,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._save_hidden_chart_ids_to_settings()
         remaining_selection = set(self._selected_chart_ids()) - normalized_ids
         self._populate_list(selected_ids=remaining_selection, refresh_metrics=False)
+        self._on_selection_changed(sync_persistent_selection=False)
+
+    def _unhide_selected_charts(self, chart_ids: list[int]) -> None:
+        normalized_ids = {int(chart_id) for chart_id in chart_ids}
+        if not normalized_ids:
+            return
+        self._hidden_chart_ids.difference_update(normalized_ids)
+        self._save_hidden_chart_ids_to_settings()
+        self._populate_list(selected_ids=set(self._selected_chart_ids()) | normalized_ids, refresh_metrics=False)
         self._on_selection_changed(sync_persistent_selection=False)
 
     def _chart_matches_filters(self, chart_id: int) -> bool:
@@ -20520,7 +20546,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._database_view_row_info_checkboxes[row_info_key] = checkbox
             database_view_section.addWidget(checkbox)
 
-        show_hidden_checkbox = QCheckBox("Show Hidden")
+        show_hidden_checkbox = QCheckBox("Show Hidden Charts")
         show_hidden_checkbox.setChecked(bool(getattr(self, "_show_hidden_charts", False)))
         show_hidden_checkbox.setToolTip(
             "Show charts hidden from the Database View middle-panel list."
@@ -32203,7 +32229,6 @@ class MainWindow(QMainWindow):
         cache_path = self._distinguishing_metric_cache_path()
         cache = _load_distinguishing_metric_cache(cache_path)
         chart_cache = cache.setdefault("charts", {})
-        active_ids: set[str] = set()
         payloads: list[dict[str, Any]] = []
         cache_changed = False
         for row in self._prediction_norm_rows():
@@ -32214,7 +32239,6 @@ class MainWindow(QMainWindow):
             if bool(row[15] if len(row) > 15 else False):
                 continue
             chart_id_key = str(chart_id)
-            active_ids.add(chart_id_key)
             existing = chart_cache.get(chart_id_key)
             row_essential = json.dumps(
                 {
@@ -32251,11 +32275,10 @@ class MainWindow(QMainWindow):
             }
             cache_changed = True
             payloads.append(payload)
-        stale_ids = set(chart_cache) - active_ids
-        if stale_ids:
-            for stale_id in stale_ids:
-                chart_cache.pop(stale_id, None)
-            cache_changed = True
+        # Keep cached metric payloads for charts outside the current Database View row set.
+        # The row set can be narrowed by filters, collection scope, or the hidden-chart
+        # toggle; pruning here would make the expensive distinguishing-factor payloads
+        # appear to be lost between launches after a filtered session.
         if cache_changed:
             try:
                 _save_distinguishing_metric_cache(cache_path, cache)
