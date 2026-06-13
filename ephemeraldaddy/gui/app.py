@@ -18093,12 +18093,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         int | None,
         int | None,
         int | None,
+        int | None,
+        int | None,
     ] | None:
         if not row:
             return None
         padded = list(row)
-        if len(padded) < 20:
-            padded.extend([None] * (20 - len(padded)))
+        if len(padded) < 22:
+            padded.extend([None] * (22 - len(padded)))
         return (
             int(padded[0]),
             padded[1],
@@ -18124,6 +18126,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             int(padded[17]) if padded[17] is not None else None,
             int(padded[18]) if padded[18] is not None else None,
             int(padded[19]) if padded[19] is not None else None,
+            int(padded[20]) if padded[20] is not None else None,
+            int(padded[21]) if padded[21] is not None else None,
         )
 
     def _populate_list(
