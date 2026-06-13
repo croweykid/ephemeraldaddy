@@ -26,6 +26,10 @@ from ephemeraldaddy.analysis.bazi_getter import UNKNOWN_BAZI_VALUE, build_bazi_c
 
 DB_DIR = Path.home() / ".ephemeraldaddy"
 DB_PATH = DB_DIR / "charts.db"
+BACKUP_FILENAME_PREFIX = "ephemeraldaddy_dbbackup_"
+BACKUP_FILENAME_SUFFIX = ".db"
+MAX_AUTO_BACKUPS = 10
+_AUTO_BACKUP_CREATED = False
 CHART_TYPE_PUBLIC_DB = "public_db"
 CHART_TYPE_PERSONAL = "personal"
 CHART_TYPE_PARASOCIAL = "parasocial"
@@ -1149,9 +1153,15 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
 
 def _get_conn() -> sqlite3.Connection:
     """Open a SQLite connection and ensure the schema exists."""
+    global _AUTO_BACKUP_CREATED
+
     DB_DIR.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     _ensure_schema(conn)
+    if not _AUTO_BACKUP_CREATED:
+        conn.commit()
+        backup_database()
+        _AUTO_BACKUP_CREATED = True
     return conn
 
 
@@ -2131,21 +2141,53 @@ def export_chart_properties_csv(
     return destination
 
 
+def _timestamped_backup_paths() -> list[Path]:
+    """Return timestamped app-data database backups, newest first."""
+    if not DB_DIR.exists():
+        return []
+    return sorted(
+        (
+            path
+            for path in DB_DIR.glob(f"{BACKUP_FILENAME_PREFIX}*{BACKUP_FILENAME_SUFFIX}")
+            if path.is_file()
+        ),
+        key=lambda path: path.name,
+        reverse=True,
+    )
+
+
+def _prune_timestamped_backups(max_backups: int = MAX_AUTO_BACKUPS) -> None:
+    """Keep only the newest timestamped app-data database backups."""
+    if max_backups < 1:
+        return
+    for old_backup in _timestamped_backup_paths()[max_backups:]:
+        try:
+            old_backup.unlink()
+        except FileNotFoundError:
+            pass
+
+
 def backup_database(destination: Optional[Path] = None) -> Path:
     """
     Copy the database to a backup file.
 
-    If destination is None, create a timestamped backup in DB_DIR.
+    If destination is None, create a timestamped backup in DB_DIR and retain only
+    the newest MAX_AUTO_BACKUPS timestamped app-data backups. Explicit
+    destinations are left alone because they may be user-selected exports.
     """
     if not DB_PATH.exists():
         raise FileNotFoundError("Database file does not exist yet.")
     DB_DIR.mkdir(parents=True, exist_ok=True)
+    should_prune = destination is None
     if destination is None:
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-        destination = DB_DIR / f"ephemeraldaddy_dbbackup_{timestamp}.db"
+        destination = DB_DIR / f"{BACKUP_FILENAME_PREFIX}{timestamp}{BACKUP_FILENAME_SUFFIX}"
     else:
         destination = Path(destination)
+        destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(DB_PATH, destination)
+    if should_prune:
+        _prune_timestamped_backups()
     return destination
 
 
