@@ -452,7 +452,7 @@ def build_distinguishing_factors_html(chart: Chart | None, norm_charts: Iterable
                 f"{DISTINGUISHING_Z_THRESHOLD:.0f}σ from the current norm:"
             )
         )
-        for factor in factors[:12]:
+        for factor in factors:
             direction = "above" if factor.z_score > 0 else "below"
             lines.append(
                 "• "
