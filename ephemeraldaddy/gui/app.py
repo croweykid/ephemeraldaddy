@@ -514,8 +514,9 @@ from ephemeraldaddy.gui.features.charts.similarities_algorithm_log import (
     similarity_algorithm_snapshots_changed,
 )
 from ephemeraldaddy.gui.features.charts.chart_similarity_relationships import (
+    convert_logged_chart_similarity_relationship_ids_to_uids,
+    format_chart_similarity_relationship_conversion_report,
     load_chart_similarity_relationship_states,
-    migrate_chart_similarity_relationship_file_to_chart_uids,
     save_chart_similarity_relationship,
 )
 from ephemeraldaddy.gui.window_placement import (
@@ -17601,20 +17602,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _on_convert_logged_chart_similarity_ids_to_uids(self) -> None:
         try:
-            chart_uid_map = get_chart_uid_map()
-            relationship_path = migrate_chart_similarity_relationship_file_to_chart_uids(
-                chart_id_to_uid=chart_uid_map
-            )
-            payload = json.loads(relationship_path.read_text(encoding="utf-8")) if relationship_path.exists() else {}
-            migration = payload.get("uid_migration", {}) if isinstance(payload, dict) else {}
-            relationships = payload.get("relationships", {}) if isinstance(payload, dict) else {}
-            uid_backed_count = sum(
-                1 for key in relationships if str(key).startswith("uid:")
-            ) if isinstance(relationships, dict) else 0
-            legacy_key_count = sum(
-                1 for key in relationships if not str(key).startswith("uid:")
-            ) if isinstance(relationships, dict) else 0
-            backup_path = str(migration.get("backup_path") or "")
+            report = convert_logged_chart_similarity_relationship_ids_to_uids()
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -17623,19 +17611,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             return
 
-        message_lines = [
-            f"Updated relationship log:\n{relationship_path}",
-            f"UID-backed relationships now in log: {uid_backed_count}",
-            f"Legacy-key relationships still in log: {legacy_key_count}",
-        ]
-        if backup_path:
-            message_lines.append(f"Backup before conversion:\n{backup_path}")
-        elif legacy_key_count == 0:
-            message_lines.append("No legacy-key relationships remain in the log.")
         QMessageBox.information(
             self,
             "Similarity relationship conversion complete",
-            "\n\n".join(message_lines),
+            format_chart_similarity_relationship_conversion_report(report),
         )
 
     def _on_recalculate_all_weights_in_db(self) -> None:

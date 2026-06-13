@@ -3248,6 +3248,30 @@ def get_chart_uid_map(chart_ids: Iterable[int] | None = None) -> dict[int, str]:
         conn.close()
 
 
+def get_chart_display_name_map(chart_ids: Iterable[int] | None = None) -> dict[int, str]:
+    """Return human-readable chart labels keyed by local integer chart id."""
+    conn = _get_conn()
+    try:
+        if chart_ids is None:
+            rows = conn.execute("SELECT id, name, alias FROM charts").fetchall()
+        else:
+            normalized_ids = sorted({int(chart_id) for chart_id in chart_ids})
+            if not normalized_ids:
+                return {}
+            placeholders = ", ".join("?" for _ in normalized_ids)
+            rows = conn.execute(
+                f"SELECT id, name, alias FROM charts WHERE id IN ({placeholders})",
+                tuple(normalized_ids),
+            ).fetchall()
+        labels: dict[int, str] = {}
+        for chart_id, name, alias in rows:
+            label = str(name or alias or "").strip()
+            labels[int(chart_id)] = label or f"Chart #{int(chart_id)}"
+        return labels
+    finally:
+        conn.close()
+
+
 def get_chart_uid(chart_id: int | None) -> str | None:
     if chart_id is None:
         return None

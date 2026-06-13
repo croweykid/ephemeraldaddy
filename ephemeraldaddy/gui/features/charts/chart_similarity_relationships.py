@@ -4,14 +4,36 @@ from __future__ import annotations
 
 import datetime as _datetime
 import json
+from dataclasses import asdict, dataclass
 import os
 from pathlib import Path
 from typing import Any, Mapping
+
+from ephemeraldaddy.core.db import get_chart_display_name_map, get_chart_uid_map
 
 CHART_SIMILARITY_RELATIONSHIPS_PATH_ENV = "EPHEMERALDADDY_CHART_SIMILARITY_RELATIONSHIPS_PATH"
 CHART_SIMILARITY_RELATIONSHIPS_FILENAME = "chart_similarity_relationships.json"
 _LEGACY_SIMILARITIES_ALGORITHM_LOG_PATH_ENV = "EPHEMERALDADDY_SIMILARITIES_ALGORITHM_LOG_PATH"
 _LEGACY_SIMILARITIES_ALGORITHM_LOG_FILENAME = "similarities_algorithm_log.txt"
+
+
+@dataclass(frozen=True)
+class ChartSimilarityRelationshipConversionIssue:
+    relationship_key: str
+    chart_ids: list[int | None]
+    chart_names: list[str]
+    reason: str
+
+
+@dataclass(frozen=True)
+class ChartSimilarityRelationshipConversionReport:
+    relationship_path: str
+    report_path: str
+    backup_path: str
+    uid_backed_relationships: int
+    legacy_key_relationships: int
+    issue_count: int
+    issues: list[ChartSimilarityRelationshipConversionIssue]
 
 
 def resolve_chart_similarity_relationships_path(path: str | os.PathLike[str] | None = None) -> Path:
@@ -110,6 +132,34 @@ def _read_relationship_file(path: Path) -> dict[str, Any]:
     relationships = payload.get("relationships")
     if not isinstance(relationships, dict):
         payload["relationships"] = {}
+    payload.setdefault("schema_version", 1)
+    return payload
+
+
+def _read_relationship_file_strict(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return _empty_relationship_file()
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(
+            f"Could not parse {path} as JSON at line {exc.lineno}, column {exc.colno}: {exc.msg}. "
+            "The conversion was not run and the relationship log was left unchanged."
+        ) from exc
+    except OSError as exc:
+        raise OSError(f"Could not read relationship log {path}: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise ValueError(
+            f"Relationship log {path} must contain a JSON object at the top level; "
+            f"found {type(payload).__name__}. The conversion was not run."
+        )
+    relationships = payload.get("relationships")
+    if relationships is not None and not isinstance(relationships, dict):
+        raise ValueError(
+            f"Relationship log {path} has a non-object 'relationships' value "
+            f"({type(relationships).__name__}). The conversion was not run."
+        )
+    payload.setdefault("relationships", {})
     payload.setdefault("schema_version", 1)
     return payload
 
@@ -221,6 +271,16 @@ def save_chart_similarity_relationship(
     second_id = _coerce_chart_id(chart_2_id)
     first_uid = _coerce_chart_uid(chart_1_uid)
     second_uid = _coerce_chart_uid(chart_2_uid)
+    missing_uid_labels = []
+    if not first_uid:
+        missing_uid_labels.append(f"{chart_1_name or 'chart 1'} (id={first_id})")
+    if not second_uid:
+        missing_uid_labels.append(f"{chart_2_name or 'chart 2'} (id={second_id})")
+    if missing_uid_labels:
+        raise ValueError(
+            "Refusing to save chart similarity relationship without stable chart UIDs for: "
+            + ", ".join(missing_uid_labels)
+        )
     key = chart_similarity_relationship_key(
         chart_1_id=first_id,
         chart_2_id=second_id,
@@ -233,7 +293,6 @@ def save_chart_similarity_relationship(
     score = _score_value(user_reported_accuracy, bool(not_applicable))
     timestamp_text = _utc_timestamp(timestamp)
     user_knows_similarity = bool(score is not None and not not_applicable)
-    del chart_1_name, chart_2_name
 
     relationships[key] = {
         "relationship_key": key,
@@ -257,6 +316,7 @@ def migrate_chart_similarity_relationship_file_to_chart_uids(
     *,
     chart_id_to_uid: Mapping[int, str],
     path: str | os.PathLike[str] | None = None,
+    fail_on_invalid_json: bool = False,
 ) -> Path:
     """Rewrite existing relationship JSON records from integer keys to UID keys.
 
@@ -264,7 +324,11 @@ def migrate_chart_similarity_relationship_file_to_chart_uids(
     relationship key becomes UID-backed when both chart IDs can be resolved.
     """
     relationships_path = resolve_chart_similarity_relationships_path(path)
-    payload = _read_relationship_file(relationships_path)
+    payload = (
+        _read_relationship_file_strict(relationships_path)
+        if fail_on_invalid_json
+        else _read_relationship_file(relationships_path)
+    )
     relationships = payload.setdefault("relationships", {})
     if not isinstance(relationships, dict):
         relationships = {}
@@ -335,6 +399,136 @@ def migrate_chart_similarity_relationship_file_to_chart_uids(
         temporary_path.replace(relationships_path)
     return relationships_path
 
+
+def _chart_issue_label(chart_id: int | None, chart_id_to_name: Mapping[int, str]) -> str:
+    if chart_id is None:
+        return "Unknown chart ID"
+    name = str(chart_id_to_name.get(int(chart_id), "") or "").strip()
+    return f"{name} (id={int(chart_id)})" if name else f"Chart #{int(chart_id)}"
+
+
+def _collect_conversion_issues(
+    relationships: Mapping[str, Any],
+    *,
+    chart_id_to_uid: Mapping[int, str],
+    chart_id_to_name: Mapping[int, str],
+) -> list[ChartSimilarityRelationshipConversionIssue]:
+    issues: list[ChartSimilarityRelationshipConversionIssue] = []
+    normalized_uid_map = {
+        int(chart_id): uid
+        for chart_id, raw_uid in chart_id_to_uid.items()
+        if (uid := _coerce_chart_uid(raw_uid))
+    }
+    for relationship_key, raw_state in relationships.items():
+        if not isinstance(raw_state, Mapping):
+            issues.append(
+                ChartSimilarityRelationshipConversionIssue(
+                    relationship_key=str(relationship_key),
+                    chart_ids=[],
+                    chart_names=[],
+                    reason="Relationship entry is not a JSON object.",
+                )
+            )
+            continue
+        first_id, second_id = _chart_ids_from_relationship_state(raw_state, relationship_key)
+        chart_uids = raw_state.get("chart_uids") if isinstance(raw_state.get("chart_uids"), list) else []
+        first_uid = _coerce_chart_uid(chart_uids[0]) if len(chart_uids) > 0 else None
+        second_uid = _coerce_chart_uid(chart_uids[1]) if len(chart_uids) > 1 else None
+        if first_uid and second_uid:
+            continue
+        missing_reasons: list[str] = []
+        if first_id is None or second_id is None:
+            missing_reasons.append("could not recover both legacy chart IDs")
+        else:
+            if not normalized_uid_map.get(first_id):
+                missing_reasons.append(f"missing UID for {_chart_issue_label(first_id, chart_id_to_name)}")
+            if not normalized_uid_map.get(second_id):
+                missing_reasons.append(f"missing UID for {_chart_issue_label(second_id, chart_id_to_name)}")
+        if missing_reasons:
+            chart_ids = [first_id, second_id]
+            issues.append(
+                ChartSimilarityRelationshipConversionIssue(
+                    relationship_key=str(relationship_key),
+                    chart_ids=chart_ids,
+                    chart_names=[_chart_issue_label(chart_id, chart_id_to_name) for chart_id in chart_ids],
+                    reason="; ".join(missing_reasons),
+                )
+            )
+    return issues
+
+
+def convert_logged_chart_similarity_relationship_ids_to_uids(
+    *,
+    path: str | os.PathLike[str] | None = None,
+) -> ChartSimilarityRelationshipConversionReport:
+    """Run the one-time relationship-log UID conversion and write a report beside the log."""
+    relationships_path = resolve_chart_similarity_relationships_path(path)
+    initial_payload = _read_relationship_file_strict(relationships_path)
+    initial_relationships = initial_payload.get("relationships", {})
+    if not isinstance(initial_relationships, Mapping):
+        initial_relationships = {}
+
+    chart_id_to_uid = get_chart_uid_map()
+    chart_id_to_name = get_chart_display_name_map()
+    issues = _collect_conversion_issues(
+        initial_relationships,
+        chart_id_to_uid=chart_id_to_uid,
+        chart_id_to_name=chart_id_to_name,
+    )
+    migrate_chart_similarity_relationship_file_to_chart_uids(
+        chart_id_to_uid=chart_id_to_uid,
+        path=relationships_path,
+        fail_on_invalid_json=True,
+    )
+
+    final_payload = _read_relationship_file_strict(relationships_path)
+    final_relationships = final_payload.get("relationships", {})
+    if not isinstance(final_relationships, Mapping):
+        final_relationships = {}
+    migration = final_payload.get("uid_migration", {}) if isinstance(final_payload, Mapping) else {}
+    uid_backed_count = sum(1 for key in final_relationships if str(key).startswith("uid:"))
+    legacy_key_count = sum(1 for key in final_relationships if not str(key).startswith("uid:"))
+    report_path = relationships_path.with_name(f"{relationships_path.stem}.uid_conversion_report.json")
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report = ChartSimilarityRelationshipConversionReport(
+        relationship_path=str(relationships_path),
+        report_path=str(report_path),
+        backup_path=str(migration.get("backup_path") or ""),
+        uid_backed_relationships=uid_backed_count,
+        legacy_key_relationships=legacy_key_count,
+        issue_count=len(issues),
+        issues=issues,
+    )
+    report_payload = asdict(report)
+    report_payload["created_at_utc"] = _utc_timestamp()
+    report_path.write_text(json.dumps(report_payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return report
+
+
+def format_chart_similarity_relationship_conversion_report(
+    report: ChartSimilarityRelationshipConversionReport,
+    *,
+    max_issues: int = 12,
+) -> str:
+    lines = [
+        f"Updated relationship log:\n{report.relationship_path}",
+        f"Conversion report:\n{report.report_path}",
+        f"UID-backed relationships now in log: {report.uid_backed_relationships}",
+        f"Legacy-key relationships still in log: {report.legacy_key_relationships}",
+    ]
+    if report.backup_path:
+        lines.append(f"Backup before conversion:\n{report.backup_path}")
+    if report.issues:
+        lines.append("Unresolved relationships:")
+        for issue in report.issues[:max_issues]:
+            names = ", ".join(issue.chart_names) if issue.chart_names else "Unknown charts"
+            lines.append(f"- {issue.relationship_key}: {names} — {issue.reason}")
+        remaining = len(report.issues) - max_issues
+        if remaining > 0:
+            lines.append(f"- ...and {remaining} more. See the conversion report for the full list.")
+    elif report.legacy_key_relationships == 0:
+        lines.append("No legacy-key relationships remain in the log.")
+    return "\n\n".join(lines)
 
 def _resolve_legacy_algorithm_log_path(path: str | os.PathLike[str] | None = None) -> Path:
     if path is not None:
