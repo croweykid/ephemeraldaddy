@@ -4,8 +4,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable, Sequence
 
-from PyQt5.QtCore import QTimer, Qt
-from PyQt5.QtWidgets import (
+from PySide6.QtCore import QTimer, Qt
+from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
     QFrame,
