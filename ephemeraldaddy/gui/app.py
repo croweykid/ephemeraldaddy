@@ -16580,11 +16580,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         self._settings.setValue("manage_charts/active_collection_id", persisted_collection_id)
         self._save_custom_collections_to_settings()
-        if hasattr(self, "incomplete_birthdate_checkbox"):
-            self._settings.setValue(
-                SETTINGS_KEY_HIDE_PLACEHOLDER_CHARTS_FILTER,
-                int(self.incomplete_birthdate_checkbox.mode() == QuadStateSlider.MODE_FALSE),
-            )
         self._settings.setValue("app/last_view", "database")
 
         parent = self.parent()
@@ -16754,7 +16749,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         blocker = QSignalBlocker(self.incomplete_birthdate_checkbox)
         self.incomplete_birthdate_checkbox.setMode(QuadStateSlider.MODE_FALSE)
-        self._settings.setValue(SETTINGS_KEY_HIDE_PLACEHOLDER_CHARTS_FILTER, 1)
         blocker.unblock()
 
     def _clear_filters(self, refresh: bool = True) -> None:
