@@ -899,6 +899,7 @@ from ephemeraldaddy.analysis.human_design import (
     describe_gate_line_placements,
     describe_synastry_gate_line_placements,
     gate_lines_for_gate,
+    hd_line_fixing_for_activation,
 )
 from ephemeraldaddy.analysis.hd_incarnation_crosses import find_cross_by_name
 from ephemeraldaddy.core.human_design_system import MANDALA_GATE_ORDER, MANDALA_START_DEGREE
@@ -28432,7 +28433,29 @@ class MainWindow(QMainWindow):
             {"name": "Unknown Gate", "meaning": "No gate reference available."},
         )
 
-        title = f"Gate {gate_number} • {gate_info['name']} ({self._hd_gate_header_suffix(gate_number)})"
+        fixing = None
+        fixing_body = None
+        if line_number is not None:
+            fixing_chart = None if placement_contexts else (chart_context if chart_context is not None else self._latest_chart)
+            if fixing_chart is not None:
+                try:
+                    hd_result = build_human_design_result(fixing_chart)
+                    for activation in (*hd_result.personality_activations, *hd_result.design_activations):
+                        if int(activation.gate) == gate_number and int(activation.line) == line_number:
+                            candidate_fixing = hd_line_fixing_for_activation(activation)
+                            if candidate_fixing:
+                                fixing = candidate_fixing
+                                fixing_body = str(activation.body)
+                                break
+                except Exception:
+                    fixing = None
+                    fixing_body = None
+
+        fixing_label = "exalted" if fixing == "exaltation" else "detriment" if fixing == "detriment" else ""
+        gate_label = f"{gate_number}.{line_number}" if line_number is not None else f"{gate_number}"
+        if fixing_label:
+            gate_label = f"{gate_label} ({fixing_label})"
+        title = f"Gate {gate_label} • {gate_info['name']} ({self._hd_gate_header_suffix(gate_number)})"
 
         self.chart_info_output.clear()
         cursor = self.chart_info_output.textCursor()
@@ -28485,7 +28508,7 @@ class MainWindow(QMainWindow):
             for item in activation_lines:
                 cursor.insertText(f"{item}\n", plain_fmt)
 
-        supplement_lines = humdes_gate_line_supplement_lines(gate_number, line_number)
+        supplement_lines = humdes_gate_line_supplement_lines(gate_number, line_number, fixing, fixing_body)
         if supplement_lines:
             cursor.insertText("\n", plain_fmt)
             for index, supplement_line in enumerate(supplement_lines):
