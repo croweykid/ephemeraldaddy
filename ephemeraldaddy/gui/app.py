@@ -16754,6 +16754,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         blocker = QSignalBlocker(self.incomplete_birthdate_checkbox)
         self.incomplete_birthdate_checkbox.setMode(QuadStateSlider.MODE_FALSE)
+        self._settings.setValue(SETTINGS_KEY_HIDE_PLACEHOLDER_CHARTS_FILTER, 1)
         blocker.unblock()
 
     def _clear_filters(self, refresh: bool = True) -> None:
