@@ -13,10 +13,12 @@ from ephemeraldaddy.analysis.get_astro_twin import (
     SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE,
     SIMILAR_CHARTS_ALGORITHM_DEFAULT,
     SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING,
+    SIMILAR_CHARTS_ALGORITHM_BIG_3,
     SIMILAR_CHARTS_ALGORITHM_CUSTOM,
     SimilarityCalculatorSettings,
     all_or_nothing_similarity_settings,
     chart_similarity_score,
+    chart_similarity_score_big_3,
     chart_similarity_score_custom,
     normalize_similar_charts_algorithm_mode,
 )
@@ -52,6 +54,7 @@ class PairSimilarityResult:
     human_design_channels_score: float | None = None
     inner_planet_placement_score: float | None = None
     outer_planet_placement_score: float | None = None
+    component_scores: dict[str, float] | None = None
     algorithm_mode: str = "default"
 
 
@@ -67,6 +70,17 @@ def calculate_pair_similarity_result(
     normalized_mode = normalize_similar_charts_algorithm_mode(algorithm_mode)
     settings = custom_settings or SimilarityCalculatorSettings.defaults_for_default_mode()
     placement_weighting_mode = settings.normalized_placement_weighting_mode()
+    if normalized_mode == SIMILAR_CHARTS_ALGORITHM_BIG_3:
+        final_score, component_scores = chart_similarity_score_big_3(first, second)
+        return PairSimilarityResult(
+            score=final_score,
+            placement_score=0.0,
+            aspect_score=0.0,
+            distribution_score=0.0,
+            component_scores=dict(component_scores),
+            algorithm_mode=normalized_mode,
+        )
+
     if normalized_mode in {
         SIMILAR_CHARTS_ALGORITHM_DEFAULT,
         SIMILAR_CHARTS_ALGORITHM_CUSTOM,
@@ -91,6 +105,7 @@ def calculate_pair_similarity_result(
             human_design_channels_score=component_scores.get("human_design_channels"),
             inner_planet_placement_score=component_scores.get("inner_planet_placement"),
             outer_planet_placement_score=component_scores.get("outer_planet_placement"),
+            component_scores=dict(component_scores),
             algorithm_mode=normalized_mode,
         )
     if normalized_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
@@ -114,6 +129,7 @@ def calculate_pair_similarity_result(
             human_design_channels_score=component_scores.get("human_design_channels"),
             inner_planet_placement_score=component_scores.get("inner_planet_placement"),
             outer_planet_placement_score=component_scores.get("outer_planet_placement"),
+            component_scores=dict(component_scores),
             algorithm_mode=normalized_mode,
         )
 

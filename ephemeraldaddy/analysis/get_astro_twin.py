@@ -50,6 +50,7 @@ SIMILAR_CHARTS_ALGORITHM_DEFAULT = "default"
 SIMILAR_CHARTS_ALGORITHM_GENERIC_ASTRO = "generic_astro"
 SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE = "comprehensive"
 SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING = "all_or_nothing"
+SIMILAR_CHARTS_ALGORITHM_BIG_3 = "big_3"
 SIMILAR_CHARTS_ALGORITHM_CUSTOM = "custom"
 PLACEMENT_WEIGHTING_MODE_CHART_DEFINED = "chart_defined"
 PLACEMENT_WEIGHTING_MODE_GENERIC = "generic"
@@ -64,7 +65,10 @@ SIMILARITY_COMPONENT_KEYS: tuple[str, ...] = (
     "placement",
     "aspect",
     "distribution",
-    "combined_dominance",
+    "dominant_bodies",
+    "dominant_signs",
+    "dominant_houses",
+    "dominant_nakshatras",
     "nakshatra_placement",
     "nakshatra_dominance",
     "defined_centers",
@@ -387,6 +391,7 @@ class AstroTwinMatch:
     human_design_channels_score: float | None = None
     inner_planet_placement_score: float | None = None
     outer_planet_placement_score: float | None = None
+    component_scores: dict[str, float] | None = None
     algorithm_mode: str = SIMILAR_CHARTS_ALGORITHM_DEFAULT
     chart_uses_houses: bool = True
 
@@ -479,7 +484,10 @@ class SimilarityCalculatorSettings:
             "placement": max(0.0, float(self.weight_placement)),
             "aspect": max(0.0, float(self.weight_aspect)),
             "distribution": max(0.0, float(self.weight_distribution)),
-            "combined_dominance": max(0.0, float(self.weight_combined_dominance)),
+            "dominant_bodies": max(0.0, float(self.weight_combined_dominance)) * 0.25,
+            "dominant_signs": max(0.0, float(self.weight_combined_dominance)) * 0.25,
+            "dominant_houses": max(0.0, float(self.weight_combined_dominance)) * 0.25,
+            "dominant_nakshatras": max(0.0, float(self.weight_combined_dominance)) * 0.25,
             "nakshatra_placement": max(0.0, float(self.weight_nakshatra_placement)),
             "nakshatra_dominance": max(0.0, float(self.weight_nakshatra_dominance)),
             "defined_centers": max(0.0, float(self.weight_defined_centers)),
@@ -494,7 +502,10 @@ class SimilarityCalculatorSettings:
             "placement": bool(self.use_placement),
             "aspect": bool(self.use_aspect),
             "distribution": bool(self.use_distribution),
-            "combined_dominance": bool(self.use_combined_dominance),
+            "dominant_bodies": bool(self.use_combined_dominance),
+            "dominant_signs": bool(self.use_combined_dominance),
+            "dominant_houses": bool(self.use_combined_dominance),
+            "dominant_nakshatras": bool(self.use_combined_dominance),
             "nakshatra_placement": bool(self.use_nakshatra_placement),
             "nakshatra_dominance": bool(self.use_nakshatra_dominance),
             "defined_centers": bool(self.use_defined_centers),
@@ -518,6 +529,7 @@ def normalize_similar_charts_algorithm_mode(value: object) -> str:
         SIMILAR_CHARTS_ALGORITHM_GENERIC_ASTRO,
         SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE,
         SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING,
+        SIMILAR_CHARTS_ALGORITHM_BIG_3,
         SIMILAR_CHARTS_ALGORITHM_CUSTOM,
     }:
         return normalized
@@ -526,6 +538,8 @@ def normalize_similar_charts_algorithm_mode(value: object) -> str:
 
 def normalize_all_or_nothing_component(value: object) -> str:
     normalized = str(value or "").strip().lower()
+    if normalized == "combined_dominance":
+        return normalized
     if normalized in ALL_OR_NOTHING_COMPONENT_KEYS:
         return normalized
     return DEFAULT_ALL_OR_NOTHING_COMPONENT
@@ -540,9 +554,26 @@ def all_or_nothing_similarity_settings(
         "placement_weighting_mode": source.normalized_placement_weighting_mode(),
         "all_or_nothing_component": selected_component,
     }
+    if selected_component == "combined_dominance":
+        values["use_combined_dominance"] = True
+        values["weight_combined_dominance"] = 1.0
+        for key in SIMILARITY_COMPONENT_KEYS:
+            if not key.startswith("dominant_"):
+                values[f"use_{key}"] = False
+                values[f"weight_{key}"] = 0.0
+        return SimilarityCalculatorSettings(**values)
     for key in SIMILARITY_COMPONENT_KEYS:
+        if key.startswith("dominant_"):
+            continue
         values[f"use_{key}"] = key == selected_component
         values[f"weight_{key}"] = 1.0 if key == selected_component else 0.0
+    values["use_combined_dominance"] = selected_component in {
+        "dominant_bodies",
+        "dominant_signs",
+        "dominant_houses",
+        "dominant_nakshatras",
+    }
+    values["weight_combined_dominance"] = 1.0 if values["use_combined_dominance"] else 0.0
     return SimilarityCalculatorSettings(**values)
 
 
@@ -1033,8 +1064,43 @@ def _dominance_similarity(query: Chart, candidate: Chart) -> float:
     )
 
 
+def _dominant_signs_similarity(query: Chart, candidate: Chart) -> float:
+    return _sign_dominance_similarity(query, candidate)
+
+
+def _dominant_houses_similarity(query: Chart, candidate: Chart) -> float:
+    if not (chart_uses_houses(query) and chart_uses_houses(candidate)):
+        return _dominant_bodies_similarity(query, candidate)
+    q_house = _house_weight_profile(query)
+    c_house = _house_weight_profile(candidate)
+    house_overlap = _weighted_overlap_similarity(q_house, c_house)
+    house_top3_overlap = len(_top_keys(q_house, count=3) & _top_keys(c_house, count=3)) / 3.0
+    return max(0.0, min(1.0, (house_overlap * 0.68) + (house_top3_overlap * 0.32)))
+
+
+def _dominant_bodies_similarity(query: Chart, candidate: Chart) -> float:
+    q_body = _body_dominance_profile(query)
+    c_body = _body_dominance_profile(candidate)
+    body_overlap = _weighted_overlap_similarity(q_body, c_body)
+    body_top3_overlap = len(_top_keys(q_body, count=3) & _top_keys(c_body, count=3)) / 3.0
+    return max(0.0, min(1.0, (body_overlap * 0.66) + (body_top3_overlap * 0.34)))
+
+
 def _combined_dominance_similarity(query: Chart, candidate: Chart) -> float:
-    return _dominance_similarity(query, candidate)
+    return _weighted_similarity_score(
+        {
+            "dominant_bodies": _dominant_bodies_similarity(query, candidate),
+            "dominant_signs": _dominant_signs_similarity(query, candidate),
+            "dominant_houses": _dominant_houses_similarity(query, candidate),
+            "dominant_nakshatras": _nakshatra_dominance_similarity(query, candidate),
+        },
+        {
+            "dominant_bodies": 0.25,
+            "dominant_signs": 0.25,
+            "dominant_houses": 0.25,
+            "dominant_nakshatras": 0.25,
+        },
+    )
 
 
 def _nakshatra_weight_profile(chart: Chart) -> dict[int, float]:
@@ -1185,8 +1251,14 @@ def _similarity_component_scores(
                 candidate,
                 weighting_mode=placement_weighting_mode,
             )
-        elif key == "combined_dominance":
-            scores[key] = _combined_dominance_similarity(query, candidate)
+        elif key == "dominant_bodies":
+            scores[key] = _dominant_bodies_similarity(query, candidate)
+        elif key == "dominant_signs":
+            scores[key] = _dominant_signs_similarity(query, candidate)
+        elif key == "dominant_houses":
+            scores[key] = _dominant_houses_similarity(query, candidate)
+        elif key == "dominant_nakshatras":
+            scores[key] = _nakshatra_dominance_similarity(query, candidate)
         elif key == "nakshatra_placement":
             scores[key] = _nakshatra_similarity(query, candidate)
         elif key == "nakshatra_dominance":
@@ -1354,6 +1426,49 @@ def chart_similarity_score_all_or_nothing(
     )
 
 
+def _same_sign_score(query: Chart, candidate: Chart, body: str) -> float:
+    q_lon = (getattr(query, "positions", None) or {}).get(body)
+    c_lon = (getattr(candidate, "positions", None) or {}).get(body)
+    if q_lon is None or c_lon is None:
+        return 0.0
+    return 1.0 if _sign_for_longitude(float(q_lon)) == _sign_for_longitude(float(c_lon)) else 0.0
+
+
+def chart_similarity_score_big_3(query: Chart, candidate: Chart) -> tuple[float, dict[str, float]]:
+    """Score Big 3 mode by sign matches, with angle weights only when houses are usable."""
+
+    has_house_context = chart_uses_houses(query) and chart_uses_houses(candidate)
+    weights = {
+        "big_3_sun": 0.35,
+        "big_3_moon": 0.25,
+        "big_3_mercury": 0.02,
+        "big_3_venus": 0.02,
+        "big_3_mars": 0.01,
+    }
+    if has_house_context:
+        weights["big_3_rising"] = 0.18
+        weights["big_3_mc"] = 0.17
+    else:
+        redistributed = (0.18 + 0.17) / len(weights)
+        weights = {key: weight + redistributed for key, weight in weights.items()}
+
+    component_scores = {
+        "big_3_sun": _same_sign_score(query, candidate, "Sun"),
+        "big_3_moon": _same_sign_score(query, candidate, "Moon"),
+        "big_3_mercury": _same_sign_score(query, candidate, "Mercury"),
+        "big_3_venus": _same_sign_score(query, candidate, "Venus"),
+        "big_3_mars": _same_sign_score(query, candidate, "Mars"),
+    }
+    if has_house_context:
+        component_scores["big_3_rising"] = _same_sign_score(query, candidate, "AS")
+        component_scores["big_3_mc"] = _same_sign_score(query, candidate, "MC")
+    total_weight = sum(weights.values())
+    if total_weight <= 0.0:
+        return 0.0, component_scores
+    score = sum(component_scores[key] * weight for key, weight in weights.items()) / total_weight
+    return score, component_scores
+
+
 def chart_dissimilarity_score(
     query: Chart,
     candidate: Chart,
@@ -1439,6 +1554,7 @@ def find_astro_twins(
     normalized_mode = normalize_similar_charts_algorithm_mode(algorithm_mode)
     use_comprehensive = normalized_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE
     use_all_or_nothing = normalized_mode == SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING
+    use_big_3 = normalized_mode == SIMILAR_CHARTS_ALGORITHM_BIG_3
     use_custom = normalized_mode in {
         SIMILAR_CHARTS_ALGORITHM_DEFAULT,
         SIMILAR_CHARTS_ALGORITHM_CUSTOM,
@@ -1465,7 +1581,21 @@ def find_astro_twins(
             continue
 
         if least_similar:
-            if use_custom or use_all_or_nothing:
+            if use_big_3:
+                custom_similarity_score, component_scores = chart_similarity_score_big_3(query_chart, candidate)
+                rank_score = 1.0 - custom_similarity_score
+                final_score = custom_similarity_score
+                placement_score = 0.0
+                aspect_score = 0.0
+                distribution_score = 0.0
+                nakshatra_score = None
+                nakshatra_dominance_score = None
+                hd_centers_score = None
+                human_design_gates_score = None
+                human_design_channels_score = None
+                inner_planet_placement_score = None
+                outer_planet_placement_score = None
+            elif use_custom or use_all_or_nothing:
                 custom_similarity_score, component_scores = chart_similarity_score_custom(
                     query_chart,
                     candidate,
@@ -1527,7 +1657,19 @@ def find_astro_twins(
                 inner_planet_placement_score = None
                 outer_planet_placement_score = None
         else:
-            if use_custom or use_all_or_nothing:
+            if use_big_3:
+                final_score, component_scores = chart_similarity_score_big_3(query_chart, candidate)
+                placement_score = 0.0
+                aspect_score = 0.0
+                distribution_score = 0.0
+                nakshatra_score = None
+                nakshatra_dominance_score = None
+                hd_centers_score = None
+                human_design_gates_score = None
+                human_design_channels_score = None
+                inner_planet_placement_score = None
+                outer_planet_placement_score = None
+            elif use_custom or use_all_or_nothing:
                 final_score, component_scores = chart_similarity_score_custom(
                     query_chart,
                     candidate,
@@ -1579,8 +1721,12 @@ def find_astro_twins(
                 outer_planet_placement_score = None
             rank_score = final_score
 
-        if use_custom or use_all_or_nothing or use_comprehensive:
-            dominance_score = component_scores.get("combined_dominance")
+        if use_custom or use_all_or_nothing or use_big_3 or use_comprehensive:
+            dominance_score = (
+                _combined_dominance_similarity(query_chart, candidate)
+                if any(key.startswith("dominant_") for key in component_scores)
+                else None
+            )
         else:
             dominance_score = _combined_dominance_similarity(query_chart, candidate)
         match = AstroTwinMatch(
@@ -1598,6 +1744,7 @@ def find_astro_twins(
             human_design_channels_score=human_design_channels_score,
             inner_planet_placement_score=inner_planet_placement_score,
             outer_planet_placement_score=outer_planet_placement_score,
+            component_scores=dict(component_scores) if (use_custom or use_all_or_nothing or use_big_3 or use_comprehensive) else None,
             algorithm_mode=normalized_mode,
             chart_uses_houses=chart_uses_houses(candidate),
         )

@@ -6,6 +6,7 @@ from ephemeraldaddy.analysis.get_astro_twin import (
     all_or_nothing_similarity_settings,
     chart_dissimilarity_score_comprehensive,
     chart_similarity_score_all_or_nothing,
+    chart_similarity_score_big_3,
     chart_similarity_score_custom,
     find_astro_twins,
     normalize_similar_charts_algorithm_mode,
@@ -20,7 +21,10 @@ def test_default_similarity_settings_match_requested_weights():
         "placement": 0.17,
         "aspect": 0.08,
         "distribution": 0.07,
-        "combined_dominance": 0.17,
+        "dominant_bodies": 0.0425,
+        "dominant_signs": 0.0425,
+        "dominant_houses": 0.0425,
+        "dominant_nakshatras": 0.0425,
         "nakshatra_placement": 0.06,
         "nakshatra_dominance": 0.09,
         "defined_centers": 0.03,
@@ -33,7 +37,10 @@ def test_default_similarity_settings_match_requested_weights():
         "placement": True,
         "aspect": True,
         "distribution": False,
-        "combined_dominance": True,
+        "dominant_bodies": True,
+        "dominant_signs": True,
+        "dominant_houses": True,
+        "dominant_nakshatras": True,
         "nakshatra_placement": True,
         "nakshatra_dominance": True,
         "defined_centers": False,
@@ -54,6 +61,89 @@ def test_generic_astro_algorithm_mode_is_supported():
     assert normalize_similar_charts_algorithm_mode("generic_astro") == "generic_astro"
 
 
+def test_big_3_algorithm_mode_is_supported():
+    assert normalize_similar_charts_algorithm_mode("big 3") == "big_3"
+    assert normalize_similar_charts_algorithm_mode("big_3") == "big_3"
+
+
+def test_big_3_similarity_uses_angles_when_houses_are_available():
+    first = SimpleNamespace(
+        positions={
+            "Sun": 0.0,
+            "Moon": 30.0,
+            "AS": 60.0,
+            "MC": 90.0,
+            "Mercury": 120.0,
+            "Venus": 150.0,
+            "Mars": 180.0,
+        },
+        birthtime_unknown=False,
+        retcon_time_used=False,
+    )
+    second = SimpleNamespace(
+        positions={
+            "Sun": 1.0,
+            "Moon": 31.0,
+            "AS": 61.0,
+            "MC": 91.0,
+            "Mercury": 121.0,
+            "Venus": 151.0,
+            "Mars": 181.0,
+        },
+        birthtime_unknown=False,
+        retcon_time_used=False,
+    )
+
+    final_score, components = chart_similarity_score_big_3(first, second)
+
+    assert final_score == 1.0
+    assert components == {
+        "big_3_sun": 1.0,
+        "big_3_moon": 1.0,
+        "big_3_mercury": 1.0,
+        "big_3_venus": 1.0,
+        "big_3_mars": 1.0,
+        "big_3_rising": 1.0,
+        "big_3_mc": 1.0,
+    }
+
+
+def test_big_3_similarity_redistributes_angle_weights_without_houses():
+    first = SimpleNamespace(
+        positions={
+            "Sun": 0.0,
+            "Moon": 30.0,
+            "Mercury": 60.0,
+            "Venus": 90.0,
+            "Mars": 120.0,
+        },
+        birthtime_unknown=True,
+        retcon_time_used=False,
+    )
+    second = SimpleNamespace(
+        positions={
+            "Sun": 1.0,
+            "Moon": 120.0,
+            "Mercury": 61.0,
+            "Venus": 180.0,
+            "Mars": 121.0,
+        },
+        birthtime_unknown=True,
+        retcon_time_used=False,
+    )
+
+    final_score, components = chart_similarity_score_big_3(first, second)
+
+    assert components == {
+        "big_3_sun": 1.0,
+        "big_3_moon": 0.0,
+        "big_3_mercury": 1.0,
+        "big_3_venus": 0.0,
+        "big_3_mars": 1.0,
+    }
+    assert final_score == 0.59
+
+
 def test_comprehensive_similarity_defaults_match_requested_weights():
     settings = SimilarityCalculatorSettings.defaults_from_comprehensive()
 
@@ -61,7 +151,10 @@ def test_comprehensive_similarity_defaults_match_requested_weights():
         "placement": 0.33,
         "aspect": 0.07,
         "distribution": 0.10,
-        "combined_dominance": 0.15,
+        "dominant_bodies": 0.0375,
+        "dominant_signs": 0.0375,
+        "dominant_houses": 0.0375,
+        "dominant_nakshatras": 0.0375,
         "nakshatra_placement": 0.07,
         "nakshatra_dominance": 0.0,
         "defined_centers": 0.0,
@@ -89,6 +182,47 @@ def test_default_algorithm_mode_uses_new_default_custom_settings(monkeypatch):
 
     assert matches[0].score == 0.73
     assert matches[0].algorithm_mode == "default"
+
+
+def test_combined_dominance_setting_scores_granular_dominance_components(monkeypatch):
+    monkeypatch.setattr(get_astro_twin, "_dominant_bodies_similarity", lambda *_args: 0.2)
+    monkeypatch.setattr(get_astro_twin, "_dominant_signs_similarity", lambda *_args: 0.4)
+    monkeypatch.setattr(get_astro_twin, "_dominant_houses_similarity", lambda *_args: 0.6)
+    monkeypatch.setattr(get_astro_twin, "_nakshatra_dominance_similarity", lambda *_args: 0.8)
+    settings = SimilarityCalculatorSettings(
+        use_placement=False,
+        weight_placement=0.0,
+        use_aspect=False,
+        weight_aspect=0.0,
+        use_distribution=False,
+        weight_distribution=0.0,
+        use_combined_dominance=True,
+        weight_combined_dominance=1.0,
+        use_nakshatra_placement=False,
+        weight_nakshatra_placement=0.0,
+        use_human_design_gates=False,
+        weight_human_design_gates=0.0,
+    )
+    first = SimpleNamespace(positions={"Sun": 0.0}, is_placeholder=False)
+    second = SimpleNamespace(positions={"Sun": 0.0}, is_placeholder=False)
+
+    final_score, components = chart_similarity_score_custom(first, second, settings)
+
+    assert components == {
+        "dominant_bodies": 0.2,
+        "dominant_signs": 0.4,
+        "dominant_houses": 0.6,
+        "dominant_nakshatras": 0.8,
+    }
+    assert final_score == 0.5
+
+
+def test_dominant_houses_falls_back_to_dominant_bodies_without_houses(monkeypatch):
+    monkeypatch.setattr(get_astro_twin, "_dominant_bodies_similarity", lambda *_args: 0.73)
+    first = SimpleNamespace(positions={"Sun": 0.0}, birthtime_unknown=True, retcon_time_used=False)
+    second = SimpleNamespace(positions={"Sun": 0.0}, birthtime_unknown=True, retcon_time_used=False)
+
+    assert get_astro_twin._dominant_houses_similarity(first, second) == 0.73
 
 
 def test_custom_similarity_can_score_human_design_channels_only():

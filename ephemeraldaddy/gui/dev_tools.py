@@ -233,6 +233,7 @@ def build_similarity_calculator_settings_section(
     on_mode_generic_astro_toggled: Callable[[bool], None],
     on_mode_comprehensive_toggled: Callable[[bool], None],
     on_mode_all_or_nothing_toggled: Callable[[bool], None],
+    on_mode_big_3_toggled: Callable[[bool], None],
     on_mode_custom_toggled: Callable[[bool], None],
     on_checkbox_toggled: Callable[[str, bool], None],
     on_weight_changed: Callable[[str, float], None],
@@ -259,6 +260,7 @@ def build_similarity_calculator_settings_section(
     generic_astro_radio = QRadioButton("use generic astro")
     comprehensive_radio = QRadioButton("use comprehensive")
     all_or_nothing_radio = QRadioButton("use all or nothing")
+    big_3_radio = QRadioButton("use Big 3")
     custom_radio = QRadioButton("use custom")
     similar_charts_algo_group = QButtonGroup(dialog)
     similar_charts_algo_group.setExclusive(True)
@@ -266,16 +268,30 @@ def build_similarity_calculator_settings_section(
     similar_charts_algo_group.addButton(generic_astro_radio)
     similar_charts_algo_group.addButton(comprehensive_radio)
     similar_charts_algo_group.addButton(all_or_nothing_radio)
+    similar_charts_algo_group.addButton(big_3_radio)
     similar_charts_algo_group.addButton(custom_radio)
     default_radio.toggled.connect(on_mode_default_toggled)
     generic_astro_radio.toggled.connect(on_mode_generic_astro_toggled)
     comprehensive_radio.toggled.connect(on_mode_comprehensive_toggled)
     all_or_nothing_radio.toggled.connect(on_mode_all_or_nothing_toggled)
+    big_3_radio.toggled.connect(on_mode_big_3_toggled)
     custom_radio.toggled.connect(on_mode_custom_toggled)
     section_layout.addWidget(default_radio)
     section_layout.addWidget(generic_astro_radio)
     section_layout.addWidget(comprehensive_radio)
     section_layout.addWidget(all_or_nothing_radio)
+
+    all_or_nothing_fields_frame = QFrame()
+    all_or_nothing_fields_frame.setFrameShape(QFrame.StyledPanel)
+    all_or_nothing_fields_frame.setFrameShadow(QFrame.Plain)
+    all_or_nothing_fields_frame.setStyleSheet(
+        "QFrame { border: 1px solid rgba(128, 128, 128, 50); border-radius: 6px; }"
+    )
+    all_or_nothing_fields_layout = QVBoxLayout(all_or_nothing_fields_frame)
+    all_or_nothing_fields_layout.setContentsMargins(20, 8, 8, 8)
+    all_or_nothing_fields_layout.setSpacing(6)
+    all_or_nothing_fields_frame.setVisible(False)
+    all_or_nothing_radio.toggled.connect(all_or_nothing_fields_frame.setVisible)
 
     all_or_nothing_criterion_combo = QComboBox()
     all_or_nothing_criterion_combo.setToolTip(
@@ -290,7 +306,9 @@ def build_similarity_calculator_settings_section(
             str(all_or_nothing_criterion_combo.currentData() or "inner_planet_placement")
         )
     )
-    section_layout.addWidget(all_or_nothing_criterion_combo)
+    all_or_nothing_fields_layout.addWidget(all_or_nothing_criterion_combo)
+    section_layout.addWidget(all_or_nothing_fields_frame)
+    section_layout.addWidget(big_3_radio)
     section_layout.addWidget(custom_radio)
 
     custom_fields_frame = QFrame()
@@ -441,7 +459,9 @@ def build_similarity_calculator_settings_section(
         "generic_astro_radio": generic_astro_radio,
         "comprehensive_radio": comprehensive_radio,
         "all_or_nothing_radio": all_or_nothing_radio,
+        "big_3_radio": big_3_radio,
         "custom_radio": custom_radio,
+        "all_or_nothing_fields_frame": all_or_nothing_fields_frame,
         "custom_fields_frame": custom_fields_frame,
         "calculator_checkboxes": calculator_checkboxes,
         "calculator_weights": calculator_weights,

@@ -41,12 +41,14 @@ from ephemeraldaddy.analysis.get_astro_twin import (
     SIMILAR_CHARTS_ALGORITHM_DEFAULT,
     SIMILAR_CHARTS_ALGORITHM_GENERIC_ASTRO,
     SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING,
+    SIMILAR_CHARTS_ALGORITHM_BIG_3,
     SIMILAR_CHARTS_ALGORITHM_CUSTOM,
     SimilarityCalculatorSettings,
     all_or_nothing_similarity_settings,
     _placement_body_weights,
     _top_keys,
     chart_similarity_score,
+    chart_similarity_score_big_3,
     chart_similarity_score_custom,
     normalize_placement_weighting_mode,
     normalize_similar_charts_algorithm_mode,
@@ -377,7 +379,11 @@ _SIMILARITY_COMPONENT_LABELS: dict[str, str] = {
     "placement": "placements",
     "aspect": "aspects",
     "distribution": "distribution (element/mode)",
-    "combined_dominance": "dominance (sign/body/house)",
+    "dominant_bodies": "dominant bodies",
+    "dominant_signs": "dominant signs",
+    "dominant_houses": "dominant houses",
+    "dominant_nakshatras": "dominant nakshatras",
+    "combined_dominance": "dominance (overall)",
     "nakshatra_placement": "nakshatra placement",
     "nakshatra_dominance": "nakshatra dominance",
     "defined_centers": "defined centers (HD)",
@@ -385,6 +391,13 @@ _SIMILARITY_COMPONENT_LABELS: dict[str, str] = {
     "human_design_channels": "defined channels (HD)",
     "inner_planet_placement": "inner placements",
     "outer_planet_placement": "outer placements",
+    "big_3_sun": "Sun sign",
+    "big_3_moon": "Moon sign",
+    "big_3_rising": "Rising sign",
+    "big_3_mc": "MC sign",
+    "big_3_mercury": "Mercury sign",
+    "big_3_venus": "Venus sign",
+    "big_3_mars": "Mars sign",
 }
 _PLANET_COLOR_MAP: dict[str, str] = {str(name): str(color) for name, color in PLANET_COLORS.items() if color}
 _SIGN_COLOR_MAP: dict[str, str] = {str(name): str(color) for name, color in SIGN_COLORS.items() if color}
@@ -418,7 +431,26 @@ _DEFAULT_ALGORITHM_COMPONENT_WEIGHTS: dict[str, float] = {
     "placement": 0.38,
     "aspect": 0.27,
     "distribution": 0.10,
-    "combined_dominance": 0.25,
+    "dominant_bodies": 0.0625,
+    "dominant_signs": 0.0625,
+    "dominant_houses": 0.0625,
+    "dominant_nakshatras": 0.0625,
+}
+_BIG_3_COMPONENT_WEIGHTS_WITH_HOUSES: dict[str, float] = {
+    "big_3_sun": 0.35,
+    "big_3_moon": 0.25,
+    "big_3_rising": 0.18,
+    "big_3_mc": 0.17,
+    "big_3_mercury": 0.02,
+    "big_3_venus": 0.02,
+    "big_3_mars": 0.01,
+}
+_BIG_3_COMPONENT_WEIGHTS_NO_HOUSES: dict[str, float] = {
+    "big_3_sun": 0.42,
+    "big_3_moon": 0.32,
+    "big_3_mercury": 0.09,
+    "big_3_venus": 0.09,
+    "big_3_mars": 0.08,
 }
 _SIGN_SEQUENCE: tuple[str, ...] = (
     "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
@@ -1486,7 +1518,10 @@ def _resolve_component_weight_percents(
     similarity_settings: SimilarityCalculatorSettings | None,
 ) -> dict[str, int]:
     normalized_mode = normalize_similar_charts_algorithm_mode(algorithm_mode)
-    if normalized_mode in {
+    if normalized_mode == SIMILAR_CHARTS_ALGORITHM_BIG_3:
+        enabled = {key: True for key in _BIG_3_COMPONENT_WEIGHTS_WITH_HOUSES}
+        raw_weights = dict(_BIG_3_COMPONENT_WEIGHTS_WITH_HOUSES)
+    elif normalized_mode in {
         SIMILAR_CHARTS_ALGORITHM_DEFAULT,
         SIMILAR_CHARTS_ALGORITHM_CUSTOM,
         SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING,
@@ -1536,6 +1571,7 @@ def format_similarity_component_summary(
     component_keys: list[str] | None = None,
 ) -> str:
     keys = component_keys or ["placement", "aspect", "distribution", "combined_dominance"]
+    explicit_scores = getattr(match, "component_scores", None) or {}
     values_by_component = {
         "placement": getattr(match, "placement_score", None),
         "aspect": getattr(match, "aspect_score", None),
@@ -1548,6 +1584,17 @@ def format_similarity_component_summary(
         "human_design_channels": getattr(match, "human_design_channels_score", None),
         "inner_planet_placement": getattr(match, "inner_planet_placement_score", None),
         "outer_planet_placement": getattr(match, "outer_planet_placement_score", None),
+        "big_3_sun": explicit_scores.get("big_3_sun"),
+        "big_3_moon": explicit_scores.get("big_3_moon"),
+        "big_3_rising": explicit_scores.get("big_3_rising"),
+        "big_3_mc": explicit_scores.get("big_3_mc"),
+        "big_3_mercury": explicit_scores.get("big_3_mercury"),
+        "big_3_venus": explicit_scores.get("big_3_venus"),
+        "big_3_mars": explicit_scores.get("big_3_mars"),
+        "dominant_bodies": explicit_scores.get("dominant_bodies"),
+        "dominant_signs": explicit_scores.get("dominant_signs"),
+        "dominant_houses": explicit_scores.get("dominant_houses"),
+        "dominant_nakshatras": explicit_scores.get("dominant_nakshatras"),
     }
     bits: list[str] = []
     for key in keys:
@@ -1581,6 +1628,12 @@ def _resolve_component_score_percents(
         if similarity_settings is not None
         else SimilarityCalculatorSettings.defaults_for_default_mode().normalized_placement_weighting_mode()
     )
+    if normalized_mode == SIMILAR_CHARTS_ALGORITHM_BIG_3:
+        _overall, component_scores = chart_similarity_score_big_3(subject_chart, compared_chart)
+        return {
+            key: round(max(0.0, min(1.0, float(score))) * 100.0, 1)
+            for key, score in component_scores.items()
+        }
     if normalized_mode == SIMILAR_CHARTS_ALGORITHM_GENERIC_ASTRO:
         _overall, placement_score, aspect_score, distribution_score = chart_similarity_score(
             subject_chart,
@@ -1694,6 +1747,32 @@ def build_similarity_reasoning_panel_text(
             algorithm_mode=algorithm_mode,
             similarity_settings=similarity_settings,
         )
+        if normalize_similar_charts_algorithm_mode(algorithm_mode) == SIMILAR_CHARTS_ALGORITHM_BIG_3:
+            if "big_3_rising" not in component_score_percents and "big_3_mc" not in component_score_percents:
+                total_weight = sum(_BIG_3_COMPONENT_WEIGHTS_NO_HOUSES.values())
+                component_weight_percents = {
+                    key: int(round((weight / total_weight) * 100.0))
+                    for key, weight in _BIG_3_COMPONENT_WEIGHTS_NO_HOUSES.items()
+                }
+            lines.append("Big 3 sign-match components:")
+            for key in resolve_similarity_component_keys_for_display(
+                algorithm_mode=algorithm_mode,
+                similarity_settings=similarity_settings,
+            ):
+                if key not in component_score_percents:
+                    continue
+                label = _SIMILARITY_COMPONENT_LABELS.get(key)
+                if not label:
+                    continue
+                lines.append(
+                    _section_title_with_weight_and_match(
+                        f"{label}:",
+                        key,
+                        component_weight_percents,
+                        component_score_percents,
+                    )
+                )
+            lines.append("")
         if analysis_mode == "dissimilarities":
             if "placement" in component_weight_percents:
                 placement_diff = (

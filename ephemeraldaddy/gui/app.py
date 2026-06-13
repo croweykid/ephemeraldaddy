@@ -536,6 +536,7 @@ from ephemeraldaddy.analysis.get_astro_twin import (
     SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE,
     SIMILAR_CHARTS_ALGORITHM_GENERIC_ASTRO,
     SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING,
+    SIMILAR_CHARTS_ALGORITHM_BIG_3,
     SIMILAR_CHARTS_ALGORITHM_CUSTOM,
     SIMILAR_CHARTS_ALGORITHM_DEFAULT,
     SimilarityCalculatorSettings,
@@ -20587,6 +20588,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE),
             on_mode_all_or_nothing_toggled=lambda checked: checked
             and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING),
+            on_mode_big_3_toggled=lambda checked: checked
+            and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_BIG_3),
             on_mode_custom_toggled=lambda checked: checked
             and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_CUSTOM),
             on_checkbox_toggled=self._on_similarity_calculator_checkbox_toggled,
@@ -20605,8 +20608,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._similar_charts_algo_generic_astro_radio = similarity_controls["generic_astro_radio"]
         self._similar_charts_algo_comprehensive_radio = similarity_controls["comprehensive_radio"]
         self._similar_charts_algo_all_or_nothing_radio = similarity_controls["all_or_nothing_radio"]
+        self._similar_charts_algo_big_3_radio = similarity_controls["big_3_radio"]
         self._similar_charts_algo_custom_radio = similarity_controls["custom_radio"]
         self._similarity_calculator_custom_fields_frame = similarity_controls["custom_fields_frame"]
+        self._similarity_calculator_all_or_nothing_fields_frame = similarity_controls["all_or_nothing_fields_frame"]
         self._similarity_calculator_checkboxes = similarity_controls["calculator_checkboxes"]
         self._similarity_calculator_weights = similarity_controls["calculator_weights"]
         self._similarity_calculator_total_label = similarity_controls["calculator_total_label"]
@@ -20742,14 +20747,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         generic_astro_radio = getattr(self, "_similar_charts_algo_generic_astro_radio", None)
         comprehensive_radio = getattr(self, "_similar_charts_algo_comprehensive_radio", None)
         all_or_nothing_radio = getattr(self, "_similar_charts_algo_all_or_nothing_radio", None)
+        big_3_radio = getattr(self, "_similar_charts_algo_big_3_radio", None)
         custom_radio = getattr(self, "_similar_charts_algo_custom_radio", None)
         all_or_nothing_combo = getattr(self, "_similarity_calculator_all_or_nothing_component_combo", None)
+        all_or_nothing_fields_frame = getattr(self, "_similarity_calculator_all_or_nothing_fields_frame", None)
         custom_fields_frame = getattr(self, "_similarity_calculator_custom_fields_frame", None)
         if (
             default_radio is None
             or generic_astro_radio is None
             or comprehensive_radio is None
             or all_or_nothing_radio is None
+            or big_3_radio is None
             or custom_radio is None
         ):
             return
@@ -20757,20 +20765,25 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         blocker_generic_astro = QSignalBlocker(generic_astro_radio)
         blocker_comprehensive = QSignalBlocker(comprehensive_radio)
         blocker_all_or_nothing = QSignalBlocker(all_or_nothing_radio)
+        blocker_big_3 = QSignalBlocker(big_3_radio)
         blocker_custom = QSignalBlocker(custom_radio)
         default_radio.setChecked(normalized == SIMILAR_CHARTS_ALGORITHM_DEFAULT)
         generic_astro_radio.setChecked(normalized == SIMILAR_CHARTS_ALGORITHM_GENERIC_ASTRO)
         comprehensive_radio.setChecked(normalized == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE)
         all_or_nothing_radio.setChecked(normalized == SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING)
+        big_3_radio.setChecked(normalized == SIMILAR_CHARTS_ALGORITHM_BIG_3)
         custom_radio.setChecked(normalized == SIMILAR_CHARTS_ALGORITHM_CUSTOM)
         if isinstance(all_or_nothing_combo, QComboBox):
             all_or_nothing_combo.setVisible(normalized == SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING)
+        if isinstance(all_or_nothing_fields_frame, QWidget):
+            all_or_nothing_fields_frame.setVisible(normalized == SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING)
         if isinstance(custom_fields_frame, QWidget):
             custom_fields_frame.setVisible(normalized == SIMILAR_CHARTS_ALGORITHM_CUSTOM)
         del blocker_default
         del blocker_generic_astro
         del blocker_comprehensive
         del blocker_all_or_nothing
+        del blocker_big_3
         del blocker_custom
         parent = self.parent()
         if isinstance(parent, MainWindow):
@@ -20831,7 +20844,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 getattr(self, "_similar_charts_algorithm_mode", SIMILAR_CHARTS_ALGORITHM_DEFAULT)
                 == SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING
             )
+        all_or_nothing_fields_frame = getattr(self, "_similarity_calculator_all_or_nothing_fields_frame", None)
         custom_fields_frame = getattr(self, "_similarity_calculator_custom_fields_frame", None)
+        if isinstance(all_or_nothing_fields_frame, QWidget):
+            all_or_nothing_fields_frame.setVisible(
+                getattr(self, "_similar_charts_algorithm_mode", SIMILAR_CHARTS_ALGORITHM_DEFAULT)
+                == SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING
+            )
         if isinstance(custom_fields_frame, QWidget):
             custom_fields_frame.setVisible(
                 getattr(self, "_similar_charts_algorithm_mode", SIMILAR_CHARTS_ALGORITHM_DEFAULT)
@@ -23605,6 +23624,8 @@ class MainWindow(QMainWindow):
             return "Similar Charts (comprehensive)"
         if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING:
             return "Similar Charts (all or nothing)"
+        if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_BIG_3:
+            return "Similar Charts (Big 3)"
         if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_CUSTOM:
             return "Similar Charts (custom)"
         return "Similar Charts"

@@ -280,6 +280,7 @@ def _format_similarity_scoring_method(
         "generic_astro": "Generic Astro",
         "comprehensive": "Comprehensive",
         "all_or_nothing": "All or Nothing",
+        "big_3": "Big 3",
         "custom": "Custom",
     }.get(mode, mode.replace("_", " ").title())
     lines = [f"Current Settings > Similarities Calculator scoring system: {mode_label}."]
