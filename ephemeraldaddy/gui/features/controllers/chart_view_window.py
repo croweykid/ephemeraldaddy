@@ -853,19 +853,12 @@ def _build_subjective_notes_panel(owner: QWidget) -> tuple[QWidget, QVBoxLayout]
     return panel, layout
 
 
-def _build_predictions_panel(owner: QWidget) -> QWidget:
-    """Build Predictions tab body widget + layout."""
-    panel = QWidget()
-    layout = QVBoxLayout()
-    layout.setContentsMargins(6, 6, 6, 6)
-    layout.setSpacing(6)
-    layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
-    panel.setLayout(layout)
-
-    owner._predictions_distinguishing_factors_expanded = False
+def _build_distinguishing_factors_section(owner: QWidget, panel: QWidget, layout: QVBoxLayout) -> None:
+    """Build the distinguishing-factors section for the Chart Analytics tab."""
+    owner._chart_analytics_distinguishing_factors_expanded = False
 
     def _on_distinguishing_factors_toggled(expanded: bool) -> None:
-        owner._predictions_distinguishing_factors_expanded = bool(expanded)
+        owner._chart_analytics_distinguishing_factors_expanded = bool(expanded)
         if not expanded:
             return
         render_distinguishing = getattr(owner, "_render_distinguishing_factors", None)
@@ -892,6 +885,16 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     )
     apply_chart_info_link_cursor(owner.distinguishing_factors_label)
     distinguishing_section_layout.addWidget(owner.distinguishing_factors_label)
+
+
+def _build_predictions_panel(owner: QWidget) -> QWidget:
+    """Build Predictions tab body widget + layout."""
+    panel = QWidget()
+    layout = QVBoxLayout()
+    layout.setContentsMargins(6, 6, 6, 6)
+    layout.setSpacing(6)
+    layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+    panel.setLayout(layout)
 
     enneagram_section_layout = owner._add_chart_analysis_collapsible_section(
         panel=panel,
@@ -998,6 +1001,7 @@ def build_chart_view_right_panel(
     owner._register_metric_scroll_widget(owner.subjective_notes_panel_scroll)
     owner._register_metric_scroll_widget(subjective_notes_panel)
 
+    _build_distinguishing_factors_section(owner, metrics_content, owner.metrics_layout)
     owner._create_chart_analysis_sections(metrics_content)
     owner._create_similar_charts_section(metrics_content)
     anagrams_section = build_anagrams_section(
