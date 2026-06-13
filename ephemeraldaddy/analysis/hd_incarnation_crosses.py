@@ -1507,6 +1507,29 @@ HD_CROSS_THEME_DESCRIPTIONS = {
 
 }
 
+
+def _normalize_cross_description_key(value: str) -> str:
+    """Normalize cross theme/type labels for description lookups."""
+    normalized = " ".join(str(value or "").strip().casefold().split())
+    if normalized.startswith("the "):
+        normalized = normalized[4:]
+    return normalized
+
+
+def get_cross_type_description(cross_type: str) -> str | None:
+    """Return the description for a cross type label, if one is available."""
+    type_key = _normalize_cross_description_key(cross_type)
+    for label, description in HD_CROSS_TYPE_DESCRIPTIONS.items():
+        if _normalize_cross_description_key(label) == type_key:
+            return description
+    return None
+
+
+def get_cross_theme_description(theme: str) -> str | None:
+    """Return the description for a cross theme label, if one is available."""
+    theme_key = _normalize_cross_description_key(theme)
+    return HD_CROSS_THEME_DESCRIPTIONS.get(theme_key)
+
 def find_cross_by_name(name: str):
     """Case-insensitive exact match on the full chart label."""
     name_cf = name.casefold()

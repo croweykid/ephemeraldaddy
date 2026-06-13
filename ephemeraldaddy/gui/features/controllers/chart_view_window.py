@@ -855,10 +855,13 @@ def _build_subjective_notes_panel(owner: QWidget) -> tuple[QWidget, QVBoxLayout]
 
 def _build_distinguishing_factors_section(owner: QWidget, panel: QWidget, layout: QVBoxLayout) -> None:
     """Build the distinguishing-factors section for the Chart Analytics tab."""
-    owner._chart_analytics_distinguishing_factors_expanded = False
+    section_key = "distinguishing_factors"
+    section_expanded = bool(owner._chart_analysis_section_expanded.get(section_key, True))
+    owner._chart_analytics_distinguishing_factors_expanded = section_expanded
 
     def _on_distinguishing_factors_toggled(expanded: bool) -> None:
         owner._chart_analytics_distinguishing_factors_expanded = bool(expanded)
+        owner._chart_analysis_section_expanded[section_key] = bool(expanded)
         if not expanded:
             return
         render_distinguishing = getattr(owner, "_render_distinguishing_factors", None)
@@ -869,8 +872,9 @@ def _build_distinguishing_factors_section(owner: QWidget, panel: QWidget, layout
         panel=panel,
         layout=layout,
         title="Most Distinguishing Astrological Factors",
-        expanded=False,
+        expanded=section_expanded,
         on_toggled=_on_distinguishing_factors_toggled,
+        section_key=section_key,
     )
     owner.distinguishing_factors_label = QLabel("Database distinction scan: —")
     owner.distinguishing_factors_label.setTextFormat(Qt.RichText)
