@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
     QProgressDialog,
     QToolButton,
     QScrollArea,
+    QTextEdit,
     QSplitter,
     QVBoxLayout,
     QWidget,
@@ -2038,6 +2039,31 @@ def build_similarity_reasoning_panel_html(
     show_granular_explanations: bool = False,
     analysis_mode: str = "similarities",
 ) -> str:
+    def _chart_info_target_for_token(token: str) -> str:
+        clean_token = str(token or "").strip()
+        if clean_token in PLANET_COLORS or clean_token in BODY_WEIGHTS or clean_token in NATAL_WEIGHT:
+            return f"chart-info:body:{clean_token}"
+        if clean_token in SIGN_COLORS or clean_token in SIGN_ELEMENTS:
+            return f"chart-info:sign:{clean_token}"
+        if clean_token in ELEMENT_COLORS:
+            return f"chart-info:element:{clean_token}"
+        if clean_token in MODE_COLORS or clean_token in MODES:
+            return f"chart-info:mode:{clean_token}"
+        nakshatra_names = {str(item[2]) for item in NAKSHATRA_RANGES if len(item) >= 3}
+        if clean_token in nakshatra_names:
+            return f"chart-info:nakshatra:{clean_token}"
+        return ""
+
+    def _link_markup(label: str, target: str, color: str | None = None, *, weight: str = "400") -> str:
+        safe_label = html.escape(str(label or ""))
+        safe_target = html.escape(str(target or ""), quote=True)
+        style_parts = ["text-decoration:none"]
+        if color:
+            style_parts.append(f"color:{html.escape(color)}")
+        if weight:
+            style_parts.append(f"font-weight:{html.escape(weight)}")
+        return f"<a href='{safe_target}' style='{';'.join(style_parts)}'>{safe_label}</a>"
+
     def _apply_word_colors(text_value: str, lookup: dict[str, str], *, weight: str = "400") -> str:
         if not text_value or not lookup:
             return html.escape(text_value)
@@ -2050,7 +2076,10 @@ def build_similarity_reasoning_panel_html(
                 chunks.append(html.escape(text_value[cursor:match.start()]))
             token = match.group(0)
             color = lookup.get(token)
-            if color:
+            target = _chart_info_target_for_token(token)
+            if target:
+                chunks.append(_link_markup(token, target, color, weight=weight))
+            elif color:
                 chunks.append(
                     f"<span style='color:{html.escape(color)};font-weight:{weight}'>{html.escape(token)}</span>"
                 )
@@ -2079,9 +2108,18 @@ def build_similarity_reasoning_panel_html(
         colored = re.sub(
             r"\bHouse\s+(1[0-2]|[1-9])\b",
             lambda m: (
-                f"House <span style='color:{html.escape(_HOUSE_COLOR_MAP.get(m.group(1), '#cccccc'))};font-weight:400'>"
-                f"{html.escape(m.group(1))}</span>"
+                "House "
+                + _link_markup(
+                    m.group(1),
+                    f"chart-info:house:{m.group(1)}",
+                    _HOUSE_COLOR_MAP.get(m.group(1), '#cccccc'),
+                )
             ),
+            colored,
+        )
+        colored = re.sub(
+            r"\bGate\s+(\d{1,2})\b",
+            lambda m: "Gate " + _link_markup(m.group(1), f"chart-info:gate:{m.group(1)}", CHART_DATA_HIGHLIGHT_COLOR),
             colored,
         )
         return colored
@@ -2680,6 +2718,7 @@ def build_similar_charts_popout_dialog(
     show_perceived_accuracy_controls: bool = False,
     perceived_accuracy_states: Mapping[str, Mapping[str, Any]] | None = None,
     on_perceived_accuracy_changed: Callable[[QDialog, Any, str, int | None, bool], bool | None] | None = None,
+    on_chart_info_target_requested: Callable[[QDialog, str], None] | None = None,
 ) -> QDialog:
     dialog = QDialog(parent)
     dialog.setWindowTitle(f"Similar Charts — {subject_name}")
@@ -2770,11 +2809,28 @@ def build_similar_charts_popout_dialog(
     info_content_layout.addWidget(info_output)
     info_content_layout.addStretch(1)
     info_scroll.setWidget(info_content)
-    info_layout.addWidget(info_scroll, 1)
+    info_layout.addWidget(info_scroll, 3)
+
+    chart_info_header = QLabel("Chart Info!")
+    chart_info_header.setStyleSheet(header_style)
+    info_layout.addWidget(chart_info_header, 0)
+    chart_info_output = QTextEdit()
+    chart_info_output.setReadOnly(True)
+    chart_info_output.setPlaceholderText(
+        "Click highlighted signs, bodies/planets, houses, gates, nakshatras, or related factors in the upper lefthand panel."
+    )
+    chart_info_output.setMinimumHeight(150)
+    chart_info_output.setStyleSheet(info_output_style or output_style)
+    apply_chart_info_link_cursor(chart_info_output)
+    info_layout.addWidget(chart_info_output, 2)
+
+    if on_chart_info_target_requested is not None:
+        info_output.linkActivated.connect(lambda target: on_chart_info_target_requested(dialog, target))
     if on_analysis_mode_changed is not None:
         analysis_dropdown.currentIndexChanged.connect(lambda _index: on_analysis_mode_changed(dialog))
     dialog._similar_chart_popout_analysis_dropdown = analysis_dropdown
     dialog._similar_chart_popout_info_output = info_output
+    dialog._similar_chart_popout_chart_info_output = chart_info_output
     dialog._similar_chart_popout_make_collection_button = make_collection_button
     dialog._similar_chart_popout_export_button = export_button
     dialog._similar_chart_popout_subject_link = subject_chart_link
