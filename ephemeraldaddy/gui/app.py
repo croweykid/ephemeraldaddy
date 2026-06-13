@@ -23870,16 +23870,41 @@ class MainWindow(QMainWindow):
         )
 
     def _similar_charts_popout_database_signature(self, rows: list[tuple[Any, ...]]) -> str:
-        database_files: list[tuple[str, int | None, int | None]] = []
-        for path in (DB_PATH, Path(f"{DB_PATH}-wal")):
+        def _row_value(row: tuple[Any, ...], index: int) -> Any:
+            return row[index] if len(row) > index else None
+
+        def _coalesce_row_value(row: tuple[Any, ...], preferred_index: int, fallback_index: int) -> Any:
+            value = _row_value(row, preferred_index)
+            if value is not None:
+                return value
+            return _row_value(row, fallback_index)
+
+        birth_data_rows: list[dict[str, Any]] = []
+        for row in rows:
             try:
-                stat = path.stat()
-            except OSError:
-                database_files.append((str(path), None, None))
+                chart_id = int(_row_value(row, 0))
+            except (TypeError, ValueError):
                 continue
-            database_files.append((str(path), int(stat.st_mtime_ns), int(stat.st_size)))
+            # Similar Charts only depends on each candidate's calculated chart
+            # state. Keep metadata-only edits (names, tags, notes, subjective
+            # scores, etc.) from invalidating the popout cache.
+            birth_data_rows.append(
+                {
+                    "id": chart_id,
+                    "datetime_iso": str(_row_value(row, 4) or ""),
+                    "birth_place": str(_row_value(row, 5) or ""),
+                    "used_utc_fallback": int(_row_value(row, 7) or 0),
+                    "birthtime_unknown": int(_row_value(row, 8) or 0),
+                    "retcon_time_used": int(_row_value(row, 9) or 0),
+                    "chart_type": str(_coalesce_row_value(row, 16, 14) or ""),
+                    "is_placeholder": int(_coalesce_row_value(row, 17, 15) or 0),
+                    "birth_month": _row_value(row, 19),
+                    "birth_day": _row_value(row, 20),
+                    "birth_year": _row_value(row, 21),
+                }
+            )
         payload = json.dumps(
-            {"rows": rows, "database_files": database_files},
+            {"birth_data_rows": sorted(birth_data_rows, key=lambda item: item["id"])},
             default=str,
             sort_keys=True,
             separators=(",", ":"),
@@ -23895,8 +23920,8 @@ class MainWindow(QMainWindow):
         dt_value = getattr(chart, "dt", None)
         signature_payload = {
             "id": subject_chart_id,
-            "name": str(getattr(chart, "name", "") or ""),
-            "alias": str(getattr(chart, "alias", "") or ""),
+            # Only birth/calculated-chart data affects similarity scores; display
+            # metadata like name/alias should not force a slow recalculation.
             "dt": dt_value.isoformat() if dt_value is not None else None,
             "lat": round(float(getattr(chart, "lat", 0.0) or 0.0), 8),
             "lon": round(float(getattr(chart, "lon", 0.0) or 0.0), 8),
