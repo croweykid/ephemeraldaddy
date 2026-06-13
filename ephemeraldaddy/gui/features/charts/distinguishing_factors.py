@@ -67,10 +67,9 @@ class DistinguishingFactor:
 class _NormBaseline:
     mean: float
     stdev: float
-    count: int
 
 
-_NORM_BASELINE_CACHE: dict[tuple[int, ...], tuple[int, dict[tuple[str, object], _NormBaseline]]] = {}
+_NORM_BASELINE_CACHE: dict[tuple[tuple[object, ...], ...], tuple[int, dict[tuple[str, object], _NormBaseline]]] = {}
 _NORM_BASELINE_CACHE_MAX_SIZE = 8
 
 
@@ -190,8 +189,37 @@ def _safe_chart_values(group: _MetricGroup, chart: Chart) -> dict[object, float]
     return values
 
 
+def _chart_norm_signature(chart: Chart) -> tuple[object, ...]:
+    dt_value = getattr(chart, "dt", None)
+    dt_token = dt_value.isoformat() if dt_value is not None else None
+    positions = tuple(
+        sorted(
+            (str(body), round(float(value), 8))
+            for body, value in (getattr(chart, "positions", None) or {}).items()
+            if isinstance(value, (int, float))
+        )
+    )
+    houses = tuple(
+        round(float(value), 8)
+        for value in (getattr(chart, "houses", None) or [])
+        if isinstance(value, (int, float))
+    )
+    return (
+        id(chart),
+        dt_token,
+        round(float(getattr(chart, "lat", 0.0) or 0.0), 8),
+        round(float(getattr(chart, "lon", 0.0) or 0.0), 8),
+        bool(getattr(chart, "birthtime_unknown", False)),
+        bool(getattr(chart, "retcon_time_used", False)),
+        getattr(chart, "retcon_hour", None),
+        getattr(chart, "retcon_minute", None),
+        positions,
+        houses,
+    )
+
+
 def _norm_baselines(chart: Chart, usable_norm_charts: list[Chart]) -> dict[tuple[str, object], _NormBaseline]:
-    cache_key = tuple(id(norm_chart) for norm_chart in usable_norm_charts)
+    cache_key = tuple(_chart_norm_signature(norm_chart) for norm_chart in usable_norm_charts)
     cached = _NORM_BASELINE_CACHE.get(cache_key)
     if cached is not None and cached[0] == len(usable_norm_charts):
         return cached[1]
@@ -217,7 +245,6 @@ def _norm_baselines(chart: Chart, usable_norm_charts: list[Chart]) -> dict[tuple
             baselines[(group.key, label)] = _NormBaseline(
                 mean=statistics.fmean(baseline),
                 stdev=stdev,
-                count=len(baseline),
             )
 
     if len(_NORM_BASELINE_CACHE) >= _NORM_BASELINE_CACHE_MAX_SIZE:

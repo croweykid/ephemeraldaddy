@@ -31088,8 +31088,13 @@ class MainWindow(QMainWindow):
         # be tied to actual completion of the final render pass here.
         reveal_chart_right_panel_after_loading(self)
         self._hide_chart_loading_overlay()
-        if getattr(self._chart_right_panel_state, "active_tab", None) == "predictions":
+        active_right_tab = getattr(self._chart_right_panel_state, "active_tab", None)
+        if active_right_tab == "predictions":
             self._schedule_chart_render_for_active_right_panel()
+        elif active_right_tab == "analytics" and bool(
+            getattr(self, "_chart_analytics_distinguishing_factors_expanded", False)
+        ):
+            self._render_distinguishing_factors(chart)
         preload_delay_ms = 700 if bool(getattr(self, "_chart_right_panel_fade_in_progress", False)) else 0
         QTimer.singleShot(
             preload_delay_ms,
