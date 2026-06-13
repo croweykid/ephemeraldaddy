@@ -3067,7 +3067,7 @@ def list_charts() -> List[
     used_utc_fallback, birthtime_unknown, retcon_time_used,
     familiarity, age_when_first_met, year_first_encountered,
     social_score, chart_type, is_placeholder, is_deceased,
-    birth_month, birth_day, birth_year)
+    birth_month, birth_day, birth_year, retcon_hour, retcon_minute)
     """
     conn = _get_conn()
     conn.row_factory = sqlite3.Row
@@ -3094,7 +3094,9 @@ def list_charts() -> List[
                is_deceased,
                birth_month,
                birth_day,
-               birth_year
+               birth_year,
+               retcon_hour,
+               retcon_minute
         FROM charts
         ORDER BY created_at DESC
         """
@@ -3159,6 +3161,8 @@ def list_charts() -> List[
                 int(row["birth_month"]) if row["birth_month"] is not None else None,
                 int(row["birth_day"]) if row["birth_day"] is not None else None,
                 int(row["birth_year"]) if row["birth_year"] is not None else None,
+                int(row["retcon_hour"]) if row["retcon_hour"] is not None else None,
+                int(row["retcon_minute"]) if row["retcon_minute"] is not None else None,
             )
         )
     return rows
