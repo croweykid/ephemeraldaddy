@@ -3059,6 +3059,8 @@ def list_charts() -> List[
         Optional[int],
         Optional[int],
         Optional[int],
+        Optional[int],
+        Optional[int],
     ]
 ]:
     """
