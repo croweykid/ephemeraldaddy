@@ -28834,7 +28834,7 @@ class MainWindow(QMainWindow):
                 gates = cross_entry.get("gates", ())
                 gates_text = "/".join(str(gate) for gate in gates) if gates else "Unknown"
                 theme = str(cross_entry.get("theme", "")).strip() or "Unknown"
-                angle = str(cross_entry.get("angle", "")).strip() or "Unknown"
+                angle = str(cross_entry.get("cross_type", "")).strip() or "Unknown"
                 theme_description = get_cross_theme_description(theme)
                 type_description = get_cross_type_description(angle)
                 body_lines = [
