@@ -32,7 +32,7 @@ def test_context_menu_offers_single_chart_tool_actions():
     method = _method_source("_show_chart_list_context_menu")
 
     assert 'if len(selected_ids) == 1:' in method
-    assert 'menu.addAction("Export chart")' in method
+    assert 'menu.addAction(_chart_export_button_label(len(selected_ids)))' in method
     assert "self._on_export_selected_total_chart()" in method
     assert '("bazi", "See BaZi Chart")' in method
     assert '("human_design", "See Human Design Chart")' in method
