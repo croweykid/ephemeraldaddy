@@ -901,6 +901,11 @@ from ephemeraldaddy.analysis.human_design import (
 )
 from ephemeraldaddy.analysis.hd_incarnation_crosses import find_cross_by_name
 from ephemeraldaddy.core.human_design_system import MANDALA_GATE_ORDER, MANDALA_START_DEGREE
+from ephemeraldaddy.analysis.human_design_plugins import (
+    humdes_gate_line_supplement_lines,
+    install_plugin_file,
+    recognized_plugin_names,
+)
 from ephemeraldaddy.analysis.human_design_reference import (
     HD_AUTHORITIES,
     HD_CENTERS,
@@ -20744,6 +20749,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._enneagram_predictor_total_label = enneagram_controls["total_label"]
         self._load_enneagram_predictor_controls()
 
+        plugins_section = self._add_settings_collapsible_section(content_layout, "Plugins")
+        plugins_section.addWidget(
+            self._build_settings_help_label(
+                "Install recognized local supplements. Installed plugins remain local and extend app-native descriptions when available."
+            )
+        )
+        self._plugins_upload_button = QPushButton("Upload Plugin File…")
+        self._plugins_upload_button.setToolTip(
+            "Currently recognized plugins: " + ", ".join(recognized_plugin_names())
+        )
+        self._plugins_upload_button.clicked.connect(self._on_plugin_upload_clicked)
+        plugins_section.addWidget(self._plugins_upload_button, alignment=Qt.AlignLeft)
+        self._plugins_status_label = QLabel(
+            "Currently recognized plugins: " + ", ".join(recognized_plugin_names())
+        )
+        self._plugins_status_label.setWordWrap(True)
+        plugins_section.addWidget(self._plugins_status_label)
+
         age_tools_section = self._add_settings_collapsible_section(content_layout, "User Profile")
         age_tools_section.addWidget(QLabel("Age inference tools."))
 
@@ -20795,6 +20818,49 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._settings_dialog = dialog
         self._resize_and_center_settings_dialog(dialog)
         return dialog
+
+    def _on_plugin_upload_clicked(self) -> None:
+        file_path, _selected_filter = QFileDialog.getOpenFileName(
+            self,
+            "Upload Plugin File",
+            "",
+            "JSON files (*.json);;All files (*)",
+        )
+        if not file_path:
+            return
+        recognized_plugins = recognized_plugin_names()
+        if Path(file_path).name not in recognized_plugins:
+            QMessageBox.information(
+                self,
+                "Plugin not recognized",
+                "Plugin not recognized. Currently recognized plugins: "
+                + ", ".join(recognized_plugins),
+            )
+            return
+        try:
+            install_plugin_file(file_path)
+        except Exception as exc:
+            QMessageBox.warning(
+                self,
+                "Plugin install failed",
+                f"Plugin could not be installed: {exc}",
+            )
+            return
+        upload_button = getattr(self, "_plugins_upload_button", None)
+        if isinstance(upload_button, QPushButton):
+            upload_button.setStyleSheet(
+                "QPushButton { background-color: #1f7a3a; border: 1px solid #3fd06f; color: #ffffff; }"
+                "QPushButton:hover { background-color: #268a45; }"
+            )
+        status_label = getattr(self, "_plugins_status_label", None)
+        if isinstance(status_label, QLabel):
+            status_label.setText(f"Installed: {Path(file_path).name}")
+            status_label.setStyleSheet("color: #6ee07f;")
+        QMessageBox.information(
+            self,
+            "Plugin installed",
+            "Plugin installed! Advanced descriptions will now appear in Chart Info! panel when clicked.",
+        )
 
     def _set_lilith_calculation_method(self, method: str) -> None:
         normalized = _normalize_lilith_calculation_method(method)
@@ -28321,6 +28387,19 @@ class MainWindow(QMainWindow):
             cursor.insertText("\n", plain_fmt)
             for item in activation_lines:
                 cursor.insertText(f"{item}\n", plain_fmt)
+
+        supplement_lines = humdes_gate_line_supplement_lines(gate_number, line_number)
+        if supplement_lines:
+            cursor.insertText("\n", plain_fmt)
+            for index, supplement_line in enumerate(supplement_lines):
+                if index > 0:
+                    cursor.insertText("\n", plain_fmt)
+                insert_human_design_info_body_line(
+                    cursor,
+                    supplement_line,
+                    header_fmt=header_fmt,
+                    plain_fmt=plain_fmt,
+                )
 
         self.chart_info_output.setTextCursor(cursor)
         reset_cursor = self.chart_info_output.textCursor()
