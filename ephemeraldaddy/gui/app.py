@@ -1256,6 +1256,10 @@ from ephemeraldaddy.gui.features.charts.total_chart_exporter import (
     build_total_chart_export_text as _build_total_chart_export_text,
     build_total_chart_similar_charts_section_for_chart as _build_total_chart_similar_charts_section_for_chart,
 )
+from ephemeraldaddy.gui.features.charts.batch_total_chart_export import (
+    export_button_label as _chart_export_button_label,
+    run_total_chart_export_flow as _run_total_chart_export_flow,
+)
 from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
     build_enneagram_popout_info_html as _build_enneagram_popout_info_html,
     cache_enneagram_prediction_metadata as _cache_enneagram_prediction_metadata,
@@ -2430,7 +2434,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.batch_delete_chart_button.setObjectName("database_view_middle_delete_chart_button")
         self.batch_delete_chart_button.clicked.connect(self._on_delete)
 
-        self.total_chart_export_button = QPushButton("export chart")
+        self.total_chart_export_button = QPushButton("Export chart")
         self.total_chart_export_button.setObjectName("database_view_middle_total_chart_export_button")
         self.total_chart_export_button.setToolTip("Export the selected chart's full Chart View, analytics, predictions, Human Design, and BaZi text")
         share_icon_path = _get_share_icon_path()
@@ -2438,7 +2442,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.total_chart_export_button.setIcon(QIcon(share_icon_path))
             self.total_chart_export_button.setIconSize(QSize(14, 14))
         self.total_chart_export_button.clicked.connect(self._on_export_selected_total_chart)
-        self.total_chart_export_button.setEnabled(False)
+        self.total_chart_export_button.setEnabled(True)
 
         self.batch_rename_chart_button = QPushButton("Rename Chart")
         self.batch_rename_chart_button.setObjectName("database_view_middle_rename_chart_button")
@@ -7260,67 +7264,46 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return None
         return selected_chart_id
 
-    def _on_export_selected_total_chart(self) -> None:
-        selected_chart_ids = self._selected_chart_ids()
-        if len(selected_chart_ids) != 1:
-            QMessageBox.information(
-                self,
-                "Select one chart",
-                "Select exactly one chart before exporting a total chart.",
-            )
-            return
-        chart_id = selected_chart_ids[0]
-        try:
-            chart = load_chart(chart_id)
-        except Exception as exc:
-            QMessageBox.warning(self, "Export chart", f"Unable to load selected chart.\n\n{exc}")
-            return
-
-        chart_name = (getattr(chart, "name", None) or "chart").strip() or "chart"
-        safe_name = self._sanitize_export_token(chart_name)
-        default_filename = f"{safe_name}-total-chart-export.md"
-        file_path, selected_filter = QFileDialog.getSaveFileName(
-            self,
-            "Export Total Chart",
-            default_filename,
-            "Markdown Files (*.md);;Text Files (*.txt)",
+    def _write_total_chart_export(self, chart_id: int, chart: object, file_path: str, markdown: bool) -> None:
+        algorithm_mode = _normalize_similar_charts_algorithm_mode(
+            getattr(self, "_similar_charts_algorithm_mode", SIMILAR_CHARTS_ALGORITHM_DEFAULT)
         )
-        if not file_path:
-            return
-        selected_extension = ".txt" if "*.txt" in selected_filter else ".md"
-        if not file_path.lower().endswith((".md", ".txt")):
-            file_path = f"{file_path}{selected_extension}"
-        markdown = file_path.lower().endswith(".md")
-        try:
-            algorithm_mode = _normalize_similar_charts_algorithm_mode(
-                getattr(self, "_similar_charts_algorithm_mode", SIMILAR_CHARTS_ALGORITHM_DEFAULT)
-            )
-            self._similar_charts_algorithm_mode = algorithm_mode
-            similar_charts_section = _build_total_chart_similar_charts_section_for_chart(
-                chart=chart,
-                subject_chart_id=chart_id,
-                markdown=markdown,
-                chart_rows=list_charts(),
-                load_chart_by_id=load_chart,
-                resolve_similarity_band=self._similarity_band_for_percent,
-                settings=self._settings,
-                algorithm_mode=algorithm_mode,
-                similarity_settings=getattr(self, "_similarity_calculator_settings", None),
-            )
-            export_text = _build_total_chart_export_text(
-                chart,
-                markdown=markdown,
-                show_cursedness=self._visibility.get("chart_data.cursedness"),
-                show_dnd_output=False,
-                calculate_enneagram_scores=self._calculate_enneagram_type_weights,
-                similar_charts_section=similar_charts_section,
-            )
-            with open(file_path, "w", encoding="utf-8") as output_file:
-                output_file.write(export_text)
-        except Exception as exc:
-            QMessageBox.critical(self, "Export failed", f"Could not export total chart:\n{exc}")
-            return
-        QMessageBox.information(self, "Export complete", f"Saved total chart export to:\n{file_path}")
+        self._similar_charts_algorithm_mode = algorithm_mode
+        similar_charts_section = _build_total_chart_similar_charts_section_for_chart(
+            chart=chart,
+            subject_chart_id=chart_id,
+            markdown=markdown,
+            chart_rows=list_charts(),
+            load_chart_by_id=load_chart,
+            resolve_similarity_band=self._similarity_band_for_percent,
+            settings=self._settings,
+            algorithm_mode=algorithm_mode,
+            similarity_settings=getattr(self, "_similarity_calculator_settings", None),
+        )
+        export_text = _build_total_chart_export_text(
+            chart,
+            markdown=markdown,
+            show_cursedness=self._visibility.get("chart_data.cursedness"),
+            show_dnd_output=False,
+            calculate_enneagram_scores=self._calculate_enneagram_type_weights,
+            similar_charts_section=similar_charts_section,
+        )
+        with open(file_path, "w", encoding="utf-8") as output_file:
+            output_file.write(export_text)
+
+    def _on_export_selected_total_chart(self) -> None:
+        _run_total_chart_export_flow(
+            self,
+            self._selected_chart_ids(),
+            prompt_for_chart=lambda: self._prompt_single_chart_selection(
+                dialog_title="Export chart",
+                submit_button_label="Export chart",
+                placeholder_text="Look up the chart to export…",
+            ),
+            load_chart=load_chart,
+            sanitize_token=self._sanitize_export_token,
+            write_export=self._write_total_chart_export,
+        )
 
 
     def _resolve_middle_panel_tool_chart_id(self, tool_title: str) -> int | None:
@@ -17016,7 +16999,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             rename_enabled = selected_count == 1
             self.batch_rename_chart_button.setEnabled(rename_enabled)
         if hasattr(self, "total_chart_export_button"):
-            self.total_chart_export_button.setEnabled(selected_count == 1)
+            self.total_chart_export_button.setText(_chart_export_button_label(selected_count))
+            self.total_chart_export_button.setEnabled(True)
         if hasattr(self, "mark_not_duplicates_button"):
             is_ready = (
                 self.mark_not_duplicates_button.isVisible()
@@ -18582,9 +18566,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             unhide_action = menu.addAction(label)
         export_action = None
         tool_actions: dict[object, str] = {}
+        menu.addSeparator()
+        export_action = menu.addAction(_chart_export_button_label(len(selected_ids)))
         if len(selected_ids) == 1:
-            menu.addSeparator()
-            export_action = menu.addAction("Export chart")
             for tool_key, label in (
                 ("bazi", "See BaZi Chart"),
                 ("human_design", "See Human Design Chart"),
