@@ -18580,9 +18580,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 else f"Unhide {len(selected_hidden_ids)} selected charts"
             )
             unhide_action = menu.addAction(label)
+        export_action = None
         tool_actions: dict[object, str] = {}
         if len(selected_ids) == 1:
             menu.addSeparator()
+            export_action = menu.addAction("Export chart")
             for tool_key, label in (
                 ("bazi", "See BaZi Chart"),
                 ("human_design", "See Human Design Chart"),
@@ -18601,6 +18603,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._hide_selected_charts(selected_visible_ids)
         elif chosen_action is unhide_action:
             self._unhide_selected_charts(selected_hidden_ids)
+        elif chosen_action is export_action:
+            self._on_export_selected_total_chart()
         elif chosen_action in tool_actions:
             self._on_middle_panel_chart_tool(tool_actions[chosen_action])
 
@@ -22771,8 +22775,8 @@ class MainWindow(QMainWindow):
         # self.new_chart_button.clicked.connect(self.on_new_chart)
         # top_controls.addWidget(self.new_chart_button, 0, Qt.AlignRight)
         #
-        # # Export Charts Button
-        # self.export_chart_button = QPushButton("Export Chart")
+        # # Export charts Button
+        # self.export_chart_button = QPushButton("Export chart")
         # self.export_chart_button.setObjectName("export_chart_button")
         # self.export_chart_button.setEnabled(False)
         # self.export_chart_button.clicked.connect(self.on_export_chart)
@@ -27602,7 +27606,7 @@ class MainWindow(QMainWindow):
         default_filename = f"chart-data-output-{export_date}.md"
         file_path, selected_filter = QFileDialog.getSaveFileName(
             self,
-            "Export Chart Data Output",
+            "Export chart Data Output",
             default_filename,
             "Markdown Files (*.md);;Text Files (*.txt)",
         )
