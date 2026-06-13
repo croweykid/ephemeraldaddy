@@ -48,7 +48,7 @@ from ephemeraldaddy.gui.features.charts.anagrams import AnagramsPresenter, build
 from ephemeraldaddy.gui.features.charts.loading_overlay import ChartLoadingOverlay
 from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import build_chart_right_panel_stack
 from ephemeraldaddy.gui.features.controllers.chart_right_panel import ChartRightPanelController
-from ephemeraldaddy.gui.style import apply_button_cursor
+from ephemeraldaddy.gui.style import apply_button_cursor, apply_chart_info_link_cursor
 from ephemeraldaddy.gui.features.charts.tagging import (
     normalize_tag_list,
     parse_tag_text,
@@ -881,8 +881,16 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     )
     owner.distinguishing_factors_label = QLabel("Database distinction scan: —")
     owner.distinguishing_factors_label.setTextFormat(Qt.RichText)
+    owner.distinguishing_factors_label.setTextInteractionFlags(
+        Qt.LinksAccessibleByMouse | Qt.TextSelectableByMouse
+    )
+    owner.distinguishing_factors_label.setOpenExternalLinks(False)
     owner.distinguishing_factors_label.setWordWrap(True)
     owner.distinguishing_factors_label.setStyleSheet("color: #f5f5f5; padding-top: 2px; padding-bottom: 6px;")
+    owner.distinguishing_factors_label.linkActivated.connect(
+        owner._on_distinguishing_factor_link_activated
+    )
+    apply_chart_info_link_cursor(owner.distinguishing_factors_label)
     distinguishing_section_layout.addWidget(owner.distinguishing_factors_label)
 
     enneagram_section_layout = owner._add_chart_analysis_collapsible_section(

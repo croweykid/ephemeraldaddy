@@ -27989,8 +27989,9 @@ class MainWindow(QMainWindow):
         plain_fmt.setFontWeight(QFont.Normal)
         plain_fmt.setFontItalic(False)
 
-        display_body = str(display_body_label or "").strip() or (_display_body_name(body_key) if body_key else "Body")
-        cursor.insertText(f"{display_body} in {sign_key}\n\n", title_fmt)
+        display_body = str(display_body_label or "").strip() or (_display_body_name(body_key) if body_key else "")
+        title = f"{display_body} in {sign_key}" if display_body else sign_key
+        cursor.insertText(f"{title}\n\n", title_fmt)
         theme = DOMINANT_BODY_MEANINGS.get(body_key, {}).get("core_theme", "")
         if theme:
             theme_color = PLANET_COLORS.get(body_key, CHART_THEME_COLORS.get("text", "#f5f5f5"))
@@ -31885,6 +31886,46 @@ class MainWindow(QMainWindow):
             )
             return
         label.setText(_build_distinguishing_factors_html(chart, self._prediction_norm_charts()))
+
+    def _on_distinguishing_factor_link_activated(self, href: str) -> None:
+        """Open a Predictions distinguishing-factor link in the main Chart Info panel."""
+        parts = str(href or "").split(":")
+        if len(parts) < 3 or parts[0] != "distinguishing-factor":
+            return
+        kind = parts[1]
+        value = urllib.parse.unquote(parts[2])
+
+        self._set_chart_info_panel_mode("chart_info")
+        if kind == "planet":
+            self._show_planet_keyword_info(value)
+            return
+        if kind == "sign":
+            self._show_sign_keyword_info(value)
+            return
+        if kind == "house":
+            try:
+                house_num = int(value)
+            except (TypeError, ValueError):
+                return
+            self._show_house_keyword_info(house_num)
+            return
+        if kind == "nakshatra":
+            self._show_nakshatra_info(value)
+            return
+        if kind == "gate":
+            try:
+                gate = int(value)
+            except (TypeError, ValueError):
+                return
+            self._show_human_design_gate_line_info(gate, None)
+            return
+        if kind == "gate-line" and len(parts) >= 4:
+            try:
+                gate = int(value)
+                line = int(urllib.parse.unquote(parts[3]))
+            except (TypeError, ValueError):
+                return
+            self._show_human_design_gate_line_info(gate, line)
 
     def _draw_enneagram_predictions(self, ax, chart: Chart) -> None:
         _draw_enneagram_predictions_chart(

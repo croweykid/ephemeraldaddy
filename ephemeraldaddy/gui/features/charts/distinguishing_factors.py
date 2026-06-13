@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import html
 import math
 import statistics
+import urllib.parse
 from typing import Callable, Iterable
 
 from ephemeraldaddy.analysis.human_design import build_human_design_result
@@ -70,39 +71,65 @@ def _normalized_shares(values: dict[object, float], labels: Iterable[object]) ->
     return {label: value / total for label, value in raw.items()}
 
 
-def _color_token(label: object, color: str | None) -> str:
+def _color_token(label: object, color: str | None, href: str = "") -> str:
     label_text = str(label)
     color_text = str(color or "").strip()
+    escaped_label = html.escape(label_text)
     if not color_text:
-        return html.escape(label_text)
+        token = escaped_label
+    else:
+        token = (
+            f'<span style="color:{html.escape(color_text)}; font-weight:400;">'
+            f"{escaped_label}</span>"
+        )
+    if not href:
+        return token
     return (
-        f'<span style="color:{html.escape(color_text)}; font-weight:400;">'
-        f"{html.escape(label_text)}</span>"
+        f'<a href="{html.escape(href, quote=True)}" '
+        'style="text-decoration:none;">'
+        f"{token}</a>"
     )
 
 
-def _factor_label_html(group_key: str, raw_label: object, display_label: str) -> str:
+def _factor_info_href(group_key: str, raw_label: object) -> str:
     if group_key == "planets":
-        return _color_token(display_label, PLANET_COLORS.get(str(raw_label)))
+        kind = "planet"
+    elif group_key == "signs":
+        kind = "sign"
+    elif group_key == "houses":
+        kind = "house"
+    elif group_key == "nakshatras":
+        kind = "nakshatra"
+    else:
+        return ""
+    return f"distinguishing-factor:{kind}:{urllib.parse.quote(str(raw_label), safe='')}"
+
+
+def _factor_label_html(group_key: str, raw_label: object, display_label: str) -> str:
+    href = _factor_info_href(group_key, raw_label)
+    if group_key == "planets":
+        return _color_token(display_label, PLANET_COLORS.get(str(raw_label)), href)
     if group_key == "signs":
-        return _color_token(display_label, SIGN_COLORS.get(str(raw_label)))
+        return _color_token(display_label, SIGN_COLORS.get(str(raw_label)), href)
     if group_key == "houses":
-        return _color_token(display_label, HOUSE_COLORS.get(str(raw_label)))
+        return _color_token(display_label, HOUSE_COLORS.get(str(raw_label)), href)
     if group_key == "elements":
         return _color_token(display_label, ELEMENT_COLORS.get(str(raw_label)))
     if group_key == "modes":
         return _color_token(display_label, MODE_COLORS.get(str(raw_label).lower()))
     if group_key == "nakshatras":
-        return _color_token(display_label, NAKSHATRA_PLANET_COLOR.get(str(raw_label), (None, None))[1])
+        return _color_token(display_label, NAKSHATRA_PLANET_COLOR.get(str(raw_label), (None, None))[1], href)
     return html.escape(display_label)
 
 
 def _hd_gate_label_html(gate: int) -> str:
-    return _color_token(f"Gate {gate}", GATE_COLORS.get(int(gate)))
+    href = f"distinguishing-factor:gate:{int(gate)}"
+    return _color_token(f"Gate {gate}", GATE_COLORS.get(int(gate)), href)
 
 
 def _hd_gate_line_html(gate: int, line: int) -> str:
-    return _color_token(f"{gate}.{line}", HD_LINE_COLORS.get(int(line), GATE_COLORS.get(int(gate))))
+    href = f"distinguishing-factor:gate-line:{int(gate)}:{int(line)}"
+    return _color_token(f"{gate}.{line}", HD_LINE_COLORS.get(int(line), GATE_COLORS.get(int(gate))), href)
 
 
 def _planet_group() -> _MetricGroup:
