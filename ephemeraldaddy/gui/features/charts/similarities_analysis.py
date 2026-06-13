@@ -13,10 +13,12 @@ from ephemeraldaddy.analysis.get_astro_twin import (
     SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE,
     SIMILAR_CHARTS_ALGORITHM_DEFAULT,
     SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING,
+    SIMILAR_CHARTS_ALGORITHM_BIG_3,
     SIMILAR_CHARTS_ALGORITHM_CUSTOM,
     SimilarityCalculatorSettings,
     all_or_nothing_similarity_settings,
     chart_similarity_score,
+    chart_similarity_score_big_3,
     chart_similarity_score_custom,
     normalize_similar_charts_algorithm_mode,
 )
@@ -67,6 +69,18 @@ def calculate_pair_similarity_result(
     normalized_mode = normalize_similar_charts_algorithm_mode(algorithm_mode)
     settings = custom_settings or SimilarityCalculatorSettings.defaults_for_default_mode()
     placement_weighting_mode = settings.normalized_placement_weighting_mode()
+    if normalized_mode == SIMILAR_CHARTS_ALGORITHM_BIG_3:
+        final_score, component_scores = chart_similarity_score_big_3(first, second)
+        return PairSimilarityResult(
+            score=final_score,
+            placement_score=component_scores.get("sun_sign", 0.0),
+            aspect_score=component_scores.get("moon_sign", 0.0),
+            distribution_score=component_scores.get("rising_sign", 0.0),
+            inner_planet_placement_score=component_scores.get("mercury_sign"),
+            outer_planet_placement_score=component_scores.get("venus_sign"),
+            algorithm_mode=normalized_mode,
+        )
+
     if normalized_mode in {
         SIMILAR_CHARTS_ALGORITHM_DEFAULT,
         SIMILAR_CHARTS_ALGORITHM_CUSTOM,

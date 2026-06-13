@@ -6,6 +6,7 @@ from ephemeraldaddy.analysis.get_astro_twin import (
     all_or_nothing_similarity_settings,
     chart_dissimilarity_score_comprehensive,
     chart_similarity_score_all_or_nothing,
+    chart_similarity_score_big_3,
     chart_similarity_score_custom,
     find_astro_twins,
     normalize_similar_charts_algorithm_mode,
@@ -52,6 +53,89 @@ def test_default_similarity_settings_match_requested_weights():
 def test_generic_astro_algorithm_mode_is_supported():
     assert normalize_similar_charts_algorithm_mode("generic astro") == "generic_astro"
     assert normalize_similar_charts_algorithm_mode("generic_astro") == "generic_astro"
+
+
+def test_big_3_algorithm_mode_is_supported():
+    assert normalize_similar_charts_algorithm_mode("big 3") == "big_3"
+    assert normalize_similar_charts_algorithm_mode("big_3") == "big_3"
+
+
+def test_big_3_similarity_uses_angles_when_houses_are_available():
+    first = SimpleNamespace(
+        positions={
+            "Sun": 0.0,
+            "Moon": 30.0,
+            "AS": 60.0,
+            "MC": 90.0,
+            "Mercury": 120.0,
+            "Venus": 150.0,
+            "Mars": 180.0,
+        },
+        birthtime_unknown=False,
+        retcon_time_used=False,
+    )
+    second = SimpleNamespace(
+        positions={
+            "Sun": 1.0,
+            "Moon": 31.0,
+            "AS": 61.0,
+            "MC": 91.0,
+            "Mercury": 121.0,
+            "Venus": 151.0,
+            "Mars": 181.0,
+        },
+        birthtime_unknown=False,
+        retcon_time_used=False,
+    )
+
+    final_score, components = chart_similarity_score_big_3(first, second)
+
+    assert final_score == 1.0
+    assert components == {
+        "sun_sign": 1.0,
+        "moon_sign": 1.0,
+        "mercury_sign": 1.0,
+        "venus_sign": 1.0,
+        "mars_sign": 1.0,
+        "rising_sign": 1.0,
+        "mc_sign": 1.0,
+    }
+
+
+def test_big_3_similarity_redistributes_angle_weights_without_houses():
+    first = SimpleNamespace(
+        positions={
+            "Sun": 0.0,
+            "Moon": 30.0,
+            "Mercury": 60.0,
+            "Venus": 90.0,
+            "Mars": 120.0,
+        },
+        birthtime_unknown=True,
+        retcon_time_used=False,
+    )
+    second = SimpleNamespace(
+        positions={
+            "Sun": 1.0,
+            "Moon": 120.0,
+            "Mercury": 61.0,
+            "Venus": 180.0,
+            "Mars": 121.0,
+        },
+        birthtime_unknown=True,
+        retcon_time_used=False,
+    )
+
+    final_score, components = chart_similarity_score_big_3(first, second)
+
+    assert components == {
+        "sun_sign": 1.0,
+        "moon_sign": 0.0,
+        "mercury_sign": 1.0,
+        "venus_sign": 0.0,
+        "mars_sign": 1.0,
+    }
+    assert final_score == 0.59
 
 
 def test_comprehensive_similarity_defaults_match_requested_weights():

@@ -50,6 +50,7 @@ SIMILAR_CHARTS_ALGORITHM_DEFAULT = "default"
 SIMILAR_CHARTS_ALGORITHM_GENERIC_ASTRO = "generic_astro"
 SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE = "comprehensive"
 SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING = "all_or_nothing"
+SIMILAR_CHARTS_ALGORITHM_BIG_3 = "big_3"
 SIMILAR_CHARTS_ALGORITHM_CUSTOM = "custom"
 PLACEMENT_WEIGHTING_MODE_CHART_DEFINED = "chart_defined"
 PLACEMENT_WEIGHTING_MODE_GENERIC = "generic"
@@ -518,6 +519,7 @@ def normalize_similar_charts_algorithm_mode(value: object) -> str:
         SIMILAR_CHARTS_ALGORITHM_GENERIC_ASTRO,
         SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE,
         SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING,
+        SIMILAR_CHARTS_ALGORITHM_BIG_3,
         SIMILAR_CHARTS_ALGORITHM_CUSTOM,
     }:
         return normalized
@@ -1354,6 +1356,49 @@ def chart_similarity_score_all_or_nothing(
     )
 
 
+def _same_sign_score(query: Chart, candidate: Chart, body: str) -> float:
+    q_lon = (getattr(query, "positions", None) or {}).get(body)
+    c_lon = (getattr(candidate, "positions", None) or {}).get(body)
+    if q_lon is None or c_lon is None:
+        return 0.0
+    return 1.0 if _sign_for_longitude(float(q_lon)) == _sign_for_longitude(float(c_lon)) else 0.0
+
+
+def chart_similarity_score_big_3(query: Chart, candidate: Chart) -> tuple[float, dict[str, float]]:
+    """Score Big 3 mode by sign matches, with angle weights only when houses are usable."""
+
+    has_house_context = chart_uses_houses(query) and chart_uses_houses(candidate)
+    weights = {
+        "sun_sign": 0.35,
+        "moon_sign": 0.25,
+        "mercury_sign": 0.02,
+        "venus_sign": 0.02,
+        "mars_sign": 0.01,
+    }
+    if has_house_context:
+        weights["rising_sign"] = 0.18
+        weights["mc_sign"] = 0.17
+    else:
+        redistributed = (0.18 + 0.17) / len(weights)
+        weights = {key: weight + redistributed for key, weight in weights.items()}
+
+    component_scores = {
+        "sun_sign": _same_sign_score(query, candidate, "Sun"),
+        "moon_sign": _same_sign_score(query, candidate, "Moon"),
+        "mercury_sign": _same_sign_score(query, candidate, "Mercury"),
+        "venus_sign": _same_sign_score(query, candidate, "Venus"),
+        "mars_sign": _same_sign_score(query, candidate, "Mars"),
+    }
+    if has_house_context:
+        component_scores["rising_sign"] = _same_sign_score(query, candidate, "AS")
+        component_scores["mc_sign"] = _same_sign_score(query, candidate, "MC")
+    total_weight = sum(weights.values())
+    if total_weight <= 0.0:
+        return 0.0, component_scores
+    score = sum(component_scores[key] * weight for key, weight in weights.items()) / total_weight
+    return score, component_scores
+
+
 def chart_dissimilarity_score(
     query: Chart,
     candidate: Chart,
@@ -1439,6 +1484,7 @@ def find_astro_twins(
     normalized_mode = normalize_similar_charts_algorithm_mode(algorithm_mode)
     use_comprehensive = normalized_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE
     use_all_or_nothing = normalized_mode == SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING
+    use_big_3 = normalized_mode == SIMILAR_CHARTS_ALGORITHM_BIG_3
     use_custom = normalized_mode in {
         SIMILAR_CHARTS_ALGORITHM_DEFAULT,
         SIMILAR_CHARTS_ALGORITHM_CUSTOM,
@@ -1465,7 +1511,21 @@ def find_astro_twins(
             continue
 
         if least_similar:
-            if use_custom or use_all_or_nothing:
+            if use_big_3:
+                custom_similarity_score, component_scores = chart_similarity_score_big_3(query_chart, candidate)
+                rank_score = 1.0 - custom_similarity_score
+                final_score = custom_similarity_score
+                placement_score = component_scores.get("sun_sign", 0.0)
+                aspect_score = component_scores.get("moon_sign", 0.0)
+                distribution_score = component_scores.get("rising_sign", 0.0)
+                nakshatra_score = None
+                nakshatra_dominance_score = None
+                hd_centers_score = None
+                human_design_gates_score = None
+                human_design_channels_score = None
+                inner_planet_placement_score = component_scores.get("mercury_sign")
+                outer_planet_placement_score = component_scores.get("venus_sign")
+            elif use_custom or use_all_or_nothing:
                 custom_similarity_score, component_scores = chart_similarity_score_custom(
                     query_chart,
                     candidate,
@@ -1527,7 +1587,19 @@ def find_astro_twins(
                 inner_planet_placement_score = None
                 outer_planet_placement_score = None
         else:
-            if use_custom or use_all_or_nothing:
+            if use_big_3:
+                final_score, component_scores = chart_similarity_score_big_3(query_chart, candidate)
+                placement_score = component_scores.get("sun_sign", 0.0)
+                aspect_score = component_scores.get("moon_sign", 0.0)
+                distribution_score = component_scores.get("rising_sign", 0.0)
+                nakshatra_score = None
+                nakshatra_dominance_score = None
+                hd_centers_score = None
+                human_design_gates_score = None
+                human_design_channels_score = None
+                inner_planet_placement_score = component_scores.get("mercury_sign")
+                outer_planet_placement_score = component_scores.get("venus_sign")
+            elif use_custom or use_all_or_nothing:
                 final_score, component_scores = chart_similarity_score_custom(
                     query_chart,
                     candidate,
@@ -1579,7 +1651,7 @@ def find_astro_twins(
                 outer_planet_placement_score = None
             rank_score = final_score
 
-        if use_custom or use_all_or_nothing or use_comprehensive:
+        if use_custom or use_all_or_nothing or use_big_3 or use_comprehensive:
             dominance_score = component_scores.get("combined_dominance")
         else:
             dominance_score = _combined_dominance_similarity(query_chart, candidate)
