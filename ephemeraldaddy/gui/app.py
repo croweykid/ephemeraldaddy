@@ -590,6 +590,7 @@ from ephemeraldaddy.graphics.wheel_plot import draw_chart_wheel
 from ephemeraldaddy.graphics._chartwheel_generator_impl import draw_chartwheel
 from ephemeraldaddy.core.db import (
     DB_PATH,
+    DB_DIR,
     save_chart,
     list_charts,
     load_chart,
@@ -1268,6 +1269,10 @@ from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
 )
 from ephemeraldaddy.gui.features.charts.distinguishing_factors import (
     build_distinguishing_factors_html as _build_distinguishing_factors_html,
+    chart_essential_astro_signature as _chart_essential_astro_signature,
+    distinguishing_metric_payload_for_chart as _distinguishing_metric_payload_for_chart,
+    load_distinguishing_metric_cache as _load_distinguishing_metric_cache,
+    save_distinguishing_metric_cache as _save_distinguishing_metric_cache,
 )
 from ephemeraldaddy.gui.features.charts.dnd_predictions import (
     build_dnd_statblock_popout_info_html as _build_dnd_statblock_popout_info_html,
@@ -18237,6 +18242,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 _birth_month,
                 _birth_day,
                 _birth_year,
+                _retcon_hour,
+                _retcon_minute,
             ) in rows:
                 try:
                     matches_filters = self._chart_matches_filters(cid)
@@ -18265,6 +18272,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     _birth_month,
                     _birth_day,
                     _birth_year,
+                    _retcon_hour,
+                    _retcon_minute,
                 )
                 display_name = name or "Unnamed"
                 chart = self._get_chart_for_filter(cid)
@@ -23896,11 +23905,13 @@ class MainWindow(QMainWindow):
                     "used_utc_fallback": int(_row_value(row, 7) or 0),
                     "birthtime_unknown": int(_row_value(row, 8) or 0),
                     "retcon_time_used": int(_row_value(row, 9) or 0),
-                    "chart_type": str(_coalesce_row_value(row, 16, 14) or ""),
-                    "is_placeholder": int(_coalesce_row_value(row, 17, 15) or 0),
-                    "birth_month": _row_value(row, 19),
-                    "birth_day": _row_value(row, 20),
-                    "birth_year": _row_value(row, 21),
+                    "retcon_hour": _row_value(row, 20),
+                    "retcon_minute": _row_value(row, 21),
+                    "chart_type": str(_row_value(row, 14) or ""),
+                    "is_placeholder": int(_row_value(row, 15) or 0),
+                    "birth_month": _row_value(row, 17),
+                    "birth_day": _row_value(row, 18),
+                    "birth_year": _row_value(row, 19),
                 }
             )
         payload = json.dumps(
@@ -30511,6 +30522,8 @@ class MainWindow(QMainWindow):
             _birth_month,
             _birth_day,
             _birth_year,
+            _retcon_hour,
+            _retcon_minute,
         ) in rows:
             name = name or "Unnamed"
             dt_iso = dt_iso or "?"
@@ -32053,6 +32066,74 @@ class MainWindow(QMainWindow):
         self._prediction_norm_charts_cache = list(norm_charts)
         return norm_charts
 
+
+    def _distinguishing_metric_cache_path(self) -> Path:
+        return DB_DIR / ".distinguishing_metrics_cache.json"
+
+    def _prediction_norm_metric_payloads(self) -> list[dict[str, Any]]:
+        cache_path = self._distinguishing_metric_cache_path()
+        cache = _load_distinguishing_metric_cache(cache_path)
+        chart_cache = cache.setdefault("charts", {})
+        active_ids: set[str] = set()
+        payloads: list[dict[str, Any]] = []
+        cache_changed = False
+        for row in self._prediction_norm_rows():
+            try:
+                chart_id = int(row[0])
+            except Exception:
+                continue
+            if bool(row[15] if len(row) > 15 else False):
+                continue
+            chart_id_key = str(chart_id)
+            active_ids.add(chart_id_key)
+            existing = chart_cache.get(chart_id_key)
+            row_essential = json.dumps(
+                {
+                    "dt": str(row[4] if len(row) > 4 else ""),
+                    "birth_place": str(row[5] if len(row) > 5 else ""),
+                    "birthtime_unknown": int(row[8] if len(row) > 8 and row[8] is not None else 0),
+                    "retcon_time_used": int(row[9] if len(row) > 9 and row[9] is not None else 0),
+                    "retcon_hour": row[20] if len(row) > 20 else None,
+                    "retcon_minute": row[21] if len(row) > 21 else None,
+                    "birth_month": row[17] if len(row) > 17 else None,
+                    "birth_day": row[18] if len(row) > 18 else None,
+                    "birth_year": row[19] if len(row) > 19 else None,
+                },
+                default=str,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            if isinstance(existing, dict) and existing.get("row_essential_signature") == row_essential:
+                payload = existing.get("payload")
+                if isinstance(payload, dict):
+                    payloads.append(payload)
+                    continue
+            try:
+                chart = load_chart(chart_id)
+            except Exception:
+                continue
+            if chart is None or self._is_placeholder_chart(chart):
+                continue
+            payload = _distinguishing_metric_payload_for_chart(chart)
+            chart_cache[chart_id_key] = {
+                "row_essential_signature": row_essential,
+                "essential_astro_signature": _chart_essential_astro_signature(chart),
+                "payload": payload,
+            }
+            cache_changed = True
+            payloads.append(payload)
+        stale_ids = set(chart_cache) - active_ids
+        if stale_ids:
+            for stale_id in stale_ids:
+                chart_cache.pop(stale_id, None)
+            cache_changed = True
+        if cache_changed:
+            try:
+                _save_distinguishing_metric_cache(cache_path, cache)
+            except Exception:
+                pass
+        return payloads
+
     def _render_distinguishing_factors(self, chart: Chart | None) -> None:
         label = getattr(self, "distinguishing_factors_label", None)
         if label is None:
@@ -32064,7 +32145,7 @@ class MainWindow(QMainWindow):
                 + "</span>"
             )
             return
-        label.setText(_build_distinguishing_factors_html(chart, self._prediction_norm_charts()))
+        label.setText(_build_distinguishing_factors_html(chart, [], metric_payloads=self._prediction_norm_metric_payloads()))
 
     def _on_distinguishing_factor_link_activated(self, href: str) -> None:
         """Open a Predictions distinguishing-factor link in the main Chart Info panel."""
