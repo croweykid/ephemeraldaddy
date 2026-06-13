@@ -1283,6 +1283,230 @@ HD_INCARNATION_CROSS_THEMES = ['Alertness',
  'the Unexpected',
  'the Vessel of Love']
 
+HD_CROSS_TYPE_DESCRIPTIONS = {
+
+    "Right Angle": "Personal-angle pattern: this theme tends to operate as a self-directed life axis.",
+
+    "Left Angle": "Relational-angle pattern: this theme tends to operate through encounters, exchange, and other people.",
+
+    "Juxtaposition": "Fixed-angle pattern: this theme tends to operate in a narrow, consistent, hinge-point way.",
+
+}
+
+HD_CROSS_THEME_DESCRIPTIONS = {
+
+    "sphinx": "Direction, identity, listening, and guidance; a cross about finding or providing orientation without needing to over-explain the route.",
+
+    "self-expression": "Individual creative expression; the pressure to be distinctly oneself, whether or not the room is ready for it.",
+
+    "defiance": "Resistance to imposed limits; the refusal to let authority, convention, or social pressure define the acceptable shape of expression.",
+
+    "laws": "Rules, values, continuity, and social order; the impulse to create, preserve, revise, or enforce the structures that keep groups functional.",
+
+    "mutation": "Change in the inherited order; practical alteration of rules, systems, and habits when the old pattern has stopped working.",
+
+    "wishes": "Hope projected into structure; the desire to imagine better arrangements and press existing systems toward improvement.",
+
+    "explanation": "Translating private insight or mutation into language others can at least attempt to understand.",
+
+    "formulization": "Mental pattern-making; stating theories, formulas, and frameworks without necessarily proving or institutionalizing them.",
+
+    "revolution": "Principled change; disruption of existing arrangements when survival, fairness, food, rights, or practical benefit demands it.",
+
+    "consciousness": "Questioning, pattern recognition, rhythm, and mental pressure; the drive to understand where a process is going and why.",
+
+    "habits": "Rhythm, routine, and repeatable pattern; the demonstration that life needs structure, cadence, and reliable behavior.",
+
+    "separation": "Individual rhythm apart from the collective; accepting distance when another person’s pattern does not fit yours.",
+
+    "eden": "Embodiment, exploration, and the search for a livable world; leaving innocence behind and learning how to inhabit reality.",
+
+    "conflict": "Relational friction as a path to opportunity; learning where desire, intimacy, pleasure, and humanity collide.",
+
+    "plane": "Earthly embodiment; teaching or modeling how to function materially, physically, and relationally in this world.",
+
+    "contagion": "Enthusiasm, commitment, and experiential momentum; the capacity to pull others into a wave of excitement or participation.",
+
+    "contribution": "Demonstrated usefulness; making society better by taking something under one’s care and improving it over time.",
+
+    "uncertainty": "Security-seeking through material, relational, or emotional stability; the search for what is reliable enough to settle into.",
+
+    "planning": "Community logistics; focusing details, bargains, costs, resources, and group priorities into a workable arrangement.",
+
+    "focus": "Concentrated attention; the ability to narrow the field until the relevant pattern or task comes into view.",
+
+    "identification": "Drawing people into a cause, product, vision, or shared aim by making it feel concrete and personally relevant.",
+
+    "vessel of love": "Love as identity: love of self, body, humanity, spirit, and the fact of being alive.",
+
+    "behavior": "Corrective observation of conduct; guiding behavior toward better patterns, often with more accuracy than tact.",
+
+    "prevention": "Warning, correction, and risk-avoidance; noticing harmful patterns early and trying to stop avoidable damage.",
+
+    "ideas": "Conceptual expression; philosophizing, teaching, and giving language to what embodiment or existence seems to mean.",
+
+    "education": "Development through learning; making knowledge available because understanding changes what people can become.",
+
+    "articulation": "Spreading a message with emotional charge; speech that carries more influence than its literal words.",
+
+    "listening": "Receiving history, secrets, stories, and signals; the role of witness, confidant, recorder, or quiet translator.",
+
+    "masks": "Direction through role-shifting; adapting presentation under social expectation while carrying private insight.",
+
+    "empowering": "Material and relational agency; securing resources, desire, confidence, and leverage to act effectively.",
+
+    "extremes": "Rhythm at the edges; finding a livable pattern through unusual cycles, intensities, or personal timing.",
+
+    "service": "Logical correction in service of improvement; guidance, organization, and refinement aimed at healthier processes.",
+
+    "opinions": "Stated judgment; offering evaluative perspective even when it irritates, because correction starts with a position.",
+
+    "upheaval": "Stirring stale conditions so evaluation, correction, or repair becomes unavoidable.",
+
+    "four ways": "Provision, privacy, memory, and instinctive management; knowing what people need and how resources should move.",
+
+    "need": "Private creative necessity; the need for space, quiet, and conditions where expression can form without interference.",
+
+    "refinement": "Long-range improvement of resources, shelter, food, land, beauty, and private space.",
+
+    "sleeping phoenix": "Regeneration through busyness, desire, intimacy, productivity, and emotional cycles.",
+
+    "now": "Presence and immediacy; being absorbed in the current moment while learning not to abandon community ties.",
+
+    "duality": "The tension between individual power and tribal belonging; thriving alone and in groups without confusing the two.",
+
+    "tension": "Pressure that provokes movement, depth, leadership, or correction; discomfort used as a catalyst.",
+
+    "control": "Command of resources or process; taking hold of a situation so something new can be built or stabilized.",
+
+    "endeavour": "Controlled collaboration toward a larger result; building something complex by coordinating smaller forces.",
+
+    "rulership": "Authority, stewardship, possession, and command; the drive to govern a domain and give it structure.",
+
+    "grace": "Receptive rulership through listening, openness, and social intelligence rather than brute assertion.",
+
+    "dedication": "Persistent explanation; repeating, refining, and transmitting an insight until others can meet it.",
+
+    "assimilation": "Bringing unusual individual insight into social form slowly enough that others can absorb it.",
+
+    "rationalization": "Understanding by returning to concepts repeatedly until their past, present, and future logic becomes clear.",
+
+    "incarnation": "Recognition of cycles, process, and continuity; sensing where things came from and where they are going.",
+
+    "innocence": "Love of life and embodied joy; influencing others by demonstrating aliveness rather than arguing for it.",
+
+    "healing": "Restoration through love, embodiment, health, and care; turning vitality into a useful influence.",
+
+    "trickster": "Persuasion, salesmanship, and image-shaping; making people believe, buy, commit, or rally before proof is complete.",
+
+    "confrontation": "Taking on entrenched authority; provoking justification, exposure, or reorganization where control has gone stale.",
+
+    "unexpected": "Surprise events, sudden responsibility, and accidental discovery; extracting value from what was not planned.",
+
+    "risks": "Meaning through risk; gambling on purpose, intensity, and the possibility that danger clarifies value.",
+
+    "alignment": "Leaving an old pattern for a better-fitting one; shifting allegiance when the prior structure has expired.",
+
+    "commitment": "Saying yes with force; devotion that can inspire others but can also overextend the body.",
+
+    "industry": "Sustained productivity; doing, building, and staying busy when the work is truly worth the energy.",
+
+    "fates": "Passionate drive toward a consuming aim; obsession that can produce discovery or exhaustion.",
+
+    "influence": "Persistent leadership through repetition, advice, strategy, and social positioning.",
+
+    "alpha": "Leadership that provides safety, direction, and emotional vision for the group.",
+
+    "maya": "Reality-testing through details, value, survival, closure, and the attempt to understand what is actually there.",
+
+    "conservation": "Preservation of life, resources, continuity, and value; protecting what must not be wasted.",
+
+    "limitation": "Boundaries that make completion, survival, and clarity possible; saying where the line is.",
+
+    "retreat": "Private space as a condition for peace; protecting the right to withdraw, restore, and have one’s own territory.",
+
+    "power": "Usable force, energy, and exchange; sharing capacity while expecting return.",
+
+    "experience": "Pursuit of specific experience; learning what has been completed, what is still worth doing, and what is merely repetition.",
+
+    "migration": "Moving on when the bargain, group, place, or rhythm no longer supports survival or integrity.",
+
+    "denial": "Resistance as social braking; questioning momentum before the group overcommits to a poor direction.",
+
+    "opposition": "Contrarian pressure; forcing claims, products, beliefs, or leaders to justify themselves.",
+
+    "provocation": "Button-pushing that produces reaction, movement, and hidden information.",
+
+    "individualism": "Radical self-direction; contributing by being visibly different enough that others must respond.",
+
+    "bargains": "Give-and-take; measuring what participation costs and what it returns.",
+
+    "fantasy": "Emotional expectation and trend-sensing; imagining what may happen and testing it against reality.",
+
+    "completion": "Finishing what others abandon; closure, research, endurance, and defined scope.",
+
+    "insight": "Instant recognition; knowing how the pieces fit before the explanation catches up.",
+
+    "alertness": "Pattern-warning; noticing trouble, repetition, or resource failure before others do.",
+
+    "possession": "Control through attachment; wanting command over people, territory, or relational bonds.",
+
+    "serendipity": "Being in the right place at the right time; opportunity through embodiment and timing.",
+
+    "oppression": "Heavy ideas that force analysis; bringing past, present, and future into a demanding conceptual frame.",
+
+    "informing": "Social transmission of information, concern, art, and care for the larger whole.",
+
+    "depth": "Deep skill, deep inquiry, and the pressure to understand things below the surface.",
+
+    "principles": "Standing on core values, especially where food, rights, survival, and fairness are at stake.",
+
+    "values": "Flexible lawmaking; setting rules and standards while leaving room for circumstance.",
+
+    "penetration": "Directness, initiation, ambition, and intuitive force; getting straight to the essential point.",
+
+    "shock": "Disruptive stimulus that wakes people from complacency and forces reaction.",
+
+    "clarion": "Shock as a call to change; delivering the signal that moves ready people into action.",
+
+    "stillness": "Clarity from restraint; advice, focus, and correction that works best when requested.",
+
+    "demands": "Collective complaint made useful; naming what is not working and requiring repair or fair exchange.",
+
+    "beginnings": "Initiation and project launch; assessing what is needed to start something with viable momentum.",
+
+    "cycles": "Repetition, maturation, completion, and renewal; handling the recurring stages of development.",
+
+    "ambition": "Commitment to advancement; pushing forward and staying with the process until it produces material result.",
+
+    "moods": "Emotional depth, fluctuation, and focus; turning changing feeling states into insight or creative output.",
+
+    "spirit": "Fulfillment through intimacy, nourishment, romance, and emotional vitality.",
+
+    "stimulation": "Adrenaline, story, adventure, and the need to be animated by experience.",
+
+    "distraction": "Redirecting attention; interrupting fixation so attention moves toward something more alive or necessary.",
+
+    "intuition": "Immediate knowing; selective guidance based on subtle recognition rather than extended reasoning.",
+
+    "vitality": "Energy for logic and correction; fueling improvement while negotiating control.",
+
+    "strategy": "Relational intelligence; seeing how people connect, match, bond, and organize around desire.",
+
+    "thinking": "Mental evolution; naming, questioning, and developing concepts so understanding can advance.",
+
+    "obscuration": "Meaning through naming, questioning, and sorting; bringing vague material into analyzable form.",
+
+    "detail": "Specificity and memory; small facts that sharpen meaning, even when they risk overloading the story.",
+
+    "doubts": "Protective skepticism; testing whether a process, idea, or product actually works.",
+
+    "dominion": "Taking authority over a situation, sometimes by using history, memory, or interpretation as leverage.",
+
+    "confusion": "Mental pressure around memory, fact, and narrative; turning uncertainty into documentation or influence.",
+
+}
+
 def find_cross_by_name(name: str):
     """Case-insensitive exact match on the full chart label."""
     name_cf = name.casefold()

@@ -22687,6 +22687,7 @@ class MainWindow(QMainWindow):
         self._chart_analysis_section_widgets: dict[str, QWidget] = {}
         self._chart_analysis_subtitles: dict[str, QLabel] = {}
         self._chart_analysis_footer_labels: dict[str, QLabel] = {}
+        self._chart_analysis_above_average_labels: dict[str, QLabel] = {}
         self._chart_analysis_subtitle_by_mode: dict[str, dict[str, str]] = {}
         self._similar_charts_summary_label: QLabel | None = None
         self._similar_charts_mode_dropdown: QComboBox | None = None
@@ -31787,6 +31788,7 @@ class MainWindow(QMainWindow):
             self._dominant_sign_distribution_weights(chart),
             total_title="the sum of all this chart's sign weights",
         )
+        self._update_dominant_sign_above_average_links(chart)
 
     def _render_planet_tally(self, chart: Chart) -> None:
         self._render_metric_panel(
@@ -31798,6 +31800,7 @@ class MainWindow(QMainWindow):
             chart=chart,
         )
         self._update_chart_ruler_footer(chart)
+        self._update_dominant_body_above_average_links(chart)
 
     def _chart_ruler_planets(self, chart: Chart) -> list[str]:
         if not _chart_uses_houses(chart):
@@ -31847,6 +31850,58 @@ class MainWindow(QMainWindow):
         if footer_label is None:
             return
         footer_label.setText(format_weight_distribution_html(values, total_title=total_title))
+
+    def _on_chart_analysis_above_average_link_activated(self, target: str) -> None:
+        if self._latest_chart is None:
+            return
+        parts = str(target or "").split(":", 2)
+        if len(parts) != 3 or parts[0] != "chart-analysis":
+            return
+        kind, raw_value = parts[1], parts[2]
+        self._set_chart_info_panel_mode("chart_info")
+        if kind == "sign":
+            self.chart_info_output.setHtml(self._build_sign_popout_info(self._latest_chart, raw_value))
+        elif kind == "body":
+            self.chart_info_output.setHtml(self._build_body_popout_info(self._latest_chart, raw_value))
+        elif kind == "house":
+            try:
+                house_num = int(raw_value)
+            except ValueError:
+                return
+            self.chart_info_output.setHtml(self._build_house_popout_info(self._latest_chart, house_num))
+        elif kind == "nakshatra":
+            self.chart_info_output.setHtml(_format_nakshatra_description_html(raw_value))
+
+    def _update_chart_analysis_above_average_links(
+        self,
+        section_key: str,
+        entries: list[tuple[str, float, str, str]],
+    ) -> None:
+        label = self._chart_analysis_above_average_labels.get(section_key)
+        if label is None:
+            return
+        numeric_values = [float(value) for _, value, _, _ in entries if isinstance(value, (int, float))]
+        if not numeric_values:
+            label.setText("")
+            return
+        average = sum(numeric_values) / len(numeric_values)
+        ranked_entries = sorted(
+            (entry for entry in entries if float(entry[1]) > average),
+            key=lambda entry: float(entry[1]),
+            reverse=True,
+        )
+        if not ranked_entries:
+            label.setText('<span style="opacity:0.75;">Above average: none</span>')
+            return
+        links = []
+        for display_name, _value, color, target in ranked_entries:
+            safe_color = html.escape(str(color or CHART_THEME_COLORS.get("text", "#f5f5f5")))
+            links.append(
+                f'<a href="{html.escape(target, quote=True)}" '
+                f'style="color: {safe_color}; text-decoration: none; font-weight: 700;">'
+                f'{html.escape(str(display_name))}</a>'
+            )
+        label.setText(f'<b>Above average:</b> {", ".join(links)}')
 
     def _dominant_sign_distribution_weights(self, chart: Chart | None) -> list[float]:
         if chart is None:
@@ -31912,6 +31967,88 @@ class MainWindow(QMainWindow):
         )
         return [float(weight) for weight in weighted_counts.values() if isinstance(weight, (int, float))]
 
+    def _update_dominant_sign_above_average_links(self, chart: Chart) -> None:
+        mode = self._chart_analysis_selected_mode("dominant_signs", "dominant_signs")
+        weighted_counts = (
+            _calculate_sign_prevalence_counts(chart)
+            if mode == "sign_prevalence"
+            else _calculate_dominant_sign_weights(chart)
+        )
+        self._update_chart_analysis_above_average_links(
+            "dominant_signs",
+            [
+                (
+                    sign,
+                    float(weighted_counts.get(sign, 0.0)),
+                    SIGN_COLORS.get(sign, "#6fa8dc"),
+                    f"chart-analysis:sign:{sign}",
+                )
+                for sign in ZODIAC_NAMES
+            ],
+        )
+
+    def _update_dominant_body_above_average_links(self, chart: Chart) -> None:
+        mode = self._chart_analysis_selected_mode("dominant_planets", "dominant_planets")
+        if mode == "sidereal_planet_prevalence":
+            bodies = ["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn", "Rahu", "Ketu"]
+            weighted_counts = _calculate_sidereal_planet_prevalence_counts(chart)
+        else:
+            bodies = _dominant_planet_keys(chart)
+            weighted_counts = _calculate_dominant_planet_weights(chart)
+        self._update_chart_analysis_above_average_links(
+            "dominant_planets",
+            [
+                (
+                    _display_body_name(body),
+                    float(weighted_counts.get(body, 0.0)),
+                    PLANET_COLORS.get(body, "#6fa8dc"),
+                    f"chart-analysis:body:{body}",
+                )
+                for body in bodies
+            ],
+        )
+
+    def _update_dominant_house_above_average_links(self, chart: Chart) -> None:
+        use_houses = _chart_uses_houses(chart)
+        houses = getattr(chart, "houses", None) if use_houses else None
+        if not use_houses or not houses:
+            self._update_chart_analysis_above_average_links("dominant_houses", [])
+            return
+        house_numbers = list(range(1, 13))
+        values = self._house_tally_values(chart)
+        self._update_chart_analysis_above_average_links(
+            "dominant_houses",
+            [
+                (
+                    f"House {house_num}",
+                    float(value),
+                    HOUSE_COLORS.get(str(house_num), "#6fa8dc"),
+                    f"chart-analysis:house:{house_num}",
+                )
+                for house_num, value in zip(house_numbers, values, strict=True)
+            ],
+        )
+
+    def _update_dominant_nakshatra_above_average_links(self, chart: Chart) -> None:
+        mode = self._chart_analysis_selected_mode("nakshatra_prevalence", "nakshatra_prevalence")
+        weighted_counts = (
+            _calculate_nakshatra_prevalence_counts(chart)
+            if mode == "nakshatra_prevalence"
+            else _calculate_dominant_nakshatra_weights(chart)
+        )
+        self._update_chart_analysis_above_average_links(
+            "nakshatra_prevalence",
+            [
+                (
+                    name,
+                    float(weighted_counts.get(name, 0.0)),
+                    NAKSHATRA_PLANET_COLOR.get(name, (None, "#6fa8dc"))[1],
+                    f"chart-analysis:nakshatra:{name}",
+                )
+                for name, *_ in NAKSHATRA_RANGES
+            ],
+        )
+
     def _dominant_body_distribution_metric_color(self, metric_key: str, metric_value: float) -> str | None:
         norms = getattr(self, "_database_weight_norms", None)
         if not isinstance(norms, dict):
@@ -31945,6 +32082,7 @@ class MainWindow(QMainWindow):
             self._dominant_house_distribution_weights(chart),
             total_title="the sum of all this chart's house weights",
         )
+        self._update_dominant_house_above_average_links(chart)
 
     def _render_element_tally(self, chart: Chart) -> None:
         self._render_metric_panel(
@@ -31974,6 +32112,7 @@ class MainWindow(QMainWindow):
             self._dominant_nakshatra_distribution_weights(chart),
             total_title="the sum of all this chart's nakshatra weights",
         )
+        self._update_dominant_nakshatra_above_average_links(chart)
 
     def _render_modal_distribution(self, chart: Chart) -> None:
         selected_mode = self._chart_analysis_selected_mode(

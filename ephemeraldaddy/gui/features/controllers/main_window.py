@@ -287,6 +287,15 @@ class ChartAnalysisSectionsController:
         setattr(self._owner, chart_container_attr, chart_container)
         setattr(self._owner, chart_layout_attr, chart_layout)
 
+        if section_key in {"dominant_signs", "dominant_planets", "dominant_houses", "nakshatra_prevalence"}:
+            above_average_label = QLabel("")
+            above_average_label.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+            above_average_label.setWordWrap(True)
+            above_average_label.setOpenExternalLinks(False)
+            above_average_label.linkActivated.connect(self._owner._on_chart_analysis_above_average_link_activated)
+            section_layout.addWidget(above_average_label)
+            self._owner._chart_analysis_above_average_labels[section_key] = above_average_label
+
         if footer_text is not None:
             footer_label = QLabel(footer_text)
             footer_label.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
