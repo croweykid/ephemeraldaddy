@@ -54,6 +54,7 @@ class PairSimilarityResult:
     human_design_channels_score: float | None = None
     inner_planet_placement_score: float | None = None
     outer_planet_placement_score: float | None = None
+    component_scores: dict[str, float] | None = None
     algorithm_mode: str = "default"
 
 
@@ -73,11 +74,10 @@ def calculate_pair_similarity_result(
         final_score, component_scores = chart_similarity_score_big_3(first, second)
         return PairSimilarityResult(
             score=final_score,
-            placement_score=component_scores.get("sun_sign", 0.0),
-            aspect_score=component_scores.get("moon_sign", 0.0),
-            distribution_score=component_scores.get("rising_sign", 0.0),
-            inner_planet_placement_score=component_scores.get("mercury_sign"),
-            outer_planet_placement_score=component_scores.get("venus_sign"),
+            placement_score=0.0,
+            aspect_score=0.0,
+            distribution_score=0.0,
+            component_scores=dict(component_scores),
             algorithm_mode=normalized_mode,
         )
 
@@ -105,6 +105,7 @@ def calculate_pair_similarity_result(
             human_design_channels_score=component_scores.get("human_design_channels"),
             inner_planet_placement_score=component_scores.get("inner_planet_placement"),
             outer_planet_placement_score=component_scores.get("outer_planet_placement"),
+            component_scores=dict(component_scores),
             algorithm_mode=normalized_mode,
         )
     if normalized_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
@@ -128,6 +129,7 @@ def calculate_pair_similarity_result(
             human_design_channels_score=component_scores.get("human_design_channels"),
             inner_planet_placement_score=component_scores.get("inner_planet_placement"),
             outer_planet_placement_score=component_scores.get("outer_planet_placement"),
+            component_scores=dict(component_scores),
             algorithm_mode=normalized_mode,
         )
 
