@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from collections import Counter
+import json
 from dataclasses import dataclass
 import html
 import math
 import statistics
 import urllib.parse
-from typing import Callable, Iterable
+from pathlib import Path
+from typing import Any, Callable, Iterable
 
 from ephemeraldaddy.analysis.human_design import build_human_design_result
 from ephemeraldaddy.analysis.human_design_reference import GATE_COLORS, HD_LINE_COLORS
@@ -38,6 +40,62 @@ DISTINGUISHING_Z_THRESHOLD = 2.0
 ELEMENT_SHARE_THRESHOLD = 0.50
 MODE_SHARE_THRESHOLD = 0.65
 MIN_NORM_SAMPLE_SIZE = 5
+
+DISTINGUISHING_METRICS_SCHEMA_VERSION = 1
+DISTINGUISHING_FORMULA_VERSION = 1
+
+
+def chart_essential_astro_signature(chart: Chart) -> str:
+    """Return the narrow ESSENTIAL_ASTRO signature used to invalidate derived astro caches."""
+    dt_value = getattr(chart, "dt", None)
+    payload = {
+        "dt": dt_value.isoformat() if dt_value is not None else None,
+        "lat": round(float(getattr(chart, "lat", 0.0) or 0.0), 8),
+        "lon": round(float(getattr(chart, "lon", 0.0) or 0.0), 8),
+        "birthtime_unknown": bool(getattr(chart, "birthtime_unknown", False)),
+        "retcon_time_used": bool(getattr(chart, "retcon_time_used", False)),
+        "retcon_hour": getattr(chart, "retcon_hour", None),
+        "retcon_minute": getattr(chart, "retcon_minute", None),
+    }
+    return json.dumps(payload, default=str, sort_keys=True, separators=(",", ":"))
+
+
+def distinguishing_metric_payload_for_chart(chart: Chart) -> dict[str, Any]:
+    """Build persisted per-chart normalized shares used by distinguishing-factor baselines."""
+    groups: dict[str, dict[str, float]] = {}
+    for group in _metric_groups(chart):
+        values = _safe_chart_values(group, chart)
+        if values is None:
+            continue
+        shares = _normalized_shares(values, group.labels)
+        groups[group.key] = {str(label): float(shares.get(label, 0.0)) for label in group.labels}
+    return {
+        "schema_version": DISTINGUISHING_METRICS_SCHEMA_VERSION,
+        "formula_version": DISTINGUISHING_FORMULA_VERSION,
+        "essential_astro_signature": chart_essential_astro_signature(chart),
+        "uses_houses": bool(chart_uses_houses(chart)),
+        "groups": groups,
+    }
+
+
+def load_distinguishing_metric_cache(cache_path: Path) -> dict[str, Any]:
+    try:
+        data = json.loads(cache_path.read_text(encoding="utf-8"))
+    except Exception:
+        return {"schema_version": DISTINGUISHING_METRICS_SCHEMA_VERSION, "charts": {}}
+    if not isinstance(data, dict) or data.get("schema_version") != DISTINGUISHING_METRICS_SCHEMA_VERSION:
+        return {"schema_version": DISTINGUISHING_METRICS_SCHEMA_VERSION, "charts": {}}
+    charts = data.get("charts")
+    if not isinstance(charts, dict):
+        data["charts"] = {}
+    return data
+
+
+def save_distinguishing_metric_cache(cache_path: Path, cache: dict[str, Any]) -> None:
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = cache_path.with_suffix(cache_path.suffix + ".tmp")
+    tmp_path.write_text(json.dumps(cache, sort_keys=True, separators=(",", ":")), encoding="utf-8")
+    tmp_path.replace(cache_path)
 
 
 @dataclass(frozen=True)
@@ -256,6 +314,51 @@ def _norm_baselines(chart: Chart, usable_norm_charts: list[Chart]) -> dict[tuple
     return baselines
 
 
+def _norm_baselines_from_metric_payloads(chart: Chart, payloads: Iterable[dict[str, Any]]) -> tuple[int, dict[tuple[str, object], _NormBaseline]]:
+    usable_payloads = [payload for payload in payloads if isinstance(payload, dict)]
+    baselines: dict[tuple[str, object], _NormBaseline] = {}
+    for group in _metric_groups(chart):
+        norm_shares_by_label: dict[object, list[float]] = {label: [] for label in group.labels}
+        for payload in usable_payloads:
+            if group.key == "houses" and not bool(payload.get("uses_houses")):
+                continue
+            group_values = (payload.get("groups") or {}).get(group.key) or {}
+            if not isinstance(group_values, dict):
+                continue
+            for label in group.labels:
+                norm_shares_by_label[label].append(float(group_values.get(str(label), 0.0) or 0.0))
+        for label, baseline in norm_shares_by_label.items():
+            if len(baseline) < MIN_NORM_SAMPLE_SIZE:
+                continue
+            stdev = statistics.pstdev(baseline)
+            if stdev <= 1e-9 or not math.isfinite(stdev):
+                continue
+            baselines[(group.key, label)] = _NormBaseline(mean=statistics.fmean(baseline), stdev=stdev)
+    return len(usable_payloads), baselines
+
+
+def find_distinguishing_factors_from_metric_payloads(chart: Chart, metric_payloads: Iterable[dict[str, Any]]) -> tuple[list[DistinguishingFactor], int]:
+    factors: list[DistinguishingFactor] = []
+    norm_count, baselines = _norm_baselines_from_metric_payloads(chart, metric_payloads)
+    if norm_count < MIN_NORM_SAMPLE_SIZE:
+        return factors, norm_count
+    for group in _metric_groups(chart):
+        chart_values = _safe_chart_values(group, chart)
+        if chart_values is None:
+            continue
+        chart_shares = _normalized_shares(chart_values, group.labels)
+        for label in group.labels:
+            baseline = baselines.get((group.key, label))
+            if baseline is None:
+                continue
+            value = float(chart_shares.get(label, 0.0))
+            z_score = (value - baseline.mean) / baseline.stdev
+            if abs(z_score) >= DISTINGUISHING_Z_THRESHOLD:
+                factors.append(DistinguishingFactor(group.key, group.label, label, _label_text(label, group.key), value * 100.0, baseline.mean * 100.0, z_score))
+    factors.sort(key=lambda factor: factor.extremity, reverse=True)
+    return factors, norm_count
+
+
 def find_distinguishing_factors(chart: Chart, norm_charts: Iterable[Chart]) -> tuple[list[DistinguishingFactor], int]:
     """Return factors whose normalized share is at least two standard deviations from DB norms."""
     usable_norm_charts = [norm_chart for norm_chart in norm_charts if norm_chart is not None]
@@ -327,13 +430,16 @@ def _concentration_lines(chart: Chart) -> list[str]:
     return lines
 
 
-def build_distinguishing_factors_html(chart: Chart | None, norm_charts: Iterable[Chart]) -> str:
+def build_distinguishing_factors_html(chart: Chart | None, norm_charts: Iterable[Chart], metric_payloads: Iterable[dict[str, Any]] | None = None) -> str:
     """Build rich text for the Chart Analytics tab's distinguishing-factors section."""
     if chart is None:
         return "<span style='color:#f5f5f5;'>No chart loaded.</span>"
 
-    norm_chart_list = list(norm_charts)
-    factors, norm_count = find_distinguishing_factors(chart, norm_chart_list)
+    if metric_payloads is not None:
+        factors, norm_count = find_distinguishing_factors_from_metric_payloads(chart, metric_payloads)
+    else:
+        norm_chart_list = list(norm_charts)
+        factors, norm_count = find_distinguishing_factors(chart, norm_chart_list)
     lines: list[str] = []
     if norm_count < MIN_NORM_SAMPLE_SIZE:
         lines.append(
