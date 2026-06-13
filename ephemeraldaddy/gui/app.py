@@ -18559,6 +18559,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         hidden_chart_ids = set(getattr(self, "_hidden_chart_ids", set()))
         selected_hidden_ids = [chart_id for chart_id in selected_ids if chart_id in hidden_chart_ids]
         selected_visible_ids = [chart_id for chart_id in selected_ids if chart_id not in hidden_chart_ids]
+        rename_action = None
+        if len(selected_ids) == 1:
+            rename_action = menu.addAction("Rename")
+        delete_action = menu.addAction("Delete")
+        menu.addSeparator()
         hide_action = None
         unhide_action = None
         if selected_visible_ids:
@@ -18575,13 +18580,29 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 else f"Unhide {len(selected_hidden_ids)} selected charts"
             )
             unhide_action = menu.addAction(label)
+        tool_actions: dict[object, str] = {}
+        if len(selected_ids) == 1:
+            menu.addSeparator()
+            for tool_key, label in (
+                ("bazi", "See BaZi Chart"),
+                ("human_design", "See Human Design Chart"),
+                ("personal_transit", "See Transit Chart"),
+                ("similar_charts", "See Similar Charts"),
+            ):
+                tool_actions[menu.addAction(label)] = tool_key
         if menu.isEmpty():
             return
         chosen_action = menu.exec(self.list_widget.viewport().mapToGlobal(position))
-        if chosen_action is hide_action:
+        if chosen_action is rename_action:
+            self._on_rename_selected_chart()
+        elif chosen_action is delete_action:
+            self._on_delete()
+        elif chosen_action is hide_action:
             self._hide_selected_charts(selected_visible_ids)
         elif chosen_action is unhide_action:
             self._unhide_selected_charts(selected_hidden_ids)
+        elif chosen_action in tool_actions:
+            self._on_middle_panel_chart_tool(tool_actions[chosen_action])
 
     def _hide_selected_charts(self, chart_ids: list[int]) -> None:
         normalized_ids = {int(chart_id) for chart_id in chart_ids}

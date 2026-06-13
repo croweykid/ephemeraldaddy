@@ -15,13 +15,28 @@ def test_show_hidden_setting_names_charts_explicitly():
     assert 'QCheckBox("Show Hidden")' not in APP_SOURCE
 
 
-def test_context_menu_offers_unhide_only_when_hidden_charts_are_shown():
+def test_context_menu_offers_rename_delete_and_unhide_actions():
     method = _method_source("_show_chart_list_context_menu")
 
+    assert 'menu.addAction("Rename")' in method
+    assert 'menu.addAction("Delete")' in method
+    assert "self._on_rename_selected_chart()" in method
+    assert "self._on_delete()" in method
     assert 'getattr(self, "_show_hidden_charts", False)' in method
     assert 'selected_hidden_ids' in method
     assert '"Unhide selected chart"' in method
     assert 'self._unhide_selected_charts(selected_hidden_ids)' in method
+
+
+def test_context_menu_offers_single_chart_tool_actions():
+    method = _method_source("_show_chart_list_context_menu")
+
+    assert 'if len(selected_ids) == 1:' in method
+    assert '("bazi", "See BaZi Chart")' in method
+    assert '("human_design", "See Human Design Chart")' in method
+    assert '("personal_transit", "See Transit Chart")' in method
+    assert '("similar_charts", "See Similar Charts")' in method
+    assert "self._on_middle_panel_chart_tool(tool_actions[chosen_action])" in method
 
 
 def test_unhide_selected_charts_removes_ids_and_preserves_selection():
