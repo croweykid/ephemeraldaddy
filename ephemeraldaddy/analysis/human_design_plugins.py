@@ -32,6 +32,9 @@ def _validate_humdes_payload(payload: Any) -> dict[str, Any]:
     gates = payload.get("gates")
     if not isinstance(gates, dict) or not gates:
         raise ValueError("Plugin JSON must contain a non-empty 'gates' object.")
+
+    normalized_payload = dict(payload)
+    normalized_gates: dict[str, Any] = {}
     for gate_key, gate_data in gates.items():
         if not isinstance(gate_data, dict):
             raise ValueError(f"Gate {gate_key} must be an object.")
@@ -44,9 +47,16 @@ def _validate_humdes_payload(payload: Any) -> dict[str, Any]:
             raise ValueError(f"Gate {gate_key} has an invalid gate number.") from exc
         if not 1 <= gate_number <= 64:
             raise ValueError(f"Gate {gate_key} must be between 1 and 64.")
+        canonical_gate_key = str(gate_number)
+        if canonical_gate_key in normalized_gates:
+            raise ValueError(f"Gate {canonical_gate_key} appears more than once in plugin data.")
+
+        normalized_gate_data = dict(gate_data)
+        normalized_gate_data["gate"] = gate_number
         lines = gate_data.get("lines", {})
         if not isinstance(lines, dict):
             raise ValueError(f"Gate {gate_key} lines must be an object.")
+        normalized_lines: dict[str, Any] = {}
         for line_key, line_data in lines.items():
             if not isinstance(line_data, dict):
                 raise ValueError(f"Gate {gate_key} line {line_key} must be an object.")
@@ -62,7 +72,19 @@ def _validate_humdes_payload(payload: Any) -> dict[str, Any]:
                 raise ValueError(f"Gate {gate_key} line {line_key} has an invalid line number.") from exc
             if not 1 <= line_number <= 6:
                 raise ValueError(f"Gate {gate_key} line {line_key} must be between 1 and 6.")
-    return payload
+            canonical_line_key = str(line_number)
+            if canonical_line_key in normalized_lines:
+                raise ValueError(
+                    f"Gate {canonical_gate_key} line {canonical_line_key} appears more than once in plugin data."
+                )
+            normalized_line_data = dict(line_data)
+            normalized_line_data["gate"] = gate_number
+            normalized_line_data["line"] = line_number
+            normalized_lines[canonical_line_key] = normalized_line_data
+        normalized_gate_data["lines"] = normalized_lines
+        normalized_gates[canonical_gate_key] = normalized_gate_data
+    normalized_payload["gates"] = normalized_gates
+    return normalized_payload
 
 
 def validate_plugin_file(path: str | Path) -> dict[str, Any]:
