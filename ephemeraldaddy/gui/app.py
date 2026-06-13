@@ -18242,6 +18242,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 _birth_month,
                 _birth_day,
                 _birth_year,
+                _retcon_hour,
+                _retcon_minute,
             ) in rows:
                 try:
                     matches_filters = self._chart_matches_filters(cid)
@@ -18270,6 +18272,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     _birth_month,
                     _birth_day,
                     _birth_year,
+                    _retcon_hour,
+                    _retcon_minute,
                 )
                 display_name = name or "Unnamed"
                 chart = self._get_chart_for_filter(cid)
@@ -23900,14 +23904,14 @@ class MainWindow(QMainWindow):
                     "birth_place": str(_row_value(row, 5) or ""),
                     "used_utc_fallback": int(_row_value(row, 7) or 0),
                     "birthtime_unknown": int(_row_value(row, 8) or 0),
-                    "retcon_time_used": int(_row_value(row, 9) or 0),
-                    "retcon_hour": _row_value(row, 22),
-                    "retcon_minute": _row_value(row, 23),
-                    "chart_type": str(_coalesce_row_value(row, 16, 14) or ""),
-                    "is_placeholder": int(_coalesce_row_value(row, 17, 15) or 0),
-                    "birth_month": _row_value(row, 19),
-                    "birth_day": _row_value(row, 20),
-                    "birth_year": _row_value(row, 21),
+                    "retcon_time_used": int(_row_value(row, 9) or 0), #should be included in ESSENTIAL_ASTRO if not
+                    "retcon_hour": _row_value(row, 20),
+                    "retcon_minute": _row_value(row, 21),
+                    "chart_type": str(_row_value(row, 14) or ""),
+                    "is_placeholder": int(_row_value(row, 15) or 0),
+                    "birth_month": _row_value(row, 17),
+                    "birth_day": _row_value(row, 18),
+                    "birth_year": _row_value(row, 19),
                 }
             )
         payload = json.dumps(
@@ -30518,6 +30522,8 @@ class MainWindow(QMainWindow):
             _birth_month,
             _birth_day,
             _birth_year,
+            _retcon_hour,
+            _retcon_minute,
         ) in rows:
             name = name or "Unnamed"
             dt_iso = dt_iso or "?"
@@ -32087,11 +32093,11 @@ class MainWindow(QMainWindow):
                     "birth_place": str(row[5] if len(row) > 5 else ""),
                     "birthtime_unknown": int(row[8] if len(row) > 8 and row[8] is not None else 0),
                     "retcon_time_used": int(row[9] if len(row) > 9 and row[9] is not None else 0),
-                    "retcon_hour": row[22] if len(row) > 22 else None,
-                    "retcon_minute": row[23] if len(row) > 23 else None,
-                    "birth_month": row[19] if len(row) > 19 else None,
-                    "birth_day": row[20] if len(row) > 20 else None,
-                    "birth_year": row[21] if len(row) > 21 else None,
+                    "retcon_hour": row[20] if len(row) > 20 else None,
+                    "retcon_minute": row[21] if len(row) > 21 else None,
+                    "birth_month": row[17] if len(row) > 17 else None,
+                    "birth_day": row[18] if len(row) > 18 else None,
+                    "birth_year": row[19] if len(row) > 19 else None,
                 },
                 default=str,
                 sort_keys=True,

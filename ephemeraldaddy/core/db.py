@@ -3126,6 +3126,8 @@ def list_charts() -> List[
             Optional[int],
             Optional[int],
             Optional[int],
+            Optional[int],
+            Optional[int],
         ]
     ] = []
     for row in raw_rows:
