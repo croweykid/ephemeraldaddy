@@ -862,11 +862,22 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
     panel.setLayout(layout)
 
+    owner._predictions_distinguishing_factors_expanded = False
+
+    def _on_distinguishing_factors_toggled(expanded: bool) -> None:
+        owner._predictions_distinguishing_factors_expanded = bool(expanded)
+        if not expanded:
+            return
+        render_distinguishing = getattr(owner, "_render_distinguishing_factors", None)
+        if callable(render_distinguishing):
+            render_distinguishing(getattr(owner, "_latest_chart", None))
+
     distinguishing_section_layout = owner._add_chart_analysis_collapsible_section(
         panel=panel,
         layout=layout,
         title="Most Distinguishing Astrological Factors",
-        expanded=True,
+        expanded=False,
+        on_toggled=_on_distinguishing_factors_toggled,
     )
     owner.distinguishing_factors_label = QLabel("Database distinction scan: —")
     owner.distinguishing_factors_label.setTextFormat(Qt.RichText)
