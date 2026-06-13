@@ -32,3 +32,17 @@ def test_hide_hypothetical_refresh_preserves_hidden_persistent_selection():
 
     assert "selected_ids=set(self._selected_chart_ids())" in method
     assert "sync_persistent_selection=False" in method
+
+
+def test_auto_placeholder_exclusion_does_not_persist_user_preference():
+    method = _method_source("_auto_exclude_placeholders_for_astrological_filters")
+
+    assert "QSignalBlocker(self.incomplete_birthdate_checkbox)" in method
+    assert "setMode(QuadStateSlider.MODE_FALSE)" in method
+    assert "SETTINGS_KEY_HIDE_PLACEHOLDER_CHARTS_FILTER" not in method
+
+
+def test_close_event_does_not_persist_transient_placeholder_filter_state():
+    method = _method_source("closeEvent")
+
+    assert "SETTINGS_KEY_HIDE_PLACEHOLDER_CHARTS_FILTER" not in method
