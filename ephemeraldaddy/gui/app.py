@@ -514,8 +514,9 @@ from ephemeraldaddy.gui.features.charts.similarities_algorithm_log import (
     similarity_algorithm_snapshots_changed,
 )
 from ephemeraldaddy.gui.features.charts.chart_similarity_relationships import (
+    convert_logged_chart_similarity_relationship_ids_to_uids,
+    format_chart_similarity_relationship_conversion_report,
     load_chart_similarity_relationship_states,
-    migrate_chart_similarity_relationship_file_to_chart_uids,
     save_chart_similarity_relationship,
 )
 from ephemeraldaddy.gui.window_placement import (
@@ -17599,6 +17600,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _on_custom_db_export(self) -> None:
         open_custom_db_export_dialog(self)
 
+    def _on_convert_logged_chart_similarity_ids_to_uids(self) -> None:
+        try:
+            report = convert_logged_chart_similarity_relationship_ids_to_uids()
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Similarity relationship conversion failed",
+                f"Could not convert logged chart IDs to UIDs:\n{exc}",
+            )
+            return
+
+        QMessageBox.information(
+            self,
+            "Similarity relationship conversion complete",
+            format_chart_similarity_relationship_conversion_report(report),
+        )
+
     def _on_recalculate_all_weights_in_db(self) -> None:
         chart_ids: list[int] = []
         for row in self._chart_rows:
@@ -20481,6 +20499,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         custom_db_export_button.clicked.connect(self._on_custom_db_export)
         dev_tools_section.addWidget(custom_db_export_button)
 
+        convert_similarity_relationship_ids_button = QPushButton("Convert logged chart IDs to UIDs")
+        convert_similarity_relationship_ids_button.setToolTip(
+            "One-time maintenance: rewrite chart_similarity_relationships.json from former integer chart IDs "
+            "to permanent chart UIDs."
+        )
+        convert_similarity_relationship_ids_button.clicked.connect(
+            self._on_convert_logged_chart_similarity_ids_to_uids
+        )
+        dev_tools_section.addWidget(convert_similarity_relationship_ids_button)
 
         predictions_default_zero_checkbox = QCheckBox(
             "Predictions: default alignment to 0 when unassigned"
@@ -24796,10 +24823,6 @@ class MainWindow(QMainWindow):
             )
         )
         if show_perceived_accuracy_controls:
-            chart_uid_map = get_chart_uid_map()
-            migrate_chart_similarity_relationship_file_to_chart_uids(
-                chart_id_to_uid=chart_uid_map
-            )
             perceived_accuracy_states = load_chart_similarity_relationship_states()
         else:
             perceived_accuracy_states = None
