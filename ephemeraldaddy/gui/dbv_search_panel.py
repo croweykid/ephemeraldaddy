@@ -334,7 +334,12 @@ def build_dbv_search_panel(window) -> "QWidget":
 
     incomplete_birthdate_row = QHBoxLayout()
     window.incomplete_birthdate_checkbox = QuadStateSlider("incomplete birthdate (placeholder chart)")
-    window.incomplete_birthdate_checkbox.modeChanged.connect(window._on_filter_changed)
+    settings = getattr(window, "_settings", None)
+    if settings is not None and bool(
+        settings.value("manage_charts/hide_placeholder_charts_filter", 0, type=int)
+    ):
+        window.incomplete_birthdate_checkbox.setMode(QuadStateSlider.MODE_FALSE)
+    window.incomplete_birthdate_checkbox.modeChanged.connect(window._on_incomplete_birthdate_filter_changed)
     incomplete_birthdate_row.addWidget(window.incomplete_birthdate_checkbox)
     incomplete_birthdate_row.addStretch(1)
     birth_info_status_layout.addLayout(incomplete_birthdate_row)

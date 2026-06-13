@@ -49,6 +49,9 @@ SETTINGS_KEY_CHART_DATA_SHOW_CHART_UID = "developer_tools/chart_data_show_chart_
 
 SETTINGS_KEY_DATABASE_VIEW_ROW_INFO = "manage_charts/database_view_row_info"
 SETTINGS_KEY_HIDE_HYPOTHETICAL_CHARTS = "manage_charts/hide_hypothetical_charts"
+SETTINGS_KEY_HIDE_PLACEHOLDER_CHARTS_FILTER = "manage_charts/hide_placeholder_charts_filter"
+SETTINGS_KEY_SHOW_HIDDEN_CHARTS = "manage_charts/show_hidden_charts"
+SETTINGS_KEY_HIDDEN_CHART_IDS = "manage_charts/hidden_chart_ids"
 DATABASE_VIEW_ROW_INFO_OPTIONS: tuple[tuple[str, str], ...] = (
     ("name", "Name"),
     ("alias", "Alias"),
@@ -2264,6 +2267,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             SETTINGS_KEY_HIDE_HYPOTHETICAL_CHARTS,
             int(self._hide_hypothetical_charts),
         )
+        self._show_hidden_charts = _settings_bool(
+            self._settings.value(SETTINGS_KEY_SHOW_HIDDEN_CHARTS, False),
+            False,
+        )
+        self._settings.setValue(
+            SETTINGS_KEY_SHOW_HIDDEN_CHARTS,
+            int(self._show_hidden_charts),
+        )
+        self._hidden_chart_ids = self._load_hidden_chart_ids_from_settings()
         self._analysis_chart_export_rows: dict[str, list[tuple[Any, ...]]] = {}
         self._analysis_chart_filenames: dict[str, str] = {}
         self._analysis_chart_dropdowns: dict[str, QComboBox] = {}
@@ -2656,6 +2668,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "}"
         )
         self.list_widget.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.list_widget.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.list_widget.customContextMenuRequested.connect(self._show_chart_list_context_menu)
         self.list_widget.itemDoubleClicked.connect(self._load_chart_from_item)
         self.list_widget.itemSelectionChanged.connect(self._on_selection_changed)
         self.list_widget.installEventFilter(self)
@@ -16566,6 +16580,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         self._settings.setValue("manage_charts/active_collection_id", persisted_collection_id)
         self._save_custom_collections_to_settings()
+        if hasattr(self, "incomplete_birthdate_checkbox"):
+            self._settings.setValue(
+                SETTINGS_KEY_HIDE_PLACEHOLDER_CHARTS_FILTER,
+                int(self.incomplete_birthdate_checkbox.mode() == QuadStateSlider.MODE_FALSE),
+            )
         self._settings.setValue("app/last_view", "database")
 
         parent = self.parent()
@@ -16719,6 +16738,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return True
         return False
 
+    def _on_incomplete_birthdate_filter_changed(self, *_args) -> None:
+        self._settings.setValue(
+            SETTINGS_KEY_HIDE_PLACEHOLDER_CHARTS_FILTER,
+            int(self.incomplete_birthdate_checkbox.mode() == QuadStateSlider.MODE_FALSE),
+        )
+        self._on_filter_changed()
+
     def _auto_exclude_placeholders_for_astrological_filters(self) -> None:
         if self._suppress_filter_refresh:
             return
@@ -16735,6 +16761,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         try:
             self._clear_batch_edits()
             self.incomplete_birthdate_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
+            self._settings.setValue(SETTINGS_KEY_HIDE_PLACEHOLDER_CHARTS_FILTER, 0)
             self.birthtime_unknown_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             self.retconned_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             if self.living_checkbox is not None:
@@ -18125,6 +18152,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             display_database_rows = rows
         self._database_total_count = len(display_database_rows)
         rows = [row for row in display_database_rows if self._chart_in_active_collection(row)]
+        if not getattr(self, "_show_hidden_charts", False):
+            hidden_chart_ids = set(getattr(self, "_hidden_chart_ids", set()))
+            rows = [row for row in rows if int(row[0]) not in hidden_chart_ids]
         self._active_chart_rows_by_id = {int(row[0]): row for row in rows}
         self._displayed_chart_rows_by_id = {}
         self._active_collection_total_count = len(rows)
@@ -18458,6 +18488,78 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             selected_ids=set(self._selected_chart_ids()),
             refresh_metrics=False,
         )
+        self._on_selection_changed(sync_persistent_selection=False)
+
+    def _on_show_hidden_charts_toggled(self, checked: bool) -> None:
+        self._show_hidden_charts = bool(checked)
+        self._settings.setValue(
+            SETTINGS_KEY_SHOW_HIDDEN_CHARTS,
+            int(self._show_hidden_charts),
+        )
+        self._populate_list(
+            selected_ids=set(self._selected_chart_ids()),
+            refresh_metrics=False,
+        )
+        self._on_selection_changed(sync_persistent_selection=False)
+
+    def _load_hidden_chart_ids_from_settings(self) -> set[int]:
+        raw_value = self._settings.value(SETTINGS_KEY_HIDDEN_CHART_IDS, "[]")
+        if isinstance(raw_value, str):
+            try:
+                raw_ids = json.loads(raw_value)
+            except json.JSONDecodeError:
+                raw_ids = []
+        else:
+            raw_ids = raw_value or []
+        hidden_ids: set[int] = set()
+        if isinstance(raw_ids, (list, tuple, set)):
+            for raw_id in raw_ids:
+                try:
+                    hidden_ids.add(int(raw_id))
+                except (TypeError, ValueError):
+                    continue
+        return hidden_ids
+
+    def _save_hidden_chart_ids_to_settings(self) -> None:
+        self._settings.setValue(
+            SETTINGS_KEY_HIDDEN_CHART_IDS,
+            json.dumps(
+                sorted(
+                    int(chart_id)
+                    for chart_id in getattr(self, "_hidden_chart_ids", set())
+                )
+            ),
+        )
+
+    def _show_chart_list_context_menu(self, position: QPoint) -> None:
+        selected_ids = self._visible_selected_chart_ids()
+        if not selected_ids:
+            item = self.list_widget.itemAt(position)
+            if item is not None:
+                self.list_widget.setCurrentItem(item)
+                item.setSelected(True)
+                selected_ids = self._visible_selected_chart_ids()
+        if not selected_ids:
+            return
+        menu = QMenu(self.list_widget)
+        label = (
+            "Hide selected chart"
+            if len(selected_ids) == 1
+            else f"Hide {len(selected_ids)} selected charts"
+        )
+        hide_action = menu.addAction(label)
+        chosen_action = menu.exec(self.list_widget.viewport().mapToGlobal(position))
+        if chosen_action is hide_action:
+            self._hide_selected_charts(selected_ids)
+
+    def _hide_selected_charts(self, chart_ids: list[int]) -> None:
+        normalized_ids = {int(chart_id) for chart_id in chart_ids}
+        if not normalized_ids:
+            return
+        self._hidden_chart_ids.update(normalized_ids)
+        self._save_hidden_chart_ids_to_settings()
+        remaining_selection = set(self._selected_chart_ids()) - normalized_ids
+        self._populate_list(selected_ids=remaining_selection, refresh_metrics=False)
         self._on_selection_changed(sync_persistent_selection=False)
 
     def _chart_matches_filters(self, chart_id: int) -> bool:
@@ -20403,6 +20505,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             self._database_view_row_info_checkboxes[row_info_key] = checkbox
             database_view_section.addWidget(checkbox)
+
+        show_hidden_checkbox = QCheckBox("Show Hidden")
+        show_hidden_checkbox.setChecked(bool(getattr(self, "_show_hidden_charts", False)))
+        show_hidden_checkbox.setToolTip(
+            "Show charts hidden from the Database View middle-panel list."
+        )
+        show_hidden_checkbox.toggled.connect(self._on_show_hidden_charts_toggled)
+        database_view_section.addWidget(show_hidden_checkbox)
 
         chart_calculation_section = self._add_settings_collapsible_section(
             content_layout,
