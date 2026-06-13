@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import re
 from pathlib import Path
 from typing import Any
 
@@ -117,7 +118,39 @@ def load_humdes_gates(path: str | Path | None = None) -> dict[str, Any] | None:
         return None
 
 
-def humdes_gate_line_supplement_lines(gate: int, line: int | None = None) -> list[str]:
+
+def _trim_line_fixing_text(text: str, fixing: str | None, body: str | None = None) -> str:
+    """Keep only the relevant lead-in/exaltation/detriment part of plugin line text."""
+    clean = _clean_text(text)
+    if not clean:
+        return ""
+    if fixing not in {"exaltation", "detriment"}:
+        parts = clean.split("\n")
+        return "\n".join(parts[:2]).strip() if len(parts) >= 2 else clean
+
+    body_name = _clean_text(body)
+    if fixing == "exaltation":
+        marker = f"\n{body_name} in detriment" if body_name else " in detriment"
+        index = clean.lower().find(marker.lower())
+        if index != -1:
+            return clean[:index].strip()
+        generic = re.search(r"\n[^\n]+\s+in detriment", clean, flags=re.IGNORECASE)
+        return clean[: generic.start()].strip() if generic else clean
+
+    # Detriment: preserve lead-in, remove the exaltation body paragraph, keep detriment onward.
+    detriment_marker = f"\n{body_name} in detriment" if body_name else " in detriment"
+    det_index = clean.lower().find(detriment_marker.lower())
+    if det_index == -1:
+        generic_det = re.search(r"\n[^\n]+\s+in detriment", clean, flags=re.IGNORECASE)
+        det_index = generic_det.start() if generic_det else -1
+    if det_index == -1:
+        return clean
+    lead_end = clean.find("\n")
+    lead = clean[:lead_end].strip() if lead_end != -1 else ""
+    detriment = clean[det_index:].strip()
+    return f"{lead}\n{detriment}".strip() if lead else detriment
+
+def humdes_gate_line_supplement_lines(gate: int, line: int | None = None, fixing: str | None = None, fixing_body: str | None = None) -> list[str]:
     payload = load_humdes_gates()
     if not payload:
         return []
@@ -146,7 +179,8 @@ def humdes_gate_line_supplement_lines(gate: int, line: int | None = None) -> lis
     if line is not None:
         line_data = gate_data.get("lines", {}).get(str(int(line)))
         if isinstance(line_data, dict):
-            line_name = _clean_text(line_data.get("app_name")) or _clean_text(line_data.get("source_name"))
+            raw_line_name = _clean_text(line_data.get("app_name")) or _clean_text(line_data.get("source_name"))
+            line_name = _trim_line_fixing_text(raw_line_name, fixing, fixing_body)
             if line_name:
                 lines.extend(["", f"Advanced line {int(line)} supplement:", line_name])
     return lines

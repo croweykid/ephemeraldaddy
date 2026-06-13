@@ -10,6 +10,7 @@ from typing import Any
 from ephemeraldaddy.core.chart import Chart, chart_uses_houses
 from ephemeraldaddy.core.human_design_system import (
     CHANNELS,
+    HDActivation,
     INCARNATION_CROSS_LOOKUP,
     HumanDesignResult,
     _resolve_authority,
@@ -20,6 +21,8 @@ from ephemeraldaddy.core.human_design_system import (
 )
 from ephemeraldaddy.analysis.human_design_reference import AWARENESS_STREAMS, HD_CIRCUIT_GROUPS, HD_COLORS, HD_TONES, HD_PERSPECTIVE_NAMES, HD_DIGESTION_NAMES, HD_ENVIRONMENT_COLORS
 from ephemeraldaddy.gui.style import CHART_DATA_DIVIDER
+from ephemeraldaddy.analysis.hd_line_fixings import get_hd_line_fixing
+from ephemeraldaddy.core.interpretations import BODY_RELATIONAL_GLYPHS
 
 ZODIAC_NAMES = (
     "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
@@ -149,6 +152,18 @@ def _time_variant_human_design_results(chart: Chart) -> tuple[HumanDesignResult,
     )
 
 
+def hd_line_fixing_for_activation(activation: HDActivation) -> str | None:
+    """Return the HD line fixing for an activation, if its body fixes the line."""
+    try:
+        return get_hd_line_fixing(int(activation.gate), int(activation.line), str(activation.body))
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _hd_line_fixing_label(fixing: str | None) -> str:
+    return "exalted" if fixing == "exaltation" else "detriment" if fixing == "detriment" else ""
+
+
 def _activation_key(activation) -> tuple[str, str]:
     return str(activation.side), str(activation.body)
 
@@ -241,7 +256,9 @@ def _hd_activation_body_display_label(activation: HDActivation) -> str:
     canonical placement side used by calculations and lookups.
     """
     side_alias = _HD_ACTIVATION_SIDE_DISPLAY_ALIASES.get(activation.side, activation.side.title())
-    return f"{side_alias} {activation.body}"
+    fixing = hd_line_fixing_for_activation(activation)
+    body_name = f"{BODY_RELATIONAL_GLYPHS.get('Detriment', '')} {activation.body}" if fixing == "detriment" else str(activation.body)
+    return f"{side_alias} {body_name}"
 
 
 def _build_hd_positions_lines(
@@ -267,7 +284,13 @@ def _build_hd_positions_lines(
         *(len(body_label) for _activation, body_label, _sign_text, _display_values in activation_rows),
     )
     sign_width = max(11, *(len(sign_text) for _activation, _body_label, sign_text, _display_values in activation_rows))
-    gl_width = max(7, *(len(display_values[0]) for _activation, _body_label, _sign_text, display_values in activation_rows))
+    gl_width = max(
+        7,
+        *(
+            len((BODY_RELATIONAL_GLYPHS.get("Exaltation", "") if hd_line_fixing_for_activation(_activation) == "exaltation" else "") + display_values[0])
+            for _activation, _body_label, _sign_text, display_values in activation_rows
+        ),
+    )
     c_width = max(1, *(len(display_values[1]) for _activation, _body_label, _sign_text, display_values in activation_rows))
     t_width = max(1, *(len(display_values[2]) for _activation, _body_label, _sign_text, display_values in activation_rows))
     b_width = max(1, *(len(display_values[3]) for _activation, _body_label, _sign_text, display_values in activation_rows))
@@ -280,15 +303,16 @@ def _build_hd_positions_lines(
     ]
     info_map: dict[int, list[dict[str, object]]] = {}
     for activation, body_label, sign_text, (gl_text, color_text, tone_text, base_text) in activation_rows:
+        displayed_gl_text = BODY_RELATIONAL_GLYPHS.get("Exaltation", "") + gl_text if hd_line_fixing_for_activation(activation) == "exaltation" else gl_text
         line_text = (
             f"{body_label:<{body_width}}  {sign_text:<{sign_width}}  {activation.longitude:>8.3f}°  "
-            f"{gl_text:<{gl_width}}  {color_text:<{c_width}}  {tone_text:<{t_width}}  {base_text:<{b_width}}"
+            f"{(displayed_gl_text):<{gl_width}}  {color_text:<{c_width}}  {tone_text:<{t_width}}  {base_text:<{b_width}}"
             " ⓘ"
         )
         lines.append(line_text)
         body_start = line_text.find(body_label)
         sign_start = line_text.find(sign_text, body_start + len(body_label)) if body_start != -1 else line_text.find(sign_text)
-        gl_start = line_text.find(gl_text)
+        gl_start = line_text.find(displayed_gl_text)
         color_start = line_text.find(color_text, gl_start + len(gl_text))
         tone_start = line_text.find(tone_text, color_start + len(color_text)) if color_start != -1 else -1
         base_start = line_text.find(base_text, tone_start + len(tone_text)) if tone_start != -1 else -1
@@ -435,9 +459,15 @@ def _render_clickable_lines(active_lines: set[tuple[int, int]]) -> tuple[str, li
 
 def _render_clickable_gate_line_summary(
     active_lines: set[tuple[int, int]],
+    activations: tuple[HDActivation, ...] = (),
 ) -> tuple[list[str], dict[int, list[dict[str, object]]]]:
     if not active_lines:
         return ["None"], {}
+    fixing_by_line: dict[tuple[int, int], str] = {}
+    for activation in activations:
+        fixing = hd_line_fixing_for_activation(activation)
+        if fixing and (int(activation.gate), int(activation.line)) not in fixing_by_line:
+            fixing_by_line[(int(activation.gate), int(activation.line))] = fixing
     grouped_lines: dict[int, list[int]] = {}
     for gate, line in sorted(active_lines, key=lambda item: (item[0], item[1])):
         grouped_lines.setdefault(gate, []).append(line)
@@ -449,10 +479,12 @@ def _render_clickable_gate_line_summary(
         row_entries: list[dict[str, object]] = []
         cursor = 0
         for idx, line in enumerate(line_numbers):
-            token = f"{gate}.{line}"
+            label = f"{gate}.{line}"
+            prefix = BODY_RELATIONAL_GLYPHS.get("Exaltation", "") if fixing_by_line.get((gate, line)) == "exaltation" else ""
+            token = f"{prefix}{label}"
             parts.append(token)
-            span_start = cursor
-            span_end = cursor + len(token)
+            span_start = cursor + len(prefix)
+            span_end = span_start + len(label)
             row_entries.append(
                 {
                     "kind": "hd_gate_line",
@@ -490,8 +522,10 @@ def describe_gate_line_placements(
             continue
         side_label = "Personality" if activation.side == "personality" else "Design"
         sign_name = ZODIAC_NAMES[int((float(activation.longitude) % 360.0) // 30) % 12]
+        fixing_label = _hd_line_fixing_label(hd_line_fixing_for_activation(activation))
+        line_label = f"{int(activation.gate)}.{int(activation.line)}" + (f" ({fixing_label})" if fixing_label else "")
         matches.append(
-            f"• {side_label} {activation.body}: Line {int(activation.line)} in {sign_name}"
+            f"• {side_label} {activation.body}: {line_label} in {sign_name}"
         )
     return matches
 
@@ -875,7 +909,7 @@ def build_human_design_chart_data_output(
     active_gate_set = {activation.gate for activation in activations}
     active_line_set = {(activation.gate, activation.line) for activation in activations}
 
-    gate_line_lines, gate_line_info_map = _render_clickable_gate_line_summary(active_line_set)
+    gate_line_lines, gate_line_info_map = _render_clickable_gate_line_summary(active_line_set, activations)
     type_line, type_info_entry = _render_clickable_property("Type", hd_result.hd_type, "type")
     authority_line, authority_info_entry = _render_clickable_property("Authority", hd_result.authority, "authority")
     profile_line, profile_info_entry = _render_clickable_property("Profile", hd_result.profile, "profile")
@@ -1212,7 +1246,8 @@ def build_human_design_synastry_data_output(
     )
 
     channel_lines, channel_info_map = _render_channel_lines(defined_channels)
-    gate_line_lines, gate_line_info_map = _render_clickable_gate_line_summary(active_lines)
+    all_activations = (*hd_a.personality_activations, *hd_a.design_activations, *hd_b.personality_activations, *hd_b.design_activations)
+    gate_line_lines, gate_line_info_map = _render_clickable_gate_line_summary(active_lines, all_activations)
     awareness_lines = [
         f"{stream_entry['type']}: {stream_entry['name']} - {stream_entry['completion_pct']}%. {stream_entry['missing_text']}"
         for stream_entry in build_awareness_stream_completion(active_gates)
