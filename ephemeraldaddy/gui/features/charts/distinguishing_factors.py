@@ -219,7 +219,10 @@ def _chart_norm_signature(chart: Chart) -> tuple[object, ...]:
 
 
 def _norm_baselines(chart: Chart, usable_norm_charts: list[Chart]) -> dict[tuple[str, object], _NormBaseline]:
-    cache_key = tuple(_chart_norm_signature(norm_chart) for norm_chart in usable_norm_charts)
+    cache_key = (
+        ("target_uses_houses", chart_uses_houses(chart)),
+        *(_chart_norm_signature(norm_chart) for norm_chart in usable_norm_charts),
+    )
     cached = _NORM_BASELINE_CACHE.get(cache_key)
     if cached is not None and cached[0] == len(usable_norm_charts):
         return cached[1]
