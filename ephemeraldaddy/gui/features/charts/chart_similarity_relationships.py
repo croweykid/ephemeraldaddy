@@ -150,6 +150,51 @@ def _chart_ids_from_relationship_state(
     return first_id, second_id
 
 
+
+def translate_former_chart_similarity_relationship_ids(
+    *,
+    chart_id_to_uid: Mapping[int, str],
+    path: str | os.PathLike[str] | None = None,
+) -> dict[str, str]:
+    """Return legacy integer relationship keys mapped to stable UID keys.
+
+    The translator is deterministic when it is supplied the chart UID map from
+    the same database that produced the former integer IDs. Relationships are
+    returned only when both chart IDs can be recovered from the JSON record (or
+    its legacy key) and both IDs have current chart UIDs. Unmapped relationships
+    are intentionally omitted rather than guessed.
+    """
+    payload = _read_relationship_file(resolve_chart_similarity_relationships_path(path))
+    relationships = payload.get("relationships", {})
+    if not isinstance(relationships, Mapping):
+        return {}
+
+    normalized_map = {
+        int(chart_id): uid
+        for chart_id, raw_uid in chart_id_to_uid.items()
+        if (uid := _coerce_chart_uid(raw_uid))
+    }
+    translations: dict[str, str] = {}
+    for original_key, raw_state in relationships.items():
+        if not isinstance(raw_state, Mapping):
+            continue
+        first_id, second_id = _chart_ids_from_relationship_state(raw_state, original_key)
+        first_uid = normalized_map.get(first_id) if first_id is not None else None
+        second_uid = normalized_map.get(second_id) if second_id is not None else None
+        if first_id is None or second_id is None or not first_uid or not second_uid:
+            continue
+        legacy_key = chart_similarity_relationship_key(chart_1_id=first_id, chart_2_id=second_id)
+        uid_key = chart_similarity_relationship_key(
+            chart_1_id=first_id,
+            chart_2_id=second_id,
+            chart_1_uid=first_uid,
+            chart_2_uid=second_uid,
+        )
+        translations[str(original_key)] = uid_key
+        translations[legacy_key] = uid_key
+    return translations
+
+
 def save_chart_similarity_relationship(
     *,
     chart_1_id: int | None,

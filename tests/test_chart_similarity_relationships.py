@@ -280,3 +280,42 @@ def test_relationship_migration_leaves_unmapped_relationships_unchanged(tmp_path
 
     assert json.loads(relationship_path.read_text(encoding="utf-8")) == original_payload
     assert not relationship_path.with_name("chart_similarity_relationships.pre_uid_migration.json").exists()
+
+
+def test_translator_maps_former_relationship_ids_to_uid_keys(tmp_path):
+    from ephemeraldaddy.gui.features.charts.chart_similarity_relationships import (
+        translate_former_chart_similarity_relationship_ids,
+    )
+
+    relationship_path = tmp_path / "chart_similarity_relationships.json"
+    relationship_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "relationships": {
+                    "12|4": {
+                        "relationship_key": "12|4",
+                        "user_reported_accuracy": 60,
+                        "not_applicable": False,
+                    },
+                    "7|999": {
+                        "relationship_key": "7|999",
+                        "chart_ids": [7, 999],
+                        "user_reported_accuracy": 10,
+                        "not_applicable": False,
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    translations = translate_former_chart_similarity_relationship_ids(
+        chart_id_to_uid={4: "FOURUID00000001", 12: "TWELVEUID000001", 7: "SEVENUID0000001"},
+        path=relationship_path,
+    )
+
+    assert translations == {
+        "12|4": "uid:FOURUID00000001|uid:TWELVEUID000001",
+        "4|12": "uid:FOURUID00000001|uid:TWELVEUID000001",
+    }
