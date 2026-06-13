@@ -50,6 +50,7 @@ def _install_pyside_stubs():
         "QPushButton",
         "QScrollArea",
         "QSplitter",
+        "QTextEdit",
         "QToolButton",
         "QVBoxLayout",
         "QWidget",
@@ -78,6 +79,9 @@ def _install_style_stub():
         style.format_chart_header = format_chart_header
     if not hasattr(style, "blend_hex_colors"):
         style.blend_hex_colors = blend_hex_colors
+    for helper_name in ("apply_button_cursor", "apply_chart_info_link_cursor", "apply_popout_cursor"):
+        if not hasattr(style, helper_name):
+            setattr(style, helper_name, lambda *_args, **_kwargs: None)
 
 
 _install_pyside_stubs()
@@ -200,3 +204,25 @@ def test_popout_chart_name_links_request_database_to_chart_view_transition():
     assert "lambda dialog=source_dialog: self._keep_similar_charts_popout_in_front(dialog)" in source
     assert "except RuntimeError:" in source
     assert "if current_chart_id == chart_id:" in source
+
+
+def test_similarity_reasoning_html_links_chart_info_terms():
+    from ephemeraldaddy.gui.features.charts.similar_charts_popout import (  # noqa: PLC0415
+        build_similarity_reasoning_panel_html,
+    )
+
+    subject = SimpleNamespace(name="Subject", positions={"Sun": 5.0}, houses=[0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330])
+    compared = SimpleNamespace(name="Compared", positions={"Sun": 6.0}, houses=[0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330])
+    match = SimpleNamespace(chart_id=7, chart_name="Compared", algorithm_mode="default", dominance_score=1.0)
+
+    html = build_similarity_reasoning_panel_html(
+        match=match,
+        subject_name="Subject",
+        subject_chart=subject,
+        compared_chart=compared,
+        resolve_similarity_band=_band_for_test,
+    )
+
+    assert "chart-info:body:Sun" in html
+    assert "chart-info:sign:Aries" in html
+    assert "chart-info:house:1" in html

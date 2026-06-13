@@ -24188,6 +24188,51 @@ class MainWindow(QMainWindow):
             ),
         )
 
+
+    def _on_similar_chart_popout_chart_info_target_requested(self, dialog: QDialog, target: str) -> None:
+        normalized_target = str(target or "").strip()
+        if not normalized_target.startswith("chart-info:"):
+            self._on_similar_chart_popout_link_activated(dialog, normalized_target)
+            return
+        chart_info_output = getattr(dialog, "_similar_chart_popout_chart_info_output", None)
+        if chart_info_output is None:
+            return
+
+        def _render_chart_info_target() -> None:
+            parts = normalized_target.split(":", 2)
+            if len(parts) < 3:
+                chart_info_output.setPlainText("No Chart Info target was found for this item.")
+                return
+            kind = parts[1].strip().lower()
+            value = parts[2].strip()
+            if kind == "body":
+                self._show_planet_keyword_info(value)
+                return
+            if kind == "sign":
+                self._show_sign_keyword_info(value)
+                return
+            if kind == "house":
+                try:
+                    self._show_house_keyword_info(int(value))
+                except (TypeError, ValueError):
+                    chart_info_output.setPlainText("No Chart Info target was found for this house.")
+                return
+            if kind == "nakshatra":
+                self._show_nakshatra_info(value)
+                return
+            if kind == "gate":
+                try:
+                    self._show_human_design_gate_line_info(int(value), None)
+                except (TypeError, ValueError):
+                    chart_info_output.setPlainText("No Chart Info target was found for this gate.")
+                return
+            if kind in {"element", "mode"}:
+                chart_info_output.setPlainText(f"{value}\n\nNo dedicated Chart Info renderer is available for this {kind} yet.")
+                return
+            chart_info_output.setPlainText("No Chart Info renderer is available for this item yet.")
+
+        self._run_with_chart_info_output(chart_info_output, _render_chart_info_target)
+
     def _on_similar_chart_popout_analysis_mode_changed(self, dialog: QDialog) -> None:
         popout_analysis_dropdown = getattr(dialog, "_similar_chart_popout_analysis_dropdown", None)
         selected_mode = (
@@ -25084,6 +25129,7 @@ class MainWindow(QMainWindow):
                 if show_perceived_accuracy_controls
                 else None
             ),
+            on_chart_info_target_requested=self._on_similar_chart_popout_chart_info_target_requested,
         )
         database_view_active = popout_opened_from_database_view
         dialog._similar_chart_popout_opened_from_database_view = bool(database_view_active)
