@@ -3028,6 +3028,7 @@ def list_charts() -> List[
     birth_month, birth_day, birth_year)
     """
     conn = _get_conn()
+    conn.row_factory = sqlite3.Row
     cur = conn.execute(
         """
         SELECT id,
@@ -3046,7 +3047,7 @@ def list_charts() -> List[
                social_score,
                positive_sentiment_intensity,
                negative_sentiment_intensity,
-               COALESCE(chart_type, source),
+               COALESCE(chart_type, source) AS chart_type,
                is_placeholder,
                is_deceased,
                birth_month,
@@ -3083,63 +3084,39 @@ def list_charts() -> List[
             Optional[int],
         ]
     ] = []
-    for (
-        chart_id,
-        #chart_uid,
-        name,
-        alias,
-        gender,
-        datetime_iso,
-        birth_place,
-        created_at,
-        used_utc_fallback,
-        birthtime_unknown,
-        retcon_time_used,
-        familiarity,
-        age_when_first_met,
-        year_first_encountered,
-        social_score,
-        positive_sentiment_intensity,
-        negative_sentiment_intensity,
-        chart_type,
-        is_placeholder,
-        is_deceased,
-        birth_month,
-        birth_day,
-        birth_year,
-    ) in raw_rows:
-        normalized_familiarity = _normalize_optional_sentiment_metric(familiarity)
+    for row in raw_rows:
+        normalized_familiarity = _normalize_optional_sentiment_metric(row["familiarity"])
         resolved_social_score = (
-            int(social_score)
-            if social_score is not None
+            int(row["social_score"])
+            if row["social_score"] is not None
             else calculate_social_score(
-                positive_sentiment_intensity,
-                negative_sentiment_intensity,
-                familiarity,
+                row["positive_sentiment_intensity"],
+                row["negative_sentiment_intensity"],
+                row["familiarity"],
             )
         )
         rows.append(
             (
-                int(chart_id),
-                str(name or ""),
-                alias,
-                gender,
-                str(datetime_iso or ""),
-                birth_place,
-                str(created_at or ""),
-                int(used_utc_fallback or 0),
-                int(birthtime_unknown or 0),
-                int(retcon_time_used or 0),
+                int(row["id"]),
+                str(row["name"] or ""),
+                row["alias"],
+                row["gender"],
+                str(row["datetime_iso"] or ""),
+                row["birth_place"],
+                str(row["created_at"] or ""),
+                int(row["used_utc_fallback"] or 0),
+                int(row["birthtime_unknown"] or 0),
+                int(row["retcon_time_used"] or 0),
                 normalized_familiarity,
-                max(0, int(age_when_first_met or 0)),
-                _normalize_year_first_encountered(year_first_encountered),
+                max(0, int(row["age_when_first_met"] or 0)),
+                _normalize_year_first_encountered(row["year_first_encountered"]),
                 resolved_social_score,
-                _normalize_chart_type(chart_type),
-                int(is_placeholder or 0),
-                int(is_deceased or 0),
-                int(birth_month) if birth_month is not None else None,
-                int(birth_day) if birth_day is not None else None,
-                int(birth_year) if birth_year is not None else None,
+                _normalize_chart_type(row["chart_type"]),
+                int(row["is_placeholder"] or 0),
+                int(row["is_deceased"] or 0),
+                int(row["birth_month"]) if row["birth_month"] is not None else None,
+                int(row["birth_day"]) if row["birth_day"] is not None else None,
+                int(row["birth_year"]) if row["birth_year"] is not None else None,
             )
         )
     return rows
@@ -3328,6 +3305,7 @@ def load_chart(chart_id: int):
         raise ValueError(f"No chart with id {chart_id}")
 
     (
+        chart_uid,
         name,
         alias,
         from_whence,

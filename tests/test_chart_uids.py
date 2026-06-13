@@ -4,11 +4,19 @@ from datetime import datetime, timezone
 import ephemeraldaddy.core.db as db
 
 
-def _insert_minimal_chart(conn: sqlite3.Connection, *, chart_uid: str, name: str = "Chart") -> int:
+def _insert_minimal_chart(
+    conn: sqlite3.Connection,
+    *,
+    chart_uid: str,
+    name: str = "Chart",
+    is_placeholder: bool = False,
+) -> int:
     cur = conn.execute(
         """
-        INSERT INTO charts (chart_uid, name, birth_place, datetime_iso, lat, lon, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO charts (
+            chart_uid, name, birth_place, datetime_iso, lat, lon, is_placeholder, created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             chart_uid,
@@ -17,6 +25,7 @@ def _insert_minimal_chart(conn: sqlite3.Connection, *, chart_uid: str, name: str
             "2000-01-01T12:00:00+00:00",
             40.7128,
             -74.0060,
+            1 if is_placeholder else 0,
             datetime.now(timezone.utc).isoformat(timespec="seconds"),
         ),
     )
@@ -117,3 +126,47 @@ def test_append_database_regenerates_colliding_source_chart_uid(tmp_path, monkey
     source_uid = dict(rows)["Source"]
     assert source_uid != "SHAREDUID0000001"
     assert len(source_uid) >= 8
+
+
+def test_load_chart_keeps_chart_uid_projection_aligned(tmp_path, monkeypatch):
+    db_path = tmp_path / "charts.db"
+    monkeypatch.setattr(db, "DB_DIR", tmp_path)
+    monkeypatch.setattr(db, "DB_PATH", db_path)
+
+    conn = db._get_conn()
+    with conn:
+        chart_id = _insert_minimal_chart(
+            conn,
+            chart_uid="LOADUID00000001",
+            name="Loadable",
+            is_placeholder=True,
+        )
+    conn.close()
+
+    chart = db.load_chart(chart_id)
+
+    assert chart.chart_uid == "LOADUID00000001"
+    assert chart.name == "Loadable"
+
+
+def test_list_charts_projection_stays_aligned(tmp_path, monkeypatch):
+    db_path = tmp_path / "charts.db"
+    monkeypatch.setattr(db, "DB_DIR", tmp_path)
+    monkeypatch.setattr(db, "DB_PATH", db_path)
+
+    conn = db._get_conn()
+    with conn:
+        chart_id = _insert_minimal_chart(
+            conn,
+            chart_uid="LISTUID00000001",
+            name="Listed",
+            is_placeholder=True,
+        )
+    conn.close()
+
+    rows = db.list_charts()
+
+    assert len(rows) == 1
+    assert rows[0][0] == chart_id
+    assert rows[0][1] == "Listed"
+    assert rows[0][15] == 1
