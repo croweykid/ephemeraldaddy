@@ -31850,6 +31850,12 @@ class MainWindow(QMainWindow):
         )
 
     def _prediction_norm_charts(self) -> list[Chart]:
+        cache_token = self._prediction_norms_render_token()
+        cached_token = getattr(self, "_prediction_norm_charts_cache_token", None)
+        cached_charts = getattr(self, "_prediction_norm_charts_cache", None)
+        if cached_token == cache_token and isinstance(cached_charts, list):
+            return list(cached_charts)
+
         norm_charts: list[Chart] = []
         for row in self._prediction_norm_rows():
             try:
@@ -31863,6 +31869,8 @@ class MainWindow(QMainWindow):
             if chart is None or self._is_placeholder_chart(chart):
                 continue
             norm_charts.append(chart)
+        self._prediction_norm_charts_cache_token = cache_token
+        self._prediction_norm_charts_cache = list(norm_charts)
         return norm_charts
 
     def _render_distinguishing_factors(self, chart: Chart | None) -> None:
