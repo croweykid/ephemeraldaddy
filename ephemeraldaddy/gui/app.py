@@ -900,7 +900,11 @@ from ephemeraldaddy.analysis.human_design import (
     describe_synastry_gate_line_placements,
     gate_lines_for_gate,
 )
-from ephemeraldaddy.analysis.hd_incarnation_crosses import find_cross_by_name
+from ephemeraldaddy.analysis.hd_incarnation_crosses import (
+    find_cross_by_name,
+    get_cross_theme_description,
+    get_cross_type_description,
+)
 from ephemeraldaddy.core.human_design_system import MANDALA_GATE_ORDER, MANDALA_START_DEGREE
 from ephemeraldaddy.analysis.human_design_plugins import (
     humdes_gate_line_supplement_lines,
@@ -28831,13 +28835,20 @@ class MainWindow(QMainWindow):
                 gates_text = "/".join(str(gate) for gate in gates) if gates else "Unknown"
                 theme = str(cross_entry.get("theme", "")).strip() or "Unknown"
                 angle = str(cross_entry.get("angle", "")).strip() or "Unknown"
+                theme_description = get_cross_theme_description(theme)
+                type_description = get_cross_type_description(angle)
+                body_lines = [
+                    f"• Theme: {theme}",
+                    f"• Angle: {angle}",
+                    f"• Gates: {gates_text}",
+                ]
+                if theme_description:
+                    body_lines.append(f"• Theme description: {theme_description}")
+                if type_description:
+                    body_lines.append(f"• Angle description: {type_description}")
                 self._set_human_design_info_text(
                     f"Incarnation Cross: {cross_name}",
-                    [
-                        f"• Theme: {theme}",
-                        f"• Angle: {angle}",
-                        f"• Gates: {gates_text}",
-                    ],
+                    body_lines,
                 )
                 return
             self._set_human_design_info_text(
