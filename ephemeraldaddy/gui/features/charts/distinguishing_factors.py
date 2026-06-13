@@ -1,4 +1,4 @@
-"""Most-distinguishing chart factor summaries for Chart View predictions."""
+"""Most-distinguishing chart factor summaries for Chart Analytics."""
 
 from __future__ import annotations
 
@@ -61,6 +61,17 @@ class DistinguishingFactor:
     @property
     def extremity(self) -> float:
         return abs(self.z_score)
+
+
+@dataclass(frozen=True)
+class _NormBaseline:
+    mean: float
+    stdev: float
+    count: int
+
+
+_NORM_BASELINE_CACHE: dict[tuple[int, ...], tuple[int, dict[tuple[str, object], _NormBaseline]]] = {}
+_NORM_BASELINE_CACHE_MAX_SIZE = 8
 
 
 def _normalized_shares(values: dict[object, float], labels: Iterable[object]) -> dict[object, float]:
@@ -179,18 +190,14 @@ def _safe_chart_values(group: _MetricGroup, chart: Chart) -> dict[object, float]
     return values
 
 
-def find_distinguishing_factors(chart: Chart, norm_charts: Iterable[Chart]) -> tuple[list[DistinguishingFactor], int]:
-    """Return factors whose normalized share is at least two standard deviations from DB norms."""
-    usable_norm_charts = [norm_chart for norm_chart in norm_charts if norm_chart is not None]
-    factors: list[DistinguishingFactor] = []
-    if len(usable_norm_charts) < MIN_NORM_SAMPLE_SIZE:
-        return factors, len(usable_norm_charts)
+def _norm_baselines(chart: Chart, usable_norm_charts: list[Chart]) -> dict[tuple[str, object], _NormBaseline]:
+    cache_key = tuple(id(norm_chart) for norm_chart in usable_norm_charts)
+    cached = _NORM_BASELINE_CACHE.get(cache_key)
+    if cached is not None and cached[0] == len(usable_norm_charts):
+        return cached[1]
 
+    baselines: dict[tuple[str, object], _NormBaseline] = {}
     for group in _metric_groups(chart):
-        chart_values = _safe_chart_values(group, chart)
-        if chart_values is None:
-            continue
-        chart_shares = _normalized_shares(chart_values, group.labels)
         norm_shares_by_label: dict[object, list[float]] = {label: [] for label in group.labels}
         for norm_chart in usable_norm_charts:
             if group.key == "houses" and not chart_uses_houses(norm_chart):
@@ -201,16 +208,43 @@ def find_distinguishing_factors(chart: Chart, norm_charts: Iterable[Chart]) -> t
             shares = _normalized_shares(norm_values, group.labels)
             for label in group.labels:
                 norm_shares_by_label[label].append(float(shares.get(label, 0.0)))
-        for label in group.labels:
-            baseline = norm_shares_by_label.get(label, [])
+        for label, baseline in norm_shares_by_label.items():
             if len(baseline) < MIN_NORM_SAMPLE_SIZE:
                 continue
             stdev = statistics.pstdev(baseline)
             if stdev <= 1e-9 or not math.isfinite(stdev):
                 continue
-            mean = statistics.fmean(baseline)
+            baselines[(group.key, label)] = _NormBaseline(
+                mean=statistics.fmean(baseline),
+                stdev=stdev,
+                count=len(baseline),
+            )
+
+    if len(_NORM_BASELINE_CACHE) >= _NORM_BASELINE_CACHE_MAX_SIZE:
+        _NORM_BASELINE_CACHE.pop(next(iter(_NORM_BASELINE_CACHE)))
+    _NORM_BASELINE_CACHE[cache_key] = (len(usable_norm_charts), baselines)
+    return baselines
+
+
+def find_distinguishing_factors(chart: Chart, norm_charts: Iterable[Chart]) -> tuple[list[DistinguishingFactor], int]:
+    """Return factors whose normalized share is at least two standard deviations from DB norms."""
+    usable_norm_charts = [norm_chart for norm_chart in norm_charts if norm_chart is not None]
+    factors: list[DistinguishingFactor] = []
+    if len(usable_norm_charts) < MIN_NORM_SAMPLE_SIZE:
+        return factors, len(usable_norm_charts)
+
+    baselines = _norm_baselines(chart, usable_norm_charts)
+    for group in _metric_groups(chart):
+        chart_values = _safe_chart_values(group, chart)
+        if chart_values is None:
+            continue
+        chart_shares = _normalized_shares(chart_values, group.labels)
+        for label in group.labels:
+            baseline = baselines.get((group.key, label))
+            if baseline is None:
+                continue
             value = float(chart_shares.get(label, 0.0))
-            z_score = (value - mean) / stdev
+            z_score = (value - baseline.mean) / baseline.stdev
             if abs(z_score) >= DISTINGUISHING_Z_THRESHOLD:
                 factors.append(
                     DistinguishingFactor(
@@ -219,7 +253,7 @@ def find_distinguishing_factors(chart: Chart, norm_charts: Iterable[Chart]) -> t
                         raw_label=label,
                         factor_label=_label_text(label, group.key),
                         value_pct=value * 100.0,
-                        mean_pct=mean * 100.0,
+                        mean_pct=baseline.mean * 100.0,
                         z_score=z_score,
                     )
                 )
@@ -264,7 +298,7 @@ def _concentration_lines(chart: Chart) -> list[str]:
 
 
 def build_distinguishing_factors_html(chart: Chart | None, norm_charts: Iterable[Chart]) -> str:
-    """Build rich text for the Predictions tab's distinguishing-factors section."""
+    """Build rich text for the Chart Analytics tab's distinguishing-factors section."""
     if chart is None:
         return "<span style='color:#f5f5f5;'>No chart loaded.</span>"
 
