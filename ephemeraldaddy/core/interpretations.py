@@ -706,6 +706,14 @@ PLANETARY_JOYS = { #2,4,7,8 & 10 don't get bonuses
     "Pluto": {10}, #noncanonical in Hellenistic tradition, but Pluto loves power.
 }
 
+BODY_RELATIONAL_GLYPHS = {
+    "Rulership":"↑↑", #👑 green
+    "Exaltation":"↑", #green
+    "Detriment":"↓", #👎 red
+    "Fall":"↓↓", #red
+    "Joy":"💞",
+}
+
 #not sure if I should use both signs or not.
 PLANET_RULERSHIP = {
     "Sun": {"Leo"},
