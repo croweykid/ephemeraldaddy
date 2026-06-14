@@ -139,6 +139,26 @@ class _ChartExportWorker(QObject):
         self.finished.emit(exported, destination)
 
 
+class _ChartExportUiBridge(QObject):
+    """Relays worker signals through an object owned by the GUI thread."""
+
+    progress = Signal(int, int)
+    failed = Signal(str)
+    finished = Signal(int, str)
+
+    @Slot(int, int)
+    def forward_progress(self, completed: int, total: int) -> None:
+        self.progress.emit(completed, total)
+
+    @Slot(str)
+    def forward_failed(self, error: str) -> None:
+        self.failed.emit(error)
+
+    @Slot(int, str)
+    def forward_finished(self, exported: int, destination: str) -> None:
+        self.finished.emit(exported, destination)
+
+
 def _create_export_progress(parent) -> tuple[ChartExportProgressWidget, QTimer]:
     progress = ChartExportProgressWidget(parent)
     loading_messages = LoadingMessageRotator(initial_message="Exporting charts…")
@@ -174,15 +194,12 @@ def _start_background_export(
 
     thread = QThread(parent)
     worker = _ChartExportWorker(export_jobs, load_chart=load_chart, write_export=write_export)
+    ui_bridge = _ChartExportUiBridge(parent)
     worker.moveToThread(thread)
 
     def _cleanup() -> None:
         message_timer.stop()
         QTimer.singleShot(1200, progress.deleteLater)
-        thread.quit()
-        thread.wait()
-        worker.deleteLater()
-        thread.deleteLater()
         active_exports = getattr(parent, "_chart_export_threads", [])
         for export_state in list(active_exports):
             if export_state[0] is thread:
@@ -204,11 +221,19 @@ def _start_background_export(
         QMessageBox.information(parent, "Export complete", completion_message(exported, destination))
 
     thread.started.connect(worker.run)
-    worker.progress.connect(_on_progress)
-    worker.failed.connect(_on_failed)
-    worker.finished.connect(_on_finished)
+    worker.progress.connect(ui_bridge.forward_progress, Qt.QueuedConnection)
+    worker.failed.connect(ui_bridge.forward_failed, Qt.QueuedConnection)
+    worker.finished.connect(ui_bridge.forward_finished, Qt.QueuedConnection)
+    worker.failed.connect(worker.deleteLater)
+    worker.finished.connect(worker.deleteLater)
+    worker.failed.connect(thread.quit)
+    worker.finished.connect(thread.quit)
+    thread.finished.connect(thread.deleteLater)
+    ui_bridge.progress.connect(_on_progress)
+    ui_bridge.failed.connect(_on_failed)
+    ui_bridge.finished.connect(_on_finished)
     active_exports = getattr(parent, "_chart_export_threads", [])
-    export_state = (thread, worker)
+    export_state = (thread, worker, ui_bridge)
     active_exports.append(export_state)
     parent._chart_export_threads = active_exports
     thread.start()
