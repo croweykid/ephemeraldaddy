@@ -117,11 +117,12 @@ def confirm_batch_export(parent, count: int) -> bool:
         box = QMessageBox(parent)
         box.setWindowTitle("Export charts")
         box.setText(f"Hey, I’m gonna export all {count} of these charts for you this time, but you gotta be patient…")
-        cancel = box.addButton("Never mind. What was I thinking?", QMessageBox.RejectRole)
+        box.setInformativeText("If you continue, I’ll ask you where to save the chart export files next.")
+        box.addButton("Never mind. What was I thinking?", QMessageBox.RejectRole)
         ok = box.addButton("Cool", QMessageBox.AcceptRole)
         box.setDefaultButton(ok)
         box.exec()
-        return box.clickedButton() is ok and box.clickedButton() is not cancel
+        return box.buttonRole(box.clickedButton()) == QMessageBox.AcceptRole
     if count > 1:
         box = QMessageBox(parent)
         box.setWindowTitle("Export charts")
@@ -129,11 +130,12 @@ def confirm_batch_export(parent, count: int) -> bool:
             "I, EphemeralDaddy, will now work in the background to build and export charts, "
             "but it may take some time. Please don't close me (the app) until all charts are exported."
         )
-        cancel = box.addButton("Just forget it, okay?", QMessageBox.RejectRole)
+        box.setInformativeText("After you click Yay, I’ll ask where to save the chart export files.")
+        box.addButton("Just forget it, okay?", QMessageBox.RejectRole)
         ok = box.addButton("Yay", QMessageBox.AcceptRole)
         box.setDefaultButton(ok)
         box.exec()
-        return box.clickedButton() is ok and box.clickedButton() is not cancel
+        return box.buttonRole(box.clickedButton()) == QMessageBox.AcceptRole
     return True
 
 
@@ -157,8 +159,9 @@ def run_total_chart_export_flow(
         return
     if not confirm_batch_export(parent, len(chart_ids)):
         return
-    directory = QFileDialog.getExistingDirectory(parent, "Export Total Charts")
+    directory = _choose_batch_export_directory(parent)
     if not directory:
+        QMessageBox.information(parent, "Export charts", "No folder selected, so I didn't export anything.")
         return
     progress = ChartExportProgressWidget(parent)
     loading_messages = LoadingMessageRotator(initial_message="Exporting charts…")
@@ -189,6 +192,19 @@ def run_total_chart_export_flow(
         message_timer.stop()
         QTimer.singleShot(1200, progress.deleteLater)
     QMessageBox.information(parent, "Export complete", f"Saved {exported} total chart exports to:\n{directory}")
+
+
+def _choose_batch_export_directory(parent) -> str:
+    QApplication.processEvents()
+    dialog = QFileDialog(parent, "Export Total Charts")
+    dialog.setFileMode(QFileDialog.Directory)
+    dialog.setOption(QFileDialog.ShowDirsOnly, True)
+    dialog.setOption(QFileDialog.DontUseNativeDialog, True)
+    dialog.setLabelText(QFileDialog.Accept, "Export here")
+    if dialog.exec() != QFileDialog.Accepted:
+        return ""
+    selected = dialog.selectedFiles()
+    return selected[0] if selected else ""
 
 
 def _export_single(parent, chart_id, load_chart, sanitize_token, write_export) -> None:
