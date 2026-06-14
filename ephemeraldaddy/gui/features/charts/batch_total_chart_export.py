@@ -157,8 +157,7 @@ def run_total_chart_export_flow(
         return
     if not confirm_batch_export(parent, len(chart_ids)):
         return
-    QApplication.processEvents()
-    directory = QFileDialog.getExistingDirectory(parent, "Export Total Charts")
+    directory = _choose_batch_export_directory(parent)
     if not directory:
         return
     progress = ChartExportProgressWidget(parent)
@@ -190,6 +189,19 @@ def run_total_chart_export_flow(
         message_timer.stop()
         QTimer.singleShot(1200, progress.deleteLater)
     QMessageBox.information(parent, "Export complete", f"Saved {exported} total chart exports to:\n{directory}")
+
+
+def _choose_batch_export_directory(parent) -> str:
+    QApplication.processEvents()
+    dialog = QFileDialog(parent, "Export Total Charts")
+    dialog.setOption(QFileDialog.DontUseNativeDialog, True)
+    dialog.setFileMode(QFileDialog.Directory)
+    dialog.setOption(QFileDialog.ShowDirsOnly, True)
+    dialog.setLabelText(QFileDialog.Accept, "Export here")
+    if dialog.exec() != QFileDialog.Accepted:
+        return ""
+    selected = dialog.selectedFiles()
+    return selected[0] if selected else ""
 
 
 def _export_single(parent, chart_id, load_chart, sanitize_token, write_export) -> None:
