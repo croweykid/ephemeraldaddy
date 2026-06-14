@@ -151,8 +151,8 @@ def run_total_chart_export_flow(
     progress = ChartExportProgressWidget(parent)
     progress.show()
     progress.anchor_to_parent()
-    if len(chart_ids) > LARGE_BATCH_EXPORT_THRESHOLD:
-        _show_loading_bar_hint(parent, progress)
+    QApplication.processEvents()
+    _show_loading_bar_hint(parent, progress)
     exported = 0
     try:
         for index, chart_id in enumerate(chart_ids, start=1):
