@@ -22757,6 +22757,7 @@ class MainWindow(QMainWindow):
         self._sync_chart_right_panel_placeholder_state(None)
         self._pending_render_chart: Chart | None = None
         self._chart_render_queue_state = ChartRenderQueueState()
+        self._chart_render_generation = 0
         self._chart_analytics_render_tokens: dict[str, str] = {}
         self._chart_analytics_lucy_goosey_sections: set[str] = {
             "signs",
@@ -31543,6 +31544,7 @@ class MainWindow(QMainWindow):
         if self._pending_render_chart is not None and self._pending_render_chart is not chart:
             self._chart_render_queue_state.clear()
         self._pending_render_chart = chart
+        self._chart_render_generation += 1
         if sections is None:
             sections = {
                 "summary",
@@ -31592,6 +31594,7 @@ class MainWindow(QMainWindow):
 
     def _flush_scheduled_chart_render(self) -> None:
         chart = self._pending_render_chart
+        render_generation = getattr(self, "_chart_render_generation", 0)
         if chart is None:
             self._chart_render_queue_state.clear()
             self._hide_chart_loading_overlay()
@@ -31630,6 +31633,17 @@ class MainWindow(QMainWindow):
             self._render_similar_charts(chart)
         elif section == "anagrams":
             self._render_anagrams(chart)
+        if (
+            self._pending_render_chart is not chart
+            or getattr(self, "_chart_render_generation", 0) != render_generation
+        ):
+            if self._chart_render_queue_state.has_queued_work():
+                self._render_flush_timer.start(0)
+            elif not self._chart_render_queue_state.has_pending_work():
+                self._pending_render_chart = None
+                self._hide_chart_loading_overlay()
+            return
+
         self._chart_render_queue_state.mark_complete(section)
         self._mark_chart_analytics_sections_clean({section}, chart)
 
