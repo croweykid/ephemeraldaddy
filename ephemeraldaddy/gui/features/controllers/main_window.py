@@ -297,7 +297,7 @@ class ChartAnalysisSectionsController:
         if has_above_average_details or has_footer_details:
             details_link = QLabel(
                 '<a href="chart-analysis-details" '
-                'style="color:#6fa8dc;text-decoration:none;font-weight:700;">details...</a>'
+                'style="color:#6fa8dc;text-decoration:none;font-weight:700;">more info...</a>'
             )
             details_link.setTextFormat(Qt.RichText)
             details_link.setTextInteractionFlags(Qt.LinksAccessibleByMouse | Qt.LinksAccessibleByKeyboard)
