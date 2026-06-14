@@ -31646,6 +31646,7 @@ class MainWindow(QMainWindow):
             self._pending_render_chart is not chart
             or getattr(self, "_chart_render_generation", 0) != render_generation
         ):
+            self._chart_render_queue_state.discard_if_unqueued(section)
             if self._chart_render_queue_state.has_queued_work():
                 self._render_flush_timer.start(0)
             elif not self._chart_render_queue_state.has_pending_work():

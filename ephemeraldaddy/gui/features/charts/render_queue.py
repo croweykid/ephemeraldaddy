@@ -63,6 +63,20 @@ class ChartRenderQueueState:
     def mark_complete(self, section_name: str) -> None:
         self.pending_sections.discard(section_name)
 
+    def discard_if_unqueued(self, section_name: str) -> None:
+        """Discard a pending section only when no queue will render it.
+
+        A stale render flush may have popped ``section_name`` from a queue before
+        a newer schedule changes the queue contents.  If the newer schedule did
+        not requeue that same section, leaving it in ``pending_sections`` wedges
+        the queue because there is pending work but no queued entry to pop.
+        When the newer schedule *did* requeue the section, keep it pending so
+        the fresh render still runs.
+        """
+        if section_name in self.interactive_queue or section_name in self.background_queue:
+            return
+        self.pending_sections.discard(section_name)
+
     def has_pending_work(self) -> bool:
         return bool(self.pending_sections)
 
