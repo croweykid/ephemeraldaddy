@@ -22755,6 +22755,11 @@ class MainWindow(QMainWindow):
         self._sync_chart_right_panel_placeholder_state(None)
         self._pending_render_chart: Chart | None = None
         self._chart_render_queue_state = ChartRenderQueueState()
+        # Chart preview updates can schedule a newer chart while the previous
+        # timer-driven flush is still unwinding.  This monotonically increasing
+        # generation lets the old flush detect that its queue bookkeeping is
+        # stale before it marks analytics sections clean for the wrong chart.
+        self._chart_render_generation = 0
         self._chart_analytics_render_tokens: dict[str, str] = {}
         self._chart_analytics_lucy_goosey_sections: set[str] = {
             "signs",
@@ -31541,6 +31546,9 @@ class MainWindow(QMainWindow):
         if self._pending_render_chart is not None and self._pending_render_chart is not chart:
             self._chart_render_queue_state.clear()
         self._pending_render_chart = chart
+        # Any scheduled render, even for the same object, invalidates currently
+        # unwinding flush bookkeeping because all sections share one queue.
+        self._chart_render_generation += 1
         if sections is None:
             sections = {
                 "summary",
@@ -31590,6 +31598,7 @@ class MainWindow(QMainWindow):
 
     def _flush_scheduled_chart_render(self) -> None:
         chart = self._pending_render_chart
+        render_generation = getattr(self, "_chart_render_generation", 0)
         if chart is None:
             self._chart_render_queue_state.clear()
             self._hide_chart_loading_overlay()
@@ -31628,6 +31637,21 @@ class MainWindow(QMainWindow):
             self._render_similar_charts(chart)
         elif section == "anagrams":
             self._render_anagrams(chart)
+        if (
+            # A newer rectified-time/birth-time preview may have replaced the
+            # shared queue while this section was rendering.  Do not let this
+            # stale pass remove sections or cache a clean token for old data.
+            self._pending_render_chart is not chart
+            or getattr(self, "_chart_render_generation", 0) != render_generation
+        ):
+            self._chart_render_queue_state.discard_if_unqueued(section)
+            if self._chart_render_queue_state.has_queued_work():
+                self._render_flush_timer.start(0)
+            elif not self._chart_render_queue_state.has_pending_work():
+                self._pending_render_chart = None
+                self._hide_chart_loading_overlay()
+            return
+
         self._chart_render_queue_state.mark_complete(section)
         self._mark_chart_analytics_sections_clean({section}, chart)
 
