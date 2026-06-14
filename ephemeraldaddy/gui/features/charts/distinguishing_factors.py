@@ -139,9 +139,21 @@ def _normalized_shares(values: dict[object, float], labels: Iterable[object]) ->
     return {label: value / total for label, value in raw.items()}
 
 
+def _normalize_css_color(color: str | None) -> str:
+    color_text = str(color or "").strip()
+    if (
+        color_text
+        and not color_text.startswith("#")
+        and len(color_text) in {3, 6}
+        and all(character in "0123456789abcdefABCDEF" for character in color_text)
+    ):
+        return f"#{color_text}"
+    return color_text
+
+
 def _color_token(label: object, color: str | None, href: str = "") -> str:
     label_text = str(label)
-    color_text = str(color or "").strip()
+    color_text = _normalize_css_color(color)
     escaped_label = html.escape(label_text)
     if not color_text:
         token = escaped_label
