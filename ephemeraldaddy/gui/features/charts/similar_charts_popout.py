@@ -2993,7 +2993,7 @@ def build_similar_charts_popout_dialog(
         subject_chart_link.setCursor(Qt.ArrowCursor)
     top_row.addWidget(subject_chart_link, 0, Qt.AlignLeft)
     top_row.addStretch(1)
-    make_collection_button = QPushButton("make collection")
+    make_collection_button = QPushButton("make collection") #make collection from these similar charts
     apply_button_cursor(make_collection_button)
     make_collection_button.setVisible(on_make_collection_clicked is not None)
     if on_make_collection_clicked is not None:
