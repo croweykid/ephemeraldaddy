@@ -494,12 +494,12 @@ class ChartsController:
         progress_callback: Callable[[str, int], None] | None = None,
     ) -> bool:
         if progress_callback:
-            progress_callback("Checking unsaved changes…", 91)
+            progress_callback("Checking unsaved changes…", 86)
         if not self._confirm_discard_or_save():
             logger.debug("Cancelled Database View open due to unsaved-change prompt.")
             return False
         if progress_callback:
-            progress_callback("Preparing Database View…", 93)
+            progress_callback("Preparing Database View shell…", 88)
         dialog = self._get_or_create_manage_dialog()
         pending_ids = set(self._get_pending_changed_ids())
         logger.debug(
@@ -512,13 +512,14 @@ class ChartsController:
             dialog._refresh_charts(
                 refresh_metrics=True,
                 changed_ids=pending_ids,
+                progress_callback=progress_callback,
             )
         elif not getattr(dialog, "_chart_rows", None):
             # Ensure first-open (or reset) state has populated rows/metrics,
             # while still skipping passive refreshes when nothing changed.
-            dialog._refresh_charts(refresh_metrics=True)
+            dialog._refresh_charts(refresh_metrics=True, progress_callback=progress_callback)
         if progress_callback:
-            progress_callback("Finishing Database View setup…", 96)
+            progress_callback("Finishing Database View setup…", 97)
         self._clear_pending_changed_ids()
         apply_launch_window_policy = getattr(dialog, "apply_launch_window_policy", None)
         use_launch_pulse = not bool(getattr(dialog, "_launch_foreground_completed", False))
