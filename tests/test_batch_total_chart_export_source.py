@@ -34,3 +34,5 @@ def test_multi_chart_export_shows_progress_before_export_work_begins():
 
     assert directory_prompt_index < progress_show_index < process_events_index < load_chart_index
     assert "_show_loading_bar_hint(parent, progress)" in flow_source
+    assert "LoadingMessageRotator" in _source()
+    assert "progress.set_message(loading_messages.next())" in flow_source

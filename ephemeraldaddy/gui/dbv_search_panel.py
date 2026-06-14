@@ -353,6 +353,18 @@ def build_dbv_search_panel(window) -> "QWidget":
     hidden_charts_filter_layout.setContentsMargins(0, 0, 0, 0)
     window.hidden_charts_filter_row.setLayout(hidden_charts_filter_layout)
     window.hidden_charts_checkbox = QuadStateSlider("hidden charts")
+    if settings is not None:
+        hidden_charts_mode = settings.value(
+            app_module.SETTINGS_KEY_HIDDEN_CHARTS_FILTER_MODE,
+            QuadStateSlider.MODE_EMPTY,
+            type=int,
+        )
+        if hidden_charts_mode in {
+            QuadStateSlider.MODE_EMPTY,
+            QuadStateSlider.MODE_TRUE,
+            QuadStateSlider.MODE_FALSE,
+        }:
+            window.hidden_charts_checkbox.setMode(int(hidden_charts_mode))
     window.hidden_charts_checkbox.modeChanged.connect(window._on_filter_changed)
     hidden_charts_filter_layout.addWidget(window.hidden_charts_checkbox)
     hidden_charts_filter_layout.addStretch(1)

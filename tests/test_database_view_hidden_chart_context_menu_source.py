@@ -61,6 +61,7 @@ def test_hidden_charts_filter_is_conditionally_visible_in_search_panel():
     panel_source = Path("ephemeraldaddy/gui/dbv_search_panel.py").read_text(encoding="utf-8")
 
     assert 'window.hidden_charts_checkbox = QuadStateSlider("hidden charts")' in panel_source
+    assert 'app_module.SETTINGS_KEY_HIDDEN_CHARTS_FILTER_MODE' in panel_source
     assert 'window.hidden_charts_checkbox.modeChanged.connect(window._on_filter_changed)' in panel_source
     assert 'window.hidden_charts_filter_row.setVisible(' in panel_source
     assert 'getattr(window, "_show_hidden_charts", False)' in panel_source
@@ -81,3 +82,11 @@ def test_hidden_charts_filter_matches_hidden_id_set_only_when_visible():
     assert 'is_hidden_chart = int(chart_id) in getattr(self, "_hidden_chart_ids", set())' in method
     assert 'hidden_charts_state == QuadStateSlider.MODE_TRUE and not is_hidden_chart' in method
     assert 'hidden_charts_state == QuadStateSlider.MODE_FALSE and is_hidden_chart' in method
+
+
+def test_hidden_charts_filter_state_is_persisted():
+    method = _method_source("_on_filter_changed")
+
+    assert "self.sender() is self.hidden_charts_checkbox" in method
+    assert "SETTINGS_KEY_HIDDEN_CHARTS_FILTER_MODE" in method
+    assert "int(self.hidden_charts_checkbox.mode())" in method
