@@ -217,6 +217,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         self._human_design_synastry_mode = bool(human_design_synastry_mode)
         self._section_header_names = {header.upper() for header in CHART_DATA_SECTION_HEADERS}
         self._unknown_format = QTextCharFormat()
+        self._section_header_names.update({"GATES & LINES"})
         self._unknown_format.setForeground(QColor("#666666"))
         self._unknown_format.setFontItalic(True)
         self._default_body_format = QTextCharFormat()

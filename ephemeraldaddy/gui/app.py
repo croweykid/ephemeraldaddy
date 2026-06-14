@@ -29033,8 +29033,8 @@ class MainWindow(QMainWindow):
             f"• Circuit: {circuit}",
             f"• Centers: {channel_centers_text}",
             f"• Endpoint gates: {sorted_gates[0]} and {sorted_gates[1]}",
-            "• A channel is defined when both endpoint gates are active.",
-            "• Defined channels establish fixed connections between centers.",
+            #"• A channel is defined when both endpoint gates are active.",
+            #"• Defined channels establish fixed connections between centers.",
         ]
         if explanation:
             lines.append(f"• {explanation}")
