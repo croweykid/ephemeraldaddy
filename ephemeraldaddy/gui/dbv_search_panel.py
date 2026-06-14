@@ -348,6 +348,19 @@ def build_dbv_search_panel(window) -> "QWidget":
     incomplete_birthdate_row.addStretch(1)
     birth_info_status_layout.addLayout(incomplete_birthdate_row)
 
+    window.hidden_charts_filter_row = QWidget()
+    hidden_charts_filter_layout = QHBoxLayout()
+    hidden_charts_filter_layout.setContentsMargins(0, 0, 0, 0)
+    window.hidden_charts_filter_row.setLayout(hidden_charts_filter_layout)
+    window.hidden_charts_checkbox = QuadStateSlider("hidden charts")
+    window.hidden_charts_checkbox.modeChanged.connect(window._on_filter_changed)
+    hidden_charts_filter_layout.addWidget(window.hidden_charts_checkbox)
+    hidden_charts_filter_layout.addStretch(1)
+    window.hidden_charts_filter_row.setVisible(
+        bool(getattr(window, "_show_hidden_charts", False))
+    )
+    birth_info_status_layout.addWidget(window.hidden_charts_filter_row)
+
     birth_status_mode_row = QHBoxLayout()
     birth_status_mode_row.addWidget(QLabel("🐣Time:"))
     birth_status_mode_row.addStretch(1)

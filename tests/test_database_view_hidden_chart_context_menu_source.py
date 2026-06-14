@@ -55,3 +55,29 @@ def test_distinguishing_metric_cache_keeps_filtered_out_payloads():
 
     assert "stale_ids = set(chart_cache) - active_ids" not in method
     assert "Keep cached metric payloads for charts outside" in method
+
+
+def test_hidden_charts_filter_is_conditionally_visible_in_search_panel():
+    panel_source = Path("ephemeraldaddy/gui/dbv_search_panel.py").read_text(encoding="utf-8")
+
+    assert 'window.hidden_charts_checkbox = QuadStateSlider("hidden charts")' in panel_source
+    assert 'window.hidden_charts_checkbox.modeChanged.connect(window._on_filter_changed)' in panel_source
+    assert 'window.hidden_charts_filter_row.setVisible(' in panel_source
+    assert 'getattr(window, "_show_hidden_charts", False)' in panel_source
+
+
+def test_show_hidden_toggle_updates_hidden_filter_visibility():
+    method = _method_source("_on_show_hidden_charts_toggled")
+
+    assert 'if hasattr(self, "hidden_charts_filter_row"):' in method
+    assert 'self.hidden_charts_filter_row.setVisible(self._show_hidden_charts)' in method
+
+
+def test_hidden_charts_filter_matches_hidden_id_set_only_when_visible():
+    method = _method_source("_chart_matches_filters")
+
+    assert 'hidden_charts_state = (' in method
+    assert 'getattr(self, "_show_hidden_charts", False)' in method
+    assert 'is_hidden_chart = int(chart_id) in getattr(self, "_hidden_chart_ids", set())' in method
+    assert 'hidden_charts_state == QuadStateSlider.MODE_TRUE and not is_hidden_chart' in method
+    assert 'hidden_charts_state == QuadStateSlider.MODE_FALSE and is_hidden_chart' in method
