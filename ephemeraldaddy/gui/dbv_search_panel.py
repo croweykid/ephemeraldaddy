@@ -625,105 +625,127 @@ def build_dbv_search_panel(window) -> "QWidget":
 
     layout.addWidget(dominant_section)
 
-    #Search: Dominant Bodies section
+    #Search: Body section
     dominant_planet_section, dominant_planet_group_layout = add_collapsible_section(
-        "🪐Dominant Bodies" #dominant astrological bodies
+        "🪐Body" #dominant/subordinate astrological bodies
     )
 
     dominant_planet_layout = QFormLayout()
     dominant_planet_layout.setLabelAlignment(Qt.AlignLeft)
     dominant_planet_group_layout.addLayout(dominant_planet_layout)
 
-    for _ in range(3):
-        dominant_planet_row = QWidget()
-        dominant_planet_row_layout = QHBoxLayout()
-        dominant_planet_row_layout.setContentsMargins(0, 0, 0, 0)
-        dominant_planet_row.setLayout(dominant_planet_row_layout)
+    def add_body_filter_rows(target_filters: list[dict[str, object]]) -> None:
+        for _ in range(3):
+            body_row = QWidget()
+            body_row_layout = QHBoxLayout()
+            body_row_layout.setContentsMargins(0, 0, 0, 0)
+            body_row.setLayout(body_row_layout)
 
-        planet_combo = QComboBox()
-        apply_default_dropdown_style(planet_combo)
-        planet_combo.addItem("Any 🪐", "Any")
-        for planet_label, planet_key in window._searchable_bodies():
-            if planet_key in {"AS", "IC", "DS", "MC"}:
-                continue
-            planet_combo.addItem(compact_body_label(planet_label), planet_key)
-        narrow_dropdown_for_not_option(planet_combo)
-        planet_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
+            planet_combo = QComboBox()
+            apply_default_dropdown_style(planet_combo)
+            planet_combo.addItem("Any 🪐", "Any")
+            for planet_label, planet_key in window._searchable_bodies():
+                if planet_key in {"AS", "IC", "DS", "MC"}:
+                    continue
+                planet_combo.addItem(compact_body_label(planet_label), planet_key)
+            narrow_dropdown_for_not_option(planet_combo)
+            planet_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
 
-        filter_and = QRadioButton("&&")
-        filter_or = QRadioButton("OR")
-        filter_not = QRadioButton("🚫")
-        filter_group = QButtonGroup(dominant_planet_row)
-        filter_group.setExclusive(True)
-        filter_group.addButton(filter_and)
-        filter_group.addButton(filter_or)
-        filter_group.addButton(filter_not)
-        filter_and.setChecked(True)
-        filter_group.buttonClicked.connect(window._on_filter_changed)
+            filter_and = QRadioButton("&&")
+            filter_or = QRadioButton("OR")
+            filter_not = QRadioButton("🚫")
+            filter_group = QButtonGroup(body_row)
+            filter_group.setExclusive(True)
+            filter_group.addButton(filter_and)
+            filter_group.addButton(filter_or)
+            filter_group.addButton(filter_not)
+            filter_and.setChecked(True)
+            filter_group.buttonClicked.connect(window._on_filter_changed)
 
-        dominant_planet_row_layout.addWidget(planet_combo)
-        dominant_planet_row_layout.addWidget(filter_and)
-        dominant_planet_row_layout.addWidget(filter_or)
-        dominant_planet_row_layout.addWidget(filter_not)
-        dominant_planet_row_layout.addStretch(1)
+            body_row_layout.addWidget(planet_combo)
+            body_row_layout.addWidget(filter_and)
+            body_row_layout.addWidget(filter_or)
+            body_row_layout.addWidget(filter_not)
+            body_row_layout.addStretch(1)
 
-        window._dominant_planet_filters.append({
-            "planet": planet_combo,
-            "and": filter_and,
-            "or": filter_or,
-            "not": filter_not,
-        })
-        dominant_planet_layout.addRow(dominant_planet_row)
+            target_filters.append({
+                "planet": planet_combo,
+                "and": filter_and,
+                "or": filter_or,
+                "not": filter_not,
+            })
+            dominant_planet_layout.addRow(body_row)
+
+    dominant_bodies_header = QLabel("Dominant Bodies")
+    dominant_bodies_header.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+    dominant_planet_layout.addRow(dominant_bodies_header)
+    add_body_filter_rows(window._dominant_planet_filters)
+
+    subordinate_bodies_header = QLabel("Subordinate Bodies")
+    subordinate_bodies_header.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+    dominant_planet_layout.addRow(subordinate_bodies_header)
+    add_body_filter_rows(window._subordinate_planet_filters)
 
     layout.addWidget(dominant_planet_section)
 
-    #Search: Dominant Nakshatra section
+    #Search: Nakshatra section
     dominant_nakshatra_section, dominant_nakshatra_group_layout = add_collapsible_section(
-        "🪐Dominant Nakshatra"
+        "🪐Nakshatra"
     )
 
     dominant_nakshatra_layout = QFormLayout()
     dominant_nakshatra_layout.setLabelAlignment(Qt.AlignLeft)
     dominant_nakshatra_group_layout.addLayout(dominant_nakshatra_layout)
 
-    for _ in range(3):
-        dominant_nakshatra_row = QWidget()
-        dominant_nakshatra_row_layout = QHBoxLayout()
-        dominant_nakshatra_row_layout.setContentsMargins(0, 0, 0, 0)
-        dominant_nakshatra_row.setLayout(dominant_nakshatra_row_layout)
+    def add_nakshatra_filter_rows(target_filters: list[dict[str, object]]) -> None:
+        for _ in range(3):
+            nakshatra_row = QWidget()
+            nakshatra_row_layout = QHBoxLayout()
+            nakshatra_row_layout.setContentsMargins(0, 0, 0, 0)
+            nakshatra_row.setLayout(nakshatra_row_layout)
 
-        nakshatra_combo = QComboBox()
-        apply_default_dropdown_style(nakshatra_combo)
-        nakshatra_combo.addItem("Any", "Any")
-        for nakshatra_name, *_ in NAKSHATRA_RANGES:
-            nakshatra_combo.addItem(compact_nakshatra_label(str(nakshatra_name)), str(nakshatra_name))
-        narrow_dropdown_for_not_option(nakshatra_combo)
-        nakshatra_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
+            nakshatra_combo = QComboBox()
+            apply_default_dropdown_style(nakshatra_combo)
+            nakshatra_combo.addItem("Any", "Any")
+            for nakshatra_name, *_ in NAKSHATRA_RANGES:
+                nakshatra_combo.addItem(compact_nakshatra_label(str(nakshatra_name)), str(nakshatra_name))
+            narrow_dropdown_for_not_option(nakshatra_combo)
+            nakshatra_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
 
-        filter_and = QRadioButton("&&")
-        filter_or = QRadioButton("OR")
-        filter_not = QRadioButton("🚫")
-        filter_group = QButtonGroup(dominant_nakshatra_row)
-        filter_group.setExclusive(True)
-        filter_group.addButton(filter_and)
-        filter_group.addButton(filter_or)
-        filter_group.addButton(filter_not)
-        filter_and.setChecked(True)
-        filter_group.buttonClicked.connect(window._on_filter_changed)
+            filter_and = QRadioButton("&&")
+            filter_or = QRadioButton("OR")
+            filter_not = QRadioButton("🚫")
+            filter_group = QButtonGroup(nakshatra_row)
+            filter_group.setExclusive(True)
+            filter_group.addButton(filter_and)
+            filter_group.addButton(filter_or)
+            filter_group.addButton(filter_not)
+            filter_and.setChecked(True)
+            filter_group.buttonClicked.connect(window._on_filter_changed)
 
-        dominant_nakshatra_row_layout.addWidget(nakshatra_combo)
-        dominant_nakshatra_row_layout.addWidget(filter_and)
-        dominant_nakshatra_row_layout.addWidget(filter_or)
-        dominant_nakshatra_row_layout.addWidget(filter_not)
-        dominant_nakshatra_row_layout.addStretch(1)
+            nakshatra_row_layout.addWidget(nakshatra_combo)
+            nakshatra_row_layout.addWidget(filter_and)
+            nakshatra_row_layout.addWidget(filter_or)
+            nakshatra_row_layout.addWidget(filter_not)
+            nakshatra_row_layout.addStretch(1)
 
-        window._dominant_nakshatra_filters.append({
-            "nakshatra": nakshatra_combo,
-            "and": filter_and,
-            "or": filter_or,
-            "not": filter_not,
-        })
-        dominant_nakshatra_layout.addRow(dominant_nakshatra_row)
+            target_filters.append({
+                "nakshatra": nakshatra_combo,
+                "and": filter_and,
+                "or": filter_or,
+                "not": filter_not,
+            })
+            dominant_nakshatra_layout.addRow(nakshatra_row)
+
+    dominant_nakshatras_header = QLabel("Dominant Nakshatras")
+    dominant_nakshatras_header.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+    dominant_nakshatra_layout.addRow(dominant_nakshatras_header)
+    add_nakshatra_filter_rows(window._dominant_nakshatra_filters)
+
+    subordinate_nakshatras_header = QLabel("Subordinate Nakshatras")
+    subordinate_nakshatras_header.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+    dominant_nakshatra_layout.addRow(subordinate_nakshatras_header)
+    add_nakshatra_filter_rows(window._subordinate_nakshatra_filters)
 
     layout.addWidget(dominant_nakshatra_section)
 
