@@ -32040,23 +32040,43 @@ class MainWindow(QMainWindow):
             label.setText("")
             return
         average = sum(numeric_values) / len(numeric_values)
-        ranked_entries = sorted(
+        above_average_entries = sorted(
             (entry for entry in entries if float(entry[1]) > average),
             key=lambda entry: float(entry[1]),
             reverse=True,
         )
-        if not ranked_entries:
-            label.setText('<span style="opacity:0.75;">Above average: none</span>')
-            return
-        links = []
-        for display_name, _value, color, target in ranked_entries:
-            safe_color = html.escape(str(color or CHART_THEME_COLORS.get("text", "#f5f5f5")))
-            links.append(
-                f'<a href="{html.escape(target, quote=True)}" '
-                f'style="color: {safe_color}; text-decoration: none; font-weight: 700;">'
-                f'{html.escape(str(display_name))}</a>'
+        below_average_entries = sorted(
+            (entry for entry in entries if 0.0 < float(entry[1]) < average),
+            key=lambda entry: float(entry[1]),
+            reverse=True,
+        )
+        nonexistent_entries = sorted(
+            (entry for entry in entries if float(entry[1]) == 0.0),
+            key=lambda entry: str(entry[0]),
+        )
+
+        def _format_ranked_link_list(title: str, ranked_entries: list[tuple[str, float, str, str]]) -> str:
+            if not ranked_entries:
+                return f'<span style="opacity:0.75;">{html.escape(title)}: none</span>'
+            links = []
+            for display_name, _value, color, target in ranked_entries:
+                safe_color = html.escape(str(color or CHART_THEME_COLORS.get("text", "#f5f5f5")))
+                links.append(
+                    f'<a href="{html.escape(target, quote=True)}" '
+                    f'style="color: {safe_color}; text-decoration: none; font-weight: 700;">'
+                    f'{html.escape(str(display_name))}</a>'
+                )
+            return f'<b>{html.escape(title)}:</b> {", ".join(links)}'
+
+        label.setText(
+            "<br>".join(
+                (
+                    _format_ranked_link_list("Above average", above_average_entries),
+                    _format_ranked_link_list("Below average", below_average_entries),
+                    _format_ranked_link_list("Nonexistent", nonexistent_entries),
+                )
             )
-        label.setText(f'<b>Above average:</b> {", ".join(links)}')
+        )
 
     def _dominant_sign_distribution_weights(self, chart: Chart | None) -> list[float]:
         if chart is None:
