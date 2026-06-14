@@ -3987,6 +3987,41 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         dominant_sign_section_layout.addWidget(self.dominant_sign_chart_container)
 
+        #cumulativedom FACTORS SECTION
+        cumulativedom_sign_section_layout = self._add_left_panel_collapsible_section(
+            panel,
+            layout,
+            "🪐Dominant Factors (cumulative)",
+            section_key="cumulativedom_factors",
+            expanded=self._is_database_metrics_section_expanded("cumulativedom_factors"),
+            on_toggled=lambda checked: self._set_database_metrics_section_expanded(
+                "cumulativedom_factors",
+                checked,
+            ),
+        )
+        self._database_metrics_section_expanded["cumulativedom_factors"] = self._is_database_metrics_section_expanded("cumulativedom_factors")
+        self._create_analysis_chart_header(
+            cumulativedom_sign_section_layout,
+            "🪐Dominant Factors (cumulative weight)",
+            "cumulativedom_factors",
+            "cumulativedom_factors",
+            dropdown_options=self._dominant_factors_cumulative_dropdown_options(),
+            show_title=False,
+        )
+        self.cumulativedom_factors_subheader = add_database_subheader(
+            "Dominant signs in selection/database (by cumulative weight)"
+        )
+        cumulativedom_sign_section_layout.addWidget(self.cumulativedom_factors_subheader)
+        self._update_cumulativedom_factors_subheader()
+        (
+            self.cumulativedom_sign_chart_container,
+            self.cumulativedom_sign_chart_layout,
+        ) = self._create_database_analytics_chart_container()
+        self._database_metrics_chart_layouts["cumulativedom_factors"] = (
+            self.cumulativedom_sign_chart_layout
+        )
+        cumulativedom_sign_section_layout.addWidget(self.cumulativedom_sign_chart_container)
+
         # DECANS SECTION
         decans_section_layout = self._add_left_panel_collapsible_section(
             panel,
@@ -4046,41 +4081,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         ) = self._create_database_analytics_chart_container()
         self._database_metrics_chart_layouts["nakshatras"] = self.nakshatras_chart_layout
         nakshatras_section_layout.addWidget(self.nakshatras_chart_container)
-
-        #cumulativedom FACTORS SECTION
-        cumulativedom_sign_section_layout = self._add_left_panel_collapsible_section(
-            panel,
-            layout,
-            "🪐Dominant Factors (cumulative)",
-            section_key="cumulativedom_factors",
-            expanded=self._is_database_metrics_section_expanded("cumulativedom_factors"),
-            on_toggled=lambda checked: self._set_database_metrics_section_expanded(
-                "cumulativedom_factors",
-                checked,
-            ),
-        )
-        self._database_metrics_section_expanded["cumulativedom_factors"] = self._is_database_metrics_section_expanded("cumulativedom_factors")
-        self._create_analysis_chart_header(
-            cumulativedom_sign_section_layout,
-            "🪐Dominant Factors (cumulative weight)",
-            "cumulativedom_factors",
-            "cumulativedom_factors",
-            dropdown_options=self._dominant_factors_cumulative_dropdown_options(),
-            show_title=False,
-        )
-        self.cumulativedom_factors_subheader = add_database_subheader(
-            "Dominant signs in selection/database (by cumulative weight)"
-        )
-        cumulativedom_sign_section_layout.addWidget(self.cumulativedom_factors_subheader)
-        self._update_cumulativedom_factors_subheader()
-        (
-            self.cumulativedom_sign_chart_container,
-            self.cumulativedom_sign_chart_layout,
-        ) = self._create_database_analytics_chart_container()
-        self._database_metrics_chart_layouts["cumulativedom_factors"] = (
-            self.cumulativedom_sign_chart_layout
-        )
-        cumulativedom_sign_section_layout.addWidget(self.cumulativedom_sign_chart_container)
 
         # HUMAN DESIGN SECTION
         human_design_section_layout = self._add_left_panel_collapsible_section(
@@ -11851,7 +11851,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         database_planet_counts=database_cache["dominant_planet_weight_totals"],
                         loaded_charts=loaded_charts,
                         labels=cumulative_planet_labels,
-                        include_significance_guides=False,
+                        include_significance_guides=True,
                     )
                     self._analysis_chart_export_rows["cumulativedom_factors"] = self._build_analysis_export_rows(
                         labels=cumulative_planet_labels,
@@ -11870,7 +11870,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         database_house_counts={str(num): database_cache["dominant_house_weight_totals"][num] for num in range(1, 13)},
                         loaded_charts=loaded_charts,
                         labels=cumulative_house_labels,
-                        include_significance_guides=False,
+                        include_significance_guides=True,
                     )
                     self._analysis_chart_export_rows["cumulativedom_factors"] = self._build_analysis_export_rows(
                         labels=cumulative_house_labels,
@@ -11889,7 +11889,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         database_planet_counts=database_cache["dominant_nakshatra_totals"],
                         loaded_charts=loaded_charts,
                         labels=cumulative_nakshatra_labels,
-                        include_significance_guides=False,
+                        include_significance_guides=True,
                     )
                     self._analysis_chart_export_rows["cumulativedom_factors"] = self._build_analysis_export_rows(
                         labels=cumulative_nakshatra_labels,
@@ -11908,7 +11908,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         database_sign_counts=database_cache["dominant_sign_totals"],
                         loaded_charts=loaded_charts,
                         sign_labels=cumulative_sign_labels,
-                        include_significance_guides=False,
+                        include_significance_guides=True,
                     )
                     self._analysis_chart_export_rows["cumulativedom_factors"] = self._build_analysis_export_rows(
                         labels=cumulative_sign_labels,
