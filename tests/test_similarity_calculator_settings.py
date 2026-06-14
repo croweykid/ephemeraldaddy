@@ -531,3 +531,8 @@ def test_all_or_nothing_least_similar_skips_dominance_guardrail(monkeypatch):
 
     assert [match.chart_name for match in matches] == ["Candidate"]
     assert matches[0].score == 0.0
+
+
+def test_database_distinction_algorithm_mode_is_supported():
+    assert normalize_similar_charts_algorithm_mode("database distinction") == "database_distinction"
+    assert normalize_similar_charts_algorithm_mode("database_distinction") == "database_distinction"

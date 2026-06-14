@@ -315,3 +315,49 @@ def test_perceived_similarity_accuracy_tally_returns_empty_without_scored_rows()
 
     assert calculate_perceived_similarity_accuracy([{"predicted_percent": 80, "not_applicable": True}]) is None
     assert format_perceived_similarity_accuracy_tally(None) == "Accuracy: —"
+
+
+def test_database_distinction_components_render_in_summary_and_export_rows():
+    match = SimpleNamespace(
+        chart_id=9,
+        chart_name="Distinct Chart",
+        score=0.91,
+        placement_score=0.0,
+        aspect_score=0.0,
+        distribution_score=0.0,
+        dominance_score=None,
+        component_scores={
+            "distinguishing_factors": 0.75,
+            "concentration_flags": 1.0,
+            "repeated_hd_gates": 0.5,
+        },
+        algorithm_mode="database_distinction",
+    )
+
+    from ephemeraldaddy.gui.features.charts.similar_charts_popout import (  # noqa: PLC0415
+        build_similar_charts_export_lines,
+        build_similar_charts_export_rows_from_matches,
+        format_similarity_component_summary,
+        resolve_similarity_component_keys_for_display,
+    )
+
+    component_keys = resolve_similarity_component_keys_for_display(
+        algorithm_mode="database_distinction",
+        similarity_settings=None,
+    )
+    summary = format_similarity_component_summary(match=match, component_keys=component_keys)
+    assert "distinguishing factors 75%" in summary
+    assert "concentration flags 100%" in summary
+    assert "repeated HD gates 50%" in summary
+    assert "placements 0%" not in summary
+
+    rows = build_similar_charts_export_rows_from_matches(
+        matches=[match],
+        resolve_similarity_band=_band_for_test,
+    )
+    assert rows[0]["component_summary"] == summary
+    plain = "\n".join(build_similar_charts_export_lines(subject_name="Subject", rows=rows, is_markdown=False))
+    markdown = "\n".join(build_similar_charts_export_lines(subject_name="Subject", rows=rows, is_markdown=True))
+    assert "distinguishing factors 75%" in plain
+    assert "repeated HD gates 50%" in markdown
+    assert "placements 0.0%" not in plain

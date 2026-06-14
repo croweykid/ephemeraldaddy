@@ -52,6 +52,7 @@ SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE = "comprehensive"
 SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING = "all_or_nothing"
 SIMILAR_CHARTS_ALGORITHM_BIG_3 = "big_3"
 SIMILAR_CHARTS_ALGORITHM_CUSTOM = "custom"
+SIMILAR_CHARTS_ALGORITHM_DATABASE_DISTINCTION = "database_distinction"
 PLACEMENT_WEIGHTING_MODE_CHART_DEFINED = "chart_defined"
 PLACEMENT_WEIGHTING_MODE_GENERIC = "generic"
 PLACEMENT_WEIGHTING_MODE_HYBRID = "hybrid"
@@ -531,6 +532,7 @@ def normalize_similar_charts_algorithm_mode(value: object) -> str:
         SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING,
         SIMILAR_CHARTS_ALGORITHM_BIG_3,
         SIMILAR_CHARTS_ALGORITHM_CUSTOM,
+        SIMILAR_CHARTS_ALGORITHM_DATABASE_DISTINCTION,
     }:
         return normalized
     return SIMILAR_CHARTS_ALGORITHM_DEFAULT
@@ -1556,6 +1558,7 @@ def find_astro_twins(
     use_comprehensive = normalized_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE
     use_all_or_nothing = normalized_mode == SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING
     use_big_3 = normalized_mode == SIMILAR_CHARTS_ALGORITHM_BIG_3
+    use_database_distinction = normalized_mode == SIMILAR_CHARTS_ALGORITHM_DATABASE_DISTINCTION
     use_custom = normalized_mode in {
         SIMILAR_CHARTS_ALGORITHM_DEFAULT,
         SIMILAR_CHARTS_ALGORITHM_CUSTOM,
@@ -1569,11 +1572,18 @@ def find_astro_twins(
         if apply_least_similar_dominance_guardrail
         else set()
     )
+    candidate_list = list(candidates) if use_database_distinction else candidates
+    distinction_norm_charts = [chart for _chart_id, chart in candidate_list] if use_database_distinction else []
+    distinction_profile = None
+    if use_database_distinction:
+        from ephemeraldaddy.gui.features.charts.distinguishing_factors import database_distinction_profile
+
+        distinction_profile = database_distinction_profile(query_chart, distinction_norm_charts)
     normalized_custom_settings = custom_settings or SimilarityCalculatorSettings.defaults_for_default_mode()
     if use_all_or_nothing:
         normalized_custom_settings = all_or_nothing_similarity_settings(normalized_custom_settings)
     placement_weighting_mode = normalized_custom_settings.normalized_placement_weighting_mode()
-    for chart_id, candidate in candidates:
+    for chart_id, candidate in candidate_list:
         if should_cancel is not None and should_cancel():
             break
         if exclude_chart_id is not None and chart_id == exclude_chart_id:
@@ -1584,7 +1594,21 @@ def find_astro_twins(
             continue
 
         if least_similar:
-            if use_big_3:
+            if use_database_distinction:
+                from ephemeraldaddy.gui.features.charts.distinguishing_factors import database_distinction_similarity_score
+                assert distinction_profile is not None
+                final_score, component_scores = database_distinction_similarity_score(
+                    distinction_profile,
+                    candidate,
+                    distinction_norm_charts,
+                )
+                rank_score = 1.0 - final_score
+                placement_score = aspect_score = distribution_score = 0.0
+                nakshatra_score = nakshatra_dominance_score = hd_centers_score = None
+                human_design_gates_score = component_scores.get("repeated_hd_gates")
+                human_design_channels_score = None
+                inner_planet_placement_score = outer_planet_placement_score = None
+            elif use_big_3:
                 custom_similarity_score, component_scores = chart_similarity_score_big_3(query_chart, candidate)
                 rank_score = 1.0 - custom_similarity_score
                 final_score = custom_similarity_score
@@ -1660,7 +1684,20 @@ def find_astro_twins(
                 inner_planet_placement_score = None
                 outer_planet_placement_score = None
         else:
-            if use_big_3:
+            if use_database_distinction:
+                from ephemeraldaddy.gui.features.charts.distinguishing_factors import database_distinction_similarity_score
+                assert distinction_profile is not None
+                final_score, component_scores = database_distinction_similarity_score(
+                    distinction_profile,
+                    candidate,
+                    distinction_norm_charts,
+                )
+                placement_score = aspect_score = distribution_score = 0.0
+                nakshatra_score = nakshatra_dominance_score = hd_centers_score = None
+                human_design_gates_score = component_scores.get("repeated_hd_gates")
+                human_design_channels_score = None
+                inner_planet_placement_score = outer_planet_placement_score = None
+            elif use_big_3:
                 final_score, component_scores = chart_similarity_score_big_3(query_chart, candidate)
                 placement_score = 0.0
                 aspect_score = 0.0
@@ -1724,7 +1761,7 @@ def find_astro_twins(
                 outer_planet_placement_score = None
             rank_score = final_score
 
-        if use_custom or use_all_or_nothing or use_big_3 or use_comprehensive:
+        if use_custom or use_all_or_nothing or use_big_3 or use_comprehensive or use_database_distinction:
             dominance_score = (
                 _combined_dominance_similarity(query_chart, candidate)
                 if any(key.startswith("dominant_") for key in component_scores)
@@ -1747,7 +1784,7 @@ def find_astro_twins(
             human_design_channels_score=human_design_channels_score,
             inner_planet_placement_score=inner_planet_placement_score,
             outer_planet_placement_score=outer_planet_placement_score,
-            component_scores=dict(component_scores) if (use_custom or use_all_or_nothing or use_big_3 or use_comprehensive) else None,
+            component_scores=dict(component_scores) if (use_custom or use_all_or_nothing or use_big_3 or use_comprehensive or use_database_distinction) else None,
             algorithm_mode=normalized_mode,
             chart_uses_houses=chart_uses_houses(candidate),
         )

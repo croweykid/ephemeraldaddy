@@ -282,6 +282,7 @@ def _format_similarity_scoring_method(
         "all_or_nothing": "All or Nothing",
         "big_3": "Big 3",
         "custom": "Custom",
+        "database_distinction": "Database Distinction Scan",
     }.get(mode, mode.replace("_", " ").title())
     lines = [f"Current Settings > Similarities Calculator scoring system: {mode_label}."]
 
@@ -332,22 +333,19 @@ def _markdown_table_cell(value: object) -> str:
 def _format_similar_chart_rows(rows: list[dict[str, Any]], *, markdown: bool) -> list[str]:
     if markdown:
         lines = [
-            "| Rank | Chart ID | Chart | Similarity | Band | Z-score | Placement | Aspects | Distribution | Dominance |",
-            "|---:|---:|---|---:|---|---:|---:|---:|---:|---:|",
+            "| Rank | Chart ID | Chart | Similarity | Band | Z-score | Components |",
+            "|---:|---:|---|---:|---|---:|---|",
         ]
         for row in rows:
             z_score = row.get("similarity_z_score")
             z_score_text = "" if z_score is None else f"{float(z_score):+.3f}"
-            dominance = row.get("dominance_percent")
-            dominance_text = "" if dominance is None else f"{float(dominance):.1f}%"
             chart_name = _markdown_table_cell(row.get("chart_name", ""))
             band = _markdown_table_cell(row.get("similarity_band", ""))
+            component_summary = _markdown_table_cell(row.get("component_summary", ""))
             lines.append(
                 f"| {row.get('rank', '')} | {row.get('chart_id', '')} | {chart_name} | "
                 f"{float(row.get('similarity_percent', 0.0)):.1f}% | {band} | "
-                f"{z_score_text} | {float(row.get('placement_percent', 0.0)):.1f}% | "
-                f"{float(row.get('aspect_percent', 0.0)):.1f}% | "
-                f"{float(row.get('distribution_percent', 0.0)):.1f}% | {dominance_text} |"
+                f"{z_score_text} | {component_summary} |"
             )
         return lines
 
@@ -355,15 +353,12 @@ def _format_similar_chart_rows(rows: list[dict[str, Any]], *, markdown: bool) ->
     for row in rows:
         z_score = row.get("similarity_z_score")
         z_score_text = "" if z_score is None else f"; z={float(z_score):+.3f}"
-        dominance = row.get("dominance_percent")
-        dominance_text = "" if dominance is None else f", dominance {float(dominance):.1f}%"
+        component_summary = row.get("component_summary") or "no enabled criteria"
         lines.append(
             f"{row.get('rank', '')}. #{row.get('chart_id', '')} — {row.get('chart_name', '')}: "
             f"Similarity {float(row.get('similarity_percent', 0.0)):.1f}% "
             f"[{row.get('similarity_band', 'unclassified')}{z_score_text}] "
-            f"(placements {float(row.get('placement_percent', 0.0)):.1f}%, "
-            f"aspects {float(row.get('aspect_percent', 0.0)):.1f}%, "
-            f"distribution {float(row.get('distribution_percent', 0.0)):.1f}%{dominance_text})"
+            f"({component_summary})"
         )
     return lines or ["No similar charts available."]
 

@@ -543,6 +543,7 @@ from ephemeraldaddy.analysis.get_astro_twin import (
     SIMILAR_CHARTS_ALGORITHM_BIG_3,
     SIMILAR_CHARTS_ALGORITHM_CUSTOM,
     SIMILAR_CHARTS_ALGORITHM_DEFAULT,
+    SIMILAR_CHARTS_ALGORITHM_DATABASE_DISTINCTION,
     SimilarityCalculatorSettings,
     chart_body_dominance_weights as _similarity_body_dominance_weights,
     chart_house_dominance_weights as _similarity_house_dominance_weights,
@@ -20818,6 +20819,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_BIG_3),
             on_mode_custom_toggled=lambda checked: checked
             and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_CUSTOM),
+            on_mode_database_distinction_toggled=lambda checked: checked
+            and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_DATABASE_DISTINCTION),
             on_checkbox_toggled=self._on_similarity_calculator_checkbox_toggled,
             on_weight_changed=self._on_similarity_calculator_weight_changed,
             on_placement_weighting_mode_changed=self._on_similarity_calculator_placement_weighting_mode_changed,
@@ -20836,6 +20839,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._similar_charts_algo_all_or_nothing_radio = similarity_controls["all_or_nothing_radio"]
         self._similar_charts_algo_big_3_radio = similarity_controls["big_3_radio"]
         self._similar_charts_algo_custom_radio = similarity_controls["custom_radio"]
+        self._similar_charts_algo_database_distinction_radio = similarity_controls["database_distinction_radio"]
         self._similarity_calculator_custom_fields_frame = similarity_controls["custom_fields_frame"]
         self._similarity_calculator_all_or_nothing_fields_frame = similarity_controls["all_or_nothing_fields_frame"]
         self._similarity_calculator_checkboxes = similarity_controls["calculator_checkboxes"]
@@ -21062,6 +21066,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         all_or_nothing_radio = getattr(self, "_similar_charts_algo_all_or_nothing_radio", None)
         big_3_radio = getattr(self, "_similar_charts_algo_big_3_radio", None)
         custom_radio = getattr(self, "_similar_charts_algo_custom_radio", None)
+        database_distinction_radio = getattr(self, "_similar_charts_algo_database_distinction_radio", None)
         all_or_nothing_combo = getattr(self, "_similarity_calculator_all_or_nothing_component_combo", None)
         all_or_nothing_fields_frame = getattr(self, "_similarity_calculator_all_or_nothing_fields_frame", None)
         custom_fields_frame = getattr(self, "_similarity_calculator_custom_fields_frame", None)
@@ -21072,6 +21077,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             or all_or_nothing_radio is None
             or big_3_radio is None
             or custom_radio is None
+            or database_distinction_radio is None
         ):
             return
         blocker_default = QSignalBlocker(default_radio)
@@ -21080,12 +21086,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         blocker_all_or_nothing = QSignalBlocker(all_or_nothing_radio)
         blocker_big_3 = QSignalBlocker(big_3_radio)
         blocker_custom = QSignalBlocker(custom_radio)
+        blocker_database_distinction = QSignalBlocker(database_distinction_radio)
         default_radio.setChecked(normalized == SIMILAR_CHARTS_ALGORITHM_DEFAULT)
         generic_astro_radio.setChecked(normalized == SIMILAR_CHARTS_ALGORITHM_GENERIC_ASTRO)
         comprehensive_radio.setChecked(normalized == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE)
         all_or_nothing_radio.setChecked(normalized == SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING)
         big_3_radio.setChecked(normalized == SIMILAR_CHARTS_ALGORITHM_BIG_3)
         custom_radio.setChecked(normalized == SIMILAR_CHARTS_ALGORITHM_CUSTOM)
+        database_distinction_radio.setChecked(normalized == SIMILAR_CHARTS_ALGORITHM_DATABASE_DISTINCTION)
         if isinstance(all_or_nothing_combo, QComboBox):
             all_or_nothing_combo.setVisible(normalized == SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING)
         if isinstance(all_or_nothing_fields_frame, QWidget):
@@ -21098,6 +21106,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         del blocker_all_or_nothing
         del blocker_big_3
         del blocker_custom
+        del blocker_database_distinction
         parent = self.parent()
         if isinstance(parent, MainWindow):
             parent._handle_similar_charts_algorithm_mode_changed(normalized)
@@ -25019,6 +25028,7 @@ class MainWindow(QMainWindow):
                         else None
                     ),
                     "algorithm_mode": match.algorithm_mode,
+                    "component_summary": component_summary,
                 }
             )
         self._similar_charts_list_label.setText("<br><br>".join(match_blocks))

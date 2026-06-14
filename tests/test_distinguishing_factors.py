@@ -1,4 +1,6 @@
 from pathlib import Path
+import sys
+import types
 
 from ephemeraldaddy.analysis.hd_incarnation_crosses import (
     HD_INCARNATION_CROSSES,
@@ -42,3 +44,50 @@ def test_all_incarnation_cross_themes_have_descriptions():
     )
 
     assert missing == []
+
+
+def test_database_distinction_repeated_gate_score_weights_extra_repetitions(monkeypatch):
+    from types import SimpleNamespace
+
+    hd_module = types.ModuleType("ephemeraldaddy.analysis.human_design")
+    hd_module.build_human_design_result = lambda _chart: None
+    sys.modules.setdefault("ephemeraldaddy.analysis.human_design", hd_module)
+    hd_reference_module = types.ModuleType("ephemeraldaddy.analysis.human_design_reference")
+    hd_reference_module.GATE_COLORS = {}
+    hd_reference_module.HD_LINE_COLORS = {}
+    sys.modules.setdefault("ephemeraldaddy.analysis.human_design_reference", hd_reference_module)
+    style_module = types.ModuleType("ephemeraldaddy.gui.style")
+    style_module.CHART_DATA_HIGHLIGHT_COLOR = "#fff"
+    sys.modules.setdefault("ephemeraldaddy.gui.style", style_module)
+
+    from ephemeraldaddy.gui.features.charts import distinguishing_factors
+
+    query_profile = distinguishing_factors.DatabaseDistinctionProfile(
+        factors=(),
+        concentration_traits=(),
+        repeated_gate_counts=((20, 3), (25, 2)),
+        norm_count=5,
+    )
+
+    def fake_duplicate_gate_lines(chart):
+        return {
+            "triple_match": [(20, [1, 2, 3])],
+            "double_match": [(25, [1, 2])],
+        }.get(chart.name, [])
+
+    monkeypatch.setattr(distinguishing_factors, "_duplicate_human_design_gate_lines", fake_duplicate_gate_lines)
+
+    triple_score, triple_components = distinguishing_factors.database_distinction_similarity_score(
+        query_profile,
+        SimpleNamespace(name="triple_match"),
+        [],
+    )
+    double_score, double_components = distinguishing_factors.database_distinction_similarity_score(
+        query_profile,
+        SimpleNamespace(name="double_match"),
+        [],
+    )
+
+    assert triple_components["repeated_hd_gates"] == 3 / 5
+    assert double_components["repeated_hd_gates"] == 2 / 5
+    assert triple_score > double_score
