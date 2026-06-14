@@ -253,7 +253,7 @@ def _is_personal_chart_type_for_age_inference(value: Optional[str]) -> bool:
     return normalized in {CHART_TYPE_PERSONAL, SOURCE_USER_SUBMITTED}
 
 
-SCHEMA_VERSION = 15
+SCHEMA_VERSION = 16
 
 CHART_UID_LENGTH = 16
 
@@ -1149,6 +1149,12 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
         _ensure_chart_uids(conn)
         _create_indexes(conn)
         conn.execute("PRAGMA user_version = 15")
+        user_version = 15
+
+    if user_version < 16:
+        if _charts_table_exists(conn):
+            _clear_dominant_weight_caches(conn)
+        conn.execute("PRAGMA user_version = 16")
 
 
 def _get_conn() -> sqlite3.Connection:
