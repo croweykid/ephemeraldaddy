@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import random
+from collections import deque
 from dataclasses import dataclass
 
 
@@ -218,6 +219,23 @@ class LoadingMessageRotator:
         self._current_sequence: LoadingSequence | None = None
         self._sequence_index = 0
         self._has_started = False
+        self._sequence_queue: deque[LoadingSequence] = deque()
+
+    def display_interval_ms(self, message: str, *, default_ms: int = 3200) -> int:
+        """Return a display interval scaled to message length.
+
+        The default interval is preserved for short blurbs (20 characters or
+        fewer). Longer messages scale linearly, so a 40-character message stays
+        up for twice the default interval.
+        """
+
+        normalized_length = max(len((message or "").strip()), 1)
+        return int(default_ms * max(1.0, normalized_length / 20.0))
+
+    def _refill_sequence_queue(self) -> None:
+        shuffled_sequences = list(self.sequences)
+        random.shuffle(shuffled_sequences)
+        self._sequence_queue = deque(shuffled_sequences)
 
     def next(self, bespoke_message: str | None = None) -> str:
         """
@@ -243,15 +261,19 @@ class LoadingMessageRotator:
 
             return message
 
-        should_start_sequence = (
-            self.sequences
-            and random.random() < self.sequence_probability
-        )
+        should_start_sequence = bool(self.sequences) and random.random() < self.sequence_probability
 
         if should_start_sequence:
-            self._current_sequence = random.choice(self.sequences)
-            self._sequence_index = 1
-            return self._current_sequence.messages[0]
+            if not self._sequence_queue:
+                self._refill_sequence_queue()
+            if self._sequence_queue:
+                self._current_sequence = self._sequence_queue.popleft()
+                message = self._current_sequence.messages[0]
+                self._sequence_index = 1
+                if self._sequence_index >= len(self._current_sequence.messages):
+                    self._current_sequence = None
+                    self._sequence_index = 0
+                return message
 
         if self.standalone_messages:
             return random.choice(self.standalone_messages)

@@ -165,8 +165,14 @@ def _create_export_progress(parent) -> tuple[ChartExportProgressWidget, QTimer]:
     progress.set_message(loading_messages.next())
     progress.set_fraction(0, 1)
     message_timer = QTimer(progress)
-    message_timer.setInterval(3200)
-    message_timer.timeout.connect(lambda: progress.set_message(loading_messages.next()))
+
+    def _rotate_loading_message() -> None:
+        message = loading_messages.next()
+        progress.set_message(message)
+        message_timer.setInterval(loading_messages.display_interval_ms(message))
+
+    message_timer.setInterval(loading_messages.display_interval_ms(progress.message_label.text()))
+    message_timer.timeout.connect(_rotate_loading_message)
     message_timer.start()
     progress.show()
     progress.raise_()
@@ -197,9 +203,11 @@ def _start_background_export(
     ui_bridge = _ChartExportUiBridge(parent)
     worker.moveToThread(thread)
 
-    def _cleanup() -> None:
+    def _cleanup_ui() -> None:
         message_timer.stop()
         QTimer.singleShot(1200, progress.deleteLater)
+
+    def _release_export_state() -> None:
         active_exports = getattr(parent, "_chart_export_threads", [])
         for export_state in list(active_exports):
             if export_state[0] is thread:
@@ -212,12 +220,12 @@ def _start_background_export(
         QApplication.processEvents()
 
     def _on_failed(error: str) -> None:
-        _cleanup()
+        _cleanup_ui()
         QMessageBox.critical(parent, "Export failed", failure_message(error))
 
     def _on_finished(exported: int, destination: str) -> None:
         progress.set_fraction(exported, max(len(export_jobs), 1))
-        _cleanup()
+        _cleanup_ui()
         QMessageBox.information(parent, "Export complete", completion_message(exported, destination))
 
     thread.started.connect(worker.run)
@@ -228,6 +236,7 @@ def _start_background_export(
     worker.finished.connect(worker.deleteLater)
     worker.failed.connect(thread.quit)
     worker.finished.connect(thread.quit)
+    thread.finished.connect(_release_export_state)
     thread.finished.connect(thread.deleteLater)
     ui_bridge.progress.connect(_on_progress)
     ui_bridge.failed.connect(_on_failed)
@@ -299,8 +308,14 @@ def run_total_chart_export_flow(
     progress.set_message(loading_messages.next())
     progress.set_fraction(0, 1)
     message_timer = QTimer(progress)
-    message_timer.setInterval(3200)
-    message_timer.timeout.connect(lambda: progress.set_message(loading_messages.next()))
+
+    def _rotate_loading_message() -> None:
+        message = loading_messages.next()
+        progress.set_message(message)
+        message_timer.setInterval(loading_messages.display_interval_ms(message))
+
+    message_timer.setInterval(loading_messages.display_interval_ms(progress.message_label.text()))
+    message_timer.timeout.connect(_rotate_loading_message)
     message_timer.start()
     progress.show()
     progress.raise_()
