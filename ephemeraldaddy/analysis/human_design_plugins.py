@@ -123,37 +123,73 @@ def load_humdes_gates(path: str | Path | None = None) -> dict[str, Any] | None:
         return None
 
 
+def _normalized_fixing_body_name(value: str) -> str:
+    clean = re.sub(r"[^a-z0-9]+", " ", _clean_text(value).lower()).strip()
+    if clean.startswith("the "):
+        clean = clean[4:].strip()
+    return clean
+
+
+def _line_fixing_header(line: str) -> tuple[str, str] | None:
+    """Return (body, fixing) when a plugin line is a fixing section header."""
+    match = re.match(
+        r"^\s*(?:with\s+)?(?:the\s+)?(?P<body>[A-Za-z][A-Za-z\s-]*?)\s+"
+        r"(?:(?P<exalted>in\s+exaltation|exalted)|(?P<detriment>in\s+detriment))"
+        r"\b\s*[:,.]?\s*$",
+        line,
+        flags=re.IGNORECASE,
+    )
+    if not match:
+        return None
+    fixing = "detriment" if match.group("detriment") else "exaltation"
+    return match.group("body").strip(), fixing
+
 
 def _trim_line_fixing_text(text: str, fixing: str | None, body: str | None = None) -> str:
     """Keep only the relevant lead-in/exaltation/detriment part of plugin line text."""
     clean = _clean_text(text)
     if not clean:
         return ""
+
+    raw_lines = clean.split("\n")
+    lines = [line.rstrip() for line in raw_lines]
+    fixing_sections: list[tuple[int, str, str]] = []
+    for index, line in enumerate(lines):
+        header = _line_fixing_header(line)
+        if header:
+            header_body, header_fixing = header
+            fixing_sections.append((index, _normalized_fixing_body_name(header_body), header_fixing))
+
     if fixing not in {"exaltation", "detriment"}:
-        parts = clean.split("\n")
-        return "\n".join(parts[:2]).strip() if len(parts) >= 2 else clean
+        first_fixing_index = fixing_sections[0][0] if fixing_sections else None
+        lead_lines = lines[:first_fixing_index] if first_fixing_index is not None else lines[:2]
+        return "\n".join(line for line in lead_lines if line.strip()).strip()
 
-    body_name = _clean_text(body)
-    if fixing == "exaltation":
-        marker = f"\n{body_name} in detriment" if body_name else " in detriment"
-        index = clean.lower().find(marker.lower())
-        if index != -1:
-            return clean[:index].strip()
-        generic = re.search(r"\n[^\n]+\s+in detriment", clean, flags=re.IGNORECASE)
-        return clean[: generic.start()].strip() if generic else clean
-
-    # Detriment: preserve lead-in, remove the exaltation body paragraph, keep detriment onward.
-    detriment_marker = f"\n{body_name} in detriment" if body_name else " in detriment"
-    det_index = clean.lower().find(detriment_marker.lower())
-    if det_index == -1:
-        generic_det = re.search(r"\n[^\n]+\s+in detriment", clean, flags=re.IGNORECASE)
-        det_index = generic_det.start() if generic_det else -1
-    if det_index == -1:
+    requested_body = _normalized_fixing_body_name(body or "")
+    section_index: int | None = None
+    for index, header_body, header_fixing in fixing_sections:
+        if header_fixing != fixing:
+            continue
+        if requested_body and header_body != requested_body:
+            continue
+        section_index = index
+        break
+    if section_index is None:
+        for index, _header_body, header_fixing in fixing_sections:
+            if header_fixing == fixing:
+                section_index = index
+                break
+    if section_index is None:
         return clean
-    lead_end = clean.find("\n")
-    lead = clean[:lead_end].strip() if lead_end != -1 else ""
-    detriment = clean[det_index:].strip()
-    return f"{lead}\n{detriment}".strip() if lead else detriment
+
+    next_section_index = next(
+        (index for index, _body, _fixing in fixing_sections if index > section_index),
+        len(lines),
+    )
+    lead_lines = lines[: fixing_sections[0][0]] if fixing_sections else []
+    selected_lines = lines[section_index:next_section_index]
+    return "\n".join(line for line in (*lead_lines, *selected_lines) if line.strip()).strip()
+
 
 def humdes_gate_line_supplement_lines(gate: int, line: int | None = None, fixing: str | None = None, fixing_body: str | None = None) -> list[str]:
     payload = load_humdes_gates()
