@@ -62,8 +62,10 @@ def test_distinguishing_metric_cache_rejects_stale_payload_versions():
 
     assert 'payload.get("schema_version") == _DISTINGUISHING_METRICS_SCHEMA_VERSION' in method
     assert 'payload.get("formula_version") == _DISTINGUISHING_FORMULA_VERSION' in method
-    assert 'payload.get("essential_astro_signature") == existing.get("essential_astro_signature")' in method
     assert 'isinstance(payload.get("groups"), dict)' in method
+    assert "current_essential = _chart_essential_astro_signature(chart)" in method
+    assert 'payload.get("essential_astro_signature") == current_essential' in method
+    assert 'existing.get("essential_astro_signature") == current_essential' in method
 
 
 def test_hidden_charts_filter_is_conditionally_visible_in_search_panel():

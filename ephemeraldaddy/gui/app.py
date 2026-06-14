@@ -32561,21 +32561,33 @@ class MainWindow(QMainWindow):
                 sort_keys=True,
                 separators=(",", ":"),
             )
+            chart = None
             if isinstance(existing, dict) and existing.get("row_essential_signature") == row_essential:
                 payload = existing.get("payload")
                 if (
                     isinstance(payload, dict)
                     and payload.get("schema_version") == _DISTINGUISHING_METRICS_SCHEMA_VERSION
                     and payload.get("formula_version") == _DISTINGUISHING_FORMULA_VERSION
-                    and payload.get("essential_astro_signature") == existing.get("essential_astro_signature")
                     and isinstance(payload.get("groups"), dict)
                 ):
-                    payloads.append(payload)
+                    try:
+                        chart = load_chart(chart_id)
+                    except Exception:
+                        continue
+                    if chart is None or self._is_placeholder_chart(chart):
+                        continue
+                    current_essential = _chart_essential_astro_signature(chart)
+                    if (
+                        payload.get("essential_astro_signature") == current_essential
+                        and existing.get("essential_astro_signature") == current_essential
+                    ):
+                        payloads.append(payload)
+                        continue
+            if chart is None:
+                try:
+                    chart = load_chart(chart_id)
+                except Exception:
                     continue
-            try:
-                chart = load_chart(chart_id)
-            except Exception:
-                continue
             if chart is None or self._is_placeholder_chart(chart):
                 continue
             payload = _distinguishing_metric_payload_for_chart(chart)
