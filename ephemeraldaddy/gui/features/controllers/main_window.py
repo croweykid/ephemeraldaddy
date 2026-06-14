@@ -287,21 +287,53 @@ class ChartAnalysisSectionsController:
         setattr(self._owner, chart_container_attr, chart_container)
         setattr(self._owner, chart_layout_attr, chart_layout)
 
-        if section_key in {"dominant_signs", "dominant_planets", "dominant_houses", "nakshatra_prevalence"}:
-            above_average_label = QLabel("")
-            above_average_label.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
-            above_average_label.setWordWrap(True)
-            above_average_label.setOpenExternalLinks(False)
-            above_average_label.linkActivated.connect(self._owner._on_chart_analysis_above_average_link_activated)
-            section_layout.addWidget(above_average_label)
-            self._owner._chart_analysis_above_average_labels[section_key] = above_average_label
+        has_above_average_details = section_key in {
+            "dominant_signs",
+            "dominant_planets",
+            "dominant_houses",
+            "nakshatra_prevalence",
+        }
+        has_footer_details = footer_text is not None
+        if has_above_average_details or has_footer_details:
+            details_link = QLabel(
+                '<a href="chart-analysis-details" '
+                'style="color:#6fa8dc;text-decoration:none;font-weight:700;">details...</a>'
+            )
+            details_link.setTextFormat(Qt.RichText)
+            details_link.setTextInteractionFlags(Qt.LinksAccessibleByMouse | Qt.LinksAccessibleByKeyboard)
+            details_link.setOpenExternalLinks(False)
+            details_link.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+            section_layout.addWidget(details_link, 0, Qt.AlignLeft)
 
-        if footer_text is not None:
-            footer_label = QLabel(footer_text)
-            footer_label.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
-            footer_label.setWordWrap(True)
-            section_layout.addWidget(footer_label)
-            self._owner._chart_analysis_footer_labels[section_key] = footer_label
+            details_container = QWidget()
+            details_layout = QVBoxLayout()
+            details_layout.setContentsMargins(0, 0, 0, 0)
+            details_layout.setSpacing(8)
+            details_container.setLayout(details_layout)
+            details_container.setVisible(False)
+            section_layout.addWidget(details_container)
+
+            def show_details(_target: str = "", *, link: QLabel = details_link, container: QWidget = details_container) -> None:
+                link.setVisible(False)
+                container.setVisible(True)
+
+            details_link.linkActivated.connect(show_details)
+
+            if has_above_average_details:
+                above_average_label = QLabel("")
+                above_average_label.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+                above_average_label.setWordWrap(True)
+                above_average_label.setOpenExternalLinks(False)
+                above_average_label.linkActivated.connect(self._owner._on_chart_analysis_above_average_link_activated)
+                details_layout.addWidget(above_average_label)
+                self._owner._chart_analysis_above_average_labels[section_key] = above_average_label
+
+            if has_footer_details:
+                footer_label = QLabel(footer_text)
+                footer_label.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+                footer_label.setWordWrap(True)
+                details_layout.addWidget(footer_label)
+                self._owner._chart_analysis_footer_labels[section_key] = footer_label
 
     def create_sections(self, panel: QWidget) -> None:
         self.add_section(
