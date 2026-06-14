@@ -201,3 +201,55 @@ def test_positions_lines_include_colorable_info_icons() -> None:
         for entries in info_map.values()
         for entry in entries
     )
+
+
+def test_chart_data_incarnation_cross_value_is_clickable(monkeypatch) -> None:
+    monkeypatch.setattr(hd_output, "calculate_human_design", lambda _chart: _hd_result())
+
+    output, position_info_map, *_ = hd_output.build_human_design_chart_data_output(
+        SimpleNamespace(),
+        aspect_sort="orb",
+    )
+
+    cross_line_index = output.splitlines().index("Incarnation Cross: Test Cross ⓘ")
+    entries = position_info_map[cross_line_index]
+
+    assert any(
+        entry.get("kind") == "hd_property"
+        and entry.get("property_key") == "incarnation_cross"
+        and entry.get("property_value") == "Test Cross"
+        for entry in entries
+    )
+
+
+def test_gate_line_plugin_text_decodes_escaped_newlines(monkeypatch) -> None:
+    from ephemeraldaddy.analysis import human_design_plugins as plugins
+
+    monkeypatch.setattr(
+        plugins,
+        "load_humdes_gates",
+        lambda: {
+            "gates": {
+                "1": {
+                    "gate": 1,
+                    "app_name": "Gate Name",
+                    "source_name": "Gate Source",
+                    "source_summary": "Summary",
+                    "lines": {
+                        "1": {
+                            "id": "1.1",
+                            "gate": 1,
+                            "line": 1,
+                            "app_name": "Lead\\nBase combo text\\nMoon in exaltation: extra\\nUranus in detriment: extra",
+                            "source_name": "fallback",
+                        }
+                    },
+                }
+            }
+        },
+    )
+
+    lines = plugins.humdes_gate_line_supplement_lines(1, 1)
+
+    assert "Lead\nBase combo text" in lines
+    assert all("Moon in exaltation" not in line for line in lines)

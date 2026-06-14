@@ -29,7 +29,7 @@ def installed_plugin_names() -> list[str]:
 
 
 def _clean_text(value: Any) -> str:
-    return str(value or "").strip()
+    return str(value or "").replace("\\n", "\n").strip()
 
 
 def _validate_humdes_payload(payload: Any) -> dict[str, Any]:
@@ -164,7 +164,7 @@ def humdes_gate_line_supplement_lines(gate: int, line: int | None = None, fixing
     if not isinstance(gate_data, dict):
         return []
 
-    lines: list[str] = ["", "Advanced plugin supplement:"]
+    lines: list[str] = ["Advanced plugin supplement:"]
     source_name = _clean_text(gate_data.get("app_name")) or _clean_text(gate_data.get("source_name"))
     if source_name:
         lines.append(f"• Gate name: {source_name}")
