@@ -253,3 +253,84 @@ def test_gate_line_plugin_text_decodes_escaped_newlines(monkeypatch) -> None:
 
     assert "Lead\nBase combo text" in lines
     assert all("Moon in exaltation" not in line for line in lines)
+
+
+def test_gate_line_plugin_text_keeps_exaltation_body(monkeypatch) -> None:
+    from ephemeraldaddy.analysis import human_design_plugins as plugins
+
+    monkeypatch.setattr(
+        plugins,
+        "load_humdes_gates",
+        lambda: {
+            "gates": {
+                "2": {
+                    "gate": 2,
+                    "app_name": "Gate 2",
+                    "source_name": "Gate 2",
+                    "source_summary": "Summary",
+                    "lines": {
+                        "2": {
+                            "id": "2.2",
+                            "gate": 2,
+                            "line": 2,
+                            "app_name": (
+                                "Genius.\nUnconscious and unlearnable alignment.\nSaturn exalted.\n"
+                                "The inner strength to focus and realize. A natural gift.\n"
+                                "Mars in detriment.\nGenius as madness."
+                            ),
+                            "source_name": "fallback",
+                        }
+                    },
+                }
+            }
+        },
+    )
+
+    lines = plugins.humdes_gate_line_supplement_lines(2, 2, "exaltation", "Saturn")
+
+    assert (
+        "Genius.\nUnconscious and unlearnable alignment.\nSaturn exalted.\n"
+        "The inner strength to focus and realize. A natural gift."
+    ) in lines
+    assert all("Mars in detriment" not in line for line in lines)
+
+
+def test_gate_line_plugin_text_keeps_detriment_body(monkeypatch) -> None:
+    from ephemeraldaddy.analysis import human_design_plugins as plugins
+
+    monkeypatch.setattr(
+        plugins,
+        "load_humdes_gates",
+        lambda: {
+            "gates": {
+                "2": {
+                    "gate": 2,
+                    "app_name": "Gate 2",
+                    "source_name": "Gate 2",
+                    "source_summary": "Summary",
+                    "lines": {
+                        "2": {
+                            "id": "2.2",
+                            "gate": 2,
+                            "line": 2,
+                            "app_name": (
+                                "Genius.\nUnconscious and unlearnable alignment.\nSaturn exalted.\n"
+                                "The inner strength to focus and realize. A natural gift.\n"
+                                "Mars in detriment.\nGenius as madness. Knowledge exclusively as power."
+                            ),
+                            "source_name": "fallback",
+                        }
+                    },
+                }
+            }
+        },
+    )
+
+    lines = plugins.humdes_gate_line_supplement_lines(2, 2, "detriment", "Mars")
+
+    assert (
+        "Genius.\nUnconscious and unlearnable alignment.\nMars in detriment.\n"
+        "Genius as madness. Knowledge exclusively as power."
+    ) in lines
+    assert all("Saturn exalted" not in line for line in lines)
+    assert all("inner strength" not in line for line in lines)
