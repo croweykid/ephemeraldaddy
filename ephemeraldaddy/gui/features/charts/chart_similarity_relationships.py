@@ -312,6 +312,40 @@ def save_chart_similarity_relationship(
     temporary_path.replace(relationships_path)
     return relationships_path
 
+
+def calculate_perceived_similarity_accuracy(
+    entries: list[Mapping[str, Any]] | tuple[Mapping[str, Any], ...],
+) -> float | None:
+    """Return 100 minus average absolute predicted-vs-perceived similarity error.
+
+    Each entry should provide a predicted similarity percentage via
+    ``predicted_percent`` and a user-entered perceived compatibility percentage
+    via ``perceived_percent``. Entries marked ``not_applicable`` are ignored.
+    The result is clamped to the displayable 0-100 percentage range.
+    """
+    differences: list[float] = []
+    for entry in entries:
+        if not isinstance(entry, Mapping) or bool(entry.get("not_applicable", False)):
+            continue
+        try:
+            predicted_percent = float(entry.get("predicted_percent"))
+            perceived_percent = float(entry.get("perceived_percent"))
+        except (TypeError, ValueError):
+            continue
+        if not (0.0 <= predicted_percent <= 100.0 and 0.0 <= perceived_percent <= 100.0):
+            continue
+        differences.append(abs(predicted_percent - perceived_percent))
+    if not differences:
+        return None
+    return max(0.0, min(100.0, 100.0 - (sum(differences) / len(differences))))
+
+
+def format_perceived_similarity_accuracy_tally(accuracy_percent: float | None) -> str:
+    """Return the compact label text used by Similar Charts developer tooling."""
+    if accuracy_percent is None:
+        return "Accuracy: —"
+    return f"Accuracy: {accuracy_percent:.0f}%"
+
 def migrate_chart_similarity_relationship_file_to_chart_uids(
     *,
     chart_id_to_uid: Mapping[int, str],

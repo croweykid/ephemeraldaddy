@@ -81,7 +81,11 @@ from ephemeraldaddy.gui.features.charts.progress_cancel import (
     raise_if_progress_canceled,
 )
 from ephemeraldaddy.gui.features.charts.similarity_norms import similarity_z_score
-from ephemeraldaddy.gui.features.charts.chart_similarity_relationships import perceived_accuracy_state_key
+from ephemeraldaddy.gui.features.charts.chart_similarity_relationships import (
+    calculate_perceived_similarity_accuracy,
+    format_perceived_similarity_accuracy_tally,
+    perceived_accuracy_state_key,
+)
 from ephemeraldaddy.gui.features.charts.metrics import calculate_dominant_nakshatra_weights
 from ephemeraldaddy.gui.features.charts.text_summary import _aspect_label
 from ephemeraldaddy.gui.style import (
@@ -2746,6 +2750,56 @@ def render_predictions_panel_content(
     _set_widget_rich_or_plain_text(output_widget=output_widget, html_text=html_text, plain_text=plain_text)
 
 
+
+def _predicted_similarity_percent(match: Any) -> float | None:
+    try:
+        return max(0.0, min(100.0, float(getattr(match, "score")) * 100.0))
+    except (TypeError, ValueError):
+        return None
+
+
+def _update_perceived_accuracy_tally(dialog: QDialog) -> None:
+    tally_label = getattr(dialog, "_similar_chart_popout_perceived_accuracy_tally_label", None)
+    if tally_label is None:
+        return
+    widgets = getattr(dialog, "_similar_chart_popout_accuracy_widgets", [])
+    if isinstance(widgets, dict):
+        widget_records = list(widgets.values())
+    else:
+        widget_records = list(widgets or [])
+    entries: list[Mapping[str, Any]] = []
+    for record in widget_records:
+        if not isinstance(record, Mapping):
+            continue
+        predicted_percent = record.get("predicted_percent")
+        line_edit = record.get("input")
+        na_checkbox = record.get("not_applicable_checkbox")
+        not_applicable = bool(na_checkbox.isChecked()) if na_checkbox is not None else False
+        perceived_percent = None
+        if line_edit is not None:
+            text_value = str(line_edit.text() or "").strip()
+            if text_value:
+                try:
+                    perceived_percent = int(text_value)
+                except ValueError:
+                    perceived_percent = None
+        entries.append(
+            {
+                "predicted_percent": predicted_percent,
+                "perceived_percent": perceived_percent,
+                "not_applicable": not_applicable,
+            }
+        )
+    accuracy = calculate_perceived_similarity_accuracy(entries)
+    tally_label.setText(format_perceived_similarity_accuracy_tally(accuracy))
+    if accuracy is None:
+        tally_label.setToolTip("Perceived accuracy tally: enter perceived compatibility scores; n/a rows are excluded.")
+    else:
+        tally_label.setToolTip(
+            "Perceived accuracy tally: 100% minus the average absolute difference "
+            "between predicted compatibility and visible perceived compatibility responses; n/a rows are excluded."
+        )
+
 def build_similar_charts_popout_dialog(
     *,
     parent: QWidget,
@@ -2804,6 +2858,13 @@ def build_similar_charts_popout_dialog(
     if on_make_collection_clicked is not None:
         make_collection_button.clicked.connect(lambda _checked=False: on_make_collection_clicked(dialog))
     top_row.addWidget(make_collection_button, 0, Qt.AlignRight)
+    perceived_accuracy_tally_label = QLabel(format_perceived_similarity_accuracy_tally(None))
+    perceived_accuracy_tally_label.setStyleSheet("font-size: 10px; color: #f5f5f5; padding: 0 6px;")
+    perceived_accuracy_tally_label.setVisible(bool(show_perceived_accuracy_controls))
+    perceived_accuracy_tally_label.setToolTip(
+        "Perceived accuracy tally: enter perceived compatibility scores; n/a rows are excluded."
+    )
+    top_row.addWidget(perceived_accuracy_tally_label, 0, Qt.AlignRight)
     export_button = QToolButton()
     if share_icon_path:
         export_button.setIcon(QIcon(share_icon_path))
@@ -2887,6 +2948,7 @@ def build_similar_charts_popout_dialog(
     dialog._similar_chart_popout_info_output = info_output
     dialog._similar_chart_popout_chart_info_output = chart_info_output
     dialog._similar_chart_popout_make_collection_button = make_collection_button
+    dialog._similar_chart_popout_perceived_accuracy_tally_label = perceived_accuracy_tally_label
     dialog._similar_chart_popout_export_button = export_button
     dialog._similar_chart_popout_subject_link = subject_chart_link
     splitter.addWidget(info_panel)
@@ -2942,14 +3004,14 @@ def build_similar_charts_popout_dialog(
             )
             content_layout.addWidget(result_label)
         else:
-            accuracy_widgets: dict[int, dict[str, Any]] = getattr(
+            accuracy_widgets: list[dict[str, Any]] = getattr(
                 dialog,
                 "_similar_chart_popout_accuracy_widgets",
-                {},
+                [],
             )
-            if not isinstance(accuracy_widgets, dict):
-                accuracy_widgets = {}
-                dialog._similar_chart_popout_accuracy_widgets = accuracy_widgets
+            if not isinstance(accuracy_widgets, list):
+                accuracy_widgets = []
+            dialog._similar_chart_popout_accuracy_widgets = accuracy_widgets
 
             def _accuracy_state_for(match: Any) -> Mapping[str, Any]:
                 if not perceived_accuracy_states:
@@ -2988,8 +3050,10 @@ def build_similar_charts_popout_dialog(
                 )
                 if recorded is False:
                     _set_perceived_accuracy_recorded_style(line_edit, na_checkbox, recorded=False, failed=True)
+                    _update_perceived_accuracy_tally(dialog)
                     return
                 _set_perceived_accuracy_recorded_style(line_edit, na_checkbox, recorded=True)
+                _update_perceived_accuracy_tally(dialog)
 
             def _on_accuracy_edit_finished(
                 match: Any,
@@ -3079,10 +3143,13 @@ def build_similar_charts_popout_dialog(
                 if has_recorded_state:
                     _set_perceived_accuracy_recorded_style(accuracy_input, na_checkbox, recorded=True)
                 accuracy_input.textEdited.connect(
-                    lambda _text, line_edit=accuracy_input, checkbox=na_checkbox: _set_perceived_accuracy_recorded_style(
-                        line_edit,
-                        checkbox,
-                        recorded=False,
+                    lambda _text, line_edit=accuracy_input, checkbox=na_checkbox: (
+                        _set_perceived_accuracy_recorded_style(
+                            line_edit,
+                            checkbox,
+                            recorded=False,
+                        ),
+                        _update_perceived_accuracy_tally(dialog),
                     )
                 )
                 accuracy_input.editingFinished.connect(
@@ -3103,14 +3170,15 @@ def build_similar_charts_popout_dialog(
                 row_layout.addWidget(na_checkbox, 0, Qt.AlignTop | Qt.AlignRight)
                 match_layout.addLayout(row_layout)
                 content_layout.addWidget(match_widget)
-                try:
-                    accuracy_widgets[int(getattr(match, "chart_id", 0))] = {
+                accuracy_widgets.append(
+                    {
                         "input": accuracy_input,
                         "not_applicable_checkbox": na_checkbox,
                         "panel_key": panel_key,
+                        "match": match,
+                        "predicted_percent": _predicted_similarity_percent(match),
                     }
-                except (TypeError, ValueError):
-                    pass
+                )
 
         content_layout.addStretch(1)
         scroll.setWidget(content)
@@ -3121,4 +3189,5 @@ def build_similar_charts_popout_dialog(
     list_splitter.addWidget(_panel("Top 25 Least Similar Charts", least_similar_matches, "least"))
     splitter.setSizes([320, 860])
     list_splitter.setSizes([430, 430])
+    _update_perceived_accuracy_tally(dialog)
     return dialog

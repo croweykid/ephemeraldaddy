@@ -259,3 +259,31 @@ def test_big_3_similarity_reasoning_html_shows_component_breakdown_for_both_anal
         assert "Mercury</a> sign:" in html
         assert "AS</a>:" in html
         assert "MC</a> sign:" in html
+
+
+def test_perceived_similarity_accuracy_tally_excludes_na_and_averages_absolute_error():
+    from ephemeraldaddy.gui.features.charts.chart_similarity_relationships import (  # noqa: PLC0415
+        calculate_perceived_similarity_accuracy,
+        format_perceived_similarity_accuracy_tally,
+    )
+
+    accuracy = calculate_perceived_similarity_accuracy(
+        [
+            {"predicted_percent": 80, "perceived_percent": 70, "not_applicable": False},
+            {"predicted_percent": 25, "perceived_percent": 45, "not_applicable": False},
+            {"predicted_percent": 99, "perceived_percent": 0, "not_applicable": True},
+        ]
+    )
+
+    assert accuracy == 85.0
+    assert format_perceived_similarity_accuracy_tally(accuracy) == "Accuracy: 85%"
+
+
+def test_perceived_similarity_accuracy_tally_returns_empty_without_scored_rows():
+    from ephemeraldaddy.gui.features.charts.chart_similarity_relationships import (  # noqa: PLC0415
+        calculate_perceived_similarity_accuracy,
+        format_perceived_similarity_accuracy_tally,
+    )
+
+    assert calculate_perceived_similarity_accuracy([{"predicted_percent": 80, "not_applicable": True}]) is None
+    assert format_perceived_similarity_accuracy_tally(None) == "Accuracy: —"
