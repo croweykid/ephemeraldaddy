@@ -1002,6 +1002,8 @@ from ephemeraldaddy.gui.features.charts.similar_charts_popout import (
     load_similar_chart_candidates,
     make_similar_info_target,
     map_similar_info_targets,
+    OperationCanceled,
+    raise_if_progress_canceled,
     render_predictions_panel_content,
     show_similar_charts_loading_progress,
     update_similar_charts_loading_progress,
@@ -25120,7 +25122,9 @@ class MainWindow(QMainWindow):
                         least_similar=False,
                         algorithm_mode=algorithm_mode,
                         custom_settings=getattr(self, "_similarity_calculator_settings", None),
+                        should_cancel=lambda p=progress: bool(p.wasCanceled() or p.property("operation_canceled")),
                     )
+                    raise_if_progress_canceled(progress)
                     update_similar_charts_loading_progress(
                         progress,
                         "Calculating least similar charts…",
@@ -25133,7 +25137,11 @@ class MainWindow(QMainWindow):
                         least_similar=True,
                         algorithm_mode=algorithm_mode,
                         custom_settings=getattr(self, "_similarity_calculator_settings", None),
+                        should_cancel=lambda p=progress: bool(p.wasCanceled() or p.property("operation_canceled")),
                     )
+                    raise_if_progress_canceled(progress)
+                except OperationCanceled:
+                    return
                 except Exception as exc:
                     if algorithm_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
                         self._report_similar_charts_comprehensive_failure(

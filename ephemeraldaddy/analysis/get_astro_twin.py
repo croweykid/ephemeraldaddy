@@ -1546,6 +1546,7 @@ def find_astro_twins(
     least_similar: bool = False,
     algorithm_mode: str = SIMILAR_CHARTS_ALGORITHM_DEFAULT,
     custom_settings: SimilarityCalculatorSettings | None = None,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> list[AstroTwinMatch]:
     target_k = max(1, int(top_k))
     # Keep only k best candidates as we iterate so we avoid sorting all rows.
@@ -1573,6 +1574,8 @@ def find_astro_twins(
         normalized_custom_settings = all_or_nothing_similarity_settings(normalized_custom_settings)
     placement_weighting_mode = normalized_custom_settings.normalized_placement_weighting_mode()
     for chart_id, candidate in candidates:
+        if should_cancel is not None and should_cancel():
+            break
         if exclude_chart_id is not None and chart_id == exclude_chart_id:
             continue
         if bool(getattr(candidate, "is_placeholder", False)):

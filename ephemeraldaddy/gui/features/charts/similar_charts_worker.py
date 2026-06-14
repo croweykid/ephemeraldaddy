@@ -39,6 +39,13 @@ class SimilarChartsWorker(QObject):
         self._algorithm_mode = algorithm_mode
         self._custom_settings = custom_settings
         self._top_k = int(top_k)
+        self._cancel_requested = False
+
+    def cancel(self) -> None:
+        self._cancel_requested = True
+
+    def _should_cancel(self) -> bool:
+        return self._cancel_requested
 
     def run(self) -> None:
         try:
@@ -66,7 +73,18 @@ class SimilarChartsWorker(QObject):
                 least_similar=self._least_similar,
                 algorithm_mode=self._algorithm_mode,
                 custom_settings=self._custom_settings,
+                should_cancel=self._should_cancel,
             )
+            if self._should_cancel():
+                self.finished.emit(
+                    self._request_id,
+                    {
+                        "matches": [],
+                        "empty_reason": "Similar chart calculation canceled safely.",
+                        "canceled": True,
+                    },
+                )
+                return
             self.finished.emit(
                 self._request_id,
                 {
