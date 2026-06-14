@@ -82,3 +82,12 @@ def test_background_export_ui_slots_run_on_gui_thread_without_self_waiting():
     assert "worker.finished.connect(worker.deleteLater)" in source
     assert "worker.finished.connect(thread.quit)" in source
     assert "thread.finished.connect(thread.deleteLater)" in source
+
+
+def test_background_export_state_is_released_after_thread_finishes():
+    source = _source()
+
+    assert "def _cleanup_ui() -> None:" in source
+    assert "def _release_export_state() -> None:" in source
+    assert "thread.finished.connect(_release_export_state)" in source
+    assert "active_exports.remove(export_state)" in source
