@@ -44,6 +44,7 @@ from ephemeraldaddy.analysis.get_astro_twin import (
     SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING,
     SIMILAR_CHARTS_ALGORITHM_BIG_3,
     SIMILAR_CHARTS_ALGORITHM_CUSTOM,
+    SIMILAR_CHARTS_ALGORITHM_DATABASE_DISTINCTION,
     SimilarityCalculatorSettings,
     all_or_nothing_similarity_settings,
     _placement_body_weights,
@@ -413,6 +414,9 @@ _SIMILARITY_COMPONENT_LABELS: dict[str, str] = {
     "big_3_mercury": "Mercury sign",
     "big_3_venus": "Venus sign",
     "big_3_mars": "Mars sign",
+    "distinguishing_factors": "distinguishing factors",
+    "concentration_flags": "concentration flags",
+    "repeated_hd_gates": "repeated HD gates",
 }
 
 _BIG_3_COMPONENT_BODIES: dict[str, str] = {
@@ -617,6 +621,15 @@ def build_similar_chart_bio_panel_content(*, compared_name: str, biography_text:
     return html_text, plain_text
 
 
+def _similarity_component_summary_from_match(match: Any) -> str:
+    algorithm_mode = str(getattr(match, "algorithm_mode", "") or "")
+    component_keys = resolve_similarity_component_keys_for_display(
+        algorithm_mode=algorithm_mode,
+        similarity_settings=None,
+    )
+    return format_similarity_component_summary(match=match, component_keys=component_keys)
+
+
 def build_similar_charts_export_rows_from_matches(
     *,
     matches: list[Any],
@@ -650,6 +663,8 @@ def build_similar_charts_export_rows_from_matches(
                     if getattr(match, "dominance_score", None) is not None
                     else None
                 ),
+                "algorithm_mode": str(getattr(match, "algorithm_mode", "") or ""),
+                "component_summary": _similarity_component_summary_from_match(match),
             }
         )
     return rows
@@ -666,17 +681,16 @@ def build_similar_charts_export_lines(
         lines.append(f"# Similar Charts for {subject_name}")
         lines.append("")
         lines.append(
-            "| Rank | Chart ID | Chart | Similarity | Band | Z-score | Placement | Aspects | Distribution | Dominance |"
+            "| Rank | Chart ID | Chart | Similarity | Band | Z-score | Components |"
         )
-        lines.append("|---:|---:|---|---:|---|---:|---:|---:|---:|---:|")
+        lines.append("|---:|---:|---|---:|---|---:|---|")
         for row in rows:
             z_score = row.get("similarity_z_score")
             z_score_text = "" if z_score is None else f"{float(z_score):+.3f}"
             lines.append(
                 f"| {row['rank']} | {row['chart_id']} | {row['chart_name']} | "
                 f"{row['similarity_percent']:.1f}% | {row.get('similarity_band', '')} | "
-                f"{z_score_text} | {row['placement_percent']:.1f}% | {row['aspect_percent']:.1f}% | "
-                f"{row['distribution_percent']:.1f}% | {float(row.get('dominance_percent') or 0.0):.1f}% |"
+                f"{z_score_text} | {row.get('component_summary', '')} |"
             )
         return lines
 
@@ -689,10 +703,7 @@ def build_similar_charts_export_lines(
             f"{row['rank']}. #{row['chart_id']} — {row['chart_name']}: "
             f"Similarity {row['similarity_percent']:.1f}% "
             f"[{row.get('similarity_band', 'unclassified')}{z_score_text}] "
-            f"(placements {row['placement_percent']:.1f}%, "
-            f"aspects {row['aspect_percent']:.1f}%, "
-            f"distribution {row['distribution_percent']:.1f}%, "
-            f"dominance {float(row.get('dominance_percent') or 0.0):.1f}%)"
+            f"({row.get('component_summary', 'no enabled criteria')})"
         )
     return lines
 
@@ -1544,6 +1555,12 @@ def _resolve_component_weight_percents(
     similarity_settings: SimilarityCalculatorSettings | None,
 ) -> dict[str, int]:
     normalized_mode = normalize_similar_charts_algorithm_mode(algorithm_mode)
+    if normalized_mode == SIMILAR_CHARTS_ALGORITHM_DATABASE_DISTINCTION:
+        return {
+            "distinguishing_factors": 60,
+            "concentration_flags": 15,
+            "repeated_hd_gates": 25,
+        }
     if normalized_mode == SIMILAR_CHARTS_ALGORITHM_BIG_3:
         enabled = {key: True for key in _BIG_3_COMPONENT_WEIGHTS_WITH_HOUSES}
         raw_weights = dict(_BIG_3_COMPONENT_WEIGHTS_WITH_HOUSES)
@@ -1621,6 +1638,9 @@ def format_similarity_component_summary(
         "dominant_signs": explicit_scores.get("dominant_signs"),
         "dominant_houses": explicit_scores.get("dominant_houses"),
         "dominant_nakshatras": explicit_scores.get("dominant_nakshatras"),
+        "distinguishing_factors": explicit_scores.get("distinguishing_factors"),
+        "concentration_flags": explicit_scores.get("concentration_flags"),
+        "repeated_hd_gates": explicit_scores.get("repeated_hd_gates"),
     }
     bits: list[str] = []
     for key in keys:

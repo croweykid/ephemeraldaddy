@@ -25028,6 +25028,7 @@ class MainWindow(QMainWindow):
                         else None
                     ),
                     "algorithm_mode": match.algorithm_mode,
+                    "component_summary": component_summary,
                 }
             )
         self._similar_charts_list_label.setText("<br><br>".join(match_blocks))
