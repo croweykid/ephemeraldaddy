@@ -1663,12 +1663,52 @@ class DatabaseAnalyticsChartsMixin:
             selection_total=selection_total,
             database_total=database_total,
         )
+        sigma = typical_standard_error(results)
+        if sigma is None:
+            sigma = self._typical_single_selection_standard_error(
+                selection_counts=selection_counts,
+                database_counts=database_counts,
+                selection_total=selection_total,
+                database_total=database_total,
+            )
         draw_standard_deviation_guides(
             ax,
-            typical_standard_error(results),
+            sigma,
             max_sigma=2,
             label_prefix="SE",
         )
+
+    @staticmethod
+    def _typical_single_selection_standard_error(
+        *,
+        selection_counts: list[float | int],
+        database_counts: list[float | int],
+        selection_total: float | None = None,
+        database_total: float | None = None,
+    ) -> float | None:
+        resolved_selection_total = (
+            float(selection_total)
+            if selection_total is not None
+            else float(sum(max(0.0, float(value)) for value in selection_counts))
+        )
+        resolved_database_total = (
+            float(database_total)
+            if database_total is not None
+            else float(sum(max(0.0, float(value)) for value in database_counts))
+        )
+        if resolved_selection_total <= 0.0 or resolved_database_total <= 0.0:
+            return None
+        values: list[float] = []
+        for database_count in database_counts:
+            p_database = max(0.0, float(database_count)) / resolved_database_total
+            variance = p_database * (1.0 - p_database) / resolved_selection_total
+            if resolved_database_total > 1.0 and 0.0 < resolved_selection_total < resolved_database_total:
+                variance *= max(0.0, (resolved_database_total - resolved_selection_total) / (resolved_database_total - 1.0))
+            if variance > 0.0:
+                values.append(math.sqrt(variance))
+        if not values:
+            return None
+        return math.sqrt(sum(value * value for value in values) / len(values))
 
     def _build_relationship_distribution_chart(
         self,
@@ -4061,33 +4101,60 @@ class DatabaseAnalyticsChartsMixin:
             for label, selection_count, database_count in zip(labels, selection_counts, database_counts)
         ]
         positions = list(range(len(labels)))
-        display_values = selection_values if loaded_charts else database_values
-        colors = [
-            self._value_length_color(float(value), 0.0, max(display_values, default=0.01))
-            for value in display_values
-        ]
-        bars = ax.barh(positions, display_values, color=colors, height=0.55, zorder=2)
-        max_value = max(display_values, default=0.0)
-        self._set_x_limits_with_padding(ax, 0.0, max(0.03, float(max_value)))
-        ax.set_xticks([0.0, 0.1, 0.2, 0.3, 0.4, 0.5])
-        ax.set_xticklabels([f"{value * 100:.2f}%" for value in [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]])
-        for bar, selection_value, database_value in zip(bars, selection_values, database_values):
-            value = bar.get_width()
-            relative_text = "n/a"
-            if loaded_charts > 0:
-                if database_value > 0:
-                    relative_text = f"{(selection_value / database_value) * 100:.2f}% of DB"
-                elif selection_value > 0:
-                    relative_text = "new vs DB"
-            ax.text(
-                value + max(max_value * 0.015, 0.003),
-                bar.get_y() + (bar.get_height() / 2),
-                relative_text if loaded_charts > 0 else f"{value * 100:.2f}%",
-                va="center",
-                ha="left",
-                color=CHART_THEME_COLORS["text"],
-                fontsize=7.2,
+        if loaded_charts > 0:
+            differences = [
+                float(selection_value) - float(database_value)
+                for selection_value, database_value in zip(selection_values, database_values)
+            ]
+            colors = [
+                self._value_length_color(abs(float(value)), 0.0, max((abs(diff) for diff in differences), default=0.01))
+                for value in differences
+            ]
+            bars = ax.barh(
+                positions,
+                [abs(value) for value in differences],
+                left=[0 if value >= 0 else -abs(value) for value in differences],
+                color=colors,
+                height=0.55,
+                zorder=2,
             )
+            axis_limit = self._configure_symmetric_percent_difference_axis(ax, differences)
+            ax.axvline(0, color=CHART_THEME_COLORS["spine"], linewidth=1.5, zorder=1)
+            self._draw_category_significance_guides(
+                ax,
+                selection_counts,
+                database_counts,
+                loaded_charts,
+            )
+            for bar, diff_value in zip(bars, differences):
+                if bar.get_width() <= 0:
+                    continue
+                ax.text(
+                    self._difference_label_x(diff_value, axis_limit),
+                    bar.get_y() + (bar.get_height() / 2),
+                    _format_percent(abs(diff_value)),
+                    va="center",
+                    ha="left" if diff_value >= 0 else "right",
+                    color=CHART_THEME_COLORS["text"],
+                    fontsize=7.2,
+                )
+        else:
+            colors = [
+                self._value_length_color(float(value), 0.0, max(database_values, default=0.01))
+                for value in database_values
+            ]
+            bars = ax.barh(positions, database_values, color=colors, height=0.55, zorder=2)
+            _, axis_max = self._configure_positive_percent_axis(ax, database_values)
+            for bar, database_value in zip(bars, database_values):
+                ax.text(
+                    min(database_value + max(axis_max * 0.015, 0.003), axis_max * 0.985),
+                    bar.get_y() + (bar.get_height() / 2),
+                    f"{database_value * 100:.2f}%",
+                    va="center",
+                    ha="left",
+                    color=CHART_THEME_COLORS["text"],
+                    fontsize=7.2,
+                )
         ax.set_yticks(positions, labels=display_labels)
         ax.tick_params(axis="y", labelsize=7.2, colors=CHART_THEME_COLORS["text"], pad=6)
         ax.tick_params(axis="x", labelsize=7.2, colors=CHART_THEME_COLORS["muted_text"])
