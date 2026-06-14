@@ -188,7 +188,7 @@ LOADING_MESSAGE_SEQUENCES: tuple[LoadingSequence, ...] = (
 STANDALONE_LOADING_MESSAGES: tuple[str, ...] = (
     "Thanks for your patience.",
     "You really are a good friend.",
-    "hang in there, baby 🐱…"
+    "hang in there, baby 🐱…",
     "give it time...",
     "*royalty-free bossa nova music plays*",
     "...",

@@ -4,7 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable, Sequence
 
-from PySide6.QtCore import QTimer, Qt
+from PySide6.QtCore import QObject, QThread, QTimer, Qt, Signal, Slot
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -43,7 +43,7 @@ class ChartExportProgressWidget(QFrame):
             "}"
             "QLabel { color: #f1e8ff; font-size: 10px; font-weight: 600; }"
             "QProgressBar { border: 1px solid #3f3f3f; border-radius: 4px; background: #101010; }"
-            "QProgressBar::chunk { background-color: #8a2be2; border-radius: 3px; }"
+            "QProgressBar::chunk { background-color: #9933ff; border-radius: 3px; }"
         )
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
@@ -105,6 +105,115 @@ def _show_loading_bar_hint(parent, progress_widget: ChartExportProgressWidget) -
     return hint
 
 
+class _ChartExportWorker(QObject):
+    progress = Signal(int, int)
+    failed = Signal(str)
+    finished = Signal(int, str)
+
+    def __init__(
+        self,
+        export_jobs: Sequence[tuple[int, str]],
+        *,
+        load_chart: Callable[[int], object],
+        write_export: Callable[[int, object, str, bool], None],
+    ) -> None:
+        super().__init__()
+        self._export_jobs = list(export_jobs)
+        self._load_chart = load_chart
+        self._write_export = write_export
+
+    @Slot()
+    def run(self) -> None:
+        exported = 0
+        total = len(self._export_jobs)
+        try:
+            for index, (chart_id, file_path) in enumerate(self._export_jobs, start=1):
+                chart = self._load_chart(int(chart_id))
+                self._write_export(int(chart_id), chart, file_path, file_path.lower().endswith(".md"))
+                exported = index
+                self.progress.emit(index, total)
+        except Exception as exc:
+            self.failed.emit(str(exc))
+            return
+        destination = str(Path(self._export_jobs[0][1]).parent) if self._export_jobs else ""
+        self.finished.emit(exported, destination)
+
+
+def _create_export_progress(parent) -> tuple[ChartExportProgressWidget, QTimer]:
+    progress = ChartExportProgressWidget(parent)
+    loading_messages = LoadingMessageRotator(initial_message="Exporting charts…")
+    progress.set_message(loading_messages.next())
+    progress.set_fraction(0, 1)
+    message_timer = QTimer(progress)
+    message_timer.setInterval(3200)
+    message_timer.timeout.connect(lambda: progress.set_message(loading_messages.next()))
+    message_timer.start()
+    progress.show()
+    progress.raise_()
+    progress.anchor_to_parent()
+    QApplication.processEvents()
+    _show_loading_bar_hint(parent, progress)
+    return progress, message_timer
+
+
+def _start_background_export(
+    parent,
+    export_jobs: Sequence[tuple[int, str]],
+    *,
+    load_chart: Callable[[int], object],
+    write_export: Callable[[int, object, str, bool], None],
+    completion_message: Callable[[int, str], str],
+    failure_message: Callable[[str], str],
+    progress_state: tuple[ChartExportProgressWidget, QTimer] | None = None,
+) -> None:
+    if progress_state is None:
+        progress, message_timer = _create_export_progress(parent)
+    else:
+        progress, message_timer = progress_state
+        progress.set_fraction(0, max(len(export_jobs), 1))
+
+    thread = QThread(parent)
+    worker = _ChartExportWorker(export_jobs, load_chart=load_chart, write_export=write_export)
+    worker.moveToThread(thread)
+
+    def _cleanup() -> None:
+        message_timer.stop()
+        QTimer.singleShot(1200, progress.deleteLater)
+        thread.quit()
+        thread.wait()
+        worker.deleteLater()
+        thread.deleteLater()
+        active_exports = getattr(parent, "_chart_export_threads", [])
+        for export_state in list(active_exports):
+            if export_state[0] is thread:
+                active_exports.remove(export_state)
+                break
+
+    def _on_progress(completed: int, total: int) -> None:
+        progress.set_fraction(completed, total)
+        progress.raise_()
+        QApplication.processEvents()
+
+    def _on_failed(error: str) -> None:
+        _cleanup()
+        QMessageBox.critical(parent, "Export failed", failure_message(error))
+
+    def _on_finished(exported: int, destination: str) -> None:
+        progress.set_fraction(exported, max(len(export_jobs), 1))
+        _cleanup()
+        QMessageBox.information(parent, "Export complete", completion_message(exported, destination))
+
+    thread.started.connect(worker.run)
+    worker.progress.connect(_on_progress)
+    worker.failed.connect(_on_failed)
+    worker.finished.connect(_on_finished)
+    active_exports = getattr(parent, "_chart_export_threads", [])
+    export_state = (thread, worker)
+    active_exports.append(export_state)
+    parent._chart_export_threads = active_exports
+    thread.start()
+
+
 def confirm_batch_export(parent, count: int) -> bool:
     if count > MAX_BATCH_EXPORT_CHARTS:
         QMessageBox.critical(
@@ -163,32 +272,37 @@ def run_total_chart_export_flow(
     progress = ChartExportProgressWidget(parent)
     loading_messages = LoadingMessageRotator(initial_message="Exporting charts…")
     progress.set_message(loading_messages.next())
+    progress.set_fraction(0, 1)
     message_timer = QTimer(progress)
     message_timer.setInterval(3200)
     message_timer.timeout.connect(lambda: progress.set_message(loading_messages.next()))
     message_timer.start()
     progress.show()
+    progress.raise_()
     progress.anchor_to_parent()
     QApplication.processEvents()
     _show_loading_bar_hint(parent, progress)
-    exported = 0
+    export_jobs: list[tuple[int, str]] = []
     try:
-        for index, chart_id in enumerate(chart_ids, start=1):
+        for chart_id in chart_ids:
             chart = load_chart(int(chart_id))
             name = (getattr(chart, "name", None) or "chart").strip() or "chart"
-            path = Path(directory) / f"{sanitize_token(name)}-total-chart-export.md"
-            path = _unique_path(path)
-            write_export(int(chart_id), chart, str(path), True)
-            exported = index
-            progress.set_fraction(index, len(chart_ids))
-            QApplication.processEvents()
+            path = _unique_path(Path(directory) / f"{sanitize_token(name)}-total-chart-export.md")
+            export_jobs.append((int(chart_id), str(path)))
     except Exception as exc:
-        QMessageBox.critical(parent, "Export failed", f"Could not export total charts:\n{exc}")
-        return
-    finally:
         message_timer.stop()
-        QTimer.singleShot(1200, progress.deleteLater)
-    QMessageBox.information(parent, "Export complete", f"Saved {exported} total chart exports to:\n{directory}")
+        progress.deleteLater()
+        QMessageBox.critical(parent, "Export failed", f"Could not prepare total chart exports:\n{exc}")
+        return
+    _start_background_export(
+        parent,
+        export_jobs,
+        load_chart=load_chart,
+        write_export=write_export,
+        completion_message=lambda exported, destination: f"Saved {exported} total chart exports to:\n{destination}",
+        failure_message=lambda error: f"Could not export total charts:\n{error}",
+        progress_state=(progress, message_timer),
+    )
 
 
 def _choose_batch_export_directory(parent) -> str:
@@ -223,12 +337,14 @@ def _export_single(parent, chart_id, load_chart, sanitize_token, write_export) -
     selected_extension = ".txt" if "*.txt" in selected_filter else ".md"
     if not file_path.lower().endswith((".md", ".txt")):
         file_path = f"{file_path}{selected_extension}"
-    try:
-        write_export(int(chart_id), chart, file_path, file_path.lower().endswith(".md"))
-    except Exception as exc:
-        QMessageBox.critical(parent, "Export failed", f"Could not export total chart:\n{exc}")
-        return
-    QMessageBox.information(parent, "Export complete", f"Saved total chart export to:\n{file_path}")
+    _start_background_export(
+        parent,
+        [(int(chart_id), file_path)],
+        load_chart=load_chart,
+        write_export=write_export,
+        completion_message=lambda _exported, _destination: f"Saved total chart export to:\n{file_path}",
+        failure_message=lambda error: f"Could not export total chart:\n{error}",
+    )
 
 
 def _unique_path(path: Path) -> Path:
