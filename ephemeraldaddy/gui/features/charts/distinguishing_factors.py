@@ -435,7 +435,7 @@ def _concentration_lines(chart: Chart) -> list[str]:
 class DatabaseDistinctionProfile:
     factors: tuple[DistinguishingFactor, ...]
     concentration_traits: tuple[tuple[str, object], ...]
-    repeated_gates: tuple[int, ...]
+    repeated_gate_counts: tuple[tuple[int, int], ...]
     norm_count: int
 
 
@@ -451,11 +451,11 @@ def database_distinction_profile(chart: Chart, norm_charts: Iterable[Chart]) -> 
     for mode, share in mode_shares.items():
         if share >= MODE_SHARE_THRESHOLD:
             concentration_traits.append(("modes", mode))
-    repeated_gates = tuple(gate for gate, _lines in _duplicate_human_design_gate_lines(chart))
+    repeated_gate_counts = tuple((gate, len(lines)) for gate, lines in _duplicate_human_design_gate_lines(chart))
     return DatabaseDistinctionProfile(
         factors=tuple(factors),
         concentration_traits=tuple(concentration_traits),
-        repeated_gates=repeated_gates,
+        repeated_gate_counts=repeated_gate_counts,
         norm_count=norm_count,
     )
 
@@ -467,7 +467,7 @@ def database_distinction_similarity_score(
 ) -> tuple[float, dict[str, float]]:
     """Score how strongly a candidate shares a query chart's database-distinction traits."""
     norm_list = [norm_chart for norm_chart in norm_charts if norm_chart is not None]
-    if not query_profile.factors and not query_profile.concentration_traits and not query_profile.repeated_gates:
+    if not query_profile.factors and not query_profile.concentration_traits and not query_profile.repeated_gate_counts:
         return 0.0, {"distinguishing_factors": 0.0, "concentration_flags": 0.0, "repeated_hd_gates": 0.0}
 
     candidate_factors, _norm_count = find_distinguishing_factors(candidate, norm_list)
@@ -478,20 +478,29 @@ def database_distinction_similarity_score(
         if candidate_factor is None or (candidate_factor.z_score > 0) != (query_factor.z_score > 0):
             factor_scores.append(0.0)
             continue
-        factor_scores.append(min(abs(candidate_factor.z_score), abs(query_factor.z_score)) / max(abs(query_factor.z_score), DISTINGUISHING_Z_THRESHOLD))
+        factor_scores.append(
+            min(abs(candidate_factor.z_score), abs(query_factor.z_score))
+            / max(abs(query_factor.z_score), DISTINGUISHING_Z_THRESHOLD)
+        )
     factor_score = statistics.fmean(factor_scores) if factor_scores else 0.0
 
-    candidate_concentration = set(database_distinction_profile(candidate, norm_list).concentration_traits)
-    concentration_score = (
-        len(set(query_profile.concentration_traits) & candidate_concentration) / len(query_profile.concentration_traits)
-        if query_profile.concentration_traits
-        else 0.0
-    )
+    if query_profile.concentration_traits:
+        candidate_concentration = set(database_distinction_profile(candidate, norm_list).concentration_traits)
+        concentration_score = len(set(query_profile.concentration_traits) & candidate_concentration) / len(
+            query_profile.concentration_traits
+        )
+    else:
+        concentration_score = 0.0
 
-    candidate_gates = {gate for gate, _lines in _duplicate_human_design_gate_lines(candidate)}
+    candidate_gate_counts = {gate: len(lines) for gate, lines in _duplicate_human_design_gate_lines(candidate)}
+    query_gate_weight = sum(count for _gate, count in query_profile.repeated_gate_counts)
     repeated_gate_score = (
-        len(set(query_profile.repeated_gates) & candidate_gates) / len(query_profile.repeated_gates)
-        if query_profile.repeated_gates
+        sum(
+            min(candidate_gate_counts.get(gate, 0), query_count)
+            for gate, query_count in query_profile.repeated_gate_counts
+        )
+        / query_gate_weight
+        if query_gate_weight > 0
         else 0.0
     )
 
@@ -500,7 +509,7 @@ def database_distinction_similarity_score(
         weighted_parts.append((0.60, factor_score))
     if query_profile.concentration_traits:
         weighted_parts.append((0.15, concentration_score))
-    if query_profile.repeated_gates:
+    if query_profile.repeated_gate_counts:
         weighted_parts.append((0.25, repeated_gate_score))
     total_weight = sum(weight for weight, _score in weighted_parts) or 1.0
     score = sum(weight * value for weight, value in weighted_parts) / total_weight
