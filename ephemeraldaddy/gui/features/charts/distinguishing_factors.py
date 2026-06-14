@@ -430,6 +430,86 @@ def _concentration_lines(chart: Chart) -> list[str]:
     return lines
 
 
+
+@dataclass(frozen=True)
+class DatabaseDistinctionProfile:
+    factors: tuple[DistinguishingFactor, ...]
+    concentration_traits: tuple[tuple[str, object], ...]
+    repeated_gates: tuple[int, ...]
+    norm_count: int
+
+
+def database_distinction_profile(chart: Chart, norm_charts: Iterable[Chart]) -> DatabaseDistinctionProfile:
+    """Return the machine-readable traits shown by the database distinction scan."""
+    factors, norm_count = find_distinguishing_factors(chart, norm_charts)
+    concentration_traits: list[tuple[str, object]] = []
+    element_shares = _normalized_shares(calculate_dominant_element_weights(chart), ("Fire", "Earth", "Air", "Water"))
+    for element, share in element_shares.items():
+        if share > ELEMENT_SHARE_THRESHOLD:
+            concentration_traits.append(("elements", element))
+    mode_shares = _normalized_shares(calculate_mode_weights(chart), ("cardinal", "mutable", "fixed"))
+    for mode, share in mode_shares.items():
+        if share >= MODE_SHARE_THRESHOLD:
+            concentration_traits.append(("modes", mode))
+    repeated_gates = tuple(gate for gate, _lines in _duplicate_human_design_gate_lines(chart))
+    return DatabaseDistinctionProfile(
+        factors=tuple(factors),
+        concentration_traits=tuple(concentration_traits),
+        repeated_gates=repeated_gates,
+        norm_count=norm_count,
+    )
+
+
+def database_distinction_similarity_score(
+    query_profile: DatabaseDistinctionProfile,
+    candidate: Chart,
+    norm_charts: Iterable[Chart],
+) -> tuple[float, dict[str, float]]:
+    """Score how strongly a candidate shares a query chart's database-distinction traits."""
+    norm_list = [norm_chart for norm_chart in norm_charts if norm_chart is not None]
+    if not query_profile.factors and not query_profile.concentration_traits and not query_profile.repeated_gates:
+        return 0.0, {"distinguishing_factors": 0.0, "concentration_flags": 0.0, "repeated_hd_gates": 0.0}
+
+    candidate_factors, _norm_count = find_distinguishing_factors(candidate, norm_list)
+    candidate_factor_map = {(factor.group_key, factor.raw_label): factor for factor in candidate_factors}
+    factor_scores: list[float] = []
+    for query_factor in query_profile.factors:
+        candidate_factor = candidate_factor_map.get((query_factor.group_key, query_factor.raw_label))
+        if candidate_factor is None or (candidate_factor.z_score > 0) != (query_factor.z_score > 0):
+            factor_scores.append(0.0)
+            continue
+        factor_scores.append(min(abs(candidate_factor.z_score), abs(query_factor.z_score)) / max(abs(query_factor.z_score), DISTINGUISHING_Z_THRESHOLD))
+    factor_score = statistics.fmean(factor_scores) if factor_scores else 0.0
+
+    candidate_concentration = set(database_distinction_profile(candidate, norm_list).concentration_traits)
+    concentration_score = (
+        len(set(query_profile.concentration_traits) & candidate_concentration) / len(query_profile.concentration_traits)
+        if query_profile.concentration_traits
+        else 0.0
+    )
+
+    candidate_gates = {gate for gate, _lines in _duplicate_human_design_gate_lines(candidate)}
+    repeated_gate_score = (
+        len(set(query_profile.repeated_gates) & candidate_gates) / len(query_profile.repeated_gates)
+        if query_profile.repeated_gates
+        else 0.0
+    )
+
+    weighted_parts: list[tuple[float, float]] = []
+    if query_profile.factors:
+        weighted_parts.append((0.60, factor_score))
+    if query_profile.concentration_traits:
+        weighted_parts.append((0.15, concentration_score))
+    if query_profile.repeated_gates:
+        weighted_parts.append((0.25, repeated_gate_score))
+    total_weight = sum(weight for weight, _score in weighted_parts) or 1.0
+    score = sum(weight * value for weight, value in weighted_parts) / total_weight
+    return max(0.0, min(1.0, score)), {
+        "distinguishing_factors": factor_score,
+        "concentration_flags": concentration_score,
+        "repeated_hd_gates": repeated_gate_score,
+    }
+
 def build_distinguishing_factors_html(chart: Chart | None, norm_charts: Iterable[Chart], metric_payloads: Iterable[dict[str, Any]] | None = None) -> str:
     """Build rich text for the Chart Analytics tab's distinguishing-factors section."""
     if chart is None:
