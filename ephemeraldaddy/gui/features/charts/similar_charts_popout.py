@@ -81,7 +81,11 @@ from ephemeraldaddy.gui.features.charts.progress_cancel import (
     raise_if_progress_canceled,
 )
 from ephemeraldaddy.gui.features.charts.similarity_norms import similarity_z_score
-from ephemeraldaddy.gui.features.charts.chart_similarity_relationships import perceived_accuracy_state_key
+from ephemeraldaddy.gui.features.charts.chart_similarity_relationships import (
+    calculate_perceived_similarity_accuracy,
+    format_perceived_similarity_accuracy_tally,
+    perceived_accuracy_state_key,
+)
 from ephemeraldaddy.gui.features.charts.metrics import calculate_dominant_nakshatra_weights
 from ephemeraldaddy.gui.features.charts.text_summary import _aspect_label
 from ephemeraldaddy.gui.style import (
@@ -410,6 +414,17 @@ _SIMILARITY_COMPONENT_LABELS: dict[str, str] = {
     "big_3_venus": "Venus sign",
     "big_3_mars": "Mars sign",
 }
+
+_BIG_3_COMPONENT_BODIES: dict[str, str] = {
+    "big_3_sun": "Sun",
+    "big_3_moon": "Moon",
+    "big_3_rising": "AS",
+    "big_3_mc": "MC",
+    "big_3_mercury": "Mercury",
+    "big_3_venus": "Venus",
+    "big_3_mars": "Mars",
+}
+
 _PLANET_COLOR_MAP: dict[str, str] = {str(name): str(color) for name, color in PLANET_COLORS.items() if color}
 _SIGN_COLOR_MAP: dict[str, str] = {str(name): str(color) for name, color in SIGN_COLORS.items() if color}
 _NAKSHATRA_COLOR_MAP: dict[str, str] = {
@@ -1742,6 +1757,58 @@ def map_similar_info_targets(
     }
 
 
+def _sign_for_chart_body(chart: Any, body: str) -> str | None:
+    positions = getattr(chart, "positions", None) or {}
+    longitude = positions.get(body)
+    if longitude is None:
+        return None
+    return sign_for_longitude(longitude)
+
+
+def _big_3_sign_component_lines(
+    *,
+    subject_chart: Any,
+    compared_chart: Any,
+    subject_label: str,
+    compared_label: str,
+    component_keys: list[str],
+    component_weight_percents: dict[str, int],
+    component_score_percents: dict[str, float],
+    analysis_mode: str,
+) -> list[str]:
+    lines: list[str] = []
+    show_differences = analysis_mode == "dissimilarities"
+    for key in component_keys:
+        if key not in component_score_percents:
+            continue
+        body = _BIG_3_COMPONENT_BODIES.get(key)
+        label = _SIMILARITY_COMPONENT_LABELS.get(key)
+        if not body or not label:
+            continue
+        subject_sign = _sign_for_chart_body(subject_chart, body)
+        compared_sign = _sign_for_chart_body(compared_chart, body)
+        if not subject_sign or not compared_sign:
+            continue
+        signs_match = subject_sign == compared_sign
+        if show_differences and signs_match:
+            continue
+        if not show_differences and not signs_match:
+            continue
+        summary = _section_title_with_weight_and_match(
+            f"{label}:",
+            key,
+            component_weight_percents,
+            component_score_percents,
+        )
+        if signs_match:
+            lines.append(f"{summary} both {subject_sign}")
+        else:
+            lines.append(
+                f"{summary} {subject_label} {subject_sign} "
+                f"vs {compared_label} {compared_sign}"
+            )
+    return lines
+
 def build_similarity_reasoning_panel_text(
     *,
     match: Any,
@@ -1780,23 +1847,31 @@ def build_similarity_reasoning_panel_text(
                 component_weight_percents=component_weight_percents,
                 component_score_percents=component_score_percents,
             )
-            lines.append("Big 3 sign-match components:")
-            for key in resolve_similarity_component_keys_for_display(
-                algorithm_mode=algorithm_mode,
-                similarity_settings=similarity_settings,
-            ):
-                if key not in component_score_percents:
-                    continue
-                label = _SIMILARITY_COMPONENT_LABELS.get(key)
-                if not label:
-                    continue
+            big_3_lines = _big_3_sign_component_lines(
+                subject_chart=subject_chart,
+                compared_chart=compared_chart,
+                subject_label=subject_title,
+                compared_label=compared_name,
+                component_keys=resolve_similarity_component_keys_for_display(
+                    algorithm_mode=algorithm_mode,
+                    similarity_settings=similarity_settings,
+                ),
+                component_weight_percents=component_weight_percents,
+                component_score_percents=component_score_percents,
+                analysis_mode=analysis_mode,
+            )
+            lines.append(
+                "Big 3 sign differences:"
+                if analysis_mode == "dissimilarities"
+                else "Big 3 sign matches:"
+            )
+            if big_3_lines:
+                lines.extend(big_3_lines)
+            else:
                 lines.append(
-                    _section_title_with_weight_and_match(
-                        f"{label}:",
-                        key,
-                        component_weight_percents,
-                        component_score_percents,
-                    )
+                    "No Big 3 signs differ."
+                    if analysis_mode == "dissimilarities"
+                    else "No Big 3 signs are in common."
                 )
             lines.append("")
         if analysis_mode == "dissimilarities":
@@ -2205,28 +2280,30 @@ def build_similarity_reasoning_panel_html(
                 component_weight_percents=component_weight_percents,
                 component_score_percents=component_score_percents,
             )
-            big_3_items: list[str] = []
-            for key in resolve_similarity_component_keys_for_display(
-                algorithm_mode=algorithm_mode,
-                similarity_settings=similarity_settings,
-            ):
-                if key not in component_score_percents:
-                    continue
-                label = _SIMILARITY_COMPONENT_LABELS.get(key)
-                if not label:
-                    continue
-                big_3_items.append(
-                    _section_title_with_weight_and_match(
-                        f"{label}:",
-                        key,
-                        component_weight_percents,
-                        component_score_percents,
-                    )
-                )
+            big_3_items = _big_3_sign_component_lines(
+                subject_chart=subject_chart,
+                compared_chart=compared_chart,
+                subject_label=subject_title,
+                compared_label=compared_name,
+                component_keys=resolve_similarity_component_keys_for_display(
+                    algorithm_mode=algorithm_mode,
+                    similarity_settings=similarity_settings,
+                ),
+                component_weight_percents=component_weight_percents,
+                component_score_percents=component_score_percents,
+                analysis_mode=analysis_mode,
+            )
             html_lines.append(
                 _section(
-                    "Big 3 sign-match components:",
-                    big_3_items or ["No Big 3 component scores were available."],
+                    "Big 3 sign differences:"
+                    if analysis_mode == "dissimilarities"
+                    else "Big 3 sign matches:",
+                    big_3_items
+                    or (
+                        ["No Big 3 signs differ."]
+                        if analysis_mode == "dissimilarities"
+                        else ["No Big 3 signs are in common."]
+                    ),
                 )
             )
         if analysis_mode == "dissimilarities":
@@ -2746,6 +2823,56 @@ def render_predictions_panel_content(
     _set_widget_rich_or_plain_text(output_widget=output_widget, html_text=html_text, plain_text=plain_text)
 
 
+
+def _predicted_similarity_percent(match: Any) -> float | None:
+    try:
+        return max(0.0, min(100.0, float(getattr(match, "score")) * 100.0))
+    except (TypeError, ValueError):
+        return None
+
+
+def _update_perceived_accuracy_tally(dialog: QDialog) -> None:
+    tally_label = getattr(dialog, "_similar_chart_popout_perceived_accuracy_tally_label", None)
+    if tally_label is None:
+        return
+    widgets = getattr(dialog, "_similar_chart_popout_accuracy_widgets", [])
+    if isinstance(widgets, dict):
+        widget_records = list(widgets.values())
+    else:
+        widget_records = list(widgets or [])
+    entries: list[Mapping[str, Any]] = []
+    for record in widget_records:
+        if not isinstance(record, Mapping):
+            continue
+        predicted_percent = record.get("predicted_percent")
+        line_edit = record.get("input")
+        na_checkbox = record.get("not_applicable_checkbox")
+        not_applicable = bool(na_checkbox.isChecked()) if na_checkbox is not None else False
+        perceived_percent = None
+        if line_edit is not None:
+            text_value = str(line_edit.text() or "").strip()
+            if text_value:
+                try:
+                    perceived_percent = int(text_value)
+                except ValueError:
+                    perceived_percent = None
+        entries.append(
+            {
+                "predicted_percent": predicted_percent,
+                "perceived_percent": perceived_percent,
+                "not_applicable": not_applicable,
+            }
+        )
+    accuracy = calculate_perceived_similarity_accuracy(entries)
+    tally_label.setText(format_perceived_similarity_accuracy_tally(accuracy))
+    if accuracy is None:
+        tally_label.setToolTip("Perceived accuracy tally: enter perceived compatibility scores; n/a rows are excluded.")
+    else:
+        tally_label.setToolTip(
+            "Perceived accuracy tally: 100% minus the average absolute difference "
+            "between predicted compatibility and visible perceived compatibility responses; n/a rows are excluded."
+        )
+
 def build_similar_charts_popout_dialog(
     *,
     parent: QWidget,
@@ -2804,6 +2931,13 @@ def build_similar_charts_popout_dialog(
     if on_make_collection_clicked is not None:
         make_collection_button.clicked.connect(lambda _checked=False: on_make_collection_clicked(dialog))
     top_row.addWidget(make_collection_button, 0, Qt.AlignRight)
+    perceived_accuracy_tally_label = QLabel(format_perceived_similarity_accuracy_tally(None))
+    perceived_accuracy_tally_label.setStyleSheet("font-size: 10px; color: #f5f5f5; padding: 0 6px;")
+    perceived_accuracy_tally_label.setVisible(bool(show_perceived_accuracy_controls))
+    perceived_accuracy_tally_label.setToolTip(
+        "Perceived accuracy tally: enter perceived compatibility scores; n/a rows are excluded."
+    )
+    top_row.addWidget(perceived_accuracy_tally_label, 0, Qt.AlignRight)
     export_button = QToolButton()
     if share_icon_path:
         export_button.setIcon(QIcon(share_icon_path))
@@ -2887,6 +3021,7 @@ def build_similar_charts_popout_dialog(
     dialog._similar_chart_popout_info_output = info_output
     dialog._similar_chart_popout_chart_info_output = chart_info_output
     dialog._similar_chart_popout_make_collection_button = make_collection_button
+    dialog._similar_chart_popout_perceived_accuracy_tally_label = perceived_accuracy_tally_label
     dialog._similar_chart_popout_export_button = export_button
     dialog._similar_chart_popout_subject_link = subject_chart_link
     splitter.addWidget(info_panel)
@@ -2942,14 +3077,14 @@ def build_similar_charts_popout_dialog(
             )
             content_layout.addWidget(result_label)
         else:
-            accuracy_widgets: dict[int, dict[str, Any]] = getattr(
+            accuracy_widgets: list[dict[str, Any]] = getattr(
                 dialog,
                 "_similar_chart_popout_accuracy_widgets",
-                {},
+                [],
             )
-            if not isinstance(accuracy_widgets, dict):
-                accuracy_widgets = {}
-                dialog._similar_chart_popout_accuracy_widgets = accuracy_widgets
+            if not isinstance(accuracy_widgets, list):
+                accuracy_widgets = []
+            dialog._similar_chart_popout_accuracy_widgets = accuracy_widgets
 
             def _accuracy_state_for(match: Any) -> Mapping[str, Any]:
                 if not perceived_accuracy_states:
@@ -2988,8 +3123,10 @@ def build_similar_charts_popout_dialog(
                 )
                 if recorded is False:
                     _set_perceived_accuracy_recorded_style(line_edit, na_checkbox, recorded=False, failed=True)
+                    _update_perceived_accuracy_tally(dialog)
                     return
                 _set_perceived_accuracy_recorded_style(line_edit, na_checkbox, recorded=True)
+                _update_perceived_accuracy_tally(dialog)
 
             def _on_accuracy_edit_finished(
                 match: Any,
@@ -3079,10 +3216,13 @@ def build_similar_charts_popout_dialog(
                 if has_recorded_state:
                     _set_perceived_accuracy_recorded_style(accuracy_input, na_checkbox, recorded=True)
                 accuracy_input.textEdited.connect(
-                    lambda _text, line_edit=accuracy_input, checkbox=na_checkbox: _set_perceived_accuracy_recorded_style(
-                        line_edit,
-                        checkbox,
-                        recorded=False,
+                    lambda _text, line_edit=accuracy_input, checkbox=na_checkbox: (
+                        _set_perceived_accuracy_recorded_style(
+                            line_edit,
+                            checkbox,
+                            recorded=False,
+                        ),
+                        _update_perceived_accuracy_tally(dialog),
                     )
                 )
                 accuracy_input.editingFinished.connect(
@@ -3103,14 +3243,15 @@ def build_similar_charts_popout_dialog(
                 row_layout.addWidget(na_checkbox, 0, Qt.AlignTop | Qt.AlignRight)
                 match_layout.addLayout(row_layout)
                 content_layout.addWidget(match_widget)
-                try:
-                    accuracy_widgets[int(getattr(match, "chart_id", 0))] = {
+                accuracy_widgets.append(
+                    {
                         "input": accuracy_input,
                         "not_applicable_checkbox": na_checkbox,
                         "panel_key": panel_key,
+                        "match": match,
+                        "predicted_percent": _predicted_similarity_percent(match),
                     }
-                except (TypeError, ValueError):
-                    pass
+                )
 
         content_layout.addStretch(1)
         scroll.setWidget(content)
@@ -3121,4 +3262,5 @@ def build_similar_charts_popout_dialog(
     list_splitter.addWidget(_panel("Top 25 Least Similar Charts", least_similar_matches, "least"))
     splitter.setSizes([320, 860])
     list_splitter.setSizes([430, 430])
+    _update_perceived_accuracy_tally(dialog)
     return dialog
