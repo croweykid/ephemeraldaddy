@@ -162,7 +162,7 @@ def build_human_design_analytics_panel(
     hd_result: HumanDesignResult,
     chart_theme_colors: dict[str, str],
     subheader_style: str,
-    on_metric_selected: Callable[[str, int], None] | None = None,
+    on_metric_selected: Callable[[str, int, str | None], None] | None = None,
     header_action_widget: QWidget | None = None,
 ) -> QWidget:
     """Build the Human Design popout right-side analytics panel widget."""
@@ -469,7 +469,16 @@ def build_human_design_analytics_panel(
             metric_value = int(raw_value)
         except ValueError:
             return
-        on_metric_selected(metric_kind, metric_value)
+        bar_color = None
+        if hasattr(artist, "get_facecolor"):
+            face_color = artist.get_facecolor()
+            if isinstance(face_color, tuple) and len(face_color) >= 3:
+                bar_color = "#{:02x}{:02x}{:02x}".format(
+                    int(round(float(face_color[0]) * 255)),
+                    int(round(float(face_color[1]) * 255)),
+                    int(round(float(face_color[2]) * 255)),
+                )
+        on_metric_selected(metric_kind, metric_value, bar_color)
 
     for metric_canvas in (hd_line_chart_canvas, hd_color_chart_canvas, hd_tone_chart_canvas):
         metric_canvas.mpl_connect("pick_event", _on_metric_bar_pick)

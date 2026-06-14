@@ -29041,10 +29041,13 @@ class MainWindow(QMainWindow):
             ],
         )
 
-    def _show_human_design_line_info(self, line_value: int) -> None:
+    def _show_human_design_line_info(self, line_value: int, *, accent_color: str | None = None) -> None:
         line_nickname = str(LINE_NICKNAMES.get(int(line_value), {}).get("name", "Unknown"))
         line_archetype = str(LINE_ARCHETYPES.get(int(line_value), "No line archetype available."))
-        self._set_human_design_info_text(
+        raw_line_color = str(accent_color or HD_LINE_COLORS.get(int(line_value), CHART_DATA_HIGHLIGHT_COLOR))
+        line_color = raw_line_color if raw_line_color.startswith("#") else f"#{raw_line_color}"
+        render_human_design_info_text_with_accent(
+            self.chart_info_output,
             f"Line {line_value}: {line_nickname}",
             [
                 "Line System:",
@@ -29053,6 +29056,7 @@ class MainWindow(QMainWindow):
                 f"• Nickname: {line_nickname}.",
                 f"• Archetype: {line_archetype}",
             ],
+            accent_color=line_color,
         )
 
     def _show_species_info(
@@ -33171,10 +33175,10 @@ class MainWindow(QMainWindow):
         center_splitter.setStretchFactor(0, 7)
         center_splitter.setStretchFactor(1, 3)
 
-        def _on_hd_metric_selected(metric_kind: str, metric_value: int) -> None:
+        def _on_hd_metric_selected(metric_kind: str, metric_value: int, bar_color: str | None = None) -> None:
             def _render_metric_info() -> None:
                 if metric_kind == "hd_line":
-                    self._show_human_design_line_info(int(metric_value))
+                    self._show_human_design_line_info(int(metric_value), accent_color=bar_color)
                     return
                 if metric_kind == "hd_color":
                     self._show_human_design_color_info(int(metric_value))
