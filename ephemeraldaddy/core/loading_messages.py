@@ -119,7 +119,7 @@ ANTICIPATION_SEQUENCE = LoadingSequence(
 )
 
 CONFLICT_SEQUENCE = LoadingSequence(
-    key="anticipation_bit",
+    key="conflict_bit",
     messages=(
     "Love your outfit, btw.",
     "I'm being so sincere rn.",
@@ -135,7 +135,7 @@ CONFLICT_SEQUENCE = LoadingSequence(
 
 
 WEEBU_CONFLICT_SEQUENCE = LoadingSequence(
-    key="anticipation_bit",
+    key="weeb_conflict_bit",
     messages=(
     "*ninjas leap out from the sidelines*",
     "KYYYYYAAA!!! get out of my database, ya damn ninjas!",
@@ -158,6 +158,15 @@ WEEBU_CONFLICT_SEQUENCE = LoadingSequence(
     ),
 )
 
+SNACK_SEQUENCE = LoadingSequence(
+    key="snack_bit",
+    messages=(
+    "If you're stepping away for a snack, I hope you make a healthy choice...",
+    "Don't make an unhealthy choice just to spite me, either.",
+    "Cos that's not real agency.",
+    ),
+)
+
 LOADING_MESSAGE_SEQUENCES: tuple[LoadingSequence, ...] = (
     BASIC_LOADING_SEQUENCE,
     RAM_LOADING_SEQUENCE,
@@ -169,6 +178,10 @@ LOADING_MESSAGE_SEQUENCES: tuple[LoadingSequence, ...] = (
     PURPOSE_SEQUENCE,
     REGRET_SEQUENCE,
     TENCHI_MUYO_SEQUENCE,
+    WEEBU_CONFLICT_SEQUENCE,
+    CONFLICT_SEQUENCE,
+    SNACK_SEQUENCE,
+    ANTICIPATION_SEQUENCE,
 )
 
 
@@ -178,7 +191,11 @@ STANDALONE_LOADING_MESSAGES: tuple[str, ...] = (
     "hang in there, baby 🐱…"
     "give it time...",
     "*royalty-free bossa nova music plays*",
-    "",
+    "...",
+    "Things are going to get better.",
+    "This is probably not how the rest of our lives are going to be.",
+    "Don't give up.",
+    "*crickets*",
 )
 
 
