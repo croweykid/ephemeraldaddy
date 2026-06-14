@@ -290,6 +290,43 @@ def _sentiment_estimate_html(average: float, median: float) -> str:
     return f"{avg_phrase} <span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'></span>{median_phrase}"
 
 
+def _scale_phrase_html(emoji: str, label: str, color: str) -> str:
+    return f"{html.escape(emoji)} <span style='color:{color}'>{html.escape(label)}</span>"
+
+
+def _estimate_range_sentence_html(
+    *,
+    label: str,
+    first_estimate_html: str,
+    first_bucket_label: str,
+    second_estimate_html: str,
+    second_bucket_label: str,
+) -> str:
+    escaped_label = html.escape(label)
+    if first_bucket_label == second_bucket_label:
+        return (
+            f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>{escaped_label}:</span> "
+            f"{first_estimate_html}"
+        )
+    return (
+        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>{escaped_label} estimate ranges from</span> "
+        f"'{first_estimate_html}' <span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>to</span> "
+        f"'{second_estimate_html}'"
+    )
+
+
+def _sentiment_range_sentence_html(best_case: float, worst_case: float) -> str:
+    best_emoji, best_label, best_color = _sentiment_scale_bucket(best_case)
+    worst_emoji, worst_label, worst_color = _sentiment_scale_bucket(worst_case)
+    return _estimate_range_sentence_html(
+        label="User's approval",
+        first_estimate_html=_scale_phrase_html(best_emoji, best_label, best_color),
+        first_bucket_label=best_label,
+        second_estimate_html=_scale_phrase_html(worst_emoji, worst_label, worst_color),
+        second_bucket_label=worst_label,
+    )
+
+
 def _alignment_scale_bucket(value: float) -> tuple[str, str, str]:
     for label, scale in ALIGNMENT_SCALE.items():
         minimum = float(scale.get("min", 0))
@@ -324,6 +361,18 @@ def _alignment_estimate_html(average: float, median: float) -> str:
         #f"{html.escape(median_emoji)} <span style='color:{median_color}'>{html.escape(median_label)}</span>"
     )
     return f"{avg_phrase} <span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'></span>{median_phrase}"
+
+
+def _alignment_range_sentence_html(low_estimate: float, high_estimate: float) -> str:
+    low_emoji, low_label, low_color = _alignment_scale_bucket(low_estimate)
+    high_emoji, high_label, high_color = _alignment_scale_bucket(high_estimate)
+    return _estimate_range_sentence_html(
+        label="Ethical",
+        first_estimate_html=_scale_phrase_html(low_emoji, low_label, low_color),
+        first_bucket_label=low_label,
+        second_estimate_html=_scale_phrase_html(high_emoji, high_label, high_color),
+        second_bucket_label=high_label,
+    )
 
 SIMILAR_INFO_TARGET_PREFIX = "sim-info"
 SIMILARITY_SECTION_HEADER_COLOR = "#B87333"
@@ -2783,6 +2832,8 @@ def build_predictions_panel_content(
 
     alignment_median_numeric = float(statistics.median(alignment_values))
     alignment_avg_numeric = float(statistics.fmean(alignment_values))
+    alignment_min_numeric = float(min(alignment_values))
+    alignment_max_numeric = float(max(alignment_values))
 
     alignment_skip_footnote_html = ""
     alignment_skip_footnote_text = ""
@@ -2799,14 +2850,11 @@ def build_predictions_panel_content(
         f"<div style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>PREDICTIONS</div>"
         f"<div style='margin-top:4px;color:#f5f5f5;font-style:italic'>"
         #"Predictions for this chart based on user-submitted sentiment & alignment scores for similar charts."
-        f"Based on similar charts, the user is probably sees {html.escape(subject_name)} as...<br><br> "
+        f"Based on similar charts, the user probably sees {html.escape(subject_name)} as...<br><br> "
         "</div>"
         f"<div style='margin-top:6px;color:#f5f5f5'>"
-        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>Likeability (best case):</span> {_sentiment_estimate_html(positive_avg_numeric, positive_median_numeric)}<br>"
-        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>Likeability (worst case):</span></span> "
-        f"{_sentiment_estimate_html(-negative_avg_numeric, -negative_median_numeric)}<br><br>" 
-        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>Ethically:</span> "
-        f"{_alignment_estimate_html(alignment_avg_numeric, alignment_median_numeric)}."
+        f"{_sentiment_range_sentence_html(positive_avg_numeric, -negative_avg_numeric)}<br><br>"
+        f"{_alignment_range_sentence_html(alignment_min_numeric, alignment_max_numeric)}."
         "</div>"
         + alignment_skip_footnote_html
     )
