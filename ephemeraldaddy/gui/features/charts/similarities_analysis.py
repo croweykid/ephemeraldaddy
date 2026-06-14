@@ -36,6 +36,11 @@ from ephemeraldaddy.gui.features.charts.metrics import (
 from ephemeraldaddy.gui.features.charts.presentation import get_nakshatra, sign_for_longitude
 from ephemeraldaddy.gui.features.charts.similarities_export import similarities_label_has_excluded_bodies
 from ephemeraldaddy.gui.features.charts.text_summary import _aspect_label
+from ephemeraldaddy.gui.features.charts.progress_cancel import (
+    mark_progress_canceled,
+    raise_if_progress_canceled,
+)
+from ephemeraldaddy.core.loading_messages import LoadingMessageRotator
 
 
 @dataclass(slots=True)
@@ -532,14 +537,17 @@ def show_similarities_loading_progress(
     parent: QWidget | None,
     message: str = "Calculating similarities analysis…",
 ) -> QProgressDialog:
-    progress = QProgressDialog(message, None, 0, 0, parent)
+    progress = QProgressDialog(message, "Stop that!", 0, 0, parent)
     progress.setWindowTitle("Similarities Analysis")
     progress.setWindowModality(Qt.WindowModal)
-    progress.setCancelButton(None)
     progress.setMinimumDuration(0)
     progress.setAutoClose(False)
     progress.setAutoReset(False)
+    progress.setProperty("operation_canceled", False)
+    progress.canceled.connect(lambda p=progress: mark_progress_canceled(p))
     progress.setValue(0)
+    rotator = LoadingMessageRotator(initial_message=message)
+    progress._loading_message_rotator = rotator
     progress.show()
     QApplication.processEvents(QEventLoop.AllEvents, 50)
     return progress
@@ -551,9 +559,11 @@ def update_similarities_loading_progress(
 ) -> None:
     if progress is None:
         return
+    raise_if_progress_canceled(progress)
     progress.setLabelText(message)
     progress.setValue(0)
     QApplication.processEvents(QEventLoop.AllEvents, 50)
+    raise_if_progress_canceled(progress)
 
 
 def close_similarities_loading_progress(progress: QProgressDialog | None) -> None:

@@ -56,6 +56,7 @@ from ephemeraldaddy.analysis.get_astro_twin import (
 )
 from ephemeraldaddy.core.aspect_display import display_aspect_key
 from ephemeraldaddy.core.chart import chart_uses_houses
+from ephemeraldaddy.core.loading_messages import LoadingMessageRotator
 from ephemeraldaddy.core.interpretations import (
     ALIGNMENT_SCALE,
     ASPECT_SCORE_WEIGHTS,
@@ -74,6 +75,11 @@ from ephemeraldaddy.core.interpretations import (
 )
 from ephemeraldaddy.gui.features.charts.presentation import get_nakshatra, sign_for_longitude
 from ephemeraldaddy.gui.features.charts.provenance import chart_row_is_non_aggregable
+from ephemeraldaddy.gui.features.charts.progress_cancel import (
+    OperationCanceled,
+    mark_progress_canceled,
+    raise_if_progress_canceled,
+)
 from ephemeraldaddy.gui.features.charts.similarity_norms import similarity_z_score
 from ephemeraldaddy.gui.features.charts.chart_similarity_relationships import perceived_accuracy_state_key
 from ephemeraldaddy.gui.features.charts.metrics import calculate_dominant_nakshatra_weights
@@ -114,14 +120,16 @@ def show_similar_charts_loading_progress(
     parent: QWidget | None,
     message: str = "Preparing similar chart calculations…",
 ) -> QProgressDialog:
-    progress = QProgressDialog(message, None, 0, 0, parent)
+    progress = QProgressDialog(message, "Stop that!", 0, 0, parent)
     progress.setWindowTitle("Similar Charts")
     progress.setWindowModality(Qt.WindowModal)
-    progress.setCancelButton(None)
     progress.setMinimumDuration(0)
     progress.setAutoClose(False)
     progress.setAutoReset(False)
+    progress.setProperty("operation_canceled", False)
+    progress.canceled.connect(lambda p=progress: mark_progress_canceled(p))
     progress.setValue(0)
+    progress.setProperty("loading_message_rotator", LoadingMessageRotator(initial_message=message))
     progress.show()
     QApplication.processEvents(QEventLoop.AllEvents, 50)
     return progress
@@ -133,9 +141,11 @@ def update_similar_charts_loading_progress(
 ) -> None:
     if progress is None:
         return
+    raise_if_progress_canceled(progress)
     progress.setLabelText(message)
     progress.setValue(0)
     QApplication.processEvents(QEventLoop.AllEvents, 50)
+    raise_if_progress_canceled(progress)
 
 
 def close_similar_charts_loading_progress(
