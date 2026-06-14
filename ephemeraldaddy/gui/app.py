@@ -18023,7 +18023,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         changed_ids: set[int] | None = None,
         force_full_analysis_refresh: bool = False,
         refresh_tag_completers: bool = True,
+        progress_callback: Callable[[str, int], None] | None = None,
     ) -> None:
+        if progress_callback:
+            progress_callback("Loading saved chart rows…", 90)
         try:
             self._chart_rows = list_charts()
         except Exception as e:
@@ -18034,6 +18037,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             self._chart_rows = []
         if refresh_tag_completers:
+            if progress_callback:
+                progress_callback("Refreshing Database filters…", 91)
             self._update_tag_completers()
 
         malformed_rows = [row for row in self._chart_rows if self._normalize_chart_row(row) is None]
@@ -18043,6 +18048,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 "list_charts() returned malformed MUTANT row data. "
                 f"Example row: {sample!r}"
             )
+        if progress_callback:
+            progress_callback("Preparing Database caches…", 92)
         self._prediction_norms_revision = int(getattr(self, "_prediction_norms_revision", 0)) + 1
         if force_full_analysis_refresh:
             self._chart_cache = {}
@@ -18066,6 +18073,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             refresh_metrics=refresh_metrics,
             changed_ids=changed_ids,
             force_full_analysis_refresh=force_full_analysis_refresh,
+            progress_callback=progress_callback,
         )
 
     @staticmethod
@@ -18136,12 +18144,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         refresh_metrics: bool = True,
         changed_ids: set[int] | None = None,
         force_full_analysis_refresh: bool = False,
+        progress_callback: Callable[[str, int], None] | None = None,
     ) -> None:
         if selected_ids is not None:
             self._replace_persistent_selection(selected_ids)
         else:
             self._reconcile_persistent_selection_with_database()
         selected_ids = set(getattr(self, "_selected_chart_ids_set", set()))
+        if progress_callback:
+            progress_callback("Syncing chart tools…", 93)
         self._refresh_personal_transit_chart_options()
         self._refresh_similarities_chart_options()
         list_signal_blocker = QSignalBlocker(self.list_widget)
@@ -18167,6 +18178,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._active_chart_rows_by_id = {int(row[0]): row for row in rows}
         self._displayed_chart_rows_by_id = {}
         self._active_collection_total_count = len(rows)
+        if progress_callback:
+            progress_callback("Sorting Database rows…", 94)
         if self._sort_mode == "alpha":
             rows.sort(key=lambda r: (r[1] or "").lower(), reverse=self._sort_descending)
         elif self._sort_mode == "birthdate":
@@ -18228,6 +18241,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "_database_view_row_info_visibility",
             DATABASE_VIEW_ROW_INFO_DEFAULTS,
         )
+        rendered_row_count = 0
+        total_rows = max(len(rows), 1)
+        if progress_callback:
+            progress_callback("Rendering Database rows…", 95)
         try:
             for (
                 cid,
@@ -18467,12 +18484,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     },
                 )
                 self.list_widget.addItem(item)
+                rendered_row_count += 1
+                if progress_callback and (rendered_row_count == 1 or rendered_row_count % 25 == 0):
+                    progress_callback(
+                        f"Rendering Database rows… {rendered_row_count}/{total_rows}",
+                        min(96, 95 + int(rendered_row_count * 1 / total_rows)),
+                    )
                 visible_chart_ids.add(int(cid))
                 if selected_ids and cid in selected_ids:
                     item.setSelected(True)
         finally:
             del list_signal_blocker
         self._visible_chart_ids = visible_chart_ids
+        if progress_callback:
+            progress_callback("Updating Database metrics…", 96)
         if refresh_metrics:
             if self._should_use_incremental_metrics_refresh():
                 self._update_sentiment_tally(
