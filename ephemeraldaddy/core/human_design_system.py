@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Literal
 
 from ephemeraldaddy.analysis.hd_incarnation_crosses import HD_INCARNATION_CROSSES
 from ephemeraldaddy.core.ephemeris import planetary_longitude
+from ephemeraldaddy.core.timeutils import timezone_from_latlon
 
 if TYPE_CHECKING:
     from ephemeraldaddy.core.chart import Chart
@@ -349,8 +350,47 @@ def _resolve_incarnation_cross(
     )
 
 
+def _effective_human_design_datetime(chart: "Chart") -> datetime:
+    """Return the datetime Human Design should use for the supplied chart.
+
+    Chart View can keep the original/noon ``dt`` on loaded charts while storing
+    the active rectified time separately in ``retcon_hour``/``retcon_minute``.
+    Human Design does not use houses, so it previously bypassed the chart
+    module's time-specific metadata recomputation and read ``chart.dt``
+    directly.  That made the text panel and Human Design popout disagree after
+    toggling rectified time.  Treat the rectified wall time as canonical
+    whenever it is enabled, and reattach the location's real timezone before
+    UTC conversion so loaded fixed-offset datetimes do not drift across DST
+    boundaries.
+    """
+
+    dt = chart.dt
+    if bool(getattr(chart, "retcon_time_used", False)):
+        retcon_hour = getattr(chart, "retcon_hour", None)
+        retcon_minute = getattr(chart, "retcon_minute", None)
+        if retcon_hour is not None and retcon_minute is not None:
+            try:
+                retcon_naive = datetime(
+                    dt.year,
+                    dt.month,
+                    dt.day,
+                    int(retcon_hour),
+                    int(retcon_minute),
+                )
+                lat = getattr(chart, "lat", None)
+                lon = getattr(chart, "lon", None)
+                if lat is not None and lon is not None:
+                    tz, _inferred_ok = timezone_from_latlon(float(lat), float(lon))
+                    return retcon_naive.replace(tzinfo=tz)
+                if dt.tzinfo is not None:
+                    return retcon_naive.replace(tzinfo=dt.tzinfo)
+            except Exception:
+                return dt
+    return dt
+
+
 def calculate_human_design(chart: "Chart") -> HumanDesignResult:
-    birth_utc = chart.dt.astimezone(timezone.utc)
+    birth_utc = _effective_human_design_datetime(chart).astimezone(timezone.utc)
     personality = _body_longitudes(birth_utc)
     design_utc = _solve_design_utc(birth_utc, personality["Sun"])
     design = _body_longitudes(design_utc)
