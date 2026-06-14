@@ -226,3 +226,36 @@ def test_similarity_reasoning_html_links_chart_info_terms():
     assert "chart-info:body:Sun" in html
     assert "chart-info:sign:Aries" in html
     assert "chart-info:house:1" in html
+
+
+def test_big_3_similarity_reasoning_html_shows_component_breakdown_for_both_analysis_modes():
+    from ephemeraldaddy.gui.features.charts.similar_charts_popout import (  # noqa: PLC0415
+        build_similarity_reasoning_panel_html,
+    )
+
+    subject = SimpleNamespace(
+        name="Subject",
+        positions={"Sun": 5.0, "Moon": 45.0, "Mercury": 65.0, "Venus": 95.0, "Mars": 125.0},
+    )
+    compared = SimpleNamespace(
+        name="Compared",
+        positions={"Sun": 6.0, "Moon": 75.0, "Mercury": 66.0, "Venus": 155.0, "Mars": 126.0},
+    )
+    match = SimpleNamespace(chart_id=7, chart_name="Compared", algorithm_mode="big_3", score=0.5)
+
+    for analysis_mode in ("similarities", "dissimilarities"):
+        html = build_similarity_reasoning_panel_html(
+            match=match,
+            subject_name="Subject",
+            subject_chart=subject,
+            compared_chart=compared,
+            resolve_similarity_band=_band_for_test,
+            analysis_mode=analysis_mode,
+        )
+
+        assert "Big 3 sign-match components:" in html
+        assert "Sun</a> sign:" in html
+        assert "Moon</a> sign:" in html
+        assert "Mercury</a> sign:" in html
+        assert "Rising sign:" in html
+        assert "MC</a> sign:" in html
