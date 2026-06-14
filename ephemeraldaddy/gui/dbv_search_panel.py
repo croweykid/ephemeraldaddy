@@ -563,54 +563,65 @@ def build_dbv_search_panel(window) -> "QWidget":
 
     layout.addWidget(aspect_section)
 
-    #Search: Dominant Sign section
+    #Search: Sign section
     dominant_section, dominant_group_layout = add_collapsible_section(
-        "🪐Dominant Sign" #dominant astrological sign
+        "🪐Sign" #dominant/subordinate astrological sign
     )
 
     dominant_layout = QFormLayout()
     dominant_layout.setLabelAlignment(Qt.AlignLeft)
     dominant_group_layout.addLayout(dominant_layout)
 
-    for _ in range(3):
-        dominant_row = QWidget()
-        dominant_row_layout = QHBoxLayout()
-        dominant_row_layout.setContentsMargins(0, 0, 0, 0)
-        dominant_row.setLayout(dominant_row_layout)
+    def add_sign_filter_rows(target_filters: list[dict[str, object]]) -> None:
+        for _ in range(3):
+            sign_row = QWidget()
+            sign_row_layout = QHBoxLayout()
+            sign_row_layout.setContentsMargins(0, 0, 0, 0)
+            sign_row.setLayout(sign_row_layout)
 
-        sign_combo = QComboBox()
-        apply_default_dropdown_style(sign_combo)
-        sign_combo.addItem("Any 🌟", "Any")
-        set_dropdown_width_chars(sign_combo, 6)
-        for sign in ZODIAC_NAMES:
-            sign_combo.addItem(sign)
-        narrow_dropdown_for_not_option(sign_combo)
-        sign_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
+            sign_combo = QComboBox()
+            apply_default_dropdown_style(sign_combo)
+            sign_combo.addItem("Any 🌟", "Any")
+            set_dropdown_width_chars(sign_combo, 6)
+            for sign in ZODIAC_NAMES:
+                sign_combo.addItem(sign)
+            narrow_dropdown_for_not_option(sign_combo)
+            sign_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
 
-        filter_and = QRadioButton("&&")
-        filter_or = QRadioButton("OR")
-        filter_not = QRadioButton("🚫")
-        filter_group = QButtonGroup(dominant_row)
-        filter_group.setExclusive(True)
-        filter_group.addButton(filter_and)
-        filter_group.addButton(filter_or)
-        filter_group.addButton(filter_not)
-        filter_and.setChecked(True)
-        filter_group.buttonClicked.connect(window._on_filter_changed)
+            filter_and = QRadioButton("&&")
+            filter_or = QRadioButton("OR")
+            filter_not = QRadioButton("🚫")
+            filter_group = QButtonGroup(sign_row)
+            filter_group.setExclusive(True)
+            filter_group.addButton(filter_and)
+            filter_group.addButton(filter_or)
+            filter_group.addButton(filter_not)
+            filter_and.setChecked(True)
+            filter_group.buttonClicked.connect(window._on_filter_changed)
 
-        dominant_row_layout.addWidget(sign_combo)
-        dominant_row_layout.addWidget(filter_and)
-        dominant_row_layout.addWidget(filter_or)
-        dominant_row_layout.addWidget(filter_not)
-        dominant_row_layout.addStretch(1)
+            sign_row_layout.addWidget(sign_combo)
+            sign_row_layout.addWidget(filter_and)
+            sign_row_layout.addWidget(filter_or)
+            sign_row_layout.addWidget(filter_not)
+            sign_row_layout.addStretch(1)
 
-        window._dominant_sign_filters.append({
-            "sign": sign_combo,
-            "and": filter_and,
-            "or": filter_or,
-            "not": filter_not,
-        })
-        dominant_layout.addRow(dominant_row)
+            target_filters.append({
+                "sign": sign_combo,
+                "and": filter_and,
+                "or": filter_or,
+                "not": filter_not,
+            })
+            dominant_layout.addRow(sign_row)
+
+    dominant_sign_header = QLabel("Dominant Sign")
+    dominant_sign_header.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+    dominant_layout.addRow(dominant_sign_header)
+    add_sign_filter_rows(window._dominant_sign_filters)
+
+    subordinate_sign_header = QLabel("Subordinate Sign")
+    subordinate_sign_header.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+    dominant_layout.addRow(subordinate_sign_header)
+    add_sign_filter_rows(window._subordinate_sign_filters)
 
     layout.addWidget(dominant_section)
 
@@ -665,151 +676,6 @@ def build_dbv_search_panel(window) -> "QWidget":
         dominant_planet_layout.addRow(dominant_planet_row)
 
     layout.addWidget(dominant_planet_section)
-
-    #Search: Body Dynamics section
-    body_dynamics_section, body_dynamics_group_layout = add_collapsible_section(
-        "🪐Body Dynamics"
-    )
-
-    body_dynamics_layout = QFormLayout()
-    body_dynamics_layout.setLabelAlignment(Qt.AlignLeft)
-    body_dynamics_group_layout.addLayout(body_dynamics_layout)
-
-    for _ in range(3):
-        body_dynamics_row = QWidget()
-        body_dynamics_row_layout = QHBoxLayout()
-        body_dynamics_row_layout.setContentsMargins(0, 0, 0, 0)
-        body_dynamics_row.setLayout(body_dynamics_row_layout)
-
-        body_combo = QComboBox()
-        apply_default_dropdown_style(body_combo)
-        body_combo.addItem("Any 🪐", "Any")
-        set_dropdown_width_chars(body_combo, 10)
-        for body in JONES_PLANETS:
-            body_combo.addItem(compact_body_label(body), body)
-        body_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
-
-        role_combo = QComboBox()
-        apply_default_dropdown_style(role_combo)
-        role_combo.addItem("Any ±", "any")
-        set_dropdown_width_chars(role_combo, 10)
-        for role_label, role_key in BODY_DYNAMICS_ROLE_OPTIONS:
-            role_combo.addItem(role_label, role_key)
-        role_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
-
-        filter_and = QRadioButton("&&")
-        filter_or = QRadioButton("OR")
-        filter_exclude = QRadioButton("🚫")
-        filter_group = QButtonGroup(body_dynamics_row)
-        filter_group.setExclusive(True)
-        filter_group.addButton(filter_and)
-        filter_group.addButton(filter_or)
-        filter_group.addButton(filter_exclude)
-        filter_and.setChecked(True)
-        filter_group.buttonClicked.connect(window._on_filter_changed)
-
-        body_dynamics_row_layout.addWidget(body_combo, 1)
-        body_dynamics_row_layout.addWidget(role_combo, 1)
-        body_dynamics_row_layout.addWidget(filter_and)
-        body_dynamics_row_layout.addWidget(filter_or)
-        body_dynamics_row_layout.addWidget(filter_exclude)
-
-        window._body_dynamics_filters.append({
-            "body": body_combo,
-            "role": role_combo,
-            "and": filter_and,
-            "or": filter_or,
-            "exclude": filter_exclude,
-        })
-        body_dynamics_layout.addRow(body_dynamics_row)
-
-    layout.addWidget(body_dynamics_section)
-
-    #Search: Dominant Mode section
-    dominant_mode_section, dominant_mode_group_layout = add_collapsible_section(
-        "🪐Dominant Mode" #dominant astrological mode
-    )
-
-    dominant_mode_layout = QFormLayout()
-    dominant_mode_layout.setLabelAlignment(Qt.AlignLeft)
-    dominant_mode_group_layout.addLayout(dominant_mode_layout)
-
-    dominant_mode_row = QWidget()
-    dominant_mode_row_layout = QHBoxLayout()
-    dominant_mode_row_layout.setContentsMargins(0, 0, 0, 0)
-    dominant_mode_row.setLayout(dominant_mode_row_layout)
-
-    mode_combo = QComboBox()
-    apply_default_dropdown_style(mode_combo)
-    mode_combo.addItem("Any", "Any")
-    mode_combo.addItem("Cardinal", "cardinal")
-    mode_combo.addItem("Mutable", "mutable")
-    mode_combo.addItem("Fixed", "fixed")
-    narrow_dropdown_for_not_option(mode_combo)
-    mode_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
-
-    filter_and = QRadioButton("&&")
-    filter_or = QRadioButton("OR")
-    filter_not = QRadioButton("🚫")
-    filter_group = QButtonGroup(dominant_mode_row)
-    filter_group.setExclusive(True)
-    filter_group.addButton(filter_and)
-    filter_group.addButton(filter_or)
-    filter_group.addButton(filter_not)
-    filter_and.setChecked(True)
-    filter_group.buttonClicked.connect(window._on_filter_changed)
-
-    dominant_mode_row_layout.addWidget(mode_combo)
-    dominant_mode_row_layout.addWidget(filter_and)
-    dominant_mode_row_layout.addWidget(filter_or)
-    dominant_mode_row_layout.addWidget(filter_not)
-    dominant_mode_row_layout.addStretch(1)
-
-    window._dominant_mode_filters.append({
-        "mode": mode_combo,
-        "and": filter_and,
-        "or": filter_or,
-        "not": filter_not,
-    })
-    dominant_mode_layout.addRow(dominant_mode_row)
-
-    layout.addWidget(dominant_mode_section)
-
-    # Search: Decans section
-    decan_section, decan_group_layout = add_collapsible_section("🪐Decans")
-    decan_layout = QFormLayout()
-    decan_layout.setLabelAlignment(Qt.AlignLeft)
-    decan_group_layout.addLayout(decan_layout)
-
-    decan_row = QWidget()
-    decan_row_layout = QHBoxLayout()
-    decan_row_layout.setContentsMargins(0, 0, 0, 0)
-    decan_row.setLayout(decan_row_layout)
-
-    decan_sign_combo = QComboBox()
-    apply_default_dropdown_style(decan_sign_combo)
-    decan_sign_combo.addItem("Any", "Any")
-    for sign_name in ZODIAC_NAMES:
-        decan_sign_combo.addItem(str(sign_name), str(sign_name))
-    decan_sign_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
-
-    decan_number_combo = QComboBox()
-    apply_default_dropdown_style(decan_number_combo)
-    decan_number_combo.addItem("Any", "Any")
-    decan_number_combo.addItem("1", "1")
-    decan_number_combo.addItem("2", "2")
-    decan_number_combo.addItem("3", "3")
-    decan_number_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
-
-    #decan_row_layout.addWidget(QLabel("")) #🔟
-    decan_row_layout.addWidget(decan_sign_combo, 1)
-    decan_row_layout.addWidget(decan_number_combo, 1)
-    decan_row_layout.addStretch(1)
-
-    window._decan_sign_filter_combo = decan_sign_combo
-    window._decan_number_filter_combo = decan_number_combo
-    decan_layout.addRow(decan_row)
-    layout.addWidget(decan_section)
 
     #Search: Dominant Nakshatra section
     dominant_nakshatra_section, dominant_nakshatra_group_layout = add_collapsible_section(
@@ -910,6 +776,151 @@ def build_dbv_search_panel(window) -> "QWidget":
         dominant_element_layout.addRow(dominant_element_row)
 
     layout.addWidget(dominant_element_section)
+
+    #Search: Dominant Mode section
+    dominant_mode_section, dominant_mode_group_layout = add_collapsible_section(
+        "🪐Dominant Mode" #dominant astrological mode
+    )
+
+    dominant_mode_layout = QFormLayout()
+    dominant_mode_layout.setLabelAlignment(Qt.AlignLeft)
+    dominant_mode_group_layout.addLayout(dominant_mode_layout)
+
+    dominant_mode_row = QWidget()
+    dominant_mode_row_layout = QHBoxLayout()
+    dominant_mode_row_layout.setContentsMargins(0, 0, 0, 0)
+    dominant_mode_row.setLayout(dominant_mode_row_layout)
+
+    mode_combo = QComboBox()
+    apply_default_dropdown_style(mode_combo)
+    mode_combo.addItem("Any", "Any")
+    mode_combo.addItem("Cardinal", "cardinal")
+    mode_combo.addItem("Mutable", "mutable")
+    mode_combo.addItem("Fixed", "fixed")
+    narrow_dropdown_for_not_option(mode_combo)
+    mode_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
+
+    filter_and = QRadioButton("&&")
+    filter_or = QRadioButton("OR")
+    filter_not = QRadioButton("🚫")
+    filter_group = QButtonGroup(dominant_mode_row)
+    filter_group.setExclusive(True)
+    filter_group.addButton(filter_and)
+    filter_group.addButton(filter_or)
+    filter_group.addButton(filter_not)
+    filter_and.setChecked(True)
+    filter_group.buttonClicked.connect(window._on_filter_changed)
+
+    dominant_mode_row_layout.addWidget(mode_combo)
+    dominant_mode_row_layout.addWidget(filter_and)
+    dominant_mode_row_layout.addWidget(filter_or)
+    dominant_mode_row_layout.addWidget(filter_not)
+    dominant_mode_row_layout.addStretch(1)
+
+    window._dominant_mode_filters.append({
+        "mode": mode_combo,
+        "and": filter_and,
+        "or": filter_or,
+        "not": filter_not,
+    })
+    dominant_mode_layout.addRow(dominant_mode_row)
+
+    layout.addWidget(dominant_mode_section)
+
+    #Search: Body Dynamics section
+    body_dynamics_section, body_dynamics_group_layout = add_collapsible_section(
+        "🪐Body Dynamics"
+    )
+
+    body_dynamics_layout = QFormLayout()
+    body_dynamics_layout.setLabelAlignment(Qt.AlignLeft)
+    body_dynamics_group_layout.addLayout(body_dynamics_layout)
+
+    for _ in range(3):
+        body_dynamics_row = QWidget()
+        body_dynamics_row_layout = QHBoxLayout()
+        body_dynamics_row_layout.setContentsMargins(0, 0, 0, 0)
+        body_dynamics_row.setLayout(body_dynamics_row_layout)
+
+        body_combo = QComboBox()
+        apply_default_dropdown_style(body_combo)
+        body_combo.addItem("Any 🪐", "Any")
+        set_dropdown_width_chars(body_combo, 10)
+        for body in JONES_PLANETS:
+            body_combo.addItem(compact_body_label(body), body)
+        body_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
+
+        role_combo = QComboBox()
+        apply_default_dropdown_style(role_combo)
+        role_combo.addItem("Any ±", "any")
+        set_dropdown_width_chars(role_combo, 10)
+        for role_label, role_key in BODY_DYNAMICS_ROLE_OPTIONS:
+            role_combo.addItem(role_label, role_key)
+        role_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
+
+        filter_and = QRadioButton("&&")
+        filter_or = QRadioButton("OR")
+        filter_exclude = QRadioButton("🚫")
+        filter_group = QButtonGroup(body_dynamics_row)
+        filter_group.setExclusive(True)
+        filter_group.addButton(filter_and)
+        filter_group.addButton(filter_or)
+        filter_group.addButton(filter_exclude)
+        filter_and.setChecked(True)
+        filter_group.buttonClicked.connect(window._on_filter_changed)
+
+        body_dynamics_row_layout.addWidget(body_combo, 1)
+        body_dynamics_row_layout.addWidget(role_combo, 1)
+        body_dynamics_row_layout.addWidget(filter_and)
+        body_dynamics_row_layout.addWidget(filter_or)
+        body_dynamics_row_layout.addWidget(filter_exclude)
+
+        window._body_dynamics_filters.append({
+            "body": body_combo,
+            "role": role_combo,
+            "and": filter_and,
+            "or": filter_or,
+            "exclude": filter_exclude,
+        })
+        body_dynamics_layout.addRow(body_dynamics_row)
+
+    layout.addWidget(body_dynamics_section)
+
+    # Search: Decans section
+    decan_section, decan_group_layout = add_collapsible_section("🪐Decans")
+    decan_layout = QFormLayout()
+    decan_layout.setLabelAlignment(Qt.AlignLeft)
+    decan_group_layout.addLayout(decan_layout)
+
+    decan_row = QWidget()
+    decan_row_layout = QHBoxLayout()
+    decan_row_layout.setContentsMargins(0, 0, 0, 0)
+    decan_row.setLayout(decan_row_layout)
+
+    decan_sign_combo = QComboBox()
+    apply_default_dropdown_style(decan_sign_combo)
+    decan_sign_combo.addItem("Any", "Any")
+    for sign_name in ZODIAC_NAMES:
+        decan_sign_combo.addItem(str(sign_name), str(sign_name))
+    decan_sign_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
+
+    decan_number_combo = QComboBox()
+    apply_default_dropdown_style(decan_number_combo)
+    decan_number_combo.addItem("Any", "Any")
+    decan_number_combo.addItem("1", "1")
+    decan_number_combo.addItem("2", "2")
+    decan_number_combo.addItem("3", "3")
+    decan_number_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
+
+    #decan_row_layout.addWidget(QLabel("")) #🔟
+    decan_row_layout.addWidget(decan_sign_combo, 1)
+    decan_row_layout.addWidget(decan_number_combo, 1)
+    decan_row_layout.addStretch(1)
+
+    window._decan_sign_filter_combo = decan_sign_combo
+    window._decan_number_filter_combo = decan_number_combo
+    decan_layout.addRow(decan_row)
+    layout.addWidget(decan_section)
 
     #Search: Isolated Factors section
     isolated_factors_section, isolated_factors_group_layout = add_collapsible_section(

@@ -2202,6 +2202,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._search_body_filters = []
         self._aspect_filters = []
         self._dominant_sign_filters = []
+        self._subordinate_sign_filters = []
         self._dominant_planet_filters = []
         self._isolated_dominant_body_filter_combo = None
         self._isolated_dominant_sign_filter_combo = None
@@ -10429,6 +10430,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for filters in self._dominant_sign_filters
             if str(filters["sign"].currentData()) != "Any"
         ]
+        active_subordinate_sign_filters = [
+            filters
+            for filters in getattr(self, "_subordinate_sign_filters", [])
+            if str(filters["sign"].currentData()) != "Any"
+        ]
         active_dominant_planet_filters = [
             filters
             for filters in self._dominant_planet_filters
@@ -10660,6 +10666,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             and not active_body_filters
             and not active_aspect_filters
             and not active_dominant_sign_filters
+            and not active_subordinate_sign_filters
             and not active_dominant_planet_filters
             and selected_isolated_dominant_body == "Any"
             and selected_isolated_dominant_sign == "Any"
@@ -16707,6 +16714,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         ):
             return True
         if any(
+            str(filters["sign"].currentData()) != "Any"
+            for filters in getattr(self, "_subordinate_sign_filters", [])
+        ):
+            return True
+        if any(
             str(filters["planet"].currentData()) != "Any"
             for filters in self._dominant_planet_filters
         ):
@@ -16917,6 +16929,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 filters["or"].setChecked(False)
                 filters["and"].setChecked(True)
             for filters in self._dominant_sign_filters:
+                filters["sign"].setCurrentIndex(0)
+                filters["or"].setChecked(False)
+                if "not" in filters and filters["not"] is not None:
+                    filters["not"].setChecked(False)
+                filters["and"].setChecked(True)
+            for filters in getattr(self, "_subordinate_sign_filters", []):
                 filters["sign"].setCurrentIndex(0)
                 filters["or"].setChecked(False)
                 if "not" in filters and filters["not"] is not None:
@@ -18889,6 +18907,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for filters in self._dominant_sign_filters
             if str(filters["sign"].currentData()) != "Any"
         ]
+        active_subordinate_sign_filters = [
+            filters
+            for filters in getattr(self, "_subordinate_sign_filters", [])
+            if str(filters["sign"].currentData()) != "Any"
+        ]
         active_dominant_planet_filters = [
             filters
             for filters in self._dominant_planet_filters
@@ -19663,6 +19686,40 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     filters["sign"].currentText(),
                 ):
                     return False
+        if active_subordinate_sign_filters:
+            subordinate_and_filters = [
+                filters for filters in active_subordinate_sign_filters
+                if filters["and"].isChecked()
+            ]
+            subordinate_or_filters = [
+                filters for filters in active_subordinate_sign_filters
+                if filters["or"].isChecked()
+            ]
+            subordinate_not_filters = [
+                filters for filters in active_subordinate_sign_filters
+                if "not" in filters and filters["not"].isChecked()
+            ]
+            for filters in subordinate_and_filters:
+                if not self._chart_subordinate_sign_matches(
+                    chart,
+                    filters["sign"].currentText(),
+                ):
+                    return False
+            if subordinate_or_filters:
+                if not any(
+                    self._chart_subordinate_sign_matches(
+                        chart,
+                        filters["sign"].currentText(),
+                    )
+                    for filters in subordinate_or_filters
+                ):
+                    return False
+            for filters in subordinate_not_filters:
+                if self._chart_subordinate_sign_matches(
+                    chart,
+                    filters["sign"].currentText(),
+                ):
+                    return False
         if active_dominant_mode_filters:
             dominant_mode_and_filters = [
                 filters for filters in active_dominant_mode_filters
@@ -20122,6 +20179,26 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if sign == "Any":
             return True
         return sign in self._chart_top_three_dominant_signs(chart)
+
+    def _chart_subordinate_sign_matches(
+        self,
+        chart: Chart,
+        sign: str,
+    ) -> bool:
+        if sign == "Any":
+            return True
+        dominant_weights = getattr(chart, "dominant_sign_weights", None)
+        if not dominant_weights:
+            dominant_weights = _calculate_dominant_sign_weights(chart)
+            chart.dominant_sign_weights = dominant_weights
+        if sign not in ZODIAC_NAMES:
+            return False
+        total_weight = sum(
+            float(dominant_weights.get(zodiac_sign, 0.0) or 0.0)
+            for zodiac_sign in ZODIAC_NAMES
+        )
+        average_weight = total_weight / len(ZODIAC_NAMES) if ZODIAC_NAMES else 0.0
+        return float(dominant_weights.get(sign, 0.0) or 0.0) < average_weight
 
     def _chart_dominant_mode_matches(
         self,
