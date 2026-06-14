@@ -123,6 +123,19 @@ def load_humdes_gates(path: str | Path | None = None) -> dict[str, Any] | None:
         return None
 
 
+_FIXING_HEADER_PATTERN = re.compile(
+    r"(?m)^.*?(?:\b(?:in\s+)?exalt(?:ed|ation)\b|\bin\s+detriment\b).*?$",
+    flags=re.IGNORECASE,
+)
+
+
+def _fixing_header_matches(text: str, keyword: str) -> list[re.Match[str]]:
+    return [
+        match
+        for match in _FIXING_HEADER_PATTERN.finditer(text)
+        if re.search(keyword, match.group(0), flags=re.IGNORECASE)
+    ]
+
 
 def _trim_line_fixing_text(text: str, fixing: str | None, body: str | None = None) -> str:
     """Keep only the relevant lead-in/exaltation/detriment part of plugin line text."""
@@ -133,27 +146,22 @@ def _trim_line_fixing_text(text: str, fixing: str | None, body: str | None = Non
         parts = clean.split("\n")
         return "\n".join(parts[:2]).strip() if len(parts) >= 2 else clean
 
-    body_name = _clean_text(body)
+    detriment_headers = _fixing_header_matches(clean, r"\bin\s+detriment\b")
     if fixing == "exaltation":
-        marker = f"\n{body_name} in detriment" if body_name else " in detriment"
-        index = clean.lower().find(marker.lower())
-        if index != -1:
-            return clean[:index].strip()
-        generic = re.search(r"\n[^\n]+\s+in detriment", clean, flags=re.IGNORECASE)
-        return clean[: generic.start()].strip() if generic else clean
-
-    # Detriment: preserve lead-in, remove the exaltation body paragraph, keep detriment onward.
-    detriment_marker = f"\n{body_name} in detriment" if body_name else " in detriment"
-    det_index = clean.lower().find(detriment_marker.lower())
-    if det_index == -1:
-        generic_det = re.search(r"\n[^\n]+\s+in detriment", clean, flags=re.IGNORECASE)
-        det_index = generic_det.start() if generic_det else -1
-    if det_index == -1:
+        if detriment_headers:
+            return clean[: detriment_headers[0].start()].strip()
         return clean
-    lead_end = clean.find("\n")
-    lead = clean[:lead_end].strip() if lead_end != -1 else ""
-    detriment = clean[det_index:].strip()
+
+    # Detriment: preserve the lead-in before the exaltation header, remove the
+    # exaltation header/body, and keep the detriment header plus its body text.
+    if not detriment_headers:
+        return clean
+    exaltation_headers = _fixing_header_matches(clean, r"\b(?:in\s+)?exalt(?:ed|ation)\b")
+    lead_end = exaltation_headers[0].start() if exaltation_headers else detriment_headers[0].start()
+    lead = clean[:lead_end].strip()
+    detriment = clean[detriment_headers[0].start() :].strip()
     return f"{lead}\n{detriment}".strip() if lead else detriment
+
 
 def humdes_gate_line_supplement_lines(gate: int, line: int | None = None, fixing: str | None = None, fixing_body: str | None = None) -> list[str]:
     payload = load_humdes_gates()
