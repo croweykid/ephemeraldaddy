@@ -28514,6 +28514,8 @@ class MainWindow(QMainWindow):
 
         supplement_lines = humdes_gate_line_supplement_lines(gate_number, line_number, fixing, fixing_body)
         if supplement_lines:
+            cursor.insertText("\n\n", plain_fmt)
+            cursor.insertText(CHART_DATA_DIVIDER, header_fmt)
             cursor.insertText("\n", plain_fmt)
             for index, supplement_line in enumerate(supplement_lines):
                 if index > 0:

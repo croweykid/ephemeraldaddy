@@ -962,6 +962,10 @@ def build_human_design_chart_data_output(
         "digestion",
         lookup_value=digestion_details.get("info_value"),
     )
+    incarnation_cross_line, incarnation_cross_entries = _render_clickable_incarnation_cross_line(
+        "Incarnation Cross",
+        [hd_result.incarnation_cross] if str(hd_result.incarnation_cross or "").strip() else [],
+    )
 
 #Chart Data Output panel output for Human Design Charts:
     rendered_lines = [
@@ -974,7 +978,7 @@ def build_human_design_chart_data_output(
         definition_line,
         strategy_line,
         defined_centers_line,
-        f"Incarnation Cross: {hd_result.incarnation_cross}",
+        incarnation_cross_line,
         environment_line,
         perspective_line,
         motivation_line,
@@ -1013,13 +1017,15 @@ def build_human_design_chart_data_output(
         (profile_line, profile_info_entry),
         (definition_line, definition_info_entry),
         (strategy_line, strategy_info_entry),
+        (incarnation_cross_line, incarnation_cross_entries[0] if incarnation_cross_entries else None),
         (environment_line, environment_info_entry),
         (perspective_line, perspective_info_entry),
         (motivation_line, motivation_info_entry),
         (digestion_line, digestion_info_entry),
     ):
         line_index = rendered_lines.index(line_text)
-        position_info_map.setdefault(positions_start_index + line_index, []).append(entry)
+        if entry is not None:
+            position_info_map.setdefault(positions_start_index + line_index, []).append(entry)
     channels_header_index = rendered_lines.index("CHANNELS")
     channel_block_start = channels_header_index + 2
     for relative_line_index, entries in channel_info_map.items():
