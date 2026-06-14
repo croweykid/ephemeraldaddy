@@ -14,10 +14,12 @@ from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
     format_class_axis_label,
 )
 from ephemeraldaddy.analysis.dnd.species_assigner_v2 import SPECIES_FAMILIES
+from ephemeraldaddy.analysis.hd_line_fixings import get_hd_line_fixings
 from ephemeraldaddy.analysis.human_design_reference import HD_CENTERS, HD_COLORS
 from ephemeraldaddy.core.interpretations import (
     ASPECT_COLORS,
     ASPECT_GLYPHS,
+    BODY_RELATIONAL_GLYPHS,
     ELEMENT_COLORS,
     HOUSE_COLORS,
     NAKSHATRA_PLANET_COLOR,
@@ -214,6 +216,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         self._emphasize_species_info_headers = bool(emphasize_species_info_headers)
         self._human_design_synastry_mode = bool(human_design_synastry_mode)
         self._section_header_names = {header.upper() for header in CHART_DATA_SECTION_HEADERS}
+        self._section_header_names.update({"GATES & LINES"})
         self._unknown_format = QTextCharFormat()
         self._unknown_format.setForeground(QColor("#666666"))
         self._unknown_format.setFontItalic(True)
@@ -369,6 +372,12 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         )
         self._hd_personality_gate_format = self._make_format(self._HD_PERSONALITY_GATE_COLOR)
         self._hd_design_gate_format = self._make_format(self._HD_DESIGN_GATE_COLOR)
+        self._hd_personality_fixed_gate_format = self._make_format(
+            self._HD_PERSONALITY_GATE_COLOR, bold=True, underline=True
+        )
+        self._hd_design_fixed_gate_format = self._make_format(
+            self._HD_DESIGN_GATE_COLOR, bold=True, underline=True
+        )
         self._hd_synastry_chart_a_format = self._make_format(self._HD_SYNASTRY_CHART_A_COLOR)
         self._hd_synastry_chart_b_format = self._make_format(self._HD_SYNASTRY_CHART_B_COLOR)
         hd_color_entries = (
@@ -388,6 +397,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         self._hd_gate_side_cache_revision = -1
         self._hd_gate_side_cache: dict[tuple[int, int], set[str]] = {}
         self._hd_gate_only_side_cache: dict[int, set[str]] = {}
+        self._hd_gate_line_fixing_cache: dict[tuple[int, int], str] = {}
         self._hd_synastry_gate_owners: dict[int, set[str]] = {}
         self._hd_synastry_gate_line_owners: dict[tuple[int, int], set[str]] = {}
 
@@ -406,11 +416,21 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         self.rehighlight()
 
     @staticmethod
-    def _make_format(color: str, *, italic: bool = False) -> QTextCharFormat:
+    def _make_format(
+        color: str,
+        *,
+        italic: bool = False,
+        bold: bool = False,
+        underline: bool = False,
+    ) -> QTextCharFormat:
         text_format = QTextCharFormat()
         text_format.setForeground(QColor(color))
         if italic:
             text_format.setFontItalic(True)
+        if bold:
+            text_format.setFontWeight(QFont.Bold)
+        if underline:
+            text_format.setFontUnderline(True)
         return text_format
 
     @staticmethod
@@ -442,6 +462,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         all_text = document.toPlainText()
         gate_line_sides: dict[tuple[int, int], set[str]] = {}
         gate_sides: dict[int, set[str]] = {}
+        gate_line_fixings: dict[tuple[int, int], str] = {}
         for text_line in all_text.splitlines():
             side_match = re.match(r"^\s*(?:(Personality|Design)|([PD])\.)\s+", text_line)
             if not side_match:
@@ -456,22 +477,35 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
             ):
                 gate = int(activation_match.group(1))
                 line = int(activation_match.group(2))
-                gate_line_sides.setdefault((gate, line), set()).add(side_key)
+                gate_line_key = (gate, line)
+                gate_line_sides.setdefault(gate_line_key, set()).add(side_key)
                 gate_sides.setdefault(gate, set()).add(side_key)
+                line_prefix = text_line[:activation_match.start()]
+                fixing_record = get_hd_line_fixings(gate, line)
+                for fixing_name in ("exaltation", "detriment"):
+                    if gate_line_key in gate_line_fixings:
+                        break
+                    for body_name in fixing_record.get(fixing_name, ()):
+                        body_text = str(body_name).strip()
+                        body_glyph = PLANET_GLYPHS.get(body_text, "")
+                        if body_text and (body_text in line_prefix or (body_glyph and body_glyph in line_prefix)):
+                            gate_line_fixings[gate_line_key] = fixing_name
+                            break
         self._hd_gate_side_cache_revision = revision
         self._hd_gate_side_cache = gate_line_sides
         self._hd_gate_only_side_cache = gate_sides
+        self._hd_gate_line_fixing_cache = gate_line_fixings
         return gate_line_sides
 
     def _get_hd_gate_sides(self) -> dict[int, set[str]]:
         self._get_hd_gate_line_sides()
         return self._hd_gate_only_side_cache
 
-    def _format_for_hd_sides(self, sides: set[str]) -> QTextCharFormat | None:
+    def _format_for_hd_sides(self, sides: set[str], *, fixed: bool = False) -> QTextCharFormat | None:
         if "personality" in sides:
-            return self._hd_personality_gate_format
+            return self._hd_personality_fixed_gate_format if fixed else self._hd_personality_gate_format
         if "design" in sides:
-            return self._hd_design_gate_format
+            return self._hd_design_fixed_gate_format if fixed else self._hd_design_gate_format
         return None
 
     def _hd_time_variant_segment_formats(
@@ -549,12 +583,22 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
             for match in re.finditer(r"\b([1-9]|[1-5][0-9]|6[0-4])\.([1-6])\b", text):
                 gate = int(match.group(1))
                 line = int(match.group(2))
-                text_format = self._format_for_hd_sides(gate_line_sides.get((gate, line), set()))
+                gate_line_key = (gate, line)
+                is_fixed = gate_line_key in self._hd_gate_line_fixing_cache
+                text_format = self._format_for_hd_sides(
+                    gate_line_sides.get(gate_line_key, set()),
+                    fixed=is_fixed,
+                )
                 if text_format is None:
                     continue
+                token_start = match.start()
+                if is_fixed:
+                    prefix = BODY_RELATIONAL_GLYPHS.get("Exaltation", "")
+                    if prefix and text[max(0, match.start() - len(prefix)):match.start()] == prefix:
+                        token_start = match.start() - len(prefix)
                 self.setFormat(
-                    self._qt_index(text, match.start(1)),
-                    self._qt_len(match.group(1)),
+                    self._qt_index(text, token_start),
+                    self._qt_len(text[token_start:match.end()]),
                     text_format,
                 )
             return
