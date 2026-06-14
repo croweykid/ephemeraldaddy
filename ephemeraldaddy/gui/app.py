@@ -32117,8 +32117,9 @@ class MainWindow(QMainWindow):
             return f'<b>{html.escape(title)}:</b> {", ".join(links)}'
 
         label.setText(
-            "<br>".join(
-                (
+            "".join(
+                f'<div style="margin-bottom:6px;">{line}</div>'
+                for line in (
                     _format_ranked_link_list("Overrepresented", above_average_entries),
                     _format_ranked_link_list("Underrepresented", below_average_entries),
                     _format_ranked_link_list("Absent", nonexistent_entries),
