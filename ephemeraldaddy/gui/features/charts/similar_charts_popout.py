@@ -414,6 +414,17 @@ _SIMILARITY_COMPONENT_LABELS: dict[str, str] = {
     "big_3_venus": "Venus sign",
     "big_3_mars": "Mars sign",
 }
+
+_BIG_3_COMPONENT_BODIES: dict[str, str] = {
+    "big_3_sun": "Sun",
+    "big_3_moon": "Moon",
+    "big_3_rising": "AS",
+    "big_3_mc": "MC",
+    "big_3_mercury": "Mercury",
+    "big_3_venus": "Venus",
+    "big_3_mars": "Mars",
+}
+
 _PLANET_COLOR_MAP: dict[str, str] = {str(name): str(color) for name, color in PLANET_COLORS.items() if color}
 _SIGN_COLOR_MAP: dict[str, str] = {str(name): str(color) for name, color in SIGN_COLORS.items() if color}
 _NAKSHATRA_COLOR_MAP: dict[str, str] = {
@@ -1746,6 +1757,58 @@ def map_similar_info_targets(
     }
 
 
+def _sign_for_chart_body(chart: Any, body: str) -> str | None:
+    positions = getattr(chart, "positions", None) or {}
+    longitude = positions.get(body)
+    if longitude is None:
+        return None
+    return sign_for_longitude(longitude)
+
+
+def _big_3_sign_component_lines(
+    *,
+    subject_chart: Any,
+    compared_chart: Any,
+    subject_label: str,
+    compared_label: str,
+    component_keys: list[str],
+    component_weight_percents: dict[str, int],
+    component_score_percents: dict[str, float],
+    analysis_mode: str,
+) -> list[str]:
+    lines: list[str] = []
+    show_differences = analysis_mode == "dissimilarities"
+    for key in component_keys:
+        if key not in component_score_percents:
+            continue
+        body = _BIG_3_COMPONENT_BODIES.get(key)
+        label = _SIMILARITY_COMPONENT_LABELS.get(key)
+        if not body or not label:
+            continue
+        subject_sign = _sign_for_chart_body(subject_chart, body)
+        compared_sign = _sign_for_chart_body(compared_chart, body)
+        if not subject_sign or not compared_sign:
+            continue
+        signs_match = subject_sign == compared_sign
+        if show_differences and signs_match:
+            continue
+        if not show_differences and not signs_match:
+            continue
+        summary = _section_title_with_weight_and_match(
+            f"{label}:",
+            key,
+            component_weight_percents,
+            component_score_percents,
+        )
+        if signs_match:
+            lines.append(f"{summary} both {subject_sign}")
+        else:
+            lines.append(
+                f"{summary} {subject_label} {subject_sign} "
+                f"vs {compared_label} {compared_sign}"
+            )
+    return lines
+
 def build_similarity_reasoning_panel_text(
     *,
     match: Any,
@@ -1784,23 +1847,31 @@ def build_similarity_reasoning_panel_text(
                 component_weight_percents=component_weight_percents,
                 component_score_percents=component_score_percents,
             )
-            lines.append("Big 3 sign-match components:")
-            for key in resolve_similarity_component_keys_for_display(
-                algorithm_mode=algorithm_mode,
-                similarity_settings=similarity_settings,
-            ):
-                if key not in component_score_percents:
-                    continue
-                label = _SIMILARITY_COMPONENT_LABELS.get(key)
-                if not label:
-                    continue
+            big_3_lines = _big_3_sign_component_lines(
+                subject_chart=subject_chart,
+                compared_chart=compared_chart,
+                subject_label=subject_title,
+                compared_label=compared_name,
+                component_keys=resolve_similarity_component_keys_for_display(
+                    algorithm_mode=algorithm_mode,
+                    similarity_settings=similarity_settings,
+                ),
+                component_weight_percents=component_weight_percents,
+                component_score_percents=component_score_percents,
+                analysis_mode=analysis_mode,
+            )
+            lines.append(
+                "Big 3 sign differences:"
+                if analysis_mode == "dissimilarities"
+                else "Big 3 sign matches:"
+            )
+            if big_3_lines:
+                lines.extend(big_3_lines)
+            else:
                 lines.append(
-                    _section_title_with_weight_and_match(
-                        f"{label}:",
-                        key,
-                        component_weight_percents,
-                        component_score_percents,
-                    )
+                    "No Big 3 signs differ."
+                    if analysis_mode == "dissimilarities"
+                    else "No Big 3 signs are in common."
                 )
             lines.append("")
         if analysis_mode == "dissimilarities":
@@ -2209,28 +2280,30 @@ def build_similarity_reasoning_panel_html(
                 component_weight_percents=component_weight_percents,
                 component_score_percents=component_score_percents,
             )
-            big_3_items: list[str] = []
-            for key in resolve_similarity_component_keys_for_display(
-                algorithm_mode=algorithm_mode,
-                similarity_settings=similarity_settings,
-            ):
-                if key not in component_score_percents:
-                    continue
-                label = _SIMILARITY_COMPONENT_LABELS.get(key)
-                if not label:
-                    continue
-                big_3_items.append(
-                    _section_title_with_weight_and_match(
-                        f"{label}:",
-                        key,
-                        component_weight_percents,
-                        component_score_percents,
-                    )
-                )
+            big_3_items = _big_3_sign_component_lines(
+                subject_chart=subject_chart,
+                compared_chart=compared_chart,
+                subject_label=subject_title,
+                compared_label=compared_name,
+                component_keys=resolve_similarity_component_keys_for_display(
+                    algorithm_mode=algorithm_mode,
+                    similarity_settings=similarity_settings,
+                ),
+                component_weight_percents=component_weight_percents,
+                component_score_percents=component_score_percents,
+                analysis_mode=analysis_mode,
+            )
             html_lines.append(
                 _section(
-                    "Big 3 sign-match components:",
-                    big_3_items or ["No Big 3 component scores were available."],
+                    "Big 3 sign differences:"
+                    if analysis_mode == "dissimilarities"
+                    else "Big 3 sign matches:",
+                    big_3_items
+                    or (
+                        ["No Big 3 signs differ."]
+                        if analysis_mode == "dissimilarities"
+                        else ["No Big 3 signs are in common."]
+                    ),
                 )
             )
         if analysis_mode == "dissimilarities":

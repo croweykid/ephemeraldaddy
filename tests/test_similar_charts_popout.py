@@ -235,11 +235,27 @@ def test_big_3_similarity_reasoning_html_shows_component_breakdown_for_both_anal
 
     subject = SimpleNamespace(
         name="Subject",
-        positions={"Sun": 5.0, "Moon": 45.0, "Mercury": 65.0, "Venus": 95.0, "Mars": 125.0},
+        positions={
+            "Sun": 5.0,
+            "Moon": 45.0,
+            "Mercury": 65.0,
+            "Venus": 95.0,
+            "Mars": 125.0,
+            "AS": 215.0,
+            "MC": 275.0,
+        },
     )
     compared = SimpleNamespace(
         name="Compared",
-        positions={"Sun": 6.0, "Moon": 75.0, "Mercury": 66.0, "Venus": 155.0, "Mars": 126.0},
+        positions={
+            "Sun": 6.0,
+            "Moon": 75.0,
+            "Mercury": 66.0,
+            "Venus": 155.0,
+            "Mars": 126.0,
+            "AS": 245.0,
+            "MC": 276.0,
+        },
     )
     match = SimpleNamespace(chart_id=7, chart_name="Compared", algorithm_mode="big_3", score=0.5)
 
@@ -253,12 +269,24 @@ def test_big_3_similarity_reasoning_html_shows_component_breakdown_for_both_anal
             analysis_mode=analysis_mode,
         )
 
-        assert "Big 3 sign-match components:" in html
-        assert "Sun</a> sign:" in html
-        assert "Moon</a> sign:" in html
-        assert "Mercury</a> sign:" in html
-        assert "AS</a>:" in html
-        assert "MC</a> sign:" in html
+        if analysis_mode == "similarities":
+            assert "Big 3 sign matches:" in html
+            assert "Sun</a> sign:" in html
+            assert "both <a href='chart-info:sign:Aries'" in html
+            assert "Mercury</a> sign:" in html
+            assert "Mars</a> sign:" in html
+            assert "MC</a> sign:" in html
+            assert "Moon</a> sign:" not in html
+            assert "AS</a>:" not in html
+        else:
+            assert "Big 3 sign differences:" in html
+            assert "Moon</a> sign:" in html
+            assert "Subject <a href='chart-info:sign:Taurus'" in html
+            assert "Compared <a href='chart-info:sign:Gemini'" in html
+            assert "Venus</a> sign:" in html
+            assert "AS</a>:" in html
+            assert "Sun</a> sign:" not in html
+            assert "MC</a> sign:" not in html
 
 
 def test_perceived_similarity_accuracy_tally_excludes_na_and_averages_absolute_error():
