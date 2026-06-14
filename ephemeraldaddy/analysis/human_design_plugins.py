@@ -23,6 +23,11 @@ def recognized_plugin_names() -> list[str]:
     return list(RECOGNIZED_PLUGIN_FILENAMES)
 
 
+def installed_plugin_names() -> list[str]:
+    """Return recognized plugin filenames that are currently installed locally."""
+    return [name for name in RECOGNIZED_PLUGIN_FILENAMES if (PLUGIN_DIR / name).exists()]
+
+
 def _clean_text(value: Any) -> str:
     return str(value or "").strip()
 

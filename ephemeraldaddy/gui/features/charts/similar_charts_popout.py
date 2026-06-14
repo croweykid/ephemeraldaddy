@@ -2047,9 +2047,10 @@ def build_similarity_reasoning_panel_html(
             return f"chart-info:sign:{clean_token}"
         if clean_token in ELEMENT_COLORS:
             return f"chart-info:element:{clean_token}"
-        if clean_token in MODE_COLORS or clean_token in MODES:
-            return f"chart-info:mode:{clean_token}"
-        nakshatra_names = {str(item[2]) for item in NAKSHATRA_RANGES if len(item) >= 3}
+        normalized_mode = clean_token.lower()
+        if normalized_mode in MODE_COLORS or normalized_mode in MODES:
+            return f"chart-info:mode:{normalized_mode}"
+        nakshatra_names = {str(item[0]) for item in NAKSHATRA_RANGES if item}
         if clean_token in nakshatra_names:
             return f"chart-info:nakshatra:{clean_token}"
         return ""

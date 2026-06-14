@@ -910,6 +910,7 @@ from ephemeraldaddy.core.human_design_system import MANDALA_GATE_ORDER, MANDALA_
 from ephemeraldaddy.analysis.human_design_plugins import (
     humdes_gate_line_supplement_lines,
     install_plugin_file,
+    installed_plugin_names,
     recognized_plugin_names,
 )
 from ephemeraldaddy.analysis.human_design_reference import (
@@ -20831,16 +20832,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
         )
         self._plugins_upload_button = QPushButton("Upload Plugin File…")
-        self._plugins_upload_button.setToolTip(
-            "Currently recognized plugins: " + ", ".join(recognized_plugin_names())
-        )
+        self._plugins_upload_button.setStyleSheet("QPushButton { padding-top: 7px; }")
         self._plugins_upload_button.clicked.connect(self._on_plugin_upload_clicked)
         plugins_section.addWidget(self._plugins_upload_button, alignment=Qt.AlignLeft)
-        self._plugins_status_label = QLabel(
-            "Currently recognized plugins: " + ", ".join(recognized_plugin_names())
-        )
+        self._plugins_installed_label = QLabel("")
+        self._plugins_installed_label.setWordWrap(True)
+        plugins_section.addWidget(self._plugins_installed_label)
+        self._plugins_status_label = QLabel("")
         self._plugins_status_label.setWordWrap(True)
         plugins_section.addWidget(self._plugins_status_label)
+        self._refresh_plugins_status_labels()
 
         age_tools_section = self._add_settings_collapsible_section(content_layout, "User Profile")
         age_tools_section.addWidget(QLabel("Age inference tools."))
@@ -20894,6 +20895,35 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._resize_and_center_settings_dialog(dialog)
         return dialog
 
+    def _refresh_plugins_status_labels(self) -> None:
+        recognized_plugins = recognized_plugin_names()
+        installed_plugins = installed_plugin_names()
+        available_plugins = [name for name in recognized_plugins if name not in installed_plugins]
+
+        upload_button = getattr(self, "_plugins_upload_button", None)
+        if isinstance(upload_button, QPushButton):
+            upload_button.setToolTip("Currently recognized plugins: " + ", ".join(recognized_plugins))
+
+        installed_label = getattr(self, "_plugins_installed_label", None)
+        if isinstance(installed_label, QLabel):
+            if installed_plugins:
+                installed_label.setText("✓ Currently installed: " + ", ".join(installed_plugins))
+                installed_label.setStyleSheet("color: #6ee07f; font-style: italic; font-size: 8pt;")
+                installed_label.show()
+            else:
+                installed_label.clear()
+                installed_label.hide()
+
+        status_label = getattr(self, "_plugins_status_label", None)
+        if isinstance(status_label, QLabel):
+            if not available_plugins and installed_plugins:
+                status_label.setText("all currently available plugins are installed")
+            elif installed_plugins:
+                status_label.setText("Plugins still available: " + ", ".join(available_plugins))
+            else:
+                status_label.setText("Currently recognized plugins: " + ", ".join(recognized_plugins))
+            status_label.setStyleSheet("color: #9a9a9a; font-style: italic; font-size: 7pt;")
+
     def _on_plugin_upload_clicked(self) -> None:
         file_path, _selected_filter = QFileDialog.getOpenFileName(
             self,
@@ -20924,13 +20954,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         upload_button = getattr(self, "_plugins_upload_button", None)
         if isinstance(upload_button, QPushButton):
             upload_button.setStyleSheet(
-                "QPushButton { background-color: #1f7a3a; border: 1px solid #3fd06f; color: #ffffff; }"
+                "QPushButton { background-color: #1f7a3a; border: 1px solid #3fd06f; color: #ffffff; padding-top: 7px; }"
                 "QPushButton:hover { background-color: #268a45; }"
             )
-        status_label = getattr(self, "_plugins_status_label", None)
-        if isinstance(status_label, QLabel):
-            status_label.setText(f"Installed: {Path(file_path).name}")
-            status_label.setStyleSheet("color: #6ee07f;")
+        self._refresh_plugins_status_labels()
         QMessageBox.information(
             self,
             "Plugin installed",
