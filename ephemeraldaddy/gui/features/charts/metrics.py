@@ -437,10 +437,16 @@ def calculate_dominant_sign_weights(chart: Chart) -> dict[str, float]:
         if count >= 3:
             weighted_counts[sign] += 1.0 #float(count) #used to double stellium score, now just give a lil bonus
 
-    # House dominance remains a separate axis from sign dominance.  Do not feed
-    # occupied/weighted houses back into their natural signs here: an H7 emphasis
-    # is not a Libra placement, and an H4 emphasis is not a Cancer placement.
-    # Keeping those axes separate lets truly absent signs stay absent.
+    # Feed fully calculated house dominance back into each house's natural sign
+    # only after all direct body/sign scoring is complete, but never create sign
+    # weight from house weight alone. An H7 emphasis can reinforce Libra if Libra
+    # already has nonzero sign weight; it must not make an absent Libra present.
+    if use_houses and houses:
+        dominant_house_weights = calculate_dominant_house_weights(chart)
+        for house_num, house_weight in dominant_house_weights.items():
+            natural_sign = NATURAL_HOUSE_SIGNS.get(house_num)
+            if natural_sign and weighted_counts.get(natural_sign, 0.0) > 0.0:
+                weighted_counts[natural_sign] += float(house_weight)
 
     return weighted_counts
 
