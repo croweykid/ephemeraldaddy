@@ -26117,7 +26117,7 @@ class MainWindow(QMainWindow):
             if next_weight is not None and current_weight > 0
             else None
         )
-        weight_blurb = f"total weight of {current_weight}"
+        weight_blurb = f"total weight of {int(round(current_weight)):,}"
         rank_blurb = (
             f"(#{rank_index + 1} of {total_nakshatras} by {rank_delta_percent:.2f}%; "
             f"{weight_blurb}; {share_percent:.2f}% of all nakshatra weights)"
@@ -26177,7 +26177,7 @@ class MainWindow(QMainWindow):
             if next_weight is not None and current_weight > 0
             else None
         )
-        weight_blurb = f"total weight of {current_weight}"
+        weight_blurb = f"total weight of {int(round(current_weight)):,}"
         rank_blurb = (
             f"(#{rank_index + 1} of {total_signs} by {rank_delta_percent:.2f}%; "
             f"{weight_blurb}; {share_percent:.2f}% of all sign weights)"
@@ -26319,7 +26319,7 @@ class MainWindow(QMainWindow):
             if next_weight is not None and current_weight > 0
             else None
         )
-        weight_blurb = f"total weight of {current_weight}"
+        weight_blurb = f"total weight of {int(round(current_weight)):,}"
         rank_blurb = (
             f"(#{rank_index + 1} of {total_bodies} by {rank_delta_percent:.2f}%; "
             f"{weight_blurb}; {share_percent:.2f}% of all body weights)"
@@ -26460,7 +26460,7 @@ class MainWindow(QMainWindow):
             if next_weight is not None and current_weight > 0
             else None
         )
-        weight_blurb = f"total weight of {current_weight}"
+        weight_blurb = f"total weight of {int(round(current_weight)):,}"
         rank_blurb = (
             f"(#{rank_index + 1} of {total_houses} by {rank_delta_percent:.2f}%; "
             f"{weight_blurb}; {share_percent:.2f}% of all house weights)"
@@ -32095,7 +32095,7 @@ class MainWindow(QMainWindow):
 
         def _format_ranked_link_list(title: str, ranked_entries: list[tuple[str, float, str, str]]) -> str:
             if not ranked_entries:
-                return f'<span style="opacity:0.75;">{html.escape(title)}: none</span>'
+                return f'<span style="opacity:0.75;"><b>{html.escape(title)}:</b> none</span>'
             links = []
             for display_name, _value, color, target in ranked_entries:
                 safe_color = html.escape(str(color or CHART_THEME_COLORS.get("text", "#f5f5f5")))

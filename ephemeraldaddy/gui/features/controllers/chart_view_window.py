@@ -579,8 +579,8 @@ def format_weight_distribution_html(
             f"{_colored_metric('Avg Weight', 'avg', 0.0, '0')}, "
             f"{_colored_metric('Median', 'median', 0.0, '0')}"
             "<br><b>Min:</b> 0, <b>Max:</b> 0, "
-            f"{_colored_metric('Range', 'range', 0.0, '0')}, "
-            f'<span title="{html.escape(total_title, quote=True)}">{_colored_metric("Total", "total", 0.0, "0")}</span>'
+            f"{_colored_metric('Range', 'range', 0.0, '0')}"
+            f'<br><span title="{html.escape(total_title, quote=True)}">{_colored_metric("Total", "total", 0.0, "0")}</span>'
         )
     _mode_value, avg_value, median_value, min_value, max_value = stats
     total_value = sum(float(value) for value in values if isinstance(value, (int, float)))
@@ -591,8 +591,8 @@ def format_weight_distribution_html(
         f"{_colored_metric('Median', 'median', median_value, f'{median_value:.2f}')}"
         f"<br><b>Min:</b> {min_value:.2f}, "
         f"<b>Max:</b> {max_value:.2f}, "
-        f"{_colored_metric('Range', 'range', range_value, f'{range_value:.2f}')}, "
-        f'<span title="{html.escape(total_title, quote=True)}">{_colored_metric("Total", "total", total_value, f"{total_value_rounded:,}")}</span>'
+        f"{_colored_metric('Range', 'range', range_value, f'{range_value:.2f}')}"
+        f'<br><span title="{html.escape(total_title, quote=True)}">{_colored_metric("Total", "total", total_value, f"{total_value_rounded:,}")}</span>'
     )
 
 
