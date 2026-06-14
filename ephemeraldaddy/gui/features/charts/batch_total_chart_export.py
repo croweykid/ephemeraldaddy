@@ -180,9 +180,6 @@ def _start_background_export(
         message_timer.stop()
         QTimer.singleShot(1200, progress.deleteLater)
         thread.quit()
-        thread.wait()
-        worker.deleteLater()
-        thread.deleteLater()
         active_exports = getattr(parent, "_chart_export_threads", [])
         for export_state in list(active_exports):
             if export_state[0] is thread:
@@ -204,9 +201,11 @@ def _start_background_export(
         QMessageBox.information(parent, "Export complete", completion_message(exported, destination))
 
     thread.started.connect(worker.run)
-    worker.progress.connect(_on_progress)
-    worker.failed.connect(_on_failed)
-    worker.finished.connect(_on_finished)
+    worker.progress.connect(_on_progress, Qt.QueuedConnection)
+    worker.failed.connect(_on_failed, Qt.QueuedConnection)
+    worker.finished.connect(_on_finished, Qt.QueuedConnection)
+    thread.finished.connect(worker.deleteLater)
+    thread.finished.connect(thread.deleteLater)
     active_exports = getattr(parent, "_chart_export_threads", [])
     export_state = (thread, worker)
     active_exports.append(export_state)
