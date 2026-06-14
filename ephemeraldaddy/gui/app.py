@@ -25836,7 +25836,7 @@ class MainWindow(QMainWindow):
                 nakshatra_name = artist.get_gid() if artist is not None else None
                 if not isinstance(nakshatra_name, str) or not nakshatra_name:
                     return
-                info_panel.setHtml(_format_nakshatra_description_html(nakshatra_name))
+                info_panel.setHtml(self._build_nakshatra_popout_info(popout_chart, nakshatra_name))
 
             popout_canvas.mpl_connect("pick_event", _on_pick)
         elif title == "Gender Guesser":
@@ -25984,6 +25984,61 @@ class MainWindow(QMainWindow):
             self._draw_planet_dynamics(ax, chart)
         return figure
 
+
+    def _build_nakshatra_popout_info(self, chart: Chart, nakshatra: str) -> str:
+        nakshatra_name = str(nakshatra or "").strip()
+        mode = self._chart_analysis_selected_mode("nakshatra_prevalence", "nakshatra_prevalence")
+        ranked_weights = (
+            _calculate_nakshatra_prevalence_counts(chart)
+            if mode == "nakshatra_prevalence"
+            else _calculate_dominant_nakshatra_weights(chart)
+        )
+        ranked_nakshatras = [name for name, *_ in NAKSHATRA_RANGES]
+        sorted_nakshatras = sorted(
+            ranked_nakshatras,
+            key=lambda key: float(ranked_weights.get(key, 0.0)),
+            reverse=True,
+        )
+        rank_index = (
+            sorted_nakshatras.index(nakshatra_name)
+            if nakshatra_name in sorted_nakshatras
+            else None
+        )
+        total_nakshatras = len(sorted_nakshatras)
+        current_weight = float(ranked_weights.get(nakshatra_name, 0.0))
+        next_weight = (
+            float(ranked_weights.get(sorted_nakshatras[rank_index + 1], 0.0))
+            if rank_index is not None and (rank_index + 1) < total_nakshatras
+            else None
+        )
+        total_weight = sum(float(ranked_weights.get(key, 0.0)) for key in sorted_nakshatras)
+        share_percent = (
+            (current_weight / total_weight) * 100.0
+            if total_weight > 0
+            else 0.0
+        )
+        rank_delta_percent = (
+            ((current_weight - next_weight) / current_weight) * 100.0
+            if next_weight is not None and current_weight > 0
+            else None
+        )
+        weight_blurb = f"total weight of {current_weight}"
+        rank_blurb = (
+            f"(#{rank_index + 1} of {total_nakshatras} by {rank_delta_percent:.2f}%; "
+            f"{weight_blurb}; {share_percent:.2f}% of all nakshatra weights)"
+            if rank_index is not None and rank_delta_percent is not None
+            else (
+                f"(#{rank_index + 1} of {total_nakshatras} by n/a; "
+                f"{weight_blurb}; {share_percent:.2f}% of all nakshatra weights)"
+                if rank_index is not None
+                else f"(rank unavailable; {weight_blurb}; {share_percent:.2f}% of all nakshatra weights)"
+            )
+        )
+        return (
+            f'<div style="margin-bottom: 8px;">{html.escape(rank_blurb)}</div>'
+            f'{_format_nakshatra_description_html(nakshatra_name)}'
+        )
+
     def _build_sign_popout_info(self, chart: Chart, sign: str) -> str:
         sign_name = str(sign or "").strip().title()
         sign_keywords = SIGN_KEYWORDS.get(sign_name, {})
@@ -26027,15 +26082,16 @@ class MainWindow(QMainWindow):
             if next_weight is not None and current_weight > 0
             else None
         )
+        weight_blurb = f"total weight of {current_weight}"
         rank_blurb = (
             f"(#{rank_index + 1} of {total_signs} by {rank_delta_percent:.2f}%; "
-            f"{share_percent:.2f}% of all sign weights)"
+            f"{weight_blurb}; {share_percent:.2f}% of all sign weights)"
             if rank_index is not None and rank_delta_percent is not None
             else (
                 f"(#{rank_index + 1} of {total_signs} by n/a; "
-                f"{share_percent:.2f}% of all sign weights)"
+                f"{weight_blurb}; {share_percent:.2f}% of all sign weights)"
                 if rank_index is not None
-                else f"(rank unavailable; {share_percent:.2f}% of all sign weights)"
+                else f"(rank unavailable; {weight_blurb}; {share_percent:.2f}% of all sign weights)"
             )
         )
 
@@ -26168,15 +26224,16 @@ class MainWindow(QMainWindow):
             if next_weight is not None and current_weight > 0
             else None
         )
+        weight_blurb = f"total weight of {current_weight}"
         rank_blurb = (
             f"(#{rank_index + 1} of {total_bodies} by {rank_delta_percent:.2f}%; "
-            f"{share_percent:.2f}% of all body weights)"
+            f"{weight_blurb}; {share_percent:.2f}% of all body weights)"
             if rank_index is not None and rank_delta_percent is not None
             else (
                 f"(#{rank_index + 1} of {total_bodies} by n/a; "
-                f"{share_percent:.2f}% of all body weights)"
+                f"{weight_blurb}; {share_percent:.2f}% of all body weights)"
                 if rank_index is not None
-                else f"(rank unavailable; {share_percent:.2f}% of all body weights)"
+                else f"(rank unavailable; {weight_blurb}; {share_percent:.2f}% of all body weights)"
             )
         )
         shorthand = str(meaning.get("shorthand", "")).strip()
@@ -26308,15 +26365,16 @@ class MainWindow(QMainWindow):
             if next_weight is not None and current_weight > 0
             else None
         )
+        weight_blurb = f"total weight of {current_weight}"
         rank_blurb = (
             f"(#{rank_index + 1} of {total_houses} by {rank_delta_percent:.2f}%; "
-            f"{share_percent:.2f}% of all house weights)"
+            f"{weight_blurb}; {share_percent:.2f}% of all house weights)"
             if rank_index is not None and rank_delta_percent is not None
             else (
                 f"(#{rank_index + 1} of {total_houses} by n/a; "
-                f"{share_percent:.2f}% of all house weights)"
+                f"{weight_blurb}; {share_percent:.2f}% of all house weights)"
                 if rank_index is not None
-                else f"(rank unavailable; {share_percent:.2f}% of all house weights)"
+                else f"(rank unavailable; {weight_blurb}; {share_percent:.2f}% of all house weights)"
             )
         )
         house_keywords = HOUSE_DEFINITIONS.get(house_num, {}).get("core_domains", [])
@@ -31904,7 +31962,7 @@ class MainWindow(QMainWindow):
                 return
             self.chart_info_output.setHtml(self._build_house_popout_info(self._latest_chart, house_num))
         elif kind == "nakshatra":
-            self.chart_info_output.setHtml(_format_nakshatra_description_html(raw_value))
+            self.chart_info_output.setHtml(self._build_nakshatra_popout_info(self._latest_chart, raw_value))
 
     def _update_chart_analysis_above_average_links(
         self,
