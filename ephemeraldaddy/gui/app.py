@@ -6451,6 +6451,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         def _on_update_chart() -> None:
             nonlocal transit_chart, transit_positions_in_natal_houses, aspect_hits_by_mode, transit_location, include_time, location_label, raw_location
 
+            if not update_button.isEnabled():
+                return
+
             try:
                 resolved_location = resolve_personal_transit_location(
                     popout_location_input.text(),
@@ -6476,30 +6479,46 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 selected_time.minute(),
                 tzinfo=local_tz,
             )
-            recalculated = recalculate_personal_transit(
-                natal_chart=natal_chart,
-                selected_local_datetime=selected_local,
-                location=resolved_location,
-                raw_location=popout_location_input.text(),
-            )
+            raw_location_text = popout_location_input.text()
+            update_button.setEnabled(False)
+            update_button.setText("Updating…")
+            QApplication.setOverrideCursor(Qt.WaitCursor)
 
             def _finish_update() -> None:
                 nonlocal transit_chart, transit_positions_in_natal_houses, aspect_hits_by_mode, transit_location, include_time, location_label, raw_location
-                transit_chart = recalculated.transit_chart
-                transit_positions_in_natal_houses = recalculated.transit_positions_in_natal_houses
-                aspect_hits_by_mode = recalculated.aspect_hits_by_mode
-                transit_location = (recalculated.transit_chart.lat, recalculated.transit_chart.lon)
-                include_time = recalculated.include_time
-                location_label = recalculated.location_label
-                raw_location = recalculated.raw_location
-                popout_location_input.setText(raw_location)
-                transit_ranges.clear()
-                calendar_info_map.clear()
-                preload_queue.clear()
-                _redraw_chart_wheel()
-                _refresh_summary()
-                preload_queue.extend([key for key, state in transit_ranges.items() if not state.get("resolved")])
-                QTimer.singleShot(0, _drain_preload_queue)
+                try:
+                    recalculated = recalculate_personal_transit(
+                        natal_chart=natal_chart,
+                        selected_local_datetime=selected_local,
+                        location=resolved_location,
+                        raw_location=raw_location_text,
+                    )
+                    transit_chart = recalculated.transit_chart
+                    transit_positions_in_natal_houses = recalculated.transit_positions_in_natal_houses
+                    aspect_hits_by_mode = recalculated.aspect_hits_by_mode
+                    transit_location = (recalculated.transit_chart.lat, recalculated.transit_chart.lon)
+                    include_time = recalculated.include_time
+                    location_label = recalculated.location_label
+                    raw_location = recalculated.raw_location
+                    popout_location_input.setText(raw_location)
+                    transit_ranges.clear()
+                    calendar_info_map.clear()
+                    preload_queue.clear()
+                    _redraw_chart_wheel()
+                    _refresh_summary()
+                    preload_queue.extend([key for key, state in transit_ranges.items() if not state.get("resolved")])
+                    QTimer.singleShot(0, _drain_preload_queue)
+                except Exception as exc:
+                    logger.exception("Failed to update personal transit chart.")
+                    QMessageBox.warning(
+                        dialog,
+                        "Update Chart",
+                        f"Failed to update personal transit chart.\n\n{exc}",
+                    )
+                finally:
+                    QApplication.restoreOverrideCursor()
+                    update_button.setText("Update Chart")
+                    update_button.setEnabled(True)
 
             _begin_transit_worker_shutdown(_finish_update)
 
