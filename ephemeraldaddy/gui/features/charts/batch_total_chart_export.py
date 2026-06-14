@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 
 MAX_BATCH_EXPORT_CHARTS = 10
 LARGE_BATCH_EXPORT_THRESHOLD = 5
+BATCH_EXPORT_DIRECTORY = Path.home() / "EphemeralDaddy Exports" / "Total Charts"
 
 
 def export_button_label(selected_count: int) -> str:
@@ -145,20 +146,19 @@ def run_total_chart_export_flow(
         return
     if not confirm_batch_export(parent, len(chart_ids)):
         return
-    directory = QFileDialog.getExistingDirectory(parent, "Export Total Charts")
-    if not directory:
-        return
     progress = ChartExportProgressWidget(parent)
     progress.show()
     progress.anchor_to_parent()
-    if len(chart_ids) > LARGE_BATCH_EXPORT_THRESHOLD:
-        _show_loading_bar_hint(parent, progress)
+    QApplication.processEvents()
+    _show_loading_bar_hint(parent, progress)
+    directory = BATCH_EXPORT_DIRECTORY
+    directory.mkdir(parents=True, exist_ok=True)
     exported = 0
     try:
         for index, chart_id in enumerate(chart_ids, start=1):
             chart = load_chart(int(chart_id))
             name = (getattr(chart, "name", None) or "chart").strip() or "chart"
-            path = Path(directory) / f"{sanitize_token(name)}-total-chart-export.md"
+            path = directory / f"{sanitize_token(name)}-total-chart-export.md"
             path = _unique_path(path)
             write_export(int(chart_id), chart, str(path), True)
             exported = index
