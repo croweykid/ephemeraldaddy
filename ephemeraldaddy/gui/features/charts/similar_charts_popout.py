@@ -1689,6 +1689,23 @@ def _resolve_active_placement_weighting_mode(
     return normalize_placement_weighting_mode(mode)
 
 
+def _adjust_big_3_weights_for_available_components(
+    *,
+    component_weight_percents: dict[str, int],
+    component_score_percents: dict[str, float],
+) -> dict[str, int]:
+    """Return Big 3 display weights that match the available component scores."""
+    if "big_3_rising" in component_score_percents or "big_3_mc" in component_score_percents:
+        return component_weight_percents
+    total_weight = sum(_BIG_3_COMPONENT_WEIGHTS_NO_HOUSES.values())
+    if total_weight <= 0.0:
+        return component_weight_percents
+    return {
+        key: int(round((weight / total_weight) * 100.0))
+        for key, weight in _BIG_3_COMPONENT_WEIGHTS_NO_HOUSES.items()
+    }
+
+
 def _section_title_with_weight_and_match(
     title: str,
     component_key: str,
@@ -1759,12 +1776,10 @@ def build_similarity_reasoning_panel_text(
             similarity_settings=similarity_settings,
         )
         if normalize_similar_charts_algorithm_mode(algorithm_mode) == SIMILAR_CHARTS_ALGORITHM_BIG_3:
-            if "big_3_rising" not in component_score_percents and "big_3_mc" not in component_score_percents:
-                total_weight = sum(_BIG_3_COMPONENT_WEIGHTS_NO_HOUSES.values())
-                component_weight_percents = {
-                    key: int(round((weight / total_weight) * 100.0))
-                    for key, weight in _BIG_3_COMPONENT_WEIGHTS_NO_HOUSES.items()
-                }
+            component_weight_percents = _adjust_big_3_weights_for_available_components(
+                component_weight_percents=component_weight_percents,
+                component_score_percents=component_score_percents,
+            )
             lines.append("Big 3 sign-match components:")
             for key in resolve_similarity_component_keys_for_display(
                 algorithm_mode=algorithm_mode,
@@ -2185,6 +2200,35 @@ def build_similarity_reasoning_panel_html(
             algorithm_mode=algorithm_mode,
             similarity_settings=similarity_settings,
         )
+        if normalize_similar_charts_algorithm_mode(algorithm_mode) == SIMILAR_CHARTS_ALGORITHM_BIG_3:
+            component_weight_percents = _adjust_big_3_weights_for_available_components(
+                component_weight_percents=component_weight_percents,
+                component_score_percents=component_score_percents,
+            )
+            big_3_items: list[str] = []
+            for key in resolve_similarity_component_keys_for_display(
+                algorithm_mode=algorithm_mode,
+                similarity_settings=similarity_settings,
+            ):
+                if key not in component_score_percents:
+                    continue
+                label = _SIMILARITY_COMPONENT_LABELS.get(key)
+                if not label:
+                    continue
+                big_3_items.append(
+                    _section_title_with_weight_and_match(
+                        f"{label}:",
+                        key,
+                        component_weight_percents,
+                        component_score_percents,
+                    )
+                )
+            html_lines.append(
+                _section(
+                    "Big 3 sign-match components:",
+                    big_3_items or ["No Big 3 component scores were available."],
+                )
+            )
         if analysis_mode == "dissimilarities":
             if "placement" in component_weight_percents:
                 html_lines.append(
