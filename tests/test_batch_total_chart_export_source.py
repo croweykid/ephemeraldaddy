@@ -72,9 +72,13 @@ def test_batch_export_directory_dialog_sets_non_native_option_first():
 def test_background_export_ui_slots_run_on_gui_thread_without_self_waiting():
     source = _source()
 
-    assert "worker.progress.connect(_on_progress, Qt.QueuedConnection)" in source
-    assert "worker.failed.connect(_on_failed, Qt.QueuedConnection)" in source
-    assert "worker.finished.connect(_on_finished, Qt.QueuedConnection)" in source
+    assert "class _ChartExportUiBridge(QObject):" in source
+    assert "ui_bridge = _ChartExportUiBridge(parent)" in source
+    assert "worker.progress.connect(ui_bridge.forward_progress, Qt.QueuedConnection)" in source
+    assert "worker.failed.connect(ui_bridge.forward_failed, Qt.QueuedConnection)" in source
+    assert "worker.finished.connect(ui_bridge.forward_finished, Qt.QueuedConnection)" in source
+    assert "ui_bridge.finished.connect(_on_finished)" in source
     assert "thread.wait()" not in source
-    assert "thread.finished.connect(worker.deleteLater)" in source
+    assert "worker.finished.connect(worker.deleteLater)" in source
+    assert "worker.finished.connect(thread.quit)" in source
     assert "thread.finished.connect(thread.deleteLater)" in source
