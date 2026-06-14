@@ -1297,6 +1297,8 @@ HD_CROSS_THEME_DESCRIPTIONS = {
 
     "sphinx": "Direction, identity, listening, and guidance; a cross about finding or providing orientation without needing to over-explain the route.",
 
+    "driver": "Directional momentum and pressure; moving life forward by finding the route, holding the wheel, and responding to changing conditions.",
+
     "self-expression": "Individual creative expression; the pressure to be distinctly oneself, whether or not the room is ready for it.",
 
     "defiance": "Resistance to imposed limits; the refusal to let authority, convention, or social pressure define the acceptable shape of expression.",
@@ -1333,6 +1335,8 @@ HD_CROSS_THEME_DESCRIPTIONS = {
 
     "planning": "Community logistics; focusing details, bargains, costs, resources, and group priorities into a workable arrangement.",
 
+    "interaction": "Leadership through connection; guiding groups, exchanges, and shared direction by noticing how people meet and influence one another.",
+
     "focus": "Concentrated attention; the ability to narrow the field until the relevant pattern or task comes into view.",
 
     "identification": "Drawing people into a cause, product, vision, or shared aim by making it feel concrete and personally relevant.",
@@ -1358,6 +1362,8 @@ HD_CROSS_THEME_DESCRIPTIONS = {
     "extremes": "Rhythm at the edges; finding a livable pattern through unusual cycles, intensities, or personal timing.",
 
     "service": "Logical correction in service of improvement; guidance, organization, and refinement aimed at healthier processes.",
+
+    "correction": "Precise improvement; seeing what is flawed, inconsistent, or unhealthy and applying pressure toward a more workable pattern.",
 
     "opinions": "Stated judgment; offering evaluative perspective even when it irritates, because correction starts with a position.",
 
@@ -1404,6 +1410,8 @@ HD_CROSS_THEME_DESCRIPTIONS = {
     "unexpected": "Surprise events, sudden responsibility, and accidental discovery; extracting value from what was not planned.",
 
     "risks": "Meaning through risk; gambling on purpose, intensity, and the possibility that danger clarifies value.",
+
+    "caring": "Nourishment, responsibility, and support; protecting life by noticing what needs care, resources, or practical attention.",
 
     "alignment": "Leaving an old pattern for a better-fitting one; shifting allegiance when the prior structure has expired.",
 
@@ -1469,6 +1477,8 @@ HD_CROSS_THEME_DESCRIPTIONS = {
 
     "clarion": "Shock as a call to change; delivering the signal that moves ready people into action.",
 
+    "experimentation": "Testing skill through repetition and refinement; learning what works by trying, observing, and improving the pattern.",
+
     "stillness": "Clarity from restraint; advice, focus, and correction that works best when requested.",
 
     "demands": "Collective complaint made useful; naming what is not working and requiring repair or fair exchange.",
@@ -1480,6 +1490,8 @@ HD_CROSS_THEME_DESCRIPTIONS = {
     "ambition": "Commitment to advancement; pushing forward and staying with the process until it produces material result.",
 
     "moods": "Emotional depth, fluctuation, and focus; turning changing feeling states into insight or creative output.",
+
+    "crisis": "Emotional intensity at a threshold; meeting turbulence directly so experience can transform into maturity or clarity.",
 
     "spirit": "Fulfillment through intimacy, nourishment, romance, and emotional vitality.",
 
@@ -1530,12 +1542,26 @@ def get_cross_theme_description(theme: str) -> str | None:
     theme_key = _normalize_cross_description_key(theme)
     return HD_CROSS_THEME_DESCRIPTIONS.get(theme_key)
 
+
 def find_cross_by_name(name: str):
-    """Case-insensitive exact match on the full chart label."""
-    name_cf = name.casefold()
+    """Case-insensitive exact match on the full chart label.
+
+    Calculated chart labels include the gate tuple after the reference name
+    (for example, ``"Right Angle Cross of the Sphinx 4 (gates 1/2 • 7/13)"``),
+    while this reference table stores the canonical name without that suffix.
+    Strip that display-only suffix before matching so GUI info links can resolve
+    the same labels shown in the chart window.
+    """
+    name_text = str(name or "").strip()
+    name_cf = name_text.casefold()
     for item in HD_INCARNATION_CROSSES:
         if item["full_name"].casefold() == name_cf:
             return item
+    if " (gates " in name_cf:
+        canonical_name_cf = name_cf.split(" (gates ", 1)[0].strip()
+        for item in HD_INCARNATION_CROSSES:
+            if item["full_name"].casefold() == canonical_name_cf:
+                return item
     return None
 
 
