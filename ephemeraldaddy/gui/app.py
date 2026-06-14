@@ -32119,9 +32119,9 @@ class MainWindow(QMainWindow):
         label.setText(
             "<br>".join(
                 (
-                    _format_ranked_link_list("Represented", above_average_entries),
+                    _format_ranked_link_list("Overrepresented", above_average_entries),
                     _format_ranked_link_list("Underrepresented", below_average_entries),
-                    _format_ranked_link_list("Nonexistent", nonexistent_entries),
+                    _format_ranked_link_list("Absent", nonexistent_entries),
                 )
             )
         )
