@@ -6019,6 +6019,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     )
                     return
                 transit_workers.pop(key, None)
+            if any(thread.isRunning() for thread in transit_retired_threads):
+                logger.debug(
+                    "Transit worker shutdown still waiting on retired threads (active_workers=%s retired_threads=%s).",
+                    len(transit_workers),
+                    len(transit_retired_threads),
+                )
+                return
             transit_retired_threads[:] = [thread for thread in transit_retired_threads if thread.isRunning()]
 
             callbacks = list(_transit_shutdown_callbacks)
@@ -6167,7 +6174,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 horizontal_scrollbar.setValue(min(previous_horizontal_position, horizontal_scrollbar.maximum()))
 
             QTimer.singleShot(0, _restore_scroll_positions)
-        def _on_window_thread_finished(key: tuple[str, str, str, str]) -> None:
+        transit_generation = 0
+
+        def _on_window_thread_finished(key: tuple[str, str, str, str], generation: int) -> None:
+            if generation != transit_generation:
+                transit_workers.pop(key, None)
+                _finalize_transit_worker_shutdown()
+                return
             transit_workers.pop(key, None)
             _finalize_transit_worker_shutdown()
             _drain_preload_queue()
@@ -6182,8 +6195,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 except RuntimeError:
                     transit_workers.pop(key, None)
 
-        def _on_window_ready(key: tuple[str, str, str, str], start_dt: object, end_dt: object, metadata: object) -> None:
+        def _on_window_ready(key: tuple[str, str, str, str], start_dt: object, end_dt: object, metadata: object, generation: int) -> None:
             debug_id = _new_debug_action_id("transit_window_ready")
+            if generation != transit_generation:
+                logger.debug(
+                    "Transit window ready ignored because worker generation is stale (id=%s key=%s generation=%s current=%s).",
+                    debug_id,
+                    key,
+                    generation,
+                    transit_generation,
+                )
+                return
             state = transit_ranges.get(key)
             if state is None:
                 logger.debug(
@@ -6218,8 +6240,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             _refresh_summary()
             _drain_preload_queue()
 
-        def _on_window_failed(key: tuple[str, str, str, str], error_text: str) -> None:
+        def _on_window_failed(key: tuple[str, str, str, str], error_text: str, generation: int) -> None:
             debug_id = _new_debug_action_id("transit_window_failed")
+            if generation != transit_generation:
+                logger.debug(
+                    "Transit window failure ignored because worker generation is stale (id=%s key=%s generation=%s current=%s error=%r).",
+                    debug_id,
+                    key,
+                    generation,
+                    transit_generation,
+                    error_text,
+                )
+                return
             state = transit_ranges.get(key)
             if state is None:
                 logger.debug(
@@ -6259,6 +6291,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             mode = str(state.get("mode", PERSONAL_TRANSIT_MODE_LIFE_FORECAST))
             if hit is None:
                 return
+            generation = transit_generation
 
             state["resolving"] = True
             state["failed"] = False
@@ -6288,24 +6321,26 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             worker.finished.connect(relay.forward_ready, Qt.QueuedConnection)
             worker.failed.connect(relay.forward_failed, Qt.QueuedConnection)
             relay.ready.connect(
-                lambda a, b, c, start_dt, end_dt, metadata, mode=mode: _on_window_ready(
+                lambda a, b, c, start_dt, end_dt, metadata, mode=mode, generation=generation: _on_window_ready(
                     (str(mode), str(a), str(b), str(c)),
                     start_dt,
                     end_dt,
                     metadata,
+                    generation,
                 )
             )
             relay.failed.connect(
-                lambda a, b, c, error_text, mode=mode: _on_window_failed(
+                lambda a, b, c, error_text, mode=mode, generation=generation: _on_window_failed(
                     (str(mode), str(a), str(b), str(c)),
                     error_text,
+                    generation,
                 )
             )
             worker.finished.connect(thread.quit)
             worker.failed.connect(thread.quit)
             thread.finished.connect(worker.deleteLater)
             thread.finished.connect(thread.deleteLater)
-            thread.finished.connect(lambda key=key: _on_window_thread_finished(key))
+            thread.finished.connect(lambda key=key, generation=generation: _on_window_thread_finished(key, generation))
             thread.finished.connect(lambda thread=thread: transit_retired_threads.remove(thread) if thread in transit_retired_threads else None)
             transit_workers[key] = (thread, worker, relay)
             transit_retired_threads.append(thread)
@@ -6448,11 +6483,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             _ensure_window_async(key, state)
             return True
 
+        def _arrest_transit_window_loads_for_update() -> None:
+            nonlocal transit_generation
+
+            transit_generation += 1
+            preload_queue.clear()
+            for key, (thread, _worker, _relay) in list(transit_workers.items()):
+                try:
+                    thread.requestInterruption()
+                    thread.quit()
+                except RuntimeError:
+                    logger.debug(
+                        "Transit worker was already unavailable while arresting loads for update (key=%s).",
+                        key,
+                    )
+            transit_workers.clear()
+
         def _on_update_chart() -> None:
             nonlocal transit_chart, transit_positions_in_natal_houses, aspect_hits_by_mode, transit_location, include_time, location_label, raw_location
-
-            if not update_button.isEnabled():
-                return
 
             try:
                 resolved_location = resolve_personal_transit_location(
@@ -6480,47 +6528,40 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 tzinfo=local_tz,
             )
             raw_location_text = popout_location_input.text()
-            update_button.setEnabled(False)
-            update_button.setText("Updating…")
-            QApplication.setOverrideCursor(Qt.WaitCursor)
+            _arrest_transit_window_loads_for_update()
 
-            def _finish_update() -> None:
-                nonlocal transit_chart, transit_positions_in_natal_houses, aspect_hits_by_mode, transit_location, include_time, location_label, raw_location
-                try:
-                    recalculated = recalculate_personal_transit(
-                        natal_chart=natal_chart,
-                        selected_local_datetime=selected_local,
-                        location=resolved_location,
-                        raw_location=raw_location_text,
-                    )
-                    transit_chart = recalculated.transit_chart
-                    transit_positions_in_natal_houses = recalculated.transit_positions_in_natal_houses
-                    aspect_hits_by_mode = recalculated.aspect_hits_by_mode
-                    transit_location = (recalculated.transit_chart.lat, recalculated.transit_chart.lon)
-                    include_time = recalculated.include_time
-                    location_label = recalculated.location_label
-                    raw_location = recalculated.raw_location
-                    popout_location_input.setText(raw_location)
-                    transit_ranges.clear()
-                    calendar_info_map.clear()
-                    preload_queue.clear()
-                    _redraw_chart_wheel()
-                    _refresh_summary()
-                    preload_queue.extend([key for key, state in transit_ranges.items() if not state.get("resolved")])
-                    QTimer.singleShot(0, _drain_preload_queue)
-                except Exception as exc:
-                    logger.exception("Failed to update personal transit chart.")
-                    QMessageBox.warning(
-                        dialog,
-                        "Update Chart",
-                        f"Failed to update personal transit chart.\n\n{exc}",
-                    )
-                finally:
-                    QApplication.restoreOverrideCursor()
-                    update_button.setText("Update Chart")
-                    update_button.setEnabled(True)
+            try:
+                recalculated = recalculate_personal_transit(
+                    natal_chart=natal_chart,
+                    selected_local_datetime=selected_local,
+                    location=resolved_location,
+                    raw_location=raw_location_text,
+                )
+            except Exception as exc:
+                logger.exception("Failed to update personal transit chart.")
+                QMessageBox.warning(
+                    dialog,
+                    "Update Chart",
+                    f"Failed to update personal transit chart.\n\n{exc}",
+                )
+                _refresh_summary()
+                return
 
-            _begin_transit_worker_shutdown(_finish_update)
+            transit_chart = recalculated.transit_chart
+            transit_positions_in_natal_houses = recalculated.transit_positions_in_natal_houses
+            aspect_hits_by_mode = recalculated.aspect_hits_by_mode
+            transit_location = (recalculated.transit_chart.lat, recalculated.transit_chart.lon)
+            include_time = recalculated.include_time
+            location_label = recalculated.location_label
+            raw_location = recalculated.raw_location
+            popout_location_input.setText(raw_location)
+            transit_ranges.clear()
+            calendar_info_map.clear()
+            preload_queue.clear()
+            _redraw_chart_wheel()
+            _refresh_summary()
+            preload_queue.extend([key for key, state in transit_ranges.items() if not state.get("resolved")])
+            QTimer.singleShot(0, _drain_preload_queue)
 
         popout_context["custom_click_handler"] = _handle_calendar_click
 
