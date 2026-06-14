@@ -257,5 +257,5 @@ def test_big_3_similarity_reasoning_html_shows_component_breakdown_for_both_anal
         assert "Sun</a> sign:" in html
         assert "Moon</a> sign:" in html
         assert "Mercury</a> sign:" in html
-        assert "Rising sign:" in html
+        assert "AS</a>:" in html
         assert "MC</a> sign:" in html

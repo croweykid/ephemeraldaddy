@@ -15,6 +15,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from ephemeraldaddy.core.loading_messages import LoadingMessageRotator
+
 MAX_BATCH_EXPORT_CHARTS = 10
 LARGE_BATCH_EXPORT_THRESHOLD = 5
 
@@ -48,6 +50,10 @@ class ChartExportProgressWidget(QFrame):
         layout.setSpacing(6)
         label = QLabel("Chart Export\nProgress", self)
         label.setAlignment(Qt.AlignCenter)
+        self.message_label = QLabel("Preparing export…", self)
+        self.message_label.setAlignment(Qt.AlignCenter)
+        self.message_label.setWordWrap(True)
+        self.message_label.setFixedWidth(140)
         self.progress_bar = QProgressBar(self)
         self.progress_bar.setOrientation(Qt.Vertical)
         self.progress_bar.setTextVisible(True)
@@ -56,6 +62,7 @@ class ChartExportProgressWidget(QFrame):
         self.progress_bar.setFixedSize(34, 150)
         layout.addWidget(label)
         layout.addWidget(self.progress_bar, alignment=Qt.AlignHCenter)
+        layout.addWidget(self.message_label)
         self.adjustSize()
 
     def anchor_to_parent(self) -> None:
@@ -70,6 +77,11 @@ class ChartExportProgressWidget(QFrame):
     def set_fraction(self, completed: int, total: int) -> None:
         value = int((completed / max(total, 1)) * 100)
         self.progress_bar.setValue(value)
+
+    def set_message(self, message: str) -> None:
+        self.message_label.setText(message)
+        self.adjustSize()
+        self.anchor_to_parent()
 
 
 def _show_loading_bar_hint(parent, progress_widget: ChartExportProgressWidget) -> QLabel:
@@ -149,6 +161,12 @@ def run_total_chart_export_flow(
     if not directory:
         return
     progress = ChartExportProgressWidget(parent)
+    loading_messages = LoadingMessageRotator(initial_message="Exporting charts…")
+    progress.set_message(loading_messages.next())
+    message_timer = QTimer(progress)
+    message_timer.setInterval(3200)
+    message_timer.timeout.connect(lambda: progress.set_message(loading_messages.next()))
+    message_timer.start()
     progress.show()
     progress.anchor_to_parent()
     QApplication.processEvents()
@@ -168,6 +186,7 @@ def run_total_chart_export_flow(
         QMessageBox.critical(parent, "Export failed", f"Could not export total charts:\n{exc}")
         return
     finally:
+        message_timer.stop()
         QTimer.singleShot(1200, progress.deleteLater)
     QMessageBox.information(parent, "Export complete", f"Saved {exported} total chart exports to:\n{directory}")
 

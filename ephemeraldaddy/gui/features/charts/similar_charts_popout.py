@@ -404,7 +404,7 @@ _SIMILARITY_COMPONENT_LABELS: dict[str, str] = {
     "outer_planet_placement": "outer placements",
     "big_3_sun": "Sun sign",
     "big_3_moon": "Moon sign",
-    "big_3_rising": "Rising sign",
+    "big_3_rising": "AS",
     "big_3_mc": "MC sign",
     "big_3_mercury": "Mercury sign",
     "big_3_venus": "Venus sign",
