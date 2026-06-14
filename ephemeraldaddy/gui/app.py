@@ -10632,6 +10632,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         return not (
             not getattr(self, "_hide_hypothetical_charts", False)
             and self.incomplete_birthdate_checkbox.mode() == QuadStateSlider.MODE_EMPTY
+            and (
+                not getattr(self, "_show_hidden_charts", False)
+                or not hasattr(self, "hidden_charts_checkbox")
+                or self.hidden_charts_checkbox.mode() == QuadStateSlider.MODE_EMPTY
+            )
             and self.birthtime_unknown_checkbox.mode() == QuadStateSlider.MODE_EMPTY
             and self.retconned_checkbox.mode() == QuadStateSlider.MODE_EMPTY
             and (self.living_checkbox is None or self.living_checkbox.mode() == QuadStateSlider.MODE_EMPTY)
@@ -16756,6 +16761,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._clear_batch_edits()
             self.incomplete_birthdate_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             self._settings.setValue(SETTINGS_KEY_HIDE_PLACEHOLDER_CHARTS_FILTER, 0)
+            if hasattr(self, "hidden_charts_checkbox"):
+                self.hidden_charts_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             self.birthtime_unknown_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             self.retconned_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             if self.living_checkbox is not None:
@@ -18499,6 +18506,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             SETTINGS_KEY_SHOW_HIDDEN_CHARTS,
             int(self._show_hidden_charts),
         )
+        if hasattr(self, "hidden_charts_filter_row"):
+            self.hidden_charts_filter_row.setVisible(self._show_hidden_charts)
         self._populate_list(
             selected_ids=set(self._selected_chart_ids()),
             refresh_metrics=False,
@@ -18618,6 +18627,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _chart_matches_filters(self, chart_id: int) -> bool:
         incomplete_birthdate_state = self.incomplete_birthdate_checkbox.mode()
+        hidden_charts_state = (
+            self.hidden_charts_checkbox.mode()
+            if getattr(self, "_show_hidden_charts", False)
+            and hasattr(self, "hidden_charts_checkbox")
+            else QuadStateSlider.MODE_EMPTY
+        )
         birthtime_unknown_state = self.birthtime_unknown_checkbox.mode()
         retconned_state = self.retconned_checkbox.mode()
         living_state = self.living_checkbox.mode() if self.living_checkbox is not None else QuadStateSlider.MODE_EMPTY
@@ -19201,6 +19216,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             and is_placeholder
         ):
             return False
+
+        if hidden_charts_state != QuadStateSlider.MODE_EMPTY:
+            is_hidden_chart = int(chart_id) in getattr(self, "_hidden_chart_ids", set())
+            if hidden_charts_state == QuadStateSlider.MODE_TRUE and not is_hidden_chart:
+                return False
+            if hidden_charts_state == QuadStateSlider.MODE_FALSE and is_hidden_chart:
+                return False
 
         if living_state != QuadStateSlider.MODE_EMPTY:
             deceased_value = chart_row[16] if chart_row and len(chart_row) > 16 else None
