@@ -19,7 +19,7 @@ modules:
       - install -d /app/bin
       - install -Dm755 flatpak/ephemeraldaddy-launcher.sh /app/bin/ephemeraldaddy
       - install -Dm644 packaging/linux/io.github.ephemeraldaddy.EphemeralDaddy.desktop /app/share/applications/io.github.ephemeraldaddy.EphemeralDaddy.desktop
-      - install -Dm644 ephemeraldaddy/graphics/ephemeraldaddy1.png /app/share/icons/hicolor/512x512/apps/io.github.ephemeraldaddy.EphemeralDaddy.png
+      - install -Dm644 ephemeraldaddy/graphics/ephemeraldaddy.png /app/share/icons/hicolor/512x512/apps/io.github.ephemeraldaddy.EphemeralDaddy.png
     sources:
       - type: dir
         path: ..

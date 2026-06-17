@@ -1865,7 +1865,7 @@ def _configure_qt_input_scaling() -> None:
 
 def _get_app_icon_path() -> str | None:
     module_root = Path(__file__).resolve().parents[1]
-    icon_path = module_root / "graphics" / "ephemeraldaddy1.png"
+    icon_path = module_root / "graphics" / "ephemeraldaddy.png"
     if icon_path.exists():
         return str(icon_path)
     return None
@@ -31509,7 +31509,7 @@ class MainWindow(QMainWindow):
             startup_progress("Opening that sassy Database…!", 98)
         QTimer.singleShot(0, self._raise_manage_charts_dialog)
         self._retarget_size_checker_to_database_view()
-        self.hide()
+        #self.hide()
 
     def _on_close_requested(self) -> None:
         self.close()

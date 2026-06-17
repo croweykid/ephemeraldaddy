@@ -45,6 +45,9 @@ class _StartupAnimationBackground(QWidget):
         self._wave_phase = (self._wave_phase + 0.35) % (2.0 * math.pi)
         self.update()
 
+    def stop(self) -> None:
+        self._wave_timer.stop()
+
     def _create_star_particles(
         self, *, count: int
     ) -> list[tuple[float, float, float, float]]:
@@ -223,4 +226,10 @@ class StartupLoadingWidget(QWidget):
         self._background_animation.setGeometry(self.rect())
 
     def closeEvent(self, event) -> None:  # type: ignore[override]
+        self._background_animation.stop()
         super().closeEvent(event)
+
+    def shutdown(self) -> None:
+        self._background_animation.stop()
+        self.close()
+        self.deleteLater()

@@ -7,12 +7,12 @@ APP_NAME="EphemeralDaddy"
 APPDIR="$DIST_DIR/${APP_NAME}.AppDir"
 APP_BIN_DIR="$DIST_DIR/${APP_NAME}"
 DESKTOP_FILE_SRC="$ROOT_DIR/packaging/linux/io.github.ephemeraldaddy.EphemeralDaddy.desktop"
-ICON_SRC="$ROOT_DIR/ephemeraldaddy/graphics/ephemeraldaddy1.png"
+ICON_SRC="$ROOT_DIR/ephemeraldaddy/graphics/ephemeraldaddy.png"
 APPIMAGETOOL_BIN="${APPIMAGETOOL_BIN:-$ROOT_DIR/tools/appimagetool-x86_64.AppImage}"
 
 if [[ ! -d "$APP_BIN_DIR" ]]; then
   echo "Missing $APP_BIN_DIR. Build first:" >&2
-  echo "  python tools/build_desktop_app.py --icon ephemeraldaddy/graphics/ephemeraldaddy1.png" >&2
+  echo "  python tools/build_desktop_app.py --icon ephemeraldaddy/graphics/ephemeraldaddy.png" >&2
   exit 1
 fi
 

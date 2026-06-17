@@ -38,8 +38,33 @@ def configure_initial_window_state(
     startup_loading.update_status("Opening default view…", 90)
     app.processEvents()
     show_default_view()
+
     startup_loading.update_status("Finalizing startup…", 97)
-    window.hide()
     app.processEvents()
+
+    # Keep the real top-level app window alive and visible.
+    # Hiding this window can leave Windows with only secondary/tool/dialog windows,
+    # which breaks normal taskbar/minimize behavior.
+    if not window.isVisible():
+        window.showNormal()
+    else:
+        window.show()
+
+    window.raise_()
+    window.activateWindow()
+
     startup_loading.update_status("Startup complete.", 100)
-    QTimer.singleShot(250, startup_loading.close)
+
+    def _finish_startup_loading() -> None:
+        shutdown = getattr(startup_loading, "shutdown", None)
+
+        if callable(shutdown):
+            shutdown()
+            return
+
+        startup_loading.close()
+
+        if isinstance(startup_loading, QWidget):
+            startup_loading.deleteLater()
+
+    QTimer.singleShot(250, _finish_startup_loading)

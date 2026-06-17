@@ -206,11 +206,21 @@ def _show_about_from_onboarding(owner: "QWidget") -> None:
     dialog.finished.connect(lambda _result: _show_about_close_sparkles(dialog.frameGeometry()))
     dialog.show()
 
-def _minimize_window(owner: "QWidget") -> None:
-    """Minimize the provided top-level window to the taskbar/dock."""
-    if hasattr(owner, "showMinimized"):
-        owner.showMinimized()
+def _minimize_window(owner: QWidget) -> None:
+    window = owner.window()
 
+    if not window.testAttribute(Qt.WA_WState_Created):
+        window.show()
+
+    if not window.isWindow():
+        window.setWindowFlag(Qt.Window, True)
+        window.show()
+
+    window.showMinimized()
+
+#     Alternately, try:
+# def _minimize_window(owner: QWidget) -> None:
+#     owner.window().showMinimized()
 
 def _quit_application() -> None:
     """Request a full application shutdown via QApplication."""

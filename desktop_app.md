@@ -38,7 +38,11 @@ If this fails in Python, fix that first before trying to package.
 ### Single-file EXE (easy to share)
 
 ```powershell
-python tools/build_desktop_app.py --onefile --icon ephemeraldaddy/graphics/ephemeraldaddy1.png
+cd path\to\ephemeraldaddy
+
+.\venv\Scripts\python.exe tools\build_desktop_app.py --onefile --icon ephemeraldaddy\graphics\ephemeraldaddy.ico
+
+& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" ".\installer\EphemeralDaddy.iss"
 ```
 
 Notes:
@@ -48,8 +52,10 @@ Notes:
 
 ### Folder build (faster startup, easier troubleshooting)
 
-```powershell
-python tools/build_desktop_app.py --icon ephemeraldaddy/graphics/ephemeraldaddy1.png
+```
+.\venv\Scripts\python.exe tools\build_desktop_app.py --icon ephemeraldaddy\graphics\ephemeraldaddy.ico
+
+& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" ".\installer\EphemeralDaddy.iss"
 ```
 
 Output: `dist/EphemeralDaddy/`.
@@ -94,8 +100,15 @@ Filename: "{app}\EphemeralDaddy.exe"; Description: "Launch EphemeralDaddy"; Flag
 
 3. Build with Inno Setup Compiler (GUI), or command line. **Run this from the repo root** (the same folder that contains `installer.iss` and `dist/`):
 
+A) for onefile:
 ```powershell
 cd C:\path\to\ephemeraldaddy
+& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" .\installer-onefile.iss
+```
+OR
+B) for folder style build:
+```powershell
+cd C:\Users\Anonymous\Documents\GitHub\ephemeraldaddy
 & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" .\installer.iss
 ```
 

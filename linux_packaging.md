@@ -21,7 +21,7 @@ python -m pip install pyinstaller
 Use the existing build helper:
 
 ```bash
-python tools/build_desktop_app.py --icon ephemeraldaddy/graphics/ephemeraldaddy1.png
+python tools/build_desktop_app.py --icon ephemeraldaddy/graphics/ephemeraldaddy.png
 ```
 
 Expected output for Linux folder build:

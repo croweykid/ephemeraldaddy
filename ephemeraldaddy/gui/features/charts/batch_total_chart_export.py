@@ -33,8 +33,20 @@ class ChartExportProgressWidget(QFrame):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setObjectName("chart_export_progress_widget")
-        self.setWindowFlags(Qt.Widget)
-        self.setAttribute(Qt.WA_StyledBackground, True)
+        # self.setWindowFlags(
+        #     Qt.Window
+        #     | Qt.WindowMinimizeButtonHint
+        #     | Qt.WindowMaximizeButtonHint
+        #     | Qt.WindowCloseButtonHint
+        # )
+        # self.setAttribute(Qt.WA_StyledBackground, True)
+        self.setWindowFlags(
+            Qt.WindowType.Window
+            | Qt.WindowType.WindowMinimizeButtonHint
+            | Qt.WindowType.WindowMaximizeButtonHint
+            | Qt.WindowType.WindowCloseButtonHint
+        )
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setStyleSheet(
             "QFrame#chart_export_progress_widget {"
             " background: rgba(22, 18, 30, 230);"
