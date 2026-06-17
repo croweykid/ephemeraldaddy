@@ -237,7 +237,7 @@ def build_sign_dominance_section_html(
     if aspect_lines:
         lines.append(
             "<ul>"
-            + "".join(f"<li>Aspect contribution: {entry}</li>" for entry in aspect_lines[:8])
+            + "".join(f"<li>{entry}</li>" for entry in aspect_lines[:8])
             + "</ul>"
         )
     return "".join(lines)

@@ -1280,7 +1280,7 @@ NAKSHATRA_DESCRIPTIONS = {
         "quality": "Tikshna: sharp, penetrating, active",
         "favorable_activities": "Filing a divorce, breaking a relationship, black magic, exorcism, and other brash/bold activities.",
         "sidereal_sign": "Virgo/Libra",
-        "archetypes": "Trickster, shapeshifter; serial killer (lagna)",
+        "archetypes": "Trickster, shapeshifter, master of illusion; serial killer (lagna), born conspiracy theorists convinced only they can see the truth while most other people think they're a lil nuts",
         "deity": "Mangal",
         "ruler": "Mars",
         "planetary_associations": "Venus/Pluto/Mars",
