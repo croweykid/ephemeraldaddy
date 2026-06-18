@@ -106,7 +106,7 @@ def add_similarity_perceived_accuracy_controls_setting(
     is_enabled: bool,
     on_toggled: Callable[[bool], None],
 ) -> QCheckBox:
-    checkbox = QCheckBox("Similar Charts: show perceived-accuracy beta inputs")
+    checkbox = QCheckBox("Similar Charts: show perceived-accuracy inputs")
     checkbox.setChecked(bool(is_enabled))
     checkbox.setToolTip(
         "When enabled, the Top/Bottom 25 Similar Charts popout shows temporary beta controls "
