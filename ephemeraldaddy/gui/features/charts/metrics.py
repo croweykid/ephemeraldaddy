@@ -10,6 +10,7 @@ from ephemeraldaddy.core.chart import chart_uses_houses
 from ephemeraldaddy.core.dominance import (
     dominant_element_labels_from_weights,
     dominant_mode_labels_from_weights,
+    top_element_labels_from_weights,
 )
 from ephemeraldaddy.core.interpretations import (
     ANGLE_POINTS,

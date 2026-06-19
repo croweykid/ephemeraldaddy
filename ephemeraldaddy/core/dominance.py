@@ -33,6 +33,24 @@ def dominant_mode_labels_from_weights(
     ]
 
 
+def top_element_labels_from_weights(element_weights: dict[str, float]) -> list[str]:
+    """Return the element(s) tied for the highest positive element weight.
+
+    This is intentionally separate from ``dominant_element_labels_from_weights``:
+    the dominance helper can return every element above the 25% elemental
+    baseline, while #1 analytics need only the actual largest element(s).
+    """
+    ordered_elements = ["Fire", "Earth", "Air", "Water"]
+    weights = {
+        element: max(0.0, float(element_weights.get(element, 0.0)))
+        for element in ordered_elements
+    }
+    top_weight = max(weights.values(), default=0.0)
+    if top_weight <= 0.0:
+        return []
+    return [element for element in ordered_elements if weights[element] == top_weight]
+
+
 def dominant_element_labels_from_weights(
     element_weights: dict[str, float],
     *,

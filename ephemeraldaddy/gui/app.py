@@ -811,6 +811,7 @@ from ephemeraldaddy.gui.features.charts.metrics import (
     chart_uses_houses as _chart_uses_houses,
     dominant_element_labels_from_weights as _dominant_element_labels_from_weights,
     dominant_mode_labels_from_weights as _dominant_mode_labels_from_weights,
+    top_element_labels_from_weights as _top_element_labels_from_weights,
     dominant_planet_keys as _dominant_planet_keys,
     house_for_longitude as _house_for_longitude,
     house_membership_weights as _house_membership_weights,
@@ -9923,8 +9924,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     continue
                 snapshot["dominant_element_weight_totals"][element] += element_weight
                 snapshot["dominant_element_weight_total_weight"] += element_weight
-            for dominant_element in _dominant_element_labels_from_weights(dominant_element_weights):
+            top_element_labels = _top_element_labels_from_weights(dominant_element_weights)
+            for dominant_element in top_element_labels:
                 snapshot["dominant_element_totals"][dominant_element] += 1.0
+            if top_element_labels:
                 snapshot["dominant_element_total_weight"] += 1.0
 
             dominant_mode_weights = _calculate_mode_weights(chart)
@@ -9934,8 +9937,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     continue
                 snapshot["dominant_mode_weight_totals"][mode] += mode_weight
                 snapshot["dominant_mode_weight_total_weight"] += mode_weight
-            for dominant_mode in _dominant_mode_labels_from_weights(dominant_mode_weights):
+            top_mode_labels = _dominant_mode_labels_from_weights(dominant_mode_weights)
+            for dominant_mode in top_mode_labels:
                 snapshot["dominant_mode_totals"][dominant_mode] += 1.0
+            if top_mode_labels:
                 snapshot["dominant_mode_total_weight"] += 1.0
 
             dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)

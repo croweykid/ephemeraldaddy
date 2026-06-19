@@ -2,6 +2,7 @@ from ephemeraldaddy.analysis.dnd.species_assigner_v2 import SpeciesAssigner
 from ephemeraldaddy.core.dominance import (
     dominant_element_labels_from_weights,
     dominant_mode_labels_from_weights,
+    top_element_labels_from_weights,
 )
 
 SAMPLE_ELEMENT_RATIOS = {"Fire": 0.21, "Earth": 0.36, "Air": 0.13, "Water": 0.30}
@@ -38,6 +39,13 @@ def _sample_feats(**overrides):
 
 def test_dominant_element_labels_require_above_quarter_share_not_top_three():
     assert dominant_element_labels_from_weights(SAMPLE_ELEMENT_RATIOS) == ["Earth", "Water"]
+
+
+def test_top_element_labels_only_return_actual_largest_elements():
+    assert top_element_labels_from_weights(SAMPLE_ELEMENT_RATIOS) == ["Earth"]
+    assert top_element_labels_from_weights(
+        {"Fire": 2, "Earth": 1, "Air": 2, "Water": 0}
+    ) == ["Fire", "Air"]
 
 
 def test_dominant_mode_labels_require_top_mode_above_third_share():
