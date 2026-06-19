@@ -28512,6 +28512,9 @@ class MainWindow(QMainWindow):
                 event.type() == QEvent.MouseButtonRelease
                 and event.button() == Qt.LeftButton
             ):
+                if bool(obj.property("suppress_metric_popout_once")):
+                    obj.setProperty("suppress_metric_popout_once", False)
+                    return True
                 self._show_metric_canvas_popout(obj, self._metric_chart_titles[obj])
                 return True
         if chart_canvas is not None and obj is chart_canvas:
@@ -32739,6 +32742,7 @@ class MainWindow(QMainWindow):
                 if not isinstance(artist_gid, str) or not artist_gid.startswith("mode:"):
                     return
                 _prefix, raw_mode = artist_gid.split(":", 1)
+                canvas.setProperty("suppress_metric_popout_once", True)
                 self._set_chart_info_panel_mode("chart_info")
                 self._show_mode_keyword_info(raw_mode)
 
