@@ -2246,6 +2246,8 @@ def append_database(source: Path) -> dict[str, Any]:
 
         source_rows = source_conn.execute("SELECT * FROM charts ORDER BY id ASC").fetchall()
         now_iso = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        source_uid_remap: dict[str, str] = {}
+        pending_reminds_me_of_updates: list[tuple[int, str]] = []
 
         with target_conn:
             for row_index, row in enumerate(source_rows, start=1):
@@ -2271,8 +2273,10 @@ def append_database(source: Path) -> dict[str, Any]:
                 )
                 if source_chart_uid is None:
                     new_chart_uid = _generate_chart_uid(target_uids)
+                    target_uids.add(new_chart_uid)
                 elif source_chart_uid in target_uids:
                     new_chart_uid = _generate_chart_uid(target_uids)
+                    target_uids.add(new_chart_uid)
                     warned += 1
                     issues.append(
                         {
@@ -2288,6 +2292,8 @@ def append_database(source: Path) -> dict[str, Any]:
                 else:
                     new_chart_uid = source_chart_uid
                     target_uids.add(new_chart_uid)
+                if source_chart_uid is not None:
+                    source_uid_remap[source_chart_uid] = new_chart_uid
 
                 chart_name = (
                     str(row["name"]).strip()
@@ -2375,6 +2381,9 @@ def append_database(source: Path) -> dict[str, Any]:
                     or _row_value("source")
                     or CHART_TYPE_PERSONAL
                 )
+                reminds_me_of_uid = _normalize_chart_uid(_row_value("reminds_me_of"))
+                if reminds_me_of_uid is not None:
+                    pending_reminds_me_of_updates.append((new_chart_id, reminds_me_of_uid))
 
                 used_utc_fallback = int(_row_value("used_utc_fallback") or 0)
                 if concerns_for_row > 0:
@@ -2393,7 +2402,7 @@ def append_database(source: Path) -> dict[str, Any]:
                     """
                     INSERT INTO charts
                         (id, chart_uid, name, alias, from_whence, gender, birth_place, datetime_iso, tz_name,
-                         lat, lon, used_utc_fallback, sentiments, relationship_types, tags, comments, rectification_notes, biography, chart_data_source,
+                         lat, lon, used_utc_fallback, sentiments, relationship_types, tags, reminds_me_of, comments, rectification_notes, biography, chart_data_source,
                          positive_sentiment_intensity, negative_sentiment_intensity, familiarity,
                          alignment_score, matched_expectations, familiarity_factors, age_when_first_met, year_first_encountered, data_rating,
                          social_score, birthtime_unknown, signs_unknown, unknown_signs, retcon_time_used, retcon_hour, retcon_minute,
@@ -2407,7 +2416,7 @@ def append_database(source: Path) -> dict[str, Any]:
                          is_placeholder, is_deceased, birth_month, birth_day, birth_year,
                          death_month, death_day, death_year, deathtime_unknown, death_hour, death_minute, death_place,
                          created_at, is_current)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         new_chart_id,
@@ -2425,6 +2434,7 @@ def append_database(source: Path) -> dict[str, Any]:
                         _row_value("sentiments"),
                         _row_value("relationship_types"),
                         _row_value("tags"),
+                        reminds_me_of_uid,
                         _row_value("comments"),
                         _row_value("rectification_notes"),
                         _row_value("biography"),
@@ -2484,6 +2494,14 @@ def append_database(source: Path) -> dict[str, Any]:
                     ),
                 )
                 imported += 1
+            for imported_chart_id, source_reminds_me_of_uid in pending_reminds_me_of_updates:
+                target_conn.execute(
+                    "UPDATE charts SET reminds_me_of = ? WHERE id = ?",
+                    (
+                        source_uid_remap.get(source_reminds_me_of_uid, source_reminds_me_of_uid),
+                        imported_chart_id,
+                    ),
+                )
     finally:
         source_conn.close()
         target_conn.close()
