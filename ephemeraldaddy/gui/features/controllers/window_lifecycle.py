@@ -42,16 +42,11 @@ def configure_initial_window_state(
     startup_loading.update_status("Finalizing startup…", 97)
     app.processEvents()
 
-    # Keep the real top-level app window alive and visible.
-    # Hiding this window can leave Windows with only secondary/tool/dialog windows,
-    # which breaks normal taskbar/minimize behavior.
-    if not window.isVisible():
-        window.showNormal()
-    else:
-        window.show()
-
-    window.raise_()
-    window.activateWindow()
+    # Keep startup Database View-first without surfacing the blank Chart View
+    # MainWindow.  The main window remains alive as the application owner and is
+    # shown later only when the user opens/edits a chart.
+    if window.isVisible():
+        window.hide()
 
     startup_loading.update_status("Startup complete.", 100)
 
