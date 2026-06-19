@@ -2277,6 +2277,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._selected_chart_id_order: list[int] = []
         self._selected_chart_ids_set: set[int] = set()
         self._visible_chart_ids: set[int] = set()
+        self._filter_navigation_anchor_chart_id: int | None = None
         self._selection_update_mode = "replace"
         self._syncing_visible_selection = False
         self._custom_collections: dict[str, CustomCollection] = {}
@@ -13248,8 +13249,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if event.type() == QEvent.KeyPress:
                 if event.key() == Qt.Key_Escape:
                     self._clear_persistent_selection()
+                    self._filter_navigation_anchor_chart_id = None
                     self._on_selection_changed()
                     return True
+                if event.key() in (Qt.Key_Up, Qt.Key_Down) and not list_widget.selectedItems():
+                    direction = -1 if event.key() == Qt.Key_Up else 1
+                    return self._select_filter_navigation_row(direction=direction)
                 modifiers = event.modifiers()
                 if modifiers & (Qt.KeyboardModifier.ShiftModifier | Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.MetaModifier):
                     self._selection_update_mode = "extend"
@@ -16947,12 +16952,58 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _searchable_body_options(self) -> list[tuple[str, str]]:
         return [("Any", "Any"), *self._searchable_bodies()]
 
+    def _chart_id_from_list_item(self, item: QListWidgetItem | None) -> int | None:
+        if item is None:
+            return None
+        raw_chart_id = item.data(Qt.UserRole)
+        if raw_chart_id is None or isinstance(raw_chart_id, bool):
+            return None
+        try:
+            return int(raw_chart_id)
+        except (TypeError, ValueError):
+            return None
+
+    def _current_filter_navigation_anchor_chart_id(self) -> int | None:
+        current_item = self.list_widget.currentItem() if self.list_widget is not None else None
+        current_chart_id = self._chart_id_from_list_item(current_item)
+        if current_chart_id is not None:
+            return current_chart_id
+        selected_chart_ids = self._visible_selected_chart_ids()
+        if selected_chart_ids:
+            return selected_chart_ids[-1]
+        selected_chart_ids = list(getattr(self, "_selected_chart_id_order", []))
+        return selected_chart_ids[-1] if selected_chart_ids else None
+
     def _clear_filter_selection(self) -> None:
-        if not self.list_widget.selectedItems():
+        self._filter_navigation_anchor_chart_id = self._current_filter_navigation_anchor_chart_id()
+        self._replace_persistent_selection([])
+        if self.list_widget is None:
             return
         blocker = QSignalBlocker(self.list_widget)
         self.list_widget.clearSelection()
+        self.list_widget.setCurrentRow(-1)
         blocker.unblock()
+
+    def _select_filter_navigation_row(self, *, direction: int) -> bool:
+        if self.list_widget is None or self.list_widget.count() <= 0:
+            return False
+        anchor_id = getattr(self, "_filter_navigation_anchor_chart_id", None)
+        anchor_row: int | None = None
+        for row in range(self.list_widget.count()):
+            if self._chart_id_from_list_item(self.list_widget.item(row)) == anchor_id:
+                anchor_row = row
+                break
+        if anchor_row is None:
+            target_row = 0 if direction > 0 else self.list_widget.count() - 1
+        else:
+            target_row = max(0, min(self.list_widget.count() - 1, anchor_row + direction))
+        item = self.list_widget.item(target_row)
+        if item is None:
+            return False
+        self.list_widget.setCurrentItem(item)
+        item.setSelected(True)
+        self.list_widget.scrollToItem(item, QAbstractItemView.PositionAtCenter)
+        return True
 
     def _on_filter_changed(self, *_: object) -> None:
         if (
@@ -16982,7 +17033,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         debug_id = _new_debug_action_id("filter_refresh")
         logger.debug("Starting filter refresh (id=%s).", debug_id)
         try:
-            self._populate_list()
+            self._clear_filter_selection()
+            self._populate_list(selected_ids=set(), refresh_metrics=False)
+            self._on_selection_changed(refresh_metrics=False, sync_persistent_selection=False)
         except Exception as exc:
             logger.exception("Filter refresh failed (id=%s): %s", debug_id, exc)
             traceback.print_exc()
@@ -17337,6 +17390,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if sync_persistent_selection:
             replace_selection = getattr(self, "_selection_update_mode", "replace") == "replace"
             self._merge_visible_selection_into_persistent_selection(replace=replace_selection)
+        selected_chart_ids = self._visible_selected_chart_ids()
+        if selected_chart_ids:
+            current_chart_id = self._chart_id_from_list_item(self.list_widget.currentItem())
+            self._filter_navigation_anchor_chart_id = (
+                current_chart_id if current_chart_id in selected_chart_ids else selected_chart_ids[-1]
+            )
         self._selection_update_mode = "replace"
 
         if self._right_panel_visible and self._active_right_panel == "edit":
