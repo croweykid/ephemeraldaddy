@@ -24479,7 +24479,7 @@ class MainWindow(QMainWindow):
             self._similar_charts_popout_subject_signature(chart=chart, subject_chart_id=subject_chart_id),
             self._similar_charts_popout_database_signature(rows),
             self._similar_charts_popout_settings_signature(algorithm_mode),
-            "top-bottom-25-v1",
+            "top-bottom-all-v1",
         )
 
     def _get_cached_similar_charts_popout_payload(
@@ -25469,7 +25469,7 @@ class MainWindow(QMainWindow):
                     most_similar_matches = find_astro_twins(
                         chart,
                         candidates,
-                        top_k=25,
+                        top_k=max(25, len(candidates)),
                         exclude_chart_id=subject_chart_id,
                         least_similar=False,
                         algorithm_mode=algorithm_mode,
@@ -25484,7 +25484,7 @@ class MainWindow(QMainWindow):
                     least_similar_matches = find_astro_twins(
                         chart,
                         candidates,
-                        top_k=25,
+                        top_k=max(25, len(candidates)),
                         exclude_chart_id=subject_chart_id,
                         least_similar=True,
                         algorithm_mode=algorithm_mode,
@@ -25558,8 +25558,10 @@ class MainWindow(QMainWindow):
             subject_name=subject_name,
             subject_chart_id=subject_chart_id,
             subject_uses_houses=_chart_uses_houses(chart),
-            most_similar_matches=most_similar_matches,
-            least_similar_matches=least_similar_matches,
+            most_similar_matches=most_similar_matches[:25],
+            least_similar_matches=least_similar_matches[:25],
+            all_most_similar_matches=most_similar_matches,
+            all_least_similar_matches=least_similar_matches,
             on_link_activated=self._on_similar_chart_popout_link_activated,
             header_style=CHART_DATA_POPOUT_HEADER_STYLE,
             output_style=f"font-weight: 400; color: {CHART_DATA_HIGHLIGHT_COLOR};",
