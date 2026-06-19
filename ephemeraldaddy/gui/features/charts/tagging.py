@@ -68,6 +68,10 @@ def apply_tag_completer(
     completer = QCompleter(known_tags, line_edit)
     completer.setCaseSensitivity(Qt.CaseInsensitive)
     completer.setFilterMode(Qt.MatchContains)
+    # Keep typing focus anchored in the tag editor.  The completer popup is
+    # purely a suggestion surface; allowing it to take focus can interrupt
+    # rapid typing in Chart View's right-hand Subjective Notes panel.
+    completer.popup().setFocusPolicy(Qt.NoFocus)
     completer.activated[str].connect(
         lambda value, target=line_edit: replace_active_tag_segment(target, value)
     )

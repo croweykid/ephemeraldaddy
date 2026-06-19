@@ -91,3 +91,50 @@ def test_database_distinction_repeated_gate_score_weights_extra_repetitions(monk
     assert triple_components["repeated_hd_gates"] == 3 / 5
     assert double_components["repeated_hd_gates"] == 2 / 5
     assert triple_score > double_score
+
+
+def test_distinguishing_factors_include_raw_weight_outliers(monkeypatch):
+    from types import SimpleNamespace
+
+    from ephemeraldaddy.gui.features.charts import distinguishing_factors
+
+    metric_group = distinguishing_factors._MetricGroup(
+        "demo",
+        "demo weight",
+        lambda chart: {"alpha": chart.raw_weight, "beta": chart.total_weight - chart.raw_weight},
+        ("alpha", "beta"),
+    )
+    monkeypatch.setattr(distinguishing_factors, "_metric_groups", lambda _chart: (metric_group,))
+    monkeypatch.setattr(distinguishing_factors, "MIN_NORM_SAMPLE_SIZE", 5)
+
+    target = SimpleNamespace(raw_weight=20.0, total_weight=1000.0)
+    norms = [
+        SimpleNamespace(raw_weight=value, total_weight=100.0)
+        for value in (1.0, 2.0, 3.0, 4.0, 5.0)
+    ]
+
+    factors, norm_count = distinguishing_factors.find_distinguishing_factors(target, norms)
+
+    assert norm_count == 5
+    raw_factor = next(factor for factor in factors if factor.raw_label == "alpha")
+    assert raw_factor.basis == "raw"
+    assert raw_factor.raw_z_score >= distinguishing_factors.DISTINGUISHING_Z_THRESHOLD
+
+
+def test_distinguishing_metric_payload_persists_raw_weights(monkeypatch):
+    from types import SimpleNamespace
+
+    from ephemeraldaddy.gui.features.charts import distinguishing_factors
+
+    metric_group = distinguishing_factors._MetricGroup(
+        "demo",
+        "demo weight",
+        lambda _chart: {"alpha": 25.0, "beta": 75.0},
+        ("alpha", "beta"),
+    )
+    monkeypatch.setattr(distinguishing_factors, "_metric_groups", lambda _chart: (metric_group,))
+
+    payload = distinguishing_factors.distinguishing_metric_payload_for_chart(SimpleNamespace())
+
+    assert payload["groups"]["demo"]["alpha"]["share"] == 0.25
+    assert payload["groups"]["demo"]["alpha"]["raw"] == 25.0
