@@ -186,6 +186,7 @@ def build_sign_dominance_section_html(
         return "".join(lines)
 
     from ephemeraldaddy.gui.features.charts.metrics import (
+        _aspect_strength,
         chart_uses_houses,
         house_for_longitude,
         planet_sign_weight,
@@ -229,10 +230,14 @@ def build_sign_dominance_section_html(
         if sign_name not in {_sign_for_longitude(lon1), _sign_for_longitude(lon2)}:
             continue
         aspect_type = str(aspect.get("type", "")).strip() or "aspect"
+        aspect_weight = _aspect_strength(aspect)
+        if aspect_weight <= 0:
+            continue
         aspect_lines.append(
             f"{dominance_body_label_html(p1, fallback_text_color=fallback_text_color)} "
             f"{dominance_aspect_label_html(aspect_type, fallback_text_color=fallback_text_color)} "
-            f"{dominance_body_label_html(p2, fallback_text_color=fallback_text_color)}"
+            f"{dominance_body_label_html(p2, fallback_text_color=fallback_text_color)} "
+            f"(aspect weight of {aspect_weight:.2f})"
         )
     if aspect_lines:
         lines.append(
