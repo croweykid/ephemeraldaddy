@@ -9721,14 +9721,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "dominant_house_total_weight": 0.0,
             "dominant_house_weight_totals": {house_num: 0.0 for house_num in range(1, 13)},
             "dominant_house_weight_total_weight": 0.0,
-            "dominant_element_totals": {element: 0.0 for element in ("Fire", "Earth", "Air", "Water")},
-            "dominant_element_total_weight": 0.0,
-            "dominant_element_weight_totals": {element: 0.0 for element in ("Fire", "Earth", "Air", "Water")},
-            "dominant_element_weight_total_weight": 0.0,
-            "dominant_mode_totals": {mode: 0.0 for mode in ("cardinal", "fixed", "mutable")},
-            "dominant_mode_total_weight": 0.0,
-            "dominant_mode_weight_totals": {mode: 0.0 for mode in ("cardinal", "fixed", "mutable")},
-            "dominant_mode_weight_total_weight": 0.0,
+            **self._empty_dominant_element_mode_cache_fields(),
             "relationship_totals": {relationship: 0 for relationship in RELATION_TYPE},
             "relationship_total_count": 0.0,
             "species_totals_by_mode": {
@@ -9912,31 +9905,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 snapshot["dominant_house_totals"][house_num] += 1.0
                 snapshot["dominant_house_total_weight"] += 1.0
 
-            dominant_element_weights = (
-                getattr(chart, "dominant_element_weights", None)
-                or _calculate_dominant_element_weights(chart)
-            )
-            chart.dominant_element_weights = dominant_element_weights
-            for element in snapshot["dominant_element_weight_totals"]:
-                element_weight = float(dominant_element_weights.get(element, 0.0))
-                if element_weight <= 0:
-                    continue
-                snapshot["dominant_element_weight_totals"][element] += element_weight
-                snapshot["dominant_element_weight_total_weight"] += element_weight
-            for dominant_element in _dominant_element_labels_from_weights(dominant_element_weights):
-                snapshot["dominant_element_totals"][dominant_element] += 1.0
-                snapshot["dominant_element_total_weight"] += 1.0
-
-            dominant_mode_weights = _calculate_mode_weights(chart)
-            for mode in snapshot["dominant_mode_weight_totals"]:
-                mode_weight = float(dominant_mode_weights.get(mode, 0.0))
-                if mode_weight <= 0:
-                    continue
-                snapshot["dominant_mode_weight_totals"][mode] += mode_weight
-                snapshot["dominant_mode_weight_total_weight"] += mode_weight
-            for dominant_mode in _dominant_mode_labels_from_weights(dominant_mode_weights):
-                snapshot["dominant_mode_totals"][dominant_mode] += 1.0
-                snapshot["dominant_mode_total_weight"] += 1.0
+            self._record_dominant_element_mode_snapshot(snapshot, chart)
 
             dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
             for nakshatra_name, *_ in NAKSHATRA_RANGES:
@@ -10077,10 +10046,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         totals["dominant_nakshatra_total_weight"] += direction * float(
             snapshot.get("dominant_nakshatra_total_weight", 0.0)
         )
-        totals["dominant_element_total_weight"] += direction * float(snapshot.get("dominant_element_total_weight", 0.0))
-        totals["dominant_element_weight_total_weight"] += direction * float(snapshot.get("dominant_element_weight_total_weight", 0.0))
-        totals["dominant_mode_total_weight"] += direction * float(snapshot.get("dominant_mode_total_weight", 0.0))
-        totals["dominant_mode_weight_total_weight"] += direction * float(snapshot.get("dominant_mode_weight_total_weight", 0.0))
+        self._apply_dominant_element_mode_snapshot_delta(totals, snapshot, direction)
         totals["relationship_total_count"] += direction * float(snapshot.get("relationship_total_count", 0.0))
         totals["dnd_stat_count"] += direction * int(snapshot.get("dnd_stat_count", 0))
         totals["enneagram_total_count"] += direction * int(snapshot.get("enneagram_total_count", 0))
@@ -10147,17 +10113,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         for element in ("Fire", "Earth", "Air", "Water"):
             totals["element_prevalence_totals"][element] += direction * float(
                 snapshot["element_prevalence_totals"].get(element, 0.0)
-            )
-            totals["dominant_element_totals"][element] += direction * float(snapshot["dominant_element_totals"].get(element, 0.0))
-            totals["dominant_element_weight_totals"][element] += direction * float(
-                snapshot.get("dominant_element_weight_totals", {}).get(element, 0.0)
-            )
-        for mode in ("cardinal", "fixed", "mutable"):
-            totals["dominant_mode_totals"][mode] += direction * float(
-                snapshot.get("dominant_mode_totals", {}).get(mode, 0.0)
-            )
-            totals["dominant_mode_weight_totals"][mode] += direction * float(
-                snapshot.get("dominant_mode_weight_totals", {}).get(mode, 0.0)
             )
         totals["element_prevalence_total_count"] += direction * float(
             snapshot.get("element_prevalence_total_count", 0.0)
@@ -11237,80 +11192,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             cumulative_planet_labels = list(dominant_planet_labels)
             cumulative_house_labels = list(dominant_house_labels)
             cumulative_nakshatra_labels = list(dominant_nakshatra_labels)
-            dominant_element_labels = ["Fire", "Earth", "Air", "Water"]
-            dominant_mode_labels = ["cardinal", "fixed", "mutable"]
-            selection_top_dominant_elements = {
-                element: (
-                    selection_cache["dominant_element_totals"][element]
-                    / selection_cache["dominant_element_total_weight"]
-                    if selection_cache["dominant_element_total_weight"]
-                    else 0
-                )
-                for element in dominant_element_labels
-            }
-            database_top_dominant_elements = {
-                element: (
-                    database_cache["dominant_element_totals"][element]
-                    / database_cache["dominant_element_total_weight"]
-                    if database_cache["dominant_element_total_weight"]
-                    else 0
-                )
-                for element in dominant_element_labels
-            }
-            selection_top_dominant_modes = {
-                mode: (
-                    selection_cache["dominant_mode_totals"][mode]
-                    / selection_cache["dominant_mode_total_weight"]
-                    if selection_cache["dominant_mode_total_weight"]
-                    else 0
-                )
-                for mode in dominant_mode_labels
-            }
-            database_top_dominant_modes = {
-                mode: (
-                    database_cache["dominant_mode_totals"][mode]
-                    / database_cache["dominant_mode_total_weight"]
-                    if database_cache["dominant_mode_total_weight"]
-                    else 0
-                )
-                for mode in dominant_mode_labels
-            }
-            selection_dominant_elements = {
-                element: (
-                    selection_cache["dominant_element_weight_totals"][element]
-                    / selection_cache["dominant_element_weight_total_weight"]
-                    if selection_cache["dominant_element_weight_total_weight"]
-                    else 0
-                )
-                for element in dominant_element_labels
-            }
-            database_dominant_elements = {
-                element: (
-                    database_cache["dominant_element_weight_totals"][element]
-                    / database_cache["dominant_element_weight_total_weight"]
-                    if database_cache["dominant_element_weight_total_weight"]
-                    else 0
-                )
-                for element in dominant_element_labels
-            }
-            selection_dominant_modes = {
-                mode: (
-                    selection_cache["dominant_mode_weight_totals"][mode]
-                    / selection_cache["dominant_mode_weight_total_weight"]
-                    if selection_cache["dominant_mode_weight_total_weight"]
-                    else 0
-                )
-                for mode in dominant_mode_labels
-            }
-            database_dominant_modes = {
-                mode: (
-                    database_cache["dominant_mode_weight_totals"][mode]
-                    / database_cache["dominant_mode_weight_total_weight"]
-                    if database_cache["dominant_mode_weight_total_weight"]
-                    else 0
-                )
-                for mode in dominant_mode_labels
-            }
+            dominant_element_mode_values = self._dominant_element_mode_analysis_values(
+                selection_cache,
+                database_cache,
+            )
+            dominant_element_labels = dominant_element_mode_values["dominant_element_labels"]
+            dominant_mode_labels = dominant_element_mode_values["dominant_mode_labels"]
+            selection_top_dominant_elements = dominant_element_mode_values["selection_top_dominant_elements"]
+            database_top_dominant_elements = dominant_element_mode_values["database_top_dominant_elements"]
+            selection_top_dominant_modes = dominant_element_mode_values["selection_top_dominant_modes"]
+            database_top_dominant_modes = dominant_element_mode_values["database_top_dominant_modes"]
+            selection_dominant_elements = dominant_element_mode_values["selection_dominant_elements"]
+            database_dominant_elements = dominant_element_mode_values["database_dominant_elements"]
+            selection_dominant_modes = dominant_element_mode_values["selection_dominant_modes"]
+            database_dominant_modes = dominant_element_mode_values["database_dominant_modes"]
 
             selection_relationships = {
                 relationship: (
