@@ -590,6 +590,12 @@ from ephemeraldaddy.core.curse_scoring import (
 )
 from ephemeraldaddy.graphics.wheel_plot import draw_chart_wheel
 from ephemeraldaddy.graphics._chartwheel_generator_impl import draw_chartwheel
+from ephemeraldaddy.core.material_facts import (
+    load_personal_identifiers,
+    load_profile_images,
+    save_personal_identifiers,
+    save_profile_images,
+)
 from ephemeraldaddy.core.db import (
     DB_PATH,
     DB_DIR,
@@ -31402,6 +31408,66 @@ class MainWindow(QMainWindow):
         )
         return choice == QMessageBox.Yes
 
+    def _material_fact_text(self, attr_name: str) -> str:
+        widget = getattr(self, attr_name, None)
+        if widget is None:
+            return ""
+        return widget.toPlainText().strip()
+
+    def _set_material_fact_text(self, attr_name: str, value: object) -> None:
+        widget = getattr(self, attr_name, None)
+        if widget is None:
+            return
+        widget.setPlainText(str(value or ""))
+
+    def _clear_material_facts_fields(self) -> None:
+        self._suppress_lucygoosey = True
+        try:
+            for attr_name in (
+                "material_facts_photos_edit",
+                "material_facts_addresses_edit",
+                "material_facts_emails_edit",
+                "material_facts_websites_edit",
+                "material_facts_phone_numbers_edit",
+                "material_facts_images_edit",
+            ):
+                self._set_material_fact_text(attr_name, "")
+        finally:
+            self._suppress_lucygoosey = False
+
+    def _load_material_facts_for_chart(self, chart_id: int | None) -> None:
+        self._suppress_lucygoosey = True
+        try:
+            identifiers = load_personal_identifiers(chart_id)
+            images = load_profile_images(chart_id)
+            self._set_material_fact_text("material_facts_photos_edit", identifiers.get("photos", ""))
+            self._set_material_fact_text("material_facts_addresses_edit", identifiers.get("addresses", ""))
+            self._set_material_fact_text("material_facts_emails_edit", identifiers.get("emails", ""))
+            self._set_material_fact_text("material_facts_websites_edit", identifiers.get("websites", ""))
+            self._set_material_fact_text("material_facts_phone_numbers_edit", identifiers.get("phone_numbers", ""))
+            self._set_material_fact_text("material_facts_images_edit", images.get("images", ""))
+        finally:
+            self._suppress_lucygoosey = False
+
+    def _save_material_facts_for_chart(self, chart_id: int | None) -> None:
+        if chart_id is None:
+            return
+        save_personal_identifiers(
+            int(chart_id),
+            {
+                "photos": self._material_fact_text("material_facts_photos_edit"),
+                "addresses": self._material_fact_text("material_facts_addresses_edit"),
+                "emails": self._material_fact_text("material_facts_emails_edit"),
+                "websites": self._material_fact_text("material_facts_websites_edit"),
+                "phone_numbers": self._material_fact_text("material_facts_phone_numbers_edit"),
+            },
+        )
+        save_profile_images(
+            int(chart_id),
+            {"images": self._material_fact_text("material_facts_images_edit")},
+        )
+
+
     def on_update_chart(self, show_dialog: bool = True, recalculate_chart: bool = True):
         chart_id = self.current_chart_id
         is_placeholder = self.placeholder_chart_checkbox.isChecked()
@@ -31583,6 +31649,7 @@ class MainWindow(QMainWindow):
             self._invalidate_chart_view_navigation_cache({chart_id})
 
         self.current_chart_id = chart_id
+        self._save_material_facts_for_chart(chart_id)
         previous_recalculation_token = (
             self._chart_analytics_cache_token(self._latest_chart)
             if (
@@ -31681,6 +31748,7 @@ class MainWindow(QMainWindow):
         self.reminds_me_of_input.clear()
         self.comments_edit.clear()
         self.rectification_edit.clear()
+        self._clear_material_facts_fields()
         self.biography_edit.clear()
         self.source_edit.clear()
         self._set_birth_date_fields_from_qdate(QDate(1990, 1, 1))
@@ -31999,6 +32067,7 @@ class MainWindow(QMainWindow):
         self.rectification_edit.setPlainText(getattr(chart, "rectification_notes", "") or "")
         self.biography_edit.setPlainText(getattr(chart, "biography", "") or "")
         self.source_edit.setPlainText(getattr(chart, "chart_data_source", "") or "")
+        self._load_material_facts_for_chart(chart_id)
         loaded_positive_sentiment = getattr(chart, "positive_sentiment_intensity", 0)
         loaded_negative_sentiment = getattr(chart, "negative_sentiment_intensity", 0)
         self.positive_sentiment_intensity_spin.setValue(
