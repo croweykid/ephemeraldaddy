@@ -2909,10 +2909,23 @@ def _update_perceived_accuracy_tally(dialog: QDialog) -> None:
         widget_records = list(widgets.values())
     else:
         widget_records = list(widgets or [])
-    entries: list[Mapping[str, Any]] = []
+    entries_by_chart_id: dict[int, dict[str, Any]] = {}
+    for entry in getattr(dialog, "_similar_chart_popout_all_accuracy_entries", []) or []:
+        if not isinstance(entry, Mapping):
+            continue
+        try:
+            chart_id = int(entry.get("chart_id"))
+        except (TypeError, ValueError):
+            continue
+        entries_by_chart_id[chart_id] = dict(entry)
     for record in widget_records:
         if not isinstance(record, Mapping):
             continue
+        match = record.get("match")
+        try:
+            chart_id = int(getattr(match, "chart_id"))
+        except (TypeError, ValueError):
+            chart_id = None
         predicted_percent = record.get("predicted_percent")
         line_edit = record.get("input")
         na_checkbox = record.get("not_applicable_checkbox")
@@ -2925,13 +2938,16 @@ def _update_perceived_accuracy_tally(dialog: QDialog) -> None:
                     perceived_percent = int(text_value)
                 except ValueError:
                     perceived_percent = None
-        entries.append(
-            {
-                "predicted_percent": predicted_percent,
-                "perceived_percent": perceived_percent,
-                "not_applicable": not_applicable,
-            }
-        )
+        entry = {
+            "predicted_percent": predicted_percent,
+            "perceived_percent": perceived_percent,
+            "not_applicable": not_applicable,
+        }
+        if chart_id is not None:
+            entries_by_chart_id[chart_id] = entry
+        else:
+            entries_by_chart_id[id(record)] = entry
+    entries = list(entries_by_chart_id.values())
     accuracy = calculate_perceived_similarity_accuracy(entries)
     tally_label.setText(format_perceived_similarity_accuracy_tally(accuracy))
     if accuracy is None:
@@ -2939,7 +2955,7 @@ def _update_perceived_accuracy_tally(dialog: QDialog) -> None:
     else:
         tally_label.setToolTip(
             "Perceived accuracy tally: 100% minus the average absolute difference "
-            "between predicted compatibility and visible perceived compatibility responses; n/a rows are excluded."
+            "between predicted compatibility and all saved perceived compatibility responses for the current chart; n/a rows are excluded."
         )
 
 def build_similar_charts_popout_dialog(
@@ -2950,6 +2966,9 @@ def build_similar_charts_popout_dialog(
     subject_uses_houses: bool = True,
     most_similar_matches: list[Any],
     least_similar_matches: list[Any],
+    all_most_similar_matches: list[Any] | None = None,
+    all_least_similar_matches: list[Any] | None = None,
+    all_accuracy_entries: list[Mapping[str, Any]] | None = None,
     on_link_activated: Callable[[QDialog, str], None],
     header_style: str,
     output_style: str,
@@ -3093,6 +3112,9 @@ def build_similar_charts_popout_dialog(
     dialog._similar_chart_popout_perceived_accuracy_tally_label = perceived_accuracy_tally_label
     dialog._similar_chart_popout_export_button = export_button
     dialog._similar_chart_popout_subject_link = subject_chart_link
+    dialog._similar_chart_popout_all_most_similar_matches = list(all_most_similar_matches or most_similar_matches)
+    dialog._similar_chart_popout_all_least_similar_matches = list(all_least_similar_matches or least_similar_matches)
+    dialog._similar_chart_popout_all_accuracy_entries = list(all_accuracy_entries or [])
     splitter.addWidget(info_panel)
 
     list_splitter = QSplitter(Qt.Horizontal)
@@ -3103,6 +3125,12 @@ def build_similar_charts_popout_dialog(
     splitter.addWidget(list_splitter)
 
     def _panel(title: str, matches: list[Any], panel_key: str) -> QWidget:
+        panel_all_matches = (
+            list(dialog._similar_chart_popout_all_least_similar_matches)
+            if panel_key == "least"
+            else list(dialog._similar_chart_popout_all_most_similar_matches)
+        )
+        visible_count = min(25, len(matches))
         panel_widget = QWidget()
         panel_layout = QVBoxLayout(panel_widget)
         panel_layout.setContentsMargins(0, 0, 0, 0)
@@ -3133,7 +3161,7 @@ def build_similar_charts_popout_dialog(
             result_label.setStyleSheet(output_style)
             result_label.setText(
                 render_similar_match_blocks(
-                    matches=matches,
+                    matches=panel_all_matches[:visible_count],
                     highlight_color=highlight_color,
                     resolve_similarity_band=resolve_similarity_band,
                     subject_uses_houses=subject_uses_houses,
@@ -3145,6 +3173,40 @@ def build_similar_charts_popout_dialog(
                 )
             )
             content_layout.addWidget(result_label)
+            if len(panel_all_matches) > visible_count:
+                more_button = QPushButton("more")
+                apply_button_cursor(more_button)
+
+                def _show_more_plain(
+                    _checked: bool = False,
+                    *,
+                    label: QLabel = result_label,
+                    button: QPushButton = more_button,
+                    all_matches: list[Any] = panel_all_matches,
+                    panel: str = panel_key,
+                ) -> None:
+                    current_count = int(button.property("visible_count") or visible_count)
+                    next_count = min(len(all_matches), current_count + 25)
+                    button.setProperty("visible_count", next_count)
+                    label.setText(
+                        render_similar_match_blocks(
+                            matches=all_matches[:next_count],
+                            highlight_color=highlight_color,
+                            resolve_similarity_band=resolve_similarity_band,
+                            subject_uses_houses=subject_uses_houses,
+                            info_link_prefix=f"{info_link_prefix}:{panel}",
+                            algorithm_mode=algorithm_mode,
+                            similarity_settings=similarity_settings,
+                            similarity_average=similarity_average,
+                            similarity_standard_deviation=similarity_standard_deviation,
+                        )
+                    )
+                    if next_count >= len(all_matches):
+                        button.hide()
+
+                more_button.setProperty("visible_count", visible_count)
+                more_button.clicked.connect(_show_more_plain)
+                content_layout.addWidget(more_button, 0, Qt.AlignLeft)
         else:
             accuracy_widgets: list[dict[str, Any]] = getattr(
                 dialog,
@@ -3232,8 +3294,12 @@ def build_similar_charts_popout_dialog(
                     line_edit.setEnabled(True)
                 _emit_accuracy_change(match, line_edit, na_checkbox)
 
-            for rank, match in enumerate(matches, start=1):
+            hidden_widgets: list[QWidget] = []
+            for rank, match in enumerate(panel_all_matches, start=1):
                 match_widget = QWidget()
+                if rank > visible_count:
+                    match_widget.setVisible(False)
+                    hidden_widgets.append(match_widget)
                 match_layout = QVBoxLayout(match_widget)
                 match_layout.setContentsMargins(0, 0, 0, 0)
                 match_layout.setSpacing(2)
@@ -3321,6 +3387,24 @@ def build_similar_charts_popout_dialog(
                         "predicted_percent": _predicted_similarity_percent(match),
                     }
                 )
+            if hidden_widgets:
+                more_button = QPushButton("more")
+                apply_button_cursor(more_button)
+
+                def _show_more_controls(
+                    _checked: bool = False,
+                    *,
+                    button: QPushButton = more_button,
+                    widgets: list[QWidget] = hidden_widgets,
+                ) -> None:
+                    for widget in widgets[:25]:
+                        widget.setVisible(True)
+                    del widgets[:25]
+                    if not widgets:
+                        button.hide()
+
+                more_button.clicked.connect(_show_more_controls)
+                content_layout.addWidget(more_button, 0, Qt.AlignLeft)
 
         content_layout.addStretch(1)
         scroll.setWidget(content)

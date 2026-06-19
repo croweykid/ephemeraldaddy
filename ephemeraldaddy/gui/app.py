@@ -24477,7 +24477,7 @@ class MainWindow(QMainWindow):
             self._similar_charts_popout_subject_signature(chart=chart, subject_chart_id=subject_chart_id),
             self._similar_charts_popout_database_signature(rows),
             self._similar_charts_popout_settings_signature(algorithm_mode),
-            "top-bottom-25-v1",
+            "top-bottom-25-v2",
         )
 
     def _get_cached_similar_charts_popout_payload(
@@ -25339,6 +25339,71 @@ class MainWindow(QMainWindow):
         )
 
     
+    def _similar_charts_perceived_accuracy_entries_for_states(
+        self,
+        *,
+        chart: Chart,
+        subject_chart_id: int | None,
+        candidates: list[tuple[int, Chart]],
+        perceived_accuracy_states: Mapping[str, Mapping[str, Any]] | None,
+        algorithm_mode: str,
+    ) -> list[dict[str, Any]]:
+        if subject_chart_id is None or not perceived_accuracy_states:
+            return []
+        candidate_by_id = {int(chart_id): candidate for chart_id, candidate in candidates}
+        rated_candidates: list[tuple[int, Chart]] = []
+        state_by_compared_id: dict[int, Mapping[str, Any]] = {}
+        for state in perceived_accuracy_states.values():
+            if not isinstance(state, Mapping):
+                continue
+            chart_ids = state.get("chart_ids")
+            if not isinstance(chart_ids, list) or len(chart_ids) < 2:
+                continue
+            try:
+                first_id = int(chart_ids[0])
+                second_id = int(chart_ids[1])
+            except (TypeError, ValueError):
+                continue
+            if first_id == subject_chart_id:
+                compared_id = second_id
+            elif second_id == subject_chart_id:
+                compared_id = first_id
+            else:
+                continue
+            if compared_id not in candidate_by_id or compared_id in state_by_compared_id:
+                continue
+            state_by_compared_id[compared_id] = state
+            rated_candidates.append((compared_id, candidate_by_id[compared_id]))
+        if not rated_candidates:
+            return []
+        rated_matches = find_astro_twins(
+            chart,
+            rated_candidates,
+            top_k=len(rated_candidates),
+            exclude_chart_id=subject_chart_id,
+            least_similar=False,
+            algorithm_mode=algorithm_mode,
+            custom_settings=getattr(self, "_similarity_calculator_settings", None),
+        )
+        entries: list[dict[str, Any]] = []
+        for match in rated_matches:
+            try:
+                compared_id = int(match.chart_id)
+            except (TypeError, ValueError):
+                continue
+            state = state_by_compared_id.get(compared_id)
+            if not isinstance(state, Mapping):
+                continue
+            entries.append(
+                {
+                    "chart_id": compared_id,
+                    "predicted_percent": max(0.0, min(100.0, float(match.score) * 100.0)),
+                    "perceived_percent": state.get("user_reported_accuracy"),
+                    "not_applicable": bool(state.get("not_applicable", False)),
+                }
+            )
+        return entries
+
     def _show_similar_charts_popout(
         self,
         requester: QWidget | None = None,
@@ -25464,7 +25529,7 @@ class MainWindow(QMainWindow):
                     most_similar_matches = find_astro_twins(
                         chart,
                         candidates,
-                        top_k=25,
+                        top_k=50,
                         exclude_chart_id=subject_chart_id,
                         least_similar=False,
                         algorithm_mode=algorithm_mode,
@@ -25479,7 +25544,7 @@ class MainWindow(QMainWindow):
                     least_similar_matches = find_astro_twins(
                         chart,
                         candidates,
-                        top_k=25,
+                        top_k=50,
                         exclude_chart_id=subject_chart_id,
                         least_similar=True,
                         algorithm_mode=algorithm_mode,
@@ -25546,15 +25611,29 @@ class MainWindow(QMainWindow):
         )
         if show_perceived_accuracy_controls:
             perceived_accuracy_states = load_chart_similarity_relationship_states()
+            all_accuracy_entries = self._similar_charts_perceived_accuracy_entries_for_states(
+                chart=chart,
+                subject_chart_id=subject_chart_id,
+                candidates=candidates if cached_payload is None else self._load_similar_chart_candidates(
+                    rows=chart_rows,
+                    current_chart_id=subject_chart_id,
+                ),
+                perceived_accuracy_states=perceived_accuracy_states,
+                algorithm_mode=algorithm_mode,
+            )
         else:
             perceived_accuracy_states = None
+            all_accuracy_entries = []
         dialog = build_similar_charts_popout_dialog(
             parent=self,
             subject_name=subject_name,
             subject_chart_id=subject_chart_id,
             subject_uses_houses=_chart_uses_houses(chart),
-            most_similar_matches=most_similar_matches,
-            least_similar_matches=least_similar_matches,
+            most_similar_matches=most_similar_matches[:25],
+            least_similar_matches=least_similar_matches[:25],
+            all_most_similar_matches=most_similar_matches,
+            all_least_similar_matches=least_similar_matches,
+            all_accuracy_entries=all_accuracy_entries,
             on_link_activated=self._on_similar_chart_popout_link_activated,
             header_style=CHART_DATA_POPOUT_HEADER_STYLE,
             output_style=f"font-weight: 400; color: {CHART_DATA_HIGHLIGHT_COLOR};",
