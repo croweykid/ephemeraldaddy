@@ -289,6 +289,42 @@ def test_big_3_similarity_reasoning_html_shows_component_breakdown_for_both_anal
             assert "MC</a> sign:" not in html
 
 
+def test_similar_chart_biography_appends_generated_context_to_existing_bio():
+    from ephemeraldaddy.gui.features.charts.similar_charts_popout import (  # noqa: PLC0415
+        build_similar_chart_biography_text,
+    )
+
+    chart = SimpleNamespace(
+        biography="Existing biography.",
+        from_whence="public figures database",
+        alias="Example Alias",
+        tags=["actor", "musician", "Actor"],
+    )
+
+    assert build_similar_chart_biography_text(compared_chart=chart) == (
+        "Existing biography.\n\n"
+        "from: public figures database\n"
+        "aka: Example Alias\n"
+        "tags: actor, musician"
+    )
+
+
+def test_similar_chart_biography_still_uses_generated_context_without_existing_bio():
+    from ephemeraldaddy.gui.features.charts.similar_charts_popout import (  # noqa: PLC0415
+        build_similar_chart_biography_text,
+    )
+
+    chart = SimpleNamespace(
+        metadata={"from": "custom import", "alias": "Metadata Alias", "tags": "one, two"},
+    )
+
+    assert build_similar_chart_biography_text(compared_chart=chart) == (
+        "from: custom import\n"
+        "aka: Metadata Alias\n"
+        "tags: one, two"
+    )
+
+
 def test_perceived_similarity_accuracy_tally_excludes_na_and_averages_absolute_error():
     from ephemeraldaddy.gui.features.charts.chart_similarity_relationships import (  # noqa: PLC0415
         calculate_perceived_similarity_accuracy,
