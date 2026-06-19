@@ -23,7 +23,7 @@ import uuid
 import urllib.parse
 import platform
 from collections import Counter, OrderedDict
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 from types import SimpleNamespace
 from pathlib import Path
 import re
