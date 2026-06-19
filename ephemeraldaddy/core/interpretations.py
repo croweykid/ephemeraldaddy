@@ -5245,6 +5245,594 @@ MBTI_ELEMENTS = {
 "earth":{"E":2.5,"S":7.5,"F":5,"P":0,"E2":5,"S2":10,"F2":5,"P2":0,"description":"grounded, stabilizing, nurturing"}, #sj
 }
 
+GRECOROMAN_ELEMENTS = {
+    "fire": {
+        "name": "Fire",
+        "greek": "pyr",
+        "qualities": ["hot", "dry"],
+        "signs": ["Aries", "Leo", "Sagittarius"],
+        "polarity": "masculine / active / outward-moving",
+        "temperament": "choleric",
+        "object":"pursuit",
+        "suit":"wands", 
+        "use":"when you want something",
+        "suit_function": "mobilizes desire into action, risk, assertion, and creative force",
+        "suit_style": "bold, hungry, performative, restless, instinctive, action-first",
+        "core_function": "initiates action through heat, will, confidence, and creative force",
+        "basic_function":"ignites",
+        "basic_style": "direct, animated, instinctive, expressive, self-propelled",
+        "core_meaning": "force, heat, impulse, assertion, combustion, will","strengths": [
+            "initiative",
+            "courage",
+            "charisma",
+            "creative ignition",
+            "decisiveness",
+            "enthusiasm",
+            "resilience through motion",
+            "competitive drive",
+            #wands
+            "momentum",
+            "ambition",
+            "sexual vitality",
+        ],
+        "challenges": [
+            "impatience",
+            "self-importance",
+            "recklessness",
+            "overstatement",
+            "anger",
+            "burnout",
+            "difficulty sustaining interest after the first spark",
+            "rashness",
+            "domination",
+            "burnout",
+            "impatience",
+            "destructive excess",
+            #wands
+            "ego flare-ups",
+            "recklessness",
+            "overextension",
+            "performing confidence instead of building skill",
+            "starting more than finishing",
+        ],
+        "needs": [
+            "freedom",
+            "challenge",
+            "movement",
+            "recognition",
+            "purpose",
+            "something worth pursuing",
+            #wands
+            "desire",
+            "creative outlet",
+            "visible impact",
+        ],
+        "fears": [
+            "stagnation",
+            "irrelevance",
+            "restriction",
+            "being ignored",
+            "loss of vitality",
+            #wands
+            "failure to launch",
+            "loss of passion",
+        ],
+        "verbs": [
+            "ignites",
+            "acts",
+            "asserts",
+            "charges",
+            "competes",
+            "inspires",
+            "risks",
+            "radiates",
+            "confronts",
+            "accelerates",
+            "burns through",
+            #wands
+            "creates",
+            "provokes",
+            "pursues",
+        ],
+        "adverbs": [
+            "boldly",
+            "quickly",
+            "dramatically",
+            "instinctively",
+            "fiercely",
+            "openly",
+        ],
+        "distorted_expression": "raw appetite for impact without proportion, patience, or follow-through",
+        "suit_distorted_expression": "raw drive without timing, discipline, proportion, or concern for fallout",
+    },
+
+    "air": {
+        "name": "Air",
+        "greek": "aer",
+        "qualities": ["hot", "wet"],
+        "signs": ["Gemini", "Libra", "Aquarius"],
+        "polarity": "masculine / active / outward-moving",
+        "temperament": "sanguine",
+        "object":"judgement",
+        "use":"when you must decide what is true",
+        "suit":"swords",
+        # "libra_swords": "cardinal air: the problem of judgment, balance, choice, social consequence",
+        # "aquarius_swords": "fixed air: the problem of ideology, detachment, strategy, alienation, systems",
+        # "gemini_swords": "mutable air: the problem of thought loops, diffusion, narrative, anxiety, overload",
+        "suit_function": "cuts experience into thought, language, judgment, conflict, strategy, and decision",
+        "suit_style": "mental, verbal, analytical, sharp, defensive, truth-seeking, conflict-aware",
+        "core_function": "connects through thought, language, comparison, pattern, and social exchange",
+        "basic_style": "mental, relational, verbal, mobile, analytical, associative",
+        "basic_function": "circulates",
+        "core_meaning": "movement, thought, exchange, speech, pattern, relation",
+        "strengths": [
+            "communication",
+            "abstraction",
+            "adaptability",
+            "social intelligence",
+            "conceptual agility",
+            "objectivity",
+            "social fluency",
+            "pattern recognition",
+            "conceptual distance",
+            #swords
+            "intellectual courage",
+            "discernment",
+            "clarity",
+            "analysis",
+            "strategy",
+        ],
+        "distortions": [
+            "detachment",
+            "scattered attention",
+            "loquaciousness",
+            "hyperanalysis",
+            "thin commitment",
+            "theory without contact",
+            "inconsistency",
+            "glibness",
+            "performative neutrality",
+            "avoidance of emotional or material consequence",
+            "living in theory instead of action",
+            #swords
+            "anxiety",
+            "coldness",
+            "argumentativeness",
+            "overthinking",
+            "cruel honesty",
+            "self-entrapment through narrative",
+            "winning the point and losing the plot",
+        ],
+        "needs": [
+            "conversation",
+            "mental space",
+            "variety",
+            "ideas",
+            "social circulation",
+            "room to question",
+            #swords
+            "truth",
+            "language",
+            "fairness",
+            "clean decisions",
+        ],
+        "fears": [
+            "confinement",
+            "irrationality",
+            "social exclusion",
+            "mental dullness",
+            "being trapped in one perspective",
+            #swords
+            "confusion",
+            "humiliation",
+            "falsehood",
+            "irrationality",
+            "loss of control of the narrative",
+        ],
+        "verbs": [
+            "connects",
+            "interprets",
+            "circulates",
+            "compares",
+            "questions",
+            "abstracts",
+            "names",
+            "classifies",
+            "negotiates",
+            #swords
+            "thinks",
+            "judges",
+            "cuts",
+            "argues",
+            "edits",
+            "decides",
+            "clarifies",
+        ],
+        "adverbs": [
+            "intellectually",
+            "socially",
+            "lightly",
+            "cleverly",
+            "flexibly",
+            "conceptually",
+            #swords
+            "clearly",
+            "coldly",
+            "precisely",
+            "rationally",
+            "rhetorically",
+            "verbally",
+            "strategically",
+        ],
+        "distorted_expression": "cleverness detached from responsibility, depth, or embodied commitment",
+        "suit_distorted_expression": "intelligence turned into a courtroom where every feeling is cross-examined to death",
+    },
+
+    "water": {
+        "name": "Water",
+        "greek": "hydor",
+        "qualities": ["cold", "wet"],
+        "signs": ["Cancer", "Scorpio", "Pisces"],
+        "polarity": "feminine / receptive / inward-merging",
+        "traditional_qualities": ["cold", "wet"],
+        "temperament": "phlegmatic",
+        "use":"when you need someone",
+        "object":"emotional vessel, container",
+        "suit":"cups",
+        "suit_function": "registers feeling, attachment, longing, intimacy, memory, and emotional truth",
+        "suit_style": "sensitive, romantic, receptive, private, intuitive, bonding-oriented",
+        "core_function": "bonds through feeling, memory, instinctive perception, care, and emotional continuity",
+        "basic_style": "sensitive, receptive, private, intuitive, protective, absorptive",
+        "basic_function": "absorbs",
+        "core_meaning": "feeling, memory, bonding, receptivity, depth, continuity",
+        "strengths": [
+            "empathy",
+            "emotional attunement",
+            "adaptation",
+            "preservation",
+            "subtle perception",
+            "emotional intelligence",
+            "devotion",
+            "imagination",
+            "protectiveness",
+            "capacity for deep attachment",
+            #cups
+            "forgiveness",
+            "intimacy",
+            "subtle perception",
+        ],
+        "distortions": [
+            "passivity",
+            "moodiness",
+            "avoidance",
+            "over-identification",
+            "formlessness",
+            "moodiness",
+            "dependency",
+            "emotional flooding",
+            "secrecy",
+            "manipulation",
+            "difficulty separating intuition from projection",
+            #cups
+            "nostalgia traps",
+            "projection",
+            "confusing fantasy with evidence",
+        ],
+        "needs": [
+            "trust",
+            "privacy",
+            "emotional safety",
+            "belonging",
+            "depth",
+            "meaningful attachment",
+            #cups
+            "care",
+            "private meaning",
+        ],
+        "fears": [
+            "abandonment",
+            "exposure",
+            "betrayal",
+            "emotional emptiness",
+            "being unseen",
+            "loss of belonging",
+            #cups
+            "being unloved",
+            "rejection",
+        ],
+        "verbs": [
+            "absorbs",
+            "feels",
+            "remembers",
+            "softens",
+            "merges",
+            "responds",
+            "feels",
+            "protects",
+            "bonds",
+            "intuits",
+            "dissolves",
+            #cups
+            "attunes",
+            "forgives",
+            "dreams",
+            "receives",
+        ],
+        "adverbs": [
+            "emotionally",
+            "privately",
+            "subtly",
+            "deeply",
+            "protectively",
+            "intuitively",
+            #cups
+            "romantically",
+        ],
+        "distorted_expression": "feeling turned into avoidance, dependency, manipulation, or private weather systems",
+        "suit_distorted_expression": "feeling used as fog machine: beautiful, immersive, and bad for navigation",
+    },
+
+    "earth": {
+        "name": "Earth",
+        "greek": "ge",
+        "qualities": ["cold", "dry"],
+        "signs": ["Taurus", "Virgo", "Capricorn"],
+        "polarity": "feminine / receptive / inward-consolidating",
+        "temperament": "melancholic",
+        "object":"value",
+        "suit":"pentacles",
+        "use":"when you must survive the material world",
+        "suit_function": "grounds value into work, money, body, skill, maintenance, and material consequence",
+        "suit_style": "practical, slow-building, embodied, resource-aware, competent, security-oriented",
+        "core_function": "stabilizes life through matter, form, skill, limits, and practical consequence",
+        "basic_style": "grounded, material, cautious, competent, methodical, reality-tested",
+        "basic_function": "stabilizes",
+        "core_meaning": "matter, form, limits, endurance, structure, practical reality",
+        "strengths": [
+            "discipline",
+            "patience",
+            "craftsmanship",
+            "reliability",
+            "material competence",
+            "practical judgment",
+            "endurance",
+            "tenacity",
+            #pentacles
+            "long-term planning",
+            "sensory intelligence",
+            "resource management",
+        ],
+        "distortions": [
+            "rigidity",
+            "inertia",
+            "excessive need for control",
+            "pessimism",
+            "dead weight",
+            "excessive caution",
+            "status anxiety",
+            "narrow materialism",
+            "resistance to abstraction",
+            #pentacles
+            "mistaking price for value",
+            "treating comfort as destiny",
+            "status fixation",
+            "over-cautious",
+            "possessiveness",
+            "scarcity thinking",
+        ],
+        "needs": [
+            "stability",
+            "resources",
+            "usefulness",
+            "order",
+            "competence",
+            "visible results",
+            #pentacles
+            "security",
+            "routine",
+            "physical stability",
+            "measurable progress",
+        ],
+        "fears": [
+            "waste",
+            "instability",
+            "dependency",
+            "failure",
+            "impracticality",
+            "loss of control",
+            #pentacles
+            "bodily vulnerability",
+            "poverty",
+        ],
+        "verbs": [
+            "grounds",
+            "contains",
+            "builds",
+            "endures",
+            "measures",
+            "materializes",
+            "refines",
+            "produces",
+            "consolidates",
+            #pentacles
+            "stabilizes",
+            "saves",
+            "practices",
+            "maintains",
+            "earns",
+        ],
+        "adverbs": [
+            "carefully",
+            "practically",
+            "deliberately",
+            "thoroughly",
+            "sensibly",
+            "patiently",
+            #pentacles
+            "slowly",
+            "materially",
+        ],
+        "distorted_expression": "competence hardened into fear, hoarding, over-management, or dead-weight realism",
+        "suit_distorted_expression": "security calcified into hoarding, drudgery, status worship, or comfort with no pulse",
+    },
+}
+
+TAROT_NUMBERS = { #swords & wands are intrinsically a harsh burden that age poorly through the numbers, whereas pentacles & cups mature/culminate much better. Why is that?
+    1:{
+        "definition":"initiation, potential, new opportunity, rebirth", #a new opportunity in the suit is born or reset
+    },
+    2:{
+        "definition":"balance, gatekeeping, standing at the threshold", #2 of pentacles balances resources, 2 of wands balances present and future actions, 2 of swords is a gatekeeper of choice and setter of intellectual boundaries, 2 of cups is balance between two people's souls/hearts/minds/needs/feelings/psyches in relation to one another 
+    },
+    3:{
+        "definition":"integration? collaboration? not sure", #3 of cups, 3 of swords, 3 of pentacles, 3 of wands
+    },
+    4:{
+        "definition":"containment, stabilization, ensnarement or blockage", #the suit's energy is grounded, ensnared or blocked. 4 of cups is either preoccupied with a singular feeling or oblivious to many possible feelings. 4 of swords must sleep, the brain must shut down. 4 of pentacles wants to hoard. 4 of wands directs energy into the family/domecile/a singular festivity, containing it to a vessel. 
+    },
+    5:{
+        "definition":"fear realized", #the suit's greatest fear is momentarily realized. the 5 of pentacles is sick or poor. The 5 of cups has lost something beautiful. The 5 of wands is met with resistance/hassle/conflict that foils its progress. The 5 of swords has been outwitted, mentally bested, taken advantage of, or something unfair is afoot; one's own cleverness, truth, justice and balance aren't winning.
+    },
+    6:{
+        "definition":"soothing, reprieve, needs partially addressed", #this realizes a need of the suit. 6 of swords (resolution of a bad time), 6 of wands (recognition, achievement), 6 of cups (nostalgia), 6 of pentacles (employment, sharing, exchange)
+    },
+    7:{
+        "definition":"doubling down", #the suit's energy doubles down here, almost aggressively. 7 of wands (defense, standing your ground), 7 of cups (delirium, confusion), 7 of swords (cunning, treachery), 7 of pentacles (patience, waiting to bear fruit)
+    },
+    8:{
+        "definition":"challenging but necessary progress", #8 of pentacles (work, progress, productivity, building, fixing), 8 of cups (moving on, leaving behind), 8 of swords (restriction, entrapment, forced to confront the limitations), 8 of wands (fast action, communication)
+    },
+    9:{
+        "definition":"nearness to capacity", #penultimate realization of the suit's potential: 9 of cups (emotional satisfaction, you've got most of what you could want; this feels good), 9 of swords (anxiety, fear, regret, neurosis), 9 of pentacles (refinement, autonomy, wealth), 9 of wands (endurance, survival)
+    },
+    10:{
+        "definition":"culmination, no further action required/accepted, final chapter, nearing overextension, approaching reset to aces", #the suit is concluded here, its means achieved or not. 10 of cups (emotional fulfillment), 10 of wands (you've taken on as much as you possibly can), 10 of pentacles (legacy, material stability), 10 of swords (dark night of the soul, nadir, total collapse - why is this always negative? but it is. so are swords inherently negative? why are swords the only completely negative 10? your mind is at its limit? sometimes your body is, too, and you still get 10 of swords. sometimes it's just the weather, sometimes it's just the fates - it's out of your hands, but you have been devastated by that which you couldn't see or help, or could have and failed at; is the message that you can never win with thoughts? that the culmination of all our thoughts is just catastrophe & devastation? there is no satisfying end to the mental process, only collapse?)
+    },
+}
+
+HD_GATES_BY_ELEMENT = {
+    "fire": [
+        4, 5, 7, 9, 11, 17, 21, 26, 31, 33, 34, 42, 51,
+    ],
+
+    "earth": [
+        2, 6,  23, 24, 27, 40, 47, 54, 58, 59, 61, 64,
+    ],
+
+    "air": [
+        8, 12, 13, 16, 18, 19, 20, 32, 35, 41, 45, 48, 49, 57,
+    ],
+
+    "water": [
+        1, 22, 28, 36, 37, 38, 39, 43, 44, 52, 53, 55, 62, 63,
+    ],
+    "fire-earth": [3,10,29],
+    "air-water": [15, 30, 50],
+    "earth-air": [8, 46, 60],
+    "water-fire":[14,25,56],
+}
+
+HD_GATE_ELEMENT_OVERLAPS = {
+    3: ["fire", "earth"],      # Aries / Taurus
+    8: ["earth", "air"],       # Taurus / Gemini
+    10: ["fire", "earth"],     # Sagittarius / Capricorn
+    14: ["water", "fire"],     # Scorpio / Sagittarius
+    15: ["air", "water"],      # Gemini / Cancer
+    25: ["water", "fire"],     # Pisces / Aries
+    29: ["fire", "earth"],     # Leo / Virgo
+    30: ["air", "water"],      # Aquarius / Pisces
+    46: ["earth", "air"],      # Virgo / Libra
+    50: ["air", "water"],      # Libra / Scorpio
+    56: ["water", "fire"],     # Cancer / Leo
+    60: ["earth", "air"],      # Capricorn / Aquarius
+}
+
+
+COURT_RANK_ELEMENTS = {
+    "king": "fire",
+    "queen": "water",
+    "knight/prince": "air",
+    "page/princess": "earth",
+}
+
+TAROT_COURT_COMPOUNDS = {
+    "wands": {
+        "king_of_wands": {
+            "compound": "Fire of Fire",
+            "meaning": "Fire made forceful: ignition, pursuit, appetite, daring, charisma, momentum, heat without much braking power",
+        },
+        "queen_of_wands": {
+            "compound": "Water of Fire",
+            "meaning": "Fire made receptive: magnetic warmth, confidence, attraction, creative fertility, social command, desire with emotional intelligence",
+        },
+        "prince_of_wands": {
+            "compound": "Air of Fire",
+            "meaning": "Fire made mental: vision, bravado, dramatic strategy, persuasive force, restless ambition, ideology with combustion attached",
+        },
+        "princess_of_wands": {
+            "compound": "Earth of Fire",
+            "meaning": "Fire made material: embodied spark, raw talent, erotic presence, creative beginning, instinct entering form",
+        },
+    },
+
+    "cups": {
+        "king_of_cups": {
+            "compound": "Fire of Water",
+            "meaning": "Water made forceful: romantic pursuit, emotional hunger, seduction, questing feeling, desire carried by mood",
+        },
+        "queen_of_cups": {
+            "compound": "Water of Water",
+            "meaning": "Water made receptive: deep feeling, emotional containment, empathy, imagination, privacy, attachment, inner tides",
+        },
+        "prince_of_cups": {
+            "compound": "Air of Water",
+            "meaning": "Water made mental: aesthetic feeling, emotional strategy, charm, fantasy, diplomacy, sentiment turned into narrative",
+        },
+        "princess_of_cups": {
+            "compound": "Earth of Water",
+            "meaning": "Water made material: tenderness, new affection, emotional embodiment, sensitivity becoming gesture, dream given shape",
+        },
+    },
+
+    "swords": {
+        "king_of_swords": {
+            "compound": "Fire of Air",
+            "meaning": "Air made forceful: fast thought, attack logic, verbal ignition, intellectual aggression, decision under pressure",
+        },
+        "queen_of_swords": {
+            "compound": "Water of Air",
+            "meaning": "Air made receptive: reflective judgment, emotional distance, painful clarity, perceptive but guarded intelligence",
+        },
+        "prince_of_swords": {
+            "compound": "Air of Air",
+            "meaning": "Air in its own mode: pure analysis, abstraction, argument, theory, strategy, mental speed, unstable brilliance",
+        },
+        "princess_of_swords": {
+            "compound": "Earth of Air",
+            "meaning": "Air made material: facts, messages, study, observation, written language, concrete evidence, practical thought",
+        },
+    },
+
+    "pentacles": {
+        "king_of_pentacles": {
+            "compound": "Fire of Earth",
+            "meaning": "Earth made forceful: productive drive, work ethic, acquisition, physical stamina, appetite for results, matter set in motion",
+        },
+        "queen_of_pentacles": {
+            "compound": "Water of Earth",
+            "meaning": "Earth made receptive: nourishment, sensuality, stewardship, bodily care, material generosity, comfort with roots",
+        },
+        "prince_of_pentacles": {
+            "compound": "Air of Earth",
+            "meaning": "Earth made mental: planning, engineering, finance, practical analysis, method, management, systems for material gain",
+        },
+        "princess_of_pentacles": {
+            "compound": "Earth of Earth",
+            "meaning": "Earth in its own mode: embodiment, fertility, resources, craft, physical reality, value becoming tangible",
+        },
+    },
+}
+
 #this should be moved to the analysis/human design file
 AWARENESS_STREAMS = [
 {"name":"sensing","type":"ajna","gates":[64,47,11,56]},
