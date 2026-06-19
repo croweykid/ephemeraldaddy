@@ -633,6 +633,7 @@ from ephemeraldaddy.core.interpretations import (
     SIGN_KEYWORDS,
     ASPECT_KEYWORDS,
     ELEMENT_COLORS,
+    GRECOROMAN_ELEMENTS,
     EXALTATION_WEIGHT,
     FALL_WEIGHT,
     HOUSE_WEIGHTS,
@@ -24964,7 +24965,7 @@ class MainWindow(QMainWindow):
                 self._show_mode_keyword_info(value)
                 return
             if kind == "element":
-                chart_info_output.setPlainText(f"{value}\n\nNo dedicated Chart Info renderer is available for this {kind} yet.")
+                self._show_element_keyword_info(value)
                 return
             chart_info_output.setPlainText("No Chart Info renderer is available for this item yet.")
 
@@ -26661,6 +26662,22 @@ class MainWindow(QMainWindow):
                 info_panel.setHtml(self._build_mode_popout_info(popout_chart, raw_value))
 
             popout_canvas.mpl_connect("pick_event", _on_pick)
+        elif title == "Elements":
+            info_panel.setPlaceholderText(
+                "Click an element label or pie segment to view interpretation details."
+            )
+
+            def _on_pick(event) -> None:
+                artist = getattr(event, "artist", None)
+                artist_gid = artist.get_gid() if artist is not None else None
+                if not isinstance(artist_gid, str) or ":" not in artist_gid:
+                    return
+                chart_key, raw_value = artist_gid.split(":", 1)
+                if chart_key != "element":
+                    return
+                info_panel.setHtml(self._build_element_popout_info(popout_chart, raw_value))
+
+            popout_canvas.mpl_connect("pick_event", _on_pick)
         elif title in {"Enneagram", "💭Enneagram"}:
             info_panel.setPlaceholderText(
                 "Click an Enneagram bar to view type motivation and interpretation details."
@@ -26914,6 +26931,78 @@ class MainWindow(QMainWindow):
                 lines.append(_section_header("Behavior:"))
                 lines.append(f"<ul>{''.join(behavior_lines)}</ul>")
         lines.append(self._build_sign_dominance_section(chart, sign_name))
+        return "".join(lines)
+
+    def _element_definition(self, element: str) -> dict:
+        element_key = str(element or "").strip().lower()
+        return GRECOROMAN_ELEMENTS.get(element_key, {})
+
+    def _element_definition_lines(self, element: str) -> list[str]:
+        data = self._element_definition(element)
+        element_label = str(data.get("name") or element or "Element").strip().title()
+        if not data:
+            return [element_label, "", "No element definition data available."]
+        lines = [element_label]
+        greek = str(data.get("greek", "")).strip()
+        if greek:
+            lines.append(f"Greek: {greek}")
+        qualities = [str(item).strip() for item in data.get("qualities", []) if str(item).strip()]
+        if qualities:
+            lines.append(f"Qualities: {', '.join(qualities)}")
+        signs = [str(item).strip() for item in data.get("signs", []) if str(item).strip()]
+        if signs:
+            lines.append(f"Signs: {', '.join(signs)}")
+        for label, key in (
+            ("Polarity", "polarity"),
+            ("Temperament", "temperament"),
+            ("Core function", "core_function"),
+            ("Basic function", "basic_function"),
+            ("Core meaning", "core_meaning"),
+            ("Use", "use"),
+            ("Object", "object"),
+            ("Suit", "suit"),
+            ("Suit function", "suit_function"),
+            ("Suit style", "suit_style"),
+            ("Basic style", "basic_style"),
+        ):
+            value = str(data.get(key, "")).strip()
+            if value:
+                lines.append(f"{label}: {value}")
+        for label, key in (
+            ("Strengths", "strengths"),
+            ("Challenges", "challenges"),
+            ("Distortions", "distortions"),
+            ("Needs", "needs"),
+            ("Fears", "fears"),
+            ("Verbs", "verbs"),
+        ):
+            items = [str(item).strip() for item in data.get(key, []) if str(item).strip()]
+            if items:
+                lines.extend(["", f"{label}:", *(f"• {item}" for item in items)])
+        return lines
+
+    def _build_element_popout_info(self, chart: Chart, element: str) -> str:
+        element_name = str(element or "").strip().title()
+        data = self._element_definition(element_name)
+        element_label = str(data.get("name") or element_name or "Element").strip().title()
+        color = str(ELEMENT_COLORS.get(element_label, CHART_THEME_COLORS.get("text", "#f5f5f5")))
+        lines = [f"<h3><span style='color:{html.escape(color)}'>{html.escape(element_label)}</span></h3>"]
+        for raw_line in self._element_definition_lines(element_label)[1:]:
+            line = str(raw_line).strip()
+            if not line:
+                lines.append("<br>")
+            elif line.endswith(":"):
+                lines.append(f"<div style='font-weight:bold;color:{CHART_DATA_HIGHLIGHT_COLOR}'>{html.escape(line)}</div>")
+            elif line.startswith("• "):
+                lines.append(f"<div style='margin-left:12px'>{html.escape(line)}</div>")
+            elif ":" in line:
+                label, value = line.split(":", 1)
+                lines.append(
+                    f"<div><span style='font-weight:bold;color:{CHART_DATA_HIGHLIGHT_COLOR}'>"
+                    f"{html.escape(label)}:</span>{html.escape(value)}</div>"
+                )
+            else:
+                lines.append(f"<div>{html.escape(line)}</div>")
         return "".join(lines)
 
     def _build_mode_popout_info(self, chart: Chart, mode: str) -> str:
@@ -27391,12 +27480,15 @@ class MainWindow(QMainWindow):
             return
 
         colors = [ELEMENT_COLORS.get(element, "#6fa8dc") for element in elements] #cornflower blue
-        ax.pie(
+        wedges, _ = ax.pie(
             values,
             colors=colors,
             startangle=STANDARD_NCV_PIE_CHART["start_angle"], # startangle=90,
             wedgeprops={"edgecolor": STANDARD_NCV_PIE_CHART["wedge_edge_color"]}, # wedgeprops={"edgecolor": "#111111"},
         )
+        for wedge, element in zip(wedges, elements, strict=True):
+            wedge.set_gid(f"element:{element}")
+            wedge.set_picker(True)
         legend_label_format = STANDARD_NCV_PIE_CHART["legend_label_format"]
         legend_labels = [
             legend_label_format.format(percent=(value / total) * 100, label=element)
@@ -27406,7 +27498,7 @@ class MainWindow(QMainWindow):
             Patch(facecolor=color, label=label)
             for label, color in zip(legend_labels, colors, strict=True)
         ]
-        ax.legend(
+        legend = ax.legend(
             handles=legend_handles,
             loc=STANDARD_NCV_PIE_CHART["legend_loc"], # loc="upper center",
             bbox_to_anchor=STANDARD_NCV_PIE_CHART["legend_anchor"], # bbox_to_anchor=(0.5, -0.08),
@@ -27415,6 +27507,9 @@ class MainWindow(QMainWindow):
             fontsize=STANDARD_NCV_PIE_CHART["legend_font_size"], # fontsize=10,
             ncol=STANDARD_NCV_PIE_CHART["legend_ncol"], # ncol=2,
         )
+        for legend_text, element in zip(legend.get_texts(), elements, strict=True):
+            legend_text.set_gid(f"element:{element}")
+            legend_text.set_picker(True)
         # Use explicit subplot bounds so repeated redraws do not keep shrinking
         # the pie plot area when controls (like retcon) trigger chart refreshes.
         ax.figure.subplots_adjust(**STANDARD_NCV_PIE_CHART["subplots_adjust"]) #ax.figure.subplots_adjust(left=0.12, right=0.88, bottom=0.26, top=0.92)
@@ -29241,6 +29336,9 @@ class MainWindow(QMainWindow):
         reset_cursor = self.chart_info_output.textCursor()
         reset_cursor.movePosition(QTextCursor.Start)
         self.chart_info_output.setTextCursor(reset_cursor)
+
+    def _show_element_keyword_info(self, element: str) -> None:
+        self.chart_info_output.setPlainText("\n".join(self._element_definition_lines(element)))
 
     def _show_aspect_keyword_info(self, atype: str) -> None:
         aspect_label = str(atype or "").strip()
@@ -33506,6 +33604,9 @@ class MainWindow(QMainWindow):
             return
         if kind == "mode":
             self._show_mode_keyword_info(value)
+            return
+        if kind == "element":
+            self._show_element_keyword_info(value)
             return
         if kind == "gate":
             try:
