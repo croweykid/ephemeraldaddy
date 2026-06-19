@@ -26542,8 +26542,18 @@ class MainWindow(QMainWindow):
                 self._unregister_metric_chart(canvas)
                 continue
             if is_visible:
-                self._schedule_metric_canvas_layout_refresh
                 self._schedule_metric_canvas_layout_refresh(canvas)
+
+    def _schedule_deferred_visible_metric_canvas_layout_refreshes(
+        self,
+        delays_ms: tuple[int, ...] = (0, 50, 150),
+    ) -> None:
+        """Re-check visible metric canvas sizing after Qt finishes layout churn."""
+        for delay_ms in delays_ms:
+            QTimer.singleShot(
+                max(0, int(delay_ms)),
+                self._schedule_visible_metric_canvas_layout_refreshes,
+            )
 
     def _handle_metrics_wheel(self, event) -> bool:
         if self.metrics_scroll is None:
@@ -32536,6 +32546,7 @@ class MainWindow(QMainWindow):
         # draw() is synchronous for chart/metric canvases, so overlay shutdown can
         # be tied to actual completion of the final render pass here.
         reveal_chart_right_panel_after_loading(self)
+        self._schedule_deferred_visible_metric_canvas_layout_refreshes()
         self._hide_chart_loading_overlay()
         active_right_tab = getattr(self._chart_right_panel_state, "active_tab", None)
         if active_right_tab == "predictions":
