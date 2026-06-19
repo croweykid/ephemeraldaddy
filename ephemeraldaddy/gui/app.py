@@ -28804,7 +28804,52 @@ class MainWindow(QMainWindow):
             cursor.insertText(f"{theme} ", theme_fmt)
             cursor.insertText("is...\n\n", plain_fmt)
         else:
-            cursor.insertText(f"{sign_key}\n\n", plain_fmt)
+            sign_position_segments: list[tuple[str, str | None]] = []
+            chart = self._latest_chart
+            if chart is not None:
+                use_houses = _chart_uses_houses(chart)
+                houses = getattr(chart, "houses", None) if use_houses else None
+                sign_by_body = chart.signs() if hasattr(chart, "signs") else {}
+                ordered_bodies = [body for body in PLANET_ORDER if body in (getattr(chart, "positions", {}) or {})]
+                ordered_bodies.extend(
+                    sorted(set(getattr(chart, "positions", {}) or {}).difference(ordered_bodies))
+                )
+                for body in ordered_bodies:
+                    if str(sign_by_body.get(body, "")).strip().title() != sign_key:
+                        continue
+                    display_name = _display_body_name(body)
+                    if sign_position_segments:
+                        sign_position_segments.append((", ", None))
+                    sign_position_segments.append(
+                        (
+                            display_name,
+                            PLANET_COLORS.get(body, CHART_THEME_COLORS.get("text", "#f5f5f5")),
+                        )
+                    )
+                    house_num = None
+                    lon = (getattr(chart, "positions", {}) or {}).get(body)
+                    if use_houses and houses and lon is not None:
+                        house_num = _house_for_longitude(houses, lon)
+                    if house_num:
+                        sign_position_segments.append((" (", None))
+                        sign_position_segments.append(
+                            (
+                                f"H{house_num}",
+                                HOUSE_COLORS.get(str(house_num), CHART_THEME_COLORS.get("text", "#f5f5f5")),
+                            )
+                        )
+                        sign_position_segments.append((")", None))
+            if sign_position_segments:
+                for segment_text, segment_color in sign_position_segments:
+                    if segment_color:
+                        segment_fmt = QTextCharFormat()
+                        segment_fmt.setForeground(QColor(segment_color))
+                        cursor.insertText(segment_text, segment_fmt)
+                    else:
+                        cursor.insertText(segment_text, plain_fmt)
+                cursor.insertText(f" in {sign_key}\n\n", plain_fmt)
+            else:
+                cursor.insertText(f"{sign_key}\n\n", plain_fmt)
         if best_keywords:
             cursor.insertText("At Best:", header_fmt)
             cursor.insertText("\n", plain_fmt)
