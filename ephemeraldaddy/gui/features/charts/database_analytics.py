@@ -77,13 +77,9 @@ from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
     calculate_enneagram_type_weights as _calculate_enneagram_type_weights,
 )
 from ephemeraldaddy.gui.features.charts.metrics import (
-    calculate_dominant_element_weights as _calculate_dominant_element_weights,
     calculate_dominant_house_weights as _calculate_dominant_house_weights,
     calculate_dominant_planet_weights as _calculate_dominant_planet_weights,
     calculate_dominant_sign_weights as _calculate_dominant_sign_weights,
-    calculate_mode_weights as _calculate_mode_weights,
-    dominant_element_labels_from_weights as _dominant_element_labels_from_weights,
-    dominant_mode_labels_from_weights as _dominant_mode_labels_from_weights,
 )
 from ephemeraldaddy.gui.features.charts.bazi_window import (
     resolve_bazi_birth_datetime,
@@ -282,137 +278,6 @@ class DatabaseAnalyticsChartsMixin:
         "uncategorized": "Uncategorized",
         "unknown": "Uncategorized",
     }
-
-    DOMINANT_ELEMENT_LABELS: tuple[str, ...] = ("Fire", "Earth", "Air", "Water")
-    DOMINANT_MODE_LABELS: tuple[str, ...] = ("cardinal", "fixed", "mutable")
-
-    def _empty_dominant_element_mode_cache_fields(self) -> dict[str, Any]:
-        return {
-            "dominant_element_totals": {element: 0.0 for element in self.DOMINANT_ELEMENT_LABELS},
-            "dominant_element_total_weight": 0.0,
-            "dominant_element_weight_totals": {element: 0.0 for element in self.DOMINANT_ELEMENT_LABELS},
-            "dominant_element_weight_total_weight": 0.0,
-            "dominant_mode_totals": {mode: 0.0 for mode in self.DOMINANT_MODE_LABELS},
-            "dominant_mode_total_weight": 0.0,
-            "dominant_mode_weight_totals": {mode: 0.0 for mode in self.DOMINANT_MODE_LABELS},
-            "dominant_mode_weight_total_weight": 0.0,
-        }
-
-    def _record_dominant_element_mode_snapshot(self, snapshot: dict[str, Any], chart: Any) -> None:
-        dominant_element_weights = (
-            getattr(chart, "dominant_element_weights", None)
-            or _calculate_dominant_element_weights(chart)
-        )
-        chart.dominant_element_weights = dominant_element_weights
-        for element in self.DOMINANT_ELEMENT_LABELS:
-            element_weight = float(dominant_element_weights.get(element, 0.0))
-            if element_weight <= 0:
-                continue
-            snapshot["dominant_element_weight_totals"][element] += element_weight
-            snapshot["dominant_element_weight_total_weight"] += element_weight
-        for dominant_element in _dominant_element_labels_from_weights(dominant_element_weights):
-            snapshot["dominant_element_totals"][dominant_element] += 1.0
-            snapshot["dominant_element_total_weight"] += 1.0
-
-        dominant_mode_weights = _calculate_mode_weights(chart)
-        for mode in self.DOMINANT_MODE_LABELS:
-            mode_weight = float(dominant_mode_weights.get(mode, 0.0))
-            if mode_weight <= 0:
-                continue
-            snapshot["dominant_mode_weight_totals"][mode] += mode_weight
-            snapshot["dominant_mode_weight_total_weight"] += mode_weight
-        for dominant_mode in _dominant_mode_labels_from_weights(dominant_mode_weights):
-            snapshot["dominant_mode_totals"][dominant_mode] += 1.0
-            snapshot["dominant_mode_total_weight"] += 1.0
-
-    def _apply_dominant_element_mode_snapshot_delta(
-        self,
-        totals: dict[str, Any],
-        snapshot: dict[str, Any],
-        direction: int,
-    ) -> None:
-        totals["dominant_element_total_weight"] += direction * float(snapshot.get("dominant_element_total_weight", 0.0))
-        totals["dominant_element_weight_total_weight"] += direction * float(snapshot.get("dominant_element_weight_total_weight", 0.0))
-        totals["dominant_mode_total_weight"] += direction * float(snapshot.get("dominant_mode_total_weight", 0.0))
-        totals["dominant_mode_weight_total_weight"] += direction * float(snapshot.get("dominant_mode_weight_total_weight", 0.0))
-        for element in self.DOMINANT_ELEMENT_LABELS:
-            totals["dominant_element_totals"][element] += direction * float(
-                snapshot.get("dominant_element_totals", {}).get(element, 0.0)
-            )
-            totals["dominant_element_weight_totals"][element] += direction * float(
-                snapshot.get("dominant_element_weight_totals", {}).get(element, 0.0)
-            )
-        for mode in self.DOMINANT_MODE_LABELS:
-            totals["dominant_mode_totals"][mode] += direction * float(
-                snapshot.get("dominant_mode_totals", {}).get(mode, 0.0)
-            )
-            totals["dominant_mode_weight_totals"][mode] += direction * float(
-                snapshot.get("dominant_mode_weight_totals", {}).get(mode, 0.0)
-            )
-
-    @staticmethod
-    def _normalized_metric_values(
-        totals: dict[str, float],
-        labels: tuple[str, ...] | list[str],
-        total_weight: float,
-    ) -> dict[str, float]:
-        return {
-            label: (totals[label] / total_weight if total_weight else 0)
-            for label in labels
-        }
-
-    def _dominant_element_mode_analysis_values(
-        self,
-        selection_cache: dict[str, Any],
-        database_cache: dict[str, Any],
-    ) -> dict[str, Any]:
-        element_labels = list(self.DOMINANT_ELEMENT_LABELS)
-        mode_labels = list(self.DOMINANT_MODE_LABELS)
-        return {
-            "dominant_element_labels": element_labels,
-            "dominant_mode_labels": mode_labels,
-            "selection_top_dominant_elements": self._normalized_metric_values(
-                selection_cache["dominant_element_totals"],
-                element_labels,
-                selection_cache["dominant_element_total_weight"],
-            ),
-            "database_top_dominant_elements": self._normalized_metric_values(
-                database_cache["dominant_element_totals"],
-                element_labels,
-                database_cache["dominant_element_total_weight"],
-            ),
-            "selection_top_dominant_modes": self._normalized_metric_values(
-                selection_cache["dominant_mode_totals"],
-                mode_labels,
-                selection_cache["dominant_mode_total_weight"],
-            ),
-            "database_top_dominant_modes": self._normalized_metric_values(
-                database_cache["dominant_mode_totals"],
-                mode_labels,
-                database_cache["dominant_mode_total_weight"],
-            ),
-            "selection_dominant_elements": self._normalized_metric_values(
-                selection_cache["dominant_element_weight_totals"],
-                element_labels,
-                selection_cache["dominant_element_weight_total_weight"],
-            ),
-            "database_dominant_elements": self._normalized_metric_values(
-                database_cache["dominant_element_weight_totals"],
-                element_labels,
-                database_cache["dominant_element_weight_total_weight"],
-            ),
-            "selection_dominant_modes": self._normalized_metric_values(
-                selection_cache["dominant_mode_weight_totals"],
-                mode_labels,
-                selection_cache["dominant_mode_weight_total_weight"],
-            ),
-            "database_dominant_modes": self._normalized_metric_values(
-                database_cache["dominant_mode_weight_totals"],
-                mode_labels,
-                database_cache["dominant_mode_weight_total_weight"],
-            ),
-        }
-
     DOMINANT_FACTORS_TOP3_DROPDOWN_OPTIONS: tuple[tuple[str, str], ...] = (
         ("Dominant Signs (Top 3)", "top3_signs"),
         ("Dominant Bodies (Top 3)", "top3_planets"),
