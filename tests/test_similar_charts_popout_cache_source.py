@@ -45,3 +45,21 @@ def test_similar_charts_popout_perceived_accuracy_uses_cached_rankings_when_avai
     assert "ranked_matches=most_similar_matches" in show_method
     perceived_controls = show_method.split("if show_perceived_accuracy_controls:", 1)[1].split("else:", 1)[0]
     assert "_load_similar_chart_candidates" not in perceived_controls
+
+
+def test_developer_tools_exposes_manual_similar_charts_cache_refresh():
+    source = _app_source()
+    dev_tools_section = source.split('self._add_settings_collapsible_section(content_layout, "Developer Tools")', 1)[1].split(
+        '#should this be here or no?', 1
+    )[0]
+    clear_method = source.split("def _clear_similar_charts_popout_cache", 1)[1].split(
+        "def _on_refresh_similar_charts_popout_cache_requested", 1
+    )[0]
+    refresh_method = source.split("def _on_refresh_similar_charts_popout_cache_requested", 1)[1].split(
+        "def _on_similarity_calculator_checkbox_toggled", 1
+    )[0]
+
+    assert 'QPushButton("Refresh Similar Charts cache")' in dev_tools_section
+    assert "_on_refresh_similar_charts_popout_cache_requested" in dev_tools_section
+    assert "cache.clear()" in clear_method
+    assert "The next Similar Charts popout will recalculate on demand." in refresh_method

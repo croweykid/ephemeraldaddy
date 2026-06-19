@@ -21383,6 +21383,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
         )
 
+        refresh_similar_charts_cache_button = QPushButton("Refresh Similar Charts cache")
+        refresh_similar_charts_cache_button.setToolTip(
+            "Clears cached Similar Charts popout rankings, including developer perceived-accuracy "
+            "predicted scores. The next Similar Charts popout you open will recalculate on demand."
+        )
+        refresh_similar_charts_cache_button.clicked.connect(
+            self._on_refresh_similar_charts_popout_cache_requested
+        )
+        dev_tools_section.addWidget(refresh_similar_charts_cache_button)
+
         #should this be here or no?
         add_database_info_settings_section(self, content_layout)
 
@@ -21902,6 +21912,31 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 SETTINGS_KEY_SIMILARITY_PERCEIVED_ACCURACY_CONTROLS,
                 int(self._similarity_perceived_accuracy_controls_enabled),
             )
+
+    def _clear_similar_charts_popout_cache(self) -> int:
+        cache = getattr(self, "_similar_charts_popout_cache", None)
+        if not isinstance(cache, OrderedDict):
+            self._similar_charts_popout_cache = OrderedDict()
+            return 0
+        cleared_count = len(cache)
+        cache.clear()
+        return cleared_count
+
+    def _on_refresh_similar_charts_popout_cache_requested(self) -> None:
+        cleared_count = self._clear_similar_charts_popout_cache()
+        parent = self.parent()
+        if isinstance(parent, MainWindow) and parent is not self:
+            cleared_count += parent._clear_similar_charts_popout_cache()
+        QMessageBox.information(
+            self,
+            "Similar Charts cache",
+            (
+                "Cleared cached Similar Charts rankings. "
+                "The next Similar Charts popout will recalculate on demand."
+                if cleared_count
+                else "Similar Charts cache was already empty."
+            ),
+        )
 
     def _on_similarity_calculator_checkbox_toggled(self, key: str, checked: bool) -> None:
         checkbox = self._similarity_calculator_checkboxes.get(key)
