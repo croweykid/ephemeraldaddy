@@ -13,6 +13,8 @@ from ephemeraldaddy.core.human_design_system import (
     HDActivation,
     INCARNATION_CROSS_LOOKUP,
     HumanDesignResult,
+    defined_centers_from_active_gates,
+    defined_channels_from_active_gates,
     _resolve_authority,
     _resolve_strategy,
     _resolve_type,
@@ -1200,16 +1202,8 @@ def build_human_design_synastry_data_output(
             if gate_a in chart_b_active_gates and gate_b in chart_b_active_gates
         }
     )
-    defined_channels = tuple(
-        (gate_a, gate_b, center_a, center_b)
-        for gate_a, gate_b, center_a, center_b in CHANNELS
-        if gate_a in active_gates and gate_b in active_gates
-    )
-    defined_centers = {
-        center
-        for _gate_a, _gate_b, center_a, center_b in defined_channels
-        for center in (center_a, center_b)
-    }
+    defined_channels = defined_channels_from_active_gates(active_gates)
+    defined_centers = set(defined_centers_from_active_gates(active_gates))
     combined_type = _resolve_type(defined_centers, defined_channels)
     combined_authority = _resolve_authority(combined_type, defined_centers, defined_channels)
     combined_definition = _split_definition(defined_channels)
