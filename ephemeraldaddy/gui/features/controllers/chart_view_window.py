@@ -1071,7 +1071,6 @@ def setup_chart_view_tags_section(*, owner: QWidget, tags_content_layout: QVBoxL
 def on_chart_view_tags_changed(owner: QWidget) -> None:
     tags = parse_tag_text(owner.chart_tags_input.text())
     render_tag_chip_preview(owner.chart_tags_preview_label, tags)
-    owner._mark_lucygoosey()
 
 
 def render_chart_view_tag_selection(owner: QWidget) -> None:
