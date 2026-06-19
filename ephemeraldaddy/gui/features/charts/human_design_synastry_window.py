@@ -24,6 +24,7 @@ from ephemeraldaddy.analysis.human_design import (
     build_human_design_synastry_data_output,
 )
 from ephemeraldaddy.analysis.human_design_reference import HD_CENTERS
+from ephemeraldaddy.core.human_design_system import defined_centers_from_active_gates
 from ephemeraldaddy.core.chart import Chart
 from ephemeraldaddy.gui.features.charts.chart_data_output import (
     ChartDataTableOutput,
@@ -95,7 +96,7 @@ def create_human_design_synastry_dialog(
     chart_a_gate_set = {activation.gate for activation in (*hd_a.personality_activations, *hd_a.design_activations)}
     chart_b_gate_set = {activation.gate for activation in (*hd_b.personality_activations, *hd_b.design_activations)}
     aggregate_gate_set = set(chart_a_gate_set) | set(chart_b_gate_set)
-    aggregate_defined_centers = set(hd_a.defined_centers) | set(hd_b.defined_centers)
+    aggregate_defined_centers = set(defined_centers_from_active_gates(aggregate_gate_set))
     awareness_stream_entries = build_awareness_stream_completion(aggregate_gate_set)
     circuit_entries = build_circuit_group_completion(aggregate_gate_set)
     _apply_synastry_gate_metadata(

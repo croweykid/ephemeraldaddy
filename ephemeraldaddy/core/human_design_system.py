@@ -61,6 +61,24 @@ CHANNELS: tuple[tuple[int, int, str, str], ...] = (
 MOTOR_CENTERS = {"Ego", "Solar Plexus", "Root", "Sacral"}
 
 
+def defined_channels_from_active_gates(active_gates: set[int] | frozenset[int]) -> tuple[tuple[int, int, str, str], ...]:
+    """Return unique Human Design channels completed by the supplied active gates."""
+    unique_channels: dict[tuple[int, int], tuple[int, int, str, str]] = {}
+    for channel in CHANNELS:
+        gate_a, gate_b, _center_a, _center_b = channel
+        if gate_a not in active_gates or gate_b not in active_gates:
+            continue
+        channel_key = tuple(sorted((gate_a, gate_b)))
+        unique_channels.setdefault(channel_key, channel)
+    return tuple(unique_channels.values())
+
+
+def defined_centers_from_active_gates(active_gates: set[int] | frozenset[int]) -> frozenset[str]:
+    """Return centers activated by channels completed by the supplied active gates."""
+    defined_channels = defined_channels_from_active_gates(active_gates)
+    return frozenset({center for _g1, _g2, center_a, center_b in defined_channels for center in (center_a, center_b)})
+
+
 @dataclass(frozen=True)
 class HDActivation:
     body: str
@@ -435,15 +453,8 @@ def calculate_human_design(chart: "Chart") -> HumanDesignResult:
         for body, (gate, line, color, tone, base) in ((name, d_components[name]) for name in HD_BODIES)
     )
 
-    unique_channels: dict[tuple[int, int], tuple[int, int, str, str]] = {}
-    for channel in CHANNELS:
-        gate_a, gate_b, _center_a, _center_b = channel
-        if gate_a not in active_gates or gate_b not in active_gates:
-            continue
-        channel_key = tuple(sorted((gate_a, gate_b)))
-        unique_channels.setdefault(channel_key, channel)
-    defined_channels = tuple(unique_channels.values())
-    defined_centers = frozenset({c for _g1, _g2, c1, c2 in defined_channels for c in (c1, c2)})
+    defined_channels = defined_channels_from_active_gates(active_gates)
+    defined_centers = defined_centers_from_active_gates(active_gates)
     hd_type = _resolve_type(set(defined_centers), defined_channels)
     authority = _resolve_authority(hd_type, set(defined_centers), defined_channels)
     strategy = _resolve_strategy(hd_type)
