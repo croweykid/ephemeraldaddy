@@ -31840,7 +31840,6 @@ class MainWindow(QMainWindow):
             startup_progress("Opening that sassy Database…!", 98)
         QTimer.singleShot(0, self._raise_manage_charts_dialog)
         self._retarget_size_checker_to_database_view()
-        #self.hide()
 
     def _on_close_requested(self) -> None:
         self.close()
