@@ -345,6 +345,7 @@ def _create_charts_table(conn: sqlite3.Connection) -> None:
             sentiments        TEXT,
             relationship_types TEXT,
             tags              TEXT,
+            reminds_me_of     TEXT,
             comments          TEXT,
             rectification_notes TEXT,
             biography         TEXT,
@@ -550,6 +551,13 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
             """
             ALTER TABLE charts
             ADD COLUMN tags TEXT
+            """
+        )
+    if "reminds_me_of" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE charts
+            ADD COLUMN reminds_me_of TEXT
             """
         )
     if "comments" not in columns:
@@ -2581,7 +2589,7 @@ def save_chart(
             """
             INSERT INTO charts
                 (name, alias, from_whence, gender, birth_place, datetime_iso, tz_name,
-                 lat, lon, used_utc_fallback, sentiments, relationship_types, tags,
+                 lat, lon, used_utc_fallback, sentiments, relationship_types, tags, reminds_me_of,
                  comments,
                  rectification_notes,
                  biography,
@@ -2612,7 +2620,7 @@ def save_chart(
                  death_minute,
                  death_place,
                  created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 chart.name,
@@ -2636,6 +2644,7 @@ def save_chart(
                     else getattr(chart, "relationship_types", [])
                 ),
                 _serialize_tags(getattr(chart, "tags", [])),
+                getattr(chart, "reminds_me_of", None),
                 getattr(chart, "comments", None),
                 getattr(chart, "rectification_notes", None),
                 getattr(chart, "biography", None),
@@ -2863,6 +2872,7 @@ def update_chart(
                 sentiments = ?,
                 relationship_types = ?,
                 tags = ?,
+                reminds_me_of = ?,
                 comments = ?,
                 rectification_notes = ?,
                 biography = ?,
@@ -2944,6 +2954,7 @@ def update_chart(
                     else getattr(chart, "relationship_types", [])
                 ),
                 _serialize_tags(getattr(chart, "tags", [])),
+                getattr(chart, "reminds_me_of", None),
                 getattr(chart, "comments", None),
                 getattr(chart, "rectification_notes", None),
                 getattr(chart, "biography", None),
@@ -3361,7 +3372,7 @@ def load_chart(chart_id: int):
         f"""
         SELECT chart_uid, name, alias, from_whence, gender, birth_place, datetime_iso, tz_name, lat, lon,
                used_utc_fallback, sentiments, relationship_types,
-               tags, comments, rectification_notes, biography, chart_data_source,
+               tags, reminds_me_of, comments, rectification_notes, biography, chart_data_source,
                positive_sentiment_intensity, negative_sentiment_intensity,
                familiarity, alignment_score, matched_expectations, {familiarity_factors_projection}, age_when_first_met, year_first_encountered, data_rating, birthtime_unknown, signs_unknown, unknown_signs,
                retcon_time_used, retcon_hour, retcon_minute,
@@ -3399,6 +3410,7 @@ def load_chart(chart_id: int):
         sentiments,
         relationship_types,
         tags,
+        reminds_me_of,
         comments,
         rectification_notes,
         biography,
@@ -3474,6 +3486,7 @@ def load_chart(chart_id: int):
         placeholder.sentiments = parse_sentiments(sentiments)
         placeholder.relationship_types = parse_relationship_types(relationship_types)
         placeholder.tags = parse_tags(tags)
+        placeholder.reminds_me_of = reminds_me_of or ""
         placeholder.comments = comments or ""
         placeholder.rectification_notes = rectification_notes or ""
         placeholder.biography = biography or ""
@@ -3564,6 +3577,7 @@ def load_chart(chart_id: int):
     chart.sentiments = parse_sentiments(sentiments)
     chart.relationship_types = parse_relationship_types(relationship_types)
     chart.tags = parse_tags(tags)
+    chart.reminds_me_of = reminds_me_of or ""
     chart.comments = comments or ""
     chart.rectification_notes = rectification_notes or ""
     chart.biography = biography or ""

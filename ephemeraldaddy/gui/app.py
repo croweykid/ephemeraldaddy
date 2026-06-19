@@ -19503,6 +19503,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             birth_place_value = chart_row[5] if chart_row else None
             source_value = chart_row[14] if chart_row else None
             gender_value = chart_row[3] if chart_row else None
+            reminds_me_of_value = None
             chart = self._get_chart_for_filter(chart_id)
             if chart is not None:
                 if chart_row is None:
@@ -19512,10 +19513,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     #source_value = getattr(chart, "source", None)
                     #gender_value = getattr(chart, "gender", None)
                 from_whence_value = getattr(chart, "from_whence", None)
+                reminds_me_of_value = getattr(chart, "reminds_me_of", None)
             if not (
                 matches(name_value)
                 or matches(alias_value)
                 or matches(from_whence_value)
+                or matches(reminds_me_of_value)
                 #or matches(birth_place_value)
                 #or matches(source_value)
                 #or matches(gender_value)
@@ -23997,6 +24000,11 @@ class MainWindow(QMainWindow):
             owner=self,
             tags_content_layout=tags_content_layout,
         )
+        tags_content_layout.addWidget(QLabel("Reminds me of"))
+        self.reminds_me_of_input = QLineEdit()
+        self.reminds_me_of_input.setPlaceholderText("Chart names or comparison notes")
+        self.reminds_me_of_input.textChanged.connect(lambda *_: self._mark_lucygoosey())
+        tags_content_layout.addWidget(self.reminds_me_of_input)
         self.tags_panel_toggle.toggled.connect(
             lambda expanded: self._toggle_chart_panel_content(
                 self.tags_panel_toggle,
@@ -30340,6 +30348,7 @@ class MainWindow(QMainWindow):
         self._set_sentiment_selection([])
         self._set_relationship_type_selection([])
         self._set_chart_tags_state([])
+        self.reminds_me_of_input.setText("")
         self.positive_sentiment_intensity_spin.setValue(0)
         self.negative_sentiment_intensity_spin.setValue(0)
         self.familiarity_spin.setValue(1)
@@ -30914,6 +30923,7 @@ class MainWindow(QMainWindow):
         placeholder.sentiments = list(self._selected_sentiments()) if hasattr(self, "_selected_sentiments") else []
         placeholder.relationship_types = list(self._selected_relationship_types()) if hasattr(self, "_selected_relationship_types") else []
         placeholder.tags = get_chart_view_tags(self)
+        placeholder.reminds_me_of = self.reminds_me_of_input.text().strip()
         placeholder.comments = self.comments_edit.toPlainText().strip()
         placeholder.rectification_notes = self.rectification_edit.toPlainText().strip()
         placeholder.biography = self.biography_edit.toPlainText().strip()
@@ -31076,6 +31086,8 @@ class MainWindow(QMainWindow):
             chart.chart_data_source = self.source_edit.toPlainText().strip()
         if hasattr(chart, "tags"):
             chart.tags = [] if is_event_chart else get_chart_view_tags(self)
+        if hasattr(chart, "reminds_me_of"):
+            chart.reminds_me_of = "" if is_event_chart else self.reminds_me_of_input.text().strip()
         if hasattr(chart, "positive_sentiment_intensity"):
             chart.positive_sentiment_intensity = 0 if is_event_chart else self.positive_sentiment_intensity_spin.value()
         if hasattr(chart, "negative_sentiment_intensity"):
@@ -31600,6 +31612,7 @@ class MainWindow(QMainWindow):
         self._set_sentiment_selection([])
         self._set_relationship_type_selection([])
         self._set_chart_tags_state([])
+        self.reminds_me_of_input.clear()
         self.comments_edit.clear()
         self.rectification_edit.clear()
         self.biography_edit.clear()
@@ -31913,6 +31926,7 @@ class MainWindow(QMainWindow):
             getattr(chart, "relationship_types", []),
         )
         self._set_chart_tags_state(normalize_tag_list(getattr(chart, "tags", [])))
+        self.reminds_me_of_input.setText(getattr(chart, "reminds_me_of", "") or "")
         self.comments_edit.setPlainText(getattr(chart, "comments", "") or "")
         self.rectification_edit.setPlainText(getattr(chart, "rectification_notes", "") or "")
         self.biography_edit.setPlainText(getattr(chart, "biography", "") or "")
