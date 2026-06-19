@@ -644,6 +644,7 @@ from ephemeraldaddy.core.interpretations import (
     NAKSHATRA_PLANET_COLOR,
     NAKSHATRA_RANGES,
     MODES,
+    MODE_COLORS,
     MODE_KEYWORDS,
     ASPECT_PATTERN_DEFS,
     ASPECT_BODY_ALIASES,
@@ -28841,31 +28842,50 @@ class MainWindow(QMainWindow):
 
     def _show_mode_keyword_info(self, mode: str) -> None:
         mode_key = str(mode or "").strip().lower()
-        if mode_key not in {"cardinal", "mutable", "fixed"}:
-            self.chart_info_output.setPlainText("Mode\n\nNo keyword data available.")
-            return
-        chart = getattr(self, "_latest_chart", None)
-        if chart is not None:
-            html_text = self._build_mode_popout_info(chart, mode_key)
-        else:
-            html_text = format_mode_popout_info_html(
-                mode_key=mode_key,
-                selected_mode="dominant_modes",
-                ranked_weights={key: 0.0 for key in ("cardinal", "mutable", "fixed")},
-                highlight_color=CHART_DATA_HIGHLIGHT_COLOR,
-                fallback_text_color=CHART_THEME_COLORS.get("text", "#f5f5f5"),
-            )
-        if hasattr(self.chart_info_output, "setHtml"):
-            self.chart_info_output.setHtml(html_text)
-            return
+        mode_label = mode_key.title() if mode_key else "Mode"
         keywords = sorted(
             str(keyword).strip()
             for keyword in MODE_KEYWORDS.get(mode_key, set())
             if str(keyword).strip()
         )
-        self.chart_info_output.setPlainText(
-            "\n".join([mode_key.title(), "", *(f"• {keyword}" for keyword in keywords)])
-        )
+        signs = sorted(str(sign).strip() for sign in MODES.get(mode_key, set()) if str(sign).strip())
+        if mode_key not in {"cardinal", "mutable", "fixed"} or not (keywords or signs):
+            self.chart_info_output.setPlainText(f"{mode_label}\n\nNo keyword data available.")
+            return
+
+        self.chart_info_output.clear()
+        cursor = self.chart_info_output.textCursor()
+        cursor.movePosition(QTextCursor.Start)
+
+        title_fmt = QTextCharFormat()
+        title_fmt.setForeground(QColor(MODE_COLORS.get(mode_key, CHART_THEME_COLORS.get("text", "#f5f5f5"))))
+        title_fmt.setFontWeight(QFont.Bold)
+        title_fmt.setFontPointSize(13)
+        header_fmt = QTextCharFormat()
+        header_fmt.setForeground(QColor(CHART_DATA_HIGHLIGHT_COLOR))
+        header_fmt.setFontWeight(QFont.Bold)
+        plain_fmt = QTextCharFormat()
+        plain_fmt.setFontWeight(QFont.Normal)
+        plain_fmt.setFontItalic(False)
+
+        cursor.insertText(f"{mode_label} Mode\n\n", title_fmt)
+        if keywords:
+            cursor.insertText("Keywords:", header_fmt)
+            cursor.insertText("\n", plain_fmt)
+            for keyword in keywords:
+                cursor.insertText(f"• {keyword}\n", plain_fmt)
+        if signs:
+            if keywords:
+                cursor.insertText("\n", plain_fmt)
+            cursor.insertText("Signs:", header_fmt)
+            cursor.insertText("\n", plain_fmt)
+            for sign in signs:
+                cursor.insertText(f"• {sign}\n", plain_fmt)
+
+        self.chart_info_output.setTextCursor(cursor)
+        reset_cursor = self.chart_info_output.textCursor()
+        reset_cursor.movePosition(QTextCursor.Start)
+        self.chart_info_output.setTextCursor(reset_cursor)
 
     def _show_house_keyword_info(self, house_num: int) -> None:
         house_keywords = HOUSE_DEFINITIONS.get(house_num, {}).get("core_domains", [])
