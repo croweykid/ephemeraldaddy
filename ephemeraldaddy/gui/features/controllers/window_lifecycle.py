@@ -42,11 +42,11 @@ def configure_initial_window_state(
     startup_loading.update_status("Finalizing startup…", 97)
     app.processEvents()
 
-    # Keep the real top-level app window alive for Windows taskbar/minimize
-    # behavior, but never let the blank Chart View take foreground focus over
-    # Database View during startup. A minimized owner window preserves the
-    # taskbar presence without presenting an empty chart canvas to the user.
-    window.showMinimized()
+    # Keep startup Database View-first without surfacing the blank Chart View
+    # MainWindow.  The main window remains alive as the application owner and is
+    # shown later only when the user opens/edits a chart.
+    if window.isVisible():
+        window.hide()
 
     startup_loading.update_status("Startup complete.", 100)
 
