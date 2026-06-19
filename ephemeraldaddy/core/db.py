@@ -345,6 +345,7 @@ def _create_charts_table(conn: sqlite3.Connection) -> None:
             sentiments        TEXT,
             relationship_types TEXT,
             tags              TEXT,
+            reminds_me_of     TEXT,
             comments          TEXT,
             rectification_notes TEXT,
             biography         TEXT,
@@ -550,6 +551,13 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
             """
             ALTER TABLE charts
             ADD COLUMN tags TEXT
+            """
+        )
+    if "reminds_me_of" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE charts
+            ADD COLUMN reminds_me_of TEXT
             """
         )
     if "comments" not in columns:
@@ -2238,6 +2246,8 @@ def append_database(source: Path) -> dict[str, Any]:
 
         source_rows = source_conn.execute("SELECT * FROM charts ORDER BY id ASC").fetchall()
         now_iso = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        source_uid_remap: dict[str, str] = {}
+        pending_reminds_me_of_updates: list[tuple[int, str]] = []
 
         with target_conn:
             for row_index, row in enumerate(source_rows, start=1):
@@ -2263,8 +2273,10 @@ def append_database(source: Path) -> dict[str, Any]:
                 )
                 if source_chart_uid is None:
                     new_chart_uid = _generate_chart_uid(target_uids)
+                    target_uids.add(new_chart_uid)
                 elif source_chart_uid in target_uids:
                     new_chart_uid = _generate_chart_uid(target_uids)
+                    target_uids.add(new_chart_uid)
                     warned += 1
                     issues.append(
                         {
@@ -2280,6 +2292,8 @@ def append_database(source: Path) -> dict[str, Any]:
                 else:
                     new_chart_uid = source_chart_uid
                     target_uids.add(new_chart_uid)
+                if source_chart_uid is not None:
+                    source_uid_remap[source_chart_uid] = new_chart_uid
 
                 chart_name = (
                     str(row["name"]).strip()
@@ -2367,6 +2381,9 @@ def append_database(source: Path) -> dict[str, Any]:
                     or _row_value("source")
                     or CHART_TYPE_PERSONAL
                 )
+                reminds_me_of_uid = _normalize_chart_uid(_row_value("reminds_me_of"))
+                if reminds_me_of_uid is not None:
+                    pending_reminds_me_of_updates.append((new_chart_id, reminds_me_of_uid))
 
                 used_utc_fallback = int(_row_value("used_utc_fallback") or 0)
                 if concerns_for_row > 0:
@@ -2385,7 +2402,7 @@ def append_database(source: Path) -> dict[str, Any]:
                     """
                     INSERT INTO charts
                         (id, chart_uid, name, alias, from_whence, gender, birth_place, datetime_iso, tz_name,
-                         lat, lon, used_utc_fallback, sentiments, relationship_types, tags, comments, rectification_notes, biography, chart_data_source,
+                         lat, lon, used_utc_fallback, sentiments, relationship_types, tags, reminds_me_of, comments, rectification_notes, biography, chart_data_source,
                          positive_sentiment_intensity, negative_sentiment_intensity, familiarity,
                          alignment_score, matched_expectations, familiarity_factors, age_when_first_met, year_first_encountered, data_rating,
                          social_score, birthtime_unknown, signs_unknown, unknown_signs, retcon_time_used, retcon_hour, retcon_minute,
@@ -2399,7 +2416,7 @@ def append_database(source: Path) -> dict[str, Any]:
                          is_placeholder, is_deceased, birth_month, birth_day, birth_year,
                          death_month, death_day, death_year, deathtime_unknown, death_hour, death_minute, death_place,
                          created_at, is_current)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         new_chart_id,
@@ -2417,6 +2434,7 @@ def append_database(source: Path) -> dict[str, Any]:
                         _row_value("sentiments"),
                         _row_value("relationship_types"),
                         _row_value("tags"),
+                        reminds_me_of_uid,
                         _row_value("comments"),
                         _row_value("rectification_notes"),
                         _row_value("biography"),
@@ -2476,6 +2494,14 @@ def append_database(source: Path) -> dict[str, Any]:
                     ),
                 )
                 imported += 1
+            for imported_chart_id, source_reminds_me_of_uid in pending_reminds_me_of_updates:
+                target_conn.execute(
+                    "UPDATE charts SET reminds_me_of = ? WHERE id = ?",
+                    (
+                        source_uid_remap.get(source_reminds_me_of_uid, source_reminds_me_of_uid),
+                        imported_chart_id,
+                    ),
+                )
     finally:
         source_conn.close()
         target_conn.close()
@@ -2581,7 +2607,7 @@ def save_chart(
             """
             INSERT INTO charts
                 (name, alias, from_whence, gender, birth_place, datetime_iso, tz_name,
-                 lat, lon, used_utc_fallback, sentiments, relationship_types, tags,
+                 lat, lon, used_utc_fallback, sentiments, relationship_types, tags, reminds_me_of,
                  comments,
                  rectification_notes,
                  biography,
@@ -2612,7 +2638,7 @@ def save_chart(
                  death_minute,
                  death_place,
                  created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 chart.name,
@@ -2636,6 +2662,7 @@ def save_chart(
                     else getattr(chart, "relationship_types", [])
                 ),
                 _serialize_tags(getattr(chart, "tags", [])),
+                getattr(chart, "reminds_me_of", None),
                 getattr(chart, "comments", None),
                 getattr(chart, "rectification_notes", None),
                 getattr(chart, "biography", None),
@@ -2863,6 +2890,7 @@ def update_chart(
                 sentiments = ?,
                 relationship_types = ?,
                 tags = ?,
+                reminds_me_of = ?,
                 comments = ?,
                 rectification_notes = ?,
                 biography = ?,
@@ -2944,6 +2972,7 @@ def update_chart(
                     else getattr(chart, "relationship_types", [])
                 ),
                 _serialize_tags(getattr(chart, "tags", [])),
+                getattr(chart, "reminds_me_of", None),
                 getattr(chart, "comments", None),
                 getattr(chart, "rectification_notes", None),
                 getattr(chart, "biography", None),
@@ -3334,6 +3363,76 @@ def get_chart_uid(chart_id: int | None) -> str | None:
     return get_chart_uid_map([int(chart_id)]).get(int(chart_id))
 
 
+def find_chart_uid_by_name(name: str | None, *, exclude_chart_id: int | None = None) -> str | None:
+    """Resolve a user-entered chart name, alias, or UID to a stable chart UID."""
+    query = str(name or "").strip()
+    if not query:
+        return None
+    normalized_query_uid = _normalize_chart_uid(query)
+    conn = _get_conn()
+    try:
+        if normalized_query_uid is not None:
+            row = conn.execute(
+                """
+                SELECT chart_uid
+                FROM charts
+                WHERE chart_uid = ?
+                  AND (? IS NULL OR id != ?)
+                ORDER BY id ASC
+                LIMIT 1
+                """,
+                (normalized_query_uid, exclude_chart_id, exclude_chart_id),
+            ).fetchone()
+            if row and row[0]:
+                return str(row[0])
+
+        rows = conn.execute(
+            """
+            SELECT id, chart_uid, name, alias
+            FROM charts
+            WHERE chart_uid IS NOT NULL
+              AND chart_uid != ''
+              AND (? IS NULL OR id != ?)
+            ORDER BY id ASC
+            """,
+            (exclude_chart_id, exclude_chart_id),
+        ).fetchall()
+        query_key = query.casefold()
+        for _chart_id, chart_uid, chart_name, alias in rows:
+            if str(chart_name or "").strip().casefold() == query_key:
+                return str(chart_uid)
+            if str(alias or "").strip().casefold() == query_key:
+                return str(chart_uid)
+        return None
+    finally:
+        conn.close()
+
+
+def get_chart_display_name_by_uid(chart_uid: str | None) -> str:
+    """Return a chart display label for a stable chart UID."""
+    normalized_uid = _normalize_chart_uid(chart_uid)
+    if normalized_uid is None:
+        return ""
+    conn = _get_conn()
+    try:
+        row = conn.execute(
+            """
+            SELECT id, name, alias
+            FROM charts
+            WHERE chart_uid = ?
+            LIMIT 1
+            """,
+            (normalized_uid,),
+        ).fetchone()
+        if not row:
+            return normalized_uid
+        chart_id, name, alias = row
+        label = str(name or alias or "").strip()
+        return label or f"Chart #{int(chart_id)}"
+    finally:
+        conn.close()
+
+
 def load_chart(chart_id: int):
     """
     Load a chart from the DB and reconstruct a Chart instance.
@@ -3361,7 +3460,7 @@ def load_chart(chart_id: int):
         f"""
         SELECT chart_uid, name, alias, from_whence, gender, birth_place, datetime_iso, tz_name, lat, lon,
                used_utc_fallback, sentiments, relationship_types,
-               tags, comments, rectification_notes, biography, chart_data_source,
+               tags, reminds_me_of, comments, rectification_notes, biography, chart_data_source,
                positive_sentiment_intensity, negative_sentiment_intensity,
                familiarity, alignment_score, matched_expectations, {familiarity_factors_projection}, age_when_first_met, year_first_encountered, data_rating, birthtime_unknown, signs_unknown, unknown_signs,
                retcon_time_used, retcon_hour, retcon_minute,
@@ -3399,6 +3498,7 @@ def load_chart(chart_id: int):
         sentiments,
         relationship_types,
         tags,
+        reminds_me_of,
         comments,
         rectification_notes,
         biography,
@@ -3474,6 +3574,7 @@ def load_chart(chart_id: int):
         placeholder.sentiments = parse_sentiments(sentiments)
         placeholder.relationship_types = parse_relationship_types(relationship_types)
         placeholder.tags = parse_tags(tags)
+        placeholder.reminds_me_of = reminds_me_of or ""
         placeholder.comments = comments or ""
         placeholder.rectification_notes = rectification_notes or ""
         placeholder.biography = biography or ""
@@ -3564,6 +3665,7 @@ def load_chart(chart_id: int):
     chart.sentiments = parse_sentiments(sentiments)
     chart.relationship_types = parse_relationship_types(relationship_types)
     chart.tags = parse_tags(tags)
+    chart.reminds_me_of = reminds_me_of or ""
     chart.comments = comments or ""
     chart.rectification_notes = rectification_notes or ""
     chart.biography = biography or ""

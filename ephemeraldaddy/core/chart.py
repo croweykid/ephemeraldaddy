@@ -127,6 +127,7 @@ class Chart:
         self.sentiments = []
         self.relationship_types = []
         self.tags = []
+        self.reminds_me_of = ""
         self.comments = ""
         self.rectification_notes = ""
         self.biography = ""
