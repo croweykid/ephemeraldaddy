@@ -3345,6 +3345,76 @@ def get_chart_uid(chart_id: int | None) -> str | None:
     return get_chart_uid_map([int(chart_id)]).get(int(chart_id))
 
 
+def find_chart_uid_by_name(name: str | None, *, exclude_chart_id: int | None = None) -> str | None:
+    """Resolve a user-entered chart name, alias, or UID to a stable chart UID."""
+    query = str(name or "").strip()
+    if not query:
+        return None
+    normalized_query_uid = _normalize_chart_uid(query)
+    conn = _get_conn()
+    try:
+        if normalized_query_uid is not None:
+            row = conn.execute(
+                """
+                SELECT chart_uid
+                FROM charts
+                WHERE chart_uid = ?
+                  AND (? IS NULL OR id != ?)
+                ORDER BY id ASC
+                LIMIT 1
+                """,
+                (normalized_query_uid, exclude_chart_id, exclude_chart_id),
+            ).fetchone()
+            if row and row[0]:
+                return str(row[0])
+
+        rows = conn.execute(
+            """
+            SELECT id, chart_uid, name, alias
+            FROM charts
+            WHERE chart_uid IS NOT NULL
+              AND chart_uid != ''
+              AND (? IS NULL OR id != ?)
+            ORDER BY id ASC
+            """,
+            (exclude_chart_id, exclude_chart_id),
+        ).fetchall()
+        query_key = query.casefold()
+        for _chart_id, chart_uid, chart_name, alias in rows:
+            if str(chart_name or "").strip().casefold() == query_key:
+                return str(chart_uid)
+            if str(alias or "").strip().casefold() == query_key:
+                return str(chart_uid)
+        return None
+    finally:
+        conn.close()
+
+
+def get_chart_display_name_by_uid(chart_uid: str | None) -> str:
+    """Return a chart display label for a stable chart UID."""
+    normalized_uid = _normalize_chart_uid(chart_uid)
+    if normalized_uid is None:
+        return ""
+    conn = _get_conn()
+    try:
+        row = conn.execute(
+            """
+            SELECT id, name, alias
+            FROM charts
+            WHERE chart_uid = ?
+            LIMIT 1
+            """,
+            (normalized_uid,),
+        ).fetchone()
+        if not row:
+            return normalized_uid
+        chart_id, name, alias = row
+        label = str(name or alias or "").strip()
+        return label or f"Chart #{int(chart_id)}"
+    finally:
+        conn.close()
+
+
 def load_chart(chart_id: int):
     """
     Load a chart from the DB and reconstruct a Chart instance.

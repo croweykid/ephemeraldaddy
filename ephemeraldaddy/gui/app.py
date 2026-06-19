@@ -598,6 +598,8 @@ from ephemeraldaddy.core.db import (
     load_chart,
     load_dominant_sign_weights,
     get_chart_uid_map,
+    find_chart_uid_by_name,
+    get_chart_display_name_by_uid,
     delete_charts,
     invalidate_all_dominant_weight_caches,
     update_chart,
@@ -19513,7 +19515,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     #source_value = getattr(chart, "source", None)
                     #gender_value = getattr(chart, "gender", None)
                 from_whence_value = getattr(chart, "from_whence", None)
-                reminds_me_of_value = getattr(chart, "reminds_me_of", None)
+                reminds_me_of_value = get_chart_display_name_by_uid(
+                    getattr(chart, "reminds_me_of", None)
+                )
             if not (
                 matches(name_value)
                 or matches(alias_value)
@@ -24002,7 +24006,11 @@ class MainWindow(QMainWindow):
         )
         tags_content_layout.addWidget(QLabel("Reminds me of"))
         self.reminds_me_of_input = QLineEdit()
-        self.reminds_me_of_input.setPlaceholderText("Chart names or comparison notes")
+        self.reminds_me_of_input.setPlaceholderText("Existing chart name, alias, or ID")
+        self.reminds_me_of_input.setToolTip(
+            "Enter an existing chart name, alias, or Chart ID. "
+            "EphemeralDaddy stores that chart's stable ID so later renames still work."
+        )
         self.reminds_me_of_input.textChanged.connect(lambda *_: self._mark_lucygoosey())
         tags_content_layout.addWidget(self.reminds_me_of_input)
         self.tags_panel_toggle.toggled.connect(
@@ -30923,7 +30931,10 @@ class MainWindow(QMainWindow):
         placeholder.sentiments = list(self._selected_sentiments()) if hasattr(self, "_selected_sentiments") else []
         placeholder.relationship_types = list(self._selected_relationship_types()) if hasattr(self, "_selected_relationship_types") else []
         placeholder.tags = get_chart_view_tags(self)
-        placeholder.reminds_me_of = self.reminds_me_of_input.text().strip()
+        placeholder.reminds_me_of = find_chart_uid_by_name(
+            self.reminds_me_of_input.text(),
+            exclude_chart_id=self.current_chart_id,
+        ) or ""
         placeholder.comments = self.comments_edit.toPlainText().strip()
         placeholder.rectification_notes = self.rectification_edit.toPlainText().strip()
         placeholder.biography = self.biography_edit.toPlainText().strip()
@@ -31087,7 +31098,17 @@ class MainWindow(QMainWindow):
         if hasattr(chart, "tags"):
             chart.tags = [] if is_event_chart else get_chart_view_tags(self)
         if hasattr(chart, "reminds_me_of"):
-            chart.reminds_me_of = "" if is_event_chart else self.reminds_me_of_input.text().strip()
+            chart.reminds_me_of = (
+                ""
+                if is_event_chart
+                else (
+                    find_chart_uid_by_name(
+                        self.reminds_me_of_input.text(),
+                        exclude_chart_id=self.current_chart_id,
+                    )
+                    or ""
+                )
+            )
         if hasattr(chart, "positive_sentiment_intensity"):
             chart.positive_sentiment_intensity = 0 if is_event_chart else self.positive_sentiment_intensity_spin.value()
         if hasattr(chart, "negative_sentiment_intensity"):
@@ -31926,7 +31947,9 @@ class MainWindow(QMainWindow):
             getattr(chart, "relationship_types", []),
         )
         self._set_chart_tags_state(normalize_tag_list(getattr(chart, "tags", [])))
-        self.reminds_me_of_input.setText(getattr(chart, "reminds_me_of", "") or "")
+        self.reminds_me_of_input.setText(
+            get_chart_display_name_by_uid(getattr(chart, "reminds_me_of", None))
+        )
         self.comments_edit.setPlainText(getattr(chart, "comments", "") or "")
         self.rectification_edit.setPlainText(getattr(chart, "rectification_notes", "") or "")
         self.biography_edit.setPlainText(getattr(chart, "biography", "") or "")
