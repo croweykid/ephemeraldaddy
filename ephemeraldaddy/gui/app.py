@@ -836,7 +836,10 @@ from ephemeraldaddy.gui.features.charts.chart_analytics_panel import (
 )
 from ephemeraldaddy.gui.features.charts.chart_analytics_popout import (
     build_body_dominance_section_html as _build_body_dominance_section_html,
+    build_element_dominance_section_html as _build_element_dominance_section_html,
     build_house_dominance_section_html as _build_house_dominance_section_html,
+    build_mode_dominance_section_html as _build_mode_dominance_section_html,
+    build_nakshatra_dominance_section_html as _build_nakshatra_dominance_section_html,
     build_sign_dominance_section_html as _build_sign_dominance_section_html,
 )
 from ephemeraldaddy.gui.features.charts.algorithmic_transparency import (
@@ -26688,7 +26691,7 @@ class MainWindow(QMainWindow):
                 info_panel.setHtml(self._build_mode_popout_info(popout_chart, raw_value))
 
             popout_canvas.mpl_connect("pick_event", _on_pick)
-        elif title == "Elements":
+        elif title in {"Elements", "Dominant Elements"}:
             info_panel.setPlaceholderText(
                 "Click an element label or pie segment to view interpretation details."
             )
@@ -26794,7 +26797,7 @@ class MainWindow(QMainWindow):
             self._draw_enneagram_predictions(ax, chart)
         elif title == "D&D Statblock":
             self._draw_dnd_statblock_predictions(ax, chart)
-        elif title == "Elements":
+        elif title in {"Elements", "Dominant Elements"}:
             self._draw_element_tally(ax, chart)
         elif title in {"Nakshatra Prevalence", "Dominant Nakshatras"}:
             self._draw_nakshatra_wordcloud(ax, chart)
@@ -26859,6 +26862,7 @@ class MainWindow(QMainWindow):
         return (
             f'<div style="margin-bottom: 8px;">{html.escape(rank_blurb)}</div>'
             f'{_format_nakshatra_description_html(nakshatra_name)}'
+            f'{self._build_nakshatra_dominance_section(chart, nakshatra_name)}'
         )
 
     def _build_sign_popout_info(self, chart: Chart, sign: str) -> str:
@@ -27029,6 +27033,7 @@ class MainWindow(QMainWindow):
                 )
             else:
                 lines.append(f"<div>{html.escape(line)}</div>")
+        lines.append(self._build_element_dominance_section(chart, element_label))
         return "".join(lines)
 
     def _build_mode_popout_info(self, chart: Chart, mode: str) -> str:
@@ -27050,12 +27055,15 @@ class MainWindow(QMainWindow):
                 for key, value in _calculate_mode_weights(chart).items()
             }
         )
-        return format_mode_popout_info_html(
-            mode_key=mode_key,
-            selected_mode=selected_mode,
-            ranked_weights=ranked_weights,
-            highlight_color=CHART_DATA_HIGHLIGHT_COLOR,
-            fallback_text_color=CHART_THEME_COLORS.get("text", "#f5f5f5"),
+        return (
+            format_mode_popout_info_html(
+                mode_key=mode_key,
+                selected_mode=selected_mode,
+                ranked_weights=ranked_weights,
+                highlight_color=CHART_DATA_HIGHLIGHT_COLOR,
+                fallback_text_color=CHART_THEME_COLORS.get("text", "#f5f5f5"),
+            )
+            + self._build_mode_dominance_section(chart, mode_key)
         )
 
 
@@ -27064,6 +27072,24 @@ class MainWindow(QMainWindow):
             chart,
             sign_name,
             mode=self._chart_analysis_selected_mode("dominant_signs", "dominant_signs"),
+            highlight_color=CHART_DATA_HIGHLIGHT_COLOR,
+            fallback_text_color=CHART_THEME_COLORS.get("text", "#f5f5f5"),
+        )
+
+    def _build_element_dominance_section(self, chart: Chart, element_name: str) -> str:
+        return _build_element_dominance_section_html(
+            chart,
+            element_name,
+            mode=self._chart_analysis_selected_mode("dominant_elements", "dominant_elements"),
+            highlight_color=CHART_DATA_HIGHLIGHT_COLOR,
+            fallback_text_color=CHART_THEME_COLORS.get("text", "#f5f5f5"),
+        )
+
+    def _build_mode_dominance_section(self, chart: Chart, mode_name: str) -> str:
+        return _build_mode_dominance_section_html(
+            chart,
+            mode_name,
+            mode=self._chart_analysis_selected_mode("modal_distribution", "dominant_modes"),
             highlight_color=CHART_DATA_HIGHLIGHT_COLOR,
             fallback_text_color=CHART_THEME_COLORS.get("text", "#f5f5f5"),
         )
@@ -27305,6 +27331,15 @@ class MainWindow(QMainWindow):
             chart,
             target_house,
             mode=self._chart_analysis_selected_mode("dominant_houses", "dominant_houses"),
+            highlight_color=CHART_DATA_HIGHLIGHT_COLOR,
+            fallback_text_color=CHART_THEME_COLORS.get("text", "#f5f5f5"),
+        )
+
+    def _build_nakshatra_dominance_section(self, chart: Chart, nakshatra_name: str) -> str:
+        return _build_nakshatra_dominance_section_html(
+            chart,
+            nakshatra_name,
+            mode=self._chart_analysis_selected_mode("nakshatra_prevalence", "dominant_nakshatras"),
             highlight_color=CHART_DATA_HIGHLIGHT_COLOR,
             fallback_text_color=CHART_THEME_COLORS.get("text", "#f5f5f5"),
         )

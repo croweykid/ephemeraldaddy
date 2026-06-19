@@ -41,8 +41,8 @@ ELEMENT_SHARE_THRESHOLD = 0.50
 MODE_SHARE_THRESHOLD = 0.65
 MIN_NORM_SAMPLE_SIZE = 5
 
-DISTINGUISHING_METRICS_SCHEMA_VERSION = 1
-DISTINGUISHING_FORMULA_VERSION = 1
+DISTINGUISHING_METRICS_SCHEMA_VERSION = 2
+DISTINGUISHING_FORMULA_VERSION = 2
 
 
 def chart_essential_astro_signature(chart: Chart) -> str:
@@ -62,13 +62,19 @@ def chart_essential_astro_signature(chart: Chart) -> str:
 
 def distinguishing_metric_payload_for_chart(chart: Chart) -> dict[str, Any]:
     """Build persisted per-chart normalized shares used by distinguishing-factor baselines."""
-    groups: dict[str, dict[str, float]] = {}
+    groups: dict[str, dict[str, dict[str, float]]] = {}
     for group in _metric_groups(chart):
         values = _safe_chart_values(group, chart)
         if values is None:
             continue
         shares = _normalized_shares(values, group.labels)
-        groups[group.key] = {str(label): float(shares.get(label, 0.0)) for label in group.labels}
+        groups[group.key] = {
+            str(label): {
+                "share": float(shares.get(label, 0.0)),
+                "raw": max(0.0, float(values.get(label, 0.0) or 0.0)),
+            }
+            for label in group.labels
+        }
     return {
         "schema_version": DISTINGUISHING_METRICS_SCHEMA_VERSION,
         "formula_version": DISTINGUISHING_FORMULA_VERSION,
@@ -115,9 +121,15 @@ class DistinguishingFactor:
     value_pct: float
     mean_pct: float
     z_score: float
+    raw_value: float = 0.0
+    raw_mean: float = 0.0
+    raw_z_score: float | None = None
+    basis: str = "share"
 
     @property
     def extremity(self) -> float:
+        if self.basis == "raw" and self.raw_z_score is not None:
+            return abs(self.raw_z_score)
         return abs(self.z_score)
 
 
@@ -127,7 +139,7 @@ class _NormBaseline:
     stdev: float
 
 
-_NORM_BASELINE_CACHE: dict[tuple[tuple[object, ...], ...], tuple[int, dict[tuple[str, object], _NormBaseline]]] = {}
+_NORM_BASELINE_CACHE: dict[tuple[tuple[object, ...], ...], tuple[int, dict[tuple[str, str, object], _NormBaseline]]] = {}
 _NORM_BASELINE_CACHE_MAX_SIZE = 8
 
 
@@ -290,7 +302,7 @@ def _chart_norm_signature(chart: Chart) -> tuple[object, ...]:
     )
 
 
-def _norm_baselines(chart: Chart, usable_norm_charts: list[Chart]) -> dict[tuple[str, object], _NormBaseline]:
+def _norm_baselines(chart: Chart, usable_norm_charts: list[Chart]) -> dict[tuple[str, str, object], _NormBaseline]:
     cache_key = (
         ("target_uses_houses", chart_uses_houses(chart)),
         *(_chart_norm_signature(norm_chart) for norm_chart in usable_norm_charts),
@@ -299,9 +311,10 @@ def _norm_baselines(chart: Chart, usable_norm_charts: list[Chart]) -> dict[tuple
     if cached is not None and cached[0] == len(usable_norm_charts):
         return cached[1]
 
-    baselines: dict[tuple[str, object], _NormBaseline] = {}
+    baselines: dict[tuple[str, str, object], _NormBaseline] = {}
     for group in _metric_groups(chart):
         norm_shares_by_label: dict[object, list[float]] = {label: [] for label in group.labels}
+        norm_raw_by_label: dict[object, list[float]] = {label: [] for label in group.labels}
         for norm_chart in usable_norm_charts:
             if group.key == "houses" and not chart_uses_houses(norm_chart):
                 continue
@@ -311,13 +324,24 @@ def _norm_baselines(chart: Chart, usable_norm_charts: list[Chart]) -> dict[tuple
             shares = _normalized_shares(norm_values, group.labels)
             for label in group.labels:
                 norm_shares_by_label[label].append(float(shares.get(label, 0.0)))
+                norm_raw_by_label[label].append(max(0.0, float(norm_values.get(label, 0.0) or 0.0)))
         for label, baseline in norm_shares_by_label.items():
             if len(baseline) < MIN_NORM_SAMPLE_SIZE:
                 continue
             stdev = statistics.pstdev(baseline)
             if stdev <= 1e-9 or not math.isfinite(stdev):
                 continue
-            baselines[(group.key, label)] = _NormBaseline(
+            baselines[("share", group.key, label)] = _NormBaseline(
+                mean=statistics.fmean(baseline),
+                stdev=stdev,
+            )
+        for label, baseline in norm_raw_by_label.items():
+            if len(baseline) < MIN_NORM_SAMPLE_SIZE:
+                continue
+            stdev = statistics.pstdev(baseline)
+            if stdev <= 1e-9 or not math.isfinite(stdev):
+                continue
+            baselines[("raw", group.key, label)] = _NormBaseline(
                 mean=statistics.fmean(baseline),
                 stdev=stdev,
             )
@@ -328,11 +352,20 @@ def _norm_baselines(chart: Chart, usable_norm_charts: list[Chart]) -> dict[tuple
     return baselines
 
 
-def _norm_baselines_from_metric_payloads(chart: Chart, payloads: Iterable[dict[str, Any]]) -> tuple[int, dict[tuple[str, object], _NormBaseline]]:
+def _payload_metric_value(raw_payload_value: object, field: str) -> float:
+    if isinstance(raw_payload_value, dict):
+        return float(raw_payload_value.get(field, 0.0) or 0.0)
+    if field == "share":
+        return float(raw_payload_value or 0.0)
+    return 0.0
+
+
+def _norm_baselines_from_metric_payloads(chart: Chart, payloads: Iterable[dict[str, Any]]) -> tuple[int, dict[tuple[str, str, object], _NormBaseline]]:
     usable_payloads = [payload for payload in payloads if isinstance(payload, dict)]
-    baselines: dict[tuple[str, object], _NormBaseline] = {}
+    baselines: dict[tuple[str, str, object], _NormBaseline] = {}
     for group in _metric_groups(chart):
         norm_shares_by_label: dict[object, list[float]] = {label: [] for label in group.labels}
+        norm_raw_by_label: dict[object, list[float]] = {label: [] for label in group.labels}
         for payload in usable_payloads:
             if group.key == "houses" and not bool(payload.get("uses_houses")):
                 continue
@@ -340,14 +373,23 @@ def _norm_baselines_from_metric_payloads(chart: Chart, payloads: Iterable[dict[s
             if not isinstance(group_values, dict):
                 continue
             for label in group.labels:
-                norm_shares_by_label[label].append(float(group_values.get(str(label), 0.0) or 0.0))
+                payload_value = group_values.get(str(label), 0.0)
+                norm_shares_by_label[label].append(_payload_metric_value(payload_value, "share"))
+                norm_raw_by_label[label].append(_payload_metric_value(payload_value, "raw"))
         for label, baseline in norm_shares_by_label.items():
             if len(baseline) < MIN_NORM_SAMPLE_SIZE:
                 continue
             stdev = statistics.pstdev(baseline)
             if stdev <= 1e-9 or not math.isfinite(stdev):
                 continue
-            baselines[(group.key, label)] = _NormBaseline(mean=statistics.fmean(baseline), stdev=stdev)
+            baselines[("share", group.key, label)] = _NormBaseline(mean=statistics.fmean(baseline), stdev=stdev)
+        for label, baseline in norm_raw_by_label.items():
+            if len(baseline) < MIN_NORM_SAMPLE_SIZE:
+                continue
+            stdev = statistics.pstdev(baseline)
+            if stdev <= 1e-9 or not math.isfinite(stdev):
+                continue
+            baselines[("raw", group.key, label)] = _NormBaseline(mean=statistics.fmean(baseline), stdev=stdev)
     return len(usable_payloads), baselines
 
 
@@ -362,13 +404,17 @@ def find_distinguishing_factors_from_metric_payloads(chart: Chart, metric_payloa
             continue
         chart_shares = _normalized_shares(chart_values, group.labels)
         for label in group.labels:
-            baseline = baselines.get((group.key, label))
-            if baseline is None:
-                continue
+            share_baseline = baselines.get(("share", group.key, label))
+            raw_baseline = baselines.get(("raw", group.key, label))
             value = float(chart_shares.get(label, 0.0))
-            z_score = (value - baseline.mean) / baseline.stdev
-            if abs(z_score) >= DISTINGUISHING_Z_THRESHOLD:
-                factors.append(DistinguishingFactor(group.key, group.label, label, _label_text(label, group.key), value * 100.0, baseline.mean * 100.0, z_score))
+            raw_value = max(0.0, float(chart_values.get(label, 0.0) or 0.0))
+            share_z_score = (value - share_baseline.mean) / share_baseline.stdev if share_baseline else 0.0
+            raw_z_score = (raw_value - raw_baseline.mean) / raw_baseline.stdev if raw_baseline else None
+            share_distinguishing = share_baseline is not None and abs(share_z_score) >= DISTINGUISHING_Z_THRESHOLD
+            raw_distinguishing = raw_z_score is not None and raw_z_score >= DISTINGUISHING_Z_THRESHOLD
+            if share_distinguishing or raw_distinguishing:
+                basis = "share" if share_distinguishing else "raw"
+                factors.append(DistinguishingFactor(group.key, group.label, label, _label_text(label, group.key), value * 100.0, (share_baseline.mean * 100.0) if share_baseline else 0.0, share_z_score, raw_value, raw_baseline.mean if raw_baseline else 0.0, raw_z_score, basis))
     factors.sort(key=lambda factor: factor.extremity, reverse=True)
     return factors, norm_count
 
@@ -387,12 +433,15 @@ def find_distinguishing_factors(chart: Chart, norm_charts: Iterable[Chart]) -> t
             continue
         chart_shares = _normalized_shares(chart_values, group.labels)
         for label in group.labels:
-            baseline = baselines.get((group.key, label))
-            if baseline is None:
-                continue
+            share_baseline = baselines.get(("share", group.key, label))
+            raw_baseline = baselines.get(("raw", group.key, label))
             value = float(chart_shares.get(label, 0.0))
-            z_score = (value - baseline.mean) / baseline.stdev
-            if abs(z_score) >= DISTINGUISHING_Z_THRESHOLD:
+            raw_value = max(0.0, float(chart_values.get(label, 0.0) or 0.0))
+            share_z_score = (value - share_baseline.mean) / share_baseline.stdev if share_baseline else 0.0
+            raw_z_score = (raw_value - raw_baseline.mean) / raw_baseline.stdev if raw_baseline else None
+            share_distinguishing = share_baseline is not None and abs(share_z_score) >= DISTINGUISHING_Z_THRESHOLD
+            raw_distinguishing = raw_z_score is not None and raw_z_score >= DISTINGUISHING_Z_THRESHOLD
+            if share_distinguishing or raw_distinguishing:
                 factors.append(
                     DistinguishingFactor(
                         group_key=group.key,
@@ -400,8 +449,12 @@ def find_distinguishing_factors(chart: Chart, norm_charts: Iterable[Chart]) -> t
                         raw_label=label,
                         factor_label=_label_text(label, group.key),
                         value_pct=value * 100.0,
-                        mean_pct=baseline.mean * 100.0,
-                        z_score=z_score,
+                        mean_pct=(share_baseline.mean * 100.0) if share_baseline else 0.0,
+                        z_score=share_z_score,
+                        raw_value=raw_value,
+                        raw_mean=raw_baseline.mean if raw_baseline else 0.0,
+                        raw_z_score=raw_z_score,
+                        basis="share" if share_distinguishing else "raw",
                     )
                 )
     factors.sort(key=lambda factor: factor.extremity, reverse=True)
@@ -556,13 +609,22 @@ def build_distinguishing_factors_html(chart: Chart | None, norm_charts: Iterable
             )
         )
         for factor in factors:
-            direction = "above" if factor.z_score > 0 else "below"
-            lines.append(
-                "• "
-                f"{_factor_label_html(factor.group_key, factor.raw_label, factor.factor_label)} {html.escape(factor.group_label)}: "
-                f"{factor.value_pct:.1f}% vs DB mean {factor.mean_pct:.1f}% "
-                f"({abs(factor.z_score):.1f}σ {html.escape(direction)})."
-            )
+            if factor.basis == "raw" and factor.raw_z_score is not None:
+                lines.append(
+                    "• "
+                    f"{_factor_label_html(factor.group_key, factor.raw_label, factor.factor_label)} {html.escape(factor.group_label)}: "
+                    f"raw weight {factor.raw_value:.1f} vs DB mean {factor.raw_mean:.1f} "
+                    f"({abs(factor.raw_z_score):.1f}σ above); "
+                    f"share {factor.value_pct:.1f}% vs DB mean {factor.mean_pct:.1f}%."
+                )
+            else:
+                direction = "above" if factor.z_score > 0 else "below"
+                lines.append(
+                    "• "
+                    f"{_factor_label_html(factor.group_key, factor.raw_label, factor.factor_label)} {html.escape(factor.group_label)}: "
+                    f"{factor.value_pct:.1f}% vs DB mean {factor.mean_pct:.1f}% "
+                    f"({abs(factor.z_score):.1f}σ {html.escape(direction)})."
+                )
     else:
         lines.append(
             html.escape(
