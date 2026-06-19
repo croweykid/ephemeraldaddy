@@ -230,8 +230,6 @@ def build_similar_chart_biography_text(*, compared_chart: Any | None) -> str:
     chart_metadata = getattr(compared_chart, "metadata", None)
     if not biography_text and isinstance(chart_metadata, Mapping):
         biography_text = str(chart_metadata.get("bio") or chart_metadata.get("biography") or "").strip()
-    if biography_text:
-        return biography_text
 
     generated_lines: list[str] = []
     from_value = str(getattr(compared_chart, "from_whence", "") or "").strip()
@@ -251,7 +249,10 @@ def build_similar_chart_biography_text(*, compared_chart: Any | None) -> str:
     tags = _chart_tags_for_generated_bio(compared_chart)
     if tags:
         generated_lines.append(f"tags: {', '.join(tags)}")
-    return "\n".join(generated_lines)
+    generated_text = "\n".join(generated_lines)
+    if biography_text and generated_text:
+        return f"{biography_text}\n\n{generated_text}"
+    return biography_text or generated_text
 
 
 def _sentiment_scale_bucket(value: float) -> tuple[str, str, str]:
