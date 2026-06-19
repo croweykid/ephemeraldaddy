@@ -292,6 +292,7 @@ class ChartAnalysisSectionsController:
             "dominant_planets",
             "dominant_houses",
             "nakshatra_prevalence",
+            "modal_distribution",
         }
         has_footer_details = footer_text is not None
         if has_above_average_details or has_footer_details:

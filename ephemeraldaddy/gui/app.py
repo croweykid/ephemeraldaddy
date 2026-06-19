@@ -28512,9 +28512,6 @@ class MainWindow(QMainWindow):
                 event.type() == QEvent.MouseButtonRelease
                 and event.button() == Qt.LeftButton
             ):
-                if bool(obj.property("suppress_metric_popout_once")):
-                    obj.setProperty("suppress_metric_popout_once", False)
-                    return True
                 self._show_metric_canvas_popout(obj, self._metric_chart_titles[obj])
                 return True
         if chart_canvas is not None and obj is chart_canvas:
@@ -32449,7 +32446,7 @@ class MainWindow(QMainWindow):
         elif kind == "nakshatra":
             self.chart_info_output.setHtml(self._build_nakshatra_popout_info(self._latest_chart, raw_value))
         elif kind == "mode":
-            self._show_mode_keyword_info(raw_value)
+            self.chart_info_output.setHtml(self._build_mode_popout_info(self._latest_chart, raw_value))
 
     def _update_chart_analysis_above_average_links(
         self,
@@ -32649,6 +32646,26 @@ class MainWindow(QMainWindow):
             ],
         )
 
+    def _update_dominant_mode_above_average_links(self, chart: Chart) -> None:
+        selected_mode = self._chart_analysis_selected_mode("modal_distribution", "dominant_modes")
+        weighted_counts = (
+            _calculate_modal_prevalence_counts(chart)
+            if selected_mode == "modal_prevalence"
+            else _calculate_mode_weights(chart)
+        )
+        self._update_chart_analysis_above_average_links(
+            "modal_distribution",
+            [
+                (
+                    mode.title(),
+                    float(weighted_counts.get(mode, 0.0)),
+                    MODE_COLORS.get(mode, "#6fa8dc"),
+                    f"chart-analysis:mode:{mode}",
+                )
+                for mode in ("cardinal", "mutable", "fixed")
+            ],
+        )
+
     def _dominant_body_distribution_metric_color(self, metric_key: str, metric_value: float) -> str | None:
         norms = getattr(self, "_database_weight_norms", None)
         if not isinstance(norms, dict):
@@ -32727,26 +32744,7 @@ class MainWindow(QMainWindow):
             draw_fn=self._draw_modal_distribution,
             chart=chart,
         )
-        canvas = getattr(self, "modal_distribution_canvas", None)
-        if canvas is not None:
-            previous_cid = getattr(self, "_modal_distribution_pick_cid", None)
-            if previous_cid is not None:
-                try:
-                    canvas.mpl_disconnect(previous_cid)
-                except Exception:
-                    pass
-
-            def _on_mode_pick(event) -> None:
-                artist = getattr(event, "artist", None)
-                artist_gid = artist.get_gid() if artist is not None else None
-                if not isinstance(artist_gid, str) or not artist_gid.startswith("mode:"):
-                    return
-                _prefix, raw_mode = artist_gid.split(":", 1)
-                canvas.setProperty("suppress_metric_popout_once", True)
-                self._set_chart_info_panel_mode("chart_info")
-                self._show_mode_keyword_info(raw_mode)
-
-            self._modal_distribution_pick_cid = canvas.mpl_connect("pick_event", _on_mode_pick)
+        self._update_dominant_mode_above_average_links(chart)
 
     def _render_gender_guesser(self, chart: Chart) -> None:
         self._render_metric_panel(
