@@ -24805,6 +24805,44 @@ class MainWindow(QMainWindow):
         while len(cache) > 20:
             cache.popitem(last=False)
 
+    def _similar_charts_popout_chart_names_by_id(self, rows: list[tuple[Any, ...]]) -> dict[int, str]:
+        names: dict[int, str] = {}
+        for row in rows:
+            try:
+                chart_id = int(row[0])
+            except (IndexError, TypeError, ValueError):
+                continue
+            try:
+                raw_name = row[1]
+            except IndexError:
+                raw_name = None
+            names[chart_id] = str(raw_name or "Unnamed")
+        return names
+
+    def _refresh_similar_charts_match_display_names(
+        self,
+        matches: list[Any],
+        *,
+        chart_names_by_id: Mapping[int, str],
+    ) -> list[Any]:
+        refreshed_matches: list[Any] = []
+        for match in matches:
+            try:
+                chart_id = int(match.chart_id)
+            except (AttributeError, TypeError, ValueError):
+                refreshed_matches.append(match)
+                continue
+            chart_name = chart_names_by_id.get(chart_id)
+            if chart_name is None or getattr(match, "chart_name", None) == chart_name:
+                refreshed_matches.append(match)
+                continue
+            try:
+                refreshed_matches.append(copy.copy(match))
+                refreshed_matches[-1].chart_name = chart_name
+            except Exception:
+                refreshed_matches.append(match)
+        return refreshed_matches
+
     def _database_view_dialog_for_chart_link_transition(self) -> ManageChartsDialog | None:
         manage_dialog = self._manage_charts_dialog
         if manage_dialog is None or not manage_dialog.isVisible():
@@ -25639,13 +25677,20 @@ class MainWindow(QMainWindow):
         *,
         chart: Chart,
         subject_chart_id: int | None,
-        candidates: list[tuple[int, Chart]],
+        candidates: list[tuple[int, Chart]] | None = None,
         perceived_accuracy_states: Mapping[str, Mapping[str, Any]] | None,
         algorithm_mode: str,
+        ranked_matches: list[Any] | None = None,
     ) -> list[dict[str, Any]]:
         if subject_chart_id is None or not perceived_accuracy_states:
             return []
-        candidate_by_id = {int(chart_id): candidate for chart_id, candidate in candidates}
+        match_by_id: dict[int, Any] = {}
+        for match in ranked_matches or []:
+            try:
+                match_by_id[int(match.chart_id)] = match
+            except (AttributeError, TypeError, ValueError):
+                continue
+        candidate_by_id = {int(chart_id): candidate for chart_id, candidate in (candidates or [])}
         rated_candidates: list[tuple[int, Chart]] = []
         state_by_compared_id: dict[int, Mapping[str, Any]] = {}
         for state in perceived_accuracy_states.values():
@@ -25665,21 +25710,30 @@ class MainWindow(QMainWindow):
                 compared_id = first_id
             else:
                 continue
-            if compared_id not in candidate_by_id or compared_id in state_by_compared_id:
+            if compared_id in state_by_compared_id:
                 continue
-            state_by_compared_id[compared_id] = state
-            rated_candidates.append((compared_id, candidate_by_id[compared_id]))
-        if not rated_candidates:
-            return []
-        rated_matches = find_astro_twins(
-            chart,
-            rated_candidates,
-            top_k=len(rated_candidates),
-            exclude_chart_id=subject_chart_id,
-            least_similar=False,
-            algorithm_mode=algorithm_mode,
-            custom_settings=getattr(self, "_similarity_calculator_settings", None),
-        )
+            if compared_id in match_by_id:
+                state_by_compared_id[compared_id] = state
+            elif compared_id in candidate_by_id:
+                state_by_compared_id[compared_id] = state
+                rated_candidates.append((compared_id, candidate_by_id[compared_id]))
+        rated_matches = [
+            match_by_id[compared_id]
+            for compared_id in state_by_compared_id
+            if compared_id in match_by_id
+        ]
+        if rated_candidates:
+            rated_matches.extend(
+                find_astro_twins(
+                    chart,
+                    rated_candidates,
+                    top_k=len(rated_candidates),
+                    exclude_chart_id=subject_chart_id,
+                    least_similar=False,
+                    algorithm_mode=algorithm_mode,
+                    custom_settings=getattr(self, "_similarity_calculator_settings", None),
+                )
+            )
         entries: list[dict[str, Any]] = []
         for match in rated_matches:
             try:
@@ -25781,6 +25835,8 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Similar Charts", f"Could not read saved charts:\n{exc}")
             return
         row_signatures = self._similar_charts_popout_database_row_signatures(chart_rows)
+        chart_names_by_id = self._similar_charts_popout_chart_names_by_id(chart_rows)
+        candidates: list[tuple[int, Chart]] | None = None
         cache_key = self._similar_charts_popout_cache_key(
             chart=chart,
             subject_chart_id=subject_chart_id,
@@ -25808,28 +25864,44 @@ class MainWindow(QMainWindow):
             and subject_chart_id not in changed_chart_ids
         )
         if cached_payload is not None and not changed_chart_ids and not deleted_chart_ids:
-            most_similar_matches = list(cached_payload.get("most_similar_matches") or [])
-            least_similar_matches = list(cached_payload.get("least_similar_matches") or [])
+            most_similar_matches = self._refresh_similar_charts_match_display_names(
+                list(cached_payload.get("most_similar_matches") or []),
+                chart_names_by_id=chart_names_by_id,
+            )
+            least_similar_matches = self._refresh_similar_charts_match_display_names(
+                list(cached_payload.get("least_similar_matches") or []),
+                chart_names_by_id=chart_names_by_id,
+            )
             least_similar_matches.sort(key=lambda match: (float(match.score), int(match.chart_id)))
         elif incremental_refresh_supported:
-            most_similar_matches = [
-                match
-                for match in list(cached_payload.get("most_similar_matches") or [])
-                if int(match.chart_id) not in changed_chart_ids and int(match.chart_id) not in deleted_chart_ids
-            ]
-            least_similar_matches = [
-                match
-                for match in list(cached_payload.get("least_similar_matches") or [])
-                if int(match.chart_id) not in changed_chart_ids and int(match.chart_id) not in deleted_chart_ids
-            ]
-            refreshed_candidates = [
-                candidate
-                for candidate in self._load_similar_chart_candidates(
-                    rows=chart_rows,
-                    current_chart_id=subject_chart_id,
-                )
-                if int(candidate[0]) in changed_chart_ids
-            ]
+            most_similar_matches = self._refresh_similar_charts_match_display_names(
+                [
+                    match
+                    for match in list(cached_payload.get("most_similar_matches") or [])
+                    if int(match.chart_id) not in changed_chart_ids and int(match.chart_id) not in deleted_chart_ids
+                ],
+                chart_names_by_id=chart_names_by_id,
+            )
+            least_similar_matches = self._refresh_similar_charts_match_display_names(
+                [
+                    match
+                    for match in list(cached_payload.get("least_similar_matches") or [])
+                    if int(match.chart_id) not in changed_chart_ids and int(match.chart_id) not in deleted_chart_ids
+                ],
+                chart_names_by_id=chart_names_by_id,
+            )
+            refreshed_candidates: list[tuple[int, Chart]] = []
+            for changed_chart_id in sorted(changed_chart_ids):
+                if subject_chart_id is not None and changed_chart_id == subject_chart_id:
+                    continue
+                try:
+                    refreshed_chart = load_chart(changed_chart_id)
+                except Exception:
+                    logger.exception("Failed to load changed Similar Charts candidate %s", changed_chart_id)
+                    continue
+                if _chart_is_placeholder(refreshed_chart):
+                    continue
+                refreshed_candidates.append((changed_chart_id, refreshed_chart))
             if refreshed_candidates:
                 refreshed_most = find_astro_twins(
                     chart,
@@ -25978,12 +26050,10 @@ class MainWindow(QMainWindow):
             all_accuracy_entries = self._similar_charts_perceived_accuracy_entries_for_states(
                 chart=chart,
                 subject_chart_id=subject_chart_id,
-                candidates=candidates if cached_payload is None else self._load_similar_chart_candidates(
-                    rows=chart_rows,
-                    current_chart_id=subject_chart_id,
-                ),
+                candidates=candidates,
                 perceived_accuracy_states=perceived_accuracy_states,
                 algorithm_mode=algorithm_mode,
+                ranked_matches=most_similar_matches,
             )
         else:
             perceived_accuracy_states = None
