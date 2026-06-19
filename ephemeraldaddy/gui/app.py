@@ -29253,7 +29253,12 @@ class MainWindow(QMainWindow):
         cursor = self.chart_info_output.textCursor()
         cursor.movePosition(QTextCursor.Start)
         title_fmt = QTextCharFormat()
-        title_fmt.setForeground(QColor(PLANET_COLORS.get(body_key, CHART_THEME_COLORS.get("text", "#f5f5f5"))))
+        title_color = (
+            PLANET_COLORS.get(body_key)
+            if body_key
+            else SIGN_COLORS.get(sign_key)
+        ) or CHART_THEME_COLORS.get("text", "#f5f5f5")
+        title_fmt.setForeground(QColor(title_color))
         title_fmt.setFontWeight(QFont.Bold)
         title_fmt.setFontPointSize(13)
         header_fmt = QTextCharFormat()
@@ -29285,7 +29290,14 @@ class MainWindow(QMainWindow):
                     sorted(set(getattr(chart, "positions", {}) or {}).difference(ordered_bodies))
                 )
                 for body in ordered_bodies:
-                    if str(sign_by_body.get(body, "")).strip().title() != sign_key:
+                    body_sign = str(sign_by_body.get(body, "")).strip().title()
+                    lon = (getattr(chart, "positions", {}) or {}).get(body)
+                    if not body_sign and lon is not None:
+                        try:
+                            body_sign = _sign_for_longitude(float(lon))
+                        except (TypeError, ValueError):
+                            body_sign = ""
+                    if body_sign != sign_key:
                         continue
                     display_name = _display_body_name(body)
                     if sign_position_segments:
@@ -29297,7 +29309,6 @@ class MainWindow(QMainWindow):
                         )
                     )
                     house_num = None
-                    lon = (getattr(chart, "positions", {}) or {}).get(body)
                     if use_houses and houses and lon is not None:
                         house_num = _house_for_longitude(houses, lon)
                     if house_num:
@@ -29319,7 +29330,7 @@ class MainWindow(QMainWindow):
                         cursor.insertText(segment_text, plain_fmt)
                 cursor.insertText(f" in {sign_key}\n\n", plain_fmt)
             else:
-                cursor.insertText(f"{sign_key}\n\n", plain_fmt)
+                cursor.insertText(f"No chart placements in {sign_key}\n\n", plain_fmt)
         if best_keywords:
             cursor.insertText("At Best:", header_fmt)
             cursor.insertText("\n", plain_fmt)
