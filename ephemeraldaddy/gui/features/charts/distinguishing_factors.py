@@ -180,6 +180,8 @@ def _factor_info_href(group_key: str, raw_label: object) -> str:
         kind = "house"
     elif group_key == "nakshatras":
         kind = "nakshatra"
+    elif group_key == "modes":
+        kind = "mode"
     else:
         return ""
     return f"distinguishing-factor:{kind}:{urllib.parse.quote(str(raw_label), safe='')}"
@@ -196,7 +198,7 @@ def _factor_label_html(group_key: str, raw_label: object, display_label: str) ->
     if group_key == "elements":
         return _color_token(display_label, ELEMENT_COLORS.get(str(raw_label)))
     if group_key == "modes":
-        return _color_token(display_label, MODE_COLORS.get(str(raw_label).lower()))
+        return _color_token(display_label, MODE_COLORS.get(str(raw_label).lower()), href)
     if group_key == "nakshatras":
         return _color_token(display_label, NAKSHATRA_PLANET_COLOR.get(str(raw_label), (None, None))[1], href)
     return html.escape(display_label)

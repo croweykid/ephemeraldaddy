@@ -644,6 +644,7 @@ from ephemeraldaddy.core.interpretations import (
     NAKSHATRA_PLANET_COLOR,
     NAKSHATRA_RANGES,
     MODES,
+    MODE_KEYWORDS,
     ASPECT_PATTERN_DEFS,
     ASPECT_BODY_ALIASES,
     ASPECT_SORT_OPTIONS,
@@ -24668,7 +24669,10 @@ class MainWindow(QMainWindow):
                 except (TypeError, ValueError):
                     chart_info_output.setPlainText("No Chart Info target was found for this gate.")
                 return
-            if kind in {"element", "mode"}:
+            if kind == "mode":
+                self._show_mode_keyword_info(value)
+                return
+            if kind == "element":
                 chart_info_output.setPlainText(f"{value}\n\nNo dedicated Chart Info renderer is available for this {kind} yet.")
                 return
             chart_info_output.setPlainText("No Chart Info renderer is available for this item yet.")
@@ -28834,6 +28838,35 @@ class MainWindow(QMainWindow):
         lines = [header, "", *(f"• {keyword}" for keyword in clean_keywords)]
         self.chart_info_output.setPlainText("\n".join(lines))
 
+
+    def _show_mode_keyword_info(self, mode: str) -> None:
+        mode_key = str(mode or "").strip().lower()
+        if mode_key not in {"cardinal", "mutable", "fixed"}:
+            self.chart_info_output.setPlainText("Mode\n\nNo keyword data available.")
+            return
+        chart = getattr(self, "_latest_chart", None)
+        if chart is not None:
+            html_text = self._build_mode_popout_info(chart, mode_key)
+        else:
+            html_text = format_mode_popout_info_html(
+                mode_key=mode_key,
+                selected_mode="dominant_modes",
+                ranked_weights={key: 0.0 for key in ("cardinal", "mutable", "fixed")},
+                highlight_color=CHART_DATA_HIGHLIGHT_COLOR,
+                fallback_text_color=CHART_THEME_COLORS.get("text", "#f5f5f5"),
+            )
+        if hasattr(self.chart_info_output, "setHtml"):
+            self.chart_info_output.setHtml(html_text)
+            return
+        keywords = sorted(
+            str(keyword).strip()
+            for keyword in MODE_KEYWORDS.get(mode_key, set())
+            if str(keyword).strip()
+        )
+        self.chart_info_output.setPlainText(
+            "\n".join([mode_key.title(), "", *(f"• {keyword}" for keyword in keywords)])
+        )
+
     def _show_house_keyword_info(self, house_num: int) -> None:
         house_keywords = HOUSE_DEFINITIONS.get(house_num, {}).get("core_domains", [])
         clean_keywords = [str(item).strip() for item in house_keywords if str(item).strip()]
@@ -32392,6 +32425,8 @@ class MainWindow(QMainWindow):
             self.chart_info_output.setHtml(self._build_house_popout_info(self._latest_chart, house_num))
         elif kind == "nakshatra":
             self.chart_info_output.setHtml(self._build_nakshatra_popout_info(self._latest_chart, raw_value))
+        elif kind == "mode":
+            self._show_mode_keyword_info(raw_value)
 
     def _update_chart_analysis_above_average_links(
         self,
@@ -32669,6 +32704,25 @@ class MainWindow(QMainWindow):
             draw_fn=self._draw_modal_distribution,
             chart=chart,
         )
+        canvas = getattr(self, "modal_distribution_canvas", None)
+        if canvas is not None:
+            previous_cid = getattr(self, "_modal_distribution_pick_cid", None)
+            if previous_cid is not None:
+                try:
+                    canvas.mpl_disconnect(previous_cid)
+                except Exception:
+                    pass
+
+            def _on_mode_pick(event) -> None:
+                artist = getattr(event, "artist", None)
+                artist_gid = artist.get_gid() if artist is not None else None
+                if not isinstance(artist_gid, str) or not artist_gid.startswith("mode:"):
+                    return
+                _prefix, raw_mode = artist_gid.split(":", 1)
+                self._set_chart_info_panel_mode("chart_info")
+                self._show_mode_keyword_info(raw_mode)
+
+            self._modal_distribution_pick_cid = canvas.mpl_connect("pick_event", _on_mode_pick)
 
     def _render_gender_guesser(self, chart: Chart) -> None:
         self._render_metric_panel(
@@ -33013,6 +33067,9 @@ class MainWindow(QMainWindow):
             return
         if kind == "nakshatra":
             self._show_nakshatra_info(value)
+            return
+        if kind == "mode":
+            self._show_mode_keyword_info(value)
             return
         if kind == "gate":
             try:
