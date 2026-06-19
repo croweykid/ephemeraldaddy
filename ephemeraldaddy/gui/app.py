@@ -13916,10 +13916,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         message_box.setText(
             f"Are you sure you want to {action_label} {selected_count} chart(s)?"
         )
-        yes_button = message_box.addButton(QMessageBox.Yes)
-        no_button = message_box.addButton(QMessageBox.No)
-        message_box.setDefaultButton(yes_button)
-        message_box.setEscapeButton(no_button)
+        message_box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+        message_box.setDefaultButton(QMessageBox.Yes)
+        message_box.setEscapeButton(QMessageBox.No)
         response = message_box.exec()
         return response == QMessageBox.Yes
 
