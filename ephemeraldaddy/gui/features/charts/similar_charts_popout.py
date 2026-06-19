@@ -2968,6 +2968,7 @@ def build_similar_charts_popout_dialog(
     least_similar_matches: list[Any],
     all_most_similar_matches: list[Any] | None = None,
     all_least_similar_matches: list[Any] | None = None,
+    all_accuracy_entries: list[Mapping[str, Any]] | None = None,
     on_link_activated: Callable[[QDialog, str], None],
     header_style: str,
     output_style: str,
@@ -3113,32 +3114,33 @@ def build_similar_charts_popout_dialog(
     dialog._similar_chart_popout_subject_link = subject_chart_link
     dialog._similar_chart_popout_all_most_similar_matches = list(all_most_similar_matches or most_similar_matches)
     dialog._similar_chart_popout_all_least_similar_matches = list(all_least_similar_matches or least_similar_matches)
-    all_accuracy_entries: dict[int, dict[str, Any]] = {}
-    if show_perceived_accuracy_controls:
-        for match in dialog._similar_chart_popout_all_most_similar_matches:
-            try:
-                compared_chart_id = int(getattr(match, "chart_id", 0) or 0)
-            except (TypeError, ValueError):
-                continue
-            if compared_chart_id <= 0:
-                continue
-            if perceived_accuracy_states:
-                key = perceived_accuracy_state_key(
-                    chart_1_id=subject_chart_id,
-                    chart_2_id=compared_chart_id,
-                )
-                state = perceived_accuracy_states.get(key, {})
-            else:
-                state = {}
-            if not isinstance(state, Mapping) or not state:
-                continue
-            all_accuracy_entries[compared_chart_id] = {
-                "chart_id": compared_chart_id,
-                "predicted_percent": _predicted_similarity_percent(match),
-                "perceived_percent": state.get("user_reported_accuracy"),
-                "not_applicable": bool(state.get("not_applicable", False)),
-            }
-    dialog._similar_chart_popout_all_accuracy_entries = list(all_accuracy_entries.values())
+    dialog._similar_chart_popout_all_accuracy_entries = list(all_accuracy_entries or [])
+    # all_accuracy_entries: dict[int, dict[str, Any]] = {}
+    # if show_perceived_accuracy_controls:
+    #     for match in dialog._similar_chart_popout_all_most_similar_matches:
+    #         try:
+    #             compared_chart_id = int(getattr(match, "chart_id", 0) or 0)
+    #         except (TypeError, ValueError):
+    #             continue
+    #         if compared_chart_id <= 0:
+    #             continue
+    #         if perceived_accuracy_states:
+    #             key = perceived_accuracy_state_key(
+    #                 chart_1_id=subject_chart_id,
+    #                 chart_2_id=compared_chart_id,
+    #             )
+    #             state = perceived_accuracy_states.get(key, {})
+    #         else:
+    #             state = {}
+    #         if not isinstance(state, Mapping) or not state:
+    #             continue
+    #         all_accuracy_entries[compared_chart_id] = {
+    #             "chart_id": compared_chart_id,
+    #             "predicted_percent": _predicted_similarity_percent(match),
+    #             "perceived_percent": state.get("user_reported_accuracy"),
+    #             "not_applicable": bool(state.get("not_applicable", False)),
+    #         }
+    # dialog._similar_chart_popout_all_accuracy_entries = list(all_accuracy_entries.values())
     splitter.addWidget(info_panel)
 
     list_splitter = QSplitter(Qt.Horizontal)
