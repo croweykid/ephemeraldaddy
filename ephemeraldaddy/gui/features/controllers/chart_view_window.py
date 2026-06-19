@@ -841,6 +841,63 @@ def apply_chart_view_middle_panel_typography(
 
 
 
+def _build_material_facts_panel(owner: QWidget) -> QWidget:
+    """Build Material Facts tab for non-astrological profile data."""
+    panel = QWidget()
+    layout = QVBoxLayout()
+    layout.setContentsMargins(6, 6, 6, 6)
+    layout.setSpacing(8)
+    layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+    panel.setLayout(layout)
+
+    header = QLabel("Material Facts")
+    header.setStyleSheet("font-weight: 700; color: #f5f5f5;")
+    layout.addWidget(header)
+
+    help_label = QLabel(
+        "Optional mundane chart data stored outside the astrological database "
+        "in hidden sidecar files. Image picking is stubbed for now."
+    )
+    help_label.setWordWrap(True)
+    help_label.setStyleSheet("color: #bdbdbd;")
+    layout.addWidget(help_label)
+
+    field_specs = (
+        ("material_facts_photos_edit", "Photos", "Photo URLs/notes (one per line)"),
+        ("material_facts_addresses_edit", "Addresses", "Addresses (one per line)"),
+        ("material_facts_emails_edit", "Emails", "Email addresses (one per line)"),
+        ("material_facts_websites_edit", "Websites", "Websites/social links (one per line)"),
+        ("material_facts_phone_numbers_edit", "Phone numbers", "Phone numbers (one per line)"),
+    )
+    for attr_name, label_text, placeholder in field_specs:
+        label = QLabel(label_text)
+        label.setStyleSheet("color: #f5f5f5;")
+        layout.addWidget(label)
+        editor = QTextEdit()
+        editor.setAcceptRichText(False)
+        editor.setPlaceholderText(placeholder)
+        editor.setMinimumHeight(56)
+        editor.textChanged.connect(owner._mark_lucygoosey)
+        setattr(owner, attr_name, editor)
+        layout.addWidget(editor)
+
+    image_label = QLabel("Profile images")
+    image_label.setStyleSheet("color: #f5f5f5;")
+    layout.addWidget(image_label)
+    owner.material_facts_images_edit = QTextEdit()
+    owner.material_facts_images_edit.setAcceptRichText(False)
+    owner.material_facts_images_edit.setPlaceholderText("Image paths/URLs (stubbed; picker will be enabled later)")
+    owner.material_facts_images_edit.setMinimumHeight(56)
+    owner.material_facts_images_edit.textChanged.connect(owner._mark_lucygoosey)
+    layout.addWidget(owner.material_facts_images_edit)
+    owner.material_facts_add_image_button = QPushButton("🖼️ Add image (stub)")
+    owner.material_facts_add_image_button.setEnabled(False)
+    owner.material_facts_add_image_button.setToolTip("Image input is reserved for a later active picker/import flow.")
+    layout.addWidget(owner.material_facts_add_image_button)
+    layout.addStretch(1)
+    return panel
+
+
 def _build_subjective_notes_panel(owner: QWidget) -> tuple[QWidget, QVBoxLayout]:
     """Build Subjective Notes tab body widget + layout."""
     panel = QWidget()
@@ -973,6 +1030,7 @@ def build_chart_view_right_panel(
     metrics_content.setLayout(owner.metrics_layout)
 
     subjective_notes_panel, subjective_notes_layout = _build_subjective_notes_panel(owner)
+    material_facts_panel = _build_material_facts_panel(owner)
 
     predictions_panel = _build_predictions_panel(owner)
 
@@ -982,19 +1040,23 @@ def build_chart_view_right_panel(
         analytics_content_widget=metrics_content,
         predictions_content_widget=predictions_panel,
         subjective_notes_content_widget=subjective_notes_panel,
+        material_facts_content_widget=material_facts_panel,
         on_show_analytics=lambda: owner._chart_right_panel_controller.set_active_panel("analytics"),
         on_show_predictions=lambda: owner._chart_right_panel_controller.set_active_panel("predictions"),
         on_show_subjective_notes=lambda: owner._chart_right_panel_controller.set_active_panel("subjective_notes"),
+        on_show_material_facts=lambda: owner._chart_right_panel_controller.set_active_panel("material_facts"),
         scrollbar_style=scrollbar_style,
     )
     owner.metrics_panel = chart_right_panel.container
     owner.chart_analytics_panel_button = chart_right_panel.analytics_button
     owner.predictions_panel_button = chart_right_panel.predictions_button
     owner.subjective_notes_panel_button = chart_right_panel.subjective_notes_button
+    owner.material_facts_panel_button = chart_right_panel.material_facts_button
     owner.chart_right_panel_stack = chart_right_panel.stack
     owner.chart_analytics_panel_scroll = chart_right_panel.analytics_scroll
     owner.predictions_panel_scroll = chart_right_panel.predictions_scroll
     owner.subjective_notes_panel_scroll = chart_right_panel.subjective_notes_scroll
+    owner.material_facts_panel_scroll = chart_right_panel.material_facts_scroll
 
     owner._main_splitter.addWidget(owner.metrics_panel)
     owner.metrics_scroll = owner.chart_analytics_panel_scroll
@@ -1004,6 +1066,8 @@ def build_chart_view_right_panel(
     owner._register_metric_scroll_widget(predictions_panel)
     owner._register_metric_scroll_widget(owner.subjective_notes_panel_scroll)
     owner._register_metric_scroll_widget(subjective_notes_panel)
+    owner._register_metric_scroll_widget(owner.material_facts_panel_scroll)
+    owner._register_metric_scroll_widget(material_facts_panel)
 
     _build_distinguishing_factors_section(owner, metrics_content, owner.metrics_layout)
     owner._create_chart_analysis_sections(metrics_content)

@@ -36,10 +36,12 @@ class ChartRightPanelStack:
     analytics_button: QPushButton
     predictions_button: QPushButton
     subjective_notes_button: QPushButton
+    material_facts_button: QPushButton
     stack: QStackedWidget
     analytics_scroll: QScrollArea
     predictions_scroll: QScrollArea
     subjective_notes_scroll: QScrollArea
+    material_facts_scroll: QScrollArea
 
 
 def format_mode_popout_info_html(
@@ -142,9 +144,11 @@ def build_chart_right_panel_stack(
     analytics_content_widget: QWidget,
     predictions_content_widget: QWidget,
     subjective_notes_content_widget: QWidget,
+    material_facts_content_widget: QWidget,
     on_show_analytics: Callable[[], None],
     on_show_predictions: Callable[[], None],
     on_show_subjective_notes: Callable[[], None],
+    on_show_material_facts: Callable[[], None],
     scrollbar_style: str,
 ) -> ChartRightPanelStack:
     """Build the Chart View right panel with analytics/subjective notes toggle."""
@@ -164,8 +168,11 @@ def build_chart_right_panel_stack(
     subjective_notes_button = QPushButton("💭")
     subjective_notes_button.setObjectName("chart_view_toggle_subjective_notes_panel_button")
     subjective_notes_button.clicked.connect(on_show_subjective_notes)
+    material_facts_button = QPushButton("🖼️")
+    material_facts_button.setObjectName("chart_view_toggle_material_facts_panel_button")
+    material_facts_button.clicked.connect(on_show_material_facts)
 
-    for control_button in (analytics_button, predictions_button, subjective_notes_button):
+    for control_button in (analytics_button, predictions_button, subjective_notes_button, material_facts_button):
         control_button.setCheckable(True)
         control_button.setAutoDefault(False)
         control_button.setDefault(False)
@@ -181,6 +188,7 @@ def build_chart_right_panel_stack(
     controls_layout.addWidget(analytics_button)
     controls_layout.addWidget(predictions_button)
     controls_layout.addWidget(subjective_notes_button)
+    controls_layout.addWidget(material_facts_button)
     controls_layout.addStretch(1)
     layout.addWidget(controls_row)
 
@@ -218,15 +226,27 @@ def build_chart_right_panel_stack(
     subjective_notes_scroll.setWidget(subjective_notes_content_widget)
     stack.addWidget(subjective_notes_scroll)
 
+    material_facts_scroll = QScrollArea()
+    material_facts_scroll.setWidgetResizable(True)
+    material_facts_scroll.setFrameShape(QScrollArea.NoFrame)
+    material_facts_scroll.setMinimumWidth(240)
+    material_facts_scroll.setStyleSheet(scrollbar_style)
+    material_facts_scroll.setFocusPolicy(Qt.StrongFocus)
+    material_facts_scroll.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+    material_facts_scroll.setWidget(material_facts_content_widget)
+    stack.addWidget(material_facts_scroll)
+
     return ChartRightPanelStack(
         container=container,
         analytics_button=analytics_button,
         predictions_button=predictions_button,
         subjective_notes_button=subjective_notes_button,
+        material_facts_button=material_facts_button,
         stack=stack,
         analytics_scroll=analytics_scroll,
         predictions_scroll=predictions_scroll,
         subjective_notes_scroll=subjective_notes_scroll,
+        material_facts_scroll=material_facts_scroll,
     )
 
 
@@ -314,7 +334,7 @@ def _install_expand_autoscroll(owner: object) -> None:
         return
     setattr(owner, "_right_panel_expand_autoscroll_installed", True)
 
-    for scroll_attr in ("chart_analytics_panel_scroll", "predictions_panel_scroll", "subjective_notes_panel_scroll"):
+    for scroll_attr in ("chart_analytics_panel_scroll", "predictions_panel_scroll", "subjective_notes_panel_scroll", "material_facts_panel_scroll"):
         scroll_area = getattr(owner, scroll_attr, None)
         if not isinstance(scroll_area, QScrollArea):
             continue
@@ -340,6 +360,7 @@ def _chart_right_panel_definitions(owner: object) -> dict[str, tuple[str, str]]:
         "analytics": ("chart_analytics_panel_scroll", "chart_analytics_panel_button"),
         "predictions": ("predictions_panel_scroll", "predictions_panel_button"),
         "subjective_notes": ("subjective_notes_panel_scroll", "subjective_notes_panel_button"),
+        "material_facts": ("material_facts_panel_scroll", "material_facts_panel_button"),
     }
 
 

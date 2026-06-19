@@ -110,6 +110,7 @@ DEFAULT_TOOLTIP_OVERRIDES: dict[str, str] = {
     "chart_view_toggle_subjective_notes_panel_button": "Subjective Notes panel",
     "chart_view_toggle_analytics_panel_button": "Chart Analysis panel",
     "chart_view_toggle_predictions_panel_button": "Predictions panel",
+    "chart_view_toggle_material_facts_panel_button": "Material Facts panel",
 }
 
 # IMPORTANT: these are intentionally exact-string mappings so tooltip behavior
