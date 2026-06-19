@@ -644,6 +644,8 @@ from ephemeraldaddy.core.interpretations import (
     NAKSHATRA_PLANET_COLOR,
     NAKSHATRA_RANGES,
     MODES,
+    MODE_COLORS,
+    MODE_KEYWORDS,
     ASPECT_PATTERN_DEFS,
     ASPECT_BODY_ALIASES,
     ASPECT_SORT_OPTIONS,
@@ -24668,7 +24670,10 @@ class MainWindow(QMainWindow):
                 except (TypeError, ValueError):
                     chart_info_output.setPlainText("No Chart Info target was found for this gate.")
                 return
-            if kind in {"element", "mode"}:
+            if kind == "mode":
+                self._show_mode_keyword_info(value)
+                return
+            if kind == "element":
                 chart_info_output.setPlainText(f"{value}\n\nNo dedicated Chart Info renderer is available for this {kind} yet.")
                 return
             chart_info_output.setPlainText("No Chart Info renderer is available for this item yet.")
@@ -28879,6 +28884,54 @@ class MainWindow(QMainWindow):
         lines = [header, "", *(f"• {keyword}" for keyword in clean_keywords)]
         self.chart_info_output.setPlainText("\n".join(lines))
 
+
+    def _show_mode_keyword_info(self, mode: str) -> None:
+        mode_key = str(mode or "").strip().lower()
+        mode_label = mode_key.title() if mode_key else "Mode"
+        keywords = sorted(
+            str(keyword).strip()
+            for keyword in MODE_KEYWORDS.get(mode_key, set())
+            if str(keyword).strip()
+        )
+        signs = sorted(str(sign).strip() for sign in MODES.get(mode_key, set()) if str(sign).strip())
+        if mode_key not in {"cardinal", "mutable", "fixed"} or not (keywords or signs):
+            self.chart_info_output.setPlainText(f"{mode_label}\n\nNo keyword data available.")
+            return
+
+        self.chart_info_output.clear()
+        cursor = self.chart_info_output.textCursor()
+        cursor.movePosition(QTextCursor.Start)
+
+        title_fmt = QTextCharFormat()
+        title_fmt.setForeground(QColor(MODE_COLORS.get(mode_key, CHART_THEME_COLORS.get("text", "#f5f5f5"))))
+        title_fmt.setFontWeight(QFont.Bold)
+        title_fmt.setFontPointSize(13)
+        header_fmt = QTextCharFormat()
+        header_fmt.setForeground(QColor(CHART_DATA_HIGHLIGHT_COLOR))
+        header_fmt.setFontWeight(QFont.Bold)
+        plain_fmt = QTextCharFormat()
+        plain_fmt.setFontWeight(QFont.Normal)
+        plain_fmt.setFontItalic(False)
+
+        cursor.insertText(f"{mode_label} Mode\n\n", title_fmt)
+        if keywords:
+            cursor.insertText("Keywords:", header_fmt)
+            cursor.insertText("\n", plain_fmt)
+            for keyword in keywords:
+                cursor.insertText(f"• {keyword}\n", plain_fmt)
+        if signs:
+            if keywords:
+                cursor.insertText("\n", plain_fmt)
+            cursor.insertText("Signs:", header_fmt)
+            cursor.insertText("\n", plain_fmt)
+            for sign in signs:
+                cursor.insertText(f"• {sign}\n", plain_fmt)
+
+        self.chart_info_output.setTextCursor(cursor)
+        reset_cursor = self.chart_info_output.textCursor()
+        reset_cursor.movePosition(QTextCursor.Start)
+        self.chart_info_output.setTextCursor(reset_cursor)
+
     def _show_house_keyword_info(self, house_num: int) -> None:
         house_keywords = HOUSE_DEFINITIONS.get(house_num, {}).get("core_domains", [])
         clean_keywords = [str(item).strip() for item in house_keywords if str(item).strip()]
@@ -32437,6 +32490,8 @@ class MainWindow(QMainWindow):
             self.chart_info_output.setHtml(self._build_house_popout_info(self._latest_chart, house_num))
         elif kind == "nakshatra":
             self.chart_info_output.setHtml(self._build_nakshatra_popout_info(self._latest_chart, raw_value))
+        elif kind == "mode":
+            self.chart_info_output.setHtml(self._build_mode_popout_info(self._latest_chart, raw_value))
 
     def _update_chart_analysis_above_average_links(
         self,
@@ -32636,6 +32691,26 @@ class MainWindow(QMainWindow):
             ],
         )
 
+    def _update_dominant_mode_above_average_links(self, chart: Chart) -> None:
+        selected_mode = self._chart_analysis_selected_mode("modal_distribution", "dominant_modes")
+        weighted_counts = (
+            _calculate_modal_prevalence_counts(chart)
+            if selected_mode == "modal_prevalence"
+            else _calculate_mode_weights(chart)
+        )
+        self._update_chart_analysis_above_average_links(
+            "modal_distribution",
+            [
+                (
+                    mode.title(),
+                    float(weighted_counts.get(mode, 0.0)),
+                    MODE_COLORS.get(mode, "#6fa8dc"),
+                    f"chart-analysis:mode:{mode}",
+                )
+                for mode in ("cardinal", "mutable", "fixed")
+            ],
+        )
+
     def _dominant_body_distribution_metric_color(self, metric_key: str, metric_value: float) -> str | None:
         norms = getattr(self, "_database_weight_norms", None)
         if not isinstance(norms, dict):
@@ -32714,6 +32789,7 @@ class MainWindow(QMainWindow):
             draw_fn=self._draw_modal_distribution,
             chart=chart,
         )
+        self._update_dominant_mode_above_average_links(chart)
 
     def _render_gender_guesser(self, chart: Chart) -> None:
         self._render_metric_panel(
@@ -33058,6 +33134,9 @@ class MainWindow(QMainWindow):
             return
         if kind == "nakshatra":
             self._show_nakshatra_info(value)
+            return
+        if kind == "mode":
+            self._show_mode_keyword_info(value)
             return
         if kind == "gate":
             try:
