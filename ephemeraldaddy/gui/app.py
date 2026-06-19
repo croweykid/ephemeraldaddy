@@ -9723,6 +9723,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "dominant_house_weight_total_weight": 0.0,
             "dominant_element_totals": {element: 0.0 for element in ("Fire", "Earth", "Air", "Water")},
             "dominant_element_total_weight": 0.0,
+            "dominant_element_weight_totals": {element: 0.0 for element in ("Fire", "Earth", "Air", "Water")},
+            "dominant_element_weight_total_weight": 0.0,
+            "dominant_mode_totals": {mode: 0.0 for mode in ("cardinal", "fixed", "mutable")},
+            "dominant_mode_total_weight": 0.0,
+            "dominant_mode_weight_totals": {mode: 0.0 for mode in ("cardinal", "fixed", "mutable")},
+            "dominant_mode_weight_total_weight": 0.0,
             "relationship_totals": {relationship: 0 for relationship in RELATION_TYPE},
             "relationship_total_count": 0.0,
             "species_totals_by_mode": {
@@ -9911,9 +9917,26 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 or _calculate_dominant_element_weights(chart)
             )
             chart.dominant_element_weights = dominant_element_weights
+            for element in snapshot["dominant_element_weight_totals"]:
+                element_weight = float(dominant_element_weights.get(element, 0.0))
+                if element_weight <= 0:
+                    continue
+                snapshot["dominant_element_weight_totals"][element] += element_weight
+                snapshot["dominant_element_weight_total_weight"] += element_weight
             for dominant_element in _dominant_element_labels_from_weights(dominant_element_weights):
                 snapshot["dominant_element_totals"][dominant_element] += 1.0
                 snapshot["dominant_element_total_weight"] += 1.0
+
+            dominant_mode_weights = _calculate_mode_weights(chart)
+            for mode in snapshot["dominant_mode_weight_totals"]:
+                mode_weight = float(dominant_mode_weights.get(mode, 0.0))
+                if mode_weight <= 0:
+                    continue
+                snapshot["dominant_mode_weight_totals"][mode] += mode_weight
+                snapshot["dominant_mode_weight_total_weight"] += mode_weight
+            for dominant_mode in _dominant_mode_labels_from_weights(dominant_mode_weights):
+                snapshot["dominant_mode_totals"][dominant_mode] += 1.0
+                snapshot["dominant_mode_total_weight"] += 1.0
 
             dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
             for nakshatra_name, *_ in NAKSHATRA_RANGES:
@@ -10055,6 +10078,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             snapshot.get("dominant_nakshatra_total_weight", 0.0)
         )
         totals["dominant_element_total_weight"] += direction * float(snapshot.get("dominant_element_total_weight", 0.0))
+        totals["dominant_element_weight_total_weight"] += direction * float(snapshot.get("dominant_element_weight_total_weight", 0.0))
+        totals["dominant_mode_total_weight"] += direction * float(snapshot.get("dominant_mode_total_weight", 0.0))
+        totals["dominant_mode_weight_total_weight"] += direction * float(snapshot.get("dominant_mode_weight_total_weight", 0.0))
         totals["relationship_total_count"] += direction * float(snapshot.get("relationship_total_count", 0.0))
         totals["dnd_stat_count"] += direction * int(snapshot.get("dnd_stat_count", 0))
         totals["enneagram_total_count"] += direction * int(snapshot.get("enneagram_total_count", 0))
@@ -10123,6 +10149,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 snapshot["element_prevalence_totals"].get(element, 0.0)
             )
             totals["dominant_element_totals"][element] += direction * float(snapshot["dominant_element_totals"].get(element, 0.0))
+            totals["dominant_element_weight_totals"][element] += direction * float(
+                snapshot.get("dominant_element_weight_totals", {}).get(element, 0.0)
+            )
+        for mode in ("cardinal", "fixed", "mutable"):
+            totals["dominant_mode_totals"][mode] += direction * float(
+                snapshot.get("dominant_mode_totals", {}).get(mode, 0.0)
+            )
+            totals["dominant_mode_weight_totals"][mode] += direction * float(
+                snapshot.get("dominant_mode_weight_totals", {}).get(mode, 0.0)
+            )
         totals["element_prevalence_total_count"] += direction * float(
             snapshot.get("element_prevalence_total_count", 0.0)
         )
@@ -11201,6 +11237,80 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             cumulative_planet_labels = list(dominant_planet_labels)
             cumulative_house_labels = list(dominant_house_labels)
             cumulative_nakshatra_labels = list(dominant_nakshatra_labels)
+            dominant_element_labels = ["Fire", "Earth", "Air", "Water"]
+            dominant_mode_labels = ["cardinal", "fixed", "mutable"]
+            selection_top_dominant_elements = {
+                element: (
+                    selection_cache["dominant_element_totals"][element]
+                    / selection_cache["dominant_element_total_weight"]
+                    if selection_cache["dominant_element_total_weight"]
+                    else 0
+                )
+                for element in dominant_element_labels
+            }
+            database_top_dominant_elements = {
+                element: (
+                    database_cache["dominant_element_totals"][element]
+                    / database_cache["dominant_element_total_weight"]
+                    if database_cache["dominant_element_total_weight"]
+                    else 0
+                )
+                for element in dominant_element_labels
+            }
+            selection_top_dominant_modes = {
+                mode: (
+                    selection_cache["dominant_mode_totals"][mode]
+                    / selection_cache["dominant_mode_total_weight"]
+                    if selection_cache["dominant_mode_total_weight"]
+                    else 0
+                )
+                for mode in dominant_mode_labels
+            }
+            database_top_dominant_modes = {
+                mode: (
+                    database_cache["dominant_mode_totals"][mode]
+                    / database_cache["dominant_mode_total_weight"]
+                    if database_cache["dominant_mode_total_weight"]
+                    else 0
+                )
+                for mode in dominant_mode_labels
+            }
+            selection_dominant_elements = {
+                element: (
+                    selection_cache["dominant_element_weight_totals"][element]
+                    / selection_cache["dominant_element_weight_total_weight"]
+                    if selection_cache["dominant_element_weight_total_weight"]
+                    else 0
+                )
+                for element in dominant_element_labels
+            }
+            database_dominant_elements = {
+                element: (
+                    database_cache["dominant_element_weight_totals"][element]
+                    / database_cache["dominant_element_weight_total_weight"]
+                    if database_cache["dominant_element_weight_total_weight"]
+                    else 0
+                )
+                for element in dominant_element_labels
+            }
+            selection_dominant_modes = {
+                mode: (
+                    selection_cache["dominant_mode_weight_totals"][mode]
+                    / selection_cache["dominant_mode_weight_total_weight"]
+                    if selection_cache["dominant_mode_weight_total_weight"]
+                    else 0
+                )
+                for mode in dominant_mode_labels
+            }
+            database_dominant_modes = {
+                mode: (
+                    database_cache["dominant_mode_weight_totals"][mode]
+                    / database_cache["dominant_mode_weight_total_weight"]
+                    if database_cache["dominant_mode_weight_total_weight"]
+                    else 0
+                )
+                for mode in dominant_mode_labels
+            }
 
             selection_relationships = {
                 relationship: (
@@ -11823,6 +11933,45 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         selection_total=float(loaded_charts),
                         database_total=float(database_loaded_charts),
                     )
+                elif dominant_mode == "top_element":
+                    dominant_sign_canvas = self._build_dominant_element_chart(
+                        selection_elements=selection_top_dominant_elements,
+                        database_elements=database_top_dominant_elements,
+                        selection_element_counts=selection_cache["dominant_element_totals"],
+                        database_element_counts=database_cache["dominant_element_totals"],
+                        loaded_charts=loaded_charts,
+                    )
+                    self._analysis_chart_export_rows["dominant_signs"] = self._build_analysis_export_rows(
+                        labels=dominant_element_labels,
+                        selection_values=[selection_top_dominant_elements[label] for label in dominant_element_labels],
+                        database_values=[database_top_dominant_elements[label] for label in dominant_element_labels],
+                        selection_counts=[selection_cache["dominant_element_totals"][label] for label in dominant_element_labels],
+                        database_counts=[database_cache["dominant_element_totals"][label] for label in dominant_element_labels],
+                        loaded_charts=loaded_charts,
+                        selection_total=float(selection_cache["dominant_element_total_weight"]),
+                        database_total=float(database_cache["dominant_element_total_weight"]),
+                    )
+                elif dominant_mode == "top_mode":
+                    dominant_sign_canvas = self._build_dominant_planet_chart(
+                        selection_planets=selection_top_dominant_modes,
+                        database_planets=database_top_dominant_modes,
+                        selection_planet_counts=selection_cache["dominant_mode_totals"],
+                        database_planet_counts=database_cache["dominant_mode_totals"],
+                        loaded_charts=loaded_charts,
+                        labels=dominant_mode_labels,
+                        selection_total=float(selection_cache["dominant_mode_total_weight"]),
+                        database_total=float(database_cache["dominant_mode_total_weight"]),
+                    )
+                    self._analysis_chart_export_rows["dominant_signs"] = self._build_analysis_export_rows(
+                        labels=dominant_mode_labels,
+                        selection_values=[selection_top_dominant_modes[label] for label in dominant_mode_labels],
+                        database_values=[database_top_dominant_modes[label] for label in dominant_mode_labels],
+                        selection_counts=[selection_cache["dominant_mode_totals"][label] for label in dominant_mode_labels],
+                        database_counts=[database_cache["dominant_mode_totals"][label] for label in dominant_mode_labels],
+                        loaded_charts=loaded_charts,
+                        selection_total=float(selection_cache["dominant_mode_total_weight"]),
+                        database_total=float(database_cache["dominant_mode_total_weight"]),
+                    )
                 elif dominant_mode == "top3_signs":
                     dominant_sign_canvas = self._build_dominant_sign_chart(
                         selection_signs=selection_top3_dominant_signs,
@@ -11902,6 +12051,28 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         loaded_charts=loaded_charts,
                         selection_total=float(loaded_charts),
                         database_total=float(database_loaded_charts),
+                    )
+                elif dominant_mode == "top_element":
+                    self._analysis_chart_export_rows["dominant_signs"] = self._build_analysis_export_rows(
+                        labels=dominant_element_labels,
+                        selection_values=[selection_top_dominant_elements[label] for label in dominant_element_labels],
+                        database_values=[database_top_dominant_elements[label] for label in dominant_element_labels],
+                        selection_counts=[selection_cache["dominant_element_totals"][label] for label in dominant_element_labels],
+                        database_counts=[database_cache["dominant_element_totals"][label] for label in dominant_element_labels],
+                        loaded_charts=loaded_charts,
+                        selection_total=float(selection_cache["dominant_element_total_weight"]),
+                        database_total=float(database_cache["dominant_element_total_weight"]),
+                    )
+                elif dominant_mode == "top_mode":
+                    self._analysis_chart_export_rows["dominant_signs"] = self._build_analysis_export_rows(
+                        labels=dominant_mode_labels,
+                        selection_values=[selection_top_dominant_modes[label] for label in dominant_mode_labels],
+                        database_values=[database_top_dominant_modes[label] for label in dominant_mode_labels],
+                        selection_counts=[selection_cache["dominant_mode_totals"][label] for label in dominant_mode_labels],
+                        database_counts=[database_cache["dominant_mode_totals"][label] for label in dominant_mode_labels],
+                        loaded_charts=loaded_charts,
+                        selection_total=float(selection_cache["dominant_mode_total_weight"]),
+                        database_total=float(database_cache["dominant_mode_total_weight"]),
                     )
                 elif dominant_mode == "top3_signs":
                     self._analysis_chart_export_rows["dominant_signs"] = self._build_analysis_export_rows(
@@ -11985,6 +12156,42 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         loaded_charts=loaded_charts,
                         include_significance=False,
                     )
+                elif cumulativedom_mode == "cumulative_elements":
+                    cumulativedom_sign_canvas = self._build_dominant_element_chart(
+                        selection_elements=selection_dominant_elements,
+                        database_elements=database_dominant_elements,
+                        selection_element_counts=selection_cache["dominant_element_weight_totals"],
+                        database_element_counts=database_cache["dominant_element_weight_totals"],
+                        loaded_charts=loaded_charts,
+                    )
+                    self._analysis_chart_export_rows["cumulativedom_factors"] = self._build_analysis_export_rows(
+                        labels=dominant_element_labels,
+                        selection_values=[selection_dominant_elements[label] for label in dominant_element_labels],
+                        database_values=[database_dominant_elements[label] for label in dominant_element_labels],
+                        selection_counts=[selection_cache["dominant_element_weight_totals"][label] for label in dominant_element_labels],
+                        database_counts=[database_cache["dominant_element_weight_totals"][label] for label in dominant_element_labels],
+                        loaded_charts=loaded_charts,
+                        include_significance=False,
+                    )
+                elif cumulativedom_mode == "cumulative_modes":
+                    cumulativedom_sign_canvas = self._build_dominant_planet_chart(
+                        selection_planets=selection_dominant_modes,
+                        database_planets=database_dominant_modes,
+                        selection_planet_counts=selection_cache["dominant_mode_weight_totals"],
+                        database_planet_counts=database_cache["dominant_mode_weight_totals"],
+                        loaded_charts=loaded_charts,
+                        labels=dominant_mode_labels,
+                        include_significance_guides=True,
+                    )
+                    self._analysis_chart_export_rows["cumulativedom_factors"] = self._build_analysis_export_rows(
+                        labels=dominant_mode_labels,
+                        selection_values=[selection_dominant_modes[label] for label in dominant_mode_labels],
+                        database_values=[database_dominant_modes[label] for label in dominant_mode_labels],
+                        selection_counts=[selection_cache["dominant_mode_weight_totals"][label] for label in dominant_mode_labels],
+                        database_counts=[database_cache["dominant_mode_weight_totals"][label] for label in dominant_mode_labels],
+                        loaded_charts=loaded_charts,
+                        include_significance=False,
+                    )
                 else:
                     cumulativedom_sign_canvas = self._build_dominant_sign_chart(
                         selection_signs=selection_dominant_signs,
@@ -12038,6 +12245,26 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         database_values=[database_dominant_nakshatras[label] for label in cumulative_nakshatra_labels],
                         selection_counts=[selection_cache["dominant_nakshatra_totals"][label] for label in cumulative_nakshatra_labels],
                         database_counts=[database_cache["dominant_nakshatra_totals"][label] for label in cumulative_nakshatra_labels],
+                        loaded_charts=loaded_charts,
+                        include_significance=False,
+                    )
+                elif cumulativedom_mode == "cumulative_elements":
+                    self._analysis_chart_export_rows["cumulativedom_factors"] = self._build_analysis_export_rows(
+                        labels=dominant_element_labels,
+                        selection_values=[selection_dominant_elements[label] for label in dominant_element_labels],
+                        database_values=[database_dominant_elements[label] for label in dominant_element_labels],
+                        selection_counts=[selection_cache["dominant_element_weight_totals"][label] for label in dominant_element_labels],
+                        database_counts=[database_cache["dominant_element_weight_totals"][label] for label in dominant_element_labels],
+                        loaded_charts=loaded_charts,
+                        include_significance=False,
+                    )
+                elif cumulativedom_mode == "cumulative_modes":
+                    self._analysis_chart_export_rows["cumulativedom_factors"] = self._build_analysis_export_rows(
+                        labels=dominant_mode_labels,
+                        selection_values=[selection_dominant_modes[label] for label in dominant_mode_labels],
+                        database_values=[database_dominant_modes[label] for label in dominant_mode_labels],
+                        selection_counts=[selection_cache["dominant_mode_weight_totals"][label] for label in dominant_mode_labels],
+                        database_counts=[database_cache["dominant_mode_weight_totals"][label] for label in dominant_mode_labels],
                         loaded_charts=loaded_charts,
                         include_significance=False,
                     )

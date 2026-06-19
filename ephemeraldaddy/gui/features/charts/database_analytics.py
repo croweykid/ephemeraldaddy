@@ -283,12 +283,16 @@ class DatabaseAnalyticsChartsMixin:
         ("Dominant Bodies (Top 3)", "top3_planets"),
         ("Dominant Houses (Top 3)", "top3_houses"),
         ("Dominant Nakshatras (Top 3)", "top3_nakshatras"),
+        ("Dominant Elements (#1)", "top_element"),
+        ("Dominant Modes (#1)", "top_mode"),
     )
     DOMINANT_FACTORS_CUMULATIVE_DROPDOWN_OPTIONS: tuple[tuple[str, str], ...] = (
         ("Dominant Signs (Cumulative Weight)", "cumulative_signs"),
         ("Dominant Bodies (Cumulative Weight)", "cumulative_planets"),
         ("Dominant Houses (Cumulative Weight)", "cumulative_houses"),
         ("Dominant Nakshatras (Cumulative Weight)", "cumulative_nakshatras"),
+        ("Dominant Elements (Cumulative Weight)", "cumulative_elements"),
+        ("Dominant Modes (Cumulative Weight)", "cumulative_modes"),
     )
 
     def _build_database_subheader_label(self, text: str = "") -> QLabel:
@@ -313,6 +317,8 @@ class DatabaseAnalyticsChartsMixin:
             "top3_planets": f"top 3 dominant bodies for charts in {scope_label}",
             "top3_houses": f"top 3 dominant houses for charts in {scope_label}",
             "top3_nakshatras": f"top 3 dominant nakshatras for charts in {scope_label}",
+            "top_element": f"#1 dominant element scores for charts in {scope_label}",
+            "top_mode": f"#1 dominant mode scores for charts in {scope_label}",
         }
         return label_by_mode.get(mode, label_by_mode["top3_signs"])
 
@@ -323,6 +329,8 @@ class DatabaseAnalyticsChartsMixin:
             "cumulative_planets": f"Cumulative weight of bodies across all charts in {scope_label}",
             "cumulative_houses": f"Cumulative weight of houses across all charts in {scope_label}",
             "cumulative_nakshatras": f"Cumulative weight of nakshatras across all charts in {scope_label}",
+            "cumulative_elements": f"Cumulative weight of elements across all charts in {scope_label}",
+            "cumulative_modes": f"Cumulative weight of modes across all charts in {scope_label}",
         }
         return label_by_mode.get(mode, label_by_mode["cumulative_signs"])
 
