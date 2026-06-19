@@ -9,9 +9,14 @@ from typing import TYPE_CHECKING
 from ephemeraldaddy.analysis.get_astro_twin import build_body_dominance_explanation_bullets
 from ephemeraldaddy.core.interpretations import (
     ASPECT_COLORS,
+    ELEMENT_COLORS,
     HOUSE_COLORS,
+    MODE_COLORS,
+    MODES,
+    NAKSHATRA_PLANET_COLOR,
     PLANET_COLORS,
     PLANET_ORDER,
+    SIGN_ELEMENTS,
     SIGN_COLORS,
     ZODIAC_NAMES,
 )
@@ -83,6 +88,31 @@ def dominance_aspect_label_html(aspect_type: str, *, fallback_text_color: str) -
     return colorized_dominance_label_html(
         aspect_label,
         ASPECT_COLORS.get(aspect_key, fallback_text_color),
+    )
+
+
+def dominance_element_label_html(element: str, *, fallback_text_color: str) -> str:
+    """Return an element label colored from interpretations.ELEMENT_COLORS."""
+    return colorized_dominance_label_html(
+        str(element or "").title(),
+        ELEMENT_COLORS.get(str(element or "").title(), fallback_text_color),
+    )
+
+
+def dominance_mode_label_html(mode: str, *, fallback_text_color: str) -> str:
+    """Return a mode label colored from interpretations.MODE_COLORS."""
+    mode_key = str(mode or "").strip().lower()
+    return colorized_dominance_label_html(
+        mode_key.title(),
+        MODE_COLORS.get(mode_key, fallback_text_color),
+    )
+
+
+def dominance_nakshatra_label_html(nakshatra: str, *, fallback_text_color: str) -> str:
+    """Return a nakshatra label colored by its planetary ruler color."""
+    return colorized_dominance_label_html(
+        nakshatra,
+        NAKSHATRA_PLANET_COLOR.get(str(nakshatra), (None, fallback_text_color))[1],
     )
 
 
@@ -356,4 +386,180 @@ def build_house_dominance_section_html(
         )
         + "</ul>"
     )
+    return "".join(lines)
+
+
+def build_element_dominance_section_html(
+    chart: Chart,
+    element_name: str,
+    *,
+    mode: str,
+    highlight_color: str,
+    fallback_text_color: str,
+) -> str:
+    """Build the Dominant Elements popout's weighted-reasoning section."""
+    lines: list[str] = [dominance_section_header_html(chart, highlight_color=highlight_color)]
+    if mode == "elemental_prevalence":
+        lines.append(
+            "<ul><li>Elemental Prevalence mode is active: each placement contributes "
+            "equally through its sign's element, with no dominance weights applied.</li></ul>"
+        )
+        return "".join(lines)
+
+    from ephemeraldaddy.gui.features.charts.metrics import calculate_dominant_sign_weights
+
+    element_label = str(element_name or "").strip().title()
+    sign_weights = calculate_dominant_sign_weights(chart)
+    contributors: list[tuple[str, float]] = [
+        (sign, float(weight))
+        for sign, weight in sign_weights.items()
+        if SIGN_ELEMENTS.get(sign) == element_label and float(weight) > 0
+    ]
+    contributors.sort(key=lambda item: item[1], reverse=True)
+    if not contributors:
+        lines.append(
+            f"<ul><li>No weighted sign contributions currently roll up into "
+            f"{dominance_element_label_html(element_label, fallback_text_color=fallback_text_color)}.</li></ul>"
+        )
+        return "".join(lines)
+    lines.append(
+        "<ul>"
+        + "".join(
+            "<li>"
+            f"{dominance_sign_label_html(sign, fallback_text_color=fallback_text_color)} "
+            f"contributes {weight:.2f} weighted sign points to "
+            f"{dominance_element_label_html(element_label, fallback_text_color=fallback_text_color)}"
+            "</li>"
+            for sign, weight in contributors
+        )
+        + "</ul>"
+    )
+    return "".join(lines)
+
+
+def build_mode_dominance_section_html(
+    chart: Chart,
+    mode_name: str,
+    *,
+    mode: str,
+    highlight_color: str,
+    fallback_text_color: str,
+) -> str:
+    """Build the Dominant Modes popout's weighted-reasoning section."""
+    lines: list[str] = [dominance_section_header_html(chart, highlight_color=highlight_color)]
+    if mode == "modal_prevalence":
+        lines.append(
+            "<ul><li>Modal Prevalence mode is active: each placement contributes "
+            "equally through its sign's modality, with no dominance weights applied.</li></ul>"
+        )
+        return "".join(lines)
+
+    from ephemeraldaddy.gui.features.charts.metrics import calculate_dominant_sign_weights
+
+    mode_key = str(mode_name or "").strip().lower()
+    sign_weights = calculate_dominant_sign_weights(chart)
+    contributors: list[tuple[str, float]] = [
+        (sign, float(sign_weights.get(sign, 0.0)))
+        for sign in MODES.get(mode_key, set())
+        if float(sign_weights.get(sign, 0.0)) > 0
+    ]
+    contributors.sort(key=lambda item: item[1], reverse=True)
+    if not contributors:
+        lines.append(
+            f"<ul><li>No weighted sign contributions currently roll up into "
+            f"{dominance_mode_label_html(mode_key, fallback_text_color=fallback_text_color)}.</li></ul>"
+        )
+        return "".join(lines)
+    lines.append(
+        "<ul>"
+        + "".join(
+            "<li>"
+            f"{dominance_sign_label_html(sign, fallback_text_color=fallback_text_color)} "
+            f"contributes {weight:.2f} weighted sign points to "
+            f"{dominance_mode_label_html(mode_key, fallback_text_color=fallback_text_color)}"
+            "</li>"
+            for sign, weight in contributors
+        )
+        + "</ul>"
+    )
+    return "".join(lines)
+
+
+def build_nakshatra_dominance_section_html(
+    chart: Chart,
+    nakshatra_name: str,
+    *,
+    mode: str,
+    highlight_color: str,
+    fallback_text_color: str,
+) -> str:
+    """Build the Dominant Nakshatras popout's weighted-reasoning section."""
+    lines: list[str] = [dominance_section_header_html(chart, highlight_color=highlight_color)]
+    if mode == "nakshatra_prevalence":
+        lines.append(
+            "<ul><li>Nakshatra Prevalence mode is active: placements are counted by "
+            "nakshatra without dominance weights or aspect bonuses.</li></ul>"
+        )
+        return "".join(lines)
+
+    from ephemeraldaddy.gui.features.charts.metrics import (
+        _aspect_strength,
+        chart_uses_houses,
+        get_nakshatra,
+        house_for_longitude,
+        planet_weight,
+    )
+
+    target = str(nakshatra_name or "").strip()
+    use_houses = chart_uses_houses(chart)
+    houses = getattr(chart, "houses", None) if use_houses else None
+    bodies = ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Rahu", "Ketu"]
+    if use_houses:
+        bodies.extend(["AS", "IC", "DS", "MC"])
+
+    placement_lines: list[str] = []
+    for body in bodies:
+        lon = chart.positions.get(body)
+        if lon is None or get_nakshatra(lon) != target:
+            continue
+        house_num = house_for_longitude(houses, lon)
+        weight = planet_weight(body, lon, houses, house_num)
+        placement_lines.append(
+            f"{dominance_body_label_html(body, fallback_text_color=fallback_text_color)} in "
+            f"{dominance_nakshatra_label_html(target, fallback_text_color=fallback_text_color)} "
+            f"(body/house weight {weight:.2f})"
+        )
+
+    aspect_lines: list[str] = []
+    allowed_bodies = set(bodies)
+    for aspect in getattr(chart, "aspects", []) or []:
+        p1 = str(aspect.get("p1", ""))
+        p2 = str(aspect.get("p2", ""))
+        if p1 not in allowed_bodies or p2 not in allowed_bodies:
+            continue
+        lon1 = chart.positions.get(p1)
+        lon2 = chart.positions.get(p2)
+        if lon1 is None or lon2 is None:
+            continue
+        if target not in {get_nakshatra(lon1), get_nakshatra(lon2)}:
+            continue
+        aspect_weight = _aspect_strength(aspect)
+        if aspect_weight <= 0:
+            continue
+        aspect_type = str(aspect.get("type", "")).strip() or "aspect"
+        aspect_lines.append(
+            f"{dominance_body_label_html(p1, fallback_text_color=fallback_text_color)} "
+            f"{dominance_aspect_label_html(aspect_type, fallback_text_color=fallback_text_color)} "
+            f"{dominance_body_label_html(p2, fallback_text_color=fallback_text_color)} "
+            f"(aspect contribution {aspect_weight:.2f})"
+        )
+
+    all_lines = placement_lines + aspect_lines[:8]
+    if all_lines:
+        lines.append("<ul>" + "".join(f"<li>{entry}</li>" for entry in all_lines) + "</ul>")
+    else:
+        lines.append(
+            f"<ul><li>No bodies or scored aspects currently contribute to "
+            f"{dominance_nakshatra_label_html(target, fallback_text_color=fallback_text_color)}.</li></ul>"
+        )
     return "".join(lines)
