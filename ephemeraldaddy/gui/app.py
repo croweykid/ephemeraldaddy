@@ -24710,7 +24710,7 @@ class MainWindow(QMainWindow):
             self._similar_charts_popout_subject_signature(chart=chart, subject_chart_id=subject_chart_id),
             self._similar_charts_popout_database_signature(rows),
             self._similar_charts_popout_settings_signature(algorithm_mode),
-            "top-bottom-all-v1",
+            "top-bottom-25-v2",
         )
 
     def _get_cached_similar_charts_popout_payload(
