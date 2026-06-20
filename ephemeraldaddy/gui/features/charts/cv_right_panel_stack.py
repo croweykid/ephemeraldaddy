@@ -408,7 +408,7 @@ def _chart_right_panel_definitions(owner: object) -> dict[str, tuple[str, str]]:
         "predictions": ("predictions_panel_scroll", "predictions_panel_button"),
         "subjective_notes": ("subjective_notes_panel_scroll", "subjective_notes_panel_button"),
         "material_facts": ("material_facts_panel_scroll", "material_facts_panel_button"),
-        "time_sensitivity": ("time_sensitivity_panel_scroll"),"time_sensitivity_panel_button", 
+        "time_sensitivity": ("time_sensitivity_panel_scroll","time_sensitivity_panel_button"),
         "photo_gallery": ("photo_gallery_panel_scroll", "photo_gallery_panel_button"),
     }
 
