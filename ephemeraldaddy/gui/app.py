@@ -22365,6 +22365,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _configure_settings_text_label(self, label: QLabel) -> None:
         """Give settings body text enough paint padding for dynamic wrapped heights."""
         configure_settings_help_label(label)
+        label.setMinimumWidth(0)
+        label.setMinimumHeight(0)
+        label.setMaximumHeight(16777215)
+        label.setAlignment(label.alignment() | Qt.AlignTop)
+        label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+        label.updateGeometry()
 
     def _configure_settings_section_text_wrap(self, root: QWidget) -> None:
         """Allow settings-section text to size itself from its contents.

@@ -47,6 +47,7 @@ from ephemeraldaddy.core.interpretations import (
 from ephemeraldaddy.gui.features.charts.anagrams import AnagramsPresenter, build_anagrams_section
 from ephemeraldaddy.gui.features.charts.loading_overlay import ChartLoadingOverlay
 from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import build_chart_right_panel_stack
+from ephemeraldaddy.gui.features.charts.time_sensitivity_panel import TimeSensitivityPanel
 from ephemeraldaddy.gui.features.controllers.chart_right_panel import ChartRightPanelController
 from ephemeraldaddy.gui.style import apply_button_cursor, apply_chart_info_link_cursor
 from ephemeraldaddy.gui.features.charts.tagging import (
@@ -1033,6 +1034,7 @@ def build_chart_view_right_panel(
     material_facts_panel = _build_material_facts_panel(owner)
 
     predictions_panel = _build_predictions_panel(owner)
+    time_sensitivity_panel = TimeSensitivityPanel(owner)
 
     owner._chart_right_panel_controller = ChartRightPanelController(owner)
 
@@ -1041,10 +1043,12 @@ def build_chart_view_right_panel(
         predictions_content_widget=predictions_panel,
         subjective_notes_content_widget=subjective_notes_panel,
         material_facts_content_widget=material_facts_panel,
+        time_sensitivity_content_widget=time_sensitivity_panel,
         on_show_analytics=lambda: owner._chart_right_panel_controller.set_active_panel("analytics"),
         on_show_predictions=lambda: owner._chart_right_panel_controller.set_active_panel("predictions"),
         on_show_subjective_notes=lambda: owner._chart_right_panel_controller.set_active_panel("subjective_notes"),
         on_show_material_facts=lambda: owner._chart_right_panel_controller.set_active_panel("material_facts"),
+        on_show_time_sensitivity=lambda: owner._chart_right_panel_controller.set_active_panel("time_sensitivity"),
         scrollbar_style=scrollbar_style,
     )
     owner.metrics_panel = chart_right_panel.container
@@ -1052,11 +1056,13 @@ def build_chart_view_right_panel(
     owner.predictions_panel_button = chart_right_panel.predictions_button
     owner.subjective_notes_panel_button = chart_right_panel.subjective_notes_button
     owner.material_facts_panel_button = chart_right_panel.material_facts_button
+    owner.time_sensitivity_panel_button = chart_right_panel.time_sensitivity_button
     owner.chart_right_panel_stack = chart_right_panel.stack
     owner.chart_analytics_panel_scroll = chart_right_panel.analytics_scroll
     owner.predictions_panel_scroll = chart_right_panel.predictions_scroll
     owner.subjective_notes_panel_scroll = chart_right_panel.subjective_notes_scroll
     owner.material_facts_panel_scroll = chart_right_panel.material_facts_scroll
+    owner.time_sensitivity_panel_scroll = chart_right_panel.time_sensitivity_scroll
 
     owner._main_splitter.addWidget(owner.metrics_panel)
     owner.metrics_scroll = owner.chart_analytics_panel_scroll
@@ -1068,6 +1074,8 @@ def build_chart_view_right_panel(
     owner._register_metric_scroll_widget(subjective_notes_panel)
     owner._register_metric_scroll_widget(owner.material_facts_panel_scroll)
     owner._register_metric_scroll_widget(material_facts_panel)
+    owner._register_metric_scroll_widget(owner.time_sensitivity_panel_scroll)
+    owner._register_metric_scroll_widget(time_sensitivity_panel)
 
     _build_distinguishing_factors_section(owner, metrics_content, owner.metrics_layout)
     owner._create_chart_analysis_sections(metrics_content)
