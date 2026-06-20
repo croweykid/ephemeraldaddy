@@ -142,3 +142,32 @@ def test_database_analysis_csv_export_uses_raw_labels_without_display_label_look
 
     assert output_path.read_text(encoding="utf-8").splitlines()[1].startswith("57-20,")
     assert messages
+
+
+def test_human_design_incarnation_cross_payload_uses_cross_names():
+    selection_cache = {
+        "human_design_incarnation_cross_totals": {
+            "Left Angle Cross of Education (gates 12/11 • 25/46)": 2,
+        },
+        "human_design_incarnation_cross_total_count": 2,
+    }
+    database_cache = {
+        "human_design_incarnation_cross_totals": {
+            "Left Angle Cross of Education (gates 12/11 • 25/46)": 3,
+        },
+        "human_design_incarnation_cross_total_count": 3,
+    }
+
+    labels, selection_counts, database_counts, selection_total, database_total = (
+        DatabaseAnalyticsChartsMixin._human_design_mode_payload(
+            "hd_incarnation_crosses",
+            selection_cache,
+            database_cache,
+        )
+    )
+
+    assert labels == ["Left Angle Cross of Education"]
+    assert selection_counts["Left Angle Cross of Education"] == 2
+    assert database_counts["Left Angle Cross of Education"] == 3
+    assert selection_total == 2.0
+    assert database_total == 3.0

@@ -12214,6 +12214,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 if human_design_mode == "hd_lines"
                 else None
             )
+            human_design_label_tooltips = None
+            if human_design_mode == "hd_incarnation_crosses":
+                human_design_label_tooltips = {
+                    label: (
+                        f"({int(selection_human_design_counts.get(label, 0)):,} of "
+                        f"{int(database_human_design_counts.get(label, 0)):,} in DB; "
+                        f"selection is "
+                        f"{((float(selection_human_design_counts.get(label, 0)) / float(database_human_design_counts.get(label, 0))) if float(database_human_design_counts.get(label, 0)) else 0.0):.0%} "
+                        f"of DB instances)"
+                    )
+                    for label in human_design_labels
+                }
             if _should_refresh_database_metric_section("human_design"):
                 human_design_canvas = self._build_dominant_planet_chart(
                     selection_planets=selection_human_design,
@@ -12231,6 +12243,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     ),
                     force_value_fallback_colors=(human_design_mode == "hd_gates"),
                     label_colors=line_label_colors,
+                    include_count_prefixes=(human_design_mode != "hd_incarnation_crosses"),
+                    label_tooltips=human_design_label_tooltips,
                 )
                 self._clear_layout(self.human_design_chart_layout)
                 self.human_design_chart_layout.addWidget(
