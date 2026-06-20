@@ -605,6 +605,7 @@ from ephemeraldaddy.core.db import (
     load_dominant_sign_weights,
     get_chart_uid_map,
     find_chart_uid_by_name,
+    get_chart_display_name_map,
     get_chart_display_name_by_uid,
     delete_charts,
     invalidate_all_dominant_weight_caches,
@@ -24020,6 +24021,7 @@ class MainWindow(QMainWindow):
             "Enter an existing chart name, alias, or Chart ID. "
             "EphemeralDaddy stores that chart's stable ID so later renames still work."
         )
+        self._update_reminds_me_of_completer()
         self.reminds_me_of_input.textChanged.connect(lambda *_: self._mark_lucygoosey())
         tags_content_layout.addWidget(self.reminds_me_of_input)
         self.tags_panel_toggle.toggled.connect(
@@ -31365,6 +31367,44 @@ class MainWindow(QMainWindow):
     def _on_search_tag_mode_changed(self, _tag_name: str) -> None:
         self._on_filter_changed()
 
+    def _update_reminds_me_of_completer(self) -> None:
+        """Refresh Chart View's Reminds Me Of autocomplete choices."""
+        line_edit = getattr(self, "reminds_me_of_input", None)
+        if not isinstance(line_edit, QLineEdit):
+            return
+
+        current_chart_id = getattr(self, "current_chart_id", None)
+        current_chart_id = int(current_chart_id) if current_chart_id is not None else None
+        chart_rows = list_charts()
+        chart_uids = get_chart_uid_map(row[0] for row in chart_rows)
+        display_names = get_chart_display_name_map(row[0] for row in chart_rows)
+
+        choices: list[str] = []
+        seen: set[str] = set()
+        for row in chart_rows:
+            chart_id = int(row[0])
+            if current_chart_id is not None and chart_id == current_chart_id:
+                continue
+            for raw_choice in (
+                display_names.get(chart_id),
+                row[2],
+                chart_uids.get(chart_id),
+                f"Chart #{chart_id}",
+            ):
+                choice = str(raw_choice or "").strip()
+                if not choice:
+                    continue
+                choice_key = choice.casefold()
+                if choice_key in seen:
+                    continue
+                choices.append(choice)
+                seen.add(choice_key)
+
+        completer = QCompleter(choices, line_edit)
+        completer.setCaseSensitivity(Qt.CaseInsensitive)
+        completer.setFilterMode(Qt.MatchContains)
+        line_edit.setCompleter(completer)
+
     def _update_tag_completers(self) -> None:
         sorted_tags = list_recognized_tags()
         self._known_chart_tags = sorted_tags
@@ -31374,6 +31414,7 @@ class MainWindow(QMainWindow):
             apply_tag_completer(self.search_tags_input, sorted_tags)
         if hasattr(self, "batch_tags_input"):
             apply_tag_completer(self.batch_tags_input, sorted_tags)
+        self._update_reminds_me_of_completer()
         self._update_location_completers()
         refresh_search_tags_list = getattr(self, "_refresh_search_tags_list", None)
         if callable(refresh_search_tags_list):
@@ -32060,6 +32101,7 @@ class MainWindow(QMainWindow):
             getattr(chart, "relationship_types", []),
         )
         self._set_chart_tags_state(normalize_tag_list(getattr(chart, "tags", [])))
+        self._update_reminds_me_of_completer()
         self.reminds_me_of_input.setText(
             get_chart_display_name_by_uid(getattr(chart, "reminds_me_of", None))
         )
