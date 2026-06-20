@@ -3429,30 +3429,6 @@ def find_chart_uid_by_name(name: str | None, *, exclude_chart_id: int | None = N
             if row and row[0]:
                 return str(row[0])
 
-        query_chart_id = None
-        lowered_query = query.casefold()
-        if lowered_query.startswith("chart #"):
-            query_chart_id_text = query[7:].strip()
-        elif lowered_query.startswith("chart#"):
-            query_chart_id_text = query[6:].strip()
-        else:
-            query_chart_id_text = ""
-        if query_chart_id_text.isdigit():
-            query_chart_id = int(query_chart_id_text)
-        if query_chart_id is not None:
-            row = conn.execute(
-                """
-                SELECT chart_uid
-                FROM charts
-                WHERE id = ?
-                  AND (? IS NULL OR id != ?)
-                LIMIT 1
-                """,
-                (query_chart_id, exclude_chart_id, exclude_chart_id),
-            ).fetchone()
-            if row and row[0]:
-                return str(row[0])
-
         rows = conn.execute(
             """
             SELECT id, chart_uid, name, alias

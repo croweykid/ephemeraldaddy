@@ -31401,7 +31401,6 @@ class MainWindow(QMainWindow):
                 display_names.get(chart_id),
                 row[2],
                 chart_uids.get(chart_id),
-                f"Chart #{chart_id}",
             ):
                 choice = str(raw_choice or "").strip()
                 if not choice:
