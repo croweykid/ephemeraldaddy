@@ -7,8 +7,8 @@ import urllib.parse
 from collections import Counter
 from typing import Callable
 
-from PySide6.QtCore import QRect, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QKeySequence, QLinearGradient, QPainter, QShortcut
+from PySide6.QtCore import QEvent, QRect, Qt, Signal
+from PySide6.QtGui import QColor, QDragEnterEvent, QDropEvent, QFont, QKeySequence, QLinearGradient, QPainter, QShortcut
 from PySide6.QtWidgets import (
     QAbstractButton,
     QApplication,
@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QLabel,
     #QLayout,
     QLineEdit,
+    QListWidget,
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
@@ -28,11 +29,13 @@ from PySide6.QtWidgets import (
     QStyle,
     QStyleOptionSlider,
     QTextEdit,
+    QFileDialog,
     QVBoxLayout,
     QWidget,
 )
 
 from ephemeraldaddy.core.chart import Chart, apply_unknown_sign_metadata
+from ephemeraldaddy.core.photo_gallery import add_photo_file, add_photo_url, chart_uid_for_chart_id, list_photos
 from ephemeraldaddy.gui.features.charts.presentation import sign_for_longitude
 from ephemeraldaddy.core.ephemeris import planetary_positions
 from ephemeraldaddy.core.interpretations import (
@@ -70,6 +73,38 @@ CHART_INFO_PANEL_CONTENT_ATTRS: dict[str, str] = {
     "biography": "biography_edit",
     "source": "source_edit",
 }
+
+
+class _PhotoDropTextEdit(QTextEdit):
+    """Drop target for importing multiple local image files into a chart gallery."""
+
+    def __init__(self, owner: QWidget, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._owner = owner
+        self.setAcceptDrops(True)
+        self.setReadOnly(True)
+        self.setMinimumHeight(72)
+        self.setPlaceholderText("Drag and drop one or more image files here")
+
+    def dragEnterEvent(self, event: QDragEnterEvent) -> None:
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+            return
+        super().dragEnterEvent(event)
+
+    def dragMoveEvent(self, event: QDragEnterEvent) -> None:
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+            return
+        super().dragMoveEvent(event)
+
+    def dropEvent(self, event: QDropEvent) -> None:
+        paths = [url.toLocalFile() for url in event.mimeData().urls() if url.isLocalFile()]
+        if paths:
+            self._owner._add_photo_gallery_files(paths)
+            event.acceptProposedAction()
+            return
+        super().dropEvent(event)
 
 
 class _SentimentEdgeSlider(QSlider):
@@ -863,12 +898,16 @@ def _build_material_facts_panel(owner: QWidget) -> QWidget:
     layout.addWidget(help_label)
 
     field_specs = (
-        ("material_facts_photos_edit", "Photos", "Photo URLs/notes (one per line)"),
         ("material_facts_addresses_edit", "Addresses", "Addresses (one per line)"),
         ("material_facts_emails_edit", "Emails", "Email addresses (one per line)"),
         ("material_facts_websites_edit", "Websites", "Websites/social links (one per line)"),
         ("material_facts_phone_numbers_edit", "Phone numbers", "Phone numbers (one per line)"),
     )
+
+    def _fit_editor_to_text(editor: QTextEdit) -> None:
+        document_height = int(editor.document().size().height() + editor.frameWidth() * 2 + 8)
+        editor.setFixedHeight(max(editor.minimumHeight(), min(editor.maximumHeight(), document_height)))
+
     for attr_name, label_text, placeholder in field_specs:
         label = QLabel(label_text)
         label.setStyleSheet("color: #f5f5f5;")
@@ -876,24 +915,14 @@ def _build_material_facts_panel(owner: QWidget) -> QWidget:
         editor = QTextEdit()
         editor.setAcceptRichText(False)
         editor.setPlaceholderText(placeholder)
-        editor.setMinimumHeight(56)
+        line_height = editor.fontMetrics().lineSpacing() + 14
+        editor.setMinimumHeight(line_height)
+        editor.setMaximumHeight(56)
         editor.textChanged.connect(owner._mark_lucygoosey)
+        editor.textChanged.connect(lambda editor=editor: _fit_editor_to_text(editor))
         setattr(owner, attr_name, editor)
         layout.addWidget(editor)
-
-    image_label = QLabel("Profile images")
-    image_label.setStyleSheet("color: #f5f5f5;")
-    layout.addWidget(image_label)
-    owner.material_facts_images_edit = QTextEdit()
-    owner.material_facts_images_edit.setAcceptRichText(False)
-    owner.material_facts_images_edit.setPlaceholderText("Image paths/URLs (stubbed; picker will be enabled later)")
-    owner.material_facts_images_edit.setMinimumHeight(56)
-    owner.material_facts_images_edit.textChanged.connect(owner._mark_lucygoosey)
-    layout.addWidget(owner.material_facts_images_edit)
-    owner.material_facts_add_image_button = QPushButton("🖼️ Add image (stub)")
-    owner.material_facts_add_image_button.setEnabled(False)
-    owner.material_facts_add_image_button.setToolTip("Image input is reserved for a later active picker/import flow.")
-    layout.addWidget(owner.material_facts_add_image_button)
+        _fit_editor_to_text(editor)
     layout.addStretch(1)
     return panel
 
@@ -991,6 +1020,49 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     layout.addStretch(1)
     return panel
 
+def _build_photo_gallery_panel(owner: QWidget) -> QWidget:
+    """Build Photo Gallery panel for chart-linked photo imports."""
+    panel = QWidget()
+    layout = QVBoxLayout()
+    layout.setContentsMargins(6, 6, 6, 6)
+    layout.setSpacing(8)
+    layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+    panel.setLayout(layout)
+
+    header = QLabel("Photo Gallery")
+    header.setStyleSheet("font-weight: 700; color: #f5f5f5;")
+    layout.addWidget(header)
+
+    help_label = QLabel("Photos are resized to 96 ppi with a maximum width/height of 600 px and stored in the external photo gallery database linked by chart UID.")
+    help_label.setWordWrap(True)
+    help_label.setStyleSheet("color: #bdbdbd;")
+    layout.addWidget(help_label)
+
+    url_row = QWidget()
+    url_layout = QHBoxLayout()
+    url_layout.setContentsMargins(0, 0, 0, 0)
+    url_row.setLayout(url_layout)
+    owner.photo_gallery_url_edit = QLineEdit()
+    owner.photo_gallery_url_edit.setPlaceholderText("Image URL")
+    owner.photo_gallery_get_button = QPushButton("Get")
+    owner.photo_gallery_get_button.clicked.connect(owner._add_photo_gallery_url)
+    url_layout.addWidget(owner.photo_gallery_url_edit, 1)
+    url_layout.addWidget(owner.photo_gallery_get_button)
+    layout.addWidget(url_row)
+
+    owner.photo_gallery_drop_edit = _PhotoDropTextEdit(owner)
+    layout.addWidget(owner.photo_gallery_drop_edit)
+
+    owner.photo_gallery_add_files_button = QPushButton("Add local photos…")
+    owner.photo_gallery_add_files_button.clicked.connect(owner._choose_photo_gallery_files)
+    layout.addWidget(owner.photo_gallery_add_files_button)
+
+    owner.photo_gallery_list = QListWidget()
+    owner.photo_gallery_list.setMinimumHeight(120)
+    layout.addWidget(owner.photo_gallery_list, 1)
+    return panel
+
+
 def build_chart_view_right_panel(
     owner: QWidget,
     *,
@@ -1031,6 +1103,7 @@ def build_chart_view_right_panel(
 
     subjective_notes_panel, subjective_notes_layout = _build_subjective_notes_panel(owner)
     material_facts_panel = _build_material_facts_panel(owner)
+    photo_gallery_panel = _build_photo_gallery_panel(owner)
 
     predictions_panel = _build_predictions_panel(owner)
 
@@ -1041,10 +1114,12 @@ def build_chart_view_right_panel(
         predictions_content_widget=predictions_panel,
         subjective_notes_content_widget=subjective_notes_panel,
         material_facts_content_widget=material_facts_panel,
+        photo_gallery_content_widget=photo_gallery_panel,
         on_show_analytics=lambda: owner._chart_right_panel_controller.set_active_panel("analytics"),
         on_show_predictions=lambda: owner._chart_right_panel_controller.set_active_panel("predictions"),
         on_show_subjective_notes=lambda: owner._chart_right_panel_controller.set_active_panel("subjective_notes"),
         on_show_material_facts=lambda: owner._chart_right_panel_controller.set_active_panel("material_facts"),
+        on_show_photo_gallery=lambda: owner._chart_right_panel_controller.set_active_panel("photo_gallery"),
         scrollbar_style=scrollbar_style,
     )
     owner.metrics_panel = chart_right_panel.container
@@ -1052,11 +1127,13 @@ def build_chart_view_right_panel(
     owner.predictions_panel_button = chart_right_panel.predictions_button
     owner.subjective_notes_panel_button = chart_right_panel.subjective_notes_button
     owner.material_facts_panel_button = chart_right_panel.material_facts_button
+    owner.photo_gallery_panel_button = chart_right_panel.photo_gallery_button
     owner.chart_right_panel_stack = chart_right_panel.stack
     owner.chart_analytics_panel_scroll = chart_right_panel.analytics_scroll
     owner.predictions_panel_scroll = chart_right_panel.predictions_scroll
     owner.subjective_notes_panel_scroll = chart_right_panel.subjective_notes_scroll
     owner.material_facts_panel_scroll = chart_right_panel.material_facts_scroll
+    owner.photo_gallery_panel_scroll = chart_right_panel.photo_gallery_scroll
 
     owner._main_splitter.addWidget(owner.metrics_panel)
     owner.metrics_scroll = owner.chart_analytics_panel_scroll
@@ -1068,6 +1145,8 @@ def build_chart_view_right_panel(
     owner._register_metric_scroll_widget(subjective_notes_panel)
     owner._register_metric_scroll_widget(owner.material_facts_panel_scroll)
     owner._register_metric_scroll_widget(material_facts_panel)
+    owner._register_metric_scroll_widget(owner.photo_gallery_panel_scroll)
+    owner._register_metric_scroll_widget(photo_gallery_panel)
 
     _build_distinguishing_factors_section(owner, metrics_content, owner.metrics_layout)
     owner._create_chart_analysis_sections(metrics_content)

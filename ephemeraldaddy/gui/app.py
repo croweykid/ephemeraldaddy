@@ -592,9 +592,13 @@ from ephemeraldaddy.graphics.wheel_plot import draw_chart_wheel
 from ephemeraldaddy.graphics._chartwheel_generator_impl import draw_chartwheel
 from ephemeraldaddy.core.material_facts import (
     load_personal_identifiers,
-    load_profile_images,
     save_personal_identifiers,
-    save_profile_images,
+)
+from ephemeraldaddy.core.photo_gallery import (
+    add_photo_file,
+    add_photo_url,
+    chart_uid_for_chart_id,
+    list_photos,
 )
 from ephemeraldaddy.core.db import (
     DB_PATH,
@@ -31424,12 +31428,10 @@ class MainWindow(QMainWindow):
         self._suppress_lucygoosey = True
         try:
             for attr_name in (
-                "material_facts_photos_edit",
                 "material_facts_addresses_edit",
                 "material_facts_emails_edit",
                 "material_facts_websites_edit",
                 "material_facts_phone_numbers_edit",
-                "material_facts_images_edit",
             ):
                 self._set_material_fact_text(attr_name, "")
         finally:
@@ -31439,13 +31441,11 @@ class MainWindow(QMainWindow):
         self._suppress_lucygoosey = True
         try:
             identifiers = load_personal_identifiers(chart_id)
-            images = load_profile_images(chart_id)
-            self._set_material_fact_text("material_facts_photos_edit", identifiers.get("photos", ""))
             self._set_material_fact_text("material_facts_addresses_edit", identifiers.get("addresses", ""))
             self._set_material_fact_text("material_facts_emails_edit", identifiers.get("emails", ""))
             self._set_material_fact_text("material_facts_websites_edit", identifiers.get("websites", ""))
             self._set_material_fact_text("material_facts_phone_numbers_edit", identifiers.get("phone_numbers", ""))
-            self._set_material_fact_text("material_facts_images_edit", images.get("images", ""))
+            self._refresh_photo_gallery_for_chart(chart_id)
         finally:
             self._suppress_lucygoosey = False
 
@@ -31455,17 +31455,87 @@ class MainWindow(QMainWindow):
         save_personal_identifiers(
             int(chart_id),
             {
-                "photos": self._material_fact_text("material_facts_photos_edit"),
                 "addresses": self._material_fact_text("material_facts_addresses_edit"),
                 "emails": self._material_fact_text("material_facts_emails_edit"),
                 "websites": self._material_fact_text("material_facts_websites_edit"),
                 "phone_numbers": self._material_fact_text("material_facts_phone_numbers_edit"),
             },
         )
-        save_profile_images(
-            int(chart_id),
-            {"images": self._material_fact_text("material_facts_images_edit")},
+
+
+    def _ensure_photo_gallery_chart_uid(self) -> str | None:
+        chart_id = self.current_chart_id
+        if chart_id is None:
+            choice = QMessageBox.question(
+                self,
+                "Save chart before adding photos?",
+                "Photo Gallery entries are linked by chart UID. Save this chart before adding photos?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.Yes,
+            )
+            if choice != QMessageBox.Yes:
+                return None
+            self.on_update_chart(show_dialog=False, recalculate_chart=True)
+            chart_id = self.current_chart_id
+        return chart_uid_for_chart_id(chart_id)
+
+    def _refresh_photo_gallery_for_chart(self, chart_id: int | None = None) -> None:
+        widget = getattr(self, "photo_gallery_list", None)
+        if widget is None:
+            return
+        widget.clear()
+        chart_uid = chart_uid_for_chart_id(self.current_chart_id if chart_id is None else chart_id)
+        photos = list_photos(chart_uid)
+        if not photos:
+            widget.addItem("No photos saved for this chart yet.")
+            return
+        for photo in photos:
+            widget.addItem(
+                f"#{photo['id']} · {photo['filename'] or 'photo'} · {photo['width']}×{photo['height']} · {photo['source']}"
+            )
+
+    def _add_photo_gallery_files(self, paths: list[str]) -> None:
+        chart_uid = self._ensure_photo_gallery_chart_uid()
+        if not chart_uid:
+            return
+        added = 0
+        for path in paths:
+            try:
+                add_photo_file(chart_uid, path)
+                added += 1
+            except Exception as exc:
+                QMessageBox.warning(self, "Photo import failed", f"Could not import {path}:\n{exc}")
+        self._refresh_photo_gallery_for_chart()
+        if added:
+            self.statusBar().showMessage(f"Added {added} photo(s) to the chart gallery.", 5000)
+
+    def _choose_photo_gallery_files(self) -> None:
+        paths, _ = QFileDialog.getOpenFileNames(
+            self,
+            "Add photos",
+            "",
+            "Images (*.png *.jpg *.jpeg *.webp *.bmp *.gif *.tif *.tiff);;All files (*)",
         )
+        if paths:
+            self._add_photo_gallery_files(paths)
+
+    def _add_photo_gallery_url(self) -> None:
+        chart_uid = self._ensure_photo_gallery_chart_uid()
+        if not chart_uid:
+            return
+        url_widget = getattr(self, "photo_gallery_url_edit", None)
+        url = url_widget.text().strip() if url_widget is not None else ""
+        if not url:
+            return
+        try:
+            add_photo_url(chart_uid, url)
+        except Exception as exc:
+            QMessageBox.warning(self, "Photo download failed", f"Could not fetch photo from URL:\n{exc}")
+            return
+        if url_widget is not None:
+            url_widget.clear()
+        self._refresh_photo_gallery_for_chart()
+        self.statusBar().showMessage("Added downloaded photo to the chart gallery.", 5000)
 
 
     def on_update_chart(self, show_dialog: bool = True, recalculate_chart: bool = True):
