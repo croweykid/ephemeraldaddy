@@ -2757,12 +2757,12 @@ def load_similar_chart_candidates(
 
 
 
-def format_similar_chart_name_html(
+def format_similar_chart_name_parts_html(
     *,
     chart_name: str,
     subject_uses_houses: bool,
     compared_uses_houses: bool,
-) -> str:
+) -> tuple[str, str]:
     safe_name = html.escape(str(chart_name))
     note_html = ""
     if subject_uses_houses:
@@ -2776,6 +2776,20 @@ def format_similar_chart_name_html(
             ' <span style="font-size: 10px; color: #8f8f8f; font-variant: small-caps;">'
             "(no houses compared)</span>"
         )
+    return safe_name, note_html
+
+
+def format_similar_chart_name_html(
+    *,
+    chart_name: str,
+    subject_uses_houses: bool,
+    compared_uses_houses: bool,
+) -> str:
+    safe_name, note_html = format_similar_chart_name_parts_html(
+        chart_name=chart_name,
+        subject_uses_houses=subject_uses_houses,
+        compared_uses_houses=compared_uses_houses,
+    )
     return f"{safe_name}{note_html}"
 
 
@@ -2805,7 +2819,7 @@ def render_similar_match_blocks(
         first_rank = 1
     blocks: list[str] = []
     for rank, match in enumerate(matches, start=first_rank):
-        display_name = format_similar_chart_name_html(
+        display_name, display_note = format_similar_chart_name_parts_html(
             chart_name=str(getattr(match, "chart_name", "") or "Unnamed"),
             subject_uses_houses=subject_uses_houses,
             compared_uses_houses=bool(getattr(match, "chart_uses_houses", True)),
@@ -2837,7 +2851,8 @@ def render_similar_match_blocks(
             (
                 f'<span style="font-weight: bold; color: {highlight_color};">{rank}.</span> '
                 f'#{match.chart_id} — <a href="{match.chart_id}">{display_name}</a> '
-                f'<a href="{make_similar_info_target(info_link_prefix=info_link_prefix, chart_id=int(match.chart_id))}">ⓘ</a><br>'
+                f'<a href="{make_similar_info_target(info_link_prefix=info_link_prefix, chart_id=int(match.chart_id))}">ⓘ</a>'
+                f'{display_note}<br>'
                 f'Similarity <span style="color: {band_color}; font-weight: 600;">'
                 f"{similarity_percent:.1f}% ({band_label}{z_score_html})</span>"
                 f"{why_html}"
@@ -3411,6 +3426,36 @@ def build_similar_charts_popout_dialog(
                 _emit_accuracy_change(match, line_edit, na_checkbox)
 
             hidden_widgets: list[QWidget] = []
+            expanded_why_targets: set[str] = set()
+
+            def _render_accuracy_match(label: QLabel, match: Any, rank: int) -> None:
+                label.setText(
+                    render_similar_match_blocks(
+                        matches=[match],
+                        highlight_color=highlight_color,
+                        resolve_similarity_band=resolve_similarity_band,
+                        subject_uses_houses=subject_uses_houses,
+                        info_link_prefix=f"{info_link_prefix}:{panel_key}",
+                        algorithm_mode=algorithm_mode,
+                        similarity_settings=similarity_settings,
+                        similarity_average=similarity_average,
+                        similarity_standard_deviation=similarity_standard_deviation,
+                        start_rank=rank,
+                        expanded_why_targets=expanded_why_targets,
+                    )
+                )
+
+            def _handle_accuracy_link(target: str, label: QLabel, match: Any, rank: int) -> None:
+                normalized_target = str(target or "").strip()
+                if is_similar_why_target(normalized_target):
+                    if normalized_target in expanded_why_targets:
+                        expanded_why_targets.remove(normalized_target)
+                    else:
+                        expanded_why_targets.add(normalized_target)
+                    _render_accuracy_match(label, match, rank)
+                    return
+                on_link_activated(dialog, target)
+
             for rank, match in enumerate(panel_all_matches, start=1):
                 match_widget = QWidget()
                 if rank > visible_count:
@@ -3427,22 +3472,16 @@ def build_similar_charts_popout_dialog(
                 result_label.setWordWrap(True)
                 result_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
                 result_label.setOpenExternalLinks(False)
-                result_label.linkActivated.connect(lambda target: on_link_activated(dialog, target))
-                result_label.setStyleSheet(output_style)
-                result_label.setText(
-                    render_similar_match_blocks(
-                        matches=[match],
-                        highlight_color=highlight_color,
-                        resolve_similarity_band=resolve_similarity_band,
-                        subject_uses_houses=subject_uses_houses,
-                        info_link_prefix=f"{info_link_prefix}:{panel_key}",
-                        algorithm_mode=algorithm_mode,
-                        similarity_settings=similarity_settings,
-                        similarity_average=similarity_average,
-                        similarity_standard_deviation=similarity_standard_deviation,
-                        start_rank=rank,
+                result_label.linkActivated.connect(
+                    lambda target, label=result_label, match=match, rank=rank: _handle_accuracy_link(
+                        target,
+                        label,
+                        match,
+                        rank,
                     )
                 )
+                result_label.setStyleSheet(output_style)
+                _render_accuracy_match(result_label, match, rank)
                 row_layout.addWidget(result_label, 1)
 
                 accuracy_input = QLineEdit()
