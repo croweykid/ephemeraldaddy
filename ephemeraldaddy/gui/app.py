@@ -592,9 +592,7 @@ from ephemeraldaddy.graphics.wheel_plot import draw_chart_wheel
 from ephemeraldaddy.graphics._chartwheel_generator_impl import draw_chartwheel
 from ephemeraldaddy.core.material_facts import (
     load_personal_identifiers,
-    load_profile_images,
     save_personal_identifiers,
-    save_profile_images,
 )
 from ephemeraldaddy.core.db import (
     DB_PATH,
@@ -31762,12 +31760,10 @@ class MainWindow(QMainWindow):
         self._suppress_lucygoosey = True
         try:
             for attr_name in (
-                "material_facts_photos_edit",
                 "material_facts_addresses_edit",
                 "material_facts_emails_edit",
                 "material_facts_websites_edit",
                 "material_facts_phone_numbers_edit",
-                "material_facts_images_edit",
             ):
                 self._set_material_fact_text(attr_name, "")
         finally:
@@ -31777,13 +31773,13 @@ class MainWindow(QMainWindow):
         self._suppress_lucygoosey = True
         try:
             identifiers = load_personal_identifiers(chart_id)
-            images = load_profile_images(chart_id)
-            self._set_material_fact_text("material_facts_photos_edit", identifiers.get("photos", ""))
             self._set_material_fact_text("material_facts_addresses_edit", identifiers.get("addresses", ""))
             self._set_material_fact_text("material_facts_emails_edit", identifiers.get("emails", ""))
             self._set_material_fact_text("material_facts_websites_edit", identifiers.get("websites", ""))
             self._set_material_fact_text("material_facts_phone_numbers_edit", identifiers.get("phone_numbers", ""))
-            self._set_material_fact_text("material_facts_images_edit", images.get("images", ""))
+            refresh_photo_gallery = getattr(self, "_refresh_photo_gallery_for_chart", None)
+            if callable(refresh_photo_gallery):
+                refresh_photo_gallery(chart_id)
         finally:
             self._suppress_lucygoosey = False
 
@@ -31793,16 +31789,11 @@ class MainWindow(QMainWindow):
         save_personal_identifiers(
             int(chart_id),
             {
-                "photos": self._material_fact_text("material_facts_photos_edit"),
                 "addresses": self._material_fact_text("material_facts_addresses_edit"),
                 "emails": self._material_fact_text("material_facts_emails_edit"),
                 "websites": self._material_fact_text("material_facts_websites_edit"),
                 "phone_numbers": self._material_fact_text("material_facts_phone_numbers_edit"),
             },
-        )
-        save_profile_images(
-            int(chart_id),
-            {"images": self._material_fact_text("material_facts_images_edit")},
         )
 
 
