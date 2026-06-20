@@ -1016,8 +1016,10 @@ from ephemeraldaddy.gui.features.charts.similar_charts_popout import (
     format_similar_chart_name_html,
     format_similarity_component_summary,
     is_similar_info_target,
+    is_similar_why_target,
     load_similar_chart_candidates,
     make_similar_info_target,
+    make_similar_why_target,
     map_similar_info_targets,
     OperationCanceled,
     raise_if_progress_canceled,
@@ -23443,6 +23445,10 @@ class MainWindow(QMainWindow):
         self._similar_charts_export_rows: list[dict[str, Any]] = []
         self._similar_charts_subject_name: str = ""
         self._similar_charts_reasoning_by_target: dict[str, Any] = {}
+        self._similar_charts_expanded_why_targets: set[str] = set()
+        self._similar_charts_current_matches: list[Any] = []
+        self._similar_charts_current_chart: Chart | None = None
+        self._similar_charts_current_algorithm_mode: str = SIMILAR_CHARTS_ALGORITHM_DEFAULT
         self._similar_charts_popout_dialogs: list[QDialog] = []
         self._similar_charts_popout_cache: OrderedDict[tuple[str, str, str, str], dict[str, Any]] = OrderedDict()
         self._similar_charts_request_id: str | None = None
@@ -24952,6 +24958,18 @@ class MainWindow(QMainWindow):
         transition_to_chart_view: bool = False,
     ) -> None:
         normalized_target = str(target or "").strip()
+        if is_similar_why_target(normalized_target):
+            if normalized_target in self._similar_charts_expanded_why_targets:
+                self._similar_charts_expanded_why_targets.remove(normalized_target)
+            else:
+                self._similar_charts_expanded_why_targets.add(normalized_target)
+            if self._similar_charts_current_chart is not None and self._similar_charts_current_matches:
+                self._populate_similar_charts_panel(
+                    chart=self._similar_charts_current_chart,
+                    matches=self._similar_charts_current_matches,
+                    algorithm_mode=self._similar_charts_current_algorithm_mode,
+                )
+            return
         if is_similar_info_target(normalized_target):
             self._show_similar_chart_reasoning(normalized_target)
             return
@@ -25446,6 +25464,9 @@ class MainWindow(QMainWindow):
         if self._similar_charts_list_label is None:
             return
         self._similar_charts_reasoning_by_target = {}
+        self._similar_charts_expanded_why_targets = set()
+        self._similar_charts_current_matches = []
+        self._similar_charts_current_chart = None
         if _chart_is_placeholder(chart):
             self._similar_charts_request_id = None
             self._similar_charts_export_rows = []
@@ -25650,6 +25671,9 @@ class MainWindow(QMainWindow):
         if self._similar_charts_list_label is None:
             return
         self._similar_charts_subject_name = str(getattr(chart, "name", "") or "Current chart").strip()
+        self._similar_charts_current_matches = list(matches)
+        self._similar_charts_current_chart = chart
+        self._similar_charts_current_algorithm_mode = algorithm_mode
         self._similar_charts_export_rows = []
         if self._similar_charts_export_button is not None:
             self._similar_charts_export_button.setEnabled(True)
@@ -25671,6 +25695,17 @@ class MainWindow(QMainWindow):
                 match=match,
                 component_keys=component_keys,
             )
+            why_target = make_similar_why_target(
+                info_link_prefix="sim-info:panel",
+                chart_id=int(match.chart_id),
+            )
+            why_expanded = why_target in self._similar_charts_expanded_why_targets
+            why_html = (
+                f' - <a href="{why_target}" style="color: #ffffff; text-decoration: none;">why?</a>'
+                f' <span style="font-weight: 400; color: {CHART_DATA_HIGHLIGHT_COLOR};">why: ({component_summary})</span>'
+                if why_expanded
+                else f' - <a href="{why_target}" style="color: #ffffff; text-decoration: none;">why?</a>'
+            )
             z_score = similarity_z_score(
                 similarity_percent,
                 similarity_average,
@@ -25689,9 +25724,7 @@ class MainWindow(QMainWindow):
                     f'Similarity <span style="color: {band_color}; font-weight: 600;">'
                     f"{similarity_percent:.1f}% ({band_label}{z_score_html})"
                     f"</span>"
-                    f' <span style="font-weight: 400; color: {CHART_DATA_HIGHLIGHT_COLOR};">'
-                    f"({component_summary})"
-                    "</span>"
+                    f"{why_html}"
                 )
             )
             self._similar_charts_export_rows.append(
