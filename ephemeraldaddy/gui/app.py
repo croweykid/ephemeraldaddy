@@ -607,6 +607,8 @@ from ephemeraldaddy.core.db import (
     find_chart_uid_by_name,
     get_chart_display_name_map,
     get_chart_display_name_by_uid,
+    parse_reminds_me_of_uids,
+    serialize_reminds_me_of_uids,
     delete_charts,
     invalidate_all_dominant_weight_caches,
     update_chart,
@@ -19525,8 +19527,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     #source_value = getattr(chart, "source", None)
                     #gender_value = getattr(chart, "gender", None)
                 from_whence_value = getattr(chart, "from_whence", None)
-                reminds_me_of_value = get_chart_display_name_by_uid(
-                    getattr(chart, "reminds_me_of", None)
+                reminds_me_of_value = " ".join(
+                    get_chart_display_name_by_uid(chart_uid)
+                    for chart_uid in parse_reminds_me_of_uids(getattr(chart, "reminds_me_of", None))
                 )
             if not (
                 matches(name_value)
@@ -24019,11 +24022,27 @@ class MainWindow(QMainWindow):
         self.reminds_me_of_input.setPlaceholderText("Existing chart name, alias, or ID")
         self.reminds_me_of_input.setToolTip(
             "Enter an existing chart name, alias, or Chart ID. "
-            "EphemeralDaddy stores that chart's stable ID so later renames still work."
+            "EphemeralDaddy stores each added chart's stable ID so later renames still work."
         )
         self._update_reminds_me_of_completer()
-        self.reminds_me_of_input.textChanged.connect(lambda *_: self._mark_lucygoosey())
-        tags_content_layout.addWidget(self.reminds_me_of_input)
+        self.reminds_me_of_input.returnPressed.connect(self._on_reminds_me_of_add)
+        reminds_me_of_row = QHBoxLayout()
+        reminds_me_of_row.setContentsMargins(0, 0, 0, 0)
+        reminds_me_of_row.setSpacing(6)
+        reminds_me_of_row.addWidget(self.reminds_me_of_input, 1)
+        self.reminds_me_of_add_button = QPushButton("Add")
+        self.reminds_me_of_add_button.clicked.connect(self._on_reminds_me_of_add)
+        reminds_me_of_row.addWidget(self.reminds_me_of_add_button, 0)
+        tags_content_layout.addLayout(reminds_me_of_row)
+        self.reminds_me_of_selection_label = QLabel()
+        self.reminds_me_of_selection_label.setWordWrap(True)
+        self.reminds_me_of_selection_label.setTextFormat(Qt.RichText)
+        self.reminds_me_of_selection_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
+        self.reminds_me_of_selection_label.setCursor(Qt.PointingHandCursor)
+        self.reminds_me_of_selection_label.linkActivated.connect(self._on_reminds_me_of_remove_link_clicked)
+        tags_content_layout.addWidget(self.reminds_me_of_selection_label)
+        self._reminds_me_of_current = []
+        self._render_reminds_me_of_selection()
         self.tags_panel_toggle.toggled.connect(
             lambda expanded: self._toggle_chart_panel_content(
                 self.tags_panel_toggle,
@@ -30409,7 +30428,7 @@ class MainWindow(QMainWindow):
         self._set_sentiment_selection([])
         self._set_relationship_type_selection([])
         self._set_chart_tags_state([])
-        self.reminds_me_of_input.setText("")
+        self._set_reminds_me_of_state([])
         self.positive_sentiment_intensity_spin.setValue(0)
         self.negative_sentiment_intensity_spin.setValue(0)
         self.familiarity_spin.setValue(1)
@@ -30984,10 +31003,9 @@ class MainWindow(QMainWindow):
         placeholder.sentiments = list(self._selected_sentiments()) if hasattr(self, "_selected_sentiments") else []
         placeholder.relationship_types = list(self._selected_relationship_types()) if hasattr(self, "_selected_relationship_types") else []
         placeholder.tags = get_chart_view_tags(self)
-        placeholder.reminds_me_of = find_chart_uid_by_name(
-            self.reminds_me_of_input.text(),
-            exclude_chart_id=self.current_chart_id,
-        ) or ""
+        placeholder.reminds_me_of = serialize_reminds_me_of_uids(
+            getattr(self, "_reminds_me_of_current", [])
+        )
         placeholder.comments = self.comments_edit.toPlainText().strip()
         placeholder.rectification_notes = self.rectification_edit.toPlainText().strip()
         placeholder.biography = self.biography_edit.toPlainText().strip()
@@ -31154,13 +31172,7 @@ class MainWindow(QMainWindow):
             chart.reminds_me_of = (
                 ""
                 if is_event_chart
-                else (
-                    find_chart_uid_by_name(
-                        self.reminds_me_of_input.text(),
-                        exclude_chart_id=self.current_chart_id,
-                    )
-                    or ""
-                )
+                else serialize_reminds_me_of_uids(getattr(self, "_reminds_me_of_current", []))
             )
         if hasattr(chart, "positive_sentiment_intensity"):
             chart.positive_sentiment_intensity = 0 if is_event_chart else self.positive_sentiment_intensity_spin.value()
@@ -31403,7 +31415,79 @@ class MainWindow(QMainWindow):
         completer = QCompleter(choices, line_edit)
         completer.setCaseSensitivity(Qt.CaseInsensitive)
         completer.setFilterMode(Qt.MatchContains)
+        # Keep keyboard focus anchored in the text field while suggestions are shown.
+        completer.popup().setFocusPolicy(Qt.NoFocus)
         line_edit.setCompleter(completer)
+        line_edit._reminds_me_of_completer = completer
+
+    def _render_reminds_me_of_selection(self) -> None:
+        label = getattr(self, "reminds_me_of_selection_label", None)
+        if not isinstance(label, QLabel):
+            return
+        current_uids = parse_reminds_me_of_uids(getattr(self, "_reminds_me_of_current", []))
+        if not current_uids:
+            label.setText("<span style='color:#8d8d8d;'>No related charts yet.</span>")
+            return
+        chips: list[str] = []
+        for chart_uid in current_uids:
+            display_name = get_chart_display_name_by_uid(chart_uid) or chart_uid
+            encoded_uid = urllib.parse.quote(chart_uid, safe="")
+            chips.append(
+                "<span style='display:inline-block;"
+                "white-space:nowrap;"
+                "background:#d9d9d9;color:#222;border:1px solid #bdbdbd;"
+                "border-radius:8px;padding:1px 6px;margin:2px 4px 2px 0;'>"
+                f"{html.escape(display_name)}"
+                f"<a href='remove_reminds_me_of:{encoded_uid}' style='display:inline-block;margin-left:4px;color:#ff6f6f;text-decoration:none;font-weight:700;'>&times;</a>"
+                "</span>"
+            )
+        label.setText(" ".join(chips))
+
+    def _set_reminds_me_of_state(self, chart_uids: list[str]) -> None:
+        self._reminds_me_of_current = parse_reminds_me_of_uids(chart_uids)
+        line_edit = getattr(self, "reminds_me_of_input", None)
+        if isinstance(line_edit, QLineEdit):
+            line_edit.blockSignals(True)
+            line_edit.setText("")
+            line_edit.blockSignals(False)
+        self._render_reminds_me_of_selection()
+
+    def _on_reminds_me_of_add(self) -> None:
+        line_edit = getattr(self, "reminds_me_of_input", None)
+        if not isinstance(line_edit, QLineEdit):
+            return
+        chart_uid = find_chart_uid_by_name(
+            line_edit.text(),
+            exclude_chart_id=getattr(self, "current_chart_id", None),
+        )
+        if not chart_uid:
+            if line_edit.text().strip():
+                QMessageBox.information(
+                    self,
+                    "Chart not found",
+                    "Choose an existing chart name, alias, or Chart ID from autocomplete before adding it.",
+                )
+            return
+        current_uids = parse_reminds_me_of_uids(getattr(self, "_reminds_me_of_current", []))
+        if chart_uid not in current_uids:
+            self._reminds_me_of_current = [*current_uids, chart_uid]
+            self._render_reminds_me_of_selection()
+            self._mark_lucygoosey()
+        line_edit.setText("")
+
+    def _on_reminds_me_of_remove_link_clicked(self, link: str) -> None:
+        prefix = "remove_reminds_me_of:"
+        if not link.startswith(prefix):
+            return
+        chart_uid = urllib.parse.unquote(link[len(prefix):]).strip().upper()
+        if not chart_uid:
+            return
+        self._reminds_me_of_current = [
+            uid for uid in parse_reminds_me_of_uids(getattr(self, "_reminds_me_of_current", []))
+            if uid != chart_uid
+        ]
+        self._render_reminds_me_of_selection()
+        self._mark_lucygoosey()
 
     def _update_tag_completers(self) -> None:
         sorted_tags = list_recognized_tags()
@@ -31786,7 +31870,7 @@ class MainWindow(QMainWindow):
         self._set_sentiment_selection([])
         self._set_relationship_type_selection([])
         self._set_chart_tags_state([])
-        self.reminds_me_of_input.clear()
+        self._set_reminds_me_of_state([])
         self.comments_edit.clear()
         self.rectification_edit.clear()
         self._clear_material_facts_fields()
@@ -32102,9 +32186,7 @@ class MainWindow(QMainWindow):
         )
         self._set_chart_tags_state(normalize_tag_list(getattr(chart, "tags", [])))
         self._update_reminds_me_of_completer()
-        self.reminds_me_of_input.setText(
-            get_chart_display_name_by_uid(getattr(chart, "reminds_me_of", None))
-        )
+        self._set_reminds_me_of_state(parse_reminds_me_of_uids(getattr(chart, "reminds_me_of", None)))
         self.comments_edit.setPlainText(getattr(chart, "comments", "") or "")
         self.rectification_edit.setPlainText(getattr(chart, "rectification_notes", "") or "")
         self.biography_edit.setPlainText(getattr(chart, "biography", "") or "")
