@@ -30465,7 +30465,7 @@ class MainWindow(QMainWindow):
     def _sync_chart_right_panel_placeholder_state(self, chart: Chart | None) -> None:
         controller = getattr(self, "_chart_right_panel_controller", None)
         if controller is not None:
-            controller.sync_placeholder_state(chart)
+            controller.set_chart(chart)
             return
         sync_chart_right_panel_placeholder_state(self, chart)
 
