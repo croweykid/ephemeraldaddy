@@ -775,8 +775,8 @@ from ephemeraldaddy.gui.features.charts.search_text import (
     database_search_text_matches,
 )
 
-from ephemeraldaddy.gui.features.charts.database_analytics import DatabaseAnalyticsChartsMixin
-from ephemeraldaddy.gui.features.charts.db_analytics_panel import (
+from ephemeraldaddy.gui.features.charts.database_analytics import (
+    DatabaseAnalyticsChartsMixin,
     apply_decan_snapshot_delta,
     apply_nakshatra_snapshot_delta,
     decans_dropdown_options,
