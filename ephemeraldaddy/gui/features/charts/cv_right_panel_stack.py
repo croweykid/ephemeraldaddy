@@ -168,9 +168,12 @@ def build_chart_right_panel_stack(
     subjective_notes_button = QPushButton("💭")
     subjective_notes_button.setObjectName("chart_view_toggle_subjective_notes_panel_button")
     subjective_notes_button.clicked.connect(on_show_subjective_notes)
-    material_facts_button = QPushButton("🖼️")
+    material_facts_button = QPushButton("🗒️")
     material_facts_button.setObjectName("chart_view_toggle_material_facts_panel_button")
     material_facts_button.clicked.connect(on_show_material_facts)
+    material_facts_button = QPushButton("🖼️")
+    material_facts_button.setObjectName("chart_view_toggle_photo_gallery_panel_button")
+    material_facts_button.clicked.connect(on_show_photo_gallery)
 
     for control_button in (analytics_button, predictions_button, subjective_notes_button, material_facts_button):
         control_button.setCheckable(True)
