@@ -1036,8 +1036,8 @@ from ephemeraldaddy.gui.features.charts.db_info_panel import (
 from ephemeraldaddy.gui.features.charts.similarities_db_norm import (
     similarity_delta_rgb,
 )
+from ephemeraldaddy.gui.features.charts.similarities import SimilaritiesController
 from ephemeraldaddy.gui.features.charts.similarities_analysis import (
-    SimilaritiesDbBaselineCache,
     build_dissimilarity_export_sections,
     build_similarity_db_baselines,
     calculate_pair_similarity_result,
@@ -2335,18 +2335,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_metrics_chart_layouts: dict[str, QVBoxLayout] = {}
         self._database_analytics_popout_dialogs: list[QDialog] = []
         self._database_metrics_section_widgets: dict[str, QWidget] = {}
-        self._similarities_export_sections: list[
-            tuple[str, list[tuple[Any, ...]]]
-        ] = []
-        self._similarities_pair_button: QPushButton | None = None
-        self._dissimilarities_pair_button: QPushButton | None = None
-        self._similarities_pair_result_label: QLabel | None = None
-        self._similarities_chart_lookup: dict[str, int] = {}
-        self._similarities_first_chart_input: QLineEdit | None = None
-        self._similarities_second_chart_input: QLineEdit | None = None
-        self._similarities_first_use_checkbox: QCheckBox | None = None
-        self._similarities_second_use_checkbox: QCheckBox | None = None
-        self._similarities_db_baseline_cache = SimilaritiesDbBaselineCache()
+        self.similarities_controller = SimilaritiesController(self)
+        self.similarities_controller.install_legacy_attributes()
         self._sign_distribution_mode = "Sun"
         self._prevalence_mode = "sign_prevalence"
         self._dominant_factors_mode = "top3_signs"
@@ -2615,9 +2605,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.todays_transits_panel_scroll = self._wrap_left_panel(
             self.todays_transits_panel
         )
-        self.similarities_analysis_panel = self._build_similarities_analysis_panel()
+        self.similarities_analysis_panel = self.similarities_controller.build_panel(
+            self._build_similarities_analysis_panel_contents
+        )
         self.similarities_analysis_panel_scroll = self._wrap_left_panel(
             self.similarities_analysis_panel
+        )
+        self.similarities_controller.set_panel_scroll(
+            self.similarities_analysis_panel_scroll
         )
         self.left_panel_stack = QStackedWidget()
         self.left_panel_stack.setMinimumWidth(0)
@@ -6894,6 +6889,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
 
     def _build_similarities_analysis_panel(self) -> QWidget:
+        return self.similarities_controller.build_panel(
+            self._build_similarities_analysis_panel_contents
+        )
+
+    def _build_similarities_analysis_panel_contents(self) -> QWidget:
         panel = QWidget()
         panel.setMinimumWidth(260)
         panel.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
@@ -7167,61 +7167,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         return panel
 
     def _set_similarities_db_info_panel_visible(self, visible: bool) -> None:
-        info_panel = getattr(self, "similarities_db_info_panel", None)
-        if info_panel is None:
-            return
-        info_panel.setVisible(bool(visible))
-        if not visible:
-            return
-        self._stabilize_left_scroll_panel_layout(self.similarities_analysis_panel_scroll)
-        scrollbar = self.similarities_analysis_panel_scroll.verticalScrollBar()
-        if scrollbar is not None:
-            QTimer.singleShot(0, lambda sb=scrollbar: sb.setValue(sb.maximum()))
-            QTimer.singleShot(120, lambda sb=scrollbar: sb.setValue(sb.maximum()))
+        self.similarities_controller.set_db_info_panel_visible(visible)
 
     def _toggle_similarities_db_info_panel(self) -> None:
-        info_panel = getattr(self, "similarities_db_info_panel", None)
-        if info_panel is None:
-            return
-        self._set_similarities_db_info_panel_visible(not info_panel.isVisible())
+        self.similarities_controller.toggle_db_info_panel()
 
     def _handle_similarity_info_target_requested(self, target: str) -> None:
-        info_panel = getattr(self, "similarities_db_info_panel", None)
-        if info_panel is None:
-            return
-        normalized_target = str(target or "").strip().lower()
-        if not normalized_target:
-            return
-        self._set_similarities_db_info_panel_visible(True)
-        target_output = info_panel.output
-
-        def _render_target() -> None:
-            if normalized_target.startswith("gate:"):
-                gate_text = normalized_target.split(":", 1)[1]
-                if gate_text.isdigit():
-                    gate_number = int(gate_text)
-                    if not self._invoke_db_info_renderer(
-                        "_show_human_design_gate_line_info",
-                        target_output,
-                        gate_number,
-                        None,
-                    ):
-                        self._render_db_gate_info_fallback(target_output, gate_number)
-                    return
-            if normalized_target.startswith("house:"):
-                house_text = normalized_target.split(":", 1)[1]
-                if house_text.isdigit():
-                    house_number = int(house_text)
-                    if not self._invoke_db_info_renderer(
-                        "_show_house_keyword_info",
-                        target_output,
-                        house_number,
-                    ):
-                        self._render_db_house_info_fallback(target_output, house_number)
-                    return
-            target_output.setPlainText("No DB info renderer is available for this item yet.")
-
-        self._run_with_chart_info_output(target_output, _render_target)
+        self.similarities_controller.handle_info_target_requested(target)
 
     def _run_with_chart_info_output(
         self,
