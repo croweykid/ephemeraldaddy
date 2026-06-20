@@ -185,7 +185,7 @@ def build_chart_right_panel_stack(
     time_sensitivity_button.clicked.connect(on_show_time_sensitivity)
     photo_gallery_button = QPushButton("🖼️")
     photo_gallery_button.setObjectName("chart_view_toggle_photo_gallery_panel_button")
-    photo_gallery_button.clicked.connect(lambda: None)
+    photo_gallery_button.clicked.connect(on_show_photo_gallery)
 
     for control_button in (analytics_button, predictions_button, subjective_notes_button, material_facts_button, photo_gallery_button, time_sensitivity_button):
         control_button.setCheckable(True)

@@ -174,3 +174,9 @@ def test_batch_metadata_refresh_does_not_dirty_right_panel_sections():
 
     assert "sections={\"summary\"}" in method
     assert "_mark_chart_analytics_sections_lucy_goosey" not in method
+
+def test_photo_gallery_button_activates_photo_gallery_panel():
+    source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/cv_right_panel_stack.py").read_text()
+
+    assert "photo_gallery_button.clicked.connect(on_show_photo_gallery)" in source
+    assert "photo_gallery_button.clicked.connect(lambda: None)" not in source
