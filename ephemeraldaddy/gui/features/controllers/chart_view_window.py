@@ -1038,8 +1038,13 @@ def _build_material_facts_panel(owner: QWidget) -> QWidget:
     )
 
     def _fit_editor_to_text(editor: QTextEdit) -> None:
+        min_height = int(editor.property("materialFactsMinimumHeight") or editor.minimumHeight())
+        max_height = int(editor.property("materialFactsMaximumHeight") or editor.maximumHeight())
         document_height = int(editor.document().size().height() + editor.frameWidth() * 2 + 8)
-        editor.setFixedHeight(max(editor.minimumHeight(), min(editor.maximumHeight(), document_height)))
+        target_height = max(min_height, min(max_height, document_height))
+        editor.setMinimumHeight(target_height)
+        editor.setMaximumHeight(max_height)
+        editor.updateGeometry()
 
     for attr_name, label_text, placeholder in field_specs:
         label = QLabel(label_text)
@@ -1049,6 +1054,8 @@ def _build_material_facts_panel(owner: QWidget) -> QWidget:
         editor.setAcceptRichText(False)
         editor.setPlaceholderText(placeholder)
         line_height = editor.fontMetrics().lineSpacing() + 14
+        editor.setProperty("materialFactsMinimumHeight", line_height)
+        editor.setProperty("materialFactsMaximumHeight", 56)
         editor.setMinimumHeight(line_height)
         editor.setMaximumHeight(56)
         editor.textChanged.connect(owner._mark_lucygoosey)
