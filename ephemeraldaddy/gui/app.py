@@ -494,6 +494,7 @@ from ephemeraldaddy.gui.features.controllers.db_info import (
     add_database_info_settings_section,
 )
 from ephemeraldaddy.gui.features.transits import TransitPanelController
+from ephemeraldaddy.gui.features.transits.export import build_transit_chart_export_text
 from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import (
     apply_mode_pick_metadata,
     format_mode_popout_info_html,
@@ -1042,7 +1043,6 @@ from ephemeraldaddy.gui.features.charts.similarities_analysis import (
     update_similarities_loading_progress,
 )
 from ephemeraldaddy.gui.features.retcon.transit_window import (
-    TRANSIT_WINDOW_CACHE_LIMIT,
     resolve_transit_window_scan_config,
     resolve_transit_window_scan_config_for_transit_body,
     validate_transit_window_mode_flags,
@@ -5484,37 +5484,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 ),
             ]
 
-            #ojo: is this weird?
         def _window_cache_key(mode: str, hit_obj: Any) -> tuple[object, ...]:
             chart_dt = transit_chart.dt
-            chart_dt_utc = chart_dt.astimezone(datetime.timezone.utc) if chart_dt.tzinfo else chart_dt.replace(tzinfo=datetime.timezone.utc)
-            rules = mode_rules.get(mode, TRANSIT_ASPECT_RULES)
             scan_config = _scan_config_for_hit(hit_obj)
-            return (
-                mode,
-                hit_obj.a.name,
-                hit_obj.aspect,
-                hit_obj.b.name,
-                chart_dt_utc.isoformat(),
-                round(float(transit_location[0]), 4),
-                round(float(transit_location[1]), 4),
-                tuple((asp.name, float(asp.angle_deg), float(asp.orb_deg)) for asp in rules.aspect_types),
-                float(scan_config.scan_step_hours),
-                float(scan_config.scan_precision_minutes),
+            return self.transit_panel_controller.transit_window_cache_key(
+                mode=mode,
+                hit_obj=hit_obj,
+                chart_dt=chart_dt,
+                transit_location=transit_location,
+                mode_rules=mode_rules,
+                scan_config=scan_config,
             )
 
         def _window_cache_get(cache_key: tuple[object, ...]) -> dict[str, object] | None:
-            cached = self._transit_window_result_cache.get(cache_key)
-            if cached is None:
-                return None
-            self._transit_window_result_cache.move_to_end(cache_key)
-            return dict(cached)
+            return self.transit_panel_controller.get_transit_window_cache(cache_key)
 
         def _window_cache_put(cache_key: tuple[object, ...], payload: dict[str, object]) -> None:
-            self._transit_window_result_cache[cache_key] = dict(payload)
-            self._transit_window_result_cache.move_to_end(cache_key)
-            while len(self._transit_window_result_cache) > TRANSIT_WINDOW_CACHE_LIMIT:
-                self._transit_window_result_cache.popitem(last=False)
+            self.transit_panel_controller.put_transit_window_cache(cache_key, payload)
 
         _transit_shutdown_in_progress = False
         _transit_shutdown_callbacks: list[Callable[[], None]] = []
@@ -5880,6 +5866,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 _refresh_summary()
                 return
             if state["resolving"]:
+                self.transit_panel_controller.record_transit_window_inflight_dedupe()
                 return
             hit = state.get("hit")
             mode = str(state.get("mode", PERSONAL_TRANSIT_MODE_LIFE_FORECAST))
@@ -6217,16 +6204,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         def _build_transit_export_text(chart_data_text: str) -> str:
             active_chart = state["chart"]
             assert isinstance(active_chart, Chart)
-            return "\n".join(
-                [
-                    "🌍Transit Chart",
-                    f"Name:       {active_chart.name}",
-                    f"Date:       {state['date_label']}",
-                    f"Time:       {state['time_label']}",
-                    f"Location:   {state['location_label']}, {active_chart.lat:.4f}, {active_chart.lon:.4f}",
-                    "",
-                    chart_data_text,
-                ]
+            return build_transit_chart_export_text(
+                chart=active_chart,
+                date_label=str(state["date_label"]),
+                time_label=str(state["time_label"]),
+                location_label=str(state["location_label"]),
+                chart_data_text=chart_data_text,
             )
 
         summary_share_button = self._attach_popout_share_button(

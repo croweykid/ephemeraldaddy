@@ -1,5 +1,13 @@
-"""Transit View feature controllers."""
+"""Transit View feature helpers and controllers."""
 
-from .controller import TransitPanelController
+from .cache import TransitWindowCache
 
-__all__ = ["TransitPanelController"]
+__all__ = ["TransitPanelController", "TransitWindowCache"]
+
+
+def __getattr__(name: str):
+    if name == "TransitPanelController":
+        from .controller import TransitPanelController
+
+        return TransitPanelController
+    raise AttributeError(name)
