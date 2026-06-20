@@ -18,12 +18,13 @@ from typing import Any, Callable
 from matplotlib import font_manager as mpl_font_manager
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
-from PySide6.QtCore import QPoint, Qt, QTimer
+from PySide6.QtCore import QPoint, QSize, Qt, QTimer
 from PySide6.QtWidgets import (
     QDialog,
     QFileDialog,
     QLabel,
     QLayout,
+    QScrollArea,
     QMessageBox,
     QSizePolicy,
     QTextEdit,
@@ -1358,7 +1359,12 @@ class DatabaseAnalyticsChartsMixin:
             return
         figure = copy.deepcopy(source_canvas.figure)
         self._tag_database_analytics_pick_targets(figure)
-        figure.set_size_inches(9.5, 6.2, forward=True)
+        source_width, source_height = source_canvas.figure.get_size_inches()
+        figure.set_size_inches(
+            max(9.5, float(source_width)),
+            max(6.2, float(source_height)),
+            forward=True,
+        )
         figure.patch.set_facecolor(self._database_analytics_figure_facecolor())
         for ax in figure.axes:
             ax.set_facecolor(self._database_analytics_axes_facecolor())
@@ -1370,14 +1376,25 @@ class DatabaseAnalyticsChartsMixin:
         layout.setContentsMargins(12, 12, 12, 12)
         dialog.setLayout(layout)
         popout_canvas = FigureCanvas(figure)
-        popout_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        canvas_width = max(1, int(figure.get_figwidth() * figure.dpi))
+        canvas_height = max(1, int(figure.get_figheight() * figure.dpi))
+        popout_canvas.setMinimumSize(QSize(canvas_width, canvas_height))
+        popout_canvas.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+
+        chart_scroll = QScrollArea(dialog)
+        chart_scroll.setWidgetResizable(False)
+        chart_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        chart_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        chart_scroll.setWidget(popout_canvas)
+        chart_scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
         info_panel = QTextEdit()
         info_panel.setReadOnly(True)
         info_panel.setPlaceholderText(
             "Click any bar or label to see a plain-English definition."
         )
         info_panel.setMinimumHeight(150)
-        layout.addWidget(popout_canvas, 3)
+        layout.addWidget(chart_scroll, 3)
         layout.addWidget(info_panel, 1)
 
         def _on_pick(event: Any) -> None:
@@ -1588,7 +1605,12 @@ class DatabaseAnalyticsChartsMixin:
             return
         figure = copy.deepcopy(source_canvas.figure)
         self._tag_database_analytics_pick_targets(figure)
-        figure.set_size_inches(9.5, 6.2, forward=True)
+        source_width, source_height = source_canvas.figure.get_size_inches()
+        figure.set_size_inches(
+            max(9.5, float(source_width)),
+            max(6.2, float(source_height)),
+            forward=True,
+        )
         figure.patch.set_facecolor(self._database_analytics_figure_facecolor())
         for ax in figure.axes:
             ax.set_facecolor(self._database_analytics_axes_facecolor())
@@ -1600,14 +1622,25 @@ class DatabaseAnalyticsChartsMixin:
         layout.setContentsMargins(12, 12, 12, 12)
         dialog.setLayout(layout)
         popout_canvas = FigureCanvas(figure)
-        popout_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        canvas_width = max(1, int(figure.get_figwidth() * figure.dpi))
+        canvas_height = max(1, int(figure.get_figheight() * figure.dpi))
+        popout_canvas.setMinimumSize(QSize(canvas_width, canvas_height))
+        popout_canvas.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+
+        chart_scroll = QScrollArea(dialog)
+        chart_scroll.setWidgetResizable(False)
+        chart_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        chart_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        chart_scroll.setWidget(popout_canvas)
+        chart_scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
         info_panel = QTextEdit()
         info_panel.setReadOnly(True)
         info_panel.setPlaceholderText(
             "Click any bar or label to see a plain-English definition."
         )
         info_panel.setMinimumHeight(150)
-        layout.addWidget(popout_canvas, 3)
+        layout.addWidget(chart_scroll, 3)
         layout.addWidget(info_panel, 1)
 
         def _on_pick(event: Any) -> None:

@@ -93,7 +93,14 @@ def open_custom_db_export_dialog(parent: QWidget) -> None:
         checkbox.setChecked(False)
         collection_checkboxes[custom_collection.collection_id] = checkbox
         collections_layout.addWidget(checkbox)
-    layout.addWidget(collections_widget)
+    collections_scroll = QScrollArea(dialog)
+    collections_scroll.setWidgetResizable(True)
+    collections_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+    collections_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+    collections_scroll.setMinimumHeight(96)
+    collections_scroll.setMaximumHeight(180)
+    collections_scroll.setWidget(collections_widget)
+    layout.addWidget(collections_scroll)
 
     helper_label = QLabel(
         "Select which chart properties to include.\n"
