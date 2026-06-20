@@ -295,6 +295,45 @@ def _normalize_chart_uid(value: Any) -> str | None:
     return normalized[:64]
 
 
+def parse_reminds_me_of_uids(value: Any) -> list[str]:
+    """Return stable chart UIDs from a legacy single UID or new JSON list value."""
+    if value is None:
+        return []
+    candidates: list[Any]
+    if isinstance(value, (list, tuple)):
+        candidates = list(value)
+    else:
+        text = str(value or "").strip()
+        if not text:
+            return []
+        try:
+            decoded = json.loads(text)
+        except (TypeError, ValueError):
+            decoded = None
+        if isinstance(decoded, list):
+            candidates = decoded
+        else:
+            candidates = [text]
+
+    normalized_uids: list[str] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        normalized_uid = _normalize_chart_uid(candidate)
+        if normalized_uid is None or normalized_uid in seen:
+            continue
+        normalized_uids.append(normalized_uid)
+        seen.add(normalized_uid)
+    return normalized_uids
+
+
+def serialize_reminds_me_of_uids(uids: Iterable[Any] | None) -> str:
+    """Serialize Reminds Me Of chart UIDs as JSON while keeping values normalized."""
+    normalized_uids = parse_reminds_me_of_uids(uids if isinstance(uids, str) else list(uids or []))
+    if not normalized_uids:
+        return ""
+    return json.dumps(normalized_uids, separators=(",", ":"))
+
+
 def _generate_chart_uid(existing_uids: set[str] | None = None) -> str:
     existing = existing_uids if existing_uids is not None else set()
     while True:
@@ -2247,7 +2286,7 @@ def append_database(source: Path) -> dict[str, Any]:
         source_rows = source_conn.execute("SELECT * FROM charts ORDER BY id ASC").fetchall()
         now_iso = datetime.now(timezone.utc).isoformat(timespec="seconds")
         source_uid_remap: dict[str, str] = {}
-        pending_reminds_me_of_updates: list[tuple[int, str]] = []
+        pending_reminds_me_of_updates: list[tuple[int, list[str]]] = []
 
         with target_conn:
             for row_index, row in enumerate(source_rows, start=1):
@@ -2381,9 +2420,9 @@ def append_database(source: Path) -> dict[str, Any]:
                     or _row_value("source")
                     or CHART_TYPE_PERSONAL
                 )
-                reminds_me_of_uid = _normalize_chart_uid(_row_value("reminds_me_of"))
-                if reminds_me_of_uid is not None:
-                    pending_reminds_me_of_updates.append((new_chart_id, reminds_me_of_uid))
+                reminds_me_of_uids = parse_reminds_me_of_uids(_row_value("reminds_me_of"))
+                if reminds_me_of_uids:
+                    pending_reminds_me_of_updates.append((new_chart_id, reminds_me_of_uids))
 
                 used_utc_fallback = int(_row_value("used_utc_fallback") or 0)
                 if concerns_for_row > 0:
@@ -2434,7 +2473,7 @@ def append_database(source: Path) -> dict[str, Any]:
                         _row_value("sentiments"),
                         _row_value("relationship_types"),
                         _row_value("tags"),
-                        reminds_me_of_uid,
+                        serialize_reminds_me_of_uids(reminds_me_of_uids),
                         _row_value("comments"),
                         _row_value("rectification_notes"),
                         _row_value("biography"),
@@ -2494,11 +2533,15 @@ def append_database(source: Path) -> dict[str, Any]:
                     ),
                 )
                 imported += 1
-            for imported_chart_id, source_reminds_me_of_uid in pending_reminds_me_of_updates:
+            for imported_chart_id, source_reminds_me_of_uids in pending_reminds_me_of_updates:
+                remapped_uids = [
+                    source_uid_remap.get(source_uid, source_uid)
+                    for source_uid in source_reminds_me_of_uids
+                ]
                 target_conn.execute(
                     "UPDATE charts SET reminds_me_of = ? WHERE id = ?",
                     (
-                        source_uid_remap.get(source_reminds_me_of_uid, source_reminds_me_of_uid),
+                        serialize_reminds_me_of_uids(remapped_uids),
                         imported_chart_id,
                     ),
                 )
