@@ -236,14 +236,29 @@ def compute_time_sensitivity(chart: Any, config: TimeSensitivityConfig | None = 
         label = _time_label(hour, minute)
         try:
             variant = _variant_chart(chart, hour, minute)
-            samples.append({
-                "time": label,
-                "numeric": _numeric_snapshot(variant),
-                "human_design": _hd_snapshot(variant),
-                "categorical": _categorical_snapshot(variant),
-            })
+            numeric = _numeric_snapshot(variant)
+            categorical = _categorical_snapshot(variant)
         except Exception as exc:  # keep user-visible scan failures localized
             warnings.append(f"{label}: {exc}")
+            continue
+
+        try:
+            human_design = _hd_snapshot(variant)
+        except Exception as exc:
+            warnings.append(f"{label} Human Design skipped: {exc}")
+            human_design = {"gates": [], "lines": [], "channels": [], "type": "", "profile": ""}
+
+        samples.append({
+            "time": label,
+            "numeric": numeric,
+            "human_design": human_design,
+            "categorical": categorical,
+        })
+
+    if not samples:
+        details = "; ".join(warnings[:5])
+        suffix = f" First failures: {details}" if details else ""
+        raise ValueError(f"Time Sensitivity could not produce any valid sampled charts.{suffix}")
 
     numeric_ranges, group_deltas = _aggregate_numeric(samples, baseline_numeric)
     most_sensitive, least_sensitive = _top_group_deltas(group_deltas)
