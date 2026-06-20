@@ -37,6 +37,13 @@ def test_save_time_sensitivity_result_uses_sidecar_sqlite(tmp_path):
     assert db_path.exists()
 
 
+def test_time_sensitivity_nakshatra_lookup_accepts_full_range_rows():
+    from ephemeraldaddy.analysis.time_sensitivity import _get_nakshatra
+
+    assert _get_nakshatra(24.0) == "Ashwini"
+    assert _get_nakshatra(37.2) == "Bharani"
+
+
 def test_compute_time_sensitivity_keeps_numeric_samples_when_human_design_fails(monkeypatch):
     from datetime import datetime
     from types import SimpleNamespace

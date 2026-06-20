@@ -136,7 +136,9 @@ def _sign_for_longitude(lon: float) -> str:
 
 def _get_nakshatra(lon: float) -> str:
     lon = float(lon) % 360.0
-    for name, start, end in NAKSHATRA_RANGES:
+    for name, start_sign, start_deg, start_min, end_sign, end_deg, end_min in NAKSHATRA_RANGES:
+        start = _sign_degrees(start_sign, start_deg, start_min)
+        end = _sign_degrees(end_sign, end_deg, end_min)
         start_f = float(start) % 360.0
         end_f = float(end) % 360.0
         if start_f <= end_f:
@@ -145,6 +147,10 @@ def _get_nakshatra(lon: float) -> str:
         elif lon >= start_f or lon < end_f:
             return str(name)
     return str(NAKSHATRA_RANGES[-1][0])
+
+
+def _sign_degrees(sign: str, deg: int, minutes: int) -> float:
+    return (ZODIAC_NAMES.index(sign) * 30.0) + float(deg) + (float(minutes) / 60.0)
 
 
 def _percent_delta(range_delta: float, baseline: float) -> float:
