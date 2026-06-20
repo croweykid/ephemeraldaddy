@@ -1809,6 +1809,54 @@ def _section_title_with_weight_and_match(
     return f"{title_with_weight}: {rendered}% match"
 
 
+
+def _section_title_with_info_weight_and_match(
+    title: str,
+    component_key: str,
+    component_weight_percents: dict[str, int],
+    component_score_percents: dict[str, float],
+) -> str:
+    info = ""
+    percent = component_weight_percents.get(component_key)
+    if percent is not None:
+        info = f"ⓘ (weighted at {percent}%)"
+    match_percent = component_score_percents.get(component_key)
+    if match_percent is None:
+        return f"{title}{info}"
+    rounded = round(float(match_percent), 1)
+    rendered = str(int(rounded)) if abs(rounded - int(rounded)) < 1e-9 else f"{rounded:.1f}"
+    return f"{title}{info}: {rendered}% match"
+
+
+def _section_title_html_with_info_weight_and_match(
+    title: str,
+    component_key: str,
+    component_weight_percents: dict[str, int],
+    component_score_percents: dict[str, float],
+) -> str:
+    safe_title = html.escape(title)
+    percent = component_weight_percents.get(component_key)
+    info = ""
+    if percent is not None:
+        tooltip = html.escape(f"(weighted at {percent}%)", quote=True)
+        info = (
+            f"<span title='{tooltip}' style='cursor:help;margin-left:2px' "
+            f"aria-label='{tooltip}'>ⓘ</span>"
+        )
+    match_percent = component_score_percents.get(component_key)
+    if match_percent is None:
+        return f"{safe_title}{info}"
+    rounded = round(float(match_percent), 1)
+    rendered = str(int(rounded)) if abs(rounded - int(rounded)) < 1e-9 else f"{rounded:.1f}"
+    return f"{safe_title}{info}: {rendered}% match"
+
+
+def _compact_distribution_summary_lines(lines: list[str]) -> list[str]:
+    compacted: list[str] = []
+    for line in lines:
+        compacted.append(re.sub(r" \([0-9.]+/[0-9.]+ weighted points\)", "", line))
+    return compacted
+
 def is_similar_info_target(target: str) -> bool:
     return str(target or "").strip().startswith(f"{SIMILAR_INFO_TARGET_PREFIX}:")
 
@@ -1912,6 +1960,11 @@ def build_similarity_reasoning_panel_text(
             algorithm_mode=algorithm_mode,
             similarity_settings=similarity_settings,
         )
+        section_title = (
+            _section_title_with_weight_and_match
+            if show_granular_explanations
+            else _section_title_with_info_weight_and_match
+        )
         if normalize_similar_charts_algorithm_mode(algorithm_mode) == SIMILAR_CHARTS_ALGORITHM_BIG_3:
             component_weight_percents = _adjust_big_3_weights_for_available_components(
                 component_weight_percents=component_weight_percents,
@@ -1956,7 +2009,7 @@ def build_similarity_reasoning_panel_text(
                     else _differing_placement_labels(subject_chart, compared_chart)
                 )
                 lines.append(
-                    _section_title_with_weight_and_match(
+                    section_title(
                         "Differing placements:",
                         "placement",
                         component_weight_percents,
@@ -1968,7 +2021,7 @@ def build_similarity_reasoning_panel_text(
             if "aspect" in component_weight_percents:
                 aspect_diff = _differing_aspect_labels(subject_chart, compared_chart)
                 lines.append(
-                    _section_title_with_weight_and_match(
+                    section_title(
                         "Differing aspects:",
                         "aspect",
                         component_weight_percents,
@@ -1984,7 +2037,7 @@ def build_similarity_reasoning_panel_text(
                     placement_weighting_mode=active_placement_mode,
                 )
                 lines.append(
-                    _section_title_with_weight_and_match(
+                    section_title(
                         "Distribution differences:",
                         "distribution",
                         component_weight_percents,
@@ -1996,7 +2049,7 @@ def build_similarity_reasoning_panel_text(
             if "combined_dominance" in component_weight_percents:
                 dominance_score = float(getattr(match, "dominance_score", 0.0) or 0.0)
                 lines.append(
-                    _section_title_with_weight_and_match(
+                    section_title(
                         "Combined Dominance differences:",
                         "combined_dominance",
                         component_weight_percents,
@@ -2009,7 +2062,7 @@ def build_similarity_reasoning_panel_text(
             if "nakshatra_placement" in component_weight_percents:
                 nak_diff = _nakshatra_difference_lines(subject_chart, compared_chart)
                 lines.append(
-                    _section_title_with_weight_and_match(
+                    section_title(
                         "Nakshatra Placement Profile differences:",
                         "nakshatra_placement",
                         component_weight_percents,
@@ -2021,7 +2074,7 @@ def build_similarity_reasoning_panel_text(
             if "nakshatra_dominance" in component_weight_percents:
                 nak_dominance_diff = _nakshatra_dominance_differences(subject_chart, compared_chart)
                 lines.append(
-                    _section_title_with_weight_and_match(
+                    section_title(
                         "Nakshatra Dominance differences:",
                         "nakshatra_dominance",
                         component_weight_percents,
@@ -2033,7 +2086,7 @@ def build_similarity_reasoning_panel_text(
             if "defined_centers" in component_weight_percents:
                 centers_diff = _defined_center_difference_lines(subject_chart, compared_chart)
                 lines.append(
-                    _section_title_with_weight_and_match(
+                    section_title(
                         "Defined center differences:",
                         "defined_centers",
                         component_weight_percents,
@@ -2045,7 +2098,7 @@ def build_similarity_reasoning_panel_text(
                 hd_gate_diff = _human_design_gate_difference_lines(subject_chart, compared_chart)
                 lines.append("")
                 lines.append(
-                    _section_title_with_weight_and_match(
+                    section_title(
                         "Human Design gate differences:",
                         "human_design_gates",
                         component_weight_percents,
@@ -2065,7 +2118,7 @@ def build_similarity_reasoning_panel_text(
                     else _common_placement_labels(subject_chart, compared_chart)
                 )
                 lines.append(
-                    _section_title_with_weight_and_match(
+                    section_title(
                         "Placements in common:",
                         "placement",
                         component_weight_percents,
@@ -2080,7 +2133,7 @@ def build_similarity_reasoning_panel_text(
                     aspect_labels = _common_aspect_labels_with_weight_details(subject_chart, compared_chart)
                     aspect_weight_percent = component_weight_percents.get("aspect")
                     aspect_match_percent = component_score_percents.get("aspect")
-                    title = _section_title_with_weight_and_match(
+                    title = section_title(
                         "Aspects in common:",
                         "aspect",
                         component_weight_percents,
@@ -2098,7 +2151,7 @@ def build_similarity_reasoning_panel_text(
                         )
                 else:
                     aspect_labels = _common_aspect_labels(subject_chart, compared_chart)
-                    title = _section_title_with_weight_and_match(
+                    title = section_title(
                         "Aspects in common:",
                         "aspect",
                         component_weight_percents,
@@ -2115,8 +2168,10 @@ def build_similarity_reasoning_panel_text(
                     compared_chart,
                     placement_weighting_mode=active_placement_mode,
                 )
+                if not show_granular_explanations:
+                    distribution_lines = _compact_distribution_summary_lines(distribution_lines)
                 lines.append(
-                    _section_title_with_weight_and_match(
+                    section_title(
                         "Distribution similarities:",
                         "distribution",
                         component_weight_percents,
@@ -2128,7 +2183,7 @@ def build_similarity_reasoning_panel_text(
             if "combined_dominance" in component_weight_percents:
                 dominance_score = float(getattr(match, "dominance_score", 0.0) or 0.0)
                 lines.append(
-                    _section_title_with_weight_and_match(
+                    section_title(
                         "Combined Dominance:",
                         "combined_dominance",
                         component_weight_percents,
@@ -2141,7 +2196,7 @@ def build_similarity_reasoning_panel_text(
             if "nakshatra_placement" in component_weight_percents:
                 nak_lines = _nakshatra_overlap_lines(subject_chart, compared_chart)
                 lines.append(
-                    _section_title_with_weight_and_match(
+                    section_title(
                         "Nakshatra Placement Profile:",
                         "nakshatra_placement",
                         component_weight_percents,
@@ -2153,7 +2208,7 @@ def build_similarity_reasoning_panel_text(
             if "nakshatra_dominance" in component_weight_percents:
                 nak_dominance_lines = _nakshatra_dominance_summary(subject_chart, compared_chart)
                 lines.append(
-                    _section_title_with_weight_and_match(
+                    section_title(
                         "Nakshatra Dominance:",
                         "nakshatra_dominance",
                         component_weight_percents,
@@ -2165,7 +2220,7 @@ def build_similarity_reasoning_panel_text(
             if "defined_centers" in component_weight_percents:
                 centers = _defined_center_overlap_lines(subject_chart, compared_chart)
                 lines.append(
-                    _section_title_with_weight_and_match(
+                    section_title(
                         "Defined centers in common:",
                         "defined_centers",
                         component_weight_percents,
@@ -2177,7 +2232,7 @@ def build_similarity_reasoning_panel_text(
             if "human_design_gates" in component_weight_percents:
                 hd_gate_lines = _human_design_gate_overlap_lines(subject_chart, compared_chart)
                 lines.append(
-                    _section_title_with_weight_and_match(
+                    section_title(
                         "Human Design gates in common:",
                         "human_design_gates",
                         component_weight_percents,
@@ -2301,7 +2356,7 @@ def build_similarity_reasoning_panel_html(
     )
     subject_title = _safe_chart_name(subject_chart, subject_name or "Current chart")
 
-    def _section(title: str, items: list[str]) -> str:
+    def _section(title: str, items: list[str], *, title_is_html: bool = False) -> str:
         bullet_items = items or ["None noted."]
         rendered_items = []
         for item in bullet_items:
@@ -2311,7 +2366,8 @@ def build_similarity_reasoning_panel_html(
                 "</li>"
             )
         return (
-            f"<div style='margin-top:8px;font-weight:700;color:{SIMILARITY_SECTION_HEADER_COLOR}'>{html.escape(title)}</div>"
+            f"<div style='margin-top:8px;font-weight:700;color:{SIMILARITY_SECTION_HEADER_COLOR}'>"
+            f"{title if (title_is_html or '<span title=' in str(title)) else html.escape(title)}</div>"
             f"<ul style='margin:4px 0 0 9px;padding:0;color:{_SIMILARITY_PANEL_BODY_TEXT_COLOR};font-weight:400'>"
             + "".join(rendered_items)
             + "</ul>"
@@ -2345,6 +2401,12 @@ def build_similarity_reasoning_panel_html(
             algorithm_mode=algorithm_mode,
             similarity_settings=similarity_settings,
         )
+        section_title = (
+            _section_title_with_weight_and_match
+            if show_granular_explanations
+            else _section_title_html_with_info_weight_and_match
+        )
+        title_is_html = not show_granular_explanations
         if normalize_similar_charts_algorithm_mode(algorithm_mode) == SIMILAR_CHARTS_ALGORITHM_BIG_3:
             component_weight_percents = _adjust_big_3_weights_for_available_components(
                 component_weight_percents=component_weight_percents,
@@ -2380,7 +2442,7 @@ def build_similarity_reasoning_panel_html(
             if "placement" in component_weight_percents:
                 html_lines.append(
                     _section(
-                        _section_title_with_weight_and_match(
+                        section_title(
                             "Differing placements:",
                             "placement",
                             component_weight_percents,
@@ -2401,7 +2463,7 @@ def build_similarity_reasoning_panel_html(
             if "aspect" in component_weight_percents:
                 html_lines.append(
                     _section(
-                        _section_title_with_weight_and_match(
+                        section_title(
                             "Differing aspects:",
                             "aspect",
                             component_weight_percents,
@@ -2414,7 +2476,7 @@ def build_similarity_reasoning_panel_html(
             if "distribution" in component_weight_percents:
                 html_lines.append(
                     _section(
-                        _section_title_with_weight_and_match(
+                        section_title(
                             "Distribution differences:",
                             "distribution",
                             component_weight_percents,
@@ -2432,7 +2494,7 @@ def build_similarity_reasoning_panel_html(
                 dominance_score = float(getattr(match, "dominance_score", 0.0) or 0.0)
                 html_lines.append(
                     _section(
-                        _section_title_with_weight_and_match(
+                        section_title(
                             "Combined Dominance differences:",
                             "combined_dominance",
                             component_weight_percents,
@@ -2445,7 +2507,7 @@ def build_similarity_reasoning_panel_html(
             if "nakshatra_placement" in component_weight_percents:
                 html_lines.append(
                     _section(
-                        _section_title_with_weight_and_match(
+                        section_title(
                             "Nakshatra Placement Profile differences:",
                             "nakshatra_placement",
                             component_weight_percents,
@@ -2458,7 +2520,7 @@ def build_similarity_reasoning_panel_html(
             if "nakshatra_dominance" in component_weight_percents:
                 html_lines.append(
                     _section(
-                        _section_title_with_weight_and_match(
+                        section_title(
                             "Nakshatra Dominance differences:",
                             "nakshatra_dominance",
                             component_weight_percents,
@@ -2470,7 +2532,7 @@ def build_similarity_reasoning_panel_html(
             if "defined_centers" in component_weight_percents:
                 html_lines.append(
                     _section(
-                        _section_title_with_weight_and_match(
+                        section_title(
                             "Defined center differences:",
                             "defined_centers",
                             component_weight_percents,
@@ -2483,7 +2545,7 @@ def build_similarity_reasoning_panel_html(
             if "human_design_gates" in component_weight_percents:
                 html_lines.append(
                     _section(
-                        _section_title_with_weight_and_match(
+                        section_title(
                             "Human Design gate differences:",
                             "human_design_gates",
                             component_weight_percents,
@@ -2496,7 +2558,7 @@ def build_similarity_reasoning_panel_html(
             if "placement" in component_weight_percents:
                 html_lines.append(
                     _section(
-                        _section_title_with_weight_and_match(
+                        section_title(
                             "Placements in common:",
                             "placement",
                             component_weight_percents,
@@ -2524,7 +2586,7 @@ def build_similarity_reasoning_panel_html(
                     )
                     aspect_weight_percent = component_weight_percents.get("aspect")
                     aspect_match_percent = component_score_percents.get("aspect")
-                    title = _section_title_with_weight_and_match(
+                    title = section_title(
                         "Aspects in common:",
                         "aspect",
                         component_weight_percents,
@@ -2541,7 +2603,7 @@ def build_similarity_reasoning_panel_html(
                             f"[{relevance_points:.1f}/100 similarity points]"
                         )
                 else:
-                    title = _section_title_with_weight_and_match(
+                    title = section_title(
                         "Aspects in common:",
                         "aspect",
                         component_weight_percents,
@@ -2557,27 +2619,29 @@ def build_similarity_reasoning_panel_html(
                     )
                 )
             if "distribution" in component_weight_percents:
+                distribution_items = _distribution_summary(
+                    subject_chart,
+                    compared_chart,
+                    placement_weighting_mode=active_placement_mode,
+                )
+                if not show_granular_explanations:
+                    distribution_items = _compact_distribution_summary_lines(distribution_items)
                 html_lines.append(
                     _section(
-                        _section_title_with_weight_and_match(
+                        section_title(
                             "Distribution similarities:",
                             "distribution",
                             component_weight_percents,
                             component_score_percents,
                         ),
-                        _distribution_summary(
-                            subject_chart,
-                            compared_chart,
-                            placement_weighting_mode=active_placement_mode,
-                        )
-                        or ["No clear elemental/modality overlap was detected."],
+                        distribution_items or ["No clear elemental/modality overlap was detected."],
                     )
                 )
             if "combined_dominance" in component_weight_percents:
                 dominance_score = float(getattr(match, "dominance_score", 0.0) or 0.0)
                 html_lines.append(
                     _section(
-                        _section_title_with_weight_and_match(
+                        section_title(
                             "Combined Dominance:",
                             "combined_dominance",
                             component_weight_percents,
@@ -2590,7 +2654,7 @@ def build_similarity_reasoning_panel_html(
             if "nakshatra_placement" in component_weight_percents:
                 html_lines.append(
                     _section(
-                        _section_title_with_weight_and_match(
+                        section_title(
                             "Nakshatra Placement Profile:",
                             "nakshatra_placement",
                             component_weight_percents,
@@ -2603,7 +2667,7 @@ def build_similarity_reasoning_panel_html(
             if "nakshatra_dominance" in component_weight_percents:
                 html_lines.append(
                     _section(
-                        _section_title_with_weight_and_match(
+                        section_title(
                             "Nakshatra Dominance:",
                             "nakshatra_dominance",
                             component_weight_percents,
@@ -2623,7 +2687,7 @@ def build_similarity_reasoning_panel_html(
                     ]
                     html_lines.append(
                         f"<div style='margin-top:8px;font-weight:700;color:{SIMILARITY_SECTION_HEADER_COLOR}'>"
-                        f"{html.escape(_section_title_with_weight_and_match('Defined centers in common:', 'defined_centers', component_weight_percents, component_score_percents))}</div>"
+                        f"{section_title('Defined centers in common:', 'defined_centers', component_weight_percents, component_score_percents)}</div>"
                         f"<ul style='margin:4px 0 0 9px;padding:0;color:{_SIMILARITY_PANEL_BODY_TEXT_COLOR};font-weight:400'>"
                         + "".join(f"<li style='margin:2px 0;'>{center_markup}</li>" for center_markup in center_items)
                         + "</ul>"
@@ -2631,7 +2695,7 @@ def build_similarity_reasoning_panel_html(
                 else:
                     html_lines.append(
                         _section(
-                            _section_title_with_weight_and_match(
+                            section_title(
                                 "Defined centers in common:",
                                 "defined_centers",
                                 component_weight_percents,
@@ -2643,7 +2707,7 @@ def build_similarity_reasoning_panel_html(
             if "human_design_gates" in component_weight_percents:
                 html_lines.append(
                     _section(
-                        _section_title_with_weight_and_match(
+                        section_title(
                             "Human Design gates in common:",
                             "human_design_gates",
                             component_weight_percents,
