@@ -354,7 +354,13 @@ def _install_expand_autoscroll(owner: object) -> None:
         return
     setattr(owner, "_right_panel_expand_autoscroll_installed", True)
 
-    for scroll_attr in ("chart_analytics_panel_scroll", "predictions_panel_scroll", "subjective_notes_panel_scroll", "material_facts_panel_scroll"):
+    for scroll_attr in (
+        "chart_analytics_panel_scroll",
+        "predictions_panel_scroll",
+        "subjective_notes_panel_scroll",
+        "material_facts_panel_scroll",
+        "photo_gallery_panel_scroll",
+    ):
         scroll_area = getattr(owner, scroll_attr, None)
         if not isinstance(scroll_area, QScrollArea):
             continue

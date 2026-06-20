@@ -94,6 +94,43 @@ def add_photo_url(chart_uid: str, url: str, *, timeout: int = 20) -> int:
     return _insert_photo(chart_uid, response.content, source=url, filename=filename)
 
 
+def get_photo_data(photo_id: int, chart_uid: str | None = None) -> dict[str, Any] | None:
+    with _connect() as conn:
+        conn.row_factory = sqlite3.Row
+        if chart_uid:
+            row = conn.execute(
+                """
+                SELECT id, chart_uid, source, filename, mime_type, width, height, image_data, created_at
+                FROM chart_photos
+                WHERE id = ? AND chart_uid = ?
+                """,
+                (int(photo_id), chart_uid),
+            ).fetchone()
+        else:
+            row = conn.execute(
+                """
+                SELECT id, chart_uid, source, filename, mime_type, width, height, image_data, created_at
+                FROM chart_photos
+                WHERE id = ?
+                """,
+                (int(photo_id),),
+            ).fetchone()
+    return dict(row) if row is not None else None
+
+
+def delete_photo(photo_id: int, chart_uid: str | None = None) -> bool:
+    with _connect() as conn:
+        if chart_uid:
+            cursor = conn.execute(
+                "DELETE FROM chart_photos WHERE id = ? AND chart_uid = ?",
+                (int(photo_id), chart_uid),
+            )
+        else:
+            cursor = conn.execute("DELETE FROM chart_photos WHERE id = ?", (int(photo_id),))
+        conn.commit()
+        return cursor.rowcount > 0
+
+
 def list_photos(chart_uid: str | None) -> list[dict[str, Any]]:
     if not chart_uid:
         return []
