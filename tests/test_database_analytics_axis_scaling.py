@@ -73,3 +73,72 @@ def test_percent_difference_axis_caps_full_range_when_data_needs_it():
 
     assert axis_limit == 1.0
     assert ax.get_xlim() == (-1.0, 1.0)
+
+
+def test_human_design_channel_payload_sorts_without_display_label_lookup():
+    selection_cache = {
+        "human_design_channel_totals": {"57-20": 1, "1-8": 2},
+        "human_design_channel_total_count": 3,
+    }
+    database_cache = {
+        "human_design_channel_totals": {"10-20": 4},
+        "human_design_channel_total_count": 4,
+    }
+
+    labels, selection_counts, database_counts, selection_total, database_total = (
+        DatabaseAnalyticsChartsMixin._human_design_mode_payload(
+            "hd_channels",
+            selection_cache,
+            database_cache,
+        )
+    )
+
+    assert labels == ["1-8", "10-20", "57-20"]
+    assert selection_counts["1-8"] == 2
+    assert database_counts["10-20"] == 4
+    assert selection_total == 3.0
+    assert database_total == 4.0
+
+
+def test_database_analysis_csv_export_uses_raw_labels_without_display_label_lookup(monkeypatch, tmp_path):
+    import ephemeraldaddy.gui.features.charts.database_analytics as database_analytics
+
+    output_path = tmp_path / "human-design.csv"
+    monkeypatch.setattr(
+        database_analytics.QFileDialog,
+        "getSaveFileName",
+        staticmethod(lambda *_args, **_kwargs: (str(output_path), "CSV Files (*.csv)")),
+        raising=False,
+    )
+    messages = []
+    monkeypatch.setattr(
+        database_analytics.QMessageBox,
+        "information",
+        staticmethod(lambda *_args: messages.append(_args)),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        database_analytics.QMessageBox,
+        "critical",
+        staticmethod(lambda *_args: (_ for _ in ()).throw(AssertionError(_args))),
+        raising=False,
+    )
+
+    class FakeDialog(DatabaseAnalyticsChartsMixin):
+        _analysis_chart_export_rows = {
+            "human_design": [
+                ("57-20", 0.5, 0.25, 0.25, 1, 2, 50.0),
+            ]
+        }
+        _analysis_chart_filenames = {"human_design": "human-design"}
+
+        def _reactivate_database_view(self):
+            pass
+
+        def _analysis_matching_chart_names(self, chart_key, label):
+            return "Example Chart"
+
+    FakeDialog()._export_database_analysis_chart_csv("human_design", "Human Design")
+
+    assert output_path.read_text(encoding="utf-8").splitlines()[1].startswith("57-20,")
+    assert messages
