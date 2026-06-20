@@ -1057,7 +1057,7 @@ class DatabaseAnalyticsChartsMixin:
                     statistical_model = statistical_values[5] if len(statistical_values) > 5 else "category proportion z-test"
                     writer.writerow(
                         [
-                            display_label_by_label.get(label, str(label)),
+                            str(label),
                             round(selection_value, 8),
                             round(database_value, 8),
                             round(difference, 8),
@@ -1848,7 +1848,7 @@ class DatabaseAnalyticsChartsMixin:
                 key=lambda label: (
                     int(label.split("-")[0]) if "-" in label and label.split("-")[0].isdigit() else 999,
                     int(label.split("-")[1]) if "-" in label and len(label.split("-")) > 1 and label.split("-")[1].isdigit() else 999,
-                    display_label_by_label.get(label, str(label)),
+                    str(label),
                 ),
             )
             selection_counts = {
