@@ -1857,14 +1857,14 @@ def _compact_distribution_summary_lines(lines: list[str]) -> list[str]:
         compacted.append(re.sub(r" \([0-9.]+/[0-9.]+ weighted points\)", "", line))
     return compacted
 
-
+SIMILAR_WHY_TARGET_PREFIX = "sim-why"
 
 def make_similar_why_target(*, info_link_prefix: str, chart_id: int) -> str:
-    return f"{SIMILAR_INFO_TARGET_PREFIX}:why:{info_link_prefix}:{int(chart_id)}"
-
+    return f"{SIMILAR_WHY_TARGET_PREFIX}:{info_link_prefix}:{int(chart_id)}"
 
 def is_similar_why_target(target: str) -> bool:
-    return str(target or "").strip().startswith(f"{SIMILAR_INFO_TARGET_PREFIX}:why:")
+    return str(target or "").strip().startswith(f"{SIMILAR_WHY_TARGET_PREFIX}:")
+
 def is_similar_info_target(target: str) -> bool:
     return str(target or "").strip().startswith(f"{SIMILAR_INFO_TARGET_PREFIX}:")
 
