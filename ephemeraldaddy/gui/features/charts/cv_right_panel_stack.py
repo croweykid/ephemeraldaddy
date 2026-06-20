@@ -38,12 +38,14 @@ class ChartRightPanelStack:
     subjective_notes_button: QPushButton
     material_facts_button: QPushButton
     time_sensitivity_button: QPushButton
+    photo_gallery_button: QPushButton
     stack: QStackedWidget
     analytics_scroll: QScrollArea
     predictions_scroll: QScrollArea
     subjective_notes_scroll: QScrollArea
     material_facts_scroll: QScrollArea
     time_sensitivity_scroll: QScrollArea
+    photo_gallery_scroll: QScrollArea
 
 
 def format_mode_popout_info_html(
@@ -148,11 +150,13 @@ def build_chart_right_panel_stack(
     subjective_notes_content_widget: QWidget,
     material_facts_content_widget: QWidget,
     time_sensitivity_content_widget: QWidget,
+    photo_gallery_content_widget: QWidget,
     on_show_analytics: Callable[[], None],
     on_show_predictions: Callable[[], None],
     on_show_subjective_notes: Callable[[], None],
     on_show_material_facts: Callable[[], None],
     on_show_time_sensitivity: Callable[[], None],
+    on_show_photo_gallery: Callable[[], None],
     scrollbar_style: str,
 ) -> ChartRightPanelStack:
     """Build the Chart View right panel with analytics/subjective notes toggle."""
@@ -183,7 +187,7 @@ def build_chart_right_panel_stack(
     photo_gallery_button.setObjectName("chart_view_toggle_photo_gallery_panel_button")
     photo_gallery_button.clicked.connect(lambda: None)
 
-    for control_button in (analytics_button, predictions_button, subjective_notes_button, material_facts_button, time_sensitivity_button):
+    for control_button in (analytics_button, predictions_button, subjective_notes_button, material_facts_button, photo_gallery_button, time_sensitivity_button):
         control_button.setCheckable(True)
         control_button.setAutoDefault(False)
         control_button.setDefault(False)
@@ -201,6 +205,7 @@ def build_chart_right_panel_stack(
     controls_layout.addWidget(subjective_notes_button)
     controls_layout.addWidget(material_facts_button)
     controls_layout.addWidget(time_sensitivity_button)
+    controls_layout.addWidget(photo_gallery_button)
     controls_layout.addStretch(1)
     layout.addWidget(controls_row)
 
@@ -257,6 +262,15 @@ def build_chart_right_panel_stack(
     time_sensitivity_scroll.setAlignment(Qt.AlignLeft | Qt.AlignTop)
     time_sensitivity_scroll.setWidget(time_sensitivity_content_widget)
     stack.addWidget(time_sensitivity_scroll)
+    photo_gallery_scroll = QScrollArea()
+    photo_gallery_scroll.setWidgetResizable(True)
+    photo_gallery_scroll.setFrameShape(QScrollArea.NoFrame)
+    photo_gallery_scroll.setMinimumWidth(240)
+    photo_gallery_scroll.setStyleSheet(scrollbar_style)
+    photo_gallery_scroll.setFocusPolicy(Qt.StrongFocus)
+    photo_gallery_scroll.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+    photo_gallery_scroll.setWidget(photo_gallery_content_widget)
+    stack.addWidget(photo_gallery_scroll)
 
     return ChartRightPanelStack(
         container=container,
@@ -265,12 +279,14 @@ def build_chart_right_panel_stack(
         subjective_notes_button=subjective_notes_button,
         material_facts_button=material_facts_button,
         time_sensitivity_button=time_sensitivity_button,
+        photo_gallery_button=photo_gallery_button,
         stack=stack,
         analytics_scroll=analytics_scroll,
         predictions_scroll=predictions_scroll,
         subjective_notes_scroll=subjective_notes_scroll,
         material_facts_scroll=material_facts_scroll,
         time_sensitivity_scroll=time_sensitivity_scroll,
+        photo_gallery_scroll=photo_gallery_scroll,
     )
 
 
@@ -358,7 +374,14 @@ def _install_expand_autoscroll(owner: object) -> None:
         return
     setattr(owner, "_right_panel_expand_autoscroll_installed", True)
 
-    for scroll_attr in ("chart_analytics_panel_scroll", "predictions_panel_scroll", "subjective_notes_panel_scroll", "material_facts_panel_scroll", "time_sensitivity_panel_scroll"):
+    for scroll_attr in (
+        "chart_analytics_panel_scroll",
+        "predictions_panel_scroll",
+        "subjective_notes_panel_scroll",
+        "material_facts_panel_scroll",
+        "photo_gallery_panel_scroll",
+        "time_sensitivity_panel_scroll",
+    ):
         scroll_area = getattr(owner, scroll_attr, None)
         if not isinstance(scroll_area, QScrollArea):
             continue
@@ -385,7 +408,8 @@ def _chart_right_panel_definitions(owner: object) -> dict[str, tuple[str, str]]:
         "predictions": ("predictions_panel_scroll", "predictions_panel_button"),
         "subjective_notes": ("subjective_notes_panel_scroll", "subjective_notes_panel_button"),
         "material_facts": ("material_facts_panel_scroll", "material_facts_panel_button"),
-        "time_sensitivity": ("time_sensitivity_panel_scroll", "time_sensitivity_panel_button"),
+        "time_sensitivity": ("time_sensitivity_panel_scroll"),"time_sensitivity_panel_button", 
+        "photo_gallery": ("photo_gallery_panel_scroll", "photo_gallery_panel_button"),
     }
 
 

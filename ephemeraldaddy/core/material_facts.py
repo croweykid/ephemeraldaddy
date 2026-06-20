@@ -1,8 +1,8 @@
 """Hidden sidecar storage for Chart View material facts.
 
-These helpers intentionally keep personally identifying material facts and
-profile image references outside the main astrological SQLite database.  The
-files live next to ``charts.db`` and are keyed by chart id.
+These helpers intentionally keep personally identifying material facts outside
+the main astrological SQLite database.  The files live next to ``charts.db``
+and are keyed by chart id.
 """
 
 from __future__ import annotations
@@ -15,16 +15,12 @@ from typing import Any
 from ephemeraldaddy.core.db import DB_PATH
 
 PERSONAL_IDENTIFIERS_FILENAME = "charts.personal_identifiers.json"
-PROFILE_IMAGES_FILENAME = "charts.profile_images.json"
-
 IDENTIFIER_FIELDS: tuple[str, ...] = (
-    "photos",
     "addresses",
     "emails",
     "websites",
     "phone_numbers",
 )
-IMAGE_FIELDS: tuple[str, ...] = ("images",)
 
 
 def _sidecar_path(filename: str) -> Path:
@@ -33,10 +29,6 @@ def _sidecar_path(filename: str) -> Path:
 
 def personal_identifiers_path() -> Path:
     return _sidecar_path(PERSONAL_IDENTIFIERS_FILENAME)
-
-
-def profile_images_path() -> Path:
-    return _sidecar_path(PROFILE_IMAGES_FILENAME)
 
 
 def _load_sidecar(path: Path) -> dict[str, dict[str, Any]]:
@@ -88,26 +80,6 @@ def save_personal_identifiers(chart_id: int, facts: dict[str, Any]) -> None:
     path = personal_identifiers_path()
     payload = _load_sidecar(path)
     normalized = _normalize_facts(facts, IDENTIFIER_FIELDS)
-    chart_key = str(int(chart_id))
-    if any(normalized.values()):
-        payload[chart_key] = normalized
-    else:
-        payload.pop(chart_key, None)
-    _save_sidecar(path, payload)
-
-
-def load_profile_images(chart_id: int | None) -> dict[str, str]:
-    facts = {field: "" for field in IMAGE_FIELDS}
-    if chart_id is None:
-        return facts
-    facts.update(_normalize_facts(_load_sidecar(profile_images_path()).get(str(int(chart_id)), {}), IMAGE_FIELDS))
-    return facts
-
-
-def save_profile_images(chart_id: int, facts: dict[str, Any]) -> None:
-    path = profile_images_path()
-    payload = _load_sidecar(path)
-    normalized = _normalize_facts(facts, IMAGE_FIELDS)
     chart_key = str(int(chart_id))
     if any(normalized.values()):
         payload[chart_key] = normalized
