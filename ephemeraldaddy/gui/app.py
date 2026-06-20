@@ -25421,7 +25421,7 @@ class MainWindow(QMainWindow):
             why_expanded = why_target in self._similar_charts_expanded_why_targets
             why_html = (
                 f' - <a href="{why_target}" style="color: #ffffff; text-decoration: none;">why?</a>'
-                f' <span style="font-weight: 400; color: {CHART_DATA_HIGHLIGHT_COLOR};">why: ({component_summary})</span>'
+                f' <span style="font-weight: 400; color: {CHART_DATA_HIGHLIGHT_COLOR};">({component_summary})</span>'
                 if why_expanded
                 else f' - <a href="{why_target}" style="color: #ffffff; text-decoration: none;">why?</a>'
             )
