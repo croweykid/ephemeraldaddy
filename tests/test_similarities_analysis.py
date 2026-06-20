@@ -48,6 +48,7 @@ def _install_pyside_stubs():
     qtwidgets.QListView = _Widget
     qtwidgets.QListWidget = _Widget
     qtwidgets.QProgressDialog = _Widget
+    qtwidgets.QPushButton = _Widget
     qtwidgets.QSizePolicy = _Widget
     qtwidgets.QToolButton = _Widget
     qtwidgets.QWidget = _Widget

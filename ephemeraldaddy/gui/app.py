@@ -1029,10 +1029,7 @@ from ephemeraldaddy.gui.features.charts.similar_charts_popout import (
     update_similar_charts_loading_progress,
     resolve_similarity_component_keys_for_display,
 )
-from ephemeraldaddy.gui.features.charts.db_info_panel import (
-    DBInfoPanel,
-    add_similarity_match_row,
-)
+from ephemeraldaddy.gui.features.charts.db_info_panel import add_similarity_match_row
 from ephemeraldaddy.gui.features.charts.similarities_db_norm import (
     similarity_delta_rgb,
 )
@@ -2335,7 +2332,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_metrics_chart_layouts: dict[str, QVBoxLayout] = {}
         self._database_analytics_popout_dialogs: list[QDialog] = []
         self._database_metrics_section_widgets: dict[str, QWidget] = {}
-        self.similarities_controller = SimilaritiesController(self)
+        self.similarities_controller = SimilaritiesController(
+            self,
+            panel_header_style=DATABASE_VIEW_PANEL_HEADER_STYLE,
+            inactive_button_style=SIMILARITY_CALCULATE_BUTTON_INACTIVE_STYLE,
+            configure_export_button=_configure_similarities_export_button,
+            get_share_icon_path=_get_share_icon_path,
+            add_collapsible_section=self._add_similarities_collapsible_section,
+        )
         self.similarities_controller.install_legacy_attributes()
         self._sign_distribution_mode = "Sun"
         self._prevalence_mode = "sign_prevalence"
@@ -2605,9 +2609,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.todays_transits_panel_scroll = self._wrap_left_panel(
             self.todays_transits_panel
         )
-        self.similarities_analysis_panel = self.similarities_controller.build_panel(
-            self._build_similarities_analysis_panel_contents
-        )
+        self.similarities_analysis_panel = self.similarities_controller.build_panel()
         self.similarities_analysis_panel_scroll = self._wrap_left_panel(
             self.similarities_analysis_panel
         )
@@ -6889,282 +6891,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
 
     def _build_similarities_analysis_panel(self) -> QWidget:
-        return self.similarities_controller.build_panel(
-            self._build_similarities_analysis_panel_contents
-        )
-
-    def _build_similarities_analysis_panel_contents(self) -> QWidget:
-        panel = QWidget()
-        panel.setMinimumWidth(260)
-        panel.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
-        layout = QVBoxLayout()
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(8)
-        layout.setAlignment(Qt.AlignTop)
-        layout.setSizeConstraint(QLayout.SetMinAndMaxSize)
-        panel.setLayout(layout)
-
-        title_row = QWidget()
-        title_layout = QHBoxLayout()
-        title_layout.setContentsMargins(0, 0, 0, 0)
-        title_layout.setSpacing(6)
-        title_row.setLayout(title_layout)
-
-        title = QLabel("Similarities Analysis")
-        title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
-        title_layout.addWidget(title)
-        # self.similarities_db_info_toggle_button = QPushButton("DB Info")
-        # self.similarities_db_info_toggle_button.setCursor(Qt.PointingHandCursor)
-        # self.similarities_db_info_toggle_button.setMinimumHeight(20)
-        # self.similarities_db_info_toggle_button.clicked.connect(
-        #     self._toggle_similarities_db_info_panel
-        # )
-        # title_layout.addWidget(self.similarities_db_info_toggle_button, alignment=Qt.AlignLeft)
-        title_layout.addStretch(1)
-
-        share_icon_path = _get_share_icon_path()
-
-        json_export_button = QPushButton()
-        _configure_similarities_export_button(
-            json_export_button,
-            label="data",
-            tooltip="Export similarities analysis as Python",
-            share_icon_path=share_icon_path,
-        )
-        json_export_button.clicked.connect(self._export_similarities_analysis_json)
-        title_layout.addWidget(json_export_button, alignment=Qt.AlignRight)
-
-        export_button = QPushButton()
-        _configure_similarities_export_button(
-            export_button,
-            label="text",
-            tooltip="Export similarities analysis as CSV",
-            share_icon_path=share_icon_path,
-        )
-        export_button.clicked.connect(self._export_similarities_analysis_csv)
-        title_layout.addWidget(export_button, alignment=Qt.AlignRight)
-        layout.addWidget(title_row)
-
-        # placeholder = QLabel("(Coming soon)")
-        # placeholder.setStyleSheet("color: #888888;")
-        # layout.addWidget(placeholder)
-        self.similarities_status_label = QLabel(
-            "Select 2 or more charts to view similarities across selected charts."
-        )
-        self.similarities_status_label.setWordWrap(True)
-        self.similarities_status_label.setStyleSheet("color: #bbbbbb;")
-        layout.addWidget(self.similarities_status_label)
-
-        self._refresh_similarities_chart_options()
-        use_this_checkbox_style = (
-            "QCheckBox { color: #9ee09e; }"
-            "QCheckBox::indicator { width: 14px; height: 14px; }"
-            "QCheckBox::indicator:unchecked {"
-            "  border: 1px solid #3b5a3b;"
-            "  background-color: #1b241b;"
-            "}"
-            "QCheckBox::indicator:checked {"
-            "  border: 1px solid #4f8f4f;"
-            "  background-color: #2f7f2f;"
-            "}"
-        )
-        chart_labels = list(self._similarities_chart_lookup.keys())
-        input_rows = (
-            ("Select first chart", "_similarities_first_chart_input", "_similarities_first_use_checkbox"),
-            ("Select second chart", "_similarities_second_chart_input", "_similarities_second_use_checkbox"),
-        )
-        for placeholder, input_attr, checkbox_attr in input_rows:
-            input_row = QWidget()
-            input_layout = QHBoxLayout()
-            input_layout.setContentsMargins(0, 0, 0, 0)
-            input_layout.setSpacing(6)
-            input_row.setLayout(input_layout)
-
-            chart_input = QLineEdit()
-            chart_input.setPlaceholderText(placeholder)
-            completer = QCompleter(chart_labels, chart_input)
-            completer.setCaseSensitivity(Qt.CaseInsensitive)
-            completer.setFilterMode(Qt.MatchContains)
-            chart_input.setCompleter(completer)
-            chart_input.textChanged.connect(lambda _text: self._update_similarities_analysis(self._selected_chart_ids()))
-            input_layout.addWidget(chart_input, stretch=1)
-
-            use_checkbox = QCheckBox("use this")
-            use_checkbox.setStyleSheet(use_this_checkbox_style)
-            use_checkbox.toggled.connect(lambda _checked: self._update_similarities_analysis(self._selected_chart_ids()))
-            input_layout.addWidget(use_checkbox, stretch=0, alignment=Qt.AlignRight)
-
-            setattr(self, input_attr, chart_input)
-            setattr(self, checkbox_attr, use_checkbox)
-            layout.addWidget(input_row)
-
-        pair_row = QWidget()
-        pair_layout = QHBoxLayout()
-        pair_layout.setContentsMargins(0, 0, 0, 0)
-        pair_layout.setSpacing(8)
-        pair_row.setLayout(pair_layout)
-        pair_button = QPushButton("Calculate Similarities")
-        pair_button.setStyleSheet(SIMILARITY_CALCULATE_BUTTON_INACTIVE_STYLE)
-        pair_button.setToolTip("Select exactly 2 charts to compare.")
-        pair_button.clicked.connect(self._calculate_pair_similarity_from_selection)
-        pair_layout.addWidget(pair_button, alignment=Qt.AlignLeft)
-
-        dissimilarity_button = QPushButton("Calculate Dissimilarities")
-        dissimilarity_button.setStyleSheet(SIMILARITY_CALCULATE_BUTTON_INACTIVE_STYLE)
-        dissimilarity_button.setToolTip("Select exactly 2 charts to compare.")
-        dissimilarity_button.clicked.connect(self._calculate_pair_dissimilarity_from_selection)
-        pair_layout.addWidget(dissimilarity_button, alignment=Qt.AlignLeft)
-        pair_layout.addStretch(1)
-        layout.addWidget(pair_row)
-        self._similarities_pair_button = pair_button
-        self._dissimilarities_pair_button = dissimilarity_button
-
-        pair_result_label = QLabel("Select 2 charts, or use chart inputs with “use this” checked.")
-        pair_result_label.setWordWrap(True)
-        pair_result_label.setStyleSheet("color: #9b9b9b;")
-        layout.addWidget(pair_result_label)
-        self._similarities_pair_result_label = pair_result_label
-
-        similarities_list_style = (
-            "QListWidget {"
-            "  background-color: #151515;"
-            "  border: 1px solid #333333;"
-            "}"
-            "QListWidget::item {"
-            "  padding: 4px 6px;"
-            "}"
-        )
-        (
-            self.similarities_common_positions_toggle,
-            self.similarities_common_positions_list,
-        ) = self._add_similarities_collapsible_section(
-            layout,
-            "Signs in positions in common",
-            min_height=160,
-            list_style=similarities_list_style,
-        )
-        (
-            self.similarities_houses_in_positions_toggle,
-            self.similarities_houses_in_positions_list,
-        ) = self._add_similarities_collapsible_section(
-            layout,
-            "Houses in positions in common",
-            min_height=120,
-            list_style=similarities_list_style,
-        )
-        (
-            self.similarities_signs_in_houses_toggle,
-            self.similarities_signs_in_houses_list,
-        ) = self._add_similarities_collapsible_section(
-            layout,
-            "Signs in houses in common",
-            min_height=120,
-            list_style=similarities_list_style,
-        )
-        (
-            self.similarities_dominant_signs_toggle,
-            self.similarities_dominant_signs_list,
-        ) = self._add_similarities_collapsible_section(
-            layout,
-            "Top 3 Dominant Signs in common",
-            min_height=100,
-            list_style=similarities_list_style,
-        )
-        (
-            self.similarities_dominant_bodies_toggle,
-            self.similarities_dominant_bodies_list,
-        ) = self._add_similarities_collapsible_section(
-            layout,
-            "Top 3 Dominant Bodies in common",
-            min_height=100,
-            list_style=similarities_list_style,
-        )
-        (
-            self.similarities_dominant_houses_toggle,
-            self.similarities_dominant_houses_list,
-        ) = self._add_similarities_collapsible_section(
-            layout,
-            "Top 3 Dominant Houses in common",
-            min_height=100,
-            list_style=similarities_list_style,
-        )
-        (
-            self.similarities_dominant_nakshatras_toggle,
-            self.similarities_dominant_nakshatras_list,
-        ) = self._add_similarities_collapsible_section(
-            layout,
-            "Dominant nakshatras in common",
-            min_height=100,
-            list_style=similarities_list_style,
-        )
-        (
-            self.similarities_common_aspects_toggle,
-            self.similarities_common_aspects_list,
-        ) = self._add_similarities_collapsible_section(
-            layout,
-            "Aspects in common",
-            min_height=160,
-            list_style=similarities_list_style,
-        )
-        (
-            self.similarities_common_hd_gates_toggle,
-            self.similarities_common_hd_gates_list,
-        ) = self._add_similarities_collapsible_section(
-            layout,
-            "Gates in common",
-            min_height=120,
-            list_style=similarities_list_style,
-        )
-        (
-            self.similarities_common_hd_channels_toggle,
-            self.similarities_common_hd_channels_list,
-        ) = self._add_similarities_collapsible_section(
-            layout,
-            "Channels in common",
-            min_height=120,
-            list_style=similarities_list_style,
-        )
-        (
-            self.similarities_common_hd_defined_centers_toggle,
-            self.similarities_common_hd_defined_centers_list,
-        ) = self._add_similarities_collapsible_section(
-            layout,
-            "Defined Centers in common",
-            min_height=100,
-            list_style=similarities_list_style,
-        )
-        (
-            self.similarities_common_hd_authorities_toggle,
-            self.similarities_common_hd_authorities_list,
-        ) = self._add_similarities_collapsible_section(
-            layout,
-            "Authorities in common",
-            min_height=100,
-            list_style=similarities_list_style,
-        )
-        (
-            self.similarities_common_hd_profiles_toggle,
-            self.similarities_common_hd_profiles_list,
-        ) = self._add_similarities_collapsible_section(
-            layout,
-            "Profiles in common",
-            min_height=100,
-            list_style=similarities_list_style,
-        )
-        (
-            self.similarities_common_bazi_signs_toggle,
-            self.similarities_common_bazi_signs_list,
-        ) = self._add_similarities_collapsible_section(
-            layout,
-            "BaZi signs in common",
-            min_height=100,
-            list_style=similarities_list_style,
-        )
-        self.similarities_db_info_panel = DBInfoPanel(panel)
-        self.similarities_db_info_panel.setVisible(False)
-        layout.addWidget(self.similarities_db_info_panel)
-        layout.addStretch(1)
-        return panel
+        return self.similarities_controller.build_panel()
 
     def _set_similarities_db_info_panel_visible(self, visible: bool) -> None:
         self.similarities_controller.set_db_info_panel_visible(visible)
@@ -7560,7 +7287,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if (normalized := self._normalize_chart_row(row)) is not None
             and _chart_row_is_similarity_participant(normalized)
         ]
-        self._similarities_chart_lookup, choices = build_chart_lookup(similarity_rows)
+        chart_lookup, choices = build_chart_lookup(similarity_rows)
+        self.similarities_controller.set_chart_lookup(chart_lookup)
 
         for field in (
             self._similarities_first_chart_input,
@@ -7728,7 +7456,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _update_dissimilarities_analysis(self, chart_ids: list[int]) -> int:
         selected_chart_ids = self._exclude_similarities_placeholder_chart_ids(chart_ids)
         if len(selected_chart_ids) != 2:
-            self._similarities_export_sections = []
+            self.similarities_controller.set_export_sections([])
             self.similarities_status_label.setText(
                 "Select exactly 2 non-placeholder charts to calculate dissimilarities."
             )
@@ -7753,7 +7481,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 db_chart_ids,
                 db_total_count,
             )
-            self._similarities_export_sections = pair_sections
+            self.similarities_controller.set_export_sections(pair_sections)
             section_matches = {section_title: matches for section_title, matches in pair_sections}
 
             render_pairs = (
@@ -8660,7 +8388,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 )
 
         if len(selected_non_placeholder_chart_ids) < 2:
-            self._similarities_export_sections = []
+            self.similarities_controller.set_export_sections([])
             if len(chart_ids) >= 2:
                 self.similarities_status_label.setText(
                     "Placeholders are excluded from astrological similarities. "
@@ -8812,7 +8540,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 progress,
                 "Preparing similarities export data…",
             )
-            self._similarities_export_sections = [
+            self.similarities_controller.set_export_sections([
                 (
                     "Signs in positions in common",
                     [
@@ -9065,8 +8793,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         for label, match_count, total_count in common_bazi_signs
                     ],
                 ),
-            ]
-            self._similarities_export_sections = [
+            ])
+            self.similarities_controller.set_export_sections([
                 (
                     section_title,
                     [
@@ -9082,7 +8810,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     ],
                 )
                 for section_title, matches in self._similarities_export_sections
-            ]
+            ])
 
             total_matches = sum(
                 len(section_matches)
@@ -18446,10 +18174,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._database_metrics_cache = None
             self._database_metric_snapshots = {}
             self._database_metrics_lucy_goosey_ids.clear()
-            self._similarities_db_baseline_cache.clear()
+            self.similarities_controller.clear_db_baseline_cache()
         elif changed_ids:
             self._database_metrics_lucy_goosey_ids.update(changed_ids)
-            self._similarities_db_baseline_cache.clear()
+            self.similarities_controller.clear_db_baseline_cache()
             for chart_id in changed_ids:
                 self._chart_cache.pop(chart_id, None)
             owner = self.parent()
