@@ -29526,11 +29526,18 @@ class MainWindow(QMainWindow):
                 use_houses = _chart_uses_houses(chart)
                 houses = getattr(chart, "houses", None) if use_houses else None
                 sign_by_body = chart.signs() if hasattr(chart, "signs") else {}
+                unknown_sign_bodies = (
+                    set(getattr(chart, "unknown_signs", []) or [])
+                    if bool(getattr(chart, "birthtime_unknown", False))
+                    else set()
+                )
                 ordered_bodies = [body for body in PLANET_ORDER if body in (getattr(chart, "positions", {}) or {})]
                 ordered_bodies.extend(
                     sorted(set(getattr(chart, "positions", {}) or {}).difference(ordered_bodies))
                 )
                 for body in ordered_bodies:
+                    if body in unknown_sign_bodies:
+                        continue
                     body_sign = str(sign_by_body.get(body, "")).strip().title()
                     lon = (getattr(chart, "positions", {}) or {}).get(body)
                     if not body_sign and lon is not None:
