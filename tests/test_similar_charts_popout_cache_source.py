@@ -63,3 +63,18 @@ def test_developer_tools_exposes_manual_similar_charts_cache_refresh():
     assert "_on_refresh_similar_charts_popout_cache_requested" in dev_tools_section
     assert "cache.clear()" in clear_method
     assert "The next Similar Charts popout will recalculate on demand." in refresh_method
+
+
+def test_full_recompute_refreshes_existing_similar_charts_cache_payload():
+    source = _app_source()
+    show_method = source.split("def _show_similar_charts_popout", 1)[1].split(
+        "def _export_similar_charts_popout_share", 1
+    )[0]
+    full_recompute_store = show_method.split("if performed_full_recompute:", 1)[1].split(
+        "subject_name =", 1
+    )[0]
+
+    assert "performed_full_recompute = False" in show_method
+    assert "performed_full_recompute = True" in show_method
+    assert "cached_payload is None" not in full_recompute_store
+    assert "row_signatures=row_signatures" in full_recompute_store

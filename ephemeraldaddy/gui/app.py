@@ -25898,6 +25898,7 @@ class MainWindow(QMainWindow):
             and algorithm_mode != SIMILAR_CHARTS_ALGORITHM_DATABASE_DISTINCTION
             and subject_chart_id not in changed_chart_ids
         )
+        performed_full_recompute = False
         if cached_payload is not None and not changed_chart_ids and not deleted_chart_ids:
             most_similar_matches = self._refresh_similar_charts_match_display_names(
                 list(cached_payload.get("most_similar_matches") or []),
@@ -25967,6 +25968,7 @@ class MainWindow(QMainWindow):
                 row_signatures=row_signatures,
             )
         else:
+            performed_full_recompute = True
             progress_parent = (
                 requester if isinstance(requester, QWidget) and requester.isVisible() else None
             )
@@ -26051,7 +26053,7 @@ class MainWindow(QMainWindow):
                 )
                 return
         least_similar_matches.sort(key=lambda match: (float(match.score), int(match.chart_id)))
-        if cached_payload is None:
+        if performed_full_recompute:
             self._store_similar_charts_popout_payload(
                 cache_key=cache_key,
                 most_similar_matches=most_similar_matches,
