@@ -18,7 +18,7 @@ from typing import Any, Callable
 from matplotlib import font_manager as mpl_font_manager
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QPoint, Qt, QTimer
 from PySide6.QtWidgets import (
     QDialog,
     QFileDialog,
@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QSizePolicy,
     QTextEdit,
+    QToolTip,
     QVBoxLayout,
 )
 
@@ -54,6 +55,10 @@ from ephemeraldaddy.core.interpretations import (
 from ephemeraldaddy.analysis.human_design import (
     build_human_design_result,
     derive_human_design_profile,
+)
+from ephemeraldaddy.analysis.hd_incarnation_crosses import (
+    find_cross_by_name,
+    find_crosses_by_gates,
 )
 from ephemeraldaddy.analysis.bazi_getter import build_bazi_chart_data
 from ephemeraldaddy.core.chart import chart_uses_houses
@@ -1087,6 +1092,51 @@ class DatabaseAnalyticsChartsMixin:
             f"Saved chart CSV to:\n{file_path}",
         )
 
+    def _attach_database_analytics_tick_label_tooltips(
+        self,
+        canvas: FigureCanvas,
+        figure: Figure,
+        label_tooltips: dict[str, str] | None,
+    ) -> None:
+        if not label_tooltips:
+            return
+        normalized_tooltips = {
+            self._clean_database_analytics_label(label): str(tooltip)
+            for label, tooltip in label_tooltips.items()
+            if str(tooltip).strip()
+        }
+        if not normalized_tooltips:
+            return
+
+        last_tooltip_label = {"label": ""}
+
+        def _on_tick_label_hover(event: Any) -> None:
+            if event.inaxes is None:
+                if last_tooltip_label["label"]:
+                    QToolTip.hideText()
+                    last_tooltip_label["label"] = ""
+                return
+            for tick_label in [*event.inaxes.get_yticklabels(), *event.inaxes.get_xticklabels()]:
+                label_text = self._clean_database_analytics_label(tick_label.get_text())
+                tooltip_text = normalized_tooltips.get(label_text)
+                if not tooltip_text:
+                    continue
+                contains, _ = tick_label.contains(event)
+                if contains:
+                    if last_tooltip_label["label"] != label_text:
+                        QToolTip.showText(
+                            canvas.mapToGlobal(QPoint(int(event.x), int(event.y))),
+                            tooltip_text,
+                            canvas,
+                        )
+                        last_tooltip_label["label"] = label_text
+                    return
+            if last_tooltip_label["label"]:
+                QToolTip.hideText()
+                last_tooltip_label["label"] = ""
+
+        canvas.mpl_connect("motion_notify_event", _on_tick_label_hover)
+
     def _configure_left_panel_canvas(
         self,
         canvas: FigureCanvas,
@@ -1725,10 +1775,21 @@ class DatabaseAnalyticsChartsMixin:
 
     @staticmethod
     def _format_human_design_incarnation_cross_label(label: str) -> str:
-        gate_values = [int(value) for value in re.findall(r"\d+", str(label))]
-        if len(gate_values) < 4:
-            return str(label)
-        return f"{gate_values[0]}-{gate_values[1]}•{gate_values[2]}-{gate_values[3]}"
+        label_text = str(label or "").strip()
+        cross = find_cross_by_name(label_text)
+        if cross:
+            return str(cross.get("full_name") or label_text)
+        gate_values = [int(value) for value in re.findall(r"\d+", label_text)]
+        if len(gate_values) >= 4:
+            matches = find_crosses_by_gates(
+                gate_values[0],
+                gate_values[1],
+                gate_values[2],
+                gate_values[3],
+            )
+            if matches:
+                return str(matches[0].get("full_name") or label_text)
+        return label_text
 
     @staticmethod
     def _format_human_design_type_label(label: str) -> str:
@@ -2393,6 +2454,7 @@ class DatabaseAnalyticsChartsMixin:
         selection_total: float | None = None,
         database_total: float | None = None,
         include_significance_guides: bool = True,
+        label_tooltips: dict[str, str] | None = None,
     ) -> FigureCanvas:
         dominant_figure = Figure(figsize=(2.7, 5.8))
         dominant_figure.patch.set_facecolor(self._database_analytics_figure_facecolor())
@@ -2523,6 +2585,7 @@ class DatabaseAnalyticsChartsMixin:
         selection_total: float | None = None,
         database_total: float | None = None,
         include_significance_guides: bool = True,
+        label_tooltips: dict[str, str] | None = None,
     ) -> FigureCanvas:
         clamped_height_scale = max(0.5, float(height_scale))
         # Keep bottom margin visually consistent in pixels when chart height is scaled up.
@@ -2649,6 +2712,7 @@ class DatabaseAnalyticsChartsMixin:
         self._apply_tight_layout(figure)
         figure.subplots_adjust(left=0.51, bottom=scaled_bottom_margin, right=0.97, top=0.98)
         canvas = FigureCanvas(figure)
+        self._attach_database_analytics_tick_label_tooltips(canvas, figure, label_tooltips)
         self._configure_left_panel_canvas(canvas, figure)
         canvas.draw_idle()
         return canvas
