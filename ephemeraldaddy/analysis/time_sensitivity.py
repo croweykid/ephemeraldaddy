@@ -179,10 +179,10 @@ def _variability_label(percent_delta: float) -> str:
     if percent_delta < 5.0:
         return "Stable"
     if percent_delta < 15.0:
-        return "Mildly variable"
+        return "Moderate"
     if percent_delta < 35.0:
         return "Variable"
-    return "Highly variable"
+    return "High"
 
 
 def _span_label(start_time: str, end_time: str) -> str:

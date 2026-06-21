@@ -304,13 +304,13 @@ def _numeric_group_table_html(result: TimeSensitivityResult, group_key: str) -> 
     return (
         "<table style='border-collapse:collapse; border:0; width:100%; font-size:11px;'>"
         "<thead><tr>"
-        "<th align='left'>body/sign/nak./H/El./Mode</th>"
-        "<th align='right'>min wt</th>"
-        "<th align='right'>max wt</th>"
-        "<th align='left'>trench🕚</th>"
-        "<th align='left'>peak🕚</th>"
+        "<th align='left'>factor</th>" #body/sign/nak./H/el./mode
+        "<th align='right'>min</th>"
+        "<th align='right'>max</th>"
+        "<th align='left'>trench</th>"
+        "<th align='left'>peak</th>"
         f"<th align='left'>△{escape(result.baseline_time)}</th>"
-        "<th align='left'>variability</th>"
+        "<th align='left'>var.</th>"
         "</tr></thead><tbody>"
         + "".join(rows)
         + "</tbody></table>"
