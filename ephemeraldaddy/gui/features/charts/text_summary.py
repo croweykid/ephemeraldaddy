@@ -36,8 +36,14 @@ from ephemeraldaddy.core.interpretations import (
     aspect_duration_score,
     aspect_pair_weight,
     aspect_score,
+    BODY_RELATIONAL_GLYPHS,
+    PLANET_DETRIMENT,
+    PLANET_EXALTATION,
+    PLANET_FALL,
     PLANET_GLYPHS,
     PLANET_ORDER,
+    PLANET_RULERSHIP,
+    PLANETARY_JOYS,
     DECANS,
     ZODIAC_NAMES,
     ZODIAC_SIGNS,
@@ -56,6 +62,31 @@ from ephemeraldaddy.gui.features.charts.presentation import (
     sign_for_longitude,
 )
 from ephemeraldaddy.gui.style import CHART_DATA_DIVIDER, format_chart_header
+
+
+def _sign_dignity_prefix(body: str, sign: str) -> str:
+    """Return the dignity/debility glyph prefix for a body's zodiac sign."""
+    if sign in PLANET_RULERSHIP.get(body, set()):
+        return BODY_RELATIONAL_GLYPHS.get("Rulership", "")
+    exaltation = PLANET_EXALTATION.get(body)
+    if isinstance(exaltation, dict) and exaltation.get("sign") == sign:
+        return BODY_RELATIONAL_GLYPHS.get("Exaltation", "")
+    if sign in PLANET_DETRIMENT.get(body, set()):
+        return BODY_RELATIONAL_GLYPHS.get("Detriment", "")
+    fall = PLANET_FALL.get(body)
+    if isinstance(fall, dict) and fall.get("sign") == sign:
+        return BODY_RELATIONAL_GLYPHS.get("Fall", "")
+    return ""
+
+
+def _joy_house_prefix(body: str, house_num: int | None, *, include_joys: bool) -> str:
+    """Return the planetary joy glyph when the body is in its joy house."""
+    if not include_joys or house_num is None:
+        return ""
+    joy_houses = PLANETARY_JOYS.get(body, set())
+    if isinstance(joy_houses, int):
+        joy_houses = {joy_houses}
+    return BODY_RELATIONAL_GLYPHS.get("Joy", "") if house_num in joy_houses else ""
 
 
 def _display_cell_width(text: str) -> int:
@@ -624,11 +655,13 @@ def format_chart_text(
             decan_info = _decan_info_from_longitude(lon)
             gl_text = personality_gate_lines.get(body, "")
             house_label = f"H{house_num}" if house_num is not None else "-"
+            sign_display = f"{_sign_dignity_prefix(body, sign_label)}{sign_label}"
+            house_display = f"{_joy_house_prefix(body, house_num, include_joys=use_houses or use_rectified_time)}{house_label}"
             body_column = _pad_display_column(display_body, body_width)
-            sign_column = _pad_display_column(sign_label, sign_width)
+            sign_column = _pad_display_column(sign_display, sign_width)
             degree_column = _pad_display_column(degree_text, degree_width)
             nakshatra_column = _pad_display_column(nakshatra, nakshatra_width)
-            house_column = _pad_display_column(house_label, house_width)
+            house_column = _pad_display_column(house_display, house_width)
             gl_column = _pad_display_column(gl_text, gl_width)
             columns = [body_column, sign_column, degree_column, nakshatra_column, house_column, gl_column]
             column_offsets: list[int] = []
@@ -653,7 +686,7 @@ def format_chart_text(
                     "body": body,
                     "column": 1,
                     "span_start": column_offsets[1],
-                    "span_end": column_offsets[1] + len(sign_label),
+                    "span_end": column_offsets[1] + len(sign_display),
                 },
                 {
                     "kind": "decan_keyword",
@@ -679,7 +712,7 @@ def format_chart_text(
                         "house": house_num,
                         "column": 4,
                         "span_start": column_offsets[4],
-                        "span_end": column_offsets[4] + len(house_label),
+                        "span_end": column_offsets[4] + len(house_display),
                     }
                 )
             if gl_text:
@@ -708,8 +741,9 @@ def format_chart_text(
             position_info_map[len(lines)] = entry_list
             lines.append(line)
         else:
+            sign_display = f"{_sign_dignity_prefix(body, sign_label)}{sign_label}"
             body_column = _pad_display_column(display_body, body_width)
-            sign_column = _pad_display_column(sign_label, sign_width)
+            sign_column = _pad_display_column(sign_display, sign_width)
             degree_column = _pad_display_column(degree_text, degree_width)
             nakshatra_column = _pad_display_column(nakshatra, nakshatra_width)
             columns = [body_column, sign_column, degree_column, nakshatra_column]
@@ -736,7 +770,7 @@ def format_chart_text(
                     "body": body,
                     "column": 1,
                     "span_start": column_offsets[1],
-                    "span_end": column_offsets[1] + len(sign_label),
+                    "span_end": column_offsets[1] + len(sign_display),
                 },
                 {
                     "kind": "decan_keyword",
