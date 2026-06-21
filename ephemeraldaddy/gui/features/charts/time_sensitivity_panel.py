@@ -15,7 +15,6 @@ from PySide6.QtWidgets import (
     QDialog,
     QHBoxLayout,
     QLabel,
-    QMessageBox,
     QPushButton,
     QSizePolicy,
     QTextBrowser,
@@ -194,8 +193,7 @@ def _factor_anchor(group_key: str, key: str) -> str:
     if not href:
         return f"<span style='color:{color}; font-weight:700;'>{text}</span>"
     return (
-        f"<a href='{href}' style='color:{color}; font-weight:700; "
-        "text-decoration: underline;'>"
+        f"<a href='{href}' style='color:{color}; font-weight:700; text-decoration: none;'>"
         f"{text}</a>"
     )
 
@@ -216,8 +214,7 @@ def _gate_anchor(gate: str) -> str:
     else:
         return f"<span style='color:{escape(color, quote=True)}; font-weight:700;'>{safe_gate}</span>"
     return (
-        f"<a href='{href}' style='color:{escape(color, quote=True)}; font-weight:700; "
-        "text-decoration: underline;'>"
+        f"<a href='{href}' style='color:{escape(color, quote=True)}; font-weight:700; text-decoration: none;'>"
         f"{safe_gate}</a>"
     )
 
@@ -261,7 +258,7 @@ def format_time_sensitivity_result_html(result: TimeSensitivityResult) -> str:
             tooltip = " | ".join(span_bits) or "No sampled time-span changes."
             delta_color = escape(_delta_intensity_color(abs(float(payload.get("percent_delta", 0.0))), delta_values), quote=True)
             html_lines.append(
-                "<span style='text-decoration: underline dotted;' title='"
+                "<span title='"
                 + escape(tooltip, quote=True)
                 + "'>"
                 + f"{_factor_anchor(group_key, str(key))} "
@@ -314,6 +311,12 @@ class TimeSensitivityPanel(QWidget):
         description.setWordWrap(True)
         layout.addWidget(description)
 
+        self.compute_module = QWidget()
+        compute_module_layout = QVBoxLayout()
+        compute_module_layout.setContentsMargins(0, 0, 0, 0)
+        compute_module_layout.setSpacing(6)
+        self.compute_module.setLayout(compute_module_layout)
+
         refinement_row = QHBoxLayout()
         self.boundary_refinement_checkbox = QCheckBox("boundary refinement")
         self.boundary_refinement_checkbox.setEnabled(False)
@@ -323,7 +326,7 @@ class TimeSensitivityPanel(QWidget):
         refinement_row.addWidget(self.boundary_refinement_checkbox)
         refinement_row.addWidget(refinement_info)
         refinement_row.addStretch(1)
-        layout.addLayout(refinement_row)
+        compute_module_layout.addLayout(refinement_row)
 
         controls = QHBoxLayout()
         self.interval_combo = QComboBox()
@@ -332,12 +335,8 @@ class TimeSensitivityPanel(QWidget):
         self.compute_button.clicked.connect(self.compute_range)
         controls.addWidget(self.interval_combo)
         controls.addWidget(self.compute_button)
-        layout.addLayout(controls)
-
-        self.save_button = QPushButton("Save range")
-        self.save_button.setEnabled(False)
-        self.save_button.clicked.connect(self.save_range)
-        layout.addWidget(self.save_button)
+        compute_module_layout.addLayout(controls)
+        layout.addWidget(self.compute_module)
 
         self.output = QTextBrowser()
         self.output.setReadOnly(True)
@@ -372,8 +371,8 @@ class TimeSensitivityPanel(QWidget):
             return
         self._chart_date_key = date_key
         self._last_result = None
-        self.save_button.setEnabled(False)
         if chart is None:
+            self.compute_module.setVisible(False)
             self.output.setPlainText("No active chart is loaded.")
             self._clear_likelihood_charts()
             return
@@ -382,8 +381,9 @@ class TimeSensitivityPanel(QWidget):
             self._last_result = saved
             self.output.setHtml(format_time_sensitivity_result_html(saved))
             self._render_likelihood_charts(saved)
-            self.save_button.setEnabled(True)
+            self.compute_module.setVisible(False)
             return
+        self.compute_module.setVisible(bool(date_key))
         if date_key:
             self.output.setPlainText(
                 f"No saved Time/Rectification Sensitivity range for {date_key}. "
@@ -396,34 +396,25 @@ class TimeSensitivityPanel(QWidget):
     def compute_range(self) -> None:
         chart = self._current_chart()
         if chart is None:
+            self.compute_module.setVisible(False)
             self.output.setPlainText("No active chart is loaded.")
             return
         self.compute_button.setEnabled(False)
-        self.save_button.setEnabled(False)
         self.output.setPlainText("Computing Time/Rectification Sensitivity…")
         try:
             config = self._current_config()
             self._last_result = compute_time_sensitivity(chart, config)
             self._chart_date_key = birth_date_key_for_chart(chart)
+            save_time_sensitivity_result(self._last_result)
             self.output.setHtml(format_time_sensitivity_result_html(self._last_result))
             self._render_likelihood_charts(self._last_result)
-            self.save_button.setEnabled(True)
+            self.compute_module.setVisible(False)
         except Exception as exc:
             self._last_result = None
             self.output.setPlainText(f"Unable to compute Time/Rectification Sensitivity:\n{exc}")
             self._clear_likelihood_charts()
         finally:
             self.compute_button.setEnabled(True)
-
-    def save_range(self) -> None:
-        if self._last_result is None:
-            return
-        try:
-            save_time_sensitivity_result(self._last_result)
-        except Exception as exc:
-            QMessageBox.warning(self, "Time Sensitivity", f"Unable to save range:\n{exc}")
-            return
-        QMessageBox.information(self, "Time Sensitivity", "Time/Rectification Sensitivity range saved.")
 
     def _open_chart_info_link(self, url: QUrl) -> None:
         target = url.toString()

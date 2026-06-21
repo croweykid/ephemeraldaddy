@@ -265,3 +265,5 @@ def test_time_sensitivity_html_color_codes_deltas_and_links_factors():
     assert "distinguishing-factor:gate-line:1:1" in html
     assert "color:#b7ff00" in html
     assert "color:#7a0000" in html
+    assert "text-decoration: underline" not in html
+    assert "underline dotted" not in html
