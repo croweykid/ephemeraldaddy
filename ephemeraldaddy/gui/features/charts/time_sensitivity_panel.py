@@ -5,14 +5,18 @@ from __future__ import annotations
 from html import escape
 from typing import Any
 
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
+    QDialog,
     QHBoxLayout,
     QLabel,
     QMessageBox,
     QPushButton,
+    QSizePolicy,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -26,6 +30,102 @@ from ephemeraldaddy.analysis.time_sensitivity import (
     load_time_sensitivity_result_for_chart,
     save_time_sensitivity_result,
 )
+from ephemeraldaddy.core.interpretations import PLANET_COLORS, SIGN_COLORS
+from ephemeraldaddy.gui.features.charts.chart_analytics_popout import _display_body_name
+
+
+_TIME_SENSITIVITY_CHART_TITLES = {
+    "dominant_planet_weights": "Dominant Body Likelihood",
+    "dominant_sign_weights": "Dominant Sign Likelihood",
+}
+
+
+def _likelihood_rows(result: TimeSensitivityResult, group_key: str) -> list[tuple[str, float]]:
+    """Return dominance-likelihood rows, falling back to max-weight range data for old saves."""
+    likelihoods = (result.overall.get("dominance_likelihoods") or {}).get(group_key, {})
+    if isinstance(likelihoods, dict) and likelihoods:
+        rows = [
+            (str(key), float(payload.get("percent", 0.0)))
+            for key, payload in likelihoods.items()
+            if isinstance(payload, dict)
+        ]
+        return sorted(rows, key=lambda item: (-item[1], item[0]))
+
+    ranges = result.numeric_ranges.get(group_key, {})
+    rows = [
+        (str(key), float(payload.get("max", 0.0)))
+        for key, payload in ranges.items()
+        if isinstance(payload, dict) and float(payload.get("max", 0.0)) > 0.0
+    ]
+    total = sum(value for _key, value in rows)
+    if total <= 0.0:
+        return []
+    return sorted(
+        [(key, (value / total) * 100.0) for key, value in rows],
+        key=lambda item: (-item[1], item[0]),
+    )
+
+
+def _color_for_likelihood(group_key: str, label: str) -> str:
+    if group_key == "dominant_sign_weights":
+        return str(SIGN_COLORS.get(label, "#6fa8dc"))
+    return str(PLANET_COLORS.get(label, "#6fa8dc"))
+
+
+def _display_label_for_likelihood(group_key: str, label: str) -> str:
+    if group_key == "dominant_planet_weights":
+        return _display_body_name(label)
+    return label
+
+
+def _draw_likelihood_chart(ax: Any, result: TimeSensitivityResult, group_key: str) -> None:
+    rows = _likelihood_rows(result, group_key)
+    labels = [label for label, _percent in rows]
+    display_labels = [_display_label_for_likelihood(group_key, label) for label in labels]
+    values = [percent for _label, percent in rows]
+    colors = [_color_for_likelihood(group_key, label) for label in labels]
+    ax.set_facecolor("#111111")
+    ax.figure.patch.set_facecolor("#111111")
+    if not rows:
+        ax.text(0.5, 0.5, "No dominance likelihood data available.", ha="center", va="center", color="#f5f5f5")
+        ax.set_axis_off()
+        return
+
+    bars = ax.bar(display_labels, values, color=colors, alpha=0.72, edgecolor="#f5f5f5", linewidth=0.25)
+    for bar, label, percent in zip(bars, labels, values, strict=True):
+        bar.set_gid(f"time_sensitivity:{group_key}:{label}")
+        bar.set_picker(True)
+        # Opacity+ stacking: a translucent full-height cap shows the remaining uncertainty
+        # across the 49 Time Sensitivity sampled charts.
+        ax.bar(
+            bar.get_x() + (bar.get_width() / 2),
+            max(0.0, 100.0 - percent),
+            width=bar.get_width(),
+            bottom=percent,
+            color=_color_for_likelihood(group_key, label),
+            alpha=0.18,
+            edgecolor="none",
+            align="center",
+        )
+        ax.text(
+            bar.get_x() + (bar.get_width() / 2),
+            min(100.0, percent + 2.0),
+            f"{percent:.0f}%",
+            ha="center",
+            va="bottom",
+            color="#f5f5f5",
+            fontsize=8,
+            fontweight="bold",
+        )
+    ax.set_ylim(0, 105)
+    ax.set_ylabel("% of sampled charts", color="#f5f5f5", fontsize=8)
+    ax.set_title(_TIME_SENSITIVITY_CHART_TITLES.get(group_key, group_key), color="#f5f5f5", fontsize=10, fontweight="bold")
+    ax.tick_params(axis="x", colors="#f5f5f5", labelrotation=45, labelsize=8)
+    ax.tick_params(axis="y", colors="#f5f5f5", labelsize=8)
+    ax.grid(axis="y", color="#333333", linewidth=0.5, alpha=0.8)
+    for spine in ax.spines.values():
+        spine.set_color("#555555")
+    ax.figure.tight_layout()
 
 
 def _group_title(group_key: str) -> str:
@@ -50,6 +150,8 @@ def format_time_sensitivity_result_html(result: TimeSensitivityResult) -> str:
     lines.extend(f"  {item}" for item in (result.variable or ["No categorical variability found."]))
 
     for group_key, ranges in result.numeric_ranges.items():
+        if group_key in {"dominant_planet_weights", "dominant_sign_weights"}:
+            continue
         meaningful = [
             (key, payload)
             for key, payload in ranges.items()
@@ -162,6 +264,12 @@ class TimeSensitivityPanel(QWidget):
         self.output.setPlainText("Click Compute Range to scan 49 sampled times: every 30 minutes plus 23:59.")
         layout.addWidget(self.output, 1)
 
+        self._chart_canvases: dict[str, FigureCanvas] = {}
+        self._charts_layout = QVBoxLayout()
+        self._charts_layout.setContentsMargins(0, 0, 0, 0)
+        self._charts_layout.setSpacing(8)
+        layout.addLayout(self._charts_layout)
+
     def _current_chart(self) -> Any | None:
         return getattr(self._owner, "_latest_chart", None)
 
@@ -183,11 +291,13 @@ class TimeSensitivityPanel(QWidget):
         self.save_button.setEnabled(False)
         if chart is None:
             self.output.setPlainText("No active chart is loaded.")
+            self._clear_likelihood_charts()
             return
         saved = load_time_sensitivity_result_for_chart(chart, self._current_config())
         if saved is not None:
             self._last_result = saved
             self.output.setHtml(format_time_sensitivity_result_html(saved))
+            self._render_likelihood_charts(saved)
             self.save_button.setEnabled(True)
             return
         if date_key:
@@ -197,6 +307,7 @@ class TimeSensitivityPanel(QWidget):
             )
         else:
             self.output.setPlainText("No usable birth date found for Time/Rectification Sensitivity storage.")
+        self._clear_likelihood_charts()
 
     def compute_range(self) -> None:
         chart = self._current_chart()
@@ -211,10 +322,12 @@ class TimeSensitivityPanel(QWidget):
             self._last_result = compute_time_sensitivity(chart, config)
             self._chart_date_key = birth_date_key_for_chart(chart)
             self.output.setHtml(format_time_sensitivity_result_html(self._last_result))
+            self._render_likelihood_charts(self._last_result)
             self.save_button.setEnabled(True)
         except Exception as exc:
             self._last_result = None
             self.output.setPlainText(f"Unable to compute Time/Rectification Sensitivity:\n{exc}")
+            self._clear_likelihood_charts()
         finally:
             self.compute_button.setEnabled(True)
 
@@ -227,3 +340,60 @@ class TimeSensitivityPanel(QWidget):
             QMessageBox.warning(self, "Time Sensitivity", f"Unable to save range:\n{exc}")
             return
         QMessageBox.information(self, "Time Sensitivity", "Time/Rectification Sensitivity range saved.")
+
+    def _clear_likelihood_charts(self) -> None:
+        for canvas in self._chart_canvases.values():
+            canvas.setParent(None)
+            canvas.deleteLater()
+        self._chart_canvases = {}
+
+    def _render_likelihood_charts(self, result: TimeSensitivityResult) -> None:
+        self._clear_likelihood_charts()
+        for group_key in ("dominant_planet_weights", "dominant_sign_weights"):
+            if not _likelihood_rows(result, group_key):
+                continue
+            figure = Figure(figsize=(5.5, 2.8))
+            ax = figure.add_subplot(111)
+            _draw_likelihood_chart(ax, result, group_key)
+            canvas = FigureCanvas(figure)
+            canvas.setMinimumHeight(250)
+            canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            canvas.setToolTip("Click to open a larger Time Sensitivity likelihood popout.")
+            canvas.mpl_connect(
+                "button_press_event",
+                lambda _event, key=group_key: self._show_likelihood_popout(key),
+            )
+            self._charts_layout.addWidget(canvas)
+            canvas.draw_idle()
+            self._chart_canvases[group_key] = canvas
+
+    def _show_likelihood_popout(self, group_key: str) -> None:
+        if self._last_result is None:
+            return
+        dialog = QDialog(self)
+        title = _TIME_SENSITIVITY_CHART_TITLES.get(group_key, "Dominance Likelihood")
+        dialog.setWindowTitle(title)
+        dialog.setAttribute(Qt.WA_DeleteOnClose)
+        dialog.setMinimumSize(820, 560)
+        layout = QVBoxLayout()
+        dialog.setLayout(layout)
+        figure = Figure(figsize=(8.5, 4.6))
+        ax = figure.add_subplot(111)
+        _draw_likelihood_chart(ax, self._last_result, group_key)
+        canvas = FigureCanvas(figure)
+        canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        layout.addWidget(canvas, 1)
+        info = QTextEdit()
+        info.setReadOnly(True)
+        info.setHtml(
+            "<b>Opacity+ stack meaning:</b> the solid portion is the percentage of sampled charts "
+            "where that factor is dominant; the translucent cap is the remaining uncertainty across "
+            f"{int(self._last_result.sample_count)} sampled charts."
+        )
+        info.setMaximumHeight(96)
+        layout.addWidget(info)
+        canvas.draw_idle()
+        register = getattr(self._owner, "_register_popout_shortcuts", None)
+        if callable(register):
+            register(dialog)
+        dialog.show()
