@@ -59,3 +59,19 @@ def test_compute_common_human_design_aggregates_extracts_each_chart_once():
     assert aggregates.defined_centers == [("G", 2, 3), ("Sacral", 2, 3)]
     assert aggregates.authorities == [("Sacral", 2, 3)]
     assert aggregates.profiles == [("1/3", 2, 3)]
+
+
+def test_compute_common_human_design_aggregates_returns_independent_empty_lists():
+    aggregates = compute_common_human_design_aggregates(
+        [],
+        extract_profile=lambda _chart: ([], [], [], [], "", ""),
+        chart_profile=lambda _chart: "",
+        sort_matches=_sort_matches,
+        defined_center_order=(),
+        authority_order=(),
+        profile_order=(),
+    )
+
+    assert aggregates.gates == []
+    assert aggregates.channels == []
+    assert aggregates.gates is not aggregates.channels

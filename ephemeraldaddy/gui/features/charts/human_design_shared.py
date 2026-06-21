@@ -83,8 +83,7 @@ def compute_common_human_design_aggregates(
     chart_list = [chart for chart in charts if chart is not None]
     chart_count = len(chart_list)
     if chart_count < 2:
-        empty: SimilarityMatches = []
-        return HumanDesignSharedAggregates(empty, empty, empty, empty, empty)
+        return HumanDesignSharedAggregates([], [], [], [], [])
 
     gate_counts: dict[str, int] = {}
     channel_counts: dict[str, int] = {}

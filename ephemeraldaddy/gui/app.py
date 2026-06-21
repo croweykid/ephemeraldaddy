@@ -19622,13 +19622,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         return hd_type
 
     def _chart_human_design_profile(self, chart: Chart) -> str:
+        cached_profile = str(getattr(chart, "human_design_profile", "") or "").strip()
+        if cached_profile:
+            return cached_profile
         try:
             hd_result = build_human_design_result(chart)
         except Exception:
             hd_result = None
         hd_profile = str(getattr(hd_result, "profile", "") or "").strip()
-        if not hd_profile:
-            hd_profile = str(getattr(chart, "human_design_profile", "") or "").strip()
         if hd_profile:
             chart.human_design_profile = hd_profile
         return hd_profile
