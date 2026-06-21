@@ -16,7 +16,7 @@ from ephemeraldaddy.core.db import DB_DIR
 from ephemeraldaddy.core.human_design_system import calculate_human_design
 from ephemeraldaddy.core.interpretations import NAKSHATRA_RANGES, ZODIAC_NAMES
 
-TIME_SENSITIVITY_ALGORITHM_VERSION = "time-sensitivity-v2"
+TIME_SENSITIVITY_ALGORITHM_VERSION = "time-sensitivity-v3"
 TIME_SENSITIVITY_DB_PATH = DB_DIR / "time_sensitivity.db"
 NUMERIC_GROUPS = (
     "dominant_planet_weights",
@@ -283,6 +283,26 @@ def _distribution(samples: list[dict[str, Any]], key: str) -> dict[str, int]:
     return dict(sorted(counts.items(), key=lambda item: (-item[1], item[0])))
 
 
+def _cumulative_weight_likelihoods(samples: list[dict[str, Any]], group: str) -> dict[str, dict[str, Any]]:
+    """Average every factor's weight across samples and express it as a relative share."""
+    sample_count = len(samples)
+    totals: dict[str, float] = {}
+    for sample in samples:
+        for key, value in sample["numeric"].get(group, {}).items():
+            totals[str(key)] = totals.get(str(key), 0.0) + float(value)
+    grand_total = sum(totals.values())
+    if grand_total <= 0.0:
+        return {}
+    return {
+        key: {
+            "average_weight": round(total / sample_count, 6) if sample_count else 0.0,
+            "percent": round((total / grand_total) * 100.0, 2),
+        }
+        for key, total in sorted(totals.items(), key=lambda item: (-item[1], item[0]))
+        if total > 0.0
+    }
+
+
 def _dominance_likelihoods(samples: list[dict[str, Any]], group: str) -> dict[str, dict[str, Any]]:
     """Count which weighted factor is dominant in each sampled chart."""
     counts: dict[str, float] = {}
@@ -428,6 +448,10 @@ def compute_time_sensitivity(chart: Any, config: TimeSensitivityConfig | None = 
             "dominance_likelihoods": {
                 "dominant_planet_weights": _dominance_likelihoods(samples, "dominant_planet_weights"),
                 "dominant_sign_weights": _dominance_likelihoods(samples, "dominant_sign_weights"),
+            },
+            "cumulative_weight_likelihoods": {
+                "dominant_planet_weights": _cumulative_weight_likelihoods(samples, "dominant_planet_weights"),
+                "dominant_sign_weights": _cumulative_weight_likelihoods(samples, "dominant_sign_weights"),
             },
             "baseline_source": baseline_source,
         },
