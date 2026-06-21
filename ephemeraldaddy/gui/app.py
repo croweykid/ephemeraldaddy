@@ -33081,6 +33081,23 @@ class MainWindow(QMainWindow):
             except (TypeError, ValueError):
                 return
             self._show_human_design_gate_line_info(gate, line)
+            return
+        if kind == "hd-channel":
+            gate_parts = value.split("-", 1)
+            if len(gate_parts) != 2:
+                return
+            try:
+                gate_a = int(gate_parts[0])
+                gate_b = int(gate_parts[1])
+            except (TypeError, ValueError):
+                return
+            self._show_human_design_channel_info(gate_a, gate_b, "")
+            return
+        if kind == "hd-property" and len(parts) >= 4:
+            property_key = value
+            property_value = urllib.parse.unquote(parts[3])
+            self._show_human_design_property_info(property_key, property_value)
+            return
 
     def _enneagram_prediction_adapter(self) -> EnneagramPredictionPanelAdapter:
         return EnneagramPredictionPanelAdapter(

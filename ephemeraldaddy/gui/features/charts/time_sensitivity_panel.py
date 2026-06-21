@@ -210,7 +210,22 @@ def _delta_intensity_color(value: float, values: list[float]) -> str:
 
 def _relative_value_color(value: float, peer_values: list[float]) -> str:
     """Return the red→lime color for a value ranked against the same metric's peers."""
-    return _delta_intensity_color(float(value), peer_values)
+    finite_values = [float(candidate) for candidate in peer_values]
+    if not finite_values:
+        return "#7a0000"
+    minimum = min(finite_values)
+    maximum = max(finite_values)
+    if maximum <= minimum:
+        ratio = 1.0
+    else:
+        ratio = (float(value) - minimum) / (maximum - minimum)
+    ratio = max(0.0, min(1.0, ratio))
+    start = (0x7A, 0x00, 0x00)
+    end = (0xB7, 0xFF, 0x00)
+    red = round(start[0] + ((end[0] - start[0]) * ratio))
+    green = round(start[1] + ((end[1] - start[1]) * ratio))
+    blue = round(start[2] + ((end[2] - start[2]) * ratio))
+    return f"#{red:02x}{green:02x}{blue:02x}"
 
 
 def _factor_color(group_key: str, key: str) -> str:
@@ -225,6 +240,9 @@ def _factor_color(group_key: str, key: str) -> str:
     if group_key == "dominant_mode_weights":
         return str(MODE_COLORS.get(str(key).lower(), "#6fa8dc"))
     if group_key == "dominant_nakshatra_weights":
+        entry = NAKSHATRA_PLANET_COLOR.get(str(key))
+        if entry:
+            return str(entry[1])
         return "#d7b5ff"
     return "#6fa8dc"
 
@@ -296,6 +314,17 @@ def _format_time_list(values: Any, limit: int = 3) -> str:
     return str(values)
 
 
+def _span_start_end(values: Any) -> tuple[str, str]:
+    """Return the first displayed span split into start/end time cells."""
+    if not values:
+        return "n/a", "n/a"
+    first = str(values[0] if isinstance(values, (list, tuple)) else values)
+    if "–" in first:
+        start, end = first.split("–", 1)
+        return start.strip() or "n/a", end.strip() or "n/a"
+    return first.strip() or "n/a", first.strip() or "n/a"
+
+
 def _variability_text(payload: dict[str, Any]) -> str:
     return str(payload.get("label", "")).replace("Highly variable", "high") or "n/a"
 
@@ -311,16 +340,33 @@ def _numeric_group_table_html(result: TimeSensitivityResult, group_key: str) -> 
     meaningful.sort(key=lambda item: float(item[1].get("max", 0.0)), reverse=True)
     if not meaningful:
         return "<div>No weighted results available.</div>"
+    min_values = [float(payload.get("min", 0.0)) for _key, payload in meaningful]
+    max_values = [float(payload.get("max", 0.0)) for _key, payload in meaningful]
+    decrease_values = [float(payload.get("max_decrease_percent", 0.0)) for _key, payload in meaningful]
+    increase_values = [float(payload.get("max_increase_percent", 0.0)) for _key, payload in meaningful]
     rows = []
     for key, payload in meaningful:
+        trough_start, trough_end = _span_start_end(payload.get("trough_spans") or payload.get("trough_times"))
+        peak_start, peak_end = _span_start_end(payload.get("peak_spans") or payload.get("peak_times"))
+        minimum = float(payload.get("min", 0.0))
+        maximum = float(payload.get("max", 0.0))
+        max_decrease = float(payload.get("max_decrease_percent", 0.0))
+        max_increase = float(payload.get("max_increase_percent", 0.0))
+        min_color = escape(_relative_value_color(minimum, min_values), quote=True)
+        max_color = escape(_relative_value_color(maximum, max_values), quote=True)
+        decrease_color = escape(_relative_value_color(max_decrease, decrease_values), quote=True)
+        increase_color = escape(_relative_value_color(max_increase, increase_values), quote=True)
         rows.append(
             "<tr>"
             f"<td>{_factor_anchor(group_key, key)}</td>"
-            f"<td>{escape(f'{float(payload.get('min', 0.0)):.0f}')}</td>"
-            f"<td>{escape(f'{float(payload.get('max', 0.0)):.0f}')}</td>"
-            f"<td>{escape(_format_time_list(payload.get('trough_times')))}</td>"
-            f"<td>{escape(_format_time_list(payload.get('peak_times')))}</td>"
-            f"<td>{escape(f'{float(payload.get('max_decrease_percent', 0.0)):+.0f}% to {float(payload.get('max_increase_percent', 0.0)):+.0f}%')}</td>"
+            f"<td align='right' style='color:{min_color};'>{escape(f'{minimum:.0f}')}</td>"
+            f"<td align='right' style='color:{max_color};'>{escape(f'{maximum:.0f}')}</td>"
+            f"<td>{escape(trough_start)}</td>"
+            f"<td>{escape(trough_end)}</td>"
+            f"<td>{escape(peak_start)}</td>"
+            f"<td>{escape(peak_end)}</td>"
+            f"<td align='right' style='color:{decrease_color};'>{escape(f'{max_decrease:.0f}')}</td>"
+            f"<td align='right' style='color:{increase_color};'>{escape(f'{max_increase:.0f}')}</td>"
             f"<td>{escape(_variability_text(payload))}</td>"
             "</tr>"
         )
@@ -330,9 +376,10 @@ def _numeric_group_table_html(result: TimeSensitivityResult, group_key: str) -> 
         "<th align='left'>factor</th>" #body/sign/nak./H/el./mode
         "<th align='right'>min</th>"
         "<th align='right'>max</th>"
-        "<th align='left'>trench</th>"
-        "<th align='left'>peak</th>"
-        f"<th align='left'>△{escape(result.baseline_time)}</th>"
+        "<th align='center' colspan='2'>trench</th>"
+        "<th align='center' colspan='2'>peak</th>"
+        "<th align='right'>-%△</th>"
+        "<th align='right'>+%△</th>"
         "<th align='left'>var.</th>"
         "</tr></thead><tbody>"
         + "".join(rows)
@@ -365,20 +412,31 @@ def _gate_anchor(gate: str) -> str:
     elif "-" not in gate_text:
         href = f"distinguishing-factor:gate:{quote(gate_text)}"
     else:
-        return f"<span style='color:{escape(color, quote=True)};'>{safe_gate}</span>"
+        href = f"distinguishing-factor:hd-channel:{quote(gate_text)}"
     return (
         f"<a href='{href}' style='color:{escape(color, quote=True)}; text-decoration: none;'>"
         f"{safe_gate}</a>"
     )
 
 
+def _hd_property_anchor(property_key: str, value: str) -> str:
+    safe_value = escape(str(value), quote=True)
+    href = f"distinguishing-factor:hd-property:{quote(property_key)}:{quote(str(value))}"
+    return f"<a href='{href}' style='color:#d7b5ff; text-decoration:none;'>{safe_value}</a>"
+
+
 def format_time_sensitivity_result_html(result: TimeSensitivityResult) -> str:
     """Return compact rich text for the Chart View Time Sensitivity panel."""
+    return _summary_html(result) + _human_design_html(result)
+
+
+def _summary_html(result: TimeSensitivityResult) -> str:
+    """Return the overview/stability summary HTML."""
     overall = result.overall
     baseline_label = f"{result.baseline_time} ({overall.get('baseline_source', 'baseline')})"
     html_lines: list[str] = [
         f"<div><strong>Overall stability:</strong> {float(overall.get('stability_percent', 0)):.0f}%</div>",
-        f"<div<strong>>Max possible change from {escape(baseline_label)}:</strong> {float(overall.get('max_total_change_from_baseline_percent', 0)):.0f}%</div>",
+        f"<div><strong>Max possible change from {escape(baseline_label)}:</strong> {float(overall.get('max_total_change_from_baseline_percent', 0)):.0f}%</div>",
         "<div><strong>Most sensitive:</strong> " + _color_code_text(", ".join(overall.get("most_sensitive", []) or ["n/a"])) + "</div>",
         "<div><strong>Least sensitive:</strong> " + _color_code_text(", ".join(overall.get("least_sensitive", []) or ["n/a"])) + "</div>",
         f"<div><strong>Samples:</strong> {result.sample_count} hypothetical standard charts + {result.sample_count} Human Design charts</div>",
@@ -388,6 +446,40 @@ def format_time_sensitivity_result_html(result: TimeSensitivityResult) -> str:
     html_lines.append(_header_html("Variable:"))
     html_lines.append(_list_html([_color_code_text(item) for item in (result.variable or ["No categorical variability found."])]))
 
+    if result.warnings:
+        html_lines.append(_header_html("Warnings:"))
+        html_lines.append(_list_html([escape(warning) for warning in result.warnings]))
+    return "<div style='white-space: normal;'>" + "\n".join(html_lines) + "</div>"
+
+
+def _human_design_html(result: TimeSensitivityResult) -> str:
+    """Return Human Design Time Sensitivity details with Chart Info links."""
+    hd = result.human_design
+    hd_items = []
+    for key in ("gates", "lines", "channels"):
+        summary = hd.get(key, {})
+        always = ", ".join(_gate_anchor(item) for item in summary.get("always", [])[:20]) or "none"
+        sometimes = ", ".join(_gate_anchor(item) for item in summary.get("sometimes", [])[:20]) or "none"
+        hd_items.append(f"Definite {escape(key.title())}: {always}")
+        hd_items.append(f"Possible {escape(key.title())}: {sometimes}")
+    type_bits = [
+        f"{_hd_property_anchor('type', str(k))} ({int(v)})"
+        for k, v in hd.get("type_distribution", {}).items()
+        if str(k)
+    ]
+    profile_bits = [
+        f"{_hd_property_anchor('profile', str(k))} ({int(v)})"
+        for k, v in hd.get("profile_distribution", {}).items()
+        if str(k)
+    ]
+    hd_items.append("Possible Types: " + (", ".join(type_bits) or "none"))
+    hd_items.append("Possible Profiles: " + (", ".join(profile_bits) or "none"))
+    return "<div style='white-space: normal;'>" + _list_html(hd_items) + "</div>"
+
+
+def _legacy_full_html(result: TimeSensitivityResult) -> str:
+    """Return the older full inline summary used by tests and fallback display."""
+    html_lines: list[str] = [_summary_html(result)]
     for group_key, ranges in result.numeric_ranges.items():
         if group_key in _NUMERIC_GROUP_LINK_KINDS:
             continue
@@ -435,22 +527,8 @@ def format_time_sensitivity_result_html(result: TimeSensitivityResult) -> str:
             )
         html_lines.append(_list_html(group_items))
 
-    hd = result.human_design
     html_lines.append(_header_html("Human Design"))
-    hd_items = []
-    for key in ("gates", "lines", "channels"):
-        summary = hd.get(key, {})
-        always = ", ".join(_gate_anchor(item) for item in summary.get("always", [])[:20]) or "none"
-        sometimes = ", ".join(_gate_anchor(item) for item in summary.get("sometimes", [])[:20]) or "none"
-        hd_items.append(f"Definite {escape(key.title())}: {always}")
-        hd_items.append(f"Possible {escape(key.title())}: {sometimes}")
-    hd_items.append(escape("Possible Types: " + ", ".join(f"{k} ({v})" for k, v in hd.get("type_distribution", {}).items())))
-    hd_items.append(escape("Possible Profiles: " + ", ".join(f"{k} ({v})" for k, v in hd.get("profile_distribution", {}).items())))
-    html_lines.append(_list_html(hd_items))
-
-    if result.warnings:
-        html_lines.append(_header_html("Warnings:"))
-        html_lines.append(_list_html([escape(warning) for warning in result.warnings]))
+    html_lines.append(_human_design_html(result))
     return "<div style='white-space: normal;'>" + "\n".join(html_lines) + "</div>"
 
 
@@ -517,7 +595,7 @@ class TimeSensitivityPanel(QWidget):
         self.output.setOpenExternalLinks(False)
         self.output.setOpenLinks(False)
         self.output.anchorClicked.connect(self._open_chart_info_link)
-        self.output.setMinimumHeight(220)
+        self.output.setMinimumHeight(80)
         self.output.setPlainText("Click Compute Range to scan 49 sampled times: every 30 minutes plus 23:59.")
         layout.addWidget(self.output)
 
@@ -599,9 +677,54 @@ class TimeSensitivityPanel(QWidget):
             section.deleteLater()
         self._chart_sections = {}
         self._chart_canvases = {}
+        self.output.show()
+
+    def _add_html_section(self, section_key: str, title: str, html: str, *, expanded: bool = True) -> QWidget:
+        section = QWidget()
+        section_layout = QVBoxLayout(section)
+        section_layout.setContentsMargins(0, 0, 0, 0)
+        section_layout.setSpacing(0)
+        toggle = QToolButton(section)
+        configure_collapsible_header_toggle(
+            toggle,
+            title=title,
+            expanded=expanded,
+            style_sheet=DATABASE_ANALYTICS_COLLAPSIBLE_TOGGLE_STYLE,
+        )
+        content = QWidget(section)
+        content_layout = QVBoxLayout(content)
+        content_layout.setContentsMargins(*DATABASE_ANALYTICS_CONTENT_MARGINS)
+        content_layout.setSpacing(DATABASE_ANALYTICS_CONTENT_SPACING)
+        content.setStyleSheet(COLLAPSIBLE_SECTION_CONTENT_STYLE)
+        content.setVisible(expanded)
+        toggle.toggled.connect(
+            lambda checked, body=content, button=toggle: (
+                body.setVisible(checked),
+                button.setArrowType(Qt.DownArrow if checked else Qt.RightArrow),
+            )
+        )
+        section_layout.addWidget(toggle)
+        section_layout.addWidget(content)
+        browser = QTextBrowser(content)
+        browser.setReadOnly(True)
+        browser.setOpenExternalLinks(False)
+        browser.setOpenLinks(False)
+        browser.anchorClicked.connect(self._open_chart_info_link)
+        browser.setFrameShape(QFrame.NoFrame)
+        browser.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+        browser.setHtml(html)
+        browser.document().adjustSize()
+        height = int(browser.document().size().height()) + 12
+        browser.setFixedHeight(max(48, min(700, height)))
+        content_layout.addWidget(browser)
+        self._charts_layout.addWidget(section)
+        self._chart_sections[section_key] = section
+        return section
 
     def _render_weight_sections(self, result: TimeSensitivityResult) -> None:
         self._clear_weight_sections()
+        self.output.hide()
+        self._add_html_section("summary", "Overall Time Sensitivity", _summary_html(result), expanded=True)
         for group_key in (
             "dominant_planet_weights",
             "dominant_sign_weights",
@@ -659,9 +782,11 @@ class TimeSensitivityPanel(QWidget):
             table.setOpenLinks(False)
             table.anchorClicked.connect(self._open_chart_info_link)
             table.setFrameShape(QFrame.NoFrame)
-            table.setMinimumHeight(170)
-            table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
             table.setHtml(_header_html(_group_title(group_key)) + table_html)
+            table.document().adjustSize()
+            table_height = int(table.document().size().height()) + 14
+            table.setFixedHeight(max(82, min(900, table_height)))
             content_layout.addWidget(table)
 
             self._charts_layout.addWidget(section)
@@ -669,6 +794,7 @@ class TimeSensitivityPanel(QWidget):
                 canvas.draw_idle()
                 self._chart_canvases[group_key] = canvas
             self._chart_sections[group_key] = section
+        self._add_html_section("human_design", "Human Design", _human_design_html(result), expanded=False)
 
     def _show_likelihood_popout(self, group_key: str) -> None:
         if self._last_result is None:
