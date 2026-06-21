@@ -8796,7 +8796,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 "top_class": 0,
                 "top_three_classes": 0,
             },
-            "dnd_stat_totals": {stat_key: 0.0 for stat_key in self.DND_STAT_KEYS},
+            "dnd_stat_totals": {stat_key: 0.0 for stat_key in DND_STAT_KEYS},
             "dnd_stat_count": 0,
             "enneagram_totals": {enneagram_type: 0 for enneagram_type in range(1, 10)},
             "enneagram_total_count": 0,
@@ -22328,8 +22328,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
 #Main Window Begins
 class MainWindow(QMainWindow):
-    DND_STAT_KEYS: tuple[str, ...] = DND_STAT_KEYS
-
     def __init__(self):
         super().__init__()
 

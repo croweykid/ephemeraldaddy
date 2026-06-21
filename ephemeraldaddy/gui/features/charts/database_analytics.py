@@ -447,7 +447,6 @@ class DatabaseAnalyticsChartsMixin:
         "Symbola",
     )
     _BAZI_AVAILABLE_EMOJI_FONT_FAMILIES: tuple[str, ...] | None = None
-    DND_STAT_KEYS: tuple[str, ...] = DND_STAT_KEYS
     HD_DEFINED_CENTER_ORDER: tuple[str, ...] = (
         "Head",
         "Ajna",
@@ -3325,7 +3324,7 @@ class DatabaseAnalyticsChartsMixin:
         database_cache: dict[str, Any],
         loaded_charts: int,
     ) -> FigureCanvas:
-        labels = list(self.DND_STAT_KEYS)
+        labels = list(DND_STAT_KEYS)
         dnd_stat_colors = get_cycled_earthtone_colors(len(labels))
         stat_color_lookup = {
             label: dnd_stat_colors[index]
@@ -3352,7 +3351,7 @@ class DatabaseAnalyticsChartsMixin:
         self,
         metric_cache: dict[str, Any],
     ) -> dict[str, float]:
-        labels = list(self.DND_STAT_KEYS)
+        labels = list(DND_STAT_KEYS)
         stat_count = float(metric_cache.get("dnd_stat_count", 0))
         stat_totals = metric_cache.get("dnd_stat_totals", {})
         return {
