@@ -20,10 +20,10 @@ def configure_initial_window_state(
     show_default_view: Callable[[], None],
 ) -> None:
     """Apply icon/default-view startup behavior in one focused place."""
-    startup_loading.update_status("Applying startup settings…", 75)
+    startup_loading.update_status("Applying startup settings…", 55)
     app.processEvents()
 
-    startup_loading.update_status("Applying window icon…", 82)
+    startup_loading.update_status("Applying window icon…", 60)
     icon_path = get_icon_path()
     if icon_path:
         app.setWindowIcon(QIcon(icon_path))
@@ -35,7 +35,7 @@ def configure_initial_window_state(
     # canvas while heavy initialization catches up (more pronounced on Windows).
     # Keeping launch deterministic avoids that startup race without changing
     # intended user-facing behavior (Database View first, Chart View on demand).
-    startup_loading.update_status("Opening default view…", 90)
+    startup_loading.update_status("Opening default view shell…", 65)
     app.processEvents()
     show_default_view()
 

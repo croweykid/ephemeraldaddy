@@ -31521,7 +31521,7 @@ class MainWindow(QMainWindow):
         self._flush_pending_sentiment_metrics_save()
         self._settings.setValue("app/last_view", "database")
         if startup_progress:
-            startup_progress("Preparing yo Database…", 90)
+            startup_progress("Preparing Database View…", 65)
         manage_dialog = self._get_or_create_manage_charts_dialog()
         manage_dialog.adopt_window_placement(self)
         opened = self._charts_controller.open_manage_charts(
@@ -31530,7 +31530,7 @@ class MainWindow(QMainWindow):
         if not opened:
             return
         if startup_progress:
-            startup_progress("Opening that sassy Database…!", 98)
+            startup_progress("Database View shell is open…", 92)
         QTimer.singleShot(0, self._raise_manage_charts_dialog)
         self._retarget_size_checker_to_database_view()
 
