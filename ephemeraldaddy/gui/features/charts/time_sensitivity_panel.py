@@ -377,11 +377,11 @@ def format_time_sensitivity_result_html(result: TimeSensitivityResult) -> str:
     overall = result.overall
     baseline_label = f"{result.baseline_time} ({overall.get('baseline_source', 'baseline')})"
     html_lines: list[str] = [
-        f"<div>Overall stability: {float(overall.get('stability_percent', 0)):.0f}%</div>",
-        f"<div>Max possible change from {escape(baseline_label)}: {float(overall.get('max_total_change_from_baseline_percent', 0)):.0f}%</div>",
-        "<div>Most sensitive: " + _color_code_text(", ".join(overall.get("most_sensitive", []) or ["n/a"])) + "</div>",
-        "<div>Least sensitive: " + _color_code_text(", ".join(overall.get("least_sensitive", []) or ["n/a"])) + "</div>",
-        f"<div>Samples: {result.sample_count} hypothetical standard charts + {result.sample_count} Human Design charts</div>",
+        f"<div><strong>Overall stability:</strong> {float(overall.get('stability_percent', 0)):.0f}%</div>",
+        f"<div<strong>>Max possible change from {escape(baseline_label)}:</strong> {float(overall.get('max_total_change_from_baseline_percent', 0)):.0f}%</div>",
+        "<div><strong>Most sensitive:</strong> " + _color_code_text(", ".join(overall.get("most_sensitive", []) or ["n/a"])) + "</div>",
+        "<div><strong>Least sensitive:</strong> " + _color_code_text(", ".join(overall.get("least_sensitive", []) or ["n/a"])) + "</div>",
+        f"<div><strong>Samples:</strong> {result.sample_count} hypothetical standard charts + {result.sample_count} Human Design charts</div>",
         _header_html("Highly Stable:"),
     ]
     html_lines.append(_list_html([_color_code_text(item) for item in (result.stable or ["No all-day stable highlights found."])]))
@@ -442,10 +442,10 @@ def format_time_sensitivity_result_html(result: TimeSensitivityResult) -> str:
         summary = hd.get(key, {})
         always = ", ".join(_gate_anchor(item) for item in summary.get("always", [])[:20]) or "none"
         sometimes = ", ".join(_gate_anchor(item) for item in summary.get("sometimes", [])[:20]) or "none"
-        hd_items.append(f"{escape(key.title())} always present: {always}")
-        hd_items.append(f"{escape(key.title())} sometimes present: {sometimes}")
-    hd_items.append(escape("Type distribution: " + ", ".join(f"{k} ({v})" for k, v in hd.get("type_distribution", {}).items())))
-    hd_items.append(escape("Profile distribution: " + ", ".join(f"{k} ({v})" for k, v in hd.get("profile_distribution", {}).items())))
+        hd_items.append(f"Definite {escape(key.title())}: {always}")
+        hd_items.append(f"Possible {escape(key.title())}: {sometimes}")
+    hd_items.append(escape("Possible Types: " + ", ".join(f"{k} ({v})" for k, v in hd.get("type_distribution", {}).items())))
+    hd_items.append(escape("Possible Profiles: " + ", ".join(f"{k} ({v})" for k, v in hd.get("profile_distribution", {}).items())))
     html_lines.append(_list_html(hd_items))
 
     if result.warnings:
