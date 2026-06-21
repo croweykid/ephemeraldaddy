@@ -139,9 +139,9 @@ def _hd_snapshot(chart: Chart) -> dict[str, Any]:
 def _categorical_snapshot(chart: Chart) -> dict[str, str]:
     positions = getattr(chart, "positions", {}) or {}
     return {
-        "Sun sign": _sign_for_longitude(float(positions["Sun"])) if "Sun" in positions else "",
-        "Moon nakshatra": _get_nakshatra(float(positions["Moon"])) if "Moon" in positions else "",
-        "Ascendant": _sign_for_longitude(float(positions["AS"])) if "AS" in positions else "",
+        "Sun": _sign_for_longitude(float(positions["Sun"])) if "Sun" in positions else "",
+        "Nakshatra": _get_nakshatra(float(positions["Moon"])) if "Moon" in positions else "",
+        "AS": _sign_for_longitude(float(positions["AS"])) if "AS" in positions else "",
     }
 
 
@@ -394,7 +394,7 @@ def compute_time_sensitivity(chart: Any, config: TimeSensitivityConfig | None = 
         key: [sample["categorical"].get(key, "") for sample in samples]
         for key in ("Sun sign", "Moon nakshatra", "Ascendant")
     }
-    stable = [f"{key}: fixed all day ({values[0]})" for key, values in categorical_values.items() if values and len(set(values)) == 1 and values[0]]
+    stable = [f"{key}: stable all day ({values[0]})" for key, values in categorical_values.items() if values and len(set(values)) == 1 and values[0]]
     variable = [f"{key}: {' / '.join(dict.fromkeys(v for v in values if v))}" for key, values in categorical_values.items() if len(set(v for v in values if v)) > 1]
 
     hd = {
