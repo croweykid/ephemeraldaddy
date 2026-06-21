@@ -389,11 +389,9 @@ from PySide6.QtCore import (
     QSignalBlocker,
     QThread,
     Signal,
-    QEventLoop,
     QRegularExpression,
     QItemSelectionModel,
 )
-from PySide6.QtPositioning import QGeoPositionInfoSource
 
 
 class _GlobalCloseShortcutFilter(QObject):
@@ -495,6 +493,8 @@ from ephemeraldaddy.gui.features.controllers.window_lifecycle import (
 from ephemeraldaddy.gui.features.controllers.db_info import (
     add_database_info_settings_section,
 )
+from ephemeraldaddy.gui.features.transits import TransitPanelController
+from ephemeraldaddy.gui.features.transits.export import build_transit_chart_export_text
 from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import (
     apply_mode_pick_metadata,
     format_mode_popout_info_html,
@@ -906,7 +906,6 @@ from ephemeraldaddy.gui.features.charts.text_summary import (
     _overlay_aspect_segments,
     _synastry_pair_weight,
     format_chart_text,
-    format_compact_transit_chart_text,
 )
 from ephemeraldaddy.analysis.human_design import (
     build_awareness_stream_completion,
@@ -1044,7 +1043,6 @@ from ephemeraldaddy.gui.features.charts.similarities_analysis import (
     update_similarities_loading_progress,
 )
 from ephemeraldaddy.gui.features.retcon.transit_window import (
-    TRANSIT_WINDOW_CACHE_LIMIT,
     resolve_transit_window_scan_config,
     resolve_transit_window_scan_config_for_transit_body,
     validate_transit_window_mode_flags,
@@ -2368,24 +2366,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_metrics_cache: dict[str, Any] | None = None
         self._database_metrics_snapshot_sections: frozenset[str] = frozenset()
         self._database_metrics_lucy_goosey_ids: set[int] = set()
-        self._transit_chart_canvases: dict[QWidget, Chart] = {}
-        self._transit_popout_dialogs: list[QDialog] = []
-        self._transit_popout_chart_by_dialog: dict[QDialog, Chart] = {}
-        self._personal_transit_generation_in_progress = False
+        self.transit_panel_controller = TransitPanelController(
+            self,
+            get_popout_window_icon_path=_get_popout_window_icon_path,
+        )
         self._gemstone_chartwheel_popouts: list[QDialog] = []
         self._popout_summary_contexts: dict[QWidget, dict[str, object]] = {}
-        self._transit_window_result_cache: OrderedDict[tuple[object, ...], dict[str, object]] = OrderedDict()
-        self._transit_window_metrics: dict[str, int | float] = {
-            "cache_hits": 0,
-            "cache_misses": 0,
-            "inflight_dedupes": 0,
-            "completed_requests": 0,
-        }
-        self._transit_location_label = "0.0, 0.0"
-        self._transit_lat = 0.0
-        self._transit_lon = 0.0
-        self._transit_location_source = "default"
-        self._personal_transit_chart_lookup: dict[str, int] = {}
         self._help_overlay_active = False
         self._help_marker_buttons: list[QToolButton] = []
         self._settings_dialog: QDialog | None = None
@@ -4573,541 +4559,52 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         return panel
 
     def _build_todays_transits_panel(self) -> QWidget:
-        panel = QWidget()
-        panel.setMinimumWidth(260)
-        panel.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
-        layout = QVBoxLayout()
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(8)
-        layout.setAlignment(Qt.AlignTop)
-        panel.setLayout(layout)
-
-        title = QLabel("🌍Transit View")
-        title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
-        layout.addWidget(title)
-
-        controls_layout = QHBoxLayout()
-        controls_layout.setContentsMargins(0, 0, 0, 0)
-        controls_layout.setSpacing(6)
-
-        self.transit_date_input = QDateEdit()
-        self.transit_date_input.setDisplayFormat("yyyy-MM-dd")
-        self.transit_date_input.setCalendarPopup(True)
-        self.transit_date_input.setDateRange(
-            QDate(EPHEMERIS_MIN_DATE.year, EPHEMERIS_MIN_DATE.month, EPHEMERIS_MIN_DATE.day),
-            QDate(EPHEMERIS_MAX_DATE.year, EPHEMERIS_MAX_DATE.month, EPHEMERIS_MAX_DATE.day),
-        )
-        self.transit_date_input.setDate(QDate.currentDate())
-        self.transit_date_input.dateChanged.connect(
-            lambda _date: self._refresh_todays_transits_panel()
-        )
-        controls_layout.addWidget(self.transit_date_input)
-
-        self.transit_time_input = QTimeEdit()
-        self.transit_time_input.setDisplayFormat("HH:mm")
-        self.transit_time_input.setTime(QTime.currentTime())
-        self.transit_time_input.timeChanged.connect(
-            lambda _time: self._refresh_todays_transits_panel()
-        )
-        controls_layout.addWidget(self.transit_time_input)
-
-        layout.addLayout(controls_layout)
-
-        location_layout = QHBoxLayout()
-        location_layout.setContentsMargins(0, 0, 0, 0)
-        location_layout.setSpacing(6)
-
-        self.transit_location_input = QLineEdit()
-        self.transit_location_input.setPlaceholderText(
-            "Location (city or lat,lon)"
-        )
-        self.transit_location_input.installEventFilter(self)
-        location_layout.addWidget(self.transit_location_input, 1)
-
-        self.transit_location_button = QPushButton("Set")
-        self.transit_location_button.clicked.connect(
-            self._on_transit_location_submitted
-        )
-        location_layout.addWidget(self.transit_location_button)
-
-        layout.addLayout(location_layout)
-
-        self.transit_location_label = QLabel("Location: 0.0, 0.0 (UTC)")
-        self.transit_location_label.setStyleSheet(
-            "font-size: 11px; color: #a5a5a5; padding: 0 2px 4px 2px;"
-        )
-        layout.addWidget(self.transit_location_label)
-
-        personal_transit_controls_layout = QHBoxLayout()
-        personal_transit_controls_layout.setContentsMargins(0, 0, 0, 0)
-        personal_transit_controls_layout.setSpacing(6)
-
-        self.personal_transit_chart_input = QLineEdit()
-        self.personal_transit_chart_input.setPlaceholderText(
-            "Enter chart name here!"
-        )
-        self.personal_transit_chart_input.returnPressed.connect(
-            self._on_personal_transit_enter_pressed
-        )
-        personal_transit_controls_layout.addWidget(self.personal_transit_chart_input, 1)
-
-        self.generate_personal_transit_button = QPushButton("Generate Personal Transit")
-        self.generate_personal_transit_button.setStyleSheet(
-            "QPushButton {"
-            " background-color: #6f8f6f;"
-            " color: #e9efe9;"
-            " border: 1px solid #4f6850;"
-            " border-radius: 4px;"
-            " padding: 4px 10px;"
-            "}"
-            "QPushButton:hover { background-color: #789a77; }"
-            "QPushButton:pressed { background-color: #5f7d5f; }"
-        )
-        self.generate_personal_transit_button.clicked.connect(
-            self._on_personal_transit_generate_clicked
-        )
-        personal_transit_controls_layout.addWidget(self.generate_personal_transit_button)
-
-        layout.addLayout(personal_transit_controls_layout)
-
-        self.transit_use_time_checkbox = QCheckBox("Use exact time")
-        self.transit_use_time_checkbox.setChecked(True)
-        self.transit_use_time_checkbox.toggled.connect(
-            self._on_transit_use_time_toggled
-        )
-        layout.addWidget(self.transit_use_time_checkbox)
-
-        self._refresh_personal_transit_chart_options()
-
-        self.todays_transits_updated_label = QLabel("")
-        self.todays_transits_updated_label.setWordWrap(True)
-        self.todays_transits_updated_label.setStyleSheet(
-            "font-size: 11px; color: #a5a5a5; padding: 0 2px 4px 2px;"
-        )
-        layout.addWidget(self.todays_transits_updated_label)
-
-        self.todays_transits_chart_container = QWidget()
-        self.todays_transits_chart_layout = QVBoxLayout()
-        self.todays_transits_chart_layout.setContentsMargins(0, 0, 0, 0)
-        self.todays_transits_chart_layout.setAlignment(Qt.AlignTop)
-        self.todays_transits_chart_container.setLayout(self.todays_transits_chart_layout)
-        layout.addWidget(self.todays_transits_chart_container)
-
-        self.todays_transits_output = ChartDataTooltipOutput()
-        self.todays_transits_output.setReadOnly(True)
-        output_font = self.todays_transits_output.font()
-        output_font.setPointSize(9)
-        self.todays_transits_output.setFont(output_font)
-        self.todays_transits_output.setTabStopDistance(6)
-        apply_chart_data_highlighter(self.todays_transits_output)
-        self.todays_transits_output.setPlaceholderText(
-            "Transit chart summary will appear here."
-        )
-        self.todays_transits_output.setMinimumHeight(140)
-        self.todays_transits_output.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        layout.addWidget(self.todays_transits_output, 1)
-
-        refresh_button = QPushButton("Refresh Transit View")
-        refresh_button.clicked.connect(self._refresh_todays_transits_panel)
-        layout.addWidget(refresh_button)
-
-        return panel
-
+        return self.transit_panel_controller.build_panel()
 
     def _apply_transit_location(self, *, show_errors: bool = True) -> None:
-        raw_value = self.transit_location_input.text().strip()
-        if not raw_value:
-            self._refresh_todays_transits_panel()
-            return
-
-        parsed_lat = None
-        parsed_lon = None
-        if "," in raw_value:
-            maybe_lat, maybe_lon = raw_value.split(",", 1)
-            try:
-                parsed_lat = float(maybe_lat.strip())
-                parsed_lon = float(maybe_lon.strip())
-            except ValueError:
-                parsed_lat = None
-                parsed_lon = None
-
-        if parsed_lat is not None and parsed_lon is not None:
-            if not (-90.0 <= parsed_lat <= 90.0 and -180.0 <= parsed_lon <= 180.0):
-                if show_errors:
-                    QMessageBox.warning(
-                        self,
-                        "Invalid coordinates",
-                        "Latitude must be between -90 and 90, and longitude between -180 and 180.",
-                    )
-                return
-            self._transit_lat = parsed_lat
-            self._transit_lon = parsed_lon
-            self._transit_location_label = f"{parsed_lat:.4f}, {parsed_lon:.4f}"
-            self._transit_location_source = "manual"
-            self._save_transit_location_preference(raw_value)
-            self._refresh_todays_transits_panel()
-            return
-
-        try:
-            lat, lon, resolved_label = geocode_location(raw_value)
-        except LocationLookupError as error:
-            if show_errors:
-                QMessageBox.warning(
-                    self,
-                    "Location lookup failed",
-                    f"Could not resolve location '{raw_value}'.\n{error}",
-                )
-            return
-
-        self._transit_lat = float(lat)
-        self._transit_lon = float(lon)
-        self._transit_location_label = resolved_label
-        self._transit_location_source = "manual"
-        self._save_transit_location_preference(raw_value)
-        self._refresh_todays_transits_panel()
+        self.transit_panel_controller.apply_location(show_errors=show_errors)
 
     def _on_transit_location_submitted(self, *_args) -> None:
-        self._apply_transit_location()
+        self.transit_panel_controller.on_location_submitted(*_args)
 
     def _initialize_transit_location_defaults(self) -> None:
-        gps_location = self._resolve_gps_transit_location()
-        if gps_location is not None:
-            lat, lon = gps_location
-            self._transit_lat = lat
-            self._transit_lon = lon
-            self._transit_location_label = "Current Location (GPS)"
-            self._transit_location_source = "gps"
-            return
-
-        stored_location = self._settings.value("manage_charts/transit_last_location")
-        if isinstance(stored_location, str) and stored_location.strip():
-            self.transit_location_input.setText(stored_location.strip())
-            self._apply_transit_location(show_errors=False)
+        self.transit_panel_controller.initialize_location_defaults()
 
     def _save_transit_location_preference(self, raw_location: str) -> None:
-        self._settings.setValue("manage_charts/transit_last_location", raw_location.strip())
+        self.transit_panel_controller.save_location_preference(raw_location)
 
     def _resolve_gps_transit_location(self) -> tuple[float, float] | None:
-        source = QGeoPositionInfoSource.createDefaultSource(self)
-        if source is None:
-            return None
-
-        loop = QEventLoop(self)
-        result: dict[str, float] = {}
-
-        def _capture_position(info) -> None:
-            if info.isValid():
-                coordinate = info.coordinate()
-                if coordinate.isValid():
-                    result["lat"] = float(coordinate.latitude())
-                    result["lon"] = float(coordinate.longitude())
-            if loop.isRunning():
-                loop.quit()
-
-        def _stop_waiting(*_args) -> None:
-            if loop.isRunning():
-                loop.quit()
-
-        source.positionUpdated.connect(_capture_position)
-        source.errorOccurred.connect(_stop_waiting)
-        source.startUpdates()
-
-        timeout_timer = QTimer(self)
-        timeout_timer.setSingleShot(True)
-        timeout_timer.timeout.connect(_stop_waiting)
-        timeout_timer.start(2500)
-        loop.exec()
-
-        source.stopUpdates()
-        timeout_timer.stop()
-
-        if "lat" not in result or "lon" not in result:
-            return None
-        return result["lat"], result["lon"]
+        return self.transit_panel_controller.resolve_gps_location()
 
     def _refresh_todays_transits_panel(self) -> None:
-        if not hasattr(self, "todays_transits_chart_layout"):
-            return
-
-        self._clear_layout(self.todays_transits_chart_layout)
-        self._transit_chart_canvases.clear()
-        local_tz = datetime.datetime.now().astimezone().tzinfo or datetime.timezone.utc
-        selected_date = self.transit_date_input.date()
-        selected_time = self.transit_time_input.time()
-        include_time = self.transit_use_time_checkbox.isChecked()
-        if not include_time:
-            selected_time = QTime(12, 0)
-        selected_local = datetime.datetime(
-            selected_date.year(),
-            selected_date.month(),
-            selected_date.day(),
-            selected_time.hour(),
-            selected_time.minute(),
-            tzinfo=local_tz,
-        )
-        selected_utc = selected_local.astimezone(datetime.timezone.utc)
-        chart = Chart(
-            "🌍Transit View",
-            selected_utc,
-            self._transit_lat,
-            self._transit_lon,
-            tz=datetime.timezone.utc,
-        )
-        chart.birth_place = self._transit_location_label
-        chart.birthtime_unknown = not include_time
-        chart.retcon_time_used = False
-
-        figure = Figure(figsize=(3.8, 3.8))
-        canvas = FigureCanvas(figure)
-        canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        apply_popout_cursor(canvas)
-        draw_chart_wheel(
-            figure,
-            chart,
-            canvas=canvas,
-            wheel_padding=0.03,
-            show_title=False,
-            symbol_scale=0.7,
-            wheel_scale=1.3,
-        )
-        canvas.draw_idle()
-        canvas.setMinimumSize(230, 230)
-        chart_click_container = QWidget()
-        chart_click_layout = QGridLayout()
-        chart_click_layout.setContentsMargins(0, 0, 0, 0)
-        chart_click_layout.setSpacing(0)
-        chart_click_container.setLayout(chart_click_layout)
-        apply_popout_cursor(chart_click_container)
-        chart_click_layout.addWidget(canvas, 0, 0)
-
-        popout_hint = QLabel(chart_click_container)
-        popout_hint.setAttribute(Qt.WA_TransparentForMouseEvents, True)
-        popout_hint.setStyleSheet("background: transparent;")
-        popout_icon_path = _get_popout_window_icon_path()
-        if popout_icon_path:
-            popout_pixmap = QPixmap(popout_icon_path)
-            if not popout_pixmap.isNull():
-                popout_hint.setPixmap(
-                    popout_pixmap.scaled(
-                        22,
-                        22,
-                        Qt.KeepAspectRatio,
-                        Qt.SmoothTransformation,
-                    )
-                )
-        popout_hint.setToolTip("Open transit chart popout")
-        chart_click_layout.addWidget(popout_hint, 0, 0, Qt.AlignTop | Qt.AlignRight)
-
-        canvas.installEventFilter(self)
-        chart_click_container.installEventFilter(self)
-        self._transit_chart_canvases[canvas] = chart
-        self._transit_chart_canvases[chart_click_container] = chart
-        self.todays_transits_chart_layout.addWidget(chart_click_container)
-
-        summary, tooltip_spans = format_compact_transit_chart_text(
-            chart,
-            self._transit_location_label,
-        )
-        self.todays_transits_output.setPlainText(summary)
-        self.todays_transits_output.set_tooltip_spans(tooltip_spans)
-
-        local_now = selected_utc.astimezone(local_tz)
-        source_hint = ""
-        if self._transit_location_source == "gps":
-            source_hint = " [GPS]"
-        elif self._transit_location_source == "manual":
-            source_hint = " [Saved]"
-        self.transit_location_label.setText(
-            f"Location: {self._transit_location_label}{source_hint} | Lat/Lon: {self._transit_lat:.4f}, {self._transit_lon:.4f}"
-        )
-        if include_time:
-            selected_label = local_now.strftime('%Y-%m-%d %H:%M %Z')
-            self.todays_transits_updated_label.setText(
-                f"Selected local time: {selected_label}"
-            )
-        else:
-            selected_label = local_now.strftime('%Y-%m-%d')
-            self.todays_transits_updated_label.setText(
-                f"Selected date (time omitted): {selected_label}"
-            )
+        self.transit_panel_controller.refresh_panel()
 
     def _refresh_personal_transit_chart_options(self) -> None:
-        self._personal_transit_chart_lookup = {}
-        choices: list[str] = []
-        for row in list_charts():
-            chart_id, name, alias, *_rest = row
-            display_name = name.strip() if isinstance(name, str) and name.strip() else f"Chart {chart_id}"
-            if alias:
-                display_name = f"{display_name} ({alias})"
-            key = f"{display_name}  [#{chart_id}]"
-            self._personal_transit_chart_lookup[key] = int(chart_id)
-            choices.append(key)
-
-        completer = QCompleter(choices, self.personal_transit_chart_input)
-        completer.setCaseSensitivity(Qt.CaseInsensitive)
-        completer.setFilterMode(Qt.MatchContains)
-        completer.activated[str].connect(self._on_personal_transit_completer_activated)
-        self.personal_transit_chart_input.setCompleter(completer)
+        self.transit_panel_controller.refresh_personal_transit_chart_options()
 
     def _on_transit_use_time_toggled(self, use_time: bool) -> None:
-        self.transit_time_input.setEnabled(use_time)
-        self._refresh_todays_transits_panel()
+        self.transit_panel_controller.on_use_time_toggled(use_time)
 
     def _selected_transit_datetime_utc(self) -> tuple[datetime.datetime, bool]:
-        local_tz = datetime.datetime.now().astimezone().tzinfo or datetime.timezone.utc
-        include_time = self.transit_use_time_checkbox.isChecked()
-        selected_date = self.transit_date_input.date()
-        selected_time = self.transit_time_input.time() if include_time else QTime(12, 0)
-        selected_local = datetime.datetime(
-            selected_date.year(),
-            selected_date.month(),
-            selected_date.day(),
-            selected_time.hour(),
-            selected_time.minute(),
-            tzinfo=local_tz,
-        )
-        return selected_local.astimezone(datetime.timezone.utc), include_time
+        return self.transit_panel_controller.selected_datetime_utc()
 
     def _resolve_personal_transit_chart_id(self) -> int | None:
-        raw = self.personal_transit_chart_input.text().strip()
-        if not raw:
-            return None
-        chart_id = self._personal_transit_chart_lookup.get(raw)
-        if chart_id is not None:
-            return chart_id
-        for label, candidate_id in self._personal_transit_chart_lookup.items():
-            if raw.lower() == label.lower():
-                return candidate_id
-        return None
+        return self.transit_panel_controller.resolve_personal_transit_chart_id()
 
     def _matching_personal_transit_labels(self, raw: str) -> list[str]:
-        query = raw.strip().lower()
-        labels = list(self._personal_transit_chart_lookup.keys())
-        if not query:
-            return labels
-        return [label for label in labels if query in label.lower()]
+        return self.transit_panel_controller.matching_personal_transit_labels(raw)
 
     def _on_personal_transit_completer_activated(self, label: str) -> None:
-        selected_label = label.strip()
-        if not selected_label:
-            return
-        self.personal_transit_chart_input.setText(selected_label)
-        self.personal_transit_chart_input.setCursorPosition(len(selected_label))
-        # Keep autocomplete selection side-effect free. Triggering generation here
-        # can race with a button click and open duplicate popouts.
+        self.transit_panel_controller.on_personal_transit_completer_activated(label)
 
     def _on_personal_transit_generate_clicked(self, *_args) -> None:
-        self._on_personal_transit_enter_pressed()
+        self.transit_panel_controller.on_personal_transit_generate_clicked(*_args)
 
     def _on_personal_transit_enter_pressed(self) -> None:
-        raw = self.personal_transit_chart_input.text().strip()
-        chart_id = self._resolve_personal_transit_chart_id()
-        if chart_id is not None:
-            self._on_generate_personal_transit()
-            return
-
-        matches = self._matching_personal_transit_labels(raw)
-        if not matches:
-            QMessageBox.warning(
-                self,
-                "Generate Personal Transit",
-                "Select a saved chart from autocomplete before generating.",
-            )
-            return
-
-        first_match = matches[0]
-        self.personal_transit_chart_input.setText(first_match)
-        self.personal_transit_chart_input.setCursorPosition(len(first_match))
-
-        if len(matches) == 1:
-            self._on_generate_personal_transit()
+        self.transit_panel_controller.on_personal_transit_enter_pressed()
 
     def _on_generate_personal_transit(self) -> None:
-        if self._personal_transit_generation_in_progress:
-            return
-        chart_id = self._resolve_personal_transit_chart_id()
-        if chart_id is None:
-            QMessageBox.warning(
-                self,
-                "Generate Personal Transit",
-                "Select a saved chart from autocomplete before generating.",
-            )
-            return
-
-        try:
-            natal_chart = load_chart(chart_id)
-        except ValueError as exc:
-            QMessageBox.warning(self, "Generate Personal Transit", str(exc))
-            return
-
-        try:
-            self._personal_transit_generation_in_progress = True
-            transit_datetime_utc, include_time = self._selected_transit_datetime_utc()
-            place_label = getattr(self, "_transit_location_label", "Unknown")
-            timestamp_label = (
-                transit_datetime_utc.strftime("%Y-%m-%d %H:%M UTC")
-                if include_time
-                else transit_datetime_utc.strftime("%Y-%m-%d")
-            )
-            personal_transit_name = (
-                f"Personal Transit Chart for {natal_chart.name} on {timestamp_label} @ {place_label}"
-            )
-            transit_chart = Chart(
-                personal_transit_name,
-                transit_datetime_utc,
-                self._transit_lat,
-                self._transit_lon,
-                tz=datetime.timezone.utc,
-            )
-            transit_chart.birth_place = place_label
-            transit_chart.birthtime_unknown = not include_time
-            transit_chart.retcon_time_used = False
-
-            natal_normalized = normalize_chart(natal_chart, chart_id=chart_id, chart_type="natal")
-            transit_normalized = normalize_chart(transit_chart, chart_type="transit")
-            transit_in_natal = assign_houses(
-                transit_normalized.bodies,
-                natal_normalized.houses,
-                layer="TRANSIT",
-            )
-            natal_targets = assign_houses(
-                natal_normalized.bodies,
-                natal_normalized.houses,
-                layer="NATAL",
-            )
-            life_forecast_hits = compute_aspects(
-                transit_in_natal.values(),
-                natal_targets.values(),
-                personal_transit_rules_for_mode(PERSONAL_TRANSIT_MODE_LIFE_FORECAST),
-            )
-            daily_vibe_hits = compute_aspects(
-                transit_in_natal.values(),
-                natal_targets.values(),
-                personal_transit_rules_for_mode(PERSONAL_TRANSIT_MODE_DAILY_VIBE),
-            )
-
-            self._show_personal_transit_chart_popout(
-                natal_chart,
-                transit_chart,
-                transit_in_natal,
-                {
-                    PERSONAL_TRANSIT_MODE_LIFE_FORECAST: life_forecast_hits,
-                    PERSONAL_TRANSIT_MODE_DAILY_VIBE: daily_vibe_hits,
-                },
-                include_time=include_time,
-            )
-        except Exception as exc:
-            logger.exception(
-                "Failed to generate personal transit for chart_id=%s",
-                chart_id,
-            )
-            QMessageBox.critical(
-                self,
-                "Generate Personal Transit",
-                f"Failed to generate personal transit chart.\n\n{exc}",
-            )
-        finally:
-            self._personal_transit_generation_in_progress = False
+        self.transit_panel_controller.generate_personal_transit()
 
     def _on_generate_composite_chart(self) -> None:
         selected_chart_ids = self._selected_chart_ids()
@@ -5987,37 +5484,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 ),
             ]
 
-            #ojo: is this weird?
         def _window_cache_key(mode: str, hit_obj: Any) -> tuple[object, ...]:
             chart_dt = transit_chart.dt
-            chart_dt_utc = chart_dt.astimezone(datetime.timezone.utc) if chart_dt.tzinfo else chart_dt.replace(tzinfo=datetime.timezone.utc)
-            rules = mode_rules.get(mode, TRANSIT_ASPECT_RULES)
             scan_config = _scan_config_for_hit(hit_obj)
-            return (
-                mode,
-                hit_obj.a.name,
-                hit_obj.aspect,
-                hit_obj.b.name,
-                chart_dt_utc.isoformat(),
-                round(float(transit_location[0]), 4),
-                round(float(transit_location[1]), 4),
-                tuple((asp.name, float(asp.angle_deg), float(asp.orb_deg)) for asp in rules.aspect_types),
-                float(scan_config.scan_step_hours),
-                float(scan_config.scan_precision_minutes),
+            return self.transit_panel_controller.transit_window_cache_key(
+                mode=mode,
+                hit_obj=hit_obj,
+                chart_dt=chart_dt,
+                transit_location=transit_location,
+                mode_rules=mode_rules,
+                scan_config=scan_config,
             )
 
         def _window_cache_get(cache_key: tuple[object, ...]) -> dict[str, object] | None:
-            cached = self._transit_window_result_cache.get(cache_key)
-            if cached is None:
-                return None
-            self._transit_window_result_cache.move_to_end(cache_key)
-            return dict(cached)
+            return self.transit_panel_controller.get_transit_window_cache(cache_key)
 
         def _window_cache_put(cache_key: tuple[object, ...], payload: dict[str, object]) -> None:
-            self._transit_window_result_cache[cache_key] = dict(payload)
-            self._transit_window_result_cache.move_to_end(cache_key)
-            while len(self._transit_window_result_cache) > TRANSIT_WINDOW_CACHE_LIMIT:
-                self._transit_window_result_cache.popitem(last=False)
+            self.transit_panel_controller.put_transit_window_cache(cache_key, payload)
 
         _transit_shutdown_in_progress = False
         _transit_shutdown_callbacks: list[Callable[[], None]] = []
@@ -6383,6 +5866,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 _refresh_summary()
                 return
             if state["resolving"]:
+                self.transit_panel_controller.record_transit_window_inflight_dedupe()
                 return
             hit = state.get("hit")
             mode = str(state.get("mode", PERSONAL_TRANSIT_MODE_LIFE_FORECAST))
@@ -6720,16 +6204,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         def _build_transit_export_text(chart_data_text: str) -> str:
             active_chart = state["chart"]
             assert isinstance(active_chart, Chart)
-            return "\n".join(
-                [
-                    "🌍Transit Chart",
-                    f"Name:       {active_chart.name}",
-                    f"Date:       {state['date_label']}",
-                    f"Time:       {state['time_label']}",
-                    f"Location:   {state['location_label']}, {active_chart.lat:.4f}, {active_chart.lon:.4f}",
-                    "",
-                    chart_data_text,
-                ]
+            return build_transit_chart_export_text(
+                chart=active_chart,
+                date_label=str(state["date_label"]),
+                time_label=str(state["time_label"]),
+                location_label=str(state["location_label"]),
+                chart_data_text=chart_data_text,
             )
 
         summary_share_button = self._attach_popout_share_button(
