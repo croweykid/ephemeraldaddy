@@ -192,45 +192,51 @@ class _PhotoGridWidget(QWidget):
 
 
 class _PhotoPreviewDialog(QDialog):
-    """Full-screen photo preview that keeps images at 100% unless they exceed the screen."""
+    """Lightbox-style chart photo gallery with keyboard and click navigation."""
 
-    def __init__(self, owner: QWidget, image_data: bytes, title: str) -> None:
+    def __init__(self, owner: QWidget, photos: list[dict[str, object]], current_index: int) -> None:
         super().__init__(owner)
-        self.setWindowTitle(title or "Photo")
+        self._photos = photos
+        self._current_index = max(0, min(current_index, len(photos) - 1))
+        self._pixmap = QPixmap()
+        self._display_pixmap = QPixmap()
         self.setWindowModality(Qt.NonModal)
         self.setWindowFlag(Qt.Window, True)
         self.setWindowFlag(Qt.WindowStaysOnTopHint, True)
-        self.setStyleSheet("QDialog { background: #202020; } QLabel { color: #f5f5f5; }")
-        layout = QVBoxLayout()
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(6)
+        self.setStyleSheet(
+            "QDialog { background: rgba(12, 12, 12, 235); }"
+            "QLabel { color: #f5f5f5; }"
+            "QPushButton { background: rgba(35, 35, 35, 210); color: white;"
+            " border: 1px solid rgba(255,255,255,140); border-radius: 24px;"
+            " font-size: 34px; font-weight: 700; }"
+            "QPushButton:hover { background: rgba(80, 80, 80, 230); }"
+        )
+        layout = QHBoxLayout()
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(18)
         self.setLayout(layout)
 
-        close_row = QWidget()
-        close_layout = QHBoxLayout()
-        close_layout.setContentsMargins(0, 0, 0, 0)
-        close_row.setLayout(close_layout)
-        close_layout.addStretch(1)
-        close_button = QPushButton("X Close")
-        close_button.setStyleSheet("background: #777; color: white; padding: 4px 10px;")
-        close_button.clicked.connect(self.close)
-        close_layout.addWidget(close_button)
-        layout.addWidget(close_row)
+        self.previous_button = QPushButton("‹")
+        self.previous_button.setFixedSize(54, 96)
+        self.previous_button.setToolTip("Previous photo (Left arrow)")
+        self.previous_button.clicked.connect(self._show_previous_photo)
+        layout.addWidget(self.previous_button, 0, Qt.AlignVCenter)
 
-        pixmap = QPixmap()
-        pixmap.loadFromData(image_data)
+        self.image_label = QLabel()
+        self.image_label.setAlignment(Qt.AlignCenter)
+        self.image_label.setCursor(Qt.ArrowCursor)
+        layout.addWidget(self.image_label, 1)
+
+        self.next_button = QPushButton("›")
+        self.next_button.setFixedSize(54, 96)
+        self.next_button.setToolTip("Next photo (Right arrow)")
+        self.next_button.clicked.connect(self._show_next_photo)
+        layout.addWidget(self.next_button, 0, Qt.AlignVCenter)
+
+        self._load_current_photo()
+        self._update_arrow_state()
         screen = self.screen() or owner.screen()
         available = screen.availableGeometry() if screen is not None else owner.geometry()
-        max_width = max(1, available.width() - 16)
-        max_height = max(1, available.height() - close_row.sizeHint().height() - 24)
-        if pixmap.width() > max_width or pixmap.height() > max_height:
-            display_pixmap = pixmap.scaled(max_width, max_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-        else:
-            display_pixmap = pixmap
-        image_label = QLabel()
-        image_label.setAlignment(Qt.AlignCenter)
-        image_label.setPixmap(display_pixmap)
-        layout.addWidget(image_label, 1)
         self.resize(available.size())
 
     def showEvent(self, event: QEvent) -> None:
@@ -241,6 +247,75 @@ class _PhotoPreviewDialog(QDialog):
             return
         center = screen.availableGeometry().center()
         self.move(center.x() - self.width() // 2, center.y() - self.height() // 2)
+
+    def resizeEvent(self, event: QEvent) -> None:
+        super().resizeEvent(event)
+        self._update_display_pixmap()
+
+    def keyPressEvent(self, event: QEvent) -> None:
+        if event.key() == Qt.Key_Left:
+            self._show_previous_photo()
+            return
+        if event.key() == Qt.Key_Right:
+            self._show_next_photo()
+            return
+        if event.key() == Qt.Key_Escape:
+            self.close()
+            return
+        super().keyPressEvent(event)
+
+    def mousePressEvent(self, event: QEvent) -> None:
+        click_pos = event.position().toPoint()
+        if self._image_display_rect().contains(click_pos):
+            super().mousePressEvent(event)
+            return
+        self.close()
+
+    def _load_current_photo(self) -> None:
+        if not self._photos:
+            self.close()
+            return
+        photo = self._photos[self._current_index]
+        self.setWindowTitle(str(photo.get("filename") or "Photo"))
+        image_data = photo.get("image_data")
+        self._pixmap = QPixmap()
+        if isinstance(image_data, bytes):
+            self._pixmap.loadFromData(image_data)
+        self._update_display_pixmap()
+
+    def _update_display_pixmap(self) -> None:
+        if self._pixmap.isNull():
+            self.image_label.clear()
+            return
+        max_width = max(1, self.image_label.width())
+        max_height = max(1, self.image_label.height())
+        self._display_pixmap = self._pixmap.scaled(max_width, max_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        self.image_label.setPixmap(self._display_pixmap)
+
+    def _update_arrow_state(self) -> None:
+        enabled = len(self._photos) > 1
+        self.previous_button.setEnabled(enabled)
+        self.next_button.setEnabled(enabled)
+
+    def _show_previous_photo(self) -> None:
+        if len(self._photos) < 2:
+            return
+        self._current_index = (self._current_index - 1) % len(self._photos)
+        self._load_current_photo()
+
+    def _show_next_photo(self) -> None:
+        if len(self._photos) < 2:
+            return
+        self._current_index = (self._current_index + 1) % len(self._photos)
+        self._load_current_photo()
+
+    def _image_display_rect(self) -> QRect:
+        if self._display_pixmap.isNull():
+            return QRect()
+        label_rect = self.image_label.geometry()
+        x = label_rect.x() + max(0, (label_rect.width() - self._display_pixmap.width()) // 2)
+        y = label_rect.y() + max(0, (label_rect.height() - self._display_pixmap.height()) // 2)
+        return QRect(x, y, self._display_pixmap.width(), self._display_pixmap.height())
 
 
 class _SentimentEdgeSlider(QSlider):
@@ -1279,11 +1354,17 @@ def _add_photo_gallery_url(owner: QWidget) -> None:
 
 def _show_photo_gallery_preview(owner: QWidget, photo_id: int) -> None:
     chart_uid = chart_uid_for_chart_id(getattr(owner, "current_chart_id", None))
-    photo = get_photo_data(photo_id, chart_uid)
-    image_data = photo.get("image_data") if photo else None
-    if not isinstance(image_data, bytes):
+    photo_rows = list_photos(chart_uid)
+    photos = [
+        photo_data
+        for photo in photo_rows
+        if (photo_data := get_photo_data(int(photo["id"]), chart_uid)) is not None
+        and isinstance(photo_data.get("image_data"), bytes)
+    ]
+    if not photos:
         return
-    dialog = _PhotoPreviewDialog(owner, image_data, str(photo.get("filename") or "Photo"))
+    current_index = next((index for index, photo in enumerate(photos) if int(photo["id"]) == photo_id), 0)
+    dialog = _PhotoPreviewDialog(owner, photos, current_index)
     dialog.showFullScreen()
     owner._photo_gallery_preview_dialog = dialog
 
