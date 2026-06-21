@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from html import escape
 from typing import Any
 
 from PySide6.QtCore import Qt
@@ -20,7 +21,9 @@ from PySide6.QtWidgets import (
 from ephemeraldaddy.analysis.time_sensitivity import (
     TimeSensitivityConfig,
     TimeSensitivityResult,
+    birth_date_key_for_chart,
     compute_time_sensitivity,
+    load_time_sensitivity_result_for_chart,
     save_time_sensitivity_result,
 )
 
@@ -29,8 +32,8 @@ def _group_title(group_key: str) -> str:
     return group_key.replace("dominant_", "Dominant ").replace("_weights", "").replace("_", " ").title()
 
 
-def format_time_sensitivity_result_text(result: TimeSensitivityResult) -> str:
-    """Return compact text for the Chart View Time Sensitivity panel."""
+def format_time_sensitivity_result_html(result: TimeSensitivityResult) -> str:
+    """Return compact rich text for the Chart View Time Sensitivity panel."""
     overall = result.overall
     baseline_label = f"{result.baseline_time} ({overall.get('baseline_source', 'baseline')})"
     lines: list[str] = [
@@ -57,11 +60,19 @@ def format_time_sensitivity_result_text(result: TimeSensitivityResult) -> str:
         for key, payload in meaningful[:12]:
             appears_after = payload.get("appears_after")
             suffix = f" appears after {appears_after}" if appears_after else f" {payload.get('label', '')}"
+            span_bits = []
+            if payload.get("present_spans"):
+                span_bits.append("present " + "; ".join(payload.get("present_spans", [])[:6]))
+            if payload.get("peak_spans"):
+                span_bits.append("peaks " + "; ".join(payload.get("peak_spans", [])[:6]))
+            if payload.get("transition_windows"):
+                span_bits.append("changes " + "; ".join(payload.get("transition_windows", [])[:8]))
+            tooltip = " | ".join(span_bits) or "No sampled time-span changes."
             lines.append(
                 f"{key:<22} {float(payload.get('min', 0.0)):.2f}–{float(payload.get('max', 0.0)):.2f}   "
                 f"peak {', '.join(payload.get('peak_times', [])[:3]) or 'n/a'}   "
                 f"vs {result.baseline_time}: {float(payload.get('max_decrease_percent', 0.0)):+.2f}% to "
-                f"{float(payload.get('max_increase_percent', 0.0)):+.2f}%{suffix}"
+                f"{float(payload.get('max_increase_percent', 0.0)):+.2f}%{suffix}  [hover: {tooltip}]"
             )
 
     hd = result.human_design
@@ -78,7 +89,22 @@ def format_time_sensitivity_result_text(result: TimeSensitivityResult) -> str:
     if result.warnings:
         lines.extend(["", "Warnings:"])
         lines.extend(f"  {warning}" for warning in result.warnings)
-    return "\n".join(lines)
+    html_lines: list[str] = []
+    for line in lines:
+        marker = "  [hover: "
+        if marker in line and line.endswith("]"):
+            visible, tooltip = line.split(marker, 1)
+            tooltip = tooltip[:-1]
+            html_lines.append(
+                "<span style='text-decoration: underline dotted;' title='"
+                + escape(tooltip, quote=True)
+                + "'>"
+                + escape(visible)
+                + "</span>"
+            )
+        else:
+            html_lines.append(escape(line))
+    return "<pre style='white-space: pre-wrap; font-family: monospace;'>" + "\n".join(html_lines) + "</pre>"
 
 
 class TimeSensitivityPanel(QWidget):
@@ -88,6 +114,7 @@ class TimeSensitivityPanel(QWidget):
         super().__init__()
         self._owner = owner
         self._last_result: TimeSensitivityResult | None = None
+        self._chart_date_key: str = ""
         layout = QVBoxLayout()
         layout.setContentsMargins(6, 6, 6, 6)
         layout.setSpacing(6)
@@ -138,6 +165,39 @@ class TimeSensitivityPanel(QWidget):
     def _current_chart(self) -> Any | None:
         return getattr(self._owner, "_latest_chart", None)
 
+    def _current_config(self) -> TimeSensitivityConfig:
+        return TimeSensitivityConfig(
+            interval_minutes=int(self.interval_combo.currentData() or 30),
+            include_day_end=True,
+            baseline_time=None,
+            boundary_refinement=False,
+        )
+
+    def refresh_for_current_chart(self) -> None:
+        chart = self._current_chart()
+        date_key = birth_date_key_for_chart(chart) if chart is not None else ""
+        if date_key == self._chart_date_key:
+            return
+        self._chart_date_key = date_key
+        self._last_result = None
+        self.save_button.setEnabled(False)
+        if chart is None:
+            self.output.setPlainText("No active chart is loaded.")
+            return
+        saved = load_time_sensitivity_result_for_chart(chart, self._current_config())
+        if saved is not None:
+            self._last_result = saved
+            self.output.setHtml(format_time_sensitivity_result_html(saved))
+            self.save_button.setEnabled(True)
+            return
+        if date_key:
+            self.output.setPlainText(
+                f"No saved Time/Rectification Sensitivity range for {date_key}. "
+                "Click Compute Range to scan 49 sampled times: every 30 minutes plus 23:59."
+            )
+        else:
+            self.output.setPlainText("No usable birth date found for Time/Rectification Sensitivity storage.")
+
     def compute_range(self) -> None:
         chart = self._current_chart()
         if chart is None:
@@ -147,14 +207,10 @@ class TimeSensitivityPanel(QWidget):
         self.save_button.setEnabled(False)
         self.output.setPlainText("Computing Time/Rectification Sensitivity…")
         try:
-            config = TimeSensitivityConfig(
-                interval_minutes=int(self.interval_combo.currentData() or 30),
-                include_day_end=True,
-                baseline_time=None,
-                boundary_refinement=False,
-            )
+            config = self._current_config()
             self._last_result = compute_time_sensitivity(chart, config)
-            self.output.setPlainText(format_time_sensitivity_result_text(self._last_result))
+            self._chart_date_key = birth_date_key_for_chart(chart)
+            self.output.setHtml(format_time_sensitivity_result_html(self._last_result))
             self.save_button.setEnabled(True)
         except Exception as exc:
             self._last_result = None

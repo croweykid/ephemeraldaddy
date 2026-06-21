@@ -1409,6 +1409,7 @@ def build_chart_view_right_panel(
 
     predictions_panel = _build_predictions_panel(owner)
     time_sensitivity_panel = TimeSensitivityPanel(owner)
+    owner.time_sensitivity_panel = time_sensitivity_panel
 
     owner._chart_right_panel_controller = ChartRightPanelController(owner)
 

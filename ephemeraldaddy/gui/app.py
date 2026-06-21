@@ -31248,6 +31248,9 @@ class MainWindow(QMainWindow):
         self._loaded_lat = None
         self._loaded_lon = None
         self._latest_chart = None
+        time_sensitivity_panel = getattr(self, "time_sensitivity_panel", None)
+        if time_sensitivity_panel is not None and hasattr(time_sensitivity_panel, "refresh_for_current_chart"):
+            time_sensitivity_panel.refresh_for_current_chart()
         for button in (
             self.export_chart_button,
             self.current_transits_button,
@@ -32086,6 +32089,9 @@ class MainWindow(QMainWindow):
         queue_priority: RenderQueuePriority = "interactive",
     ) -> None:
         self._latest_chart = chart
+        time_sensitivity_panel = getattr(self, "time_sensitivity_panel", None)
+        if time_sensitivity_panel is not None and hasattr(time_sensitivity_panel, "refresh_for_current_chart"):
+            time_sensitivity_panel.refresh_for_current_chart()
         update_main_window_title(self)
         if self._pending_render_chart is not None and self._pending_render_chart is not chart:
             self._chart_render_queue_state.clear()

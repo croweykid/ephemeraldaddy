@@ -5,8 +5,9 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -39,6 +40,7 @@ class TimeSensitivityConfig:
 class TimeSensitivityResult:
     chart_uid: str
     chart_name: str
+    birth_date_key: str
     algorithm_version: str
     computed_at: str
     config: dict[str, Any]
@@ -50,6 +52,19 @@ class TimeSensitivityResult:
     stable: list[str]
     variable: list[str]
     warnings: list[str]
+
+
+def birth_date_key_for_chart(chart: Any) -> str:
+    """Return the Time Sensitivity storage key for a chart birth date."""
+    dt = getattr(chart, "dt", None)
+    if not isinstance(dt, datetime):
+        dt = getattr(chart, "dt_local", None)
+    if isinstance(dt, datetime):
+        return dt.strftime("%m-%d-%Y")
+    birth_date = getattr(chart, "birth_date", None)
+    if isinstance(birth_date, date):
+        return birth_date.strftime("%m-%d-%Y")
+    return ""
 
 
 def scan_times(interval_minutes: int = 30, *, include_day_end: bool = True) -> list[tuple[int, int]]:
@@ -170,6 +185,36 @@ def _variability_label(percent_delta: float) -> str:
     return "Highly variable"
 
 
+def _span_label(start_time: str, end_time: str) -> str:
+    return f"{start_time}–{end_time}"
+
+
+def _matching_spans(values: list[tuple[str, float]], predicate: Callable[[float], bool]) -> list[str]:
+    spans: list[str] = []
+    start: str | None = None
+    previous_time: str | None = None
+    for time, value in values:
+        if predicate(value):
+            if start is None:
+                start = time
+            previous_time = time
+        elif start is not None and previous_time is not None:
+            spans.append(_span_label(start, previous_time))
+            start = None
+            previous_time = None
+    if start is not None and previous_time is not None:
+        spans.append(_span_label(start, previous_time))
+    return spans
+
+
+def _transition_windows(values: list[tuple[str, float]]) -> list[str]:
+    windows: list[str] = []
+    for (previous_time, previous_value), (time, value) in zip(values, values[1:], strict=False):
+        if abs(value - previous_value) > 1e-9:
+            windows.append(_span_label(previous_time, time))
+    return windows
+
+
 def _aggregate_numeric(samples: list[dict[str, Any]], baseline: dict[str, dict[str, float]]) -> tuple[dict[str, dict[str, dict[str, Any]]], dict[str, float]]:
     ranges: dict[str, dict[str, dict[str, Any]]] = {}
     group_deltas: dict[str, float] = {}
@@ -207,6 +252,10 @@ def _aggregate_numeric(samples: list[dict[str, Any]], baseline: dict[str, dict[s
                 "times_at_max": peak_times,
                 "peak_times": peak_times,
                 "trough_times": trough_times,
+                "present_spans": _matching_spans(values, lambda value: value > 0.0),
+                "peak_spans": _matching_spans(values, lambda value: value == max_value),
+                "trough_spans": _matching_spans(values, lambda value: value == min_value),
+                "transition_windows": _transition_windows(values),
                 "appears_after": present_times[0] if min_value == 0.0 and present_times else None,
             }
         ranges[group] = group_ranges
@@ -331,6 +380,7 @@ def compute_time_sensitivity(chart: Any, config: TimeSensitivityConfig | None = 
     return TimeSensitivityResult(
         chart_uid=str(getattr(chart, "chart_uid", "") or ""),
         chart_name=str(getattr(chart, "name", "") or ""),
+        birth_date_key=birth_date_key_for_chart(chart),
         algorithm_version=TIME_SENSITIVITY_ALGORITHM_VERSION,
         computed_at=computed_at,
         config=asdict(cfg),
@@ -369,6 +419,7 @@ def ensure_time_sensitivity_db(path: Path = TIME_SENSITIVITY_DB_PATH) -> None:
             CREATE TABLE IF NOT EXISTS chart_time_sensitivity_ranges (
                 id INTEGER PRIMARY KEY,
                 chart_uid TEXT NOT NULL,
+                birth_date_key TEXT NOT NULL DEFAULT '',
                 algorithm_version TEXT NOT NULL,
                 config_hash TEXT NOT NULL,
                 config_json TEXT NOT NULL,
@@ -377,6 +428,16 @@ def ensure_time_sensitivity_db(path: Path = TIME_SENSITIVITY_DB_PATH) -> None:
                 updated_at TEXT NOT NULL,
                 UNIQUE(chart_uid, algorithm_version, config_hash)
             )
+            """
+        )
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(chart_time_sensitivity_ranges)").fetchall()}
+        if "birth_date_key" not in columns:
+            conn.execute("ALTER TABLE chart_time_sensitivity_ranges ADD COLUMN birth_date_key TEXT NOT NULL DEFAULT ''")
+        conn.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_time_sensitivity_birth_date_config
+            ON chart_time_sensitivity_ranges(birth_date_key, algorithm_version, config_hash)
+            WHERE birth_date_key != ''
             """
         )
 
@@ -388,15 +449,60 @@ def save_time_sensitivity_result(result: TimeSensitivityResult, path: Path = TIM
     result_json = json.dumps(payload, sort_keys=True)
     config_hash = _config_hash(result.config)
     now = datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    storage_chart_uid = result.chart_uid or f"date:{result.birth_date_key}"
     with sqlite3.connect(path) as conn:
         conn.execute(
             """
-            INSERT INTO chart_time_sensitivity_ranges (
-                chart_uid, algorithm_version, config_hash, config_json, result_json, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(chart_uid, algorithm_version, config_hash) DO UPDATE SET
-                result_json = excluded.result_json,
-                updated_at = excluded.updated_at
+            DELETE FROM chart_time_sensitivity_ranges
+            WHERE (birth_date_key != '' AND birth_date_key = ? AND algorithm_version = ? AND config_hash = ?)
+               OR (chart_uid != '' AND chart_uid = ? AND algorithm_version = ? AND config_hash = ?)
             """,
-            (result.chart_uid, result.algorithm_version, config_hash, config_json, result_json, now, now),
+            (
+                result.birth_date_key,
+                result.algorithm_version,
+                config_hash,
+                result.chart_uid,
+                result.algorithm_version,
+                config_hash,
+            ),
         )
+        conn.execute(
+            """
+            INSERT INTO chart_time_sensitivity_ranges (
+                chart_uid, birth_date_key, algorithm_version, config_hash, config_json, result_json, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (storage_chart_uid, result.birth_date_key, result.algorithm_version, config_hash, config_json, result_json, now, now),
+        )
+
+
+def load_time_sensitivity_result_for_chart(
+    chart: Any,
+    config: TimeSensitivityConfig | None = None,
+    path: Path = TIME_SENSITIVITY_DB_PATH,
+) -> TimeSensitivityResult | None:
+    """Load the most recent saved Time Sensitivity result for a chart's MM-DD-YYYY birth date."""
+    birth_date_key = birth_date_key_for_chart(chart)
+    if not birth_date_key or not path.exists():
+        return None
+    cfg = config or TimeSensitivityConfig()
+    ensure_time_sensitivity_db(path)
+    config_hash = _config_hash(asdict(cfg))
+    with sqlite3.connect(path) as conn:
+        row = conn.execute(
+            """
+            SELECT result_json
+            FROM chart_time_sensitivity_ranges
+            WHERE birth_date_key = ?
+              AND algorithm_version = ?
+              AND config_hash = ?
+            ORDER BY updated_at DESC
+            LIMIT 1
+            """,
+            (birth_date_key, TIME_SENSITIVITY_ALGORITHM_VERSION, config_hash),
+        ).fetchone()
+    if row is None:
+        return None
+    payload = json.loads(str(row[0]))
+    payload.setdefault("birth_date_key", birth_date_key)
+    return TimeSensitivityResult(**payload)
