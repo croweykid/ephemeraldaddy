@@ -61,29 +61,25 @@ _TIME_SENSITIVITY_CHART_TITLES = {
 
 
 def _likelihood_rows(result: TimeSensitivityResult, group_key: str) -> list[tuple[str, float]]:
-    """Return all-factor cumulative relative-weight rows for Time Sensitivity charts."""
-    likelihoods = (result.overall.get("cumulative_weight_likelihoods") or {}).get(group_key, {})
-    if isinstance(likelihoods, dict) and likelihoods:
-        rows = [
-            (str(key), float(payload.get("percent", 0.0)))
-            for key, payload in likelihoods.items()
-            if isinstance(payload, dict)
-        ]
-        return sorted([(key, value) for key, value in rows if value > 0.0], key=lambda item: (-item[1], item[0]))
-
+    """Return non-zero average raw-weight rows for Time Sensitivity charts."""
     ranges = result.numeric_ranges.get(group_key, {})
     rows = [
         (str(key), (float(payload.get("min", 0.0)) + float(payload.get("max", 0.0))) / 2.0)
         for key, payload in ranges.items()
         if isinstance(payload, dict) and float(payload.get("max", 0.0)) > 0.0
     ]
-    total = sum(value for _key, value in rows)
-    if total <= 0.0:
-        return []
-    return sorted(
-        [(key, (value / total) * 100.0) for key, value in rows],
-        key=lambda item: (-item[1], item[0]),
-    )
+    return sorted(rows, key=lambda item: (-item[1], item[0]))
+
+
+def _raw_weight_range_rows(result: TimeSensitivityResult, group_key: str) -> list[tuple[str, float, float]]:
+    """Return labels with min/max raw weights across sampled charts."""
+    ranges = result.numeric_ranges.get(group_key, {})
+    rows = [
+        (str(key), float(payload.get("min", 0.0)), float(payload.get("max", 0.0)))
+        for key, payload in ranges.items()
+        if isinstance(payload, dict) and float(payload.get("max", 0.0)) > 0.0
+    ]
+    return sorted(rows, key=lambda item: (-item[2], item[0]))
 
 
 def _color_for_likelihood(group_key: str, label: str) -> str:
@@ -99,53 +95,73 @@ def _display_label_for_likelihood(group_key: str, label: str) -> str:
 
 
 def _draw_likelihood_chart(ax: Any, result: TimeSensitivityResult, group_key: str) -> None:
-    rows = _likelihood_rows(result, group_key)
-    labels = [label for label, _percent in rows]
+    rows = _raw_weight_range_rows(result, group_key)
+    labels = [label for label, _minimum, _maximum in rows]
     display_labels = [_display_label_for_likelihood(group_key, label) for label in labels]
-    values = [percent for _label, percent in rows]
+    minimums = [minimum for _label, minimum, _maximum in rows]
+    maximums = [maximum for _label, _minimum, maximum in rows]
     colors = [_color_for_likelihood(group_key, label) for label in labels]
     ax.set_facecolor("#111111")
     ax.figure.patch.set_facecolor("#111111")
     if not rows:
-        ax.text(0.5, 0.5, "No dominance likelihood data available.", ha="center", va="center", color="#f5f5f5")
+        ax.text(0.5, 0.5, "No raw weight range data available.", ha="center", va="center", color="#f5f5f5")
         ax.set_axis_off()
         return
 
-    bars = ax.bar(display_labels, values, color=colors, alpha=0.72, edgecolor="#f5f5f5", linewidth=0.25)
-    for bar, label, percent in zip(bars, labels, values, strict=True):
+    x_positions = list(range(len(rows)))
+    bars = ax.bar(x_positions, maximums, color=colors, alpha=0.72, edgecolor="#f5f5f5", linewidth=0.25)
+    ax.bar(x_positions, minimums, color="#111111", alpha=0.50, edgecolor="none")
+    hover_payloads = []
+    for bar, label, display_label, minimum, maximum in zip(bars, labels, display_labels, minimums, maximums, strict=True):
         bar.set_gid(f"time_sensitivity:{group_key}:{label}")
         bar.set_picker(True)
-        # Opacity+ stacking: a translucent full-height cap shows the remaining uncertainty
-        # across the 49 Time Sensitivity sampled charts.
-        ax.bar(
-            bar.get_x() + (bar.get_width() / 2),
-            max(0.0, 100.0 - percent),
-            width=bar.get_width(),
-            bottom=percent,
-            color=_color_for_likelihood(group_key, label),
-            alpha=0.18,
-            edgecolor="none",
-            align="center",
-        )
-        ax.text(
-            bar.get_x() + (bar.get_width() / 2),
-            min(100.0, percent + 2.0),
-            f"{percent:.0f}%",
-            ha="center",
-            va="bottom",
-            color="#f5f5f5",
-            fontsize=8,
-            fontweight="bold",
-        )
-    ax.set_ylim(0, 105)
-    ax.set_ylabel("relative weight across samples", color="#f5f5f5", fontsize=8)
+        hover_payloads.append((bar, f"{display_label}\nmin {minimum:.0f} • max {maximum:.0f}"))
+    _install_bar_hover(ax, hover_payloads)
+    ax.set_xticks(x_positions, display_labels)
+    y_max = max(maximums) if maximums else 0.0
+    ax.set_ylim(0, max(1.0, y_max * 1.12))
+    ax.set_ylabel("raw weight range", color="#f5f5f5", fontsize=8)
     ax.set_title(_TIME_SENSITIVITY_CHART_TITLES.get(group_key, group_key), color="#f5f5f5", fontsize=10, fontweight="bold")
-    ax.tick_params(axis="x", colors="#f5f5f5", labelrotation=45, labelsize=8)
+    ax.tick_params(axis="x", colors="#f5f5f5", labelrotation=90, labelsize=8)
     ax.tick_params(axis="y", colors="#f5f5f5", labelsize=8)
     ax.grid(axis="y", color="#333333", linewidth=0.5, alpha=0.8)
     for spine in ax.spines.values():
         spine.set_color("#555555")
     ax.figure.tight_layout()
+
+
+def _install_bar_hover(ax: Any, hover_payloads: list[tuple[Any, str]]) -> None:
+    """Attach uncluttered on-hover labels to bars for Qt matplotlib canvases."""
+    annotation = ax.annotate(
+        "",
+        xy=(0, 0),
+        xytext=(10, 10),
+        textcoords="offset points",
+        bbox={"boxstyle": "round", "fc": "#222222", "ec": "#f5f5f5", "alpha": 0.92},
+        color="#f5f5f5",
+        fontsize=8,
+    )
+    annotation.set_visible(False)
+
+    def on_motion(event: Any) -> None:
+        if event.inaxes != ax:
+            if annotation.get_visible():
+                annotation.set_visible(False)
+                ax.figure.canvas.draw_idle()
+            return
+        for bar, label in hover_payloads:
+            contains, _details = bar.contains(event)
+            if contains:
+                annotation.xy = (bar.get_x() + (bar.get_width() / 2), bar.get_height())
+                annotation.set_text(label)
+                annotation.set_visible(True)
+                ax.figure.canvas.draw_idle()
+                return
+        if annotation.get_visible():
+            annotation.set_visible(False)
+            ax.figure.canvas.draw_idle()
+
+    ax.figure.canvas.mpl_connect("motion_notify_event", on_motion)
 
 
 def _group_title(group_key: str) -> str:
@@ -213,13 +229,13 @@ def _factor_color(group_key: str, key: str) -> str:
     return "#6fa8dc"
 
 
-_COLOR_CODE_TERMS: dict[str, str] = {
-    **{str(name): str(color) for name, color in SIGN_COLORS.items()},
-    **{str(name): str(color) for name, color in PLANET_COLORS.items()},
-    **{str(name): str(color) for name, color in ELEMENT_COLORS.items()},
-    **{str(name).title(): str(color) for name, color in MODE_COLORS.items()},
-    **{str(name): str(color) for name, (_planet, color) in NAKSHATRA_PLANET_COLOR.items()},
-    **{f"House {house}": str(color) for house, color in HOUSE_COLORS.items()},
+_COLOR_CODE_TERMS: dict[str, tuple[str, str, str]] = {
+    **{str(name): (str(color), "sign", str(name)) for name, color in SIGN_COLORS.items()},
+    **{str(name): (str(color), "planet", str(name)) for name, color in PLANET_COLORS.items()},
+    **{str(name): (str(color), "element", str(name)) for name, color in ELEMENT_COLORS.items()},
+    **{str(name).title(): (str(color), "mode", str(name)) for name, color in MODE_COLORS.items()},
+    **{str(name): (str(color), "nakshatra", str(name)) for name, (_planet, color) in NAKSHATRA_PLANET_COLOR.items()},
+    **{f"House {house}": (str(color), "house", str(house)) for house, color in HOUSE_COLORS.items()},
 }
 
 _COLOR_CODE_PATTERN = re.compile(
@@ -231,25 +247,32 @@ _COLOR_CODE_PATTERN = re.compile(
 
 
 def _color_code_text(text: str) -> str:
-    """Escape text and color known astrological body/category names within it."""
+    """Escape text and turn known astrological category names into Chart Info links."""
     escaped_text = escape(str(text))
 
     def replace(match: re.Match[str]) -> str:
         matched = match.group(0)
-        color = _COLOR_CODE_TERMS.get(matched)
-        if color is None:
-            color = next(
+        payload = _COLOR_CODE_TERMS.get(matched)
+        if payload is None:
+            payload = next(
                 (
-                    candidate_color
-                    for candidate_name, candidate_color in _COLOR_CODE_TERMS.items()
+                    candidate_payload
+                    for candidate_name, candidate_payload in _COLOR_CODE_TERMS.items()
                     if candidate_name.lower() == matched.lower()
                 ),
-                "#6fa8dc",
+                ("#6fa8dc", "", matched),
             )
-        return f"<span style='color:{escape(color, quote=True)};'>{matched}</span>"
+        color, kind, value = payload
+        safe_matched = escape(matched)
+        href = f"distinguishing-factor:{kind}:{quote(value)}" if kind else ""
+        if href:
+            return (
+                f"<a href='{href}' style='color:{escape(color, quote=True)}; text-decoration: none;'>"
+                f"{safe_matched}</a>"
+            )
+        return f"<span style='color:{escape(color, quote=True)};'>{safe_matched}</span>"
 
     return _COLOR_CODE_PATTERN.sub(replace, escaped_text)
-
 
 def _header_html(label: str) -> str:
     return f"<div style='color:{CHART_DATA_HIGHLIGHT_COLOR}; font-weight:700; margin-top:8px;'>{escape(label)}</div>"
@@ -293,11 +316,11 @@ def _numeric_group_table_html(result: TimeSensitivityResult, group_key: str) -> 
         rows.append(
             "<tr>"
             f"<td>{_factor_anchor(group_key, key)}</td>"
-            f"<td>{escape(f'{float(payload.get('min', 0.0)):.2f}')}</td>"
-            f"<td>{escape(f'{float(payload.get('max', 0.0)):.2f}')}</td>"
+            f"<td>{escape(f'{float(payload.get('min', 0.0)):.0f}')}</td>"
+            f"<td>{escape(f'{float(payload.get('max', 0.0)):.0f}')}</td>"
             f"<td>{escape(_format_time_list(payload.get('trough_times')))}</td>"
             f"<td>{escape(_format_time_list(payload.get('peak_times')))}</td>"
-            f"<td>{escape(f'{float(payload.get('max_decrease_percent', 0.0)):+.2f}% to {float(payload.get('max_increase_percent', 0.0)):+.2f}%')}</td>"
+            f"<td>{escape(f'{float(payload.get('max_decrease_percent', 0.0)):+.0f}% to {float(payload.get('max_increase_percent', 0.0)):+.0f}%')}</td>"
             f"<td>{escape(_variability_text(payload))}</td>"
             "</tr>"
         )
@@ -354,8 +377,8 @@ def format_time_sensitivity_result_html(result: TimeSensitivityResult) -> str:
     overall = result.overall
     baseline_label = f"{result.baseline_time} ({overall.get('baseline_source', 'baseline')})"
     html_lines: list[str] = [
-        f"<div>Overall stability: {overall.get('stability_percent', 0):.2f}%</div>",
-        f"<div>Max possible change from {escape(baseline_label)}: {overall.get('max_total_change_from_baseline_percent', 0):.2f}%</div>",
+        f"<div>Overall stability: {float(overall.get('stability_percent', 0)):.0f}%</div>",
+        f"<div>Max possible change from {escape(baseline_label)}: {float(overall.get('max_total_change_from_baseline_percent', 0)):.0f}%</div>",
         "<div>Most sensitive: " + _color_code_text(", ".join(overall.get("most_sensitive", []) or ["n/a"])) + "</div>",
         "<div>Least sensitive: " + _color_code_text(", ".join(overall.get("least_sensitive", []) or ["n/a"])) + "</div>",
         f"<div>Samples: {result.sample_count} hypothetical standard charts + {result.sample_count} Human Design charts</div>",
@@ -366,7 +389,7 @@ def format_time_sensitivity_result_html(result: TimeSensitivityResult) -> str:
     html_lines.append(_list_html([_color_code_text(item) for item in (result.variable or ["No categorical variability found."])]))
 
     for group_key, ranges in result.numeric_ranges.items():
-        if group_key in {"dominant_planet_weights", "dominant_sign_weights"}:
+        if group_key in _NUMERIC_GROUP_LINK_KINDS:
             continue
         meaningful = [
             (key, payload)
@@ -400,12 +423,12 @@ def format_time_sensitivity_result_html(result: TimeSensitivityResult) -> str:
                 + escape(tooltip, quote=True)
                 + "'>"
                 + f"{_factor_anchor(group_key, str(key))} "
-                + f"<span style='color:{min_color};'>{escape(f'{minimum:.2f}')}</span>"
+                + f"<span style='color:{min_color};'>{escape(f'{minimum:.0f}')}</span>"
                 + escape("–")
-                + f"<span style='color:{max_color};'>{escape(f'{maximum:.2f}')}</span>"
+                + f"<span style='color:{max_color};'>{escape(f'{maximum:.0f}')}</span>"
                 + escape(f"   peak {', '.join(payload.get('peak_times', [])[:3]) or 'n/a'}   vs {result.baseline_time}: ")
                 + f"<span style='color:{delta_color};'>"
-                + escape(f"{float(payload.get('max_decrease_percent', 0.0)):+.2f}% to {float(payload.get('max_increase_percent', 0.0)):+.2f}%")
+                + escape(f"{float(payload.get('max_decrease_percent', 0.0)):+.0f}% to {float(payload.get('max_increase_percent', 0.0)):+.0f}%")
                 + "</span>"
                 + escape(f"{suffix}".replace("highly variable", "high"))
                 + "</span>"
@@ -519,13 +542,13 @@ class TimeSensitivityPanel(QWidget):
         if chart is None:
             self.compute_module.setVisible(False)
             self.output.setPlainText("No active chart is loaded.")
-            self._clear_likelihood_charts()
+            self._clear_weight_sections()
             return
         saved = load_time_sensitivity_result_for_chart(chart, self._current_config())
         if saved is not None:
             self._last_result = saved
             self.output.setHtml(format_time_sensitivity_result_html(saved))
-            self._render_likelihood_charts(saved)
+            self._render_weight_sections(saved)
             self.compute_module.setVisible(False)
             return
         self.compute_module.setVisible(bool(date_key))
@@ -536,7 +559,7 @@ class TimeSensitivityPanel(QWidget):
             )
         else:
             self.output.setPlainText("No usable birth date found for Time/Rectification Sensitivity storage.")
-        self._clear_likelihood_charts()
+        self._clear_weight_sections()
 
     def compute_range(self) -> None:
         chart = self._current_chart()
@@ -552,12 +575,12 @@ class TimeSensitivityPanel(QWidget):
             self._chart_date_key = birth_date_key_for_chart(chart)
             save_time_sensitivity_result(self._last_result)
             self.output.setHtml(format_time_sensitivity_result_html(self._last_result))
-            self._render_likelihood_charts(self._last_result)
+            self._render_weight_sections(self._last_result)
             self.compute_module.setVisible(False)
         except Exception as exc:
             self._last_result = None
             self.output.setPlainText(f"Unable to compute Time/Rectification Sensitivity:\n{exc}")
-            self._clear_likelihood_charts()
+            self._clear_weight_sections()
         finally:
             self.compute_button.setEnabled(True)
 
@@ -570,17 +593,25 @@ class TimeSensitivityPanel(QWidget):
         if callable(handler):
             handler(target)
 
-    def _clear_likelihood_charts(self) -> None:
+    def _clear_weight_sections(self) -> None:
         for section in self._chart_sections.values():
             section.setParent(None)
             section.deleteLater()
         self._chart_sections = {}
         self._chart_canvases = {}
 
-    def _render_likelihood_charts(self, result: TimeSensitivityResult) -> None:
-        self._clear_likelihood_charts()
-        for group_key in ("dominant_planet_weights", "dominant_sign_weights"):
-            if not _likelihood_rows(result, group_key):
+    def _render_weight_sections(self, result: TimeSensitivityResult) -> None:
+        self._clear_weight_sections()
+        for group_key in (
+            "dominant_planet_weights",
+            "dominant_sign_weights",
+            "dominant_element_weights",
+            "dominant_house_weights",
+            "dominant_mode_weights",
+            "dominant_nakshatra_weights",
+        ):
+            table_html = _numeric_group_table_html(result, group_key)
+            if not table_html.startswith("<table"):
                 continue
             section = QWidget()
             section_layout = QVBoxLayout(section)
@@ -607,18 +638,20 @@ class TimeSensitivityPanel(QWidget):
             section_layout.addWidget(toggle)
             section_layout.addWidget(content)
 
-            figure = Figure(figsize=(5.5, 2.8))
-            ax = figure.add_subplot(111)
-            _draw_likelihood_chart(ax, result, group_key)
-            canvas = FigureCanvas(figure)
-            canvas.setMinimumHeight(250)
-            canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-            canvas.setToolTip("Click to open a larger Time Sensitivity weight-distribution popout.")
-            canvas.mpl_connect(
-                "button_press_event",
-                lambda _event, key=group_key: self._show_likelihood_popout(key),
-            )
-            content_layout.addWidget(canvas)
+            canvas = None
+            if group_key in {"dominant_planet_weights", "dominant_sign_weights"}:
+                figure = Figure(figsize=(5.5, 2.8))
+                ax = figure.add_subplot(111)
+                _draw_likelihood_chart(ax, result, group_key)
+                canvas = FigureCanvas(figure)
+                canvas.setMinimumHeight(250)
+                canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+                canvas.setToolTip("Click to open a larger Time Sensitivity raw-weight range popout.")
+                canvas.mpl_connect(
+                    "button_press_event",
+                    lambda _event, key=group_key: self._show_likelihood_popout(key),
+                )
+                content_layout.addWidget(canvas)
 
             table = QTextBrowser(content)
             table.setReadOnly(True)
@@ -628,12 +661,13 @@ class TimeSensitivityPanel(QWidget):
             table.setFrameShape(QFrame.NoFrame)
             table.setMinimumHeight(170)
             table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-            table.setHtml(_header_html(_group_title(group_key)) + _numeric_group_table_html(result, group_key))
+            table.setHtml(_header_html(_group_title(group_key)) + table_html)
             content_layout.addWidget(table)
 
             self._charts_layout.addWidget(section)
-            canvas.draw_idle()
-            self._chart_canvases[group_key] = canvas
+            if canvas is not None:
+                canvas.draw_idle()
+                self._chart_canvases[group_key] = canvas
             self._chart_sections[group_key] = section
 
     def _show_likelihood_popout(self, group_key: str) -> None:
@@ -655,9 +689,9 @@ class TimeSensitivityPanel(QWidget):
         info = QTextEdit()
         info.setReadOnly(True)
         info.setHtml(
-            "<b>Opacity+ stack meaning:</b> the solid portion is each factor's cumulative relative "
-            "weight across the sampled charts; the translucent cap makes lower-likelihood factors "
-            f"visible across {int(self._last_result.sample_count)} sampled charts."
+            "<b>Raw weight range:</b> each bar shows the maximum raw weight reached by that factor; "
+            "the darker base marks its minimum raw weight across the sampled charts. Hover a bar "
+            "to see the exact rounded min/max values."
         )
         info.setMaximumHeight(96)
         layout.addWidget(info)
