@@ -10,12 +10,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Iterable
 
-from ephemeraldaddy.core.chart import Chart
+from ephemeraldaddy.core.chart import Chart, chart_uses_houses
 from ephemeraldaddy.core.db import DB_DIR
 from ephemeraldaddy.core.human_design_system import calculate_human_design
 from ephemeraldaddy.core.interpretations import NAKSHATRA_RANGES, ZODIAC_NAMES
 
-TIME_SENSITIVITY_ALGORITHM_VERSION = "time-sensitivity-v1"
+TIME_SENSITIVITY_ALGORITHM_VERSION = "time-sensitivity-v2"
 TIME_SENSITIVITY_DB_PATH = DB_DIR / "time_sensitivity.db"
 NUMERIC_GROUPS = (
     "dominant_planet_weights",
@@ -31,7 +31,7 @@ NUMERIC_GROUPS = (
 class TimeSensitivityConfig:
     interval_minutes: int = 30
     include_day_end: bool = True
-    baseline_time: str = "12:00"
+    baseline_time: str | None = None
     boundary_refinement: bool = False
 
 
@@ -182,19 +182,31 @@ def _aggregate_numeric(samples: list[dict[str, Any]], baseline: dict[str, dict[s
             min_value = min(value for _time, value in values)
             max_value = max(value for _time, value in values)
             base_value = float(baseline.get(group, {}).get(key, 0.0))
-            delta = max_value - min_value
-            pct = _percent_delta(delta, base_value)
-            max_group_delta = max(max_group_delta, pct)
+            range_delta = max_value - min_value
+            max_increase = max_value - base_value
+            max_decrease = min_value - base_value
+            baseline_delta = max(abs(max_increase), abs(max_decrease))
+            pct = _percent_delta(baseline_delta, base_value)
+            max_group_delta = max(max_group_delta, abs(pct))
             present_times = [time for time, value in values if value > 0]
+            peak_times = [time for time, value in values if value == max_value]
+            trough_times = [time for time, value in values if value == min_value]
             group_ranges[key] = {
                 "min": round(min_value, 6),
                 "max": round(max_value, 6),
                 "baseline": round(base_value, 6),
-                "delta": round(delta, 6),
+                "delta": round(range_delta, 6),
+                "baseline_delta": round(baseline_delta, 6),
+                "max_increase_from_baseline": round(max_increase, 6),
+                "max_decrease_from_baseline": round(max_decrease, 6),
                 "percent_delta": round(pct, 2),
-                "label": _variability_label(pct),
-                "times_at_min": [time for time, value in values if value == min_value],
-                "times_at_max": [time for time, value in values if value == max_value],
+                "max_increase_percent": round(_percent_delta(max_increase, base_value), 2),
+                "max_decrease_percent": round(_percent_delta(max_decrease, base_value), 2),
+                "label": _variability_label(abs(pct)),
+                "times_at_min": trough_times,
+                "times_at_max": peak_times,
+                "peak_times": peak_times,
+                "trough_times": trough_times,
                 "appears_after": present_times[0] if min_value == 0.0 and present_times else None,
             }
         ranges[group] = group_ranges
@@ -229,12 +241,37 @@ def _top_group_deltas(group_deltas: dict[str, float]) -> tuple[list[str], list[s
     return most, least
 
 
+def _baseline_time_for_chart(chart: Any, configured_baseline_time: str | None) -> tuple[int, int, str, str]:
+    if configured_baseline_time:
+        hour, minute = (int(part) for part in configured_baseline_time.split(":", 1))
+        return hour, minute, _time_label(hour, minute), "configured time"
+
+    use_rectified_time = bool(getattr(chart, "retcon_time_used", False))
+    if not chart_uses_houses(chart) and not use_rectified_time:
+        return 12, 0, "12:00", "noon fallback"
+
+    if use_rectified_time:
+        dt = getattr(chart, "dt", None)
+        fallback_hour = int(dt.hour) if isinstance(dt, datetime) else 12
+        fallback_minute = int(dt.minute) if isinstance(dt, datetime) else 0
+        hour = int(getattr(chart, "retcon_hour", fallback_hour) if getattr(chart, "retcon_hour", None) is not None else fallback_hour)
+        minute = int(getattr(chart, "retcon_minute", fallback_minute) if getattr(chart, "retcon_minute", None) is not None else fallback_minute)
+        return hour, minute, _time_label(hour, minute), "rectified time"
+
+    dt = getattr(chart, "dt", None)
+    if not isinstance(dt, datetime):
+        dt = getattr(chart, "dt_local", None)
+    if isinstance(dt, datetime):
+        return int(dt.hour), int(dt.minute), _time_label(int(dt.hour), int(dt.minute)), "current chart time"
+    return 12, 0, "12:00", "noon fallback"
+
+
 def compute_time_sensitivity(chart: Any, config: TimeSensitivityConfig | None = None) -> TimeSensitivityResult:
     """Compute sampled Time/Rectification Sensitivity ranges for one chart."""
     cfg = config or TimeSensitivityConfig()
     samples: list[dict[str, Any]] = []
     warnings: list[str] = []
-    baseline_hour, baseline_minute = (int(part) for part in cfg.baseline_time.split(":", 1))
+    baseline_hour, baseline_minute, baseline_time, baseline_source = _baseline_time_for_chart(chart, cfg.baseline_time)
     baseline_chart = _variant_chart(chart, baseline_hour, baseline_minute)
     baseline_numeric = _numeric_snapshot(baseline_chart)
 
@@ -298,13 +335,14 @@ def compute_time_sensitivity(chart: Any, config: TimeSensitivityConfig | None = 
         computed_at=computed_at,
         config=asdict(cfg),
         sample_count=len(samples),
-        baseline_time=cfg.baseline_time,
+        baseline_time=baseline_time,
         overall={
             "stability_percent": round(stability, 2),
             "max_total_change_from_baseline_percent": round(max_delta, 2),
             "most_sensitive": most_sensitive,
             "least_sensitive": least_sensitive,
             "group_deltas": group_deltas,
+            "baseline_source": baseline_source,
         },
         numeric_ranges=numeric_ranges,
         human_design=hd,
