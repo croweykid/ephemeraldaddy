@@ -171,3 +171,22 @@ def test_human_design_incarnation_cross_payload_uses_cross_names():
     assert database_counts["Left Angle Cross of Education"] == 3
     assert selection_total == 2.0
     assert database_total == 3.0
+
+
+def test_incarnation_cross_popout_info_matches_human_design_definition():
+    class FakeDialog(DatabaseAnalyticsChartsMixin):
+        def _standard_deviation_indicators_visible(self):
+            return False
+
+    html = FakeDialog()._build_database_analytics_popout_info_html(
+        chart_title="Incarnation Crosses",
+        label="Left Angle Cross of Education",
+        value=0.25,
+    )
+
+    assert "Incarnation Cross: Left Angle Cross of Education" in html
+    assert "Theme:" in html
+    assert "Angle:" in html
+    assert "Gates:" in html
+    assert "Theme description:" in html
+    assert "Bar reading" not in html

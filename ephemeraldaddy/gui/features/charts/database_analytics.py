@@ -18,7 +18,7 @@ from typing import Any, Callable
 from matplotlib import font_manager as mpl_font_manager
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
-from PySide6.QtCore import QPoint, QSize, Qt, QTimer
+from PySide6.QtCore import QEvent, QPoint, QSize, Qt, QTimer
 from PySide6.QtWidgets import (
     QDialog,
     QFileDialog,
@@ -31,6 +31,67 @@ from PySide6.QtWidgets import (
     QToolTip,
     QVBoxLayout,
 )
+
+
+class DatabaseAnalyticsPopoutScrollArea(QScrollArea):
+    """Scroll area that keeps popout charts width-bound while preserving vertical scroll."""
+
+    def __init__(self, parent: object | None = None) -> None:
+        super().__init__(parent)
+        self.setWidgetResizable(True)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.setFocusPolicy(Qt.StrongFocus)
+        self.verticalScrollBar().setFocusPolicy(Qt.StrongFocus)
+        self.viewport().installEventFilter(self)
+
+    def setWidget(self, widget: object) -> None:  # noqa: N802 - Qt API
+        super().setWidget(widget)
+        if hasattr(widget, "installEventFilter"):
+            widget.installEventFilter(self)
+        self._sync_chart_width()
+
+    def resizeEvent(self, event: object) -> None:  # noqa: N802 - Qt API
+        super().resizeEvent(event)
+        self._sync_chart_width()
+
+    def eventFilter(self, watched: object, event: object) -> bool:  # noqa: N802 - Qt API
+        event_type = event.type() if hasattr(event, "type") else None
+        if event_type == QEvent.MouseButtonPress:
+            self._focus_vertical_scrollbar()
+        if event_type == QEvent.Wheel:
+            chart_widget = self.widget()
+            if watched not in {self, self.viewport(), chart_widget}:
+                return False
+            self._focus_vertical_scrollbar()
+            delta = event.pixelDelta().y() if hasattr(event, "pixelDelta") else 0
+            if not delta and hasattr(event, "angleDelta"):
+                delta = event.angleDelta().y()
+            if delta:
+                bar = self.verticalScrollBar()
+                bar.setValue(bar.value() - int(delta))
+                event.accept()
+                return True
+            return False
+        return super().eventFilter(watched, event)
+
+    def wheelEvent(self, event: object) -> None:  # noqa: N802 - Qt API
+        self._focus_vertical_scrollbar()
+        super().wheelEvent(event)
+
+    def _focus_vertical_scrollbar(self) -> None:
+        self.setFocus(Qt.MouseFocusReason)
+        self.verticalScrollBar().setFocus(Qt.MouseFocusReason)
+
+    def _sync_chart_width(self) -> None:
+        widget = self.widget()
+        if widget is None:
+            return
+        viewport_width = max(1, self.viewport().width())
+        current_height = max(1, widget.minimumHeight(), widget.height(), widget.sizeHint().height())
+        widget.setMinimumWidth(1)
+        widget.setMaximumWidth(viewport_width)
+        widget.resize(viewport_width, current_height)
 
 from ephemeraldaddy.data.genpop import (
     INNER_PLANET_SIGN_DISTRIBUTION_AGGREGATED,
@@ -60,6 +121,8 @@ from ephemeraldaddy.analysis.human_design import (
 from ephemeraldaddy.analysis.hd_incarnation_crosses import (
     find_cross_by_name,
     find_crosses_by_gates,
+    get_cross_theme_description,
+    get_cross_type_description,
 )
 from ephemeraldaddy.analysis.bazi_getter import build_bazi_chart_data
 from ephemeraldaddy.core.chart import chart_uses_houses
@@ -1307,6 +1370,34 @@ class DatabaseAnalyticsChartsMixin:
             return f"{clean_label} is a saved tag/category label; this bar compares how often it is attached to charts."
         return f"{clean_label} is the category represented by this row; this bar compares its frequency or score in the current Database View analytics."
 
+    @staticmethod
+    def _database_analytics_incarnation_cross_info_html(label: str) -> str | None:
+        clean_label = DatabaseAnalyticsChartsMixin._clean_database_analytics_label(label)
+        cross_entry = find_cross_by_name(clean_label) if clean_label else None
+        if not cross_entry:
+            return None
+        cross_name = str(cross_entry.get("full_name") or clean_label).strip() or clean_label
+        gates = cross_entry.get("gates", ())
+        gates_text = "/".join(str(gate) for gate in gates) if gates else "Unknown"
+        theme = str(cross_entry.get("theme", "")).strip() or "Unknown"
+        angle = str(cross_entry.get("cross_type", "")).strip() or "Unknown"
+        theme_description = get_cross_theme_description(theme)
+        type_description = get_cross_type_description(angle)
+        detail_items = [
+            ("Theme", theme),
+            ("Angle", angle),
+            ("Gates", gates_text),
+        ]
+        if theme_description:
+            detail_items.append(("Theme description", theme_description))
+        if type_description:
+            detail_items.append(("Angle description", type_description))
+        detail_html = "".join(
+            f"<li><b>{html.escape(title)}:</b> {html.escape(text)}</li>"
+            for title, text in detail_items
+        )
+        return f"<h3>Incarnation Cross: {html.escape(cross_name)}</h3><ul>{detail_html}</ul>"
+
     def _build_database_analytics_popout_info_html(
         self,
         *,
@@ -1316,6 +1407,10 @@ class DatabaseAnalyticsChartsMixin:
     ) -> str:
         clean_title = self._clean_database_analytics_label(chart_title)
         clean_label = self._clean_database_analytics_label(label)
+        if "incarnation" in clean_title.casefold() and "cross" in clean_title.casefold():
+            cross_html = self._database_analytics_incarnation_cross_info_html(clean_label)
+            if cross_html:
+                return cross_html
         definition = self._database_analytics_definition_for_label(clean_label, clean_title)
         value_line = ""
         if value is not None and math.isfinite(float(value)):
@@ -1376,15 +1471,12 @@ class DatabaseAnalyticsChartsMixin:
         layout.setContentsMargins(12, 12, 12, 12)
         dialog.setLayout(layout)
         popout_canvas = FigureCanvas(figure)
-        canvas_width = max(1, int(figure.get_figwidth() * figure.dpi))
         canvas_height = max(1, int(figure.get_figheight() * figure.dpi))
-        popout_canvas.setMinimumSize(QSize(canvas_width, canvas_height))
-        popout_canvas.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        popout_canvas.setMinimumSize(QSize(1, canvas_height))
+        popout_canvas.setMinimumHeight(canvas_height)
+        popout_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
-        chart_scroll = QScrollArea(dialog)
-        chart_scroll.setWidgetResizable(False)
-        chart_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        chart_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        chart_scroll = DatabaseAnalyticsPopoutScrollArea(dialog)
         chart_scroll.setWidget(popout_canvas)
         chart_scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
@@ -1394,6 +1486,9 @@ class DatabaseAnalyticsChartsMixin:
             "Click any bar or label to see a plain-English definition."
         )
         info_panel.setMinimumHeight(150)
+        dialog.installEventFilter(chart_scroll)
+        info_panel.installEventFilter(chart_scroll)
+        info_panel.viewport().installEventFilter(chart_scroll)
         layout.addWidget(chart_scroll, 3)
         layout.addWidget(info_panel, 1)
 
@@ -1562,6 +1657,10 @@ class DatabaseAnalyticsChartsMixin:
     ) -> str:
         clean_title = self._clean_database_analytics_label(chart_title)
         clean_label = self._clean_database_analytics_label(label)
+        if "incarnation" in clean_title.casefold() and "cross" in clean_title.casefold():
+            cross_html = self._database_analytics_incarnation_cross_info_html(clean_label)
+            if cross_html:
+                return cross_html
         definition = self._database_analytics_definition_for_label(clean_label, clean_title)
         value_line = ""
         if value is not None and math.isfinite(float(value)):
@@ -1622,15 +1721,12 @@ class DatabaseAnalyticsChartsMixin:
         layout.setContentsMargins(12, 12, 12, 12)
         dialog.setLayout(layout)
         popout_canvas = FigureCanvas(figure)
-        canvas_width = max(1, int(figure.get_figwidth() * figure.dpi))
         canvas_height = max(1, int(figure.get_figheight() * figure.dpi))
-        popout_canvas.setMinimumSize(QSize(canvas_width, canvas_height))
-        popout_canvas.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        popout_canvas.setMinimumSize(QSize(1, canvas_height))
+        popout_canvas.setMinimumHeight(canvas_height)
+        popout_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
-        chart_scroll = QScrollArea(dialog)
-        chart_scroll.setWidgetResizable(False)
-        chart_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        chart_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        chart_scroll = DatabaseAnalyticsPopoutScrollArea(dialog)
         chart_scroll.setWidget(popout_canvas)
         chart_scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
@@ -1640,6 +1736,9 @@ class DatabaseAnalyticsChartsMixin:
             "Click any bar or label to see a plain-English definition."
         )
         info_panel.setMinimumHeight(150)
+        dialog.installEventFilter(chart_scroll)
+        info_panel.installEventFilter(chart_scroll)
+        info_panel.viewport().installEventFilter(chart_scroll)
         layout.addWidget(chart_scroll, 3)
         layout.addWidget(info_panel, 1)
 
