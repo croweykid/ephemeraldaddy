@@ -283,6 +283,39 @@ def _distribution(samples: list[dict[str, Any]], key: str) -> dict[str, int]:
     return dict(sorted(counts.items(), key=lambda item: (-item[1], item[0])))
 
 
+def _dominance_likelihoods(samples: list[dict[str, Any]], group: str) -> dict[str, dict[str, Any]]:
+    """Count which weighted factor is dominant in each sampled chart."""
+    counts: dict[str, float] = {}
+    sample_count = len(samples)
+    for sample in samples:
+        weights = {
+            str(key): float(value)
+            for key, value in sample["numeric"].get(group, {}).items()
+        }
+        if not weights:
+            continue
+        max_value = max(weights.values())
+        if max_value <= 0.0:
+            continue
+        dominant_keys = [
+            key
+            for key, value in weights.items()
+            if abs(float(value) - max_value) <= 1e-9
+        ]
+        if not dominant_keys:
+            continue
+        split_count = 1.0 / len(dominant_keys)
+        for key in dominant_keys:
+            counts[key] = counts.get(key, 0.0) + split_count
+    return {
+        key: {
+            "count": round(count, 4),
+            "percent": round((count / sample_count) * 100.0, 2) if sample_count else 0.0,
+        }
+        for key, count in sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+    }
+
+
 def _top_group_deltas(group_deltas: dict[str, float]) -> tuple[list[str], list[str]]:
     ordered = sorted(group_deltas.items(), key=lambda item: item[1], reverse=True)
     most = [f"{name.replace('_', ' ')} ({delta:.2f}%)" for name, delta in ordered[:3]]
@@ -392,6 +425,10 @@ def compute_time_sensitivity(chart: Any, config: TimeSensitivityConfig | None = 
             "most_sensitive": most_sensitive,
             "least_sensitive": least_sensitive,
             "group_deltas": group_deltas,
+            "dominance_likelihoods": {
+                "dominant_planet_weights": _dominance_likelihoods(samples, "dominant_planet_weights"),
+                "dominant_sign_weights": _dominance_likelihoods(samples, "dominant_sign_weights"),
+            },
             "baseline_source": baseline_source,
         },
         numeric_ranges=numeric_ranges,
