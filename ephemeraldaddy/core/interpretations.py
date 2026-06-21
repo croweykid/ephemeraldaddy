@@ -711,7 +711,7 @@ BODY_RELATIONAL_GLYPHS = {
     "Exaltation":"↑", #green
     "Detriment":"↓", #👎 red
     "Fall":"↓↓", #red
-    "Joy":"💞",
+    "Joy":"♥", #💞
 }
 
 #not sure if I should use both signs or not.
