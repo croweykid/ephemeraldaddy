@@ -59,7 +59,6 @@ from ephemeraldaddy.core.interpretations import (
 
 from ephemeraldaddy.gui.features.charts.anagrams import AnagramsPresenter, build_anagrams_section
 from ephemeraldaddy.gui.features.charts.loading_overlay import ChartLoadingOverlay
-from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import build_chart_right_panel_stack
 from ephemeraldaddy.gui.features.charts.time_sensitivity_panel import TimeSensitivityPanel
 from ephemeraldaddy.gui.features.controllers.chart_right_panel import ChartRightPanelController
 from ephemeraldaddy.gui.style import apply_button_cursor, apply_chart_info_link_cursor
@@ -1386,15 +1385,12 @@ def build_chart_view_right_panel(
             "_register_metric_scroll_widget",
             "_create_chart_analysis_sections",
             "_create_similar_charts_section",
-            "_add_chart_analysis_collapsible_section",
             "_set_chart_analysis_section_expanded",
             "_export_anagrams_share",
             "_on_anagram_link_activated",
             "_on_anagram_source_changed",
             "_sync_chart_analysis_section_visibility",
-            "_set_chart_right_panel",
             "_chart_analysis_section_expanded",
-            "_render_dndification_predictions",
         ),
         context="build_chart_view_right_panel",
     )
@@ -1416,19 +1412,13 @@ def build_chart_view_right_panel(
 
     owner._chart_right_panel_controller = ChartRightPanelController(owner)
 
-    chart_right_panel = build_chart_right_panel_stack(
+    chart_right_panel = owner._chart_right_panel_controller.build_stack(
         analytics_content_widget=metrics_content,
         predictions_content_widget=predictions_panel,
         subjective_notes_content_widget=subjective_notes_panel,
         material_facts_content_widget=material_facts_panel,
         time_sensitivity_content_widget=time_sensitivity_panel,
         photo_gallery_content_widget=photo_gallery_panel,
-        on_show_analytics=lambda: owner._chart_right_panel_controller.set_active_panel("analytics"),
-        on_show_predictions=lambda: owner._chart_right_panel_controller.set_active_panel("predictions"),
-        on_show_subjective_notes=lambda: owner._chart_right_panel_controller.set_active_panel("subjective_notes"),
-        on_show_material_facts=lambda: owner._chart_right_panel_controller.set_active_panel("material_facts"),
-        on_show_time_sensitivity=lambda: owner._chart_right_panel_controller.set_active_panel("time_sensitivity"),
-        on_show_photo_gallery=lambda: owner._chart_right_panel_controller.set_active_panel("photo_gallery"),
         scrollbar_style=scrollbar_style,
     )
     owner.metrics_panel = chart_right_panel.container
@@ -1489,7 +1479,7 @@ def build_chart_view_right_panel(
     state = getattr(owner, "_chart_right_panel_state", None)
     if state is not None:
         state.active_tab = "subjective_notes"
-    owner._set_chart_right_panel("subjective_notes")
+    owner._chart_right_panel_controller.set_active_panel("subjective_notes")
 
 
 def setup_chart_view_tags_section(*, owner: QWidget, tags_content_layout: QVBoxLayout) -> None:
