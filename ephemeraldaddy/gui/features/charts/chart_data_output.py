@@ -351,6 +351,12 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                 r"\b(1[0-2]|[1-9])(st|nd|rd|th)\s+House\b",
             )
         )
+        relational_glyphs = sorted(
+            {glyph for glyph in BODY_RELATIONAL_GLYPHS.values() if glyph},
+            key=len,
+            reverse=True,
+        )
+        self._body_relational_glyph_pattern = re.compile("|".join(re.escape(glyph) for glyph in relational_glyphs))
         self._relative_year_formats = {
             label: self._make_format(color)
             for label, color in RELATIVE_YEAR_COLORS.items()
@@ -995,6 +1001,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         for sign, fmt in self._sign_formats.items():
             self._highlight_phrase(text, sign, fmt)
         self._highlight_glyphs(text, self._sign_glyph_formats)
+        self._highlight_attached_body_relational_glyphs(text)
         for element, fmt in self._element_formats.items():
             self._highlight_phrase(lowered, element, fmt)
         for nakshatra, fmt in self._nakshatra_formats.items():
@@ -1008,6 +1015,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                 prefix_end = text.find(":") + 1
                 if prefix_end > 0:
                     self.setFormat(0, prefix_end, house_fmt)
+                self._highlight_preceding_body_relational_glyph(text, house_match.start(1), house_fmt)
             sign_fmt = self._make_format(SIGN_COLORS.get(sign_name, CHART_DATA_HIGHLIGHT_COLOR))
             sign_start = text.find(sign_name)
             if sign_start != -1:
@@ -1017,6 +1025,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
             house_fmt = self._house_formats.get(house_num)
             if house_fmt:
                 self.setFormat(match.start(), len(match.group(0)), house_fmt)
+                self._highlight_preceding_body_relational_glyph(text, match.start(), house_fmt)
         for pattern in self._house_label_patterns:
             for match in pattern.finditer(text):
                 house_num = match.group(1)
@@ -1027,6 +1036,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                         self._qt_len(match.group(0)),
                         house_fmt,
                     )
+                    self._highlight_preceding_body_relational_glyph(text, match.start(), house_fmt)
         current_year = datetime.datetime.now(datetime.timezone.utc).year
         for match in self._transit_range_date_pattern.finditer(text):
             year = int(match.group(1))
@@ -1211,6 +1221,40 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                     text_format,
                 )
                 start = index + len(glyph)
+
+    def _highlight_attached_body_relational_glyphs(self, text: str) -> None:
+        for sign, text_format in self._sign_formats.items():
+            start = 0
+            while True:
+                index = text.find(sign, start)
+                if index == -1:
+                    break
+                self._highlight_preceding_body_relational_glyph(text, index, text_format)
+                start = index + len(sign)
+        for glyph, text_format in self._sign_glyph_formats.items():
+            start = 0
+            while True:
+                index = text.find(glyph, start)
+                if index == -1:
+                    break
+                self._highlight_preceding_body_relational_glyph(text, index, text_format)
+                start = index + len(glyph)
+
+    def _highlight_preceding_body_relational_glyph(
+        self,
+        text: str,
+        attachment_start: int,
+        text_format: QTextCharFormat,
+    ) -> None:
+        prefix_text = text[:attachment_start].rstrip()
+        match = self._body_relational_glyph_pattern.search(prefix_text)
+        if match is None or match.end() != len(prefix_text):
+            return
+        self.setFormat(
+            self._qt_index(text, match.start()),
+            self._qt_len(match.group(0)),
+            text_format,
+        )
 
     def _highlight_phrase(self, text: str, phrase: str, text_format: QTextCharFormat) -> None:
         start = 0
