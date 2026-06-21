@@ -60,6 +60,9 @@ class DatabaseAnalyticsPopoutScrollArea(QScrollArea):
         if event_type == QEvent.MouseButtonPress:
             self._focus_vertical_scrollbar()
         if event_type == QEvent.Wheel:
+            chart_widget = self.widget()
+            if watched not in {self, self.viewport(), chart_widget}:
+                return False
             self._focus_vertical_scrollbar()
             delta = event.pixelDelta().y() if hasattr(event, "pixelDelta") else 0
             if not delta and hasattr(event, "angleDelta"):
