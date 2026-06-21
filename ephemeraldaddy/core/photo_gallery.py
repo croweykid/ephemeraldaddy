@@ -16,7 +16,8 @@ from PIL import Image, ImageOps
 from ephemeraldaddy.core.db import DB_PATH, get_chart_uid
 
 PHOTO_GALLERY_FILENAME = "charts.photo_gallery.db"
-MAX_PHOTO_DIMENSION = 600
+MAX_PHOTO_WIDTH = 1920
+MAX_PHOTO_HEIGHT = 1080
 PHOTO_DPI = (96, 96)
 
 
@@ -56,7 +57,7 @@ def _resize_image(raw: bytes) -> tuple[bytes, str, int, int]:
         image = ImageOps.exif_transpose(image)
         if image.mode not in {"RGB", "L"}:
             image = image.convert("RGB")
-        image.thumbnail((MAX_PHOTO_DIMENSION, MAX_PHOTO_DIMENSION), Image.Resampling.LANCZOS)
+        image.thumbnail((MAX_PHOTO_WIDTH, MAX_PHOTO_HEIGHT), Image.Resampling.LANCZOS)
         output = io.BytesIO()
         image.save(output, format="JPEG", quality=90, optimize=True, dpi=PHOTO_DPI)
         return output.getvalue(), "image/jpeg", int(image.width), int(image.height)

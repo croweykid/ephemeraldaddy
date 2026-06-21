@@ -180,3 +180,27 @@ def test_photo_gallery_button_activates_photo_gallery_panel():
 
     assert "photo_gallery_button.clicked.connect(on_show_photo_gallery)" in source
     assert "photo_gallery_button.clicked.connect(lambda: None)" not in source
+
+
+def test_photo_gallery_preview_is_full_screen_without_upscaling_small_images():
+    source = (REPO_ROOT / "ephemeraldaddy/gui/features/controllers/chart_view_window.py").read_text()
+
+    assert "dialog.showFullScreen()" in source
+    assert "if pixmap.width() > max_width or pixmap.height() > max_height:" in source
+    assert (
+        "display_pixmap = pixmap.scaled(max_width, max_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)"
+        in source
+    )
+    assert "display_pixmap = pixmap" in source
+    assert "pixmap.scaled(max_width, max_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)" in source
+
+
+def test_photo_gallery_max_storage_dimensions_are_1920_by_1080():
+    source = (REPO_ROOT / "ephemeraldaddy/core/photo_gallery.py").read_text()
+    panel_source = (REPO_ROOT / "ephemeraldaddy/gui/features/controllers/chart_view_window.py").read_text()
+
+    assert "MAX_PHOTO_WIDTH = 1920" in source
+    assert "MAX_PHOTO_HEIGHT = 1080" in source
+    assert "image.thumbnail((MAX_PHOTO_WIDTH, MAX_PHOTO_HEIGHT), Image.Resampling.LANCZOS)" in source
+    assert "MAX_PHOTO_DIMENSION = 600" not in source
+    assert "maximum dimensions of 1920×1080 px" in panel_source
