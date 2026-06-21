@@ -267,3 +267,38 @@ def test_time_sensitivity_html_color_codes_deltas_and_links_factors():
     assert "color:#7a0000" in html
     assert "text-decoration: underline" not in html
     assert "underline dotted" not in html
+
+
+def test_time_sensitivity_html_colors_min_and_max_against_separate_peer_scales():
+    import pytest
+
+    panel_module = pytest.importorskip("ephemeraldaddy.gui.features.charts.time_sensitivity_panel", exc_type=ImportError)
+    format_time_sensitivity_result_html = panel_module.format_time_sensitivity_result_html
+
+    result = TimeSensitivityResult(
+        chart_uid="CHARTUID",
+        chart_name="Example",
+        birth_date_key="01-01-2000",
+        algorithm_version="time-sensitivity-v2",
+        computed_at="2026-06-20T00:00:00Z",
+        config=TimeSensitivityConfig().__dict__,
+        sample_count=2,
+        baseline_time="12:00",
+        overall={"stability_percent": 50.0, "max_total_change_from_baseline_percent": 50.0},
+        numeric_ranges={
+            "dominant_sign_weights": {
+                "Aries": {"min": 1.0, "max": 3.0, "baseline": 1.0, "delta": 2.0, "percent_delta": 200.0, "max_decrease_percent": 0.0, "max_increase_percent": 200.0, "label": "Highly variable", "peak_times": ["12:00"]},
+                "Taurus": {"min": 2.0, "max": 2.5, "baseline": 2.0, "delta": 0.5, "percent_delta": 25.0, "max_decrease_percent": 0.0, "max_increase_percent": 25.0, "label": "Variable", "peak_times": ["00:00"]},
+            },
+        },
+        human_design={},
+        stable=[],
+        variable=[],
+        warnings=[],
+    )
+
+    html = format_time_sensitivity_result_html(result)
+    taurus_item = html[html.index("Taurus") : html.index("Taurus") + 500]
+
+    assert "<span style='color:#b7ff00;'>2.00</span>" in taurus_item
+    assert "<span style='color:#7a0000;'>2.50</span>" in taurus_item

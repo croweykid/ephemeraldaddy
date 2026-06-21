@@ -182,6 +182,11 @@ def _delta_intensity_color(value: float, values: list[float]) -> str:
     return f"#{red:02x}{green:02x}{blue:02x}"
 
 
+def _relative_value_color(value: float, peer_values: list[float]) -> str:
+    """Return the red→lime color for a value ranked against the same metric's peers."""
+    return _delta_intensity_color(float(value), peer_values)
+
+
 def _factor_color(group_key: str, key: str) -> str:
     if group_key == "dominant_planet_weights":
         return str(PLANET_COLORS.get(key, "#6fa8dc"))
@@ -307,6 +312,8 @@ def format_time_sensitivity_result_html(result: TimeSensitivityResult) -> str:
         ]
         meaningful.sort(key=lambda item: float(item[1].get("percent_delta", 0.0)), reverse=True)
         delta_values = [abs(float(payload.get("percent_delta", 0.0))) for _key, payload in meaningful]
+        min_values = [float(payload.get("min", 0.0)) for _key, payload in meaningful]
+        max_values = [float(payload.get("max", 0.0)) for _key, payload in meaningful]
         html_lines.append(_header_html(_group_title(group_key)))
         group_items = []
         for key, payload in meaningful[:12]:
@@ -321,12 +328,19 @@ def format_time_sensitivity_result_html(result: TimeSensitivityResult) -> str:
                 span_bits.append("changes " + "; ".join(payload.get("transition_windows", [])[:8]))
             tooltip = " | ".join(span_bits) or "No sampled time-span changes."
             delta_color = escape(_delta_intensity_color(abs(float(payload.get("percent_delta", 0.0))), delta_values), quote=True)
+            minimum = float(payload.get("min", 0.0))
+            maximum = float(payload.get("max", 0.0))
+            min_color = escape(_relative_value_color(minimum, min_values), quote=True)
+            max_color = escape(_relative_value_color(maximum, max_values), quote=True)
             group_items.append(
                 "<span title='"
                 + escape(tooltip, quote=True)
                 + "'>"
                 + f"{_factor_anchor(group_key, str(key))} "
-                + escape(f"{float(payload.get('min', 0.0)):.2f}–{float(payload.get('max', 0.0)):.2f}   peak {', '.join(payload.get('peak_times', [])[:3]) or 'n/a'}   vs {result.baseline_time}: ")
+                + f"<span style='color:{min_color};'>{escape(f'{minimum:.2f}')}</span>"
+                + escape("–")
+                + f"<span style='color:{max_color};'>{escape(f'{maximum:.2f}')}</span>"
+                + escape(f"   peak {', '.join(payload.get('peak_times', [])[:3]) or 'n/a'}   vs {result.baseline_time}: ")
                 + f"<span style='color:{delta_color};'>"
                 + escape(f"{float(payload.get('max_decrease_percent', 0.0)):+.2f}% to {float(payload.get('max_increase_percent', 0.0)):+.2f}%")
                 + "</span>"
