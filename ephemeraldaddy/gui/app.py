@@ -971,6 +971,10 @@ from ephemeraldaddy.gui.features.charts.human_design_info_panel import (
 from ephemeraldaddy.gui.features.charts.human_design_synastry_window import (
     create_human_design_synastry_dialog,
 )
+from ephemeraldaddy.gui.features.charts.human_design_shared import (
+    HumanDesignSharedAggregates,
+    compute_common_human_design_aggregates,
+)
 from ephemeraldaddy.gui.features.charts.anagrams import AnagramsPresenter
 from ephemeraldaddy.gui.features.charts.render_queue import (
     ChartRenderQueueState,
@@ -7504,168 +7508,44 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             total_counts_by_label=total_counts_by_label,
         )
 
+    def _build_common_human_design_aggregates(
+        self, chart_ids: list[int]
+    ) -> HumanDesignSharedAggregates:
+        charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
+        return compute_common_human_design_aggregates(
+            charts,
+            extract_profile=self._extract_human_design_profile,
+            chart_profile=self._chart_human_design_profile,
+            sort_matches=self._sorted_similarity_matches,
+            defined_center_order=self.HD_DEFINED_CENTER_ORDER,
+            authority_order=self.HD_STANDARD_AUTHORITIES,
+            profile_order=self.HD_STANDARD_PROFILES,
+        )
+
     def _build_common_human_design_gates(
         self, chart_ids: list[int]
     ) -> list[tuple[str, int, int]]:
-        charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
-        charts = [chart for chart in charts if chart is not None]
-        chart_count = len(charts)
-        if chart_count < 2:
-            return []
-
-        gate_counts: dict[str, int] = {}
-        for chart in charts:
-            hd_gates, _hd_lines, _hd_channels, _hd_defined_centers, _hd_type, _hd_authority = self._extract_human_design_profile(chart)
-            for gate in sorted(set(hd_gates)):
-                label = f"Gate {gate}"
-                gate_counts[label] = gate_counts.get(label, 0) + 1
-
-        ordered_counts = {
-            f"Gate {gate}": gate_counts[f"Gate {gate}"]
-            for gate in range(1, 65)
-            if f"Gate {gate}" in gate_counts
-        }
-        return self._sorted_similarity_matches(ordered_counts, chart_count)
+        return self._build_common_human_design_aggregates(chart_ids).gates
 
     def _build_common_human_design_channels(
         self, chart_ids: list[int]
     ) -> list[tuple[str, int, int]]:
-        charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
-        charts = [chart for chart in charts if chart is not None]
-        chart_count = len(charts)
-        if chart_count < 2:
-            return []
-
-        channel_counts: dict[str, int] = {}
-        for chart in charts:
-            _hd_gates, _hd_lines, hd_channels, _hd_defined_centers, _hd_type, _hd_authority = self._extract_human_design_profile(chart)
-            normalized_channels: set[str] = set()
-            for channel in hd_channels:
-                normalized = str(channel).strip()
-                if not normalized:
-                    continue
-                channel_parts = normalized.split("-")
-                if (
-                    len(channel_parts) == 2
-                    and channel_parts[0].strip().isdigit()
-                    and channel_parts[1].strip().isdigit()
-                ):
-                    gate_a = int(channel_parts[0].strip())
-                    gate_b = int(channel_parts[1].strip())
-                    normalized = f"{min(gate_a, gate_b)}-{max(gate_a, gate_b)}"
-                normalized_channels.add(normalized)
-            for channel in normalized_channels:
-                channel_counts[channel] = channel_counts.get(channel, 0) + 1
-
-        ordered_labels = sorted(
-            channel_counts.keys(),
-            key=lambda label: (
-                int(label.split("-")[0])
-                if "-" in label and label.split("-")[0].isdigit()
-                else 999,
-                int(label.split("-")[1])
-                if "-" in label and len(label.split("-")) > 1 and label.split("-")[1].isdigit()
-                else 999,
-                label,
-            ),
-        )
-        ordered_counts = {
-            label: channel_counts[label]
-            for label in ordered_labels
-        }
-        return self._sorted_similarity_matches(ordered_counts, chart_count)
+        return self._build_common_human_design_aggregates(chart_ids).channels
 
     def _build_common_human_design_defined_centers(
         self, chart_ids: list[int]
     ) -> list[tuple[str, int, int]]:
-        charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
-        charts = [chart for chart in charts if chart is not None]
-        chart_count = len(charts)
-        if chart_count < 2:
-            return []
-
-        center_counts: dict[str, int] = {}
-        for chart in charts:
-            (
-                _hd_gates,
-                _hd_lines,
-                _hd_channels,
-                hd_defined_centers,
-                _hd_type,
-                _hd_authority,
-            ) = self._extract_human_design_profile(chart)
-            for center in {
-                str(center).strip()
-                for center in hd_defined_centers
-                if str(center).strip()
-            }:
-                center_counts[center] = center_counts.get(center, 0) + 1
-
-        ordered_counts = {
-            center: center_counts[center]
-            for center in self.HD_DEFINED_CENTER_ORDER
-            if center in center_counts
-        }
-        for center in sorted(set(center_counts) - set(ordered_counts)):
-            ordered_counts[center] = center_counts[center]
-        return self._sorted_similarity_matches(ordered_counts, chart_count)
+        return self._build_common_human_design_aggregates(chart_ids).defined_centers
 
     def _build_common_human_design_authorities(
         self, chart_ids: list[int]
     ) -> list[tuple[str, int, int]]:
-        charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
-        charts = [chart for chart in charts if chart is not None]
-        chart_count = len(charts)
-        if chart_count < 2:
-            return []
-
-        authority_counts: dict[str, int] = {}
-        for chart in charts:
-            (
-                _hd_gates,
-                _hd_lines,
-                _hd_channels,
-                _hd_defined_centers,
-                _hd_type,
-                hd_authority,
-            ) = self._extract_human_design_profile(chart)
-            authority = canonicalize_hd_authority_label(str(hd_authority).strip())
-            if authority:
-                authority_counts[authority] = authority_counts.get(authority, 0) + 1
-
-        ordered_counts = {
-            authority: authority_counts[authority]
-            for authority in self.HD_STANDARD_AUTHORITIES
-            if authority in authority_counts
-        }
-        for authority in sorted(set(authority_counts) - set(ordered_counts)):
-            ordered_counts[authority] = authority_counts[authority]
-        return self._sorted_similarity_matches(ordered_counts, chart_count)
+        return self._build_common_human_design_aggregates(chart_ids).authorities
 
     def _build_common_human_design_profiles(
         self, chart_ids: list[int]
     ) -> list[tuple[str, int, int]]:
-        charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
-        charts = [chart for chart in charts if chart is not None]
-        chart_count = len(charts)
-        if chart_count < 2:
-            return []
-
-        profile_counts: dict[str, int] = {}
-        for chart in charts:
-            profile = self._chart_human_design_profile(chart)
-            if profile:
-                profile_counts[profile] = profile_counts.get(profile, 0) + 1
-
-        ordered_counts = {
-            profile: profile_counts[profile]
-            for profile in self.HD_STANDARD_PROFILES
-            if profile in profile_counts
-        }
-        for profile in sorted(set(profile_counts) - set(ordered_counts)):
-            ordered_counts[profile] = profile_counts[profile]
-        return self._sorted_similarity_matches(ordered_counts, chart_count)
-
+        return self._build_common_human_design_aggregates(chart_ids).profiles
 
     def _build_common_bazi_signs(
         self, chart_ids: list[int]
@@ -7976,17 +7856,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             common_dominant_houses = self._build_common_dominant_houses(selected_non_placeholder_chart_ids)
             common_dominant_nakshatras = self._build_common_dominant_nakshatras(selected_non_placeholder_chart_ids)
             common_aspects = self._build_common_aspects(selected_non_placeholder_chart_ids)
-            common_hd_gates = self._build_common_human_design_gates(selected_non_placeholder_chart_ids)
-            common_hd_channels = self._build_common_human_design_channels(selected_non_placeholder_chart_ids)
-            common_hd_defined_centers = self._build_common_human_design_defined_centers(
+            common_hd_aggregates = self._build_common_human_design_aggregates(
                 selected_non_placeholder_chart_ids
             )
-            common_hd_authorities = self._build_common_human_design_authorities(
-                selected_non_placeholder_chart_ids
-            )
-            common_hd_profiles = self._build_common_human_design_profiles(
-                selected_non_placeholder_chart_ids
-            )
+            common_hd_gates = common_hd_aggregates.gates
+            common_hd_channels = common_hd_aggregates.channels
+            common_hd_defined_centers = common_hd_aggregates.defined_centers
+            common_hd_authorities = common_hd_aggregates.authorities
+            common_hd_profiles = common_hd_aggregates.profiles
             common_bazi_signs = self._build_common_bazi_signs(selected_non_placeholder_chart_ids)
             update_similarities_loading_progress(
                 progress,
