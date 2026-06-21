@@ -68,3 +68,49 @@ def test_compute_time_sensitivity_keeps_numeric_samples_when_human_design_fails(
         "00:00 Human Design skipped: HD unavailable",
         "12:00 Human Design skipped: HD unavailable",
     ]
+
+
+def test_aggregate_numeric_reports_delta_from_baseline_not_full_span():
+    from ephemeraldaddy.analysis import time_sensitivity as module
+
+    samples = [
+        {"time": "00:00", "numeric": {group: {} for group in module.NUMERIC_GROUPS}},
+        {"time": "12:00", "numeric": {group: {} for group in module.NUMERIC_GROUPS}},
+        {"time": "23:59", "numeric": {group: {} for group in module.NUMERIC_GROUPS}},
+    ]
+    for sample, value in zip(samples, (10.0, 20.0, 30.0), strict=True):
+        sample["numeric"]["dominant_planet_weights"]["example"] = value
+    baseline = {group: {} for group in module.NUMERIC_GROUPS}
+    baseline["dominant_planet_weights"]["example"] = 20.0
+
+    ranges, group_deltas = module._aggregate_numeric(samples, baseline)
+    payload = ranges["dominant_planet_weights"]["example"]
+
+    assert payload["delta"] == 20.0
+    assert payload["baseline_delta"] == 10.0
+    assert payload["percent_delta"] == 50.0
+    assert payload["max_decrease_percent"] == -50.0
+    assert payload["max_increase_percent"] == 50.0
+    assert payload["peak_times"] == ["23:59"]
+    assert group_deltas["dominant_planet_weights"] == 50.0
+
+
+def test_baseline_time_for_chart_prefers_current_or_rectified_time():
+    from datetime import datetime
+    from types import SimpleNamespace
+
+    from ephemeraldaddy.analysis import time_sensitivity as module
+
+    known_time = SimpleNamespace(dt=datetime(2000, 1, 1, 8, 30), birthtime_unknown=False, retcon_time_used=False)
+    unknown_time = SimpleNamespace(dt=datetime(2000, 1, 1, 8, 30), birthtime_unknown=True, retcon_time_used=False)
+    rectified_time = SimpleNamespace(
+        dt=datetime(2000, 1, 1, 8, 30),
+        birthtime_unknown=True,
+        retcon_time_used=True,
+        retcon_hour=14,
+        retcon_minute=45,
+    )
+
+    assert module._baseline_time_for_chart(known_time, None) == (8, 30, "08:30", "current chart time")
+    assert module._baseline_time_for_chart(unknown_time, None) == (12, 0, "12:00", "noon fallback")
+    assert module._baseline_time_for_chart(rectified_time, None) == (14, 45, "14:45", "rectified time")

@@ -32,9 +32,10 @@ def _group_title(group_key: str) -> str:
 def format_time_sensitivity_result_text(result: TimeSensitivityResult) -> str:
     """Return compact text for the Chart View Time Sensitivity panel."""
     overall = result.overall
+    baseline_label = f"{result.baseline_time} ({overall.get('baseline_source', 'baseline')})"
     lines: list[str] = [
         f"Overall stability: {overall.get('stability_percent', 0):.2f}%",
-        f"Max total change from noon: {overall.get('max_total_change_from_baseline_percent', 0):.2f}%",
+        f"Max possible change from {baseline_label}: {overall.get('max_total_change_from_baseline_percent', 0):.2f}%",
         "Most sensitive: " + ", ".join(overall.get("most_sensitive", []) or ["n/a"]),
         "Least sensitive: " + ", ".join(overall.get("least_sensitive", []) or ["n/a"]),
         f"Samples: {result.sample_count} hypothetical standard charts + {result.sample_count} Human Design charts",
@@ -58,7 +59,9 @@ def format_time_sensitivity_result_text(result: TimeSensitivityResult) -> str:
             suffix = f" appears after {appears_after}" if appears_after else f" {payload.get('label', '')}"
             lines.append(
                 f"{key:<22} {float(payload.get('min', 0.0)):.2f}–{float(payload.get('max', 0.0)):.2f}   "
-                f"Δ {float(payload.get('delta', 0.0)):.2f}   {float(payload.get('percent_delta', 0.0)):+.2f}% from noon{suffix}"
+                f"peak {', '.join(payload.get('peak_times', [])[:3]) or 'n/a'}   "
+                f"vs {result.baseline_time}: {float(payload.get('max_decrease_percent', 0.0)):+.2f}% to "
+                f"{float(payload.get('max_increase_percent', 0.0)):+.2f}%{suffix}"
             )
 
     hd = result.human_design
@@ -147,7 +150,7 @@ class TimeSensitivityPanel(QWidget):
             config = TimeSensitivityConfig(
                 interval_minutes=int(self.interval_combo.currentData() or 30),
                 include_day_end=True,
-                baseline_time="12:00",
+                baseline_time=None,
                 boundary_refinement=False,
             )
             self._last_result = compute_time_sensitivity(chart, config)
