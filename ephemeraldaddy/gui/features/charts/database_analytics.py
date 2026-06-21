@@ -118,6 +118,8 @@ from ephemeraldaddy.analysis.human_design import (
 from ephemeraldaddy.analysis.hd_incarnation_crosses import (
     find_cross_by_name,
     find_crosses_by_gates,
+    get_cross_theme_description,
+    get_cross_type_description,
 )
 from ephemeraldaddy.analysis.bazi_getter import build_bazi_chart_data
 from ephemeraldaddy.core.chart import chart_uses_houses
@@ -1365,6 +1367,34 @@ class DatabaseAnalyticsChartsMixin:
             return f"{clean_label} is a saved tag/category label; this bar compares how often it is attached to charts."
         return f"{clean_label} is the category represented by this row; this bar compares its frequency or score in the current Database View analytics."
 
+    @staticmethod
+    def _database_analytics_incarnation_cross_info_html(label: str) -> str | None:
+        clean_label = DatabaseAnalyticsChartsMixin._clean_database_analytics_label(label)
+        cross_entry = find_cross_by_name(clean_label) if clean_label else None
+        if not cross_entry:
+            return None
+        cross_name = str(cross_entry.get("full_name") or clean_label).strip() or clean_label
+        gates = cross_entry.get("gates", ())
+        gates_text = "/".join(str(gate) for gate in gates) if gates else "Unknown"
+        theme = str(cross_entry.get("theme", "")).strip() or "Unknown"
+        angle = str(cross_entry.get("cross_type", "")).strip() or "Unknown"
+        theme_description = get_cross_theme_description(theme)
+        type_description = get_cross_type_description(angle)
+        detail_items = [
+            ("Theme", theme),
+            ("Angle", angle),
+            ("Gates", gates_text),
+        ]
+        if theme_description:
+            detail_items.append(("Theme description", theme_description))
+        if type_description:
+            detail_items.append(("Angle description", type_description))
+        detail_html = "".join(
+            f"<li><b>{html.escape(title)}:</b> {html.escape(text)}</li>"
+            for title, text in detail_items
+        )
+        return f"<h3>Incarnation Cross: {html.escape(cross_name)}</h3><ul>{detail_html}</ul>"
+
     def _build_database_analytics_popout_info_html(
         self,
         *,
@@ -1374,6 +1404,10 @@ class DatabaseAnalyticsChartsMixin:
     ) -> str:
         clean_title = self._clean_database_analytics_label(chart_title)
         clean_label = self._clean_database_analytics_label(label)
+        if "incarnation" in clean_title.casefold() and "cross" in clean_title.casefold():
+            cross_html = self._database_analytics_incarnation_cross_info_html(clean_label)
+            if cross_html:
+                return cross_html
         definition = self._database_analytics_definition_for_label(clean_label, clean_title)
         value_line = ""
         if value is not None and math.isfinite(float(value)):
@@ -1620,6 +1654,10 @@ class DatabaseAnalyticsChartsMixin:
     ) -> str:
         clean_title = self._clean_database_analytics_label(chart_title)
         clean_label = self._clean_database_analytics_label(label)
+        if "incarnation" in clean_title.casefold() and "cross" in clean_title.casefold():
+            cross_html = self._database_analytics_incarnation_cross_info_html(clean_label)
+            if cross_html:
+                return cross_html
         definition = self._database_analytics_definition_for_label(clean_label, clean_title)
         value_line = ""
         if value is not None and math.isfinite(float(value)):
