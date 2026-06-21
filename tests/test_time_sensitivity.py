@@ -218,3 +218,50 @@ def test_save_time_sensitivity_does_not_delete_other_empty_uid_dates(tmp_path):
         dates = [row[0] for row in conn.execute("SELECT birth_date_key FROM chart_time_sensitivity_ranges ORDER BY birth_date_key")]
 
     assert dates == ["04-05-2001", "04-06-2001"]
+
+
+def test_time_sensitivity_html_color_codes_deltas_and_links_factors():
+    import pytest
+
+    panel_module = pytest.importorskip("ephemeraldaddy.gui.features.charts.time_sensitivity_panel", exc_type=ImportError)
+    format_time_sensitivity_result_html = panel_module.format_time_sensitivity_result_html
+
+    result = TimeSensitivityResult(
+        chart_uid="CHARTUID",
+        chart_name="Example",
+        birth_date_key="01-01-2000",
+        algorithm_version="time-sensitivity-v2",
+        computed_at="2026-06-20T00:00:00Z",
+        config=TimeSensitivityConfig().__dict__,
+        sample_count=2,
+        baseline_time="12:00",
+        overall={"stability_percent": 50.0, "max_total_change_from_baseline_percent": 50.0},
+        numeric_ranges={
+            "dominant_sign_weights": {
+                "Aries": {"min": 1.0, "max": 3.0, "baseline": 1.0, "delta": 2.0, "percent_delta": 200.0, "max_decrease_percent": 0.0, "max_increase_percent": 200.0, "label": "Highly variable", "peak_times": ["12:00"]},
+                "Taurus": {"min": 1.0, "max": 1.5, "baseline": 1.0, "delta": 0.5, "percent_delta": 50.0, "max_decrease_percent": 0.0, "max_increase_percent": 50.0, "label": "Variable", "peak_times": ["00:00"]},
+            },
+            "dominant_element_weights": {
+                "Fire": {"min": 0.0, "max": 2.0, "baseline": 1.0, "delta": 2.0, "percent_delta": 100.0, "max_decrease_percent": -100.0, "max_increase_percent": 100.0, "label": "Highly variable", "peak_times": ["23:59"]},
+            },
+        },
+        human_design={
+            "gates": {"always": [1], "sometimes": [2], "sample_count": 2},
+            "lines": {"always": ["1.1"], "sometimes": [], "sample_count": 2},
+            "channels": {"always": [], "sometimes": [], "sample_count": 2},
+            "type_distribution": {"Generator": 2},
+            "profile_distribution": {"1/3": 2},
+        },
+        stable=[],
+        variable=[],
+        warnings=[],
+    )
+
+    html = format_time_sensitivity_result_html(result)
+
+    assert "distinguishing-factor:sign:Aries" in html
+    assert "distinguishing-factor:element:Fire" in html
+    assert "distinguishing-factor:gate:1" in html
+    assert "distinguishing-factor:gate-line:1:1" in html
+    assert "color:#b7ff00" in html
+    assert "color:#7a0000" in html
