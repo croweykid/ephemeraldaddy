@@ -20501,13 +20501,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         recalculate_all_weights_button.clicked.connect(self._on_recalculate_all_weights_in_db)
         dev_tools_section.addWidget(recalculate_all_weights_button)
 
-        custom_db_export_button = QPushButton("Custom DB Export")
-        custom_db_export_button.setToolTip(
-            "Choose which chart properties to include in DB/CSV exports."
-        )
-        custom_db_export_button.clicked.connect(self._on_custom_db_export)
-        dev_tools_section.addWidget(custom_db_export_button)
-
         convert_similarity_relationship_ids_button = QPushButton("Convert logged chart IDs to UIDs")
         convert_similarity_relationship_ids_button.setToolTip(
             "One-time maintenance: rewrite chart_similarity_relationships.json from former integer chart IDs "
@@ -20722,6 +20715,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "Property Managers",
             self._launch_property_manager_dialog,
             top_spacing=18,
+        )
+        self._add_settings_action_section(
+            content_layout,
+            "Custom DB Export",
+            self._on_custom_db_export,
         )
         content_layout.addStretch(1)
 
