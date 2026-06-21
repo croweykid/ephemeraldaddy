@@ -32,6 +32,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from ephemeraldaddy.gui.features.charts.dnd_predictions import DND_STAT_KEYS
+
 
 class DatabaseAnalyticsPopoutScrollArea(QScrollArea):
     """Scroll area that keeps popout charts width-bound while preserving vertical scroll."""
@@ -445,7 +447,7 @@ class DatabaseAnalyticsChartsMixin:
         "Symbola",
     )
     _BAZI_AVAILABLE_EMOJI_FONT_FAMILIES: tuple[str, ...] | None = None
-    DND_STAT_KEYS: tuple[str, ...] = ("STR", "DEX", "CON", "INT", "WIS", "CHA")
+    DND_STAT_KEYS: tuple[str, ...] = DND_STAT_KEYS
     HD_DEFINED_CENTER_ORDER: tuple[str, ...] = (
         "Head",
         "Ajna",

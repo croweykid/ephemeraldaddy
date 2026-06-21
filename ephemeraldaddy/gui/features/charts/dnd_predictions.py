@@ -6,6 +6,7 @@ import html
 from typing import Any, Callable
 
 from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QLabel
 
 from ephemeraldaddy.analysis.dnd.dnd_definitions import (
     DND_CLASS_SUBCLASS_STATS,
@@ -34,6 +35,9 @@ from ephemeraldaddy.gui.style import (
     apply_chart_info_link_cursor,
     get_cycled_earthtone_colors,
 )
+
+
+DND_STAT_KEYS: tuple[str, ...] = ("STR", "DEX", "CON", "INT", "WIS", "CHA")
 
 
 def _style_prediction_bar_chart(ax: Any, *, labels: list[str], max_value: float, apply_standard_bar_axes: Any) -> None:
@@ -409,6 +413,112 @@ def configure_dnd_top_three_summary_label(
     label.setOpenExternalLinks(False)
     apply_chart_info_link_cursor(label)
     label.setText(build_dnd_top_three_summary_html(chart, linked=True))
+
+
+class DndPredictionPanelAdapter:
+    """Own the D&D prediction panel lifecycle for Chart View."""
+
+    def __init__(
+        self,
+        *,
+        chart_layout: Any,
+        summary_label: Any = None,
+        info_panel: Any = None,
+        before_show: Callable[[], None] | None = None,
+        chart_theme_colors: dict[str, str],
+        apply_standard_bar_axes: Callable[[Any, list[str]], None],
+        is_placeholder_chart: Callable[[Any], bool],
+        dnd_stat_keys: tuple[str, ...] = DND_STAT_KEYS,
+    ) -> None:
+        self.chart_layout = chart_layout
+        self.summary_label = summary_label
+        self.info_panel = info_panel
+        self.before_show = before_show
+        self.chart_theme_colors = chart_theme_colors
+        self.apply_standard_bar_axes = apply_standard_bar_axes
+        self.is_placeholder_chart = is_placeholder_chart
+        self.dnd_stat_keys = dnd_stat_keys
+
+    def _ensure_summary_label(self) -> Any:
+        summary_label_is_usable = False
+        if self.summary_label is not None:
+            try:
+                summary_label_is_usable = self.summary_label.parent() is not None
+            except RuntimeError:
+                summary_label_is_usable = False
+        if not summary_label_is_usable:
+            self.summary_label = QLabel()
+            self.summary_label.setWordWrap(True)
+            self.summary_label.setTextFormat(Qt.RichText)
+        return self.summary_label
+
+    def _draw_no_data(self, ax: Any, _chart: Any | None) -> None:
+        ax.clear()
+        ax.set_facecolor(self.chart_theme_colors["panel"])
+        ax.set_axis_off()
+        ax.text(
+            0.5,
+            0.5,
+            "No data",
+            transform=ax.transAxes,
+            ha="center",
+            va="center",
+            color=self.chart_theme_colors["text"],
+            fontsize=11,
+            fontweight="bold",
+        )
+
+    def draw(self, ax: Any, chart: Any) -> None:
+        draw_dnd_statblock_predictions(
+            ax,
+            chart,
+            dnd_stat_keys=self.dnd_stat_keys,
+            apply_standard_bar_axes=self.apply_standard_bar_axes,
+        )
+
+    def build_popout_info(self, chart: Any | None, target: str) -> str:
+        return build_dnd_statblock_popout_info_html(chart, target)
+
+    def cache_metadata(self, chart: Any) -> dict[str, float]:
+        statblock = score_dnd_statblock(chart)
+        return {stat_key: float(statblock.scores.get(stat_key, 0.0)) for stat_key in self.dnd_stat_keys}
+
+    def render(self, chart: Any | None, metric_panel_renderer: Callable[..., Any]) -> Any:
+        if self.chart_layout is None:
+            return self.summary_label
+        summary_label = self._ensure_summary_label()
+        if chart is None or self.is_placeholder_chart(chart):
+            metric_panel_renderer(
+                canvas_attr="dnd_prediction_statblock_canvas",
+                container_layout=self.chart_layout,
+                figsize=(5.5, 2.8),
+                title="D&D Statblock",
+                draw_fn=self._draw_no_data,
+                chart=chart,
+            )
+            if self.chart_layout.indexOf(summary_label) < 0:
+                self.chart_layout.addWidget(summary_label)
+            summary_label.setText("<b>Top three:</b> —" if chart is None else "<b>Top three:</b> No data")
+            return summary_label
+        metric_panel_renderer(
+            canvas_attr="dnd_prediction_statblock_canvas",
+            container_layout=self.chart_layout,
+            figsize=(5.5, 2.8),
+            title="D&D Statblock",
+            draw_fn=self.draw,
+            chart=chart,
+        )
+        self.cache_metadata(chart)
+        if self.chart_layout.indexOf(summary_label) < 0:
+            self.chart_layout.addWidget(summary_label)
+        if self.info_panel is not None:
+            configure_dnd_top_three_summary_label(
+                summary_label,
+                chart,
+                info_panel=self.info_panel,
+                before_show=self.before_show,
+            )
+        return summary_label
 
 def connect_dnd_statblock_popout_pick_handler(
     popout_canvas: Any,

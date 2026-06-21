@@ -827,6 +827,105 @@ def tritype_text_for_scores(type_scores: dict[int, float]) -> str:
     return "-".join(str(type_num) for type_num in ranked_types)
 
 
+
+class EnneagramPredictionPanelAdapter:
+    """Own the Enneagram prediction panel lifecycle for Chart View."""
+
+    def __init__(
+        self,
+        *,
+        enneagram: dict[int, dict[str, Any]],
+        calculate_type_weights: Callable[[Any], dict[int, float]],
+        chart_theme_colors: dict[str, str],
+        apply_standard_bar_axes: Callable[[Any, list[str]], None],
+        standard_chart_layout: dict[str, float],
+        is_placeholder_chart: Callable[[Any], bool],
+        tritype_label: Any = None,
+        chart_layout: Any = None,
+        debug_math_enabled: bool = False,
+    ) -> None:
+        self.enneagram = enneagram
+        self.calculate_type_weights = calculate_type_weights
+        self.chart_theme_colors = chart_theme_colors
+        self.apply_standard_bar_axes = apply_standard_bar_axes
+        self.standard_chart_layout = standard_chart_layout
+        self.is_placeholder_chart = is_placeholder_chart
+        self.tritype_label = tritype_label
+        self.enneagram_prediction_chart_layout = chart_layout
+        self.debug_math_enabled = debug_math_enabled
+
+    def _draw_no_data(self, ax: Any, _chart: Any | None) -> None:
+        ax.clear()
+        ax.set_facecolor(self.chart_theme_colors["panel"])
+        ax.set_axis_off()
+        ax.text(
+            0.5,
+            0.5,
+            "No data",
+            transform=ax.transAxes,
+            ha="center",
+            va="center",
+            color=self.chart_theme_colors["text"],
+            fontsize=11,
+            fontweight="bold",
+        )
+
+    def draw(self, ax: Any, chart: Any) -> None:
+        draw_enneagram_predictions(
+            ax,
+            chart=chart,
+            enneagram=self.enneagram,
+            calculate_type_weights=self.calculate_type_weights,
+            chart_theme_colors=self.chart_theme_colors,
+            apply_standard_bar_axes=self.apply_standard_bar_axes,
+            standard_chart_layout=self.standard_chart_layout,
+        )
+
+    def build_popout_info(self, chart: Any | None, target: int) -> str:
+        return build_enneagram_popout_info_html(
+            target,
+            enneagram=self.enneagram,
+            chart_theme_colors=self.chart_theme_colors,
+            highlight_color=CHART_DATA_HIGHLIGHT_COLOR,
+            debug_math_enabled=self.debug_math_enabled,
+            chart=chart,
+            calculate_type_weights=self.calculate_type_weights,
+        )
+
+    def cache_metadata(self, chart: Any) -> dict[int, float]:
+        scores = self.calculate_type_weights(chart)
+        return cache_enneagram_prediction_metadata(chart, scores)
+
+    def render(self, chart: Any | None, metric_panel_renderer: Callable[..., Any]) -> None:
+        if chart is None or self.is_placeholder_chart(chart):
+            metric_panel_renderer(
+                canvas_attr="enneagram_prediction_canvas",
+                container_layout=self.enneagram_prediction_chart_layout,
+                figsize=(5.5, 3.2),
+                title="Enneagram",
+                draw_fn=self._draw_no_data,
+                chart=chart,
+            )
+            if self.tritype_label is not None:
+                self.tritype_label.setText(
+                    "<b>Predicted Tritype:</b> —" if chart is None else "<b>Predicted Tritype:</b> No data"
+                )
+            return
+        metric_panel_renderer(
+            canvas_attr="enneagram_prediction_canvas",
+            container_layout=self.enneagram_prediction_chart_layout,
+            figsize=(5.5, 3.2),
+            title="Enneagram",
+            draw_fn=self.draw,
+            chart=chart,
+        )
+        scores = self.cache_metadata(chart)
+        if self.tritype_label is not None:
+            self.tritype_label.setText(
+                f"<b>Predicted Tritype:</b> {tritype_text_for_scores(scores)}"
+                f"<br>{enneagram_realm_summary_html(scores)}"
+            )
+
 def connect_enneagram_popout_pick_handler(
     popout_canvas: Any,
     info_panel: Any,
