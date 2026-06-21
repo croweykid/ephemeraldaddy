@@ -2773,7 +2773,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._refresh_collection_controls()
         self._initialize_transit_location_defaults()
         self._refresh_todays_transits_panel()
-        self._refresh_charts()
+        # The initial database row/metric load can take tens of seconds on
+        # large local databases.  Keep construction cheap; ChartsController
+        # schedules the first refresh after the Database View shell is visible
+        # and the startup loading widget has had a chance to close.
         apply_default_text_tooltips(self)
 
     # Database & Selection Analysis Panel (left sidebar).

@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Callable
 
-from PySide6.QtCore import QPoint, QThread, Qt, QSize
+from PySide6.QtCore import QPoint, QThread, QTimer, Qt, QSize
 from PySide6.QtGui import QFont, QIcon
 from PySide6.QtWidgets import (
     QComboBox,
@@ -541,18 +541,21 @@ class ChartsController:
             len(pending_ids),
         )
 
+        refresh_after_show: Callable[[], None] | None = None
         if pending_ids:
-            dialog._refresh_charts(
-                refresh_metrics=True,
-                changed_ids=pending_ids,
-                progress_callback=progress_callback,
-            )
+            def refresh_after_show() -> None:
+                dialog._refresh_charts(
+                    refresh_metrics=True,
+                    changed_ids=pending_ids,
+                )
         elif not getattr(dialog, "_chart_rows", None):
-            # Ensure first-open (or reset) state has populated rows/metrics,
-            # while still skipping passive refreshes when nothing changed.
-            dialog._refresh_charts(refresh_metrics=True, progress_callback=progress_callback)
+            # First-open row/metric population is the slowest Database View step.
+            # Defer it until after the startup widget can close, so launch does
+            # not sit frozen around 90% while the database list is built.
+            def refresh_after_show() -> None:
+                dialog._refresh_charts(refresh_metrics=True)
         if progress_callback:
-            progress_callback("Finishing Database View setup…", 97)
+            progress_callback("Showing Database View shell…", 97)
         self._clear_pending_changed_ids()
         apply_launch_window_policy = getattr(dialog, "apply_launch_window_policy", None)
         use_launch_pulse = not bool(getattr(dialog, "_launch_foreground_completed", False))
@@ -565,6 +568,12 @@ class ChartsController:
             if callable(apply_launch_window_policy):
                 apply_launch_window_policy(use_topmost_pulse=use_launch_pulse)
             self._raise_manage_dialog()
+        if refresh_after_show is not None:
+            # StartupLoadingWidget is closed 250 ms after MainWindow startup
+            # reaches 100%, so wait a beat longer before doing the expensive
+            # initial refresh on the GUI thread.
+            QTimer.singleShot(350, refresh_after_show)
+
         logger.debug(
             "Database View dialog foreground request complete (topmost_pulse=%s).",
             use_launch_pulse,
