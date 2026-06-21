@@ -1288,17 +1288,13 @@ from ephemeraldaddy.gui.features.charts.batch_total_chart_export import (
     run_total_chart_export_flow as _run_total_chart_export_flow,
 )
 from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
-    build_enneagram_popout_info_html as _build_enneagram_popout_info_html,
-    cache_enneagram_prediction_metadata as _cache_enneagram_prediction_metadata,
+    EnneagramPredictionPanelAdapter,
     calculate_enneagram_type_weights as _calculate_enneagram_type_weights,
     default_enneagram_category_weights as _default_enneagram_category_weights,
     default_enneagram_scoring_options as _default_enneagram_scoring_options,
-    draw_enneagram_predictions as _draw_enneagram_predictions_chart,
-    enneagram_realm_summary_html as _enneagram_realm_summary_html,
     enneagram_scoring_options_to_payload as _enneagram_scoring_options_to_payload,
     merge_enneagram_category_weights as _merge_enneagram_category_weights,
     merge_enneagram_scoring_options as _merge_enneagram_scoring_options,
-    tritype_text_for_scores as _tritype_text_for_scores,
     set_enneagram_category_weights as _set_enneagram_category_weights,
     set_enneagram_scoring_options as _set_enneagram_scoring_options,
 )
@@ -1310,9 +1306,8 @@ from ephemeraldaddy.gui.features.charts.distinguishing_factors import (
     save_distinguishing_metric_cache as _save_distinguishing_metric_cache,
 )
 from ephemeraldaddy.gui.features.charts.dnd_predictions import (
-    build_dnd_statblock_popout_info_html as _build_dnd_statblock_popout_info_html,
-    configure_dnd_top_three_summary_label as _configure_dnd_top_three_summary_label,
-    draw_dnd_statblock_predictions as _draw_dnd_statblock_predictions_chart,
+    DND_STAT_KEYS,
+    DndPredictionPanelAdapter,
     format_dnd_class_info_text as _format_dnd_class_info_text,
     format_dnd_species_info_text as _format_dnd_species_info_text,
     format_dnd_statblock_info_text as _format_dnd_statblock_info_text,
@@ -8801,7 +8796,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 "top_class": 0,
                 "top_three_classes": 0,
             },
-            "dnd_stat_totals": {stat_key: 0.0 for stat_key in self.DND_STAT_KEYS},
+            "dnd_stat_totals": {stat_key: 0.0 for stat_key in DND_STAT_KEYS},
             "dnd_stat_count": 0,
             "enneagram_totals": {enneagram_type: 0 for enneagram_type in range(1, 10)},
             "enneagram_total_count": 0,
@@ -22333,8 +22328,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
 #Main Window Begins
 class MainWindow(QMainWindow):
-    DND_STAT_KEYS: tuple[str, ...] = ("STR", "DEX", "CON", "INT", "WIS", "CHA")
-
     def __init__(self):
         super().__init__()
 
@@ -33089,151 +33082,52 @@ class MainWindow(QMainWindow):
                 return
             self._show_human_design_gate_line_info(gate, line)
 
-    def _draw_enneagram_predictions(self, ax, chart: Chart) -> None:
-        _draw_enneagram_predictions_chart(
-            ax,
-            chart=chart,
+    def _enneagram_prediction_adapter(self) -> EnneagramPredictionPanelAdapter:
+        return EnneagramPredictionPanelAdapter(
             enneagram=ENNEAGRAM,
             calculate_type_weights=self._calculate_enneagram_type_weights,
             chart_theme_colors=CHART_THEME_COLORS,
             apply_standard_bar_axes=self._apply_standard_ncv_bar_chart_axes,
             standard_chart_layout=STANDARD_NCV_HORIZONTAL_BAR_CHART,
+            is_placeholder_chart=self._is_placeholder_chart,
+            tritype_label=getattr(self, "enneagram_prediction_tritype_label", None),
+            chart_layout=self.enneagram_prediction_chart_layout,
+            debug_math_enabled=bool(getattr(self, "_enneagram_predictions_debug", False)),
         )
+
+    def _draw_enneagram_predictions(self, ax, chart: Chart) -> None:
+        self._enneagram_prediction_adapter().draw(ax, chart)
 
     def _build_enneagram_popout_info(self, enneagram_type: int, *, chart: Chart | None = None) -> str:
-        return _build_enneagram_popout_info_html(
-            enneagram_type,
-            enneagram=ENNEAGRAM,
-            chart_theme_colors=CHART_THEME_COLORS,
-            highlight_color=CHART_DATA_HIGHLIGHT_COLOR,
-            debug_math_enabled=bool(getattr(self, "_enneagram_predictions_debug", False)),
-            chart=chart,
-            calculate_type_weights=self._calculate_enneagram_type_weights,
-        )
+        return self._enneagram_prediction_adapter().build_popout_info(chart, enneagram_type)
 
     def _cache_enneagram_prediction_metadata(self, chart: Chart) -> dict[int, float]:
-        scores = self._calculate_enneagram_type_weights(chart)
-        return _cache_enneagram_prediction_metadata(chart, scores)
+        return self._enneagram_prediction_adapter().cache_metadata(chart)
 
     def _render_enneagram_predictions(self, chart: Chart | None) -> None:
-        tritype_label = getattr(self, "enneagram_prediction_tritype_label", None)
-        def _draw_no_data(ax, _chart: Chart | None) -> None:
-            ax.clear()
-            ax.set_facecolor(CHART_THEME_COLORS["panel"])
-            ax.set_axis_off()
-            ax.text(
-                0.5,
-                0.5,
-                "No data",
-                transform=ax.transAxes,
-                ha="center",
-                va="center",
-                color=CHART_THEME_COLORS["text"],
-                fontsize=11,
-                fontweight="bold",
-            )
+        self._enneagram_prediction_adapter().render(chart, self._render_metric_panel)
 
-        if chart is None or self._is_placeholder_chart(chart):
-            self._render_metric_panel(
-                canvas_attr="enneagram_prediction_canvas",
-                container_layout=self.enneagram_prediction_chart_layout,
-                figsize=(5.5, 3.2),
-                title="Enneagram",
-                draw_fn=_draw_no_data,
-                chart=chart,
-            )
-            if tritype_label is not None:
-                tritype_label.setText(
-                    "<b>Predicted Tritype:</b> —" if chart is None else "<b>Predicted Tritype:</b> No data"
-                )
-            return
-        self._render_metric_panel(
-            canvas_attr="enneagram_prediction_canvas",
-            container_layout=self.enneagram_prediction_chart_layout,
-            figsize=(5.5, 3.2),
-            title="Enneagram",
-            draw_fn=self._draw_enneagram_predictions,
-            chart=chart,
-        )
-        scores = self._cache_enneagram_prediction_metadata(chart)
-        if tritype_label is not None:
-            tritype_label.setText(
-                f"<b>Predicted Tritype:</b> {_tritype_text_for_scores(scores)}"
-                f"<br>{_enneagram_realm_summary_html(scores)}"
-            )
-
-    def _draw_dnd_statblock_predictions(self, ax, chart: Chart) -> None:
-        _draw_dnd_statblock_predictions_chart(
-            ax,
-            chart,
-            dnd_stat_keys=self.DND_STAT_KEYS,
-            apply_standard_bar_axes=self._apply_standard_ncv_bar_chart_axes,
-        )
-
-    def _build_dnd_statblock_popout_info(self, stat_key: str, *, chart: Chart | None = None) -> str:
-        return _build_dnd_statblock_popout_info_html(chart or self._latest_chart, stat_key)
-
-    def _render_dndification_predictions(self, chart: Chart | None) -> None:
-        chart_layout = getattr(self, "dnd_predictions_chart_layout", None)
-        if chart_layout is None:
-            return
-        summary_label = getattr(self, "dnd_prediction_top_three_label", None)
-        summary_label_is_usable = False
-        if summary_label is not None:
-            try:
-                summary_label_is_usable = summary_label.parent() is not None
-            except RuntimeError:
-                summary_label_is_usable = False
-        if not summary_label_is_usable:
-            summary_label = QLabel()
-            summary_label.setWordWrap(True)
-            summary_label.setTextFormat(Qt.RichText)
-            self.dnd_prediction_top_three_label = summary_label
-        def _draw_no_data(ax, _chart: Chart | None) -> None:
-            ax.clear()
-            ax.set_facecolor(CHART_THEME_COLORS["panel"])
-            ax.set_axis_off()
-            ax.text(
-                0.5,
-                0.5,
-                "No data",
-                transform=ax.transAxes,
-                ha="center",
-                va="center",
-                color=CHART_THEME_COLORS["text"],
-                fontsize=11,
-                fontweight="bold",
-            )
-
-        if chart is None or self._is_placeholder_chart(chart):
-            self._render_metric_panel(
-                canvas_attr="dnd_prediction_statblock_canvas",
-                container_layout=chart_layout,
-                figsize=(5.5, 2.8),
-                title="D&D Statblock",
-                draw_fn=_draw_no_data,
-                chart=chart,
-            )
-            if chart_layout.indexOf(summary_label) < 0:
-                chart_layout.addWidget(summary_label)
-            summary_label.setText("<b>Top three:</b> —" if chart is None else "<b>Top three:</b> No data")
-            return
-        self._render_metric_panel(
-            canvas_attr="dnd_prediction_statblock_canvas",
-            container_layout=chart_layout,
-            figsize=(5.5, 2.8),
-            title="D&D Statblock",
-            draw_fn=self._draw_dnd_statblock_predictions,
-            chart=chart,
-        )
-        if chart_layout.indexOf(summary_label) < 0:
-            chart_layout.addWidget(summary_label)
-        _configure_dnd_top_three_summary_label(
-            summary_label,
-            chart,
+    def _dnd_prediction_adapter(self) -> DndPredictionPanelAdapter:
+        return DndPredictionPanelAdapter(
+            chart_layout=getattr(self, "dnd_predictions_chart_layout", None),
+            summary_label=getattr(self, "dnd_prediction_top_three_label", None),
             info_panel=self.chart_info_output,
             before_show=lambda: self._set_chart_info_panel_mode("chart_info"),
+            chart_theme_colors=CHART_THEME_COLORS,
+            apply_standard_bar_axes=self._apply_standard_ncv_bar_chart_axes,
+            is_placeholder_chart=self._is_placeholder_chart,
         )
+
+    def _draw_dnd_statblock_predictions(self, ax, chart: Chart) -> None:
+        self._dnd_prediction_adapter().draw(ax, chart)
+
+    def _build_dnd_statblock_popout_info(self, stat_key: str, *, chart: Chart | None = None) -> str:
+        return self._dnd_prediction_adapter().build_popout_info(chart or self._latest_chart, stat_key)
+
+    def _render_dndification_predictions(self, chart: Chart | None) -> None:
+        summary_label = self._dnd_prediction_adapter().render(chart, self._render_metric_panel)
+        if summary_label is not None:
+            self.dnd_prediction_top_three_label = summary_label
 
     def _normalize_aspect_type(self, raw_aspect: Any) -> str:
         return _normalize_aspect_type(raw_aspect)
