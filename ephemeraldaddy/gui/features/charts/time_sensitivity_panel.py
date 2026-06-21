@@ -297,7 +297,7 @@ def _format_time_list(values: Any, limit: int = 3) -> str:
 
 
 def _variability_text(payload: dict[str, Any]) -> str:
-    return str(payload.get("label", "")).replace("highly variable", "high") or "n/a"
+    return str(payload.get("label", "")).replace("Highly variable", "high") or "n/a"
 
 
 def _numeric_group_table_html(result: TimeSensitivityResult, group_key: str) -> str:
@@ -430,7 +430,7 @@ def format_time_sensitivity_result_html(result: TimeSensitivityResult) -> str:
                 + f"<span style='color:{delta_color};'>"
                 + escape(f"{float(payload.get('max_decrease_percent', 0.0)):+.0f}% to {float(payload.get('max_increase_percent', 0.0)):+.0f}%")
                 + "</span>"
-                + escape(f"{suffix}".replace("highly variable", "high"))
+                + escape(f"{suffix}".replace("Highly variable", "high"))
                 + "</span>"
             )
         html_lines.append(_list_html(group_items))
