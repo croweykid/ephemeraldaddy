@@ -530,7 +530,7 @@ from ephemeraldaddy.gui.window_placement import (
     capture_window_placement,
     clear_fullscreen_and_minimized,
 )
-from ephemeraldaddy.core.chart import Chart, apply_time_specific_metadata_policy, apply_unknown_sign_metadata
+from ephemeraldaddy.core.chart import Chart, apply_time_specific_metadata_policy
 from ephemeraldaddy.analysis.bazi_getter import (
     BAZI_BRANCH_TO_SIGN,
     bazi_sign_weights_from_chart,
@@ -17543,7 +17543,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         show_unknown_glyphs = chart is not None and not chart_uses_houses and not use_rectified_time
         unknown_sign_bodies: set[str] = set()
         if show_unknown_glyphs:
-            apply_unknown_sign_metadata(chart)
             unknown_sign_bodies = set(getattr(chart, "unknown_signs", []) or [])
 
         for body in ("Sun", "Moon"):
