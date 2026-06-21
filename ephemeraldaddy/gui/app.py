@@ -17816,23 +17816,32 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                             getattr(chart, "birth_day", None),
                             getattr(chart, "birth_year", None),
                         )
-                retcon_date_label, retcon_time_value = format_chart_row_datetime(
-                    dt_iso,
-                    birthtime_unknown=False,
-                )
-                has_known_retcon_time = (
-                    retcon_date_label != "??.??.????"
-                    and retcon_time_value not in {"??:??", "unknown"}
-                )
-                retcon_date_label, retcon_time_value = format_chart_row_datetime(
-                    dt_iso,
-                    birthtime_unknown=False,
-                )
-                has_known_retcon_time = (
-                    retcon_date_label != "??.??.????"
-                    and retcon_time_value not in {"??:??", "unknown"}
-                )
-                retcon_time_label = f"({retcon_time_value})" if retcon_time_used and has_known_retcon_time else ""
+                retcon_time_value = ""
+                if retcon_time_used:
+                    try:
+                        retcon_hour = int(_retcon_hour)
+                        retcon_minute = int(_retcon_minute)
+                    except (TypeError, ValueError):
+                        retcon_hour = None
+                        retcon_minute = None
+                    if (
+                        retcon_hour is not None
+                        and retcon_minute is not None
+                        and 0 <= retcon_hour <= 23
+                        and 0 <= retcon_minute <= 59
+                    ):
+                        retcon_time_value = f"{retcon_hour:02d}:{retcon_minute:02d}"
+                    else:
+                        _retcon_date_label, fallback_retcon_time_value = format_chart_row_datetime(
+                            dt_iso,
+                            birthtime_unknown=False,
+                        )
+                        if (
+                            _retcon_date_label != "??.??.????"
+                            and fallback_retcon_time_value not in {"??:??", "unknown"}
+                        ):
+                            retcon_time_value = fallback_retcon_time_value
+                retcon_time_label = f"({retcon_time_value})" if retcon_time_value else ""
                 place = birth_place or ""
                 gender_glyph = GENDER_GLYPHS.get((gender or "").strip().upper(), "")
                 current_age = None
@@ -31701,10 +31710,12 @@ class MainWindow(QMainWindow):
         )
         if not self._suppress_lucygoosey:
             self._retcon_time_user_overridden = True
+            self._mark_lucygoosey()
         self._update_time_input_text_colors()
         if should_refresh_retcon_preview:
             self._reset_metric_canvases_for_retcon_timing_update()
             self._refresh_chart_preview()
+            self._autosave_checkbox_state()
 
     def _update_time_input_visibility(self) -> None:
         self.time_edit.setVisible(not self.time_unknown_checkbox.isChecked())
