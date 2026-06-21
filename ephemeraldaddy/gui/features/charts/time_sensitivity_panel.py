@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QPushButton,
     QSizePolicy,
+    QToolButton,
     QTextBrowser,
     QTextEdit,
     QVBoxLayout,
@@ -42,29 +43,36 @@ from ephemeraldaddy.core.interpretations import (
     SIGN_COLORS,
 )
 from ephemeraldaddy.gui.features.charts.chart_analytics_popout import _display_body_name
-from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR
+from ephemeraldaddy.gui.style import (
+    CHART_DATA_HIGHLIGHT_COLOR,
+    COLLAPSIBLE_SECTION_CONTENT_STYLE,
+    DATABASE_ANALYTICS_COLLAPSIBLE_TOGGLE_STYLE,
+    DATABASE_ANALYTICS_CONTENT_MARGINS,
+    DATABASE_ANALYTICS_CONTENT_SPACING,
+    configure_collapsible_header_toggle,
+)
 
 
 _TIME_SENSITIVITY_CHART_TITLES = {
-    "dominant_planet_weights": "Dominant Body Likelihood",
-    "dominant_sign_weights": "Dominant Sign Likelihood",
+    "dominant_planet_weights": "Dominant Body Weight Distribution",
+    "dominant_sign_weights": "Dominant Sign Weight Distribution",
 }
 
 
 def _likelihood_rows(result: TimeSensitivityResult, group_key: str) -> list[tuple[str, float]]:
-    """Return dominance-likelihood rows, falling back to max-weight range data for old saves."""
-    likelihoods = (result.overall.get("dominance_likelihoods") or {}).get(group_key, {})
+    """Return all-factor cumulative relative-weight rows for Time Sensitivity charts."""
+    likelihoods = (result.overall.get("cumulative_weight_likelihoods") or {}).get(group_key, {})
     if isinstance(likelihoods, dict) and likelihoods:
         rows = [
             (str(key), float(payload.get("percent", 0.0)))
             for key, payload in likelihoods.items()
             if isinstance(payload, dict)
         ]
-        return sorted(rows, key=lambda item: (-item[1], item[0]))
+        return sorted([(key, value) for key, value in rows if value > 0.0], key=lambda item: (-item[1], item[0]))
 
     ranges = result.numeric_ranges.get(group_key, {})
     rows = [
-        (str(key), float(payload.get("max", 0.0)))
+        (str(key), (float(payload.get("min", 0.0)) + float(payload.get("max", 0.0))) / 2.0)
         for key, payload in ranges.items()
         if isinstance(payload, dict) and float(payload.get("max", 0.0)) > 0.0
     ]
@@ -129,7 +137,7 @@ def _draw_likelihood_chart(ax: Any, result: TimeSensitivityResult, group_key: st
             fontweight="bold",
         )
     ax.set_ylim(0, 105)
-    ax.set_ylabel("% of sampled charts", color="#f5f5f5", fontsize=8)
+    ax.set_ylabel("relative weight across samples", color="#f5f5f5", fontsize=8)
     ax.set_title(_TIME_SENSITIVITY_CHART_TITLES.get(group_key, group_key), color="#f5f5f5", fontsize=10, fontweight="bold")
     ax.tick_params(axis="x", colors="#f5f5f5", labelrotation=45, labelsize=8)
     ax.tick_params(axis="y", colors="#f5f5f5", labelsize=8)
@@ -142,6 +150,7 @@ def _draw_likelihood_chart(ax: Any, result: TimeSensitivityResult, group_key: st
 def _group_title(group_key: str) -> str:
     titles = {
         "dominant_planet_weights": "Dominant Bodies",
+        "dominant_sign_weights": "Dominant Signs",
         "dominant_house_weights": "Dominant Houses",
         "dominant_element_weights": "Dominant Elements",
         "dominant_mode_weights": "Dominant Modes",
@@ -255,6 +264,57 @@ def _factor_link(group_key: str, key: str) -> str:
     return f"distinguishing-factor:{kind}:{quote(value)}" if kind else ""
 
 
+def _format_time_list(values: Any, limit: int = 3) -> str:
+    if not values:
+        return "n/a"
+    if isinstance(values, (list, tuple)):
+        return ", ".join(str(value) for value in values[:limit]) or "n/a"
+    return str(values)
+
+
+def _variability_text(payload: dict[str, Any]) -> str:
+    return str(payload.get("label", "")).replace("highly variable", "high") or "n/a"
+
+
+def _numeric_group_table_html(result: TimeSensitivityResult, group_key: str) -> str:
+    ranges = result.numeric_ranges.get(group_key, {})
+    meaningful = [
+        (str(key), payload)
+        for key, payload in ranges.items()
+        if isinstance(payload, dict)
+        and (float(payload.get("delta", 0.0)) > 0.0 or float(payload.get("baseline", 0.0)) > 0.0 or float(payload.get("max", 0.0)) > 0.0)
+    ]
+    meaningful.sort(key=lambda item: float(item[1].get("max", 0.0)), reverse=True)
+    if not meaningful:
+        return "<div>No weighted results available.</div>"
+    rows = []
+    for key, payload in meaningful:
+        rows.append(
+            "<tr>"
+            f"<td>{_factor_anchor(group_key, key)}</td>"
+            f"<td>{escape(f'{float(payload.get('min', 0.0)):.2f}')}</td>"
+            f"<td>{escape(f'{float(payload.get('max', 0.0)):.2f}')}</td>"
+            f"<td>{escape(_format_time_list(payload.get('trough_times')))}</td>"
+            f"<td>{escape(_format_time_list(payload.get('peak_times')))}</td>"
+            f"<td>{escape(f'{float(payload.get('max_decrease_percent', 0.0)):+.2f}% to {float(payload.get('max_increase_percent', 0.0)):+.2f}%')}</td>"
+            f"<td>{escape(_variability_text(payload))}</td>"
+            "</tr>"
+        )
+    return (
+        "<table style='border-collapse:collapse; border:0; width:100%; font-size:11px;'>"
+        "<thead><tr>"
+        "<th align='left'>body/sign/nak./H/El./Mode</th>"
+        "<th align='right'>min wt</th>"
+        "<th align='right'>max wt</th>"
+        "<th align='left'>trench🕚</th>"
+        "<th align='left'>peak🕚</th>"
+        f"<th align='left'>△{escape(result.baseline_time)}</th>"
+        "<th align='left'>variability</th>"
+        "</tr></thead><tbody>"
+        + "".join(rows)
+        + "</tbody></table>"
+    )
+
 def _factor_anchor(group_key: str, key: str) -> str:
     color = escape(_factor_color(group_key, key), quote=True)
     text = escape(_display_body_name(key) if group_key == "dominant_planet_weights" else str(key))
@@ -305,6 +365,8 @@ def format_time_sensitivity_result_html(result: TimeSensitivityResult) -> str:
     html_lines.append(_list_html([_color_code_text(item) for item in (result.variable or ["No categorical variability found."])]))
 
     for group_key, ranges in result.numeric_ranges.items():
+        if group_key in {"dominant_planet_weights", "dominant_sign_weights"}:
+            continue
         meaningful = [
             (key, payload)
             for key, payload in ranges.items()
@@ -344,7 +406,7 @@ def format_time_sensitivity_result_html(result: TimeSensitivityResult) -> str:
                 + f"<span style='color:{delta_color};'>"
                 + escape(f"{float(payload.get('max_decrease_percent', 0.0)):+.2f}% to {float(payload.get('max_increase_percent', 0.0)):+.2f}%")
                 + "</span>"
-                + escape(f"{suffix}")
+                + escape(f"{suffix}".replace("highly variable", "high"))
                 + "</span>"
             )
         html_lines.append(_list_html(group_items))
@@ -419,20 +481,21 @@ class TimeSensitivityPanel(QWidget):
         compute_module_layout.addLayout(controls)
         layout.addWidget(self.compute_module)
 
+        self._chart_canvases: dict[str, FigureCanvas] = {}
+        self._chart_sections: dict[str, QWidget] = {}
+        self._charts_layout = QVBoxLayout()
+        self._charts_layout.setContentsMargins(0, 0, 0, 0)
+        self._charts_layout.setSpacing(8)
+        layout.addLayout(self._charts_layout)
+
         self.output = QTextBrowser()
         self.output.setReadOnly(True)
         self.output.setOpenExternalLinks(False)
         self.output.setOpenLinks(False)
         self.output.anchorClicked.connect(self._open_chart_info_link)
-        self.output.setMinimumHeight(360)
+        self.output.setMinimumHeight(220)
         self.output.setPlainText("Click Compute Range to scan 49 sampled times: every 30 minutes plus 23:59.")
-        layout.addWidget(self.output, 1)
-
-        self._chart_canvases: dict[str, FigureCanvas] = {}
-        self._charts_layout = QVBoxLayout()
-        self._charts_layout.setContentsMargins(0, 0, 0, 0)
-        self._charts_layout.setSpacing(8)
-        layout.addLayout(self._charts_layout)
+        layout.addWidget(self.output)
 
     def _current_chart(self) -> Any | None:
         return getattr(self._owner, "_latest_chart", None)
@@ -507,9 +570,10 @@ class TimeSensitivityPanel(QWidget):
             handler(target)
 
     def _clear_likelihood_charts(self) -> None:
-        for canvas in self._chart_canvases.values():
-            canvas.setParent(None)
-            canvas.deleteLater()
+        for section in self._chart_sections.values():
+            section.setParent(None)
+            section.deleteLater()
+        self._chart_sections = {}
         self._chart_canvases = {}
 
     def _render_likelihood_charts(self, result: TimeSensitivityResult) -> None:
@@ -517,20 +581,59 @@ class TimeSensitivityPanel(QWidget):
         for group_key in ("dominant_planet_weights", "dominant_sign_weights"):
             if not _likelihood_rows(result, group_key):
                 continue
+            section = QWidget()
+            section_layout = QVBoxLayout(section)
+            section_layout.setContentsMargins(0, 0, 0, 0)
+            section_layout.setSpacing(0)
+            toggle = QToolButton(section)
+            configure_collapsible_header_toggle(
+                toggle,
+                title=_group_title(group_key),
+                expanded=True,
+                style_sheet=DATABASE_ANALYTICS_COLLAPSIBLE_TOGGLE_STYLE,
+            )
+            content = QWidget(section)
+            content_layout = QVBoxLayout(content)
+            content_layout.setContentsMargins(*DATABASE_ANALYTICS_CONTENT_MARGINS)
+            content_layout.setSpacing(DATABASE_ANALYTICS_CONTENT_SPACING)
+            content.setStyleSheet(COLLAPSIBLE_SECTION_CONTENT_STYLE)
+            toggle.toggled.connect(
+                lambda checked, body=content, button=toggle: (
+                    body.setVisible(checked),
+                    button.setArrowType(Qt.DownArrow if checked else Qt.RightArrow),
+                )
+            )
+            section_layout.addWidget(toggle)
+            section_layout.addWidget(content)
+
             figure = Figure(figsize=(5.5, 2.8))
             ax = figure.add_subplot(111)
             _draw_likelihood_chart(ax, result, group_key)
             canvas = FigureCanvas(figure)
             canvas.setMinimumHeight(250)
             canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-            canvas.setToolTip("Click to open a larger Time Sensitivity likelihood popout.")
+            canvas.setToolTip("Click to open a larger Time Sensitivity weight-distribution popout.")
             canvas.mpl_connect(
                 "button_press_event",
                 lambda _event, key=group_key: self._show_likelihood_popout(key),
             )
-            self._charts_layout.addWidget(canvas)
+            content_layout.addWidget(canvas)
+
+            table = QTextBrowser(content)
+            table.setReadOnly(True)
+            table.setOpenExternalLinks(False)
+            table.setOpenLinks(False)
+            table.anchorClicked.connect(self._open_chart_info_link)
+            table.setFrameShape(table.NoFrame)
+            table.setMinimumHeight(170)
+            table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            table.setHtml(_header_html(_group_title(group_key)) + _numeric_group_table_html(result, group_key))
+            content_layout.addWidget(table)
+
+            self._charts_layout.addWidget(section)
             canvas.draw_idle()
             self._chart_canvases[group_key] = canvas
+            self._chart_sections[group_key] = section
 
     def _show_likelihood_popout(self, group_key: str) -> None:
         if self._last_result is None:
@@ -551,9 +654,9 @@ class TimeSensitivityPanel(QWidget):
         info = QTextEdit()
         info.setReadOnly(True)
         info.setHtml(
-            "<b>Opacity+ stack meaning:</b> the solid portion is the percentage of sampled charts "
-            "where that factor is dominant; the translucent cap is the remaining uncertainty across "
-            f"{int(self._last_result.sample_count)} sampled charts."
+            "<b>Opacity+ stack meaning:</b> the solid portion is each factor's cumulative relative "
+            "weight across the sampled charts; the translucent cap makes lower-likelihood factors "
+            f"visible across {int(self._last_result.sample_count)} sampled charts."
         )
         info.setMaximumHeight(96)
         layout.addWidget(info)
