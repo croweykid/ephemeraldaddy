@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -624,7 +625,7 @@ class TimeSensitivityPanel(QWidget):
             table.setOpenExternalLinks(False)
             table.setOpenLinks(False)
             table.anchorClicked.connect(self._open_chart_info_link)
-            table.setFrameShape(table.NoFrame)
+            table.setFrameShape(QFrame.NoFrame)
             table.setMinimumHeight(170)
             table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
             table.setHtml(_header_html(_group_title(group_key)) + _numeric_group_table_html(result, group_key))

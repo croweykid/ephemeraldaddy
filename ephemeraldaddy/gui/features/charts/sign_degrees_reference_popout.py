@@ -11,7 +11,7 @@ from matplotlib.offsetbox import AnnotationBbox, HPacker, OffsetImage, TextArea
 from matplotlib.patches import Wedge
 
 from PySide6.QtCore import QSettings, Qt
-from PySide6.QtWidgets import QComboBox, QDialog, QHBoxLayout, QLabel, QPushButton, QScrollArea, QSplitter, QTextBrowser, QToolButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QComboBox, QDialog, QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QSplitter, QTextBrowser, QToolButton, QVBoxLayout, QWidget
 
 from ephemeraldaddy.analysis.human_design_reference import HD_GATES_BY_SIGN
 from ephemeraldaddy.analysis.human_design_reference import GATE_COLORS, GATE_REFERENCE
@@ -267,7 +267,7 @@ def show_sign_degrees_reference_popout(parent, register_popout_shortcuts=None) -
         text = QTextBrowser(body)
         text.setOpenExternalLinks(False)
         text.setReadOnly(True)
-        text.setFrameStyle(QTextBrowser.NoFrame)
+        text.setFrameStyle(QFrame.NoFrame)
         text.setStyleSheet("background: transparent;")
         body_layout.addWidget(text)
         section_layout.addWidget(body)
