@@ -101,6 +101,7 @@ CHART_EXPORT_DEFAULTS: dict[str, Any] = {
     "negative_sentiment_intensity": 0,
     "familiarity": 0,
     "alignment_score": None,
+    "sexiness_score": 0,
     "matched_expectations": 0,
     "familiarity_factors": "",
     "age_when_first_met": 0,
@@ -393,6 +394,7 @@ def _create_charts_table(conn: sqlite3.Connection) -> None:
             negative_sentiment_intensity INTEGER,
             familiarity INTEGER,
             alignment_score INTEGER,
+            sexiness_score INTEGER NOT NULL DEFAULT 0,
             matched_expectations INTEGER NOT NULL DEFAULT 0,
             familiarity_factors TEXT,
             age_when_first_met INTEGER NOT NULL DEFAULT 0,
@@ -654,6 +656,13 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
             """
             ALTER TABLE charts
             ADD COLUMN alignment_score INTEGER
+            """
+        )
+    if "sexiness_score" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE charts
+            ADD COLUMN sexiness_score INTEGER NOT NULL DEFAULT 0
             """
         )
     if "matched_expectations" not in columns:
@@ -1607,6 +1616,16 @@ def _normalize_alignment_score(value: Optional[int]) -> Optional[int]:
     return max(-10, min(10, parsed))
 
 
+def _normalize_sexiness_score(value: Optional[int]) -> int:
+    if value is None:
+        return 0
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return 0
+    return max(-10, min(10, parsed))
+
+
 def _normalize_matched_expectations(value: Optional[int]) -> int:
     if value is None:
         return 0
@@ -2443,7 +2462,7 @@ def append_database(source: Path) -> dict[str, Any]:
                         (id, chart_uid, name, alias, from_whence, gender, birth_place, datetime_iso, tz_name,
                          lat, lon, used_utc_fallback, sentiments, relationship_types, tags, reminds_me_of, comments, rectification_notes, biography, chart_data_source,
                          positive_sentiment_intensity, negative_sentiment_intensity, familiarity,
-                         alignment_score, matched_expectations, familiarity_factors, age_when_first_met, year_first_encountered, data_rating,
+                         alignment_score, sexiness_score, matched_expectations, familiarity_factors, age_when_first_met, year_first_encountered, data_rating,
                          social_score, birthtime_unknown, signs_unknown, unknown_signs, retcon_time_used, retcon_hour, retcon_minute,
                          dominant_sign_weights, dominant_planet_weights, dominant_nakshatra_weights, dominant_element_weights, dominant_mode, modal_distribution,
                          body_dynamics_roles,
@@ -2455,7 +2474,7 @@ def append_database(source: Path) -> dict[str, Any]:
                          is_placeholder, is_deceased, birth_month, birth_day, birth_year,
                          death_month, death_day, death_year, deathtime_unknown, death_hour, death_minute, death_place,
                          created_at, is_current)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         new_chart_id,
@@ -2482,6 +2501,7 @@ def append_database(source: Path) -> dict[str, Any]:
                         neg_intensity,
                         familiarity,
                         _normalize_alignment_score(_row_value("alignment_score")),
+                        _normalize_sexiness_score(_row_value("sexiness_score")),
                         _normalize_matched_expectations(_row_value("matched_expectations")),
                         _row_value("familiarity_factors"),
                         max(0, int(_row_value("age_when_first_met") or 0)),
@@ -2656,7 +2676,7 @@ def save_chart(
                  biography,
                  chart_data_source,
                  positive_sentiment_intensity, negative_sentiment_intensity,
-                 familiarity, alignment_score, matched_expectations, familiarity_factors, age_when_first_met, year_first_encountered, data_rating, social_score,
+                 familiarity, alignment_score, sexiness_score, matched_expectations, familiarity_factors, age_when_first_met, year_first_encountered, data_rating, social_score,
                  birthtime_unknown,
                  signs_unknown, unknown_signs,
                  retcon_time_used, retcon_hour, retcon_minute,
@@ -2681,7 +2701,7 @@ def save_chart(
                  death_minute,
                  death_place,
                  created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 chart.name,
@@ -2721,6 +2741,9 @@ def save_chart(
                 ),
                 _normalize_alignment_score(
                     getattr(chart, "alignment_score", None)
+                ),
+                _normalize_sexiness_score(
+                    getattr(chart, "sexiness_score", None)
                 ),
                 _normalize_matched_expectations(
                     getattr(chart, "matched_expectations", None)
@@ -2942,6 +2965,7 @@ def update_chart(
                 negative_sentiment_intensity = ?,
                 familiarity = ?,
                 alignment_score = ?,
+                sexiness_score = ?,
                 matched_expectations = ?,
                 familiarity_factors = ?,
                 age_when_first_met = ?,
@@ -3031,6 +3055,9 @@ def update_chart(
                 ),
                 _normalize_alignment_score(
                     getattr(chart, "alignment_score", None)
+                ),
+                _normalize_sexiness_score(
+                    getattr(chart, "sexiness_score", None)
                 ),
                 _normalize_matched_expectations(
                     getattr(chart, "matched_expectations", None)
@@ -3505,7 +3532,7 @@ def load_chart(chart_id: int):
                used_utc_fallback, sentiments, relationship_types,
                tags, reminds_me_of, comments, rectification_notes, biography, chart_data_source,
                positive_sentiment_intensity, negative_sentiment_intensity,
-               familiarity, alignment_score, matched_expectations, {familiarity_factors_projection}, age_when_first_met, year_first_encountered, data_rating, birthtime_unknown, signs_unknown, unknown_signs,
+               familiarity, alignment_score, sexiness_score, matched_expectations, {familiarity_factors_projection}, age_when_first_met, year_first_encountered, data_rating, birthtime_unknown, signs_unknown, unknown_signs,
                retcon_time_used, retcon_hour, retcon_minute,
                dominant_sign_weights, dominant_planet_weights, dominant_nakshatra_weights, dominant_element_weights, {enneagram_type_weights_projection}, dominant_enneagram_type, top_three_enneagram_types, dominant_mode, modal_distribution, {body_dynamics_roles_projection},
                human_design_gates, human_design_lines, human_design_channels,
@@ -3550,6 +3577,7 @@ def load_chart(chart_id: int):
         negative_sentiment_intensity,
         familiarity,
         alignment_score,
+        sexiness_score,
         matched_expectations,
         familiarity_factors,
         age_when_first_met,
@@ -3631,6 +3659,7 @@ def load_chart(chart_id: int):
         normalized_familiarity = _normalize_optional_sentiment_metric(familiarity)
         placeholder.familiarity = normalized_familiarity
         placeholder.alignment_score = _normalize_alignment_score(alignment_score)
+        placeholder.sexiness_score = _normalize_sexiness_score(sexiness_score)
         placeholder.matched_expectations = _normalize_matched_expectations(matched_expectations)
         placeholder.sentiment_confidence = (
             normalized_familiarity if normalized_familiarity is not None else 1
@@ -3721,6 +3750,7 @@ def load_chart(chart_id: int):
     )
     chart.familiarity = _normalize_optional_sentiment_metric(familiarity)
     chart.alignment_score = _normalize_alignment_score(alignment_score)
+    chart.sexiness_score = _normalize_sexiness_score(sexiness_score)
     chart.matched_expectations = _normalize_matched_expectations(matched_expectations)
     chart.familiarity_factors = parse_familiarity_factors(
         familiarity_factors

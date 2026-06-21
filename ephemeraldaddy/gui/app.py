@@ -23394,6 +23394,10 @@ class MainWindow(QMainWindow):
         self.alignment_slider.valueChanged.connect(self._on_alignment_changed)
         self.alignment_score_label = QLabel()
         self._update_alignment_score_label(self.alignment_slider.value())
+        self.sexiness_slider = AlignmentEmojiSlider()
+        self.sexiness_slider.valueChanged.connect(self._on_sexiness_changed)
+        self.sexiness_score_label = QLabel()
+        self._update_sexiness_score_label(self.sexiness_slider.value())
         for spinbox in (
             self.positive_sentiment_intensity_spin,
             self.negative_sentiment_intensity_spin,
@@ -23486,6 +23490,11 @@ class MainWindow(QMainWindow):
         )
         alignment_content_layout.addWidget(self.alignment_slider)
         alignment_content_layout.addWidget(self.alignment_score_label)
+        alignment_content_layout.addSpacing(6)
+        alignment_content_layout.addWidget(QLabel("Sexiness"))
+        alignment_content_layout.addWidget(QLabel("not my type   ⟷   extremely hot"))
+        alignment_content_layout.addWidget(self.sexiness_slider)
+        alignment_content_layout.addWidget(self.sexiness_score_label)
         alignment_content_widget.setLayout(alignment_content_layout)
         self.alignment_panel_toggle.toggled.connect(
             lambda expanded: self._toggle_chart_panel_content(
@@ -29794,6 +29803,17 @@ class MainWindow(QMainWindow):
         self._update_alignment_score_label(value)
         self._on_sentiment_metric_changed(value)
 
+    def _update_sexiness_score_label(self, value: int) -> None:
+        self.sexiness_score_label.setText(f"Sexiness score: {int(value)}")
+
+    def _on_sexiness_changed(self, value: int) -> None:
+        self._update_sexiness_score_label(value)
+        self._on_sentiment_metric_changed(value)
+
+    def _set_sexiness_score_state(self, value: int) -> None:
+        self.sexiness_slider.setValue(max(-10, min(10, int(value))))
+        self._update_sexiness_score_label(self.sexiness_slider.value())
+
     def _set_alignment_score_state(self, value: int, *, assigned: bool) -> None:
         self._alignment_programmatic_update = True
         self._alignment_score_assigned = bool(assigned)
@@ -29825,6 +29845,7 @@ class MainWindow(QMainWindow):
         self.familiarity_spin.setValue(1)
         self.matched_expectations_spin.setValue(0)
         self._set_alignment_score_state(0, assigned=False)
+        self._set_sexiness_score_state(0)
         self.familiarity_spin.setToolTip("")
         self._chart_familiarity_factors = []
         self.year_first_encountered_edit.setText("")
@@ -30422,6 +30443,7 @@ class MainWindow(QMainWindow):
         placeholder.familiarity = self.familiarity_spin.value()
         placeholder.matched_expectations = self.matched_expectations_spin.value()
         placeholder.alignment_score = self.alignment_slider.value()
+        placeholder.sexiness_score = self.sexiness_slider.value()
         placeholder.familiarity_factors = list(getattr(self, "_chart_familiarity_factors", []))
         placeholder.year_first_encountered = self._parse_year_first_encountered_text(self.year_first_encountered_edit.text())
         placeholder.data_rating = str(self.data_rating_combo.currentData() or "blank")
@@ -30588,6 +30610,8 @@ class MainWindow(QMainWindow):
         if hasattr(chart, "familiarity"):
             chart.familiarity = 1 if is_event_chart else self.familiarity_spin.value()
             chart.familiarity_factors = [] if is_event_chart else list(getattr(self, "_chart_familiarity_factors", []))
+        if hasattr(chart, "sexiness_score"):
+            chart.sexiness_score = 0 if is_event_chart else self.sexiness_slider.value()
         if hasattr(chart, "matched_expectations"):
             chart.matched_expectations = 0 if is_event_chart else self.matched_expectations_spin.value()
         if hasattr(chart, "alignment_score"):
@@ -31034,6 +31058,8 @@ class MainWindow(QMainWindow):
                         else None
                     )
                 )
+                if hasattr(chart, "sexiness_score"):
+                    chart.sexiness_score = 0 if is_event_chart else self.sexiness_slider.value()
                 chart.familiarity_factors = [] if is_event_chart else list(getattr(self, "_chart_familiarity_factors", []))
                 chart.year_first_encountered = None if is_event_chart else self._parse_year_first_encountered_text(self.year_first_encountered_edit.text())
                 chart.data_rating = "blank" if is_event_chart else str(self.data_rating_combo.currentData() or "blank")
@@ -31613,6 +31639,7 @@ class MainWindow(QMainWindow):
             int(loaded_alignment or 0),
             assigned=isinstance(loaded_alignment, int),
         )
+        self._set_sexiness_score_state(getattr(chart, "sexiness_score", 0) or 0)
         self._chart_familiarity_factors = list(
             getattr(chart, "familiarity_factors", []) or []
         )
