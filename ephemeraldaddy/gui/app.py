@@ -17538,7 +17538,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     }
                 )
 
+        use_rectified_time = bool(getattr(chart, "retcon_time_used", False))
+        chart_uses_houses = bool(_chart_uses_houses(chart)) if chart is not None else False
+        show_unknown_glyphs = chart is not None and not chart_uses_houses and not use_rectified_time
+        unknown_sign_bodies: set[str] = set()
+        if show_unknown_glyphs:
+            unknown_sign_bodies = set(getattr(chart, "unknown_signs", []) or [])
+
         for body in ("Sun", "Moon"):
+            if show_unknown_glyphs and body in unknown_sign_bodies:
+                add_segment("?", CHART_ROW_PLACE_COLOR)
+                continue
             sign = self._chart_row_sign_for_position(chart, body)
             sign_glyph = self._chart_row_zodiac_glyph_for_sign(sign)
             if not sign_glyph:
@@ -17549,6 +17559,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             #     space_after=False,
             # )
             add_segment(sign_glyph, SIGN_COLORS.get(sign, "#f5f5f5"))
+
+        if show_unknown_glyphs:
+            add_segment("?", CHART_ROW_PLACE_COLOR)
+            return segments
 
         ascendant_sign = self._chart_row_sign_for_position(chart, "AS")
         ascendant_glyph = self._chart_row_zodiac_glyph_for_sign(ascendant_sign)
