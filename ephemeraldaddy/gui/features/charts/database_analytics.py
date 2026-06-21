@@ -1874,6 +1874,9 @@ class DatabaseAnalyticsChartsMixin:
                 hd_authority = canonicalize_hd_authority_label(
                     str(getattr(chart, "human_design_authority", "") or "").strip()
                 )
+            hd_profile = str(getattr(hd_result, "profile", "") or "").strip()
+            if hd_profile:
+                chart.human_design_profile = hd_profile
             if hd_authority:
                 chart.human_design_authority = hd_authority
             return hd_gates, hd_lines, hd_channels, hd_defined_centers, hd_type, hd_authority

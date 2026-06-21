@@ -23,6 +23,7 @@ from ephemeraldaddy.analysis.get_astro_twin import (
     normalize_similar_charts_algorithm_mode,
 )
 from ephemeraldaddy.analysis.human_design_reference import canonicalize_hd_authority_label
+from ephemeraldaddy.gui.features.charts.human_design_shared import HumanDesignSharedAggregates
 from ephemeraldaddy.core.aspect_display import ASPECT_DISPLAY_ANGLE_BODIES, aspect_is_displayable
 from ephemeraldaddy.core.chart import Chart
 from ephemeraldaddy.core.interpretations import NATAL_WEIGHT, PLANET_ORDER
@@ -196,6 +197,8 @@ class SimilaritiesBaselineProvider(Protocol):
     def _build_common_dominant_houses(self, chart_ids: list[int]) -> list[tuple[str, int, int]]: ...
 
     def _build_common_dominant_nakshatras(self, chart_ids: list[int]) -> list[tuple[str, int, int]]: ...
+
+    def _build_common_human_design_aggregates(self, chart_ids: list[int]) -> HumanDesignSharedAggregates: ...
 
     def _build_common_human_design_gates(self, chart_ids: list[int]) -> list[tuple[str, int, int]]: ...
 
@@ -504,6 +507,7 @@ def build_similarity_db_baselines(
     common_houses_in_positions = provider._build_common_houses_in_positions(db_chart_ids)
     common_signs_in_houses = provider._build_common_signs_in_houses(db_chart_ids)
     common_aspects = provider._build_common_aspects(db_chart_ids)
+    common_hd_aggregates = provider._build_common_human_design_aggregates(db_chart_ids)
     return {
         "common_positions": _match_counts(common_positions),
         "common_positions_totals": _match_totals(common_positions),
@@ -519,15 +523,11 @@ def build_similarity_db_baselines(
         ),
         "common_aspects": _match_counts(common_aspects),
         "common_aspects_totals": _match_totals(common_aspects),
-        "common_hd_gates": _match_counts(provider._build_common_human_design_gates(db_chart_ids)),
-        "common_hd_channels": _match_counts(provider._build_common_human_design_channels(db_chart_ids)),
-        "common_hd_defined_centers": _match_counts(
-            provider._build_common_human_design_defined_centers(db_chart_ids)
-        ),
-        "common_hd_authorities": _match_counts(
-            provider._build_common_human_design_authorities(db_chart_ids)
-        ),
-        "common_hd_profiles": _match_counts(provider._build_common_human_design_profiles(db_chart_ids)),
+        "common_hd_gates": _match_counts(common_hd_aggregates.gates),
+        "common_hd_channels": _match_counts(common_hd_aggregates.channels),
+        "common_hd_defined_centers": _match_counts(common_hd_aggregates.defined_centers),
+        "common_hd_authorities": _match_counts(common_hd_aggregates.authorities),
+        "common_hd_profiles": _match_counts(common_hd_aggregates.profiles),
         "common_bazi_signs": _match_counts(provider._build_common_bazi_signs(db_chart_ids)),
     }
 
