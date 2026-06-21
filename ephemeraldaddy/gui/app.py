@@ -30452,6 +30452,22 @@ class MainWindow(QMainWindow):
             return
         schedule_chart_render_for_active_right_panel(self)
 
+    def _prepare_chart_right_panel_for_loading(self) -> None:
+        """Prepare Chart View's right panel for chart loading through its controller."""
+        controller = getattr(self, "_chart_right_panel_controller", None)
+        if controller is not None:
+            controller.prepare_for_loading()
+            return
+        prepare_chart_right_panel_for_loading(self)
+
+    def _reveal_chart_right_panel_after_loading(self) -> None:
+        """Reveal Chart View's right panel after loading through its controller."""
+        controller = getattr(self, "_chart_right_panel_controller", None)
+        if controller is not None:
+            controller.reveal_after_loading()
+            return
+        reveal_chart_right_panel_after_loading(self)
+
     def _is_placeholder_chart(self, chart: Chart | None) -> bool:
         if chart is None:
             return False
@@ -31717,7 +31733,7 @@ class MainWindow(QMainWindow):
             self._set_chart_right_panel_container_visible(True)
             self._clear_chart_displays(reset_anagrams=False)
         else:
-            prepare_chart_right_panel_for_loading(self)
+            self._prepare_chart_right_panel_for_loading()
             self._set_chart_right_panel_container_visible(True)
             self._schedule_chart_render(chart, sections={
                 "summary",
@@ -32022,7 +32038,7 @@ class MainWindow(QMainWindow):
     def load_chart_by_id(self, chart_id: int, *, from_chart_link: bool = False) -> bool:
         if not self._confirm_discard_or_save():
             return False
-        prepare_chart_right_panel_for_loading(self)
+        self._prepare_chart_right_panel_for_loading()
         is_same_chart_request = self.current_chart_id == chart_id
         if not from_chart_link and not is_same_chart_request:
             self._chart_view_history.clear()
@@ -32030,7 +32046,7 @@ class MainWindow(QMainWindow):
         cached_chart = self._chart_view_navigation_cache.get(int(chart_id))
         should_fade_right_panel = cached_chart is None
         if should_fade_right_panel:
-            prepare_chart_right_panel_for_loading(self)
+            self._prepare_chart_right_panel_for_loading()
         use_fast_navigation_swap = (
             from_chart_link
             and not is_same_chart_request
@@ -32048,7 +32064,7 @@ class MainWindow(QMainWindow):
             try:
                 chart = load_chart(chart_id)
             except Exception as e:
-                reveal_chart_right_panel_after_loading(self)
+                self._reveal_chart_right_panel_after_loading()
                 self._hide_chart_loading_overlay()
                 QMessageBox.critical(
                     self,
@@ -32195,7 +32211,7 @@ class MainWindow(QMainWindow):
             self._set_chart_right_panel("subjective_notes")
             self._set_chart_right_panel_container_visible(True)
             self._clear_chart_displays(reset_anagrams=False)
-            reveal_chart_right_panel_after_loading(self)
+            self._reveal_chart_right_panel_after_loading()
             self._hide_chart_loading_overlay()
         else:
             self._set_chart_right_panel("analytics")
@@ -32715,7 +32731,7 @@ class MainWindow(QMainWindow):
         self._pending_render_chart = None
         # draw() is synchronous for chart/metric canvases, so overlay shutdown can
         # be tied to actual completion of the final render pass here.
-        reveal_chart_right_panel_after_loading(self)
+        self._reveal_chart_right_panel_after_loading()
         self._schedule_deferred_visible_metric_canvas_layout_refreshes()
         self._hide_chart_loading_overlay()
         active_right_tab = getattr(self._chart_right_panel_state, "active_tab", None)

@@ -76,7 +76,8 @@ class ChartRightPanelController:
 
     def set_chart(self, chart: object | None) -> None:
         """Set the active chart and synchronize right-panel availability."""
-        self.sync_placeholder_state(chart)
+        self._chart = chart
+        self.sync_placeholder_state()
 
     def set_container_visible(self, visible: bool) -> None:
         """Show/hide Chart View's full right-side container."""
@@ -99,7 +100,7 @@ class ChartRightPanelController:
         panel_key = self._resolve_panel_key(panel_key)
         scroll_attr, _button_attr = self._PANEL_ATTRS[panel_key]
         active_scroll = getattr(self._owner, scroll_attr, None)
-        panel_stack = getattr(self._owner, "chart_right_panel_stack", None)
+        panel_stack = self._stack.stack if self._stack is not None else getattr(self._owner, "chart_right_panel_stack", None)
         if panel_stack is None or active_scroll is None:
             return
         panel_stack.setCurrentWidget(active_scroll)
@@ -149,24 +150,30 @@ class ChartRightPanelController:
             render_distinguishing = getattr(self._owner, "_render_distinguishing_factors", None)
             if callable(render_distinguishing) and bool(getattr(self._owner, "_chart_analytics_distinguishing_factors_expanded", False)):
                 render_distinguishing(chart)
-            if self._analytics_has_stale_sections(chart):
-                self._owner._schedule_chart_render(chart)
+            schedule_chart_render = getattr(self._owner, "_schedule_chart_render", None)
+            if self._analytics_has_stale_sections(chart) and callable(schedule_chart_render):
+                schedule_chart_render(chart)
             return
         if active_panel == "predictions":
             render_token = self._prediction_render_token(chart)
             if state is not None and state.last_render_chart_token == render_token:
                 return
-            self._owner._render_enneagram_predictions(chart)
-            self._owner._render_dndification_predictions(chart)
+            render_enneagram = getattr(self._owner, "_render_enneagram_predictions", None)
+            render_dndification = getattr(self._owner, "_render_dndification_predictions", None)
+            if callable(render_enneagram):
+                render_enneagram(chart)
+            if callable(render_dndification):
+                render_dndification(chart)
             if state is not None:
                 state.last_render_chart_token = render_token
             return
         if active_panel in {"subjective_notes", "anagrams"} and self._is_analysis_section_visible("anagrams"):
-            self._owner._schedule_chart_render(chart, sections={"anagrams"})
+            schedule_chart_render = getattr(self._owner, "_schedule_chart_render", None)
+            if callable(schedule_chart_render):
+                schedule_chart_render(chart, sections={"anagrams"})
 
-    def sync_placeholder_state(self, chart: object | None = None) -> None:
-        """Sync tab availability for placeholder/unsaved chart state."""
-        self._chart = chart
+    def sync_placeholder_state(self) -> None:
+        """Sync tab availability for the current chart without clearing it implicitly."""
         current_chart = self._chart
         is_placeholder = self._is_placeholder_chart(current_chart)
         is_saved_chart = bool(current_chart is not None and getattr(self._owner, "current_chart_id", None) is not None)
