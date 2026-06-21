@@ -16,7 +16,7 @@ from ephemeraldaddy.core.db import DB_DIR
 from ephemeraldaddy.core.human_design_system import calculate_human_design
 from ephemeraldaddy.core.interpretations import NAKSHATRA_RANGES, ZODIAC_NAMES
 
-TIME_SENSITIVITY_ALGORITHM_VERSION = "time-sensitivity-v3"
+TIME_SENSITIVITY_ALGORITHM_VERSION = "time-sensitivity-v4"
 TIME_SENSITIVITY_DB_PATH = DB_DIR / "time_sensitivity.db"
 NUMERIC_GROUPS = (
     "dominant_planet_weights",
@@ -410,9 +410,14 @@ def compute_time_sensitivity(chart: Any, config: TimeSensitivityConfig | None = 
     max_delta = max(group_deltas.values(), default=0.0)
     stability = max(0.0, 100.0 - max_delta)
 
+    categorical_sources = {
+        "Sun sign": "Sun",
+        "Moon nakshatra": "Nakshatra",
+        "Ascendant": "AS",
+    }
     categorical_values = {
-        key: [sample["categorical"].get(key, "") for sample in samples]
-        for key in ("Sun sign", "Moon nakshatra", "Ascendant")
+        label: [sample["categorical"].get(source_key, "") for sample in samples]
+        for label, source_key in categorical_sources.items()
     }
     stable = [f"{key}: stable all day ({values[0]})" for key, values in categorical_values.items() if values and len(set(values)) == 1 and values[0]]
     variable = [f"{key}: {' / '.join(dict.fromkeys(v for v in values if v))}" for key, values in categorical_values.items() if len(set(v for v in values if v)) > 1]
@@ -562,6 +567,18 @@ def load_time_sensitivity_result_for_chart(
             """,
             (birth_date_key, TIME_SENSITIVITY_ALGORITHM_VERSION, config_hash),
         ).fetchone()
+        if row is None and path != TIME_SENSITIVITY_DB_PATH:
+            row = conn.execute(
+                """
+                SELECT result_json
+                FROM chart_time_sensitivity_ranges
+                WHERE birth_date_key = ?
+                  AND config_hash = ?
+                ORDER BY updated_at DESC
+                LIMIT 1
+                """,
+                (birth_date_key, config_hash),
+            ).fetchone()
     if row is None:
         return None
     payload = json.loads(str(row[0]))
