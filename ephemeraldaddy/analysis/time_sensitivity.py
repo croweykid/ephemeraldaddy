@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -188,7 +189,7 @@ def _span_label(start_time: str, end_time: str) -> str:
     return f"{start_time}–{end_time}"
 
 
-def _matching_spans(values: list[tuple[str, float]], predicate: Any) -> list[str]:
+def _matching_spans(values: list[tuple[str, float]], predicate: Callable[[float], bool]) -> list[str]:
     spans: list[str] = []
     start: str | None = None
     previous_time: str | None = None
@@ -448,12 +449,13 @@ def save_time_sensitivity_result(result: TimeSensitivityResult, path: Path = TIM
     result_json = json.dumps(payload, sort_keys=True)
     config_hash = _config_hash(result.config)
     now = datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    storage_chart_uid = result.chart_uid or f"date:{result.birth_date_key}"
     with sqlite3.connect(path) as conn:
         conn.execute(
             """
             DELETE FROM chart_time_sensitivity_ranges
-            WHERE (birth_date_key = ? AND algorithm_version = ? AND config_hash = ?)
-               OR (chart_uid = ? AND algorithm_version = ? AND config_hash = ?)
+            WHERE (birth_date_key != '' AND birth_date_key = ? AND algorithm_version = ? AND config_hash = ?)
+               OR (chart_uid != '' AND chart_uid = ? AND algorithm_version = ? AND config_hash = ?)
             """,
             (
                 result.birth_date_key,
@@ -470,7 +472,7 @@ def save_time_sensitivity_result(result: TimeSensitivityResult, path: Path = TIM
                 chart_uid, birth_date_key, algorithm_version, config_hash, config_json, result_json, created_at, updated_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (result.chart_uid, result.birth_date_key, result.algorithm_version, config_hash, config_json, result_json, now, now),
+            (storage_chart_uid, result.birth_date_key, result.algorithm_version, config_hash, config_json, result_json, now, now),
         )
 
 

@@ -171,3 +171,50 @@ def test_aggregate_numeric_reports_sampled_time_spans_and_transition_windows():
     assert payload["present_spans"] == ["00:30–01:00"]
     assert payload["peak_spans"] == ["00:30–01:00"]
     assert payload["transition_windows"] == ["00:00–00:30"]
+
+
+def test_save_time_sensitivity_does_not_delete_other_empty_uid_dates(tmp_path):
+    config = TimeSensitivityConfig(interval_minutes=30, include_day_end=True)
+    first = TimeSensitivityResult(
+        chart_uid="",
+        chart_name="First",
+        birth_date_key="04-05-2001",
+        algorithm_version="time-sensitivity-v2",
+        computed_at="2026-06-20T00:00:00Z",
+        config=config.__dict__,
+        sample_count=49,
+        baseline_time="12:00",
+        overall={"stability_percent": 100.0},
+        numeric_ranges={},
+        human_design={},
+        stable=[],
+        variable=[],
+        warnings=[],
+    )
+    second = TimeSensitivityResult(
+        chart_uid="",
+        chart_name="Second",
+        birth_date_key="04-06-2001",
+        algorithm_version="time-sensitivity-v2",
+        computed_at="2026-06-20T00:00:00Z",
+        config=config.__dict__,
+        sample_count=49,
+        baseline_time="12:00",
+        overall={"stability_percent": 99.0},
+        numeric_ranges={},
+        human_design={},
+        stable=[],
+        variable=[],
+        warnings=[],
+    )
+    db_path = tmp_path / "time_sensitivity.db"
+
+    save_time_sensitivity_result(first, db_path)
+    save_time_sensitivity_result(second, db_path)
+
+    import sqlite3
+
+    with sqlite3.connect(db_path) as conn:
+        dates = [row[0] for row in conn.execute("SELECT birth_date_key FROM chart_time_sensitivity_ranges ORDER BY birth_date_key")]
+
+    assert dates == ["04-05-2001", "04-06-2001"]
