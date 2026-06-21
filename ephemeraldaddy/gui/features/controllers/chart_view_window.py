@@ -192,7 +192,7 @@ class _PhotoGridWidget(QWidget):
 
 
 class _PhotoPreviewDialog(QDialog):
-    """Floating centered photo preview sized to at most 90% of the screen."""
+    """Full-screen photo preview that keeps images at 100% unless they exceed the screen."""
 
     def __init__(self, owner: QWidget, image_data: bytes, title: str) -> None:
         super().__init__(owner)
@@ -221,14 +221,17 @@ class _PhotoPreviewDialog(QDialog):
         pixmap.loadFromData(image_data)
         screen = self.screen() or owner.screen()
         available = screen.availableGeometry() if screen is not None else owner.geometry()
-        max_width = int(available.width() * 0.9)
-        max_height = int(available.height() * 0.9)
-        scaled = pixmap.scaled(max_width, max_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        max_width = max(1, available.width() - 16)
+        max_height = max(1, available.height() - close_row.sizeHint().height() - 24)
+        if pixmap.width() > max_width or pixmap.height() > max_height:
+            display_pixmap = pixmap.scaled(max_width, max_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        else:
+            display_pixmap = pixmap
         image_label = QLabel()
         image_label.setAlignment(Qt.AlignCenter)
-        image_label.setPixmap(scaled)
-        layout.addWidget(image_label)
-        self.resize(scaled.width() + 16, scaled.height() + close_row.sizeHint().height() + 24)
+        image_label.setPixmap(display_pixmap)
+        layout.addWidget(image_label, 1)
+        self.resize(available.size())
 
     def showEvent(self, event: QEvent) -> None:
         super().showEvent(event)
@@ -1281,7 +1284,7 @@ def _show_photo_gallery_preview(owner: QWidget, photo_id: int) -> None:
     if not isinstance(image_data, bytes):
         return
     dialog = _PhotoPreviewDialog(owner, image_data, str(photo.get("filename") or "Photo"))
-    dialog.show()
+    dialog.showFullScreen()
     owner._photo_gallery_preview_dialog = dialog
 
 
@@ -1328,7 +1331,7 @@ def _build_photo_gallery_panel(owner: QWidget) -> QWidget:
     layout.addWidget(header)
 
     help_label = QLabel(
-        "Photos are resized to 96 ppi with a maximum width/height of 600 px "
+        "Photos are resized to 96 ppi with maximum dimensions of 1920×1080 px "
         "and stored in the external photo gallery database linked by chart UID."
     )
     help_label.setWordWrap(True)
