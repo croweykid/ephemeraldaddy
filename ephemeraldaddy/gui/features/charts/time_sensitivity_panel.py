@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from html import escape
 from urllib.parse import quote
 from typing import Any
@@ -32,8 +33,16 @@ from ephemeraldaddy.analysis.time_sensitivity import (
     save_time_sensitivity_result,
 )
 from ephemeraldaddy.analysis.human_design_reference import GATE_COLORS
-from ephemeraldaddy.core.interpretations import ELEMENT_COLORS, HOUSE_COLORS, MODE_COLORS, PLANET_COLORS, SIGN_COLORS
+from ephemeraldaddy.core.interpretations import (
+    ELEMENT_COLORS,
+    HOUSE_COLORS,
+    MODE_COLORS,
+    NAKSHATRA_PLANET_COLOR,
+    PLANET_COLORS,
+    SIGN_COLORS,
+)
 from ephemeraldaddy.gui.features.charts.chart_analytics_popout import _display_body_name
+from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR
 
 
 _TIME_SENSITIVITY_CHART_TITLES = {
@@ -131,6 +140,15 @@ def _draw_likelihood_chart(ax: Any, result: TimeSensitivityResult, group_key: st
 
 
 def _group_title(group_key: str) -> str:
+    titles = {
+        "dominant_planet_weights": "Dominant Bodies",
+        "dominant_house_weights": "Dominant Houses",
+        "dominant_element_weights": "Dominant Elements",
+        "dominant_mode_weights": "Dominant Modes",
+        "dominant_nakshatra_weights": "Dominant Nakshatras",
+    }
+    if group_key in titles:
+        return titles[group_key]
     return group_key.replace("dominant_", "Dominant ").replace("_weights", "").replace("_", " ").title()
 
 
@@ -180,6 +198,52 @@ def _factor_color(group_key: str, key: str) -> str:
     return "#6fa8dc"
 
 
+_COLOR_CODE_TERMS: dict[str, str] = {
+    **{str(name): str(color) for name, color in SIGN_COLORS.items()},
+    **{str(name): str(color) for name, color in PLANET_COLORS.items()},
+    **{str(name): str(color) for name, color in ELEMENT_COLORS.items()},
+    **{str(name).title(): str(color) for name, color in MODE_COLORS.items()},
+    **{str(name): str(color) for name, (_planet, color) in NAKSHATRA_PLANET_COLOR.items()},
+    **{f"House {house}": str(color) for house, color in HOUSE_COLORS.items()},
+}
+
+_COLOR_CODE_PATTERN = re.compile(
+    r"(?<![\w-])("
+    + "|".join(re.escape(term) for term in sorted(_COLOR_CODE_TERMS, key=len, reverse=True))
+    + r")(?![\w-])",
+    re.IGNORECASE,
+)
+
+
+def _color_code_text(text: str) -> str:
+    """Escape text and color known astrological body/category names within it."""
+    escaped_text = escape(str(text))
+
+    def replace(match: re.Match[str]) -> str:
+        matched = match.group(0)
+        color = _COLOR_CODE_TERMS.get(matched)
+        if color is None:
+            color = next(
+                (
+                    candidate_color
+                    for candidate_name, candidate_color in _COLOR_CODE_TERMS.items()
+                    if candidate_name.lower() == matched.lower()
+                ),
+                "#6fa8dc",
+            )
+        return f"<span style='color:{escape(color, quote=True)};'>{matched}</span>"
+
+    return _COLOR_CODE_PATTERN.sub(replace, escaped_text)
+
+
+def _header_html(label: str) -> str:
+    return f"<div style='color:{CHART_DATA_HIGHLIGHT_COLOR}; font-weight:700; margin-top:8px;'>{escape(label)}</div>"
+
+
+def _list_html(items: list[str]) -> str:
+    return "<ul style='margin-top:2px; margin-bottom:6px;'>" + "".join(f"<li>{item}</li>" for item in items) + "</ul>"
+
+
 def _factor_link(group_key: str, key: str) -> str:
     kind = _NUMERIC_GROUP_LINK_KINDS.get(group_key, "")
     value = str(key).removeprefix("House ").strip() if kind == "house" else str(key)
@@ -191,9 +255,9 @@ def _factor_anchor(group_key: str, key: str) -> str:
     text = escape(_display_body_name(key) if group_key == "dominant_planet_weights" else str(key))
     href = _factor_link(group_key, key)
     if not href:
-        return f"<span style='color:{color}; font-weight:700;'>{text}</span>"
+        return f"<span style='color:{color};'>{text}</span>"
     return (
-        f"<a href='{href}' style='color:{color}; font-weight:700; text-decoration: none;'>"
+        f"<a href='{href}' style='color:{color}; text-decoration: none;'>"
         f"{text}</a>"
     )
 
@@ -212,9 +276,9 @@ def _gate_anchor(gate: str) -> str:
     elif "-" not in gate_text:
         href = f"distinguishing-factor:gate:{quote(gate_text)}"
     else:
-        return f"<span style='color:{escape(color, quote=True)}; font-weight:700;'>{safe_gate}</span>"
+        return f"<span style='color:{escape(color, quote=True)};'>{safe_gate}</span>"
     return (
-        f"<a href='{href}' style='color:{escape(color, quote=True)}; font-weight:700; text-decoration: none;'>"
+        f"<a href='{href}' style='color:{escape(color, quote=True)}; text-decoration: none;'>"
         f"{safe_gate}</a>"
     )
 
@@ -224,17 +288,16 @@ def format_time_sensitivity_result_html(result: TimeSensitivityResult) -> str:
     overall = result.overall
     baseline_label = f"{result.baseline_time} ({overall.get('baseline_source', 'baseline')})"
     html_lines: list[str] = [
-        f"Overall stability: {overall.get('stability_percent', 0):.2f}%",
-        f"Max possible change from {baseline_label}: {overall.get('max_total_change_from_baseline_percent', 0):.2f}%",
-        "Most sensitive: " + ", ".join(overall.get("most_sensitive", []) or ["n/a"]),
-        "Least sensitive: " + ", ".join(overall.get("least_sensitive", []) or ["n/a"]),
-        f"Samples: {result.sample_count} hypothetical standard charts + {result.sample_count} Human Design charts",
-        "",
-        "Highly stable:",
+        f"<div>Overall stability: {overall.get('stability_percent', 0):.2f}%</div>",
+        f"<div>Max possible change from {escape(baseline_label)}: {overall.get('max_total_change_from_baseline_percent', 0):.2f}%</div>",
+        "<div>Most sensitive: " + _color_code_text(", ".join(overall.get("most_sensitive", []) or ["n/a"])) + "</div>",
+        "<div>Least sensitive: " + _color_code_text(", ".join(overall.get("least_sensitive", []) or ["n/a"])) + "</div>",
+        f"<div>Samples: {result.sample_count} hypothetical standard charts + {result.sample_count} Human Design charts</div>",
+        _header_html("Highly Stable:"),
     ]
-    html_lines.extend(escape(f"  {item}") for item in (result.stable or ["No all-day stable highlights found."]))
-    html_lines.extend(["", "Variable:"])
-    html_lines.extend(escape(f"  {item}") for item in (result.variable or ["No categorical variability found."]))
+    html_lines.append(_list_html([_color_code_text(item) for item in (result.stable or ["No all-day stable highlights found."])]))
+    html_lines.append(_header_html("Variable:"))
+    html_lines.append(_list_html([_color_code_text(item) for item in (result.variable or ["No categorical variability found."])]))
 
     for group_key, ranges in result.numeric_ranges.items():
         meaningful = [
@@ -244,7 +307,8 @@ def format_time_sensitivity_result_html(result: TimeSensitivityResult) -> str:
         ]
         meaningful.sort(key=lambda item: float(item[1].get("percent_delta", 0.0)), reverse=True)
         delta_values = [abs(float(payload.get("percent_delta", 0.0))) for _key, payload in meaningful]
-        html_lines.extend(["", escape(_group_title(group_key))])
+        html_lines.append(_header_html(_group_title(group_key)))
+        group_items = []
         for key, payload in meaningful[:12]:
             appears_after = payload.get("appears_after")
             suffix = f" appears after {appears_after}" if appears_after else f" {payload.get('label', '')}"
@@ -257,34 +321,37 @@ def format_time_sensitivity_result_html(result: TimeSensitivityResult) -> str:
                 span_bits.append("changes " + "; ".join(payload.get("transition_windows", [])[:8]))
             tooltip = " | ".join(span_bits) or "No sampled time-span changes."
             delta_color = escape(_delta_intensity_color(abs(float(payload.get("percent_delta", 0.0))), delta_values), quote=True)
-            html_lines.append(
+            group_items.append(
                 "<span title='"
                 + escape(tooltip, quote=True)
                 + "'>"
                 + f"{_factor_anchor(group_key, str(key))} "
                 + escape(f"{float(payload.get('min', 0.0)):.2f}–{float(payload.get('max', 0.0)):.2f}   peak {', '.join(payload.get('peak_times', [])[:3]) or 'n/a'}   vs {result.baseline_time}: ")
-                + f"<span style='color:{delta_color}; font-weight:700;'>"
+                + f"<span style='color:{delta_color};'>"
                 + escape(f"{float(payload.get('max_decrease_percent', 0.0)):+.2f}% to {float(payload.get('max_increase_percent', 0.0)):+.2f}%")
                 + "</span>"
                 + escape(f"{suffix}")
                 + "</span>"
             )
+        html_lines.append(_list_html(group_items))
 
     hd = result.human_design
-    html_lines.extend(["", "Human Design"])
+    html_lines.append(_header_html("Human Design"))
+    hd_items = []
     for key in ("gates", "lines", "channels"):
         summary = hd.get(key, {})
         always = ", ".join(_gate_anchor(item) for item in summary.get("always", [])[:20]) or "none"
         sometimes = ", ".join(_gate_anchor(item) for item in summary.get("sometimes", [])[:20]) or "none"
-        html_lines.append(f"{escape(key.title())} always present: {always}")
-        html_lines.append(f"{escape(key.title())} sometimes present: {sometimes}")
-    html_lines.append(escape("Type distribution: " + ", ".join(f"{k} ({v})" for k, v in hd.get("type_distribution", {}).items())))
-    html_lines.append(escape("Profile distribution: " + ", ".join(f"{k} ({v})" for k, v in hd.get("profile_distribution", {}).items())))
+        hd_items.append(f"{escape(key.title())} always present: {always}")
+        hd_items.append(f"{escape(key.title())} sometimes present: {sometimes}")
+    hd_items.append(escape("Type distribution: " + ", ".join(f"{k} ({v})" for k, v in hd.get("type_distribution", {}).items())))
+    hd_items.append(escape("Profile distribution: " + ", ".join(f"{k} ({v})" for k, v in hd.get("profile_distribution", {}).items())))
+    html_lines.append(_list_html(hd_items))
 
     if result.warnings:
-        html_lines.extend(["", "Warnings:"])
-        html_lines.extend(escape(f"  {warning}") for warning in result.warnings)
-    return "<pre style='white-space: pre-wrap; font-family: monospace;'>" + "\n".join(html_lines) + "</pre>"
+        html_lines.append(_header_html("Warnings:"))
+        html_lines.append(_list_html([escape(warning) for warning in result.warnings]))
+    return "<div style='white-space: normal;'>" + "\n".join(html_lines) + "</div>"
 
 
 class TimeSensitivityPanel(QWidget):
