@@ -835,6 +835,10 @@ from ephemeraldaddy.gui.features.charts.metrics import (
 from ephemeraldaddy.gui.features.charts.body_dynamics_popout import (
     build_body_dynamics_popout_info_html as _build_body_dynamics_popout_info_html,
 )
+from ephemeraldaddy.gui.features.charts.metric_popout_registry import (
+    build_metric_popout_figure as _build_registered_metric_popout_figure,
+    configure_metric_popout_info as _configure_registered_metric_popout_info,
+)
 from ephemeraldaddy.gui.features.charts.body_dynamics_summary import (
     build_body_dynamics_summary_html as _build_body_dynamics_summary_html,
 )
@@ -849,10 +853,6 @@ from ephemeraldaddy.gui.features.charts.chart_analytics_popout import (
     build_nakshatra_dominance_section_html as _build_nakshatra_dominance_section_html,
     build_sign_dominance_section_html as _build_sign_dominance_section_html,
 )
-from ephemeraldaddy.gui.features.charts.algorithmic_transparency import (
-    build_gender_guesser_breakdown_text as _build_gender_guesser_breakdown_text,
-)
-
 from ephemeraldaddy.gui.features.charts.presentation import (
     abbreviate_nakshatra_labels as _abbreviate_nakshatra_labels,
     apply_nakshatra_tick_info_markers as _apply_nakshatra_tick_info_markers,
@@ -1287,7 +1287,6 @@ from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
     build_enneagram_popout_info_html as _build_enneagram_popout_info_html,
     cache_enneagram_prediction_metadata as _cache_enneagram_prediction_metadata,
     calculate_enneagram_type_weights as _calculate_enneagram_type_weights,
-    connect_enneagram_popout_pick_handler as _connect_enneagram_popout_pick_handler,
     default_enneagram_category_weights as _default_enneagram_category_weights,
     default_enneagram_scoring_options as _default_enneagram_scoring_options,
     draw_enneagram_predictions as _draw_enneagram_predictions_chart,
@@ -1309,7 +1308,6 @@ from ephemeraldaddy.gui.features.charts.distinguishing_factors import (
 from ephemeraldaddy.gui.features.charts.dnd_predictions import (
     build_dnd_statblock_popout_info_html as _build_dnd_statblock_popout_info_html,
     configure_dnd_top_three_summary_label as _configure_dnd_top_three_summary_label,
-    connect_dnd_statblock_popout_pick_handler as _connect_dnd_statblock_popout_pick_handler,
     draw_dnd_statblock_predictions as _draw_dnd_statblock_predictions_chart,
     format_dnd_class_info_text as _format_dnd_class_info_text,
     format_dnd_species_info_text as _format_dnd_species_info_text,
@@ -26053,9 +26051,9 @@ class MainWindow(QMainWindow):
         dialog = QDialog(self)
         dialog.setWindowTitle(title)
         dialog.setAttribute(Qt.WA_DeleteOnClose)
-        dialog.setMinimumSize(*STANDARD_NCV_POPOUT_LAYOUT["window_min_size"]) #dialog.setMinimumSize(720, 540)
+        dialog.setMinimumSize(*STANDARD_NCV_POPOUT_LAYOUT["window_min_size"])
         layout = QVBoxLayout()
-        layout.setContentsMargins(*STANDARD_NCV_POPOUT_LAYOUT["content_margins"]) #layout.setContentsMargins(12, 12, 12, 12)
+        layout.setContentsMargins(*STANDARD_NCV_POPOUT_LAYOUT["content_margins"])
         dialog.setLayout(layout)
         figure = self._build_metric_popout_figure(title, popout_chart)
         popout_canvas = FigureCanvas(figure)
@@ -26068,121 +26066,13 @@ class MainWindow(QMainWindow):
 
         layout.addWidget(popout_canvas, STANDARD_NCV_POPOUT_LAYOUT["chart_stretch"])
         layout.addWidget(info_panel, STANDARD_NCV_POPOUT_LAYOUT["info_stretch"])
-
-        if title in {"Nakshatra Prevalence", "Dominant Nakshatras"}:
-            info_panel.setPlaceholderText(
-                "Click a nakshatra label or bar to view its description."
-            )
-
-            def _on_pick(event) -> None:
-                artist = getattr(event, "artist", None)
-                nakshatra_name = artist.get_gid() if artist is not None else None
-                if not isinstance(nakshatra_name, str) or not nakshatra_name:
-                    return
-                info_panel.setHtml(self._build_nakshatra_popout_info(popout_chart, nakshatra_name))
-
-            popout_canvas.mpl_connect("pick_event", _on_pick)
-        elif title == "Gender Guesser":
-            info_panel.setPlainText(_build_gender_guesser_breakdown_text(popout_chart))
-        elif title in {"Signs", "Bodies", "Houses"}:
-            info_panel.setPlaceholderText("Click a bar or label to view interpretation details.")
-
-            def _on_pick(event) -> None:
-                artist = getattr(event, "artist", None)
-                artist_gid = artist.get_gid() if artist is not None else None
-                if not isinstance(artist_gid, str) or ":" not in artist_gid:
-                    return
-                chart_key, raw_value = artist_gid.split(":", 1)
-                if chart_key == "sign":
-                    info_panel.setHtml(self._build_sign_popout_info(popout_chart, raw_value))
-                    return
-                if chart_key == "body":
-                    info_panel.setHtml(
-                        self._build_body_popout_info(popout_chart, raw_value)
-                    )
-                    return
-                if chart_key == "house":
-                    try:
-                        house_num = int(raw_value)
-                    except ValueError:
-                        return
-                    info_panel.setHtml(self._build_house_popout_info(popout_chart, house_num))
-
-            popout_canvas.mpl_connect("pick_event", _on_pick)
-        elif title in {"Modes", "Dominant Modes", "Modal Prevalence"}:
-            info_panel.setPlaceholderText(
-                "Click a mode label or pie segment to view interpretation details."
-            )
-
-            def _on_pick(event) -> None:
-                artist = getattr(event, "artist", None)
-                artist_gid = artist.get_gid() if artist is not None else None
-                if not isinstance(artist_gid, str) or ":" not in artist_gid:
-                    return
-                chart_key, raw_value = artist_gid.split(":", 1)
-                if chart_key != "mode":
-                    return
-                info_panel.setHtml(self._build_mode_popout_info(popout_chart, raw_value))
-
-            popout_canvas.mpl_connect("pick_event", _on_pick)
-        elif title in {"Elements", "Dominant Elements"}:
-            info_panel.setPlaceholderText(
-                "Click an element label or pie segment to view interpretation details."
-            )
-
-            def _on_pick(event) -> None:
-                artist = getattr(event, "artist", None)
-                artist_gid = artist.get_gid() if artist is not None else None
-                if not isinstance(artist_gid, str) or ":" not in artist_gid:
-                    return
-                chart_key, raw_value = artist_gid.split(":", 1)
-                if chart_key != "element":
-                    return
-                info_panel.setHtml(self._build_element_popout_info(popout_chart, raw_value))
-
-            popout_canvas.mpl_connect("pick_event", _on_pick)
-        elif title in {"Enneagram", "💭Enneagram"}:
-            info_panel.setPlaceholderText(
-                "Click an Enneagram bar to view type motivation and interpretation details."
-            )
-            _connect_enneagram_popout_pick_handler(
-                popout_canvas,
-                info_panel,
-                build_info_html=lambda enneagram_type: self._build_enneagram_popout_info(
-                    enneagram_type,
-                    chart=popout_chart,
-                ),
-            )
-        elif title == "D&D Statblock":
-            info_panel.setPlaceholderText(
-                "Click a stat bar to view what that D&D ability score suggests."
-            )
-            _connect_dnd_statblock_popout_pick_handler(
-                popout_canvas,
-                info_panel,
-                build_info_html=lambda stat_key: self._build_dnd_statblock_popout_info(
-                    stat_key,
-                    chart=popout_chart,
-                ),
-            )
-        elif title == "Body Dynamics":
-            info_panel.setPlaceholderText(
-                "Click a bar section to view a plain-English score breakdown."
-            )
-
-            def _on_pick(event) -> None:
-                artist = getattr(event, "artist", None)
-                artist_gid = artist.get_gid() if artist is not None else None
-                if not isinstance(artist_gid, str) or not artist_gid.startswith("dynamics:"):
-                    return
-                _, metric, target = artist_gid.split(":", 2)
-                info_panel.setHtml(
-                    self._build_body_dynamics_popout_info(popout_chart, metric, target)
-                )
-
-            popout_canvas.mpl_connect("pick_event", _on_pick)
-        # else:
-        #     layout.addWidget(popout_canvas, 1)
+        _configure_registered_metric_popout_info(
+            self,
+            title,
+            popout_canvas,
+            info_panel,
+            popout_chart,
+        )
 
         dialog.resize(
             max(900, int(figure.get_figwidth() * figure.get_dpi()) + 80),
@@ -26201,47 +26091,12 @@ class MainWindow(QMainWindow):
         _register_popout_close_shortcuts(dialog)
 
     def _build_metric_popout_figure(self, title: str, chart: Chart) -> Figure:
-        size_by_title = {
-            "Signs": (8.5, 4.2),
-            "Bodies": (8.5, 4.2),
-            "Houses": (8.5, 4.2),
-            "Enneagram": (8.5, 4.2),
-            "D&D Statblock": (8.5, 4.2),
-            "Dominant Elements": (8.0, 5.4),
-            "Nakshatra Prevalence": (9.0, 6.6),
-            "Dominant Nakshatras": (9.0, 6.6),
-            "Modes": (8.0, 5.4),
-            "Dominant Modes": (8.0, 5.4),
-            "Modal Prevalence": (8.0, 5.4),
-            "Gender Guesser": (8.0, 4.2),
-            "Body Dynamics": (8.5, 5.0),
-        }
-        figsize = size_by_title.get(title, (8.5, 4.6))
-        figure = Figure(figsize=figsize)
-        figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
-        ax = figure.add_subplot(111)
-        ax.set_facecolor(CHART_THEME_COLORS["background"])
-        if title == "Signs":
-            self._draw_sign_tally(ax, chart)
-        elif title == "Bodies":
-            self._draw_planet_tally(ax, chart)
-        elif title == "Houses":
-            self._draw_house_tally(ax, chart)
-        elif title == "Enneagram":
-            self._draw_enneagram_predictions(ax, chart)
-        elif title == "D&D Statblock":
-            self._draw_dnd_statblock_predictions(ax, chart)
-        elif title in {"Elements", "Dominant Elements"}:
-            self._draw_element_tally(ax, chart)
-        elif title in {"Nakshatra Prevalence", "Dominant Nakshatras"}:
-            self._draw_nakshatra_wordcloud(ax, chart)
-        elif title in {"Modes", "Dominant Modes", "Modal Prevalence"}:
-            self._draw_modal_distribution(ax, chart)
-        elif title == "Gender Guesser":
-            self._draw_gender_guesser(ax, chart)
-        elif title == "Body Dynamics":
-            self._draw_planet_dynamics(ax, chart)
-        return figure
+        return _build_registered_metric_popout_figure(
+            self,
+            title,
+            chart,
+            background_color=CHART_THEME_COLORS["background"],
+        )
 
 
     def _build_nakshatra_popout_info(self, chart: Chart, nakshatra: str) -> str:
