@@ -18,7 +18,7 @@ from typing import Any, Callable
 from matplotlib import font_manager as mpl_font_manager
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
-from PySide6.QtCore import QPoint, QSize, Qt, QTimer
+from PySide6.QtCore import QEvent, QPoint, QSize, Qt, QTimer
 from PySide6.QtWidgets import (
     QDialog,
     QFileDialog,
@@ -31,6 +31,64 @@ from PySide6.QtWidgets import (
     QToolTip,
     QVBoxLayout,
 )
+
+
+class DatabaseAnalyticsPopoutScrollArea(QScrollArea):
+    """Scroll area that keeps popout charts width-bound while preserving vertical scroll."""
+
+    def __init__(self, parent: object | None = None) -> None:
+        super().__init__(parent)
+        self.setWidgetResizable(True)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.setFocusPolicy(Qt.StrongFocus)
+        self.verticalScrollBar().setFocusPolicy(Qt.StrongFocus)
+        self.viewport().installEventFilter(self)
+
+    def setWidget(self, widget: object) -> None:  # noqa: N802 - Qt API
+        super().setWidget(widget)
+        if hasattr(widget, "installEventFilter"):
+            widget.installEventFilter(self)
+        self._sync_chart_width()
+
+    def resizeEvent(self, event: object) -> None:  # noqa: N802 - Qt API
+        super().resizeEvent(event)
+        self._sync_chart_width()
+
+    def eventFilter(self, watched: object, event: object) -> bool:  # noqa: N802 - Qt API
+        event_type = event.type() if hasattr(event, "type") else None
+        if event_type == QEvent.MouseButtonPress:
+            self._focus_vertical_scrollbar()
+        if event_type == QEvent.Wheel:
+            self._focus_vertical_scrollbar()
+            delta = event.pixelDelta().y() if hasattr(event, "pixelDelta") else 0
+            if not delta and hasattr(event, "angleDelta"):
+                delta = event.angleDelta().y()
+            if delta:
+                bar = self.verticalScrollBar()
+                bar.setValue(bar.value() - int(delta))
+                event.accept()
+                return True
+            return False
+        return super().eventFilter(watched, event)
+
+    def wheelEvent(self, event: object) -> None:  # noqa: N802 - Qt API
+        self._focus_vertical_scrollbar()
+        super().wheelEvent(event)
+
+    def _focus_vertical_scrollbar(self) -> None:
+        self.setFocus(Qt.MouseFocusReason)
+        self.verticalScrollBar().setFocus(Qt.MouseFocusReason)
+
+    def _sync_chart_width(self) -> None:
+        widget = self.widget()
+        if widget is None:
+            return
+        viewport_width = max(1, self.viewport().width())
+        current_height = max(1, widget.minimumHeight(), widget.height(), widget.sizeHint().height())
+        widget.setMinimumWidth(1)
+        widget.setMaximumWidth(viewport_width)
+        widget.resize(viewport_width, current_height)
 
 from ephemeraldaddy.data.genpop import (
     INNER_PLANET_SIGN_DISTRIBUTION_AGGREGATED,
@@ -1376,15 +1434,12 @@ class DatabaseAnalyticsChartsMixin:
         layout.setContentsMargins(12, 12, 12, 12)
         dialog.setLayout(layout)
         popout_canvas = FigureCanvas(figure)
-        canvas_width = max(1, int(figure.get_figwidth() * figure.dpi))
         canvas_height = max(1, int(figure.get_figheight() * figure.dpi))
-        popout_canvas.setMinimumSize(QSize(canvas_width, canvas_height))
-        popout_canvas.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        popout_canvas.setMinimumSize(QSize(1, canvas_height))
+        popout_canvas.setMinimumHeight(canvas_height)
+        popout_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
-        chart_scroll = QScrollArea(dialog)
-        chart_scroll.setWidgetResizable(False)
-        chart_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        chart_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        chart_scroll = DatabaseAnalyticsPopoutScrollArea(dialog)
         chart_scroll.setWidget(popout_canvas)
         chart_scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
@@ -1394,6 +1449,9 @@ class DatabaseAnalyticsChartsMixin:
             "Click any bar or label to see a plain-English definition."
         )
         info_panel.setMinimumHeight(150)
+        dialog.installEventFilter(chart_scroll)
+        info_panel.installEventFilter(chart_scroll)
+        info_panel.viewport().installEventFilter(chart_scroll)
         layout.addWidget(chart_scroll, 3)
         layout.addWidget(info_panel, 1)
 
@@ -1622,15 +1680,12 @@ class DatabaseAnalyticsChartsMixin:
         layout.setContentsMargins(12, 12, 12, 12)
         dialog.setLayout(layout)
         popout_canvas = FigureCanvas(figure)
-        canvas_width = max(1, int(figure.get_figwidth() * figure.dpi))
         canvas_height = max(1, int(figure.get_figheight() * figure.dpi))
-        popout_canvas.setMinimumSize(QSize(canvas_width, canvas_height))
-        popout_canvas.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        popout_canvas.setMinimumSize(QSize(1, canvas_height))
+        popout_canvas.setMinimumHeight(canvas_height)
+        popout_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
-        chart_scroll = QScrollArea(dialog)
-        chart_scroll.setWidgetResizable(False)
-        chart_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        chart_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        chart_scroll = DatabaseAnalyticsPopoutScrollArea(dialog)
         chart_scroll.setWidget(popout_canvas)
         chart_scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
@@ -1640,6 +1695,9 @@ class DatabaseAnalyticsChartsMixin:
             "Click any bar or label to see a plain-English definition."
         )
         info_panel.setMinimumHeight(150)
+        dialog.installEventFilter(chart_scroll)
+        info_panel.installEventFilter(chart_scroll)
+        info_panel.viewport().installEventFilter(chart_scroll)
         layout.addWidget(chart_scroll, 3)
         layout.addWidget(info_panel, 1)
 
