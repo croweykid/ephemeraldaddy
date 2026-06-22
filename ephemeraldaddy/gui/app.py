@@ -621,6 +621,7 @@ from ephemeraldaddy.core.db import (
     add_tag_to_charts,
     backup_database,
     restore_database,
+    SOURCE_HYPOTHETICAL,
     append_database,
     check_database_health,
     find_self_tagged_chart,
