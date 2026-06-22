@@ -125,7 +125,7 @@ def show_similar_charts_loading_progress(
     parent: QWidget | None,
     message: str = "Preparing similar chart calculations…",
 ) -> QProgressDialog:
-    progress = QProgressDialog(message, "Stop that!", 0, 0, parent)
+    progress = QProgressDialog(message, "Stop that!", 0, 100, parent)
     progress.setWindowTitle("Similar Charts")
     progress.setWindowModality(Qt.WindowModal)
     progress.setMinimumDuration(0)
@@ -143,12 +143,14 @@ def show_similar_charts_loading_progress(
 def update_similar_charts_loading_progress(
     progress: QProgressDialog | None,
     message: str,
+    percent: int | float | None = None,
 ) -> None:
     if progress is None:
         return
     raise_if_progress_canceled(progress)
-    progress.setLabelText(message)
-    progress.setValue(0)
+    bounded_percent = 0 if percent is None else int(max(0, min(100, round(float(percent)))))
+    progress.setLabelText(f"{message} ({bounded_percent}%)")
+    progress.setValue(bounded_percent)
     QApplication.processEvents(QEventLoop.AllEvents, 50)
     raise_if_progress_canceled(progress)
 

@@ -1549,6 +1549,7 @@ def find_astro_twins(
     algorithm_mode: str = SIMILAR_CHARTS_ALGORITHM_DEFAULT,
     custom_settings: SimilarityCalculatorSettings | None = None,
     should_cancel: Callable[[], bool] | None = None,
+    progress_callback: Callable[[int, int], None] | None = None,
 ) -> list[AstroTwinMatch]:
     target_k = max(1, int(top_k))
     # Keep only k best candidates as we iterate so we avoid sorting all rows.
@@ -1573,6 +1574,8 @@ def find_astro_twins(
         else set()
     )
     candidate_list = list(candidates) if use_database_distinction else candidates
+    candidate_total = len(candidate_list) if isinstance(candidate_list, list) else None
+    collect_all_matches = bool(candidate_total is not None and target_k >= candidate_total)
     distinction_norm_charts = [chart for _chart_id, chart in candidate_list] if use_database_distinction else []
     distinction_profile = None
     if use_database_distinction:
@@ -1583,7 +1586,9 @@ def find_astro_twins(
     if use_all_or_nothing:
         normalized_custom_settings = all_or_nothing_similarity_settings(normalized_custom_settings)
     placement_weighting_mode = normalized_custom_settings.normalized_placement_weighting_mode()
+    processed_count = 0
     for chart_id, candidate in candidate_list:
+        processed_count += 1
         if should_cancel is not None and should_cancel():
             break
         if exclude_chart_id is not None and chart_id == exclude_chart_id:
@@ -1797,11 +1802,20 @@ def find_astro_twins(
             if top3_overlap > 0:
                 destination_heap = relaxed_scored_matches
 
-        if len(destination_heap) < target_k:
+        if collect_all_matches:
+            destination_heap.append((rank_score, int(chart_id), match))
+        elif len(destination_heap) < target_k:
             heapq.heappush(destination_heap, (rank_score, int(chart_id), match))
+            if progress_callback is not None and candidate_total:
+                progress_callback(processed_count, candidate_total)
             continue
-        if rank_score > destination_heap[0][0]:
+        elif rank_score > destination_heap[0][0]:
             heapq.heapreplace(destination_heap, (rank_score, int(chart_id), match))
+        if progress_callback is not None and candidate_total:
+            progress_callback(processed_count, candidate_total)
+
+    if progress_callback is not None and candidate_total:
+        progress_callback(candidate_total, candidate_total)
 
     if least_similar and len(scored_matches) < target_k:
         # Fallback behavior: if strict guardrails produce too few matches,
