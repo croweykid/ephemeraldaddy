@@ -149,6 +149,34 @@ def test_load_chart_keeps_chart_uid_projection_aligned(tmp_path, monkeypatch):
     assert chart.name == "Loadable"
 
 
+def test_load_charts_batches_chart_reconstruction(tmp_path, monkeypatch):
+    db_path = tmp_path / "charts.db"
+    monkeypatch.setattr(db, "DB_DIR", tmp_path)
+    monkeypatch.setattr(db, "DB_PATH", db_path)
+
+    conn = db._get_conn()
+    with conn:
+        first_id = _insert_minimal_chart(
+            conn,
+            chart_uid="BATCHUID0000001",
+            name="First",
+            is_placeholder=True,
+        )
+        second_id = _insert_minimal_chart(
+            conn,
+            chart_uid="BATCHUID0000002",
+            name="Second",
+            is_placeholder=True,
+        )
+    conn.close()
+
+    charts_by_id = db.load_charts([first_id, second_id, first_id])
+
+    assert list(charts_by_id) == [first_id, second_id]
+    assert charts_by_id[first_id].chart_uid == "BATCHUID0000001"
+    assert charts_by_id[second_id].name == "Second"
+
+
 def test_list_charts_projection_stays_aligned(tmp_path, monkeypatch):
     db_path = tmp_path / "charts.db"
     monkeypatch.setattr(db, "DB_DIR", tmp_path)

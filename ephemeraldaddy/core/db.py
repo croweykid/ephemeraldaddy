@@ -3746,16 +3746,7 @@ def get_alternate_chart_uid_groups() -> dict[str, list[str]]:
         conn.close()
 
 
-def load_chart(chart_id: int):
-    """
-    Load a chart from the DB and reconstruct a Chart instance.
-
-    Raises ValueError if no such chart exists.
-    """
-    conn = _get_conn()
-    with conn:
-        _ensure_chart_uids(conn)
-    columns = _table_columns(conn, "charts")
+def _chart_row_projection(columns: set[str]) -> str:
     familiarity_factors_projection = (
         "familiarity_factors"
         if "familiarity_factors" in columns
@@ -3771,9 +3762,8 @@ def load_chart(chart_id: int):
         if "body_dynamics_roles" in columns
         else "NULL AS body_dynamics_roles"
     )
-    cur = conn.execute(
-        f"""
-        SELECT chart_uid, name, alias, from_whence, gender, birth_place, datetime_iso, tz_name, lat, lon,
+    return f"""
+        chart_uid, name, alias, from_whence, gender, birth_place, datetime_iso, tz_name, lat, lon,
                used_utc_fallback, sentiments, relationship_types,
                tags, reminds_me_of, comments, rectification_notes, biography, chart_data_source, alternate_chart_uid,
                positive_sentiment_intensity, negative_sentiment_intensity,
@@ -3787,17 +3777,12 @@ def load_chart(chart_id: int):
                COALESCE(chart_type, source),
                is_placeholder, is_deceased, birth_month, birth_day, birth_year,
                death_month, death_day, death_year, deathtime_unknown, death_hour, death_minute, death_place
-        FROM charts
-        WHERE id = ?
-        """,
-        (chart_id,),
-    )
-    row = cur.fetchone()
-    conn.close()
+    """
 
-    if row is None:
-        raise ValueError(f"No chart with id {chart_id}")
-
+def _chart_from_row(chart_id: int, row):
+    row_values = row
+    if hasattr(row, "keys") and len(row) > 0 and list(row.keys())[0] == "id":
+        row_values = tuple(row)[1:]
     (
         chart_uid,
         name,
@@ -3871,9 +3856,7 @@ def load_chart(chart_id: int):
         death_hour,
         death_minute,
         death_place,
-    ) = row
-
-    from ephemeraldaddy.core.chart import Chart  # avoid circular import
+    ) = row_values
 
     if bool(is_placeholder):
         placeholder = SimpleNamespace()
@@ -4052,6 +4035,52 @@ def load_chart(chart_id: int):
     chart.death_place = death_place or ""
     apply_time_specific_metadata_policy(chart)
     chart.use_birth_time_data = chart_uses_houses(chart)
+    return chart
+
+
+def load_chart_rows_for_ids(chart_ids: Iterable[int]) -> dict[int, sqlite3.Row]:
+    """Load raw chart rows for many chart IDs using one database query."""
+    unique_ids = list(dict.fromkeys(int(chart_id) for chart_id in chart_ids))
+    if not unique_ids:
+        return {}
+    conn = _get_conn()
+    conn.row_factory = sqlite3.Row
+    try:
+        with conn:
+            _ensure_chart_uids(conn)
+        columns = _table_columns(conn, "charts")
+        projection = _chart_row_projection(columns)
+        placeholders = ", ".join("?" for _ in unique_ids)
+        rows = conn.execute(
+            f"""
+            SELECT id, {projection}
+            FROM charts
+            WHERE id IN ({placeholders})
+            """,
+            unique_ids,
+        ).fetchall()
+        return {int(row["id"]): row for row in rows}
+    finally:
+        conn.close()
+
+
+def load_charts(chart_ids: Iterable[int]) -> dict[int, Chart]:
+    """Load many charts with a single SELECT and reconstruct them in memory."""
+    rows_by_id = load_chart_rows_for_ids(chart_ids)
+    return {chart_id: _chart_from_row(chart_id, row) for chart_id, row in rows_by_id.items()}
+
+
+def load_chart(chart_id: int):
+    """
+    Load a chart from the DB and reconstruct a Chart instance.
+
+    Raises ValueError if no such chart exists.
+    """
+    chart_id = int(chart_id)
+    charts = load_charts([chart_id])
+    chart = charts.get(chart_id)
+    if chart is None:
+        raise ValueError(f"No chart with id {chart_id}")
     return chart
 
 def load_dominant_sign_weights(
