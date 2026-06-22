@@ -34,7 +34,7 @@ _AUTO_BACKUP_CREATED = False
 _SCHEMA_READY = False
 _SCHEMA_READY_DB_PATH: Path | None = None
 _SCHEMA_READY_LOCK = threading.Lock()
-_TABLE_COLUMNS_CACHE: dict[tuple[Path, str], set[str]] = {}
+_TABLE_COLUMNS_CACHE: dict[tuple[Path, str, int], set[str]] = {}
 CHART_TYPE_PUBLIC_DB = "public_db"
 CHART_TYPE_PERSONAL = "personal"
 CHART_TYPE_PARASOCIAL = "parasocial"
@@ -286,23 +286,48 @@ def _connection_database_path(conn: sqlite3.Connection) -> Path | None:
         return None
     if row is None or not row[2]:
         return None
-    return Path(str(row[2]))
+    try:
+        return Path(str(row[2])).resolve()
+    except OSError:
+        return Path(str(row[2]))
+
+
+def _active_database_path() -> Path:
+    try:
+        return DB_PATH.resolve()
+    except OSError:
+        return DB_PATH
+
+
+def _connection_schema_version(conn: sqlite3.Connection) -> int | None:
+    try:
+        row = conn.execute("PRAGMA schema_version").fetchone()
+    except sqlite3.Error:
+        return None
+    if row is None:
+        return None
+    try:
+        return int(row[0])
+    except (TypeError, ValueError):
+        return None
 
 
 def _table_columns(conn: sqlite3.Connection, table: str) -> set[str]:
-    """Return table columns, using the process cache for the active DB after startup."""
+    """Return table columns, using a schema-versioned cache for the active DB."""
     connection_path = _connection_database_path(conn)
-    active_path = DB_PATH.resolve() if not DB_PATH.is_absolute() else DB_PATH
+    schema_version = _connection_schema_version(conn)
     if (
         _SCHEMA_READY
         and _SCHEMA_READY_DB_PATH == DB_PATH
         and connection_path is not None
-        and connection_path == active_path
+        and connection_path == _active_database_path()
+        and schema_version is not None
     ):
-        cache_key = (DB_PATH, table)
+        cache_key = (DB_PATH, table, schema_version)
         cached = _TABLE_COLUMNS_CACHE.get(cache_key)
         if cached is not None:
             return set(cached)
+        _invalidate_table_columns_cache(table)
         columns = _table_columns_uncached(conn, table)
         _TABLE_COLUMNS_CACHE[cache_key] = set(columns)
         return columns
@@ -1262,15 +1287,15 @@ def _connect_raw() -> sqlite3.Connection:
     return sqlite3.connect(DB_PATH)
 
 
-def init_db_once() -> None:
+def init_db_once(*, force: bool = False) -> None:
     """Initialize and verify the database schema once per process/DB path."""
     global _AUTO_BACKUP_CREATED, _SCHEMA_READY, _SCHEMA_READY_DB_PATH
 
-    if _SCHEMA_READY and _SCHEMA_READY_DB_PATH == DB_PATH:
+    if not force and _SCHEMA_READY and _SCHEMA_READY_DB_PATH == DB_PATH:
         return
 
     with _SCHEMA_READY_LOCK:
-        if _SCHEMA_READY and _SCHEMA_READY_DB_PATH == DB_PATH:
+        if not force and _SCHEMA_READY and _SCHEMA_READY_DB_PATH == DB_PATH:
             return
         _SCHEMA_READY = False
         _SCHEMA_READY_DB_PATH = None
@@ -1284,8 +1309,11 @@ def init_db_once() -> None:
                 _AUTO_BACKUP_CREATED = True
             _SCHEMA_READY_DB_PATH = DB_PATH
             _SCHEMA_READY = True
-            if _charts_table_exists(conn):
-                _TABLE_COLUMNS_CACHE[(DB_PATH, "charts")] = _table_columns_uncached(conn, "charts")
+            schema_version = _connection_schema_version(conn)
+            if schema_version is not None and _charts_table_exists(conn):
+                _TABLE_COLUMNS_CACHE[(DB_PATH, "charts", schema_version)] = (
+                    _table_columns_uncached(conn, "charts")
+                )
         finally:
             conn.close()
 
@@ -1295,19 +1323,21 @@ def ensure_db_ready_once() -> None:
     init_db_once()
 
 
-def _get_conn(*, skip_schema: bool = False) -> sqlite3.Connection:
-    """Open a SQLite connection, verifying schema once per process by default."""
+def refresh_db_schema_cache() -> None:
+    """Force schema verification and refresh process-local DB metadata caches."""
+    init_db_once(force=True)
+
+
+def _get_conn() -> sqlite3.Connection:
+    """Open a SQLite connection after one-time process schema verification."""
     if not _SCHEMA_READY or _SCHEMA_READY_DB_PATH != DB_PATH:
         init_db_once()
-    elif not skip_schema:
-        # Schema was already checked for this process and database path.
-        pass
     return _connect_raw()
 
 
 def _connect_readonly() -> sqlite3.Connection:
     """Open a cheaper connection for read helpers after startup initialization."""
-    return _get_conn(skip_schema=True)
+    return _get_conn()
 
 
 def _serialize_sentiments(sentiments: Optional[list[str]]) -> Optional[str]:

@@ -170,3 +170,42 @@ def test_list_charts_projection_stays_aligned(tmp_path, monkeypatch):
     assert rows[0][0] == chart_id
     assert rows[0][1] == "Listed"
     assert rows[0][15] == 1
+
+
+def test_table_column_cache_refreshes_when_active_schema_changes(tmp_path, monkeypatch):
+    db_path = tmp_path / "charts.db"
+    monkeypatch.setattr(db, "DB_DIR", tmp_path)
+    monkeypatch.setattr(db, "DB_PATH", db_path)
+
+    db.ensure_db_ready_once()
+    conn = db._get_conn()
+    try:
+        assert "cache_probe" not in db._table_columns(conn, "charts")
+        conn.execute("ALTER TABLE charts ADD COLUMN cache_probe TEXT")
+        conn.commit()
+        assert "cache_probe" in db._table_columns(conn, "charts")
+    finally:
+        conn.close()
+
+
+def test_table_column_cache_does_not_leak_to_external_database(tmp_path, monkeypatch):
+    db_path = tmp_path / "charts.db"
+    source_path = tmp_path / "source.db"
+    monkeypatch.setattr(db, "DB_DIR", tmp_path)
+    monkeypatch.setattr(db, "DB_PATH", db_path)
+
+    db.ensure_db_ready_once()
+    active_conn = db._get_conn()
+    try:
+        assert "chart_uid" in db._table_columns(active_conn, "charts")
+    finally:
+        active_conn.close()
+
+    source_conn = sqlite3.connect(source_path)
+    try:
+        source_conn.execute("CREATE TABLE charts (id INTEGER PRIMARY KEY, external_only TEXT)")
+        source_columns = db._table_columns(source_conn, "charts")
+    finally:
+        source_conn.close()
+
+    assert source_columns == {"id", "external_only"}
