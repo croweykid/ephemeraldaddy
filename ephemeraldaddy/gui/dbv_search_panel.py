@@ -270,7 +270,7 @@ def build_dbv_search_panel(window) -> "QWidget":
         ) if expanded else None
     )
     tags_search_row.addWidget(window.search_tags_list_widget)
-    layout.addLayout(tags_search_row)
+    # Tags controls are added later inside the Demographics > Tags subsection.
 
     divider = QFrame()
     divider.setFixedHeight(4)
@@ -330,12 +330,101 @@ def build_dbv_search_panel(window) -> "QWidget":
         section_layout.addWidget(content)
         return section, content_layout
 
+    settings = getattr(window, "_settings", None)
+
+    # Search: Chart Type stays visible above the categorized collapsible filters.
+    chart_type_section = QWidget()
+    chart_type_section_layout = QVBoxLayout()
+    chart_type_section_layout.setContentsMargins(0, 0, 0, 0)
+    chart_type_section.setLayout(chart_type_section_layout)
+    chart_type_header = QLabel("Chart Type")
+    chart_type_header.setStyleSheet(DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE)
+    chart_type_section_layout.addWidget(chart_type_header)
+
+    chart_type_content = QWidget()
+    chart_type_group_layout = QVBoxLayout()
+    chart_type_group_layout.setContentsMargins(8, 6, 8, 6)
+    chart_type_content.setLayout(chart_type_group_layout)
+    chart_type_content.setStyleSheet(COLLAPSIBLE_SECTION_CONTENT_STYLE)
+
+    chart_type_layout = QGridLayout()
+    chart_type_layout.setContentsMargins(0, 0, 0, 0)
+    window.chart_type_filter_checkboxes = {}
+    chart_type_rows = (len(SOURCE_OPTIONS) + 1) // 2
+    for idx, (source_label, source_value) in enumerate(SOURCE_OPTIONS):
+        checkbox = QuadStateSlider(source_label)
+        checkbox.modeChanged.connect(window._on_filter_changed)
+        window.chart_type_filter_checkboxes[source_value] = checkbox
+        row = idx % chart_type_rows
+        col = idx // chart_type_rows
+        chart_type_layout.addWidget(checkbox, row, col)
+    chart_type_group_layout.addLayout(chart_type_layout)
+
+    chart_type_divider = QFrame()
+    chart_type_divider.setFrameShape(QFrame.HLine)
+    chart_type_divider.setStyleSheet("color: #2f2f2f;")
+    chart_type_group_layout.addWidget(chart_type_divider)
+
+    incomplete_birthdate_row = QHBoxLayout()
+    window.incomplete_birthdate_checkbox = QuadStateSlider("incomplete birthdate (placeholder chart)")
+    if settings is not None and bool(
+        settings.value(
+            app_module.SETTINGS_KEY_HIDE_PLACEHOLDER_CHARTS_FILTER,
+            0,
+            type=int,
+        )
+    ):
+        window.incomplete_birthdate_checkbox.setMode(QuadStateSlider.MODE_FALSE)
+    window.incomplete_birthdate_checkbox.modeChanged.connect(window._on_incomplete_birthdate_filter_changed)
+    incomplete_birthdate_row.addWidget(window.incomplete_birthdate_checkbox)
+    incomplete_birthdate_row.addStretch(1)
+    chart_type_group_layout.addLayout(incomplete_birthdate_row)
+
+    window.hidden_charts_filter_row = QWidget()
+    hidden_charts_filter_layout = QHBoxLayout()
+    hidden_charts_filter_layout.setContentsMargins(0, 0, 0, 0)
+    window.hidden_charts_filter_row.setLayout(hidden_charts_filter_layout)
+    window.hidden_charts_checkbox = QuadStateSlider("hidden charts")
+    if settings is not None:
+        hidden_charts_mode = settings.value(
+            app_module.SETTINGS_KEY_HIDDEN_CHARTS_FILTER_MODE,
+            QuadStateSlider.MODE_EMPTY,
+            type=int,
+        )
+        if hidden_charts_mode in {
+            QuadStateSlider.MODE_EMPTY,
+            QuadStateSlider.MODE_TRUE,
+            QuadStateSlider.MODE_FALSE,
+        }:
+            window.hidden_charts_checkbox.setMode(int(hidden_charts_mode))
+    window.hidden_charts_checkbox.modeChanged.connect(window._on_filter_changed)
+    hidden_charts_filter_layout.addWidget(window.hidden_charts_checkbox)
+    hidden_charts_filter_layout.addStretch(1)
+    window.hidden_charts_filter_row.setVisible(
+        bool(getattr(window, "_show_hidden_charts", False))
+    )
+    chart_type_group_layout.addWidget(window.hidden_charts_filter_row)
+
+    chart_type_section_layout.addWidget(chart_type_content)
+    layout.addWidget(chart_type_section)
+
+
+    astro_category_section, astro_category_layout = add_collapsible_section("Astro")
+    layout.addWidget(astro_category_section)
+    human_design_category_section, human_design_category_layout = add_collapsible_section("Human Design")
+    layout.addWidget(human_design_category_section)
+    interactions_category_section, interactions_category_layout = add_collapsible_section("Interactions")
+    layout.addWidget(interactions_category_section)
+    predictions_category_section, predictions_category_layout = add_collapsible_section("Predictions")
+    layout.addWidget(predictions_category_section)
+    demographics_category_section, demographics_category_layout = add_collapsible_section("Demographics")
+    layout.addWidget(demographics_category_section)
+
     #Search: data completeness & accuracy
     birth_info_status_section, birth_info_status_layout = add_collapsible_section(
         "🧩 Data Completeness && Accuracy" #data icon contenders: 🧮 🗄️ 🪪 𖦏 🔢 🧩 ℹ️
     )
 
-    settings = getattr(window, "_settings", None)
     birth_status_mode_row = QHBoxLayout()
     birth_status_mode_row.addWidget(QLabel("🐣Time:"))
     birth_status_mode_row.addStretch(1)
@@ -388,7 +477,7 @@ def build_dbv_search_panel(window) -> "QWidget":
         col = idx // rodden_rows
         rodden_layout.addWidget(checkbox, row, col)
     birth_info_status_layout.addLayout(rodden_layout)
-    layout.addWidget(birth_info_status_section)
+    astro_category_layout.addWidget(birth_info_status_section)
 
     #Search: Astrological Positions section
     bodies_section, bodies_group_layout = add_collapsible_section("🪐Positions") #astrological positions
@@ -454,7 +543,7 @@ def build_dbv_search_panel(window) -> "QWidget":
         })
         bodies_layout.addRow(filter_row)
 
-    layout.addWidget(bodies_section)
+    astro_category_layout.addWidget(bodies_section)
 
     #Search: Aspects section
     aspect_section, aspect_group_layout = add_collapsible_section("🪐Aspect") #astrological aspect
@@ -524,7 +613,7 @@ def build_dbv_search_panel(window) -> "QWidget":
         )
         aspect_layout.addRow(aspect_row)
 
-    layout.addWidget(aspect_section)
+    astro_category_layout.addWidget(aspect_section)
 
     #Search: Sign section
     dominant_section, dominant_group_layout = add_collapsible_section(
@@ -586,7 +675,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     dominant_layout.addRow(subordinate_sign_header)
     add_sign_filter_rows(window._subordinate_sign_filters)
 
-    layout.addWidget(dominant_section)
+    astro_category_layout.addWidget(dominant_section)
 
     #Search: Body section
     dominant_planet_section, dominant_planet_group_layout = add_collapsible_section(
@@ -649,7 +738,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     dominant_planet_layout.addRow(subordinate_bodies_header)
     add_body_filter_rows(window._subordinate_planet_filters)
 
-    layout.addWidget(dominant_planet_section)
+    astro_category_layout.addWidget(dominant_planet_section)
 
     #Search: Nakshatra section
     dominant_nakshatra_section, dominant_nakshatra_group_layout = add_collapsible_section(
@@ -710,15 +799,18 @@ def build_dbv_search_panel(window) -> "QWidget":
     dominant_nakshatra_layout.addRow(subordinate_nakshatras_header)
     add_nakshatra_filter_rows(window._subordinate_nakshatra_filters)
 
-    layout.addWidget(dominant_nakshatra_section)
+    astro_category_layout.addWidget(dominant_nakshatra_section)
 
     #Search: Dominant Elements section
     dominant_element_section, dominant_element_group_layout = add_collapsible_section(
-        "🪐Dominant Elements" #dominatn astrological elements
+        "🪐Elements" #dominatn astrological elements
     )
     dominant_element_layout = QFormLayout()
     dominant_element_layout.setLabelAlignment(Qt.AlignLeft)
     dominant_element_group_layout.addLayout(dominant_element_layout)
+    dominant_element_header = QLabel("Dominant Element")
+    dominant_element_header.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+    dominant_element_layout.addRow(dominant_element_header)
 
     for _ in range(3):
         dominant_element_row = QWidget()
@@ -760,16 +852,19 @@ def build_dbv_search_panel(window) -> "QWidget":
         })
         dominant_element_layout.addRow(dominant_element_row)
 
-    layout.addWidget(dominant_element_section)
+    astro_category_layout.addWidget(dominant_element_section)
 
     #Search: Dominant Mode section
     dominant_mode_section, dominant_mode_group_layout = add_collapsible_section(
-        "🪐Dominant Mode" #dominant astrological mode
+        "🪐Modes" #dominant astrological mode
     )
 
     dominant_mode_layout = QFormLayout()
     dominant_mode_layout.setLabelAlignment(Qt.AlignLeft)
     dominant_mode_group_layout.addLayout(dominant_mode_layout)
+    dominant_mode_header = QLabel("Dominant Mode")
+    dominant_mode_header.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+    dominant_mode_layout.addRow(dominant_mode_header)
 
     dominant_mode_row = QWidget()
     dominant_mode_row_layout = QHBoxLayout()
@@ -810,7 +905,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     })
     dominant_mode_layout.addRow(dominant_mode_row)
 
-    layout.addWidget(dominant_mode_section)
+    astro_category_layout.addWidget(dominant_mode_section)
 
     #Search: Body Dynamics section
     body_dynamics_section, body_dynamics_group_layout = add_collapsible_section(
@@ -869,7 +964,7 @@ def build_dbv_search_panel(window) -> "QWidget":
         })
         body_dynamics_layout.addRow(body_dynamics_row)
 
-    layout.addWidget(body_dynamics_section)
+    astro_category_layout.addWidget(body_dynamics_section)
 
     # Search: Decans section
     decan_section, decan_group_layout = add_collapsible_section("🪐Decans")
@@ -905,7 +1000,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     window._decan_sign_filter_combo = decan_sign_combo
     window._decan_number_filter_combo = decan_number_combo
     decan_layout.addRow(decan_row)
-    layout.addWidget(decan_section)
+    astro_category_layout.addWidget(decan_section)
 
     #Search: Isolated Factors section
     isolated_factors_section, isolated_factors_group_layout = add_collapsible_section(
@@ -957,7 +1052,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     isolated_sign_row.addWidget(window._isolated_dominant_sign_filter_combo, 1)
     isolated_factors_group_layout.addLayout(isolated_sign_row)
 
-    layout.addWidget(isolated_factors_section)
+    astro_category_layout.addWidget(isolated_factors_section)
 
     #Search: Human Design section
     human_design_section, human_design_group_layout = add_collapsible_section("🪐Human Design")
@@ -1072,7 +1167,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     hd_defined_centers_row.addWidget(window._human_design_defined_center_filter_and)
     hd_defined_centers_row.addWidget(window._human_design_defined_center_filter_or)
     human_design_group_layout.addLayout(hd_defined_centers_row)
-    layout.addWidget(human_design_section)
+    human_design_category_layout.addWidget(human_design_section)
 
     #Search: year first encountered
     year_first_encountered_section, year_first_encountered_group_layout = add_collapsible_section(
@@ -1109,7 +1204,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     year_first_encountered_blank_row.addWidget(window._year_first_encountered_blank_checkbox)
     year_first_encountered_blank_row.addStretch(1)
     year_first_encountered_group_layout.addLayout(year_first_encountered_blank_row)
-    layout.addWidget(year_first_encountered_section)
+    interactions_category_layout.addWidget(year_first_encountered_section)
 
     sentiment_section, sentiment_group_layout = add_collapsible_section("💭Sentiment")
 
@@ -1200,7 +1295,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     familiarity_row.addStretch(1)
     sentiment_group_layout.addLayout(familiarity_row)
 
-    layout.addWidget(sentiment_section)
+    interactions_category_layout.addWidget(sentiment_section)
 
     #Search: Alignment section
     alignment_section, alignment_group_layout = add_collapsible_section("💭Alignment")
@@ -1227,7 +1322,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     window._alignment_score_blank_checkbox = QCheckBox("no alignment assigned")
     window._alignment_score_blank_checkbox.stateChanged.connect(window._on_filter_changed)
     alignment_group_layout.addWidget(window._alignment_score_blank_checkbox)
-    layout.addWidget(alignment_section)
+    interactions_category_layout.addWidget(alignment_section)
 
     #Search: relationship types section
     relationship_section, relationship_group_layout = add_collapsible_section(
@@ -1260,7 +1355,7 @@ def build_dbv_search_panel(window) -> "QWidget":
         col = idx // relationship_rows
         relationship_layout.addWidget(checkbox, row, col)
     relationship_group_layout.addLayout(relationship_layout)
-    layout.addWidget(relationship_section)
+    interactions_category_layout.addWidget(relationship_section)
 
     #Search: D&D section
     dnd_species_section, dnd_species_group_layout = add_collapsible_section(
@@ -1324,20 +1419,9 @@ def build_dbv_search_panel(window) -> "QWidget":
         col = idx // 3
         dnd_stat_grid.addLayout(row_layout, row, col)
     dnd_species_group_layout.addLayout(dnd_stat_grid)
-    layout.addWidget(dnd_species_section)
+    predictions_category_layout.addWidget(dnd_species_section)
 
-    #Search: Mortality section
-    mortality_section, mortality_section_layout = add_collapsible_section("Mortality")
-    mortality_row = QHBoxLayout()
-    window.living_checkbox = QuadStateSlider("living")
-    window.living_checkbox.modeChanged.connect(window._on_filter_changed)
-    mortality_row.addWidget(window.living_checkbox)
-    mortality_row.addStretch(1)
-    mortality_section_layout.addLayout(mortality_row)
-
-    layout.addWidget(mortality_section)
-
-    timing_section, timing_section_layout = add_collapsible_section("Timing")
+    timing_section, timing_section_layout = add_collapsible_section("Lifespan")
 
     def add_birthdate_bound_row(
         row_label: str,
@@ -1413,7 +1497,20 @@ def build_dbv_search_panel(window) -> "QWidget":
         col = idx // generation_rows
         generation_layout.addWidget(checkbox, row, col)
     timing_section_layout.addLayout(generation_layout)
-    layout.addWidget(timing_section)
+
+    lifespan_divider = QFrame()
+    lifespan_divider.setFrameShape(QFrame.HLine)
+    lifespan_divider.setStyleSheet("color: #2f2f2f;")
+    timing_section_layout.addWidget(lifespan_divider)
+    mortality_header = QLabel("Mortality")
+    mortality_header.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+    timing_section_layout.addWidget(mortality_header)
+    mortality_row = QHBoxLayout()
+    window.living_checkbox = QuadStateSlider("living")
+    window.living_checkbox.modeChanged.connect(window._on_filter_changed)
+    mortality_row.addWidget(window.living_checkbox)
+    mortality_row.addStretch(1)
+    timing_section_layout.addLayout(mortality_row)
 
     #Search: gender section
     gender_section, gender_group_layout = add_collapsible_section("Gender")
@@ -1456,10 +1553,9 @@ def build_dbv_search_panel(window) -> "QWidget":
     gender_guessed_layout.addWidget(window.gender_guessed_filter_combo)
     gender_group_layout.addLayout(gender_guessed_layout)
 
-    layout.addWidget(gender_section)
 
     #Search: Locations section
-    locations_section, locations_group_layout = add_collapsible_section("Locations")
+    locations_section, locations_group_layout = add_collapsible_section("Location")
 
     country_row = QHBoxLayout()
     country_row.addWidget(QLabel("Country"))
@@ -1487,7 +1583,6 @@ def build_dbv_search_panel(window) -> "QWidget":
     window._search_location_state_input.returnPressed.connect(window._on_filter_changed)
     state_row.addWidget(window._search_location_state_input, 1)
     locations_group_layout.addLayout(state_row)
-    layout.addWidget(locations_section)
 
     predictability_section, predictability_group_layout = add_collapsible_section(
         "💭Predictability"
@@ -1510,7 +1605,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     window._matched_expectations_blank_checkbox = QCheckBox("include blank")
     window._matched_expectations_blank_checkbox.toggled.connect(window._on_filter_changed)
     predictability_group_layout.addWidget(window._matched_expectations_blank_checkbox)
-    layout.addWidget(predictability_section)
+    predictions_category_layout.addWidget(predictability_section)
 
     #Search: Notes section
     notes_section, notes_group_layout = add_collapsible_section("Notes")
@@ -1555,7 +1650,15 @@ def build_dbv_search_panel(window) -> "QWidget":
     source_row.addWidget(window._notes_source_filter_input, 1)
     notes_group_layout.addLayout(source_row)
 
-    layout.addWidget(notes_section)
+    interactions_category_layout.addWidget(notes_section)
+
+    demographics_category_layout.addWidget(locations_section)
+    demographics_category_layout.addWidget(gender_section)
+    demographics_category_layout.addWidget(timing_section)
+
+    tags_section, tags_group_layout = add_collapsible_section("Tags")
+    tags_group_layout.addLayout(tags_search_row)
+    demographics_category_layout.addWidget(tags_section)
 
     button_row = QHBoxLayout()
     button_row.addStretch(1)
@@ -1563,82 +1666,6 @@ def build_dbv_search_panel(window) -> "QWidget":
     clear_button.clicked.connect(lambda: window._clear_filters())
     button_row.addWidget(clear_button)
     layout.addLayout(button_row)
-
-    # Search: chart type section stays visible and is intentionally below Clear filters.
-    chart_type_section = QWidget()
-    chart_type_section_layout = QVBoxLayout()
-    chart_type_section_layout.setContentsMargins(0, 0, 0, 0)
-    chart_type_section.setLayout(chart_type_section_layout)
-    chart_type_header = QLabel("Chart Type")
-    chart_type_header.setStyleSheet(DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE)
-    chart_type_section_layout.addWidget(chart_type_header)
-
-    chart_type_content = QWidget()
-    chart_type_group_layout = QVBoxLayout()
-    chart_type_group_layout.setContentsMargins(8, 6, 8, 6)
-    chart_type_content.setLayout(chart_type_group_layout)
-    chart_type_content.setStyleSheet(COLLAPSIBLE_SECTION_CONTENT_STYLE)
-
-    chart_type_layout = QGridLayout()
-    chart_type_layout.setContentsMargins(0, 0, 0, 0)
-    window.chart_type_filter_checkboxes = {}
-    chart_type_rows = (len(SOURCE_OPTIONS) + 1) // 2
-    for idx, (source_label, source_value) in enumerate(SOURCE_OPTIONS):
-        checkbox = QuadStateSlider(source_label)
-        checkbox.modeChanged.connect(window._on_filter_changed)
-        window.chart_type_filter_checkboxes[source_value] = checkbox
-        row = idx % chart_type_rows
-        col = idx // chart_type_rows
-        chart_type_layout.addWidget(checkbox, row, col)
-    chart_type_group_layout.addLayout(chart_type_layout)
-
-    chart_type_divider = QFrame()
-    chart_type_divider.setFrameShape(QFrame.HLine)
-    chart_type_divider.setStyleSheet("color: #2f2f2f;")
-    chart_type_group_layout.addWidget(chart_type_divider)
-
-    incomplete_birthdate_row = QHBoxLayout()
-    window.incomplete_birthdate_checkbox = QuadStateSlider("incomplete birthdate (placeholder chart)")
-    if settings is not None and bool(
-        settings.value(
-            app_module.SETTINGS_KEY_HIDE_PLACEHOLDER_CHARTS_FILTER,
-            0,
-            type=int,
-        )
-    ):
-        window.incomplete_birthdate_checkbox.setMode(QuadStateSlider.MODE_FALSE)
-    window.incomplete_birthdate_checkbox.modeChanged.connect(window._on_incomplete_birthdate_filter_changed)
-    incomplete_birthdate_row.addWidget(window.incomplete_birthdate_checkbox)
-    incomplete_birthdate_row.addStretch(1)
-    chart_type_group_layout.addLayout(incomplete_birthdate_row)
-
-    window.hidden_charts_filter_row = QWidget()
-    hidden_charts_filter_layout = QHBoxLayout()
-    hidden_charts_filter_layout.setContentsMargins(0, 0, 0, 0)
-    window.hidden_charts_filter_row.setLayout(hidden_charts_filter_layout)
-    window.hidden_charts_checkbox = QuadStateSlider("hidden charts")
-    if settings is not None:
-        hidden_charts_mode = settings.value(
-            app_module.SETTINGS_KEY_HIDDEN_CHARTS_FILTER_MODE,
-            QuadStateSlider.MODE_EMPTY,
-            type=int,
-        )
-        if hidden_charts_mode in {
-            QuadStateSlider.MODE_EMPTY,
-            QuadStateSlider.MODE_TRUE,
-            QuadStateSlider.MODE_FALSE,
-        }:
-            window.hidden_charts_checkbox.setMode(int(hidden_charts_mode))
-    window.hidden_charts_checkbox.modeChanged.connect(window._on_filter_changed)
-    hidden_charts_filter_layout.addWidget(window.hidden_charts_checkbox)
-    hidden_charts_filter_layout.addStretch(1)
-    window.hidden_charts_filter_row.setVisible(
-        bool(getattr(window, "_show_hidden_charts", False))
-    )
-    chart_type_group_layout.addWidget(window.hidden_charts_filter_row)
-
-    chart_type_section_layout.addWidget(chart_type_content)
-    layout.addWidget(chart_type_section)
 
     layout.addStretch(1)
     return panel
