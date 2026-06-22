@@ -6,6 +6,7 @@ import json
 import csv
 import shutil
 import sqlite3
+import threading
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -30,6 +31,10 @@ BACKUP_FILENAME_PREFIX = "ephemeraldaddy_dbbackup_"
 BACKUP_FILENAME_SUFFIX = ".db"
 MAX_AUTO_BACKUPS = 10
 _AUTO_BACKUP_CREATED = False
+_SCHEMA_READY = False
+_SCHEMA_READY_DB_PATH: Path | None = None
+_SCHEMA_READY_LOCK = threading.Lock()
+_TABLE_COLUMNS_CACHE: dict[tuple[Path, str], set[str]] = {}
 CHART_TYPE_PUBLIC_DB = "public_db"
 CHART_TYPE_PERSONAL = "personal"
 CHART_TYPE_PARASOCIAL = "parasocial"
@@ -270,8 +275,47 @@ DEFAULT_SENTIMENT_RENAMES: dict[str, str] = {
 }
 
 
-def _table_columns(conn: sqlite3.Connection, table: str) -> set[str]:
+def _table_columns_uncached(conn: sqlite3.Connection, table: str) -> set[str]:
     return {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
+
+
+def _connection_database_path(conn: sqlite3.Connection) -> Path | None:
+    try:
+        row = conn.execute("PRAGMA database_list").fetchone()
+    except sqlite3.Error:
+        return None
+    if row is None or not row[2]:
+        return None
+    return Path(str(row[2]))
+
+
+def _table_columns(conn: sqlite3.Connection, table: str) -> set[str]:
+    """Return table columns, using the process cache for the active DB after startup."""
+    connection_path = _connection_database_path(conn)
+    active_path = DB_PATH.resolve() if not DB_PATH.is_absolute() else DB_PATH
+    if (
+        _SCHEMA_READY
+        and _SCHEMA_READY_DB_PATH == DB_PATH
+        and connection_path is not None
+        and connection_path == active_path
+    ):
+        cache_key = (DB_PATH, table)
+        cached = _TABLE_COLUMNS_CACHE.get(cache_key)
+        if cached is not None:
+            return set(cached)
+        columns = _table_columns_uncached(conn, table)
+        _TABLE_COLUMNS_CACHE[cache_key] = set(columns)
+        return columns
+    return _table_columns_uncached(conn, table)
+
+
+def _invalidate_table_columns_cache(table: str | None = None) -> None:
+    if table is None:
+        _TABLE_COLUMNS_CACHE.clear()
+        return
+    for cache_key in list(_TABLE_COLUMNS_CACHE):
+        if cache_key[1] == table:
+            _TABLE_COLUMNS_CACHE.pop(cache_key, None)
 
 
 def _charts_table_exists(conn: sqlite3.Connection) -> bool:
@@ -1213,18 +1257,57 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
         conn.execute("PRAGMA user_version = 16")
 
 
-def _get_conn() -> sqlite3.Connection:
-    """Open a SQLite connection and ensure the schema exists."""
-    global _AUTO_BACKUP_CREATED
-
+def _connect_raw() -> sqlite3.Connection:
     DB_DIR.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
-    _ensure_schema(conn)
-    if not _AUTO_BACKUP_CREATED:
-        conn.commit()
-        backup_database()
-        _AUTO_BACKUP_CREATED = True
-    return conn
+    return sqlite3.connect(DB_PATH)
+
+
+def init_db_once() -> None:
+    """Initialize and verify the database schema once per process/DB path."""
+    global _AUTO_BACKUP_CREATED, _SCHEMA_READY, _SCHEMA_READY_DB_PATH
+
+    if _SCHEMA_READY and _SCHEMA_READY_DB_PATH == DB_PATH:
+        return
+
+    with _SCHEMA_READY_LOCK:
+        if _SCHEMA_READY and _SCHEMA_READY_DB_PATH == DB_PATH:
+            return
+        _SCHEMA_READY = False
+        _SCHEMA_READY_DB_PATH = None
+        _invalidate_table_columns_cache()
+        conn = _connect_raw()
+        try:
+            _ensure_schema(conn)
+            conn.commit()
+            if not _AUTO_BACKUP_CREATED:
+                backup_database()
+                _AUTO_BACKUP_CREATED = True
+            _SCHEMA_READY_DB_PATH = DB_PATH
+            _SCHEMA_READY = True
+            if _charts_table_exists(conn):
+                _TABLE_COLUMNS_CACHE[(DB_PATH, "charts")] = _table_columns_uncached(conn, "charts")
+        finally:
+            conn.close()
+
+
+def ensure_db_ready_once() -> None:
+    """Compatibility alias for explicit startup database initialization."""
+    init_db_once()
+
+
+def _get_conn(*, skip_schema: bool = False) -> sqlite3.Connection:
+    """Open a SQLite connection, verifying schema once per process by default."""
+    if not _SCHEMA_READY or _SCHEMA_READY_DB_PATH != DB_PATH:
+        init_db_once()
+    elif not skip_schema:
+        # Schema was already checked for this process and database path.
+        pass
+    return _connect_raw()
+
+
+def _connect_readonly() -> sqlite3.Connection:
+    """Open a cheaper connection for read helpers after startup initialization."""
+    return _get_conn(skip_schema=True)
 
 
 def _serialize_sentiments(sentiments: Optional[list[str]]) -> Optional[str]:
@@ -2265,11 +2348,15 @@ def backup_database(destination: Optional[Path] = None) -> Path:
 
 def restore_database(source: Path) -> None:
     """Restore the database from a backup file."""
+    global _SCHEMA_READY, _SCHEMA_READY_DB_PATH
     source = Path(source)
     if not source.exists():
         raise FileNotFoundError(f"Backup file not found: {source}")
     DB_DIR.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source, DB_PATH)
+    _SCHEMA_READY = False
+    _SCHEMA_READY_DB_PATH = None
+    _invalidate_table_columns_cache()
 
 
 def append_database(source: Path) -> dict[str, Any]:
@@ -3176,7 +3263,7 @@ def list_charts() -> List[
     social_score, chart_type, is_placeholder, is_deceased,
     birth_month, birth_day, birth_year, retcon_hour, retcon_minute)
     """
-    conn = _get_conn()
+    conn = _connect_readonly()
     conn.row_factory = sqlite3.Row
     cur = conn.execute(
         """
@@ -3509,7 +3596,7 @@ def load_chart(chart_id: int):
 
     Raises ValueError if no such chart exists.
     """
-    conn = _get_conn()
+    conn = _connect_readonly()
     columns = _table_columns(conn, "charts")
     familiarity_factors_projection = (
         "familiarity_factors"
