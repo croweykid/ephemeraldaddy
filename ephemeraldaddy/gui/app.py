@@ -25060,6 +25060,11 @@ class MainWindow(QMainWindow):
         )
         performed_full_recompute = False
         if cached_payload is not None and not changed_chart_ids and not deleted_chart_ids:
+            # Exact same subject/settings/database state within this app session:
+            # reuse the just-computed rankings instead of showing the expensive
+            # progress dialog and recalculating both Top/Bottom lists.
+            self._similar_charts_popout_last_cache_status = "hit"
+            logger.debug("Similar Charts popout cache hit for subject_chart_id=%s", subject_chart_id)
             most_similar_matches = self._refresh_similar_charts_match_display_names(
                 list(cached_payload.get("most_similar_matches") or []),
                 chart_names_by_id=chart_names_by_id,
@@ -25070,6 +25075,12 @@ class MainWindow(QMainWindow):
             )
             least_similar_matches.sort(key=lambda match: (float(match.score), int(match.chart_id)))
         elif incremental_refresh_supported:
+            self._similar_charts_popout_last_cache_status = "incremental-refresh"
+            logger.debug(
+                "Similar Charts popout cache incrementally refreshing %s changed rows for subject_chart_id=%s",
+                len(changed_chart_ids),
+                subject_chart_id,
+            )
             most_similar_matches = self._refresh_similar_charts_match_display_names(
                 [
                     match
@@ -25128,6 +25139,14 @@ class MainWindow(QMainWindow):
                 row_signatures=row_signatures,
             )
         else:
+            self._similar_charts_popout_last_cache_status = "miss"
+            logger.debug(
+                "Similar Charts popout cache miss for subject_chart_id=%s (cached=%s changed=%s deleted=%s)",
+                subject_chart_id,
+                cached_payload is not None,
+                len(changed_chart_ids),
+                len(deleted_chart_ids),
+            )
             performed_full_recompute = True
             progress_parent = (
                 requester if isinstance(requester, QWidget) and requester.isVisible() else None
