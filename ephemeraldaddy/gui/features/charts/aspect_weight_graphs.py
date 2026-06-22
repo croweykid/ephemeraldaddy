@@ -86,6 +86,18 @@ def collect_aspect_category_totals(
     return category_totals
 
 
+def _completion_bar_color(completion_ratio: float) -> str:
+    """Return a dark-red-to-bright-green color for a 0..1 completion ratio."""
+    ratio = min(1.0, max(0.0, float(completion_ratio or 0.0)))
+    red = (92, 18, 18)
+    green = (60, 225, 72)
+    channel_values = tuple(
+        int(round(start + ((end - start) * ratio)))
+        for start, end in zip(red, green)
+    )
+    return "#{:02x}{:02x}{:02x}".format(*channel_values)
+
+
 def draw_popout_aspect_distribution_chart(
     analytics_ax: Any,
     *,
@@ -317,6 +329,7 @@ def build_popout_left_panel(
                 )
 
                 row_layouts: list[tuple[float, dict[str, Any], list[int], set[int], int]] = []
+                section_bar_layouts: list[tuple[float, dict[str, Any], int, int]] = []
                 y_tick_positions: list[float] = []
                 y_tick_labels: list[str] = []
                 divider_positions: list[float] = []
@@ -343,6 +356,10 @@ def build_popout_left_panel(
                     row_count = max(1, len(gate_rows))
                     y_tick_positions.append(row_start + ((row_count - 1) * row_step / 2))
                     y_tick_labels.append(str(entry.get("name", "Unknown")))
+                    if is_circuits_mode:
+                        section_bar_layouts.append(
+                            (current_row - (row_step * 0.27), entry, completion_count, len(gates))
+                        )
                     if is_circuits_mode and entry_index < len(entries) - 1:
                         divider_positions.append(current_row + (section_gap / 2))
                     current_row += section_gap
@@ -432,6 +449,36 @@ def build_popout_left_panel(
                         )
                         gate_text_artist.set_gid(gate_gid)
                         gate_text_artist.set_picker(True)
+                for bar_y, _entry, active_count, total_count in section_bar_layouts:
+                    completion_ratio = (active_count / total_count) if total_count else 0.0
+                    bar_height = 0.14
+                    analytics_ax.barh(
+                        bar_y,
+                        max_gate_count,
+                        left=0,
+                        color="#3f3f3f",
+                        edgecolor=chart_theme_colors["spine"],
+                        height=bar_height,
+                        linewidth=0.7,
+                    )
+                    analytics_ax.barh(
+                        bar_y,
+                        max_gate_count * completion_ratio,
+                        left=0,
+                        color=_completion_bar_color(completion_ratio),
+                        edgecolor="none",
+                        height=bar_height,
+                    )
+                    analytics_ax.text(
+                        max_gate_count - 0.12,
+                        bar_y,
+                        f"{active_count}/{total_count}",
+                        ha="right",
+                        va="center",
+                        color="#ffffff",
+                        fontsize=6,
+                        fontweight="bold",
+                    )
                 for divider_y in divider_positions:
                     analytics_ax.axhline(
                         y=divider_y,
