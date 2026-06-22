@@ -662,9 +662,20 @@ def configure_collapsible_header_toggle(
 
 
 def apply_shared_dropdown_style(dropdown: QComboBox) -> None:
-    """Force shared dropdown styling on a combo and its popup view."""
+    """Force shared dropdown styling on a combo and its popup view.
+
+    Dropdowns should expose their full option labels instead of replacing
+    meaningful text with ellipses.  Let the closed combo and popup size to
+    their contents, and disable item eliding in the popup view so short
+    values such as Human Design profiles/channels remain readable.
+    """
     dropdown.setStyleSheet(DEFAULT_DROPDOWN_STYLE)
+    dropdown.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+    dropdown.setMinimumContentsLength(max(dropdown.minimumContentsLength(), 3))
     popup_view = QListView(dropdown)
+    popup_view.setTextElideMode(Qt.ElideNone)
+    popup_view.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+    popup_view.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Preferred)
     popup_view.setStyleSheet(
         """
 QListView {

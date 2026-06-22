@@ -187,7 +187,10 @@ def build_dbv_search_panel(window) -> "QWidget":
 
     def set_dropdown_width_chars(dropdown: QComboBox, chars: int) -> None:
         metrics = dropdown.fontMetrics()
-        width_px = (metrics.horizontalAdvance("0") * int(chars)) + 24
+        # Include room for content, lean item padding, and the dropdown arrow so
+        # compact fixed-width combos still show their complete values instead of
+        # wasting space on ellipses.
+        width_px = (metrics.horizontalAdvance("0") * int(chars)) + 46
         dropdown.setMinimumWidth(width_px)
         dropdown.setMaximumWidth(width_px)
         dropdown.setFixedWidth(width_px)
@@ -1019,7 +1022,7 @@ def build_dbv_search_panel(window) -> "QWidget":
         )
         for channel_label in channel_options:
             channel_combo.addItem(channel_label, channel_label)
-        set_dropdown_width_chars(channel_combo, 5)
+        set_dropdown_width_chars(channel_combo, 7)
         channel_combo.currentIndexChanged.connect(window._on_filter_changed)
         window._human_design_channel_filters.append(channel_combo)
         hd_channels_row.addWidget(channel_combo)
@@ -1081,7 +1084,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     window._human_design_profile_filter_combo.addItem("Any", "Any")
     for profile_label in getattr(window, "HD_STANDARD_PROFILES", ()):
         window._human_design_profile_filter_combo.addItem(profile_label, profile_label)
-    set_dropdown_width_chars(window._human_design_profile_filter_combo, 3)
+    set_dropdown_width_chars(window._human_design_profile_filter_combo, 6)
     window._human_design_profile_filter_combo.currentIndexChanged.connect(window._on_filter_changed)
     hd_profile_row.addWidget(window._human_design_profile_filter_combo)
     human_design_group_layout.addLayout(hd_profile_row)
