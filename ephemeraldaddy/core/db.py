@@ -459,6 +459,7 @@ def _create_charts_table(conn: sqlite3.Connection) -> None:
             rectification_notes TEXT,
             biography         TEXT,
             chart_data_source TEXT,
+            alternate_chart_uid TEXT,
             positive_sentiment_intensity INTEGER,
             negative_sentiment_intensity INTEGER,
             familiarity INTEGER,
@@ -696,6 +697,13 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
             """
             ALTER TABLE charts
             ADD COLUMN chart_data_source TEXT
+            """
+        )
+    if "alternate_chart_uid" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE charts
+            ADD COLUMN alternate_chart_uid TEXT
             """
         )
     if "positive_sentiment_intensity" not in columns:
@@ -2577,7 +2585,7 @@ def append_database(source: Path) -> dict[str, Any]:
                     """
                     INSERT INTO charts
                         (id, chart_uid, name, alias, from_whence, gender, birth_place, datetime_iso, tz_name,
-                         lat, lon, used_utc_fallback, sentiments, relationship_types, tags, reminds_me_of, comments, rectification_notes, biography, chart_data_source,
+                         lat, lon, used_utc_fallback, sentiments, relationship_types, tags, reminds_me_of, comments, rectification_notes, biography, chart_data_source, alternate_chart_uid,
                          positive_sentiment_intensity, negative_sentiment_intensity, familiarity,
                          alignment_score, sexiness_score, matched_expectations, familiarity_factors, age_when_first_met, year_first_encountered, data_rating,
                          social_score, birthtime_unknown, signs_unknown, unknown_signs, retcon_time_used, retcon_hour, retcon_minute,
@@ -2591,7 +2599,7 @@ def append_database(source: Path) -> dict[str, Any]:
                          is_placeholder, is_deceased, birth_month, birth_day, birth_year,
                          death_month, death_day, death_year, deathtime_unknown, death_hour, death_minute, death_place,
                          created_at, is_current)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         new_chart_id,
@@ -2614,6 +2622,7 @@ def append_database(source: Path) -> dict[str, Any]:
                         _row_value("rectification_notes"),
                         _row_value("biography"),
                         _row_value("chart_data_source"),
+                        _row_value("alternate_chart_uid"),
                         pos_intensity,
                         neg_intensity,
                         familiarity,
@@ -2792,6 +2801,7 @@ def save_chart(
                  rectification_notes,
                  biography,
                  chart_data_source,
+                 alternate_chart_uid,
                  positive_sentiment_intensity, negative_sentiment_intensity,
                  familiarity, alignment_score, sexiness_score, matched_expectations, familiarity_factors, age_when_first_met, year_first_encountered, data_rating, social_score,
                  birthtime_unknown,
@@ -2818,7 +2828,7 @@ def save_chart(
                  death_minute,
                  death_place,
                  created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 chart.name,
@@ -2847,6 +2857,7 @@ def save_chart(
                 getattr(chart, "rectification_notes", None),
                 getattr(chart, "biography", None),
                 getattr(chart, "chart_data_source", None),
+                getattr(chart, "alternate_chart_uid", None),
                 _normalize_optional_sentiment_metric(
                     getattr(chart, "positive_sentiment_intensity", None)
                 ),
@@ -3085,6 +3096,7 @@ def update_chart(
                 rectification_notes = ?,
                 biography = ?,
                 chart_data_source = ?,
+                alternate_chart_uid = ?,
                 positive_sentiment_intensity = ?,
                 negative_sentiment_intensity = ?,
                 familiarity = ?,
@@ -3168,6 +3180,7 @@ def update_chart(
                 getattr(chart, "rectification_notes", None),
                 getattr(chart, "biography", None),
                 getattr(chart, "chart_data_source", None),
+                getattr(chart, "alternate_chart_uid", None),
                 _normalize_optional_sentiment_metric(
                     getattr(chart, "positive_sentiment_intensity", None)
                 ),
@@ -3637,6 +3650,80 @@ def get_chart_display_name_by_uid(chart_uid: str | None) -> str:
         conn.close()
 
 
+def get_alternate_chart_uid(chart_id: int | None) -> str:
+    """Return the normal chart UID linked from a hypothetical chart."""
+    if chart_id is None:
+        return ""
+    conn = _get_conn()
+    try:
+        row = conn.execute(
+            "SELECT alternate_chart_uid FROM charts WHERE id = ?",
+            (int(chart_id),),
+        ).fetchone()
+        return str(row[0] or "") if row else ""
+    finally:
+        conn.close()
+
+
+def set_alternate_chart_uid(chart_id: int, alternate_chart_uid: str | None) -> None:
+    """Link a hypothetical chart to another chart UID without changing either UID."""
+    normalized_uid = _normalize_chart_uid(alternate_chart_uid)
+    conn = _get_conn()
+    try:
+        with conn:
+            _ensure_chart_uids(conn)
+            row = conn.execute(
+                "SELECT chart_uid, COALESCE(chart_type, source) FROM charts WHERE id = ?",
+                (int(chart_id),),
+            ).fetchone()
+            if not row:
+                raise ValueError(f"No chart with id {chart_id}")
+            own_uid, chart_type = row
+            if normalize_chart_type(chart_type) != SOURCE_HYPOTHETICAL:
+                normalized_uid = None
+            if normalized_uid and normalized_uid == _normalize_chart_uid(own_uid):
+                normalized_uid = None
+            conn.execute(
+                "UPDATE charts SET alternate_chart_uid = ? WHERE id = ?",
+                (normalized_uid or "", int(chart_id)),
+            )
+    finally:
+        conn.close()
+
+
+def get_alternate_chart_uid_groups() -> dict[str, list[str]]:
+    """Return linked UID groups keyed by a normal chart UID."""
+    conn = _get_conn()
+    try:
+        with conn:
+            _ensure_chart_uids(conn)
+        rows = conn.execute(
+            """
+            SELECT chart_uid, alternate_chart_uid
+            FROM charts
+            WHERE chart_uid IS NOT NULL
+              AND chart_uid != ''
+              AND alternate_chart_uid IS NOT NULL
+              AND alternate_chart_uid != ''
+              AND COALESCE(chart_type, source) = ?
+            ORDER BY id ASC
+            """,
+            (SOURCE_HYPOTHETICAL,),
+        ).fetchall()
+        groups: dict[str, list[str]] = {}
+        for chart_uid, alternate_uid in rows:
+            base_uid = _normalize_chart_uid(alternate_uid)
+            hypo_uid = _normalize_chart_uid(chart_uid)
+            if not base_uid or not hypo_uid:
+                continue
+            group = groups.setdefault(base_uid, [base_uid])
+            if hypo_uid not in group:
+                group.append(hypo_uid)
+        return groups
+    finally:
+        conn.close()
+
+
 def load_chart(chart_id: int):
     """
     Load a chart from the DB and reconstruct a Chart instance.
@@ -3666,7 +3753,7 @@ def load_chart(chart_id: int):
         f"""
         SELECT chart_uid, name, alias, from_whence, gender, birth_place, datetime_iso, tz_name, lat, lon,
                used_utc_fallback, sentiments, relationship_types,
-               tags, reminds_me_of, comments, rectification_notes, biography, chart_data_source,
+               tags, reminds_me_of, comments, rectification_notes, biography, chart_data_source, alternate_chart_uid,
                positive_sentiment_intensity, negative_sentiment_intensity,
                familiarity, alignment_score, sexiness_score, matched_expectations, {familiarity_factors_projection}, age_when_first_met, year_first_encountered, data_rating, birthtime_unknown, signs_unknown, unknown_signs,
                retcon_time_used, retcon_hour, retcon_minute,
@@ -3709,6 +3796,7 @@ def load_chart(chart_id: int):
         rectification_notes,
         biography,
         chart_data_source,
+        alternate_chart_uid,
         positive_sentiment_intensity,
         negative_sentiment_intensity,
         familiarity,
@@ -3786,6 +3874,7 @@ def load_chart(chart_id: int):
         placeholder.rectification_notes = rectification_notes or ""
         placeholder.biography = biography or ""
         placeholder.chart_data_source = chart_data_source or ""
+        placeholder.alternate_chart_uid = alternate_chart_uid or ""
         placeholder.positive_sentiment_intensity = _normalize_optional_sentiment_metric(
             positive_sentiment_intensity
         )
@@ -3878,6 +3967,7 @@ def load_chart(chart_id: int):
     chart.rectification_notes = rectification_notes or ""
     chart.biography = biography or ""
     chart.chart_data_source = chart_data_source or ""
+    chart.alternate_chart_uid = alternate_chart_uid or ""
     chart.positive_sentiment_intensity = _normalize_optional_sentiment_metric(
         positive_sentiment_intensity
     )

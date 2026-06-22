@@ -4,6 +4,7 @@ import json
 from ephemeraldaddy.gui.features.charts.chart_similarity_relationships import (
     chart_similarity_relationship_key,
     load_chart_similarity_relationship_states,
+    migrate_perceived_similarity_scores_to_alternate_chart,
     save_chart_similarity_relationship,
 )
 
@@ -60,6 +61,84 @@ def test_chart_similarity_relationship_key_is_pair_stable_and_algorithm_independ
     reverse = chart_similarity_relationship_key(chart_1_id=4, chart_2_id=12)
 
     assert forward == reverse == "4|12"
+
+
+def test_linked_hypothetical_migrates_existing_scores_without_overwrite(tmp_path):
+    relationship_path = tmp_path / "chart_similarity_relationships.json"
+    real_uid = "REALUID00000001"
+    hypo_uid = "HYPOUID00000001"
+    other_uid = "OTHERUID0000001"
+
+    save_chart_similarity_relationship(
+        chart_1_id=1,
+        chart_1_name="Real",
+        chart_1_uid=real_uid,
+        chart_2_id=2,
+        chart_2_name="Other",
+        chart_2_uid=other_uid,
+        user_reported_accuracy=80,
+        not_applicable=False,
+        path=relationship_path,
+    )
+    save_chart_similarity_relationship(
+        chart_1_id=3,
+        chart_1_name="Hypo",
+        chart_1_uid=hypo_uid,
+        chart_2_id=2,
+        chart_2_name="Other",
+        chart_2_uid=other_uid,
+        user_reported_accuracy=55,
+        not_applicable=False,
+        path=relationship_path,
+    )
+
+    migrated = migrate_perceived_similarity_scores_to_alternate_chart(
+        source_chart_uid=real_uid,
+        hypothetical_chart_uid=hypo_uid,
+        path=relationship_path,
+    )
+    hypo_key = chart_similarity_relationship_key(
+        chart_1_id=None,
+        chart_2_id=None,
+        chart_1_uid=hypo_uid,
+        chart_2_uid=other_uid,
+    )
+    states = load_chart_similarity_relationship_states(relationship_path, include_legacy_algorithm_log=False)
+
+    assert migrated == 0
+    assert states[hypo_key]["user_reported_accuracy"] == 55
+
+
+def test_linked_hypothetical_scores_update_in_unison(monkeypatch, tmp_path):
+    relationship_path = tmp_path / "chart_similarity_relationships.json"
+    real_uid = "REALUID00000001"
+    hypo_uid = "HYPOUID00000001"
+    other_uid = "OTHERUID0000001"
+    monkeypatch.setattr(
+        "ephemeraldaddy.gui.features.charts.chart_similarity_relationships.get_alternate_chart_uid_groups",
+        lambda: {real_uid: [real_uid, hypo_uid]},
+    )
+
+    save_chart_similarity_relationship(
+        chart_1_id=1,
+        chart_1_name="Real",
+        chart_1_uid=real_uid,
+        chart_2_id=2,
+        chart_2_name="Other",
+        chart_2_uid=other_uid,
+        user_reported_accuracy=91,
+        not_applicable=False,
+        path=relationship_path,
+    )
+    hypo_key = chart_similarity_relationship_key(
+        chart_1_id=None,
+        chart_2_id=None,
+        chart_1_uid=hypo_uid,
+        chart_2_uid=other_uid,
+    )
+    states = load_chart_similarity_relationship_states(relationship_path, include_legacy_algorithm_log=False)
+
+    assert states[hypo_key]["user_reported_accuracy"] == 91
 
 
 def test_relationship_loader_normalizes_legacy_algorithm_log_entries(tmp_path):

@@ -9,7 +9,7 @@ import os
 from pathlib import Path
 from typing import Any, Mapping
 
-from ephemeraldaddy.core.db import get_chart_display_name_map, get_chart_uid_map
+from ephemeraldaddy.core.db import get_alternate_chart_uid_groups, get_chart_display_name_map, get_chart_uid_map
 
 CHART_SIMILARITY_RELATIONSHIPS_PATH_ENV = "EPHEMERALDADDY_CHART_SIMILARITY_RELATIONSHIPS_PATH"
 CHART_SIMILARITY_RELATIONSHIPS_FILENAME = "chart_similarity_relationships.json"
@@ -134,6 +134,71 @@ def _read_relationship_file(path: Path) -> dict[str, Any]:
         payload["relationships"] = {}
     payload.setdefault("schema_version", 1)
     return payload
+
+
+def _write_relationship_file(path: Path, payload: Mapping[str, Any], timestamp_text: str | None = None) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    writable = dict(payload)
+    if timestamp_text:
+        writable["updated_at_utc"] = timestamp_text
+    temporary_path = path.with_suffix(path.suffix + ".tmp")
+    temporary_path.write_text(json.dumps(writable, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    temporary_path.replace(path)
+
+
+def _relationship_record_with_uids(record: Mapping[str, Any], key: str, uids: tuple[str, str], timestamp_text: str) -> dict[str, Any]:
+    copied = dict(record)
+    copied["relationship_key"] = key
+    copied["chart_uids"] = [uids[0], uids[1]]
+    copied.setdefault("chart_ids", [None, None])
+    copied["updated_at_utc"] = timestamp_text
+    return copied
+
+
+def migrate_perceived_similarity_scores_to_alternate_chart(
+    *,
+    source_chart_uid: str | None,
+    hypothetical_chart_uid: str | None,
+    path: str | os.PathLike[str] | None = None,
+) -> int:
+    """Copy existing perceived-similarity scores from a linked chart to a hypothetical.
+
+    Existing hypothetical relationships are never overwritten.
+    """
+    source_uid = _coerce_chart_uid(source_chart_uid)
+    hypo_uid = _coerce_chart_uid(hypothetical_chart_uid)
+    if not source_uid or not hypo_uid or source_uid == hypo_uid:
+        return 0
+    relationships_path = resolve_chart_similarity_relationships_path(path)
+    payload = _read_relationship_file(relationships_path)
+    relationships = payload.setdefault("relationships", {})
+    if not isinstance(relationships, dict):
+        return 0
+    timestamp_text = _utc_timestamp()
+    migrated = 0
+    for record in list(relationships.values()):
+        if not isinstance(record, Mapping):
+            continue
+        raw_uids = [_coerce_chart_uid(uid) for uid in record.get("chart_uids", [])]
+        uids = [uid for uid in raw_uids if uid]
+        if source_uid not in uids or len(uids) != 2:
+            continue
+        other_uid = uids[0] if uids[1] == source_uid else uids[1]
+        target_key = chart_similarity_relationship_key(
+            chart_1_id=None,
+            chart_2_id=None,
+            chart_1_uid=hypo_uid,
+            chart_2_uid=other_uid,
+        )
+        if target_key in relationships:
+            continue
+        target_uids = tuple(sorted((hypo_uid, other_uid)))
+        relationships[target_key] = _relationship_record_with_uids(record, target_key, target_uids, timestamp_text)
+        migrated += 1
+    if migrated:
+        payload["schema_version"] = 2
+        _write_relationship_file(relationships_path, payload, timestamp_text)
+    return migrated
 
 
 def _read_relationship_file_strict(path: Path) -> dict[str, Any]:
@@ -294,7 +359,7 @@ def save_chart_similarity_relationship(
     timestamp_text = _utc_timestamp(timestamp)
     user_knows_similarity = bool(score is not None and not not_applicable)
 
-    relationships[key] = {
+    record = {
         "relationship_key": key,
         "chart_uids": [first_uid, second_uid] if first_uid and second_uid else [],
         "chart_ids": [first_id, second_id],
@@ -304,12 +369,32 @@ def save_chart_similarity_relationship(
         "not_applicable": bool(not_applicable),
         "updated_at_utc": timestamp_text,
     }
+    relationships[key] = record
+    linked_groups = get_alternate_chart_uid_groups()
+    uid_equivalents: dict[str, list[str]] = {}
+    for linked_group in linked_groups.values():
+        for linked_uid in linked_group:
+            uid_equivalents[linked_uid] = list(linked_group)
+    equivalent_uids = {
+        first_uid: uid_equivalents.get(first_uid, [first_uid]),
+        second_uid: uid_equivalents.get(second_uid, [second_uid]),
+    }
+    for left_uid in equivalent_uids[first_uid]:
+        for right_uid in equivalent_uids[second_uid]:
+            if left_uid == right_uid:
+                continue
+            linked_key = chart_similarity_relationship_key(
+                chart_1_id=None,
+                chart_2_id=None,
+                chart_1_uid=left_uid,
+                chart_2_uid=right_uid,
+            )
+            linked_uids = tuple(sorted((left_uid, right_uid)))
+            relationships[linked_key] = _relationship_record_with_uids(record, linked_key, linked_uids, timestamp_text)
     payload["schema_version"] = 2
     payload["updated_at_utc"] = timestamp_text
 
-    temporary_path = relationships_path.with_suffix(relationships_path.suffix + ".tmp")
-    temporary_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    temporary_path.replace(relationships_path)
+    _write_relationship_file(relationships_path, payload, timestamp_text)
     return relationships_path
 
 
