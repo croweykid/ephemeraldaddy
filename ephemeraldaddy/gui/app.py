@@ -23891,7 +23891,26 @@ class MainWindow(QMainWindow):
             rows=rows,
             current_chart_id=self.current_chart_id if current_chart_id is None else current_chart_id,
             load_chart_by_id=load_chart,
+            hidden_chart_ids=set(getattr(self, "_hidden_chart_ids", set())),
+            include_hidden_charts=bool(getattr(self, "_show_hidden_charts", False)),
         )
+
+    def _similar_charts_visible_candidate_rows(self, rows: list[tuple[Any, ...]]) -> list[tuple[Any, ...]]:
+        if getattr(self, "_show_hidden_charts", False):
+            return list(rows)
+        hidden_chart_ids = set(getattr(self, "_hidden_chart_ids", set()))
+        if not hidden_chart_ids:
+            return list(rows)
+        visible_rows: list[tuple[Any, ...]] = []
+        for row in rows:
+            try:
+                chart_id = int(row[0])
+            except (IndexError, TypeError, ValueError):
+                visible_rows.append(row)
+                continue
+            if chart_id not in hidden_chart_ids:
+                visible_rows.append(row)
+        return visible_rows
 
     def _similar_charts_popout_database_row_signatures(self, rows: list[tuple[Any, ...]]) -> dict[int, str]:
         def _row_value(row: tuple[Any, ...], index: int) -> Any:
@@ -24670,6 +24689,8 @@ class MainWindow(QMainWindow):
             least_similar=least_similar,
             algorithm_mode=algorithm_mode,
             custom_settings=copy.deepcopy(getattr(self, "_similarity_calculator_settings", None)),
+            hidden_chart_ids=set(getattr(self, "_hidden_chart_ids", set())),
+            include_hidden_charts=bool(getattr(self, "_show_hidden_charts", False)),
         )
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
@@ -25076,6 +25097,7 @@ class MainWindow(QMainWindow):
         except Exception as exc:
             QMessageBox.warning(self, "Similar Charts", f"Could not read saved charts:\n{exc}")
             return
+        chart_rows = self._similar_charts_visible_candidate_rows(chart_rows)
         row_signatures = self._similar_charts_popout_database_row_signatures(chart_rows)
         chart_names_by_id = self._similar_charts_popout_chart_names_by_id(chart_rows)
         candidates: list[tuple[int, Chart]] | None = None
