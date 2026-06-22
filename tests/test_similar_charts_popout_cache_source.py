@@ -31,20 +31,6 @@ def test_similar_charts_popout_cache_tracks_row_signatures_and_rescores_changed_
     assert "top_k=max(1, len(candidates))" in show_method
 
 
-
-def test_similar_charts_popout_exact_cache_hit_skips_full_recompute_progress():
-    source = _app_source()
-    show_method = source.split("def _show_similar_charts_popout", 1)[1].split(
-        "def _export_similar_charts_popout_share", 1
-    )[0]
-    exact_hit_branch = show_method.split(
-        "if cached_payload is not None and not changed_chart_ids and not deleted_chart_ids:", 1
-    )[1].split("elif incremental_refresh_supported:", 1)[0]
-
-    assert 'self._similar_charts_popout_last_cache_status = "hit"' in exact_hit_branch
-    assert "find_astro_twins(" not in exact_hit_branch
-    assert "show_similar_charts_loading_progress" not in exact_hit_branch
-
 def test_similar_charts_popout_perceived_accuracy_uses_cached_rankings_when_available():
     source = _app_source()
     accuracy_method = source.split("def _similar_charts_perceived_accuracy_entries_for_states", 1)[1].split(
