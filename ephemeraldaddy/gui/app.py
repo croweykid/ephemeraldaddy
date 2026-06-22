@@ -2610,6 +2610,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.similarities_controller.set_panel_scroll(
             self.similarities_analysis_panel_scroll
         )
+        QTimer.singleShot(0, self._start_database_metrics_cache_preload)
         self.left_panel_stack = QStackedWidget()
         self.left_panel_stack.setMinimumWidth(0)
         self._left_panel_widgets = {
@@ -3149,6 +3150,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._incremental_metrics_force_full_refresh = False
         self._incremental_metrics_refresh_changed_ids.clear()
         QTimer.singleShot(0, self._run_incremental_metrics_refresh_step)
+
+
+    def _start_database_metrics_cache_preload(self) -> None:
+        """Warm Database Analytics source data after startup without expanding panels."""
+        if self._database_metrics_cache is not None:
+            return
+        try:
+            self._refresh_database_metrics_cache(force_full_refresh=True)
+        except Exception:
+            traceback.print_exc()
+            self._database_metrics_cache = self._empty_database_metrics_cache()
 
     def _update_position_sign_subheader(self) -> None:
         subheader = getattr(self, "position_sign_distribution_subheader", None)
@@ -3763,7 +3775,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _restore_visibility_preferences(self) -> None:
         for key in DATABASE_ANALYTICS_SECTION_KEYS:
             section_key = key.replace("database_metrics.", "", 1)
-            self._database_metrics_section_expanded[section_key] = self._visibility.get(key)
+            # Database Analytics starts collapsed on every boot for fast startup.
+            # Cached chart data is preloaded lazily after startup instead of
+            # restoring expanded sections and rendering charts immediately.
+            self._database_metrics_section_expanded[section_key] = False
 
         self._database_metrics_section_visible["species_distribution"] = self._visibility.get(
             "database_metrics_visibility.species_distribution"
