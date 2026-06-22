@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from functools import lru_cache
 from typing import TYPE_CHECKING, Literal
 
 from ephemeraldaddy.analysis.hd_incarnation_crosses import HD_INCARNATION_CROSSES
@@ -138,18 +139,34 @@ def _mandala_components(longitude: float) -> tuple[int, int, int, int, int]:
     return gate, line, color, tone, base
 
 
+def _cache_key_for_utc(moment: datetime) -> str:
+    """Return a stable UTC cache key for deterministic ephemeris lookups."""
+    return moment.astimezone(timezone.utc).isoformat()
+
+
+@lru_cache(maxsize=4096)
+def _cached_planetary_longitude(utc_iso: str, body: str) -> float | None:
+    """Cache Swiss Ephemeris longitude calls shared by repeated HD renders."""
+    return planetary_longitude(datetime.fromisoformat(utc_iso), body)
+
+
+def _planetary_longitude_at(moment: datetime, body: str) -> float | None:
+    return _cached_planetary_longitude(_cache_key_for_utc(moment), body)
+
+
 def _body_longitudes(at_utc: datetime) -> dict[str, float]:
-    sun = planetary_longitude(at_utc, "Sun")
-    moon = planetary_longitude(at_utc, "Moon")
-    north_node = planetary_longitude(at_utc, "Rahu")
-    mercury = planetary_longitude(at_utc, "Mercury")
-    venus = planetary_longitude(at_utc, "Venus")
-    mars = planetary_longitude(at_utc, "Mars")
-    jupiter = planetary_longitude(at_utc, "Jupiter")
-    saturn = planetary_longitude(at_utc, "Saturn")
-    uranus = planetary_longitude(at_utc, "Uranus")
-    neptune = planetary_longitude(at_utc, "Neptune")
-    pluto = planetary_longitude(at_utc, "Pluto")
+    utc_key = _cache_key_for_utc(at_utc)
+    sun = _cached_planetary_longitude(utc_key, "Sun")
+    moon = _cached_planetary_longitude(utc_key, "Moon")
+    north_node = _cached_planetary_longitude(utc_key, "Rahu")
+    mercury = _cached_planetary_longitude(utc_key, "Mercury")
+    venus = _cached_planetary_longitude(utc_key, "Venus")
+    mars = _cached_planetary_longitude(utc_key, "Mars")
+    jupiter = _cached_planetary_longitude(utc_key, "Jupiter")
+    saturn = _cached_planetary_longitude(utc_key, "Saturn")
+    uranus = _cached_planetary_longitude(utc_key, "Uranus")
+    neptune = _cached_planetary_longitude(utc_key, "Neptune")
+    pluto = _cached_planetary_longitude(utc_key, "Pluto")
     if sun is None or moon is None or north_node is None:
         raise ValueError("Missing required Swiss Ephemeris values for Human Design.")
     return {
@@ -176,10 +193,10 @@ def _solve_design_utc(birth_utc: datetime, personality_sun: float) -> datetime:
     step = timedelta(hours=6)
     probe = start
     prev_t = start
-    prev_f = _angular_diff(float(planetary_longitude(start, "Sun") or 0.0), target)
+    prev_f = _angular_diff(float(_planetary_longitude_at(start, "Sun") or 0.0), target)
     bracket: tuple[datetime, datetime] | None = None
     while probe <= end:
-        f = _angular_diff(float(planetary_longitude(probe, "Sun") or 0.0), target)
+        f = _angular_diff(float(_planetary_longitude_at(probe, "Sun") or 0.0), target)
         if prev_f == 0 or (prev_f < 0 <= f) or (prev_f > 0 >= f):
             bracket = (prev_t, probe)
             break
@@ -188,10 +205,10 @@ def _solve_design_utc(birth_utc: datetime, personality_sun: float) -> datetime:
     if bracket is None:
         return birth_utc - timedelta(days=88)
     lo, hi = bracket
-    flo = _angular_diff(float(planetary_longitude(lo, "Sun") or 0.0), target)
+    flo = _angular_diff(float(_planetary_longitude_at(lo, "Sun") or 0.0), target)
     for _ in range(50):
         mid = lo + (hi - lo) / 2
-        fmid = _angular_diff(float(planetary_longitude(mid, "Sun") or 0.0), target)
+        fmid = _angular_diff(float(_planetary_longitude_at(mid, "Sun") or 0.0), target)
         if abs(fmid) < 1e-6 or (hi - lo).total_seconds() <= 1:
             return mid
         if (flo < 0 <= fmid) or (flo > 0 >= fmid):
