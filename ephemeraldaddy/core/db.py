@@ -3311,7 +3311,13 @@ def list_charts() -> List[
     used_utc_fallback, birthtime_unknown, retcon_time_used,
     familiarity, age_when_first_met, year_first_encountered,
     social_score, chart_type, is_placeholder, is_deceased,
-    birth_month, birth_day, birth_year, retcon_hour, retcon_minute)
+    birth_month, birth_day, birth_year, retcon_hour, retcon_minute,
+    from_whence, data_rating, relationship_types, tags, reminds_me_of,
+    dominant_sign_weights, dominant_planet_weights, dominant_mode)
+
+    The first 22 fields are kept in their historical order for callers that
+    index into the row tuple; lightweight display/filter fields are appended so
+    Database View rendering can avoid hydrating full Chart objects.
     """
     conn = _get_conn()
     with conn:
@@ -3322,6 +3328,7 @@ def list_charts() -> List[
         SELECT id,
                name,
                alias,
+               from_whence,
                gender,
                datetime_iso,
                birth_place,
@@ -3342,7 +3349,14 @@ def list_charts() -> List[
                birth_day,
                birth_year,
                retcon_hour,
-               retcon_minute
+               retcon_minute,
+               data_rating,
+               relationship_types,
+               tags,
+               reminds_me_of,
+               dominant_sign_weights,
+               dominant_planet_weights,
+               dominant_mode
         FROM charts
         ORDER BY created_at DESC
         """
@@ -3411,6 +3425,14 @@ def list_charts() -> List[
                 int(row["birth_year"]) if row["birth_year"] is not None else None,
                 int(row["retcon_hour"]) if row["retcon_hour"] is not None else None,
                 int(row["retcon_minute"]) if row["retcon_minute"] is not None else None,
+                row["from_whence"],
+                str(row["data_rating"] or "blank"),
+                row["relationship_types"],
+                row["tags"],
+                row["reminds_me_of"],
+                row["dominant_sign_weights"],
+                row["dominant_planet_weights"],
+                row["dominant_mode"],
             )
         )
     return rows
