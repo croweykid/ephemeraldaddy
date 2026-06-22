@@ -13,7 +13,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QComboBox, QFrame, QHBoxLayout, QLabel, QPushButton, QToolButton
 
-from ephemeraldaddy.core.interpretations import ZODIAC_NAMES
+from ephemeraldaddy.core.interpretations import HOUSE_COLORS, PLANET_COLORS, SIGN_COLORS, ZODIAC_NAMES
 from ephemeraldaddy.gui.features.charts.collections import (
     DEFAULT_COLLECTION_ALL,
     DEFAULT_COLLECTION_PARASOCIAL,
@@ -34,7 +34,7 @@ from ephemeraldaddy.gui.style import (
     similarity_gradient_rgb_for_range,
 )
 
-_DB_INFO_CACHE_KEY = "settings/database_info/cache_v2"
+_DB_INFO_CACHE_KEY = "settings/database_info/cache_v3"
 _DB_INFO_EXPORT_EXTENSION_KEY = "settings/database_info/export_extension"
 _DB_INFO_MAX_ADDED_CHARTS = 45
 _DB_INFO_COLLECTION_OPTIONS: tuple[tuple[str, str], ...] = (
@@ -61,6 +61,11 @@ def _highlight_label(label: str) -> str:
     )
 
 
+def _color_span(text: str, color: str, *, bold: bool = False) -> str:
+    font_weight = "700" if bold else "400"
+    return f'<span style="font-weight:{font_weight};color:{color};">{html.escape(text)}</span>'
+
+
 def _format_database_weight_summary_html(
     *,
     title: str,
@@ -68,6 +73,9 @@ def _format_database_weight_summary_html(
     values_by_key: dict[str, list[float]],
     totals: list[float],
     chart_ranges: list[float],
+    label_colors: dict[str, str] | None = None,
+    include_range: bool = True,
+    key_header: str = "body",
 ) -> str:
     if not key_order:
         return f"{_highlight_label(title)}<br><i>No values available.</i>"
@@ -90,6 +98,15 @@ def _format_database_weight_summary_html(
     avg_max = max(avg_by_key.values())
     med_min = min(med_by_key.values())
     med_max = max(med_by_key.values())
+    label_colors = label_colors or {}
+    header_html = (
+        "<tr>"
+        f"<th align=\"left\" style=\"font-weight:400;color:#ffffff;padding-right:14px;\">{html.escape(key_header)}</th>"
+        "<th align=\"right\" style=\"font-weight:400;color:#ffffff;padding-right:14px;\">avg</th>"
+        "<th align=\"right\" style=\"font-weight:400;color:#ffffff;\">median</th>"
+        "</tr>"
+    )
+    table_rows = [header_html]
 
     for key in key_order:
         if key not in avg_by_key:
@@ -98,11 +115,20 @@ def _format_database_weight_summary_html(
         med_value = med_by_key[key]
         avg_color = _value_color_for_range(avg_value, avg_min, avg_max)
         med_color = _value_color_for_range(med_value, med_min, med_max)
-        rows.append(
-            f"{_highlight_label(f'{key}:')} "
-            f"{_highlight_label('avg')} <span style=\"color: {avg_color};\">{avg_value:.2f}</span>, "
-            f"{_highlight_label('med')} <span style=\"color: {med_color};\">{med_value:.2f}</span>"
+        key_color = label_colors.get(key, CHART_DATA_HIGHLIGHT_COLOR)
+        table_rows.append(
+            "<tr>"
+            f"<td style=\"font-weight:400;color:{key_color};padding-right:14px;\">{html.escape(key)}</td>"
+            f"<td align=\"right\" style=\"font-weight:400;color:{avg_color};padding-right:14px;\">{avg_value:.2f}</td>"
+            f"<td align=\"right\" style=\"font-weight:400;color:{med_color};\">{med_value:.2f}</td>"
+            "</tr>"
         )
+
+    rows.append(
+        "<table cellspacing=\"0\" cellpadding=\"0\" style=\"font-weight:400;\">"
+        + "".join(table_rows)
+        + "</table>"
+    )
 
     if totals:
         total_avg = statistics.fmean(totals)
@@ -112,12 +138,12 @@ def _format_database_weight_summary_html(
         total_avg_color = _value_color_for_range(total_avg, total_min, total_max)
         total_med_color = _value_color_for_range(total_med, total_min, total_max)
         rows.append(
-            f"{_highlight_label('Totals:')} "
-            f"{_highlight_label('avg')} <span style=\"color: {total_avg_color};\">{total_avg:.2f}</span>, "
-            f"{_highlight_label('med')} <span style=\"color: {total_med_color};\">{total_med:.2f}</span>"
+            f"{_color_span('Totals:', CHART_DATA_HIGHLIGHT_COLOR, bold=True)} "
+            f"{_color_span('avg', '#ffffff')} <span style=\"font-weight:400;color: {total_avg_color};\">{total_avg:.2f}</span>, "
+            f"{_color_span('med', '#ffffff')} <span style=\"font-weight:400;color: {total_med_color};\">{total_med:.2f}</span>"
         )
 
-    if chart_ranges:
+    if include_range and chart_ranges:
         range_avg = statistics.fmean(chart_ranges)
         range_med = statistics.median(chart_ranges)
         range_min = min(chart_ranges)
@@ -125,9 +151,9 @@ def _format_database_weight_summary_html(
         range_avg_color = _value_color_for_range(range_avg, range_min, range_max)
         range_med_color = _value_color_for_range(range_med, range_min, range_max)
         rows.append(
-            f"{_highlight_label('Range:')} "
-            f"{_highlight_label('avg')} <span style=\"color: {range_avg_color};\">{range_avg:.2f}</span>, "
-            f"{_highlight_label('med')} <span style=\"color: {range_med_color};\">{range_med:.2f}</span>"
+            f"{_color_span('Range:', CHART_DATA_HIGHLIGHT_COLOR, bold=True)} "
+            f"{_color_span('avg', '#ffffff')} <span style=\"font-weight:400;color: {range_avg_color};\">{range_avg:.2f}</span>, "
+            f"{_color_span('med', '#ffffff')} <span style=\"font-weight:400;color: {range_med_color};\">{range_med:.2f}</span>"
         )
     return "<br>".join(rows)
 
@@ -336,6 +362,8 @@ def refresh_database_info(owner: Any, *, force_recompute: bool = False) -> None:
         values_by_key=body_values_by_key,
         totals=body_totals,
         chart_ranges=body_chart_ranges,
+        label_colors=PLANET_COLORS,
+        key_header="body",
     )
     sign_html = _format_database_weight_summary_html(
         title="Sign Weights",
@@ -343,6 +371,8 @@ def refresh_database_info(owner: Any, *, force_recompute: bool = False) -> None:
         values_by_key=sign_values_by_key,
         totals=sign_totals,
         chart_ranges=sign_chart_ranges,
+        label_colors=SIGN_COLORS,
+        key_header="body",
     )
     house_html = _format_database_weight_summary_html(
         title="House Weights",
@@ -350,6 +380,9 @@ def refresh_database_info(owner: Any, *, force_recompute: bool = False) -> None:
         values_by_key=house_values_by_key,
         totals=house_totals,
         chart_ranges=house_chart_ranges,
+        label_colors=HOUSE_COLORS,
+        include_range=False,
+        key_header="body",
     )
     charts_assessed_html = f"{_highlight_label('Charts Assessed:')} {charts_assessed_count}"
     divider_html = f"<hr style='border:0;border-top:1px solid {CHART_DATA_HIGHLIGHT_COLOR};'>"
