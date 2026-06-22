@@ -55,6 +55,35 @@ def test_multiple_reminds_me_of_uids_are_serialized_and_parsed(monkeypatch, tmp_
     assert db.parse_reminds_me_of_uids(loaded_related.reminds_me_of) == [first_uid, second_uid]
 
 
+def test_uid_helpers_repair_missing_chart_uids(monkeypatch, tmp_path):
+    _use_temp_db(monkeypatch, tmp_path)
+    chart_id = db.save_chart(_chart("Missing UID"), birth_place="UTC")
+    conn = db._get_conn()
+    with conn:
+        conn.execute("UPDATE charts SET chart_uid = '' WHERE id = ?", (chart_id,))
+    conn.close()
+
+    repaired_uid = db.get_chart_uid(chart_id)
+
+    assert repaired_uid
+    assert db.load_chart(chart_id).chart_uid == repaired_uid
+    assert db.find_chart_uid_by_name("Missing UID") == repaired_uid
+    assert db.get_chart_display_name_by_uid(repaired_uid) == "Missing UID"
+
+
+def test_update_chart_refreshes_chart_object_uid(monkeypatch, tmp_path):
+    _use_temp_db(monkeypatch, tmp_path)
+    chart_id = db.save_chart(_chart("New Chart"), birth_place="UTC")
+    chart = db.load_chart(chart_id)
+    chart.chart_uid = ""
+    chart.name = "Updated Chart"
+
+    db.update_chart(chart_id, chart, birth_place="UTC")
+
+    assert chart.chart_uid == db.get_chart_uid(chart_id)
+    assert chart.chart_uid
+
+
 def test_append_database_preserves_multiple_reminds_me_of_uids(monkeypatch, tmp_path):
     source_path = tmp_path / "source.db"
     target_path = tmp_path / "target.db"
