@@ -3057,6 +3057,13 @@ def update_chart(
     body_dynamics_roles = _resolve_body_dynamics_roles(chart)
     conn = _get_conn()
     with conn:
+        _ensure_chart_uids(conn)
+        existing_uid_row = conn.execute(
+            "SELECT chart_uid FROM charts WHERE id = ?",
+            (int(chart_id),),
+        ).fetchone()
+        if existing_uid_row and existing_uid_row[0]:
+            setattr(chart, "chart_uid", str(existing_uid_row[0]))
         conn.execute(
             """
             UPDATE charts
@@ -3293,7 +3300,9 @@ def list_charts() -> List[
     social_score, chart_type, is_placeholder, is_deceased,
     birth_month, birth_day, birth_year, retcon_hour, retcon_minute)
     """
-    conn = _connect_readonly()
+    conn = _get_conn()
+    with conn:
+        _ensure_chart_uids(conn)
     conn.row_factory = sqlite3.Row
     cur = conn.execute(
         """
@@ -3502,6 +3511,8 @@ def get_chart_uid_map(chart_ids: Iterable[int] | None = None) -> dict[int, str]:
     """Return stable chart UIDs keyed by local integer chart id."""
     conn = _get_conn()
     try:
+        with conn:
+            _ensure_chart_uids(conn)
         if chart_ids is None:
             rows = conn.execute(
                 "SELECT id, chart_uid FROM charts WHERE chart_uid IS NOT NULL AND chart_uid != ''"
@@ -3524,6 +3535,8 @@ def get_chart_display_name_map(chart_ids: Iterable[int] | None = None) -> dict[i
     """Return human-readable chart labels keyed by local integer chart id."""
     conn = _get_conn()
     try:
+        with conn:
+            _ensure_chart_uids(conn)
         if chart_ids is None:
             rows = conn.execute("SELECT id, name, alias FROM charts").fetchall()
         else:
@@ -3558,6 +3571,8 @@ def find_chart_uid_by_name(name: str | None, *, exclude_chart_id: int | None = N
     normalized_query_uid = _normalize_chart_uid(query)
     conn = _get_conn()
     try:
+        with conn:
+            _ensure_chart_uids(conn)
         if normalized_query_uid is not None:
             row = conn.execute(
                 """
@@ -3602,6 +3617,8 @@ def get_chart_display_name_by_uid(chart_uid: str | None) -> str:
         return ""
     conn = _get_conn()
     try:
+        with conn:
+            _ensure_chart_uids(conn)
         row = conn.execute(
             """
             SELECT id, name, alias
@@ -3626,7 +3643,9 @@ def load_chart(chart_id: int):
 
     Raises ValueError if no such chart exists.
     """
-    conn = _connect_readonly()
+    conn = _get_conn()
+    with conn:
+        _ensure_chart_uids(conn)
     columns = _table_columns(conn, "charts")
     familiarity_factors_projection = (
         "familiarity_factors"
