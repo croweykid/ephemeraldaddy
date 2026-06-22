@@ -24111,6 +24111,18 @@ class MainWindow(QMainWindow):
                 refreshed_matches.append(match)
         return refreshed_matches
 
+    def _similar_charts_can_derive_least_from_full_similarity_ranking(self, algorithm_mode: str) -> bool:
+        normalized_mode = _normalize_similar_charts_algorithm_mode(algorithm_mode)
+        return normalized_mode in {
+            SIMILAR_CHARTS_ALGORITHM_DEFAULT,
+            SIMILAR_CHARTS_ALGORITHM_CUSTOM,
+            SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING,
+            SIMILAR_CHARTS_ALGORITHM_BIG_3,
+        }
+
+    def _least_similar_matches_from_similarity_ranking(self, matches: list[Any]) -> list[Any]:
+        return sorted(list(matches), key=lambda match: (float(match.score), int(match.chart_id)))
+
     def _database_view_dialog_for_chart_link_transition(self) -> ManageChartsDialog | None:
         manage_dialog = self._manage_charts_dialog
         if manage_dialog is None or not manage_dialog.isVisible():
@@ -25167,7 +25179,7 @@ class MainWindow(QMainWindow):
             # # Exact same subject/settings/database state within this app session:
             # # reuse the just-computed rankings instead of showing the expensive
             # # progress dialog and recalculating both Top/Bottom lists.
-            # self._similar_charts_popout_last_cache_status = "hit"
+            self._similar_charts_popout_last_cache_status = "hit"
             # logger.debug("Similar Charts popout cache hit for subject_chart_id=%s", subject_chart_id)
             most_similar_matches = self._refresh_similar_charts_match_display_names(
                 list(cached_payload.get("most_similar_matches") or []),
@@ -25179,7 +25191,7 @@ class MainWindow(QMainWindow):
             )
             least_similar_matches.sort(key=lambda match: (float(match.score), int(match.chart_id)))
         elif incremental_refresh_supported:
-            # self._similar_charts_popout_last_cache_status = "incremental-refresh"
+            self._similar_charts_popout_last_cache_status = "incremental-refresh"
             # logger.debug(
             #     "Similar Charts popout cache incrementally refreshing %s changed rows for subject_chart_id=%s",
             #     len(changed_chart_ids),
@@ -25223,15 +25235,18 @@ class MainWindow(QMainWindow):
                     algorithm_mode=algorithm_mode,
                     custom_settings=getattr(self, "_similarity_calculator_settings", None),
                 )
-                refreshed_least = find_astro_twins(
-                    chart,
-                    refreshed_candidates,
-                    top_k=len(refreshed_candidates),
-                    exclude_chart_id=subject_chart_id,
-                    least_similar=True,
-                    algorithm_mode=algorithm_mode,
-                    custom_settings=getattr(self, "_similarity_calculator_settings", None),
-                )
+                if self._similar_charts_can_derive_least_from_full_similarity_ranking(algorithm_mode):
+                    refreshed_least = self._least_similar_matches_from_similarity_ranking(refreshed_most)
+                else:
+                    refreshed_least = find_astro_twins(
+                        chart,
+                        refreshed_candidates,
+                        top_k=len(refreshed_candidates),
+                        exclude_chart_id=subject_chart_id,
+                        least_similar=True,
+                        algorithm_mode=algorithm_mode,
+                        custom_settings=getattr(self, "_similarity_calculator_settings", None),
+                    )
                 most_similar_matches.extend(refreshed_most)
                 least_similar_matches.extend(refreshed_least)
             most_similar_matches.sort(key=lambda match: (-float(match.score), int(match.chart_id)))
@@ -25243,7 +25258,7 @@ class MainWindow(QMainWindow):
                 row_signatures=row_signatures,
             )
         else:
-            # self._similar_charts_popout_last_cache_status = "miss"
+            self._similar_charts_popout_last_cache_status = "miss"
             # logger.debug(
             #     "Similar Charts popout cache miss for subject_chart_id=%s (cached=%s changed=%s deleted=%s)",
             #     subject_chart_id,
@@ -25292,20 +25307,27 @@ class MainWindow(QMainWindow):
                         should_cancel=lambda p=progress: bool(p.wasCanceled() or p.property("operation_canceled")),
                     )
                     raise_if_progress_canceled(progress)
-                    update_similar_charts_loading_progress(
-                        progress,
-                        "Calculating least similar charts…",
-                    )
-                    least_similar_matches = find_astro_twins(
-                        chart,
-                        candidates,
-                        top_k=max(1, len(candidates)),
-                        exclude_chart_id=subject_chart_id,
-                        least_similar=True,
-                        algorithm_mode=algorithm_mode,
-                        custom_settings=getattr(self, "_similarity_calculator_settings", None),
-                        should_cancel=lambda p=progress: bool(p.wasCanceled() or p.property("operation_canceled")),
-                    )
+                    if self._similar_charts_can_derive_least_from_full_similarity_ranking(algorithm_mode):
+                        update_similar_charts_loading_progress(
+                            progress,
+                            "Sorting least similar charts…",
+                        )
+                        least_similar_matches = self._least_similar_matches_from_similarity_ranking(most_similar_matches)
+                    else:
+                        update_similar_charts_loading_progress(
+                            progress,
+                            "Calculating least similar charts…",
+                        )
+                        least_similar_matches = find_astro_twins(
+                            chart,
+                            candidates,
+                            top_k=max(1, len(candidates)),
+                            exclude_chart_id=subject_chart_id,
+                            least_similar=True,
+                            algorithm_mode=algorithm_mode,
+                            custom_settings=getattr(self, "_similarity_calculator_settings", None),
+                            should_cancel=lambda p=progress: bool(p.wasCanceled() or p.property("operation_canceled")),
+                        )
                     raise_if_progress_canceled(progress)
                 except OperationCanceled:
                     return
