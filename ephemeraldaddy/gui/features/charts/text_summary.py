@@ -55,6 +55,7 @@ from ephemeraldaddy.gui.features.charts.metrics import (
     chart_uses_houses,
     house_for_longitude,
 )
+from ephemeraldaddy.gui.features.charts.provenance import chart_is_hypothetical
 from ephemeraldaddy.gui.features.charts.presentation import (
     format_degree_minutes,
     format_longitude,
@@ -433,6 +434,9 @@ def format_chart_text(
     if show_chart_uid:
         chart_uid = str(getattr(chart, "chart_uid", "") or "").strip() or "Unavailable"
         lines.append(f"Chart ID: {chart_uid}")
+        linked_chart_uid = str(getattr(chart, "alternate_chart_uid", "") or "").strip()
+        if linked_chart_uid and chart_is_hypothetical(chart):
+            lines.append(f"Linked Chart ID: {linked_chart_uid}")
     houses = getattr(chart, "houses", None) if use_houses else None
     aspects = getattr(chart, "aspects", None)
     filtered_aspects: list[dict] = []

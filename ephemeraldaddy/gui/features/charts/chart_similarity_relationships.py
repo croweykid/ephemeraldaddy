@@ -161,9 +161,11 @@ def migrate_perceived_similarity_scores_to_alternate_chart(
     hypothetical_chart_uid: str | None,
     path: str | os.PathLike[str] | None = None,
 ) -> int:
-    """Copy existing perceived-similarity scores from a linked chart to a hypothetical.
+    """Consolidate perceived-similarity scores for a linked standard/hypothetical pair.
 
-    Existing hypothetical relationships are never overwritten.
+    Any scored relationship attached to either chart UID is mirrored to the
+    other chart UID. When both charts already have a score for the same third
+    chart, the linked standard chart's score is treated as canonical.
     """
     source_uid = _coerce_chart_uid(source_chart_uid)
     hypo_uid = _coerce_chart_uid(hypothetical_chart_uid)
@@ -174,31 +176,53 @@ def migrate_perceived_similarity_scores_to_alternate_chart(
     relationships = payload.setdefault("relationships", {})
     if not isinstance(relationships, dict):
         return 0
+
     timestamp_text = _utc_timestamp()
-    migrated = 0
+    source_records_by_other_uid: dict[str, Mapping[str, Any]] = {}
+    hypo_records_by_other_uid: dict[str, Mapping[str, Any]] = {}
+    linked_pair_uids = {source_uid, hypo_uid}
+
     for record in list(relationships.values()):
         if not isinstance(record, Mapping):
             continue
         raw_uids = [_coerce_chart_uid(uid) for uid in record.get("chart_uids", [])]
         uids = [uid for uid in raw_uids if uid]
-        if source_uid not in uids or len(uids) != 2:
+        if len(uids) != 2:
             continue
-        other_uid = uids[0] if uids[1] == source_uid else uids[1]
-        target_key = chart_similarity_relationship_key(
-            chart_1_id=None,
-            chart_2_id=None,
-            chart_1_uid=hypo_uid,
-            chart_2_uid=other_uid,
-        )
-        if target_key in relationships:
+        uid_set = set(uids)
+        if uid_set == linked_pair_uids:
             continue
-        target_uids = tuple(sorted((hypo_uid, other_uid)))
-        relationships[target_key] = _relationship_record_with_uids(record, target_key, target_uids, timestamp_text)
-        migrated += 1
-    if migrated:
+        if source_uid in uid_set:
+            other_uid = next(uid for uid in uids if uid != source_uid)
+            source_records_by_other_uid[other_uid] = record
+        elif hypo_uid in uid_set:
+            other_uid = next(uid for uid in uids if uid != hypo_uid)
+            hypo_records_by_other_uid[other_uid] = record
+
+    other_uids = set(source_records_by_other_uid) | set(hypo_records_by_other_uid)
+    if not other_uids:
+        return 0
+
+    changed = 0
+    for other_uid in sorted(other_uids):
+        canonical_record = source_records_by_other_uid.get(other_uid) or hypo_records_by_other_uid[other_uid]
+        for linked_uid in (source_uid, hypo_uid):
+            target_key = chart_similarity_relationship_key(
+                chart_1_id=None,
+                chart_2_id=None,
+                chart_1_uid=linked_uid,
+                chart_2_uid=other_uid,
+            )
+            target_uids = tuple(sorted((linked_uid, other_uid)))
+            target_record = _relationship_record_with_uids(canonical_record, target_key, target_uids, timestamp_text)
+            if relationships.get(target_key) != target_record:
+                relationships[target_key] = target_record
+                changed += 1
+
+    if changed:
         payload["schema_version"] = 2
         _write_relationship_file(relationships_path, payload, timestamp_text)
-    return migrated
+    return changed
 
 
 def _read_relationship_file_strict(path: Path) -> dict[str, Any]:
