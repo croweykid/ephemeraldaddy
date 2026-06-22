@@ -17607,8 +17607,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if not row:
             return None
         padded = list(row)
-        if len(padded) < 22:
-            padded.extend([None] * (22 - len(padded)))
+        if len(padded) < 30:
+            padded.extend([None] * (30 - len(padded)))
         return (
             int(padded[0]),
             padded[1],
@@ -17636,6 +17636,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             int(padded[19]) if padded[19] is not None else None,
             int(padded[20]) if padded[20] is not None else None,
             int(padded[21]) if padded[21] is not None else None,
+            padded[22],
+            str(padded[23] or "blank"),
+            padded[24],
+            padded[25],
+            padded[26],
+            padded[27],
+            padded[28],
+            padded[29],
         )
 
     def _populate_list(
@@ -17770,6 +17778,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 _birth_year,
                 _retcon_hour,
                 _retcon_minute,
+                from_whence,
+                _data_rating,
+                _relationship_types,
+                _tags,
+                _reminds_me_of,
+                _dominant_sign_weights,
+                _dominant_planet_weights,
+                _dominant_mode,
             ) in rows:
                 try:
                     matches_filters = self._chart_matches_filters(cid)
@@ -17800,10 +17816,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     _birth_year,
                     _retcon_hour,
                     _retcon_minute,
+                    from_whence,
+                    _data_rating,
+                    _relationship_types,
+                    _tags,
+                    _reminds_me_of,
+                    _dominant_sign_weights,
+                    _dominant_planet_weights,
+                    _dominant_mode,
                 )
                 display_name = name or "Unnamed"
-                chart = self._get_chart_for_filter(cid)
-                from_whence_text = ((getattr(chart, "from_whence", "") if chart is not None else "") or "").strip()
+                chart = self._get_chart_for_filter(cid) if row_info_visibility.get("sign_glyphs", True) else None
+                from_whence_text = ((from_whence or "")).strip()
                 from_whence_label = f"({from_whence_text})" if from_whence_text else ""
                 alias_text = (alias or "").strip()
                 alias_label = f"({alias_text})" if alias_text else ""
@@ -17814,13 +17838,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     birthtime_unknown=bool(birthtime_unknown),
                 )
                 if is_placeholder:
-                    # chart = self._get_chart_for_filter(cid)
-                    if chart is not None:
-                        date_label = self._format_partial_birth_date(
-                            getattr(chart, "birth_month", None),
-                            getattr(chart, "birth_day", None),
-                            getattr(chart, "birth_year", None),
-                        )
+                    date_label = self._format_partial_birth_date(
+                        _birth_month,
+                        _birth_day,
+                        _birth_year,
+                    )
                 retcon_time_value = ""
                 if retcon_time_used:
                     try:
@@ -18588,24 +18610,25 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
             name_value = chart_row[1] if chart_row else None
             alias_value = chart_row[2] if chart_row else None
-            from_whence_value = None
+            from_whence_value = chart_row[22] if chart_row and len(chart_row) > 22 else None
             birth_place_value = chart_row[5] if chart_row else None
             source_value = chart_row[14] if chart_row else None
             gender_value = chart_row[3] if chart_row else None
-            reminds_me_of_value = None
-            chart = self._get_chart_for_filter(chart_id)
-            if chart is not None:
-                if chart_row is None:
+            raw_reminds_me_of = chart_row[26] if chart_row and len(chart_row) > 26 else None
+            reminds_me_of_value = " ".join(
+                get_chart_display_name_by_uid(chart_uid)
+                for chart_uid in parse_reminds_me_of_uids(raw_reminds_me_of)
+            )
+            if chart_row is None:
+                chart = self._get_chart_for_filter(chart_id)
+                if chart is not None:
                     name_value = getattr(chart, "name", None)
                     alias_value = getattr(chart, "alias", None)
-                    #birth_place_value = getattr(chart, "birth_place", None)
-                    #source_value = getattr(chart, "source", None)
-                    #gender_value = getattr(chart, "gender", None)
-                from_whence_value = getattr(chart, "from_whence", None)
-                reminds_me_of_value = " ".join(
-                    get_chart_display_name_by_uid(chart_uid)
-                    for chart_uid in parse_reminds_me_of_uids(getattr(chart, "reminds_me_of", None))
-                )
+                    from_whence_value = getattr(chart, "from_whence", None)
+                    reminds_me_of_value = " ".join(
+                        get_chart_display_name_by_uid(chart_uid)
+                        for chart_uid in parse_reminds_me_of_uids(getattr(chart, "reminds_me_of", None))
+                    )
             if not (
                 matches(name_value)
                 or matches(alias_value)
@@ -18627,7 +18650,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 return False
 
         if selected_data_ratings or excluded_data_ratings:
-            chart_data_rating = str(getattr(self._get_chart_for_filter(chart_id), "data_rating", "blank") or "blank")
+            chart_data_rating = str(
+                (chart_row[23] if chart_row and len(chart_row) > 23 else None)
+                or getattr(self._get_chart_for_filter(chart_id), "data_rating", "blank")
+                or "blank"
+            )
             if chart_data_rating in excluded_data_ratings:
                 return False
             if selected_data_ratings and chart_data_rating not in selected_data_ratings:
