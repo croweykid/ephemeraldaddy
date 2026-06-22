@@ -6,6 +6,7 @@ from typing import Callable
 from PySide6.QtCore import QPoint, QThread, QTimer, Qt, QSize
 from PySide6.QtGui import QFont, QIcon
 from PySide6.QtWidgets import (
+    QApplication,
     QComboBox,
     QScrollArea,
     QLabel,
@@ -569,10 +570,27 @@ class ChartsController:
                 apply_launch_window_policy(use_topmost_pulse=use_launch_pulse)
             self._raise_manage_dialog()
         if refresh_after_show is not None:
-            # StartupLoadingWidget is closed 250 ms after MainWindow startup
-            # reaches 100%, so wait a beat longer before doing the expensive
-            # initial refresh on the GUI thread.
-            QTimer.singleShot(350, refresh_after_show)
+            if progress_callback:
+                # During application startup, keep the loading widget alive until
+                # the first Database View population really finishes.  Previously
+                # this refresh was delayed until after the shell appeared, which
+                # closed the startup progress bar while the center panel was still
+                # blank and busy.  Showing the shell, pumping pending paint events,
+                # and then doing the initial refresh under the same progress
+                # callback gives users an accurate lifeline through the slowest
+                # first-open step.
+                progress_callback("Loading Database rows…", 89)
+                app = QApplication.instance()
+                if app is not None:
+                    app.processEvents()
+                refresh_after_show()
+                if app is not None:
+                    app.processEvents()
+                progress_callback("Database View is ready.", 99)
+            else:
+                # Non-startup transitions still defer the expensive refresh until
+                # after the dialog has painted, preserving interactive snappiness.
+                QTimer.singleShot(0, refresh_after_show)
 
         logger.debug(
             "Database View dialog foreground request complete (topmost_pulse=%s).",
