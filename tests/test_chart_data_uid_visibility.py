@@ -29,6 +29,9 @@ def _chart(uid: str = "UID123ABC") -> SimpleNamespace:
         houses=[],
         aspects=[],
         retrogrades={},
+        chart_type="",
+        source="",
+        alternate_chart_uid="",
     )
 
 
@@ -50,3 +53,35 @@ def test_chart_uid_displays_between_place_and_positions_when_enabled():
     positions_index = lines.index("POSITIONS")
 
     assert place_index < chart_id_index < positions_index
+
+
+def test_linked_chart_uid_displays_for_hypothetical_alternative_chart_when_enabled():
+    chart = _chart("HYPO123ABC")
+    chart.chart_type = "Hypothetical"
+    chart.source = "Hypothetical"
+    chart.alternate_chart_uid = "REAL456DEF"
+
+    summary, _position_info, _aspect_info, _species_info = format_chart_text(
+        chart,
+        show_chart_uid=True,
+    )
+    lines = summary.splitlines()
+
+    chart_id_index = lines.index("Chart ID: HYPO123ABC")
+    linked_id_index = lines.index("Linked Chart ID: REAL456DEF")
+    positions_index = lines.index("POSITIONS")
+
+    assert chart_id_index < linked_id_index < positions_index
+
+
+def test_linked_chart_uid_stays_hidden_for_standard_chart_when_enabled():
+    chart = _chart("STANDARD123")
+    chart.alternate_chart_uid = "REAL456DEF"
+
+    summary, _position_info, _aspect_info, _species_info = format_chart_text(
+        chart,
+        show_chart_uid=True,
+    )
+
+    assert "Chart ID: STANDARD123" in summary
+    assert "Linked Chart ID:" not in summary

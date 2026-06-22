@@ -63,7 +63,7 @@ def test_chart_similarity_relationship_key_is_pair_stable_and_algorithm_independ
     assert forward == reverse == "4|12"
 
 
-def test_linked_hypothetical_migrates_existing_scores_without_overwrite(tmp_path):
+def test_linked_hypothetical_consolidation_prefers_standard_score(tmp_path):
     relationship_path = tmp_path / "chart_similarity_relationships.json"
     real_uid = "REALUID00000001"
     hypo_uid = "HYPOUID00000001"
@@ -105,8 +105,8 @@ def test_linked_hypothetical_migrates_existing_scores_without_overwrite(tmp_path
     )
     states = load_chart_similarity_relationship_states(relationship_path, include_legacy_algorithm_log=False)
 
-    assert migrated == 0
-    assert states[hypo_key]["user_reported_accuracy"] == 55
+    assert migrated > 0
+    assert states[hypo_key]["user_reported_accuracy"] == 80
 
 
 def test_linked_hypothetical_scores_update_in_unison(monkeypatch, tmp_path):
@@ -139,6 +139,84 @@ def test_linked_hypothetical_scores_update_in_unison(monkeypatch, tmp_path):
     states = load_chart_similarity_relationship_states(relationship_path, include_legacy_algorithm_log=False)
 
     assert states[hypo_key]["user_reported_accuracy"] == 91
+
+
+def test_linked_hypothetical_consolidates_scores_with_standard_preferred(tmp_path):
+    relationship_path = tmp_path / "chart_similarity_relationships.json"
+    real_uid = "REALUID00000001"
+    hypo_uid = "HYPOUID00000001"
+    shared_other_uid = "SHAREDOTHER0001"
+    hypo_only_uid = "HYPOONLY0000001"
+    real_only_uid = "REALONLY0000001"
+
+    save_chart_similarity_relationship(
+        chart_1_id=1,
+        chart_1_name="Real",
+        chart_1_uid=real_uid,
+        chart_2_id=2,
+        chart_2_name="Shared",
+        chart_2_uid=shared_other_uid,
+        user_reported_accuracy=88,
+        not_applicable=False,
+        path=relationship_path,
+    )
+    save_chart_similarity_relationship(
+        chart_1_id=3,
+        chart_1_name="Hypo",
+        chart_1_uid=hypo_uid,
+        chart_2_id=2,
+        chart_2_name="Shared",
+        chart_2_uid=shared_other_uid,
+        user_reported_accuracy=44,
+        not_applicable=False,
+        path=relationship_path,
+    )
+    save_chart_similarity_relationship(
+        chart_1_id=3,
+        chart_1_name="Hypo",
+        chart_1_uid=hypo_uid,
+        chart_2_id=4,
+        chart_2_name="Hypo Only",
+        chart_2_uid=hypo_only_uid,
+        user_reported_accuracy=61,
+        not_applicable=False,
+        path=relationship_path,
+    )
+    save_chart_similarity_relationship(
+        chart_1_id=1,
+        chart_1_name="Real",
+        chart_1_uid=real_uid,
+        chart_2_id=5,
+        chart_2_name="Real Only",
+        chart_2_uid=real_only_uid,
+        user_reported_accuracy=73,
+        not_applicable=False,
+        path=relationship_path,
+    )
+
+    changed = migrate_perceived_similarity_scores_to_alternate_chart(
+        source_chart_uid=real_uid,
+        hypothetical_chart_uid=hypo_uid,
+        path=relationship_path,
+    )
+    states = load_chart_similarity_relationship_states(relationship_path, include_legacy_algorithm_log=False)
+
+    assert changed > 0
+    for linked_uid, other_uid, expected_score in (
+        (real_uid, shared_other_uid, 88),
+        (hypo_uid, shared_other_uid, 88),
+        (real_uid, hypo_only_uid, 61),
+        (hypo_uid, hypo_only_uid, 61),
+        (real_uid, real_only_uid, 73),
+        (hypo_uid, real_only_uid, 73),
+    ):
+        key = chart_similarity_relationship_key(
+            chart_1_id=None,
+            chart_2_id=None,
+            chart_1_uid=linked_uid,
+            chart_2_uid=other_uid,
+        )
+        assert states[key]["user_reported_accuracy"] == expected_score
 
 
 def test_relationship_loader_normalizes_legacy_algorithm_log_entries(tmp_path):
