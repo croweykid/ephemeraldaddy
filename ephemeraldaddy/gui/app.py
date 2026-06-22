@@ -521,6 +521,7 @@ from ephemeraldaddy.gui.features.charts.chart_similarity_relationships import (
     convert_logged_chart_similarity_relationship_ids_to_uids,
     format_chart_similarity_relationship_conversion_report,
     load_chart_similarity_relationship_states,
+    migrate_perceived_similarity_scores_to_alternate_chart,
     save_chart_similarity_relationship,
 )
 from ephemeraldaddy.gui.window_placement import (
@@ -603,11 +604,13 @@ from ephemeraldaddy.core.db import (
     load_chart,
     load_dominant_sign_weights,
     get_chart_uid_map,
+    get_alternate_chart_uid,
     find_chart_uid_by_name,
     get_chart_display_name_map,
     get_chart_display_name_by_uid,
     parse_reminds_me_of_uids,
     serialize_reminds_me_of_uids,
+    set_alternate_chart_uid,
     delete_charts,
     invalidate_all_dominant_weight_caches,
     update_chart,
@@ -23468,6 +23471,21 @@ class MainWindow(QMainWindow):
 
         output_controls = QHBoxLayout()
         #output_controls.setContentsMargins(0, 0, 0, 0)
+        self.alternate_chart_widget = QWidget()
+        alternate_chart_layout = QHBoxLayout()
+        alternate_chart_layout.setContentsMargins(0, 0, 0, 0)
+        alternate_chart_layout.setSpacing(6)
+        alternate_chart_layout.addWidget(QLabel("Alternate chart of"))
+        self.alternate_chart_input = QLineEdit()
+        self.alternate_chart_input.setPlaceholderText("Existing chart name, alias, or ID")
+        self.alternate_chart_input.setToolTip(
+            "For Hypothetical charts only: link this chart as an alternate rectification of one existing chart."
+        )
+        self.alternate_chart_input.editingFinished.connect(self._on_alternate_chart_input_finished)
+        alternate_chart_layout.addWidget(self.alternate_chart_input)
+        self.alternate_chart_widget.setLayout(alternate_chart_layout)
+        self.alternate_chart_widget.setVisible(False)
+        output_controls.addWidget(self.alternate_chart_widget, 0, Qt.AlignLeft)
         output_controls.addStretch(1)
         self.aspects_sort_label = QLabel("Aspects")
         self.aspects_sort_label.setStyleSheet("font-weight: bold;")
@@ -29625,12 +29643,91 @@ class MainWindow(QMainWindow):
 
     def _apply_chart_type_ui_state(self, chart_type: str | None) -> None:
         is_event_chart = chart_type == SOURCE_EVENT
+        is_hypothetical_chart = chart_type == SOURCE_HYPOTHETICAL
 
         # Metadata group: sentiment + relationship panels.
         self.sentiment_relation_row_widget.setVisible(not is_event_chart)
 
         # Metadata group: sentiment intensity controls.
         self.sentiment_metrics_widget.setVisible(not is_event_chart)
+        if hasattr(self, "alternate_chart_widget"):
+            self.alternate_chart_widget.setVisible(is_hypothetical_chart)
+            self._update_alternate_chart_completer()
+            if not is_hypothetical_chart and hasattr(self, "alternate_chart_input"):
+                self.alternate_chart_input.setText("")
+
+    def _update_alternate_chart_completer(self) -> None:
+        line_edit = getattr(self, "alternate_chart_input", None)
+        if not isinstance(line_edit, QLineEdit):
+            return
+        current_chart_id = getattr(self, "current_chart_id", None)
+        current_chart_id = int(current_chart_id) if current_chart_id is not None else None
+        chart_rows = list_charts()
+        chart_uids = get_chart_uid_map(row[0] for row in chart_rows)
+        display_names = get_chart_display_name_map(row[0] for row in chart_rows)
+        choices: list[str] = []
+        seen: set[str] = set()
+        for row in chart_rows:
+            chart_id = int(row[0])
+            if current_chart_id is not None and chart_id == current_chart_id:
+                continue
+            chart_type = _normalize_gui_source(row[14] if len(row) > 14 else "")
+            if chart_type == SOURCE_HYPOTHETICAL:
+                continue
+            for raw_choice in (display_names.get(chart_id), row[2], chart_uids.get(chart_id)):
+                choice = str(raw_choice or "").strip()
+                if not choice:
+                    continue
+                choice_key = choice.casefold()
+                if choice_key in seen:
+                    continue
+                choices.append(choice)
+                seen.add(choice_key)
+        completer = QCompleter(choices, line_edit)
+        completer.setCaseSensitivity(Qt.CaseInsensitive)
+        completer.setFilterMode(Qt.MatchContains)
+        completer.popup().setFocusPolicy(Qt.NoFocus)
+        line_edit.setCompleter(completer)
+        line_edit._alternate_chart_completer = completer
+
+    def _set_alternate_chart_state(self, chart_uid: str | None) -> None:
+        line_edit = getattr(self, "alternate_chart_input", None)
+        if not isinstance(line_edit, QLineEdit):
+            return
+        display_name = get_chart_display_name_by_uid(chart_uid) if chart_uid else ""
+        line_edit.blockSignals(True)
+        line_edit.setText(display_name or str(chart_uid or ""))
+        line_edit.blockSignals(False)
+
+    def _on_alternate_chart_input_finished(self) -> None:
+        line_edit = getattr(self, "alternate_chart_input", None)
+        if not isinstance(line_edit, QLineEdit):
+            return
+        text = line_edit.text().strip()
+        if not text:
+            self._mark_lucygoosey()
+            return
+        chart_uid = find_chart_uid_by_name(text, exclude_chart_id=getattr(self, "current_chart_id", None))
+        if not chart_uid:
+            QMessageBox.information(
+                self,
+                "Chart not found",
+                "Choose one existing non-hypothetical chart name, alias, or Chart ID from autocomplete.",
+            )
+            return
+        self._set_alternate_chart_state(chart_uid)
+        self._mark_lucygoosey()
+
+    def _current_alternate_chart_uid_for_save(self, chart_type: str | None) -> str:
+        if _normalize_gui_source(chart_type) != SOURCE_HYPOTHETICAL:
+            return ""
+        line_edit = getattr(self, "alternate_chart_input", None)
+        if not isinstance(line_edit, QLineEdit):
+            return ""
+        text = line_edit.text().strip()
+        if not text:
+            return ""
+        return find_chart_uid_by_name(text, exclude_chart_id=getattr(self, "current_chart_id", None)) or ""
 
     def _set_chart_type_selection(self, chart_type: str | None) -> None:
         chart_type_value = _normalize_gui_source(chart_type)
@@ -30210,6 +30307,7 @@ class MainWindow(QMainWindow):
         placeholder.rectification_notes = self.rectification_edit.toPlainText().strip()
         placeholder.biography = self.biography_edit.toPlainText().strip()
         placeholder.chart_data_source = self.source_edit.toPlainText().strip()
+        placeholder.alternate_chart_uid = self._current_alternate_chart_uid_for_save(placeholder.chart_type)
         placeholder.positive_sentiment_intensity = self.positive_sentiment_intensity_spin.value()
         placeholder.negative_sentiment_intensity = self.negative_sentiment_intensity_spin.value()
         placeholder.familiarity = self.familiarity_spin.value()
@@ -30367,6 +30465,7 @@ class MainWindow(QMainWindow):
             chart.biography = self.biography_edit.toPlainText().strip()
         if hasattr(chart, "chart_data_source"):
             chart.chart_data_source = self.source_edit.toPlainText().strip()
+        chart.alternate_chart_uid = self._current_alternate_chart_uid_for_save(chart_type_value)
         if hasattr(chart, "tags"):
             chart.tags = [] if is_event_chart else get_chart_view_tags(self)
         if hasattr(chart, "reminds_me_of"):
@@ -30817,6 +30916,7 @@ class MainWindow(QMainWindow):
                 chart.rectification_notes = self.rectification_edit.toPlainText().strip()
                 chart.biography = self.biography_edit.toPlainText().strip()
                 chart.chart_data_source = self.source_edit.toPlainText().strip()
+                chart.alternate_chart_uid = self._current_alternate_chart_uid_for_save(chart_type_value)
                 chart.positive_sentiment_intensity = 0 if is_event_chart else self.positive_sentiment_intensity_spin.value()
                 chart.negative_sentiment_intensity = 0 if is_event_chart else self.negative_sentiment_intensity_spin.value()
                 chart.familiarity = 1 if is_event_chart else self.familiarity_spin.value()
@@ -30971,6 +31071,21 @@ class MainWindow(QMainWindow):
             self._invalidate_chart_view_navigation_cache({chart_id})
 
         self.current_chart_id = chart_id
+        old_alternate_uid = get_alternate_chart_uid(chart_id)
+        new_alternate_uid = self._current_alternate_chart_uid_for_save(getattr(chart, "chart_type", None))
+        set_alternate_chart_uid(chart_id, new_alternate_uid)
+        chart.alternate_chart_uid = new_alternate_uid
+        if new_alternate_uid and new_alternate_uid != old_alternate_uid:
+            migrated_count = migrate_perceived_similarity_scores_to_alternate_chart(
+                source_chart_uid=new_alternate_uid,
+                hypothetical_chart_uid=getattr(chart, "chart_uid", None) or get_chart_uid_map([chart_id]).get(chart_id),
+            )
+            if migrated_count:
+                logger.info(
+                    "Migrated %s perceived similarity relationships to hypothetical chart %s.",
+                    migrated_count,
+                    chart_id,
+                )
         self._save_material_facts_for_chart(chart_id)
         previous_recalculation_token = (
             self._chart_analytics_cache_token(self._latest_chart)
@@ -31387,6 +31502,8 @@ class MainWindow(QMainWindow):
         self._set_chart_tags_state(normalize_tag_list(getattr(chart, "tags", [])))
         self._update_reminds_me_of_completer()
         self._set_reminds_me_of_state(parse_reminds_me_of_uids(getattr(chart, "reminds_me_of", None)))
+        self._update_alternate_chart_completer()
+        self._set_alternate_chart_state(getattr(chart, "alternate_chart_uid", ""))
         self.comments_edit.setPlainText(getattr(chart, "comments", "") or "")
         self.rectification_edit.setPlainText(getattr(chart, "rectification_notes", "") or "")
         self.biography_edit.setPlainText(getattr(chart, "biography", "") or "")

@@ -55,6 +55,25 @@ def test_multiple_reminds_me_of_uids_are_serialized_and_parsed(monkeypatch, tmp_
     assert db.parse_reminds_me_of_uids(loaded_related.reminds_me_of) == [first_uid, second_uid]
 
 
+def test_only_hypothetical_charts_can_link_to_alternate_chart_uid(monkeypatch, tmp_path):
+    _use_temp_db(monkeypatch, tmp_path)
+    real_id = db.save_chart(_chart("Real"), birth_place="UTC")
+    normal_id = db.save_chart(_chart("Normal"), birth_place="UTC")
+    real_uid = db.get_chart_uid(real_id)
+
+    hypothetical = _chart("Hypothetical")
+    hypothetical.chart_type = db.SOURCE_HYPOTHETICAL
+    hypothetical.source = db.SOURCE_HYPOTHETICAL
+    hypothetical_id = db.save_chart(hypothetical, birth_place="UTC")
+
+    db.set_alternate_chart_uid(hypothetical_id, real_uid)
+    db.set_alternate_chart_uid(normal_id, real_uid)
+
+    assert db.get_alternate_chart_uid(hypothetical_id) == real_uid
+    assert db.get_alternate_chart_uid(normal_id) == ""
+    assert db.get_alternate_chart_uid_groups() == {real_uid: [real_uid, db.get_chart_uid(hypothetical_id)]}
+
+
 def test_uid_helpers_repair_missing_chart_uids(monkeypatch, tmp_path):
     _use_temp_db(monkeypatch, tmp_path)
     chart_id = db.save_chart(_chart("Missing UID"), birth_place="UTC")
