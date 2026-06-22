@@ -597,6 +597,7 @@ from ephemeraldaddy.core.material_facts import (
 from ephemeraldaddy.core.db import (
     DB_PATH,
     DB_DIR,
+    ensure_db_ready_once,
     save_chart,
     list_charts,
     load_chart,
@@ -34212,6 +34213,8 @@ def main(startup_loading: StartupProgress | QWidget | None = None):
         _mark_startup_dependency_check_complete(settings)
     else:
         startup_loading.update_status("Using cached dependency readiness…", 15)
+    startup_loading.update_status("Preparing chart database…", 35)
+    ensure_db_ready_once()
     startup_loading.update_status("Loading main window…", 45)
     logger.debug("Constructing MainWindow.")
     window = MainWindow()
