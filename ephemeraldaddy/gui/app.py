@@ -25279,11 +25279,17 @@ class MainWindow(QMainWindow):
                 message="Analyzing database to match similar charts…",
             )
             try:
+                update_similar_charts_loading_progress(
+                    progress,
+                    "Loading eligible saved charts…",
+                    8,
+                )
                 candidates = self._load_similar_chart_candidates(
                     rows=chart_rows,
                     current_chart_id=subject_chart_id,
                 )
                 if not candidates:
+                    close_similar_charts_loading_progress(progress)
                     QMessageBox.information(
                         self,
                         "Similar Charts",
@@ -25292,9 +25298,26 @@ class MainWindow(QMainWindow):
                     return
 
                 try:
+                    last_progress_percent = {"value": -1}
+
+                    def _score_progress(done: int, total: int, *, start: int = 18, end: int = 78) -> None:
+                        if total <= 0:
+                            return
+                        percent = start + ((end - start) * (max(0, min(done, total)) / total))
+                        rounded_percent = int(max(0, min(100, round(percent))))
+                        if rounded_percent <= last_progress_percent["value"] and done < total:
+                            return
+                        last_progress_percent["value"] = rounded_percent
+                        update_similar_charts_loading_progress(
+                            progress,
+                            f"Scoring saved charts ({done}/{total})…",
+                            rounded_percent,
+                        )
+
                     update_similar_charts_loading_progress(
                         progress,
                         "Calculating most similar charts…",
+                        18,
                     )
                     most_similar_matches = find_astro_twins(
                         chart,
@@ -25305,18 +25328,21 @@ class MainWindow(QMainWindow):
                         algorithm_mode=algorithm_mode,
                         custom_settings=getattr(self, "_similarity_calculator_settings", None),
                         should_cancel=lambda p=progress: bool(p.wasCanceled() or p.property("operation_canceled")),
+                        progress_callback=_score_progress,
                     )
                     raise_if_progress_canceled(progress)
                     if self._similar_charts_can_derive_least_from_full_similarity_ranking(algorithm_mode):
                         update_similar_charts_loading_progress(
                             progress,
                             "Sorting least similar charts…",
+                            82,
                         )
                         least_similar_matches = self._least_similar_matches_from_similarity_ranking(most_similar_matches)
                     else:
                         update_similar_charts_loading_progress(
                             progress,
                             "Calculating least similar charts…",
+                            82,
                         )
                         least_similar_matches = find_astro_twins(
                             chart,
@@ -25327,9 +25353,11 @@ class MainWindow(QMainWindow):
                             algorithm_mode=algorithm_mode,
                             custom_settings=getattr(self, "_similarity_calculator_settings", None),
                             should_cancel=lambda p=progress: bool(p.wasCanceled() or p.property("operation_canceled")),
+                            progress_callback=lambda done, total: _score_progress(done, total, start=82, end=90),
                         )
                     raise_if_progress_canceled(progress)
                 except OperationCanceled:
+                    close_similar_charts_loading_progress(progress)
                     return
                 except Exception as exc:
                     if algorithm_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
@@ -25339,8 +25367,11 @@ class MainWindow(QMainWindow):
                             error=exc,
                         )
                     raise
-            finally:
+            except Exception:
                 close_similar_charts_loading_progress(progress)
+                raise
+        if performed_full_recompute:
+            update_similar_charts_loading_progress(progress, "Preparing Similar Charts window…", 92)
         if algorithm_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
             invalid_mode = any(
                 match.algorithm_mode != SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE
@@ -25356,6 +25387,8 @@ class MainWindow(QMainWindow):
                     "Similar Charts (comprehensive)",
                     "Comprehensive mode returned fallback results. See terminal for details.",
                 )
+                if performed_full_recompute:
+                    close_similar_charts_loading_progress(progress)
                 return
         least_similar_matches.sort(key=lambda match: (float(match.score), int(match.chart_id)))
         if performed_full_recompute:
@@ -25379,6 +25412,8 @@ class MainWindow(QMainWindow):
                 info_link_prefix="sim-info:popout:least",
             )
         )
+        if performed_full_recompute:
+            update_similar_charts_loading_progress(progress, "Loading similarity calibration…", 94)
         similarity_average, similarity_standard_deviation = load_similarity_calibration_stats(self._settings)
         show_perceived_accuracy_controls = bool(
             getattr(
@@ -25389,6 +25424,8 @@ class MainWindow(QMainWindow):
         )
         if show_perceived_accuracy_controls:
             perceived_accuracy_states = load_chart_similarity_relationship_states()
+            if performed_full_recompute:
+                update_similar_charts_loading_progress(progress, "Preparing perceived-accuracy results…", 96)
             all_accuracy_entries = self._similar_charts_perceived_accuracy_entries_for_states(
                 chart=chart,
                 subject_chart_id=subject_chart_id,
@@ -25400,6 +25437,8 @@ class MainWindow(QMainWindow):
         else:
             perceived_accuracy_states = None
             all_accuracy_entries = []
+        if performed_full_recompute:
+            update_similar_charts_loading_progress(progress, "Rendering Similar Charts window…", 98)
         dialog = build_similar_charts_popout_dialog(
             parent=self,
             subject_name=subject_name,
@@ -25453,6 +25492,9 @@ class MainWindow(QMainWindow):
             else None
         )
         dialog.show()
+        if performed_full_recompute:
+            update_similar_charts_loading_progress(progress, "Similar Charts ready.", 100)
+            close_similar_charts_loading_progress(progress)
 
     def _calculate_pair_dissimilarity_from_selection(self) -> None:
         if self._similarities_pair_result_label is None:
