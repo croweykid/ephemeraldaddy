@@ -602,6 +602,7 @@ from ephemeraldaddy.core.db import (
     save_chart,
     list_charts,
     load_chart,
+    load_charts,
     load_dominant_sign_weights,
     get_chart_uid_map,
     get_alternate_chart_uid,
@@ -17571,6 +17572,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             owner = self.parent()
             if owner is not None and hasattr(owner, "_invalidate_chart_view_navigation_cache"):
                 owner._invalidate_chart_view_navigation_cache(changed_ids)
+        chart_ids_for_cache = []
+        for row in self._chart_rows:
+            normalized = self._normalize_chart_row(row)
+            if normalized is not None:
+                chart_ids_for_cache.append(normalized[0])
+        self._hydrate_chart_filter_cache(chart_ids_for_cache)
         self._populate_list(
             selected_ids=selected_ids,
             refresh_metrics=refresh_metrics,
@@ -19624,6 +19631,26 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if score > 5.05:
             return "feminine"
         return "androgynous"
+
+
+    def _hydrate_chart_filter_cache(self, chart_ids: Iterable[int]) -> None:
+        missing_ids = [
+            int(chart_id)
+            for chart_id in dict.fromkeys(chart_ids)
+            if int(chart_id) not in self._chart_cache
+        ]
+        if not missing_ids:
+            return
+        try:
+            self._chart_cache.update(load_charts(missing_ids))
+        except Exception as exc:
+            debug_id = _new_debug_action_id("chart_cache_batch_load")
+            logger.exception(
+                "Batch chart load failed for filter cache (id=%s count=%s): %s",
+                debug_id,
+                len(missing_ids),
+                exc,
+            )
 
     def _get_chart_for_filter(self, chart_id: int):
         if chart_id in self._chart_cache:
@@ -33150,19 +33177,22 @@ class MainWindow(QMainWindow):
         if cached_token == cache_token and isinstance(cached_charts, list):
             return list(cached_charts)
 
-        norm_charts: list[Chart] = []
+        chart_ids: list[int] = []
         for row in self._prediction_norm_rows():
             try:
-                chart_id = int(row[0])
+                chart_ids.append(int(row[0]))
             except Exception:
                 continue
-            try:
-                chart = load_chart(chart_id)
-            except Exception:
-                continue
-            if chart is None or self._is_placeholder_chart(chart):
-                continue
-            norm_charts.append(chart)
+        try:
+            charts_by_id = load_charts(chart_ids)
+        except Exception:
+            charts_by_id = {}
+        norm_charts = [
+            chart
+            for chart_id in chart_ids
+            if (chart := charts_by_id.get(chart_id)) is not None
+            and not self._is_placeholder_chart(chart)
+        ]
         self._prediction_norm_charts_cache_token = cache_token
         self._prediction_norm_charts_cache = list(norm_charts)
         return norm_charts
