@@ -793,6 +793,11 @@ from ephemeraldaddy.gui.features.charts.database_analytics import (
     snapshot_add_decan,
     snapshot_add_nakshatra,
 )
+from ephemeraldaddy.gui.dbv_batch_bio import (
+    build_batch_bio_section,
+    clear_batch_from_whence_state,
+    set_batch_from_whence_state,
+)
 from ephemeraldaddy.gui.dbv_search_panel import (
     active_body_dynamics_filters as get_active_body_dynamics_filters,
     body_dynamics_filters_are_active,
@@ -12974,18 +12979,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._update_tag_completers()
         layout.addWidget(tagging_section)
 
-        bio_section, bio_section_layout = add_collapsible_section("Bio")
-        bio_from_row = QHBoxLayout()
-        bio_from_row.addWidget(QLabel("From"))
-        self.batch_from_whence_input = QLineEdit()
-        self.batch_from_whence_input.setPlaceholderText("band, show, movie, organization…")
-        bio_from_row.addWidget(self.batch_from_whence_input, 1)
-        batch_from_whence_button = QPushButton("Update")
-        batch_from_whence_button.clicked.connect(self._on_batch_from_whence_apply)
-        bio_from_row.addWidget(batch_from_whence_button)
-        bio_section_layout.addLayout(bio_from_row)
-        self._bind_batch_enter_apply(self.batch_from_whence_input, batch_from_whence_button.click)
-        layout.addWidget(bio_section)
+        layout.addWidget(build_batch_bio_section(self, add_collapsible_section))
 
         predictability_section, predictability_section_layout = add_collapsible_section("💭Predictability")
         predictability_row = QHBoxLayout()
@@ -13452,17 +13446,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             tag_values,
             preserve_lucygoosey=preserve_lucygoosey_metrics,
         )
-        if hasattr(self, "batch_from_whence_input"):
-            self.batch_from_whence_input.blockSignals(True)
-            if len(set(from_whence_values)) == 1:
-                self.batch_from_whence_input.setText(from_whence_values[0])
-                self.batch_from_whence_input.setToolTip("")
-            else:
-                self.batch_from_whence_input.setText("")
-                self.batch_from_whence_input.setToolTip(
-                    "Selected charts have mixed From values. Updating will overwrite all selected charts."
-                )
-            self.batch_from_whence_input.blockSignals(False)
+        set_batch_from_whence_state(self, from_whence_values)
         self._render_batch_selection_tag_summary(tag_counts, selected_count)
         self._set_batch_alignment_state(resolved_items)
         self._batch_last_selection_ids = chart_id_set
@@ -14763,47 +14747,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         return True
 
 
-    def _on_batch_from_whence_apply(self) -> None:
-        chart_ids = self._selected_chart_ids()
-        if not chart_ids:
-            QMessageBox.information(
-                self,
-                "No charts selected",
-                "Select one or more charts before applying batch edits.",
-            )
-            self._update_batch_edit_state()
-            return
-
-        from_value = self.batch_from_whence_input.text().strip()
-        selected_count = len(chart_ids)
-        display_value = from_value or "blank"
-        action_label = f"Set From to '{display_value}' for"
-        if not self._confirm_batch_edit(action_label, selected_count):
-            self._update_batch_edit_state()
-            return
-
-        try:
-            for chart_id in chart_ids:
-                chart = load_chart(chart_id)
-                chart.from_whence = from_value or None
-                update_chart(
-                    chart_id,
-                    chart,
-                    retcon_time_used=getattr(chart, "retcon_time_used", False),
-                )
-                self._chart_cache[chart_id] = chart
-        except Exception as exc:
-            QMessageBox.critical(
-                self,
-                "Batch edit error",
-                f"Could not update selected charts' From values:\n{exc}",
-            )
-            return
-
-        changed_ids = set(chart_ids)
-        self._update_batch_edit_state()
-        self._refresh_filters_after_batch_edit(changed_ids)
-
     def _on_batch_source_selected(self, index: int) -> None:
         source = self.batch_source_combo.itemData(index)
         if not source:
@@ -15896,9 +15839,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.batch_tags_preview_label.setText("")
         if hasattr(self, "batch_tags_selection_label"):
             self.batch_tags_selection_label.setText("")
-        if hasattr(self, "batch_from_whence_input"):
-            self.batch_from_whence_input.setText("")
-            self.batch_from_whence_input.setToolTip("")
+        clear_batch_from_whence_state(self)
         self._batch_tags_lucygoosey = False
         self.batch_alignment_slider.blockSignals(True)
         self.batch_alignment_slider.setValue(0)
