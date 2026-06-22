@@ -222,3 +222,23 @@ def test_human_design_output_suppresses_unknown_time_variants_when_houses_are_us
     hd_output.build_human_design_chart_data_output(SimpleNamespace(), aspect_sort="orb")
 
     assert captured_variant_results == [None]
+
+
+def test_body_longitudes_reuses_cached_planetary_positions(monkeypatch):
+    hds._cached_planetary_longitude.cache_clear()
+    calls = []
+
+    def fake_planetary_longitude(moment, body):
+        calls.append((moment, body))
+        return 10.0 if body != "Rahu" else 20.0
+
+    monkeypatch.setattr(hds, "planetary_longitude", fake_planetary_longitude)
+    moment = datetime(2000, 1, 1, 12, 0, tzinfo=timezone.utc)
+
+    first = hds._body_longitudes(moment)
+    second = hds._body_longitudes(moment)
+
+    assert first == second
+    assert first["Earth"] == 190.0
+    assert len(calls) == 11
+    hds._cached_planetary_longitude.cache_clear()
