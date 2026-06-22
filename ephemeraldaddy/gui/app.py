@@ -793,6 +793,11 @@ from ephemeraldaddy.gui.features.charts.database_analytics import (
     snapshot_add_decan,
     snapshot_add_nakshatra,
 )
+from ephemeraldaddy.gui.dbv_batch_bio import (
+    build_batch_bio_section,
+    clear_batch_from_whence_state,
+    set_batch_from_whence_state,
+)
 from ephemeraldaddy.gui.dbv_search_panel import (
     active_body_dynamics_filters as get_active_body_dynamics_filters,
     body_dynamics_filters_are_active,
@@ -12974,6 +12979,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._update_tag_completers()
         layout.addWidget(tagging_section)
 
+        layout.addWidget(build_batch_bio_section(self, add_collapsible_section))
+
         predictability_section, predictability_section_layout = add_collapsible_section("💭Predictability")
         predictability_row = QHBoxLayout()
         predictability_row.addWidget(QLabel("Chart matches expectations (0-9):"))
@@ -13288,6 +13295,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         tag_counts: dict[str, int] = {}
         gender_values: list[str] = []
         year_first_encountered_values: list[int | None] = []
+        from_whence_values: list[str] = []
         for chart_id, chart in resolved_items:
             sentiments = set(getattr(chart, "sentiments", []) or [])
             relationships = set(getattr(chart, "relationship_types", []) or [])
@@ -13332,6 +13340,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             year_first_encountered_values.append(
                 self._parse_year_first_encountered_text(str(getattr(chart, "year_first_encountered", "") or ""))
             )
+            from_whence_values.append(str(getattr(chart, "from_whence", "") or ""))
 
 
         for label, checkbox in self.batch_sentiment_checkboxes.items():
@@ -13437,6 +13446,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             tag_values,
             preserve_lucygoosey=preserve_lucygoosey_metrics,
         )
+        set_batch_from_whence_state(self, from_whence_values)
         self._render_batch_selection_tag_summary(tag_counts, selected_count)
         self._set_batch_alignment_state(resolved_items)
         self._batch_last_selection_ids = chart_id_set
@@ -14736,6 +14746,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._chart_cache.pop(removed_id, None)
         return True
 
+
     def _on_batch_source_selected(self, index: int) -> None:
         source = self.batch_source_combo.itemData(index)
         if not source:
@@ -15828,6 +15839,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.batch_tags_preview_label.setText("")
         if hasattr(self, "batch_tags_selection_label"):
             self.batch_tags_selection_label.setText("")
+        clear_batch_from_whence_state(self)
         self._batch_tags_lucygoosey = False
         self.batch_alignment_slider.blockSignals(True)
         self.batch_alignment_slider.setValue(0)
@@ -16221,14 +16233,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._suppress_filter_refresh = True
         try:
             self._clear_batch_edits()
-            self.incomplete_birthdate_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
-            self._settings.setValue(SETTINGS_KEY_HIDE_PLACEHOLDER_CHARTS_FILTER, 0)
-            if hasattr(self, "hidden_charts_checkbox"):
-                self.hidden_charts_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
-                self._settings.setValue(
-                    SETTINGS_KEY_HIDDEN_CHARTS_FILTER_MODE,
-                    int(QuadStateSlider.MODE_EMPTY),
-                )
             self.birthtime_unknown_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             self.retconned_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             if self.living_checkbox is not None:
@@ -16247,8 +16251,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self._birthdate_latest_day_input.setText("")
             if self._birthdate_latest_year_input is not None:
                 self._birthdate_latest_year_input.setText("")
-            for checkbox in self.chart_type_filter_checkboxes.values():
-                checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             if hasattr(self, "dnd_class_filter_combo") and self.dnd_class_filter_combo is not None:
                 self.dnd_class_filter_combo.setCurrentIndex(0)
             self.species_filter_combo.setCurrentIndex(0)
@@ -18614,17 +18616,22 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             birth_place_value = chart_row[5] if chart_row else None
             source_value = chart_row[14] if chart_row else None
             gender_value = chart_row[3] if chart_row else None
+            chart_uid_value = None
             raw_reminds_me_of = chart_row[26] if chart_row and len(chart_row) > 26 else None
             reminds_me_of_value = " ".join(
                 get_chart_display_name_by_uid(chart_uid)
                 for chart_uid in parse_reminds_me_of_uids(raw_reminds_me_of)
             )
-            if chart_row is None:
-                chart = self._get_chart_for_filter(chart_id)
-                if chart is not None:
+            chart = self._get_chart_for_filter(chart_id)
+            if chart is not None:
+                chart_uid_value = getattr(chart, "chart_uid", None)
+                if chart_row is None:
                     name_value = getattr(chart, "name", None)
                     alias_value = getattr(chart, "alias", None)
                     from_whence_value = getattr(chart, "from_whence", None)
+                    birth_place_value = getattr(chart, "birth_place", birth_place_value)
+                    source_value = getattr(chart, "source", source_value)
+                    gender_value = getattr(chart, "gender", gender_value)
                     reminds_me_of_value = " ".join(
                         get_chart_display_name_by_uid(chart_uid)
                         for chart_uid in parse_reminds_me_of_uids(getattr(chart, "reminds_me_of", None))
@@ -18633,8 +18640,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 matches(name_value)
                 or matches(alias_value)
                 or matches(from_whence_value)
+                or matches(chart_uid_value)
                 or matches(reminds_me_of_value)
-                #or matches(birth_place_value)
+                or matches(birth_place_value)
                 #or matches(source_value)
                 #or matches(gender_value)
             ):

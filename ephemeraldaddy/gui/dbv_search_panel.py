@@ -335,47 +335,7 @@ def build_dbv_search_panel(window) -> "QWidget":
         "🧩 Data Completeness && Accuracy" #data icon contenders: 🧮 🗄️ 🪪 𖦏 🔢 🧩 ℹ️
     )
 
-    incomplete_birthdate_row = QHBoxLayout()
-    window.incomplete_birthdate_checkbox = QuadStateSlider("incomplete birthdate (placeholder chart)")
     settings = getattr(window, "_settings", None)
-    if settings is not None and bool(
-        settings.value(
-            app_module.SETTINGS_KEY_HIDE_PLACEHOLDER_CHARTS_FILTER,
-            0,
-            type=int,
-        )
-    ):
-        window.incomplete_birthdate_checkbox.setMode(QuadStateSlider.MODE_FALSE)
-    window.incomplete_birthdate_checkbox.modeChanged.connect(window._on_incomplete_birthdate_filter_changed)
-    incomplete_birthdate_row.addWidget(window.incomplete_birthdate_checkbox)
-    incomplete_birthdate_row.addStretch(1)
-    birth_info_status_layout.addLayout(incomplete_birthdate_row)
-
-    window.hidden_charts_filter_row = QWidget()
-    hidden_charts_filter_layout = QHBoxLayout()
-    hidden_charts_filter_layout.setContentsMargins(0, 0, 0, 0)
-    window.hidden_charts_filter_row.setLayout(hidden_charts_filter_layout)
-    window.hidden_charts_checkbox = QuadStateSlider("hidden charts")
-    if settings is not None:
-        hidden_charts_mode = settings.value(
-            app_module.SETTINGS_KEY_HIDDEN_CHARTS_FILTER_MODE,
-            QuadStateSlider.MODE_EMPTY,
-            type=int,
-        )
-        if hidden_charts_mode in {
-            QuadStateSlider.MODE_EMPTY,
-            QuadStateSlider.MODE_TRUE,
-            QuadStateSlider.MODE_FALSE,
-        }:
-            window.hidden_charts_checkbox.setMode(int(hidden_charts_mode))
-    window.hidden_charts_checkbox.modeChanged.connect(window._on_filter_changed)
-    hidden_charts_filter_layout.addWidget(window.hidden_charts_checkbox)
-    hidden_charts_filter_layout.addStretch(1)
-    window.hidden_charts_filter_row.setVisible(
-        bool(getattr(window, "_show_hidden_charts", False))
-    )
-    birth_info_status_layout.addWidget(window.hidden_charts_filter_row)
-
     birth_status_mode_row = QHBoxLayout()
     birth_status_mode_row.addWidget(QLabel("🐣Time:"))
     birth_status_mode_row.addStretch(1)
@@ -1529,24 +1489,6 @@ def build_dbv_search_panel(window) -> "QWidget":
     locations_group_layout.addLayout(state_row)
     layout.addWidget(locations_section)
 
-    #Search: chart type section
-    chart_type_section, chart_type_group_layout = add_collapsible_section(
-        "Chart Type"
-    )
-    chart_type_layout = QGridLayout()
-    chart_type_layout.setContentsMargins(0, 0, 0, 0)
-    window.chart_type_filter_checkboxes = {}
-    chart_type_rows = (len(SOURCE_OPTIONS) + 1) // 2
-    for idx, (source_label, source_value) in enumerate(SOURCE_OPTIONS):
-        checkbox = QuadStateSlider(source_label)
-        checkbox.modeChanged.connect(window._on_filter_changed)
-        window.chart_type_filter_checkboxes[source_value] = checkbox
-        row = idx % chart_type_rows
-        col = idx // chart_type_rows
-        chart_type_layout.addWidget(checkbox, row, col)
-    chart_type_group_layout.addLayout(chart_type_layout)
-    layout.addWidget(chart_type_section)
-
     predictability_section, predictability_group_layout = add_collapsible_section(
         "💭Predictability"
     )
@@ -1621,6 +1563,82 @@ def build_dbv_search_panel(window) -> "QWidget":
     clear_button.clicked.connect(lambda: window._clear_filters())
     button_row.addWidget(clear_button)
     layout.addLayout(button_row)
+
+    # Search: chart type section stays visible and is intentionally below Clear filters.
+    chart_type_section = QWidget()
+    chart_type_section_layout = QVBoxLayout()
+    chart_type_section_layout.setContentsMargins(0, 0, 0, 0)
+    chart_type_section.setLayout(chart_type_section_layout)
+    chart_type_header = QLabel("Chart Type")
+    chart_type_header.setStyleSheet(DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE)
+    chart_type_section_layout.addWidget(chart_type_header)
+
+    chart_type_content = QWidget()
+    chart_type_group_layout = QVBoxLayout()
+    chart_type_group_layout.setContentsMargins(8, 6, 8, 6)
+    chart_type_content.setLayout(chart_type_group_layout)
+    chart_type_content.setStyleSheet(COLLAPSIBLE_SECTION_CONTENT_STYLE)
+
+    chart_type_layout = QGridLayout()
+    chart_type_layout.setContentsMargins(0, 0, 0, 0)
+    window.chart_type_filter_checkboxes = {}
+    chart_type_rows = (len(SOURCE_OPTIONS) + 1) // 2
+    for idx, (source_label, source_value) in enumerate(SOURCE_OPTIONS):
+        checkbox = QuadStateSlider(source_label)
+        checkbox.modeChanged.connect(window._on_filter_changed)
+        window.chart_type_filter_checkboxes[source_value] = checkbox
+        row = idx % chart_type_rows
+        col = idx // chart_type_rows
+        chart_type_layout.addWidget(checkbox, row, col)
+    chart_type_group_layout.addLayout(chart_type_layout)
+
+    chart_type_divider = QFrame()
+    chart_type_divider.setFrameShape(QFrame.HLine)
+    chart_type_divider.setStyleSheet("color: #2f2f2f;")
+    chart_type_group_layout.addWidget(chart_type_divider)
+
+    incomplete_birthdate_row = QHBoxLayout()
+    window.incomplete_birthdate_checkbox = QuadStateSlider("incomplete birthdate (placeholder chart)")
+    if settings is not None and bool(
+        settings.value(
+            app_module.SETTINGS_KEY_HIDE_PLACEHOLDER_CHARTS_FILTER,
+            0,
+            type=int,
+        )
+    ):
+        window.incomplete_birthdate_checkbox.setMode(QuadStateSlider.MODE_FALSE)
+    window.incomplete_birthdate_checkbox.modeChanged.connect(window._on_incomplete_birthdate_filter_changed)
+    incomplete_birthdate_row.addWidget(window.incomplete_birthdate_checkbox)
+    incomplete_birthdate_row.addStretch(1)
+    chart_type_group_layout.addLayout(incomplete_birthdate_row)
+
+    window.hidden_charts_filter_row = QWidget()
+    hidden_charts_filter_layout = QHBoxLayout()
+    hidden_charts_filter_layout.setContentsMargins(0, 0, 0, 0)
+    window.hidden_charts_filter_row.setLayout(hidden_charts_filter_layout)
+    window.hidden_charts_checkbox = QuadStateSlider("hidden charts")
+    if settings is not None:
+        hidden_charts_mode = settings.value(
+            app_module.SETTINGS_KEY_HIDDEN_CHARTS_FILTER_MODE,
+            QuadStateSlider.MODE_EMPTY,
+            type=int,
+        )
+        if hidden_charts_mode in {
+            QuadStateSlider.MODE_EMPTY,
+            QuadStateSlider.MODE_TRUE,
+            QuadStateSlider.MODE_FALSE,
+        }:
+            window.hidden_charts_checkbox.setMode(int(hidden_charts_mode))
+    window.hidden_charts_checkbox.modeChanged.connect(window._on_filter_changed)
+    hidden_charts_filter_layout.addWidget(window.hidden_charts_checkbox)
+    hidden_charts_filter_layout.addStretch(1)
+    window.hidden_charts_filter_row.setVisible(
+        bool(getattr(window, "_show_hidden_charts", False))
+    )
+    chart_type_group_layout.addWidget(window.hidden_charts_filter_row)
+
+    chart_type_section_layout.addWidget(chart_type_content)
+    layout.addWidget(chart_type_section)
 
     layout.addStretch(1)
     return panel

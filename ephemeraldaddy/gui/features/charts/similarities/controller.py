@@ -405,6 +405,19 @@ class SimilaritiesController:
                             target_output, house_number
                         )
                     return
+            if normalized_target.startswith("channel:"):
+                channel_text = normalized_target.split(":", 1)[1]
+                parts = channel_text.split("-")
+                if len(parts) == 2 and all(part.isdigit() for part in parts):
+                    gate_a, gate_b = int(parts[0]), int(parts[1])
+                    self.host._invoke_db_info_renderer(
+                        "_show_human_design_channel_info",
+                        target_output,
+                        gate_a,
+                        gate_b,
+                        "",
+                    )
+                    return
             target_output.setPlainText(
                 "No DB info renderer is available for this item yet."
             )

@@ -241,6 +241,13 @@ def parse_similarity_info_target(section_title: str, label: str) -> str | None:
         if gate_token.isdigit():
             return f"gate:{int(gate_token)}"
 
+    if section_key == "channels in contrast":
+        channel_token = normalized_label.strip()
+        parts = channel_token.split("-")
+        if len(parts) == 2 and all(part.strip().isdigit() for part in parts):
+            gate_a, gate_b = (int(parts[0].strip()), int(parts[1].strip()))
+            return f"channel:{min(gate_a, gate_b)}-{max(gate_a, gate_b)}"
+
     if section_key == "top 3 dominant houses in common":
         house_token = normalized_label.replace("House", "").strip()
         if house_token.isdigit():
