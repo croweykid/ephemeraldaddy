@@ -114,6 +114,8 @@ class ChartRightPanelController:
                 button.setChecked(panel_key == tab_key)
         if panel_key == "analytics":
             self.set_section_visible("similar_charts", False)
+        if panel_key == "subjective_notes":
+            self._scroll_panel_to_top(active_scroll)
         self.schedule_render(panel_key)
 
     def set_section_visible(self, section: RightPanelSection, visible: bool) -> None:
@@ -256,6 +258,13 @@ class ChartRightPanelController:
                         else None
                     )
                 )
+
+    def _scroll_panel_to_top(self, scroll_area: QScrollArea) -> None:
+        def _apply() -> None:
+            scroll_area.verticalScrollBar().setValue(scroll_area.verticalScrollBar().minimum())
+
+        _apply()
+        QTimer.singleShot(0, _apply)
 
     def _scroll_expanded_section_into_view(self, toggle: QAbstractButton) -> None:
         # Import lazily to keep the public stack builder independent of controller state.

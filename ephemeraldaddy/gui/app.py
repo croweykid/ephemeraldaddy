@@ -1074,6 +1074,7 @@ from ephemeraldaddy.gui.features.controllers.chart_view_window import (
     build_chart_view_left_panel,
     build_chart_view_middle_header_controls,
     build_chart_view_right_panel,
+    build_subjective_notes_alignment_sections,
     draw_weight_distribution_reference_lines,
     format_weight_distribution_html,
     format_unknown_positions_summary_html,
@@ -2335,6 +2336,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._incremental_metrics_refresh_changed_ids: set[int] = set()
         self._incremental_metrics_force_full_refresh: bool = False
         self._incremental_metrics_refresh_scheduled = False
+        self._deferred_database_metrics_refresh_scheduled = False
+        self._deferred_database_metrics_changed_ids: set[int] = set()
+        self._deferred_database_metrics_force_full_refresh = False
+        self._tag_completer_revision_token: tuple[object, ...] | None = None
         self._database_metrics_chart_layouts: dict[str, QVBoxLayout] = {}
         self._database_analytics_popout_dialogs: list[QDialog] = []
         self._database_metrics_section_widgets: dict[str, QWidget] = {}
@@ -3132,6 +3137,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._incremental_metrics_refresh_scheduled = False
             self._incremental_metrics_force_full_refresh = False
             self._incremental_metrics_refresh_changed_ids.clear()
+            if not self._deferred_database_metrics_refresh_scheduled:
+                self._show_database_analytics_pending_indicator(False)
             return
 
         section_key = self._incremental_metrics_refresh_sections.pop(0)
@@ -3913,6 +3920,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.database_metrics_panel_header_label = QLabel("Database Analytics")
         self.database_metrics_panel_header_label.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
         layout.addWidget(self.database_metrics_panel_header_label)
+        self.database_metrics_pending_label = QLabel("Updating analytics…")
+        self.database_metrics_pending_label.setStyleSheet("color: #d8c77a; font-style: italic; padding: 0 4px 4px 4px;")
+        self.database_metrics_pending_label.setVisible(False)
+        layout.addWidget(self.database_metrics_pending_label)
 
         # PLANETARY/POSITION SIGN DISTRIBUTION SECTION
         position_sign_section_layout = self._add_left_panel_collapsible_section(
@@ -12310,6 +12321,21 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     if item is not None:
                         self._load_chart_from_item(item)
                         return
+                input_classes = (
+                    QLineEdit,
+                    QDateEdit,
+                    QTimeEdit,
+                    QComboBox,
+                    QSpinBox,
+                    QDoubleSpinBox,
+                    QTextEdit,
+                    QPlainTextEdit,
+                )
+                if not isinstance(focus_widget, input_classes):
+                    selected_items = self.list_widget.selectedItems()
+                    if len(selected_items) == 1:
+                        self._load_chart_from_item(selected_items[0])
+                        return
         super().keyPressEvent(event)
 
     def eventFilter(self, obj, event):
@@ -13745,6 +13771,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             getattr(self, "_search_location_state_input", None),
             sorted(states),
         )
+
+    def _tag_completer_revision_from_rows(self) -> tuple[object, ...]:
+        return tuple(
+            (
+                row[0] if len(row) > 0 else None,
+                row[5] if len(row) > 5 else None,
+                row[25] if len(row) > 25 else None,
+                row[26] if len(row) > 26 else None,
+            )
+            for row in getattr(self, "_chart_rows", [])
+        )
+
+    def _update_tag_completers_if_needed(self, *, force: bool = False) -> None:
+        revision_token = self._tag_completer_revision_from_rows()
+        if not force and revision_token == getattr(self, "_tag_completer_revision_token", None):
+            return
+        self._update_tag_completers()
+        self._tag_completer_revision_token = revision_token
 
     def _update_tag_completers(
         self,
@@ -17543,6 +17587,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         force_full_analysis_refresh: bool = False,
         refresh_tag_completers: bool = True,
         progress_callback: Callable[[str, int], None] | None = None,
+        defer_metrics_refresh: bool = False,
     ) -> None:
         if progress_callback:
             progress_callback("Loading saved chart rows…", 90)
@@ -17558,7 +17603,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if refresh_tag_completers:
             if progress_callback:
                 progress_callback("Refreshing Database filters…", 91)
-            self._update_tag_completers()
+            self._update_tag_completers_if_needed()
 
         malformed_rows = [row for row in self._chart_rows if self._normalize_chart_row(row) is None]
         if malformed_rows:
@@ -17599,6 +17644,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             changed_ids=changed_ids,
             force_full_analysis_refresh=force_full_analysis_refresh,
             progress_callback=progress_callback,
+            defer_metrics_refresh=defer_metrics_refresh,
         )
 
     @staticmethod
@@ -17678,6 +17724,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         changed_ids: set[int] | None = None,
         force_full_analysis_refresh: bool = False,
         progress_callback: Callable[[str, int], None] | None = None,
+        defer_metrics_refresh: bool = False,
     ) -> None:
         if selected_ids is not None:
             self._replace_persistent_selection(selected_ids)
@@ -18052,24 +18099,78 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         finally:
             del list_signal_blocker
         self._visible_chart_ids = visible_chart_ids
-        if progress_callback:
-            progress_callback("Updating Database metrics…", 96)
         if refresh_metrics:
-            if self._should_use_incremental_metrics_refresh():
-                self._update_sentiment_tally(
-                    update_database_metrics=False,
-                    update_similarities=True,
-                )
-                self._schedule_incremental_metrics_refresh(
+            if defer_metrics_refresh:
+                if progress_callback:
+                    progress_callback("Database rows ready; analytics queued…", 96)
+                self._show_database_analytics_pending_indicator(True)
+                self._schedule_deferred_database_metrics_refresh(
                     changed_ids=changed_ids,
                     force_full_refresh=force_full_analysis_refresh,
                 )
             else:
-                self._update_sentiment_tally(
-                    force_full_refresh=force_full_analysis_refresh,
+                if progress_callback:
+                    progress_callback("Updating Database metrics…", 96)
+                self._run_database_metrics_refresh(
                     changed_ids=changed_ids,
+                    force_full_refresh=force_full_analysis_refresh,
                 )
         self._update_collection_membership_buttons()
+
+    def _run_database_metrics_refresh(
+        self,
+        *,
+        changed_ids: set[int] | None = None,
+        force_full_refresh: bool = False,
+    ) -> None:
+        if self._should_use_incremental_metrics_refresh():
+            self._update_sentiment_tally(
+                update_database_metrics=False,
+                update_similarities=True,
+            )
+            self._schedule_incremental_metrics_refresh(
+                changed_ids=changed_ids,
+                force_full_refresh=force_full_refresh,
+            )
+        else:
+            self._update_sentiment_tally(
+                force_full_refresh=force_full_refresh,
+                changed_ids=changed_ids,
+            )
+
+    def _schedule_deferred_database_metrics_refresh(
+        self,
+        *,
+        changed_ids: set[int] | None = None,
+        force_full_refresh: bool = False,
+    ) -> None:
+        if changed_ids:
+            self._deferred_database_metrics_changed_ids.update(changed_ids)
+        self._deferred_database_metrics_force_full_refresh = (
+            self._deferred_database_metrics_force_full_refresh or force_full_refresh
+        )
+        if self._deferred_database_metrics_refresh_scheduled:
+            return
+        self._deferred_database_metrics_refresh_scheduled = True
+        QTimer.singleShot(0, self._run_deferred_database_metrics_refresh)
+
+    def _run_deferred_database_metrics_refresh(self) -> None:
+        self._deferred_database_metrics_refresh_scheduled = False
+        changed_ids = set(self._deferred_database_metrics_changed_ids) or None
+        force_full_refresh = self._deferred_database_metrics_force_full_refresh
+        self._deferred_database_metrics_changed_ids.clear()
+        self._deferred_database_metrics_force_full_refresh = False
+        self._run_database_metrics_refresh(
+            changed_ids=changed_ids,
+            force_full_refresh=force_full_refresh,
+        )
+        if not self._incremental_metrics_refresh_scheduled:
+            self._show_database_analytics_pending_indicator(False)
+
+    def _show_database_analytics_pending_indicator(self, visible: bool) -> None:
+        label = getattr(self, "database_metrics_pending_label", None)
+        if label is not None:
+            label.setVisible(bool(visible))
 
 
     def _on_hide_hypothetical_toggled(self, checked: bool) -> None:
@@ -23436,59 +23537,10 @@ class MainWindow(QMainWindow):
             3,
             1,
         )
-        alignment_box = QFrame()
-        alignment_box.setStyleSheet(
-            "QFrame {"
-            "background-color: #1c1c1c;"
-            "border: 1px solid #2b2b2b;"
-            "border-radius: 6px;"
-            "}"
+        build_subjective_notes_alignment_sections(
+            self,
+            sentiment_metrics_container_layout,
         )
-        alignment_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
-        alignment_box_layout = QVBoxLayout()
-        alignment_box_layout.setContentsMargins(8, 8, 8, 8)
-        alignment_box_layout.setSpacing(6)
-        alignment_box.setLayout(alignment_box_layout)
-
-        self.alignment_panel_toggle = QToolButton()
-        configure_collapsible_header_toggle(
-            self.alignment_panel_toggle,
-            title="💭Alignment",
-            expanded=True,
-            style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
-        )
-
-        alignment_content_widget = QWidget()
-        alignment_content_layout = QVBoxLayout()
-        alignment_content_layout.setContentsMargins(0, 0, 0, 0)
-        alignment_content_layout.setSpacing(4)
-        alignment_content_layout.addWidget(
-            QLabel("😈 Most evil   ⟷   Most altruistic 😇")
-        )
-        alignment_content_layout.addWidget(self.alignment_slider)
-        alignment_content_layout.addWidget(self.alignment_score_label)
-        alignment_content_layout.addSpacing(6)
-        alignment_content_layout.addWidget(QLabel("Sexiness"))
-        alignment_content_layout.addWidget(QLabel("not my type   ⟷   extremely hot"))
-        alignment_content_layout.addWidget(self.sexiness_slider)
-        alignment_content_layout.addWidget(self.sexiness_score_label)
-        alignment_content_widget.setLayout(alignment_content_layout)
-        self.alignment_panel_toggle.toggled.connect(
-            lambda expanded: self._toggle_chart_panel_content(
-                self.alignment_panel_toggle,
-                alignment_content_widget,
-                expanded,
-            )
-        )
-        alignment_box_layout.addWidget(self.alignment_panel_toggle)
-        alignment_content_widget.setVisible(True)
-        alignment_box_layout.addWidget(alignment_content_widget)
-        self._toggle_chart_panel_content(
-            self.alignment_panel_toggle,
-            alignment_content_widget,
-            True,
-        )
-        sentiment_metrics_container_layout.addWidget(alignment_box)
 
         sentiment_metrics_row_layout.addWidget(source_controls_widget, 0)
         self.inputs_layout.addWidget(sentiment_metrics_row, 0, Qt.AlignHCenter)
@@ -25009,6 +25061,14 @@ class MainWindow(QMainWindow):
     ) -> list[dict[str, Any]]:
         if subject_chart_id is None or not perceived_accuracy_states:
             return []
+        candidate_ids = [int(chart_id) for chart_id, _candidate in (candidates or [])]
+        uid_lookup_ids = [chart_id for chart_id in [subject_chart_id, *candidate_ids] if chart_id is not None]
+        uid_by_chart_id = {
+            int(chart_id): str(uid or "").strip().upper()
+            for chart_id, uid in get_chart_uid_map(uid_lookup_ids).items()
+            if uid
+        }
+        subject_uid = uid_by_chart_id.get(subject_chart_id) if subject_chart_id is not None else None
         match_by_id: dict[int, Any] = {}
         for match in ranked_matches or []:
             try:
@@ -25023,16 +25083,27 @@ class MainWindow(QMainWindow):
                 continue
             chart_ids = state.get("chart_ids")
             if not isinstance(chart_ids, list) or len(chart_ids) < 2:
-                continue
+                chart_ids = []
             try:
                 first_id = int(chart_ids[0])
                 second_id = int(chart_ids[1])
             except (TypeError, ValueError):
-                continue
+                first_id = None
+                second_id = None
+            chart_uids = state.get("chart_uids") if isinstance(state.get("chart_uids"), list) else []
+            normalized_uids = {str(uid or "").strip().upper() for uid in chart_uids}
             if first_id == subject_chart_id:
                 compared_id = second_id
             elif second_id == subject_chart_id:
                 compared_id = first_id
+            elif subject_uid and subject_uid in normalized_uids:
+                other_uids = [uid for uid in normalized_uids if uid and uid != subject_uid]
+                compared_id = next(
+                    (chart_id for chart_id, uid in uid_by_chart_id.items() if uid in other_uids),
+                    None,
+                )
+                if compared_id is None:
+                    continue
             else:
                 continue
             if compared_id in state_by_compared_id:
@@ -25437,8 +25508,16 @@ class MainWindow(QMainWindow):
                 SIMILARITY_PERCEIVED_ACCURACY_CONTROLS_DEFAULT,
             )
         )
+        perceived_accuracy_uid_by_chart_id = {}
         if show_perceived_accuracy_controls:
             perceived_accuracy_states = load_chart_similarity_relationship_states()
+            perceived_accuracy_uid_by_chart_id = get_chart_uid_map(
+                [
+                    chart_id
+                    for chart_id in [subject_chart_id, *(chart_id for chart_id, _candidate in candidates)]
+                    if chart_id is not None
+                ]
+            )
             if performed_full_recompute:
                 update_similar_charts_loading_progress(progress, "Preparing perceived-accuracy results…", 96)
             all_accuracy_entries = self._similar_charts_perceived_accuracy_entries_for_states(
@@ -25451,6 +25530,7 @@ class MainWindow(QMainWindow):
             )
         else:
             perceived_accuracy_states = None
+            perceived_accuracy_uid_by_chart_id = {}
             all_accuracy_entries = []
         if performed_full_recompute:
             update_similar_charts_loading_progress(progress, "Rendering Similar Charts window…", 98)
@@ -25482,6 +25562,7 @@ class MainWindow(QMainWindow):
             share_icon_path=_get_share_icon_path(),
             show_perceived_accuracy_controls=show_perceived_accuracy_controls,
             perceived_accuracy_states=perceived_accuracy_states,
+            perceived_accuracy_uid_by_chart_id=perceived_accuracy_uid_by_chart_id,
             on_perceived_accuracy_changed=(
                 self._on_similar_chart_popout_perceived_accuracy_changed
                 if show_perceived_accuracy_controls
@@ -30954,6 +31035,24 @@ class MainWindow(QMainWindow):
         self._render_reminds_me_of_selection()
         self._mark_lucygoosey()
 
+    def _tag_completer_revision_from_rows(self) -> tuple[object, ...]:
+        return tuple(
+            (
+                row[0] if len(row) > 0 else None,
+                row[5] if len(row) > 5 else None,
+                row[25] if len(row) > 25 else None,
+                row[26] if len(row) > 26 else None,
+            )
+            for row in getattr(self, "_chart_rows", [])
+        )
+
+    def _update_tag_completers_if_needed(self, *, force: bool = False) -> None:
+        revision_token = self._tag_completer_revision_from_rows()
+        if not force and revision_token == getattr(self, "_tag_completer_revision_token", None):
+            return
+        self._update_tag_completers()
+        self._tag_completer_revision_token = revision_token
+
     def _update_tag_completers(self) -> None:
         sorted_tags = list_recognized_tags()
         self._known_chart_tags = sorted_tags
@@ -31826,6 +31925,8 @@ class MainWindow(QMainWindow):
             self.isVisible(),
             self.current_chart_id,
         )
+        if startup_progress is None and not self._confirm_discard_or_save():
+            return False
         self._chart_view_history.clear()
         self._chart_view_history_index = -1
         self._flush_pending_sentiment_metrics_save()
@@ -31838,11 +31939,12 @@ class MainWindow(QMainWindow):
             progress_callback=startup_progress,
         )
         if not opened:
-            return
+            return False
         if startup_progress:
             startup_progress("Database View shell is open…", 92)
         QTimer.singleShot(0, self._raise_manage_charts_dialog)
         self._retarget_size_checker_to_database_view()
+        return True
 
     def _on_close_requested(self) -> None:
         self.close()
