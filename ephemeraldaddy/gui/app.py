@@ -23467,11 +23467,6 @@ class MainWindow(QMainWindow):
         )
         alignment_content_layout.addWidget(self.alignment_slider)
         alignment_content_layout.addWidget(self.alignment_score_label)
-        alignment_content_layout.addSpacing(6)
-        alignment_content_layout.addWidget(QLabel("Sexiness"))
-        alignment_content_layout.addWidget(QLabel("not my type   ⟷   extremely hot"))
-        alignment_content_layout.addWidget(self.sexiness_slider)
-        alignment_content_layout.addWidget(self.sexiness_score_label)
         alignment_content_widget.setLayout(alignment_content_layout)
         self.alignment_panel_toggle.toggled.connect(
             lambda expanded: self._toggle_chart_panel_content(
@@ -23489,6 +23484,53 @@ class MainWindow(QMainWindow):
             True,
         )
         sentiment_metrics_container_layout.addWidget(alignment_box)
+
+        sexiness_box = QFrame()
+        sexiness_box.setStyleSheet(
+            "QFrame {"
+            "background-color: #1c1c1c;"
+            "border: 1px solid #2b2b2b;"
+            "border-radius: 6px;"
+            "}"
+        )
+        sexiness_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        sexiness_box_layout = QVBoxLayout()
+        sexiness_box_layout.setContentsMargins(8, 8, 8, 8)
+        sexiness_box_layout.setSpacing(6)
+        sexiness_box.setLayout(sexiness_box_layout)
+
+        self.sexiness_panel_toggle = QToolButton()
+        configure_collapsible_header_toggle(
+            self.sexiness_panel_toggle,
+            title="Sexiness",
+            expanded=True,
+            style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
+        )
+
+        sexiness_content_widget = QWidget()
+        sexiness_content_layout = QVBoxLayout()
+        sexiness_content_layout.setContentsMargins(0, 0, 0, 0)
+        sexiness_content_layout.setSpacing(4)
+        sexiness_content_layout.addWidget(QLabel("not my type   ⟷   extremely hot"))
+        sexiness_content_layout.addWidget(self.sexiness_slider)
+        sexiness_content_layout.addWidget(self.sexiness_score_label)
+        sexiness_content_widget.setLayout(sexiness_content_layout)
+        self.sexiness_panel_toggle.toggled.connect(
+            lambda expanded: self._toggle_chart_panel_content(
+                self.sexiness_panel_toggle,
+                sexiness_content_widget,
+                expanded,
+            )
+        )
+        sexiness_box_layout.addWidget(self.sexiness_panel_toggle)
+        sexiness_content_widget.setVisible(True)
+        sexiness_box_layout.addWidget(sexiness_content_widget)
+        self._toggle_chart_panel_content(
+            self.sexiness_panel_toggle,
+            sexiness_content_widget,
+            True,
+        )
+        sentiment_metrics_container_layout.addWidget(sexiness_box)
 
         sentiment_metrics_row_layout.addWidget(source_controls_widget, 0)
         self.inputs_layout.addWidget(sentiment_metrics_row, 0, Qt.AlignHCenter)
@@ -31826,6 +31868,8 @@ class MainWindow(QMainWindow):
             self.isVisible(),
             self.current_chart_id,
         )
+        if startup_progress is None and not self._confirm_discard_or_save():
+            return False
         self._chart_view_history.clear()
         self._chart_view_history_index = -1
         self._flush_pending_sentiment_metrics_save()
@@ -31838,11 +31882,12 @@ class MainWindow(QMainWindow):
             progress_callback=startup_progress,
         )
         if not opened:
-            return
+            return False
         if startup_progress:
             startup_progress("Database View shell is open…", 92)
         QTimer.singleShot(0, self._raise_manage_charts_dialog)
         self._retarget_size_checker_to_database_view()
+        return True
 
     def _on_close_requested(self) -> None:
         self.close()
