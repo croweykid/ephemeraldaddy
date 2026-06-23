@@ -84,12 +84,12 @@ def format_selection_summary(
             return (
                 f"Charts Selected: {counts.selected} total, {visible_selected} visible "
                 f"in {counts.search_results} results. {hidden_selected} hidden by filters. "
-                f"{counts.database} in database"
+                f"{counts.database}" # in database
             )
         if has_filtered_results:
             return (
                 f"Charts Selected: {counts.selected} of {counts.search_results} results. "
-                f"{counts.database} in database"
+                f"{counts.database}" # in database
             )
         return f"Charts Selected: {counts.selected} of {counts.database}"
 
@@ -137,12 +137,12 @@ def format_selection_summary_html(
             return (
                 f"{prefix} {counts.selected} total, {visible_selected} visible "
                 f"in {counts.search_results} results. {hidden_by_filters}. "
-                f"{counts.database} in database"
+                f"{counts.database}"# in database
             )
         if has_filtered_results:
             return (
                 f"{prefix} {counts.selected} of {counts.search_results} results. "
-                f"{counts.database} in database"
+                f"{counts.database}"# in database
             )
         return f"{prefix} {counts.selected} of {counts.database}"
 
