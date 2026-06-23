@@ -1016,6 +1016,7 @@ from ephemeraldaddy.gui.features.charts.similarity_pairing import (
     SimilarityInputState,
     SimilarityPairResolution,
     build_chart_lookup,
+    resolve_chart_id,
     resolve_similarity_pair_targets,
     similarity_breakdown_chart_ids,
 )
@@ -7126,6 +7127,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         ]
         chart_lookup, choices = build_chart_lookup(similarity_rows)
         self.similarities_controller.set_chart_lookup(chart_lookup)
+        self._batch_similarity_chart_lookup = chart_lookup
 
         for field in (
             self._similarities_first_chart_input,
@@ -7137,6 +7139,135 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             completer.setCaseSensitivity(Qt.CaseInsensitive)
             completer.setFilterMode(Qt.MatchContains)
             field.setCompleter(completer)
+        self._apply_batch_similarity_chart_completer(choices)
+
+    def _apply_batch_similarity_chart_completer(self, choices: list[str]) -> None:
+        field = getattr(self, "batch_similarity_chart_input", None)
+        if not isinstance(field, QLineEdit):
+            return
+        completer = QCompleter(choices, field)
+        completer.setCaseSensitivity(Qt.CaseInsensitive)
+        completer.setFilterMode(Qt.MatchContains)
+        field.setCompleter(completer)
+
+    def _refresh_batch_similarity_chart_options(self) -> None:
+        similarity_rows = [
+            normalized
+            for row in list_charts()
+            if (normalized := self._normalize_chart_row(row)) is not None
+            and _chart_row_is_similarity_participant(normalized)
+        ]
+        chart_lookup, choices = build_chart_lookup(similarity_rows)
+        self._batch_similarity_chart_lookup = chart_lookup
+        self._apply_batch_similarity_chart_completer(choices)
+
+    def _on_batch_similarity_apply(self) -> None:
+        selected_chart_ids = self._exclude_similarities_placeholder_chart_ids(
+            self._selected_chart_ids()
+        )
+        if not selected_chart_ids:
+            QMessageBox.information(
+                self,
+                "Batch similarity",
+                "Select one or more charts to assign a perceived similarity score.",
+            )
+            return
+
+        lookup = getattr(self, "_batch_similarity_chart_lookup", None)
+        if not isinstance(lookup, dict) or not lookup:
+            self._refresh_batch_similarity_chart_options()
+            lookup = getattr(self, "_batch_similarity_chart_lookup", {})
+
+        target_chart_id = resolve_chart_id(
+            self.batch_similarity_chart_input.text(),
+            lookup if isinstance(lookup, dict) else {},
+        )
+        if target_chart_id is None:
+            QMessageBox.warning(
+                self,
+                "Batch similarity",
+                "Choose a chart from the Similarity chart field autocomplete list.",
+            )
+            return
+
+        target_chart = self._get_chart_for_filter(int(target_chart_id))
+        if target_chart is None:
+            QMessageBox.warning(
+                self,
+                "Batch similarity",
+                "The selected similarity target chart could not be loaded.",
+            )
+            return
+
+        changed_chart_ids = [chart_id for chart_id in selected_chart_ids if int(chart_id) != int(target_chart_id)]
+        skipped_self_count = len(selected_chart_ids) - len(changed_chart_ids)
+        if not changed_chart_ids:
+            QMessageBox.warning(
+                self,
+                "Batch similarity",
+                "A chart cannot be assigned a perceived similarity score to itself.",
+            )
+            return
+
+        if not self._confirm_batch_edit(
+            f"assign {self.batch_similarity_percent_spin.value()}% perceived similarity to "
+            f"{getattr(target_chart, 'name', '') or f'Chart #{target_chart_id}'} for",
+            len(changed_chart_ids),
+        ):
+            return
+
+        chart_uid_map = get_chart_uid_map([*changed_chart_ids, int(target_chart_id)])
+        target_name = str(getattr(target_chart, "name", "") or f"Chart #{target_chart_id}").strip()
+        score = int(self.batch_similarity_percent_spin.value())
+        saved_count = 0
+        failures: list[str] = []
+        relationship_path: Path | None = None
+
+        for chart_id in changed_chart_ids:
+            chart = self._get_chart_for_filter(int(chart_id))
+            if chart is None:
+                failures.append(f"Chart #{chart_id}")
+                continue
+            chart_name = str(getattr(chart, "name", "") or f"Chart #{chart_id}").strip()
+            try:
+                relationship_path = save_chart_similarity_relationship(
+                    chart_1_id=int(chart_id),
+                    chart_1_name=chart_name,
+                    chart_2_id=int(target_chart_id),
+                    chart_2_name=target_name,
+                    chart_1_uid=chart_uid_map.get(int(chart_id)),
+                    chart_2_uid=chart_uid_map.get(int(target_chart_id)),
+                    user_reported_accuracy=score,
+                    not_applicable=False,
+                )
+            except Exception:
+                logger.exception(
+                    "Failed to save batch perceived similarity relationship for chart %s to %s.",
+                    chart_id,
+                    target_chart_id,
+                )
+                failures.append(chart_name)
+                continue
+            saved_count += 1
+
+        if saved_count:
+            logger.info(
+                "Saved %s batch perceived similarity relationship(s) to %s",
+                saved_count,
+                relationship_path,
+            )
+            self._refresh_perceived_similarity_predictors_panel()
+
+        message = f"Saved {saved_count} perceived similarity score(s)."
+        if skipped_self_count:
+            message += f"\nSkipped {skipped_self_count} self-link."
+        if failures:
+            message += "\nFailed: " + ", ".join(failures[:5])
+            if len(failures) > 5:
+                message += f", and {len(failures) - 5} more"
+            QMessageBox.warning(self, "Batch similarity", message)
+        else:
+            QMessageBox.information(self, "Batch similarity", message)
 
     def _is_placeholder_chart_id(self, chart_id: int) -> bool:
         row = self._active_chart_rows_by_id.get(int(chart_id))
@@ -13354,6 +13485,34 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._bind_batch_enter_apply(self.batch_tags_input, batch_tags_apply_button.click)
         self._update_tag_completers()
         layout.addWidget(tagging_section)
+
+        similarity_section, similarity_section_layout = add_collapsible_section("Similarity")
+        similarity_help = QLabel(
+            "Assign the selected chart(s) a perceived similarity score to another chart."
+        )
+        similarity_help.setWordWrap(True)
+        similarity_section_layout.addWidget(similarity_help)
+
+        self.batch_similarity_chart_input = QLineEdit()
+        self.batch_similarity_chart_input.setPlaceholderText("chart name")
+        similarity_section_layout.addWidget(self.batch_similarity_chart_input)
+
+        similarity_score_row = QHBoxLayout()
+        similarity_score_row.addWidget(QLabel("Perceived %:"))
+        self.batch_similarity_percent_spin = QSpinBox()
+        self.batch_similarity_percent_spin.setRange(0, 100)
+        self.batch_similarity_percent_spin.setSuffix("%")
+        self.batch_similarity_percent_spin.setValue(0)
+        similarity_score_row.addWidget(self.batch_similarity_percent_spin)
+        batch_similarity_apply_button = QPushButton("Apply")
+        batch_similarity_apply_button.clicked.connect(self._on_batch_similarity_apply)
+        similarity_score_row.addWidget(batch_similarity_apply_button)
+        similarity_score_row.addStretch(1)
+        similarity_section_layout.addLayout(similarity_score_row)
+        self._bind_batch_enter_apply(self.batch_similarity_chart_input, batch_similarity_apply_button.click)
+        self._bind_batch_enter_apply(self.batch_similarity_percent_spin, batch_similarity_apply_button.click)
+        self._refresh_batch_similarity_chart_options()
+        layout.addWidget(similarity_section)
 
         layout.addWidget(build_batch_bio_section(self, add_collapsible_section))
 
