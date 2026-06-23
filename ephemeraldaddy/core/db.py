@@ -2415,7 +2415,7 @@ def append_database(source: Path) -> dict[str, Any]:
 
     issues: list[dict[str, Any]] = []
     imported = 0
-    imported_ids: list[int] = []
+    imported_uids: list[str] = []
     skipped = 0
     warned = 0
 
@@ -2686,7 +2686,7 @@ def append_database(source: Path) -> dict[str, Any]:
                     ),
                 )
                 imported += 1
-                imported_ids.append(new_chart_id)
+                imported_uids.append(new_chart_uid)
             for imported_chart_id, source_reminds_me_of_uids in pending_reminds_me_of_updates:
                 remapped_uids = [
                     source_uid_remap.get(source_uid, source_uid)
@@ -2705,7 +2705,7 @@ def append_database(source: Path) -> dict[str, Any]:
 
     return {
         "imported": imported,
-        "imported_ids": imported_ids,
+        "imported_uids": imported_uids,
         "skipped": skipped,
         "warnings": warned,
         "issues": issues,

@@ -3176,14 +3176,22 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _database_metrics_persistent_cache_path(self) -> Path:
         return DB_DIR / DATABASE_METRICS_PERSISTENT_CACHE_FILENAME
 
-    def _database_metrics_rows_token(self) -> tuple[tuple[int, str], ...]:
-        row_tokens: list[tuple[int, str]] = []
+    def _database_metrics_rows_token(self) -> tuple[tuple[str, str], ...]:
+        row_ids: list[int] = []
+        rows_by_id: dict[int, Any] = {}
         for row in getattr(self, "_chart_rows", []) or []:
             try:
                 chart_id = int(row[0])
             except Exception:
                 continue
-            row_tokens.append((chart_id, repr(row)))
+            row_ids.append(chart_id)
+            rows_by_id[chart_id] = row
+        uid_by_id = get_chart_uid_map(row_ids)
+        row_tokens: list[tuple[str, str]] = []
+        for chart_id in row_ids:
+            chart_uid = str(uid_by_id.get(chart_id) or f"legacy-id:{chart_id}").strip().upper()
+            row = rows_by_id[chart_id]
+            row_tokens.append((chart_uid, repr(tuple(row[1:]))))
         return tuple(sorted(row_tokens))
 
     def _database_metrics_config_token(self) -> str:
@@ -16793,14 +16801,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             return
 
-        imported_ids = {
-            int(chart_id)
-            for chart_id in result.get("imported_ids", []) or []
-            if isinstance(chart_id, int) or str(chart_id).isdigit()
+        imported_uids = {
+            str(chart_uid).strip().upper()
+            for chart_uid in result.get("imported_uids", []) or []
+            if str(chart_uid).strip()
+        }
+        uid_to_chart_id = {
+            str(chart_uid).strip().upper(): int(chart_id)
+            for chart_id, chart_uid in get_chart_uid_map().items()
+            if str(chart_uid).strip()
+        }
+        changed_ids = {
+            uid_to_chart_id[chart_uid]
+            for chart_uid in imported_uids
+            if chart_uid in uid_to_chart_id
         }
         self._refresh_charts(
-            changed_ids=imported_ids or None,
-            force_full_analysis_refresh=not bool(imported_ids),
+            changed_ids=changed_ids or None,
+            force_full_analysis_refresh=not bool(changed_ids),
         )
 
         imported = int(result.get("imported", 0) or 0)

@@ -40,6 +40,13 @@ def test_persistent_cache_uses_json_not_pickle_and_writes_atomically():
     assert "temp_path.replace(path)" in save_method
 
 
+def test_persistent_cache_rows_token_uses_chart_uids_not_legacy_ids():
+    token_method = _method_source(APP_SOURCE, "_database_metrics_rows_token")
+    assert "get_chart_uid_map(row_ids)" in token_method
+    assert "legacy-id:" in token_method
+    assert "repr(tuple(row[1:]))" in token_method
+
+
 def test_persistent_cache_validates_analytics_configuration():
     token_method = _method_source(APP_SOURCE, "_database_metrics_config_token")
     load_method = _method_source(APP_SOURCE, "_load_database_metrics_persistent_cache")
@@ -51,10 +58,11 @@ def test_persistent_cache_validates_analytics_configuration():
     assert "self._invalidate_database_metrics_cache()" in apply_method
 
 
-def test_append_database_reports_imported_ids_and_refreshes_incrementally():
+def test_append_database_reports_imported_uids_and_refreshes_incrementally():
     append_method = _method_source(DB_SOURCE, "append_database", indented=False)
     gui_method = _method_source(APP_SOURCE, "_on_append_database_placeholder")
-    assert "imported_ids.append(new_chart_id)" in append_method
-    assert '"imported_ids": imported_ids' in append_method
-    assert "changed_ids=imported_ids or None" in gui_method
-    assert "force_full_analysis_refresh=not bool(imported_ids)" in gui_method
+    assert "imported_uids.append(new_chart_uid)" in append_method
+    assert '"imported_uids": imported_uids' in append_method
+    assert 'result.get("imported_uids", [])' in gui_method
+    assert "get_chart_uid_map().items()" in gui_method
+    assert "changed_ids=changed_ids or None" in gui_method
