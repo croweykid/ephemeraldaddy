@@ -2551,6 +2551,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             self.database_view_middle_header_action_buttons[button_key] = action_button
 
+        database_view_header_button_style = (
+            "padding: 1px 5px; font-size: 11px; "
+            "background-color: #000000; border: none;"
+        )
+
         for control_button in (
             self.todays_transits_panel_button,
             self.database_metrics_panel_button,
@@ -2571,12 +2576,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             control_button.setDefault(False)
             control_button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
             control_button.setMinimumWidth(0)
-            control_button.setStyleSheet("padding: 1px 5px; font-size: 11px;")
+            control_button.setStyleSheet(database_view_header_button_style)
         self.batch_new_chart_button.setStyleSheet(
-            "padding: 1px 5px; font-size: 11px; color: #6fe06f; font-weight: 600;"
+            f"{database_view_header_button_style} color: #6fe06f; font-weight: 600;"
         )
         self.batch_delete_chart_button.setStyleSheet(
-            "padding: 1px 5px; font-size: 11px; color: #ff7b7b; font-weight: 600;"
+            f"{database_view_header_button_style} color: #ff7b7b; font-weight: 600;"
         )
 
         self.hide_hypothetical_checkbox = QCheckBox("hide\nhypothetical")
@@ -2688,6 +2693,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._left_panel_sizes = None
 
         left_panel_container = QWidget()
+        left_panel_container.setStyleSheet("background-color: #000000;")
         left_panel_container.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         left_panel_container.setMinimumWidth(0)
         left_panel_container_layout = QVBoxLayout()
@@ -2697,6 +2703,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         left_panel_container_layout.addWidget(self.left_panel_stack, 1)
 
         right_panel_container = QWidget()
+        right_panel_container.setStyleSheet("background-color: #000000;")
         right_panel_container.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         right_panel_container.setMinimumWidth(0)
         right_panel_container_layout = QVBoxLayout()
@@ -2706,6 +2713,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         right_panel_container_layout.addWidget(self.right_panel_stack, 1)
 
         panel_controls_row = QWidget()
+        panel_controls_row.setStyleSheet("background-color: #000000;")
         panel_controls_layout = QHBoxLayout()
         panel_controls_layout.setContentsMargins(0, 0, 0, 0)
         panel_controls_layout.setSpacing(8)
@@ -2733,6 +2741,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         right_controls_layout.addWidget(self.manage_collections_button)
 
         middle_controls_row = QWidget()
+        middle_controls_row.setStyleSheet("background-color: #000000;")
         middle_controls_layout = QHBoxLayout()
         middle_controls_layout.setContentsMargins(0, 0, 0, 0)
         middle_controls_layout.setSpacing(4)
@@ -2759,8 +2768,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.list_widget.setItemDelegate(ChartRowDelegate(self.list_widget))
         self.list_widget.setStyleSheet(
             "QListWidget {"
-            "  background-color: #151515;"
-            "  border: 1px solid #333333;"
+            "  background-color: #000000;"
+            "  border: 1px solid #000000;"
             "}"
             "QListWidget::item {"
             "  padding: 6px 8px;"
@@ -2777,12 +2786,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.list_widget.installEventFilter(self)
         
         self.list_panel = QWidget()
+        self.list_panel.setStyleSheet("background-color: #000000;")
         self.list_panel.setMinimumWidth(280) #was 420
         self.list_panel.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         list_layout = QVBoxLayout()
         list_layout.setContentsMargins(0, 0, 0, 0)
         self.list_panel.setLayout(list_layout)
         list_header_row = QWidget()
+        list_header_row.setStyleSheet("background-color: #000000;")
         list_header_layout = QHBoxLayout()
         list_header_layout.setContentsMargins(0, 0, 0, 0)
         list_header_layout.setSpacing(8)
