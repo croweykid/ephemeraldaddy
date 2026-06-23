@@ -1601,6 +1601,54 @@ def _human_design_gate_difference_lines(subject_chart: Any, compared_chart: Any)
     return differences
 
 
+
+
+def _human_design_channel_set(chart: Any) -> set[str]:
+    existing = {str(channel).strip() for channel in (getattr(chart, "human_design_channels", None) or []) if str(channel).strip()}
+    if existing:
+        return existing
+    try:
+        result = build_human_design_result(chart)
+    except Exception:
+        return set()
+    channels: set[str] = set()
+    for channel in (getattr(result, "defined_channels", None) or []):
+        try:
+            gate_a, gate_b = int(channel[0]), int(channel[1])
+        except (TypeError, ValueError, IndexError):
+            continue
+        channels.add(f"{gate_a}-{gate_b}")
+    return channels
+
+
+def _human_design_channel_overlap_lines(subject_chart: Any, compared_chart: Any) -> list[str]:
+    subject_channels = _human_design_channel_set(subject_chart)
+    compared_channels = _human_design_channel_set(compared_chart)
+    shared = sorted(subject_channels & compared_channels)
+    union_size = len(subject_channels | compared_channels)
+    overlap_percent = (len(shared) / union_size * 100.0) if union_size else 0.0
+    lines = [f"Defined channel overlap: {len(shared)}/{union_size} ({overlap_percent:.1f}%)."]
+    if shared:
+        lines.append("Shared channels: " + ", ".join(shared))
+    return lines
+
+
+def _human_design_channel_difference_lines(subject_chart: Any, compared_chart: Any) -> list[str]:
+    subject_label = _chart_possessive_label(subject_chart, "Chart 1")
+    compared_label = _chart_possessive_label(compared_chart, "Chart 2")
+    subject_channels = _human_design_channel_set(subject_chart)
+    compared_channels = _human_design_channel_set(compared_chart)
+    subject_only = sorted(subject_channels - compared_channels)
+    compared_only = sorted(compared_channels - subject_channels)
+    differences: list[str] = []
+    if subject_only:
+        differences.append(f"Only in {subject_label}: " + ", ".join(subject_only))
+    if compared_only:
+        differences.append(f"Only in {compared_label}: " + ", ".join(compared_only))
+    if not differences:
+        differences.append("Human Design defined channel sets are identical.")
+    return differences
+
 def _resolve_component_weight_percents(
     *,
     algorithm_mode: str,
@@ -2564,6 +2612,18 @@ def build_similarity_reasoning_panel_html(
                         _human_design_gate_difference_lines(subject_chart, compared_chart),
                     )
                 )
+            if "human_design_channels" in component_weight_percents:
+                html_lines.append(
+                    _section(
+                        section_title(
+                            "Human Design channel differences:",
+                            "human_design_channels",
+                            component_weight_percents,
+                            component_score_percents,
+                        ),
+                        _human_design_channel_difference_lines(subject_chart, compared_chart),
+                    )
+                )
         else:
             if "placement" in component_weight_percents:
                 html_lines.append(
@@ -2727,6 +2787,19 @@ def build_similarity_reasoning_panel_html(
                         or ["No Human Design gate overlap was found."],
                     )
                 )
+            if "human_design_channels" in component_weight_percents:
+                html_lines.append(
+                    _section(
+                        section_title(
+                            "Human Design channels in common:",
+                            "human_design_channels",
+                            component_weight_percents,
+                            component_score_percents,
+                        ),
+                        _human_design_channel_overlap_lines(subject_chart, compared_chart)
+                        or ["No Human Design channel overlap was found."],
+                    )
+                )
     else:
         html_lines.append(
             _section(
@@ -2744,14 +2817,18 @@ def load_similar_chart_candidates(
     load_charts_by_ids: Callable[[list[int]], Mapping[int, Any]] | None = None,
     hidden_chart_ids: set[int] | None = None,
     include_hidden_charts: bool = True,
+    excluded_chart_ids: set[int] | None = None,
 ) -> list[tuple[int, Any]]:
     hidden_ids = hidden_chart_ids or set()
+    excluded_ids = excluded_chart_ids or set()
     candidate_ids: list[int] = []
     for row in rows:
         chart_id = int(row[0])
         if current_chart_id is not None and chart_id == current_chart_id:
             continue
         if not include_hidden_charts and chart_id in hidden_ids:
+            continue
+        if chart_id in excluded_ids:
             continue
         if chart_row_is_non_aggregable(row):
             continue
@@ -2893,6 +2970,7 @@ def build_predictions_panel_content(
     matches: list[Any],
     load_chart_by_id: Callable[[int], Any],
     default_alignment_to_zero_when_unassigned: bool = True,
+    preloaded_chart_metrics: Mapping[int, Mapping[str, Any]] | None = None,
 ) -> tuple[str, str]:
     if not matches:
         placeholder = "No similar charts were found, so no predictions are available."
@@ -2917,13 +2995,27 @@ def build_predictions_panel_content(
             continue
         if chart_id <= 0:
             continue
-        try:
-            compared_chart = load_chart_by_id(chart_id)
-        except Exception:
-            continue
-        positive_values.append(float(int(getattr(compared_chart, "positive_sentiment_intensity", 1) or 1)))
-        negative_values.append(float(int(getattr(compared_chart, "negative_sentiment_intensity", 1) or 1)))
-        raw_alignment = getattr(compared_chart, "alignment_score", None)
+        preloaded_metrics = (preloaded_chart_metrics or {}).get(chart_id)
+        if isinstance(preloaded_metrics, Mapping):
+            positive_values.append(
+                float(int(preloaded_metrics.get("positive_sentiment_intensity", 1) or 1))
+            )
+            negative_values.append(
+                float(int(preloaded_metrics.get("negative_sentiment_intensity", 1) or 1))
+            )
+            raw_alignment = preloaded_metrics.get("alignment_score")
+        else:
+            try:
+                compared_chart = load_chart_by_id(chart_id)
+            except Exception:
+                continue
+            positive_values.append(
+                float(int(getattr(compared_chart, "positive_sentiment_intensity", 1) or 1))
+            )
+            negative_values.append(
+                float(int(getattr(compared_chart, "negative_sentiment_intensity", 1) or 1))
+            )
+            raw_alignment = getattr(compared_chart, "alignment_score", None)
         if isinstance(raw_alignment, int | float):
             alignment_values.append(float(raw_alignment))
         elif default_alignment_to_zero_when_unassigned:
@@ -3005,12 +3097,14 @@ def render_predictions_panel_content(
     matches: list[Any],
     load_chart_by_id: Callable[[int], Any],
     default_alignment_to_zero_when_unassigned: bool = True,
+    preloaded_chart_metrics: Mapping[int, Mapping[str, Any]] | None = None,
 ) -> None:
     html_text, plain_text = build_predictions_panel_content(
         subject_name=subject_name,
         matches=matches,
         load_chart_by_id=load_chart_by_id,
         default_alignment_to_zero_when_unassigned=default_alignment_to_zero_when_unassigned,
+        preloaded_chart_metrics=preloaded_chart_metrics,
     )
     _set_widget_rich_or_plain_text(output_widget=output_widget, html_text=html_text, plain_text=plain_text)
 
