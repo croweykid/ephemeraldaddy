@@ -1151,6 +1151,8 @@ def _degree_in_sign_text(lon_value: float) -> str:
 def format_compact_transit_chart_text(
     chart: Chart,
     location_label: str,
+    *,
+    show_info_icons: bool = True,
 ) -> tuple[str, dict[int, list[dict[str, object]]]]:
     """Build compact Transit View chart text with glyph aliases and hover spans."""
     use_houses = chart_uses_houses(chart)
@@ -1224,7 +1226,9 @@ def format_compact_transit_chart_text(
                 _pad_display_column(f"H{house_num}" if house_num is not None else "-", house_width),
                 _pad_display_column(gl_text, gl_width),
             ])
-        line = "  ".join(columns) + " ⓘ"
+        line = "  ".join(columns)
+        if show_info_icons:
+            line = f"{line} ⓘ"
         line_number = len(lines)
         body_start = line.find(glyph)
         sign_start = line.find(sign_glyph, body_start + len(glyph))
@@ -1302,7 +1306,8 @@ def format_compact_transit_chart_text(
                 f"{format_degree_minutes(asp['angle'], include_sign=False):>8}  "
                 f"(orb {format_degree_minutes(asp['delta'])})"
             )
-            line = f"{line} ⓘ"
+            if show_info_icons:
+                line = f"{line} ⓘ"
             line_number = len(lines)
             p1_body_start = line.find(_body_glyph_only(p1))
             p1_sign_start = p1_body_start + len(_body_glyph_only(p1)) if p1_sign else -1
