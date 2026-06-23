@@ -237,7 +237,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     tags_search_row.setSpacing(4)
     window.search_tags_input = QLineEdit()
     window.search_tags_input.setPlaceholderText(
-        "Search by tags (comma-separated)"
+        "Search by tag"
     )
     window.search_tags_input.textChanged.connect(window._on_search_tags_changed)
     window.search_tags_input.returnPressed.connect(window._on_filter_changed)
@@ -253,7 +253,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     window.search_tags_toggle = QToolButton()
     configure_collapsible_header_toggle(
         window.search_tags_toggle,
-        title="Tags",
+        title="Must Include/Exclude Tags",
         expanded=False,
         style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
     )
@@ -422,7 +422,7 @@ def build_dbv_search_panel(window) -> "QWidget":
 
     #Search: data completeness & accuracy
     birth_info_status_section, birth_info_status_layout = add_collapsible_section(
-        "🧩 Data Completeness && Accuracy" #data icon contenders: 🧮 🗄️ 🪪 𖦏 🔢 🧩 ℹ️
+        "Data Quality" #data icon contenders: 🧮 🗄️ 🪪 𖦏 🔢 🧩 ℹ️
     )
 
     birth_status_mode_row = QHBoxLayout()
