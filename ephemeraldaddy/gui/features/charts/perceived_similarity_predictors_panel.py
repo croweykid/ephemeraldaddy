@@ -62,7 +62,7 @@ class PerceivedSimilarityPredictorsPanel(QWidget):
         help_label.setStyleSheet("color: #d9d9d9;")
         layout.addWidget(help_label)
 
-        refresh_button = QPushButton("Calculate for selected chart")
+        refresh_button = QPushButton("Select a chart to calculate scores")
         refresh_button.setObjectName("perceived_similarity_predictors_refresh_button")
         refresh_button.clicked.connect(self._request_refresh)
         layout.addWidget(refresh_button)
