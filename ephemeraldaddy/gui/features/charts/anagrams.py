@@ -129,7 +129,7 @@ class AnagramsPresenter:
             dropdown.addItem("Chart Alias", "alias")
         selected_index = dropdown.findData(self.state.selected_source)
         dropdown.setCurrentIndex(max(0, selected_index))
-        dropdown.setMinimumWidth(dropdown.sizeHint().width() + 6)
+        dropdown.setMinimumWidth(dropdown.sizeHint().width() + 12)
         del blocker
 
     def refresh_for_chart(
@@ -425,7 +425,7 @@ def build_anagrams_section(
     source_dropdown = QComboBox()
     source_dropdown.setStyleSheet(DATABASE_ANALYTICS_DROPDOWN_STYLE)
     source_dropdown.addItem("Chart Name", "name")
-    source_dropdown.setMinimumWidth(source_dropdown.sizeHint().width() + 6)
+    source_dropdown.setMinimumWidth(source_dropdown.sizeHint().width() + 12)
     source_dropdown.currentIndexChanged.connect(
         lambda _index: on_source_changed(str(source_dropdown.currentData() or "name"))
     )

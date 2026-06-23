@@ -421,7 +421,9 @@ class TransitPanelController:
         h._transit_chart_canvases[chart_click_container] = chart
         h.todays_transits_chart_layout.addWidget(chart_click_container)
         summary, tooltip_spans = format_compact_transit_chart_text(
-            chart, h._transit_location_label
+            chart,
+            h._transit_location_label,
+            show_info_icons=False,
         )
         h.todays_transits_output.setPlainText(summary)
         h.todays_transits_output.set_tooltip_spans(tooltip_spans)

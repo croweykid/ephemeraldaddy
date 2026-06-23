@@ -12321,6 +12321,21 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     if item is not None:
                         self._load_chart_from_item(item)
                         return
+                input_classes = (
+                    QLineEdit,
+                    QDateEdit,
+                    QTimeEdit,
+                    QComboBox,
+                    QSpinBox,
+                    QDoubleSpinBox,
+                    QTextEdit,
+                    QPlainTextEdit,
+                )
+                if not isinstance(focus_widget, input_classes):
+                    selected_items = self.list_widget.selectedItems()
+                    if len(selected_items) == 1:
+                        self._load_chart_from_item(selected_items[0])
+                        return
         super().keyPressEvent(event)
 
     def eventFilter(self, obj, event):
