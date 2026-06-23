@@ -3172,7 +3172,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         section_key = self._incremental_metrics_refresh_sections.pop(0)
         changed_ids = (
             set(self._incremental_metrics_refresh_changed_ids)
-            if self._incremental_metrics_force_full_refresh or self._incremental_metrics_refresh_changed_ids
+            if self._incremental_metrics_refresh_changed_ids
             else None
         )
         self._update_sentiment_tally(
@@ -3183,7 +3183,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             force_full_refresh=self._incremental_metrics_force_full_refresh,
         )
         self._incremental_metrics_force_full_refresh = False
-        self._incremental_metrics_refresh_changed_ids.clear()
         QTimer.singleShot(0, self._run_incremental_metrics_refresh_step)
 
 
@@ -15441,7 +15440,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._update_position_sign_subheader()
             self._update_gender_subheader()
             self._show_database_analytics_pending_indicator(True)
-            QTimer.singleShot(0, self._run_deferred_database_metrics_refresh)
+            self._schedule_deferred_database_metrics_refresh()
         elif panel_name == "gen_pop_norms":
             self.database_metrics_panel_header_label.setText("General Population")
             self._database_metrics_baseline_mode = "gen_pop"
@@ -15454,7 +15453,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._update_position_sign_subheader()
             self._update_gender_subheader()
             self._show_database_analytics_pending_indicator(True)
-            QTimer.singleShot(0, self._run_deferred_database_metrics_refresh)
+            self._schedule_deferred_database_metrics_refresh()
         elif panel_name == "similarities":
             self._update_sentiment_tally(
                 update_database_metrics=False,
@@ -18446,6 +18445,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _run_deferred_database_metrics_refresh(self) -> None:
         self._deferred_database_metrics_refresh_scheduled = False
+        if self._is_closing:
+            self._deferred_database_metrics_changed_ids.clear()
+            self._deferred_database_metrics_force_full_refresh = False
+            return
         changed_ids = set(self._deferred_database_metrics_changed_ids) or None
         force_full_refresh = self._deferred_database_metrics_force_full_refresh
         self._deferred_database_metrics_changed_ids.clear()
