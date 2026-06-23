@@ -22,7 +22,6 @@ import traceback
 import uuid
 import urllib.parse
 import platform
-import pickle
 from collections import Counter, OrderedDict
 from typing import Any, Callable, Mapping
 from types import SimpleNamespace
@@ -1151,7 +1150,7 @@ SIMILAR_CHARTS_EXPORT_FORMAT_KEY = "exports/similar_charts_format"
 CHART_VIEW_NAV_CACHE_LIMIT = 24
 
 DATABASE_METRICS_PERSISTENT_CACHE_VERSION = 1
-DATABASE_METRICS_PERSISTENT_CACHE_FILENAME = ".database_metrics_cache.pkl"
+DATABASE_METRICS_PERSISTENT_CACHE_FILENAME = ".database_metrics_cache.json"
 DATABASE_METRICS_SECTION_ORDER: tuple[str, ...] = (
     "planetary_sign_prevalence",
     "sentiment_prevalence",
@@ -3187,21 +3186,89 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             row_tokens.append((chart_id, repr(row)))
         return tuple(sorted(row_tokens))
 
+    @staticmethod
+    def _encode_database_metrics_cache_value(value: Any) -> Any:
+        if isinstance(value, dict):
+            return {
+                "__database_metrics_cache_type__": "dict",
+                "items": [
+                    [
+                        ManageChartsDialog._encode_database_metrics_cache_value(key),
+                        ManageChartsDialog._encode_database_metrics_cache_value(item_value),
+                    ]
+                    for key, item_value in value.items()
+                ],
+            }
+        if isinstance(value, set):
+            return {
+                "__database_metrics_cache_type__": "set",
+                "items": [
+                    ManageChartsDialog._encode_database_metrics_cache_value(item)
+                    for item in value
+                ],
+            }
+        if isinstance(value, tuple):
+            return {
+                "__database_metrics_cache_type__": "tuple",
+                "items": [
+                    ManageChartsDialog._encode_database_metrics_cache_value(item)
+                    for item in value
+                ],
+            }
+        if isinstance(value, list):
+            return [
+                ManageChartsDialog._encode_database_metrics_cache_value(item)
+                for item in value
+            ]
+        return value
+
+    @staticmethod
+    def _decode_database_metrics_cache_value(value: Any) -> Any:
+        if isinstance(value, list):
+            return [
+                ManageChartsDialog._decode_database_metrics_cache_value(item)
+                for item in value
+            ]
+        if isinstance(value, dict):
+            cache_type = value.get("__database_metrics_cache_type__")
+            if cache_type == "dict":
+                return {
+                    ManageChartsDialog._decode_database_metrics_cache_value(key):
+                    ManageChartsDialog._decode_database_metrics_cache_value(item_value)
+                    for key, item_value in value.get("items", [])
+                }
+            if cache_type == "set":
+                return {
+                    ManageChartsDialog._decode_database_metrics_cache_value(item)
+                    for item in value.get("items", [])
+                }
+            if cache_type == "tuple":
+                return tuple(
+                    ManageChartsDialog._decode_database_metrics_cache_value(item)
+                    for item in value.get("items", [])
+                )
+            return {
+                key: ManageChartsDialog._decode_database_metrics_cache_value(item_value)
+                for key, item_value in value.items()
+            }
+        return value
+
     def _load_database_metrics_persistent_cache(self) -> bool:
         path = self._database_metrics_persistent_cache_path()
         if not path.exists():
             return False
-        with path.open("rb") as cache_file:
-            payload = pickle.load(cache_file)
+        with path.open("r", encoding="utf-8") as cache_file:
+            payload = json.load(cache_file)
         if not isinstance(payload, dict):
             return False
         if payload.get("version") != DATABASE_METRICS_PERSISTENT_CACHE_VERSION:
             return False
-        if payload.get("rows_token") != self._database_metrics_rows_token():
+        rows_token = self._decode_database_metrics_cache_value(payload.get("rows_token"))
+        if rows_token != self._database_metrics_rows_token():
             return False
-        cache = payload.get("cache")
-        snapshots = payload.get("snapshots")
-        sections = payload.get("snapshot_sections")
+        cache = self._decode_database_metrics_cache_value(payload.get("cache"))
+        snapshots = self._decode_database_metrics_cache_value(payload.get("snapshots"))
+        sections = self._decode_database_metrics_cache_value(payload.get("snapshot_sections"))
         if not isinstance(cache, dict) or not isinstance(snapshots, dict):
             return False
         self._database_metrics_cache = cache
@@ -3219,13 +3286,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             DB_DIR.mkdir(parents=True, exist_ok=True)
             payload = {
                 "version": DATABASE_METRICS_PERSISTENT_CACHE_VERSION,
-                "rows_token": self._database_metrics_rows_token(),
-                "snapshot_sections": tuple(self._database_metrics_snapshot_sections),
-                "cache": self._database_metrics_cache,
-                "snapshots": self._database_metric_snapshots,
+                "rows_token": self._encode_database_metrics_cache_value(
+                    self._database_metrics_rows_token()
+                ),
+                "snapshot_sections": self._encode_database_metrics_cache_value(
+                    tuple(self._database_metrics_snapshot_sections)
+                ),
+                "cache": self._encode_database_metrics_cache_value(self._database_metrics_cache),
+                "snapshots": self._encode_database_metrics_cache_value(self._database_metric_snapshots),
             }
-            with self._database_metrics_persistent_cache_path().open("wb") as cache_file:
-                pickle.dump(payload, cache_file, protocol=pickle.HIGHEST_PROTOCOL)
+            path = self._database_metrics_persistent_cache_path()
+            temp_path = path.with_suffix(f"{path.suffix}.tmp")
+            with temp_path.open("w", encoding="utf-8") as cache_file:
+                json.dump(payload, cache_file, separators=(",", ":"))
+            temp_path.replace(path)
         except Exception:
             traceback.print_exc()
 

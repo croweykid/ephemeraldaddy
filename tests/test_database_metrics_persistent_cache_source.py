@@ -28,3 +28,11 @@ def test_incremental_refresh_preserves_warmer_snapshot_sections():
     assert "computed_sections.issubset(self._database_metrics_snapshot_sections)" in method
     assert "snapshot_sections = self._database_metrics_snapshot_sections" in method
     assert "computed_sections=snapshot_sections" in method
+
+
+def test_persistent_cache_uses_json_not_pickle_and_writes_atomically():
+    assert 'DATABASE_METRICS_PERSISTENT_CACHE_FILENAME = ".database_metrics_cache.json"' in SOURCE
+    assert "import pickle" not in SOURCE
+    save_method = _method_source("_save_database_metrics_persistent_cache")
+    assert "json.dump" in save_method
+    assert "temp_path.replace(path)" in save_method
