@@ -80,6 +80,7 @@ def test_create_backup_package_skips_missing_optional_components(package_paths, 
     assert set(components) == {"charts", "photo_gallery", "time_sensitivity", "personal_identifiers"}
     assert components["charts"]["present"] is True
     assert components["photo_gallery"]["present"] is False
+    assert components["photo_gallery"]["restore_missing"] == "delete"
     assert components["photo_gallery"]["size_bytes"] == 0
 
 
@@ -112,6 +113,42 @@ def test_restore_package_removes_sidecars_missing_from_manifest(package_paths, t
     assert not package_paths["photo_gallery"].exists()
     assert not package_paths["personal_identifiers"].exists()
     assert list(package_paths["charts"].parent.glob("ephemeraldaddy_prerestore_backup_*.edbackup"))
+
+
+def test_restore_package_preserves_user_omitted_sidecars(package_paths, tmp_path):
+    _sqlite(package_paths["charts"], "charts", "original")
+    package = backups.create_backup_package(
+        tmp_path / "custom.edbackup",
+        included_component_keys={"charts"},
+        preserve_missing_component_keys={"photo_gallery", "personal_identifiers", "time_sensitivity"},
+    )
+
+    package_paths["personal_identifiers"].write_text('{"keep": true}', encoding="utf-8")
+    _sqlite(package_paths["photo_gallery"], "photos", "keep-photo")
+
+    backups.restore_backup_package(package)
+
+    assert _read_sqlite_value(package_paths["charts"], "charts") == "original"
+    assert _read_sqlite_value(package_paths["photo_gallery"], "photos") == "keep-photo"
+    assert json.loads(package_paths["personal_identifiers"].read_text(encoding="utf-8")) == {"keep": True}
+
+
+def test_create_backup_package_uses_custom_charts_source(package_paths, tmp_path):
+    _sqlite(package_paths["charts"], "charts", "live")
+    custom_charts = tmp_path / "custom_charts.db"
+    _sqlite(custom_charts, "charts", "custom")
+
+    package = backups.create_backup_package(
+        tmp_path / "custom.edbackup",
+        component_source_overrides={"charts": custom_charts},
+        included_component_keys={"charts"},
+        preserve_missing_component_keys={"photo_gallery", "personal_identifiers", "time_sensitivity"},
+    )
+
+    package_paths["charts"].unlink()
+    backups.restore_backup_package(package)
+
+    assert _read_sqlite_value(package_paths["charts"], "charts") == "custom"
 
 
 def test_restore_database_supports_full_package_and_legacy_db(package_paths, tmp_path):

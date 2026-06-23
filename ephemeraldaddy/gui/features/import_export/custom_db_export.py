@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+import tempfile
 from pathlib import Path
 
 from PySide6.QtCore import Qt
@@ -21,6 +22,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ephemeraldaddy.core.backups import (
+    BACKUP_PACKAGE_SUFFIX,
+    LEGACY_CHARTS_COMPONENT_KEY,
+    create_backup_package,
+    iter_backup_components,
+)
 from ephemeraldaddy.core.db import (
     export_chart_properties_csv,
     export_database_with_chart_property_selection,
@@ -53,9 +60,11 @@ def open_custom_db_export_dialog(parent: QWidget) -> None:
 
     layout.addWidget(QLabel("Export format"))
     format_row = QHBoxLayout()
-    db_radio = QRadioButton("Database (.db)")
+    package_radio = QRadioButton(f"Backup package ({BACKUP_PACKAGE_SUFFIX})")
+    db_radio = QRadioButton("Charts database only (.db)")
     csv_radio = QRadioButton("CSV (.csv)")
-    db_radio.setChecked(True)
+    package_radio.setChecked(True)
+    format_row.addWidget(package_radio)
     format_row.addWidget(db_radio)
     format_row.addWidget(csv_radio)
     format_row.addStretch(1)
@@ -130,6 +139,31 @@ def open_custom_db_export_dialog(parent: QWidget) -> None:
         checkboxes[column] = checkbox
         properties_layout.addWidget(checkbox)
     properties_layout.addStretch(1)
+
+    sidecar_divider = QFrame(dialog)
+    sidecar_divider.setFrameShape(QFrame.HLine)
+    sidecar_divider.setFrameShadow(QFrame.Sunken)
+    layout.addWidget(sidecar_divider)
+
+    sidecar_label = QLabel("Linked sidecar files to include")
+    layout.addWidget(sidecar_label)
+    sidecar_helper_label = QLabel(
+        "Backup packages can bundle linked sidecar files. Untick a sidecar to leave it out; "
+        "restoring that package will preserve any existing local copy of the omitted sidecar."
+    )
+    sidecar_helper_label.setWordWrap(True)
+    layout.addWidget(sidecar_helper_label)
+    sidecar_checkboxes: dict[str, QCheckBox] = {}
+    sidecar_layout = QVBoxLayout()
+    for component in iter_backup_components():
+        if component.key == LEGACY_CHARTS_COMPONENT_KEY:
+            continue
+        checkbox = QCheckBox(component.archive_name)
+        checkbox.setChecked(True)
+        checkbox.setToolTip(str(component.path))
+        sidecar_checkboxes[component.key] = checkbox
+        sidecar_layout.addWidget(checkbox)
+    layout.addLayout(sidecar_layout)
 
     button_row = QHBoxLayout()
     select_all_button = QPushButton("Select all")
@@ -212,13 +246,19 @@ def open_custom_db_export_dialog(parent: QWidget) -> None:
         )
 
     def _refresh_lock_state() -> None:
-        db_mode = db_radio.isChecked()
+        db_mode = db_radio.isChecked() or package_radio.isChecked()
+        package_mode = package_radio.isChecked()
         helper_label.setText(
             "Select which chart properties to include.\n"
             "For DB exports, locked fields (🔒) are required by the app."
             if db_mode
             else "Select any properties to include in CSV export."
         )
+        sidecar_label.setEnabled(package_mode)
+        sidecar_helper_label.setEnabled(package_mode)
+        for checkbox in sidecar_checkboxes.values():
+            checkbox.setEnabled(package_mode)
+
         for prop in properties:
             column = str(prop.get("column", "")).strip()
             checkbox = checkboxes.get(column)
@@ -261,34 +301,70 @@ def open_custom_db_export_dialog(parent: QWidget) -> None:
             return
 
         timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d-%H%M%S")
-        if db_radio.isChecked():
+        if package_radio.isChecked() or db_radio.isChecked():
+            package_mode = package_radio.isChecked()
             file_path, _ = QFileDialog.getSaveFileName(
                 dialog,
-                "Export custom database",
-                f"ephemeraldaddy_db_custom_export_{timestamp}.db",
-                "Database Files (*.db)",
+                "Export custom backup package" if package_mode else "Export custom database",
+                (
+                    f"ephemeraldaddy_db_custom_export_{timestamp}{BACKUP_PACKAGE_SUFFIX}"
+                    if package_mode
+                    else f"ephemeraldaddy_db_custom_export_{timestamp}.db"
+                ),
+                (
+                    "EphemeralDaddy Backup Packages (*.edbackup)"
+                    if package_mode
+                    else "Database Files (*.db)"
+                ),
             )
             if not file_path:
                 return
-            if not file_path.lower().endswith(".db"):
+            if package_mode:
+                if Path(file_path).suffix.lower() != BACKUP_PACKAGE_SUFFIX:
+                    file_path = f"{file_path}{BACKUP_PACKAGE_SUFFIX}"
+            elif not file_path.lower().endswith(".db"):
                 file_path = f"{file_path}.db"
             try:
-                export_database_with_chart_property_selection(
-                    Path(file_path),
-                    selected_columns,
-                    included_chart_ids=selected_chart_ids,
-                )
+                if package_mode:
+                    selected_sidecar_keys = {
+                        key for key, checkbox in sidecar_checkboxes.items() if checkbox.isChecked()
+                    }
+                    omitted_sidecar_keys = set(sidecar_checkboxes) - selected_sidecar_keys
+                    included_component_keys = {LEGACY_CHARTS_COMPONENT_KEY, *selected_sidecar_keys}
+                    with tempfile.TemporaryDirectory(prefix="ephemeraldaddy-custom-export-") as tmp_name:
+                        custom_db_path = Path(tmp_name) / "charts.db"
+                        export_database_with_chart_property_selection(
+                            custom_db_path,
+                            selected_columns,
+                            included_chart_ids=selected_chart_ids,
+                        )
+                        create_backup_package(
+                            Path(file_path),
+                            component_source_overrides={LEGACY_CHARTS_COMPONENT_KEY: custom_db_path},
+                            included_component_keys=included_component_keys,
+                            preserve_missing_component_keys=omitted_sidecar_keys,
+                        )
+                else:
+                    export_database_with_chart_property_selection(
+                        Path(file_path),
+                        selected_columns,
+                        included_chart_ids=selected_chart_ids,
+                    )
             except Exception as exc:
                 QMessageBox.critical(
                     dialog,
                     "Custom export failed",
-                    f"Could not export custom database:\n{exc}",
+                    f"Could not export custom backup:\n{exc}",
                 )
                 return
             QMessageBox.information(
                 dialog,
                 "Export complete",
-                f"Custom database export saved to:\n{file_path}",
+                (
+                    f"Custom backup package saved to:\n{file_path}"
+                    if package_mode
+                    else f"Custom database export saved to:\n{file_path}"
+                ),
             )
             return
 
@@ -321,7 +397,9 @@ def open_custom_db_export_dialog(parent: QWidget) -> None:
             f"Custom CSV export saved to:\n{file_path}",
         )
 
+    package_radio.toggled.connect(_refresh_lock_state)
     db_radio.toggled.connect(_refresh_lock_state)
+    csv_radio.toggled.connect(_refresh_lock_state)
     select_all_button.clicked.connect(_select_all_properties)
     select_minimum_button.clicked.connect(_select_minimum_properties)
     cancel_button.clicked.connect(dialog.reject)

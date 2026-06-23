@@ -11,7 +11,7 @@ import zipfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Iterable, Literal
 
 from ephemeraldaddy.core import db as chart_db
 from ephemeraldaddy.core.material_facts import personal_identifiers_path
@@ -115,12 +115,21 @@ def _snapshot_component(component: BackupComponent, destination: Path) -> None:
         shutil.copy2(component.path, destination)
 
 
-def create_backup_package(destination: Path | None = None) -> Path:
-    """Create a versioned full-app backup package containing all known data stores."""
+def create_backup_package(
+    destination: Path | None = None,
+    *,
+    component_source_overrides: dict[str, Path] | None = None,
+    included_component_keys: Iterable[str] | None = None,
+    preserve_missing_component_keys: Iterable[str] | None = None,
+) -> Path:
+    """Create a versioned backup package containing selected app data stores."""
 
     if destination is None:
         destination = timestamped_backup_package_path()
     destination = Path(destination)
+    component_source_overrides = component_source_overrides or {}
+    included_keys = set(included_component_keys) if included_component_keys is not None else None
+    preserve_missing_keys = set(preserve_missing_component_keys or [])
     if destination.suffix.lower() != BACKUP_PACKAGE_SUFFIX:
         destination = destination.with_suffix(BACKUP_PACKAGE_SUFFIX)
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -134,22 +143,34 @@ def create_backup_package(destination: Path | None = None) -> Path:
 
         for component in iter_backup_components():
             relative_path = Path("data") / component.archive_name
+            source_path = Path(component_source_overrides.get(component.key, component.path))
+            component_selected = included_keys is None or component.key in included_keys
+            restore_missing = "preserve" if component.key in preserve_missing_keys else "delete"
             manifest_entry: dict[str, Any] = {
                 "key": component.key,
                 "relative_path": relative_path.as_posix(),
                 "kind": component.kind,
                 "required": component.required,
                 "contains_sensitive_data": component.contains_sensitive_data,
-                "present": component.path.exists(),
+                "present": component_selected and source_path.exists(),
+                "restore_missing": restore_missing,
             }
-            if not component.path.exists():
-                if component.required:
-                    raise FileNotFoundError(f"Required backup component missing: {component.path}")
+            if not component_selected or not source_path.exists():
+                if component.required and component_selected:
+                    raise FileNotFoundError(f"Required backup component missing: {source_path}")
                 manifest_entry.update({"size_bytes": 0, "sha256": ""})
                 manifest_components.append(manifest_entry)
                 continue
             staged_path = payload_dir / relative_path
-            _snapshot_component(component, staged_path)
+            snapshot_component = BackupComponent(
+                key=component.key,
+                path=source_path,
+                archive_name=component.archive_name,
+                kind=component.kind,
+                required=component.required,
+                contains_sensitive_data=component.contains_sensitive_data,
+            )
+            _snapshot_component(snapshot_component, staged_path)
             manifest_entry.update(
                 {
                     "size_bytes": staged_path.stat().st_size,
@@ -227,6 +248,7 @@ def restore_backup_package(source: Path) -> None:
             raise ValueError("Backup package manifest has no components list")
 
         staged_by_key: dict[str, Path] = {}
+        preserve_missing_keys: set[str] = set()
         for entry in components:
             if not isinstance(entry, dict):
                 raise ValueError("Backup package manifest contains an invalid component entry")
@@ -237,6 +259,8 @@ def restore_backup_package(source: Path) -> None:
             if not key or key not in destination_by_key:
                 continue
             if entry.get("present") is False:
+                if entry.get("restore_missing") == "preserve":
+                    preserve_missing_keys.add(key)
                 continue
             staged_path = (extract_dir / relative_path).resolve()
             if not staged_path.is_relative_to(extract_dir.resolve()):
@@ -261,6 +285,8 @@ def restore_backup_package(source: Path) -> None:
         try:
             for key, destination in destination_by_key.items():
                 source_component = staged_by_key.get(key)
+                if source_component is None and key in preserve_missing_keys:
+                    continue
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 rollback_path: Path | None = None
                 if destination.exists():
