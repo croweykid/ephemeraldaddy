@@ -17606,6 +17606,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "Restore complete",
             "Database restored. Reloading charts.",
         )
+        self._clear_similar_charts_popout_cache()
         self._refresh_charts(force_full_analysis_refresh=True)
     def _set_sort_mode(self, mode: str) -> None:
         selected_ids = set(self._selected_chart_ids())
@@ -25559,12 +25560,32 @@ class MainWindow(QMainWindow):
                 if (changed_chart_id := chart_ids_by_uid.get(changed_chart_uid)) is not None
                 and (subject_chart_id is None or int(changed_chart_id) != subject_chart_id)
             ]
-            refreshed_charts_by_id = load_charts(refreshed_chart_ids) if refreshed_chart_ids else {}
+            refreshed_charts_by_id: Mapping[int, Chart] = {}
+            refresh_batch_load_failed = False
+            if refreshed_chart_ids:
+                try:
+                    refreshed_charts_by_id = load_charts(refreshed_chart_ids)
+                except Exception:
+                    refreshed_charts_by_id = {}
+                    refresh_batch_load_failed = True
             refreshed_candidates: list[tuple[int, Chart]] = []
             for changed_chart_id in refreshed_chart_ids:
-                refreshed_chart = refreshed_charts_by_id.get(changed_chart_id)
+                if refresh_batch_load_failed:
+                    try:
+                        refreshed_chart = load_chart(changed_chart_id)
+                    except Exception:
+                        logger.warning(
+                            "Failed to load changed Similar Charts candidate %s",
+                            changed_chart_id,
+                        )
+                        continue
+                else:
+                    refreshed_chart = refreshed_charts_by_id.get(changed_chart_id)
                 if refreshed_chart is None:
-                    logger.warning("Failed to load changed Similar Charts candidate %s", changed_chart_id)
+                    logger.warning(
+                        "Failed to load changed Similar Charts candidate %s",
+                        changed_chart_id,
+                    )
                     continue
                 if _chart_is_placeholder(refreshed_chart):
                     continue
