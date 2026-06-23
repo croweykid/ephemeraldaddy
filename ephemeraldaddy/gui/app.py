@@ -2124,7 +2124,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     _DATABASE_VIEW_FALLBACK_SPLITTER_SIZES: tuple[int, int, int] = (387, 627, 388)
 
     def __init__(self, parent=None):
-        super().__init__(parent)
+        # Database View is the user-facing hub, so keep it as an independent
+        # top-level window instead of making Chart View its Qt parent/owner.
+        # The explicit owner reference below preserves coordination with
+        # MainWindow without forcing window-manager stacking/taskbar ownership.
+        super().__init__(None)
+        self._app_owner = parent
         self.setWindowTitle("Ephemeral Daddy: Astro App | Charts Manager")
         self.setWindowFlag(Qt.Window, True) #this makes the window come to the foreground
         self.setWindowFlag(Qt.WindowSystemMenuHint, True)
@@ -2233,6 +2238,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         set_lilith_calculation_mode(self._lilith_calculation_method)
         self._feature_hub = FeatureEventHub()
         _apply_minimum_screen_height(self)
+
         self._is_closing = False
 
         # Database View sorting state.
@@ -6659,6 +6665,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             lambda _=None, dialog=dialog: self._transit_popout_chart_by_dialog.pop(dialog, None)
         )
 
+
+    def _owner_window(self):
+        """Return the logical app coordinator without Qt window ownership."""
+        owner = getattr(self, "_app_owner", None)
+        if owner is not None:
+            return owner
+        return self.parent()
+
     def _build_similarities_analysis_panel(self) -> QWidget:
         return self.similarities_controller.build_panel()
 
@@ -6697,7 +6711,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             return True
 
-        parent_widget = self.parent()
+        parent_widget = self._owner_window()
         parent_renderer = getattr(parent_widget, renderer_name, None)
         if callable(parent_renderer):
             original_parent_output = getattr(parent_widget, "chart_info_output", None)
@@ -6870,7 +6884,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if chart_id is None:
             return
 
-        parent = self.parent()
+        parent = self._owner_window()
         if parent is None or not isinstance(parent, MainWindow):
             QMessageBox.warning(self, tool_title, "Unable to open this chart tool.")
             return
@@ -12645,7 +12659,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         popout_context = self._popout_summary_contexts.get(obj)
         if popout_context is not None:
             output_widget = popout_context.get("output_widget")
-            parent = self.parent()
+            parent = self._owner_window()
             if event.type() == QEvent.Resize:
                 share_button = popout_context.get("share_button")
                 if isinstance(share_button, QToolButton) and isinstance(output_widget, QPlainTextEdit):
@@ -12745,7 +12759,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         logger.info("Astrotheme import started (id=%s query=%r).", debug_id, raw_query)
 
-        parent = self.parent()
+        parent = self._owner_window()
         if parent is None or not hasattr(parent, "_confirm_discard_or_save"):
             QMessageBox.warning(self, "Astrotheme import", "Unable to open chart editor.")
             return
@@ -13014,7 +13028,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         _register_popout_close_shortcuts(dialog)
 
     def _export_chart(self, chart: Chart | None) -> None:
-        parent = self.parent()
+        parent = self._owner_window()
         if parent is not None and hasattr(parent, "_export_chart"):
             parent._export_chart(chart)
             return
@@ -15538,7 +15552,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._show_right_panel("search")
 
     def _run_main_window_chart_action(self, action_name: str) -> None:
-        parent = self.parent()
+        parent = self._owner_window()
         if parent is None or not hasattr(parent, "_run_chart_action_from_active_context"):
             QMessageBox.warning(self, "Chart action", "Unable to access chart actions.")
             return
@@ -15590,7 +15604,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         dialog.activateWindow()
 
     def _on_open_sign_degrees_reference_circle(self) -> None:
-        parent = self.parent()
+        parent = self._owner_window()
         if parent is not None and hasattr(parent, "on_open_sign_degrees_reference_circle"):
             parent.on_open_sign_degrees_reference_circle()
             return
@@ -16316,7 +16330,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._save_custom_collections_to_settings()
         self._settings.setValue("app/last_view", "database")
 
-        parent = self.parent()
+        parent = self._owner_window()
         if isinstance(parent, MainWindow):
             parent.allow_close_for_app_exit()
 
@@ -17921,7 +17935,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._prediction_norms_revision = int(getattr(self, "_prediction_norms_revision", 0)) + 1
         if force_full_analysis_refresh:
             self._chart_cache = {}
-            owner = self.parent()
+            owner = self._owner_window()
             if owner is not None and hasattr(owner, "_invalidate_chart_view_navigation_cache"):
                 owner._invalidate_chart_view_navigation_cache()
             self._database_metrics_cache = None
@@ -17933,7 +17947,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.similarities_controller.clear_db_baseline_cache()
             for chart_id in changed_ids:
                 self._chart_cache.pop(chart_id, None)
-            owner = self.parent()
+            owner = self._owner_window()
             if owner is not None and hasattr(owner, "_invalidate_chart_view_navigation_cache"):
                 owner._invalidate_chart_view_navigation_cache(changed_ids)
         chart_ids_for_cache = []
@@ -20483,7 +20497,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "Charts deleted",
             f"Deleted {deleted} chart(s).",
         )
-        parent = self.parent()
+        parent = self._owner_window()
         if isinstance(parent, QWidget) and hasattr(parent, "_on_charts_deleted"):
             parent._on_charts_deleted(set(chart_ids))
         remaining_selection = [
@@ -20493,7 +20507,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._refresh_charts(changed_ids=set(chart_ids))
 
     def _on_new_chart(self) -> None:
-        parent = self.parent()
+        parent = self._owner_window()
         if parent is None or not hasattr(parent, "on_new_chart"):
             QMessageBox.warning(
                 self,
@@ -20695,7 +20709,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         visibility_section.addWidget(self._build_settings_subheader_label("Chart Analytics Panel (Chart View View)"))
 
         planet_dynamics_checkbox = QCheckBox("Show Body Dynamics (Chart Analytics)")
-        parent = self.parent()
+        parent = self._owner_window()
         planet_dynamics_checkbox.setChecked(
             isinstance(parent, MainWindow)
             and parent._is_chart_analysis_section_visible("planet_dynamics")
@@ -21209,7 +21223,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         invalidate_all_dominant_weight_caches()
         self._refresh_lilith_body_labels_in_filters()
         self._refresh_todays_transits_panel()
-        parent = self.parent()
+        parent = self._owner_window()
         if isinstance(parent, MainWindow):
             parent._handle_lilith_calculation_method_changed(
                 normalized,
@@ -21285,7 +21299,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         del blocker_big_3
         del blocker_custom
         del blocker_database_distinction
-        parent = self.parent()
+        parent = self._owner_window()
         if isinstance(parent, MainWindow):
             parent._handle_similar_charts_algorithm_mode_changed(normalized)
 
@@ -21374,7 +21388,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             SIGNIFICANCE_CORRECTION_SETTINGS_KEY,
             self._significance_correction,
         )
-        parent = self.parent()
+        parent = self._owner_window()
         if isinstance(parent, MainWindow):
             parent._astrotwin_granular_explanation = self._astrotwin_granular_explanation
             parent._settings.setValue(
@@ -21388,7 +21402,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             SETTINGS_KEY_PREDICTIONS_ALIGNMENT_DEFAULT_ZERO,
             int(self._similar_predictions_default_zero_for_unassigned_alignment),
         )
-        parent = self.parent()
+        parent = self._owner_window()
         if isinstance(parent, MainWindow):
             parent._similar_predictions_default_zero_for_unassigned_alignment = (
                 self._similar_predictions_default_zero_for_unassigned_alignment
@@ -21404,7 +21418,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             SETTINGS_KEY_WIKIPEDIA_BACKUP_SEARCH,
             int(self._wikipedia_backup_search_enabled),
         )
-        parent = self.parent()
+        parent = self._owner_window()
         if isinstance(parent, MainWindow):
             parent._wikipedia_backup_search_enabled = self._wikipedia_backup_search_enabled
             parent._settings.setValue(
@@ -21418,7 +21432,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             SETTINGS_KEY_CHART_DATA_SHOW_CHART_UID,
             int(self._chart_data_show_chart_uid),
         )
-        parent = self.parent()
+        parent = self._owner_window()
         if isinstance(parent, MainWindow):
             parent._chart_data_show_chart_uid = self._chart_data_show_chart_uid
             parent._settings.setValue(
@@ -21433,7 +21447,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             SETTINGS_KEY_BATCH_TAGGING_TERMINAL_DEBUG,
             int(self._batch_tagging_terminal_debug),
         )
-        parent = self.parent()
+        parent = self._owner_window()
         if isinstance(parent, MainWindow):
             parent._batch_tagging_terminal_debug = self._batch_tagging_terminal_debug
             parent._settings.setValue(
@@ -21470,7 +21484,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             SETTINGS_KEY_ENNEAGRAM_PREDICTIONS_DEBUG,
             int(self._enneagram_predictions_debug),
         )
-        parent = self.parent()
+        parent = self._owner_window()
         if isinstance(parent, MainWindow):
             parent._enneagram_predictions_debug = self._enneagram_predictions_debug
             parent._settings.setValue(
@@ -21484,7 +21498,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             SETTINGS_KEY_SIMILARITY_PERCEIVED_ACCURACY_CONTROLS,
             int(self._similarity_perceived_accuracy_controls_enabled),
         )
-        parent = self.parent()
+        parent = self._owner_window()
         if isinstance(parent, MainWindow):
             parent._similarity_perceived_accuracy_controls_enabled = (
                 self._similarity_perceived_accuracy_controls_enabled
@@ -21505,7 +21519,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _on_refresh_similar_charts_popout_cache_requested(self) -> None:
         cleared_count = self._clear_similar_charts_popout_cache()
-        parent = self.parent()
+        parent = self._owner_window()
         if isinstance(parent, MainWindow) and parent is not self:
             cleared_count += parent._clear_similar_charts_popout_cache()
         QMessageBox.information(
@@ -21672,7 +21686,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         self._similarity_calculator_settings = settings
         _save_similarity_calculator_settings(self._settings, settings)
-        parent = self.parent()
+        parent = self._owner_window()
         if isinstance(parent, MainWindow):
             previous_settings = getattr(parent, "_similarity_calculator_settings", None)
             settings_changed = (
@@ -21688,7 +21702,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._similarity_calculator_settings = defaults
         _save_similarity_calculator_settings(self._settings, defaults)
         self._load_similarity_calculator_controls()
-        parent = self.parent()
+        parent = self._owner_window()
         if isinstance(parent, MainWindow):
             previous_settings = getattr(parent, "_similarity_calculator_settings", None)
             settings_changed = (
@@ -21748,7 +21762,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS,
             _enneagram_scoring_options_to_payload(self._enneagram_scoring_options),
         )
-        parent = self.parent()
+        parent = self._owner_window()
         if isinstance(parent, MainWindow):
             parent._enneagram_scoring_options = self._enneagram_scoring_options
             parent._settings.setValue(
@@ -21767,7 +21781,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS,
             _enneagram_scoring_options_to_payload(self._enneagram_scoring_options),
         )
-        parent = self.parent()
+        parent = self._owner_window()
         if isinstance(parent, MainWindow):
             parent._enneagram_scoring_options = self._enneagram_scoring_options
             parent._settings.setValue(
@@ -21783,7 +21797,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         _set_enneagram_category_weights(weights)
         options = getattr(self, "_enneagram_scoring_options", _default_enneagram_scoring_options())
         _set_enneagram_scoring_options(options)
-        parent = self.parent()
+        parent = self._owner_window()
         if isinstance(parent, MainWindow):
             parent._enneagram_predictor_mode = "default"
             parent._enneagram_predictor_weights = dict(weights)
@@ -21911,7 +21925,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.right_panel_stack.setVisible(True)
         self._content_splitter.setSizes(self._default_content_splitter_sizes())
 
-        parent = self.parent()
+        parent = self._owner_window()
         if isinstance(parent, MainWindow):
             for section_key in ("planet_dynamics", "anagrams"):
                 parent._chart_analysis_section_visible[section_key] = parent._visibility.get(
@@ -22070,7 +22084,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if key == "chart_data.human_design_alpha_prototype":
             self._refresh_human_design_menu_visibility()
 
-        parent = self.parent()
+        parent = self._owner_window()
         if isinstance(parent, MainWindow):
             parent._refresh_chart_preview()
 
@@ -22078,7 +22092,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout = self.layout()
         if isinstance(layout, QVBoxLayout):
             configure_manage_dialog_chrome(self, layout)
-        parent = self.parent()
+        parent = self._owner_window()
         if isinstance(parent, MainWindow):
             configure_main_window_chrome(parent)
 
@@ -22086,7 +22100,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._visibility.set(key, checked)
 
     def _set_chart_analytics_visibility_from_settings(self, section_key: str, checked: bool) -> None:
-        parent = self.parent()
+        parent = self._owner_window()
         if isinstance(parent, MainWindow):
             parent._set_chart_analysis_section_visible(section_key, checked)
 
@@ -22131,7 +22145,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 if popup.isVisible():
                     popup.close()
                     self._size_checker_popup = None
-                    main_window = self.parent()
+                    main_window = self._owner_window()
                     if isinstance(main_window, MainWindow):
                         main_window._size_checker_popup = None
                     return
@@ -22153,7 +22167,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
         popup.show()
         self._size_checker_popup = popup
-        main_window = self.parent()
+        main_window = self._owner_window()
         if isinstance(main_window, MainWindow):
             main_window._size_checker_popup = popup
 
@@ -22194,7 +22208,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return self._selected_non_placeholder_chart_ids()
         if self.current_chart_id is not None:
             return [int(self.current_chart_id)]
-        parent_window = self.parent()
+        parent_window = self._owner_window()
         if isinstance(parent_window, MainWindow) and parent_window.current_chart_id is not None:
             return [int(parent_window.current_chart_id)]
         return self._selected_non_placeholder_chart_ids()
@@ -22716,7 +22730,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._help_entry_detail_scroll.verticalScrollBar().setValue(0)
 
     def _on_retcon_engine(self) -> None:
-        parent = self.parent()
+        parent = self._owner_window()
         if parent is None or not hasattr(parent, "on_retcon_engine"):
             QMessageBox.warning(
                 self,
@@ -22733,7 +22747,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         chart_id = item.data(Qt.UserRole)
         if chart_id is None:
             return
-        parent = self.parent()
+        parent = self._owner_window()
         if parent is None or not hasattr(parent, "load_chart_by_id"):
             QMessageBox.warning(
                 self,
