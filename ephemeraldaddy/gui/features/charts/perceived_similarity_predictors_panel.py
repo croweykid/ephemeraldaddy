@@ -7,7 +7,10 @@ from collections import Counter
 from typing import Any, Mapping
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QLabel, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QLabel, QPushButton, QSizePolicy, QVBoxLayout, QWidget
+
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
 
 from ephemeraldaddy.analysis.get_astro_twin import (
     SIMILAR_CHARTS_ALGORITHM_DEFAULT,
@@ -30,6 +33,9 @@ class PerceivedSimilarityPredictorsPanel(QWidget):
         super().__init__(parent)
         self._highlight_color = highlight_color or DEFAULT_HIGHLIGHT_COLOR
         self._output_label: QLabel | None = None
+        self._refresh_button: QPushButton | None = None
+        self._chart_layout: QVBoxLayout | None = None
+        self._recommendation_canvas: FigureCanvas | None = None
         self._on_refresh_requested = None
         self._build_ui()
 
@@ -42,7 +48,7 @@ class PerceivedSimilarityPredictorsPanel(QWidget):
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(8)
 
-        header = QLabel("🧾Predictor Feedback") #formerly known as "perceived similarity predictor"
+        header = QLabel("🧾 Predictor Feedback")
         header.setStyleSheet("font-weight: 700; font-size: 13px; color: #ffffff;")
         layout.addWidget(header)
 
@@ -54,10 +60,16 @@ class PerceivedSimilarityPredictorsPanel(QWidget):
         help_label.setStyleSheet("color: #d9d9d9;")
         layout.addWidget(help_label)
 
-        refresh_button = QPushButton("Calculate for this chart") #change to say the chart's name instead of 'this chart'.
+        refresh_button = QPushButton("Calculate for selected chart")
         refresh_button.setObjectName("perceived_similarity_predictors_refresh_button")
         refresh_button.clicked.connect(self._request_refresh)
         layout.addWidget(refresh_button)
+        self._refresh_button = refresh_button
+
+        self._chart_layout = QVBoxLayout()
+        self._chart_layout.setContentsMargins(0, 0, 0, 0)
+        self._chart_layout.setSpacing(0)
+        layout.addLayout(self._chart_layout)
 
         self._output_label = QLabel()
         self._output_label.setTextFormat(Qt.RichText)
@@ -66,15 +78,38 @@ class PerceivedSimilarityPredictorsPanel(QWidget):
         self._output_label.setStyleSheet(f"font-weight: 400; color: {self._highlight_color};")
         layout.addWidget(self._output_label)
         layout.addStretch(1)
-        self.set_message("Select a chart and press Refresh.")
+        self.set_message("Select a chart and press Calculate.")
 
     def _request_refresh(self) -> None:
         if callable(self._on_refresh_requested):
             self._on_refresh_requested()
 
     def set_message(self, message: str) -> None:
+        self._clear_recommendation_chart()
         if self._output_label is not None:
             self._output_label.setText(f"<div>{html.escape(message)}</div>")
+
+    def _set_refresh_button_chart_name(self, chart_name: str | None) -> None:
+        if self._refresh_button is None:
+            return
+        clean_name = str(chart_name or "").strip()
+        self._refresh_button.setText(
+            f"Calculate for {clean_name}" if clean_name else "Calculate for selected chart"
+        )
+
+    def update_selected_chart_label(self, selected_chart_ids: list[int]) -> None:
+        """Update the calculate button to name the currently selected chart."""
+        if not selected_chart_ids:
+            self._set_refresh_button_chart_name(None)
+            return
+        try:
+            chart = load_chart(int(selected_chart_ids[0]))
+        except Exception:  # pragma: no cover - defensive GUI label fallback
+            self._set_refresh_button_chart_name(f"Chart #{int(selected_chart_ids[0])}")
+            return
+        self._set_refresh_button_chart_name(
+            str(getattr(chart, "name", "") or f"Chart #{int(selected_chart_ids[0])}")
+        )
 
     def refresh_for_chart_ids(
         self,
@@ -85,6 +120,7 @@ class PerceivedSimilarityPredictorsPanel(QWidget):
     ) -> None:
         """Refresh predictor analysis for the first selected chart id."""
         if not selected_chart_ids:
+            self._set_refresh_button_chart_name(None)
             self.set_message("Select a chart in Database View first.")
             return
         subject_chart_id = int(selected_chart_ids[0])
@@ -93,6 +129,9 @@ class PerceivedSimilarityPredictorsPanel(QWidget):
         except Exception as exc:  # pragma: no cover - defensive GUI status path
             self.set_message(f"Could not load selected chart #{subject_chart_id}: {exc}")
             return
+
+        subject_chart_name = str(getattr(subject_chart, "name", "") or f"Chart #{subject_chart_id}")
+        self._set_refresh_button_chart_name(subject_chart_name)
 
         score_by_compared_id = self._perceived_scores_for_subject(subject_chart_id)
         scored_compared_ids = sorted(
@@ -128,7 +167,7 @@ class PerceivedSimilarityPredictorsPanel(QWidget):
             custom_settings=similarity_settings,
         )
         self._render_predictors(
-            subject_chart_name=str(getattr(subject_chart, "name", "") or f"Chart #{subject_chart_id}"),
+            subject_chart_name=subject_chart_name,
             matches=matches,
             score_by_compared_id=score_by_compared_id,
         )
@@ -245,6 +284,8 @@ class PerceivedSimilarityPredictorsPanel(QWidget):
             self.set_message("Perceived scores exist, but no similarity component rankings could be computed.")
             return
 
+        self._render_recommendation_chart(ranked_predictors, component_labels)
+
         rows = [
             f"<li><b>{html.escape(component_labels.get(key, key.replace('_', ' ').title()))}</b>: "
             f"{score:.1f}% weighted high-rank signal"
@@ -260,6 +301,90 @@ class PerceivedSimilarityPredictorsPanel(QWidget):
                 "strongest among high-ranked, highly perceived-similar comparisons.</div>"
                 f"<ol>{''.join(rows)}</ol>"
             )
+
+    def _clear_recommendation_chart(self) -> None:
+        canvas = self._recommendation_canvas
+        if canvas is None:
+            return
+        if self._chart_layout is not None:
+            self._chart_layout.removeWidget(canvas)
+        canvas.setParent(None)
+        canvas.deleteLater()
+        self._recommendation_canvas = None
+
+    def _render_recommendation_chart(
+        self,
+        ranked_predictors: list[tuple[str, float]],
+        labels: Mapping[str, str],
+    ) -> None:
+        self._clear_recommendation_chart()
+        if self._chart_layout is None or not ranked_predictors:
+            return
+
+        top_predictors = ranked_predictors[:8]
+        total_score = sum(max(0.0, score) for _, score in top_predictors)
+        if total_score <= 0:
+            return
+
+        names = [labels.get(key, key.replace("_", " ").title()) for key, _ in top_predictors]
+        weights = [(max(0.0, score) / total_score) * 100.0 for _, score in top_predictors]
+        figure = Figure(figsize=(3.6, 3.0), dpi=100, facecolor="#0f0515")
+        ax = figure.add_subplot(111)
+        ax.set_facecolor("#0f0515")
+        wedges, _ = ax.pie(
+            weights,
+            startangle=90,
+            counterclock=False,
+            wedgeprops={"linewidth": 1.0, "edgecolor": "#0f0515"},
+        )
+        ax.set_title("Recommended factor weights", color="#ffffff", fontsize=10)
+        legend_labels = [f"{name} ({weight:.1f}%)" for name, weight in zip(names, weights, strict=False)]
+        legend = ax.legend(
+            wedges,
+            legend_labels,
+            loc="center left",
+            bbox_to_anchor=(1.0, 0.5),
+            fontsize=8,
+            frameon=False,
+        )
+        for text in legend.get_texts():
+            text.set_color("#e6e6e6")
+        tooltip = ax.annotate(
+            "",
+            xy=(0, 0),
+            xytext=(12, 12),
+            textcoords="offset points",
+            bbox={"boxstyle": "round", "fc": "#24142d", "ec": "#f2d16b", "alpha": 0.95},
+            color="#ffffff",
+            fontsize=9,
+        )
+        tooltip.set_visible(False)
+
+        def _on_hover(event):  # noqa: ANN001 - matplotlib callback signature
+            if event.inaxes != ax:
+                if tooltip.get_visible():
+                    tooltip.set_visible(False)
+                    canvas.draw_idle()
+                return
+            for wedge, name, weight in zip(wedges, names, weights, strict=False):
+                contains, _ = wedge.contains(event)
+                if contains:
+                    tooltip.xy = (event.xdata, event.ydata)
+                    tooltip.set_text(f"{name}: {weight:.2f}%")
+                    tooltip.set_visible(True)
+                    canvas.draw_idle()
+                    return
+            if tooltip.get_visible():
+                tooltip.set_visible(False)
+                canvas.draw_idle()
+
+        canvas = FigureCanvas(figure)
+        canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        canvas.setMinimumHeight(260)
+        canvas.mpl_connect("motion_notify_event", _on_hover)
+        figure.tight_layout()
+        self._chart_layout.addWidget(canvas)
+        self._recommendation_canvas = canvas
 
     @staticmethod
     def _component_scores_for_match(match: Any) -> dict[str, float | None]:
