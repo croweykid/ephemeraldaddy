@@ -836,6 +836,10 @@ from ephemeraldaddy.gui.dbv_batch_bio import (
     clear_batch_from_whence_state,
     set_batch_from_whence_state,
 )
+from ephemeraldaddy.gui.dbv_batch_similarity import (
+    build_batch_similarity_section,
+    refresh_batch_similarity_chart_options,
+)
 from ephemeraldaddy.gui.dbv_search_panel import (
     active_body_dynamics_filters as get_active_body_dynamics_filters,
     body_dynamics_filters_are_active,
@@ -7162,6 +7166,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         ]
         chart_lookup, choices = build_chart_lookup(similarity_rows)
         self.similarities_controller.set_chart_lookup(chart_lookup)
+        self._batch_similarity_chart_lookup = chart_lookup
 
         for field in (
             self._similarities_first_chart_input,
@@ -7173,6 +7178,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             completer.setCaseSensitivity(Qt.CaseInsensitive)
             completer.setFilterMode(Qt.MatchContains)
             field.setCompleter(completer)
+        refresh_batch_similarity_chart_options(self, choices)
 
     def _is_placeholder_chart_id(self, chart_id: int) -> bool:
         row = self._active_chart_rows_by_id.get(int(chart_id))
@@ -13391,6 +13397,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._update_tag_completers()
         layout.addWidget(tagging_section)
 
+        layout.addWidget(build_batch_similarity_section(self, add_collapsible_section))
         layout.addWidget(build_batch_bio_section(self, add_collapsible_section))
 
         predictability_section, predictability_section_layout = add_collapsible_section("💭Predictability")
