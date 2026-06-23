@@ -595,6 +595,7 @@ from ephemeraldaddy.core.material_facts import (
     load_personal_identifiers,
     save_personal_identifiers,
 )
+from ephemeraldaddy.core.backups import BACKUP_PACKAGE_SUFFIX, create_backup_package
 from ephemeraldaddy.core.db import (
     DB_PATH,
     DB_DIR,
@@ -17155,16 +17156,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d-%H%M%S")
         file_path, _ = QFileDialog.getSaveFileName(
             self,
-            "Export database",
-            f"ephemeraldaddy_dbbackup_{timestamp}.db",
-            "Database Files (*.db)",
+            "Export full backup",
+            f"ephemeraldaddy_backup_{timestamp}{BACKUP_PACKAGE_SUFFIX}",
+            "EphemeralDaddy Backup Packages (*.edbackup);;Legacy Charts Database (*.db)",
         )
         if not file_path:
             return
-        if not file_path.lower().endswith(".db"):
-            file_path = f"{file_path}.db"
+        suffix = Path(file_path).suffix.lower()
         try:
-            backup_database(Path(file_path))
+            if suffix == ".db":
+                backup_database(Path(file_path))
+            else:
+                if suffix != BACKUP_PACKAGE_SUFFIX:
+                    file_path = f"{file_path}{BACKUP_PACKAGE_SUFFIX}"
+                create_backup_package(Path(file_path))
         except Exception as e:
             QMessageBox.critical(
                 self,
@@ -17175,7 +17180,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         QMessageBox.information(
             self,
             "Export complete",
-            f"Database backup saved to:\n{file_path}",
+            f"Backup saved to:\n{file_path}",
         )
 
     def _on_custom_db_export(self) -> None:
@@ -17360,9 +17365,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _on_import_database(self) -> None:
         file_path, _ = QFileDialog.getOpenFileName(
             self,
-            "Import database",
+            "Restore backup",
             "",
-            "Database Files (*.db)",
+            "EphemeralDaddy Backup Packages (*.edbackup);;Legacy Charts Database (*.db)",
         )
         if not file_path:
             return
@@ -17370,7 +17375,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self,
             "Confirm restore",
             (
-                "Importing a database will overwrite your current charts.\n"
+                "Restoring a backup will overwrite matching local app data.\n"
+                "Full backup packages restore charts and linked sidecar data; legacy .db files restore charts only.\n"
                 "Continue?"
             ),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
@@ -17384,7 +17390,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             QMessageBox.critical(
                 self,
                 "Restore error",
-                f"Could not restore the database:\n{e}",
+                f"Could not restore the backup:\n{e}",
             )
             return
         QMessageBox.information(
@@ -30246,9 +30252,9 @@ class MainWindow(QMainWindow):
         if dialog.clickedButton() == restore_button:
             file_path, _ = QFileDialog.getOpenFileName(
                 self,
-                "Restore database",
+                "Restore backup",
                 "",
-                "Database Files (*.db)",
+                "EphemeralDaddy Backup Packages (*.edbackup);;Legacy Charts Database (*.db)",
             )
             if not file_path:
                 return
@@ -30258,13 +30264,13 @@ class MainWindow(QMainWindow):
                 QMessageBox.critical(
                     self,
                     "Restore error",
-                    f"Could not restore the database:\n{e}",
+                    f"Could not restore the backup:\n{e}",
                 )
                 return
             QMessageBox.information(
                 self,
                 "Restore complete",
-                "Database restored. You may continue.",
+                "Backup restored. You may continue.",
             )
         elif dialog.clickedButton() == continue_button:
             return
