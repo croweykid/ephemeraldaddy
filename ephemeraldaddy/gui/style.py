@@ -263,13 +263,13 @@ QUAD_STATE_SLIDER_VISUALS = {
 RIGHT_PANEL_SCROLLBAR_STYLE = """
 QScrollArea {
     border: none;
-    background: #000000;
+    background: #111111;
 }
 QScrollArea::viewport {
-    background: #000000;
+    background: #111111;
 }
 QScrollBar:vertical {
-    background: #000000;
+    background: #111111;
     width: 8px;
     margin: 0px;
 }
@@ -456,7 +456,7 @@ CHART_VIEW_TIME_OVERWRITE_ENABLED = True
 CHART_VIEW_RECTIFIED_GROUP_LEFT_SPACER = 12
 CHART_VIEW_RECTIFIED_LABEL_CHECKBOX_SPACING = 4
 DATABASE_VIEW_HEADER_COLOR = MIDDLE_PANEL_ACCENT_COLOR
-COLLAPSIBLE_SECTION_BACKGROUND = "#000000" # Database View panel/section backgrounds should stay pure black.
+COLLAPSIBLE_SECTION_BACKGROUND = "#0f0515" #362b3d # Database View panel/section backgrounds should stay pure black.
 COLLAPSIBLE_SECTION_CONTENT_STYLE = f"background-color: {COLLAPSIBLE_SECTION_BACKGROUND};"
 DATABASE_VIEW_PANEL_HEADER_STYLE = (
     f"font-weight: bold; font-size: 14.5px; color: {DATABASE_VIEW_HEADER_COLOR};"

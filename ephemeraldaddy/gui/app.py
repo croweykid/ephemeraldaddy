@@ -2768,8 +2768,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.list_widget.setItemDelegate(ChartRowDelegate(self.list_widget))
         self.list_widget.setStyleSheet(
             "QListWidget {"
-            "  background-color: #000000;"
-            "  border: 1px solid #000000;"
+            "  background-color: #151515;"
+            "  border: 1px solid #333333;"
             "}"
             "QListWidget::item {"
             "  padding: 6px 8px;"
