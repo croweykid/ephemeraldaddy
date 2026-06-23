@@ -2365,6 +2365,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._deferred_database_metrics_refresh_scheduled = False
         self._deferred_database_metrics_changed_ids: set[int] = set()
         self._deferred_database_metrics_force_full_refresh = False
+        self._database_metrics_background_preload_scheduled = False
+        self._database_metrics_background_preload_sections: list[str] = []
+        self._database_metrics_preloaded_sections: set[str] = set()
         self._tag_completer_revision_token: tuple[object, ...] | None = None
         self._database_metrics_chart_layouts: dict[str, QVBoxLayout] = {}
         self._database_analytics_popout_dialogs: list[QDialog] = []
@@ -3001,9 +3004,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_metrics_section_expanded[section_key] = expanded
         self._visibility.set(f"database_metrics.{section_key}", expanded)
         if not expanded:
-            layout = self._database_metrics_chart_layouts.get(section_key)
-            if layout is not None:
-                self._clear_layout(layout)
+            # Keep the rendered chart widgets alive when a section collapses.
+            # Rebuilding matplotlib canvases on every re-expand made cached
+            # Database Analytics sections feel like a cold load.
+            self._schedule_database_metrics_background_preload()
             return
         if (
             self._left_panel_visible
@@ -3014,6 +3018,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 update_similarities=False,
                 sections_to_refresh={section_key},
             )
+            self._database_metrics_preloaded_sections.add(section_key)
+            self._schedule_database_metrics_background_preload()
 
     def _is_database_metrics_section_expanded(self, section_key: str) -> bool:
         return self._database_metrics_section_expanded.get(section_key, False)
@@ -3165,13 +3171,58 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _start_database_metrics_cache_preload(self) -> None:
         """Restore persisted Database Analytics snapshots without recalculating at startup."""
-        if self._database_metrics_cache is not None:
+        if self._database_metrics_cache is None:
+            try:
+                self._load_database_metrics_persistent_cache()
+            except Exception:
+                traceback.print_exc()
+                self._database_metrics_cache = None
+        self._schedule_database_metrics_background_preload()
+
+    def _schedule_database_metrics_background_preload(self) -> None:
+        """Queue hidden Database Analytics sections to render during idle UI time."""
+        if self._database_metrics_background_preload_scheduled:
             return
-        try:
-            self._load_database_metrics_persistent_cache()
-        except Exception:
-            traceback.print_exc()
-            self._database_metrics_cache = None
+        self._database_metrics_background_preload_scheduled = True
+        QTimer.singleShot(250, self._run_database_metrics_background_preload_step)
+
+    def _database_metrics_background_preload_order(self) -> list[str]:
+        return [
+            section_key
+            for section_key in DATABASE_METRICS_SECTION_ORDER
+            if self._is_database_metrics_section_visible(section_key)
+            and section_key in self._database_metrics_chart_layouts
+            and not self._is_database_metrics_section_expanded(section_key)
+            and section_key not in self._database_metrics_preloaded_sections
+            and not (
+                self._database_metrics_baseline_mode == "gen_pop"
+                and section_key in GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS
+            )
+        ]
+
+    def _run_database_metrics_background_preload_step(self) -> None:
+        self._database_metrics_background_preload_scheduled = False
+        if (
+            self._deferred_database_metrics_refresh_scheduled
+            or self._incremental_metrics_refresh_scheduled
+            or self._expanded_database_metric_sections()
+        ):
+            return
+        if not self._database_metrics_background_preload_sections:
+            self._database_metrics_background_preload_sections = (
+                self._database_metrics_background_preload_order()
+            )
+        if not self._database_metrics_background_preload_sections:
+            return
+        section_key = self._database_metrics_background_preload_sections.pop(0)
+        self._update_sentiment_tally(
+            update_database_metrics=True,
+            update_similarities=False,
+            sections_to_refresh={section_key},
+        )
+        self._database_metrics_preloaded_sections.add(section_key)
+        if self._database_metrics_background_preload_sections:
+            self._schedule_database_metrics_background_preload()
 
     def _database_metrics_persistent_cache_path(self) -> Path:
         return DB_DIR / DATABASE_METRICS_PERSISTENT_CACHE_FILENAME
@@ -10143,6 +10194,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     ) -> None:
         if changed_ids:
             self._database_metrics_lucy_goosey_ids.update(changed_ids)
+            self._database_metrics_preloaded_sections.clear()
+        if force_full_refresh or (update_database_metrics and sections_to_refresh is None):
+            self._database_metrics_preloaded_sections.clear()
 
         self._update_selection_header()
         if not update_database_metrics and not update_similarities:
@@ -10177,11 +10231,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 and section_key in GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS
             ):
                 return False
+            if sections_to_refresh is not None:
+                return section_key in sections_to_refresh
             if not self._is_database_metrics_section_expanded(section_key):
                 return False
-            if sections_to_refresh is None:
-                return True
-            return section_key in sections_to_refresh
+            return True
 
         if update_database_metrics:
             try:
@@ -18381,6 +18435,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         if not self._incremental_metrics_refresh_scheduled:
             self._show_database_analytics_pending_indicator(False)
+            self._schedule_database_metrics_background_preload()
 
     def _show_database_analytics_pending_indicator(self, visible: bool) -> None:
         label = getattr(self, "database_metrics_pending_label", None)
