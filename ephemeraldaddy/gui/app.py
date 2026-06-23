@@ -196,6 +196,11 @@ def _load_similarity_calculator_settings(settings) -> SimilarityCalculatorSettin
         if isinstance(value, (int, float)):
             return bool(value)
         return fallback
+    legacy_combined_weight = float(payload.get("weight_combined_dominance", defaults.weight_combined_dominance))
+    legacy_combined_enabled = _as_bool(
+        payload.get("use_combined_dominance", defaults.use_combined_dominance),
+        defaults.use_combined_dominance,
+    )
     values = {
         "use_placement": _as_bool(payload.get("use_placement", defaults.use_placement), defaults.use_placement),
         "weight_placement": float(payload.get("weight_placement", defaults.weight_placement)),
@@ -203,8 +208,16 @@ def _load_similarity_calculator_settings(settings) -> SimilarityCalculatorSettin
         "weight_aspect": float(payload.get("weight_aspect", defaults.weight_aspect)),
         "use_distribution": _as_bool(payload.get("use_distribution", defaults.use_distribution), defaults.use_distribution),
         "weight_distribution": float(payload.get("weight_distribution", defaults.weight_distribution)),
-        "use_combined_dominance": _as_bool(payload.get("use_combined_dominance", defaults.use_combined_dominance), defaults.use_combined_dominance),
-        "weight_combined_dominance": float(payload.get("weight_combined_dominance", defaults.weight_combined_dominance)),
+        "use_combined_dominance": legacy_combined_enabled,
+        "weight_combined_dominance": legacy_combined_weight,
+        "use_dominant_bodies": _as_bool(payload.get("use_dominant_bodies", legacy_combined_enabled), defaults.use_dominant_bodies),
+        "weight_dominant_bodies": float(payload.get("weight_dominant_bodies", legacy_combined_weight * 0.25)),
+        "use_dominant_houses": _as_bool(payload.get("use_dominant_houses", legacy_combined_enabled), defaults.use_dominant_houses),
+        "weight_dominant_houses": float(payload.get("weight_dominant_houses", legacy_combined_weight * 0.25)),
+        "use_dominant_signs": _as_bool(payload.get("use_dominant_signs", legacy_combined_enabled), defaults.use_dominant_signs),
+        "weight_dominant_signs": float(payload.get("weight_dominant_signs", legacy_combined_weight * 0.25)),
+        "use_dominant_nakshatras": _as_bool(payload.get("use_dominant_nakshatras", legacy_combined_enabled), defaults.use_dominant_nakshatras),
+        "weight_dominant_nakshatras": float(payload.get("weight_dominant_nakshatras", legacy_combined_weight * 0.25)),
         "use_nakshatra_placement": _as_bool(payload.get("use_nakshatra_placement", defaults.use_nakshatra_placement), defaults.use_nakshatra_placement),
         "weight_nakshatra_placement": float(payload.get("weight_nakshatra_placement", defaults.weight_nakshatra_placement)),
         "use_nakshatra_dominance": _as_bool(payload.get("use_nakshatra_dominance", defaults.use_nakshatra_dominance), defaults.use_nakshatra_dominance),
@@ -241,6 +254,14 @@ def _save_similarity_calculator_settings(settings, value: SimilarityCalculatorSe
             "weight_distribution": float(value.weight_distribution),
             "use_combined_dominance": bool(value.use_combined_dominance),
             "weight_combined_dominance": float(value.weight_combined_dominance),
+            "use_dominant_bodies": bool(value.use_dominant_bodies),
+            "weight_dominant_bodies": float(value.weight_dominant_bodies),
+            "use_dominant_houses": bool(value.use_dominant_houses),
+            "weight_dominant_houses": float(value.weight_dominant_houses),
+            "use_dominant_signs": bool(value.use_dominant_signs),
+            "weight_dominant_signs": float(value.weight_dominant_signs),
+            "use_dominant_nakshatras": bool(value.use_dominant_nakshatras),
+            "weight_dominant_nakshatras": float(value.weight_dominant_nakshatras),
             "use_nakshatra_placement": bool(value.use_nakshatra_placement),
             "weight_nakshatra_placement": float(value.weight_nakshatra_placement),
             "use_nakshatra_dominance": bool(value.use_nakshatra_dominance),
@@ -21379,7 +21400,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "placement": ("use_placement", "weight_placement"),
             "aspect": ("use_aspect", "weight_aspect"),
             "distribution": ("use_distribution", "weight_distribution"),
-            "combined_dominance": ("use_combined_dominance", "weight_combined_dominance"),
+            "dominant_bodies": ("use_dominant_bodies", "weight_dominant_bodies"),
+            "dominant_houses": ("use_dominant_houses", "weight_dominant_houses"),
+            "dominant_signs": ("use_dominant_signs", "weight_dominant_signs"),
+            "dominant_nakshatras": ("use_dominant_nakshatras", "weight_dominant_nakshatras"),
             "nakshatra_placement": ("use_nakshatra_placement", "weight_nakshatra_placement"),
             "nakshatra_dominance": ("use_nakshatra_dominance", "weight_nakshatra_dominance"),
             "defined_centers": ("use_defined_centers", "weight_defined_centers"),
@@ -21722,8 +21746,22 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             weight_aspect=float(self._similarity_calculator_weights["aspect"].value()),
             use_distribution=bool(self._similarity_calculator_checkboxes["distribution"].isChecked()),
             weight_distribution=float(self._similarity_calculator_weights["distribution"].value()),
-            use_combined_dominance=bool(self._similarity_calculator_checkboxes["combined_dominance"].isChecked()),
-            weight_combined_dominance=float(self._similarity_calculator_weights["combined_dominance"].value()),
+            use_combined_dominance=any(
+                bool(self._similarity_calculator_checkboxes[key].isChecked())
+                for key in ("dominant_bodies", "dominant_houses", "dominant_signs", "dominant_nakshatras")
+            ),
+            weight_combined_dominance=sum(
+                float(self._similarity_calculator_weights[key].value())
+                for key in ("dominant_bodies", "dominant_houses", "dominant_signs", "dominant_nakshatras")
+            ),
+            use_dominant_bodies=bool(self._similarity_calculator_checkboxes["dominant_bodies"].isChecked()),
+            weight_dominant_bodies=float(self._similarity_calculator_weights["dominant_bodies"].value()),
+            use_dominant_houses=bool(self._similarity_calculator_checkboxes["dominant_houses"].isChecked()),
+            weight_dominant_houses=float(self._similarity_calculator_weights["dominant_houses"].value()),
+            use_dominant_signs=bool(self._similarity_calculator_checkboxes["dominant_signs"].isChecked()),
+            weight_dominant_signs=float(self._similarity_calculator_weights["dominant_signs"].value()),
+            use_dominant_nakshatras=bool(self._similarity_calculator_checkboxes["dominant_nakshatras"].isChecked()),
+            weight_dominant_nakshatras=float(self._similarity_calculator_weights["dominant_nakshatras"].value()),
             use_nakshatra_placement=bool(self._similarity_calculator_checkboxes["nakshatra_placement"].isChecked()),
             weight_nakshatra_placement=float(self._similarity_calculator_weights["nakshatra_placement"].value()),
             use_nakshatra_dominance=bool(self._similarity_calculator_checkboxes["nakshatra_dominance"].isChecked()),

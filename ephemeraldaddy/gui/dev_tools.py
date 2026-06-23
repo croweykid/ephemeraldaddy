@@ -152,7 +152,10 @@ SIMILARITY_CALCULATOR_FACTOR_ROWS: tuple[tuple[str, str], ...] = (
     ("placement", "Placement by weight"),
     ("aspect", "Aspect score"),
     ("distribution", "Distribution score"),
-    ("combined_dominance", "Combined dominance score"),
+    ("dominant_bodies", "Dominant Bodies"),
+    ("dominant_houses", "Dominant Houses"),
+    ("dominant_signs", "Dominant Signs"),
+    ("dominant_nakshatras", "Dominant Nakshatras"),
     ("nakshatra_placement", "Nakshatra placement score"),
     ("nakshatra_dominance", "Nakshatra dominance score"),
     ("defined_centers", "Defined centers score"),
@@ -195,9 +198,17 @@ SIMILARITY_CALCULATOR_CRITERION_EXPLAINERS: dict[str, str] = {
         "Compares elemental (fire/earth/air/water) and modality (cardinal/fixed/mutable) "
         "balance across core-body placements in both charts."
     ),
-    "combined_dominance": (
-        "Compares overall dominance profiles: which signs, houses (if used), and bodies carry "
-        "the most weighted influence in each chart."
+    "dominant_bodies": (
+        "Compares body/planet dominance profiles between the two charts as its own separately weighted factor."
+    ),
+    "dominant_houses": (
+        "Compares house dominance profiles between the two charts as its own separately weighted factor."
+    ),
+    "dominant_signs": (
+        "Compares sign dominance profiles between the two charts as its own separately weighted factor."
+    ),
+    "dominant_nakshatras": (
+        "Compares dominant nakshatra emphasis between the two charts as its own separately weighted factor."
     ),
     "nakshatra_placement": (
         "Compares the body-weighted nakshatra distribution profile (27 nakshatras) between charts; "
