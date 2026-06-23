@@ -2335,6 +2335,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._incremental_metrics_refresh_changed_ids: set[int] = set()
         self._incremental_metrics_force_full_refresh: bool = False
         self._incremental_metrics_refresh_scheduled = False
+        self._deferred_database_metrics_refresh_scheduled = False
+        self._deferred_database_metrics_changed_ids: set[int] = set()
+        self._deferred_database_metrics_force_full_refresh = False
+        self._tag_completer_revision_token: tuple[object, ...] | None = None
         self._database_metrics_chart_layouts: dict[str, QVBoxLayout] = {}
         self._database_analytics_popout_dialogs: list[QDialog] = []
         self._database_metrics_section_widgets: dict[str, QWidget] = {}
@@ -3132,6 +3136,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._incremental_metrics_refresh_scheduled = False
             self._incremental_metrics_force_full_refresh = False
             self._incremental_metrics_refresh_changed_ids.clear()
+            if not self._deferred_database_metrics_refresh_scheduled:
+                self._show_database_analytics_pending_indicator(False)
             return
 
         section_key = self._incremental_metrics_refresh_sections.pop(0)
@@ -3913,6 +3919,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.database_metrics_panel_header_label = QLabel("Database Analytics")
         self.database_metrics_panel_header_label.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
         layout.addWidget(self.database_metrics_panel_header_label)
+        self.database_metrics_pending_label = QLabel("Updating analytics…")
+        self.database_metrics_pending_label.setStyleSheet("color: #d8c77a; font-style: italic; padding: 0 4px 4px 4px;")
+        self.database_metrics_pending_label.setVisible(False)
+        layout.addWidget(self.database_metrics_pending_label)
 
         # PLANETARY/POSITION SIGN DISTRIBUTION SECTION
         position_sign_section_layout = self._add_left_panel_collapsible_section(
@@ -13746,6 +13756,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             sorted(states),
         )
 
+    def _tag_completer_revision_from_rows(self) -> tuple[object, ...]:
+        return tuple(
+            (
+                row[0] if len(row) > 0 else None,
+                row[5] if len(row) > 5 else None,
+                row[25] if len(row) > 25 else None,
+                row[26] if len(row) > 26 else None,
+            )
+            for row in getattr(self, "_chart_rows", [])
+        )
+
+    def _update_tag_completers_if_needed(self, *, force: bool = False) -> None:
+        revision_token = self._tag_completer_revision_from_rows()
+        if not force and revision_token == getattr(self, "_tag_completer_revision_token", None):
+            return
+        self._update_tag_completers()
+        self._tag_completer_revision_token = revision_token
+
     def _update_tag_completers(
         self,
         *,
@@ -17543,6 +17571,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         force_full_analysis_refresh: bool = False,
         refresh_tag_completers: bool = True,
         progress_callback: Callable[[str, int], None] | None = None,
+        defer_metrics_refresh: bool = False,
     ) -> None:
         if progress_callback:
             progress_callback("Loading saved chart rows…", 90)
@@ -17558,7 +17587,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if refresh_tag_completers:
             if progress_callback:
                 progress_callback("Refreshing Database filters…", 91)
-            self._update_tag_completers()
+            self._update_tag_completers_if_needed()
 
         malformed_rows = [row for row in self._chart_rows if self._normalize_chart_row(row) is None]
         if malformed_rows:
@@ -17599,6 +17628,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             changed_ids=changed_ids,
             force_full_analysis_refresh=force_full_analysis_refresh,
             progress_callback=progress_callback,
+            defer_metrics_refresh=defer_metrics_refresh,
         )
 
     @staticmethod
@@ -17678,6 +17708,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         changed_ids: set[int] | None = None,
         force_full_analysis_refresh: bool = False,
         progress_callback: Callable[[str, int], None] | None = None,
+        defer_metrics_refresh: bool = False,
     ) -> None:
         if selected_ids is not None:
             self._replace_persistent_selection(selected_ids)
@@ -18052,24 +18083,78 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         finally:
             del list_signal_blocker
         self._visible_chart_ids = visible_chart_ids
-        if progress_callback:
-            progress_callback("Updating Database metrics…", 96)
         if refresh_metrics:
-            if self._should_use_incremental_metrics_refresh():
-                self._update_sentiment_tally(
-                    update_database_metrics=False,
-                    update_similarities=True,
-                )
-                self._schedule_incremental_metrics_refresh(
+            if defer_metrics_refresh:
+                if progress_callback:
+                    progress_callback("Database rows ready; analytics queued…", 96)
+                self._show_database_analytics_pending_indicator(True)
+                self._schedule_deferred_database_metrics_refresh(
                     changed_ids=changed_ids,
                     force_full_refresh=force_full_analysis_refresh,
                 )
             else:
-                self._update_sentiment_tally(
-                    force_full_refresh=force_full_analysis_refresh,
+                if progress_callback:
+                    progress_callback("Updating Database metrics…", 96)
+                self._run_database_metrics_refresh(
                     changed_ids=changed_ids,
+                    force_full_refresh=force_full_analysis_refresh,
                 )
         self._update_collection_membership_buttons()
+
+    def _run_database_metrics_refresh(
+        self,
+        *,
+        changed_ids: set[int] | None = None,
+        force_full_refresh: bool = False,
+    ) -> None:
+        if self._should_use_incremental_metrics_refresh():
+            self._update_sentiment_tally(
+                update_database_metrics=False,
+                update_similarities=True,
+            )
+            self._schedule_incremental_metrics_refresh(
+                changed_ids=changed_ids,
+                force_full_refresh=force_full_refresh,
+            )
+        else:
+            self._update_sentiment_tally(
+                force_full_refresh=force_full_refresh,
+                changed_ids=changed_ids,
+            )
+
+    def _schedule_deferred_database_metrics_refresh(
+        self,
+        *,
+        changed_ids: set[int] | None = None,
+        force_full_refresh: bool = False,
+    ) -> None:
+        if changed_ids:
+            self._deferred_database_metrics_changed_ids.update(changed_ids)
+        self._deferred_database_metrics_force_full_refresh = (
+            self._deferred_database_metrics_force_full_refresh or force_full_refresh
+        )
+        if self._deferred_database_metrics_refresh_scheduled:
+            return
+        self._deferred_database_metrics_refresh_scheduled = True
+        QTimer.singleShot(0, self._run_deferred_database_metrics_refresh)
+
+    def _run_deferred_database_metrics_refresh(self) -> None:
+        self._deferred_database_metrics_refresh_scheduled = False
+        changed_ids = set(self._deferred_database_metrics_changed_ids) or None
+        force_full_refresh = self._deferred_database_metrics_force_full_refresh
+        self._deferred_database_metrics_changed_ids.clear()
+        self._deferred_database_metrics_force_full_refresh = False
+        self._run_database_metrics_refresh(
+            changed_ids=changed_ids,
+            force_full_refresh=force_full_refresh,
+        )
+        if not self._incremental_metrics_refresh_scheduled:
+            self._show_database_analytics_pending_indicator(False)
+
+    def _show_database_analytics_pending_indicator(self, visible: bool) -> None:
+        label = getattr(self, "database_metrics_pending_label", None)
+        if label is not None:
+            label.setVisible(bool(visible))
 
 
     def _on_hide_hypothetical_toggled(self, checked: bool) -> None:
@@ -30953,6 +31038,24 @@ class MainWindow(QMainWindow):
         ]
         self._render_reminds_me_of_selection()
         self._mark_lucygoosey()
+
+    def _tag_completer_revision_from_rows(self) -> tuple[object, ...]:
+        return tuple(
+            (
+                row[0] if len(row) > 0 else None,
+                row[5] if len(row) > 5 else None,
+                row[25] if len(row) > 25 else None,
+                row[26] if len(row) > 26 else None,
+            )
+            for row in getattr(self, "_chart_rows", [])
+        )
+
+    def _update_tag_completers_if_needed(self, *, force: bool = False) -> None:
+        revision_token = self._tag_completer_revision_from_rows()
+        if not force and revision_token == getattr(self, "_tag_completer_revision_token", None):
+            return
+        self._update_tag_completers()
+        self._tag_completer_revision_token = revision_token
 
     def _update_tag_completers(self) -> None:
         sorted_tags = list_recognized_tags()
