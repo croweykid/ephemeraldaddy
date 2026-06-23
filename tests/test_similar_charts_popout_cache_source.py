@@ -12,6 +12,7 @@ def test_similar_charts_popout_cache_key_allows_incremental_database_refresh():
     )[0]
 
     assert "incremental-db-v1" in key_method
+    assert "subject_chart_uid" in key_method
     assert "_similar_charts_popout_database_signature(rows)" not in key_method
 
 
@@ -21,9 +22,15 @@ def test_similar_charts_popout_cache_tracks_row_signatures_and_rescores_changed_
         "def _export_similar_charts_popout_share", 1
     )[0]
 
-    assert "row_signatures = self._similar_charts_popout_database_row_signatures(chart_rows)" in show_method
-    assert "changed_chart_ids =" in show_method
-    assert "subject_chart_id not in changed_chart_ids" in show_method
+    signature_method = source.split("def _similar_charts_popout_database_row_signatures", 1)[1].split(
+        "def _similar_charts_popout_database_signature", 1
+    )[0]
+
+    assert "chart_uids_by_id: Mapping[int, str]" in signature_method
+    assert "signatures[chart_uid]" in signature_method
+    assert "row_signatures = self._similar_charts_popout_database_row_signatures(" in show_method
+    assert "changed_chart_uids =" in show_method
+    assert "subject_chart_uid not in changed_chart_uids" in show_method
     assert "refreshed_chart_ids = [" in show_method
     incremental_branch = show_method.split("elif incremental_refresh_supported:", 1)[1].split("else:", 1)[0]
     assert "load_charts(refreshed_chart_ids)" in incremental_branch
@@ -38,7 +45,7 @@ def test_similar_charts_popout_exact_cache_hit_skips_full_recompute_progress():
         "def _export_similar_charts_popout_share", 1
     )[0]
     exact_hit_branch = show_method.split(
-        "if cached_payload is not None and not changed_chart_ids and not deleted_chart_ids:", 1
+        "if cached_payload is not None and not changed_chart_uids and not deleted_chart_uids:", 1
     )[1].split("elif incremental_refresh_supported:", 1)[0]
 
     assert 'self._similar_charts_popout_last_cache_status = "hit"' in exact_hit_branch
