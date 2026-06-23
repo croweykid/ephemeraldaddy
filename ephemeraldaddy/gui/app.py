@@ -23354,12 +23354,24 @@ class MainWindow(QMainWindow):
         birth_time_row = QHBoxLayout()
         birth_time_row.setContentsMargins(8, 0, 0, 0)
         birth_time_row.setSpacing(8)
-        birth_time_row.addWidget(QLabel("🐣Date"), 0)
         self.random_birth_date_button = QPushButton("🎲")
-        self.random_birth_date_button.setFixedWidth(28)
-        self.random_birth_date_button.setToolTip("generate random date for control chart")
+        self.random_birth_date_button.setFlat(True)
+        self.random_birth_date_button.setCursor(Qt.PointingHandCursor)
+        self.random_birth_date_button.setContentsMargins(0, 0, 0, 0)
+        self.random_birth_date_button.setStyleSheet(
+            "QPushButton {"
+            "background: transparent;"
+            "border: none;"
+            "padding: 0;"
+            "margin: 0;"
+            "color: inherit;"
+            "}"
+            "QPushButton:hover { text-decoration: underline; }"
+        )
+        self.random_birth_date_button.setToolTip("Generate a random ephemeris-backed date for a new or Hypothetical chart")
         self.random_birth_date_button.clicked.connect(self._on_random_birth_date_clicked)
         birth_time_row.addWidget(self.random_birth_date_button, 0)
+        birth_time_row.addWidget(QLabel("🐣Date"), 0)
         birth_time_row.addWidget(birth_month_widget, 0)
         #birth_time_row.addWidget(QLabel("."), 0)
         birth_time_row.addWidget(birth_day_widget, 0)
@@ -30306,6 +30318,10 @@ class MainWindow(QMainWindow):
 
         # Metadata group: sentiment intensity controls.
         self.sentiment_metrics_widget.setVisible(not is_event_chart)
+        if hasattr(self, "random_birth_date_button"):
+            self.random_birth_date_button.setVisible(
+                self.current_chart_id is None or is_hypothetical_chart
+            )
         if hasattr(self, "alternate_chart_widget"):
             self.alternate_chart_widget.setVisible(is_hypothetical_chart)
             self._update_alternate_chart_completer()
@@ -31785,6 +31801,7 @@ class MainWindow(QMainWindow):
         self._loaded_lat = chart.lat
         self._loaded_lon = chart.lon
         self._set_lucygoosey(False)
+        self._apply_chart_type_ui_state(getattr(chart, "chart_type", None))
         if is_new_chart:
             self.update_button.setText("Update Chart")
 
@@ -32461,8 +32478,8 @@ class MainWindow(QMainWindow):
         self.birth_year_edit.setText(f"{qdate.year():04d}")
 
     def _on_random_birth_date_clicked(self) -> None:
-        min_date = NATAL_CHART_MIN_DATE
-        max_date = NATAL_CHART_MAX_DATE
+        min_date = EPHEMERIS_MIN_DATE
+        max_date = EPHEMERIS_MAX_DATE
         random_ordinal = random.randint(min_date.toordinal(), max_date.toordinal())
         random_date = datetime.date.fromordinal(random_ordinal)
         self._set_birth_date_fields_from_qdate(

@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ephemeraldaddy.core.interpretations import JONES_PLANETS
+from ephemeraldaddy.core.interpretations import (
+    JONES_PLANETS,
+    NATAL_CHART_MAX_YEAR,
+    NATAL_CHART_MIN_YEAR,
+)
 
 BODY_DYNAMICS_ROLE_OPTIONS: tuple[tuple[str, str], ...] = (
     ("Enabler", "enabler"),
@@ -154,8 +158,9 @@ def build_dbv_search_panel(window) -> "QWidget":
     ASPECT_DEFS = app_module.ASPECT_DEFS
     HD_CHANNELS = app_module.HD_CHANNELS
     NAKSHATRA_RANGES = app_module.NAKSHATRA_RANGES
-    NATAL_CHART_MIN_YEAR = app_module.NATAL_CHART_MIN_YEAR
-    NATAL_CHART_MAX_YEAR = app_module.NATAL_CHART_MAX_YEAR
+    # Import date bounds directly from core.interpretations instead of the GUI
+    # module so Database View can be built safely when app.py is executed as
+    # ``python -m ephemeraldaddy.gui.app``.
     SEARCH_SENTIMENT_OPTIONS = app_module.SEARCH_SENTIMENT_OPTIONS
     SEARCH_RELATIONSHIP_TYPE_OPTIONS = app_module.SEARCH_RELATIONSHIP_TYPE_OPTIONS
     DND_CLASSES = app_module.DND_CLASSES
