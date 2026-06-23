@@ -2758,16 +2758,19 @@ def load_similar_chart_candidates(
         candidate_ids.append(chart_id)
 
     candidates: list[tuple[int, Any]] = []
+    batch_load_failed = False
     if load_charts_by_ids is not None and candidate_ids:
         try:
             charts_by_id = load_charts_by_ids(candidate_ids)
         except Exception:
             charts_by_id = {}
-        for chart_id in candidate_ids:
-            candidate = charts_by_id.get(chart_id)
-            if candidate is not None:
-                candidates.append((chart_id, candidate))
-        return candidates
+            batch_load_failed = True
+        if not batch_load_failed:
+            for chart_id in candidate_ids:
+                candidate = charts_by_id.get(chart_id)
+                if candidate is not None:
+                    candidates.append((chart_id, candidate))
+            return candidates
 
     for chart_id in candidate_ids:
         try:
