@@ -3489,7 +3489,7 @@ def build_similar_charts_popout_dialog(
                     return
                 on_link_activated(dialog, target)
 
-            def _add_accuracy_match(match: Any, rank: int) -> None:
+            def _add_accuracy_match(match: Any, rank: int, *, before_widget: QWidget | None = None) -> None:
                 match_widget = QWidget()
                 match_layout = QVBoxLayout(match_widget)
                 match_layout.setContentsMargins(0, 0, 0, 0)
@@ -3562,7 +3562,14 @@ def build_similar_charts_popout_dialog(
                 row_layout.addWidget(accuracy_input, 0, Qt.AlignTop | Qt.AlignRight)
                 row_layout.addWidget(na_checkbox, 0, Qt.AlignTop | Qt.AlignRight)
                 match_layout.addLayout(row_layout)
-                content_layout.addWidget(match_widget)
+                if before_widget is not None:
+                    insert_at = content_layout.indexOf(before_widget)
+                    if insert_at >= 0:
+                        content_layout.insertWidget(insert_at, match_widget)
+                    else:
+                        content_layout.addWidget(match_widget)
+                else:
+                    content_layout.addWidget(match_widget)
                 accuracy_widgets.append(
                     {
                         "input": accuracy_input,
@@ -3589,7 +3596,7 @@ def build_similar_charts_popout_dialog(
                     current_count = int(button.property("visible_count") or visible_count)
                     next_count = min(len(all_matches), current_count + 25)
                     for rank, match in enumerate(all_matches[current_count:next_count], start=current_count + 1):
-                        _add_accuracy_match(match, rank)
+                        _add_accuracy_match(match, rank, before_widget=button)
                     button.setProperty("visible_count", next_count)
                     if next_count >= len(all_matches):
                         button.hide()
