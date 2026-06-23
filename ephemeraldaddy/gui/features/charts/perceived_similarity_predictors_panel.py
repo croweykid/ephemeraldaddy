@@ -42,7 +42,7 @@ class PerceivedSimilarityPredictorsPanel(QWidget):
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(8)
 
-        header = QLabel("🧾 Perceived Similarity Predictors")
+        header = QLabel("🧾Predictor Feedback") #formerly known as "perceived similarity predictor"
         header.setStyleSheet("font-weight: 700; font-size: 13px; color: #ffffff;")
         layout.addWidget(header)
 
@@ -54,7 +54,7 @@ class PerceivedSimilarityPredictorsPanel(QWidget):
         help_label.setStyleSheet("color: #d9d9d9;")
         layout.addWidget(help_label)
 
-        refresh_button = QPushButton("Refresh perceived predictors")
+        refresh_button = QPushButton("Calculate for this chart") #change to say the chart's name instead of 'this chart'.
         refresh_button.setObjectName("perceived_similarity_predictors_refresh_button")
         refresh_button.clicked.connect(self._request_refresh)
         layout.addWidget(refresh_button)

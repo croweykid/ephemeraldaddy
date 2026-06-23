@@ -24284,15 +24284,15 @@ class MainWindow(QMainWindow):
 
     def _similar_charts_section_title(self) -> str:
         if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_GENERIC_ASTRO:
-            return "Similar Charts (generic astro)"
+            return "Similar Charts ('generic astro' mode)"
         if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
-            return "Similar Charts (comprehensive)"
+            return "Similar Charts ('comprehensive' mode)"
         if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING:
-            return "Similar Charts (all or nothing)"
+            return "Similar Charts ('all or nothing' mode)"
         if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_BIG_3:
-            return "Similar Charts (Big 3)"
+            return "Similar Charts ('Big 3' mode)"
         if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_CUSTOM:
-            return "Similar Charts (custom)"
+            return "Similar Charts ('custom' mode)"
         return "Similar Charts"
 
     def _refresh_similar_charts_section_title(self) -> None:
@@ -25967,7 +25967,7 @@ class MainWindow(QMainWindow):
                 )
                 QMessageBox.warning(
                     self,
-                    "Similar Charts (comprehensive)",
+                    "Similar Charts",
                     "Comprehensive mode returned fallback results. See terminal for details.",
                 )
                 if performed_full_recompute:

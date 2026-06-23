@@ -75,7 +75,7 @@ def draw_dnd_statblock_predictions(ax: Any, chart: Any, *, dnd_stat_keys: tuple[
             fontsize=9,
             fontweight="bold",
         )
-    ax.set_title("D&D Statblock", color="#f5f5f5", fontsize=10, pad=8)
+    ax.set_title("", color="#f5f5f5", fontsize=10, pad=8)
     _style_prediction_bar_chart(
         ax,
         labels=labels,

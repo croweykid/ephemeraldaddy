@@ -100,7 +100,7 @@ DEFAULT_TOOLTIP_OVERRIDES: dict[str, str] = {
     "manage_toggle_database_metrics_panel_button": "Database Metrics",
     "manage_toggle_gen_pop_norms_panel_button": "General Population Norms",
     "manage_toggle_similarities_panel_button": "Similarities Analysis",
-    "manage_toggle_perceived_similarity_predictors_panel_button": "Perceived Similarity Predictors",
+    "manage_toggle_perceived_similarity_predictors_panel_button": "Predictor Feedback",
     "manage_toggle_search_panel_button": "Search",
     "manage_toggle_transits_panel_button": "Transit View",
     "manage_toggle_batch_edit_panel_button": "Batch Edit Panel",
