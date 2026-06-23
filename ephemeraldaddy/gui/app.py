@@ -32344,6 +32344,12 @@ class MainWindow(QMainWindow):
             return False
         if startup_progress:
             startup_progress("Database View shell is open…", 92)
+        # Once the Database View shell has accepted the transition, remove Chart
+        # View from the foreground.  This is especially important for unsaved
+        # new charts: choosing Discard clears the dirty flag, but leaving this
+        # window visible can make the transition appear to do nothing and trap
+        # users in the unwanted new-chart editor.
+        self.hide()
         QTimer.singleShot(0, self._raise_manage_charts_dialog)
         self._retarget_size_checker_to_database_view()
         return True
