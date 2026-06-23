@@ -701,10 +701,6 @@ from ephemeraldaddy.core.interpretations import (
     ZODIAC_NAMES,
     EPHEMERIS_MIN_DATE,
     EPHEMERIS_MAX_DATE,
-    NATAL_CHART_MIN_DATE,
-    NATAL_CHART_MAX_DATE,
-    NATAL_CHART_MIN_YEAR,
-    NATAL_CHART_MAX_YEAR,
     AGE_BRACKETS,
     SEASONAL_COLOR_SPECTRUM,
     SEASONAL_COLORS,
@@ -23261,7 +23257,7 @@ class MainWindow(QMainWindow):
         self.birth_year_edit.setPlaceholderText("YYYY")
         self.birth_year_edit.setMaxLength(4)
         self.birth_year_edit.setFixedWidth(49)
-        self.birth_year_edit.setValidator(QIntValidator(NATAL_CHART_MIN_YEAR, NATAL_CHART_MAX_YEAR, self))
+        self.birth_year_edit.setValidator(QIntValidator(EPHEMERIS_MIN_DATE.year, EPHEMERIS_MAX_DATE.year, self))
         self.birth_year_edit.textChanged.connect(self._on_birth_date_field_changed)
         self.birth_year_edit.textChanged.connect(self._mark_lucygoosey)
         self._set_birth_date_fields_from_qdate(QDate(1990, 1, 1))
@@ -23339,12 +23335,18 @@ class MainWindow(QMainWindow):
         birth_time_row = QHBoxLayout()
         birth_time_row.setContentsMargins(8, 0, 0, 0)
         birth_time_row.setSpacing(8)
-        birth_time_row.addWidget(QLabel("🐣Date"), 0)
         self.random_birth_date_button = QPushButton("🎲")
-        self.random_birth_date_button.setFixedWidth(28)
+        self.random_birth_date_button.setFlat(True)
+        self.random_birth_date_button.setCursor(Qt.PointingHandCursor)
         self.random_birth_date_button.setToolTip("generate random date for control chart")
+        self.random_birth_date_button.setStyleSheet(
+            "QPushButton { border: none; background: transparent; padding: 0; margin: 0; }"
+            "QPushButton:hover { background: transparent; }"
+            "QPushButton:pressed { background: transparent; }"
+        )
         self.random_birth_date_button.clicked.connect(self._on_random_birth_date_clicked)
         birth_time_row.addWidget(self.random_birth_date_button, 0)
+        birth_time_row.addWidget(QLabel("🐣Date"), 0)
         birth_time_row.addWidget(birth_month_widget, 0)
         #birth_time_row.addWidget(QLabel("."), 0)
         birth_time_row.addWidget(birth_day_widget, 0)
@@ -30291,6 +30293,10 @@ class MainWindow(QMainWindow):
 
         # Metadata group: sentiment intensity controls.
         self.sentiment_metrics_widget.setVisible(not is_event_chart)
+        if hasattr(self, "random_birth_date_button"):
+            is_new_chart = getattr(self, "current_chart_id", None) is None
+            self.random_birth_date_button.setVisible(is_new_chart or is_hypothetical_chart)
+
         if hasattr(self, "alternate_chart_widget"):
             self.alternate_chart_widget.setVisible(is_hypothetical_chart)
             self._update_alternate_chart_completer()
@@ -30999,7 +31005,7 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(
                     self,
                     "Invalid 🐣Date",
-                    f"Come on. Birth date must be a real calendar date in MM. DD. YYYY format, and the year must be between {NATAL_CHART_MIN_YEAR} and {NATAL_CHART_MAX_YEAR}. Don't make up silly stuff.",
+                    f"Come on. Birth date must be a real calendar date in MM. DD. YYYY format, and the year must be between {EPHEMERIS_MIN_DATE.year} and {EPHEMERIS_MAX_DATE.year}. Don't make up silly stuff.",
                 )
             return
         if self.retcon_time_checkbox.isChecked():
@@ -32446,8 +32452,8 @@ class MainWindow(QMainWindow):
         self.birth_year_edit.setText(f"{qdate.year():04d}")
 
     def _on_random_birth_date_clicked(self) -> None:
-        min_date = NATAL_CHART_MIN_DATE
-        max_date = NATAL_CHART_MAX_DATE
+        min_date = EPHEMERIS_MIN_DATE
+        max_date = EPHEMERIS_MAX_DATE
         random_ordinal = random.randint(min_date.toordinal(), max_date.toordinal())
         random_date = datetime.date.fromordinal(random_ordinal)
         self._set_birth_date_fields_from_qdate(
@@ -32471,7 +32477,7 @@ class MainWindow(QMainWindow):
 
         if not (1 <= month <= 12):
             return None
-        if not (NATAL_CHART_MIN_YEAR <= year <= NATAL_CHART_MAX_YEAR):
+        if not (EPHEMERIS_MIN_DATE.year <= year <= EPHEMERIS_MAX_DATE.year):
             return None
 
         max_day = calendar.monthrange(year, month)[1]
@@ -32483,14 +32489,14 @@ class MainWindow(QMainWindow):
             return None
 
         min_birth_qdate = QDate(
-            NATAL_CHART_MIN_DATE.year,
-            NATAL_CHART_MIN_DATE.month,
-            NATAL_CHART_MIN_DATE.day,
+            EPHEMERIS_MIN_DATE.year,
+            EPHEMERIS_MIN_DATE.month,
+            EPHEMERIS_MIN_DATE.day,
         )
         max_birth_qdate = QDate(
-            NATAL_CHART_MAX_DATE.year,
-            NATAL_CHART_MAX_DATE.month,
-            NATAL_CHART_MAX_DATE.day,
+            EPHEMERIS_MAX_DATE.year,
+            EPHEMERIS_MAX_DATE.month,
+            EPHEMERIS_MAX_DATE.day,
         )
         if qdate < min_birth_qdate or qdate > max_birth_qdate:
             return None
