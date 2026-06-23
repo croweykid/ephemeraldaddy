@@ -270,7 +270,56 @@ def build_dbv_search_panel(window) -> "QWidget":
         ) if expanded else None
     )
     tags_search_row.addWidget(window.search_tags_list_widget)
-    # Tags controls are added later inside the Demographics > Tags subsection.
+    # Tags controls are added immediately below the Search Filters header.
+
+    settings = getattr(window, "_settings", None)
+
+    top_filter_layout = QVBoxLayout()
+    top_filter_layout.setContentsMargins(0, 0, 0, 0)
+    incomplete_birthdate_row = QHBoxLayout()
+    window.incomplete_birthdate_checkbox = QuadStateSlider("placeholder chart")
+    window.incomplete_birthdate_checkbox.setToolTip(
+        "A saved chart with insufficient birth data for astrological calculations."
+    )
+    if settings is not None and bool(
+        settings.value(
+            app_module.SETTINGS_KEY_HIDE_PLACEHOLDER_CHARTS_FILTER,
+            0,
+            type=int,
+        )
+    ):
+        window.incomplete_birthdate_checkbox.setMode(QuadStateSlider.MODE_FALSE)
+    window.incomplete_birthdate_checkbox.modeChanged.connect(window._on_incomplete_birthdate_filter_changed)
+    incomplete_birthdate_row.addWidget(window.incomplete_birthdate_checkbox)
+    incomplete_birthdate_row.addStretch(1)
+    top_filter_layout.addLayout(incomplete_birthdate_row)
+
+    window.hidden_charts_filter_row = QWidget()
+    hidden_charts_filter_layout = QHBoxLayout()
+    hidden_charts_filter_layout.setContentsMargins(0, 0, 0, 0)
+    window.hidden_charts_filter_row.setLayout(hidden_charts_filter_layout)
+    window.hidden_charts_checkbox = QuadStateSlider("hidden charts")
+    if settings is not None:
+        hidden_charts_mode = settings.value(
+            app_module.SETTINGS_KEY_HIDDEN_CHARTS_FILTER_MODE,
+            QuadStateSlider.MODE_EMPTY,
+            type=int,
+        )
+        if hidden_charts_mode in {
+            QuadStateSlider.MODE_EMPTY,
+            QuadStateSlider.MODE_TRUE,
+            QuadStateSlider.MODE_FALSE,
+        }:
+            window.hidden_charts_checkbox.setMode(int(hidden_charts_mode))
+    window.hidden_charts_checkbox.modeChanged.connect(window._on_filter_changed)
+    hidden_charts_filter_layout.addWidget(window.hidden_charts_checkbox)
+    hidden_charts_filter_layout.addStretch(1)
+    window.hidden_charts_filter_row.setVisible(
+        bool(getattr(window, "_show_hidden_charts", False))
+    )
+    top_filter_layout.addWidget(window.hidden_charts_filter_row)
+    layout.addLayout(top_filter_layout)
+
 
     divider = QFrame()
     divider.setFixedHeight(4)
@@ -330,22 +379,12 @@ def build_dbv_search_panel(window) -> "QWidget":
         section_layout.addWidget(content)
         return section, content_layout
 
-    settings = getattr(window, "_settings", None)
+    tags_section, tags_group_layout = add_collapsible_section("Tags")
+    tags_group_layout.addLayout(tags_search_row)
+    layout.addWidget(tags_section)
 
-    # Search: Chart Type stays visible above the categorized collapsible filters.
-    chart_type_section = QWidget()
-    chart_type_section_layout = QVBoxLayout()
-    chart_type_section_layout.setContentsMargins(0, 0, 0, 0)
-    chart_type_section.setLayout(chart_type_section_layout)
-    chart_type_header = QLabel("Chart Type")
-    chart_type_header.setStyleSheet(DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE)
-    chart_type_section_layout.addWidget(chart_type_header)
-
-    chart_type_content = QWidget()
-    chart_type_group_layout = QVBoxLayout()
-    chart_type_group_layout.setContentsMargins(8, 6, 8, 6)
-    chart_type_content.setLayout(chart_type_group_layout)
-    chart_type_content.setStyleSheet(COLLAPSIBLE_SECTION_CONTENT_STYLE)
+    # Search: Chart Type is its own collapsible section above the categorized filters.
+    chart_type_section, chart_type_group_layout = add_collapsible_section("Chart Type")
 
     chart_type_layout = QGridLayout()
     chart_type_layout.setContentsMargins(0, 0, 0, 0)
@@ -360,52 +399,13 @@ def build_dbv_search_panel(window) -> "QWidget":
         chart_type_layout.addWidget(checkbox, row, col)
     chart_type_group_layout.addLayout(chart_type_layout)
 
-    chart_type_divider = QFrame()
-    chart_type_divider.setFrameShape(QFrame.HLine)
-    chart_type_divider.setStyleSheet("color: #2f2f2f;")
-    chart_type_group_layout.addWidget(chart_type_divider)
+    chart_type_button_row = QHBoxLayout()
+    chart_type_button_row.addStretch(1)
+    clear_chart_type_button = QPushButton("Clear Filters")
+    clear_chart_type_button.clicked.connect(window._clear_chart_type_filters)
+    chart_type_button_row.addWidget(clear_chart_type_button)
+    chart_type_group_layout.addLayout(chart_type_button_row)
 
-    incomplete_birthdate_row = QHBoxLayout()
-    window.incomplete_birthdate_checkbox = QuadStateSlider("placeholder chart") #to do: add a tooltip that explains this means "a saved chart with insufficient birth data for astrological calculations"
-    if settings is not None and bool(
-        settings.value(
-            app_module.SETTINGS_KEY_HIDE_PLACEHOLDER_CHARTS_FILTER,
-            0,
-            type=int,
-        )
-    ):
-        window.incomplete_birthdate_checkbox.setMode(QuadStateSlider.MODE_FALSE)
-    window.incomplete_birthdate_checkbox.modeChanged.connect(window._on_incomplete_birthdate_filter_changed)
-    incomplete_birthdate_row.addWidget(window.incomplete_birthdate_checkbox)
-    incomplete_birthdate_row.addStretch(1)
-    chart_type_group_layout.addLayout(incomplete_birthdate_row)
-
-    window.hidden_charts_filter_row = QWidget()
-    hidden_charts_filter_layout = QHBoxLayout()
-    hidden_charts_filter_layout.setContentsMargins(0, 0, 0, 0)
-    window.hidden_charts_filter_row.setLayout(hidden_charts_filter_layout)
-    window.hidden_charts_checkbox = QuadStateSlider("hidden charts")
-    if settings is not None:
-        hidden_charts_mode = settings.value(
-            app_module.SETTINGS_KEY_HIDDEN_CHARTS_FILTER_MODE,
-            QuadStateSlider.MODE_EMPTY,
-            type=int,
-        )
-        if hidden_charts_mode in {
-            QuadStateSlider.MODE_EMPTY,
-            QuadStateSlider.MODE_TRUE,
-            QuadStateSlider.MODE_FALSE,
-        }:
-            window.hidden_charts_checkbox.setMode(int(hidden_charts_mode))
-    window.hidden_charts_checkbox.modeChanged.connect(window._on_filter_changed)
-    hidden_charts_filter_layout.addWidget(window.hidden_charts_checkbox)
-    hidden_charts_filter_layout.addStretch(1)
-    window.hidden_charts_filter_row.setVisible(
-        bool(getattr(window, "_show_hidden_charts", False))
-    )
-    chart_type_group_layout.addWidget(window.hidden_charts_filter_row)
-
-    chart_type_section_layout.addWidget(chart_type_content)
     layout.addWidget(chart_type_section)
 
 
@@ -1055,7 +1055,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     astro_category_layout.addWidget(isolated_factors_section)
 
     #Search: Human Design section
-    human_design_section, human_design_group_layout = add_collapsible_section("🪐Human Design")
+    human_design_group_layout = human_design_category_layout
 
     hd_channels_row = QHBoxLayout()
     hd_channels_row.addWidget(QLabel("Channels"))
@@ -1167,7 +1167,6 @@ def build_dbv_search_panel(window) -> "QWidget":
     hd_defined_centers_row.addWidget(window._human_design_defined_center_filter_and)
     hd_defined_centers_row.addWidget(window._human_design_defined_center_filter_or)
     human_design_group_layout.addLayout(hd_defined_centers_row)
-    human_design_category_layout.addWidget(human_design_section)
 
     #Search: year first encountered
     year_first_encountered_section, year_first_encountered_group_layout = add_collapsible_section(
@@ -1655,10 +1654,6 @@ def build_dbv_search_panel(window) -> "QWidget":
     demographics_category_layout.addWidget(locations_section)
     demographics_category_layout.addWidget(gender_section)
     demographics_category_layout.addWidget(timing_section)
-
-    tags_section, tags_group_layout = add_collapsible_section("Tags")
-    tags_group_layout.addLayout(tags_search_row)
-    demographics_category_layout.addWidget(tags_section)
 
     button_row = QHBoxLayout()
     button_row.addStretch(1)
