@@ -24,9 +24,9 @@ def test_similar_charts_popout_cache_tracks_row_signatures_and_rescores_changed_
     assert "row_signatures = self._similar_charts_popout_database_row_signatures(chart_rows)" in show_method
     assert "changed_chart_ids =" in show_method
     assert "subject_chart_id not in changed_chart_ids" in show_method
-    assert "for changed_chart_id in sorted(changed_chart_ids):" in show_method
+    assert "refreshed_chart_ids = [" in show_method
     incremental_branch = show_method.split("elif incremental_refresh_supported:", 1)[1].split("else:", 1)[0]
-    assert "load_chart(changed_chart_id)" in incremental_branch
+    assert "load_charts(refreshed_chart_ids)" in incremental_branch
     assert "_load_similar_chart_candidates" not in incremental_branch
     assert "top_k=max(1, len(candidates))" in show_method
 

@@ -24208,6 +24208,7 @@ class MainWindow(QMainWindow):
             rows=rows,
             current_chart_id=self.current_chart_id if current_chart_id is None else current_chart_id,
             load_chart_by_id=load_chart,
+            load_charts_by_ids=load_charts,
             hidden_chart_ids=set(getattr(self, "_hidden_chart_ids", set())),
             include_hidden_charts=bool(getattr(self, "_show_hidden_charts", False)),
         )
@@ -25449,6 +25450,12 @@ class MainWindow(QMainWindow):
         row_signatures = self._similar_charts_popout_database_row_signatures(chart_rows)
         chart_names_by_id = self._similar_charts_popout_chart_names_by_id(chart_rows)
         candidates: list[tuple[int, Chart]] | None = None
+        candidate_chart_ids = [
+            int(row[0])
+            for row in chart_rows
+            if (subject_chart_id is None or int(row[0]) != subject_chart_id)
+            and not _chart_row_is_non_aggregable(row)
+        ]
         cache_key = self._similar_charts_popout_cache_key(
             chart=chart,
             subject_chart_id=subject_chart_id,
@@ -25514,14 +25521,17 @@ class MainWindow(QMainWindow):
                 ],
                 chart_names_by_id=chart_names_by_id,
             )
+            refreshed_chart_ids = [
+                int(changed_chart_id)
+                for changed_chart_id in sorted(changed_chart_ids)
+                if subject_chart_id is None or int(changed_chart_id) != subject_chart_id
+            ]
+            refreshed_charts_by_id = load_charts(refreshed_chart_ids) if refreshed_chart_ids else {}
             refreshed_candidates: list[tuple[int, Chart]] = []
-            for changed_chart_id in sorted(changed_chart_ids):
-                if subject_chart_id is not None and changed_chart_id == subject_chart_id:
-                    continue
-                try:
-                    refreshed_chart = load_chart(changed_chart_id)
-                except Exception:
-                    logger.exception("Failed to load changed Similar Charts candidate %s", changed_chart_id)
+            for changed_chart_id in refreshed_chart_ids:
+                refreshed_chart = refreshed_charts_by_id.get(changed_chart_id)
+                if refreshed_chart is None:
+                    logger.warning("Failed to load changed Similar Charts candidate %s", changed_chart_id)
                     continue
                 if _chart_is_placeholder(refreshed_chart):
                     continue
@@ -25729,7 +25739,7 @@ class MainWindow(QMainWindow):
             perceived_accuracy_uid_by_chart_id = get_chart_uid_map(
                 [
                     chart_id
-                    for chart_id in [subject_chart_id, *(chart_id for chart_id, _candidate in candidates)]
+                    for chart_id in [subject_chart_id, *candidate_chart_ids]
                     if chart_id is not None
                 ]
             )
@@ -25738,7 +25748,7 @@ class MainWindow(QMainWindow):
             all_accuracy_entries = self._similar_charts_perceived_accuracy_entries_for_states(
                 chart=chart,
                 subject_chart_id=subject_chart_id,
-                candidates=candidates,
+                candidates=candidates or [],
                 perceived_accuracy_states=perceived_accuracy_states,
                 algorithm_mode=algorithm_mode,
                 ranked_matches=most_similar_matches,

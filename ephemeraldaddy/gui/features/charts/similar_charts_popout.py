@@ -2741,11 +2741,12 @@ def load_similar_chart_candidates(
     rows: list[tuple[Any, ...]],
     current_chart_id: int | None,
     load_chart_by_id: Callable[[int], Any],
+    load_charts_by_ids: Callable[[list[int]], Mapping[int, Any]] | None = None,
     hidden_chart_ids: set[int] | None = None,
     include_hidden_charts: bool = True,
 ) -> list[tuple[int, Any]]:
     hidden_ids = hidden_chart_ids or set()
-    candidates: list[tuple[int, Any]] = []
+    candidate_ids: list[int] = []
     for row in rows:
         chart_id = int(row[0])
         if current_chart_id is not None and chart_id == current_chart_id:
@@ -2754,6 +2755,21 @@ def load_similar_chart_candidates(
             continue
         if chart_row_is_non_aggregable(row):
             continue
+        candidate_ids.append(chart_id)
+
+    candidates: list[tuple[int, Any]] = []
+    if load_charts_by_ids is not None and candidate_ids:
+        try:
+            charts_by_id = load_charts_by_ids(candidate_ids)
+        except Exception:
+            charts_by_id = {}
+        for chart_id in candidate_ids:
+            candidate = charts_by_id.get(chart_id)
+            if candidate is not None:
+                candidates.append((chart_id, candidate))
+        return candidates
+
+    for chart_id in candidate_ids:
         try:
             candidate = load_chart_by_id(chart_id)
         except Exception:
