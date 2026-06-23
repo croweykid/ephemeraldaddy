@@ -151,6 +151,7 @@ from ephemeraldaddy.gui.features.charts.statistical_significance import (
 from ephemeraldaddy.gui.features.charts.provenance import chart_is_non_aggregable
 from ephemeraldaddy.gui.features.charts.tagging import normalize_tag_list
 from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
+    build_enneagram_popout_info_html,
     calculate_enneagram_type_weights as _calculate_enneagram_type_weights,
 )
 from ephemeraldaddy.gui.features.charts.metrics import (
@@ -165,6 +166,7 @@ from ephemeraldaddy.gui.features.charts.bazi_window import (
 from ephemeraldaddy.gui.style import (
     ALIGNMENT_CUMULATIVE_SUBTITLE_WRAP_WIDTH,
     CHART_AXES_STYLE,
+    CHART_DATA_HIGHLIGHT_COLOR,
     CHART_THEME_COLORS,
     DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS,
     DATABASE_ANALYTICS_GRAPH_AREA_DEBUG_COLOR,
@@ -1343,6 +1345,22 @@ class DatabaseAnalyticsChartsMixin:
         return False
 
     @staticmethod
+    def _enneagram_type_for_database_label(label: str) -> int | None:
+        clean_label = DatabaseAnalyticsChartsMixin._clean_database_analytics_label(label)
+        match = re.search(r"\btype\s+([1-9])\b", clean_label, flags=re.IGNORECASE)
+        if match:
+            return int(match.group(1))
+        if clean_label.isdigit():
+            enneagram_type = int(clean_label)
+            if 1 <= enneagram_type <= 9:
+                return enneagram_type
+        for enneagram_type, type_data in ENNEAGRAM.items():
+            type_name = str(type_data.get("name", "")).strip()
+            if type_name and type_name.casefold() in clean_label.casefold():
+                return int(enneagram_type)
+        return None
+
+    @staticmethod
     def _database_analytics_definition_for_label(label: str, chart_title: str) -> str:
         clean_label = DatabaseAnalyticsChartsMixin._clean_database_analytics_label(label)
         title_key = str(chart_title or "").casefold()
@@ -1361,7 +1379,7 @@ class DatabaseAnalyticsChartsMixin:
             return f"{clean_label} is a sentiment/tone category; this bar compares how often that tone appears in chart metadata."
         if clean_label in BAZI_ZODIAC or "bazi" in title_key:
             return f"{clean_label} is a BaZi / Chinese astrology category; this bar compares how often it appears."
-        if clean_label in ENNEAGRAM or "enneagram" in title_key:
+        if DatabaseAnalyticsChartsMixin._enneagram_type_for_database_label(clean_label) is not None or "enneagram" in title_key:
             return f"{clean_label} is an Enneagram type category; this bar compares how often that predicted or assigned type appears."
         if clean_label in AGE_BRACKETS or "age" in title_key:
             return f"{clean_label} is an age bucket; this bar compares how many charts fall in that age range."
@@ -1412,6 +1430,17 @@ class DatabaseAnalyticsChartsMixin:
             cross_html = self._database_analytics_incarnation_cross_info_html(clean_label)
             if cross_html:
                 return cross_html
+        enneagram_type = self._enneagram_type_for_database_label(clean_label)
+        if enneagram_type is not None and "enneagram" in clean_title.casefold():
+            return build_enneagram_popout_info_html(
+                enneagram_type,
+                enneagram=ENNEAGRAM,
+                chart_theme_colors=CHART_THEME_COLORS,
+                highlight_color=CHART_DATA_HIGHLIGHT_COLOR,
+                debug_math_enabled=False,
+                chart=None,
+                calculate_type_weights=None,
+            )
         definition = self._database_analytics_definition_for_label(clean_label, clean_title)
         value_line = ""
         if value is not None and math.isfinite(float(value)):
@@ -1621,6 +1650,22 @@ class DatabaseAnalyticsChartsMixin:
         return None
 
     @staticmethod
+    def _enneagram_type_for_database_label(label: str) -> int | None:
+        clean_label = DatabaseAnalyticsChartsMixin._clean_database_analytics_label(label)
+        match = re.search(r"\btype\s+([1-9])\b", clean_label, flags=re.IGNORECASE)
+        if match:
+            return int(match.group(1))
+        if clean_label.isdigit():
+            enneagram_type = int(clean_label)
+            if 1 <= enneagram_type <= 9:
+                return enneagram_type
+        for enneagram_type, type_data in ENNEAGRAM.items():
+            type_name = str(type_data.get("name", "")).strip()
+            if type_name and type_name.casefold() in clean_label.casefold():
+                return int(enneagram_type)
+        return None
+
+    @staticmethod
     def _database_analytics_definition_for_label(label: str, chart_title: str) -> str:
         clean_label = DatabaseAnalyticsChartsMixin._clean_database_analytics_label(label)
         title_key = str(chart_title or "").casefold()
@@ -1639,7 +1684,7 @@ class DatabaseAnalyticsChartsMixin:
             return f"{clean_label} is a sentiment/tone category; this bar compares how often that tone appears in chart metadata."
         if clean_label in BAZI_ZODIAC or "bazi" in title_key:
             return f"{clean_label} is a BaZi / Chinese astrology category; this bar compares how often it appears."
-        if clean_label in ENNEAGRAM or "enneagram" in title_key:
+        if DatabaseAnalyticsChartsMixin._enneagram_type_for_database_label(clean_label) is not None or "enneagram" in title_key:
             return f"{clean_label} is an Enneagram type category; this bar compares how often that predicted or assigned type appears."
         if clean_label in AGE_BRACKETS or "age" in title_key:
             return f"{clean_label} is an age bucket; this bar compares how many charts fall in that age range."
@@ -1662,6 +1707,17 @@ class DatabaseAnalyticsChartsMixin:
             cross_html = self._database_analytics_incarnation_cross_info_html(clean_label)
             if cross_html:
                 return cross_html
+        enneagram_type = self._enneagram_type_for_database_label(clean_label)
+        if enneagram_type is not None and "enneagram" in clean_title.casefold():
+            return build_enneagram_popout_info_html(
+                enneagram_type,
+                enneagram=ENNEAGRAM,
+                chart_theme_colors=CHART_THEME_COLORS,
+                highlight_color=CHART_DATA_HIGHLIGHT_COLOR,
+                debug_math_enabled=False,
+                chart=None,
+                calculate_type_weights=None,
+            )
         definition = self._database_analytics_definition_for_label(clean_label, clean_title)
         value_line = ""
         if value is not None and math.isfinite(float(value)):
@@ -4087,7 +4143,11 @@ class DatabaseAnalyticsChartsMixin:
         should_refresh: Callable[[str], bool],
     ) -> None:
         enneagram_labels = [
-            f"Type {enneagram_type} {str(ENNEAGRAM.get(enneagram_type, {}).get('name', '')).strip()}".strip()
+            (
+                f"Type {enneagram_type} "
+                f"{str(ENNEAGRAM.get(enneagram_type, {}).get('name', '')).strip()} "
+                f"({int(database_cache.get('enneagram_totals', {}).get(enneagram_type, 0)):,} in database)"
+            ).strip()
             for enneagram_type in range(1, 10)
         ]
         enneagram_label_by_type = {
