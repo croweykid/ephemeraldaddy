@@ -268,7 +268,7 @@ class PerceivedSimilarityPredictorsPanel(QWidget):
         }
         component_order = tuple(component_labels)
         component_pairs: dict[str, list[tuple[float, float]]] = {key: [] for key in component_order}
-        examples: dict[str, list[str]] = {key: [] for key in component_order}
+        example_candidates: dict[str, list[tuple[float, str]]] = {key: [] for key in component_order}
 
         for chart_id, candidate_chart in candidates:
             perceived_score = score_by_compared_id.get(chart_id)
@@ -281,8 +281,9 @@ class PerceivedSimilarityPredictorsPanel(QWidget):
                     continue
                 factor_score = max(0.0, min(1.0, float(raw_value))) * 100.0
                 component_pairs[key].append((factor_score, float(perceived_score)))
-                if len(examples[key]) < 3:
-                    examples[key].append(str(getattr(candidate_chart, "name", "") or f"#{chart_id}"))
+                example_candidates[key].append(
+                    (factor_score, str(getattr(candidate_chart, "name", "") or f"#{chart_id}"))
+                )
 
         predictor_rows = [
             {
@@ -290,7 +291,7 @@ class PerceivedSimilarityPredictorsPanel(QWidget):
                 "label": component_labels[key],
                 "correlation": self._spearman_rank_correlation(component_pairs[key]),
                 "pair_count": len(component_pairs[key]),
-                "examples": examples.get(key, []),
+                "examples": self._top_factor_examples(example_candidates.get(key, [])),
             }
             for key in component_order
         ]
@@ -319,19 +320,28 @@ class PerceivedSimilarityPredictorsPanel(QWidget):
             example_text = html.escape(", ".join(row["examples"][:3])) if row["examples"] else "No available examples"
             rows.append(
                 f"<li><b>{html.escape(row['label'])}</b>: {accuracy_text}"
-                f"<br><span style='color:#d9d9d9;'>Compared {row['pair_count']} "
-                f"saved score(s). Examples: {example_text}</span></li>"
+                f"<br><span style='color:#d9d9d9;'>Example: {example_text}</span></li>"
             )
 
         if self._output_label is not None:
             self._output_label.setText(
                 f"<div><b>{html.escape(subject_chart_name)}</b></div>"
-                f"<div style='color:#d9d9d9; margin: 6px 0;'>Reviewed {len(candidates)} "
+                f"<div style='color:#d9d9d9; margin: 6px 0; font-style: italic;'>Reviewed {len(candidates)} "
                 "saved perceived-similarity score(s). Each factor is tested independently: "
                 "higher values mean that factor's single-factor rank aligns better with "
                 "your perceived-similarity scores, regardless of the active Similarities Calculator setting.</div>"
                 f"<ol>{''.join(rows)}</ol>"
             )
+
+
+    @staticmethod
+    def _top_factor_examples(example_candidates: list[tuple[float, str]]) -> list[str]:
+        """Return up to three chart names with the strongest overlap for one factor."""
+        ranked_examples = sorted(
+            enumerate(example_candidates),
+            key=lambda item: (-item[1][0], item[0]),
+        )
+        return [name for _, (_, name) in ranked_examples[:3]]
 
     def _clear_recommendation_chart(self) -> None:
         canvas = self._recommendation_canvas
