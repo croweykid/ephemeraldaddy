@@ -4144,9 +4144,9 @@ class DatabaseAnalyticsChartsMixin:
     ) -> None:
         enneagram_labels = [
             (
-                f"Type {enneagram_type} "
+                f"e{enneagram_type} "
                 f"{str(ENNEAGRAM.get(enneagram_type, {}).get('name', '')).strip()} "
-                f"({int(database_cache.get('enneagram_totals', {}).get(enneagram_type, 0)):,} in database)"
+                f"({int(database_cache.get('enneagram_totals', {}).get(enneagram_type, 0)):,} in DB)"
             ).strip()
             for enneagram_type in range(1, 10)
         ]
