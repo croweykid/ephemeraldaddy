@@ -16930,6 +16930,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._update_batch_edit_state()
         self._update_batch_edit_action_buttons()
         self._update_collection_membership_buttons()
+        panel = getattr(self, "perceived_similarity_predictors_panel", None)
+        if isinstance(panel, PerceivedSimilarityPredictorsPanel):
+            panel.update_selected_chart_label(
+                self._exclude_placeholder_chart_ids(self._selected_chart_ids())
+            )
         if not refresh_metrics:
             self._update_selection_header()
             return

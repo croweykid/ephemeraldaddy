@@ -3,16 +3,21 @@
 from __future__ import annotations
 
 import html
-from collections import Counter
+from math import sqrt
 from typing import Any, Mapping
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QLabel, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QLabel, QPushButton, QSizePolicy, QVBoxLayout, QWidget
+
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
 
 from ephemeraldaddy.analysis.get_astro_twin import (
     SIMILAR_CHARTS_ALGORITHM_DEFAULT,
-    find_astro_twins,
-    normalize_similar_charts_algorithm_mode,
+    PLACEMENT_WEIGHTING_MODE_HYBRID,
+    SIMILARITY_COMPONENT_KEYS,
+    chart_similarity_score_big_3,
+    _similarity_component_scores,
 )
 from ephemeraldaddy.core.db import get_chart_uid_map, load_chart, load_charts
 from ephemeraldaddy.gui.features.charts.chart_similarity_relationships import (
@@ -30,6 +35,9 @@ class PerceivedSimilarityPredictorsPanel(QWidget):
         super().__init__(parent)
         self._highlight_color = highlight_color or DEFAULT_HIGHLIGHT_COLOR
         self._output_label: QLabel | None = None
+        self._refresh_button: QPushButton | None = None
+        self._chart_layout: QVBoxLayout | None = None
+        self._recommendation_canvas: FigureCanvas | None = None
         self._on_refresh_requested = None
         self._build_ui()
 
@@ -42,7 +50,7 @@ class PerceivedSimilarityPredictorsPanel(QWidget):
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(8)
 
-        header = QLabel("🧾Predictor Feedback") #formerly known as "perceived similarity predictor"
+        header = QLabel("🧾 Predictor Feedback")
         header.setStyleSheet("font-weight: 700; font-size: 13px; color: #ffffff;")
         layout.addWidget(header)
 
@@ -54,10 +62,16 @@ class PerceivedSimilarityPredictorsPanel(QWidget):
         help_label.setStyleSheet("color: #d9d9d9;")
         layout.addWidget(help_label)
 
-        refresh_button = QPushButton("Calculate for this chart") #change to say the chart's name instead of 'this chart'.
+        refresh_button = QPushButton("Calculate for selected chart")
         refresh_button.setObjectName("perceived_similarity_predictors_refresh_button")
         refresh_button.clicked.connect(self._request_refresh)
         layout.addWidget(refresh_button)
+        self._refresh_button = refresh_button
+
+        self._chart_layout = QVBoxLayout()
+        self._chart_layout.setContentsMargins(0, 0, 0, 0)
+        self._chart_layout.setSpacing(0)
+        layout.addLayout(self._chart_layout)
 
         self._output_label = QLabel()
         self._output_label.setTextFormat(Qt.RichText)
@@ -66,15 +80,38 @@ class PerceivedSimilarityPredictorsPanel(QWidget):
         self._output_label.setStyleSheet(f"font-weight: 400; color: {self._highlight_color};")
         layout.addWidget(self._output_label)
         layout.addStretch(1)
-        self.set_message("Select a chart and press Refresh.")
+        self.set_message("Select a chart and press Calculate.")
 
     def _request_refresh(self) -> None:
         if callable(self._on_refresh_requested):
             self._on_refresh_requested()
 
     def set_message(self, message: str) -> None:
+        self._clear_recommendation_chart()
         if self._output_label is not None:
             self._output_label.setText(f"<div>{html.escape(message)}</div>")
+
+    def _set_refresh_button_chart_name(self, chart_name: str | None) -> None:
+        if self._refresh_button is None:
+            return
+        clean_name = str(chart_name or "").strip()
+        self._refresh_button.setText(
+            f"Calculate for {clean_name}" if clean_name else "Calculate for selected chart"
+        )
+
+    def update_selected_chart_label(self, selected_chart_ids: list[int]) -> None:
+        """Update the calculate button to name the currently selected chart."""
+        if not selected_chart_ids:
+            self._set_refresh_button_chart_name(None)
+            return
+        try:
+            chart = load_chart(int(selected_chart_ids[0]))
+        except Exception:  # pragma: no cover - defensive GUI label fallback
+            self._set_refresh_button_chart_name(f"Chart #{int(selected_chart_ids[0])}")
+            return
+        self._set_refresh_button_chart_name(
+            str(getattr(chart, "name", "") or f"Chart #{int(selected_chart_ids[0])}")
+        )
 
     def refresh_for_chart_ids(
         self,
@@ -85,6 +122,7 @@ class PerceivedSimilarityPredictorsPanel(QWidget):
     ) -> None:
         """Refresh predictor analysis for the first selected chart id."""
         if not selected_chart_ids:
+            self._set_refresh_button_chart_name(None)
             self.set_message("Select a chart in Database View first.")
             return
         subject_chart_id = int(selected_chart_ids[0])
@@ -93,6 +131,9 @@ class PerceivedSimilarityPredictorsPanel(QWidget):
         except Exception as exc:  # pragma: no cover - defensive GUI status path
             self.set_message(f"Could not load selected chart #{subject_chart_id}: {exc}")
             return
+
+        subject_chart_name = str(getattr(subject_chart, "name", "") or f"Chart #{subject_chart_id}")
+        self._set_refresh_button_chart_name(subject_chart_name)
 
         score_by_compared_id = self._perceived_scores_for_subject(subject_chart_id)
         scored_compared_ids = sorted(
@@ -118,18 +159,10 @@ class PerceivedSimilarityPredictorsPanel(QWidget):
             )
             return
 
-        matches = find_astro_twins(
-            subject_chart,
-            candidates,
-            top_k=len(candidates),
-            exclude_chart_id=subject_chart_id,
-            least_similar=False,
-            algorithm_mode=normalize_similar_charts_algorithm_mode(algorithm_mode),
-            custom_settings=similarity_settings,
-        )
-        self._render_predictors(
-            subject_chart_name=str(getattr(subject_chart, "name", "") or f"Chart #{subject_chart_id}"),
-            matches=matches,
+        self._render_predictor_feedback(
+            subject_chart=subject_chart,
+            subject_chart_name=subject_chart_name,
+            candidates=candidates,
             score_by_compared_id=score_by_compared_id,
         )
 
@@ -196,83 +229,223 @@ class PerceivedSimilarityPredictorsPanel(QWidget):
         other_uids = [uid for uid in normalized_uids if uid and uid != subject_uid]
         return next((chart_id_by_uid.get(uid) for uid in other_uids if chart_id_by_uid.get(uid)), None)
 
-    def _render_predictors(
+    def _render_predictor_feedback(
         self,
         *,
+        subject_chart: Any,
         subject_chart_name: str,
-        matches: list[Any],
+        candidates: list[tuple[int, Any]],
         score_by_compared_id: Mapping[int, float],
     ) -> None:
         component_labels = {
+            "dominant_bodies": "Dominant bodies",
+            "dominant_signs": "Dominant signs",
+            "dominant_houses": "Dominant houses",
+            "dominant_nakshatras": "Dominant nakshatras",
+            "inner_planet_placement": "Inner planet placements",
             "placement": "Planet/sign placements",
-            "aspect": "Aspects",
-            "distribution": "Element/mode distribution",
-            "dominance": "Dominant planets/signs/houses",
-            "nakshatra_placement": "Nakshatra placements",
-            "nakshatra_dominance": "Dominant nakshatras",
-            "defined_centers": "Human Design defined centers",
             "human_design_gates": "Human Design gates",
             "human_design_channels": "Human Design channels",
-            "inner_planet_placement": "Inner planet placements",
+            "distribution": "Element/mode distribution",
+            "big_3": "Big 3",
             "outer_planet_placement": "Outer planet placements",
+            "aspect": "Aspects",
+            "nakshatra_placement": "Nakshatra placements",
+            "defined_centers": "Human Design defined centers",
         }
-        totals: Counter[str] = Counter()
-        weights: Counter[str] = Counter()
-        examples: dict[str, list[str]] = {}
-        match_count = 0
-        for rank, match in enumerate(matches, start=1):
-            chart_id = int(getattr(match, "chart_id", 0) or 0)
+        component_order = tuple(component_labels)
+        component_pairs: dict[str, list[tuple[float, float]]] = {key: [] for key in component_order}
+        examples: dict[str, list[str]] = {key: [] for key in component_order}
+
+        for chart_id, candidate_chart in candidates:
             perceived_score = score_by_compared_id.get(chart_id)
             if perceived_score is None:
                 continue
-            combined_weight = (1.0 / max(1, rank)) * (max(0.0, perceived_score) / 100.0)
-            match_count += 1
-            for key, raw_value in self._component_scores_for_match(match).items():
+            component_scores = self._single_factor_scores(subject_chart, candidate_chart)
+            for key in component_order:
+                raw_value = component_scores.get(key)
                 if raw_value is None:
                     continue
-                value = max(0.0, min(1.0, float(raw_value)))
-                totals[key] += value * combined_weight
-                weights[key] += combined_weight
-                examples.setdefault(key, [])
+                factor_score = max(0.0, min(1.0, float(raw_value))) * 100.0
+                component_pairs[key].append((factor_score, float(perceived_score)))
                 if len(examples[key]) < 3:
-                    examples[key].append(str(getattr(match, "chart_name", "") or f"#{chart_id}"))
+                    examples[key].append(str(getattr(candidate_chart, "name", "") or f"#{chart_id}"))
 
+        predictor_rows = [
+            {
+                "key": key,
+                "label": component_labels[key],
+                "correlation": self._spearman_rank_correlation(component_pairs[key]),
+                "pair_count": len(component_pairs[key]),
+                "examples": examples.get(key, []),
+            }
+            for key in component_order
+        ]
         ranked_predictors = sorted(
-            ((key, (totals[key] / weights[key]) * 100.0) for key in totals if weights[key] > 0),
-            key=lambda item: (-item[1], component_labels.get(item[0], item[0])),
+            predictor_rows,
+            key=lambda row: (
+                -(row["correlation"] if row["correlation"] is not None else -2.0),
+                row["label"],
+            ),
         )
-        if not ranked_predictors:
-            self.set_message("Perceived scores exist, but no similarity component rankings could be computed.")
+        if not any(row["pair_count"] >= 2 for row in ranked_predictors):
+            self.set_message(
+                "Perceived scores exist, but at least two comparable scores are needed to assess factor accuracy."
+            )
             return
 
-        rows = [
-            f"<li><b>{html.escape(component_labels.get(key, key.replace('_', ' ').title()))}</b>: "
-            f"{score:.1f}% weighted high-rank signal"
-            f"<br><span style='color:#d9d9d9;'>Examples: "
-            f"{html.escape(', '.join(examples.get(key, [])[:3]))}</span></li>"
-            for key, score in ranked_predictors[:8]
-        ]
+        self._render_recommendation_chart(ranked_predictors)
+
+        rows = []
+        for row in ranked_predictors:
+            correlation = row["correlation"]
+            if correlation is None:
+                accuracy_text = "not enough variance to assess"
+            else:
+                accuracy_text = f"{correlation * 100.0:+.1f}% perceived-accuracy rank correlation"
+            example_text = html.escape(", ".join(row["examples"][:3])) if row["examples"] else "No available examples"
+            rows.append(
+                f"<li><b>{html.escape(row['label'])}</b>: {accuracy_text}"
+                f"<br><span style='color:#d9d9d9;'>Compared {row['pair_count']} "
+                f"saved score(s). Examples: {example_text}</span></li>"
+            )
+
         if self._output_label is not None:
             self._output_label.setText(
                 f"<div><b>{html.escape(subject_chart_name)}</b></div>"
-                f"<div style='color:#d9d9d9; margin: 6px 0;'>Reviewed {match_count} "
-                "saved perceived-similarity score(s). Higher entries are components that were "
-                "strongest among high-ranked, highly perceived-similar comparisons.</div>"
+                f"<div style='color:#d9d9d9; margin: 6px 0;'>Reviewed {len(candidates)} "
+                "saved perceived-similarity score(s). Each factor is tested independently: "
+                "higher values mean that factor's single-factor rank aligns better with "
+                "your perceived-similarity scores, regardless of the active Similarities Calculator setting.</div>"
                 f"<ol>{''.join(rows)}</ol>"
             )
 
+    def _clear_recommendation_chart(self) -> None:
+        canvas = self._recommendation_canvas
+        if canvas is None:
+            return
+        if self._chart_layout is not None:
+            self._chart_layout.removeWidget(canvas)
+        canvas.setParent(None)
+        canvas.deleteLater()
+        self._recommendation_canvas = None
+
+    def _render_recommendation_chart(
+        self,
+        ranked_predictors: list[dict[str, Any]],
+    ) -> None:
+        self._clear_recommendation_chart()
+        if self._chart_layout is None or not ranked_predictors:
+            return
+
+        eligible_predictors = [
+            row for row in ranked_predictors if row["correlation"] is not None and row["correlation"] > 0.0
+        ]
+        if not eligible_predictors:
+            return
+        total_score = sum(float(row["correlation"]) for row in eligible_predictors)
+        if total_score <= 0:
+            return
+
+        names = [str(row["label"]) for row in eligible_predictors]
+        weights = [(float(row["correlation"]) / total_score) * 100.0 for row in eligible_predictors]
+        figure = Figure(figsize=(3.6, 3.0), dpi=100, facecolor="#0f0515")
+        ax = figure.add_subplot(111)
+        ax.set_facecolor("#0f0515")
+        wedges, _ = ax.pie(
+            weights,
+            startangle=90,
+            counterclock=False,
+            wedgeprops={"linewidth": 1.0, "edgecolor": "#0f0515"},
+        )
+        ax.set_title("Recommended factor weights", color="#ffffff", fontsize=10)
+        legend_labels = [f"{name} ({weight:.1f}%)" for name, weight in zip(names, weights, strict=False)]
+        legend = ax.legend(
+            wedges,
+            legend_labels,
+            loc="center left",
+            bbox_to_anchor=(1.0, 0.5),
+            fontsize=8,
+            frameon=False,
+        )
+        for text in legend.get_texts():
+            text.set_color("#e6e6e6")
+        tooltip = ax.annotate(
+            "",
+            xy=(0, 0),
+            xytext=(12, 12),
+            textcoords="offset points",
+            bbox={"boxstyle": "round", "fc": "#24142d", "ec": "#f2d16b", "alpha": 0.95},
+            color="#ffffff",
+            fontsize=9,
+        )
+        tooltip.set_visible(False)
+
+        def _on_hover(event):  # noqa: ANN001 - matplotlib callback signature
+            if event.inaxes != ax:
+                if tooltip.get_visible():
+                    tooltip.set_visible(False)
+                    canvas.draw_idle()
+                return
+            for wedge, name, weight in zip(wedges, names, weights, strict=False):
+                contains, _ = wedge.contains(event)
+                if contains:
+                    tooltip.xy = (event.xdata, event.ydata)
+                    tooltip.set_text(f"{name}: {weight:.2f}%")
+                    tooltip.set_visible(True)
+                    canvas.draw_idle()
+                    return
+            if tooltip.get_visible():
+                tooltip.set_visible(False)
+                canvas.draw_idle()
+
+        canvas = FigureCanvas(figure)
+        canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        canvas.setMinimumHeight(260)
+        canvas.mpl_connect("motion_notify_event", _on_hover)
+        figure.tight_layout()
+        self._chart_layout.addWidget(canvas)
+        self._recommendation_canvas = canvas
+
     @staticmethod
-    def _component_scores_for_match(match: Any) -> dict[str, float | None]:
-        component_scores = dict(getattr(match, "component_scores", None) or {})
-        if component_scores:
-            return component_scores
-        return {
-            "placement": getattr(match, "placement_score", None),
-            "aspect": getattr(match, "aspect_score", None),
-            "distribution": getattr(match, "distribution_score", None),
-            "dominance": getattr(match, "dominance_score", None),
-            "nakshatra_placement": getattr(match, "nakshatra_score", None),
-            "defined_centers": getattr(match, "hd_centers_score", None),
-            "human_design_gates": getattr(match, "human_design_gates_score", None),
-            "human_design_channels": getattr(match, "human_design_channels_score", None),
-        }
+    def _single_factor_scores(subject_chart: Any, candidate_chart: Any) -> dict[str, float | None]:
+        scores = _similarity_component_scores(
+            subject_chart,
+            candidate_chart,
+            placement_weighting_mode=PLACEMENT_WEIGHTING_MODE_HYBRID,
+            component_keys=SIMILARITY_COMPONENT_KEYS,
+        )
+        big_3_score, _ = chart_similarity_score_big_3(subject_chart, candidate_chart)
+        scores["big_3"] = big_3_score
+        return scores
+
+    @staticmethod
+    def _spearman_rank_correlation(pairs: list[tuple[float, float]]) -> float | None:
+        if len(pairs) < 2:
+            return None
+        xs = PerceivedSimilarityPredictorsPanel._rank_values([pair[0] for pair in pairs])
+        ys = PerceivedSimilarityPredictorsPanel._rank_values([pair[1] for pair in pairs])
+        mean_x = sum(xs) / len(xs)
+        mean_y = sum(ys) / len(ys)
+        numerator = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys, strict=False))
+        denominator_x = sqrt(sum((x - mean_x) ** 2 for x in xs))
+        denominator_y = sqrt(sum((y - mean_y) ** 2 for y in ys))
+        denominator = denominator_x * denominator_y
+        if denominator <= 0:
+            return None
+        return max(-1.0, min(1.0, numerator / denominator))
+
+    @staticmethod
+    def _rank_values(values: list[float]) -> list[float]:
+        ordered = sorted(enumerate(values), key=lambda item: item[1])
+        ranks = [0.0] * len(values)
+        index = 0
+        while index < len(ordered):
+            end = index + 1
+            while end < len(ordered) and ordered[end][1] == ordered[index][1]:
+                end += 1
+            average_rank = (index + 1 + end) / 2.0
+            for original_index, _ in ordered[index:end]:
+                ranks[original_index] = average_rank
+            index = end
+        return ranks
