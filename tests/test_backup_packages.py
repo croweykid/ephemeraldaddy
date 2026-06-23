@@ -76,7 +76,11 @@ def test_create_backup_package_skips_missing_optional_components(package_paths, 
 
     assert "data/charts.db" in names
     assert "data/charts.photo_gallery.db" not in names
-    assert [entry["key"] for entry in manifest["components"]] == ["charts"]
+    components = {entry["key"]: entry for entry in manifest["components"]}
+    assert set(components) == {"charts", "photo_gallery", "time_sensitivity", "personal_identifiers"}
+    assert components["charts"]["present"] is True
+    assert components["photo_gallery"]["present"] is False
+    assert components["photo_gallery"]["size_bytes"] == 0
 
 
 def test_restore_backup_package_validates_checksum(package_paths, tmp_path):
@@ -93,6 +97,21 @@ def test_restore_backup_package_validates_checksum(package_paths, tmp_path):
 
     with pytest.raises(ValueError, match="Checksum mismatch"):
         backups.restore_backup_package(tampered)
+
+
+def test_restore_package_removes_sidecars_missing_from_manifest(package_paths, tmp_path):
+    _sqlite(package_paths["charts"], "charts", "original")
+    package = backups.create_backup_package(tmp_path / "minimal.edbackup")
+
+    package_paths["personal_identifiers"].write_text('{"stale": true}', encoding="utf-8")
+    _sqlite(package_paths["photo_gallery"], "photos", "stale-photo")
+
+    backups.restore_backup_package(package)
+
+    assert _read_sqlite_value(package_paths["charts"], "charts") == "original"
+    assert not package_paths["photo_gallery"].exists()
+    assert not package_paths["personal_identifiers"].exists()
+    assert list(package_paths["charts"].parent.glob("ephemeraldaddy_prerestore_backup_*.edbackup"))
 
 
 def test_restore_database_supports_full_package_and_legacy_db(package_paths, tmp_path):

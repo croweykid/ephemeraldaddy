@@ -22,6 +22,7 @@ BACKUP_PACKAGE_FORMAT = "ephemeraldaddy-backup"
 BACKUP_PACKAGE_VERSION = 1
 BACKUP_PACKAGE_SUFFIX = ".edbackup"
 BACKUP_PACKAGE_FILENAME_PREFIX = "ephemeraldaddy_backup_"
+PRE_RESTORE_BACKUP_FILENAME_PREFIX = "ephemeraldaddy_prerestore_backup_"
 LEGACY_CHARTS_COMPONENT_KEY = "charts"
 
 BackupComponentKind = Literal["sqlite", "json", "file"]
@@ -78,9 +79,9 @@ def iter_backup_components() -> list[BackupComponent]:
     ]
 
 
-def timestamped_backup_package_path() -> Path:
+def timestamped_backup_package_path(*, prefix: str = BACKUP_PACKAGE_FILENAME_PREFIX) -> Path:
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-    return chart_db.DB_DIR / f"{BACKUP_PACKAGE_FILENAME_PREFIX}{timestamp}{BACKUP_PACKAGE_SUFFIX}"
+    return chart_db.DB_DIR / f"{prefix}{timestamp}{BACKUP_PACKAGE_SUFFIX}"
 
 
 def _sha256(path: Path) -> str:
@@ -132,24 +133,30 @@ def create_backup_package(destination: Path | None = None) -> Path:
         manifest_components: list[dict[str, Any]] = []
 
         for component in iter_backup_components():
+            relative_path = Path("data") / component.archive_name
+            manifest_entry: dict[str, Any] = {
+                "key": component.key,
+                "relative_path": relative_path.as_posix(),
+                "kind": component.kind,
+                "required": component.required,
+                "contains_sensitive_data": component.contains_sensitive_data,
+                "present": component.path.exists(),
+            }
             if not component.path.exists():
                 if component.required:
                     raise FileNotFoundError(f"Required backup component missing: {component.path}")
+                manifest_entry.update({"size_bytes": 0, "sha256": ""})
+                manifest_components.append(manifest_entry)
                 continue
-            relative_path = Path("data") / component.archive_name
             staged_path = payload_dir / relative_path
             _snapshot_component(component, staged_path)
-            manifest_components.append(
+            manifest_entry.update(
                 {
-                    "key": component.key,
-                    "relative_path": relative_path.as_posix(),
-                    "kind": component.kind,
-                    "required": component.required,
-                    "contains_sensitive_data": component.contains_sensitive_data,
                     "size_bytes": staged_path.stat().st_size,
                     "sha256": _sha256(staged_path),
                 }
             )
+            manifest_components.append(manifest_entry)
 
         manifest = {
             "format": BACKUP_PACKAGE_FORMAT,
@@ -194,6 +201,12 @@ def _component_destinations() -> dict[str, Path]:
     return {component.key: component.path for component in iter_backup_components()}
 
 
+def _create_pre_restore_backup() -> Path | None:
+    if not chart_db.DB_PATH.exists():
+        return None
+    return create_backup_package(timestamped_backup_package_path(prefix=PRE_RESTORE_BACKUP_FILENAME_PREFIX))
+
+
 def restore_backup_package(source: Path) -> None:
     """Validate and restore a full-app backup package."""
 
@@ -223,6 +236,8 @@ def restore_backup_package(source: Path) -> None:
             kind = str(entry.get("kind") or "")
             if not key or key not in destination_by_key:
                 continue
+            if entry.get("present") is False:
+                continue
             staged_path = (extract_dir / relative_path).resolve()
             if not staged_path.is_relative_to(extract_dir.resolve()):
                 raise ValueError(f"Unsafe backup package path for component {key}")
@@ -237,6 +252,8 @@ def restore_backup_package(source: Path) -> None:
         if LEGACY_CHARTS_COMPONENT_KEY not in staged_by_key:
             raise ValueError("Backup package is missing required charts database")
 
+        _create_pre_restore_backup()
+
         chart_db.DB_DIR.mkdir(parents=True, exist_ok=True)
         rollback_dir = tmp_dir / "rollback"
         rollback_dir.mkdir(parents=True, exist_ok=True)
@@ -244,14 +261,14 @@ def restore_backup_package(source: Path) -> None:
         try:
             for key, destination in destination_by_key.items():
                 source_component = staged_by_key.get(key)
-                if source_component is None:
-                    continue
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 rollback_path: Path | None = None
                 if destination.exists():
                     rollback_path = rollback_dir / destination.name
                     shutil.move(str(destination), rollback_path)
                 replaced.append((destination, rollback_path))
+                if source_component is None:
+                    continue
                 shutil.copy2(source_component, destination)
         except Exception:
             for destination, rollback_path in reversed(replaced):
