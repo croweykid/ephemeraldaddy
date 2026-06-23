@@ -2368,6 +2368,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_metrics_background_preload_scheduled = False
         self._database_metrics_background_preload_sections: list[str] = []
         self._database_metrics_preloaded_sections: set[str] = set()
+        self._database_metrics_preload_enabled = True
         self._tag_completer_revision_token: tuple[object, ...] | None = None
         self._database_metrics_chart_layouts: dict[str, QVBoxLayout] = {}
         self._database_analytics_popout_dialogs: list[QDialog] = []
@@ -3013,13 +3014,30 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._left_panel_visible
             and self._active_left_panel in {"database_metrics", "gen_pop_norms"}
         ):
-            self._update_sentiment_tally(
-                update_database_metrics=True,
-                update_similarities=False,
-                sections_to_refresh={section_key},
+            # Let the collapsible section reveal immediately, then refresh only
+            # the newly visible panel on the next event-loop tick. Cached
+            # canvases stay attached, so re-expanding no longer feels blocked
+            # by analytics bookkeeping.
+            QTimer.singleShot(
+                0,
+                lambda key=section_key: self._refresh_expanded_database_metric_section(key),
             )
-            self._database_metrics_preloaded_sections.add(section_key)
-            self._schedule_database_metrics_background_preload()
+
+    def _refresh_expanded_database_metric_section(self, section_key: str) -> None:
+        if (
+            self._is_closing
+            or not self._left_panel_visible
+            or self._active_left_panel not in {"database_metrics", "gen_pop_norms"}
+            or not self._is_database_metrics_section_expanded(section_key)
+        ):
+            return
+        self._update_sentiment_tally(
+            update_database_metrics=True,
+            update_similarities=False,
+            sections_to_refresh={section_key},
+        )
+        self._database_metrics_preloaded_sections.add(section_key)
+        self._schedule_database_metrics_background_preload()
 
     def _is_database_metrics_section_expanded(self, section_key: str) -> bool:
         return self._database_metrics_section_expanded.get(section_key, False)
@@ -3181,10 +3199,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _schedule_database_metrics_background_preload(self) -> None:
         """Queue hidden Database Analytics sections to render during idle UI time."""
+        if self._is_closing or not self._database_metrics_preload_enabled:
+            return
         if self._database_metrics_background_preload_scheduled:
             return
         self._database_metrics_background_preload_scheduled = True
-        QTimer.singleShot(250, self._run_database_metrics_background_preload_step)
+        QTimer.singleShot(750, self._run_database_metrics_background_preload_step)
 
     def _database_metrics_background_preload_order(self) -> list[str]:
         return [
@@ -3202,6 +3222,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _run_database_metrics_background_preload_step(self) -> None:
         self._database_metrics_background_preload_scheduled = False
+        if self._is_closing or not self._database_metrics_preload_enabled:
+            return
         if (
             self._deferred_database_metrics_refresh_scheduled
             or self._incremental_metrics_refresh_scheduled
@@ -3356,10 +3378,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _save_database_metrics_persistent_cache(self) -> None:
         try:
-            self._refresh_database_metrics_cache(
-                force_full_refresh=self._database_metrics_cache is None,
-                computed_sections=frozenset(DATABASE_METRICS_SECTION_ORDER),
-            )
+            if self._database_metrics_cache is None:
+                return
             DB_DIR.mkdir(parents=True, exist_ok=True)
             payload = {
                 "version": DATABASE_METRICS_PERSISTENT_CACHE_VERSION,
@@ -15420,10 +15440,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._sync_database_metrics_section_visibility()
             self._update_position_sign_subheader()
             self._update_gender_subheader()
-            self._update_sentiment_tally(
-                update_database_metrics=True,
-                update_similarities=False,
-            )
+            self._show_database_analytics_pending_indicator(True)
+            QTimer.singleShot(0, self._run_deferred_database_metrics_refresh)
         elif panel_name == "gen_pop_norms":
             self.database_metrics_panel_header_label.setText("General Population")
             self._database_metrics_baseline_mode = "gen_pop"
@@ -15435,10 +15453,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._sync_database_metrics_section_visibility()
             self._update_position_sign_subheader()
             self._update_gender_subheader()
-            self._update_sentiment_tally(
-                update_database_metrics=True,
-                update_similarities=False,
-            )
+            self._show_database_analytics_pending_indicator(True)
+            QTimer.singleShot(0, self._run_deferred_database_metrics_refresh)
         elif panel_name == "similarities":
             self._update_sentiment_tally(
                 update_database_metrics=False,
@@ -16250,6 +16266,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def closeEvent(self, event) -> None:
         self._is_closing = True
+        self._database_metrics_preload_enabled = False
+        self._database_metrics_background_preload_sections.clear()
+        self._database_metrics_background_preload_scheduled = False
+        self._deferred_database_metrics_refresh_scheduled = False
+        self._incremental_metrics_refresh_scheduled = False
         if hasattr(self, "_batch_refresh_timer"):
             self._batch_refresh_timer.stop()
         if self._help_overlay_active:

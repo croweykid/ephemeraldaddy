@@ -20,9 +20,25 @@ def test_database_metrics_startup_restores_persistent_cache_without_preloading_f
     assert "_refresh_database_metrics_cache(force_full_refresh=True)" not in method
 
 
-def test_database_metrics_cache_is_saved_on_close():
+def test_database_metrics_cache_is_saved_on_close_without_blocking_recompute():
     method = _method_source(APP_SOURCE, "closeEvent")
+    save_method = _method_source(APP_SOURCE, "_save_database_metrics_persistent_cache")
     assert "self._save_database_metrics_persistent_cache()" in method
+    assert "self._database_metrics_preload_enabled = False" in method
+    assert "if self._database_metrics_cache is None:" in save_method
+    assert "computed_sections=frozenset(DATABASE_METRICS_SECTION_ORDER)" not in save_method
+
+
+def test_database_metrics_panel_open_and_section_expand_defer_heavy_refresh():
+    show_method = _method_source(APP_SOURCE, "_show_left_panel")
+    expand_method = _method_source(APP_SOURCE, "_set_database_metrics_section_expanded")
+    assert "QTimer.singleShot(0, self._run_deferred_database_metrics_refresh)" in show_method
+    database_panel_branch = show_method.split('if panel_name == "database_metrics":', 1)[1].split(
+        'elif panel_name == "gen_pop_norms":', 1
+    )[0]
+    assert "self._update_sentiment_tally(" not in database_panel_branch
+    assert "QTimer.singleShot(" in expand_method
+    assert "self._refresh_expanded_database_metric_section(key)" in expand_method
 
 
 def test_incremental_refresh_preserves_warmer_snapshot_sections():
