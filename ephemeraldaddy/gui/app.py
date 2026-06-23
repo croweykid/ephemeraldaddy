@@ -24208,6 +24208,7 @@ class MainWindow(QMainWindow):
             rows=rows,
             current_chart_id=self.current_chart_id if current_chart_id is None else current_chart_id,
             load_chart_by_id=load_chart,
+            load_charts_by_ids=load_charts,
             hidden_chart_ids=set(getattr(self, "_hidden_chart_ids", set())),
             include_hidden_charts=bool(getattr(self, "_show_hidden_charts", False)),
         )
@@ -24229,23 +24230,31 @@ class MainWindow(QMainWindow):
                 visible_rows.append(row)
         return visible_rows
 
-    def _similar_charts_popout_database_row_signatures(self, rows: list[tuple[Any, ...]]) -> dict[int, str]:
+    def _similar_charts_popout_database_row_signatures(
+        self,
+        rows: list[tuple[Any, ...]],
+        *,
+        chart_uids_by_id: Mapping[int, str],
+    ) -> dict[str, str]:
         def _row_value(row: tuple[Any, ...], index: int) -> Any:
             return row[index] if len(row) > index else None
 
-        signatures: dict[int, str] = {}
+        signatures: dict[str, str] = {}
         for row in rows:
             try:
                 chart_id = int(_row_value(row, 0))
             except (TypeError, ValueError):
                 continue
+            chart_uid = str(chart_uids_by_id.get(chart_id) or "").strip()
+            if not chart_uid:
+                continue
             # Similar Charts only depends on each candidate's calculated chart
             # state. Keep metadata-only edits (names, tags, notes, subjective
             # scores, etc.) from invalidating the popout cache. Track rows by
-            # chart so changed/new charts can be rescored without throwing away
-            # the whole ranking cache.
+            # stable chart UID so imported/appended databases do not poison the
+            # cache when local integer ids shift.
             payload = {
-                "id": chart_id,
+                "uid": chart_uid,
                 "datetime_iso": str(_row_value(row, 4) or ""),
                 "birth_place": str(_row_value(row, 5) or ""),
                 "used_utc_fallback": int(_row_value(row, 7) or 0),
@@ -24260,11 +24269,15 @@ class MainWindow(QMainWindow):
                 "birth_year": _row_value(row, 19),
             }
             encoded = json.dumps(payload, default=str, sort_keys=True, separators=(",", ":"))
-            signatures[chart_id] = hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+            signatures[chart_uid] = hashlib.sha256(encoded.encode("utf-8")).hexdigest()
         return signatures
 
     def _similar_charts_popout_database_signature(self, rows: list[tuple[Any, ...]]) -> str:
-        row_signatures = self._similar_charts_popout_database_row_signatures(rows)
+        row_ids = [int(row[0]) for row in rows]
+        row_signatures = self._similar_charts_popout_database_row_signatures(
+            rows,
+            chart_uids_by_id=get_chart_uid_map(row_ids),
+        )
         payload = json.dumps(row_signatures, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
@@ -24273,10 +24286,11 @@ class MainWindow(QMainWindow):
         *,
         chart: Chart,
         subject_chart_id: int | None,
+        subject_chart_uid: str | None = None,
     ) -> str:
         dt_value = getattr(chart, "dt", None)
         signature_payload = {
-            "id": subject_chart_id,
+            "uid": str(subject_chart_uid or ""),
             # Only birth/calculated-chart data affects similarity scores; display
             # metadata like name/alias should not force a slow recalculation.
             "dt": dt_value.isoformat() if dt_value is not None else None,
@@ -24310,12 +24324,17 @@ class MainWindow(QMainWindow):
         subject_chart_id: int | None,
         algorithm_mode: str,
         rows: list[tuple[Any, ...]],
+        subject_chart_uid: str | None = None,
     ) -> tuple[str, str, str, str]:
         # Do not include the whole database signature in the lookup key. The
         # payload stores per-chart row signatures and incrementally refreshes only
         # rows that changed since this subject/settings result was cached.
         return (
-            self._similar_charts_popout_subject_signature(chart=chart, subject_chart_id=subject_chart_id),
+            self._similar_charts_popout_subject_signature(
+                chart=chart,
+                subject_chart_id=subject_chart_id,
+                subject_chart_uid=subject_chart_uid,
+            ),
             "incremental-db-v1",
             self._similar_charts_popout_settings_signature(algorithm_mode),
             "top-bottom-all-v3",
@@ -25446,7 +25465,24 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Similar Charts", f"Could not read saved charts:\n{exc}")
             return
         chart_rows = self._similar_charts_visible_candidate_rows(chart_rows)
-        row_signatures = self._similar_charts_popout_database_row_signatures(chart_rows)
+        chart_row_ids = [int(row[0]) for row in chart_rows]
+        candidate_chart_ids = [
+            int(row[0])
+            for row in chart_rows
+            if (subject_chart_id is None or int(row[0]) != subject_chart_id)
+            and not _chart_row_is_non_aggregable(row)
+        ]
+        chart_uids_by_id = get_chart_uid_map([
+            chart_id
+            for chart_id in [subject_chart_id, *chart_row_ids]
+            if chart_id is not None
+        ])
+        chart_ids_by_uid = {uid: chart_id for chart_id, uid in chart_uids_by_id.items()}
+        subject_chart_uid = chart_uids_by_id.get(int(subject_chart_id)) if subject_chart_id is not None else None
+        row_signatures = self._similar_charts_popout_database_row_signatures(
+            chart_rows,
+            chart_uids_by_id=chart_uids_by_id,
+        )
         chart_names_by_id = self._similar_charts_popout_chart_names_by_id(chart_rows)
         candidates: list[tuple[int, Chart]] | None = None
         cache_key = self._similar_charts_popout_cache_key(
@@ -25454,29 +25490,30 @@ class MainWindow(QMainWindow):
             subject_chart_id=subject_chart_id,
             algorithm_mode=algorithm_mode,
             rows=chart_rows,
+            subject_chart_uid=subject_chart_uid,
         )
         cached_payload = self._get_cached_similar_charts_popout_payload(cache_key)
         cached_row_signatures = {
-            int(chart_id): signature
-            for chart_id, signature in ((cached_payload or {}).get("row_signatures") or {}).items()
+            str(chart_uid): signature
+            for chart_uid, signature in ((cached_payload or {}).get("row_signatures") or {}).items()
         }
-        changed_chart_ids = {
-            int(chart_id)
-            for chart_id, signature in row_signatures.items()
-            if cached_row_signatures.get(int(chart_id)) != signature
+        changed_chart_uids = {
+            str(chart_uid)
+            for chart_uid, signature in row_signatures.items()
+            if cached_row_signatures.get(str(chart_uid)) != signature
         }
-        deleted_chart_ids = {
-            int(chart_id)
-            for chart_id in cached_row_signatures
-            if int(chart_id) not in row_signatures
+        deleted_chart_uids = {
+            str(chart_uid)
+            for chart_uid in cached_row_signatures
+            if str(chart_uid) not in row_signatures
         }
         incremental_refresh_supported = (
             cached_payload is not None
             and algorithm_mode != SIMILAR_CHARTS_ALGORITHM_DATABASE_DISTINCTION
-            and subject_chart_id not in changed_chart_ids
+            and (not subject_chart_uid or subject_chart_uid not in changed_chart_uids)
         )
         performed_full_recompute = False
-        if cached_payload is not None and not changed_chart_ids and not deleted_chart_ids:
+        if cached_payload is not None and not changed_chart_uids and not deleted_chart_uids:
             # # Exact same subject/settings/database state within this app session:
             # # reuse the just-computed rankings instead of showing the expensive
             # # progress dialog and recalculating both Top/Bottom lists.
@@ -25502,7 +25539,8 @@ class MainWindow(QMainWindow):
                 [
                     match
                     for match in list(cached_payload.get("most_similar_matches") or [])
-                    if int(match.chart_id) not in changed_chart_ids and int(match.chart_id) not in deleted_chart_ids
+                    if chart_uids_by_id.get(int(match.chart_id)) not in changed_chart_uids
+                    and chart_uids_by_id.get(int(match.chart_id)) not in deleted_chart_uids
                 ],
                 chart_names_by_id=chart_names_by_id,
             )
@@ -25510,18 +25548,23 @@ class MainWindow(QMainWindow):
                 [
                     match
                     for match in list(cached_payload.get("least_similar_matches") or [])
-                    if int(match.chart_id) not in changed_chart_ids and int(match.chart_id) not in deleted_chart_ids
+                    if chart_uids_by_id.get(int(match.chart_id)) not in changed_chart_uids
+                    and chart_uids_by_id.get(int(match.chart_id)) not in deleted_chart_uids
                 ],
                 chart_names_by_id=chart_names_by_id,
             )
+            refreshed_chart_ids = [
+                int(changed_chart_id)
+                for changed_chart_uid in sorted(changed_chart_uids)
+                if (changed_chart_id := chart_ids_by_uid.get(changed_chart_uid)) is not None
+                and (subject_chart_id is None or int(changed_chart_id) != subject_chart_id)
+            ]
+            refreshed_charts_by_id = load_charts(refreshed_chart_ids) if refreshed_chart_ids else {}
             refreshed_candidates: list[tuple[int, Chart]] = []
-            for changed_chart_id in sorted(changed_chart_ids):
-                if subject_chart_id is not None and changed_chart_id == subject_chart_id:
-                    continue
-                try:
-                    refreshed_chart = load_chart(changed_chart_id)
-                except Exception:
-                    logger.exception("Failed to load changed Similar Charts candidate %s", changed_chart_id)
+            for changed_chart_id in refreshed_chart_ids:
+                refreshed_chart = refreshed_charts_by_id.get(changed_chart_id)
+                if refreshed_chart is None:
+                    logger.warning("Failed to load changed Similar Charts candidate %s", changed_chart_id)
                     continue
                 if _chart_is_placeholder(refreshed_chart):
                     continue
@@ -25726,19 +25769,17 @@ class MainWindow(QMainWindow):
         perceived_accuracy_uid_by_chart_id = {}
         if show_perceived_accuracy_controls:
             perceived_accuracy_states = load_chart_similarity_relationship_states()
-            perceived_accuracy_uid_by_chart_id = get_chart_uid_map(
-                [
-                    chart_id
-                    for chart_id in [subject_chart_id, *(chart_id for chart_id, _candidate in candidates)]
-                    if chart_id is not None
-                ]
-            )
+            perceived_accuracy_uid_by_chart_id = {
+                chart_id: uid
+                for chart_id, uid in chart_uids_by_id.items()
+                if chart_id in {chart_id for chart_id in [subject_chart_id, *candidate_chart_ids] if chart_id is not None}
+            }
             if performed_full_recompute:
                 update_similar_charts_loading_progress(progress, "Preparing perceived-accuracy results…", 96)
             all_accuracy_entries = self._similar_charts_perceived_accuracy_entries_for_states(
                 chart=chart,
                 subject_chart_id=subject_chart_id,
-                candidates=candidates,
+                candidates=candidates or [],
                 perceived_accuracy_states=perceived_accuracy_states,
                 algorithm_mode=algorithm_mode,
                 ranked_matches=most_similar_matches,

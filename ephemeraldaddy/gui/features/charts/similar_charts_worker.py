@@ -8,7 +8,7 @@ from PySide6.QtCore import QObject, Signal
 
 from ephemeraldaddy.analysis.get_astro_twin import find_astro_twins
 from ephemeraldaddy.core.chart import Chart
-from ephemeraldaddy.core.db import list_charts, load_chart
+from ephemeraldaddy.core.db import list_charts, load_chart, load_charts
 from ephemeraldaddy.gui.features.charts.similar_charts_popout import (
     load_similar_chart_candidates,
 )
@@ -58,6 +58,7 @@ class SimilarChartsWorker(QObject):
                 rows=rows,
                 current_chart_id=self._current_chart_id,
                 load_chart_by_id=load_chart,
+                load_charts_by_ids=load_charts,
                 hidden_chart_ids=self._hidden_chart_ids,
                 include_hidden_charts=self._include_hidden_charts,
             )

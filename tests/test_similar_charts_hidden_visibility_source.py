@@ -57,3 +57,4 @@ def test_chart_view_similar_charts_worker_receives_hidden_chart_visibility():
     assert "hidden_chart_ids: set[int] | None = None" in worker_source
     assert "self._hidden_chart_ids = set(hidden_chart_ids or set())" in worker_source
     assert "include_hidden_charts=self._include_hidden_charts" in worker_source
+    assert "load_charts_by_ids=load_charts" in worker_source
