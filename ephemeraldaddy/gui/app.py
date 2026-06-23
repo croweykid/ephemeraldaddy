@@ -22,6 +22,7 @@ import traceback
 import uuid
 import urllib.parse
 import platform
+import pickle
 from collections import Counter, OrderedDict
 from typing import Any, Callable, Mapping
 from types import SimpleNamespace
@@ -1148,6 +1149,31 @@ GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS: frozenset[str] = frozenset(
 )
 SIMILAR_CHARTS_EXPORT_FORMAT_KEY = "exports/similar_charts_format"
 CHART_VIEW_NAV_CACHE_LIMIT = 24
+
+DATABASE_METRICS_PERSISTENT_CACHE_VERSION = 1
+DATABASE_METRICS_PERSISTENT_CACHE_FILENAME = ".database_metrics_cache.pkl"
+DATABASE_METRICS_SECTION_ORDER: tuple[str, ...] = (
+    "planetary_sign_prevalence",
+    "sentiment_prevalence",
+    "relationship_prevalence",
+    "alignment_summary",
+    "matched_expectations_summary",
+    "sign_prevalence",
+    "dominant_signs",
+    "decans",
+    "nakshatras",
+    "cumulativedom_factors",
+    "enneagram",
+    "species_distribution",
+    "birth_time",
+    "age",
+    "birth_month",
+    "birthplace",
+    "tag_distribution",
+    "gender",
+    "human_design",
+    "bazi",
+)
 
 GENERATION_UNKNOWN_OPTION = "unknown"
 GENERATION_FILTER_OPTIONS: tuple[str, ...] = tuple(
@@ -3082,31 +3108,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         }
 
     def _expanded_database_metric_sections(self) -> list[str]:
-        section_order = [
-            "planetary_sign_prevalence",
-            "sentiment_prevalence",
-            "relationship_prevalence",
-            "alignment_summary",
-            "matched_expectations_summary",
-            "sign_prevalence",
-            "dominant_signs",
-            "decans",
-            "nakshatras",
-            "cumulativedom_factors",
-            "enneagram",
-            "species_distribution",
-            "birth_time",
-            "age",
-            "birth_month",
-            "birthplace",
-            "tag_distribution",
-            "gender",
-            "human_design",
-            "bazi",
-        ]
         return [
             section_key
-            for section_key in section_order
+            for section_key in DATABASE_METRICS_SECTION_ORDER
             if self._is_database_metrics_section_expanded(section_key)
             and self._is_database_metrics_section_visible(section_key)
             and not (
@@ -3161,14 +3165,69 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
 
     def _start_database_metrics_cache_preload(self) -> None:
-        """Warm Database Analytics source data after startup without expanding panels."""
+        """Restore persisted Database Analytics snapshots without recalculating at startup."""
         if self._database_metrics_cache is not None:
             return
         try:
-            self._refresh_database_metrics_cache(force_full_refresh=True)
+            self._load_database_metrics_persistent_cache()
         except Exception:
             traceback.print_exc()
-            self._database_metrics_cache = self._empty_database_metrics_cache()
+            self._database_metrics_cache = None
+
+    def _database_metrics_persistent_cache_path(self) -> Path:
+        return DB_DIR / DATABASE_METRICS_PERSISTENT_CACHE_FILENAME
+
+    def _database_metrics_rows_token(self) -> tuple[tuple[int, str], ...]:
+        row_tokens: list[tuple[int, str]] = []
+        for row in getattr(self, "_chart_rows", []) or []:
+            try:
+                chart_id = int(row[0])
+            except Exception:
+                continue
+            row_tokens.append((chart_id, repr(row)))
+        return tuple(sorted(row_tokens))
+
+    def _load_database_metrics_persistent_cache(self) -> bool:
+        path = self._database_metrics_persistent_cache_path()
+        if not path.exists():
+            return False
+        with path.open("rb") as cache_file:
+            payload = pickle.load(cache_file)
+        if not isinstance(payload, dict):
+            return False
+        if payload.get("version") != DATABASE_METRICS_PERSISTENT_CACHE_VERSION:
+            return False
+        if payload.get("rows_token") != self._database_metrics_rows_token():
+            return False
+        cache = payload.get("cache")
+        snapshots = payload.get("snapshots")
+        sections = payload.get("snapshot_sections")
+        if not isinstance(cache, dict) or not isinstance(snapshots, dict):
+            return False
+        self._database_metrics_cache = cache
+        self._database_metric_snapshots = snapshots
+        self._database_metrics_snapshot_sections = frozenset(sections or ())
+        self._database_metrics_lucy_goosey_ids.clear()
+        return True
+
+    def _save_database_metrics_persistent_cache(self) -> None:
+        try:
+            self._refresh_database_metrics_cache(
+                force_full_refresh=self._database_metrics_cache is None,
+                computed_sections=frozenset(DATABASE_METRICS_SECTION_ORDER),
+            )
+            DB_DIR.mkdir(parents=True, exist_ok=True)
+            payload = {
+                "version": DATABASE_METRICS_PERSISTENT_CACHE_VERSION,
+                "rows_token": self._database_metrics_rows_token(),
+                "snapshot_sections": tuple(self._database_metrics_snapshot_sections),
+                "cache": self._database_metrics_cache,
+                "snapshots": self._database_metric_snapshots,
+            }
+            with self._database_metrics_persistent_cache_path().open("wb") as cache_file:
+                pickle.dump(payload, cache_file, protocol=pickle.HIGHEST_PROTOCOL)
+        except Exception:
+            traceback.print_exc()
 
     def _update_position_sign_subheader(self) -> None:
         subheader = getattr(self, "position_sign_distribution_subheader", None)
@@ -9367,10 +9426,21 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         
         self._apply_bazi_snapshot_delta(totals, snapshot, direction)
 
-    def _refresh_database_metrics_cache(self, force_full_refresh: bool = False) -> None:
-        computed_sections = frozenset(self._expanded_database_metric_sections())
-        if computed_sections != self._database_metrics_snapshot_sections:
+    def _refresh_database_metrics_cache(
+        self,
+        force_full_refresh: bool = False,
+        computed_sections: frozenset[str] | None = None,
+    ) -> None:
+        computed_sections = frozenset(
+            self._expanded_database_metric_sections()
+            if computed_sections is None
+            else computed_sections
+        )
+        if not computed_sections.issubset(self._database_metrics_snapshot_sections):
             force_full_refresh = True
+            snapshot_sections = computed_sections
+        else:
+            snapshot_sections = self._database_metrics_snapshot_sections
         if self._database_metrics_cache is None or force_full_refresh:
             cache = self._empty_database_metrics_cache()
             self._database_metric_snapshots = {}
@@ -9379,12 +9449,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for chart_id in active_ids:
                 snapshot = self._build_chart_metric_snapshot(
                     chart_id,
-                    computed_sections=computed_sections,
+                    computed_sections=snapshot_sections,
                 )
                 self._database_metric_snapshots[chart_id] = snapshot
                 self._apply_snapshot_delta(cache, snapshot, 1)
             self._database_metrics_cache = cache
-            self._database_metrics_snapshot_sections = computed_sections
+            self._database_metrics_snapshot_sections = snapshot_sections
             self._database_metrics_lucy_goosey_ids.clear()
             return
         cache = self._database_metrics_cache
@@ -9402,12 +9472,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._chart_cache.pop(chart_id, None)
             current = self._build_chart_metric_snapshot(
                 chart_id,
-                computed_sections=computed_sections,
+                computed_sections=snapshot_sections,
             )
             self._database_metric_snapshots[chart_id] = current
             self._apply_snapshot_delta(cache, current, 1)
         cache["chart_ids"] = set(active_ids)
-        self._database_metrics_snapshot_sections = computed_sections
+        self._database_metrics_snapshot_sections = snapshot_sections
         self._database_metrics_lucy_goosey_ids.clear()
 
     def _iter_database_metric_snapshots(self, chart_ids: list[int] | set[int] | None = None):
@@ -16053,6 +16123,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         parent = self.parent()
         if isinstance(parent, MainWindow):
             parent.allow_close_for_app_exit()
+
+        self._save_database_metrics_persistent_cache()
 
         super().closeEvent(event)
 
