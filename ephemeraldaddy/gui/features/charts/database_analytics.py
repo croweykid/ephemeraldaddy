@@ -107,6 +107,7 @@ from ephemeraldaddy.core.interpretations import (
     BAZI_ZODIAC,
     ENNEAGRAM,
     ELEMENT_COLORS,
+    MODE_COLORS,
     HOUSE_COLORS,
     NAKSHATRA_RANGES,
     NAKSHATRA_PLANET_COLOR,
@@ -1361,6 +1362,70 @@ class DatabaseAnalyticsChartsMixin:
         return None
 
     @staticmethod
+    def _database_analytics_color_for_label(label: str, chart_title: str = "") -> str:
+        clean_label = DatabaseAnalyticsChartsMixin._clean_database_analytics_label(label)
+        label_key = clean_label.casefold()
+        if clean_label in SIGN_COLORS:
+            return str(SIGN_COLORS[clean_label])
+        if clean_label in PLANET_COLORS:
+            return str(PLANET_COLORS[clean_label])
+        if clean_label in HOUSE_COLORS:
+            return str(HOUSE_COLORS[clean_label])
+        house_match = re.fullmatch(r"house\s+(1[0-2]|[1-9])", label_key)
+        if house_match:
+            return str(HOUSE_COLORS.get(f"House {house_match.group(1)}", CHART_DATA_HIGHLIGHT_COLOR))
+        if clean_label in ELEMENT_COLORS:
+            return str(ELEMENT_COLORS[clean_label])
+        mode_color = MODE_COLORS.get(label_key)
+        if mode_color:
+            return str(mode_color)
+        nakshatra_color = NAKSHATRA_PLANET_COLOR.get(clean_label)
+        if nakshatra_color:
+            return str(nakshatra_color[1])
+        authority_key = normalize_hd_authority_key(canonicalize_hd_authority_label(clean_label))
+        if HD_AUTHORITY_COLORS.get(authority_key):
+            return str(HD_AUTHORITY_COLORS[authority_key])
+        if clean_label in DatabaseAnalyticsChartsMixin.HD_CENTER_COLORS:
+            return str(DatabaseAnalyticsChartsMixin.HD_CENTER_COLORS[clean_label])
+        if clean_label.casefold() in BAZI_ZODIAC:
+            color = (BAZI_ZODIAC.get(clean_label.casefold(), {}) or {}).get("color")
+            return str(color or CHART_DATA_HIGHLIGHT_COLOR)
+        return CHART_DATA_HIGHLIGHT_COLOR
+
+    @staticmethod
+    def _database_analytics_category_name(label: str, chart_title: str) -> str:
+        clean_label = DatabaseAnalyticsChartsMixin._clean_database_analytics_label(label)
+        title_key = str(chart_title or "").casefold()
+        label_key = clean_label.casefold()
+        if clean_label in SIGN_COLORS:
+            return "Zodiac sign"
+        if clean_label in PLANET_COLORS:
+            return "Astrological body / point"
+        if clean_label in HOUSE_COLORS or re.fullmatch(r"house\s+(1[0-2]|[1-9])", label_key):
+            return "Astrological house"
+        if clean_label in ELEMENT_COLORS:
+            return "Element"
+        if MODE_COLORS.get(label_key):
+            return "Mode / modality"
+        if clean_label in {str(name) for name, *_ in NAKSHATRA_RANGES}:
+            return "Nakshatra"
+        if clean_label in RELATION_TYPE:
+            return "Relationship classification"
+        if clean_label in SENTIMENT_COLORS or "sentiment" in title_key:
+            return "Sentiment / tone"
+        if clean_label.casefold() in BAZI_ZODIAC or "bazi" in title_key:
+            return "BaZi / Chinese astrology"
+        if DatabaseAnalyticsChartsMixin._enneagram_type_for_database_label(clean_label) is not None or "enneagram" in title_key:
+            return "Enneagram type"
+        if clean_label in AGE_BRACKETS or "age" in title_key:
+            return "Age bucket"
+        if "birth" in title_key:
+            return "Birth-data category"
+        if "tag" in title_key:
+            return "Saved tag"
+        return "Database analytics category"
+
+    @staticmethod
     def _database_analytics_definition_for_label(label: str, chart_title: str) -> str:
         clean_label = DatabaseAnalyticsChartsMixin._clean_database_analytics_label(label)
         title_key = str(chart_title or "").casefold()
@@ -1373,6 +1438,10 @@ class DatabaseAnalyticsChartsMixin:
             return f"{clean_label} is an astrological house category; this bar compares how often placements or dominance land there."
         if clean_label in ELEMENT_COLORS:
             return f"{clean_label} is an elemental category; this bar compares that element's share in the analytics."
+        if MODE_COLORS.get(label_key):
+            return f"{clean_label} is a mode/modality category; this bar compares how often Cardinal, Fixed, or Mutable emphasis appears."
+        if clean_label in {str(name) for name, *_ in NAKSHATRA_RANGES}:
+            return f"{clean_label} is a nakshatra category; this bar compares how often placements or dominance fall in that lunar mansion."
         if clean_label in RELATION_TYPE:
             return f"{clean_label} is a relationship classification assigned to charts; this bar compares its frequency."
         if clean_label in SENTIMENT_COLORS or "sentiment" in title_key:
@@ -1465,10 +1534,13 @@ class DatabaseAnalyticsChartsMixin:
                 "<p><b>Standard deviation / SE guide lines:</b> The red dashed lines mark about one and two standard errors away from the baseline. "
                 "A bar inside the first pair is usually ordinary noise; reaching the ±1 line is a mild signal; reaching or passing the ±2 line is a stronger clue that the selection genuinely differs from raw probability.</p>"
             )
+        label_color = self._database_analytics_color_for_label(clean_label, clean_title)
+        category_name = self._database_analytics_category_name(clean_label, clean_title)
         return (
-            f"<h3>{html.escape(clean_label)}</h3>"
-            f"<p><b>What this measures:</b> {html.escape(definition)}</p>"
-            f"<p><b>Where it appears:</b> <i>{html.escape(clean_title)}</i>.</p>"
+            f'<h3 style="color:{html.escape(label_color)}; font-weight:800;">{html.escape(clean_label)}</h3>'
+            f'<p><b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">Category:</b> {html.escape(category_name)}</p>'
+            f'<p><b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">What this measures:</b> {html.escape(definition)}</p>'
+            f'<p><b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">Where it appears:</b> <i>{html.escape(clean_title)}</i>.</p>'
             f"{value_line}"
             f"{std_dev_line}"
         )
@@ -1678,6 +1750,10 @@ class DatabaseAnalyticsChartsMixin:
             return f"{clean_label} is an astrological house category; this bar compares how often placements or dominance land there."
         if clean_label in ELEMENT_COLORS:
             return f"{clean_label} is an elemental category; this bar compares that element's share in the analytics."
+        if MODE_COLORS.get(label_key):
+            return f"{clean_label} is a mode/modality category; this bar compares how often Cardinal, Fixed, or Mutable emphasis appears."
+        if clean_label in {str(name) for name, *_ in NAKSHATRA_RANGES}:
+            return f"{clean_label} is a nakshatra category; this bar compares how often placements or dominance fall in that lunar mansion."
         if clean_label in RELATION_TYPE:
             return f"{clean_label} is a relationship classification assigned to charts; this bar compares its frequency."
         if clean_label in SENTIMENT_COLORS or "sentiment" in title_key:
@@ -1742,10 +1818,13 @@ class DatabaseAnalyticsChartsMixin:
                 "<p><b>Standard deviation / SE guide lines:</b> The red dashed lines mark about one and two standard errors away from the baseline. "
                 "A bar inside the first pair is usually ordinary noise; reaching the ±1 line is a mild signal; reaching or passing the ±2 line is a stronger clue that the selection may genuinely differ from the database, though it is still not proof by itself.</p>"
             )
+        label_color = self._database_analytics_color_for_label(clean_label, clean_title)
+        category_name = self._database_analytics_category_name(clean_label, clean_title)
         return (
-            f"<h3>{html.escape(clean_label)}</h3>"
-            f"<p><b>What this measures:</b> {html.escape(definition)}</p>"
-            f"<p><b>Where it appears:</b> <i>{html.escape(clean_title)}</i>.</p>"
+            f'<h3 style="color:{html.escape(label_color)}; font-weight:800;">{html.escape(clean_label)}</h3>'
+            f'<p><b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">Category:</b> {html.escape(category_name)}</p>'
+            f'<p><b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">What this measures:</b> {html.escape(definition)}</p>'
+            f'<p><b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">Where it appears:</b> <i>{html.escape(clean_title)}</i>.</p>'
             f"{value_line}"
             f"{std_dev_line}"
         )
