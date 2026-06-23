@@ -1074,6 +1074,7 @@ from ephemeraldaddy.gui.features.controllers.chart_view_window import (
     build_chart_view_left_panel,
     build_chart_view_middle_header_controls,
     build_chart_view_right_panel,
+    build_subjective_notes_alignment_sections,
     draw_weight_distribution_reference_lines,
     format_weight_distribution_html,
     format_unknown_positions_summary_html,
@@ -23521,59 +23522,10 @@ class MainWindow(QMainWindow):
             3,
             1,
         )
-        alignment_box = QFrame()
-        alignment_box.setStyleSheet(
-            "QFrame {"
-            "background-color: #1c1c1c;"
-            "border: 1px solid #2b2b2b;"
-            "border-radius: 6px;"
-            "}"
+        build_subjective_notes_alignment_sections(
+            self,
+            sentiment_metrics_container_layout,
         )
-        alignment_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
-        alignment_box_layout = QVBoxLayout()
-        alignment_box_layout.setContentsMargins(8, 8, 8, 8)
-        alignment_box_layout.setSpacing(6)
-        alignment_box.setLayout(alignment_box_layout)
-
-        self.alignment_panel_toggle = QToolButton()
-        configure_collapsible_header_toggle(
-            self.alignment_panel_toggle,
-            title="💭Alignment",
-            expanded=True,
-            style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
-        )
-
-        alignment_content_widget = QWidget()
-        alignment_content_layout = QVBoxLayout()
-        alignment_content_layout.setContentsMargins(0, 0, 0, 0)
-        alignment_content_layout.setSpacing(4)
-        alignment_content_layout.addWidget(
-            QLabel("😈 Most evil   ⟷   Most altruistic 😇")
-        )
-        alignment_content_layout.addWidget(self.alignment_slider)
-        alignment_content_layout.addWidget(self.alignment_score_label)
-        alignment_content_layout.addSpacing(6)
-        alignment_content_layout.addWidget(QLabel("Sexiness"))
-        alignment_content_layout.addWidget(QLabel("not my type   ⟷   extremely hot"))
-        alignment_content_layout.addWidget(self.sexiness_slider)
-        alignment_content_layout.addWidget(self.sexiness_score_label)
-        alignment_content_widget.setLayout(alignment_content_layout)
-        self.alignment_panel_toggle.toggled.connect(
-            lambda expanded: self._toggle_chart_panel_content(
-                self.alignment_panel_toggle,
-                alignment_content_widget,
-                expanded,
-            )
-        )
-        alignment_box_layout.addWidget(self.alignment_panel_toggle)
-        alignment_content_widget.setVisible(True)
-        alignment_box_layout.addWidget(alignment_content_widget)
-        self._toggle_chart_panel_content(
-            self.alignment_panel_toggle,
-            alignment_content_widget,
-            True,
-        )
-        sentiment_metrics_container_layout.addWidget(alignment_box)
 
         sentiment_metrics_row_layout.addWidget(source_controls_widget, 0)
         self.inputs_layout.addWidget(sentiment_metrics_row, 0, Qt.AlignHCenter)
@@ -31929,6 +31881,8 @@ class MainWindow(QMainWindow):
             self.isVisible(),
             self.current_chart_id,
         )
+        if startup_progress is None and not self._confirm_discard_or_save():
+            return False
         self._chart_view_history.clear()
         self._chart_view_history_index = -1
         self._flush_pending_sentiment_metrics_save()
@@ -31941,11 +31895,12 @@ class MainWindow(QMainWindow):
             progress_callback=startup_progress,
         )
         if not opened:
-            return
+            return False
         if startup_progress:
             startup_progress("Database View shell is open…", 92)
         QTimer.singleShot(0, self._raise_manage_charts_dialog)
         self._retarget_size_checker_to_database_view()
+        return True
 
     def _on_close_requested(self) -> None:
         self.close()

@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QPushButton,
     QScrollArea,
+    QToolButton,
     QSlider,
     QStackedWidget,
     QSizePolicy,
@@ -61,7 +62,12 @@ from ephemeraldaddy.gui.features.charts.anagrams import AnagramsPresenter, build
 from ephemeraldaddy.gui.features.charts.loading_overlay import ChartLoadingOverlay
 from ephemeraldaddy.gui.features.charts.time_sensitivity_panel import TimeSensitivityPanel
 from ephemeraldaddy.gui.features.controllers.chart_right_panel import ChartRightPanelController
-from ephemeraldaddy.gui.style import apply_button_cursor, apply_chart_info_link_cursor
+from ephemeraldaddy.gui.style import (
+    DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
+    apply_button_cursor,
+    apply_chart_info_link_cursor,
+    configure_collapsible_header_toggle,
+)
 from ephemeraldaddy.gui.features.charts.tagging import (
     normalize_tag_list,
     parse_tag_text,
@@ -1144,6 +1150,83 @@ def _build_material_facts_panel(owner: QWidget) -> QWidget:
     layout.addStretch(1)
     return panel
 
+
+
+def build_subjective_notes_alignment_sections(owner: QWidget, layout: QVBoxLayout) -> None:
+    """Build Subjective Notes Alignment and Sexiness collapsible sections."""
+    alignment_box = _build_subjective_notes_metric_section(
+        owner,
+        title="💭Alignment",
+        content_builder=lambda content_layout: _populate_alignment_section(owner, content_layout),
+    )
+    layout.addWidget(alignment_box)
+
+    sexiness_box = _build_subjective_notes_metric_section(
+        owner,
+        title="Sexiness",
+        content_builder=lambda content_layout: _populate_sexiness_section(owner, content_layout),
+    )
+    layout.addWidget(sexiness_box)
+
+
+def _build_subjective_notes_metric_section(
+    owner: QWidget,
+    *,
+    title: str,
+    content_builder: Callable[[QVBoxLayout], None],
+) -> QFrame:
+    section_box = QFrame()
+    section_box.setStyleSheet(
+        "QFrame {"
+        "background-color: #1c1c1c;"
+        "border: 1px solid #2b2b2b;"
+        "border-radius: 6px;"
+        "}"
+    )
+    section_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+    section_layout = QVBoxLayout()
+    section_layout.setContentsMargins(8, 8, 8, 8)
+    section_layout.setSpacing(6)
+    section_box.setLayout(section_layout)
+
+    section_toggle = QToolButton()
+    configure_collapsible_header_toggle(
+        section_toggle,
+        title=title,
+        expanded=True,
+        style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
+    )
+
+    content_widget = QWidget()
+    content_layout = QVBoxLayout()
+    content_layout.setContentsMargins(0, 0, 0, 0)
+    content_layout.setSpacing(4)
+    content_builder(content_layout)
+    content_widget.setLayout(content_layout)
+    section_toggle.toggled.connect(
+        lambda expanded: owner._toggle_chart_panel_content(
+            section_toggle,
+            content_widget,
+            expanded,
+        )
+    )
+    section_layout.addWidget(section_toggle)
+    content_widget.setVisible(True)
+    section_layout.addWidget(content_widget)
+    owner._toggle_chart_panel_content(section_toggle, content_widget, True)
+    return section_box
+
+
+def _populate_alignment_section(owner: QWidget, content_layout: QVBoxLayout) -> None:
+    content_layout.addWidget(QLabel("😈 Most evil   ⟷   Most altruistic 😇"))
+    content_layout.addWidget(owner.alignment_slider)
+    content_layout.addWidget(owner.alignment_score_label)
+
+
+def _populate_sexiness_section(owner: QWidget, content_layout: QVBoxLayout) -> None:
+    content_layout.addWidget(QLabel("not my type   ⟷   extremely hot"))
+    content_layout.addWidget(owner.sexiness_slider)
+    content_layout.addWidget(owner.sexiness_score_label)
 
 def _build_subjective_notes_panel(owner: QWidget) -> tuple[QWidget, QVBoxLayout]:
     """Build Subjective Notes tab body widget + layout."""
