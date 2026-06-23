@@ -1939,6 +1939,7 @@ def _apply_global_dropdown_and_menu_styles(app: QApplication) -> None:
         "\n"
         f"{DEFAULT_DROPDOWN_STYLE}\n"
         f"{WINDOW_CHROME_MENU_STYLE}\n"
+        f"{RIGHT_PANEL_SCROLLBAR_STYLE}\n"
     )
     existing = app.styleSheet() or ""
     if global_rules.strip() in existing:
@@ -2594,7 +2595,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         database_view_header_button_style = (
             "padding: 1px 5px; font-size: 11px; "
-            "background-color: #000000; border: none;"
+            "background-color: #333333; border: 1px solid #555555;"
         )
 
         for control_button in (
@@ -20742,7 +20743,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         dialog.setModal(False)
         dialog.setMinimumSize(520, 520)
         dialog.setStyleSheet(
-            "QDialog { background-color: #181818; color: #ececec; }"
+            "QDialog { background-color: #111111; color: #ececec; }"
             "QLabel { color: #ececec; }"
             "QToolButton {"
             "background-color: #262626;"
@@ -20759,10 +20760,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "}"
             "QPushButton:hover { background-color: #3a3a3a; }"
             "QFrame#settings_section_content {"
-            "background-color: #202020;"
+            "background-color: #111111;"
             "border: 1px solid #4f4f4f;"
             "}"
-            "QScrollArea { background-color: #181818; }"
+            "QScrollArea { background-color: #111111; }"
+            "QScrollArea::viewport { background-color: #111111; }"
         )
 
         root_layout = QVBoxLayout(dialog)

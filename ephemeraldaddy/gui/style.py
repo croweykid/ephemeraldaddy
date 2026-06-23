@@ -269,26 +269,50 @@ QScrollArea::viewport {
     background: #111111;
 }
 QScrollBar:vertical {
-    background: #111111;
+    background: #240046;
     width: 8px;
     margin: 0px;
 }
 QScrollBar::handle:vertical {
-    background: #0b0b0b;
+    background: #3c096c;
     min-height: 20px;
     border-radius: 4px;
 }
 QScrollBar::handle:vertical:hover {
-    background: #111111;
+    background: #5a189a;
 }
 QScrollBar::add-line:vertical,
 QScrollBar::sub-line:vertical {
+    background: #240046;
     height: 0px;
     width: 0px;
 }
 QScrollBar::add-page:vertical,
 QScrollBar::sub-page:vertical {
-    background: none;
+    background: #240046;
+}
+QScrollBar:horizontal {
+    background: #240046;
+    height: 8px;
+    margin: 0px;
+}
+QScrollBar::handle:horizontal {
+    background: #3c096c;
+    min-width: 20px;
+    border-radius: 4px;
+}
+QScrollBar::handle:horizontal:hover {
+    background: #5a189a;
+}
+QScrollBar::add-line:horizontal,
+QScrollBar::sub-line:horizontal {
+    background: #240046;
+    height: 0px;
+    width: 0px;
+}
+QScrollBar::add-page:horizontal,
+QScrollBar::sub-page:horizontal {
+    background: #240046;
 }
 """
 
