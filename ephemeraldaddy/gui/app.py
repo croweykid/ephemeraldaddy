@@ -16290,6 +16290,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.incomplete_birthdate_checkbox.setMode(QuadStateSlider.MODE_FALSE)
         blocker.unblock()
 
+    def _clear_chart_type_filters(self) -> None:
+        self._suppress_filter_refresh = True
+        try:
+            for checkbox in self.chart_type_filter_checkboxes.values():
+                checkbox.setMode(QuadStateSlider.MODE_EMPTY)
+        finally:
+            self._suppress_filter_refresh = False
+        self._on_filter_changed()
+
     def _clear_filters(self, refresh: bool = True) -> None:
         self._suppress_filter_refresh = True
         try:
@@ -16319,6 +16328,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 min_input.setText("")
             for max_input in self._dnd_stat_filter_max_inputs.values():
                 max_input.setText("")
+            for checkbox in self.chart_type_filter_checkboxes.values():
+                checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             self.search_text_input.setText("")
             if self._search_location_country_input is not None:
                 self._search_location_country_input.setText("")
