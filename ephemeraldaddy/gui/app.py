@@ -3011,6 +3011,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._schedule_database_metrics_background_preload()
             return
         if (
+            section_key in self._database_metrics_preloaded_sections
+            and self._database_metric_section_has_rendered_content(section_key)
+        ):
+            # The background preloader already built an accurate canvas for the
+            # current cache token. Reveal it immediately instead of forcing the
+            # same expensive section refresh onto the user's expand click.
+            self._schedule_database_metrics_background_preload()
+            return
+        if (
             self._left_panel_visible
             and self._active_left_panel in {"database_metrics", "gen_pop_norms"}
         ):
@@ -3022,6 +3031,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 0,
                 lambda key=section_key: self._refresh_expanded_database_metric_section(key),
             )
+
+    def _database_metric_section_has_rendered_content(self, section_key: str) -> bool:
+        layout = self._database_metrics_chart_layouts.get(section_key)
+        return bool(layout is not None and layout.count() > 0)
 
     def _refresh_expanded_database_metric_section(self, section_key: str) -> None:
         if (
@@ -3226,8 +3239,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if (
             self._deferred_database_metrics_refresh_scheduled
             or self._incremental_metrics_refresh_scheduled
-            or self._expanded_database_metric_sections()
         ):
+            self._schedule_database_metrics_background_preload()
+            return
+        if self._expanded_database_metric_sections():
             return
         if not self._database_metrics_background_preload_sections:
             self._database_metrics_background_preload_sections = (
