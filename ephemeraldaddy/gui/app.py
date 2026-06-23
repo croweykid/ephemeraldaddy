@@ -2467,6 +2467,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._toggle_similarities_panel
         )
 
+        self.perceived_similarity_predictors_panel_button = QPushButton("🧾")
+        self.perceived_similarity_predictors_panel_button.setObjectName(
+            "manage_toggle_perceived_similarity_predictors_panel_button"
+        )
+        self.perceived_similarity_predictors_panel_button.setToolTip(
+            "Review perceived-similarity predictors for the selected/searched chart"
+        )
+        self.perceived_similarity_predictors_panel_button.clicked.connect(
+            self._toggle_perceived_similarity_predictors_panel
+        )
+
         self.manage_collections_button = QPushButton("Manage Collections")
         self.manage_collections_button.setObjectName(
             "manage_toggle_collections_panel_button"
@@ -2541,6 +2552,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.database_metrics_panel_button,
             self.gen_pop_norms_panel_button,
             self.similarities_panel_button,
+            self.perceived_similarity_predictors_panel_button,
             self.batch_new_chart_button,
             self.batch_delete_chart_button,
             self.total_chart_export_button,
@@ -2651,6 +2663,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.similarities_controller.set_panel_scroll(
             self.similarities_analysis_panel_scroll
         )
+        self.perceived_similarity_predictors_panel = self._build_perceived_similarity_predictors_panel()
+        self.perceived_similarity_predictors_panel_scroll = self._wrap_left_panel(
+            self.perceived_similarity_predictors_panel
+        )
         QTimer.singleShot(0, self._start_database_metrics_cache_preload)
         self.left_panel_stack = QStackedWidget()
         self.left_panel_stack.setMinimumWidth(0)
@@ -2659,6 +2675,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "database_metrics": self.selection_sentiment_panel_scroll,
             "gen_pop_norms": self.selection_sentiment_panel_scroll,
             "similarities": self.similarities_analysis_panel_scroll,
+            "perceived_similarity_predictors": self.perceived_similarity_predictors_panel_scroll,
         }
         for widget in self._left_panel_widgets.values():
             self.left_panel_stack.addWidget(widget)
@@ -2699,6 +2716,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         left_controls_layout.addWidget(self.database_metrics_panel_button)
         left_controls_layout.addWidget(self.gen_pop_norms_panel_button)
         left_controls_layout.addWidget(self.similarities_panel_button)
+        left_controls_layout.addWidget(self.perceived_similarity_predictors_panel_button)
 
         right_controls_row = QWidget()
         right_controls_layout = QHBoxLayout()
@@ -6675,6 +6693,228 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _build_similarities_analysis_panel(self) -> QWidget:
         return self.similarities_controller.build_panel()
+
+    def _build_perceived_similarity_predictors_panel(self) -> QWidget:
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(8)
+
+        header = QLabel("🧾 Perceived Similarity Predictors")
+        header.setStyleSheet("font-weight: 700; font-size: 13px; color: #ffffff;")
+        layout.addWidget(header)
+
+        help_label = QLabel(
+            "Select one chart in Database View, then refresh to see which similarity "
+            "components most strongly show up in its high perceived-similarity scores."
+        )
+        help_label.setWordWrap(True)
+        help_label.setStyleSheet("color: #d9d9d9;")
+        layout.addWidget(help_label)
+
+        refresh_button = QPushButton("Refresh perceived predictors")
+        refresh_button.setObjectName("perceived_similarity_predictors_refresh_button")
+        refresh_button.clicked.connect(self._refresh_perceived_similarity_predictors_panel)
+        layout.addWidget(refresh_button)
+
+        self.perceived_similarity_predictors_output = QLabel()
+        self.perceived_similarity_predictors_output.setTextFormat(Qt.RichText)
+        self.perceived_similarity_predictors_output.setWordWrap(True)
+        self.perceived_similarity_predictors_output.setOpenExternalLinks(False)
+        self.perceived_similarity_predictors_output.setStyleSheet(
+            f"font-weight: 400; color: {CHART_DATA_HIGHLIGHT_COLOR};"
+        )
+        layout.addWidget(self.perceived_similarity_predictors_output)
+        layout.addStretch(1)
+        self._set_perceived_similarity_predictors_message(
+            "Select a chart and press Refresh."
+        )
+        return panel
+
+    def _set_perceived_similarity_predictors_message(self, message: str) -> None:
+        output = getattr(self, "perceived_similarity_predictors_output", None)
+        if output is not None:
+            output.setText(f"<div>{html.escape(message)}</div>")
+
+    def _refresh_perceived_similarity_predictors_panel(self) -> None:
+        output = getattr(self, "perceived_similarity_predictors_output", None)
+        if output is None:
+            return
+        selected_chart_ids = self._exclude_placeholder_chart_ids(self._selected_chart_ids())
+        if not selected_chart_ids:
+            self._set_perceived_similarity_predictors_message(
+                "Select a chart in Database View first."
+            )
+            return
+        subject_chart_id = int(selected_chart_ids[0])
+        try:
+            subject_chart = load_chart(subject_chart_id)
+        except Exception as exc:
+            self._set_perceived_similarity_predictors_message(
+                f"Could not load selected chart #{subject_chart_id}: {exc}"
+            )
+            return
+
+        states = load_chart_similarity_relationship_states()
+        if not states:
+            self._set_perceived_similarity_predictors_message(
+                "No perceived similarity scores have been saved yet."
+            )
+            return
+
+        uid_by_chart_id = {
+            int(chart_id): str(uid or "").strip().upper()
+            for chart_id, uid in get_chart_uid_map([subject_chart_id]).items()
+            if uid
+        }
+        subject_uid = uid_by_chart_id.get(subject_chart_id)
+        scored_compared_ids: list[int] = []
+        score_by_compared_id: dict[int, float] = {}
+        for state in states.values():
+            if not isinstance(state, Mapping):
+                continue
+            score = state.get("user_reported_accuracy")
+            if score is None or bool(state.get("not_applicable", False)):
+                continue
+            chart_ids = state.get("chart_ids") if isinstance(state.get("chart_ids"), list) else []
+            compared_id: int | None = None
+            if len(chart_ids) >= 2:
+                try:
+                    first_id = int(chart_ids[0])
+                    second_id = int(chart_ids[1])
+                except (TypeError, ValueError):
+                    first_id = second_id = None
+                if first_id == subject_chart_id:
+                    compared_id = second_id
+                elif second_id == subject_chart_id:
+                    compared_id = first_id
+            if compared_id is None and subject_uid:
+                chart_uids = state.get("chart_uids") if isinstance(state.get("chart_uids"), list) else []
+                normalized_uids = {str(uid or "").strip().upper() for uid in chart_uids}
+                if subject_uid in normalized_uids:
+                    other_uids = [uid for uid in normalized_uids if uid and uid != subject_uid]
+                    reverse_lookup = {
+                        str(uid or "").strip().upper(): int(chart_id)
+                        for chart_id, uid in get_chart_uid_map().items()
+                        if uid
+                    }
+                    compared_id = next((reverse_lookup.get(uid) for uid in other_uids if reverse_lookup.get(uid)), None)
+            if compared_id is None or compared_id == subject_chart_id:
+                continue
+            try:
+                score_by_compared_id[int(compared_id)] = float(score)
+            except (TypeError, ValueError):
+                continue
+        scored_compared_ids = sorted(
+            score_by_compared_id,
+            key=lambda chart_id: (-score_by_compared_id[chart_id], chart_id),
+        )
+        if not scored_compared_ids:
+            self._set_perceived_similarity_predictors_message(
+                f"No perceived similarity scores were found for {getattr(subject_chart, 'name', 'this chart')}."
+            )
+            return
+        compared_charts = load_charts(scored_compared_ids)
+        candidates = [
+            (chart_id, compared_charts[chart_id])
+            for chart_id in scored_compared_ids
+            if chart_id in compared_charts
+        ]
+        if not candidates:
+            self._set_perceived_similarity_predictors_message(
+                "The saved perceived-similarity scores point to charts that are no longer available."
+            )
+            return
+        algorithm_mode = _normalize_similar_charts_algorithm_mode(
+            self._settings.value(
+                SETTINGS_KEY_SIMILAR_CHARTS_ALGORITHM_MODE,
+                SIMILAR_CHARTS_ALGORITHM_DEFAULT,
+            )
+        )
+        matches = find_astro_twins(
+            subject_chart,
+            candidates,
+            top_k=len(candidates),
+            exclude_chart_id=subject_chart_id,
+            least_similar=False,
+            algorithm_mode=algorithm_mode,
+            custom_settings=getattr(self, "_similarity_calculator_settings", None),
+        )
+        component_labels = {
+            "placement": "Planet/sign placements",
+            "aspect": "Aspects",
+            "distribution": "Element/mode distribution",
+            "dominance": "Dominant planets/signs/houses",
+            "nakshatra_placement": "Nakshatra placements",
+            "nakshatra_dominance": "Dominant nakshatras",
+            "defined_centers": "Human Design defined centers",
+            "human_design_gates": "Human Design gates",
+            "human_design_channels": "Human Design channels",
+            "inner_planet_placement": "Inner planet placements",
+            "outer_planet_placement": "Outer planet placements",
+        }
+        totals: Counter[str] = Counter()
+        weights: Counter[str] = Counter()
+        examples: dict[str, list[str]] = {}
+        match_count = 0
+        for rank, match in enumerate(matches, start=1):
+            chart_id = int(getattr(match, "chart_id", 0) or 0)
+            perceived_score = score_by_compared_id.get(chart_id)
+            if perceived_score is None:
+                continue
+            rank_weight = 1.0 / max(1, rank)
+            perceived_weight = max(0.0, perceived_score) / 100.0
+            combined_weight = rank_weight * perceived_weight
+            match_count += 1
+            component_scores = dict(getattr(match, "component_scores", None) or {})
+            if not component_scores:
+                component_scores = {
+                    "placement": getattr(match, "placement_score", None),
+                    "aspect": getattr(match, "aspect_score", None),
+                    "distribution": getattr(match, "distribution_score", None),
+                    "dominance": getattr(match, "dominance_score", None),
+                    "nakshatra_placement": getattr(match, "nakshatra_score", None),
+                    "defined_centers": getattr(match, "hd_centers_score", None),
+                    "human_design_gates": getattr(match, "human_design_gates_score", None),
+                    "human_design_channels": getattr(match, "human_design_channels_score", None),
+                }
+            for key, raw_value in component_scores.items():
+                if raw_value is None:
+                    continue
+                value = max(0.0, min(1.0, float(raw_value)))
+                totals[key] += value * combined_weight
+                weights[key] += combined_weight
+                examples.setdefault(key, [])
+                if len(examples[key]) < 3:
+                    examples[key].append(str(getattr(match, "chart_name", "") or f"#{chart_id}"))
+        ranked_predictors = sorted(
+            (
+                (key, (totals[key] / weights[key]) * 100.0)
+                for key in totals
+                if weights[key] > 0
+            ),
+            key=lambda item: (-item[1], component_labels.get(item[0], item[0])),
+        )
+        if not ranked_predictors:
+            self._set_perceived_similarity_predictors_message(
+                "Perceived scores exist, but no similarity component rankings could be computed."
+            )
+            return
+        subject_name = html.escape(str(getattr(subject_chart, "name", "") or f"Chart #{subject_chart_id}"))
+        rows = [
+            f"<li><b>{html.escape(component_labels.get(key, key.replace('_', ' ').title()))}</b>: "
+            f"{score:.1f}% weighted high-rank signal"
+            f"<br><span style='color:#d9d9d9;'>Examples: "
+            f"{html.escape(', '.join(examples.get(key, [])[:3]))}</span></li>"
+            for key, score in ranked_predictors[:8]
+        ]
+        output.setText(
+            f"<div><b>{subject_name}</b></div>"
+            f"<div style='color:#d9d9d9; margin: 6px 0;'>Reviewed {match_count} saved perceived-similarity score(s). "
+            "Higher entries are components that were strongest among high-ranked, "
+            "highly perceived-similar comparisons.</div>"
+            f"<ol>{''.join(rows)}</ol>"
+        )
 
     def _set_similarities_db_info_panel_visible(self, visible: bool) -> None:
         self.similarities_controller.set_db_info_panel_visible(visible)
@@ -15488,6 +15728,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 update_database_metrics=False,
                 update_similarities=True,
             )
+        elif panel_name == "perceived_similarity_predictors":
+            self._refresh_perceived_similarity_predictors_panel()
 
     def _toggle_database_metrics_panel(self) -> None:
         if (
@@ -15530,6 +15772,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         self._show_left_panel("similarities")
 
+    def _toggle_perceived_similarity_predictors_panel(self) -> None:
+        if (
+            self._left_panel_visible
+            and self._active_left_panel == "perceived_similarity_predictors"
+            and not self._is_left_panel_collapsed()
+        ):
+            self._set_left_panel_visible(False)
+            return
+        self._show_left_panel("perceived_similarity_predictors")
+
     def _show_database_analytics_panel(self) -> None:
         self._show_left_panel("database_metrics")
 
@@ -15539,6 +15791,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _show_similarities_panel(self) -> None:
         self._show_left_panel("similarities")
+
+    def _show_perceived_similarity_predictors_panel(self) -> None:
+        self._show_left_panel("perceived_similarity_predictors")
 
     def _show_gen_pop_comparison_panel(self) -> None:
         self._show_left_panel("gen_pop_norms")
