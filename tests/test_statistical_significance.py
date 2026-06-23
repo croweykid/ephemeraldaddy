@@ -63,6 +63,17 @@ def test_proportion_z_test_accepts_explicit_totals_for_multilabel_categories():
     assert results[0].z_score > 4.0
 
 
+def test_proportion_z_test_accepts_category_count_mappings():
+    results = compute_proportion_significance_results(
+        selection_counts={"masculine": 3, "feminine": 1, "blank": 0},
+        database_counts={"masculine": 50, "feminine": 50, "blank": 0},
+        loaded_charts=4,
+    )
+
+    assert len(results) == 3
+    assert all(result.model == "category proportion z-test" for result in results)
+
+
 def test_proportion_z_test_suppresses_inference_for_single_selected_chart():
     results = compute_proportion_significance_results(
         selection_counts=[1, 0],

@@ -6,7 +6,7 @@ from dataclasses import dataclass, replace
 import math
 import random
 import statistics
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
 SIGNIFICANCE_CORRECTION_NONE = "none"
@@ -154,10 +154,17 @@ def proportion_standard_error(database_probability: float, selection_total: floa
     return math.sqrt(variance)
 
 
+def _non_negative_count_values(counts: Sequence[float | int] | Mapping[Any, float | int]) -> list[float]:
+    """Return chart count values while tolerating keyed category-count mappings."""
+
+    values = counts.values() if isinstance(counts, Mapping) else counts
+    return [max(0.0, float(value)) for value in values]
+
+
 def compute_proportion_significance_results(
     *,
-    selection_counts: Sequence[float | int],
-    database_counts: Sequence[float | int],
+    selection_counts: Sequence[float | int] | Mapping[Any, float | int],
+    database_counts: Sequence[float | int] | Mapping[Any, float | int],
     loaded_charts: int | float,
     correction: str = SIGNIFICANCE_CORRECTION_DEFAULT,
     selection_total: float | None = None,
@@ -169,15 +176,17 @@ def compute_proportion_significance_results(
     """
 
     normalized_correction = normalize_significance_correction(correction)
+    selection_count_values = _non_negative_count_values(selection_counts)
+    database_count_values = _non_negative_count_values(database_counts)
     resolved_selection_total = (
         float(selection_total)
         if selection_total is not None
-        else float(sum(max(0.0, float(value)) for value in selection_counts))
+        else float(sum(selection_count_values))
     )
     resolved_database_total = (
         float(database_total)
         if database_total is not None
-        else float(sum(max(0.0, float(value)) for value in database_counts))
+        else float(sum(database_count_values))
     )
     loaded_chart_count = float(loaded_charts or 0)
     has_selection = (
@@ -195,7 +204,7 @@ def compute_proportion_significance_results(
     )
     provisional: list[SignificanceResult] = []
     p_values: list[float | None] = []
-    for selection_count, database_count in zip(selection_counts, database_counts):
+    for selection_count, database_count in zip(selection_count_values, database_count_values):
         if not has_selection or suppress_inference:
             result = SignificanceResult(
                 standard_error=None,
@@ -209,8 +218,8 @@ def compute_proportion_significance_results(
             provisional.append(result)
             p_values.append(None)
             continue
-        p_database = max(0.0, float(database_count)) / resolved_database_total
-        p_selection = max(0.0, float(selection_count)) / resolved_selection_total
+        p_database = database_count / resolved_database_total
+        p_selection = selection_count / resolved_selection_total
         standard_error = proportion_standard_error(
             p_database,
             resolved_selection_total,
