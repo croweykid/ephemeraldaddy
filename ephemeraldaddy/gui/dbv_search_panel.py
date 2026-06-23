@@ -366,7 +366,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     chart_type_group_layout.addWidget(chart_type_divider)
 
     incomplete_birthdate_row = QHBoxLayout()
-    window.incomplete_birthdate_checkbox = QuadStateSlider("incomplete birthdate (placeholder chart)")
+    window.incomplete_birthdate_checkbox = QuadStateSlider("placeholder chart") #to do: add a tooltip that explains this means "a saved chart with insufficient birth data for astrological calculations"
     if settings is not None and bool(
         settings.value(
             app_module.SETTINGS_KEY_HIDE_PLACEHOLDER_CHARTS_FILTER,
