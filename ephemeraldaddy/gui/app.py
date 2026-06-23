@@ -30954,6 +30954,8 @@ class MainWindow(QMainWindow):
         placeholder.rectification_notes = self.rectification_edit.toPlainText().strip()
         placeholder.biography = self.biography_edit.toPlainText().strip()
         placeholder.chart_data_source = self.source_edit.toPlainText().strip()
+        placeholder.chart_type = _normalize_gui_source(self.chart_source_combo.currentData())
+        placeholder.source = placeholder.chart_type
         placeholder.alternate_chart_uid = self._current_alternate_chart_uid_for_save(placeholder.chart_type)
         placeholder.positive_sentiment_intensity = self.positive_sentiment_intensity_spin.value()
         placeholder.negative_sentiment_intensity = self.negative_sentiment_intensity_spin.value()
@@ -30966,8 +30968,6 @@ class MainWindow(QMainWindow):
         placeholder.data_rating = str(self.data_rating_combo.currentData() or "blank")
         placeholder.age_when_first_met = 0
         placeholder.sentiment_confidence = placeholder.familiarity
-        placeholder.chart_type = _normalize_gui_source(self.chart_source_combo.currentData())
-        placeholder.source = placeholder.chart_type
         placeholder.dominant_sign_weights = {}
         placeholder.dominant_planet_weights = {}
         placeholder.dominant_nakshatra_weights = {}
@@ -31725,16 +31725,29 @@ class MainWindow(QMainWindow):
             death_place=getattr(chart, "death_place", None),
         )
 
-        if is_new_chart:
-            if not self._confirm_duplicate_chart_save(chart):
-                return
-            chart_id = save_chart(chart, **save_kwargs)
-            set_current_chart(chart_id)
-        else:
-            update_chart(chart_id, chart, **save_kwargs)
-            set_current_chart(chart_id)
-            self._invalidate_chart_view_navigation_cache({chart_id})
+        try:
+            if is_new_chart:
+                if not self._confirm_duplicate_chart_save(chart):
+                    return
+                chart_id = save_chart(chart, **save_kwargs)
+                set_current_chart(chart_id)
+            else:
+                update_chart(chart_id, chart, **save_kwargs)
+                set_current_chart(chart_id)
+        except Exception as exc:
+            logger.exception(
+                "Failed to save chart from Chart View (chart_id=%s is_placeholder=%s).",
+                chart_id,
+                is_placeholder,
+            )
+            QMessageBox.critical(
+                self,
+                "Save chart failed",
+                f"The chart could not be saved:\n{exc}",
+            )
+            return
 
+        self._invalidate_chart_view_navigation_cache({chart_id})
         self.current_chart_id = chart_id
         old_alternate_uid = get_alternate_chart_uid(chart_id)
         new_alternate_uid = self._current_alternate_chart_uid_for_save(getattr(chart, "chart_type", None))
