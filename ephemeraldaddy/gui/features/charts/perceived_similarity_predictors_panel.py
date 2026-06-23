@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import html
-from collections import Counter
+from math import sqrt
 from typing import Any, Mapping
 
 from PySide6.QtCore import Qt
@@ -14,8 +14,10 @@ from matplotlib.figure import Figure
 
 from ephemeraldaddy.analysis.get_astro_twin import (
     SIMILAR_CHARTS_ALGORITHM_DEFAULT,
-    find_astro_twins,
-    normalize_similar_charts_algorithm_mode,
+    PLACEMENT_WEIGHTING_MODE_HYBRID,
+    SIMILARITY_COMPONENT_KEYS,
+    chart_similarity_score_big_3,
+    _similarity_component_scores,
 )
 from ephemeraldaddy.core.db import get_chart_uid_map, load_chart, load_charts
 from ephemeraldaddy.gui.features.charts.chart_similarity_relationships import (
@@ -157,18 +159,10 @@ class PerceivedSimilarityPredictorsPanel(QWidget):
             )
             return
 
-        matches = find_astro_twins(
-            subject_chart,
-            candidates,
-            top_k=len(candidates),
-            exclude_chart_id=subject_chart_id,
-            least_similar=False,
-            algorithm_mode=normalize_similar_charts_algorithm_mode(algorithm_mode),
-            custom_settings=similarity_settings,
-        )
-        self._render_predictors(
+        self._render_predictor_feedback(
+            subject_chart=subject_chart,
             subject_chart_name=subject_chart_name,
-            matches=matches,
+            candidates=candidates,
             score_by_compared_id=score_by_compared_id,
         )
 
@@ -235,70 +229,94 @@ class PerceivedSimilarityPredictorsPanel(QWidget):
         other_uids = [uid for uid in normalized_uids if uid and uid != subject_uid]
         return next((chart_id_by_uid.get(uid) for uid in other_uids if chart_id_by_uid.get(uid)), None)
 
-    def _render_predictors(
+    def _render_predictor_feedback(
         self,
         *,
+        subject_chart: Any,
         subject_chart_name: str,
-        matches: list[Any],
+        candidates: list[tuple[int, Any]],
         score_by_compared_id: Mapping[int, float],
     ) -> None:
         component_labels = {
+            "dominant_bodies": "Dominant bodies",
+            "dominant_signs": "Dominant signs",
+            "dominant_houses": "Dominant houses",
+            "dominant_nakshatras": "Dominant nakshatras",
+            "inner_planet_placement": "Inner planet placements",
             "placement": "Planet/sign placements",
-            "aspect": "Aspects",
-            "distribution": "Element/mode distribution",
-            "dominance": "Dominant planets/signs/houses",
-            "nakshatra_placement": "Nakshatra placements",
-            "nakshatra_dominance": "Dominant nakshatras",
-            "defined_centers": "Human Design defined centers",
             "human_design_gates": "Human Design gates",
             "human_design_channels": "Human Design channels",
-            "inner_planet_placement": "Inner planet placements",
+            "distribution": "Element/mode distribution",
+            "big_3": "Big 3",
             "outer_planet_placement": "Outer planet placements",
+            "aspect": "Aspects",
+            "nakshatra_placement": "Nakshatra placements",
+            "defined_centers": "Human Design defined centers",
         }
-        totals: Counter[str] = Counter()
-        weights: Counter[str] = Counter()
-        examples: dict[str, list[str]] = {}
-        match_count = 0
-        for rank, match in enumerate(matches, start=1):
-            chart_id = int(getattr(match, "chart_id", 0) or 0)
+        component_order = tuple(component_labels)
+        component_pairs: dict[str, list[tuple[float, float]]] = {key: [] for key in component_order}
+        examples: dict[str, list[str]] = {key: [] for key in component_order}
+
+        for chart_id, candidate_chart in candidates:
             perceived_score = score_by_compared_id.get(chart_id)
             if perceived_score is None:
                 continue
-            combined_weight = (1.0 / max(1, rank)) * (max(0.0, perceived_score) / 100.0)
-            match_count += 1
-            for key, raw_value in self._component_scores_for_match(match).items():
+            component_scores = self._single_factor_scores(subject_chart, candidate_chart)
+            for key in component_order:
+                raw_value = component_scores.get(key)
                 if raw_value is None:
                     continue
-                value = max(0.0, min(1.0, float(raw_value)))
-                totals[key] += value * combined_weight
-                weights[key] += combined_weight
-                examples.setdefault(key, [])
+                factor_score = max(0.0, min(1.0, float(raw_value))) * 100.0
+                component_pairs[key].append((factor_score, float(perceived_score)))
                 if len(examples[key]) < 3:
-                    examples[key].append(str(getattr(match, "chart_name", "") or f"#{chart_id}"))
+                    examples[key].append(str(getattr(candidate_chart, "name", "") or f"#{chart_id}"))
 
+        predictor_rows = [
+            {
+                "key": key,
+                "label": component_labels[key],
+                "correlation": self._spearman_rank_correlation(component_pairs[key]),
+                "pair_count": len(component_pairs[key]),
+                "examples": examples.get(key, []),
+            }
+            for key in component_order
+        ]
         ranked_predictors = sorted(
-            ((key, (totals[key] / weights[key]) * 100.0) for key in totals if weights[key] > 0),
-            key=lambda item: (-item[1], component_labels.get(item[0], item[0])),
+            predictor_rows,
+            key=lambda row: (
+                -(row["correlation"] if row["correlation"] is not None else -2.0),
+                row["label"],
+            ),
         )
-        if not ranked_predictors:
-            self.set_message("Perceived scores exist, but no similarity component rankings could be computed.")
+        if not any(row["pair_count"] >= 2 for row in ranked_predictors):
+            self.set_message(
+                "Perceived scores exist, but at least two comparable scores are needed to assess factor accuracy."
+            )
             return
 
-        self._render_recommendation_chart(ranked_predictors, component_labels)
+        self._render_recommendation_chart(ranked_predictors)
 
-        rows = [
-            f"<li><b>{html.escape(component_labels.get(key, key.replace('_', ' ').title()))}</b>: "
-            f"{score:.1f}% weighted high-rank signal"
-            f"<br><span style='color:#d9d9d9;'>Examples: "
-            f"{html.escape(', '.join(examples.get(key, [])[:3]))}</span></li>"
-            for key, score in ranked_predictors[:8]
-        ]
+        rows = []
+        for row in ranked_predictors:
+            correlation = row["correlation"]
+            if correlation is None:
+                accuracy_text = "not enough variance to assess"
+            else:
+                accuracy_text = f"{correlation * 100.0:+.1f}% perceived-accuracy rank correlation"
+            example_text = html.escape(", ".join(row["examples"][:3])) if row["examples"] else "No available examples"
+            rows.append(
+                f"<li><b>{html.escape(row['label'])}</b>: {accuracy_text}"
+                f"<br><span style='color:#d9d9d9;'>Compared {row['pair_count']} "
+                f"saved score(s). Examples: {example_text}</span></li>"
+            )
+
         if self._output_label is not None:
             self._output_label.setText(
                 f"<div><b>{html.escape(subject_chart_name)}</b></div>"
-                f"<div style='color:#d9d9d9; margin: 6px 0;'>Reviewed {match_count} "
-                "saved perceived-similarity score(s). Higher entries are components that were "
-                "strongest among high-ranked, highly perceived-similar comparisons.</div>"
+                f"<div style='color:#d9d9d9; margin: 6px 0;'>Reviewed {len(candidates)} "
+                "saved perceived-similarity score(s). Each factor is tested independently: "
+                "higher values mean that factor's single-factor rank aligns better with "
+                "your perceived-similarity scores, regardless of the active Similarities Calculator setting.</div>"
                 f"<ol>{''.join(rows)}</ol>"
             )
 
@@ -314,20 +332,23 @@ class PerceivedSimilarityPredictorsPanel(QWidget):
 
     def _render_recommendation_chart(
         self,
-        ranked_predictors: list[tuple[str, float]],
-        labels: Mapping[str, str],
+        ranked_predictors: list[dict[str, Any]],
     ) -> None:
         self._clear_recommendation_chart()
         if self._chart_layout is None or not ranked_predictors:
             return
 
-        top_predictors = ranked_predictors[:8]
-        total_score = sum(max(0.0, score) for _, score in top_predictors)
+        eligible_predictors = [
+            row for row in ranked_predictors if row["correlation"] is not None and row["correlation"] > 0.0
+        ]
+        if not eligible_predictors:
+            return
+        total_score = sum(float(row["correlation"]) for row in eligible_predictors)
         if total_score <= 0:
             return
 
-        names = [labels.get(key, key.replace("_", " ").title()) for key, _ in top_predictors]
-        weights = [(max(0.0, score) / total_score) * 100.0 for _, score in top_predictors]
+        names = [str(row["label"]) for row in eligible_predictors]
+        weights = [(float(row["correlation"]) / total_score) * 100.0 for row in eligible_predictors]
         figure = Figure(figsize=(3.6, 3.0), dpi=100, facecolor="#0f0515")
         ax = figure.add_subplot(111)
         ax.set_facecolor("#0f0515")
@@ -387,17 +408,44 @@ class PerceivedSimilarityPredictorsPanel(QWidget):
         self._recommendation_canvas = canvas
 
     @staticmethod
-    def _component_scores_for_match(match: Any) -> dict[str, float | None]:
-        component_scores = dict(getattr(match, "component_scores", None) or {})
-        if component_scores:
-            return component_scores
-        return {
-            "placement": getattr(match, "placement_score", None),
-            "aspect": getattr(match, "aspect_score", None),
-            "distribution": getattr(match, "distribution_score", None),
-            "dominance": getattr(match, "dominance_score", None),
-            "nakshatra_placement": getattr(match, "nakshatra_score", None),
-            "defined_centers": getattr(match, "hd_centers_score", None),
-            "human_design_gates": getattr(match, "human_design_gates_score", None),
-            "human_design_channels": getattr(match, "human_design_channels_score", None),
-        }
+    def _single_factor_scores(subject_chart: Any, candidate_chart: Any) -> dict[str, float | None]:
+        scores = _similarity_component_scores(
+            subject_chart,
+            candidate_chart,
+            placement_weighting_mode=PLACEMENT_WEIGHTING_MODE_HYBRID,
+            component_keys=SIMILARITY_COMPONENT_KEYS,
+        )
+        big_3_score, _ = chart_similarity_score_big_3(subject_chart, candidate_chart)
+        scores["big_3"] = big_3_score
+        return scores
+
+    @staticmethod
+    def _spearman_rank_correlation(pairs: list[tuple[float, float]]) -> float | None:
+        if len(pairs) < 2:
+            return None
+        xs = PerceivedSimilarityPredictorsPanel._rank_values([pair[0] for pair in pairs])
+        ys = PerceivedSimilarityPredictorsPanel._rank_values([pair[1] for pair in pairs])
+        mean_x = sum(xs) / len(xs)
+        mean_y = sum(ys) / len(ys)
+        numerator = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys, strict=False))
+        denominator_x = sqrt(sum((x - mean_x) ** 2 for x in xs))
+        denominator_y = sqrt(sum((y - mean_y) ** 2 for y in ys))
+        denominator = denominator_x * denominator_y
+        if denominator <= 0:
+            return None
+        return max(-1.0, min(1.0, numerator / denominator))
+
+    @staticmethod
+    def _rank_values(values: list[float]) -> list[float]:
+        ordered = sorted(enumerate(values), key=lambda item: item[1])
+        ranks = [0.0] * len(values)
+        index = 0
+        while index < len(ordered):
+            end = index + 1
+            while end < len(ordered) and ordered[end][1] == ordered[index][1]:
+                end += 1
+            average_rank = (index + 1 + end) / 2.0
+            for original_index, _ in ordered[index:end]:
+                ranks[original_index] = average_rank
+            index = end
+        return ranks
