@@ -701,10 +701,6 @@ from ephemeraldaddy.core.interpretations import (
     ZODIAC_NAMES,
     EPHEMERIS_MIN_DATE,
     EPHEMERIS_MAX_DATE,
-    NATAL_CHART_MIN_DATE,
-    NATAL_CHART_MAX_DATE,
-    NATAL_CHART_MIN_YEAR,
-    NATAL_CHART_MAX_YEAR,
     AGE_BRACKETS,
     SEASONAL_COLOR_SPECTRUM,
     SEASONAL_COLORS,
@@ -23276,7 +23272,7 @@ class MainWindow(QMainWindow):
         self.birth_year_edit.setPlaceholderText("YYYY")
         self.birth_year_edit.setMaxLength(4)
         self.birth_year_edit.setFixedWidth(49)
-        self.birth_year_edit.setValidator(QIntValidator(NATAL_CHART_MIN_YEAR, NATAL_CHART_MAX_YEAR, self))
+        self.birth_year_edit.setValidator(QIntValidator(EPHEMERIS_MIN_DATE.year, EPHEMERIS_MAX_DATE.year, self))
         self.birth_year_edit.textChanged.connect(self._on_birth_date_field_changed)
         self.birth_year_edit.textChanged.connect(self._mark_lucygoosey)
         self._set_birth_date_fields_from_qdate(QDate(1990, 1, 1))
@@ -23354,12 +23350,18 @@ class MainWindow(QMainWindow):
         birth_time_row = QHBoxLayout()
         birth_time_row.setContentsMargins(8, 0, 0, 0)
         birth_time_row.setSpacing(8)
-        birth_time_row.addWidget(QLabel("🐣Date"), 0)
         self.random_birth_date_button = QPushButton("🎲")
-        self.random_birth_date_button.setFixedWidth(28)
+        self.random_birth_date_button.setFlat(True)
+        self.random_birth_date_button.setCursor(Qt.PointingHandCursor)
         self.random_birth_date_button.setToolTip("generate random date for control chart")
+        self.random_birth_date_button.setStyleSheet(
+            "QPushButton { border: none; background: transparent; padding: 0; margin: 0; }"
+            "QPushButton:hover { background: transparent; }"
+            "QPushButton:pressed { background: transparent; }"
+        )
         self.random_birth_date_button.clicked.connect(self._on_random_birth_date_clicked)
         birth_time_row.addWidget(self.random_birth_date_button, 0)
+        birth_time_row.addWidget(QLabel("🐣Date"), 0)
         birth_time_row.addWidget(birth_month_widget, 0)
         #birth_time_row.addWidget(QLabel("."), 0)
         birth_time_row.addWidget(birth_day_widget, 0)
@@ -30306,6 +30308,10 @@ class MainWindow(QMainWindow):
 
         # Metadata group: sentiment intensity controls.
         self.sentiment_metrics_widget.setVisible(not is_event_chart)
+        if hasattr(self, "random_birth_date_button"):
+            is_new_chart = getattr(self, "current_chart_id", None) is None
+            self.random_birth_date_button.setVisible(is_new_chart or is_hypothetical_chart)
+
         if hasattr(self, "alternate_chart_widget"):
             self.alternate_chart_widget.setVisible(is_hypothetical_chart)
             self._update_alternate_chart_completer()
@@ -30963,6 +30969,8 @@ class MainWindow(QMainWindow):
         placeholder.rectification_notes = self.rectification_edit.toPlainText().strip()
         placeholder.biography = self.biography_edit.toPlainText().strip()
         placeholder.chart_data_source = self.source_edit.toPlainText().strip()
+        placeholder.chart_type = _normalize_gui_source(self.chart_source_combo.currentData())
+        placeholder.source = placeholder.chart_type
         placeholder.alternate_chart_uid = self._current_alternate_chart_uid_for_save(placeholder.chart_type)
         placeholder.positive_sentiment_intensity = self.positive_sentiment_intensity_spin.value()
         placeholder.negative_sentiment_intensity = self.negative_sentiment_intensity_spin.value()
@@ -30975,8 +30983,6 @@ class MainWindow(QMainWindow):
         placeholder.data_rating = str(self.data_rating_combo.currentData() or "blank")
         placeholder.age_when_first_met = 0
         placeholder.sentiment_confidence = placeholder.familiarity
-        placeholder.chart_type = _normalize_gui_source(self.chart_source_combo.currentData())
-        placeholder.source = placeholder.chart_type
         placeholder.dominant_sign_weights = {}
         placeholder.dominant_planet_weights = {}
         placeholder.dominant_nakshatra_weights = {}
@@ -31014,7 +31020,7 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(
                     self,
                     "Invalid 🐣Date",
-                    f"Come on. Birth date must be a real calendar date in MM. DD. YYYY format, and the year must be between {NATAL_CHART_MIN_YEAR} and {NATAL_CHART_MAX_YEAR}. Don't make up silly stuff.",
+                    f"Come on. Birth date must be a real calendar date in MM. DD. YYYY format, and the year must be between {EPHEMERIS_MIN_DATE.year} and {EPHEMERIS_MAX_DATE.year}. Don't make up silly stuff.",
                 )
             return
         if self.retcon_time_checkbox.isChecked():
@@ -31734,16 +31740,29 @@ class MainWindow(QMainWindow):
             death_place=getattr(chart, "death_place", None),
         )
 
-        if is_new_chart:
-            if not self._confirm_duplicate_chart_save(chart):
-                return
-            chart_id = save_chart(chart, **save_kwargs)
-            set_current_chart(chart_id)
-        else:
-            update_chart(chart_id, chart, **save_kwargs)
-            set_current_chart(chart_id)
-            self._invalidate_chart_view_navigation_cache({chart_id})
+        try:
+            if is_new_chart:
+                if not self._confirm_duplicate_chart_save(chart):
+                    return
+                chart_id = save_chart(chart, **save_kwargs)
+                set_current_chart(chart_id)
+            else:
+                update_chart(chart_id, chart, **save_kwargs)
+                set_current_chart(chart_id)
+        except Exception as exc:
+            logger.exception(
+                "Failed to save chart from Chart View (chart_id=%s is_placeholder=%s).",
+                chart_id,
+                is_placeholder,
+            )
+            QMessageBox.critical(
+                self,
+                "Save chart failed",
+                f"The chart could not be saved:\n{exc}",
+            )
+            return
 
+        self._invalidate_chart_view_navigation_cache({chart_id})
         self.current_chart_id = chart_id
         old_alternate_uid = get_alternate_chart_uid(chart_id)
         new_alternate_uid = self._current_alternate_chart_uid_for_save(getattr(chart, "chart_type", None))
@@ -32353,6 +32372,12 @@ class MainWindow(QMainWindow):
             return False
         if startup_progress:
             startup_progress("Database View shell is open…", 92)
+        # Once the Database View shell has accepted the transition, remove Chart
+        # View from the foreground.  This is especially important for unsaved
+        # new charts: choosing Discard clears the dirty flag, but leaving this
+        # window visible can make the transition appear to do nothing and trap
+        # users in the unwanted new-chart editor.
+        self.hide()
         QTimer.singleShot(0, self._raise_manage_charts_dialog)
         self._retarget_size_checker_to_database_view()
         return True
@@ -32461,8 +32486,8 @@ class MainWindow(QMainWindow):
         self.birth_year_edit.setText(f"{qdate.year():04d}")
 
     def _on_random_birth_date_clicked(self) -> None:
-        min_date = NATAL_CHART_MIN_DATE
-        max_date = NATAL_CHART_MAX_DATE
+        min_date = EPHEMERIS_MIN_DATE
+        max_date = EPHEMERIS_MAX_DATE
         random_ordinal = random.randint(min_date.toordinal(), max_date.toordinal())
         random_date = datetime.date.fromordinal(random_ordinal)
         self._set_birth_date_fields_from_qdate(
@@ -32486,7 +32511,7 @@ class MainWindow(QMainWindow):
 
         if not (1 <= month <= 12):
             return None
-        if not (NATAL_CHART_MIN_YEAR <= year <= NATAL_CHART_MAX_YEAR):
+        if not (EPHEMERIS_MIN_DATE.year <= year <= EPHEMERIS_MAX_DATE.year):
             return None
 
         max_day = calendar.monthrange(year, month)[1]
@@ -32498,14 +32523,14 @@ class MainWindow(QMainWindow):
             return None
 
         min_birth_qdate = QDate(
-            NATAL_CHART_MIN_DATE.year,
-            NATAL_CHART_MIN_DATE.month,
-            NATAL_CHART_MIN_DATE.day,
+            EPHEMERIS_MIN_DATE.year,
+            EPHEMERIS_MIN_DATE.month,
+            EPHEMERIS_MIN_DATE.day,
         )
         max_birth_qdate = QDate(
-            NATAL_CHART_MAX_DATE.year,
-            NATAL_CHART_MAX_DATE.month,
-            NATAL_CHART_MAX_DATE.day,
+            EPHEMERIS_MAX_DATE.year,
+            EPHEMERIS_MAX_DATE.month,
+            EPHEMERIS_MAX_DATE.day,
         )
         if qdate < min_birth_qdate or qdate > max_birth_qdate:
             return None
