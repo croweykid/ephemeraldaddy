@@ -62,14 +62,18 @@ HYBRID_LUMINARY_BONUS_BY_SIGN_MATCHES: dict[int, float] = {
     2: 1.00,
 }
 
-SIMILARITY_COMPONENT_KEYS: tuple[str, ...] = (
-    "placement",
-    "aspect",
-    "distribution",
+DOMINANCE_COMPONENT_KEYS: tuple[str, ...] = (
     "dominant_bodies",
     "dominant_signs",
     "dominant_houses",
     "dominant_nakshatras",
+)
+
+SIMILARITY_COMPONENT_KEYS: tuple[str, ...] = (
+    "placement",
+    "aspect",
+    "distribution",
+    *DOMINANCE_COMPONENT_KEYS,
     "nakshatra_placement",
     "nakshatra_dominance",
     "defined_centers",
@@ -407,6 +411,14 @@ class SimilarityCalculatorSettings:
     weight_distribution: float = 0.10
     use_combined_dominance: bool = True
     weight_combined_dominance: float = 0.15
+    use_dominant_bodies: bool = True
+    weight_dominant_bodies: float = 0.0375
+    use_dominant_houses: bool = True
+    weight_dominant_houses: float = 0.0375
+    use_dominant_signs: bool = True
+    weight_dominant_signs: float = 0.0375
+    use_dominant_nakshatras: bool = True
+    weight_dominant_nakshatras: float = 0.0375
     use_nakshatra_placement: bool = True
     weight_nakshatra_placement: float = 0.07
     use_nakshatra_dominance: bool = False
@@ -424,6 +436,43 @@ class SimilarityCalculatorSettings:
     placement_weighting_mode: str = PLACEMENT_WEIGHTING_MODE_CHART_DEFINED
     all_or_nothing_component: str = DEFAULT_ALL_OR_NOTHING_COMPONENT
 
+    def __post_init__(self) -> None:
+        """Fold legacy combined-dominance constructor values into granular fields.
+
+        Older callers only knew ``use_combined_dominance`` and
+        ``weight_combined_dominance``. If they explicitly disable or resize that
+        legacy bucket without setting the new granular fields, keep their intent
+        by translating it into the four dominance component fields.
+        """
+        granular_defaults_untouched = (
+            self.use_dominant_bodies is True
+            and self.use_dominant_signs is True
+            and self.use_dominant_houses is True
+            and self.use_dominant_nakshatras is True
+            and self.weight_dominant_bodies == 0.0375
+            and self.weight_dominant_signs == 0.0375
+            and self.weight_dominant_houses == 0.0375
+            and self.weight_dominant_nakshatras == 0.0375
+        )
+        if not granular_defaults_untouched:
+            return
+        if not self.use_combined_dominance or float(self.weight_combined_dominance) <= 0.0:
+            self.use_dominant_bodies = False
+            self.use_dominant_signs = False
+            self.use_dominant_houses = False
+            self.use_dominant_nakshatras = False
+            self.weight_dominant_bodies = 0.0
+            self.weight_dominant_signs = 0.0
+            self.weight_dominant_houses = 0.0
+            self.weight_dominant_nakshatras = 0.0
+            return
+        if float(self.weight_combined_dominance) != 0.15:
+            split_weight = max(0.0, float(self.weight_combined_dominance)) / len(DOMINANCE_COMPONENT_KEYS)
+            self.weight_dominant_bodies = split_weight
+            self.weight_dominant_signs = split_weight
+            self.weight_dominant_houses = split_weight
+            self.weight_dominant_nakshatras = split_weight
+
     @classmethod
     def defaults_from_comprehensive(cls) -> "SimilarityCalculatorSettings":
         return cls(
@@ -435,6 +484,14 @@ class SimilarityCalculatorSettings:
             weight_distribution=0.10,
             use_combined_dominance=True,
             weight_combined_dominance=0.15,
+            use_dominant_bodies=True,
+            weight_dominant_bodies=0.0375,
+            use_dominant_houses=True,
+            weight_dominant_houses=0.0375,
+            use_dominant_signs=True,
+            weight_dominant_signs=0.0375,
+            use_dominant_nakshatras=True,
+            weight_dominant_nakshatras=0.0375,
             use_nakshatra_placement=True,
             weight_nakshatra_placement=0.07,
             use_nakshatra_dominance=False,
@@ -463,6 +520,14 @@ class SimilarityCalculatorSettings:
             weight_distribution=0.07,
             use_combined_dominance=True,
             weight_combined_dominance=0.17,
+            use_dominant_bodies=True,
+            weight_dominant_bodies=0.0425,
+            use_dominant_houses=True,
+            weight_dominant_houses=0.0425,
+            use_dominant_signs=True,
+            weight_dominant_signs=0.0425,
+            use_dominant_nakshatras=True,
+            weight_dominant_nakshatras=0.0425,
             use_nakshatra_placement=True,
             weight_nakshatra_placement=0.06,
             use_nakshatra_dominance=True,
@@ -485,10 +550,10 @@ class SimilarityCalculatorSettings:
             "placement": max(0.0, float(self.weight_placement)),
             "aspect": max(0.0, float(self.weight_aspect)),
             "distribution": max(0.0, float(self.weight_distribution)),
-            "dominant_bodies": max(0.0, float(self.weight_combined_dominance)) * 0.25,
-            "dominant_signs": max(0.0, float(self.weight_combined_dominance)) * 0.25,
-            "dominant_houses": max(0.0, float(self.weight_combined_dominance)) * 0.25,
-            "dominant_nakshatras": max(0.0, float(self.weight_combined_dominance)) * 0.25,
+            "dominant_bodies": max(0.0, float(self.weight_dominant_bodies)),
+            "dominant_signs": max(0.0, float(self.weight_dominant_signs)),
+            "dominant_houses": max(0.0, float(self.weight_dominant_houses)),
+            "dominant_nakshatras": max(0.0, float(self.weight_dominant_nakshatras)),
             "nakshatra_placement": max(0.0, float(self.weight_nakshatra_placement)),
             "nakshatra_dominance": max(0.0, float(self.weight_nakshatra_dominance)),
             "defined_centers": max(0.0, float(self.weight_defined_centers)),
@@ -503,10 +568,10 @@ class SimilarityCalculatorSettings:
             "placement": bool(self.use_placement),
             "aspect": bool(self.use_aspect),
             "distribution": bool(self.use_distribution),
-            "dominant_bodies": bool(self.use_combined_dominance),
-            "dominant_signs": bool(self.use_combined_dominance),
-            "dominant_houses": bool(self.use_combined_dominance),
-            "dominant_nakshatras": bool(self.use_combined_dominance),
+            "dominant_bodies": bool(self.use_dominant_bodies),
+            "dominant_signs": bool(self.use_dominant_signs),
+            "dominant_houses": bool(self.use_dominant_houses),
+            "dominant_nakshatras": bool(self.use_dominant_nakshatras),
             "nakshatra_placement": bool(self.use_nakshatra_placement),
             "nakshatra_dominance": bool(self.use_nakshatra_dominance),
             "defined_centers": bool(self.use_defined_centers),
@@ -560,7 +625,10 @@ def all_or_nothing_similarity_settings(
         values["use_combined_dominance"] = True
         values["weight_combined_dominance"] = 1.0
         for key in SIMILARITY_COMPONENT_KEYS:
-            if not key.startswith("dominant_"):
+            if key.startswith("dominant_"):
+                values[f"use_{key}"] = True
+                values[f"weight_{key}"] = 0.25
+            else:
                 values[f"use_{key}"] = False
                 values[f"weight_{key}"] = 0.0
         return SimilarityCalculatorSettings(**values)
@@ -569,13 +637,11 @@ def all_or_nothing_similarity_settings(
             continue
         values[f"use_{key}"] = key == selected_component
         values[f"weight_{key}"] = 1.0 if key == selected_component else 0.0
-    values["use_combined_dominance"] = selected_component in {
-        "dominant_bodies",
-        "dominant_signs",
-        "dominant_houses",
-        "dominant_nakshatras",
-    }
+    values["use_combined_dominance"] = selected_component in DOMINANCE_COMPONENT_KEYS
     values["weight_combined_dominance"] = 1.0 if values["use_combined_dominance"] else 0.0
+    for key in DOMINANCE_COMPONENT_KEYS:
+        values[f"use_{key}"] = key == selected_component
+        values[f"weight_{key}"] = 1.0 if key == selected_component else 0.0
     return SimilarityCalculatorSettings(**values)
 
 
