@@ -15,6 +15,7 @@ import logging
 import numpy as np
 import os
 import random
+import sqlite3
 import statistics
 import subprocess
 import sys
@@ -25519,26 +25520,62 @@ class MainWindow(QMainWindow):
             )
         )
 
-    def _cache_similar_charts_prediction_metrics(
+    def _similar_charts_prediction_metrics_for_matches(
         self,
-        candidates: list[tuple[int, Chart]] | None,
-    ) -> None:
-        if not candidates:
-            return
-        metrics_by_id = getattr(self, "_similar_charts_prediction_metrics_by_chart_id", None)
-        if not isinstance(metrics_by_id, dict):
-            metrics_by_id = {}
-            self._similar_charts_prediction_metrics_by_chart_id = metrics_by_id
-        for chart_id, candidate in candidates:
+        matches: list[Any] | tuple[Any, ...],
+    ) -> dict[int, dict[str, Any]]:
+        chart_ids: list[int] = []
+        seen_chart_ids: set[int] = set()
+        for match in matches:
             try:
-                normalized_chart_id = int(chart_id)
+                chart_id = int(getattr(match, "chart_id"))
+            except (AttributeError, TypeError, ValueError):
+                continue
+            if chart_id <= 0 or chart_id in seen_chart_ids:
+                continue
+            seen_chart_ids.add(chart_id)
+            chart_ids.append(chart_id)
+        if not chart_ids:
+            return {}
+
+        placeholders = ",".join("?" for _ in chart_ids)
+        conn: sqlite3.Connection | None = None
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                f"""
+                SELECT id,
+                       positive_sentiment_intensity,
+                       negative_sentiment_intensity,
+                       alignment_score
+                FROM charts
+                WHERE id IN ({placeholders})
+                """,
+                chart_ids,
+            ).fetchall()
+        except Exception:
+            logger.exception("Failed to load Similar Charts prediction metrics.")
+            return {}
+        finally:
+            if conn is not None:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+
+        metrics_by_id: dict[int, dict[str, Any]] = {}
+        for row in rows:
+            try:
+                chart_id = int(row["id"])
             except (TypeError, ValueError):
                 continue
-            metrics_by_id[normalized_chart_id] = {
-                "positive_sentiment_intensity": getattr(candidate, "positive_sentiment_intensity", 1),
-                "negative_sentiment_intensity": getattr(candidate, "negative_sentiment_intensity", 1),
-                "alignment_score": getattr(candidate, "alignment_score", None),
+            metrics_by_id[chart_id] = {
+                "positive_sentiment_intensity": row["positive_sentiment_intensity"],
+                "negative_sentiment_intensity": row["negative_sentiment_intensity"],
+                "alignment_score": row["alignment_score"],
             }
+        return metrics_by_id
 
     def _similar_charts_perceived_accuracy_entries_for_states(
         self,
@@ -25875,7 +25912,6 @@ class MainWindow(QMainWindow):
                     continue
                 refreshed_candidates.append((changed_chart_id, refreshed_chart))
             if refreshed_candidates:
-                self._cache_similar_charts_prediction_metrics(refreshed_candidates)
                 refreshed_most = find_astro_twins(
                     chart,
                     refreshed_candidates,
@@ -25939,7 +25975,6 @@ class MainWindow(QMainWindow):
                         "Need at least one additional saved chart that is not placeholder/hypothetical.",
                     )
                     return
-                self._cache_similar_charts_prediction_metrics(candidates)
 
                 try:
                     last_progress_percent = {"value": -1}
@@ -26138,8 +26173,8 @@ class MainWindow(QMainWindow):
         dialog._similar_chart_popout_reasoning_by_target = popout_reasoning_by_target
         dialog._similar_chart_popout_most_similar_matches = list(most_similar_matches)
         dialog._similar_chart_popout_least_similar_matches = list(least_similar_matches)
-        dialog._similar_chart_popout_prediction_metrics_by_chart_id = dict(
-            getattr(self, "_similar_charts_prediction_metrics_by_chart_id", {}) or {}
+        dialog._similar_chart_popout_prediction_metrics_by_chart_id = (
+            self._similar_charts_prediction_metrics_for_matches(most_similar_matches[:25])
         )
         self._similar_charts_reasoning_by_target.update(popout_reasoning_by_target)
         self._register_popout_shortcuts(dialog)
