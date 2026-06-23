@@ -3186,6 +3186,22 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             row_tokens.append((chart_id, repr(row)))
         return tuple(sorted(row_tokens))
 
+    def _database_metrics_config_token(self) -> str:
+        return json.dumps(
+            {
+                "cache_version": DATABASE_METRICS_PERSISTENT_CACHE_VERSION,
+                "enneagram_scoring_options": _enneagram_scoring_options_to_payload(
+                    getattr(
+                        self,
+                        "_enneagram_scoring_options",
+                        _default_enneagram_scoring_options(),
+                    )
+                ),
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+
     @staticmethod
     def _encode_database_metrics_cache_value(value: Any) -> Any:
         if isinstance(value, dict):
@@ -3263,6 +3279,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return False
         if payload.get("version") != DATABASE_METRICS_PERSISTENT_CACHE_VERSION:
             return False
+        if payload.get("config_token") != self._database_metrics_config_token():
+            return False
         rows_token = self._decode_database_metrics_cache_value(payload.get("rows_token"))
         if rows_token != self._database_metrics_rows_token():
             return False
@@ -3286,6 +3304,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             DB_DIR.mkdir(parents=True, exist_ok=True)
             payload = {
                 "version": DATABASE_METRICS_PERSISTENT_CACHE_VERSION,
+                "config_token": self._database_metrics_config_token(),
                 "rows_token": self._encode_database_metrics_cache_value(
                     self._database_metrics_rows_token()
                 ),
@@ -3302,6 +3321,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             temp_path.replace(path)
         except Exception:
             traceback.print_exc()
+
+    def _invalidate_database_metrics_cache(self) -> None:
+        self._database_metrics_cache = None
+        self._database_metric_snapshots = {}
+        self._database_metrics_snapshot_sections = frozenset()
+        self._database_metrics_lucy_goosey_ids.clear()
 
     def _update_position_sign_subheader(self) -> None:
         subheader = getattr(self, "position_sign_distribution_subheader", None)
@@ -16768,7 +16793,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             return
 
-        self._refresh_charts(force_full_analysis_refresh=True)
+        imported_ids = {
+            int(chart_id)
+            for chart_id in result.get("imported_ids", []) or []
+            if isinstance(chart_id, int) or str(chart_id).isdigit()
+        }
+        self._refresh_charts(
+            changed_ids=imported_ids or None,
+            force_full_analysis_refresh=not bool(imported_ids),
+        )
 
         imported = int(result.get("imported", 0) or 0)
         skipped = int(result.get("skipped", 0) or 0)
@@ -21642,6 +21675,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             parent._enneagram_predictor_mode = "default"
             parent._enneagram_predictor_weights = dict(weights)
             parent._enneagram_scoring_options = options
+        self._invalidate_database_metrics_cache()
 
     def _refresh_dev_age_predictor(self, force_guess: bool = False) -> None:
         if self._dev_user_age_label is None or self._dev_age_distribution_canvas is None:
@@ -33462,6 +33496,9 @@ class MainWindow(QMainWindow):
         _set_enneagram_scoring_options(
             getattr(self, "_enneagram_scoring_options", _default_enneagram_scoring_options())
         )
+        invalidate_metrics = getattr(self, "_invalidate_database_metrics_cache", None)
+        if callable(invalidate_metrics):
+            invalidate_metrics()
 
     def _calculate_enneagram_type_weights(self, chart: Chart) -> dict[int, float]:
         return _calculate_enneagram_type_weights(
