@@ -29,6 +29,7 @@ DB_DIR = Path.home() / ".ephemeraldaddy"
 DB_PATH = DB_DIR / "charts.db"
 BACKUP_FILENAME_PREFIX = "ephemeraldaddy_dbbackup_"
 BACKUP_FILENAME_SUFFIX = ".db"
+BACKUP_PACKAGE_FILENAME_SUFFIX = ".edbackup"
 MAX_AUTO_BACKUPS = 10
 _AUTO_BACKUP_CREATED = False
 _SCHEMA_READY = False
@@ -2385,13 +2386,18 @@ def backup_database(destination: Optional[Path] = None) -> Path:
 
 
 def restore_database(source: Path) -> None:
-    """Restore the database from a backup file."""
+    """Restore the database from a legacy .db file or full backup package."""
     global _SCHEMA_READY, _SCHEMA_READY_DB_PATH
     source = Path(source)
     if not source.exists():
         raise FileNotFoundError(f"Backup file not found: {source}")
-    DB_DIR.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(source, DB_PATH)
+    if source.suffix.lower() == BACKUP_PACKAGE_FILENAME_SUFFIX:
+        from ephemeraldaddy.core.backups import restore_backup_package
+
+        restore_backup_package(source)
+    else:
+        DB_DIR.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, DB_PATH)
     _SCHEMA_READY = False
     _SCHEMA_READY_DB_PATH = None
     _invalidate_table_columns_cache()
