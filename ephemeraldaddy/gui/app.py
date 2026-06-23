@@ -2131,6 +2131,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         super().__init__(None)
         self._app_owner = parent
         self.setWindowTitle("Ephemeral Daddy: Astro App | Charts Manager")
+        self.setStyleSheet("QDialog { background-color: #000000; }")
         self.setWindowFlag(Qt.Window, True) #this makes the window come to the foreground
         self.setWindowFlag(Qt.WindowSystemMenuHint, True)
         self.setWindowFlag(Qt.WindowMinMaxButtonsHint, True)
@@ -32492,8 +32493,8 @@ class MainWindow(QMainWindow):
         self.birth_year_edit.setText(f"{qdate.year():04d}")
 
     def _on_random_birth_date_clicked(self) -> None:
-        min_date = EPHEMERIS_MIN_DATE
-        max_date = EPHEMERIS_MAX_DATE
+        min_date = max(EPHEMERIS_MIN_DATE, NATAL_CHART_MIN_DATE)
+        max_date = min(EPHEMERIS_MAX_DATE, NATAL_CHART_MAX_DATE)
         random_ordinal = random.randint(min_date.toordinal(), max_date.toordinal())
         random_date = datetime.date.fromordinal(random_ordinal)
         self._set_birth_date_fields_from_qdate(
