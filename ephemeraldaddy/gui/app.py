@@ -23316,6 +23316,11 @@ class MainWindow(QMainWindow):
         birth_time_row.setContentsMargins(8, 0, 0, 0)
         birth_time_row.setSpacing(8)
         birth_time_row.addWidget(QLabel("🐣Date"), 0)
+        self.random_birth_date_button = QPushButton("🎲")
+        self.random_birth_date_button.setFixedWidth(28)
+        self.random_birth_date_button.setToolTip("generate random date for control chart")
+        self.random_birth_date_button.clicked.connect(self._on_random_birth_date_clicked)
+        birth_time_row.addWidget(self.random_birth_date_button, 0)
         birth_time_row.addWidget(birth_month_widget, 0)
         #birth_time_row.addWidget(QLabel("."), 0)
         birth_time_row.addWidget(birth_day_widget, 0)
@@ -23547,6 +23552,70 @@ class MainWindow(QMainWindow):
         predictability_box_layout.addWidget(predictability_content_widget)
         sentiment_relation_layout.addWidget(predictability_box)
 
+        reminds_me_of_box = QFrame()
+        reminds_me_of_box.setStyleSheet(
+            "QFrame {"
+            "background-color: #1c1c1c;"
+            "border: 1px solid #2b2b2b;"
+            "border-radius: 6px;"
+            "}"
+        )
+        reminds_me_of_box_layout = QVBoxLayout()
+        reminds_me_of_box_layout.setContentsMargins(8, 8, 8, 8)
+        reminds_me_of_box_layout.setSpacing(6)
+        reminds_me_of_box.setLayout(reminds_me_of_box_layout)
+        reminds_me_of_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+
+        self.reminds_me_of_panel_toggle = QToolButton()
+        configure_collapsible_header_toggle(
+            self.reminds_me_of_panel_toggle,
+            title="Reminds me of",
+            expanded=False,
+            style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
+        )
+        reminds_me_of_box_layout.addWidget(self.reminds_me_of_panel_toggle)
+
+        reminds_me_of_content_widget = QWidget()
+        reminds_me_of_content_layout = QVBoxLayout()
+        reminds_me_of_content_layout.setContentsMargins(0, 0, 0, 0)
+        reminds_me_of_content_layout.setSpacing(4)
+        reminds_me_of_content_widget.setLayout(reminds_me_of_content_layout)
+        self.reminds_me_of_input = QLineEdit()
+        self.reminds_me_of_input.setPlaceholderText("Existing chart name, alias, or ID")
+        self.reminds_me_of_input.setToolTip(
+            "Enter an existing chart name, alias, or Chart ID. "
+            "EphemeralDaddy stores each added chart's stable ID so later renames still work."
+        )
+        self._update_reminds_me_of_completer()
+        self.reminds_me_of_input.returnPressed.connect(self._on_reminds_me_of_add)
+        reminds_me_of_row = QHBoxLayout()
+        reminds_me_of_row.setContentsMargins(0, 0, 0, 0)
+        reminds_me_of_row.setSpacing(6)
+        reminds_me_of_row.addWidget(self.reminds_me_of_input, 1)
+        self.reminds_me_of_add_button = QPushButton("Add")
+        self.reminds_me_of_add_button.clicked.connect(self._on_reminds_me_of_add)
+        reminds_me_of_row.addWidget(self.reminds_me_of_add_button, 0)
+        reminds_me_of_content_layout.addLayout(reminds_me_of_row)
+        self.reminds_me_of_selection_label = QLabel()
+        self.reminds_me_of_selection_label.setWordWrap(True)
+        self.reminds_me_of_selection_label.setTextFormat(Qt.RichText)
+        self.reminds_me_of_selection_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
+        self.reminds_me_of_selection_label.setCursor(Qt.PointingHandCursor)
+        self.reminds_me_of_selection_label.linkActivated.connect(self._on_reminds_me_of_remove_link_clicked)
+        reminds_me_of_content_layout.addWidget(self.reminds_me_of_selection_label)
+        self._reminds_me_of_current = []
+        self._render_reminds_me_of_selection()
+        self.reminds_me_of_panel_toggle.toggled.connect(
+            lambda expanded: self._toggle_chart_panel_content(
+                self.reminds_me_of_panel_toggle,
+                reminds_me_of_content_widget,
+                expanded,
+            )
+        )
+        reminds_me_of_content_widget.setVisible(False)
+        reminds_me_of_box_layout.addWidget(reminds_me_of_content_widget)
+        sentiment_relation_layout.addWidget(reminds_me_of_box)
+
         tags_box = QFrame()
         tags_box.setStyleSheet(
             "QFrame {"
@@ -23560,9 +23629,6 @@ class MainWindow(QMainWindow):
         tags_box_layout.setSpacing(6)
         tags_box.setLayout(tags_box_layout)
         tags_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
-
-
-
 
         self.tags_panel_toggle = QToolButton()
         configure_collapsible_header_toggle(
@@ -23583,32 +23649,6 @@ class MainWindow(QMainWindow):
             owner=self,
             tags_content_layout=tags_content_layout,
         )
-        tags_content_layout.addWidget(QLabel("Reminds me of"))
-        self.reminds_me_of_input = QLineEdit()
-        self.reminds_me_of_input.setPlaceholderText("Existing chart name, alias, or ID")
-        self.reminds_me_of_input.setToolTip(
-            "Enter an existing chart name, alias, or Chart ID. "
-            "EphemeralDaddy stores each added chart's stable ID so later renames still work."
-        )
-        self._update_reminds_me_of_completer()
-        self.reminds_me_of_input.returnPressed.connect(self._on_reminds_me_of_add)
-        reminds_me_of_row = QHBoxLayout()
-        reminds_me_of_row.setContentsMargins(0, 0, 0, 0)
-        reminds_me_of_row.setSpacing(6)
-        reminds_me_of_row.addWidget(self.reminds_me_of_input, 1)
-        self.reminds_me_of_add_button = QPushButton("Add")
-        self.reminds_me_of_add_button.clicked.connect(self._on_reminds_me_of_add)
-        reminds_me_of_row.addWidget(self.reminds_me_of_add_button, 0)
-        tags_content_layout.addLayout(reminds_me_of_row)
-        self.reminds_me_of_selection_label = QLabel()
-        self.reminds_me_of_selection_label.setWordWrap(True)
-        self.reminds_me_of_selection_label.setTextFormat(Qt.RichText)
-        self.reminds_me_of_selection_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
-        self.reminds_me_of_selection_label.setCursor(Qt.PointingHandCursor)
-        self.reminds_me_of_selection_label.linkActivated.connect(self._on_reminds_me_of_remove_link_clicked)
-        tags_content_layout.addWidget(self.reminds_me_of_selection_label)
-        self._reminds_me_of_current = []
-        self._render_reminds_me_of_selection()
         self.tags_panel_toggle.toggled.connect(
             lambda expanded: self._toggle_chart_panel_content(
                 self.tags_panel_toggle,
@@ -32380,6 +32420,16 @@ class MainWindow(QMainWindow):
         self.birth_month_edit.setText(f"{qdate.month():02d}")
         self.birth_day_edit.setText(f"{qdate.day():02d}")
         self.birth_year_edit.setText(f"{qdate.year():04d}")
+
+    def _on_random_birth_date_clicked(self) -> None:
+        min_date = NATAL_CHART_MIN_DATE
+        max_date = NATAL_CHART_MAX_DATE
+        random_ordinal = random.randint(min_date.toordinal(), max_date.toordinal())
+        random_date = datetime.date.fromordinal(random_ordinal)
+        self._set_birth_date_fields_from_qdate(
+            QDate(random_date.year, random_date.month, random_date.day)
+        )
+        self._mark_lucygoosey()
 
     def _birth_date_from_fields(self) -> QDate | None:
         month_text = self.birth_month_edit.text().strip()
