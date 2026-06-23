@@ -1176,12 +1176,12 @@ class DatabaseAnalyticsChartsMixin:
         last_tooltip_label = {"label": ""}
 
         def _on_tick_label_hover(event: Any) -> None:
-            if event.inaxes is None:
-                if last_tooltip_label["label"]:
-                    QToolTip.hideText()
-                    last_tooltip_label["label"] = ""
-                return
-            for tick_label in [*event.inaxes.get_yticklabels(), *event.inaxes.get_xticklabels()]:
+            axes_to_check = [event.inaxes] if event.inaxes is not None else list(figure.axes)
+            for tick_label in [
+                tick_label
+                for axis in axes_to_check
+                for tick_label in [*axis.get_yticklabels(), *axis.get_xticklabels()]
+            ]:
                 label_text = self._clean_database_analytics_label(tick_label.get_text())
                 tooltip_text = normalized_tooltips.get(label_text)
                 if not tooltip_text:

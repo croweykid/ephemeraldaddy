@@ -3,6 +3,7 @@ import types
 
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
+from matplotlib.backend_bases import MouseEvent
 
 
 class _Dummy:
@@ -190,3 +191,52 @@ def test_incarnation_cross_popout_info_matches_human_design_definition():
     assert "Gates:" in html
     assert "Theme description:" in html
     assert "Bar reading" not in html
+
+
+def test_incarnation_cross_tick_label_tooltip_checks_labels_outside_axes(monkeypatch):
+    import ephemeraldaddy.gui.features.charts.database_analytics as database_analytics
+
+    figure = Figure(figsize=(4, 3), dpi=100)
+    canvas = FigureCanvasAgg(figure)
+    canvas.mapToGlobal = lambda point: point
+    figure.set_canvas(canvas)
+    ax = figure.add_subplot(111)
+    ax.barh(["Left Angle Cross of Education"], [1])
+    canvas.draw()
+
+    shown = []
+    hidden = []
+    monkeypatch.setattr(
+        database_analytics.QToolTip,
+        "showText",
+        staticmethod(lambda _pos, text, _widget: shown.append(text)),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        database_analytics.QToolTip,
+        "hideText",
+        staticmethod(lambda: hidden.append(True)),
+        raising=False,
+    )
+
+    DatabaseAnalyticsChartsMixin()._attach_database_analytics_tick_label_tooltips(
+        canvas,
+        figure,
+        {"Left Angle Cross of Education": "Education tooltip"},
+    )
+
+    tick_label = ax.get_yticklabels()[0]
+    bbox = tick_label.get_window_extent(canvas.get_renderer())
+
+    event = MouseEvent(
+        "motion_notify_event",
+        canvas,
+        (bbox.x0 + bbox.x1) / 2,
+        (bbox.y0 + bbox.y1) / 2,
+    )
+    event.inaxes = None
+
+    canvas.callbacks.process("motion_notify_event", event)
+
+    assert shown == ["Education tooltip"]
+    assert hidden == []
