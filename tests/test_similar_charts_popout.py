@@ -204,6 +204,8 @@ def test_popout_chart_name_links_request_database_to_chart_view_transition():
     assert "lambda dialog=source_dialog: self._keep_similar_charts_popout_in_front(dialog)" in source
     assert "except RuntimeError:" in source
     assert "if current_chart_id == chart_id:" in source
+    assert "chart_is_hypothetical as _chart_is_hypothetical" in source
+    assert "if _chart_is_hypothetical(chart):" in source
 
 
 def test_similarity_reasoning_html_links_chart_info_terms():

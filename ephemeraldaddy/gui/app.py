@@ -763,6 +763,7 @@ from ephemeraldaddy.gui.features.charts.provenance import (
     SOURCE_PERSONAL,
     SOURCE_PUBLIC_DB,
     chart_is_non_aggregable as _chart_is_non_aggregable,
+    chart_is_hypothetical as _chart_is_hypothetical,
     chart_is_placeholder as _chart_is_placeholder,
     chart_is_similarity_participant as _chart_is_similarity_participant,
     chart_row_is_hypothetical as _chart_row_is_hypothetical,

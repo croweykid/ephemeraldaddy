@@ -240,3 +240,34 @@ def test_incarnation_cross_tick_label_tooltip_checks_labels_outside_axes(monkeyp
 
     assert shown == ["Education tooltip"]
     assert hidden == []
+
+
+def test_significance_guides_accept_count_mappings_with_blank_label(monkeypatch):
+    import ephemeraldaddy.gui.features.charts.database_analytics as database_analytics
+
+    captured = {}
+
+    def fake_compute(**kwargs):
+        captured.update(kwargs)
+        return []
+
+    monkeypatch.setattr(database_analytics, "compute_proportion_significance_results", fake_compute)
+    monkeypatch.setattr(database_analytics, "typical_standard_error", lambda _results: None)
+    monkeypatch.setattr(database_analytics, "draw_standard_deviation_guides", lambda *_args, **_kwargs: None)
+
+    class FakeDialog(DatabaseAnalyticsChartsMixin):
+        def _standard_deviation_indicators_visible(self):
+            return True
+
+    figure = Figure()
+    ax = figure.add_subplot(111)
+
+    FakeDialog()._draw_category_significance_guides(
+        ax,
+        {"blank": 2, "F": 3},
+        {"blank": 5, "F": 7},
+        5,
+    )
+
+    assert captured["selection_counts"] == [2, 3]
+    assert captured["database_counts"] == [5, 7]
