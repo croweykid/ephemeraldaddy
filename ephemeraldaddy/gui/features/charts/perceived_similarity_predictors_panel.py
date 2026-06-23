@@ -7,7 +7,7 @@ from math import sqrt
 from typing import Any, Mapping
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QLabel, QPushButton, QSizePolicy, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFrame, QLabel, QPushButton, QSizePolicy, QVBoxLayout, QWidget
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
@@ -67,6 +67,19 @@ class PerceivedSimilarityPredictorsPanel(QWidget):
         refresh_button.clicked.connect(self._request_refresh)
         layout.addWidget(refresh_button)
         self._refresh_button = refresh_button
+
+        divider = QFrame()
+        divider.setFrameShape(QFrame.HLine)
+        divider.setFrameShadow(QFrame.Plain)
+        divider.setStyleSheet("color: #3f3f3f; background-color: #3f3f3f; max-height: 1px;")
+        layout.addWidget(divider)
+
+        weights_header = QLabel("Recommended Factor Weights")
+        weights_header.setAlignment(Qt.AlignHCenter)
+        weights_header.setStyleSheet(
+            f"font-weight: 700; font-size: 13px; color: {self._highlight_color};"
+        )
+        layout.addWidget(weights_header)
 
         self._chart_layout = QVBoxLayout()
         self._chart_layout.setContentsMargins(0, 0, 0, 0)

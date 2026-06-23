@@ -345,7 +345,8 @@ def _numeric_group_table_html(result: TimeSensitivityResult, group_key: str) -> 
     decrease_values = [float(payload.get("max_decrease_percent", 0.0)) for _key, payload in meaningful]
     increase_values = [float(payload.get("max_increase_percent", 0.0)) for _key, payload in meaningful]
     rows = []
-    for key, payload in meaningful:
+    row_backgrounds = ("#111111", "#2b2b2b")
+    for row_index, (key, payload) in enumerate(meaningful):
         trough_start, trough_end = _span_start_end(payload.get("trough_spans") or payload.get("trough_times"))
         peak_start, peak_end = _span_start_end(payload.get("peak_spans") or payload.get("peak_times"))
         minimum = float(payload.get("min", 0.0))
@@ -356,8 +357,9 @@ def _numeric_group_table_html(result: TimeSensitivityResult, group_key: str) -> 
         max_color = escape(_relative_value_color(maximum, max_values), quote=True)
         decrease_color = escape(_relative_value_color(max_decrease, decrease_values), quote=True)
         increase_color = escape(_relative_value_color(max_increase, increase_values), quote=True)
+        row_background = row_backgrounds[row_index % len(row_backgrounds)]
         rows.append(
-            "<tr>"
+            f"<tr style='background-color:{row_background};'>"
             f"<td>{_factor_anchor(group_key, key)}</td>"
             f"<td align='right' style='color:{min_color};'>{escape(f'{minimum:.0f}')}</td>"
             f"<td align='right' style='color:{max_color};'>{escape(f'{maximum:.0f}')}</td>"
