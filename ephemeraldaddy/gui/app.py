@@ -1049,6 +1049,9 @@ from ephemeraldaddy.gui.features.charts.similarities_db_norm import (
     similarity_delta_rgb,
 )
 from ephemeraldaddy.gui.features.charts.similarities import SimilaritiesController
+from ephemeraldaddy.gui.features.charts.perceived_similarity_predictors_panel import (
+    PerceivedSimilarityPredictorsPanel,
+)
 from ephemeraldaddy.gui.features.charts.similarities_analysis import (
     build_dissimilarity_export_sections,
     build_similarity_db_baselines,
@@ -2467,6 +2470,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._toggle_similarities_panel
         )
 
+        self.perceived_similarity_predictors_panel_button = QPushButton("🧾")
+        self.perceived_similarity_predictors_panel_button.setObjectName(
+            "manage_toggle_perceived_similarity_predictors_panel_button"
+        )
+        self.perceived_similarity_predictors_panel_button.setToolTip(
+            "Review perceived-similarity predictors for the selected/searched chart"
+        )
+        self.perceived_similarity_predictors_panel_button.clicked.connect(
+            self._toggle_perceived_similarity_predictors_panel
+        )
+
         self.manage_collections_button = QPushButton("Manage Collections")
         self.manage_collections_button.setObjectName(
             "manage_toggle_collections_panel_button"
@@ -2541,6 +2555,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.database_metrics_panel_button,
             self.gen_pop_norms_panel_button,
             self.similarities_panel_button,
+            self.perceived_similarity_predictors_panel_button,
             self.batch_new_chart_button,
             self.batch_delete_chart_button,
             self.total_chart_export_button,
@@ -2651,6 +2666,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.similarities_controller.set_panel_scroll(
             self.similarities_analysis_panel_scroll
         )
+        self.perceived_similarity_predictors_panel = self._build_perceived_similarity_predictors_panel()
+        self.perceived_similarity_predictors_panel_scroll = self._wrap_left_panel(
+            self.perceived_similarity_predictors_panel
+        )
         QTimer.singleShot(0, self._start_database_metrics_cache_preload)
         self.left_panel_stack = QStackedWidget()
         self.left_panel_stack.setMinimumWidth(0)
@@ -2659,6 +2678,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "database_metrics": self.selection_sentiment_panel_scroll,
             "gen_pop_norms": self.selection_sentiment_panel_scroll,
             "similarities": self.similarities_analysis_panel_scroll,
+            "perceived_similarity_predictors": self.perceived_similarity_predictors_panel_scroll,
         }
         for widget in self._left_panel_widgets.values():
             self.left_panel_stack.addWidget(widget)
@@ -2699,6 +2719,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         left_controls_layout.addWidget(self.database_metrics_panel_button)
         left_controls_layout.addWidget(self.gen_pop_norms_panel_button)
         left_controls_layout.addWidget(self.similarities_panel_button)
+        left_controls_layout.addWidget(self.perceived_similarity_predictors_panel_button)
 
         right_controls_row = QWidget()
         right_controls_layout = QHBoxLayout()
@@ -6675,6 +6696,27 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _build_similarities_analysis_panel(self) -> QWidget:
         return self.similarities_controller.build_panel()
+
+    def _build_perceived_similarity_predictors_panel(self) -> QWidget:
+        panel = PerceivedSimilarityPredictorsPanel(
+            highlight_color=CHART_DATA_HIGHLIGHT_COLOR,
+            parent=self,
+        )
+        panel.set_refresh_callback(self._refresh_perceived_similarity_predictors_panel)
+        return panel
+
+    def _refresh_perceived_similarity_predictors_panel(self) -> None:
+        panel = getattr(self, "perceived_similarity_predictors_panel", None)
+        if not isinstance(panel, PerceivedSimilarityPredictorsPanel):
+            return
+        panel.refresh_for_chart_ids(
+            self._exclude_placeholder_chart_ids(self._selected_chart_ids()),
+            algorithm_mode=self._settings.value(
+                SETTINGS_KEY_SIMILAR_CHARTS_ALGORITHM_MODE,
+                SIMILAR_CHARTS_ALGORITHM_DEFAULT,
+            ),
+            similarity_settings=getattr(self, "_similarity_calculator_settings", None),
+        )
 
     def _set_similarities_db_info_panel_visible(self, visible: bool) -> None:
         self.similarities_controller.set_db_info_panel_visible(visible)
@@ -15488,6 +15530,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 update_database_metrics=False,
                 update_similarities=True,
             )
+        elif panel_name == "perceived_similarity_predictors":
+            self._refresh_perceived_similarity_predictors_panel()
 
     def _toggle_database_metrics_panel(self) -> None:
         if (
@@ -15530,6 +15574,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         self._show_left_panel("similarities")
 
+    def _toggle_perceived_similarity_predictors_panel(self) -> None:
+        if (
+            self._left_panel_visible
+            and self._active_left_panel == "perceived_similarity_predictors"
+            and not self._is_left_panel_collapsed()
+        ):
+            self._set_left_panel_visible(False)
+            return
+        self._show_left_panel("perceived_similarity_predictors")
+
     def _show_database_analytics_panel(self) -> None:
         self._show_left_panel("database_metrics")
 
@@ -15539,6 +15593,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _show_similarities_panel(self) -> None:
         self._show_left_panel("similarities")
+
+    def _show_perceived_similarity_predictors_panel(self) -> None:
+        self._show_left_panel("perceived_similarity_predictors")
 
     def _show_gen_pop_comparison_panel(self) -> None:
         self._show_left_panel("gen_pop_norms")

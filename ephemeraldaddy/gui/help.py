@@ -278,6 +278,7 @@ _TOOLTIP_BY_OBJECT_NAME: dict[str, str] = {
     "manage_composite_chart_button": "Build a composite chart from two selected saved charts.",
     "manage_toggle_transits_panel_button": "Toggle the Transit panel in the left sidebar.",
     "manage_toggle_database_metrics_panel_button": "Toggle the Database Metrics panel in the left sidebar.",
+    "manage_toggle_perceived_similarity_predictors_panel_button": "Toggle the Perceived Similarity Predictors panel in the left sidebar.",
     "manage_toggle_similarities_panel_button": "Toggle the Similarities panel in the left sidebar.",
     "manage_toggle_batch_edit_panel_button": "Toggle the Batch Edit panel for multi-chart updates.",
     "manage_toggle_search_panel_button": "Toggle the Search/Filter panel on the right.",
