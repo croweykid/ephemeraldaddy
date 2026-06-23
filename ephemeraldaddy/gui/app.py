@@ -201,6 +201,20 @@ def _load_similarity_calculator_settings(settings) -> SimilarityCalculatorSettin
         payload.get("use_combined_dominance", defaults.use_combined_dominance),
         defaults.use_combined_dominance,
     )
+    has_granular_dominance_payload = any(
+        f"use_{key}" in payload or f"weight_{key}" in payload
+        for key in DOMINANCE_COMPONENT_KEYS
+    )
+
+    def _dominance_enabled(key: str, fallback: bool) -> bool:
+        if has_granular_dominance_payload:
+            return _as_bool(payload.get(f"use_{key}", fallback), fallback)
+        return legacy_combined_enabled
+
+    def _dominance_weight(key: str, fallback: float) -> float:
+        if has_granular_dominance_payload:
+            return float(payload.get(f"weight_{key}", fallback))
+        return legacy_combined_weight / len(DOMINANCE_COMPONENT_KEYS)
     values = {
         "use_placement": _as_bool(payload.get("use_placement", defaults.use_placement), defaults.use_placement),
         "weight_placement": float(payload.get("weight_placement", defaults.weight_placement)),
@@ -210,14 +224,14 @@ def _load_similarity_calculator_settings(settings) -> SimilarityCalculatorSettin
         "weight_distribution": float(payload.get("weight_distribution", defaults.weight_distribution)),
         "use_combined_dominance": legacy_combined_enabled,
         "weight_combined_dominance": legacy_combined_weight,
-        "use_dominant_bodies": _as_bool(payload.get("use_dominant_bodies", legacy_combined_enabled), defaults.use_dominant_bodies),
-        "weight_dominant_bodies": float(payload.get("weight_dominant_bodies", legacy_combined_weight * 0.25)),
-        "use_dominant_houses": _as_bool(payload.get("use_dominant_houses", legacy_combined_enabled), defaults.use_dominant_houses),
-        "weight_dominant_houses": float(payload.get("weight_dominant_houses", legacy_combined_weight * 0.25)),
-        "use_dominant_signs": _as_bool(payload.get("use_dominant_signs", legacy_combined_enabled), defaults.use_dominant_signs),
-        "weight_dominant_signs": float(payload.get("weight_dominant_signs", legacy_combined_weight * 0.25)),
-        "use_dominant_nakshatras": _as_bool(payload.get("use_dominant_nakshatras", legacy_combined_enabled), defaults.use_dominant_nakshatras),
-        "weight_dominant_nakshatras": float(payload.get("weight_dominant_nakshatras", legacy_combined_weight * 0.25)),
+        "use_dominant_bodies": _dominance_enabled("dominant_bodies", defaults.use_dominant_bodies),
+        "weight_dominant_bodies": _dominance_weight("dominant_bodies", defaults.weight_dominant_bodies),
+        "use_dominant_houses": _dominance_enabled("dominant_houses", defaults.use_dominant_houses),
+        "weight_dominant_houses": _dominance_weight("dominant_houses", defaults.weight_dominant_houses),
+        "use_dominant_signs": _dominance_enabled("dominant_signs", defaults.use_dominant_signs),
+        "weight_dominant_signs": _dominance_weight("dominant_signs", defaults.weight_dominant_signs),
+        "use_dominant_nakshatras": _dominance_enabled("dominant_nakshatras", defaults.use_dominant_nakshatras),
+        "weight_dominant_nakshatras": _dominance_weight("dominant_nakshatras", defaults.weight_dominant_nakshatras),
         "use_nakshatra_placement": _as_bool(payload.get("use_nakshatra_placement", defaults.use_nakshatra_placement), defaults.use_nakshatra_placement),
         "weight_nakshatra_placement": float(payload.get("weight_nakshatra_placement", defaults.weight_nakshatra_placement)),
         "use_nakshatra_dominance": _as_bool(payload.get("use_nakshatra_dominance", defaults.use_nakshatra_dominance), defaults.use_nakshatra_dominance),
@@ -558,6 +572,7 @@ from ephemeraldaddy.analysis.bazi_getter import (
     bazi_sign_weights_from_chart,
 )
 from ephemeraldaddy.analysis.get_astro_twin import (
+    DOMINANCE_COMPONENT_KEYS,
     PLACEMENT_WEIGHTING_MODE_CHART_DEFINED,
     SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE,
     SIMILAR_CHARTS_ALGORITHM_GENERIC_ASTRO,
@@ -21748,11 +21763,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             weight_distribution=float(self._similarity_calculator_weights["distribution"].value()),
             use_combined_dominance=any(
                 bool(self._similarity_calculator_checkboxes[key].isChecked())
-                for key in ("dominant_bodies", "dominant_houses", "dominant_signs", "dominant_nakshatras")
+                for key in DOMINANCE_COMPONENT_KEYS
             ),
             weight_combined_dominance=sum(
                 float(self._similarity_calculator_weights[key].value())
-                for key in ("dominant_bodies", "dominant_houses", "dominant_signs", "dominant_nakshatras")
+                for key in DOMINANCE_COMPONENT_KEYS
             ),
             use_dominant_bodies=bool(self._similarity_calculator_checkboxes["dominant_bodies"].isChecked()),
             weight_dominant_bodies=float(self._similarity_calculator_weights["dominant_bodies"].value()),

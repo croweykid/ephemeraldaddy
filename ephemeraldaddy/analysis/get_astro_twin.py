@@ -62,14 +62,18 @@ HYBRID_LUMINARY_BONUS_BY_SIGN_MATCHES: dict[int, float] = {
     2: 1.00,
 }
 
-SIMILARITY_COMPONENT_KEYS: tuple[str, ...] = (
-    "placement",
-    "aspect",
-    "distribution",
+DOMINANCE_COMPONENT_KEYS: tuple[str, ...] = (
     "dominant_bodies",
     "dominant_signs",
     "dominant_houses",
     "dominant_nakshatras",
+)
+
+SIMILARITY_COMPONENT_KEYS: tuple[str, ...] = (
+    "placement",
+    "aspect",
+    "distribution",
+    *DOMINANCE_COMPONENT_KEYS,
     "nakshatra_placement",
     "nakshatra_dominance",
     "defined_centers",
@@ -432,6 +436,43 @@ class SimilarityCalculatorSettings:
     placement_weighting_mode: str = PLACEMENT_WEIGHTING_MODE_CHART_DEFINED
     all_or_nothing_component: str = DEFAULT_ALL_OR_NOTHING_COMPONENT
 
+    def __post_init__(self) -> None:
+        """Fold legacy combined-dominance constructor values into granular fields.
+
+        Older callers only knew ``use_combined_dominance`` and
+        ``weight_combined_dominance``. If they explicitly disable or resize that
+        legacy bucket without setting the new granular fields, keep their intent
+        by translating it into the four dominance component fields.
+        """
+        granular_defaults_untouched = (
+            self.use_dominant_bodies is True
+            and self.use_dominant_signs is True
+            and self.use_dominant_houses is True
+            and self.use_dominant_nakshatras is True
+            and self.weight_dominant_bodies == 0.0375
+            and self.weight_dominant_signs == 0.0375
+            and self.weight_dominant_houses == 0.0375
+            and self.weight_dominant_nakshatras == 0.0375
+        )
+        if not granular_defaults_untouched:
+            return
+        if not self.use_combined_dominance or float(self.weight_combined_dominance) <= 0.0:
+            self.use_dominant_bodies = False
+            self.use_dominant_signs = False
+            self.use_dominant_houses = False
+            self.use_dominant_nakshatras = False
+            self.weight_dominant_bodies = 0.0
+            self.weight_dominant_signs = 0.0
+            self.weight_dominant_houses = 0.0
+            self.weight_dominant_nakshatras = 0.0
+            return
+        if float(self.weight_combined_dominance) != 0.15:
+            split_weight = max(0.0, float(self.weight_combined_dominance)) / len(DOMINANCE_COMPONENT_KEYS)
+            self.weight_dominant_bodies = split_weight
+            self.weight_dominant_signs = split_weight
+            self.weight_dominant_houses = split_weight
+            self.weight_dominant_nakshatras = split_weight
+
     @classmethod
     def defaults_from_comprehensive(cls) -> "SimilarityCalculatorSettings":
         return cls(
@@ -596,14 +637,9 @@ def all_or_nothing_similarity_settings(
             continue
         values[f"use_{key}"] = key == selected_component
         values[f"weight_{key}"] = 1.0 if key == selected_component else 0.0
-    values["use_combined_dominance"] = selected_component in {
-        "dominant_bodies",
-        "dominant_signs",
-        "dominant_houses",
-        "dominant_nakshatras",
-    }
+    values["use_combined_dominance"] = selected_component in DOMINANCE_COMPONENT_KEYS
     values["weight_combined_dominance"] = 1.0 if values["use_combined_dominance"] else 0.0
-    for key in ("dominant_bodies", "dominant_signs", "dominant_houses", "dominant_nakshatras"):
+    for key in DOMINANCE_COMPONENT_KEYS:
         values[f"use_{key}"] = key == selected_component
         values[f"weight_{key}"] = 1.0 if key == selected_component else 0.0
     return SimilarityCalculatorSettings(**values)
