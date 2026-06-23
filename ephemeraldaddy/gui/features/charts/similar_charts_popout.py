@@ -2970,6 +2970,7 @@ def build_predictions_panel_content(
     matches: list[Any],
     load_chart_by_id: Callable[[int], Any],
     default_alignment_to_zero_when_unassigned: bool = True,
+    preloaded_chart_metrics: Mapping[int, Mapping[str, Any]] | None = None,
 ) -> tuple[str, str]:
     if not matches:
         placeholder = "No similar charts were found, so no predictions are available."
@@ -2994,13 +2995,27 @@ def build_predictions_panel_content(
             continue
         if chart_id <= 0:
             continue
-        try:
-            compared_chart = load_chart_by_id(chart_id)
-        except Exception:
-            continue
-        positive_values.append(float(int(getattr(compared_chart, "positive_sentiment_intensity", 1) or 1)))
-        negative_values.append(float(int(getattr(compared_chart, "negative_sentiment_intensity", 1) or 1)))
-        raw_alignment = getattr(compared_chart, "alignment_score", None)
+        preloaded_metrics = (preloaded_chart_metrics or {}).get(chart_id)
+        if isinstance(preloaded_metrics, Mapping):
+            positive_values.append(
+                float(int(preloaded_metrics.get("positive_sentiment_intensity", 1) or 1))
+            )
+            negative_values.append(
+                float(int(preloaded_metrics.get("negative_sentiment_intensity", 1) or 1))
+            )
+            raw_alignment = preloaded_metrics.get("alignment_score")
+        else:
+            try:
+                compared_chart = load_chart_by_id(chart_id)
+            except Exception:
+                continue
+            positive_values.append(
+                float(int(getattr(compared_chart, "positive_sentiment_intensity", 1) or 1))
+            )
+            negative_values.append(
+                float(int(getattr(compared_chart, "negative_sentiment_intensity", 1) or 1))
+            )
+            raw_alignment = getattr(compared_chart, "alignment_score", None)
         if isinstance(raw_alignment, int | float):
             alignment_values.append(float(raw_alignment))
         elif default_alignment_to_zero_when_unassigned:
@@ -3082,12 +3097,14 @@ def render_predictions_panel_content(
     matches: list[Any],
     load_chart_by_id: Callable[[int], Any],
     default_alignment_to_zero_when_unassigned: bool = True,
+    preloaded_chart_metrics: Mapping[int, Mapping[str, Any]] | None = None,
 ) -> None:
     html_text, plain_text = build_predictions_panel_content(
         subject_name=subject_name,
         matches=matches,
         load_chart_by_id=load_chart_by_id,
         default_alignment_to_zero_when_unassigned=default_alignment_to_zero_when_unassigned,
+        preloaded_chart_metrics=preloaded_chart_metrics,
     )
     _set_widget_rich_or_plain_text(output_widget=output_widget, html_text=html_text, plain_text=plain_text)
 
