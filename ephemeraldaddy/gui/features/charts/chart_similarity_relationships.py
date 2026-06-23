@@ -784,7 +784,70 @@ def load_chart_similarity_relationship_states(
             )
             if legacy_key != "unknown|unknown":
                 states[legacy_key] = state_copy
+    _expand_linked_chart_relationship_states(states)
     return states
+
+
+def _expand_linked_chart_relationship_states(states: dict[str, dict[str, Any]]) -> None:
+    """Add read-time aliases for perceived scores shared by linked chart UIDs."""
+    linked_groups = get_alternate_chart_uid_groups()
+    if not linked_groups:
+        return
+
+    for raw_standard_uid, raw_group in linked_groups.items():
+        standard_uid = _coerce_chart_uid(raw_standard_uid)
+        group_uids = []
+        for raw_uid in raw_group:
+            uid = _coerce_chart_uid(raw_uid)
+            if uid and uid not in group_uids:
+                group_uids.append(uid)
+        if standard_uid and standard_uid not in group_uids:
+            group_uids.insert(0, standard_uid)
+        if len(group_uids) < 2:
+            continue
+
+        group_set = set(group_uids)
+        records_by_group_member: dict[str, dict[str, Mapping[str, Any]]] = {uid: {} for uid in group_uids}
+        for state in list(states.values()):
+            if not isinstance(state, Mapping):
+                continue
+            chart_uids = state.get("chart_uids") if isinstance(state.get("chart_uids"), list) else []
+            uids = [_coerce_chart_uid(uid) for uid in chart_uids]
+            uids = [uid for uid in uids if uid]
+            if len(uids) != 2:
+                continue
+            uid_set = set(uids)
+            if uid_set <= group_set:
+                continue
+            linked_uid = next((uid for uid in uids if uid in group_set), None)
+            other_uid = next((uid for uid in uids if uid not in group_set), None)
+            if linked_uid and other_uid:
+                records_by_group_member.setdefault(linked_uid, {})[other_uid] = state
+
+        other_uids = {other_uid for records in records_by_group_member.values() for other_uid in records}
+        for other_uid in other_uids:
+            canonical_state = None
+            if standard_uid:
+                canonical_state = records_by_group_member.get(standard_uid, {}).get(other_uid)
+            if canonical_state is None:
+                canonical_state = next(
+                    (records.get(other_uid) for records in records_by_group_member.values() if records.get(other_uid)),
+                    None,
+                )
+            if canonical_state is None:
+                continue
+            for linked_uid in group_uids:
+                key = chart_similarity_relationship_key(
+                    chart_1_id=None,
+                    chart_2_id=None,
+                    chart_1_uid=linked_uid,
+                    chart_2_uid=other_uid,
+                )
+                alias_state = dict(canonical_state)
+                alias_state["relationship_key"] = key
+                alias_state["chart_uids"] = list(sorted((linked_uid, other_uid)))
+                alias_state.setdefault("inherited_from_linked_chart_uid", standard_uid or linked_uid)
+                states[key] = alias_state
 
 
 def perceived_accuracy_state_key(

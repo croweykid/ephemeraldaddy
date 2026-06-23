@@ -3091,6 +3091,7 @@ def build_similar_charts_popout_dialog(
     share_icon_path: str | None = None,
     show_perceived_accuracy_controls: bool = False,
     perceived_accuracy_states: Mapping[str, Mapping[str, Any]] | None = None,
+    perceived_accuracy_uid_by_chart_id: Mapping[int, str] | None = None,
     on_perceived_accuracy_changed: Callable[[QDialog, Any, str, int | None, bool], bool | None] | None = None,
     on_chart_info_target_requested: Callable[[QDialog, str], None] | None = None,
 ) -> QDialog:
@@ -3358,9 +3359,16 @@ def build_similar_charts_popout_dialog(
             def _accuracy_state_for(match: Any) -> Mapping[str, Any]:
                 if not perceived_accuracy_states:
                     return {}
+                try:
+                    compared_chart_id = int(getattr(match, "chart_id", 0) or 0) or None
+                except (TypeError, ValueError):
+                    compared_chart_id = None
+                uid_map = perceived_accuracy_uid_by_chart_id or {}
                 key = perceived_accuracy_state_key(
                     chart_1_id=subject_chart_id,
-                    chart_2_id=int(getattr(match, "chart_id", 0) or 0) or None,
+                    chart_2_id=compared_chart_id,
+                    chart_1_uid=uid_map.get(int(subject_chart_id)) if subject_chart_id is not None else None,
+                    chart_2_uid=uid_map.get(int(compared_chart_id)) if compared_chart_id is not None else None,
                 )
                 state = perceived_accuracy_states.get(key, {})
                 return state if isinstance(state, Mapping) else {}

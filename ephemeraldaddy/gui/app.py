@@ -25046,6 +25046,14 @@ class MainWindow(QMainWindow):
     ) -> list[dict[str, Any]]:
         if subject_chart_id is None or not perceived_accuracy_states:
             return []
+        candidate_ids = [int(chart_id) for chart_id, _candidate in (candidates or [])]
+        uid_lookup_ids = [chart_id for chart_id in [subject_chart_id, *candidate_ids] if chart_id is not None]
+        uid_by_chart_id = {
+            int(chart_id): str(uid or "").strip().upper()
+            for chart_id, uid in get_chart_uid_map(uid_lookup_ids).items()
+            if uid
+        }
+        subject_uid = uid_by_chart_id.get(subject_chart_id) if subject_chart_id is not None else None
         match_by_id: dict[int, Any] = {}
         for match in ranked_matches or []:
             try:
@@ -25060,16 +25068,27 @@ class MainWindow(QMainWindow):
                 continue
             chart_ids = state.get("chart_ids")
             if not isinstance(chart_ids, list) or len(chart_ids) < 2:
-                continue
+                chart_ids = []
             try:
                 first_id = int(chart_ids[0])
                 second_id = int(chart_ids[1])
             except (TypeError, ValueError):
-                continue
+                first_id = None
+                second_id = None
+            chart_uids = state.get("chart_uids") if isinstance(state.get("chart_uids"), list) else []
+            normalized_uids = {str(uid or "").strip().upper() for uid in chart_uids}
             if first_id == subject_chart_id:
                 compared_id = second_id
             elif second_id == subject_chart_id:
                 compared_id = first_id
+            elif subject_uid and subject_uid in normalized_uids:
+                other_uids = [uid for uid in normalized_uids if uid and uid != subject_uid]
+                compared_id = next(
+                    (chart_id for chart_id, uid in uid_by_chart_id.items() if uid in other_uids),
+                    None,
+                )
+                if compared_id is None:
+                    continue
             else:
                 continue
             if compared_id in state_by_compared_id:
@@ -25474,8 +25493,16 @@ class MainWindow(QMainWindow):
                 SIMILARITY_PERCEIVED_ACCURACY_CONTROLS_DEFAULT,
             )
         )
+        perceived_accuracy_uid_by_chart_id = {}
         if show_perceived_accuracy_controls:
             perceived_accuracy_states = load_chart_similarity_relationship_states()
+            perceived_accuracy_uid_by_chart_id = get_chart_uid_map(
+                [
+                    chart_id
+                    for chart_id in [subject_chart_id, *(chart_id for chart_id, _candidate in candidates)]
+                    if chart_id is not None
+                ]
+            )
             if performed_full_recompute:
                 update_similar_charts_loading_progress(progress, "Preparing perceived-accuracy results…", 96)
             all_accuracy_entries = self._similar_charts_perceived_accuracy_entries_for_states(
@@ -25488,6 +25515,7 @@ class MainWindow(QMainWindow):
             )
         else:
             perceived_accuracy_states = None
+            perceived_accuracy_uid_by_chart_id = {}
             all_accuracy_entries = []
         if performed_full_recompute:
             update_similar_charts_loading_progress(progress, "Rendering Similar Charts window…", 98)
@@ -25519,6 +25547,7 @@ class MainWindow(QMainWindow):
             share_icon_path=_get_share_icon_path(),
             show_perceived_accuracy_controls=show_perceived_accuracy_controls,
             perceived_accuracy_states=perceived_accuracy_states,
+            perceived_accuracy_uid_by_chart_id=perceived_accuracy_uid_by_chart_id,
             on_perceived_accuracy_changed=(
                 self._on_similar_chart_popout_perceived_accuracy_changed
                 if show_perceived_accuracy_controls

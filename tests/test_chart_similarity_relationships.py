@@ -141,6 +141,42 @@ def test_linked_hypothetical_scores_update_in_unison(monkeypatch, tmp_path):
     assert states[hypo_key]["user_reported_accuracy"] == 91
 
 
+def test_linked_hypothetical_inherits_standard_score_at_load_time(monkeypatch, tmp_path):
+    relationship_path = tmp_path / "chart_similarity_relationships.json"
+    real_uid = "REALUID00000001"
+    hypo_uid = "HYPOUID00000001"
+    other_uid = "OTHERUID0000001"
+    monkeypatch.setattr(
+        "ephemeraldaddy.gui.features.charts.chart_similarity_relationships.get_alternate_chart_uid_groups",
+        lambda: {real_uid: [real_uid, hypo_uid]},
+    )
+
+    save_chart_similarity_relationship(
+        chart_1_id=1,
+        chart_1_name="Real",
+        chart_1_uid=real_uid,
+        chart_2_id=2,
+        chart_2_name="Other",
+        chart_2_uid=other_uid,
+        user_reported_accuracy=80,
+        not_applicable=False,
+        path=relationship_path,
+    )
+    payload = json.loads(relationship_path.read_text(encoding="utf-8"))
+    hypo_key = chart_similarity_relationship_key(
+        chart_1_id=None,
+        chart_2_id=None,
+        chart_1_uid=hypo_uid,
+        chart_2_uid=other_uid,
+    )
+    payload["relationships"].pop(hypo_key)
+    relationship_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    states = load_chart_similarity_relationship_states(relationship_path, include_legacy_algorithm_log=False)
+
+    assert states[hypo_key]["user_reported_accuracy"] == 80
+    assert states[hypo_key]["chart_uids"] == sorted([hypo_uid, other_uid])
+
 def test_linked_hypothetical_consolidates_scores_with_standard_preferred(tmp_path):
     relationship_path = tmp_path / "chart_similarity_relationships.json"
     real_uid = "REALUID00000001"
