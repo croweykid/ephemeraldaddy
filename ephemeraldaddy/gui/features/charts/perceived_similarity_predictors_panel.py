@@ -358,7 +358,7 @@ class PerceivedSimilarityPredictorsPanel(QWidget):
             counterclock=False,
             wedgeprops={"linewidth": 1.0, "edgecolor": "#0f0515"},
         )
-        ax.set_title("Recommended factor weights", color="#ffffff", fontsize=10)
+        ax.set_title("", color="#ffffff", fontsize=10)
         legend_labels = [f"{name} ({weight:.1f}%)" for name, weight in zip(names, weights, strict=False)]
         legend = ax.legend(
             wedges,
