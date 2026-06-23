@@ -1149,6 +1149,31 @@ GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS: frozenset[str] = frozenset(
 SIMILAR_CHARTS_EXPORT_FORMAT_KEY = "exports/similar_charts_format"
 CHART_VIEW_NAV_CACHE_LIMIT = 24
 
+DATABASE_METRICS_PERSISTENT_CACHE_VERSION = 1
+DATABASE_METRICS_PERSISTENT_CACHE_FILENAME = ".database_metrics_cache.json"
+DATABASE_METRICS_SECTION_ORDER: tuple[str, ...] = (
+    "planetary_sign_prevalence",
+    "sentiment_prevalence",
+    "relationship_prevalence",
+    "alignment_summary",
+    "matched_expectations_summary",
+    "sign_prevalence",
+    "dominant_signs",
+    "decans",
+    "nakshatras",
+    "cumulativedom_factors",
+    "enneagram",
+    "species_distribution",
+    "birth_time",
+    "age",
+    "birth_month",
+    "birthplace",
+    "tag_distribution",
+    "gender",
+    "human_design",
+    "bazi",
+)
+
 GENERATION_UNKNOWN_OPTION = "unknown"
 GENERATION_FILTER_OPTIONS: tuple[str, ...] = tuple(
     [
@@ -3082,31 +3107,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         }
 
     def _expanded_database_metric_sections(self) -> list[str]:
-        section_order = [
-            "planetary_sign_prevalence",
-            "sentiment_prevalence",
-            "relationship_prevalence",
-            "alignment_summary",
-            "matched_expectations_summary",
-            "sign_prevalence",
-            "dominant_signs",
-            "decans",
-            "nakshatras",
-            "cumulativedom_factors",
-            "enneagram",
-            "species_distribution",
-            "birth_time",
-            "age",
-            "birth_month",
-            "birthplace",
-            "tag_distribution",
-            "gender",
-            "human_design",
-            "bazi",
-        ]
         return [
             section_key
-            for section_key in section_order
+            for section_key in DATABASE_METRICS_SECTION_ORDER
             if self._is_database_metrics_section_expanded(section_key)
             and self._is_database_metrics_section_visible(section_key)
             and not (
@@ -3161,14 +3164,177 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
 
     def _start_database_metrics_cache_preload(self) -> None:
-        """Warm Database Analytics source data after startup without expanding panels."""
+        """Restore persisted Database Analytics snapshots without recalculating at startup."""
         if self._database_metrics_cache is not None:
             return
         try:
-            self._refresh_database_metrics_cache(force_full_refresh=True)
+            self._load_database_metrics_persistent_cache()
         except Exception:
             traceback.print_exc()
-            self._database_metrics_cache = self._empty_database_metrics_cache()
+            self._database_metrics_cache = None
+
+    def _database_metrics_persistent_cache_path(self) -> Path:
+        return DB_DIR / DATABASE_METRICS_PERSISTENT_CACHE_FILENAME
+
+    def _database_metrics_rows_token(self) -> tuple[tuple[str, str], ...]:
+        row_ids: list[int] = []
+        rows_by_id: dict[int, Any] = {}
+        for row in getattr(self, "_chart_rows", []) or []:
+            try:
+                chart_id = int(row[0])
+            except Exception:
+                continue
+            row_ids.append(chart_id)
+            rows_by_id[chart_id] = row
+        uid_by_id = get_chart_uid_map(row_ids)
+        row_tokens: list[tuple[str, str]] = []
+        for chart_id in row_ids:
+            chart_uid = str(uid_by_id.get(chart_id) or f"legacy-id:{chart_id}").strip().upper()
+            row = rows_by_id[chart_id]
+            row_tokens.append((chart_uid, repr(tuple(row[1:]))))
+        return tuple(sorted(row_tokens))
+
+    def _database_metrics_config_token(self) -> str:
+        return json.dumps(
+            {
+                "cache_version": DATABASE_METRICS_PERSISTENT_CACHE_VERSION,
+                "enneagram_scoring_options": _enneagram_scoring_options_to_payload(
+                    getattr(
+                        self,
+                        "_enneagram_scoring_options",
+                        _default_enneagram_scoring_options(),
+                    )
+                ),
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+
+    @staticmethod
+    def _encode_database_metrics_cache_value(value: Any) -> Any:
+        if isinstance(value, dict):
+            return {
+                "__database_metrics_cache_type__": "dict",
+                "items": [
+                    [
+                        ManageChartsDialog._encode_database_metrics_cache_value(key),
+                        ManageChartsDialog._encode_database_metrics_cache_value(item_value),
+                    ]
+                    for key, item_value in value.items()
+                ],
+            }
+        if isinstance(value, set):
+            return {
+                "__database_metrics_cache_type__": "set",
+                "items": [
+                    ManageChartsDialog._encode_database_metrics_cache_value(item)
+                    for item in value
+                ],
+            }
+        if isinstance(value, tuple):
+            return {
+                "__database_metrics_cache_type__": "tuple",
+                "items": [
+                    ManageChartsDialog._encode_database_metrics_cache_value(item)
+                    for item in value
+                ],
+            }
+        if isinstance(value, list):
+            return [
+                ManageChartsDialog._encode_database_metrics_cache_value(item)
+                for item in value
+            ]
+        return value
+
+    @staticmethod
+    def _decode_database_metrics_cache_value(value: Any) -> Any:
+        if isinstance(value, list):
+            return [
+                ManageChartsDialog._decode_database_metrics_cache_value(item)
+                for item in value
+            ]
+        if isinstance(value, dict):
+            cache_type = value.get("__database_metrics_cache_type__")
+            if cache_type == "dict":
+                return {
+                    ManageChartsDialog._decode_database_metrics_cache_value(key):
+                    ManageChartsDialog._decode_database_metrics_cache_value(item_value)
+                    for key, item_value in value.get("items", [])
+                }
+            if cache_type == "set":
+                return {
+                    ManageChartsDialog._decode_database_metrics_cache_value(item)
+                    for item in value.get("items", [])
+                }
+            if cache_type == "tuple":
+                return tuple(
+                    ManageChartsDialog._decode_database_metrics_cache_value(item)
+                    for item in value.get("items", [])
+                )
+            return {
+                key: ManageChartsDialog._decode_database_metrics_cache_value(item_value)
+                for key, item_value in value.items()
+            }
+        return value
+
+    def _load_database_metrics_persistent_cache(self) -> bool:
+        path = self._database_metrics_persistent_cache_path()
+        if not path.exists():
+            return False
+        with path.open("r", encoding="utf-8") as cache_file:
+            payload = json.load(cache_file)
+        if not isinstance(payload, dict):
+            return False
+        if payload.get("version") != DATABASE_METRICS_PERSISTENT_CACHE_VERSION:
+            return False
+        if payload.get("config_token") != self._database_metrics_config_token():
+            return False
+        rows_token = self._decode_database_metrics_cache_value(payload.get("rows_token"))
+        if rows_token != self._database_metrics_rows_token():
+            return False
+        cache = self._decode_database_metrics_cache_value(payload.get("cache"))
+        snapshots = self._decode_database_metrics_cache_value(payload.get("snapshots"))
+        sections = self._decode_database_metrics_cache_value(payload.get("snapshot_sections"))
+        if not isinstance(cache, dict) or not isinstance(snapshots, dict):
+            return False
+        self._database_metrics_cache = cache
+        self._database_metric_snapshots = snapshots
+        self._database_metrics_snapshot_sections = frozenset(sections or ())
+        self._database_metrics_lucy_goosey_ids.clear()
+        return True
+
+    def _save_database_metrics_persistent_cache(self) -> None:
+        try:
+            self._refresh_database_metrics_cache(
+                force_full_refresh=self._database_metrics_cache is None,
+                computed_sections=frozenset(DATABASE_METRICS_SECTION_ORDER),
+            )
+            DB_DIR.mkdir(parents=True, exist_ok=True)
+            payload = {
+                "version": DATABASE_METRICS_PERSISTENT_CACHE_VERSION,
+                "config_token": self._database_metrics_config_token(),
+                "rows_token": self._encode_database_metrics_cache_value(
+                    self._database_metrics_rows_token()
+                ),
+                "snapshot_sections": self._encode_database_metrics_cache_value(
+                    tuple(self._database_metrics_snapshot_sections)
+                ),
+                "cache": self._encode_database_metrics_cache_value(self._database_metrics_cache),
+                "snapshots": self._encode_database_metrics_cache_value(self._database_metric_snapshots),
+            }
+            path = self._database_metrics_persistent_cache_path()
+            temp_path = path.with_suffix(f"{path.suffix}.tmp")
+            with temp_path.open("w", encoding="utf-8") as cache_file:
+                json.dump(payload, cache_file, separators=(",", ":"))
+            temp_path.replace(path)
+        except Exception:
+            traceback.print_exc()
+
+    def _invalidate_database_metrics_cache(self) -> None:
+        self._database_metrics_cache = None
+        self._database_metric_snapshots = {}
+        self._database_metrics_snapshot_sections = frozenset()
+        self._database_metrics_lucy_goosey_ids.clear()
 
     def _update_position_sign_subheader(self) -> None:
         subheader = getattr(self, "position_sign_distribution_subheader", None)
@@ -9367,10 +9533,21 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         
         self._apply_bazi_snapshot_delta(totals, snapshot, direction)
 
-    def _refresh_database_metrics_cache(self, force_full_refresh: bool = False) -> None:
-        computed_sections = frozenset(self._expanded_database_metric_sections())
-        if computed_sections != self._database_metrics_snapshot_sections:
+    def _refresh_database_metrics_cache(
+        self,
+        force_full_refresh: bool = False,
+        computed_sections: frozenset[str] | None = None,
+    ) -> None:
+        computed_sections = frozenset(
+            self._expanded_database_metric_sections()
+            if computed_sections is None
+            else computed_sections
+        )
+        if not computed_sections.issubset(self._database_metrics_snapshot_sections):
             force_full_refresh = True
+            snapshot_sections = computed_sections
+        else:
+            snapshot_sections = self._database_metrics_snapshot_sections
         if self._database_metrics_cache is None or force_full_refresh:
             cache = self._empty_database_metrics_cache()
             self._database_metric_snapshots = {}
@@ -9379,12 +9556,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for chart_id in active_ids:
                 snapshot = self._build_chart_metric_snapshot(
                     chart_id,
-                    computed_sections=computed_sections,
+                    computed_sections=snapshot_sections,
                 )
                 self._database_metric_snapshots[chart_id] = snapshot
                 self._apply_snapshot_delta(cache, snapshot, 1)
             self._database_metrics_cache = cache
-            self._database_metrics_snapshot_sections = computed_sections
+            self._database_metrics_snapshot_sections = snapshot_sections
             self._database_metrics_lucy_goosey_ids.clear()
             return
         cache = self._database_metrics_cache
@@ -9402,12 +9579,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._chart_cache.pop(chart_id, None)
             current = self._build_chart_metric_snapshot(
                 chart_id,
-                computed_sections=computed_sections,
+                computed_sections=snapshot_sections,
             )
             self._database_metric_snapshots[chart_id] = current
             self._apply_snapshot_delta(cache, current, 1)
         cache["chart_ids"] = set(active_ids)
-        self._database_metrics_snapshot_sections = computed_sections
+        self._database_metrics_snapshot_sections = snapshot_sections
         self._database_metrics_lucy_goosey_ids.clear()
 
     def _iter_database_metric_snapshots(self, chart_ids: list[int] | set[int] | None = None):
@@ -16054,6 +16231,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if isinstance(parent, MainWindow):
             parent.allow_close_for_app_exit()
 
+        self._save_database_metrics_persistent_cache()
+
         super().closeEvent(event)
 
         #prevents ghost windows lingering
@@ -16622,7 +16801,25 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             return
 
-        self._refresh_charts(force_full_analysis_refresh=True)
+        imported_uids = {
+            str(chart_uid).strip().upper()
+            for chart_uid in result.get("imported_uids", []) or []
+            if str(chart_uid).strip()
+        }
+        uid_to_chart_id = {
+            str(chart_uid).strip().upper(): int(chart_id)
+            for chart_id, chart_uid in get_chart_uid_map().items()
+            if str(chart_uid).strip()
+        }
+        changed_ids = {
+            uid_to_chart_id[chart_uid]
+            for chart_uid in imported_uids
+            if chart_uid in uid_to_chart_id
+        }
+        self._refresh_charts(
+            changed_ids=changed_ids or None,
+            force_full_analysis_refresh=not bool(changed_ids),
+        )
 
         imported = int(result.get("imported", 0) or 0)
         skipped = int(result.get("skipped", 0) or 0)
@@ -21496,6 +21693,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             parent._enneagram_predictor_mode = "default"
             parent._enneagram_predictor_weights = dict(weights)
             parent._enneagram_scoring_options = options
+        self._invalidate_database_metrics_cache()
 
     def _refresh_dev_age_predictor(self, force_guess: bool = False) -> None:
         if self._dev_user_age_label is None or self._dev_age_distribution_canvas is None:
@@ -33316,6 +33514,9 @@ class MainWindow(QMainWindow):
         _set_enneagram_scoring_options(
             getattr(self, "_enneagram_scoring_options", _default_enneagram_scoring_options())
         )
+        invalidate_metrics = getattr(self, "_invalidate_database_metrics_cache", None)
+        if callable(invalidate_metrics):
+            invalidate_metrics()
 
     def _calculate_enneagram_type_weights(self, chart: Chart) -> dict[int, float]:
         return _calculate_enneagram_type_weights(
