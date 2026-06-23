@@ -25832,362 +25832,366 @@ class MainWindow(QMainWindow):
             parent=progress_parent,
             message="Analyzing database to match similar charts…",
         )
-        if cached_payload is not None and not changed_chart_uids and not deleted_chart_uids:
-            # # Exact same subject/settings/database state within this app session:
-            # # reuse the just-computed rankings instead of showing the expensive
-            # # progress dialog and recalculating both Top/Bottom lists.
-            self._similar_charts_popout_last_cache_status = "hit"
-            # logger.debug("Similar Charts popout cache hit for subject_chart_id=%s", subject_chart_id)
-            update_similar_charts_loading_progress(progress, "Loading cached Similar Charts rankings…", 35)
-            most_similar_matches = self._refresh_similar_charts_match_display_names(
-                list(cached_payload.get("most_similar_matches") or []),
-                chart_names_by_id=chart_names_by_id,
-            )
-            least_similar_matches = self._refresh_similar_charts_match_display_names(
-                list(cached_payload.get("least_similar_matches") or []),
-                chart_names_by_id=chart_names_by_id,
-            )
-            least_similar_matches.sort(key=lambda match: (float(match.score), int(match.chart_id)))
-        elif incremental_refresh_supported:
-            self._similar_charts_popout_last_cache_status = "incremental-refresh"
-            update_similar_charts_loading_progress(progress, "Refreshing changed Similar Charts rankings…", 20)
-            # logger.debug(
-            #     "Similar Charts popout cache incrementally refreshing %s changed rows for subject_chart_id=%s",
-            #     len(changed_chart_ids),
-            #     subject_chart_id,
-            # )
-            most_similar_matches = self._refresh_similar_charts_match_display_names(
-                [
-                    match
-                    for match in list(cached_payload.get("most_similar_matches") or [])
-                    if chart_uids_by_id.get(int(match.chart_id)) not in changed_chart_uids
-                    and chart_uids_by_id.get(int(match.chart_id)) not in deleted_chart_uids
-                ],
-                chart_names_by_id=chart_names_by_id,
-            )
-            least_similar_matches = self._refresh_similar_charts_match_display_names(
-                [
-                    match
-                    for match in list(cached_payload.get("least_similar_matches") or [])
-                    if chart_uids_by_id.get(int(match.chart_id)) not in changed_chart_uids
-                    and chart_uids_by_id.get(int(match.chart_id)) not in deleted_chart_uids
-                ],
-                chart_names_by_id=chart_names_by_id,
-            )
-            refreshed_chart_ids = [
-                int(changed_chart_id)
-                for changed_chart_uid in sorted(changed_chart_uids)
-                if (changed_chart_id := chart_ids_by_uid.get(changed_chart_uid)) is not None
-                and (subject_chart_id is None or int(changed_chart_id) != subject_chart_id)
-                and (linked_standard_chart_id is None or int(changed_chart_id) != linked_standard_chart_id)
-            ]
-            refreshed_charts_by_id: Mapping[int, Chart] = {}
-            refresh_batch_load_failed = False
-            if refreshed_chart_ids:
-                try:
-                    refreshed_charts_by_id = load_charts(refreshed_chart_ids)
-                except Exception:
-                    refreshed_charts_by_id = {}
-                    refresh_batch_load_failed = True
-            refreshed_candidates: list[tuple[int, Chart]] = []
-            for changed_chart_id in refreshed_chart_ids:
-                if refresh_batch_load_failed:
+        try:
+            if cached_payload is not None and not changed_chart_uids and not deleted_chart_uids:
+                # # Exact same subject/settings/database state within this app session:
+                # # reuse the just-computed rankings instead of showing the expensive
+                # # progress dialog and recalculating both Top/Bottom lists.
+                self._similar_charts_popout_last_cache_status = "hit"
+                # logger.debug("Similar Charts popout cache hit for subject_chart_id=%s", subject_chart_id)
+                update_similar_charts_loading_progress(progress, "Loading cached Similar Charts rankings…", 35)
+                most_similar_matches = self._refresh_similar_charts_match_display_names(
+                    list(cached_payload.get("most_similar_matches") or []),
+                    chart_names_by_id=chart_names_by_id,
+                )
+                least_similar_matches = self._refresh_similar_charts_match_display_names(
+                    list(cached_payload.get("least_similar_matches") or []),
+                    chart_names_by_id=chart_names_by_id,
+                )
+                least_similar_matches.sort(key=lambda match: (float(match.score), int(match.chart_id)))
+            elif incremental_refresh_supported:
+                self._similar_charts_popout_last_cache_status = "incremental-refresh"
+                update_similar_charts_loading_progress(progress, "Refreshing changed Similar Charts rankings…", 20)
+                # logger.debug(
+                #     "Similar Charts popout cache incrementally refreshing %s changed rows for subject_chart_id=%s",
+                #     len(changed_chart_ids),
+                #     subject_chart_id,
+                # )
+                most_similar_matches = self._refresh_similar_charts_match_display_names(
+                    [
+                        match
+                        for match in list(cached_payload.get("most_similar_matches") or [])
+                        if chart_uids_by_id.get(int(match.chart_id)) not in changed_chart_uids
+                        and chart_uids_by_id.get(int(match.chart_id)) not in deleted_chart_uids
+                    ],
+                    chart_names_by_id=chart_names_by_id,
+                )
+                least_similar_matches = self._refresh_similar_charts_match_display_names(
+                    [
+                        match
+                        for match in list(cached_payload.get("least_similar_matches") or [])
+                        if chart_uids_by_id.get(int(match.chart_id)) not in changed_chart_uids
+                        and chart_uids_by_id.get(int(match.chart_id)) not in deleted_chart_uids
+                    ],
+                    chart_names_by_id=chart_names_by_id,
+                )
+                refreshed_chart_ids = [
+                    int(changed_chart_id)
+                    for changed_chart_uid in sorted(changed_chart_uids)
+                    if (changed_chart_id := chart_ids_by_uid.get(changed_chart_uid)) is not None
+                    and (subject_chart_id is None or int(changed_chart_id) != subject_chart_id)
+                    and (linked_standard_chart_id is None or int(changed_chart_id) != linked_standard_chart_id)
+                ]
+                refreshed_charts_by_id: Mapping[int, Chart] = {}
+                refresh_batch_load_failed = False
+                if refreshed_chart_ids:
                     try:
-                        refreshed_chart = load_chart(changed_chart_id)
+                        refreshed_charts_by_id = load_charts(refreshed_chart_ids)
                     except Exception:
+                        refreshed_charts_by_id = {}
+                        refresh_batch_load_failed = True
+                refreshed_candidates: list[tuple[int, Chart]] = []
+                for changed_chart_id in refreshed_chart_ids:
+                    if refresh_batch_load_failed:
+                        try:
+                            refreshed_chart = load_chart(changed_chart_id)
+                        except Exception:
+                            logger.warning(
+                                "Failed to load changed Similar Charts candidate %s",
+                                changed_chart_id,
+                            )
+                            continue
+                    else:
+                        refreshed_chart = refreshed_charts_by_id.get(changed_chart_id)
+                    if refreshed_chart is None:
                         logger.warning(
                             "Failed to load changed Similar Charts candidate %s",
                             changed_chart_id,
                         )
                         continue
-                else:
-                    refreshed_chart = refreshed_charts_by_id.get(changed_chart_id)
-                if refreshed_chart is None:
-                    logger.warning(
-                        "Failed to load changed Similar Charts candidate %s",
-                        changed_chart_id,
-                    )
-                    continue
-                if _chart_is_placeholder(refreshed_chart):
-                    continue
-                refreshed_candidates.append((changed_chart_id, refreshed_chart))
-            if refreshed_candidates:
-                refreshed_most = find_astro_twins(
-                    chart,
-                    refreshed_candidates,
-                    top_k=len(refreshed_candidates),
-                    exclude_chart_id=subject_chart_id,
-                    least_similar=False,
-                    algorithm_mode=algorithm_mode,
-                    custom_settings=getattr(self, "_similarity_calculator_settings", None),
-                )
-                if self._similar_charts_can_derive_least_from_full_similarity_ranking(algorithm_mode):
-                    refreshed_least = self._least_similar_matches_from_similarity_ranking(refreshed_most)
-                else:
-                    refreshed_least = find_astro_twins(
+                    if _chart_is_placeholder(refreshed_chart):
+                        continue
+                    refreshed_candidates.append((changed_chart_id, refreshed_chart))
+                if refreshed_candidates:
+                    refreshed_most = find_astro_twins(
                         chart,
                         refreshed_candidates,
                         top_k=len(refreshed_candidates),
                         exclude_chart_id=subject_chart_id,
-                        least_similar=True,
-                        algorithm_mode=algorithm_mode,
-                        custom_settings=getattr(self, "_similarity_calculator_settings", None),
-                    )
-                most_similar_matches.extend(refreshed_most)
-                least_similar_matches.extend(refreshed_least)
-            most_similar_matches.sort(key=lambda match: (-float(match.score), int(match.chart_id)))
-            least_similar_matches.sort(key=lambda match: (float(match.score), int(match.chart_id)))
-            self._store_similar_charts_popout_payload(
-                cache_key=cache_key,
-                most_similar_matches=most_similar_matches,
-                least_similar_matches=least_similar_matches,
-                row_signatures=row_signatures,
-            )
-        else:
-            self._similar_charts_popout_last_cache_status = "miss"
-            # logger.debug(
-            #     "Similar Charts popout cache miss for subject_chart_id=%s (cached=%s changed=%s deleted=%s)",
-            #     subject_chart_id,
-            #     cached_payload is not None,
-            #     len(changed_chart_ids),
-            #     len(deleted_chart_ids),
-            # )
-            performed_full_recompute = True
-            try:
-                update_similar_charts_loading_progress(
-                    progress,
-                    "Loading eligible saved charts…",
-                    8,
-                )
-                self._similar_charts_candidate_excluded_chart_ids = {linked_standard_chart_id} if linked_standard_chart_id is not None else set()
-                try:
-                    candidates = self._load_similar_chart_candidates(
-                        rows=chart_rows,
-                        current_chart_id=subject_chart_id,
-                    )
-                finally:
-                    self._similar_charts_candidate_excluded_chart_ids = set()
-                if not candidates:
-                    close_similar_charts_loading_progress(progress)
-                    QMessageBox.information(
-                        self,
-                        "Similar Charts",
-                        "Need at least one additional saved chart that is not placeholder/hypothetical.",
-                    )
-                    return
-
-                try:
-                    last_progress_percent = {"value": -1}
-
-                    def _score_progress(done: int, total: int, *, start: int = 18, end: int = 78) -> None:
-                        if total <= 0:
-                            return
-                        percent = start + ((end - start) * (max(0, min(done, total)) / total))
-                        rounded_percent = int(max(0, min(100, round(percent))))
-                        if rounded_percent <= last_progress_percent["value"] and done < total:
-                            return
-                        last_progress_percent["value"] = rounded_percent
-                        update_similar_charts_loading_progress(
-                            progress,
-                            f"Scoring saved charts ({done}/{total})…",
-                            rounded_percent,
-                        )
-
-                    update_similar_charts_loading_progress(
-                        progress,
-                        "Calculating most similar charts…",
-                        18,
-                    )
-                    most_similar_matches = find_astro_twins(
-                        chart,
-                        candidates,
-                        top_k=max(1, len(candidates)),
-                        exclude_chart_id=subject_chart_id,
                         least_similar=False,
                         algorithm_mode=algorithm_mode,
                         custom_settings=getattr(self, "_similarity_calculator_settings", None),
-                        should_cancel=lambda p=progress: bool(p.wasCanceled() or p.property("operation_canceled")),
-                        progress_callback=_score_progress,
                     )
-                    raise_if_progress_canceled(progress)
                     if self._similar_charts_can_derive_least_from_full_similarity_ranking(algorithm_mode):
-                        update_similar_charts_loading_progress(
-                            progress,
-                            "Sorting least similar charts…",
-                            82,
-                        )
-                        least_similar_matches = self._least_similar_matches_from_similarity_ranking(most_similar_matches)
+                        refreshed_least = self._least_similar_matches_from_similarity_ranking(refreshed_most)
                     else:
-                        update_similar_charts_loading_progress(
-                            progress,
-                            "Calculating least similar charts…",
-                            82,
-                        )
-                        least_similar_matches = find_astro_twins(
+                        refreshed_least = find_astro_twins(
                             chart,
-                            candidates,
-                            top_k=max(1, len(candidates)),
+                            refreshed_candidates,
+                            top_k=len(refreshed_candidates),
                             exclude_chart_id=subject_chart_id,
                             least_similar=True,
                             algorithm_mode=algorithm_mode,
                             custom_settings=getattr(self, "_similarity_calculator_settings", None),
-                            should_cancel=lambda p=progress: bool(p.wasCanceled() or p.property("operation_canceled")),
-                            progress_callback=lambda done, total: _score_progress(done, total, start=82, end=90),
                         )
-                    raise_if_progress_canceled(progress)
-                except OperationCanceled:
+                    most_similar_matches.extend(refreshed_most)
+                    least_similar_matches.extend(refreshed_least)
+                most_similar_matches.sort(key=lambda match: (-float(match.score), int(match.chart_id)))
+                least_similar_matches.sort(key=lambda match: (float(match.score), int(match.chart_id)))
+                self._store_similar_charts_popout_payload(
+                    cache_key=cache_key,
+                    most_similar_matches=most_similar_matches,
+                    least_similar_matches=least_similar_matches,
+                    row_signatures=row_signatures,
+                )
+            else:
+                self._similar_charts_popout_last_cache_status = "miss"
+                # logger.debug(
+                #     "Similar Charts popout cache miss for subject_chart_id=%s (cached=%s changed=%s deleted=%s)",
+                #     subject_chart_id,
+                #     cached_payload is not None,
+                #     len(changed_chart_ids),
+                #     len(deleted_chart_ids),
+                # )
+                performed_full_recompute = True
+                try:
+                    update_similar_charts_loading_progress(
+                        progress,
+                        "Loading eligible saved charts…",
+                        8,
+                    )
+                    self._similar_charts_candidate_excluded_chart_ids = {linked_standard_chart_id} if linked_standard_chart_id is not None else set()
+                    try:
+                        candidates = self._load_similar_chart_candidates(
+                            rows=chart_rows,
+                            current_chart_id=subject_chart_id,
+                        )
+                    finally:
+                        self._similar_charts_candidate_excluded_chart_ids = set()
+                    if not candidates:
+                        close_similar_charts_loading_progress(progress)
+                        QMessageBox.information(
+                            self,
+                            "Similar Charts",
+                            "Need at least one additional saved chart that is not placeholder/hypothetical.",
+                        )
+                        return
+
+                    try:
+                        last_progress_percent = {"value": -1}
+
+                        def _score_progress(done: int, total: int, *, start: int = 18, end: int = 78) -> None:
+                            if total <= 0:
+                                return
+                            percent = start + ((end - start) * (max(0, min(done, total)) / total))
+                            rounded_percent = int(max(0, min(100, round(percent))))
+                            if rounded_percent <= last_progress_percent["value"] and done < total:
+                                return
+                            last_progress_percent["value"] = rounded_percent
+                            update_similar_charts_loading_progress(
+                                progress,
+                                f"Scoring saved charts ({done}/{total})…",
+                                rounded_percent,
+                            )
+
+                        update_similar_charts_loading_progress(
+                            progress,
+                            "Calculating most similar charts…",
+                            18,
+                        )
+                        most_similar_matches = find_astro_twins(
+                            chart,
+                            candidates,
+                            top_k=max(1, len(candidates)),
+                            exclude_chart_id=subject_chart_id,
+                            least_similar=False,
+                            algorithm_mode=algorithm_mode,
+                            custom_settings=getattr(self, "_similarity_calculator_settings", None),
+                            should_cancel=lambda p=progress: bool(p.wasCanceled() or p.property("operation_canceled")),
+                            progress_callback=_score_progress,
+                        )
+                        raise_if_progress_canceled(progress)
+                        if self._similar_charts_can_derive_least_from_full_similarity_ranking(algorithm_mode):
+                            update_similar_charts_loading_progress(
+                                progress,
+                                "Sorting least similar charts…",
+                                82,
+                            )
+                            least_similar_matches = self._least_similar_matches_from_similarity_ranking(most_similar_matches)
+                        else:
+                            update_similar_charts_loading_progress(
+                                progress,
+                                "Calculating least similar charts…",
+                                82,
+                            )
+                            least_similar_matches = find_astro_twins(
+                                chart,
+                                candidates,
+                                top_k=max(1, len(candidates)),
+                                exclude_chart_id=subject_chart_id,
+                                least_similar=True,
+                                algorithm_mode=algorithm_mode,
+                                custom_settings=getattr(self, "_similarity_calculator_settings", None),
+                                should_cancel=lambda p=progress: bool(p.wasCanceled() or p.property("operation_canceled")),
+                                progress_callback=lambda done, total: _score_progress(done, total, start=82, end=90),
+                            )
+                        raise_if_progress_canceled(progress)
+                    except OperationCanceled:
+                        close_similar_charts_loading_progress(progress)
+                        return
+                    except Exception as exc:
+                        if algorithm_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
+                            self._report_similar_charts_comprehensive_failure(
+                                context="_show_similar_charts_popout",
+                                detail="comprehensive algorithm execution failed",
+                                error=exc,
+                            )
+                        raise
+                except Exception:
+                    close_similar_charts_loading_progress(progress)
+                    raise
+            if linked_standard_chart_id is not None:
+                def _is_not_linked_standard_match(match: Any) -> bool:
+                    try:
+                        return int(getattr(match, "chart_id", -1)) != linked_standard_chart_id
+                    except (TypeError, ValueError):
+                        return True
+
+                most_similar_matches = [match for match in most_similar_matches if _is_not_linked_standard_match(match)]
+                least_similar_matches = [match for match in least_similar_matches if _is_not_linked_standard_match(match)]
+            update_similar_charts_loading_progress(progress, "Preparing Similar Charts window…", 92)
+            if algorithm_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
+                invalid_mode = any(
+                    match.algorithm_mode != SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE
+                    for match in (*most_similar_matches, *least_similar_matches)
+                )
+                if invalid_mode:
+                    self._report_similar_charts_comprehensive_failure(
+                        context="_show_similar_charts_popout",
+                        detail="detected fallback/non-comprehensive match results",
+                    )
+                    QMessageBox.warning(
+                        self,
+                        "Similar Charts",
+                        "Comprehensive mode returned fallback results. See terminal for details.",
+                    )
                     close_similar_charts_loading_progress(progress)
                     return
-                except Exception as exc:
-                    if algorithm_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
-                        self._report_similar_charts_comprehensive_failure(
-                            context="_show_similar_charts_popout",
-                            detail="comprehensive algorithm execution failed",
-                            error=exc,
-                        )
-                    raise
-            except Exception:
-                close_similar_charts_loading_progress(progress)
-                raise
-        if linked_standard_chart_id is not None:
-            def _is_not_linked_standard_match(match: Any) -> bool:
-                try:
-                    return int(getattr(match, "chart_id", -1)) != linked_standard_chart_id
-                except (TypeError, ValueError):
-                    return True
-
-            most_similar_matches = [match for match in most_similar_matches if _is_not_linked_standard_match(match)]
-            least_similar_matches = [match for match in least_similar_matches if _is_not_linked_standard_match(match)]
-        update_similar_charts_loading_progress(progress, "Preparing Similar Charts window…", 92)
-        if algorithm_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
-            invalid_mode = any(
-                match.algorithm_mode != SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE
-                for match in (*most_similar_matches, *least_similar_matches)
-            )
-            if invalid_mode:
-                self._report_similar_charts_comprehensive_failure(
-                    context="_show_similar_charts_popout",
-                    detail="detected fallback/non-comprehensive match results",
+            least_similar_matches.sort(key=lambda match: (float(match.score), int(match.chart_id)))
+            if performed_full_recompute:
+                self._store_similar_charts_popout_payload(
+                    cache_key=cache_key,
+                    most_similar_matches=most_similar_matches,
+                    least_similar_matches=least_similar_matches,
+                    row_signatures=row_signatures,
                 )
-                QMessageBox.warning(
+            subject_name = str(getattr(chart, "name", "") or "Current chart").strip()
+            popout_reasoning_by_target = {}
+            popout_reasoning_by_target.update(
+                map_similar_info_targets(
+                    matches=most_similar_matches,
+                    info_link_prefix="sim-info:popout:most",
+                )
+            )
+            popout_reasoning_by_target.update(
+                map_similar_info_targets(
+                    matches=least_similar_matches,
+                    info_link_prefix="sim-info:popout:least",
+                )
+            )
+            update_similar_charts_loading_progress(progress, "Loading similarity calibration…", 94)
+            similarity_average, similarity_standard_deviation = load_similarity_calibration_stats(self._settings)
+            show_perceived_accuracy_controls = bool(
+                getattr(
                     self,
-                    "Similar Charts",
-                    "Comprehensive mode returned fallback results. See terminal for details.",
+                    "_similarity_perceived_accuracy_controls_enabled",
+                    SIMILARITY_PERCEIVED_ACCURACY_CONTROLS_DEFAULT,
                 )
-                close_similar_charts_loading_progress(progress)
-                return
-        least_similar_matches.sort(key=lambda match: (float(match.score), int(match.chart_id)))
-        if performed_full_recompute:
-            self._store_similar_charts_popout_payload(
-                cache_key=cache_key,
-                most_similar_matches=most_similar_matches,
-                least_similar_matches=least_similar_matches,
-                row_signatures=row_signatures,
             )
-        subject_name = str(getattr(chart, "name", "") or "Current chart").strip()
-        popout_reasoning_by_target = {}
-        popout_reasoning_by_target.update(
-            map_similar_info_targets(
-                matches=most_similar_matches,
-                info_link_prefix="sim-info:popout:most",
-            )
-        )
-        popout_reasoning_by_target.update(
-            map_similar_info_targets(
-                matches=least_similar_matches,
-                info_link_prefix="sim-info:popout:least",
-            )
-        )
-        update_similar_charts_loading_progress(progress, "Loading similarity calibration…", 94)
-        similarity_average, similarity_standard_deviation = load_similarity_calibration_stats(self._settings)
-        show_perceived_accuracy_controls = bool(
-            getattr(
-                self,
-                "_similarity_perceived_accuracy_controls_enabled",
-                SIMILARITY_PERCEIVED_ACCURACY_CONTROLS_DEFAULT,
-            )
-        )
-        perceived_accuracy_uid_by_chart_id = {}
-        if show_perceived_accuracy_controls:
-            perceived_accuracy_states = load_chart_similarity_relationship_states()
-            perceived_accuracy_uid_by_chart_id = {
-                chart_id: uid
-                for chart_id, uid in chart_uids_by_id.items()
-                if chart_id in {chart_id for chart_id in [subject_chart_id, *candidate_chart_ids] if chart_id is not None}
-            }
-            update_similar_charts_loading_progress(progress, "Preparing perceived-accuracy results…", 96)
-            all_accuracy_entries = self._similar_charts_perceived_accuracy_entries_for_states(
-                chart=chart,
-                subject_chart_id=subject_chart_id,
-                candidates=candidates or [],
-                perceived_accuracy_states=perceived_accuracy_states,
-                algorithm_mode=algorithm_mode,
-                ranked_matches=most_similar_matches,
-            )
-        else:
-            perceived_accuracy_states = None
             perceived_accuracy_uid_by_chart_id = {}
-            all_accuracy_entries = []
-        update_similar_charts_loading_progress(progress, "Rendering Similar Charts window…", 98)
-        dialog = build_similar_charts_popout_dialog(
-            parent=self,
-            subject_name=subject_name,
-            subject_chart_id=subject_chart_id,
-            subject_uses_houses=_chart_uses_houses(chart),
-            most_similar_matches=most_similar_matches[:25],
-            least_similar_matches=least_similar_matches[:25],
-            all_most_similar_matches=most_similar_matches,
-            all_least_similar_matches=least_similar_matches,
-            all_accuracy_entries=all_accuracy_entries,
-            on_link_activated=self._on_similar_chart_popout_link_activated,
-            header_style=CHART_DATA_POPOUT_HEADER_STYLE,
-            output_style=f"font-weight: 400; color: {CHART_DATA_HIGHLIGHT_COLOR};",
-            info_output_style="font-weight: 400; color: #f5f5f5;",
-            highlight_color=CHART_DATA_HIGHLIGHT_COLOR,
-            resolve_similarity_band=self._similarity_band_for_percent,
-            algorithm_mode=algorithm_mode,
-            similarity_settings=getattr(self, "_similarity_calculator_settings", None),
-            similarity_average=similarity_average,
-            similarity_standard_deviation=similarity_standard_deviation,
-            info_link_prefix="sim-info:popout",
-            configure_splitter=configure_splitter_handle_resize_cursor,
-            on_analysis_mode_changed=self._on_similar_chart_popout_analysis_mode_changed,
-            on_make_collection_clicked=self._on_similar_chart_popout_make_collection_clicked,
-            on_export_clicked=self._export_similar_charts_popout_share,
-            share_icon_path=_get_share_icon_path(),
-            show_perceived_accuracy_controls=show_perceived_accuracy_controls,
-            perceived_accuracy_states=perceived_accuracy_states,
-            perceived_accuracy_uid_by_chart_id=perceived_accuracy_uid_by_chart_id,
-            on_perceived_accuracy_changed=(
-                self._on_similar_chart_popout_perceived_accuracy_changed
-                if show_perceived_accuracy_controls
+            if show_perceived_accuracy_controls:
+                perceived_accuracy_states = load_chart_similarity_relationship_states()
+                perceived_accuracy_uid_by_chart_id = {
+                    chart_id: uid
+                    for chart_id, uid in chart_uids_by_id.items()
+                    if chart_id in {chart_id for chart_id in [subject_chart_id, *candidate_chart_ids] if chart_id is not None}
+                }
+                update_similar_charts_loading_progress(progress, "Preparing perceived-accuracy results…", 96)
+                all_accuracy_entries = self._similar_charts_perceived_accuracy_entries_for_states(
+                    chart=chart,
+                    subject_chart_id=subject_chart_id,
+                    candidates=candidates or [],
+                    perceived_accuracy_states=perceived_accuracy_states,
+                    algorithm_mode=algorithm_mode,
+                    ranked_matches=most_similar_matches,
+                )
+            else:
+                perceived_accuracy_states = None
+                perceived_accuracy_uid_by_chart_id = {}
+                all_accuracy_entries = []
+            update_similar_charts_loading_progress(progress, "Rendering Similar Charts window…", 98)
+            dialog = build_similar_charts_popout_dialog(
+                parent=self,
+                subject_name=subject_name,
+                subject_chart_id=subject_chart_id,
+                subject_uses_houses=_chart_uses_houses(chart),
+                most_similar_matches=most_similar_matches[:25],
+                least_similar_matches=least_similar_matches[:25],
+                all_most_similar_matches=most_similar_matches,
+                all_least_similar_matches=least_similar_matches,
+                all_accuracy_entries=all_accuracy_entries,
+                on_link_activated=self._on_similar_chart_popout_link_activated,
+                header_style=CHART_DATA_POPOUT_HEADER_STYLE,
+                output_style=f"font-weight: 400; color: {CHART_DATA_HIGHLIGHT_COLOR};",
+                info_output_style="font-weight: 400; color: #f5f5f5;",
+                highlight_color=CHART_DATA_HIGHLIGHT_COLOR,
+                resolve_similarity_band=self._similarity_band_for_percent,
+                algorithm_mode=algorithm_mode,
+                similarity_settings=getattr(self, "_similarity_calculator_settings", None),
+                similarity_average=similarity_average,
+                similarity_standard_deviation=similarity_standard_deviation,
+                info_link_prefix="sim-info:popout",
+                configure_splitter=configure_splitter_handle_resize_cursor,
+                on_analysis_mode_changed=self._on_similar_chart_popout_analysis_mode_changed,
+                on_make_collection_clicked=self._on_similar_chart_popout_make_collection_clicked,
+                on_export_clicked=self._export_similar_charts_popout_share,
+                share_icon_path=_get_share_icon_path(),
+                show_perceived_accuracy_controls=show_perceived_accuracy_controls,
+                perceived_accuracy_states=perceived_accuracy_states,
+                perceived_accuracy_uid_by_chart_id=perceived_accuracy_uid_by_chart_id,
+                on_perceived_accuracy_changed=(
+                    self._on_similar_chart_popout_perceived_accuracy_changed
+                    if show_perceived_accuracy_controls
+                    else None
+                ),
+                on_chart_info_target_requested=self._on_similar_chart_popout_chart_info_target_requested,
+            )
+            database_view_active = popout_opened_from_database_view
+            dialog._similar_chart_popout_opened_from_database_view = bool(database_view_active)
+            dialog._similar_chart_popout_subject_name = subject_name
+            dialog._similar_chart_popout_subject_chart = chart
+            dialog._similar_chart_popout_subject_chart_id = subject_chart_id
+            dialog._similar_chart_popout_reasoning_by_target = popout_reasoning_by_target
+            dialog._similar_chart_popout_most_similar_matches = list(most_similar_matches)
+            dialog._similar_chart_popout_least_similar_matches = list(least_similar_matches)
+            dialog._similar_chart_popout_prediction_metrics_by_chart_id = (
+                self._similar_charts_prediction_metrics_for_matches(most_similar_matches[:25])
+            )
+            self._similar_charts_reasoning_by_target.update(popout_reasoning_by_target)
+            self._register_popout_shortcuts(dialog)
+            self._show_similar_chart_popout_predictions(dialog)
+            self._similar_charts_popout_dialogs.append(dialog)
+            dialog.destroyed.connect(
+                lambda _=None, popout=dialog: self._similar_charts_popout_dialogs.remove(popout)
+                if popout in self._similar_charts_popout_dialogs
                 else None
-            ),
-            on_chart_info_target_requested=self._on_similar_chart_popout_chart_info_target_requested,
-        )
-        database_view_active = popout_opened_from_database_view
-        dialog._similar_chart_popout_opened_from_database_view = bool(database_view_active)
-        dialog._similar_chart_popout_subject_name = subject_name
-        dialog._similar_chart_popout_subject_chart = chart
-        dialog._similar_chart_popout_subject_chart_id = subject_chart_id
-        dialog._similar_chart_popout_reasoning_by_target = popout_reasoning_by_target
-        dialog._similar_chart_popout_most_similar_matches = list(most_similar_matches)
-        dialog._similar_chart_popout_least_similar_matches = list(least_similar_matches)
-        dialog._similar_chart_popout_prediction_metrics_by_chart_id = (
-            self._similar_charts_prediction_metrics_for_matches(most_similar_matches[:25])
-        )
-        self._similar_charts_reasoning_by_target.update(popout_reasoning_by_target)
-        self._register_popout_shortcuts(dialog)
-        self._show_similar_chart_popout_predictions(dialog)
-        self._similar_charts_popout_dialogs.append(dialog)
-        dialog.destroyed.connect(
-            lambda _=None, popout=dialog: self._similar_charts_popout_dialogs.remove(popout)
-            if popout in self._similar_charts_popout_dialogs
-            else None
-        )
-        dialog.show()
-        update_similar_charts_loading_progress(progress, "Similar Charts ready.", 100)
-        close_similar_charts_loading_progress(progress)
+            )
+            dialog.show()
+            update_similar_charts_loading_progress(progress, "Similar Charts ready.", 100)
+        except OperationCanceled:
+            return
+        finally:
+            close_similar_charts_loading_progress(progress)
 
     def _calculate_pair_dissimilarity_from_selection(self) -> None:
         if self._similarities_pair_result_label is None:
