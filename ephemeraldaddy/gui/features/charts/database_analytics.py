@@ -13,7 +13,7 @@ import statistics
 import textwrap
 import warnings
 from collections import Counter
-from typing import Any, Callable
+from typing import Any, Callable, Mapping, Sequence
 
 from matplotlib import font_manager as mpl_font_manager
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
@@ -2243,8 +2243,8 @@ class DatabaseAnalyticsChartsMixin:
     def _draw_category_significance_guides(
         self,
         ax: Any,
-        selection_counts: list[float | int],
-        database_counts: list[float | int],
+        selection_counts: Sequence[float | int] | Mapping[str, float | int],
+        database_counts: Sequence[float | int] | Mapping[str, float | int],
         loaded_charts: int | float,
         selection_total: float | None = None,
         database_total: float | None = None,
@@ -2253,10 +2253,27 @@ class DatabaseAnalyticsChartsMixin:
             return
         if float(loaded_charts or 0) <= 0:
             return
+        if isinstance(selection_counts, Mapping):
+            if isinstance(database_counts, Mapping):
+                labels = [
+                    *selection_counts.keys(),
+                    *(label for label in database_counts.keys() if label not in selection_counts),
+                ]
+                selection_count_values = [selection_counts.get(label, 0) for label in labels]
+                database_count_values = [database_counts.get(label, 0) for label in labels]
+            else:
+                selection_count_values = list(selection_counts.values())
+                database_count_values = list(database_counts)
+        else:
+            selection_count_values = list(selection_counts)
+            if isinstance(database_counts, Mapping):
+                database_count_values = list(database_counts.values())
+            else:
+                database_count_values = list(database_counts)
         correction = getattr(self, "_significance_correction", "benjamini_hochberg")
         results = compute_proportion_significance_results(
-            selection_counts=selection_counts,
-            database_counts=database_counts,
+            selection_counts=selection_count_values,
+            database_counts=database_count_values,
             loaded_charts=loaded_charts,
             correction=correction,
             selection_total=selection_total,
@@ -2265,8 +2282,8 @@ class DatabaseAnalyticsChartsMixin:
         sigma = typical_standard_error(results)
         if sigma is None:
             sigma = self._typical_single_selection_standard_error(
-                selection_counts=selection_counts,
-                database_counts=database_counts,
+                selection_counts=selection_count_values,
+                database_counts=database_count_values,
                 selection_total=selection_total,
                 database_total=database_total,
             )
