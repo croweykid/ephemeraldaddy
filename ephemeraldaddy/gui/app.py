@@ -24441,6 +24441,7 @@ class MainWindow(QMainWindow):
             load_charts_by_ids=load_charts,
             hidden_chart_ids=set(getattr(self, "_hidden_chart_ids", set())),
             include_hidden_charts=bool(getattr(self, "_show_hidden_charts", False)),
+            excluded_chart_ids=set(getattr(self, "_similar_charts_candidate_excluded_chart_ids", set())),
         )
 
     def _similar_charts_visible_candidate_rows(self, rows: list[tuple[Any, ...]]) -> list[tuple[Any, ...]]:
@@ -25696,19 +25697,33 @@ class MainWindow(QMainWindow):
             return
         chart_rows = self._similar_charts_visible_candidate_rows(chart_rows)
         chart_row_ids = [int(row[0]) for row in chart_rows]
-        candidate_chart_ids = [
-            int(row[0])
-            for row in chart_rows
-            if (subject_chart_id is None or int(row[0]) != subject_chart_id)
-            and not _chart_row_is_non_aggregable(row)
-        ]
         chart_uids_by_id = get_chart_uid_map([
             chart_id
             for chart_id in [subject_chart_id, *chart_row_ids]
             if chart_id is not None
         ])
-        chart_ids_by_uid = {uid: chart_id for chart_id, uid in chart_uids_by_id.items()}
         subject_chart_uid = chart_uids_by_id.get(int(subject_chart_id)) if subject_chart_id is not None else None
+        linked_standard_chart_uid = ""
+        if _chart_is_hypothetical(chart):
+            linked_standard_chart_uid = str(getattr(chart, "alternate_chart_uid", "") or "").strip()
+            if not linked_standard_chart_uid and subject_chart_id is not None:
+                linked_standard_chart_uid = str(get_alternate_chart_uid(subject_chart_id) or "").strip()
+        linked_standard_chart_id = next(
+            (
+                chart_id
+                for chart_id, chart_uid in chart_uids_by_id.items()
+                if linked_standard_chart_uid and str(chart_uid) == linked_standard_chart_uid
+            ),
+            None,
+        )
+        candidate_chart_ids = [
+            int(row[0])
+            for row in chart_rows
+            if (subject_chart_id is None or int(row[0]) != subject_chart_id)
+            and (linked_standard_chart_id is None or int(row[0]) != linked_standard_chart_id)
+            and not _chart_row_is_non_aggregable(row)
+        ]
+        chart_ids_by_uid = {uid: chart_id for chart_id, uid in chart_uids_by_id.items()}
         row_signatures = self._similar_charts_popout_database_row_signatures(
             chart_rows,
             chart_uids_by_id=chart_uids_by_id,
@@ -25743,12 +25758,24 @@ class MainWindow(QMainWindow):
             and (not subject_chart_uid or subject_chart_uid not in changed_chart_uids)
         )
         performed_full_recompute = False
+        progress_parent = (
+            requester if isinstance(requester, QWidget) and requester.isVisible() else None
+        )
+        if progress_parent is None:
+            active_window = QApplication.activeModalWidget() or QApplication.activeWindow()
+            if isinstance(active_window, QWidget) and active_window.isVisible():
+                progress_parent = active_window
+        progress = show_similar_charts_loading_progress(
+            parent=progress_parent,
+            message="Analyzing database to match similar charts…",
+        )
         if cached_payload is not None and not changed_chart_uids and not deleted_chart_uids:
             # # Exact same subject/settings/database state within this app session:
             # # reuse the just-computed rankings instead of showing the expensive
             # # progress dialog and recalculating both Top/Bottom lists.
             self._similar_charts_popout_last_cache_status = "hit"
             # logger.debug("Similar Charts popout cache hit for subject_chart_id=%s", subject_chart_id)
+            update_similar_charts_loading_progress(progress, "Loading cached Similar Charts rankings…", 35)
             most_similar_matches = self._refresh_similar_charts_match_display_names(
                 list(cached_payload.get("most_similar_matches") or []),
                 chart_names_by_id=chart_names_by_id,
@@ -25760,6 +25787,7 @@ class MainWindow(QMainWindow):
             least_similar_matches.sort(key=lambda match: (float(match.score), int(match.chart_id)))
         elif incremental_refresh_supported:
             self._similar_charts_popout_last_cache_status = "incremental-refresh"
+            update_similar_charts_loading_progress(progress, "Refreshing changed Similar Charts rankings…", 20)
             # logger.debug(
             #     "Similar Charts popout cache incrementally refreshing %s changed rows for subject_chart_id=%s",
             #     len(changed_chart_ids),
@@ -25788,6 +25816,7 @@ class MainWindow(QMainWindow):
                 for changed_chart_uid in sorted(changed_chart_uids)
                 if (changed_chart_id := chart_ids_by_uid.get(changed_chart_uid)) is not None
                 and (subject_chart_id is None or int(changed_chart_id) != subject_chart_id)
+                and (linked_standard_chart_id is None or int(changed_chart_id) != linked_standard_chart_id)
             ]
             refreshed_charts_by_id: Mapping[int, Chart] = {}
             refresh_batch_load_failed = False
@@ -25861,27 +25890,20 @@ class MainWindow(QMainWindow):
             #     len(deleted_chart_ids),
             # )
             performed_full_recompute = True
-            progress_parent = (
-                requester if isinstance(requester, QWidget) and requester.isVisible() else None
-            )
-            if progress_parent is None:
-                active_window = QApplication.activeModalWidget() or QApplication.activeWindow()
-                if isinstance(active_window, QWidget) and active_window.isVisible():
-                    progress_parent = active_window
-            progress = show_similar_charts_loading_progress(
-                parent=progress_parent,
-                message="Analyzing database to match similar charts…",
-            )
             try:
                 update_similar_charts_loading_progress(
                     progress,
                     "Loading eligible saved charts…",
                     8,
                 )
-                candidates = self._load_similar_chart_candidates(
-                    rows=chart_rows,
-                    current_chart_id=subject_chart_id,
-                )
+                self._similar_charts_candidate_excluded_chart_ids = {linked_standard_chart_id} if linked_standard_chart_id is not None else set()
+                try:
+                    candidates = self._load_similar_chart_candidates(
+                        rows=chart_rows,
+                        current_chart_id=subject_chart_id,
+                    )
+                finally:
+                    self._similar_charts_candidate_excluded_chart_ids = set()
                 if not candidates:
                     close_similar_charts_loading_progress(progress)
                     QMessageBox.information(
@@ -25964,8 +25986,16 @@ class MainWindow(QMainWindow):
             except Exception:
                 close_similar_charts_loading_progress(progress)
                 raise
-        if performed_full_recompute:
-            update_similar_charts_loading_progress(progress, "Preparing Similar Charts window…", 92)
+        if linked_standard_chart_id is not None:
+            def _is_not_linked_standard_match(match: Any) -> bool:
+                try:
+                    return int(getattr(match, "chart_id", -1)) != linked_standard_chart_id
+                except (TypeError, ValueError):
+                    return True
+
+            most_similar_matches = [match for match in most_similar_matches if _is_not_linked_standard_match(match)]
+            least_similar_matches = [match for match in least_similar_matches if _is_not_linked_standard_match(match)]
+        update_similar_charts_loading_progress(progress, "Preparing Similar Charts window…", 92)
         if algorithm_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
             invalid_mode = any(
                 match.algorithm_mode != SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE
@@ -25981,8 +26011,7 @@ class MainWindow(QMainWindow):
                     "Similar Charts",
                     "Comprehensive mode returned fallback results. See terminal for details.",
                 )
-                if performed_full_recompute:
-                    close_similar_charts_loading_progress(progress)
+                close_similar_charts_loading_progress(progress)
                 return
         least_similar_matches.sort(key=lambda match: (float(match.score), int(match.chart_id)))
         if performed_full_recompute:
@@ -26006,8 +26035,7 @@ class MainWindow(QMainWindow):
                 info_link_prefix="sim-info:popout:least",
             )
         )
-        if performed_full_recompute:
-            update_similar_charts_loading_progress(progress, "Loading similarity calibration…", 94)
+        update_similar_charts_loading_progress(progress, "Loading similarity calibration…", 94)
         similarity_average, similarity_standard_deviation = load_similarity_calibration_stats(self._settings)
         show_perceived_accuracy_controls = bool(
             getattr(
@@ -26024,8 +26052,7 @@ class MainWindow(QMainWindow):
                 for chart_id, uid in chart_uids_by_id.items()
                 if chart_id in {chart_id for chart_id in [subject_chart_id, *candidate_chart_ids] if chart_id is not None}
             }
-            if performed_full_recompute:
-                update_similar_charts_loading_progress(progress, "Preparing perceived-accuracy results…", 96)
+            update_similar_charts_loading_progress(progress, "Preparing perceived-accuracy results…", 96)
             all_accuracy_entries = self._similar_charts_perceived_accuracy_entries_for_states(
                 chart=chart,
                 subject_chart_id=subject_chart_id,
@@ -26038,8 +26065,7 @@ class MainWindow(QMainWindow):
             perceived_accuracy_states = None
             perceived_accuracy_uid_by_chart_id = {}
             all_accuracy_entries = []
-        if performed_full_recompute:
-            update_similar_charts_loading_progress(progress, "Rendering Similar Charts window…", 98)
+        update_similar_charts_loading_progress(progress, "Rendering Similar Charts window…", 98)
         dialog = build_similar_charts_popout_dialog(
             parent=self,
             subject_name=subject_name,
@@ -26094,9 +26120,8 @@ class MainWindow(QMainWindow):
             else None
         )
         dialog.show()
-        if performed_full_recompute:
-            update_similar_charts_loading_progress(progress, "Similar Charts ready.", 100)
-            close_similar_charts_loading_progress(progress)
+        update_similar_charts_loading_progress(progress, "Similar Charts ready.", 100)
+        close_similar_charts_loading_progress(progress)
 
     def _calculate_pair_dissimilarity_from_selection(self) -> None:
         if self._similarities_pair_result_label is None:
