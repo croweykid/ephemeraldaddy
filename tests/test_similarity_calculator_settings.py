@@ -32,6 +32,7 @@ def test_default_similarity_settings_match_requested_weights():
         "human_design_channels": 0.04,
         "inner_planet_placement": 0.13,
         "outer_planet_placement": 0.0,
+        "big_3": 0.0,
     }
     assert settings.enabled_components() == {
         "placement": True,
@@ -48,6 +49,7 @@ def test_default_similarity_settings_match_requested_weights():
         "human_design_channels": False,
         "inner_planet_placement": True,
         "outer_planet_placement": False,
+        "big_3": False,
     }
     assert sum(
         weight
@@ -100,11 +102,7 @@ def test_big_3_similarity_uses_angles_when_houses_are_available():
     assert components == {
         "big_3_sun": 1.0,
         "big_3_moon": 1.0,
-        "big_3_mercury": 1.0,
-        "big_3_venus": 1.0,
-        "big_3_mars": 1.0,
         "big_3_rising": 1.0,
-        "big_3_mc": 1.0,
     }
 
 
@@ -137,12 +135,44 @@ def test_big_3_similarity_redistributes_angle_weights_without_houses():
     assert components == {
         "big_3_sun": 1.0,
         "big_3_moon": 0.0,
-        "big_3_mercury": 1.0,
-        "big_3_venus": 0.0,
-        "big_3_mars": 1.0,
     }
-    assert final_score == 0.59
+    assert final_score == 0.5
 
+
+def test_custom_similarity_can_score_big_3_only():
+    first = SimpleNamespace(
+        positions={"Sun": 0.0, "Moon": 30.0, "AS": 60.0},
+        birthtime_unknown=False,
+        retcon_time_used=False,
+        is_placeholder=False,
+    )
+    second = SimpleNamespace(
+        positions={"Sun": 1.0, "Moon": 120.0, "AS": 61.0},
+        birthtime_unknown=False,
+        retcon_time_used=False,
+        is_placeholder=False,
+    )
+    settings = SimilarityCalculatorSettings(
+        use_placement=False,
+        weight_placement=0.0,
+        use_aspect=False,
+        weight_aspect=0.0,
+        use_distribution=False,
+        weight_distribution=0.0,
+        use_combined_dominance=False,
+        weight_combined_dominance=0.0,
+        use_nakshatra_placement=False,
+        weight_nakshatra_placement=0.0,
+        use_human_design_gates=False,
+        weight_human_design_gates=0.0,
+        use_big_3=True,
+        weight_big_3=1.0,
+    )
+
+    final_score, components = chart_similarity_score_custom(first, second, settings)
+
+    assert components == {"big_3": 2 / 3}
+    assert final_score == 2 / 3
 
 def test_comprehensive_similarity_defaults_match_requested_weights():
     settings = SimilarityCalculatorSettings.defaults_from_comprehensive()
@@ -162,6 +192,7 @@ def test_comprehensive_similarity_defaults_match_requested_weights():
         "human_design_channels": 0.0,
         "inner_planet_placement": 0.0,
         "outer_planet_placement": 0.0,
+        "big_3": 0.0,
     }
     assert settings.enabled_components()["human_design_gates"] is True
     assert settings.enabled_components()["defined_centers"] is False
