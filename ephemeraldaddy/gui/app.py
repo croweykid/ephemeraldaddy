@@ -1375,6 +1375,8 @@ from ephemeraldaddy.gui.features.charts.bazi_window import (
 from ephemeraldaddy.gui.features.charts.chart_predictor_quiz import (
     create_chart_predictor_quiz_dialog,
 )
+from ephemeraldaddy.gui.features.settings.traits import add_traits_settings_section
+from ephemeraldaddy.gui.features.charts.trait_predictions import render_traits_predictions as _render_traits_predictions
 from ephemeraldaddy.gui.features.charts.total_chart_exporter import (
     build_total_chart_export_text as _build_total_chart_export_text,
     build_total_chart_similar_charts_section_for_chart as _build_total_chart_similar_charts_section_for_chart,
@@ -21169,6 +21171,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._enneagram_predictor_total_label = enneagram_controls["total_label"]
         self._load_enneagram_predictor_controls()
 
+        add_traits_settings_section(self, content_layout)
+
         plugins_section = self._add_settings_collapsible_section(content_layout, "Plugins")
         plugins_section.addWidget(
             self._build_settings_help_label(
@@ -21243,6 +21247,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._settings_dialog = dialog
         self._resize_and_center_settings_dialog(dialog)
         return dialog
+
 
     def _refresh_plugins_status_labels(self) -> None:
         recognized_plugins = recognized_plugin_names()
@@ -34232,6 +34237,9 @@ class MainWindow(QMainWindow):
 
     def _render_enneagram_predictions(self, chart: Chart | None) -> None:
         self._enneagram_prediction_adapter().render(chart, self._render_metric_panel)
+
+    def _render_traits_predictions(self, chart: Chart | None) -> None:
+        _render_traits_predictions(self, chart)
 
     def _dnd_prediction_adapter(self) -> DndPredictionPanelAdapter:
         return DndPredictionPanelAdapter(

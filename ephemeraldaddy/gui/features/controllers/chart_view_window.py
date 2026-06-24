@@ -1335,6 +1335,18 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
     panel.setLayout(layout)
 
+    traits_section_layout = owner._add_chart_analysis_collapsible_section(
+        panel=panel,
+        layout=layout,
+        title="Traits",
+        expanded=True,
+    )
+    owner.traits_prediction_label = QLabel("No traits uploaded. Add traits in Settings > Traits.")
+    owner.traits_prediction_label.setTextFormat(Qt.RichText)
+    owner.traits_prediction_label.setWordWrap(True)
+    owner.traits_prediction_label.setStyleSheet("color: #f5f5f5; padding: 4px 0 8px 0;")
+    traits_section_layout.addWidget(owner.traits_prediction_label)
+
     enneagram_section_layout = owner._add_chart_analysis_collapsible_section(
         panel=panel,
         layout=layout,
