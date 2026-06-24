@@ -160,8 +160,11 @@ class ChartRightPanelController:
             render_token = self._prediction_render_token(chart)
             if state is not None and state.last_render_chart_token == render_token:
                 return
+            render_traits = getattr(self._owner, "_render_traits_predictions", None)
             render_enneagram = getattr(self._owner, "_render_enneagram_predictions", None)
             render_dndification = getattr(self._owner, "_render_dndification_predictions", None)
+            if callable(render_traits):
+                render_traits(chart)
             if callable(render_enneagram):
                 render_enneagram(chart)
             if callable(render_dndification):

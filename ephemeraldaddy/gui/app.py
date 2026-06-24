@@ -988,6 +988,13 @@ from ephemeraldaddy.analysis.hd_incarnation_crosses import (
     get_cross_type_description,
 )
 from ephemeraldaddy.core.human_design_system import MANDALA_GATE_ORDER, MANDALA_START_DEGREE
+from ephemeraldaddy.analysis.traits import (
+    calculate_trait_scores,
+    delete_trait,
+    install_trait_file,
+    list_traits,
+    rename_trait,
+)
 from ephemeraldaddy.analysis.human_design_plugins import (
     humdes_gate_line_supplement_lines,
     install_plugin_file,
@@ -21169,6 +21176,35 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._enneagram_predictor_total_label = enneagram_controls["total_label"]
         self._load_enneagram_predictor_controls()
 
+        traits_section = self._add_settings_collapsible_section(content_layout, "Traits")
+        traits_section.addWidget(
+            self._build_settings_help_label(
+                "Manage custom trait profiles exported from Similarities Analysis. Uploaded traits are saved locally in ~/.ephemeraldaddy/traits and scored in Chart View > Predictions."
+            )
+        )
+        self._traits_list_widget = QListWidget()
+        self._traits_list_widget.setMinimumHeight(130)
+        self._traits_list_widget.setMaximumHeight(190)
+        self._traits_list_widget.setSelectionMode(QAbstractItemView.SingleSelection)
+        traits_section.addWidget(self._traits_list_widget)
+        traits_button_row = QHBoxLayout()
+        self._traits_delete_button = QPushButton("Delete selected")
+        self._traits_delete_button.clicked.connect(self._on_trait_delete_clicked)
+        traits_button_row.addWidget(self._traits_delete_button)
+        self._traits_rename_button = QPushButton("Rename selected")
+        self._traits_rename_button.clicked.connect(self._on_trait_rename_clicked)
+        traits_button_row.addWidget(self._traits_rename_button)
+        self._traits_upload_button = QPushButton("Upload New Trait…")
+        self._traits_upload_button.clicked.connect(self._on_trait_upload_clicked)
+        traits_button_row.addWidget(self._traits_upload_button)
+        traits_button_row.addStretch(1)
+        traits_section.addLayout(traits_button_row)
+        self._traits_status_label = QLabel("")
+        self._traits_status_label.setWordWrap(True)
+        self._traits_status_label.setStyleSheet("color: #9a9a9a; font-style: italic; font-size: 7pt;")
+        traits_section.addWidget(self._traits_status_label)
+        self._refresh_traits_settings_list()
+
         plugins_section = self._add_settings_collapsible_section(content_layout, "Plugins")
         plugins_section.addWidget(
             self._build_settings_help_label(
@@ -21243,6 +21279,91 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._settings_dialog = dialog
         self._resize_and_center_settings_dialog(dialog)
         return dialog
+
+
+    def _selected_trait_item(self) -> QListWidgetItem | None:
+        list_widget = getattr(self, "_traits_list_widget", None)
+        if not isinstance(list_widget, QListWidget):
+            return None
+        selected = list_widget.selectedItems()
+        return selected[0] if selected else None
+
+    def _refresh_traits_settings_list(self) -> None:
+        list_widget = getattr(self, "_traits_list_widget", None)
+        if isinstance(list_widget, QListWidget):
+            current_path = None
+            selected = self._selected_trait_item()
+            if selected is not None:
+                current_path = selected.data(Qt.UserRole)
+            list_widget.clear()
+            for trait in list_traits():
+                item = QListWidgetItem(str(trait["name"]))
+                item.setData(Qt.UserRole, str(trait["path"]))
+                list_widget.addItem(item)
+                if str(trait["path"]) == current_path:
+                    item.setSelected(True)
+        status_label = getattr(self, "_traits_status_label", None)
+        if isinstance(status_label, QLabel):
+            count = len(list_traits())
+            status_label.setText(f"{count} trait{'s' if count != 1 else ''} installed.")
+
+    def _on_trait_upload_clicked(self) -> None:
+        file_path, _selected_filter = QFileDialog.getOpenFileName(
+            self,
+            "Upload Trait File",
+            "",
+            "Trait files (*.json *.py);;JSON files (*.json);;Python files (*.py);;All files (*)",
+        )
+        if not file_path:
+            return
+        default_name = Path(file_path).stem
+        name, accepted = QInputDialog.getText(self, "Name new trait", "Trait name:", text=default_name)
+        if not accepted:
+            return
+        try:
+            install_trait_file(file_path, name.strip())
+        except Exception as exc:
+            QMessageBox.warning(self, "Trait upload failed", f"Trait could not be installed: {exc}")
+            return
+        self._refresh_traits_settings_list()
+        self._render_traits_predictions(getattr(self, "_latest_chart", None))
+        QMessageBox.information(self, "Trait installed", f"Trait '{name.strip()}' was installed.")
+
+    def _on_trait_delete_clicked(self) -> None:
+        item = self._selected_trait_item()
+        if item is None:
+            QMessageBox.information(self, "No trait selected", "Select a trait to delete first.")
+            return
+        trait_name = item.text()
+        choice = QMessageBox.question(
+            self,
+            "Delete trait?",
+            f"Delete the trait '{trait_name}'? This cannot be undone.",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if choice != QMessageBox.Yes:
+            return
+        delete_trait(item.data(Qt.UserRole))
+        self._refresh_traits_settings_list()
+        self._render_traits_predictions(getattr(self, "_latest_chart", None))
+
+    def _on_trait_rename_clicked(self) -> None:
+        item = self._selected_trait_item()
+        if item is None:
+            QMessageBox.information(self, "No trait selected", "Select a trait to rename first.")
+            return
+        old_name = item.text()
+        new_name, accepted = QInputDialog.getText(self, "Rename trait", "Trait name:", text=old_name)
+        if not accepted or not new_name.strip():
+            return
+        try:
+            rename_trait(item.data(Qt.UserRole), new_name.strip())
+        except Exception as exc:
+            QMessageBox.warning(self, "Trait rename failed", f"Trait could not be renamed: {exc}")
+            return
+        self._refresh_traits_settings_list()
+        self._render_traits_predictions(getattr(self, "_latest_chart", None))
 
     def _refresh_plugins_status_labels(self) -> None:
         recognized_plugins = recognized_plugin_names()
@@ -34232,6 +34353,26 @@ class MainWindow(QMainWindow):
 
     def _render_enneagram_predictions(self, chart: Chart | None) -> None:
         self._enneagram_prediction_adapter().render(chart, self._render_metric_panel)
+
+    def _render_traits_predictions(self, chart: Chart | None) -> None:
+        label = getattr(self, "traits_prediction_label", None)
+        if not isinstance(label, QLabel):
+            return
+        traits = list_traits()
+        if not traits:
+            label.setText("No traits uploaded. Add traits in Settings > Traits.")
+            return
+        if chart is None or self._is_placeholder_chart(chart):
+            label.setText("Trait predictions unavailable for this chart.")
+            return
+        try:
+            scores = calculate_trait_scores(chart, traits)
+        except Exception as exc:
+            label.setText(f"Trait predictions unavailable: {html.escape(str(exc))}")
+            return
+        ranked = sorted(scores.items(), key=lambda item: item[1], reverse=True)
+        rows = [f"<b>{html.escape(name)}</b>: {score:.2f}" for name, score in ranked]
+        label.setText("<br>".join(rows) if rows else "No scorable traits uploaded.")
 
     def _dnd_prediction_adapter(self) -> DndPredictionPanelAdapter:
         return DndPredictionPanelAdapter(
