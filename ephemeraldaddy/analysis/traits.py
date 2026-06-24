@@ -303,6 +303,45 @@ from ephemeraldaddy.analysis.weighted_chart_predictor import (
 
 TRAIT_DIR = Path.home() / ".ephemeraldaddy" / "traits"
 TRAIT_FILE_SUFFIX = ".json"
+
+DEFAULT_TRAIT_COLOR = "#cc99ff"
+_TRAIT_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+
+
+def _is_valid_trait_color(color: str) -> bool:
+    return bool(_TRAIT_COLOR_RE.match(color.strip()))
+
+
+def normalize_trait_color(color: str) -> str:
+    clean = color.strip()
+    if not clean.startswith("#") and re.fullmatch(r"[0-9a-fA-F]{6}", clean):
+        clean = f"#{clean}"
+    if not _is_valid_trait_color(clean):
+        return DEFAULT_TRAIT_COLOR
+    return clean.lower()
+
+
+def _rewrite_single_trait(path: str | Path, profile_updates: Mapping[str, Any]) -> Path:
+    source = Path(path)
+    profiles = parse_trait_file(source)
+    name, profile = next(iter(profiles.items()))
+    stored = dict(profile)
+    stored.update(profile_updates)
+    stored["name"] = name
+    source.write_text(
+        json.dumps({name: _json_safe_trait_value(stored)}, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    return source
+
+
+def set_trait_color(path: str | Path, color: str) -> Path:
+    return _rewrite_single_trait(path, {"color": normalize_trait_color(color)})
+
+
+def set_trait_archived(path: str | Path, archived: bool) -> Path:
+    return _rewrite_single_trait(path, {"archived": bool(archived)})
+
 _TRAIT_SLUG_RE = re.compile(r"[^a-zA-Z0-9_.-]+")
 
 
@@ -425,13 +464,20 @@ def _json_safe_trait_value(value: Any) -> Any:
         return [_json_safe_trait_value(child) for child in sorted(value, key=str)]
     return value
 
-def save_trait(name: str, profile: Mapping[str, Any]) -> Path:
+def save_trait(name: str, profile: Mapping[str, Any], *, color: str | None = None) -> Path:
     clean_name = name.strip()
     if not clean_name:
         raise ValueError("Trait name cannot be blank.")
     destination = _unique_trait_path(clean_name)
     stored = dict(profile)
     stored["name"] = clean_name
+    stored["color"] = normalize_trait_color(str(stored.get("color", DEFAULT_TRAIT_COLOR)))
+    stored["archived"] = bool(stored.get("archived", False))
+    if color is not None:
+        stored["color"] = normalize_trait_color(color)
+    elif not _is_valid_trait_color(str(stored.get("color", ""))):
+        stored["color"] = DEFAULT_TRAIT_COLOR
+    stored["archived"] = bool(stored.get("archived", False))
     destination.write_text(
         json.dumps({clean_name: _json_safe_trait_value(stored)}, ensure_ascii=False, indent=2),
         encoding="utf-8",
@@ -439,13 +485,13 @@ def save_trait(name: str, profile: Mapping[str, Any]) -> Path:
     return destination
 
 
-def install_trait_file(path: str | Path, name: str) -> Path:
+def install_trait_file(path: str | Path, name: str, *, color: str | None = None) -> Path:
     profiles = parse_trait_file(path)
     first_profile = next(iter(profiles.values()))
-    return save_trait(name, first_profile)
+    return save_trait(name, first_profile, color=color)
 
 
-def list_traits() -> list[dict[str, Any]]:
+def list_traits(*, active_only: bool = False) -> list[dict[str, Any]]:
     items: list[dict[str, Any]] = []
     for path in sorted(traits_dir().glob(f"*{TRAIT_FILE_SUFFIX}"), key=lambda p: p.name.casefold()):
         try:
@@ -453,7 +499,11 @@ def list_traits() -> list[dict[str, Any]]:
         except Exception:
             continue
         profile_name, profile = next(iter(profiles.items()))
-        items.append({"name": profile_name, "path": path, "profile": profile})
+        archived = bool(profile.get("archived", False))
+        if active_only and archived:
+            continue
+        color = normalize_trait_color(str(profile.get("color", DEFAULT_TRAIT_COLOR)))
+        items.append({"name": profile_name, "path": path, "profile": profile, "color": color, "archived": archived})
     return items
 
 
@@ -471,6 +521,8 @@ def rename_trait(path: str | Path, new_name: str) -> Path:
     destination = _unique_trait_path(clean_name, existing_path=source)
     stored = dict(profile)
     stored["name"] = clean_name
+    stored["color"] = normalize_trait_color(str(stored.get("color", DEFAULT_TRAIT_COLOR)))
+    stored["archived"] = bool(stored.get("archived", False))
     destination.write_text(
         json.dumps({clean_name: _json_safe_trait_value(stored)}, ensure_ascii=False, indent=2),
         encoding="utf-8",
@@ -533,7 +585,8 @@ def calculate_trait_likelihoods(chart: Any, traits: list[dict[str, Any]] | None 
     supportive criteria outweighed anti-criteria, and lower values mean anti-criteria
     outweighed supportive criteria.
     """
-    trait_items = traits if traits is not None else list_traits()
+    trait_items = traits if traits is not None else list_traits(active_only=True)
+    trait_items = [item for item in trait_items if not bool(item.get("archived", False))]
     raw_scores = calculate_trait_scores(chart, trait_items)
     likelihoods: dict[str, float] = {}
     for item in trait_items:
@@ -547,7 +600,8 @@ def calculate_trait_likelihoods(chart: Any, traits: list[dict[str, Any]] | None 
 
 
 def calculate_trait_scores(chart: Any, traits: list[dict[str, Any]] | None = None) -> dict[str, float]:
-    trait_items = traits if traits is not None else list_traits()
+    trait_items = traits if traits is not None else list_traits(active_only=True)
+    trait_items = [item for item in trait_items if not bool(item.get("archived", False))]
     predictors = {item["name"]: item.get("profile", {}) for item in trait_items}
     if not predictors:
         return {}

@@ -141,3 +141,29 @@ def test_install_trait_file_serializes_python_tuple_channel_keys(tmp_path, monke
 
     assert "1-8" in saved_text
     assert traits.list_traits()[0]["profile"]["channels"] == {"1-8": 3}
+
+
+def test_trait_color_and_archive_metadata_are_persisted(tmp_path, monkeypatch):
+    monkeypatch.setattr(traits, "TRAIT_DIR", tmp_path / "traits")
+    source = tmp_path / "upload.py"
+    source.write_text('{"Original": {"name": "Original", "bodies": {"Moon": 1}}}', encoding="utf-8")
+
+    installed = traits.install_trait_file(source, "Color Trait", color="#12ABef")
+    item = traits.list_traits()[0]
+    assert item["color"] == "#12abef"
+    assert item["profile"]["color"] == "#12abef"
+    assert item["archived"] is False
+
+    traits.set_trait_color(installed, "bad-color")
+    assert traits.list_traits()[0]["color"] == traits.DEFAULT_TRAIT_COLOR
+
+    traits.set_trait_archived(installed, True)
+    assert traits.list_traits()[0]["archived"] is True
+    assert traits.list_traits(active_only=True) == []
+
+    traits.set_trait_archived(installed, False)
+    renamed = traits.rename_trait(installed, "Renamed Color Trait")
+    renamed_item = traits.list_traits()[0]
+    assert renamed_item["path"] == renamed
+    assert renamed_item["color"] == traits.DEFAULT_TRAIT_COLOR
+    assert renamed_item["archived"] is False

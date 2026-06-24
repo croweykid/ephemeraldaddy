@@ -6,8 +6,10 @@ from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QColorDialog,
     QFileDialog,
     QHBoxLayout,
     QInputDialog,
@@ -18,7 +20,16 @@ from PySide6.QtWidgets import (
     QPushButton,
 )
 
-from ephemeraldaddy.analysis.traits import delete_trait, install_trait_file, list_traits, rename_trait
+from ephemeraldaddy.analysis.traits import (
+    DEFAULT_TRAIT_COLOR,
+    delete_trait,
+    install_trait_file,
+    list_traits,
+    normalize_trait_color,
+    rename_trait,
+    set_trait_archived,
+    set_trait_color,
+)
 
 
 def add_traits_settings_section(owner: Any, content_layout: Any) -> None:
@@ -44,11 +55,20 @@ def add_traits_settings_section(owner: Any, content_layout: Any) -> None:
     owner._traits_rename_button.clicked.connect(lambda _checked=False: on_trait_rename_clicked(owner))
     traits_button_row.addWidget(owner._traits_rename_button)
 
+    owner._traits_recolor_button = QPushButton("Recolor")
+    owner._traits_recolor_button.clicked.connect(lambda _checked=False: on_trait_recolor_clicked(owner))
+    traits_button_row.addWidget(owner._traits_recolor_button)
+
+    owner._traits_archive_button = QPushButton("Archive")
+    owner._traits_archive_button.clicked.connect(lambda _checked=False: on_trait_archive_clicked(owner))
+    traits_button_row.addWidget(owner._traits_archive_button)
+
     owner._traits_upload_button = QPushButton("Upload New Trait…")
     owner._traits_upload_button.clicked.connect(lambda _checked=False: on_trait_upload_clicked(owner))
     traits_button_row.addWidget(owner._traits_upload_button)
     traits_button_row.addStretch(1)
     traits_section.addLayout(traits_button_row)
+    owner._traits_list_widget.itemSelectionChanged.connect(lambda: _sync_trait_action_buttons(owner))
 
     owner._traits_status_label = QLabel("")
     owner._traits_status_label.setWordWrap(True)
@@ -74,15 +94,27 @@ def refresh_traits_settings_list(owner: Any) -> None:
             current_path = selected.data(Qt.UserRole)
         list_widget.clear()
         for trait in list_traits():
-            item = QListWidgetItem(str(trait["name"]))
+            name = str(trait["name"])
+            archived = bool(trait.get("archived", False))
+            color = normalize_trait_color(str(trait.get("color", DEFAULT_TRAIT_COLOR)))
+            item = QListWidgetItem(f"{name} {'(archived)' if archived else ''}".strip())
             item.setData(Qt.UserRole, str(trait["path"]))
+            item.setData(Qt.UserRole + 1, color)
+            item.setData(Qt.UserRole + 2, archived)
+            item.setForeground(QColor(color))
             list_widget.addItem(item)
             if str(trait["path"]) == current_path:
                 item.setSelected(True)
     status_label = getattr(owner, "_traits_status_label", None)
     if isinstance(status_label, QLabel):
-        count = len(list_traits())
-        status_label.setText(f"{count} trait{'s' if count != 1 else ''} installed.")
+        traits = list_traits()
+        count = len(traits)
+        archived_count = sum(1 for trait in traits if bool(trait.get("archived", False)))
+        status_label.setText(
+            f"{count} trait{'s' if count != 1 else ''} installed; "
+            f"{archived_count} archived and excluded from Predictions."
+        )
+    _sync_trait_action_buttons(owner)
 
 
 def _refresh_trait_predictions(owner: Any) -> None:
@@ -108,8 +140,11 @@ def on_trait_upload_clicked(owner: Any) -> None:
     if not clean_name:
         QMessageBox.information(owner, "Trait name required", "Enter a name for the new trait.")
         return
+    color = QColorDialog.getColor(QColor(DEFAULT_TRAIT_COLOR), owner, "Choose trait color")
+    if not color.isValid():
+        return
     try:
-        install_trait_file(file_path, clean_name)
+        install_trait_file(file_path, clean_name, color=color.name())
     except Exception as exc:
         QMessageBox.warning(owner, "Trait upload failed", f"Trait could not be installed: {exc}")
         return
@@ -155,6 +190,48 @@ def on_trait_rename_clicked(owner: Any) -> None:
         rename_trait(item.data(Qt.UserRole), clean_name)
     except Exception as exc:
         QMessageBox.warning(owner, "Trait rename failed", f"Trait could not be renamed: {exc}")
+        return
+    refresh_traits_settings_list(owner)
+    _refresh_trait_predictions(owner)
+
+
+def _sync_trait_action_buttons(owner: Any) -> None:
+    item = selected_trait_item(owner)
+    archived = bool(item.data(Qt.UserRole + 2)) if item is not None else False
+    archive_button = getattr(owner, "_traits_archive_button", None)
+    if isinstance(archive_button, QPushButton):
+        archive_button.setText("Reactivate" if archived else "Archive")
+
+
+def on_trait_recolor_clicked(owner: Any) -> None:
+    item = selected_trait_item(owner)
+    if item is None:
+        QMessageBox.information(owner, "No trait selected", "Select a trait to recolor first.")
+        return
+    current_color = normalize_trait_color(str(item.data(Qt.UserRole + 1) or DEFAULT_TRAIT_COLOR))
+    color = QColorDialog.getColor(QColor(current_color), owner, "Choose trait color")
+    if not color.isValid():
+        return
+    try:
+        set_trait_color(item.data(Qt.UserRole), color.name())
+    except Exception as exc:
+        QMessageBox.warning(owner, "Trait recolor failed", f"Trait could not be recolored: {exc}")
+        return
+    refresh_traits_settings_list(owner)
+    _refresh_trait_predictions(owner)
+
+
+def on_trait_archive_clicked(owner: Any) -> None:
+    item = selected_trait_item(owner)
+    if item is None:
+        QMessageBox.information(owner, "No trait selected", "Select a trait to archive or reactivate first.")
+        return
+    archived = bool(item.data(Qt.UserRole + 2))
+    try:
+        set_trait_archived(item.data(Qt.UserRole), not archived)
+    except Exception as exc:
+        action = "reactivated" if archived else "archived"
+        QMessageBox.warning(owner, "Trait update failed", f"Trait could not be {action}: {exc}")
         return
     refresh_traits_settings_list(owner)
     _refresh_trait_predictions(owner)
