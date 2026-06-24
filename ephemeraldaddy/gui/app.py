@@ -2446,7 +2446,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_metrics_background_preload_scheduled = False
         self._database_metrics_background_preload_sections: list[str] = []
         self._database_metrics_preloaded_sections: set[str] = set()
-        self._database_metrics_preload_enabled = True
+        self._database_metrics_preload_enabled = False
         self._tag_completer_revision_token: tuple[object, ...] | None = None
         self._database_metrics_chart_layouts: dict[str, QVBoxLayout] = {}
         self._database_analytics_popout_dialogs: list[QDialog] = []
@@ -2745,7 +2745,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.perceived_similarity_predictors_panel_scroll = self._wrap_left_panel(
             self.perceived_similarity_predictors_panel
         )
-        QTimer.singleShot(0, self._start_database_metrics_cache_preload)
         self.left_panel_stack = QStackedWidget()
         self.left_panel_stack.setMinimumWidth(0)
         self._left_panel_widgets = {
@@ -3310,14 +3309,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
 
     def _start_database_metrics_cache_preload(self) -> None:
-        """Restore persisted Database Analytics snapshots without recalculating at startup."""
-        if self._database_metrics_cache is None:
-            try:
-                self._load_database_metrics_persistent_cache()
-            except Exception:
-                traceback.print_exc()
-                self._database_metrics_cache = None
-        self._schedule_database_metrics_background_preload()
+        """Deprecated no-op: Database Analytics now refreshes on demand only."""
+        return
 
     def _schedule_database_metrics_background_preload(self) -> None:
         """Queue hidden Database Analytics sections to render during idle UI time."""
@@ -10404,8 +10397,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return True
 
         if update_database_metrics:
+            computed_sections = (
+                frozenset(sections_to_refresh)
+                if sections_to_refresh is not None
+                else None
+            )
             try:
-                self._refresh_database_metrics_cache(force_full_refresh=force_full_refresh)
+                self._refresh_database_metrics_cache(
+                    force_full_refresh=force_full_refresh,
+                    computed_sections=computed_sections,
+                )
             except Exception:
                 if show_progress:
                     traceback.print_exc()
@@ -16441,8 +16442,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         parent = self._owner_window()
         if isinstance(parent, MainWindow):
             parent.allow_close_for_app_exit()
-
-        self._save_database_metrics_persistent_cache()
 
         super().closeEvent(event)
 
