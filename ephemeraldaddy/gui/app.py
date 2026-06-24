@@ -247,6 +247,8 @@ def _load_similarity_calculator_settings(settings) -> SimilarityCalculatorSettin
         "weight_inner_planet_placement": float(payload.get("weight_inner_planet_placement", defaults.weight_inner_planet_placement)),
         "use_outer_planet_placement": _as_bool(payload.get("use_outer_planet_placement", defaults.use_outer_planet_placement), defaults.use_outer_planet_placement),
         "weight_outer_planet_placement": float(payload.get("weight_outer_planet_placement", defaults.weight_outer_planet_placement)),
+        "use_big_3": _as_bool(payload.get("use_big_3", defaults.use_big_3), defaults.use_big_3),
+        "weight_big_3": float(payload.get("weight_big_3", defaults.weight_big_3)),
         "placement_weighting_mode": _normalize_placement_weighting_mode(
             payload.get("placement_weighting_mode", defaults.placement_weighting_mode)
         ),
@@ -291,6 +293,8 @@ def _save_similarity_calculator_settings(settings, value: SimilarityCalculatorSe
             "weight_inner_planet_placement": float(value.weight_inner_planet_placement),
             "use_outer_planet_placement": bool(value.use_outer_planet_placement),
             "weight_outer_planet_placement": float(value.weight_outer_planet_placement),
+            "use_big_3": bool(value.use_big_3),
+            "weight_big_3": float(value.weight_big_3),
             "placement_weighting_mode": _normalize_placement_weighting_mode(value.placement_weighting_mode),
             "all_or_nothing_component": _normalize_all_or_nothing_component(value.all_or_nothing_component),
         },
@@ -21442,6 +21446,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "human_design_channels": ("use_human_design_channels", "weight_human_design_channels"),
             "inner_planet_placement": ("use_inner_planet_placement", "weight_inner_planet_placement"),
             "outer_planet_placement": ("use_outer_planet_placement", "weight_outer_planet_placement"),
+            "big_3": ("use_big_3", "weight_big_3"),
         }
         for key, (enabled_attr, weight_attr) in mapping.items():
             checkbox = self._similarity_calculator_checkboxes.get(key)
@@ -21807,6 +21812,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             weight_inner_planet_placement=float(self._similarity_calculator_weights["inner_planet_placement"].value()),
             use_outer_planet_placement=bool(self._similarity_calculator_checkboxes["outer_planet_placement"].isChecked()),
             weight_outer_planet_placement=float(self._similarity_calculator_weights["outer_planet_placement"].value()),
+            use_big_3=bool(self._similarity_calculator_checkboxes["big_3"].isChecked()),
+            weight_big_3=float(self._similarity_calculator_weights["big_3"].value()),
             placement_weighting_mode=_normalize_placement_weighting_mode(
                 getattr(
                     getattr(self, "_similarity_calculator_placement_weighting_mode_combo", None),

@@ -81,6 +81,7 @@ SIMILARITY_COMPONENT_KEYS: tuple[str, ...] = (
     "human_design_channels",
     "inner_planet_placement",
     "outer_planet_placement",
+    "big_3",
 )
 
 ALL_OR_NOTHING_EXCLUDED_COMPONENT_KEYS: frozenset[str] = frozenset({
@@ -433,6 +434,8 @@ class SimilarityCalculatorSettings:
     weight_inner_planet_placement: float = 0.00
     use_outer_planet_placement: bool = False
     weight_outer_planet_placement: float = 0.00
+    use_big_3: bool = False
+    weight_big_3: float = 0.00
     placement_weighting_mode: str = PLACEMENT_WEIGHTING_MODE_CHART_DEFINED
     all_or_nothing_component: str = DEFAULT_ALL_OR_NOTHING_COMPONENT
 
@@ -506,6 +509,8 @@ class SimilarityCalculatorSettings:
             weight_inner_planet_placement=0.00,
             use_outer_planet_placement=False,
             weight_outer_planet_placement=0.00,
+            use_big_3=False,
+            weight_big_3=0.00,
             placement_weighting_mode=PLACEMENT_WEIGHTING_MODE_CHART_DEFINED,
         )
 
@@ -542,6 +547,8 @@ class SimilarityCalculatorSettings:
             weight_inner_planet_placement=0.13,
             use_outer_planet_placement=False,
             weight_outer_planet_placement=0.00,
+            use_big_3=False,
+            weight_big_3=0.00,
             placement_weighting_mode=PLACEMENT_WEIGHTING_MODE_HYBRID,
         )
 
@@ -561,6 +568,7 @@ class SimilarityCalculatorSettings:
             "human_design_channels": max(0.0, float(self.weight_human_design_channels)),
             "inner_planet_placement": max(0.0, float(self.weight_inner_planet_placement)),
             "outer_planet_placement": max(0.0, float(self.weight_outer_planet_placement)),
+            "big_3": max(0.0, float(self.weight_big_3)),
         }
 
     def enabled_components(self) -> dict[str, bool]:
@@ -579,6 +587,7 @@ class SimilarityCalculatorSettings:
             "human_design_channels": bool(self.use_human_design_channels),
             "inner_planet_placement": bool(self.use_inner_planet_placement),
             "outer_planet_placement": bool(self.use_outer_planet_placement),
+            "big_3": bool(self.use_big_3),
         }
 
     def normalized_placement_weighting_mode(self) -> str:
@@ -1351,6 +1360,8 @@ def _similarity_component_scores(
                 weighting_mode=placement_weighting_mode,
                 bodies=OUTER_PLANETS,
             )
+        elif key == "big_3":
+            scores[key], _big_3_components = chart_similarity_score_big_3(query, candidate)
     return scores
 
 
@@ -1503,38 +1514,22 @@ def _same_sign_score(query: Chart, candidate: Chart, body: str) -> float:
 
 
 def chart_similarity_score_big_3(query: Chart, candidate: Chart) -> tuple[float, dict[str, float]]:
-    """Score Big 3 mode by sign matches, with angle weights only when houses are usable."""
+    """Score Big 3 mode by Sun, Moon, and Rising sign matches.
+
+    Rising is included only when both charts have usable house/angle context;
+    otherwise the score is the average of Sun and Moon sign matches.
+    """
 
     has_house_context = chart_uses_houses(query) and chart_uses_houses(candidate)
-    weights = {
-        "big_3_sun": 0.35,
-        "big_3_moon": 0.25,
-        "big_3_mercury": 0.02,
-        "big_3_venus": 0.02,
-        "big_3_mars": 0.01,
-    }
-    if has_house_context:
-        weights["big_3_rising"] = 0.18
-        weights["big_3_mc"] = 0.17
-    else:
-        redistributed = (0.18 + 0.17) / len(weights)
-        weights = {key: weight + redistributed for key, weight in weights.items()}
-
     component_scores = {
         "big_3_sun": _same_sign_score(query, candidate, "Sun"),
         "big_3_moon": _same_sign_score(query, candidate, "Moon"),
-        "big_3_mercury": _same_sign_score(query, candidate, "Mercury"),
-        "big_3_venus": _same_sign_score(query, candidate, "Venus"),
-        "big_3_mars": _same_sign_score(query, candidate, "Mars"),
     }
     if has_house_context:
         component_scores["big_3_rising"] = _same_sign_score(query, candidate, "AS")
-        component_scores["big_3_mc"] = _same_sign_score(query, candidate, "MC")
-    total_weight = sum(weights.values())
-    if total_weight <= 0.0:
+    if not component_scores:
         return 0.0, component_scores
-    score = sum(component_scores[key] * weight for key, weight in weights.items()) / total_weight
-    return score, component_scores
+    return sum(component_scores.values()) / len(component_scores), component_scores
 
 
 def chart_dissimilarity_score(

@@ -275,18 +275,18 @@ def test_big_3_similarity_reasoning_html_shows_component_breakdown_for_both_anal
             assert "Big 3 sign matches:" in html
             assert "Sun</a> sign:" in html
             assert "both <a href='chart-info:sign:Aries'" in html
-            assert "Mercury</a> sign:" in html
-            assert "Mars</a> sign:" in html
-            assert "MC</a> sign:" in html
             assert "Moon</a> sign:" not in html
             assert "AS</a>:" not in html
+            assert "Mercury</a> sign:" not in html
+            assert "Mars</a> sign:" not in html
+            assert "MC</a> sign:" not in html
         else:
             assert "Big 3 sign differences:" in html
             assert "Moon</a> sign:" in html
             assert "Subject <a href='chart-info:sign:Taurus'" in html
             assert "Compared <a href='chart-info:sign:Gemini'" in html
-            assert "Venus</a> sign:" in html
             assert "AS</a>:" in html
+            assert "Venus</a> sign:" not in html
             assert "Sun</a> sign:" not in html
             assert "MC</a> sign:" not in html
 

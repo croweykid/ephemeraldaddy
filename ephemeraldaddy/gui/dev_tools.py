@@ -163,6 +163,7 @@ SIMILARITY_CALCULATOR_FACTOR_ROWS: tuple[tuple[str, str], ...] = (
     ("human_design_channels", "Human Design channels score"),
     ("inner_planet_placement", "Inner planet placement"),
     ("outer_planet_placement", "Outer planet placement"),
+    ("big_3", "Big 3"),
 )
 
 
@@ -232,6 +233,9 @@ SIMILARITY_CALCULATOR_CRITERION_EXPLAINERS: dict[str, str] = {
     ),
     "outer_planet_placement": (
         "Compares Jupiter, Saturn, Uranus, Neptune, and Pluto placements only, using the same weighted sign/house placement logic."
+    ),
+    "big_3": (
+        "Compares the classic Big 3: Sun sign, Moon sign, and Rising sign when both charts have usable houses."
     ),
 }
 
