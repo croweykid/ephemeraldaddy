@@ -1093,6 +1093,52 @@ def apply_chart_view_middle_panel_typography(
     )
 
 
+def style_delete_this_chart_button(button: QPushButton) -> None:
+    """Apply Chart View delete-button styling, including matching hover feedback."""
+
+    button.setStyleSheet(
+        "QPushButton {"
+        "color: #ff6b6b;"
+        "font-weight: 700;"
+        "}"
+        "QPushButton:hover {"
+        "text-decoration: underline;"
+        "}"
+    )
+
+
+def chart_view_birth_data_is_complete(owner: QWidget) -> bool:
+    """Return True when Chart View has enough birth data to calculate a chart."""
+
+    return (
+        bool(owner.birth_month_edit.text().strip())
+        and bool(owner.birth_day_edit.text().strip())
+        and bool(owner.birth_year_edit.text().strip())
+        and bool(owner.place_edit.text().strip())
+    )
+
+
+def prompt_incomplete_chart_save_choice(owner: QWidget) -> str:
+    """Prompt for how to handle a chart save/update with incomplete birth data."""
+
+    choice_box = QMessageBox(owner)
+    choice_box.setIcon(QMessageBox.Icon.Warning)
+    choice_box.setWindowTitle("Incomplete chart data")
+    choice_box.setText("Insufficient data to calculate astro chart. Save as placeholder?")
+    yes_button = choice_box.addButton("Yes", QMessageBox.ButtonRole.AcceptRole)
+    fix_button = choice_box.addButton("Fix", QMessageBox.ButtonRole.RejectRole)
+    discard_button = choice_box.addButton(
+        "Discard",
+        QMessageBox.ButtonRole.DestructiveRole,
+    )
+    choice_box.setDefaultButton(fix_button)
+    choice_box.exec()
+    clicked_button = choice_box.clickedButton()
+    if clicked_button is yes_button:
+        return "placeholder"
+    if clicked_button is discard_button:
+        return "discard"
+    return "fix"
 
 
 def _build_material_facts_panel(owner: QWidget) -> QWidget:

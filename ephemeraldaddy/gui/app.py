@@ -1131,6 +1131,7 @@ from ephemeraldaddy.gui.features.controllers.chart_view_window import (
     build_chart_view_middle_header_controls,
     build_chart_view_right_panel,
     build_subjective_notes_alignment_sections,
+    chart_view_birth_data_is_complete,
     draw_weight_distribution_reference_lines,
     format_weight_distribution_html,
     format_unknown_positions_summary_html,
@@ -1138,12 +1139,14 @@ from ephemeraldaddy.gui.features.controllers.chart_view_window import (
     install_chart_info_panel_content_observers,
     install_chart_view_undo_shortcuts,
     on_chart_view_tag_add,
+    prompt_incomplete_chart_save_choice,
     on_chart_view_tag_remove_link,
     on_chart_view_tags_changed,
     refresh_chart_info_panel_toggle_button_styles,
     render_chart_view_tag_selection,
     set_chart_view_tag_state,
     setup_chart_view_tags_section,
+    style_delete_this_chart_button,
 )
 from ephemeraldaddy.gui.visibility import (
     CHART_DATA_KEYS,
@@ -24081,15 +24084,7 @@ class MainWindow(QMainWindow):
         buttons_layout.addWidget(self.update_button, 0, 0)
         self.delete_this_chart_button = QPushButton("❌ Delete This Chart")
         self.delete_this_chart_button.setObjectName("delete_this_chart_button")
-        self.delete_this_chart_button.setStyleSheet(
-            "QPushButton {"
-            "color: #ff6b6b;"
-            "font-weight: 700;"
-            "}"
-            "QPushButton:hover {"
-            "text-decoration: underline;"
-            "}"
-        )
+        style_delete_this_chart_button(self.delete_this_chart_button)
         self.delete_this_chart_button.setToolTip(
             "Delete the currently open chart and return to Database View."
         )
@@ -31837,36 +31832,13 @@ class MainWindow(QMainWindow):
 
         if not is_placeholder:
             self._clear_required_field_highlights()
-            has_complete_birth_data = (
-                bool(self.birth_month_edit.text().strip())
-                and bool(self.birth_day_edit.text().strip())
-                and bool(self.birth_year_edit.text().strip())
-                and bool(self.place_edit.text().strip())
-            )
-            if not has_complete_birth_data:
+            if not chart_view_birth_data_is_complete(self):
                 self._highlight_required_fields()
-                incomplete_choice_box = QMessageBox(self)
-                incomplete_choice_box.setIcon(QMessageBox.Icon.Warning)
-                incomplete_choice_box.setWindowTitle("Incomplete chart data")
-                incomplete_choice_box.setText(
-                    "Insufficient data to calculate astro chart. Save as placeholder?"
-                )
-                yes_button = incomplete_choice_box.addButton(
-                    "Yes", QMessageBox.ButtonRole.AcceptRole
-                )
-                fix_button = incomplete_choice_box.addButton(
-                    "Fix", QMessageBox.ButtonRole.RejectRole
-                )
-                discard_button = incomplete_choice_box.addButton(
-                    "Discard", QMessageBox.ButtonRole.DestructiveRole
-                )
-                incomplete_choice_box.setDefaultButton(fix_button)
-                incomplete_choice_box.exec()
-                clicked_button = incomplete_choice_box.clickedButton()
-                if clicked_button is yes_button:
+                incomplete_choice = prompt_incomplete_chart_save_choice(self)
+                if incomplete_choice == "placeholder":
                     self.placeholder_chart_checkbox.setChecked(True)
                     is_placeholder = True
-                elif clicked_button is discard_button:
+                elif incomplete_choice == "discard":
                     if chart_id is not None:
                         try:
                             delete_charts([chart_id])
