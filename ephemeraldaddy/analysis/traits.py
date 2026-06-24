@@ -323,12 +323,41 @@ def _unique_trait_path(name: str, *, existing_path: Path | None = None) -> Path:
     return candidate
 
 
+def _strip_line_comments(text: str) -> str:
+    """Remove JavaScript-style line comments while preserving string contents."""
+    output: list[str] = []
+    in_string: str | None = None
+    escaped = False
+    index = 0
+    while index < len(text):
+        char = text[index]
+        next_char = text[index + 1] if index + 1 < len(text) else ""
+        if in_string is None and char == "/" and next_char == "/":
+            index += 2
+            while index < len(text) and text[index] not in "\r\n":
+                index += 1
+            continue
+        output.append(char)
+        if in_string is not None:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == in_string:
+                in_string = None
+        elif char in {"'", '"'}:
+            in_string = char
+        index += 1
+    return "".join(output)
+
+
 def _extract_literal_from_python(text: str) -> Any:
+    cleaned_text = _strip_line_comments(text)
     try:
-        return ast.literal_eval(text)
+        return ast.literal_eval(cleaned_text)
     except (SyntaxError, ValueError):
         pass
-    module = ast.parse(text)
+    module = ast.parse(cleaned_text)
     for node in reversed(module.body):
         value_node: ast.AST | None = None
         if isinstance(node, ast.Assign):
@@ -351,7 +380,10 @@ def parse_trait_file(path: str | Path) -> dict[str, dict[str, Any]]:
     source = Path(path)
     text = source.read_text(encoding="utf-8")
     if source.suffix.lower() == ".json":
-        payload = json.loads(text)
+        try:
+            payload = json.loads(text)
+        except json.JSONDecodeError:
+            payload = _extract_literal_from_python(text)
     else:
         payload = _extract_literal_from_python(text)
     if not isinstance(payload, Mapping):
