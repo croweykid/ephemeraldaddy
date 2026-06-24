@@ -9,22 +9,17 @@ from PySide6.QtWidgets import QLabel
 
 from ephemeraldaddy.analysis.traits import DEFAULT_TRAIT_COLOR, calculate_trait_likelihoods, list_traits, normalize_trait_color
 
-_BAR_WIDTH_PX = 120
 
-
-def _trait_bar(name: str, percentage: float, *, color: str) -> str:
+def _trait_rank_row(rank: int, name: str, percentage: float, *, color: str) -> str:
     safe_name = html.escape(name)
     pct = max(0.0, min(100.0, percentage))
-    fill_width = int(round((_BAR_WIDTH_PX * pct) / 100.0))
     safe_color = html.escape(normalize_trait_color(color))
     return (
         "<tr>"
+        f"<td style='padding:1px 8px 1px 0; text-align:right; color:#d8d8d8;'>{rank}.</td>"
         f"<td style='padding:1px 8px 1px 0; white-space:nowrap; color:{safe_color};'>{safe_name}</td>"
-        f"<td style='padding:1px 8px 1px 0; text-align:right; color:{safe_color};'>{pct:.1f}%</td>"
-        f"<td style='width:{_BAR_WIDTH_PX}px;'>"
-        f"<div style='background:#333; width:{_BAR_WIDTH_PX}px; height:8px;'>"
-        f"<div style='background:{safe_color}; width:{fill_width}px; height:8px;'></div>"
-        "</div></td></tr>"
+        f"<td style='padding:1px 0; text-align:right; color:#d8d8d8;'>{pct:.1f}%</td>"
+        "</tr>"
     )
 
 
@@ -62,19 +57,25 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
     bottom_rows = list(reversed(ranked[-5:])) if len(ranked) > 5 else []
     parts = [
         "<div style='color:#d8d8d8; padding-bottom:4px;'>"
-        "Percentages are evidence likelihoods: 50% is neutral, above 50% means the chart matched more supporting criteria, "
-        "and below 50% means it matched more anti-criteria."
+        "Traits are ranked by evidence likelihood: higher percentages indicate stronger matches to supporting criteria, "
+        "while lower percentages indicate stronger matches to anti-criteria."
         "</div>",
         "<b>Top 5 traits</b>",
         "<table cellspacing='0' cellpadding='0'>",
-        *[_trait_bar(name, pct, color=color_by_name.get(name, DEFAULT_TRAIT_COLOR)) for name, pct in top_rows],
+        *[
+            _trait_rank_row(rank, name, pct, color=color_by_name.get(name, DEFAULT_TRAIT_COLOR))
+            for rank, (name, pct) in enumerate(top_rows, start=1)
+        ],
         "</table>",
     ]
     if bottom_rows:
         parts.extend([
             "<div style='padding-top:6px;'><b>Bottom 5 traits</b></div>",
             "<table cellspacing='0' cellpadding='0'>",
-            *[_trait_bar(name, pct, color=color_by_name.get(name, DEFAULT_TRAIT_COLOR)) for name, pct in bottom_rows],
+            *[
+                _trait_rank_row(rank, name, pct, color=color_by_name.get(name, DEFAULT_TRAIT_COLOR))
+                for rank, (name, pct) in enumerate(bottom_rows, start=1)
+            ],
             "</table>",
         ])
     label.setText("".join(parts))
