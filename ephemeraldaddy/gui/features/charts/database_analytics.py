@@ -1486,6 +1486,40 @@ class DatabaseAnalyticsChartsMixin:
         )
         return f"<h3>Incarnation Cross: {html.escape(cross_name)}</h3><ul>{detail_html}</ul>"
 
+    def _build_database_analytics_chart_analytics_info_html(
+        self,
+        *,
+        chart_title: str,
+        label: str,
+    ) -> str | None:
+        """Return the matching Chart Analytics explainer for known astro categories."""
+        del chart_title
+        clean_label = self._clean_database_analytics_label(label)
+        owner = getattr(self, "_app_owner", None)
+        chart = getattr(self, "_latest_chart", None) or getattr(owner, "_latest_chart", None)
+        if chart is None:
+            return None
+        builder_host = self if hasattr(self, "_build_body_popout_info") else owner
+        if builder_host is None:
+            return None
+
+        if clean_label in PLANET_COLORS and hasattr(builder_host, "_build_body_popout_info"):
+            return builder_host._build_body_popout_info(chart, clean_label)
+        if clean_label in SIGN_COLORS and hasattr(builder_host, "_build_sign_popout_info"):
+            return builder_host._build_sign_popout_info(chart, clean_label)
+        if clean_label in ELEMENT_COLORS and hasattr(builder_host, "_build_element_popout_info"):
+            return builder_host._build_element_popout_info(chart, clean_label)
+        if MODE_COLORS.get(clean_label.casefold()) and hasattr(builder_host, "_build_mode_popout_info"):
+            return builder_host._build_mode_popout_info(chart, clean_label)
+        if clean_label in {str(name) for name, *_ in NAKSHATRA_RANGES} and hasattr(
+            builder_host, "_build_nakshatra_popout_info"
+        ):
+            return builder_host._build_nakshatra_popout_info(chart, clean_label)
+        house_match = re.fullmatch(r"(?:house\s+)?(1[0-2]|[1-9])", clean_label.casefold())
+        if house_match and hasattr(builder_host, "_build_house_popout_info"):
+            return builder_host._build_house_popout_info(chart, int(house_match.group(1)))
+        return None
+
     def _build_database_analytics_popout_info_html(
         self,
         *,
@@ -1495,6 +1529,12 @@ class DatabaseAnalyticsChartsMixin:
     ) -> str:
         clean_title = self._clean_database_analytics_label(chart_title)
         clean_label = self._clean_database_analytics_label(label)
+        chart_analytics_html = self._build_database_analytics_chart_analytics_info_html(
+            chart_title=clean_title,
+            label=clean_label,
+        )
+        if chart_analytics_html:
+            return chart_analytics_html
         if "incarnation" in clean_title.casefold() and "cross" in clean_title.casefold():
             cross_html = self._database_analytics_incarnation_cross_info_html(clean_label)
             if cross_html:
@@ -1779,6 +1819,12 @@ class DatabaseAnalyticsChartsMixin:
     ) -> str:
         clean_title = self._clean_database_analytics_label(chart_title)
         clean_label = self._clean_database_analytics_label(label)
+        chart_analytics_html = self._build_database_analytics_chart_analytics_info_html(
+            chart_title=clean_title,
+            label=clean_label,
+        )
+        if chart_analytics_html:
+            return chart_analytics_html
         if "incarnation" in clean_title.casefold() and "cross" in clean_title.casefold():
             cross_html = self._database_analytics_incarnation_cross_info_html(clean_label)
             if cross_html:
