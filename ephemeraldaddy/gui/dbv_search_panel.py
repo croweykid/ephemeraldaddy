@@ -249,6 +249,54 @@ def refresh_search_tags_list(window, known_tags: list[str]) -> None:
             row_layout.addWidget(button)
         return row
 
+    def add_untagged_item() -> None:
+        previous_checkbox = getattr(window, "search_untagged_checkbox", None)
+        previous_mode = (
+            previous_checkbox.mode()
+            if previous_checkbox is not None
+            else QuadStateSlider.MODE_EMPTY
+        )
+        checkbox = QuadStateSlider("untagged")
+        checkbox.setMode(previous_mode)
+        checkbox.modeChanged.connect(window._on_filter_changed)
+        window.search_untagged_checkbox = checkbox
+        item = QTreeWidgetItemClass(["untagged"])
+        tree.addTopLevelItem(item)
+        if hasattr(checkbox, "_label"):
+            checkbox._label.setStyleSheet("padding-left: 2px; font-style: italic;")
+        logic = make_logic_buttons(
+            "not" if checkbox.mode() == QuadStateSlider.MODE_FALSE else "and"
+        )
+        window.search_untagged_logic_buttons = logic
+
+        def on_untagged_logic_changed(mode: str, checked: bool) -> None:
+            if not checked:
+                return
+            logic["checked"] = mode
+            checkbox.setMode(
+                (
+                    QuadStateSlider.MODE_FALSE
+                    if mode == "not"
+                    else QuadStateSlider.MODE_TRUE
+                ),
+                emit_signal=True,
+            )
+
+        row = QWidget()
+        row_layout = QHBoxLayout(row)
+        row_layout.setContentsMargins(0, 0, 0, 0)
+        row_layout.setSpacing(3)
+        row_layout.addWidget(checkbox, 1)
+        for key in ("and", "or", "not"):
+            button = logic[key]
+            button.toggled.connect(
+                lambda checked, mode=key: on_untagged_logic_changed(mode, checked)
+            )
+            row_layout.addWidget(button)
+        tree.setItemWidget(item, 0, row)
+
+    add_untagged_item()
+
     def add_tag_item(parent_item, tag: str, value: str) -> None:
         display = _tag_value_display_name(value)
         item = QTreeWidgetItemClass([display])
@@ -495,7 +543,6 @@ def build_dbv_search_panel(window) -> "QWidget":
     tags_search_row.addWidget(window.search_tags_preview_label)
     window.search_untagged_checkbox = QuadStateSlider("untagged")
     window.search_untagged_checkbox.modeChanged.connect(window._on_filter_changed)
-    tags_search_row.addWidget(window.search_untagged_checkbox)
 
     window.search_tags_toggle = QToolButton()
     configure_collapsible_header_toggle(
