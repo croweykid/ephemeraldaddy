@@ -45,7 +45,8 @@ def test_unhide_selected_charts_removes_ids_and_preserves_selection():
     method = _method_source("_unhide_selected_charts")
 
     assert "self._hidden_chart_ids.difference_update(normalized_ids)" in method
-    assert "self._save_hidden_chart_ids_to_settings()" in method
+    assert "self._hidden_chart_uids.difference_update(self._chart_uids_for_ids(normalized_ids))" in method
+    assert "self._save_hidden_chart_uids_to_settings()" in method
     assert "set(self._selected_chart_ids()) | normalized_ids" in method
     assert "sync_persistent_selection=False" in method
 

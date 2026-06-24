@@ -48,6 +48,7 @@ class CustomCollection:
     collection_id: str
     name: str
     chart_ids: frozenset[int]
+    chart_uids: frozenset[str] = frozenset()
 
 
 def sanitize_collection_name(name: object, *, fallback: str = "Untitled Collection") -> str:
@@ -67,6 +68,7 @@ def chart_belongs_to_collection(
     source: str | None = None,
     custom_collections: dict[str, CustomCollection] | None = None,
     chart_id: int | None = None,
+    chart_uid: str | None = None,
 ) -> bool:
     normalized_collection_id = normalize_collection_id(collection_id)
     if normalized_collection_id == DEFAULT_COLLECTION_ALL:
@@ -103,11 +105,14 @@ def chart_belongs_to_collection(
     if normalized_collection_id == DEFAULT_COLLECTION_HYPOTHETICAL:
         return normalized_chart_type == SOURCE_HYPOTHETICAL
 
-    if custom_collections is None or chart_id is None:
+    if custom_collections is None or (chart_id is None and chart_uid is None):
         return False
     custom_collection = custom_collections.get(normalized_collection_id)
     if custom_collection is None:
         return False
+    normalized_chart_uid = str(chart_uid or "").strip().upper()
+    if normalized_chart_uid and normalized_chart_uid in custom_collection.chart_uids:
+        return True
     return chart_id in custom_collection.chart_ids
 
 
