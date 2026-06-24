@@ -851,6 +851,9 @@ from ephemeraldaddy.gui.dbv_search_panel import (
     body_dynamics_filters_are_active,
     build_dbv_search_panel,
     chart_matches_body_dynamics_filters,
+    _split_search_tag_category,
+    _tag_category_display_name,
+    _tag_value_display_name,
     reset_body_dynamics_filters,
     weight_is_at_least_triple_next_highest,
 )
@@ -9966,16 +9969,21 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if self._birthdate_latest_year_input is not None
             else ""
         )
-        selected_search_tags = {
-            name
-            for name, checkbox in getattr(self, "search_tag_filter_checkboxes", {}).items()
-            if checkbox.mode() == QuadStateSlider.MODE_TRUE
-        }
-        excluded_search_tags = {
-            name
-            for name, checkbox in getattr(self, "search_tag_filter_checkboxes", {}).items()
-            if checkbox.mode() == QuadStateSlider.MODE_FALSE
-        }
+        selected_search_tags = set()
+        optional_search_tags = set()
+        excluded_search_tags = set()
+        tag_logic_buttons = getattr(self, "search_tag_filter_logic_buttons", {})
+        for name, checkbox in getattr(self, "search_tag_filter_checkboxes", {}).items():
+            logic_mode = str(tag_logic_buttons.get(name, {}).get("checked", "and"))
+            if checkbox.mode() == QuadStateSlider.MODE_TRUE:
+                if logic_mode == "or":
+                    optional_search_tags.add(name)
+                elif logic_mode == "not":
+                    excluded_search_tags.add(name)
+                else:
+                    selected_search_tags.add(name)
+            elif checkbox.mode() == QuadStateSlider.MODE_FALSE:
+                excluded_search_tags.add(name)
         search_untagged_mode = (
             self.search_untagged_checkbox.mode()
             if hasattr(self, "search_untagged_checkbox")
@@ -14214,30 +14222,127 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
         }
         existing_checkboxes = getattr(self, "search_tag_filter_checkboxes", {})
-        existing_modes = {
-            tag_name: checkbox.mode()
-            for tag_name, checkbox in existing_checkboxes.items()
+        existing_modes = {tag_name: checkbox.mode() for tag_name, checkbox in existing_checkboxes.items()}
+        existing_logic = {
+            tag_name: str(buttons.get("checked", "and"))
+            for tag_name, buttons in getattr(self, "search_tag_filter_logic_buttons", {}).items()
         }
+        tree = self.search_tags_list_widget
+        expanded_state: dict[str, bool] = {}
+        if hasattr(tree, "topLevelItemCount"):
+            for index in range(tree.topLevelItemCount()):
+                item = tree.topLevelItem(index)
+                if item is not None:
+                    expanded_state[str(item.data(0, Qt.UserRole) or "")] = item.isExpanded()
         self.search_tag_filter_checkboxes = {}
-        self.search_tags_list_widget.clear()
+        self.search_tag_filter_logic_buttons = {}
+        self.search_tag_category_checkboxes = {}
+        self.search_tag_category_logic_buttons = {}
+        tree.clear()
+        QTreeWidgetItemClass = getattr(self, "_dbv_tag_tree_item_class", None)
+        if QTreeWidgetItemClass is None:
+            return
+
+        grouped: dict[str, list[tuple[str, str]]] = {}
+        uncategorized: list[tuple[str, str]] = []
         for tag in known_tags:
-            row_item = QListWidgetItem()
-            row_checkbox = QuadStateSlider(tag)
-            row_checkbox.setMode(
-                existing_modes.get(
-                    tag,
-                    QuadStateSlider.MODE_TRUE
-                    if tag.casefold() in selected_tags
-                    else QuadStateSlider.MODE_EMPTY,
-                )
-            )
-            row_checkbox.modeChanged.connect(
-                lambda _mode, tag_name=tag: self._on_search_tag_mode_changed(tag_name)
-            )
-            row_item.setSizeHint(row_checkbox.sizeHint())
-            self.search_tags_list_widget.addItem(row_item)
-            self.search_tags_list_widget.setItemWidget(row_item, row_checkbox)
-            self.search_tag_filter_checkboxes[tag] = row_checkbox
+            prefix, value = _split_search_tag_category(tag)
+            if prefix:
+                grouped.setdefault(prefix, []).append((tag, value))
+            else:
+                uncategorized.append((tag, value))
+
+        def make_logic_buttons(current: str) -> dict[str, object]:
+            group = QButtonGroup(self)
+            group.setExclusive(True)
+            and_button = QRadioButton("&&")
+            or_button = QRadioButton("OR")
+            not_button = QRadioButton("🚫")
+            for button in (and_button, or_button, not_button):
+                button.setStyleSheet("font-size: 10px; margin: 0px; padding: 0px;")
+                group.addButton(button)
+            mapping = {"and": and_button, "or": or_button, "not": not_button}
+            mapping.get(current, and_button).setChecked(True)
+            return {"group": group, "and": and_button, "or": or_button, "not": not_button, "checked": current if current in mapping else "and"}
+
+        def make_row(label: str, checkbox: QuadStateSlider, logic: dict[str, object], tag_name: str | None = None, category_prefix: str | None = None) -> QWidget:
+            row = QWidget()
+            row_layout = QHBoxLayout(row)
+            row_layout.setContentsMargins(0, 0, 0, 0)
+            row_layout.setSpacing(3)
+            row_layout.addWidget(checkbox, 1)
+            for key in ("and", "or", "not"):
+                button = logic[key]
+                if category_prefix is not None:
+                    button.toggled.connect(lambda checked, mode=key, prefix=category_prefix: self._on_search_tag_category_logic_changed(prefix, mode, checked))
+                else:
+                    button.toggled.connect(lambda checked, mode=key, tag=tag_name: self._on_search_tag_logic_changed(tag, mode, checked))
+                row_layout.addWidget(button)
+            return row
+
+        def add_tag_item(parent_item, tag: str, value: str) -> None:
+            display = _tag_value_display_name(value)
+            item = QTreeWidgetItemClass([display])
+            parent_item.addChild(item)
+            checkbox = QuadStateSlider(display)
+            checkbox.setMode(existing_modes.get(tag, QuadStateSlider.MODE_TRUE if tag.casefold() in selected_tags else QuadStateSlider.MODE_EMPTY))
+            checkbox.modeChanged.connect(lambda _mode, tag_name=tag: self._on_search_tag_mode_changed(tag_name))
+            logic = make_logic_buttons(existing_logic.get(tag, "and"))
+            self.search_tag_filter_checkboxes[tag] = checkbox
+            self.search_tag_filter_logic_buttons[tag] = logic
+            tree.setItemWidget(item, 0, make_row(display, checkbox, logic, tag))
+
+        for prefix in sorted(grouped, key=lambda key: _tag_category_display_name(key).casefold()):
+            category_item = QTreeWidgetItemClass([_tag_category_display_name(prefix)])
+            category_item.setData(0, Qt.UserRole, prefix.casefold())
+            tree.addTopLevelItem(category_item)
+            category_checkbox = QuadStateSlider(_tag_category_display_name(prefix))
+            category_checkbox.modeChanged.connect(lambda mode, p=prefix: self._on_search_tag_category_mode_changed(p, mode))
+            category_logic = make_logic_buttons("and")
+            self.search_tag_category_checkboxes[prefix] = category_checkbox
+            self.search_tag_category_logic_buttons[prefix] = category_logic
+            tree.setItemWidget(category_item, 0, make_row(_tag_category_display_name(prefix), category_checkbox, category_logic, None, prefix))
+            for tag, value in sorted(grouped[prefix], key=lambda item: _tag_value_display_name(item[1]).casefold()):
+                add_tag_item(category_item, tag, value)
+            category_item.setExpanded(expanded_state.get(prefix.casefold(), False))
+        for tag, value in sorted(uncategorized, key=lambda item: _tag_value_display_name(item[1]).casefold()):
+            root_item = QTreeWidgetItemClass([_tag_value_display_name(value)])
+            tree.addTopLevelItem(root_item)
+            checkbox = QuadStateSlider(_tag_value_display_name(value))
+            checkbox.setMode(existing_modes.get(tag, QuadStateSlider.MODE_TRUE if tag.casefold() in selected_tags else QuadStateSlider.MODE_EMPTY))
+            checkbox.modeChanged.connect(lambda _mode, tag_name=tag: self._on_search_tag_mode_changed(tag_name))
+            logic = make_logic_buttons(existing_logic.get(tag, "and"))
+            self.search_tag_filter_checkboxes[tag] = checkbox
+            self.search_tag_filter_logic_buttons[tag] = logic
+            tree.setItemWidget(root_item, 0, make_row(_tag_value_display_name(value), checkbox, logic, tag))
+
+    def _on_search_tag_logic_changed(self, tag_name: str | None, mode: str, checked: bool) -> None:
+        if not checked:
+            return
+        if tag_name:
+            buttons = getattr(self, "search_tag_filter_logic_buttons", {}).get(tag_name)
+            if buttons is not None:
+                buttons["checked"] = mode
+            self._on_filter_changed()
+
+    def _on_search_tag_category_logic_changed(self, prefix: str, mode: str, checked: bool) -> None:
+        if not checked:
+            return
+        prefix_dot = f"{str(prefix).casefold()}."
+        for tag_name, buttons in getattr(self, "search_tag_filter_logic_buttons", {}).items():
+            if str(tag_name).casefold().startswith(prefix_dot):
+                button = buttons.get(mode)
+                if button is not None:
+                    button.setChecked(True)
+                buttons["checked"] = mode
+        self._on_filter_changed()
+
+    def _on_search_tag_category_mode_changed(self, prefix: str, mode: int) -> None:
+        prefix_dot = f"{str(prefix).casefold()}."
+        for tag_name, checkbox in getattr(self, "search_tag_filter_checkboxes", {}).items():
+            if str(tag_name).casefold().startswith(prefix_dot):
+                checkbox.setMode(mode, emit_signal=False)
+        self._on_filter_changed()
 
     def _on_search_tag_mode_changed(self, _tag_name: str) -> None:
         self._on_filter_changed()
@@ -18787,16 +18892,21 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         search_tags = parse_tag_text(
             self.search_tags_input.text() if hasattr(self, "search_tags_input") else ""
         )
-        selected_search_tags = {
-            name
-            for name, checkbox in getattr(self, "search_tag_filter_checkboxes", {}).items()
-            if checkbox.mode() == QuadStateSlider.MODE_TRUE
-        }
-        excluded_search_tags = {
-            name
-            for name, checkbox in getattr(self, "search_tag_filter_checkboxes", {}).items()
-            if checkbox.mode() == QuadStateSlider.MODE_FALSE
-        }
+        selected_search_tags = set()
+        optional_search_tags = set()
+        excluded_search_tags = set()
+        tag_logic_buttons = getattr(self, "search_tag_filter_logic_buttons", {})
+        for name, checkbox in getattr(self, "search_tag_filter_checkboxes", {}).items():
+            logic_mode = str(tag_logic_buttons.get(name, {}).get("checked", "and"))
+            if checkbox.mode() == QuadStateSlider.MODE_TRUE:
+                if logic_mode == "or":
+                    optional_search_tags.add(name)
+                elif logic_mode == "not":
+                    excluded_search_tags.add(name)
+                else:
+                    selected_search_tags.add(name)
+            elif checkbox.mode() == QuadStateSlider.MODE_FALSE:
+                excluded_search_tags.add(name)
         selected_chart_types = {
             source
             for source, checkbox in self.chart_type_filter_checkboxes.items()
@@ -19459,6 +19569,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         included_search_tags = list({*search_tags, *selected_search_tags})
         if (
             included_search_tags
+            or optional_search_tags
             or excluded_search_tags
             or search_untagged_mode != QuadStateSlider.MODE_EMPTY
         ) and not chart_matches_tag_filters(
@@ -19466,6 +19577,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             included_tags=included_search_tags,
             excluded_tags=list(excluded_search_tags),
             untagged_mode=search_untagged_mode,
+            optional_tags=list(optional_search_tags),
         ):
             return False
 
@@ -31571,6 +31683,9 @@ class MainWindow(QMainWindow):
     def _refresh_search_tags_list(self, known_tags: list[str]) -> None:
         if not hasattr(self, "search_tags_list_widget"):
             return
+        search_tags_toggle = getattr(self, "search_tags_toggle", None)
+        if isinstance(search_tags_toggle, QToolButton) and not search_tags_toggle.isChecked():
+            return
         selected_tags = {
             tag.casefold()
             for tag in parse_tag_text(
@@ -31578,30 +31693,127 @@ class MainWindow(QMainWindow):
             )
         }
         existing_checkboxes = getattr(self, "search_tag_filter_checkboxes", {})
-        existing_modes = {
-            tag_name: checkbox.mode()
-            for tag_name, checkbox in existing_checkboxes.items()
+        existing_modes = {tag_name: checkbox.mode() for tag_name, checkbox in existing_checkboxes.items()}
+        existing_logic = {
+            tag_name: str(buttons.get("checked", "and"))
+            for tag_name, buttons in getattr(self, "search_tag_filter_logic_buttons", {}).items()
         }
+        tree = self.search_tags_list_widget
+        expanded_state: dict[str, bool] = {}
+        if hasattr(tree, "topLevelItemCount"):
+            for index in range(tree.topLevelItemCount()):
+                item = tree.topLevelItem(index)
+                if item is not None:
+                    expanded_state[str(item.data(0, Qt.UserRole) or "")] = item.isExpanded()
         self.search_tag_filter_checkboxes = {}
-        self.search_tags_list_widget.clear()
+        self.search_tag_filter_logic_buttons = {}
+        self.search_tag_category_checkboxes = {}
+        self.search_tag_category_logic_buttons = {}
+        tree.clear()
+        QTreeWidgetItemClass = getattr(self, "_dbv_tag_tree_item_class", None)
+        if QTreeWidgetItemClass is None:
+            return
+
+        grouped: dict[str, list[tuple[str, str]]] = {}
+        uncategorized: list[tuple[str, str]] = []
         for tag in known_tags:
-            row_item = QListWidgetItem()
-            row_checkbox = QuadStateSlider(tag)
-            row_checkbox.setMode(
-                existing_modes.get(
-                    tag,
-                    QuadStateSlider.MODE_TRUE
-                    if tag.casefold() in selected_tags
-                    else QuadStateSlider.MODE_EMPTY,
-                )
-            )
-            row_checkbox.modeChanged.connect(
-                lambda _mode, tag_name=tag: self._on_search_tag_mode_changed(tag_name)
-            )
-            row_item.setSizeHint(row_checkbox.sizeHint())
-            self.search_tags_list_widget.addItem(row_item)
-            self.search_tags_list_widget.setItemWidget(row_item, row_checkbox)
-            self.search_tag_filter_checkboxes[tag] = row_checkbox
+            prefix, value = _split_search_tag_category(tag)
+            if prefix:
+                grouped.setdefault(prefix, []).append((tag, value))
+            else:
+                uncategorized.append((tag, value))
+
+        def make_logic_buttons(current: str) -> dict[str, object]:
+            group = QButtonGroup(self)
+            group.setExclusive(True)
+            and_button = QRadioButton("&&")
+            or_button = QRadioButton("OR")
+            not_button = QRadioButton("🚫")
+            for button in (and_button, or_button, not_button):
+                button.setStyleSheet("font-size: 10px; margin: 0px; padding: 0px;")
+                group.addButton(button)
+            mapping = {"and": and_button, "or": or_button, "not": not_button}
+            mapping.get(current, and_button).setChecked(True)
+            return {"group": group, "and": and_button, "or": or_button, "not": not_button, "checked": current if current in mapping else "and"}
+
+        def make_row(label: str, checkbox: QuadStateSlider, logic: dict[str, object], tag_name: str | None = None, category_prefix: str | None = None) -> QWidget:
+            row = QWidget()
+            row_layout = QHBoxLayout(row)
+            row_layout.setContentsMargins(0, 0, 0, 0)
+            row_layout.setSpacing(3)
+            row_layout.addWidget(checkbox, 1)
+            for key in ("and", "or", "not"):
+                button = logic[key]
+                if category_prefix is not None:
+                    button.toggled.connect(lambda checked, mode=key, prefix=category_prefix: self._on_search_tag_category_logic_changed(prefix, mode, checked))
+                else:
+                    button.toggled.connect(lambda checked, mode=key, tag=tag_name: self._on_search_tag_logic_changed(tag, mode, checked))
+                row_layout.addWidget(button)
+            return row
+
+        def add_tag_item(parent_item, tag: str, value: str) -> None:
+            display = _tag_value_display_name(value)
+            item = QTreeWidgetItemClass([display])
+            parent_item.addChild(item)
+            checkbox = QuadStateSlider(display)
+            checkbox.setMode(existing_modes.get(tag, QuadStateSlider.MODE_TRUE if tag.casefold() in selected_tags else QuadStateSlider.MODE_EMPTY))
+            checkbox.modeChanged.connect(lambda _mode, tag_name=tag: self._on_search_tag_mode_changed(tag_name))
+            logic = make_logic_buttons(existing_logic.get(tag, "and"))
+            self.search_tag_filter_checkboxes[tag] = checkbox
+            self.search_tag_filter_logic_buttons[tag] = logic
+            tree.setItemWidget(item, 0, make_row(display, checkbox, logic, tag))
+
+        for prefix in sorted(grouped, key=lambda key: _tag_category_display_name(key).casefold()):
+            category_item = QTreeWidgetItemClass([_tag_category_display_name(prefix)])
+            category_item.setData(0, Qt.UserRole, prefix.casefold())
+            tree.addTopLevelItem(category_item)
+            category_checkbox = QuadStateSlider(_tag_category_display_name(prefix))
+            category_checkbox.modeChanged.connect(lambda mode, p=prefix: self._on_search_tag_category_mode_changed(p, mode))
+            category_logic = make_logic_buttons("and")
+            self.search_tag_category_checkboxes[prefix] = category_checkbox
+            self.search_tag_category_logic_buttons[prefix] = category_logic
+            tree.setItemWidget(category_item, 0, make_row(_tag_category_display_name(prefix), category_checkbox, category_logic, None, prefix))
+            for tag, value in sorted(grouped[prefix], key=lambda item: _tag_value_display_name(item[1]).casefold()):
+                add_tag_item(category_item, tag, value)
+            category_item.setExpanded(expanded_state.get(prefix.casefold(), False))
+        for tag, value in sorted(uncategorized, key=lambda item: _tag_value_display_name(item[1]).casefold()):
+            root_item = QTreeWidgetItemClass([_tag_value_display_name(value)])
+            tree.addTopLevelItem(root_item)
+            checkbox = QuadStateSlider(_tag_value_display_name(value))
+            checkbox.setMode(existing_modes.get(tag, QuadStateSlider.MODE_TRUE if tag.casefold() in selected_tags else QuadStateSlider.MODE_EMPTY))
+            checkbox.modeChanged.connect(lambda _mode, tag_name=tag: self._on_search_tag_mode_changed(tag_name))
+            logic = make_logic_buttons(existing_logic.get(tag, "and"))
+            self.search_tag_filter_checkboxes[tag] = checkbox
+            self.search_tag_filter_logic_buttons[tag] = logic
+            tree.setItemWidget(root_item, 0, make_row(_tag_value_display_name(value), checkbox, logic, tag))
+
+    def _on_search_tag_logic_changed(self, tag_name: str | None, mode: str, checked: bool) -> None:
+        if not checked:
+            return
+        if tag_name:
+            buttons = getattr(self, "search_tag_filter_logic_buttons", {}).get(tag_name)
+            if buttons is not None:
+                buttons["checked"] = mode
+            self._on_filter_changed()
+
+    def _on_search_tag_category_logic_changed(self, prefix: str, mode: str, checked: bool) -> None:
+        if not checked:
+            return
+        prefix_dot = f"{str(prefix).casefold()}."
+        for tag_name, buttons in getattr(self, "search_tag_filter_logic_buttons", {}).items():
+            if str(tag_name).casefold().startswith(prefix_dot):
+                button = buttons.get(mode)
+                if button is not None:
+                    button.setChecked(True)
+                buttons["checked"] = mode
+        self._on_filter_changed()
+
+    def _on_search_tag_category_mode_changed(self, prefix: str, mode: int) -> None:
+        prefix_dot = f"{str(prefix).casefold()}."
+        for tag_name, checkbox in getattr(self, "search_tag_filter_checkboxes", {}).items():
+            if str(tag_name).casefold().startswith(prefix_dot):
+                checkbox.setMode(mode, emit_signal=False)
+        self._on_filter_changed()
 
     def _on_search_tag_mode_changed(self, _tag_name: str) -> None:
         self._on_filter_changed()

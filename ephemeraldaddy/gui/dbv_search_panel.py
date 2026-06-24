@@ -115,6 +115,39 @@ def chart_matches_body_dynamics_filters(window, chart, filters: list[dict[str, o
     return True
 
 
+def _tag_category_display_name(prefix: str) -> str:
+    defaults = {
+        "occupation": "Occupation",
+        "trait": "Trait",
+        "reputation": "Reputation",
+        "affiliation": "Affiliation/Subculture",
+        "crime": "Crime",
+        "life_events": "Life Events",
+        "character": "Characters Played",
+        "hobbies": "Hobbies",
+        "personality_types": "Typology",
+        "genres": "Genres",
+        "place": "Place",
+    }
+    clean_prefix = str(prefix or "").strip()
+    if not clean_prefix:
+        return ""
+    return defaults.get(clean_prefix.casefold(), clean_prefix.replace("_", " ").replace("-", " ").title())
+
+
+def _split_search_tag_category(tag: str) -> tuple[str, str]:
+    clean_tag = str(tag or "").strip()
+    if "." not in clean_tag:
+        return "", clean_tag
+    prefix, value = clean_tag.split(".", 1)
+    return prefix.strip(), value.strip() or clean_tag
+
+
+def _tag_value_display_name(value: str) -> str:
+    clean_value = str(value or "").strip()
+    return clean_value.replace("_", " ").replace("-", " ").title() if clean_value else ""
+
+
 if TYPE_CHECKING:
     from PyQt5.QtWidgets import QWidget
 
@@ -133,6 +166,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     QHBoxLayout = app_module.QHBoxLayout
     QPushButton = app_module.QPushButton
     QListWidget = app_module.QListWidget
+    from PySide6.QtWidgets import QTreeWidget, QTreeWidgetItem
     QCheckBox = app_module.QCheckBox
     QToolButton = app_module.QToolButton
     Qt = app_module.Qt
@@ -264,10 +298,16 @@ def build_dbv_search_panel(window) -> "QWidget":
     )
     tags_search_row.addWidget(window.search_tags_toggle)
 
-    window.search_tags_list_widget = QListWidget()
+    window.search_tags_list_widget = QTreeWidget()
+    window.search_tags_list_widget.setHeaderHidden(True)
     window.search_tags_list_widget.setSelectionMode(QListWidget.NoSelection)
-    window.search_tags_list_widget.setMaximumHeight(180)
+    window.search_tags_list_widget.setIndentation(12)
+    window.search_tags_list_widget.setMaximumHeight(220)
     window.search_tags_list_widget.setVisible(False)
+    window.search_tag_filter_logic_buttons = {}
+    window.search_tag_category_checkboxes = {}
+    window.search_tag_category_logic_buttons = {}
+    window._dbv_tag_tree_item_class = QTreeWidgetItem
     window.search_tags_toggle.toggled.connect(window.search_tags_list_widget.setVisible)
     window.search_tags_toggle.toggled.connect(
         lambda expanded: window._refresh_search_tags_list(
