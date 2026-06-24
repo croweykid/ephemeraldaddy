@@ -295,7 +295,11 @@ import re
 from pathlib import Path
 from typing import Any, Mapping
 
-from ephemeraldaddy.analysis.weighted_chart_predictor import calculate_weighted_criteria_scores
+from ephemeraldaddy.analysis.weighted_chart_predictor import (
+    DEFAULT_CATEGORY_WEIGHTS,
+    calculate_weighted_criteria_scores,
+    criterion_multiplier_for_target,
+)
 
 TRAIT_DIR = Path.home() / ".ephemeraldaddy" / "traits"
 TRAIT_FILE_SUFFIX = ".json"
@@ -474,6 +478,72 @@ def rename_trait(path: str | Path, new_name: str) -> Path:
     if destination != source:
         source.unlink(missing_ok=True)
     return destination
+
+
+_TRAIT_SCORE_CATEGORIES = (
+    "signs", "antisigns", "bodies", "antibodies", "nakshatras", "antinakshatras",
+    "houses", "antihouses", "gates", "antigates", "channels", "antichannels",
+    "hdtypes", "antihdtypes", "centers", "anticenters", "profiles", "antiprofiles",
+    "authorities", "antiauthorities", "bazisigns", "antibazisigns", "positions",
+    "antipositions", "aspects", "antiaspects",
+)
+
+_TRAIT_CATEGORY_ALIASES = {
+    "antisigns": "signs",
+    "antibodies": "bodies",
+    "antinakshatras": "nakshatras",
+    "antihouses": "houses",
+    "antigates": "gates",
+    "antichannels": "channels",
+    "antihdtypes": "hdtypes",
+    "anticenters": "centers",
+    "antiprofiles": "profiles",
+    "antiauthorities": "authorities",
+    "antibazisigns": "bazisigns",
+    "antipositions": "positions",
+    "antiaspects": "aspects",
+}
+
+
+def _criterion_abs_weight(value: Any) -> float:
+    if isinstance(value, Mapping):
+        return sum(abs(float(weight)) for weight in value.values() if isinstance(weight, (int, float)))
+    if isinstance(value, (set, list, tuple)):
+        return float(len(value))
+    return 0.0
+
+
+def _trait_possible_score(profile: Mapping[str, Any]) -> float:
+    total = 0.0
+    for raw_category in _TRAIT_SCORE_CATEGORIES:
+        base_category = _TRAIT_CATEGORY_ALIASES.get(raw_category, raw_category)
+        category_weight = float(DEFAULT_CATEGORY_WEIGHTS.get(base_category, 1.0))
+        multiplier = float(criterion_multiplier_for_target(profile, base_category))
+        total += category_weight * multiplier * _criterion_abs_weight(profile.get(raw_category, {}))
+    return max(total, 1.0)
+
+
+def calculate_trait_likelihoods(chart: Any, traits: list[dict[str, Any]] | None = None) -> dict[str, float]:
+    """Return trait scores as 0-100 evidence percentages centered on 50%.
+
+    The weighted predictor returns signed evidence totals.  For Chart View, convert
+    those totals into an easier-to-read likelihood-style percentage by comparing
+    each signed total with the total absolute criteria weight available for that
+    trait profile.  Fifty percent means neutral/no net evidence, higher values mean
+    supportive criteria outweighed anti-criteria, and lower values mean anti-criteria
+    outweighed supportive criteria.
+    """
+    trait_items = traits if traits is not None else list_traits()
+    raw_scores = calculate_trait_scores(chart, trait_items)
+    likelihoods: dict[str, float] = {}
+    for item in trait_items:
+        name = str(item.get("name", ""))
+        if not name:
+            continue
+        possible = _trait_possible_score(item.get("profile", {}))
+        normalized = max(-1.0, min(1.0, float(raw_scores.get(name, 0.0)) / possible))
+        likelihoods[name] = round(50.0 + (normalized * 50.0), 1)
+    return likelihoods
 
 
 def calculate_trait_scores(chart: Any, traits: list[dict[str, Any]] | None = None) -> dict[str, float]:
