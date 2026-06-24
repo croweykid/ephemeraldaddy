@@ -24086,6 +24086,9 @@ class MainWindow(QMainWindow):
             "color: #ff6b6b;"
             "font-weight: 700;"
             "}"
+            "QPushButton:hover {"
+            "text-decoration: underline;"
+            "}"
         )
         self.delete_this_chart_button.setToolTip(
             "Delete the currently open chart and return to Database View."
@@ -31832,6 +31835,56 @@ class MainWindow(QMainWindow):
         location_msg = "Saved as placeholder chart."
         tz_override = None
 
+        if not is_placeholder:
+            self._clear_required_field_highlights()
+            has_complete_birth_data = (
+                bool(self.birth_month_edit.text().strip())
+                and bool(self.birth_day_edit.text().strip())
+                and bool(self.birth_year_edit.text().strip())
+                and bool(self.place_edit.text().strip())
+            )
+            if not has_complete_birth_data:
+                self._highlight_required_fields()
+                incomplete_choice_box = QMessageBox(self)
+                incomplete_choice_box.setIcon(QMessageBox.Icon.Warning)
+                incomplete_choice_box.setWindowTitle("Incomplete chart data")
+                incomplete_choice_box.setText(
+                    "Insufficient data to calculate astro chart. Save as placeholder?"
+                )
+                yes_button = incomplete_choice_box.addButton(
+                    "Yes", QMessageBox.ButtonRole.AcceptRole
+                )
+                fix_button = incomplete_choice_box.addButton(
+                    "Fix", QMessageBox.ButtonRole.RejectRole
+                )
+                discard_button = incomplete_choice_box.addButton(
+                    "Discard", QMessageBox.ButtonRole.DestructiveRole
+                )
+                incomplete_choice_box.setDefaultButton(fix_button)
+                incomplete_choice_box.exec()
+                clicked_button = incomplete_choice_box.clickedButton()
+                if clicked_button is yes_button:
+                    self.placeholder_chart_checkbox.setChecked(True)
+                    is_placeholder = True
+                elif clicked_button is discard_button:
+                    if chart_id is not None:
+                        try:
+                            delete_charts([chart_id])
+                        except Exception as e:
+                            QMessageBox.critical(
+                                self,
+                                "Delete error",
+                                f"Could not delete chart #{chart_id}:\n{e}",
+                            )
+                            return
+                        self._on_charts_deleted({chart_id})
+                        self._manage_charts_pending_changed_ids.add(chart_id)
+                    else:
+                        self._reset_new_chart_form()
+                    self.on_manage_charts()
+                    return
+                else:
+                    return
         if not recalculate_chart and chart_id is not None:
             try:
                 chart = load_chart(chart_id)
@@ -31906,34 +31959,6 @@ class MainWindow(QMainWindow):
                 place = self.place_edit.text().strip() or chart.birth_place or place
                 chart.birth_place = place
                 location_msg = "Chart metadata saved."
-
-        if chart is None and not is_placeholder:
-            calculate_choice = QMessageBox.question(
-                self,
-                "Calculate chart?",
-                "Calculate chart?",
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.Yes,
-            )
-            if calculate_choice == QMessageBox.No:
-                self.placeholder_chart_checkbox.setChecked(True)
-                is_placeholder = True
-            else:
-                self._clear_required_field_highlights()
-                if (
-                    not self.birth_month_edit.text().strip()
-                    or not self.birth_day_edit.text().strip()
-                    or not self.birth_year_edit.text().strip()
-                    or not self.place_edit.text().strip()
-                ):
-                    self._highlight_required_fields()
-                    self.placeholder_chart_checkbox.setChecked(True)
-                    QMessageBox.warning(
-                        self,
-                        "Incomplete chart data",
-                        "Missing required data for calculation. The chart was flagged as a placeholder.",
-                    )
-                    is_placeholder = True
 
         if chart is None and is_placeholder:
             chart = self._build_placeholder_chart()
