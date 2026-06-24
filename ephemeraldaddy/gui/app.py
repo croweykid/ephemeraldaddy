@@ -469,7 +469,7 @@ class _ComboItemColorDelegate(QStyledItemDelegate):
 
 
 from ephemeraldaddy.gui.startup import StartupLoadingWidget, StartupProgress
-from ephemeraldaddy.gui.emoji_render import install_emoji_png_rendering
+from ephemeraldaddy.gui.emoji_render import apply_emoji_png_to_button, install_emoji_png_rendering
 
 from matplotlib import font_manager as mpl_font_manager
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
@@ -1974,6 +1974,21 @@ def _get_app_icon_path() -> str | None:
         return str(icon_path)
     return None
 
+
+def _autosize_chart_view_nav_button(button: QPushButton) -> None:
+    """Size Chart View navigation buttons from their text plus platform margins."""
+    button.ensurePolished()
+    margins = button.contentsMargins()
+    horizontal_padding = 20
+    vertical_padding = 8
+    text_width = button.fontMetrics().horizontalAdvance(button.text())
+    text_height = button.fontMetrics().height()
+    button.setMinimumSize(
+        max(36, button.sizeHint().width(), text_width + margins.left() + margins.right() + horizontal_padding),
+        max(24, button.sizeHint().height(), text_height + margins.top() + margins.bottom() + vertical_padding),
+    )
+    button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
+
 def _get_share_icon_path() -> str | None:
     module_root = Path(__file__).resolve().parents[1]
     icon_path = module_root / "graphics" / "share_icon2.png"
@@ -2597,6 +2612,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         ]
         for button_key, button_label, button_tooltip in middle_action_button_specs:
             action_button = QPushButton(button_label)
+            apply_emoji_png_to_button(action_button, icon_px=16)
             action_button.setObjectName(f"database_view_middle_{button_key}_button")
             action_button.setToolTip(button_tooltip)
             action_button.clicked.connect(
@@ -3069,6 +3085,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             section.adjustSize()
             panel.adjustSize()
             panel.updateGeometry()
+
+        apply_emoji_png_to_button(toggle, icon_px=16)
 
         toggle.toggled.connect(toggle_content)
 
@@ -23187,12 +23205,12 @@ class MainWindow(QMainWindow):
         self.manage_button.setObjectName("manage_button")
         self.manage_button.clicked.connect(self._on_chart_view_back_requested)
         self.manage_button.setToolTip("Back to Database View")
-        self.manage_button.setFixedSize(36, 24)
+        _autosize_chart_view_nav_button(self.manage_button)
         self.database_view_button = QPushButton("Database View")
         self.database_view_button.setObjectName("database_view_button")
         self.database_view_button.clicked.connect(self.on_manage_charts)
         self.database_view_button.setToolTip("Close Chart View and return to Database View")
-        self.database_view_button.setFixedSize(110, 24)
+        _autosize_chart_view_nav_button(self.database_view_button)
         # Commented out per request: remove the top-row Chart View action buttons
         # and rely on window_chrome menus/actions instead.
         # top_controls.addStretch(1)

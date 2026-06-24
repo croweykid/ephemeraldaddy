@@ -68,6 +68,7 @@ from ephemeraldaddy.gui.style import (
     apply_chart_info_link_cursor,
     configure_collapsible_header_toggle,
 )
+from ephemeraldaddy.gui.emoji_render import apply_emoji_png_to_button
 from ephemeraldaddy.gui.features.charts.tagging import (
     normalize_tag_list,
     parse_tag_text,
@@ -1051,6 +1052,7 @@ def build_chart_view_middle_header_controls(
         action_button = QPushButton(button_label)
         action_button.setObjectName(f"chart_view_middle_{button_key}_button")
         action_button.setToolTip(button_tooltip)
+        apply_emoji_png_to_button(action_button, icon_px=16)
         action_button.setAutoDefault(False)
         action_button.setDefault(False)
         action_button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
