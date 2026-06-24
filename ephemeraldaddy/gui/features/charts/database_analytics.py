@@ -4358,7 +4358,7 @@ class DatabaseAnalyticsChartsMixin:
         self._database_metrics_section_expanded["bazi"] = self._is_database_metrics_section_expanded("bazi")
         self._create_analysis_chart_header(
             bazi_section_layout,
-            "🐉BaZi",
+            "BaZi",
             "bazi",
             "bazi",
             dropdown_options=[

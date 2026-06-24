@@ -5,8 +5,9 @@ from __future__ import annotations
 import html
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QObject, Qt
-from PySide6.QtWidgets import QApplication, QLabel, QWidget
+from PySide6.QtCore import QEvent, QObject, Qt, QSize
+from PySide6.QtGui import QIcon
+from PySide6.QtWidgets import QAbstractButton, QApplication, QLabel, QWidget
 
 from ephemeraldaddy.graphics.emoji_map import EMOJI_ALIASES, EMOJI_TO_PNG, emoji_png_path
 
@@ -42,6 +43,21 @@ def render_text_with_emoji_pngs(text: str, px: int) -> str:
         return text
     return "".join(out)
 
+
+def apply_emoji_png_to_button(button: QAbstractButton, *, icon_px: int | None = None) -> None:
+    """Replace a leading mapped emoji in a button with the bundled PNG icon."""
+    text = button.text() or ""
+    if not text:
+        return
+    emoji = text[0]
+    path = emoji_png_path(emoji)
+    if path is None:
+        return
+    label = text[1:].lstrip()
+    button.setText(label)
+    button.setIcon(QIcon(str(path)))
+    px = icon_px or max(12, button.fontMetrics().height())
+    button.setIconSize(QSize(px, px))
 
 def apply_emoji_pngs_to_label(label: QLabel) -> None:
     original = label.property(_ORIGINAL_TEXT_PROP)
