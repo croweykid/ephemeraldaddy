@@ -41,6 +41,7 @@ class PropertyManagerCoordinator:
                 "add_selected": self._host._on_add_selection_to_collection_by_id,
                 "remove_selected": self._host._on_remove_selection_from_collection_by_id,
             },
+            settings=getattr(self._host, "_settings", None),
             initial_field=initial_field,
             lock_field=False,
             window_title="Property Manager",

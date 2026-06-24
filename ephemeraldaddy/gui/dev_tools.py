@@ -839,6 +839,7 @@ TAG_CATEGORY_OPTIONS: tuple[tuple[str, str], ...] = (
     ("Place", "place"),
 )
 TAG_CATEGORY_PREFIXES = {prefix.casefold() for _name, prefix in TAG_CATEGORY_OPTIONS}
+SETTINGS_KEY_TAG_CATEGORY_DISPLAY_NAMES = "property_manager/tag_category_display_names"
 
 
 def _split_tag_category(value: str, allowed_prefixes: set[str] | None = None) -> tuple[str, str]:
@@ -1048,6 +1049,7 @@ class ManageMetadataLabelsDialog(QDialog):
         load_chart_names=None,
         refresh_chart_context: Callable[[], None] | None = None,
         collection_actions: dict[str, object] | None = None,
+        settings=None,
         initial_field: str | None = None,
         lock_field: bool = False,
         window_title: str = "Property Manager",
@@ -1061,11 +1063,13 @@ class ManageMetadataLabelsDialog(QDialog):
         self._load_chart_names = load_chart_names
         self._refresh_chart_context = refresh_chart_context
         self._collection_actions = collection_actions or {}
+        self._settings = settings
         self._label_limit = max(1, label_limit)
         self._usage_data: dict[str, list[dict[str, int | str]]] = {}
         self._tag_category_display_names: dict[str, str] = {
             prefix.casefold(): name for name, prefix in TAG_CATEGORY_OPTIONS
         }
+        self._load_tag_category_display_names()
 
         layout = QVBoxLayout(self)
 
@@ -1176,6 +1180,28 @@ QComboBox QAbstractItemView {
 
         # Defer loading so the dialog can render immediately before DB work runs.
         QTimer.singleShot(0, self._reload_usage)
+
+    def _load_tag_category_display_names(self) -> None:
+        settings = getattr(self, "_settings", None)
+        if settings is None:
+            return
+        payload = settings.value(SETTINGS_KEY_TAG_CATEGORY_DISPLAY_NAMES, {})
+        if not isinstance(payload, dict):
+            return
+        for prefix, display_name in payload.items():
+            clean_prefix = str(prefix or "").strip().casefold()
+            clean_name = str(display_name or "").strip()
+            if clean_prefix and clean_name:
+                self._tag_category_display_names[clean_prefix] = clean_name
+
+    def _save_tag_category_display_names(self) -> None:
+        settings = getattr(self, "_settings", None)
+        if settings is None:
+            return
+        settings.setValue(
+            SETTINGS_KEY_TAG_CATEGORY_DISPLAY_NAMES,
+            dict(sorted(self._tag_category_display_names.items())),
+        )
 
     def _active_field(self) -> str:
         value = self._field_selector.currentData()
@@ -1602,6 +1628,7 @@ QComboBox QAbstractItemView {
         new_name = editor.value()
         if new_name:
             self._tag_category_display_names[prefix.casefold()] = new_name
+            self._save_tag_category_display_names()
             self._refresh_list()
 
     def _rename_selected(self) -> None:
@@ -1712,6 +1739,7 @@ QComboBox QAbstractItemView {
             old_display_name = self._tag_category_display_names.pop(cleaned_old_prefix.casefold(), None)
             if old_display_name:
                 self._tag_category_display_names[new_prefix.casefold()] = old_display_name
+            self._save_tag_category_display_names()
         QMessageBox.information(
             self,
             "Rename complete",
