@@ -834,7 +834,7 @@ TAG_CATEGORY_OPTIONS: tuple[tuple[str, str], ...] = (
     ("Life Events","life_events"),
     ("Characters Played", "character"),
     ("Hobbies", "hobbies"),
-    ("Personality Types", "personality_types"),
+    ("Typology", "personality_types"),
     ("Genres", "genres"),
     ("Place", "place"),
 )
