@@ -288,3 +288,166 @@ TRAITS = {
         "quotes":{""},
         },
 }
+# Local user-uploaded trait storage and scoring helpers.
+import ast
+import json
+import re
+from pathlib import Path
+from typing import Any, Mapping
+
+from ephemeraldaddy.analysis.weighted_chart_predictor import calculate_weighted_criteria_scores
+
+TRAIT_DIR = Path.home() / ".ephemeraldaddy" / "traits"
+TRAIT_FILE_SUFFIX = ".json"
+_TRAIT_SLUG_RE = re.compile(r"[^a-zA-Z0-9_.-]+")
+
+
+def traits_dir() -> Path:
+    TRAIT_DIR.mkdir(parents=True, exist_ok=True)
+    return TRAIT_DIR
+
+
+def _slugify_trait_name(name: str) -> str:
+    slug = _TRAIT_SLUG_RE.sub("_", name.strip()).strip("._-")
+    return slug or "trait"
+
+
+def _unique_trait_path(name: str, *, existing_path: Path | None = None) -> Path:
+    base = _slugify_trait_name(name)
+    directory = traits_dir()
+    candidate = directory / f"{base}{TRAIT_FILE_SUFFIX}"
+    index = 2
+    while candidate.exists() and (existing_path is None or candidate != existing_path):
+        candidate = directory / f"{base}_{index}{TRAIT_FILE_SUFFIX}"
+        index += 1
+    return candidate
+
+
+def _extract_literal_from_python(text: str) -> Any:
+    try:
+        return ast.literal_eval(text)
+    except (SyntaxError, ValueError):
+        pass
+    module = ast.parse(text)
+    for node in reversed(module.body):
+        value_node: ast.AST | None = None
+        if isinstance(node, ast.Assign):
+            value_node = node.value
+        elif isinstance(node, ast.AnnAssign):
+            value_node = node.value
+        elif isinstance(node, ast.Expr):
+            value_node = node.value
+        if value_node is None:
+            continue
+        try:
+            return ast.literal_eval(value_node)
+        except (SyntaxError, ValueError):
+            continue
+    raise ValueError("Could not find a Python literal trait payload.")
+
+
+def parse_trait_file(path: str | Path) -> dict[str, dict[str, Any]]:
+    """Parse a JSON or Similarities Analysis Python export into trait profiles."""
+    source = Path(path)
+    text = source.read_text(encoding="utf-8")
+    if source.suffix.lower() == ".json":
+        payload = json.loads(text)
+    else:
+        payload = _extract_literal_from_python(text)
+    if not isinstance(payload, Mapping):
+        raise ValueError("Trait file must contain a mapping of trait names to profile data.")
+    profiles: dict[str, dict[str, Any]] = {}
+    for raw_name, raw_profile in payload.items():
+        if not isinstance(raw_profile, Mapping):
+            continue
+        name = str(raw_profile.get("name") or raw_name).strip()
+        if not name:
+            continue
+        profiles[name] = dict(raw_profile)
+        profiles[name]["name"] = name
+    if not profiles:
+        raise ValueError("Trait file did not contain any usable trait profiles.")
+    return profiles
+
+
+
+def _json_safe_trait_value(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        safe: dict[str, Any] = {}
+        for raw_key, child in value.items():
+            if isinstance(raw_key, tuple) and len(raw_key) == 2:
+                key = f"{raw_key[0]}-{raw_key[1]}"
+            else:
+                key = str(raw_key)
+            safe[key] = _json_safe_trait_value(child)
+        return safe
+    if isinstance(value, tuple):
+        return [_json_safe_trait_value(child) for child in value]
+    if isinstance(value, list):
+        return [_json_safe_trait_value(child) for child in value]
+    if isinstance(value, set):
+        return [_json_safe_trait_value(child) for child in sorted(value, key=str)]
+    return value
+
+def save_trait(name: str, profile: Mapping[str, Any]) -> Path:
+    clean_name = name.strip()
+    if not clean_name:
+        raise ValueError("Trait name cannot be blank.")
+    destination = _unique_trait_path(clean_name)
+    stored = dict(profile)
+    stored["name"] = clean_name
+    destination.write_text(
+        json.dumps({clean_name: _json_safe_trait_value(stored)}, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    return destination
+
+
+def install_trait_file(path: str | Path, name: str) -> Path:
+    profiles = parse_trait_file(path)
+    first_profile = next(iter(profiles.values()))
+    return save_trait(name, first_profile)
+
+
+def list_traits() -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    for path in sorted(traits_dir().glob(f"*{TRAIT_FILE_SUFFIX}"), key=lambda p: p.name.casefold()):
+        try:
+            profiles = parse_trait_file(path)
+        except Exception:
+            continue
+        profile_name, profile = next(iter(profiles.items()))
+        items.append({"name": profile_name, "path": path, "profile": profile})
+    return items
+
+
+def delete_trait(path: str | Path) -> None:
+    Path(path).unlink(missing_ok=True)
+
+
+def rename_trait(path: str | Path, new_name: str) -> Path:
+    clean_name = new_name.strip()
+    if not clean_name:
+        raise ValueError("Trait name cannot be blank.")
+    source = Path(path)
+    profiles = parse_trait_file(source)
+    _old_name, profile = next(iter(profiles.items()))
+    destination = _unique_trait_path(clean_name, existing_path=source)
+    stored = dict(profile)
+    stored["name"] = clean_name
+    destination.write_text(
+        json.dumps({clean_name: _json_safe_trait_value(stored)}, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    if destination != source:
+        source.unlink(missing_ok=True)
+    return destination
+
+
+def calculate_trait_scores(chart: Any, traits: list[dict[str, Any]] | None = None) -> dict[str, float]:
+    trait_items = traits if traits is not None else list_traits()
+    predictors = {item["name"]: item.get("profile", {}) for item in trait_items}
+    if not predictors:
+        return {}
+    raw_scores = calculate_weighted_criteria_scores(chart, predictors=predictors)
+    return {str(name): float(raw_scores.get(name, 0.0)) for name in predictors}
