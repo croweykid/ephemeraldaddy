@@ -76,6 +76,44 @@ def install_appwide_cursor_defaults(app: QApplication) -> None:
     app._edd_appwide_cursor_defaults_installed = True  # type: ignore[attr-defined]
     cursor_filter._apply_to_object(app)
 
+
+# Appwide widget styling shared by Chart View, Database View, and utility panels.
+# Keep text-entry controls charcoal instead of pure black so field boundaries stay
+# visible against the dark application background.
+APPWIDE_TEXT_INPUT_BACKGROUND_COLOR = "#222222"
+APPWIDE_TEXT_INPUT_BORDER_COLOR = "#444444"
+APPWIDE_BUTTON_BACKGROUND_COLOR = "#333333"
+APPWIDE_BUTTON_HOVER_BACKGROUND_COLOR = "#444444"
+APPWIDE_BUTTON_BORDER_COLOR = "#555555"
+APPWIDE_PLAIN_TEXT_INPUT_BACKGROUND_COLOR = "#181818"
+
+APPWIDE_DARK_THEME_STYLESHEET = f"""
+QMainWindow {{
+    background-color: #111111;
+}}
+QWidget {{
+    color: #f5f5f5;
+    background-color: #111111;
+    font-size: 13px;
+}}
+QLineEdit, QDateEdit, QTimeEdit, QTextEdit, QPlainTextEdit {{
+    background-color: {APPWIDE_TEXT_INPUT_BACKGROUND_COLOR};
+    border: 1px solid {APPWIDE_TEXT_INPUT_BORDER_COLOR};
+    padding: 4px;
+}}
+QPushButton {{
+    background-color: {APPWIDE_BUTTON_BACKGROUND_COLOR};
+    border: 1px solid {APPWIDE_BUTTON_BORDER_COLOR};
+    padding: 6px 10px;
+}}
+QPushButton:hover {{
+    background-color: {APPWIDE_BUTTON_HOVER_BACKGROUND_COLOR};
+}}
+QPlainTextEdit {{
+    background-color: {APPWIDE_PLAIN_TEXT_INPUT_BACKGROUND_COLOR};
+}}
+"""
+
 DARK_THEME = {
     "background": "#111111",
     "foreground": "#f5f5f5",

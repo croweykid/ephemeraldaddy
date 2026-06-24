@@ -1258,6 +1258,7 @@ from ephemeraldaddy.gui.settings_widgets import (
 )
 
 from ephemeraldaddy.gui.style import (
+    APPWIDE_DARK_THEME_STYLESHEET,
     CHART_VIEW_RECTIFIED_GROUP_LEFT_SPACER,
     CHART_VIEW_RECTIFIED_LABEL_CHECKBOX_SPACING,
     CHART_VIEW_TIME_INPUT_DISPLAY_FORMAT,
@@ -1952,9 +1953,9 @@ def _get_qapp():
 
 
 def _apply_global_dropdown_and_menu_styles(app: QApplication) -> None:
-    """Apply global menu and dropdown styling so all combos look like input fields."""
+    """Apply appwide dark controls, menu, dropdown, and scrollbar styling."""
     global_rules = (
-        "\n"
+        f"{APPWIDE_DARK_THEME_STYLESHEET}\n"
         f"{DEFAULT_DROPDOWN_STYLE}\n"
         f"{WINDOW_CHROME_MENU_STYLE}\n"
         f"{RIGHT_PANEL_SCROLLBAR_STYLE}\n"
@@ -30975,33 +30976,7 @@ class MainWindow(QMainWindow):
         self.setWindowState(self.windowState() | Qt.WindowFullScreen)
 
     def _apply_dark_theme(self):
-        self.setStyleSheet("""
-            QMainWindow {
-                background-color: #111111;
-            }
-            QWidget {
-                color: #f5f5f5;
-                background-color: #111111;
-                font-size: 13px;
-            }
-            QLineEdit, QDateEdit, QTimeEdit {
-                background-color: #222222;
-                border: 1px solid #444444;
-                padding: 4px;
-            }
-            QPushButton {
-                background-color: #333333;
-                border: 1px solid #555555;
-                padding: 6px 10px;
-            }
-            QPushButton:hover {
-                background-color: #444444;
-            }
-            QPlainTextEdit {
-                background-color: #181818;
-                border: 1px solid #444444;
-            }
-        """)
+        self.setStyleSheet(APPWIDE_DARK_THEME_STYLESHEET)
 
     def _handle_database_health(self) -> None:
         ok, message = check_database_health()
