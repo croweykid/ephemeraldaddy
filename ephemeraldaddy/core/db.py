@@ -3288,6 +3288,16 @@ def update_chart(
     conn.close()
 
 
+def update_chart_by_uid(chart_uid: str | None, chart, **kwargs: Any) -> None:
+    """Update a saved chart by stable chart UID."""
+    chart_id = get_chart_id_by_uid(chart_uid)
+    normalized_uid = _normalize_chart_uid(chart_uid)
+    if chart_id is None or normalized_uid is None:
+        raise ValueError(f"No chart with UID {chart_uid!r}")
+    setattr(chart, "chart_uid", normalized_uid)
+    update_chart(chart_id, chart, **kwargs)
+
+
 def list_charts() -> List[
     Tuple[
         int,
@@ -3551,6 +3561,18 @@ def delete_charts(chart_ids: List[int]) -> int:
     conn.close()
     return cur.rowcount
 
+
+def delete_charts_by_uids(chart_uids: Iterable[str | None]) -> int:
+    """Delete charts by stable chart UID.
+
+    Returns the number of chart rows deleted. Integer-ID cleanup, such as
+    duplicate exclusion pruning, is delegated to the legacy-ID delete helper
+    after resolving UIDs in the current database.
+    """
+    chart_ids = list(get_chart_ids_by_uid(chart_uids).values())
+    return delete_charts(chart_ids)
+
+
 def get_chart_uid_map(chart_ids: Iterable[int] | None = None) -> dict[int, str]:
     """Return stable chart UIDs keyed by local integer chart id."""
     conn = _get_conn()
@@ -3605,6 +3627,55 @@ def get_chart_uid(chart_id: int | None) -> str | None:
     if chart_id is None:
         return None
     return get_chart_uid_map([int(chart_id)]).get(int(chart_id))
+
+
+def get_chart_id_by_uid(chart_uid: str | None) -> int | None:
+    """Return the local integer row id for a stable chart UID.
+
+    This is intended as a compatibility bridge while app-facing code migrates to
+    UID-first chart references.
+    """
+    normalized_uid = _normalize_chart_uid(chart_uid)
+    if normalized_uid is None:
+        return None
+    conn = _get_conn()
+    try:
+        with conn:
+            _ensure_chart_uids(conn)
+        row = conn.execute(
+            "SELECT id FROM charts WHERE chart_uid = ?",
+            (normalized_uid,),
+        ).fetchone()
+        if row is None:
+            return None
+        return int(row[0])
+    finally:
+        conn.close()
+
+
+def get_chart_ids_by_uid(chart_uids: Iterable[str | None]) -> dict[str, int]:
+    """Return local integer row ids keyed by normalized stable chart UID."""
+    normalized_uids = list(
+        dict.fromkeys(
+            normalized_uid
+            for raw_uid in chart_uids
+            if (normalized_uid := _normalize_chart_uid(raw_uid)) is not None
+        )
+    )
+    if not normalized_uids:
+        return {}
+    placeholders = ", ".join("?" for _ in normalized_uids)
+    conn = _get_conn()
+    try:
+        with conn:
+            _ensure_chart_uids(conn)
+        rows = conn.execute(
+            f"SELECT chart_uid, id FROM charts WHERE chart_uid IN ({placeholders})",
+            tuple(normalized_uids),
+        ).fetchall()
+        return {str(chart_uid): int(chart_id) for chart_uid, chart_id in rows if chart_uid}
+    finally:
+        conn.close()
 
 
 def find_chart_uid_by_name(name: str | None, *, exclude_chart_id: int | None = None) -> str | None:
@@ -4073,10 +4144,56 @@ def load_chart_rows_for_ids(chart_ids: Iterable[int]) -> dict[int, sqlite3.Row]:
         conn.close()
 
 
+def load_chart_rows_for_uids(chart_uids: Iterable[str | None]) -> dict[str, sqlite3.Row]:
+    """Load raw chart rows for many stable chart UIDs using one database query."""
+    unique_uids = list(
+        dict.fromkeys(
+            normalized_uid
+            for raw_uid in chart_uids
+            if (normalized_uid := _normalize_chart_uid(raw_uid)) is not None
+        )
+    )
+    if not unique_uids:
+        return {}
+    conn = _get_conn()
+    conn.row_factory = sqlite3.Row
+    try:
+        with conn:
+            _ensure_chart_uids(conn)
+        columns = _table_columns(conn, "charts")
+        projection = _chart_row_projection(columns)
+        placeholders = ", ".join("?" for _ in unique_uids)
+        rows = conn.execute(
+            f"""
+            SELECT id, {projection}
+            FROM charts
+            WHERE chart_uid IN ({placeholders})
+            """,
+            unique_uids,
+        ).fetchall()
+        rows_by_uid = {str(row["chart_uid"]): row for row in rows if row["chart_uid"]}
+        return {
+            chart_uid: rows_by_uid[chart_uid]
+            for chart_uid in unique_uids
+            if chart_uid in rows_by_uid
+        }
+    finally:
+        conn.close()
+
+
 def load_charts(chart_ids: Iterable[int]) -> dict[int, Chart]:
     """Load many charts with a single SELECT and reconstruct them in memory."""
     rows_by_id = load_chart_rows_for_ids(chart_ids)
     return {chart_id: _chart_from_row(chart_id, row) for chart_id, row in rows_by_id.items()}
+
+
+def load_charts_by_uids(chart_uids: Iterable[str | None]) -> dict[str, Chart]:
+    """Load many charts by stable chart UID and reconstruct them in memory."""
+    rows_by_uid = load_chart_rows_for_uids(chart_uids)
+    return {
+        chart_uid: _chart_from_row(int(row["id"]), row)
+        for chart_uid, row in rows_by_uid.items()
+    }
 
 
 def load_chart(chart_id: int):
@@ -4090,6 +4207,22 @@ def load_chart(chart_id: int):
     chart = charts.get(chart_id)
     if chart is None:
         raise ValueError(f"No chart with id {chart_id}")
+    return chart
+
+
+def load_chart_by_uid(chart_uid: str | None):
+    """
+    Load a chart from the DB by stable chart UID and reconstruct a Chart instance.
+
+    Raises ValueError if no such chart exists.
+    """
+    normalized_uid = _normalize_chart_uid(chart_uid)
+    if normalized_uid is None:
+        raise ValueError(f"No chart with UID {chart_uid!r}")
+    charts = load_charts_by_uids([normalized_uid])
+    chart = charts.get(normalized_uid)
+    if chart is None:
+        raise ValueError(f"No chart with UID {normalized_uid}")
     return chart
 
 def load_dominant_sign_weights(
