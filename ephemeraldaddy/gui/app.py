@@ -1131,6 +1131,7 @@ from ephemeraldaddy.gui.features.controllers.chart_view_window import (
     build_chart_view_middle_header_controls,
     build_chart_view_right_panel,
     build_subjective_notes_alignment_sections,
+    chart_view_birth_data_is_complete,
     draw_weight_distribution_reference_lines,
     format_weight_distribution_html,
     format_unknown_positions_summary_html,
@@ -1138,12 +1139,14 @@ from ephemeraldaddy.gui.features.controllers.chart_view_window import (
     install_chart_info_panel_content_observers,
     install_chart_view_undo_shortcuts,
     on_chart_view_tag_add,
+    prompt_incomplete_chart_save_choice,
     on_chart_view_tag_remove_link,
     on_chart_view_tags_changed,
     refresh_chart_info_panel_toggle_button_styles,
     render_chart_view_tag_selection,
     set_chart_view_tag_state,
     setup_chart_view_tags_section,
+    style_delete_this_chart_button,
 )
 from ephemeraldaddy.gui.visibility import (
     CHART_DATA_KEYS,
@@ -24083,12 +24086,7 @@ class MainWindow(QMainWindow):
         buttons_layout.addWidget(self.update_button, 0, 0)
         self.delete_this_chart_button = QPushButton("❌ Delete This Chart")
         self.delete_this_chart_button.setObjectName("delete_this_chart_button")
-        self.delete_this_chart_button.setStyleSheet(
-            "QPushButton {"
-            "color: #ff6b6b;"
-            "font-weight: 700;"
-            "}"
-        )
+        style_delete_this_chart_button(self.delete_this_chart_button)
         self.delete_this_chart_button.setToolTip(
             "Delete the currently open chart and return to Database View."
         )
@@ -31834,6 +31832,33 @@ class MainWindow(QMainWindow):
         location_msg = "Saved as placeholder chart."
         tz_override = None
 
+        if not is_placeholder:
+            self._clear_required_field_highlights()
+            if not chart_view_birth_data_is_complete(self):
+                self._highlight_required_fields()
+                incomplete_choice = prompt_incomplete_chart_save_choice(self)
+                if incomplete_choice == "placeholder":
+                    self.placeholder_chart_checkbox.setChecked(True)
+                    is_placeholder = True
+                elif incomplete_choice == "discard":
+                    if chart_id is not None:
+                        try:
+                            delete_charts([chart_id])
+                        except Exception as e:
+                            QMessageBox.critical(
+                                self,
+                                "Delete error",
+                                f"Could not delete chart #{chart_id}:\n{e}",
+                            )
+                            return
+                        self._on_charts_deleted({chart_id})
+                        self._manage_charts_pending_changed_ids.add(chart_id)
+                    else:
+                        self._reset_new_chart_form()
+                    self.on_manage_charts()
+                    return
+                else:
+                    return
         if not recalculate_chart and chart_id is not None:
             try:
                 chart = load_chart(chart_id)
@@ -31908,34 +31933,6 @@ class MainWindow(QMainWindow):
                 place = self.place_edit.text().strip() or chart.birth_place or place
                 chart.birth_place = place
                 location_msg = "Chart metadata saved."
-
-        if chart is None and not is_placeholder:
-            calculate_choice = QMessageBox.question(
-                self,
-                "Calculate chart?",
-                "Calculate chart?",
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.Yes,
-            )
-            if calculate_choice == QMessageBox.No:
-                self.placeholder_chart_checkbox.setChecked(True)
-                is_placeholder = True
-            else:
-                self._clear_required_field_highlights()
-                if (
-                    not self.birth_month_edit.text().strip()
-                    or not self.birth_day_edit.text().strip()
-                    or not self.birth_year_edit.text().strip()
-                    or not self.place_edit.text().strip()
-                ):
-                    self._highlight_required_fields()
-                    self.placeholder_chart_checkbox.setChecked(True)
-                    QMessageBox.warning(
-                        self,
-                        "Incomplete chart data",
-                        "Missing required data for calculation. The chart was flagged as a placeholder.",
-                    )
-                    is_placeholder = True
 
         if chart is None and is_placeholder:
             chart = self._build_placeholder_chart()
