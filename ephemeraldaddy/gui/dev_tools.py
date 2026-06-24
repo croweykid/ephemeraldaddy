@@ -1444,10 +1444,25 @@ QComboBox QAbstractItemView {
             (name for name, prefix in TAG_CATEGORY_OPTIONS if prefix == cleaned_prefix),
             self._tag_category_display_names.get(cleaned_prefix.casefold(), cleaned_prefix or "Uncategorized"),
         )
+        if len(cleaned_labels) == 1:
+            label = cleaned_labels[0]
+            _old_prefix, bare_tag = _split_tag_category(label)
+            trait_name = bare_tag or label
+            row = self._row_for_key(label) or next(
+                (row for row in self._active_rows() if str(row.get("label", "")).strip() == label),
+                {},
+            )
+            entry_count = int(row.get("count", 0) or 0) if isinstance(row, dict) else 0
+            prompt = (
+                f"Assign category '{category_name}' to trait '{trait_name}' "
+                f"({entry_count} {'entry' if entry_count == 1 else 'entries'})?"
+            )
+        else:
+            prompt = f"Assign category '{category_name}' to {len(cleaned_labels)} traits?"
         confirm = QMessageBox.question(
             self,
             "Assign tag category",
-            f"Add {len(cleaned_labels)} tags to '{category_name}' category?",
+            prompt,
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.Yes,
         )
