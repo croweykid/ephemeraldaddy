@@ -11,6 +11,7 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtWidgets import (
+    QAbstractScrollArea,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -714,10 +715,15 @@ class TimeSensitivityPanel(QWidget):
         browser.anchorClicked.connect(self._open_chart_info_link)
         browser.setFrameShape(QFrame.NoFrame)
         browser.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+        browser.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        browser.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        browser.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)
         browser.setHtml(html)
+        browser.document().setTextWidth(max(1, browser.viewport().width()))
         browser.document().adjustSize()
-        height = int(browser.document().size().height()) + 12
-        browser.setFixedHeight(max(48, min(700, height)))
+        height = int(browser.document().size().height()) + 18
+        max_height = 16777215 if section_key == "human_design" else 700
+        browser.setFixedHeight(max(48, min(max_height, height)))
         content_layout.addWidget(browser)
         self._charts_layout.addWidget(section)
         self._chart_sections[section_key] = section
@@ -785,7 +791,11 @@ class TimeSensitivityPanel(QWidget):
             table.anchorClicked.connect(self._open_chart_info_link)
             table.setFrameShape(QFrame.NoFrame)
             table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+            table.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            table.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            table.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)
             table.setHtml(_header_html(_group_title(group_key)) + table_html)
+            table.document().setTextWidth(max(1, table.viewport().width()))
             table.document().adjustSize()
             table_height = int(table.document().size().height()) + 14
             table.setFixedHeight(max(82, min(900, table_height)))

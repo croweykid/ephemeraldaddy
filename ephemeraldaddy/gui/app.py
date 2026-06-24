@@ -334,7 +334,7 @@ def _load_predictions_alignment_default_zero_when_unassigned(
     return bool(fallback)
 
 
-def _load_wikipedia_backup_search_enabled(settings, *, fallback: bool = False) -> bool:
+def _load_wikipedia_backup_search_enabled(settings, *, fallback: bool = True) -> bool:
     value = settings.value(SETTINGS_KEY_WIKIPEDIA_BACKUP_SEARCH, int(fallback))
     if isinstance(value, bool):
         return value
@@ -2252,7 +2252,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         self._wikipedia_backup_search_enabled = _load_wikipedia_backup_search_enabled(
             self._settings,
-            fallback=False,
+            fallback=True,
         )
         self._settings.setValue(
             SETTINGS_KEY_WIKIPEDIA_BACKUP_SEARCH,
@@ -2757,6 +2757,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         }
         for widget in self._left_panel_widgets.values():
             self.left_panel_stack.addWidget(widget)
+        self._sync_perceived_similarity_predictors_visibility()
         self._left_panel_visible = True
         self._active_left_panel = "todays_transits"
         self._left_panel_sizes = None
@@ -21037,7 +21038,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "Astrotheme Import: enable Wikipedia backup search"
         )
         wikipedia_backup_search_checkbox.setChecked(
-            bool(getattr(self, "_wikipedia_backup_search_enabled", False))
+            bool(getattr(self, "_wikipedia_backup_search_enabled", True))
         )
         wikipedia_backup_search_checkbox.setToolTip(
             "When enabled, failed Astrotheme imports will try a Wikipedia lookup for birth data."
@@ -21603,12 +21604,33 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 int(self._enneagram_predictions_debug),
             )
 
+    def _sync_perceived_similarity_predictors_visibility(self) -> None:
+        enabled = bool(
+            getattr(
+                self,
+                "_similarity_perceived_accuracy_controls_enabled",
+                SIMILARITY_PERCEIVED_ACCURACY_CONTROLS_DEFAULT,
+            )
+        )
+        button = getattr(self, "perceived_similarity_predictors_panel_button", None)
+        if button is not None:
+            button.setVisible(enabled)
+        panel = getattr(self, "perceived_similarity_predictors_panel_scroll", None)
+        if panel is not None:
+            panel.setVisible(enabled)
+        if (
+            not enabled
+            and getattr(self, "_active_left_panel", None) == "perceived_similarity_predictors"
+        ):
+            self._show_left_panel("todays_transits")
+
     def _on_similarity_perceived_accuracy_controls_toggled(self, checked: bool) -> None:
         self._similarity_perceived_accuracy_controls_enabled = bool(checked)
         self._settings.setValue(
             SETTINGS_KEY_SIMILARITY_PERCEIVED_ACCURACY_CONTROLS,
             int(self._similarity_perceived_accuracy_controls_enabled),
         )
+        self._sync_perceived_similarity_predictors_visibility()
         parent = self._owner_window()
         if isinstance(parent, MainWindow):
             parent._similarity_perceived_accuracy_controls_enabled = (
@@ -21618,6 +21640,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 SETTINGS_KEY_SIMILARITY_PERCEIVED_ACCURACY_CONTROLS,
                 int(self._similarity_perceived_accuracy_controls_enabled),
             )
+            parent._sync_perceived_similarity_predictors_visibility()
 
     def _clear_similar_charts_popout_cache(self) -> int:
         cache = getattr(self, "_similar_charts_popout_cache", None)
@@ -23027,7 +23050,7 @@ class MainWindow(QMainWindow):
         )
         self._wikipedia_backup_search_enabled = _load_wikipedia_backup_search_enabled(
             self._settings,
-            fallback=False,
+            fallback=True,
         )
         self._settings.setValue(
             SETTINGS_KEY_WIKIPEDIA_BACKUP_SEARCH,

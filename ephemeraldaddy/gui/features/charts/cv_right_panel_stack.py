@@ -152,6 +152,7 @@ def _configure_chart_right_panel_scroll_area(
     scroll_area.setMinimumWidth(240)
     scroll_area.setStyleSheet(scrollbar_style)
     scroll_area.setFocusPolicy(Qt.StrongFocus)
+    scroll_area.viewport().setFocusPolicy(Qt.StrongFocus)
     scroll_area.setAlignment(Qt.AlignLeft | Qt.AlignTop)
     scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
     content_widget.setMinimumWidth(0)
