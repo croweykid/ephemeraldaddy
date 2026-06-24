@@ -31249,6 +31249,8 @@ class MainWindow(QMainWindow):
         placeholder.rectification_notes = self.rectification_edit.toPlainText().strip()
         placeholder.biography = self.biography_edit.toPlainText().strip()
         placeholder.chart_data_source = self.source_edit.toPlainText().strip()
+        placeholder.chart_type = _normalize_gui_source(self.chart_source_combo.currentData())
+        placeholder.source = placeholder.chart_type
         placeholder.alternate_chart_uid = self._current_alternate_chart_uid_for_save(placeholder.chart_type)
         placeholder.positive_sentiment_intensity = self.positive_sentiment_intensity_spin.value()
         placeholder.negative_sentiment_intensity = self.negative_sentiment_intensity_spin.value()
@@ -31261,8 +31263,6 @@ class MainWindow(QMainWindow):
         placeholder.data_rating = str(self.data_rating_combo.currentData() or "blank")
         placeholder.age_when_first_met = 0
         placeholder.sentiment_confidence = placeholder.familiarity
-        placeholder.chart_type = _normalize_gui_source(self.chart_source_combo.currentData())
-        placeholder.source = placeholder.chart_type
         placeholder.dominant_sign_weights = {}
         placeholder.dominant_planet_weights = {}
         placeholder.dominant_nakshatra_weights = {}
