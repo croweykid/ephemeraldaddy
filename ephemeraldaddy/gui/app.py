@@ -10397,11 +10397,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return True
 
         if update_database_metrics:
-            computed_sections = (
-                frozenset(sections_to_refresh)
-                if sections_to_refresh is not None
-                else None
-            )
+            computed_sections = None
+            if sections_to_refresh is not None:
+                # Section-scoped refreshes should not discard snapshot fields that
+                # were already computed for other rendered Database Analytics
+                # sections.  Accumulate the requested section set onto the cache's
+                # current coverage so re-rendering one section cannot make another
+                # expanded section fall back to empty/default graph data.
+                computed_sections = frozenset(sections_to_refresh) | self._database_metrics_snapshot_sections
             try:
                 self._refresh_database_metrics_cache(
                     force_full_refresh=force_full_refresh,
