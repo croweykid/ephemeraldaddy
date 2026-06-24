@@ -26808,6 +26808,18 @@ class MainWindow(QMainWindow):
 
         QTimer.singleShot(0, _refresh_once)
 
+    def _schedule_deferred_metric_canvas_layout_refresh(
+        self,
+        canvas: FigureCanvas,
+        delays_ms: tuple[int, ...] = (0, 50, 150, 300),
+    ) -> None:
+        """Re-check one metric canvas through delayed right-panel layout settling."""
+        for delay_ms in delays_ms:
+            QTimer.singleShot(
+                max(0, int(delay_ms)),
+                lambda metric_canvas=canvas: self._schedule_metric_canvas_layout_refresh(metric_canvas),
+            )
+
     def _schedule_visible_metric_canvas_layout_refreshes(self) -> None:
         """Resize visible metric canvases without recalculating right-panel sections."""
         for canvas in list(self._metric_chart_titles):
@@ -26821,7 +26833,7 @@ class MainWindow(QMainWindow):
 
     def _schedule_deferred_visible_metric_canvas_layout_refreshes(
         self,
-        delays_ms: tuple[int, ...] = (0, 50, 150),
+        delays_ms: tuple[int, ...] = (0, 50, 150, 300),
     ) -> None:
         """Re-check visible metric canvas sizing after Qt finishes layout churn."""
         for delay_ms in delays_ms:
@@ -33279,7 +33291,9 @@ class MainWindow(QMainWindow):
         # stacked right-panel/scroll-area geometry. Drawing immediately can paint
         # one frame at an outdated canvas width before the scheduled post-layout
         # refresh corrects it, which makes the panel graphs appear to wiggle.
-        self._schedule_metric_canvas_layout_refresh(canvas)
+        # Chart updates can continue changing the stacked scroll-panel width
+        # after the first zero-timeout callback, so keep re-clamping briefly.
+        self._schedule_deferred_metric_canvas_layout_refresh(canvas)
 
     def _render_chart(self, chart: Chart) -> None:
         self._latest_chart = chart

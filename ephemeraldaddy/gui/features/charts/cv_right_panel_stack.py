@@ -143,6 +143,22 @@ def apply_mode_pick_metadata(
             set_picker(True)
 
 
+def _configure_chart_right_panel_scroll_area(
+    scroll_area: QScrollArea, content_widget: QWidget, scrollbar_style: str
+) -> None:
+    """Configure right-panel scroll areas so graph canvases cannot create horizontal overflow."""
+    scroll_area.setWidgetResizable(True)
+    scroll_area.setFrameShape(QScrollArea.NoFrame)
+    scroll_area.setMinimumWidth(240)
+    scroll_area.setStyleSheet(scrollbar_style)
+    scroll_area.setFocusPolicy(Qt.StrongFocus)
+    scroll_area.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+    scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+    content_widget.setMinimumWidth(0)
+    content_widget.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+    scroll_area.setWidget(content_widget)
+
+
 def build_chart_right_panel_stack(
     *,
     analytics_content_widget: QWidget,
@@ -214,62 +230,38 @@ def build_chart_right_panel_stack(
     layout.addWidget(stack, 1)
 
     analytics_scroll = QScrollArea()
-    analytics_scroll.setWidgetResizable(True)
-    analytics_scroll.setFrameShape(QScrollArea.NoFrame)
-    analytics_scroll.setMinimumWidth(240)
-    analytics_scroll.setStyleSheet(scrollbar_style)
-    analytics_scroll.setFocusPolicy(Qt.StrongFocus)
-    analytics_scroll.setAlignment(Qt.AlignLeft | Qt.AlignTop)
-    analytics_scroll.setWidget(analytics_content_widget)
+    _configure_chart_right_panel_scroll_area(
+        analytics_scroll, analytics_content_widget, scrollbar_style
+    )
     stack.addWidget(analytics_scroll)
 
     predictions_scroll = QScrollArea()
-    predictions_scroll.setWidgetResizable(True)
-    predictions_scroll.setFrameShape(QScrollArea.NoFrame)
-    predictions_scroll.setMinimumWidth(240)
-    predictions_scroll.setStyleSheet(scrollbar_style)
-    predictions_scroll.setFocusPolicy(Qt.StrongFocus)
-    predictions_scroll.setAlignment(Qt.AlignLeft | Qt.AlignTop)
-    predictions_scroll.setWidget(predictions_content_widget)
+    _configure_chart_right_panel_scroll_area(
+        predictions_scroll, predictions_content_widget, scrollbar_style
+    )
     stack.addWidget(predictions_scroll)
 
     subjective_notes_scroll = QScrollArea()
-    subjective_notes_scroll.setWidgetResizable(True)
-    subjective_notes_scroll.setFrameShape(QScrollArea.NoFrame)
-    subjective_notes_scroll.setMinimumWidth(240)
-    subjective_notes_scroll.setStyleSheet(scrollbar_style)
-    subjective_notes_scroll.setFocusPolicy(Qt.StrongFocus)
-    subjective_notes_scroll.setAlignment(Qt.AlignLeft | Qt.AlignTop)
-    subjective_notes_scroll.setWidget(subjective_notes_content_widget)
+    _configure_chart_right_panel_scroll_area(
+        subjective_notes_scroll, subjective_notes_content_widget, scrollbar_style
+    )
     stack.addWidget(subjective_notes_scroll)
 
     material_facts_scroll = QScrollArea()
-    material_facts_scroll.setWidgetResizable(True)
-    material_facts_scroll.setFrameShape(QScrollArea.NoFrame)
-    material_facts_scroll.setMinimumWidth(240)
-    material_facts_scroll.setStyleSheet(scrollbar_style)
-    material_facts_scroll.setFocusPolicy(Qt.StrongFocus)
-    material_facts_scroll.setAlignment(Qt.AlignLeft | Qt.AlignTop)
-    material_facts_scroll.setWidget(material_facts_content_widget)
+    _configure_chart_right_panel_scroll_area(
+        material_facts_scroll, material_facts_content_widget, scrollbar_style
+    )
     stack.addWidget(material_facts_scroll)
 
     time_sensitivity_scroll = QScrollArea()
-    time_sensitivity_scroll.setWidgetResizable(True)
-    time_sensitivity_scroll.setFrameShape(QScrollArea.NoFrame)
-    time_sensitivity_scroll.setMinimumWidth(240)
-    time_sensitivity_scroll.setStyleSheet(scrollbar_style)
-    time_sensitivity_scroll.setFocusPolicy(Qt.StrongFocus)
-    time_sensitivity_scroll.setAlignment(Qt.AlignLeft | Qt.AlignTop)
-    time_sensitivity_scroll.setWidget(time_sensitivity_content_widget)
+    _configure_chart_right_panel_scroll_area(
+        time_sensitivity_scroll, time_sensitivity_content_widget, scrollbar_style
+    )
     stack.addWidget(time_sensitivity_scroll)
     photo_gallery_scroll = QScrollArea()
-    photo_gallery_scroll.setWidgetResizable(True)
-    photo_gallery_scroll.setFrameShape(QScrollArea.NoFrame)
-    photo_gallery_scroll.setMinimumWidth(240)
-    photo_gallery_scroll.setStyleSheet(scrollbar_style)
-    photo_gallery_scroll.setFocusPolicy(Qt.StrongFocus)
-    photo_gallery_scroll.setAlignment(Qt.AlignLeft | Qt.AlignTop)
-    photo_gallery_scroll.setWidget(photo_gallery_content_widget)
+    _configure_chart_right_panel_scroll_area(
+        photo_gallery_scroll, photo_gallery_content_widget, scrollbar_style
+    )
     stack.addWidget(photo_gallery_scroll)
 
     return ChartRightPanelStack(
