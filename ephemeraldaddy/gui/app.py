@@ -31234,9 +31234,11 @@ class MainWindow(QMainWindow):
         rating_index = self.data_rating_combo.findData(target_data_rating)
         if rating_index >= 0 and self.data_rating_combo.currentIndex() != rating_index:
             self.data_rating_combo.setCurrentIndex(rating_index)
-        self.data_rating_combo.setVisible(not checked)
+        # Keep the Data quality control visible even for placeholder charts so the
+        # middle panel always exposes the saved Rodden/data rating state.
+        self.data_rating_combo.setVisible(True)
         if hasattr(self, "data_quality_label"):
-            self.data_quality_label.setVisible(not checked)
+            self.data_quality_label.setVisible(True)
 
     def _clear_required_field_highlights(self) -> None:
         for widget in (
