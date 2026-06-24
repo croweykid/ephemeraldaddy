@@ -23,6 +23,59 @@ def test_parse_similarities_python_export_preserves_trait_profile(tmp_path):
     assert parsed["Selection"]["channels"] == {(1, 8): 3}
 
 
+def test_parse_exact_similarities_python_export_assignment(tmp_path):
+    source = tmp_path / "similarities_export.py"
+    source.write_text(
+        '''TRAITS = {
+    "Selection": {
+        "name": "Selection",
+        "gates": {
+            34: 5,
+            20: 5,
+        },
+        "channels": {
+            (20, 34): 4,
+        },
+        "quotes": {},
+    },
+}
+''',
+        encoding="utf-8",
+    )
+
+    parsed = traits.parse_trait_file(source)
+
+    assert parsed["Selection"]["gates"] == {34: 5, 20: 5}
+    assert parsed["Selection"]["channels"] == {(20, 34): 4}
+
+
+def test_parse_enneagram_style_assignment_with_int_keys_sets_and_inline_comments(tmp_path):
+    source = tmp_path / "enneagram.py"
+    source.write_text(
+        '''ENNEAGRAM = {
+    1: { # sample size was 77
+        "name": "Idealist",
+        "signs": {"Scorpio": 6, "Virgo": 4},
+        "antisigns": {"Sagittarius": 4,},
+        "houses": {1: 8},
+        "positions": {"Sun in Scorpio": 6, "Moon in H8": 9,},
+        "gates": {7: 13, 62: 12},
+        "channels": {
+            (24, 61): 1,
+        },
+    },
+}
+''',
+        encoding="utf-8",
+    )
+
+    parsed = traits.parse_trait_file(source)
+
+    assert parsed["Idealist"]["signs"] == {"Scorpio": 6, "Virgo": 4}
+    assert parsed["Idealist"]["houses"] == {1: 8}
+    assert parsed["Idealist"]["channels"] == {(24, 61): 1}
+
+
 def test_parse_json_named_similarities_export_with_python_comments_and_trailing_commas(tmp_path):
     source = tmp_path / "trait.json"
     source.write_text(
