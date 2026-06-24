@@ -2,6 +2,7 @@ from types import SimpleNamespace
 
 from ephemeraldaddy.core.db import SOURCE_HYPOTHETICAL, SOURCE_PERSONAL
 from ephemeraldaddy.gui.features.charts.collections import (
+    CustomCollection,
     DEFAULT_COLLECTION_HYPOTHETICAL,
     DEFAULT_COLLECTION_OPTIONS,
     chart_belongs_to_collection,
@@ -47,4 +48,26 @@ def test_hypothetical_collection_display_name_is_available_for_summaries():
             active_filters=False,
         )
         == "Charts Selected: 1 of 2 in Hypothetical collection. (3 in database)"
+    )
+
+
+def test_custom_collection_membership_prefers_chart_uids():
+    collection = CustomCollection(
+        collection_id="favorites",
+        name="Favorites",
+        chart_ids=frozenset({1}),
+        chart_uids=frozenset({"STABLEUID123"}),
+    )
+
+    assert chart_belongs_to_collection(
+        "favorites",
+        chart=None,
+        custom_collections={"favorites": collection},
+        chart_uid="stableuid123",
+    )
+    assert chart_belongs_to_collection(
+        "favorites",
+        chart=None,
+        custom_collections={"favorites": collection},
+        chart_id=1,
     )

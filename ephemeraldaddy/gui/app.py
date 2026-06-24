@@ -24,7 +24,7 @@ import uuid
 import urllib.parse
 import platform
 from collections import Counter, OrderedDict
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Iterable, Mapping
 from types import SimpleNamespace
 from pathlib import Path
 import re
@@ -54,6 +54,7 @@ SETTINGS_KEY_HIDE_PLACEHOLDER_CHARTS_FILTER = "manage_charts/hide_placeholder_ch
 SETTINGS_KEY_HIDDEN_CHARTS_FILTER_MODE = "manage_charts/hidden_charts_filter_mode"
 SETTINGS_KEY_SHOW_HIDDEN_CHARTS = "manage_charts/show_hidden_charts"
 SETTINGS_KEY_HIDDEN_CHART_IDS = "manage_charts/hidden_chart_ids"
+SETTINGS_KEY_HIDDEN_CHART_UIDS = "manage_charts/hidden_chart_uids"
 DATABASE_VIEW_ROW_INFO_OPTIONS: tuple[tuple[str, str], ...] = (
     ("name", "Name"),
     ("alias", "Alias"),
@@ -647,6 +648,7 @@ from ephemeraldaddy.core.db import (
     load_charts,
     load_dominant_sign_weights,
     get_chart_uid_map,
+    get_chart_ids_by_uid,
     get_alternate_chart_uid,
     find_chart_uid_by_name,
     get_chart_display_name_map,
@@ -2435,7 +2437,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             SETTINGS_KEY_SHOW_HIDDEN_CHARTS,
             int(self._show_hidden_charts),
         )
-        self._hidden_chart_ids = self._load_hidden_chart_ids_from_settings()
+        self._hidden_chart_uids = self._load_hidden_chart_uids_from_settings()
+        self._hidden_chart_ids = set(get_chart_ids_by_uid(self._hidden_chart_uids).values())
         self._analysis_chart_export_rows: dict[str, list[tuple[Any, ...]]] = {}
         self._analysis_chart_filenames: dict[str, str] = {}
         self._analysis_chart_dropdowns: dict[str, QComboBox] = {}
@@ -4104,18 +4107,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             collection_id = normalize_collection_id(raw_id or name.replace(" ", "_"))
             if collection_id in DEFAULT_COLLECTION_IDS or collection_id in collections:
                 continue
-            raw_chart_ids = entry.get("chart_ids", [])
-            chart_ids: set[int] = set()
-            if isinstance(raw_chart_ids, list):
-                for value in raw_chart_ids:
-                    try:
-                        chart_ids.add(int(value))
-                    except (TypeError, ValueError):
-                        continue
+            chart_ids = self._coerce_chart_ids(entry.get("chart_ids", []))
+            chart_uids = self._coerce_chart_uids(entry.get("chart_uids", []))
+            if chart_ids:
+                chart_uids.update(self._chart_uids_for_ids(chart_ids))
+            if not chart_ids and chart_uids:
+                chart_ids.update(get_chart_ids_by_uid(chart_uids).values())
             collections[collection_id] = CustomCollection(
                 collection_id=collection_id,
                 name=name,
                 chart_ids=frozenset(chart_ids),
+                chart_uids=frozenset(chart_uids),
             )
         return collections
 
@@ -4124,11 +4126,40 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             {
                 "id": collection.collection_id,
                 "name": collection.name,
-                "chart_ids": sorted(collection.chart_ids),
+                "chart_uids": sorted(collection.chart_uids),
             }
             for collection in self._custom_collections.values()
         ]
         self._settings.setValue("manage_charts/custom_collections", json.dumps(payload))
+
+    @staticmethod
+    def _coerce_chart_ids(raw_values: object) -> set[int]:
+        chart_ids: set[int] = set()
+        if isinstance(raw_values, (list, tuple, set)):
+            for value in raw_values:
+                try:
+                    chart_ids.add(int(value))
+                except (TypeError, ValueError):
+                    continue
+        return chart_ids
+
+    @staticmethod
+    def _coerce_chart_uids(raw_values: object) -> set[str]:
+        chart_uids: set[str] = set()
+        if isinstance(raw_values, (list, tuple, set)):
+            for value in raw_values:
+                chart_uid = str(value or "").strip().upper()
+                if chart_uid:
+                    chart_uids.add(chart_uid)
+        return chart_uids
+
+    @staticmethod
+    def _chart_uids_for_ids(chart_ids: Iterable[int]) -> set[str]:
+        return {
+            str(chart_uid).strip().upper()
+            for chart_uid in get_chart_uid_map(chart_ids).values()
+            if str(chart_uid or "").strip()
+        }
 
     def _coerce_active_collection_id(self, value: object) -> str:
         candidate = normalize_collection_id(value)
@@ -16036,6 +16067,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             collection_id=candidate,
             name=clean_name,
             chart_ids=frozenset(selected_chart_ids if include_selected_charts else ()),
+            chart_uids=frozenset(self._chart_uids_for_ids(selected_chart_ids) if include_selected_charts else ()),
         )
         self._save_custom_collections_to_settings()
         self._refresh_collection_controls()
@@ -16062,6 +16094,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             collection_id=collection.collection_id,
             name=clean_name,
             chart_ids=collection.chart_ids,
+            chart_uids=collection.chart_uids,
         )
         self._save_custom_collections_to_settings()
         self._refresh_collection_controls()
@@ -16108,10 +16141,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         collection = self._custom_collections[collection_id]
         updated_ids = set(collection.chart_ids)
         updated_ids.update(chart_ids)
+        updated_uids = set(collection.chart_uids)
+        updated_uids.update(self._chart_uids_for_ids(chart_ids))
         self._custom_collections[collection_id] = CustomCollection(
             collection_id=collection.collection_id,
             name=collection.name,
             chart_ids=frozenset(updated_ids),
+            chart_uids=frozenset(updated_uids),
         )
         self._save_custom_collections_to_settings()
         self._refresh_collection_controls()
@@ -16146,10 +16182,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         collection = self._custom_collections[collection_id]
         updated_ids = {int(chart_id) for chart_id in collection.chart_ids}
         updated_ids.difference_update(chart_ids)
+        removed_uids = self._chart_uids_for_ids(chart_ids)
+        updated_uids = set(collection.chart_uids)
+        updated_uids.difference_update(removed_uids)
         self._custom_collections[collection_id] = CustomCollection(
             collection_id=collection.collection_id,
             name=collection.name,
             chart_ids=frozenset(updated_ids),
+            chart_uids=frozenset(updated_uids),
         )
         self._save_custom_collections_to_settings()
         self._refresh_collection_controls()
@@ -16166,10 +16206,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         updated_ids = set(collection.chart_ids)
         updated_ids.add(chart_id)
+        updated_uids = set(collection.chart_uids)
+        updated_uids.update(self._chart_uids_for_ids([chart_id]))
         self._custom_collections[collection_id] = CustomCollection(
             collection_id=collection.collection_id,
             name=collection.name,
             chart_ids=frozenset(updated_ids),
+            chart_uids=frozenset(updated_uids),
         )
         self._save_custom_collections_to_settings()
         self._refresh_collection_controls()
@@ -18643,34 +18686,36 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         self._on_selection_changed(sync_persistent_selection=False)
 
-    def _load_hidden_chart_ids_from_settings(self) -> set[int]:
-        raw_value = self._settings.value(SETTINGS_KEY_HIDDEN_CHART_IDS, "[]")
+    def _load_hidden_chart_uids_from_settings(self) -> set[str]:
+        raw_value = self._settings.value(SETTINGS_KEY_HIDDEN_CHART_UIDS, "[]")
         if isinstance(raw_value, str):
             try:
-                raw_ids = json.loads(raw_value)
+                raw_uids = json.loads(raw_value)
             except json.JSONDecodeError:
-                raw_ids = []
+                raw_uids = []
         else:
-            raw_ids = raw_value or []
-        hidden_ids: set[int] = set()
-        if isinstance(raw_ids, (list, tuple, set)):
-            for raw_id in raw_ids:
-                try:
-                    hidden_ids.add(int(raw_id))
-                except (TypeError, ValueError):
-                    continue
-        return hidden_ids
+            raw_uids = raw_value or []
+        hidden_uids = self._coerce_chart_uids(raw_uids)
 
-    def _save_hidden_chart_ids_to_settings(self) -> None:
+        legacy_value = self._settings.value(SETTINGS_KEY_HIDDEN_CHART_IDS, "[]")
+        if isinstance(legacy_value, str):
+            try:
+                legacy_raw_ids = json.loads(legacy_value)
+            except json.JSONDecodeError:
+                legacy_raw_ids = []
+        else:
+            legacy_raw_ids = legacy_value or []
+        legacy_ids = self._coerce_chart_ids(legacy_raw_ids)
+        if legacy_ids:
+            hidden_uids.update(self._chart_uids_for_ids(legacy_ids))
+        return hidden_uids
+
+    def _save_hidden_chart_uids_to_settings(self) -> None:
         self._settings.setValue(
-            SETTINGS_KEY_HIDDEN_CHART_IDS,
-            json.dumps(
-                sorted(
-                    int(chart_id)
-                    for chart_id in getattr(self, "_hidden_chart_ids", set())
-                )
-            ),
+            SETTINGS_KEY_HIDDEN_CHART_UIDS,
+            json.dumps(sorted(getattr(self, "_hidden_chart_uids", set()))),
         )
+        self._settings.remove(SETTINGS_KEY_HIDDEN_CHART_IDS)
 
     def _show_chart_list_context_menu(self, position: QPoint) -> None:
         selected_ids = self._visible_selected_chart_ids()
@@ -18740,7 +18785,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if not normalized_ids:
             return
         self._hidden_chart_ids.update(normalized_ids)
-        self._save_hidden_chart_ids_to_settings()
+        self._hidden_chart_uids.update(self._chart_uids_for_ids(normalized_ids))
+        self._save_hidden_chart_uids_to_settings()
         remaining_selection = set(self._selected_chart_ids()) - normalized_ids
         self._populate_list(selected_ids=remaining_selection, refresh_metrics=False)
         self._on_selection_changed(sync_persistent_selection=False)
@@ -18750,7 +18796,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if not normalized_ids:
             return
         self._hidden_chart_ids.difference_update(normalized_ids)
-        self._save_hidden_chart_ids_to_settings()
+        self._hidden_chart_uids.difference_update(self._chart_uids_for_ids(normalized_ids))
+        self._save_hidden_chart_uids_to_settings()
         self._populate_list(selected_ids=set(self._selected_chart_ids()) | normalized_ids, refresh_metrics=False)
         self._on_selection_changed(sync_persistent_selection=False)
 
@@ -20133,12 +20180,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return chart_id in self._possible_duplicate_chart_ids
         chart_source = normalized_row[14]
         chart = self._get_chart_for_filter(chart_id)
+        chart_uid = str(getattr(chart, "chart_uid", "") or "").strip()
         return chart_belongs_to_collection(
             self._active_collection_id,
             chart=chart,
             source=chart_source,
             custom_collections=self._custom_collections,
             chart_id=chart_id,
+            chart_uid=chart_uid,
         )
 
     @staticmethod
@@ -25070,6 +25119,7 @@ class MainWindow(QMainWindow):
             collection_id=candidate_id,
             name=collection_name,
             chart_ids=frozenset(chart_ids),
+            chart_uids=frozenset(self._chart_uids_for_ids(chart_ids)),
         )
         self._active_collection_id = candidate_id
         self._settings.setValue("manage_charts/active_collection_id", candidate_id)
@@ -25113,18 +25163,17 @@ class MainWindow(QMainWindow):
             collection_id = normalize_collection_id(raw_id or name.replace(" ", "_"))
             if collection_id in DEFAULT_COLLECTION_IDS or collection_id in collections:
                 continue
-            raw_chart_ids = entry.get("chart_ids", [])
-            chart_ids: set[int] = set()
-            if isinstance(raw_chart_ids, list):
-                for value in raw_chart_ids:
-                    try:
-                        chart_ids.add(int(value))
-                    except (TypeError, ValueError):
-                        continue
+            chart_ids = self._coerce_chart_ids(entry.get("chart_ids", []))
+            chart_uids = self._coerce_chart_uids(entry.get("chart_uids", []))
+            if chart_ids:
+                chart_uids.update(self._chart_uids_for_ids(chart_ids))
+            if not chart_ids and chart_uids:
+                chart_ids.update(get_chart_ids_by_uid(chart_uids).values())
             collections[collection_id] = CustomCollection(
                 collection_id=collection_id,
                 name=name,
                 chart_ids=frozenset(chart_ids),
+                chart_uids=frozenset(chart_uids),
             )
         return collections
 
@@ -25136,12 +25185,41 @@ class MainWindow(QMainWindow):
             {
                 "id": collection.collection_id,
                 "name": collection.name,
-                "chart_ids": sorted(collection.chart_ids),
+                "chart_uids": sorted(collection.chart_uids),
             }
             for collection in collections.values()
             if isinstance(collection, CustomCollection)
         ]
         self._settings.setValue("manage_charts/custom_collections", json.dumps(payload))
+
+    @staticmethod
+    def _coerce_chart_ids(raw_values: object) -> set[int]:
+        chart_ids: set[int] = set()
+        if isinstance(raw_values, (list, tuple, set)):
+            for value in raw_values:
+                try:
+                    chart_ids.add(int(value))
+                except (TypeError, ValueError):
+                    continue
+        return chart_ids
+
+    @staticmethod
+    def _coerce_chart_uids(raw_values: object) -> set[str]:
+        chart_uids: set[str] = set()
+        if isinstance(raw_values, (list, tuple, set)):
+            for value in raw_values:
+                chart_uid = str(value or "").strip().upper()
+                if chart_uid:
+                    chart_uids.add(chart_uid)
+        return chart_uids
+
+    @staticmethod
+    def _chart_uids_for_ids(chart_ids: Iterable[int]) -> set[str]:
+        return {
+            str(chart_uid).strip().upper()
+            for chart_uid in get_chart_uid_map(chart_ids).values()
+            if str(chart_uid or "").strip()
+        }
 
     @staticmethod
     def _extract_similar_match_chart_id(similar_match: object) -> int | None:

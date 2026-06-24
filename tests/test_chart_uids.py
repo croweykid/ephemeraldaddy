@@ -177,6 +177,84 @@ def test_load_charts_batches_chart_reconstruction(tmp_path, monkeypatch):
     assert charts_by_id[second_id].name == "Second"
 
 
+def test_uid_native_chart_lookup_and_loading(tmp_path, monkeypatch):
+    db_path = tmp_path / "charts.db"
+    monkeypatch.setattr(db, "DB_DIR", tmp_path)
+    monkeypatch.setattr(db, "DB_PATH", db_path)
+
+    conn = db._get_conn()
+    with conn:
+        first_id = _insert_minimal_chart(
+            conn,
+            chart_uid="UIDLOOKUP000001",
+            name="UID Lookup One",
+            is_placeholder=True,
+        )
+        second_id = _insert_minimal_chart(
+            conn,
+            chart_uid="UIDLOOKUP000002",
+            name="UID Lookup Two",
+            is_placeholder=True,
+        )
+    conn.close()
+
+    assert db.get_chart_id_by_uid("uidlookup000001") == first_id
+    assert db.get_chart_ids_by_uid(["uidlookup000001", None, "UIDLOOKUP000002"]) == {
+        "UIDLOOKUP000001": first_id,
+        "UIDLOOKUP000002": second_id,
+    }
+
+    chart = db.load_chart_by_uid("uidlookup000001")
+    charts_by_uid = db.load_charts_by_uids(["uidlookup000002", "uidlookup000001", "uidlookup000002"])
+
+    assert chart.name == "UID Lookup One"
+    assert chart.chart_uid == "UIDLOOKUP000001"
+    assert list(charts_by_uid) == ["UIDLOOKUP000002", "UIDLOOKUP000001"]
+    assert charts_by_uid["UIDLOOKUP000002"].name == "UID Lookup Two"
+
+
+def test_uid_native_update_and_delete_bridge_to_existing_id_storage(tmp_path, monkeypatch):
+    db_path = tmp_path / "charts.db"
+    monkeypatch.setattr(db, "DB_DIR", tmp_path)
+    monkeypatch.setattr(db, "DB_PATH", db_path)
+
+    conn = db._get_conn()
+    with conn:
+        first_id = _insert_minimal_chart(
+            conn,
+            chart_uid="UIDUPDATE000001",
+            name="Before Update",
+            is_placeholder=True,
+        )
+        second_id = _insert_minimal_chart(
+            conn,
+            chart_uid="UIDUPDATE000002",
+            name="Delete Me",
+            is_placeholder=True,
+        )
+        conn.execute(
+            """
+            INSERT INTO duplicate_exclusions (chart_id_low, chart_id_high, created_at)
+            VALUES (?, ?, ?)
+            """,
+            (first_id, second_id, datetime.now(timezone.utc).isoformat(timespec="seconds")),
+        )
+    conn.close()
+
+    chart = db.load_chart_by_uid("UIDUPDATE000001")
+    chart.name = "After Update"
+    db.update_chart_by_uid("uidupdate000001", chart, birth_place="New York, USA")
+
+    assert db.load_chart(first_id).name == "After Update"
+    assert db.load_chart_by_uid("UIDUPDATE000001").chart_uid == "UIDUPDATE000001"
+
+    deleted = db.delete_charts_by_uids(["uidupdate000002", "unknown"])
+
+    assert deleted == 1
+    assert db.get_chart_id_by_uid("UIDUPDATE000002") is None
+    assert db.list_duplicate_exclusions() == set()
+
+
 def test_list_charts_projection_stays_aligned(tmp_path, monkeypatch):
     db_path = tmp_path / "charts.db"
     monkeypatch.setattr(db, "DB_DIR", tmp_path)
