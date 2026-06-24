@@ -459,6 +459,7 @@ _SIMILARITY_COMPONENT_LABELS: dict[str, str] = {
     "human_design_channels": "defined channels (HD)",
     "inner_planet_placement": "inner placements",
     "outer_planet_placement": "outer placements",
+    "big_3": "Big 3",
     "big_3_sun": "Sun sign",
     "big_3_moon": "Moon sign",
     "big_3_rising": "AS",
@@ -519,20 +520,13 @@ _DEFAULT_ALGORITHM_COMPONENT_WEIGHTS: dict[str, float] = {
     "dominant_nakshatras": 0.0625,
 }
 _BIG_3_COMPONENT_WEIGHTS_WITH_HOUSES: dict[str, float] = {
-    "big_3_sun": 0.35,
-    "big_3_moon": 0.25,
-    "big_3_rising": 0.18,
-    "big_3_mc": 0.17,
-    "big_3_mercury": 0.02,
-    "big_3_venus": 0.02,
-    "big_3_mars": 0.01,
+    "big_3_sun": 1.0,
+    "big_3_moon": 1.0,
+    "big_3_rising": 1.0,
 }
 _BIG_3_COMPONENT_WEIGHTS_NO_HOUSES: dict[str, float] = {
-    "big_3_sun": 0.42,
-    "big_3_moon": 0.32,
-    "big_3_mercury": 0.09,
-    "big_3_venus": 0.09,
-    "big_3_mars": 0.08,
+    "big_3_sun": 1.0,
+    "big_3_moon": 1.0,
 }
 _SIGN_SEQUENCE: tuple[str, ...] = (
     "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
@@ -1830,7 +1824,7 @@ def _adjust_big_3_weights_for_available_components(
     component_score_percents: dict[str, float],
 ) -> dict[str, int]:
     """Return Big 3 display weights that match the available component scores."""
-    if "big_3_rising" in component_score_percents or "big_3_mc" in component_score_percents:
+    if "big_3_rising" in component_score_percents:
         return component_weight_percents
     total_weight = sum(_BIG_3_COMPONENT_WEIGHTS_NO_HOUSES.values())
     if total_weight <= 0.0:
