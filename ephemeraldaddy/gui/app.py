@@ -851,6 +851,12 @@ from ephemeraldaddy.gui.dbv_search_panel import (
     body_dynamics_filters_are_active,
     build_dbv_search_panel,
     chart_matches_body_dynamics_filters,
+    collect_search_tag_filter_sets,
+    on_search_tag_category_logic_changed,
+    on_search_tag_category_mode_changed,
+    on_search_tag_logic_changed,
+    on_search_tag_mode_changed,
+    refresh_search_tags_list,
     reset_body_dynamics_filters,
     weight_is_at_least_triple_next_highest,
 )
@@ -9966,16 +9972,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if self._birthdate_latest_year_input is not None
             else ""
         )
-        selected_search_tags = {
-            name
-            for name, checkbox in getattr(self, "search_tag_filter_checkboxes", {}).items()
-            if checkbox.mode() == QuadStateSlider.MODE_TRUE
-        }
-        excluded_search_tags = {
-            name
-            for name, checkbox in getattr(self, "search_tag_filter_checkboxes", {}).items()
-            if checkbox.mode() == QuadStateSlider.MODE_FALSE
-        }
+        selected_search_tags, optional_search_tags, excluded_search_tags = collect_search_tag_filter_sets(self)
         search_untagged_mode = (
             self.search_untagged_checkbox.mode()
             if hasattr(self, "search_untagged_checkbox")
@@ -14202,45 +14199,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._on_filter_changed()
 
     def _refresh_search_tags_list(self, known_tags: list[str]) -> None:
-        if not hasattr(self, "search_tags_list_widget"):
-            return
-        search_tags_toggle = getattr(self, "search_tags_toggle", None)
-        if isinstance(search_tags_toggle, QToolButton) and not search_tags_toggle.isChecked():
-            return
-        selected_tags = {
-            tag.casefold()
-            for tag in parse_tag_text(
-                self.search_tags_input.text() if hasattr(self, "search_tags_input") else ""
-            )
-        }
-        existing_checkboxes = getattr(self, "search_tag_filter_checkboxes", {})
-        existing_modes = {
-            tag_name: checkbox.mode()
-            for tag_name, checkbox in existing_checkboxes.items()
-        }
-        self.search_tag_filter_checkboxes = {}
-        self.search_tags_list_widget.clear()
-        for tag in known_tags:
-            row_item = QListWidgetItem()
-            row_checkbox = QuadStateSlider(tag)
-            row_checkbox.setMode(
-                existing_modes.get(
-                    tag,
-                    QuadStateSlider.MODE_TRUE
-                    if tag.casefold() in selected_tags
-                    else QuadStateSlider.MODE_EMPTY,
-                )
-            )
-            row_checkbox.modeChanged.connect(
-                lambda _mode, tag_name=tag: self._on_search_tag_mode_changed(tag_name)
-            )
-            row_item.setSizeHint(row_checkbox.sizeHint())
-            self.search_tags_list_widget.addItem(row_item)
-            self.search_tags_list_widget.setItemWidget(row_item, row_checkbox)
-            self.search_tag_filter_checkboxes[tag] = row_checkbox
+        refresh_search_tags_list(self, known_tags)
+
+    def _on_search_tag_logic_changed(self, tag_name: str | None, mode: str, checked: bool) -> None:
+        on_search_tag_logic_changed(self, tag_name, mode, checked)
+
+    def _on_search_tag_category_logic_changed(self, prefix: str, mode: str, checked: bool) -> None:
+        on_search_tag_category_logic_changed(self, prefix, mode, checked)
+
+    def _on_search_tag_category_mode_changed(self, prefix: str, mode: int) -> None:
+        on_search_tag_category_mode_changed(self, prefix, mode)
 
     def _on_search_tag_mode_changed(self, _tag_name: str) -> None:
-        self._on_filter_changed()
+        on_search_tag_mode_changed(self, _tag_name)
 
     def _on_batch_tags_changed(self, *_: object) -> None:
         self._refresh_batch_tags_list(getattr(self, "_known_chart_tags", []))
@@ -18787,16 +18758,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         search_tags = parse_tag_text(
             self.search_tags_input.text() if hasattr(self, "search_tags_input") else ""
         )
-        selected_search_tags = {
-            name
-            for name, checkbox in getattr(self, "search_tag_filter_checkboxes", {}).items()
-            if checkbox.mode() == QuadStateSlider.MODE_TRUE
-        }
-        excluded_search_tags = {
-            name
-            for name, checkbox in getattr(self, "search_tag_filter_checkboxes", {}).items()
-            if checkbox.mode() == QuadStateSlider.MODE_FALSE
-        }
+        selected_search_tags, optional_search_tags, excluded_search_tags = collect_search_tag_filter_sets(self)
         selected_chart_types = {
             source
             for source, checkbox in self.chart_type_filter_checkboxes.items()
@@ -19459,6 +19421,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         included_search_tags = list({*search_tags, *selected_search_tags})
         if (
             included_search_tags
+            or optional_search_tags
             or excluded_search_tags
             or search_untagged_mode != QuadStateSlider.MODE_EMPTY
         ) and not chart_matches_tag_filters(
@@ -19466,6 +19429,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             included_tags=included_search_tags,
             excluded_tags=list(excluded_search_tags),
             untagged_mode=search_untagged_mode,
+            optional_tags=list(optional_search_tags),
         ):
             return False
 
@@ -31569,42 +31533,19 @@ class MainWindow(QMainWindow):
         )
 
     def _refresh_search_tags_list(self, known_tags: list[str]) -> None:
-        if not hasattr(self, "search_tags_list_widget"):
-            return
-        selected_tags = {
-            tag.casefold()
-            for tag in parse_tag_text(
-                self.search_tags_input.text() if hasattr(self, "search_tags_input") else ""
-            )
-        }
-        existing_checkboxes = getattr(self, "search_tag_filter_checkboxes", {})
-        existing_modes = {
-            tag_name: checkbox.mode()
-            for tag_name, checkbox in existing_checkboxes.items()
-        }
-        self.search_tag_filter_checkboxes = {}
-        self.search_tags_list_widget.clear()
-        for tag in known_tags:
-            row_item = QListWidgetItem()
-            row_checkbox = QuadStateSlider(tag)
-            row_checkbox.setMode(
-                existing_modes.get(
-                    tag,
-                    QuadStateSlider.MODE_TRUE
-                    if tag.casefold() in selected_tags
-                    else QuadStateSlider.MODE_EMPTY,
-                )
-            )
-            row_checkbox.modeChanged.connect(
-                lambda _mode, tag_name=tag: self._on_search_tag_mode_changed(tag_name)
-            )
-            row_item.setSizeHint(row_checkbox.sizeHint())
-            self.search_tags_list_widget.addItem(row_item)
-            self.search_tags_list_widget.setItemWidget(row_item, row_checkbox)
-            self.search_tag_filter_checkboxes[tag] = row_checkbox
+        refresh_search_tags_list(self, known_tags)
+
+    def _on_search_tag_logic_changed(self, tag_name: str | None, mode: str, checked: bool) -> None:
+        on_search_tag_logic_changed(self, tag_name, mode, checked)
+
+    def _on_search_tag_category_logic_changed(self, prefix: str, mode: str, checked: bool) -> None:
+        on_search_tag_category_logic_changed(self, prefix, mode, checked)
+
+    def _on_search_tag_category_mode_changed(self, prefix: str, mode: int) -> None:
+        on_search_tag_category_mode_changed(self, prefix, mode)
 
     def _on_search_tag_mode_changed(self, _tag_name: str) -> None:
-        self._on_filter_changed()
+        on_search_tag_mode_changed(self, _tag_name)
 
     def _update_reminds_me_of_completer(self) -> None:
         """Refresh Chart View's Reminds Me Of autocomplete choices."""

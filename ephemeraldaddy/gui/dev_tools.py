@@ -839,6 +839,7 @@ TAG_CATEGORY_OPTIONS: tuple[tuple[str, str], ...] = (
     ("Place", "place"),
 )
 TAG_CATEGORY_PREFIXES = {prefix.casefold() for _name, prefix in TAG_CATEGORY_OPTIONS}
+SETTINGS_KEY_TAG_CATEGORY_DISPLAY_NAMES = "property_manager/tag_category_display_names"
 
 
 def _split_tag_category(value: str, allowed_prefixes: set[str] | None = None) -> tuple[str, str]:
@@ -846,10 +847,9 @@ def _split_tag_category(value: str, allowed_prefixes: set[str] | None = None) ->
     if "." not in normalized:
         return "", normalized
     prefix, tag_name = normalized.split(".", 1)
-    prefixes = allowed_prefixes if allowed_prefixes is not None else TAG_CATEGORY_PREFIXES
-    if prefix.casefold() not in prefixes:
+    if not prefix.strip() or not tag_name.strip():
         return "", normalized
-    return prefix, tag_name
+    return prefix.strip(), tag_name.strip()
 
 
 def _compose_tag_category(prefix: str, tag_name: str) -> str:
@@ -1049,6 +1049,7 @@ class ManageMetadataLabelsDialog(QDialog):
         load_chart_names=None,
         refresh_chart_context: Callable[[], None] | None = None,
         collection_actions: dict[str, object] | None = None,
+        settings=None,
         initial_field: str | None = None,
         lock_field: bool = False,
         window_title: str = "Property Manager",
@@ -1062,11 +1063,13 @@ class ManageMetadataLabelsDialog(QDialog):
         self._load_chart_names = load_chart_names
         self._refresh_chart_context = refresh_chart_context
         self._collection_actions = collection_actions or {}
+        self._settings = settings
         self._label_limit = max(1, label_limit)
         self._usage_data: dict[str, list[dict[str, int | str]]] = {}
         self._tag_category_display_names: dict[str, str] = {
             prefix.casefold(): name for name, prefix in TAG_CATEGORY_OPTIONS
         }
+        self._load_tag_category_display_names()
 
         layout = QVBoxLayout(self)
 
@@ -1125,6 +1128,7 @@ QComboBox QAbstractItemView {
         )
         self._list_widget.itemSelectionChanged.connect(self._on_selection_changed)
         self._list_widget.currentItemChanged.connect(lambda _current, _previous: self._on_selection_changed())
+        self._list_widget.itemDoubleClicked.connect(self._rename_tag_category_display_name)
         split_layout.addWidget(self._list_widget, 2)
 
         right_panel = QVBoxLayout()
@@ -1177,6 +1181,28 @@ QComboBox QAbstractItemView {
         # Defer loading so the dialog can render immediately before DB work runs.
         QTimer.singleShot(0, self._reload_usage)
 
+    def _load_tag_category_display_names(self) -> None:
+        settings = getattr(self, "_settings", None)
+        if settings is None:
+            return
+        payload = settings.value(SETTINGS_KEY_TAG_CATEGORY_DISPLAY_NAMES, {})
+        if not isinstance(payload, dict):
+            return
+        for prefix, display_name in payload.items():
+            clean_prefix = str(prefix or "").strip().casefold()
+            clean_name = str(display_name or "").strip()
+            if clean_prefix and clean_name:
+                self._tag_category_display_names[clean_prefix] = clean_name
+
+    def _save_tag_category_display_names(self) -> None:
+        settings = getattr(self, "_settings", None)
+        if settings is None:
+            return
+        settings.setValue(
+            SETTINGS_KEY_TAG_CATEGORY_DISPLAY_NAMES,
+            dict(sorted(self._tag_category_display_names.items())),
+        )
+
     def _active_field(self) -> str:
         value = self._field_selector.currentData()
         return str(value or self.FIELD_SENTIMENTS)
@@ -1210,10 +1236,23 @@ QComboBox QAbstractItemView {
             return ""
         return str(item.data(0, Qt.UserRole + 10) or "").strip()
 
+    def _selected_tag_node_kind(self) -> str:
+        if self._active_field() != self.FIELD_TAGS:
+            return ""
+        item = self._list_widget.currentItem()
+        if item is None or item.childCount() <= 0:
+            return ""
+        return str(item.data(0, Qt.UserRole + 11) or "").strip()
+
     @staticmethod
     def _sanitize_category_prefix(raw_value: str) -> str:
         cleaned = "".join(ch for ch in str(raw_value or "").strip() if ch.isalnum() or ch in {"_", "-"})
         return cleaned
+
+    @classmethod
+    def _sanitize_tag_path(cls, raw_value: str) -> str:
+        parts = [cls._sanitize_category_prefix(part) for part in str(raw_value or "").strip().split(".")]
+        return ".".join(part for part in parts if part)
 
     def _sync_action_buttons(self) -> None:
         if not hasattr(self, "_rename_button") or not hasattr(self, "_delete_button"):
@@ -1230,6 +1269,13 @@ QComboBox QAbstractItemView {
             delete_enabled = False
         if is_collections:
             delete_enabled = selected_count == 1 and can_edit_selected
+        if self._active_field() == self.FIELD_TAGS and tag_category_selected:
+            self._rename_button.setText("Rename subcategory" if self._selected_tag_node_kind() == "subcategory" else "Rename category")
+        elif self._active_field() == self.FIELD_TAGS and selected_count == 1:
+            selected_label = self._selected_label()
+            self._rename_button.setText("Rename subcategory" if selected_label.count(".") >= 2 else "Rename tag")
+        else:
+            self._rename_button.setText("Rename")
         self._rename_button.setEnabled(rename_enabled)
         self._delete_button.setEnabled(delete_enabled)
         self._rename_button.setStyleSheet("" if rename_enabled else INACTIVE_ACTION_BUTTON_STYLE)
@@ -1310,44 +1356,69 @@ QComboBox QAbstractItemView {
             minimum_count = min(counts)
             maximum_count = max(counts)
         if self._active_field() == self.FIELD_TAGS:
-            category_nodes: dict[str, QTreeWidgetItem] = {}
-            uncategorized_node = QTreeWidgetItem(["Uncategorized tags"])
-            uncategorized_node.setData(0, Qt.UserRole + 10, "__uncategorized__")
-            self._list_widget.addTopLevelItem(uncategorized_node)
-            for category_name, category_prefix in TAG_CATEGORY_OPTIONS:
-                display_name = self._tag_category_display_names.get(
-                    category_prefix.casefold(),
-                    category_name,
-                )
-                node = QTreeWidgetItem([display_name])
-                node.setData(0, Qt.UserRole + 10, category_prefix)
-                category_nodes[category_prefix.casefold()] = node
-                self._list_widget.addTopLevelItem(node)
+            node_by_path: dict[str, QTreeWidgetItem] = {}
+            node_base_labels: dict[str, str] = {}
+            node_counts: dict[str, int] = {}
+            uncategorized_items: list[QTreeWidgetItem] = []
+
+            def node_label_for_path(path: str, part: str, depth: int) -> str:
+                if depth == 0:
+                    key = path.casefold()
+                    display_name = self._tag_category_display_names.get(key)
+                    if display_name is None:
+                        display_name = next(
+                            (name for name, option_prefix in TAG_CATEGORY_OPTIONS if option_prefix.casefold() == key),
+                            part.replace("_", " ").replace("-", " ").title(),
+                        )
+                        self._tag_category_display_names[key] = display_name
+                    return display_name
+                return part.replace("_", " ").replace("-", " ").title()
+
+            def ensure_node(parts: list[str], depth: int) -> QTreeWidgetItem:
+                path = ".".join(parts[: depth + 1])
+                key = path.casefold()
+                existing = node_by_path.get(key)
+                if existing is not None:
+                    return existing
+                node = QTreeWidgetItem([node_label_for_path(path, parts[depth], depth)])
+                node.setData(0, Qt.UserRole + 10, path)
+                node.setData(0, Qt.UserRole + 11, "category" if depth == 0 else "subcategory")
+                node_by_path[key] = node
+                node_base_labels[key] = str(node.text(0))
+                if depth == 0:
+                    self._list_widget.addTopLevelItem(node)
+                else:
+                    ensure_node(parts, depth - 1).addChild(node)
+                return node
+
             for row in rows:
                 label = str(row.get("label", "")).strip()
                 count = int(row.get("count", 0) or 0)
-                prefix, base_tag = _split_tag_category(label, self._known_tag_category_prefixes())
-                display_label = base_tag or label
+                parts = [part.strip() for part in label.split(".") if part.strip()]
+                leaf_value = parts[-1] if parts else label
+                display_label = leaf_value.replace("_", " ").replace("-", " ").title()
                 item = QTreeWidgetItem([f"{display_label}  ({count} charts)"])
                 item.setData(0, Qt.UserRole, display_label)
                 item.setData(0, Qt.UserRole + 1, str(row.get("key", label)))
                 item.setData(0, Qt.UserRole + 2, label)
-                red, green, blue = similarity_gradient_rgb_for_range(
-                    count,
-                    minimum_count,
-                    maximum_count,
-                )
+                red, green, blue = similarity_gradient_rgb_for_range(count, minimum_count, maximum_count)
                 item.setForeground(0, QColor(red, green, blue))
-                target_node = category_nodes.get(prefix.casefold()) if prefix else uncategorized_node
-                (target_node or uncategorized_node).addChild(item)
-            for index in range(self._list_widget.topLevelItemCount()):
-                top_level = self._list_widget.topLevelItem(index)
-                if top_level is not None:
-                    tag_count = top_level.childCount()
-                    prefix_key = str(top_level.data(0, Qt.UserRole + 10) or "").strip()
-                    base_label = "Uncategorized" if prefix_key == "__uncategorized__" else str(top_level.text(0))
-                    top_level.setText(0, f"{base_label} ({tag_count} tags)")
-                    top_level.setExpanded(expanded_state.get(prefix_key, False))
+                if len(parts) >= 2:
+                    parent_parts = parts[:-1]
+                    for depth in range(len(parent_parts)):
+                        path_key = ".".join(parent_parts[: depth + 1]).casefold()
+                        node_counts[path_key] = node_counts.get(path_key, 0) + 1
+                    ensure_node(parent_parts, len(parent_parts) - 1).addChild(item)
+                else:
+                    uncategorized_items.append(item)
+
+            for key, node in node_by_path.items():
+                base_label = node_base_labels.get(key, str(node.text(0)))
+                tag_count = node_counts.get(key, node.childCount())
+                node.setText(0, f"{base_label} ({tag_count} tags)")
+                node.setExpanded(expanded_state.get(str(node.data(0, Qt.UserRole + 10) or ""), False))
+            for item in uncategorized_items:
+                self._list_widget.addTopLevelItem(item)
         else:
             for row in rows:
                 label = str(row.get("label", "")).strip()
@@ -1399,10 +1470,25 @@ QComboBox QAbstractItemView {
             (name for name, prefix in TAG_CATEGORY_OPTIONS if prefix == cleaned_prefix),
             self._tag_category_display_names.get(cleaned_prefix.casefold(), cleaned_prefix or "Uncategorized"),
         )
+        if len(cleaned_labels) == 1:
+            label = cleaned_labels[0]
+            _old_prefix, bare_tag = _split_tag_category(label)
+            trait_name = bare_tag or label
+            row = self._row_for_key(label) or next(
+                (row for row in self._active_rows() if str(row.get("label", "")).strip() == label),
+                {},
+            )
+            entry_count = int(row.get("count", 0) or 0) if isinstance(row, dict) else 0
+            prompt = (
+                f"Assign category '{category_name}' to trait '{trait_name}' "
+                f"({entry_count} {'entry' if entry_count == 1 else 'entries'})?"
+            )
+        else:
+            prompt = f"Assign category '{category_name}' to {len(cleaned_labels)} traits?"
         confirm = QMessageBox.question(
             self,
             "Assign tag category",
-            f"Add {len(cleaned_labels)} tags to '{category_name}' category?",
+            prompt,
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.Yes,
         )
@@ -1522,6 +1608,29 @@ QComboBox QAbstractItemView {
         )
         self._reload_usage(refresh_chart_context=True)
 
+    def _rename_tag_category_display_name(self, item: QTreeWidgetItem, _column: int) -> None:
+        if self._active_field() != self.FIELD_TAGS or item is None or item.childCount() <= 0:
+            return
+        prefix = str(item.data(0, Qt.UserRole + 10) or "").strip()
+        if not prefix or prefix == "__uncategorized__":
+            return
+        if str(item.data(0, Qt.UserRole + 11) or "") != "category":
+            return
+        current_name = self._tag_category_display_names.get(prefix.casefold(), prefix)
+        editor = _RenameLabelDialog(
+            parent=self,
+            title="Rename category display name",
+            old_label=current_name,
+            max_length=self._label_limit,
+        )
+        if editor.exec() != QDialog.Accepted:
+            return
+        new_name = editor.value()
+        if new_name:
+            self._tag_category_display_names[prefix.casefold()] = new_name
+            self._save_tag_category_display_names()
+            self._refresh_list()
+
     def _rename_selected(self) -> None:
         if self._active_field() == self.FIELD_COLLECTIONS:
             self._rename_selected_collection()
@@ -1570,53 +1679,46 @@ QComboBox QAbstractItemView {
         self._reload_usage(refresh_chart_context=True, keep_selection_label=new_label)
 
     def _rename_selected_tag_category(self, old_prefix: str) -> None:
-        cleaned_old_prefix = str(old_prefix or "").strip()
+        cleaned_old_prefix = str(old_prefix or "").strip().strip(".")
         if not cleaned_old_prefix:
             return
-        old_display_name = (
-            "Uncategorized"
-            if cleaned_old_prefix == "__uncategorized__"
-            else self._tag_category_display_names.get(cleaned_old_prefix.casefold(), cleaned_old_prefix)
-        )
+        is_subcategory = "." in cleaned_old_prefix
+        title = "Rename tag subcategory" if is_subcategory else "Rename tag category"
         editor = _RenameLabelDialog(
             parent=self,
-            title="Rename tag category",
-            old_label=old_display_name,
+            title=title,
+            old_label=cleaned_old_prefix,
             max_length=self._label_limit,
         )
         if editor.exec() != QDialog.Accepted:
             return
-        new_display_name = editor.value()
-        if not new_display_name:
-            QMessageBox.warning(self, "Manage metadata", "Category name cannot be empty.")
-            return
-        new_prefix = self._sanitize_category_prefix(new_display_name)
+        new_prefix = self._sanitize_tag_path(editor.value())
         if not new_prefix:
             QMessageBox.warning(
                 self,
                 "Manage metadata",
-                "Category name must contain letters, numbers, underscores, or dashes.",
+                "Tag category paths must contain letters, numbers, underscores, dashes, and optional periods.",
             )
             return
         if new_prefix.casefold() == cleaned_old_prefix.casefold():
-            self._tag_category_display_names[cleaned_old_prefix.casefold()] = new_display_name
-            self._refresh_list()
             return
-        rows = self._active_rows()
-        affected_labels = []
-        known_prefixes = self._known_tag_category_prefixes()
-        for row in rows:
+
+        affected_labels: list[tuple[str, str]] = []
+        old_prefix_casefold = cleaned_old_prefix.casefold()
+        for row in self._active_rows():
             original_label = str(row.get("label", "")).strip()
-            prefix, bare_tag = _split_tag_category(original_label, known_prefixes)
-            if prefix.casefold() == cleaned_old_prefix.casefold() and bare_tag:
-                affected_labels.append((original_label, bare_tag))
+            original_casefold = original_label.casefold()
+            if original_casefold.startswith(f"{old_prefix_casefold}."):
+                suffix = original_label[len(cleaned_old_prefix):].lstrip(".")
+                if suffix:
+                    affected_labels.append((original_label, f"{new_prefix}.{suffix}"))
         if not affected_labels:
-            QMessageBox.information(self, "Rename tag category", "No tags found in that category.")
+            QMessageBox.information(self, title, "No tags found in that category path.")
             return
         confirm = QMessageBox.question(
             self,
-            "Rename tag category",
-            f"Rename category '{old_display_name}' to '{new_display_name}' for {len(affected_labels)} tags?",
+            title,
+            f"Rename '{cleaned_old_prefix}.[…]' to '{new_prefix}.[…]' for {len(affected_labels)} tags?",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.Yes,
         )
@@ -1624,17 +1726,20 @@ QComboBox QAbstractItemView {
             return
         total_occurrences = 0
         total_rows = 0
-        for index, (old_label, bare_tag) in enumerate(affected_labels):
+        for index, (old_label, new_label) in enumerate(affected_labels):
             summary = self._apply_change(
                 field=self.FIELD_TAGS,
                 old_label=old_label,
-                new_label=_compose_tag_category(new_prefix, bare_tag),
+                new_label=new_label,
                 create_backup=index == 0,
             )
             total_occurrences += int(summary.get("occurrences_updated", 0) or 0)
             total_rows += int(summary.get("rows_updated", 0) or 0)
-        self._tag_category_display_names.pop(cleaned_old_prefix.casefold(), None)
-        self._tag_category_display_names[new_prefix.casefold()] = new_display_name
+        if not is_subcategory:
+            old_display_name = self._tag_category_display_names.pop(cleaned_old_prefix.casefold(), None)
+            if old_display_name:
+                self._tag_category_display_names[new_prefix.casefold()] = old_display_name
+            self._save_tag_category_display_names()
         QMessageBox.information(
             self,
             "Rename complete",

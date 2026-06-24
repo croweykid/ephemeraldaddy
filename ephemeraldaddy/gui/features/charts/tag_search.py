@@ -18,10 +18,12 @@ def chart_matches_tag_filters(
     included_tags: list[str],
     excluded_tags: list[str],
     untagged_mode: int,
+    optional_tags: list[str] | None = None,
 ) -> bool:
     """Evaluate whether a chart's tags satisfy search filters."""
     normalized_included = [tag.casefold() for tag in included_tags]
     normalized_excluded = [tag.casefold() for tag in excluded_tags]
+    normalized_optional = [tag.casefold() for tag in (optional_tags or [])]
     chart_tags = chart_tags_for_search(raw_tags)
     is_untagged = not chart_tags
     if untagged_mode == 1:
@@ -30,6 +32,8 @@ def chart_matches_tag_filters(
         return False
     if normalized_excluded and any(tag in chart_tags for tag in normalized_excluded):
         return False
-    if normalized_included:
-        return all(tag in chart_tags for tag in normalized_included)
+    if normalized_included and not all(tag in chart_tags for tag in normalized_included):
+        return False
+    if normalized_optional and not any(tag in chart_tags for tag in normalized_optional):
+        return False
     return True

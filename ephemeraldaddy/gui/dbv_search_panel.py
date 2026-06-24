@@ -115,6 +115,247 @@ def chart_matches_body_dynamics_filters(window, chart, filters: list[dict[str, o
     return True
 
 
+def _tag_category_display_name(prefix: str) -> str:
+    defaults = {
+        "occupation": "Occupation",
+        "trait": "Trait",
+        "reputation": "Reputation",
+        "affiliation": "Affiliation/Subculture",
+        "crime": "Crime",
+        "life_events": "Life Events",
+        "character": "Characters Played",
+        "hobbies": "Hobbies",
+        "personality_types": "Typology",
+        "genres": "Genres",
+        "place": "Place",
+    }
+    clean_prefix = str(prefix or "").strip()
+    if not clean_prefix:
+        return ""
+    return defaults.get(clean_prefix.casefold(), clean_prefix.replace("_", " ").replace("-", " ").title())
+
+
+def _split_search_tag_category(tag: str) -> tuple[str, str]:
+    clean_tag = str(tag or "").strip()
+    if "." not in clean_tag:
+        return "", clean_tag
+    prefix, value = clean_tag.split(".", 1)
+    return prefix.strip(), value.strip() or clean_tag
+
+
+def _tag_value_display_name(value: str) -> str:
+    clean_value = str(value or "").strip()
+    return clean_value.replace("_", " ").replace("-", " ").title() if clean_value else ""
+
+def refresh_search_tags_list(window, known_tags: list[str]) -> None:
+    """Refresh the Database View tag-filter tree for ``window``."""
+    from ephemeraldaddy.gui import app as app_module
+
+    QButtonGroup = app_module.QButtonGroup
+    QHBoxLayout = app_module.QHBoxLayout
+    QRadioButton = app_module.QRadioButton
+    QToolButton = app_module.QToolButton
+    Qt = app_module.Qt
+    QuadStateSlider = app_module.QuadStateSlider
+    QWidget = app_module.QWidget
+    parse_tag_text = app_module.parse_tag_text
+
+    if not hasattr(window, "search_tags_list_widget"):
+        return
+    search_tags_toggle = getattr(window, "search_tags_toggle", None)
+    if isinstance(search_tags_toggle, QToolButton) and not search_tags_toggle.isChecked():
+        return
+    selected_tags = {
+        tag.casefold()
+        for tag in parse_tag_text(
+            window.search_tags_input.text() if hasattr(window, "search_tags_input") else ""
+        )
+    }
+    existing_checkboxes = getattr(window, "search_tag_filter_checkboxes", {})
+    existing_modes = {tag_name: checkbox.mode() for tag_name, checkbox in existing_checkboxes.items()}
+    existing_logic = {
+        tag_name: str(buttons.get("checked", "and"))
+        for tag_name, buttons in getattr(window, "search_tag_filter_logic_buttons", {}).items()
+    }
+    tree = window.search_tags_list_widget
+    expanded_state: dict[str, bool] = {}
+    if hasattr(tree, "topLevelItemCount"):
+        for index in range(tree.topLevelItemCount()):
+            item = tree.topLevelItem(index)
+            if item is not None:
+                expanded_state[str(item.data(0, Qt.UserRole) or "")] = item.isExpanded()
+    window.search_tag_filter_checkboxes = {}
+    window.search_tag_filter_logic_buttons = {}
+    window.search_tag_category_checkboxes = {}
+    window.search_tag_category_logic_buttons = {}
+    tree.clear()
+    QTreeWidgetItemClass = getattr(window, "_dbv_tag_tree_item_class", None)
+    if QTreeWidgetItemClass is None:
+        return
+
+    grouped: dict[str, list[tuple[str, str]]] = {}
+    uncategorized: list[tuple[str, str]] = []
+    for tag in known_tags:
+        prefix, value = _split_search_tag_category(tag)
+        if prefix:
+            grouped.setdefault(prefix, []).append((tag, value))
+        else:
+            uncategorized.append((tag, value))
+
+    def make_logic_buttons(current: str) -> dict[str, object]:
+        group = QButtonGroup(window)
+        group.setExclusive(True)
+        and_button = QRadioButton("&&")
+        or_button = QRadioButton("OR")
+        not_button = QRadioButton("🚫")
+        for button in (and_button, or_button, not_button):
+            button.setStyleSheet("font-size: 10px; margin: 0px; padding: 0px;")
+            group.addButton(button)
+        mapping = {"and": and_button, "or": or_button, "not": not_button}
+        mapping.get(current, and_button).setChecked(True)
+        return {
+            "group": group,
+            "and": and_button,
+            "or": or_button,
+            "not": not_button,
+            "checked": current if current in mapping else "and",
+        }
+
+    def make_row(
+        checkbox: QuadStateSlider,
+        logic: dict[str, object],
+        tag_name: str | None = None,
+        category_prefix: str | None = None,
+    ) -> QWidget:
+        row = QWidget()
+        row_layout = QHBoxLayout(row)
+        row_layout.setContentsMargins(0, 0, 0, 0)
+        row_layout.setSpacing(3)
+        row_layout.addWidget(checkbox, 1)
+        for key in ("and", "or", "not"):
+            button = logic[key]
+            if category_prefix is not None:
+                button.toggled.connect(
+                    lambda checked, mode=key, prefix=category_prefix: on_search_tag_category_logic_changed(
+                        window, prefix, mode, checked
+                    )
+                )
+            else:
+                button.toggled.connect(
+                    lambda checked, mode=key, tag=tag_name: on_search_tag_logic_changed(
+                        window, tag, mode, checked
+                    )
+                )
+            row_layout.addWidget(button)
+        return row
+
+    def add_tag_item(parent_item, tag: str, value: str) -> None:
+        display = _tag_value_display_name(value)
+        item = QTreeWidgetItemClass([display])
+        parent_item.addChild(item)
+        checkbox = QuadStateSlider(display)
+        checkbox.setMode(
+            existing_modes.get(
+                tag,
+                QuadStateSlider.MODE_TRUE if tag.casefold() in selected_tags else QuadStateSlider.MODE_EMPTY,
+            )
+        )
+        checkbox.modeChanged.connect(lambda _mode, tag_name=tag: on_search_tag_mode_changed(window, tag_name))
+        logic = make_logic_buttons(existing_logic.get(tag, "and"))
+        window.search_tag_filter_checkboxes[tag] = checkbox
+        window.search_tag_filter_logic_buttons[tag] = logic
+        tree.setItemWidget(item, 0, make_row(checkbox, logic, tag))
+
+    for prefix in sorted(grouped, key=lambda key: _tag_category_display_name(key).casefold()):
+        category_item = QTreeWidgetItemClass([_tag_category_display_name(prefix)])
+        category_item.setData(0, Qt.UserRole, prefix.casefold())
+        tree.addTopLevelItem(category_item)
+        category_checkbox = QuadStateSlider(_tag_category_display_name(prefix))
+        category_checkbox.modeChanged.connect(
+            lambda mode, p=prefix: on_search_tag_category_mode_changed(window, p, mode)
+        )
+        category_logic = make_logic_buttons("and")
+        window.search_tag_category_checkboxes[prefix] = category_checkbox
+        window.search_tag_category_logic_buttons[prefix] = category_logic
+        tree.setItemWidget(category_item, 0, make_row(category_checkbox, category_logic, None, prefix))
+        for tag, value in sorted(grouped[prefix], key=lambda item: _tag_value_display_name(item[1]).casefold()):
+            add_tag_item(category_item, tag, value)
+        category_item.setExpanded(expanded_state.get(prefix.casefold(), False))
+    for tag, value in sorted(uncategorized, key=lambda item: _tag_value_display_name(item[1]).casefold()):
+        root_item = QTreeWidgetItemClass([_tag_value_display_name(value)])
+        tree.addTopLevelItem(root_item)
+        checkbox = QuadStateSlider(_tag_value_display_name(value))
+        checkbox.setMode(
+            existing_modes.get(
+                tag,
+                QuadStateSlider.MODE_TRUE if tag.casefold() in selected_tags else QuadStateSlider.MODE_EMPTY,
+            )
+        )
+        checkbox.modeChanged.connect(lambda _mode, tag_name=tag: on_search_tag_mode_changed(window, tag_name))
+        logic = make_logic_buttons(existing_logic.get(tag, "and"))
+        window.search_tag_filter_checkboxes[tag] = checkbox
+        window.search_tag_filter_logic_buttons[tag] = logic
+        tree.setItemWidget(root_item, 0, make_row(checkbox, logic, tag))
+
+
+def on_search_tag_logic_changed(window, tag_name: str | None, mode: str, checked: bool) -> None:
+    if not checked:
+        return
+    if tag_name:
+        buttons = getattr(window, "search_tag_filter_logic_buttons", {}).get(tag_name)
+        if buttons is not None:
+            buttons["checked"] = mode
+        window._on_filter_changed()
+
+
+def on_search_tag_category_logic_changed(window, prefix: str, mode: str, checked: bool) -> None:
+    if not checked:
+        return
+    prefix_dot = f"{str(prefix).casefold()}."
+    for tag_name, buttons in getattr(window, "search_tag_filter_logic_buttons", {}).items():
+        if str(tag_name).casefold().startswith(prefix_dot):
+            button = buttons.get(mode)
+            if button is not None:
+                button.setChecked(True)
+            buttons["checked"] = mode
+    window._on_filter_changed()
+
+
+def on_search_tag_category_mode_changed(window, prefix: str, mode: int) -> None:
+    prefix_dot = f"{str(prefix).casefold()}."
+    for tag_name, checkbox in getattr(window, "search_tag_filter_checkboxes", {}).items():
+        if str(tag_name).casefold().startswith(prefix_dot):
+            checkbox.setMode(mode, emit_signal=False)
+    window._on_filter_changed()
+
+
+def on_search_tag_mode_changed(window, _tag_name: str) -> None:
+    window._on_filter_changed()
+
+
+def collect_search_tag_filter_sets(window) -> tuple[set[str], set[str], set[str]]:
+    """Return (required, optional, excluded) tag filters from the search UI."""
+    from ephemeraldaddy.gui import app as app_module
+
+    QuadStateSlider = app_module.QuadStateSlider
+    required_tags: set[str] = set()
+    optional_tags: set[str] = set()
+    excluded_tags: set[str] = set()
+    tag_logic_buttons = getattr(window, "search_tag_filter_logic_buttons", {})
+    for name, checkbox in getattr(window, "search_tag_filter_checkboxes", {}).items():
+        logic_mode = str(tag_logic_buttons.get(name, {}).get("checked", "and"))
+        if checkbox.mode() == QuadStateSlider.MODE_TRUE:
+            if logic_mode == "or":
+                optional_tags.add(name)
+            elif logic_mode == "not":
+                excluded_tags.add(name)
+            else:
+                required_tags.add(name)
+        elif checkbox.mode() == QuadStateSlider.MODE_FALSE:
+            excluded_tags.add(name)
+    return required_tags, optional_tags, excluded_tags
+
+
 if TYPE_CHECKING:
     from PyQt5.QtWidgets import QWidget
 
@@ -133,6 +374,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     QHBoxLayout = app_module.QHBoxLayout
     QPushButton = app_module.QPushButton
     QListWidget = app_module.QListWidget
+    from PySide6.QtWidgets import QTreeWidget, QTreeWidgetItem
     QCheckBox = app_module.QCheckBox
     QToolButton = app_module.QToolButton
     Qt = app_module.Qt
@@ -264,10 +506,16 @@ def build_dbv_search_panel(window) -> "QWidget":
     )
     tags_search_row.addWidget(window.search_tags_toggle)
 
-    window.search_tags_list_widget = QListWidget()
+    window.search_tags_list_widget = QTreeWidget()
+    window.search_tags_list_widget.setHeaderHidden(True)
     window.search_tags_list_widget.setSelectionMode(QListWidget.NoSelection)
-    window.search_tags_list_widget.setMaximumHeight(180)
+    window.search_tags_list_widget.setIndentation(12)
+    window.search_tags_list_widget.setMaximumHeight(220)
     window.search_tags_list_widget.setVisible(False)
+    window.search_tag_filter_logic_buttons = {}
+    window.search_tag_category_checkboxes = {}
+    window.search_tag_category_logic_buttons = {}
+    window._dbv_tag_tree_item_class = QTreeWidgetItem
     window.search_tags_toggle.toggled.connect(window.search_tags_list_widget.setVisible)
     window.search_tags_toggle.toggled.connect(
         lambda expanded: window._refresh_search_tags_list(
