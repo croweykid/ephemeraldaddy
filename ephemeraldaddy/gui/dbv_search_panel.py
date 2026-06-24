@@ -500,7 +500,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     window.search_tags_toggle = QToolButton()
     configure_collapsible_header_toggle(
         window.search_tags_toggle,
-        title="Must Include/Exclude Tags",
+        title="Include/Exclude Tags",
         expanded=False,
         style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
     )
