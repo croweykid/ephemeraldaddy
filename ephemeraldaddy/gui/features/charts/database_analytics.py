@@ -1486,6 +1486,20 @@ class DatabaseAnalyticsChartsMixin:
         )
         return f"<h3>Incarnation Cross: {html.escape(cross_name)}</h3><ul>{detail_html}</ul>"
 
+    def _database_analytics_single_selected_chart(self) -> Any | None:
+        """Return the one selected chart, or None when Database Analytics is aggregating."""
+        selected_ids_method = getattr(self, "_selected_chart_ids", None)
+        exclude_method = getattr(self, "_exclude_placeholder_chart_ids", None)
+        get_chart = getattr(self, "_get_chart_for_filter", None)
+        if not callable(selected_ids_method) or not callable(get_chart):
+            return None
+        selected_ids = list(selected_ids_method() or [])
+        if callable(exclude_method):
+            selected_ids = list(exclude_method(selected_ids) or [])
+        if len(selected_ids) != 1:
+            return None
+        return get_chart(int(selected_ids[0]))
+
     def _build_database_analytics_chart_analytics_info_html(
         self,
         *,
@@ -1496,7 +1510,7 @@ class DatabaseAnalyticsChartsMixin:
         del chart_title
         clean_label = self._clean_database_analytics_label(label)
         owner = getattr(self, "_app_owner", None)
-        chart = getattr(self, "_latest_chart", None) or getattr(owner, "_latest_chart", None)
+        chart = self._database_analytics_single_selected_chart()
         if chart is None:
             return None
         builder_host = self if hasattr(self, "_build_body_popout_info") else owner
@@ -1664,7 +1678,55 @@ class DatabaseAnalyticsChartsMixin:
                 )
             )
 
+        def _show_info_for_pick_target(label: str, value: float | None) -> None:
+            info_panel.setHtml(
+                self._build_database_analytics_popout_info_html(
+                    chart_title=chart_title,
+                    label=label,
+                    value=value,
+                )
+            )
+
+        def _on_click(event: Any) -> None:
+            if getattr(event, "inaxes", None) is None:
+                return
+            mouse_event = getattr(event, "guiEvent", None) or event
+            for artist in [*getattr(event.inaxes, "patches", [])]:
+                artist_gid = artist.get_gid() if hasattr(artist, "get_gid") else None
+                if (
+                    not isinstance(artist_gid, str)
+                    or not artist_gid.startswith("database_analytics_bar:")
+                ):
+                    continue
+                contains, _details = artist.contains(mouse_event)
+                if not contains:
+                    continue
+                payload = artist_gid.removeprefix("database_analytics_bar:")
+                label, _separator, raw_value = payload.rpartition(":")
+                try:
+                    value = float(raw_value)
+                except ValueError:
+                    value = None
+                _show_info_for_pick_target(label, value)
+                return
+            for tick_label in [
+                *event.inaxes.get_yticklabels(),
+                *event.inaxes.get_xticklabels(),
+            ]:
+                artist_gid = tick_label.get_gid() if hasattr(tick_label, "get_gid") else None
+                if (
+                    not isinstance(artist_gid, str)
+                    or not artist_gid.startswith("database_analytics_label:")
+                ):
+                    continue
+                contains, _details = tick_label.contains(mouse_event)
+                if contains:
+                    _prefix, label = artist_gid.split(":", 1)
+                    _show_info_for_pick_target(label, None)
+                    return
+
         popout_canvas.mpl_connect("pick_event", _on_pick)
+        popout_canvas.mpl_connect("button_press_event", _on_click)
         if hasattr(self, "_register_popout_shortcuts"):
             self._register_popout_shortcuts(dialog)
         dialog.resize(980, 720)
@@ -1954,7 +2016,55 @@ class DatabaseAnalyticsChartsMixin:
                 )
             )
 
+        def _show_info_for_pick_target(label: str, value: float | None) -> None:
+            info_panel.setHtml(
+                self._build_database_analytics_popout_info_html(
+                    chart_title=chart_title,
+                    label=label,
+                    value=value,
+                )
+            )
+
+        def _on_click(event: Any) -> None:
+            if getattr(event, "inaxes", None) is None:
+                return
+            mouse_event = getattr(event, "guiEvent", None) or event
+            for artist in [*getattr(event.inaxes, "patches", [])]:
+                artist_gid = artist.get_gid() if hasattr(artist, "get_gid") else None
+                if (
+                    not isinstance(artist_gid, str)
+                    or not artist_gid.startswith("database_analytics_bar:")
+                ):
+                    continue
+                contains, _details = artist.contains(mouse_event)
+                if not contains:
+                    continue
+                payload = artist_gid.removeprefix("database_analytics_bar:")
+                label, _separator, raw_value = payload.rpartition(":")
+                try:
+                    value = float(raw_value)
+                except ValueError:
+                    value = None
+                _show_info_for_pick_target(label, value)
+                return
+            for tick_label in [
+                *event.inaxes.get_yticklabels(),
+                *event.inaxes.get_xticklabels(),
+            ]:
+                artist_gid = tick_label.get_gid() if hasattr(tick_label, "get_gid") else None
+                if (
+                    not isinstance(artist_gid, str)
+                    or not artist_gid.startswith("database_analytics_label:")
+                ):
+                    continue
+                contains, _details = tick_label.contains(mouse_event)
+                if contains:
+                    _prefix, label = artist_gid.split(":", 1)
+                    _show_info_for_pick_target(label, None)
+                    return
+
         popout_canvas.mpl_connect("pick_event", _on_pick)
+        popout_canvas.mpl_connect("button_press_event", _on_click)
         if hasattr(self, "_register_popout_shortcuts"):
             self._register_popout_shortcuts(dialog)
         dialog.resize(980, 720)
