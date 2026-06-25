@@ -369,6 +369,127 @@ def test_nested_house_position_shapes_score_equivalently_to_flat_position_specs(
     assert scores == {"flat": 6.0, "nested": 6.0, "bucketed": 6.0}
 
 
+def test_position_averaging_counts_mutually_exclusive_body_signs_as_one_exposure():
+    chart = SimpleNamespace(positions={"Sun": 0.0})
+    predictors = {
+        "target": {
+            "positions": {
+                "Sun in Aries": 6,
+                "Sun in Leo": 6,
+                "Sun in Capricorn": 6,
+            }
+        }
+    }
+
+    scores = calculate_weighted_criteria_scores(
+        chart,
+        predictors=predictors,
+        calculate_sign_weights=_empty_weights,
+        calculate_body_weights=_empty_weights,
+        calculate_house_weights=_empty_weights,
+        calculate_nakshatra_weights=_empty_weights,
+        uses_houses=lambda _chart: False,
+        scoring_options=WeightedPredictorScoringOptions(
+            use_position_dominance_weighting=False,
+            simplify_anti_factor_handling=True,
+            average_scores_by_criterion_count=True,
+        ),
+    )
+
+    assert scores["target"] == 6.0
+
+
+def test_position_averaging_keeps_distinct_body_sign_exposures_separate():
+    chart = SimpleNamespace(positions={"Sun": 0.0, "Moon": 120.0})
+    predictors = {
+        "target": {
+            "positions": {
+                "Sun in Aries": 6,
+                "Sun in Leo": 6,
+                "Moon in Leo": 4,
+                "Moon in Virgo": 4,
+            }
+        }
+    }
+
+    scores = calculate_weighted_criteria_scores(
+        chart,
+        predictors=predictors,
+        calculate_sign_weights=_empty_weights,
+        calculate_body_weights=_empty_weights,
+        calculate_house_weights=_empty_weights,
+        calculate_nakshatra_weights=_empty_weights,
+        uses_houses=lambda _chart: False,
+        scoring_options=WeightedPredictorScoringOptions(
+            use_position_dominance_weighting=False,
+            simplify_anti_factor_handling=True,
+            average_scores_by_criterion_count=True,
+        ),
+    )
+
+    assert scores["target"] == 5.0
+
+
+def test_position_averaging_counts_mutually_exclusive_body_houses_as_one_exposure():
+    chart = SimpleNamespace(
+        positions={"Saturn": 10.0},
+        houses=[float(deg) for deg in range(0, 360, 30)],
+    )
+    predictors = {
+        "target": {
+            "positions": {
+                "Saturn in H1": 8,
+                "Saturn in H7": 8,
+                "Saturn in H10": 8,
+            }
+        }
+    }
+
+    scores = calculate_weighted_criteria_scores(
+        chart,
+        predictors=predictors,
+        calculate_sign_weights=_empty_weights,
+        calculate_body_weights=_empty_weights,
+        calculate_house_weights=_empty_weights,
+        calculate_nakshatra_weights=_empty_weights,
+        uses_houses=lambda _chart: True,
+        scoring_options=WeightedPredictorScoringOptions(
+            use_position_dominance_weighting=False,
+            simplify_anti_factor_handling=True,
+            average_scores_by_criterion_count=True,
+        ),
+    )
+
+    assert scores["target"] == 8.0
+
+
+def test_position_averaging_shares_positive_and_anti_criteria_in_same_exposure():
+    chart = SimpleNamespace(positions={"Sun": 0.0})
+    predictors = {
+        "target": {
+            "positions": {"Sun in Aries": 6, "Sun in Leo": 6},
+            "antipositions": {"Sun in Capricorn": 4, "Sun in Taurus": 4},
+        }
+    }
+
+    scores = calculate_weighted_criteria_scores(
+        chart,
+        predictors=predictors,
+        calculate_sign_weights=_empty_weights,
+        calculate_body_weights=_empty_weights,
+        calculate_house_weights=_empty_weights,
+        calculate_nakshatra_weights=_empty_weights,
+        uses_houses=lambda _chart: False,
+        scoring_options=WeightedPredictorScoringOptions(
+            use_position_dominance_weighting=False,
+            simplify_anti_factor_handling=True,
+            average_scores_by_criterion_count=True,
+        ),
+    )
+
+    assert scores["target"] == 6.0
+
+
 def test_negative_unweighted_gate_entries_are_signed_weights():
     from ephemeraldaddy.analysis.weighted_chart_predictor import weighted_gate_entries
 

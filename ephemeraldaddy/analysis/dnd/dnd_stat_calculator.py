@@ -5,6 +5,7 @@ from typing import Any, Dict, Mapping, Optional, Tuple
 
 from ephemeraldaddy.analysis.weighted_chart_predictor import (
     calculate_weighted_criteria_scores,
+    exposure_count_for_category,
     weighted_channel_entries,
     weighted_gate_entries,
     weighted_position_entries,
@@ -126,7 +127,11 @@ def _calculate_predictor_criteria_budgets(
         for positive_key, negative_key, multiplier in _WEIGHT_NORMALIZED_PREDICTOR_CATEGORIES:
             positive_weights = _criterion_weights_for_category(positive_key, factors.get(positive_key, ()))
             negative_weights = _criterion_weights_for_category(negative_key, factors.get(negative_key, ()))
-            criteria_count = len(positive_weights) + len(negative_weights)
+            criteria_count = exposure_count_for_category(
+                positive_key.removeprefix("anti"),
+                factors.get(positive_key, ()),
+                factors.get(negative_key, ()),
+            )
             if criteria_count <= 0:
                 continue
             positive_budget = sum(positive_weights) * multiplier

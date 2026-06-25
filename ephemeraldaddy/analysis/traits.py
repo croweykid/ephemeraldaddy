@@ -299,6 +299,7 @@ from ephemeraldaddy.analysis.weighted_chart_predictor import (
     DEFAULT_CATEGORY_WEIGHTS,
     calculate_weighted_criteria_scores,
     criterion_multiplier_for_target,
+    exposure_budget_for_category,
 )
 
 TRAIT_DIR = Path.home() / ".ephemeraldaddy" / "traits"
@@ -567,11 +568,27 @@ def _criterion_abs_weight(value: Any) -> float:
 
 def _trait_possible_score(profile: Mapping[str, Any]) -> float:
     total = 0.0
-    for raw_category in _TRAIT_SCORE_CATEGORIES:
-        base_category = _TRAIT_CATEGORY_ALIASES.get(raw_category, raw_category)
+    handled_base_categories: set[str] = set()
+    base_categories = dict.fromkeys(
+        _TRAIT_CATEGORY_ALIASES.get(category, category)
+        for category in _TRAIT_SCORE_CATEGORIES
+    )
+    for base_category in base_categories:
+        if base_category in handled_base_categories:
+            continue
+        handled_base_categories.add(base_category)
+        positive_category = base_category
+        negative_category = next(
+            (category for category, alias in _TRAIT_CATEGORY_ALIASES.items() if alias == base_category),
+            f"anti{base_category}",
+        )
         category_weight = float(DEFAULT_CATEGORY_WEIGHTS.get(base_category, 1.0))
         multiplier = float(criterion_multiplier_for_target(profile, base_category))
-        total += category_weight * multiplier * _criterion_abs_weight(profile.get(raw_category, {}))
+        total += category_weight * multiplier * exposure_budget_for_category(
+            base_category,
+            profile.get(positive_category, {}),
+            profile.get(negative_category, {}),
+        )
     return max(total, 1.0)
 
 
