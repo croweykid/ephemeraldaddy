@@ -467,129 +467,6 @@ def normalize_category_delta(
     return (positive_delta - (anti_factor * negative_delta)) / float(criteria_count)
 
 
-def _position_exposure_slot(raw_position: str) -> tuple[str, str | int] | None:
-    """Return the mutually-exclusive chart slot tested by a position spec.
-
-    Multiple accepted values for the same body/sign or body/house placement should
-    count as one exposure opportunity when category averaging is enabled.  For
-    example, ``Sun in Aries`` and ``Sun in Leo`` both test the chart's one Sun
-    sign, while ``Sun in H1`` and ``Sun in H10`` both test the chart's one Sun
-    house.
-    """
-    parsed = parse_position_spec(raw_position)
-    if parsed is None:
-        return None
-    category, container, subject = parsed
-    if category == "body_in_sign":
-        return ("body_sign", subject)
-    if category == "body_in_house":
-        return ("body_house", subject)
-    if category == "sign_in_house":
-        return ("house_sign", container)
-    return None
-
-
-def exposure_count_for_category(category: str, *value_sets: Any) -> int:
-    """Count achievable predictor exposure slots for a category.
-
-    The scorer uses this as the divisor for count-averaged categories so
-    mutually-exclusive accepted values do not dilute each other.  Non-exclusive
-    categories still count individual criteria.
-    """
-    normalized_category = str(category or "").strip().lower()
-    if normalized_category in {"positions", "antipositions"}:
-        slots: set[tuple[str, str | int]] = set()
-        fallback_count = 0
-        for values in value_sets:
-            for raw_position in weighted_position_entries(values):
-                slot = _position_exposure_slot(raw_position)
-                if slot is None:
-                    fallback_count += 1
-                else:
-                    slots.add(slot)
-        return len(slots) + fallback_count
-
-    # These categories have exactly one chart-level exposure: a chart can only
-    # have one HD type, one profile, and one authority.
-    if normalized_category in {
-        "hdtypes",
-        "antihdtypes",
-        "profiles",
-        "antiprofiles",
-        "authorities",
-        "antiauthorities",
-    }:
-        return 1 if any(_criterion_count(values) > 0 for values in value_sets) else 0
-
-    return sum(_criterion_count(values) for values in value_sets)
-
-
-def exposure_budget_for_category(category: str, *value_sets: Any) -> float:
-    """Estimate maximum achievable absolute weight for a predictor category."""
-    normalized_category = str(category or "").strip().lower()
-    if normalized_category in {"positions", "antipositions"}:
-        budget_by_slot: dict[tuple[str, str | int] | tuple[str, int], float] = {}
-        fallback_index = 0
-        for values in value_sets:
-            for raw_position, weight in weighted_position_entries(values).items():
-                slot = _position_exposure_slot(raw_position)
-                if slot is None:
-                    slot = ("position", fallback_index)
-                    fallback_index += 1
-                budget_by_slot[slot] = max(budget_by_slot.get(slot, 0.0), abs(float(weight)))
-        return sum(budget_by_slot.values())
-
-    if normalized_category in {"hdtypes", "antihdtypes"}:
-        entries: dict[str, float] = {}
-        for values in value_sets:
-            entries.update(weighted_hd_type_entries(values))
-        return max((abs(float(weight)) for weight in entries.values()), default=0.0)
-
-    if normalized_category in {"profiles", "antiprofiles"}:
-        entries: dict[str, float] = {}
-        for values in value_sets:
-            entries.update(weighted_hd_profile_entries(values))
-        return max((abs(float(weight)) for weight in entries.values()), default=0.0)
-
-    if normalized_category in {"authorities", "antiauthorities"}:
-        entries: dict[str, float] = {}
-        for values in value_sets:
-            entries.update(weighted_hd_authority_entries(values))
-        return max((abs(float(weight)) for weight in entries.values()), default=0.0)
-
-    return sum(
-        abs(float(weight))
-        for values in value_sets
-        for weight in _weights_for_category(normalized_category, values)
-    )
-
-
-def _criterion_count(values: Any) -> int:
-    if isinstance(values, Mapping):
-        return len(values)
-    return len([value for value in (values or []) if value is not None])
-
-
-def _weights_for_category(category: str, values: Any) -> list[float]:
-    if category in {"positions", "antipositions"}:
-        return list(weighted_position_entries(values).values())
-    if category in {"gates", "antigates"}:
-        return list(weighted_gate_entries(values).values())
-    if category in {"channels", "antichannels"}:
-        return list(weighted_channel_entries(values).values())
-    if category in {"hdtypes", "antihdtypes"}:
-        return list(weighted_hd_type_entries(values).values())
-    if category in {"centers", "anticenters"}:
-        return list(weighted_hd_center_entries(values).values())
-    if category in {"profiles", "antiprofiles"}:
-        return list(weighted_hd_profile_entries(values).values())
-    if category in {"authorities", "antiauthorities"}:
-        return list(weighted_hd_authority_entries(values).values())
-    if category in {"bazisigns", "antibazisigns"}:
-        return list(weighted_bazi_sign_entries(values).values())
-    return list(coerce_weighted_entries(values).values())
-
-
 def criterion_multiplier_for_target(target_factors: Mapping[str, Any], category: str) -> float:
     multipliers = target_factors.get("criterion_multipliers", {})
     if not isinstance(multipliers, Mapping):
@@ -1080,18 +957,14 @@ def calculate_weighted_criteria_scores(
 
         category_scores: dict[str, tuple[float, int]] = {}
         raw_category_pairs = {
-            "signs": (sign_positive, sign_negative, exposure_count_for_category("signs", signs, antisigns)),
-            "bodies": (body_positive, body_negative, exposure_count_for_category("bodies", bodies, antibodies)),
-            "nakshatras": (
-                nakshatra_positive,
-                nakshatra_negative,
-                exposure_count_for_category("nakshatras", nakshatras, antinakshatras),
-            ),
-            "houses": (house_positive, house_negative, exposure_count_for_category("houses", houses, antihouses) if use_houses else 0),
-            "gates": (gates_positive, gates_negative, exposure_count_for_category("gates", gates, antigates)),
-            "channels": (channels_positive, channels_negative, exposure_count_for_category("channels", channels, antichannels)),
-            "positions": (positions_positive, positions_negative, exposure_count_for_category("positions", positions, antipositions)),
-            "aspects": (aspects_positive, aspects_negative, exposure_count_for_category("aspects", aspects, antiaspects)),
+            "signs": (sign_positive, sign_negative, len(signs) + len(antisigns)),
+            "bodies": (body_positive, body_negative, len(bodies) + len(antibodies)),
+            "nakshatras": (nakshatra_positive, nakshatra_negative, len(nakshatras) + len(antinakshatras)),
+            "houses": (house_positive, house_negative, (len(houses) + len(antihouses)) if use_houses else 0),
+            "gates": (gates_positive, gates_negative, len(gates) + len(antigates)),
+            "channels": (channels_positive, channels_negative, len(channels) + len(antichannels)),
+            "positions": (positions_positive, positions_negative, len(positions) + len(antipositions)),
+            "aspects": (aspects_positive, aspects_negative, len(aspects) + len(antiaspects)),
         }
         for category, (positive, negative, count) in raw_category_pairs.items():
             if use_legacy_category_delta:
@@ -1103,11 +976,11 @@ def calculate_weighted_criteria_scores(
             category_scores[category] = (value, count)
 
         metadata_category_pairs = {
-            "hdtypes": (hdtype_positive, hdtype_negative, exposure_count_for_category("hdtypes", hdtypes, antihdtypes)),
-            "centers": (center_positive, center_negative, exposure_count_for_category("centers", centers, anticenters)),
-            "profiles": (profile_positive, profile_negative, exposure_count_for_category("profiles", profiles, antiprofiles)),
-            "authorities": (authority_positive, authority_negative, exposure_count_for_category("authorities", authorities, antiauthorities)),
-            "bazisigns": (bazi_positive, bazi_negative, exposure_count_for_category("bazisigns", bazisigns, antibazisigns)),
+            "hdtypes": (hdtype_positive, hdtype_negative, len(hdtypes) + len(antihdtypes)),
+            "centers": (center_positive, center_negative, len(centers) + len(anticenters)),
+            "profiles": (profile_positive, profile_negative, len(profiles) + len(antiprofiles)),
+            "authorities": (authority_positive, authority_negative, len(authorities) + len(antiauthorities)),
+            "bazisigns": (bazi_positive, bazi_negative, len(bazisigns) + len(antibazisigns)),
         }
         for category, (positive, negative, count) in metadata_category_pairs.items():
             value = positive - (anti_factor * abs(negative))
