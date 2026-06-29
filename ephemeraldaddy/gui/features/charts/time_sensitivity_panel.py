@@ -42,7 +42,9 @@ from ephemeraldaddy.core.interpretations import (
     MODE_COLORS,
     NAKSHATRA_PLANET_COLOR,
     PLANET_COLORS,
+    PLANET_ORDER,
     SIGN_COLORS,
+    SIGN_KEYWORDS,
 )
 from ephemeraldaddy.gui.features.charts.chart_analytics_popout import _display_body_name
 from ephemeraldaddy.gui.style import (
@@ -455,6 +457,102 @@ def _time_sensitivity_variable_item_html(result: TimeSensitivityResult, item: st
             )
         return f"{escape(prefix)}: " + " / ".join(linked_values)
     return _color_code_text(text, sign_link_kind="ts-sign")
+
+
+def time_sensitivity_categorical_spans(
+    result: TimeSensitivityResult | None, category: str, value: str
+) -> list[str]:
+    """Return sampled Time Sensitivity spans for a categorical value."""
+    overall = getattr(result, "overall", {}) if result is not None else {}
+    spans_by_category = (
+        overall.get("categorical_value_spans", {}) if isinstance(overall, dict) else {}
+    )
+    spans_by_value = (
+        spans_by_category.get(category, {}) if isinstance(spans_by_category, dict) else {}
+    )
+    spans = (
+        spans_by_value.get(str(value or "").strip().title(), [])
+        if isinstance(spans_by_value, dict)
+        else []
+    )
+    return [str(span) for span in spans if str(span).strip()]
+
+
+def build_time_sensitivity_ascendant_sign_info_text(
+    result: TimeSensitivityResult | None, sign_name: str
+) -> str:
+    """Return Chart Info text for a Time Sensitivity Ascendant sign link."""
+    sign_key = str(sign_name or "").strip().title()
+    sign_keywords = SIGN_KEYWORDS.get(sign_key, {})
+    best_keywords = [
+        str(item).strip() for item in sign_keywords.get("best", []) if str(item).strip()
+    ]
+    worst_keywords = [
+        str(item).strip() for item in sign_keywords.get("worst", []) if str(item).strip()
+    ]
+    spans = time_sensitivity_categorical_spans(result, "Ascendant", sign_key)
+    if spans:
+        start = spans[0].split("–", 1)[0].strip()
+        end = spans[-1].split("–", 1)[-1].strip()
+        time_line = f"from {start} to {end}"
+    else:
+        time_line = "from n/a to n/a"
+    lines = [
+        f"Ascendant in {sign_key}",
+        "",
+        time_line,
+        "",
+        "Interfacing with the world in a way that is…",
+    ]
+    if best_keywords:
+        lines.extend(["At best:", *(f"• {keyword}" for keyword in best_keywords)])
+    if worst_keywords:
+        if best_keywords:
+            lines.append("")
+        lines.extend(["At worst:", *(f"• {keyword}" for keyword in worst_keywords)])
+    return "\n".join(lines)
+
+
+def build_time_sensitivity_sign_info_text(
+    result: TimeSensitivityResult | None, chart: Any, sign_name: str
+) -> str:
+    """Return Chart Info text for a non-Ascendant Time Sensitivity sign link."""
+    sign_key = str(sign_name or "").strip().title()
+    sign_keywords = SIGN_KEYWORDS.get(sign_key, {})
+    best_keywords = [
+        str(item).strip() for item in sign_keywords.get("best", []) if str(item).strip()
+    ]
+    worst_keywords = [
+        str(item).strip() for item in sign_keywords.get("worst", []) if str(item).strip()
+    ]
+    placements = []
+    possible = []
+    if chart is not None:
+        sign_by_body = chart.signs() if hasattr(chart, "signs") else {}
+        for body in PLANET_ORDER:
+            if str(sign_by_body.get(body, "")).strip().title() == sign_key:
+                placements.append(_display_body_name(body))
+        for category, label in (("Sun sign", "Sun"), ("Ascendant", "Ascendant")):
+            if time_sensitivity_categorical_spans(result, category, sign_key):
+                display_label = _display_body_name(label) if label != "Ascendant" else label
+                if display_label not in placements and display_label not in possible:
+                    possible.append(display_label)
+    placement_line = ", ".join(placements)
+    if placements:
+        placement_line += "."
+    if possible:
+        possible_line = "Possibly " + ", ".join(possible)
+        placement_line = f"{placement_line} {possible_line}" if placement_line else possible_line
+    if not placement_line:
+        placement_line = f"No chart placements in {sign_key}"
+    lines = [sign_key, "", placement_line, ""]
+    if best_keywords:
+        lines.extend(["At best:", *(f"• {keyword}" for keyword in best_keywords)])
+    if worst_keywords:
+        if best_keywords:
+            lines.append("")
+        lines.extend(["At worst:", *(f"• {keyword}" for keyword in worst_keywords)])
+    return "\n".join(lines)
 
 def _header_html(label: str) -> str:
     return f"<div style='color:{CHART_DATA_HIGHLIGHT_COLOR}; font-weight:700; margin-top:8px;'>{escape(label)}</div>"

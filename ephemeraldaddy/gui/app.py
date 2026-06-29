@@ -933,6 +933,10 @@ from ephemeraldaddy.gui.features.charts.presentation import (
     sign_degrees as _sign_degrees,
     sign_for_longitude as _sign_for_longitude,
 )
+from ephemeraldaddy.gui.features.charts.time_sensitivity_panel import (
+    build_time_sensitivity_ascendant_sign_info_text as _build_time_sensitivity_ascendant_sign_info_text,
+    build_time_sensitivity_sign_info_text as _build_time_sensitivity_sign_info_text,
+)
 from ephemeraldaddy.gui.features.charts.sign_distribution import (
     SIGN_DISTRIBUTION_DROPDOWN_OPTIONS,
     SIGN_DISTRIBUTION_MODE_LABELS,
@@ -29687,80 +29691,6 @@ class MainWindow(QMainWindow):
         reset_cursor.movePosition(QTextCursor.Start)
         self.chart_info_output.setTextCursor(reset_cursor)
 
-    def _time_sensitivity_result(self):
-        panel = getattr(self, "time_sensitivity_panel", None)
-        return getattr(panel, "_last_result", None) if panel is not None else None
-
-    def _time_sensitivity_categorical_spans(self, category: str, value: str) -> list[str]:
-        result = self._time_sensitivity_result()
-        overall = getattr(result, "overall", {}) if result is not None else {}
-        spans_by_category = overall.get("categorical_value_spans", {}) if isinstance(overall, dict) else {}
-        spans_by_value = spans_by_category.get(category, {}) if isinstance(spans_by_category, dict) else {}
-        spans = spans_by_value.get(str(value or "").strip().title(), []) if isinstance(spans_by_value, dict) else []
-        return [str(span) for span in spans if str(span).strip()]
-
-    def _show_time_sensitivity_ascendant_sign_info(self, sign_name: str) -> None:
-        sign_key = str(sign_name or "").strip().title()
-        sign_keywords = SIGN_KEYWORDS.get(sign_key, {})
-        best_keywords = [str(item).strip() for item in sign_keywords.get("best", []) if str(item).strip()]
-        worst_keywords = [str(item).strip() for item in sign_keywords.get("worst", []) if str(item).strip()]
-        spans = self._time_sensitivity_categorical_spans("Ascendant", sign_key)
-        if spans:
-            start = spans[0].split("–", 1)[0].strip()
-            end = spans[-1].split("–", 1)[-1].strip()
-            time_line = f"from {start} to {end}"
-        else:
-            time_line = "from n/a to n/a"
-        lines = [
-            f"Ascendant in {sign_key}",
-            "",
-            time_line,
-            "",
-            "Interfacing with the world in a way that is…",
-        ]
-        if best_keywords:
-            lines.extend(["At best:", *(f"• {keyword}" for keyword in best_keywords)])
-        if worst_keywords:
-            if best_keywords:
-                lines.append("")
-            lines.extend(["At worst:", *(f"• {keyword}" for keyword in worst_keywords)])
-        self.chart_info_output.setPlainText("\n".join(lines))
-
-    def _show_time_sensitivity_sign_info(self, sign_name: str) -> None:
-        sign_key = str(sign_name or "").strip().title()
-        sign_keywords = SIGN_KEYWORDS.get(sign_key, {})
-        best_keywords = [str(item).strip() for item in sign_keywords.get("best", []) if str(item).strip()]
-        worst_keywords = [str(item).strip() for item in sign_keywords.get("worst", []) if str(item).strip()]
-        chart = self._latest_chart
-        placements = []
-        possible = []
-        if chart is not None:
-            sign_by_body = chart.signs() if hasattr(chart, "signs") else {}
-            for body in PLANET_ORDER:
-                if str(sign_by_body.get(body, "")).strip().title() == sign_key:
-                    placements.append(_display_body_name(body))
-            for category, label in (("Sun sign", "Sun"), ("Ascendant", "Ascendant")):
-                if self._time_sensitivity_categorical_spans(category, sign_key):
-                    display_label = _display_body_name(label) if label != "Ascendant" else label
-                    if display_label not in placements and display_label not in possible:
-                        possible.append(display_label)
-        placement_line = ", ".join(placements)
-        if placements:
-            placement_line += "."
-        if possible:
-            possible_line = "Possibly " + ", ".join(possible)
-            placement_line = f"{placement_line} {possible_line}" if placement_line else possible_line
-        if not placement_line:
-            placement_line = f"No chart placements in {sign_key}"
-        lines = [sign_key, "", placement_line, ""]
-        if best_keywords:
-            lines.extend(["At best:", *(f"• {keyword}" for keyword in best_keywords)])
-        if worst_keywords:
-            if best_keywords:
-                lines.append("")
-            lines.extend(["At worst:", *(f"• {keyword}" for keyword in worst_keywords)])
-        self.chart_info_output.setPlainText("\n".join(lines))
-
     def _show_element_keyword_info(self, element: str) -> None:
         self.chart_info_output.setPlainText("\n".join(self._element_definition_lines(element)))
 
@@ -34361,10 +34291,18 @@ class MainWindow(QMainWindow):
             self._show_sign_keyword_info(value)
             return
         if kind == "ts-ascendant-sign":
-            self._show_time_sensitivity_ascendant_sign_info(value)
+            panel = getattr(self, "time_sensitivity_panel", None)
+            result = getattr(panel, "_last_result", None) if panel is not None else None
+            self.chart_info_output.setPlainText(
+                _build_time_sensitivity_ascendant_sign_info_text(result, value)
+            )
             return
         if kind == "ts-sign":
-            self._show_time_sensitivity_sign_info(value)
+            panel = getattr(self, "time_sensitivity_panel", None)
+            result = getattr(panel, "_last_result", None) if panel is not None else None
+            self.chart_info_output.setPlainText(
+                _build_time_sensitivity_sign_info_text(result, self._latest_chart, value)
+            )
             return
         if kind == "house":
             try:
