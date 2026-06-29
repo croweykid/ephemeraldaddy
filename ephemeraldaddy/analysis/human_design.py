@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Any
 
 from ephemeraldaddy.core.chart import Chart, chart_uses_houses
+from ephemeraldaddy.core.timeutils import timezone_from_latlon
 from ephemeraldaddy.core.human_design_system import (
     CHANNELS,
     HDActivation,
@@ -141,14 +142,39 @@ def _chart_with_hypothetical_local_time(chart: Chart, hour: int, minute: int) ->
 
     Rectified/retcon time is deliberately disabled on the copy so all-day
     variants model the original unknown birth-time uncertainty instead of the
-    current rectification hypothesis.
+    current rectification hypothesis.  Before bypassing retcon time, rebuild the
+    sampled wall time in the chart location's real timezone so fixed-offset
+    datetimes loaded from storage still cross DST boundaries correctly.
     """
     chart_copy = copy.copy(chart)
     chart_copy.retcon_time_used = False
     source_dt = getattr(chart, "dt", None)
     if not isinstance(source_dt, datetime):
+        chart_copy.retcon_time_used = False
         return chart_copy
-    chart_copy.dt = source_dt.replace(hour=hour, minute=minute, second=0, microsecond=0)
+
+    sampled_naive = datetime(
+        source_dt.year,
+        source_dt.month,
+        source_dt.day,
+        int(hour),
+        int(minute),
+    )
+    sampled_dt = None
+    lat = getattr(chart, "lat", None)
+    lon = getattr(chart, "lon", None)
+    if lat is not None and lon is not None:
+        try:
+            tz, _inferred_ok = timezone_from_latlon(float(lat), float(lon))
+            sampled_dt = sampled_naive.replace(tzinfo=tz)
+        except Exception:
+            sampled_dt = None
+    if sampled_dt is None and source_dt.tzinfo is not None:
+        sampled_dt = sampled_naive.replace(tzinfo=source_dt.tzinfo)
+    if sampled_dt is None:
+        sampled_dt = sampled_naive
+    chart_copy.dt = sampled_dt
+    chart_copy.retcon_time_used = False
     return chart_copy
 
 
