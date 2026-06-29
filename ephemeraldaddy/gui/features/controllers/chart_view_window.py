@@ -1214,6 +1214,10 @@ def build_subjective_notes_alignment_sections(owner: QWidget, layout: QVBoxLayou
         title="Sexiness",
         content_builder=lambda content_layout: _populate_sexiness_section(owner, content_layout),
     )
+    owner.sexiness_section_box = sexiness_box
+    visibility = getattr(owner, "_visibility", None)
+    if visibility is not None:
+        sexiness_box.setVisible(visibility.get("chart_view.sexiness"))
     layout.addWidget(sexiness_box)
 
 

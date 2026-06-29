@@ -20890,6 +20890,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         visibility_section.addSpacing(8)
         visibility_section.addWidget(self._build_settings_subheader_label("Subjective Notes Panel (Chart View)"))
 
+        sexiness_checkbox = QCheckBox("Show Sexiness (Subjective Notes)")
+        sexiness_checkbox.setChecked(self._visibility.get("chart_view.sexiness"))
+        sexiness_checkbox.toggled.connect(
+            self._set_chart_view_sexiness_visibility_from_settings
+        )
+        visibility_section.addWidget(sexiness_checkbox)
+
         visibility_section.addSpacing(8)
         anagrams_checkbox = QCheckBox("Show Anagrams (Subjective Notes)")
         anagrams_checkbox.setChecked(
@@ -22313,6 +22320,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         parent = self._owner_window()
         if isinstance(parent, MainWindow):
             parent._set_chart_analysis_section_visible(section_key, checked)
+
+    def _set_chart_view_sexiness_visibility_from_settings(self, checked: bool) -> None:
+        self._visibility.set("chart_view.sexiness", checked)
+        parent = self._owner_window()
+        if isinstance(parent, MainWindow):
+            parent._sync_chart_view_sexiness_visibility()
 
     def _set_database_metric_section_visibility_from_settings(self, section_key: str, checked: bool) -> None:
         self._set_database_metrics_section_visible(section_key, checked)
@@ -24377,6 +24390,11 @@ class MainWindow(QMainWindow):
     def _sync_chart_analysis_section_visibility(self) -> None:
         for section_key, section_widget in self._chart_analysis_section_widgets.items():
             section_widget.setVisible(self._is_chart_analysis_section_visible(section_key))
+
+    def _sync_chart_view_sexiness_visibility(self) -> None:
+        sexiness_section = getattr(self, "sexiness_section_box", None)
+        if sexiness_section is not None:
+            sexiness_section.setVisible(self._visibility.get("chart_view.sexiness"))
 
     def _add_chart_analysis_collapsible_section(
         self,
@@ -32525,6 +32543,7 @@ class MainWindow(QMainWindow):
             int(loaded_alignment or 0),
             assigned=isinstance(loaded_alignment, int),
         )
+        self._set_sexiness_score_state(0)
         self._set_sexiness_score_state(getattr(chart, "sexiness_score", 0) or 0)
         self._chart_familiarity_factors = list(
             getattr(chart, "familiarity_factors", []) or []
@@ -33438,6 +33457,7 @@ class MainWindow(QMainWindow):
             self._render_flush_timer.stop()
         self.output_text.clear()
         self.chart_info_output.clear()
+        self._set_sexiness_score_state(0)
         self._update_unknown_positions_summary(None)
         self._position_info_map = {}
         self._aspect_info_map = {}
