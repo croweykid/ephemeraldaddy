@@ -1015,8 +1015,10 @@ class _TagHierarchyTree(QTreeWidget):
         if not category_prefix:
             event.ignore()
             return
+        source = event.source()
+        source_items = source.selectedItems() if isinstance(source, QTreeWidget) else self.selectedItems()
         labels: list[str] = []
-        for item in self.selectedItems():
+        for item in source_items:
             if item.childCount() > 0:
                 continue
             label = str(item.data(0, Qt.UserRole + 2) or item.data(0, Qt.UserRole) or "").strip()
@@ -1057,7 +1059,7 @@ class ManageMetadataLabelsDialog(QDialog):
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(window_title)
-        self.resize(580, 520)
+        self.resize(860, 520)
         self._load_usage = load_usage
         self._apply_change = apply_change
         self._load_chart_names = load_chart_names
@@ -1121,13 +1123,31 @@ QComboBox QAbstractItemView {
         layout.addLayout(sort_row)
 
         split_layout = QHBoxLayout()
+        self._unsorted_panel = QVBoxLayout()
+        self._unsorted_panel.addWidget(QLabel("Uncategorized tags"))
+        self._unsorted_list_widget = _TagHierarchyTree(
+            self,
+            self._active_field,
+            self._assign_tags_to_category,
+        )
+        self._unsorted_list_widget.itemSelectionChanged.connect(
+            lambda: self._on_selection_changed(self._unsorted_list_widget)
+        )
+        self._unsorted_list_widget.currentItemChanged.connect(
+            lambda _current, _previous: self._on_selection_changed(self._unsorted_list_widget)
+        )
+        self._unsorted_panel.addWidget(self._unsorted_list_widget, 1)
+        split_layout.addLayout(self._unsorted_panel, 1)
+
         self._list_widget = _TagHierarchyTree(
             self,
             self._active_field,
             self._assign_tags_to_category,
         )
-        self._list_widget.itemSelectionChanged.connect(self._on_selection_changed)
-        self._list_widget.currentItemChanged.connect(lambda _current, _previous: self._on_selection_changed())
+        self._list_widget.itemSelectionChanged.connect(lambda: self._on_selection_changed(self._list_widget))
+        self._list_widget.currentItemChanged.connect(
+            lambda _current, _previous: self._on_selection_changed(self._list_widget)
+        )
         self._list_widget.itemDoubleClicked.connect(self._rename_tag_category_display_name)
         split_layout.addWidget(self._list_widget, 2)
 
@@ -1231,7 +1251,7 @@ QComboBox QAbstractItemView {
     def _selected_category_prefix(self) -> str:
         if self._active_field() != self.FIELD_TAGS:
             return ""
-        item = self._list_widget.currentItem()
+        item = self._current_selection_item()
         if item is None or item.childCount() <= 0:
             return ""
         return str(item.data(0, Qt.UserRole + 10) or "").strip()
@@ -1239,7 +1259,7 @@ QComboBox QAbstractItemView {
     def _selected_tag_node_kind(self) -> str:
         if self._active_field() != self.FIELD_TAGS:
             return ""
-        item = self._list_widget.currentItem()
+        item = self._current_selection_item()
         if item is None or item.childCount() <= 0:
             return ""
         return str(item.data(0, Qt.UserRole + 11) or "").strip()
@@ -1324,18 +1344,29 @@ QComboBox QAbstractItemView {
         target_label = str(label or "").strip()
         if not target_label:
             return
-        iterator = QTreeWidgetItemIterator(self._list_widget)
-        while iterator.value() is not None:
-            item = iterator.value()
-            if item is not None and item.childCount() == 0:
-                item_label = str(item.data(0, Qt.UserRole + 2) or item.data(0, Qt.UserRole) or "").strip()
-                if item_label == target_label:
-                    self._list_widget.clearSelection()
-                    self._list_widget.setCurrentItem(item)
-                    item.setSelected(True)
-                    self._list_widget.scrollToItem(item)
-                    return
-            iterator += 1
+        for tree in self._selection_trees():
+            iterator = QTreeWidgetItemIterator(tree)
+            while iterator.value() is not None:
+                item = iterator.value()
+                if item is not None and item.childCount() == 0:
+                    item_label = str(item.data(0, Qt.UserRole + 2) or item.data(0, Qt.UserRole) or "").strip()
+                    if item_label == target_label:
+                        for other_tree in self._selection_trees():
+                            if other_tree is not tree:
+                                other_tree.clearSelection()
+                        tree.clearSelection()
+                        tree.setCurrentItem(item)
+                        item.setSelected(True)
+                        tree.scrollToItem(item)
+                        return
+                iterator += 1
+
+    def _selection_trees(self) -> list[QTreeWidget]:
+        trees = [self._list_widget]
+        unsorted_tree = getattr(self, "_unsorted_list_widget", None)
+        if isinstance(unsorted_tree, QTreeWidget):
+            trees.insert(0, unsorted_tree)
+        return trees
 
     def _refresh_list(self) -> None:
         rows = self._active_rows()
@@ -1349,6 +1380,8 @@ QComboBox QAbstractItemView {
                 if key:
                     expanded_state[key] = top_level.isExpanded()
         self._list_widget.clear()
+        if hasattr(self, "_unsorted_list_widget"):
+            self._unsorted_list_widget.clear()
         minimum_count = 0
         maximum_count = 0
         if rows:
@@ -1418,6 +1451,7 @@ QComboBox QAbstractItemView {
                 node.setText(0, f"{base_label} ({tag_count} tags)")
                 node.setExpanded(expanded_state.get(str(node.data(0, Qt.UserRole + 10) or ""), False))
             for item in uncategorized_items:
+                self._unsorted_list_widget.addTopLevelItem(item.clone())
                 self._list_widget.addTopLevelItem(item)
         else:
             for row in rows:
@@ -1434,6 +1468,14 @@ QComboBox QAbstractItemView {
                 )
                 item.setForeground(0, QColor(red, green, blue))
                 self._list_widget.addTopLevelItem(item)
+        tags_mode = self._active_field() == self.FIELD_TAGS
+        if hasattr(self, "_unsorted_list_widget"):
+            self._unsorted_list_widget.setVisible(tags_mode)
+            for index in range(self._unsorted_panel.count()):
+                item = self._unsorted_panel.itemAt(index)
+                widget = item.widget() if item is not None else None
+                if widget is not None:
+                    widget.setVisible(tags_mode)
         self._on_selection_changed()
 
     def _selected_label(self) -> str:
@@ -1442,16 +1484,23 @@ QComboBox QAbstractItemView {
 
     def _selected_labels(self) -> list[str]:
         labels: list[str] = []
-        for item in self._list_widget.selectedItems():
-            if item.childCount() > 0:
-                continue
-            label = str(item.data(0, Qt.UserRole + 2) or item.data(0, Qt.UserRole) or "").strip()
-            if label:
-                labels.append(label)
-        return labels
+        for tree in self._selection_trees():
+            for item in tree.selectedItems():
+                if item.childCount() > 0:
+                    continue
+                label = str(item.data(0, Qt.UserRole + 2) or item.data(0, Qt.UserRole) or "").strip()
+                if label:
+                    labels.append(label)
+        return list(dict.fromkeys(labels))
+
+    def _current_selection_item(self) -> QTreeWidgetItem | None:
+        for tree in self._selection_trees():
+            if tree.selectedItems():
+                return tree.currentItem() or tree.selectedItems()[0]
+        return self._list_widget.currentItem()
 
     def _selected_key(self) -> str:
-        item = self._list_widget.currentItem()
+        item = self._current_selection_item()
         if item is None or item.childCount() > 0:
             return ""
         return str(item.data(0, Qt.UserRole + 1) or "").strip()
@@ -1534,7 +1583,14 @@ QComboBox QAbstractItemView {
                 return row
         return None
 
-    def _on_selection_changed(self) -> None:
+    def _on_selection_changed(self, source_tree: QTreeWidget | None = None) -> None:
+        if source_tree is not None and source_tree.selectedItems():
+            for tree in self._selection_trees():
+                if tree is not source_tree:
+                    tree.blockSignals(True)
+                    tree.clearSelection()
+                    tree.setCurrentItem(None)
+                    tree.blockSignals(False)
         self._sync_action_buttons()
         self._refresh_chart_names()
 
@@ -1639,7 +1695,7 @@ QComboBox QAbstractItemView {
         if category_prefix:
             self._rename_selected_tag_category(category_prefix)
             return
-        item = self._list_widget.currentItem()
+        item = self._current_selection_item()
         old_label = (
             str(item.data(0, Qt.UserRole + 2) or item.data(0, Qt.UserRole) or "").strip()
             if item is not None
