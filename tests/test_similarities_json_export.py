@@ -265,3 +265,58 @@ def test_dissimilarities_json_export_keeps_all_owner_buckets_without_database_si
     assert chart_1["authorities"] == {"Emotional": 5}
     assert chart_1["profiles"] == {"3/5": 5}
     assert chart_1["bazisigns"] == {"Snake": 5}
+
+
+def test_similarities_python_export_includes_sample_count():
+    payload = build_similarities_json_export_payload(
+        "Sampled",
+        [("Gates in common", [("Gate 44", 5, 12, 0, 100, "A")])],
+    )
+
+    profile = payload["Sampled"]
+    assert profile["samples"] == 12
+
+    formatted = format_similarities_json_export_payload(payload)
+    assert '"samples": 12,' in formatted
+
+
+def test_similarities_json_export_sorts_aspects_by_body_order_with_angles_last():
+    payload = build_similarities_json_export_payload(
+        "Aspect Sorted",
+        [
+            (
+                "Aspects in common",
+                [
+                    ("MC trine Sun", 10, 10, 0, 100, "A"),
+                    ("Venus square Mars", 10, 10, 0, 100, "A"),
+                    ("AS conjunct Moon", 10, 10, 0, 100, "A"),
+                    ("Moon sextile Mercury", 10, 10, 0, 100, "A"),
+                    ("Sun conjunct Venus", 10, 10, 0, 100, "A"),
+                    ("Mercury trine Jupiter", 10, 10, 0, 100, "A"),
+                ],
+            ),
+            (
+                "Aspects in contrast",
+                [
+                    ("MC square Venus", 10, 10, 0, 100, "A"),
+                    ("Sun opposite Moon", 10, 10, 0, 100, "A"),
+                    ("AS trine Mars", 10, 10, 0, 100, "A"),
+                ],
+            ),
+        ],
+    )
+
+    profile = payload["Aspect Sorted"]
+    assert list(profile["aspects"]) == [
+        "Sun conjunct Venus",
+        "Moon sextile Mercury",
+        "Mercury trine Jupiter",
+        "Venus square Mars",
+        "AS conjunct Moon",
+        "MC trine Sun",
+    ]
+    assert list(profile["antiaspects"]) == [
+        "Sun opposite Moon",
+        "AS trine Mars",
+        "MC square Venus",
+    ]
