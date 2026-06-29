@@ -20,6 +20,7 @@ from ephemeraldaddy.core.aspects import ASPECT_DEFS
 from ephemeraldaddy.core.chart import chart_uses_houses as default_chart_uses_houses
 from ephemeraldaddy.core.interpretations import (
     ASPECT_SCORE_WEIGHTS,
+    OPPOSITE_SIGNS,
     PLANET_ORDER,
     ZODIAC_NAMES,
     normalize_body_name,
@@ -685,7 +686,87 @@ def _add_position_entry(entries: dict[str, float], subject: Any, destination: An
         weight = float(raw_weight)
     except (TypeError, ValueError):
         weight = 1.0
-    entries[f"{subject_text} in {destination_text}"] = weight
+    _set_position_entry_once(entries, f"{subject_text} in {destination_text}", weight)
+
+
+def _opposite_sign(sign: str) -> str | None:
+    if sign in OPPOSITE_SIGNS:
+        return OPPOSITE_SIGNS[sign]
+    for left, right in OPPOSITE_SIGNS.items():
+        if right == sign:
+            return left
+    return None
+
+
+def _opposite_house(house_num: int) -> int:
+    return ((house_num + 5) % 12) + 1
+
+
+def _canonical_position_equivalence_key(raw_spec: str) -> tuple[str, str | int, str] | None:
+    """Return a canonical key for structural duplicate position predictors.
+
+    Some predictor constants include both sides of the same chart axis, e.g.
+    ``AS in Cancer`` and ``DS in Capricorn``. These are not independent
+    opportunities to match a chart, so weighted position entries collapse them
+    to one scoreable criterion while preserving the strongest supplied weight.
+    """
+    parsed = parse_position_spec(raw_spec)
+    if parsed is None:
+        return None
+    category, container, subject = parsed
+
+    if category == "body_in_sign" and isinstance(container, str):
+        if subject == "DS":
+            opposite = _opposite_sign(container)
+            return ("body_in_sign", opposite, "AS") if opposite else parsed
+        if subject == "IC":
+            opposite = _opposite_sign(container)
+            return ("body_in_sign", opposite, "MC") if opposite else parsed
+        if subject == "Ketu":
+            opposite = _opposite_sign(container)
+            return ("body_in_sign", opposite, "Rahu") if opposite else parsed
+        return parsed
+
+    if category == "body_in_house" and isinstance(container, int):
+        if subject == "DS":
+            return ("body_in_house", _opposite_house(container), "AS")
+        if subject == "IC":
+            return ("body_in_house", _opposite_house(container), "MC")
+        if subject == "Ketu":
+            return ("body_in_house", _opposite_house(container), "Rahu")
+        return parsed
+
+    if category == "sign_in_house" and isinstance(container, int):
+        if container == 1:
+            return ("body_in_sign", subject, "AS")
+        if container == 7:
+            opposite = _opposite_sign(subject)
+            return ("body_in_sign", opposite, "AS") if opposite else parsed
+        if container == 10:
+            return ("body_in_sign", subject, "MC")
+        if container == 4:
+            opposite = _opposite_sign(subject)
+            return ("body_in_sign", opposite, "MC") if opposite else parsed
+    return parsed
+
+
+def _canonical_position_spec_from_key(key: tuple[str, str | int, str], fallback: str) -> str:
+    category, container, subject = key
+    if category == "body_in_sign" and isinstance(container, str):
+        return f"{subject} in {container}"
+    if category == "body_in_house" and isinstance(container, int):
+        return f"{subject} in H{container}"
+    if category == "sign_in_house" and isinstance(container, int):
+        return f"{subject} in H{container}"
+    return fallback
+
+
+def _set_position_entry_once(entries: dict[str, float], raw_spec: str, weight: float) -> None:
+    key = _canonical_position_equivalence_key(raw_spec)
+    canonical_spec = _canonical_position_spec_from_key(key, raw_spec) if key is not None else raw_spec
+    previous = entries.get(canonical_spec)
+    if previous is None or abs(float(weight)) > abs(float(previous)):
+        entries[canonical_spec] = weight
 
 
 def weighted_position_entries(values: Any) -> dict[str, float]:
@@ -705,7 +786,7 @@ def weighted_position_entries(values: Any) -> dict[str, float]:
                 continue
             if _is_numeric_weight(raw_value):
                 if parse_position_spec(subject_text) is not None:
-                    entries[subject_text] = float(raw_value)
+                    _set_position_entry_once(entries, subject_text, float(raw_value))
                 continue
             if not isinstance(raw_value, Mapping):
                 continue
@@ -721,7 +802,7 @@ def weighted_position_entries(values: Any) -> dict[str, float]:
     for raw_value, weight in coerce_weighted_entries(values).items():
         token = str(raw_value).strip()
         if token and parse_position_spec(token) is not None:
-            entries[token] = weight
+            _set_position_entry_once(entries, token, weight)
     return entries
 
 
