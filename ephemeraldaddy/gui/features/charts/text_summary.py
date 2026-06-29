@@ -62,7 +62,7 @@ from ephemeraldaddy.gui.features.charts.presentation import (
     get_nakshatra,
     sign_for_longitude,
 )
-from ephemeraldaddy.gui.style import CHART_DATA_DIVIDER, format_chart_header
+from ephemeraldaddy.gui.style import CHART_DATA_DIVIDER, SEPARATOR_STYLE, format_chart_header
 
 
 def _sign_dignity_prefix(body: str, sign: str) -> str:
@@ -558,7 +558,7 @@ def format_chart_text(
     gl_width = 5
     if use_houses:
         lines.append(
-            "  ".join(
+            SEPARATOR_STYLE["text"].join(
                 [
                     _pad_display_column("Body", body_width),
                     _pad_display_column("Sign", sign_width),
@@ -571,7 +571,7 @@ def format_chart_text(
         )
     else:
         lines.append(
-            "  ".join(
+            SEPARATOR_STYLE["text"].join(
                 [
                     _pad_display_column("Body", body_width),
                     _pad_display_column("Sign", sign_width),
@@ -674,8 +674,8 @@ def format_chart_text(
                 column_offsets.append(line_cursor)
                 line_cursor += len(column)
                 if index < len(columns) - 1:
-                    line_cursor += 2
-            line = "  ".join(columns)
+                    line_cursor += len(SEPARATOR_STYLE["text"])
+            line = SEPARATOR_STYLE["text"].join(columns)
             entry_list = [
                 {
                     "kind": "planet_keyword",
@@ -757,8 +757,8 @@ def format_chart_text(
                 column_offsets.append(line_cursor)
                 line_cursor += len(column)
                 if index < len(columns) - 1:
-                    line_cursor += 2
-            line = "  ".join(columns)
+                    line_cursor += len(SEPARATOR_STYLE["text"])
+            line = SEPARATOR_STYLE["text"].join(columns)
             line = f"{line} ⓘ"
             position_info_map[len(lines)] = [
                 {
@@ -1175,7 +1175,7 @@ def format_compact_transit_chart_text(
     ]
     if use_houses:
         header_columns.extend([_pad_display_column("House", house_width), _pad_display_column("G.L", gl_width)])
-    lines.append("  ".join(header_columns))
+    lines.append(SEPARATOR_STYLE["text"].join(header_columns))
     lines.append("")
 
     required_chart_info_bodies = ["Chiron", "Ceres", "Pallas", "Juno", "Vesta"]
@@ -1226,7 +1226,7 @@ def format_compact_transit_chart_text(
                 _pad_display_column(f"H{house_num}" if house_num is not None else "-", house_width),
                 _pad_display_column(gl_text, gl_width),
             ])
-        line = "  ".join(columns)
+        line = SEPARATOR_STYLE["text"].join(columns)
         if show_info_icons:
             line = f"{line} ⓘ"
         line_number = len(lines)
@@ -1300,10 +1300,10 @@ def format_compact_transit_chart_text(
             p2_label = f"{_body_glyph_only(p2)}{_zodiac_glyph(p2_sign)}"
             aspect_glyph = _aspect_glyph_only(atype)
             line = (
-                f"{_pad_display_column(p1_label, endpoint_width)} "
-                f"{_pad_display_column(aspect_glyph, aspect_width)} "
-                f"{_pad_display_column(p2_label, endpoint_width)} "
-                f"{format_degree_minutes(asp['angle'], include_sign=False):>8}  "
+                f"{_pad_display_column(p1_label, endpoint_width)}" + SEPARATOR_STYLE["text"]
+                + f"{_pad_display_column(aspect_glyph, aspect_width)}" + SEPARATOR_STYLE["text"]
+                + f"{_pad_display_column(p2_label, endpoint_width)}" + SEPARATOR_STYLE["text"]
+                + f"{format_degree_minutes(asp['angle'], include_sign=False):>8}  "
                 f"(orb {format_degree_minutes(asp['delta'])})"
             )
             if show_info_icons:

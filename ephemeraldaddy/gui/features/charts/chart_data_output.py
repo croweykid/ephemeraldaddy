@@ -38,6 +38,7 @@ from ephemeraldaddy.gui.style import (
     CHART_DATA_DND_SUBHEADER_NOTE_ITALIC,
     CHART_DATA_HIGHLIGHT_COLOR,
     CHART_DATA_SECTION_HEADERS,
+    SEPARATOR_STYLE,
     CHART_INFO_EVIDENCE_LABEL_BOLD,
     CHART_INFO_SPECIES_DESCRIPTION_ITALIC,
     CHART_INFO_SPECIES_HEADER_COLOR,
@@ -218,6 +219,8 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         self._section_header_names = {header.upper() for header in CHART_DATA_SECTION_HEADERS}
         self._unknown_format = QTextCharFormat()
         self._section_header_names.update({"GATES & LINES"})
+        self._column_separator_format = QTextCharFormat()
+        self._column_separator_format.setForeground(QColor(SEPARATOR_STYLE["color"]))
         self._unknown_format.setForeground(QColor("#666666"))
         self._unknown_format.setFontItalic(True)
         self._default_body_format = QTextCharFormat()
@@ -700,6 +703,13 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
             self.setCurrentBlockState(0)
             return
 
+        for separator in re.finditer(re.escape(SEPARATOR_STYLE["text"].strip()), text):
+            self.setFormat(
+                self._qt_index(text, separator.start()),
+                self._qt_len(separator.group(0)),
+                self._column_separator_format,
+            )
+
         lowered = text.lower()
         for needle in self._unknown_needles:
             start = 0
@@ -1112,7 +1122,8 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
     def _split_padded_columns(text: str) -> list[tuple[str, int, int]]:
         columns: list[tuple[str, int, int]] = []
         cursor = 0
-        for separator in re.finditer(r" {2,}", text):
+        separator_token = re.escape(SEPARATOR_STYLE["text"].strip())
+        for separator in re.finditer(rf"(?: {{2,}}|\s+{separator_token}\s+)", text):
             if separator.start() > cursor:
                 columns.append((text[cursor:separator.start()], cursor, separator.start()))
             cursor = separator.end()
