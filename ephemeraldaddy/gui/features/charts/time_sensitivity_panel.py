@@ -88,7 +88,9 @@ class TimeSensitivityFigureCanvas(FigureCanvas):
 _TIME_SENSITIVITY_CHART_TITLES = {
     "dominant_planet_weights": "Dominant Body Weight Distribution",
     "dominant_sign_weights": "Dominant Sign Weight Distribution",
+    "dominant_element_weights": "Dominant Element Weight Distribution",
     "dominant_house_weights": "Dominant House Weight Distribution",
+    "dominant_mode_weights": "Dominant Mode Weight Distribution",
     "dominant_nakshatra_weights": "Dominant Nakshatra Weight Distribution",
 }
 
@@ -934,7 +936,8 @@ class TimeSensitivityPanel(QWidget):
         self._add_html_section("human_design", "Human Design", _human_design_html(result), expanded=False)
 
     def _show_likelihood_popout(self, group_key: str) -> None:
-        if self._last_result is None:
+        result = self._last_result
+        if result is None:
             return
         dialog = QDialog(self)
         title = _TIME_SENSITIVITY_CHART_TITLES.get(group_key, "Dominance Likelihood")
@@ -950,9 +953,9 @@ class TimeSensitivityPanel(QWidget):
         info.setReadOnly(True)
 
         def show_factor_info(label: str) -> None:
-            info.setHtml(_time_sensitivity_factor_info_html(self._last_result, group_key, label))
+            info.setHtml(_time_sensitivity_factor_info_html(result, group_key, label))
 
-        _draw_likelihood_chart(ax, self._last_result, group_key, on_factor_click=show_factor_info)
+        _draw_likelihood_chart(ax, result, group_key, on_factor_click=show_factor_info)
         canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         layout.addWidget(canvas, 1)
         info.setHtml(

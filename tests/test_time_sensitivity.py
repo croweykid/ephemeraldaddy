@@ -375,14 +375,16 @@ def test_time_sensitivity_popout_factor_info_shows_min_max_peak_and_trench():
     assert "23:30" in html
 
 
-def test_time_sensitivity_popout_charts_include_body_sign_house_and_nakshatra_click_targets():
+def test_time_sensitivity_popout_charts_include_all_numeric_factor_click_targets():
     from pathlib import Path
 
     source = Path("ephemeraldaddy/gui/features/charts/time_sensitivity_panel.py").read_text()
 
     assert '"dominant_planet_weights": "Dominant Body Weight Distribution"' in source
     assert '"dominant_sign_weights": "Dominant Sign Weight Distribution"' in source
+    assert '"dominant_element_weights": "Dominant Element Weight Distribution"' in source
     assert '"dominant_house_weights": "Dominant House Weight Distribution"' in source
+    assert '"dominant_mode_weights": "Dominant Mode Weight Distribution"' in source
     assert '"dominant_nakshatra_weights": "Dominant Nakshatra Weight Distribution"' in source
     assert "setattr(bar, \"_time_sensitivity_factor\", label)" in source
     assert "setattr(tick_label, \"_time_sensitivity_factor\", label)" in source
@@ -399,3 +401,16 @@ def test_time_sensitivity_chart_canvases_forward_wheel_events_to_parent_scroll_a
     assert "scroll_area.verticalScrollBar()" in source
     assert "event.accept()" in source
     assert "canvas = TimeSensitivityFigureCanvas(figure)" in source
+
+
+def test_time_sensitivity_popout_captures_rendered_result_for_factor_clicks():
+    from pathlib import Path
+
+    source = Path("ephemeraldaddy/gui/features/charts/time_sensitivity_panel.py").read_text()
+    popout_source = source.split("def _show_likelihood_popout", 1)[1]
+
+    assert "result = self._last_result" in popout_source
+    assert "if result is None:" in popout_source
+    assert "_time_sensitivity_factor_info_html(result, group_key, label)" in popout_source
+    assert "_draw_likelihood_chart(ax, result, group_key, on_factor_click=show_factor_info)" in popout_source
+    assert "_time_sensitivity_factor_info_html(self._last_result, group_key, label)" not in popout_source
