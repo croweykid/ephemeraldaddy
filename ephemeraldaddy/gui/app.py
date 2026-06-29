@@ -12583,12 +12583,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 loaded_charts=loaded_charts,
                 should_refresh=_should_refresh_database_metric_section,
             )
-            self._render_traits_distribution_section(
-                chart_ids=chart_ids,
-                database_chart_ids=database_cache["chart_ids"],
-                loaded_charts=loaded_charts,
-                should_refresh=_should_refresh_database_metric_section,
-            )
+            if _should_refresh_database_metric_section("traits_distribution"):
+                self._render_traits_distribution_section(
+                    chart_ids=chart_ids,
+                    database_chart_ids=database_cache["chart_ids"],
+                    loaded_charts=loaded_charts,
+                    should_refresh=_should_refresh_database_metric_section,
+                )
 
         if update_similarities:
             self._update_similarities_analysis(chart_ids)

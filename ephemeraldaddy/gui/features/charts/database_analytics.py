@@ -4056,6 +4056,9 @@ class DatabaseAnalyticsChartsMixin:
         loaded_charts: int,
         should_refresh: Callable[[str], bool],
     ) -> None:
+        if not should_refresh("traits_distribution"):
+            return
+
         selection_analytics = self._collect_traits_distribution_analytics(chart_ids)
         database_analytics = self._collect_traits_distribution_analytics(database_chart_ids)
         trait_names = list(database_analytics.get("trait_names", []))
@@ -4088,29 +4091,28 @@ class DatabaseAnalyticsChartsMixin:
             self.traits_distribution_subheader_label.setText(
                 f"Average active custom trait likelihoods across {database_count:,} non-placeholder database charts."
             )
-        if should_refresh("traits_distribution"):
-            self._clear_layout(self.traits_distribution_chart_layout)
-            if ordered_labels and database_count > 0:
-                color_lookup = dict(database_analytics.get("colors", {}))
-                color_lookup.update(selection_analytics.get("colors", {}))
-                canvas = self._build_dominant_planet_chart(
-                    selection_planets={name: selection_values.get(name, 0.0) for name in ordered_labels},
-                    database_planets={name: database_values.get(name, 0.0) for name in ordered_labels},
-                    selection_planet_counts={name: selection_count for name in ordered_labels},
-                    database_planet_counts={name: database_count for name in ordered_labels},
-                    loaded_charts=loaded_charts,
-                    labels=ordered_labels,
-                    force_value_fallback_colors=False,
-                    label_colors={name: color_lookup.get(name, DEFAULT_TRAIT_COLOR) for name in ordered_labels},
-                    include_count_prefixes=False,
-                )
-                self.traits_distribution_chart_layout.addWidget(canvas, 0)
-            else:
-                self.traits_distribution_chart_layout.addWidget(
-                    self._build_text_analysis_widget(["No active traits available. Add or reactivate traits in Settings > Traits."]),
-                    0,
-                    Qt.AlignTop,
-                )
+        self._clear_layout(self.traits_distribution_chart_layout)
+        if ordered_labels and database_count > 0:
+            color_lookup = dict(database_analytics.get("colors", {}))
+            color_lookup.update(selection_analytics.get("colors", {}))
+            canvas = self._build_dominant_planet_chart(
+                selection_planets={name: selection_values.get(name, 0.0) for name in ordered_labels},
+                database_planets={name: database_values.get(name, 0.0) for name in ordered_labels},
+                selection_planet_counts={name: selection_count for name in ordered_labels},
+                database_planet_counts={name: database_count for name in ordered_labels},
+                loaded_charts=loaded_charts,
+                labels=ordered_labels,
+                force_value_fallback_colors=False,
+                label_colors={name: color_lookup.get(name, DEFAULT_TRAIT_COLOR) for name in ordered_labels},
+                include_count_prefixes=False,
+            )
+            self.traits_distribution_chart_layout.addWidget(canvas, 0)
+        else:
+            self.traits_distribution_chart_layout.addWidget(
+                self._build_text_analysis_widget(["No active traits available. Add or reactivate traits in Settings > Traits."]),
+                0,
+                Qt.AlignTop,
+            )
         self._analysis_chart_export_rows["traits_distribution"] = self._build_analysis_export_rows(
             labels=ordered_labels,
             selection_values=[selection_values.get(label, 0.0) for label in ordered_labels],
