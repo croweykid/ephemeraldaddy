@@ -23188,6 +23188,7 @@ class MainWindow(QMainWindow):
         self._alignment_score_assigned = False
         self._alignment_programmatic_update = False
         self._lucygoosey = False
+        self._leaving_chart_view_prompt_open = False
         self._sentiment_metrics_autosave_timer = QTimer(self)
         self._sentiment_metrics_autosave_timer.setSingleShot(True)
         self._sentiment_metrics_autosave_timer.timeout.connect(
@@ -30536,18 +30537,38 @@ class MainWindow(QMainWindow):
         dialog.setIcon(QMessageBox.Warning)
         dialog.setWindowTitle("Unsaved changes")
         dialog.setText(
-            "You have unsaved changes. Save them before loading another chart?"
+            "You have unsaved changes. Save them before leaving Chart View?"
         )
         save_button = dialog.addButton("Save", QMessageBox.AcceptRole)
-        discard_button = dialog.addButton("Discard", QMessageBox.RejectRole)
-        dialog.exec()
-        if dialog.clickedButton() == save_button:
+        discard_button = dialog.addButton("Discard", QMessageBox.DestructiveRole)
+        cancel_button = dialog.addButton("Cancel", QMessageBox.RejectRole)
+        dialog.setDefaultButton(save_button)
+        dialog.setEscapeButton(cancel_button)
+
+        self._leaving_chart_view_prompt_open = True
+        try:
+            dialog.exec()
+        finally:
+            self._leaving_chart_view_prompt_open = False
+
+        clicked_button = dialog.clickedButton()
+        if clicked_button == save_button:
             self.on_update_chart(show_dialog=True)
-        elif dialog.clickedButton() == discard_button:
+        elif clicked_button == discard_button:
             self._set_lucygoosey(False)
         return not self._lucygoosey
 
     def _should_auto_update_sentiments(self) -> bool:
+        return self._can_autosave_current_chart()
+
+    def _can_autosave_current_chart(self) -> bool:
+        """Return whether timed dirty-state saves may update the open chart.
+
+        Lucygoosey autosaves are update-only: a chart must already have a
+        database id before these timers can write metadata back to storage. New
+        Chart View entries without a saved id/UID still require an explicit
+        formal save through the Save/Discard leave prompt or Save Chart button.
+        """
         return self.current_chart_id is not None
 
     def _ensure_current_chart_still_exists(self) -> bool:
@@ -30568,11 +30589,14 @@ class MainWindow(QMainWindow):
         self._set_lucygoosey(False)
 
     def _autosave_checkbox_state(self) -> None:
-        if self._suppress_lucygoosey or self.current_chart_id is None:
+        if self._suppress_lucygoosey or not self._can_autosave_current_chart():
             return
         if not self._lucygoosey:
             return
         if not self._ensure_current_chart_still_exists():
+            return
+        if self._leaving_chart_view_prompt_open:
+            self._metadata_autosave_timer.start(2000)
             return
         self.on_update_chart(show_dialog=False, recalculate_chart=False)
         self._set_lucygoosey(False)
@@ -30657,11 +30681,14 @@ class MainWindow(QMainWindow):
         had_pending_metric_save = self._sentiment_metrics_autosave_timer.isActive()
         if had_pending_metric_save:
             self._sentiment_metrics_autosave_timer.stop()
-        if not had_pending_metric_save and not self._lucygoosey:
+        if not self._lucygoosey:
             return
         if not self._should_auto_update_sentiments():
             return
         if not self._ensure_current_chart_still_exists():
+            return
+        if self._leaving_chart_view_prompt_open:
+            self._sentiment_metrics_autosave_timer.start(2000)
             return
         self.on_update_chart(show_dialog=False, recalculate_chart=False)
         self._set_lucygoosey(False)
