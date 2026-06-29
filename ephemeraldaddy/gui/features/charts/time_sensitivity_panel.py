@@ -411,7 +411,7 @@ _COLOR_CODE_PATTERN = re.compile(
 )
 
 
-def _color_code_text(text: str) -> str:
+def _color_code_text(text: str, *, sign_link_kind: str = "sign") -> str:
     """Escape text and turn known astrological category names into Chart Info links."""
     escaped_text = escape(str(text))
 
@@ -429,7 +429,8 @@ def _color_code_text(text: str) -> str:
             )
         color, kind, value = payload
         safe_matched = escape(matched)
-        href = f"distinguishing-factor:{kind}:{quote(value)}" if kind else ""
+        link_kind = sign_link_kind if kind == "sign" else kind
+        href = f"distinguishing-factor:{link_kind}:{quote(value)}" if link_kind else ""
         if href:
             return (
                 f"<a href='{href}' style='color:{escape(color, quote=True)}; text-decoration: none;'>"
@@ -439,6 +440,21 @@ def _color_code_text(text: str) -> str:
 
     return _COLOR_CODE_PATTERN.sub(replace, escaped_text)
 
+
+
+def _time_sensitivity_variable_item_html(result: TimeSensitivityResult, item: str) -> str:
+    text = str(item)
+    if text.startswith("Ascendant:"):
+        prefix, values_text = text.split(":", 1)
+        linked_values = []
+        for sign in [part.strip() for part in values_text.split("/") if part.strip()]:
+            color = escape(SIGN_COLORS.get(sign.title(), "#6fa8dc"), quote=True)
+            linked_values.append(
+                f"<a href='distinguishing-factor:ts-ascendant-sign:{quote(sign.title())}' "
+                f"style='color:{color}; text-decoration: none;'>{escape(sign)}</a>"
+            )
+        return f"{escape(prefix)}: " + " / ".join(linked_values)
+    return _color_code_text(text, sign_link_kind="ts-sign")
 
 def _header_html(label: str) -> str:
     return f"<div style='color:{CHART_DATA_HIGHLIGHT_COLOR}; font-weight:700; margin-top:8px;'>{escape(label)}</div>"
@@ -673,7 +689,7 @@ def _summary_html(result: TimeSensitivityResult) -> str:
     html_lines.append(
         _list_html(
             [
-                _color_code_text(item)
+                _color_code_text(item, sign_link_kind="ts-sign")
                 for item in (result.stable or ["No all-day stable highlights found."])
             ]
         )
@@ -682,7 +698,7 @@ def _summary_html(result: TimeSensitivityResult) -> str:
     html_lines.append(
         _list_html(
             [
-                _color_code_text(item)
+                _time_sensitivity_variable_item_html(result, item)
                 for item in (result.variable or ["No categorical variability found."])
             ]
         )
