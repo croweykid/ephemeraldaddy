@@ -176,13 +176,16 @@ def _percent_delta(range_delta: float, baseline: float) -> float:
 
 
 def _variability_label(percent_delta: float) -> str:
+    """Return a plain-language label for a percent-delta spread."""
     if percent_delta < 5.0:
-        return "Stable"
+        return "minimal"
     if percent_delta < 15.0:
-        return "Moderate"
+        return "minor"
     if percent_delta < 35.0:
-        return "Variable"
-    return "High"
+        return "medium"
+    if percent_delta < 75.0:
+        return "high"
+    return "extreme"
 
 
 def _span_label(start_time: str, end_time: str) -> str:
@@ -232,6 +235,9 @@ def _aggregate_numeric(samples: list[dict[str, Any]], baseline: dict[str, dict[s
             max_decrease = min_value - base_value
             baseline_delta = max(abs(max_increase), abs(max_decrease))
             pct = _percent_delta(baseline_delta, base_value)
+            max_increase_percent = _percent_delta(max_increase, base_value)
+            max_decrease_percent = _percent_delta(max_decrease, base_value)
+            variability_percent = max_increase_percent - max_decrease_percent
             max_group_delta = max(max_group_delta, abs(pct))
             present_times = [time for time, value in values if value > 0]
             peak_times = [time for time, value in values if value == max_value]
@@ -245,9 +251,10 @@ def _aggregate_numeric(samples: list[dict[str, Any]], baseline: dict[str, dict[s
                 "max_increase_from_baseline": round(max_increase, 6),
                 "max_decrease_from_baseline": round(max_decrease, 6),
                 "percent_delta": round(pct, 2),
-                "max_increase_percent": round(_percent_delta(max_increase, base_value), 2),
-                "max_decrease_percent": round(_percent_delta(max_decrease, base_value), 2),
-                "label": _variability_label(abs(pct)),
+                "max_increase_percent": round(max_increase_percent, 2),
+                "max_decrease_percent": round(max_decrease_percent, 2),
+                "variability_percent": round(variability_percent, 2),
+                "label": _variability_label(abs(variability_percent)),
                 "times_at_min": trough_times,
                 "times_at_max": peak_times,
                 "peak_times": peak_times,

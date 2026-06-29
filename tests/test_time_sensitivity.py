@@ -92,6 +92,8 @@ def test_aggregate_numeric_reports_delta_from_baseline_not_full_span():
     assert payload["percent_delta"] == 50.0
     assert payload["max_decrease_percent"] == -50.0
     assert payload["max_increase_percent"] == 50.0
+    assert payload["variability_percent"] == 100.0
+    assert payload["label"] == "extreme"
     assert payload["peak_times"] == ["23:59"]
     assert group_deltas["dominant_planet_weights"] == 50.0
 
@@ -302,6 +304,42 @@ def test_time_sensitivity_html_colors_min_and_max_against_separate_peer_scales()
 
     assert "<span style='color:#b7ff00;'>2.00</span>" in taurus_item
     assert "<span style='color:#7a0000;'>2.50</span>" in taurus_item
+
+
+def test_time_sensitivity_table_var_uses_percent_delta_spread_scale():
+    import pytest
+
+    panel_module = pytest.importorskip("ephemeraldaddy.gui.features.charts.time_sensitivity_panel", exc_type=ImportError)
+
+    result = TimeSensitivityResult(
+        chart_uid="CHARTUID",
+        chart_name="Example",
+        birth_date_key="01-01-2000",
+        algorithm_version="time-sensitivity-v2",
+        computed_at="2026-06-20T00:00:00Z",
+        config=TimeSensitivityConfig().__dict__,
+        sample_count=2,
+        baseline_time="12:00",
+        overall={},
+        numeric_ranges={
+            "dominant_sign_weights": {
+                "Aries": {"min": 1.0, "max": 1.01, "baseline": 1.0, "delta": 0.01, "max_decrease_percent": 0.0, "max_increase_percent": 1.0},
+                "Taurus": {"min": 1.0, "max": 1.1, "baseline": 1.0, "delta": 0.1, "max_decrease_percent": 0.0, "max_increase_percent": 10.0},
+                "Gemini": {"min": 1.0, "max": 1.25, "baseline": 1.0, "delta": 0.25, "max_decrease_percent": 0.0, "max_increase_percent": 25.0},
+                "Cancer": {"min": 1.0, "max": 1.5, "baseline": 1.0, "delta": 0.5, "max_decrease_percent": 0.0, "max_increase_percent": 50.0},
+                "Leo": {"min": 1.0, "max": 2.0, "baseline": 1.0, "delta": 1.0, "max_decrease_percent": 0.0, "max_increase_percent": 100.0},
+            },
+        },
+        human_design={},
+        stable=[],
+        variable=[],
+        warnings=[],
+    )
+
+    html = panel_module._numeric_group_table_html(result, "dominant_sign_weights")
+
+    for expected in ("minimal", "minor", "medium", "high", "extreme"):
+        assert f"<td>{expected}</td>" in html
 
 
 def test_time_sensitivity_confidence_uses_stability_percent_and_bright_green_scale():
