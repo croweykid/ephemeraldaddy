@@ -53,6 +53,15 @@ def test_prompt_open_defers_but_does_not_disable_timed_autosaves():
     assert "self._sentiment_metrics_autosave_timer.start(2000)" in metric_method
 
 
+def test_metric_flush_does_not_save_after_discard_clears_dirty_flag():
+    metric_method = _method_source("_flush_pending_sentiment_metrics_save")
+    assert "if had_pending_metric_save:" in metric_method
+    assert "self._sentiment_metrics_autosave_timer.stop()" in metric_method
+    assert "if not self._lucygoosey:" in metric_method
+    assert "if not had_pending_metric_save and not self._lucygoosey:" not in metric_method
+    assert metric_method.index("if not self._lucygoosey:") < metric_method.index("self.on_update_chart(show_dialog=False, recalculate_chart=False)")
+
+
 def test_lucygoosey_timed_autosaves_are_update_only_for_saved_charts():
     should_auto_method = _method_source("_should_auto_update_sentiments")
     can_autosave_method = _method_source("_can_autosave_current_chart")

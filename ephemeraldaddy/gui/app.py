@@ -30661,7 +30661,7 @@ class MainWindow(QMainWindow):
         had_pending_metric_save = self._sentiment_metrics_autosave_timer.isActive()
         if had_pending_metric_save:
             self._sentiment_metrics_autosave_timer.stop()
-        if not had_pending_metric_save and not self._lucygoosey:
+        if not self._lucygoosey:
             return
         if not self._should_auto_update_sentiments():
             return
