@@ -1203,6 +1203,7 @@ GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS: frozenset[str] = frozenset(
         "birth_month",
         "birthplace",
         "tag_distribution",
+        "traits_distribution",
         "human_design",
     }
 )
@@ -1229,6 +1230,7 @@ DATABASE_METRICS_SECTION_ORDER: tuple[str, ...] = (
     "birth_month",
     "birthplace",
     "tag_distribution",
+    "traits_distribution",
     "gender",
     "human_design",
     "bazi",
@@ -4984,6 +4986,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         ) = self._create_database_analytics_chart_container()
         self._database_metrics_chart_layouts["tag_distribution"] = self.tag_distribution_chart_layout
         tag_distribution_section_layout.addWidget(self.tag_distribution_chart_container)
+
+        # TRAITS DISTRIBUTION SECTION
+        self._create_traits_database_analytics_section(panel, layout)
 
 #end of lefthand Database Analytics panel, it closes below:
         return panel
@@ -12578,6 +12583,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 loaded_charts=loaded_charts,
                 should_refresh=_should_refresh_database_metric_section,
             )
+            if _should_refresh_database_metric_section("traits_distribution"):
+                self._render_traits_distribution_section(
+                    chart_ids=chart_ids,
+                    database_chart_ids=database_cache["chart_ids"],
+                    loaded_charts=loaded_charts,
+                    should_refresh=_should_refresh_database_metric_section,
+                )
 
         if update_similarities:
             self._update_similarities_analysis(chart_ids)
