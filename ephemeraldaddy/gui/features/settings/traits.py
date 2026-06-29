@@ -63,7 +63,7 @@ def add_traits_settings_section(owner: Any, content_layout: Any) -> None:
     owner._traits_archive_button.clicked.connect(lambda _checked=False: on_trait_archive_clicked(owner))
     traits_button_row.addWidget(owner._traits_archive_button)
 
-    owner._traits_upload_button = QPushButton("Upload New Trait…")
+    owner._traits_upload_button = QPushButton("Add Trait…")
     owner._traits_upload_button.clicked.connect(lambda _checked=False: on_trait_upload_clicked(owner))
     traits_button_row.addWidget(owner._traits_upload_button)
     traits_button_row.addStretch(1)
