@@ -10,38 +10,50 @@ def _method_source(name: str) -> str:
     return APP_SOURCE[start:] if next_start == -1 else APP_SOURCE[start:next_start]
 
 
-def test_unsaved_prompt_stops_pending_autosaves_while_user_decides():
-    method = _method_source("_confirm_discard_or_save")
-    assert "pending_metadata_autosave = self._metadata_autosave_timer.isActive()" in method
-    assert "pending_metric_autosave = self._sentiment_metrics_autosave_timer.isActive()" in method
-    assert "self._metadata_autosave_timer.stop()" in method
-    assert "self._sentiment_metrics_autosave_timer.stop()" in method
-    assert "dialog.exec()" in method
-    assert method.index("self._metadata_autosave_timer.stop()") < method.index("dialog.exec()")
-    assert method.index("self._sentiment_metrics_autosave_timer.stop()") < method.index("dialog.exec()")
-
-
-def test_unsaved_prompt_buttons_have_deterministic_outcomes():
+def test_unsaved_prompt_has_deterministic_leave_buttons_without_changing_save_path():
     method = _method_source("_confirm_discard_or_save")
     assert 'save_button = dialog.addButton("Save", QMessageBox.AcceptRole)' in method
     assert 'discard_button = dialog.addButton("Discard", QMessageBox.DestructiveRole)' in method
     assert 'cancel_button = dialog.addButton("Cancel", QMessageBox.RejectRole)' in method
+    assert "dialog.setDefaultButton(save_button)" in method
     assert "dialog.setEscapeButton(cancel_button)" in method
-    assert "return self.on_update_chart(show_dialog=True)" in method
-    assert "if clicked_button == discard_button:" in method
+    assert "self.on_update_chart(show_dialog=True)" in method
+    assert "return self.on_update_chart" not in method
     assert "self._set_lucygoosey(False)" in method
-    assert "return False" in method
+    assert "return not self._lucygoosey" in method
 
 
-def test_autosave_only_clears_dirty_flag_after_successful_save():
+def test_unsaved_prompt_marks_modal_state_only_while_prompt_is_open():
+    method = _method_source("_confirm_discard_or_save")
+    assert "self._leaving_chart_view_prompt_open = True" in method
+    assert "dialog.exec()" in method
+    assert "finally:" in method
+    assert "self._leaving_chart_view_prompt_open = False" in method
+    assert method.index("self._leaving_chart_view_prompt_open = True") < method.index("dialog.exec()")
+    assert method.index("dialog.exec()") < method.index("self._leaving_chart_view_prompt_open = False")
+
+
+def test_timed_autosaves_keep_existing_save_and_dirty_state_defaults():
     autosave_method = _method_source("_autosave_checkbox_state")
     metric_method = _method_source("_flush_pending_sentiment_metrics_save")
-    assert "if self.on_update_chart(show_dialog=False, recalculate_chart=False):" in autosave_method
-    assert "if self.on_update_chart(show_dialog=False, recalculate_chart=False):" in metric_method
+    assert "self.on_update_chart(show_dialog=False, recalculate_chart=False)" in autosave_method
+    assert "self._set_lucygoosey(False)" in autosave_method
+    assert "self.on_update_chart(show_dialog=False, recalculate_chart=False)" in metric_method
+    assert "self._set_lucygoosey(False)" in metric_method
+    assert "if self.on_update_chart(show_dialog=False, recalculate_chart=False):" not in autosave_method
+    assert "if self.on_update_chart(show_dialog=False, recalculate_chart=False):" not in metric_method
 
 
-def test_chart_save_reports_success_to_unsaved_prompt():
+def test_prompt_open_defers_but_does_not_disable_timed_autosaves():
+    autosave_method = _method_source("_autosave_checkbox_state")
+    metric_method = _method_source("_flush_pending_sentiment_metrics_save")
+    assert "if self._leaving_chart_view_prompt_open:" in autosave_method
+    assert "self._metadata_autosave_timer.start(2000)" in autosave_method
+    assert "if self._leaving_chart_view_prompt_open:" in metric_method
+    assert "self._sentiment_metrics_autosave_timer.start(2000)" in metric_method
+
+
+def test_chart_save_signature_remains_void_for_existing_callers():
     method = _method_source("on_update_chart")
-    assert "-> bool" in method.splitlines()[0]
-    assert "return False" in method
-    assert method.rstrip().endswith("return True")
+    assert "-> bool" not in method.splitlines()[0]
+    assert not method.rstrip().endswith("return True")

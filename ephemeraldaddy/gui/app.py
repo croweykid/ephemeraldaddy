@@ -23173,6 +23173,7 @@ class MainWindow(QMainWindow):
         self._alignment_score_assigned = False
         self._alignment_programmatic_update = False
         self._lucygoosey = False
+        self._leaving_chart_view_prompt_open = False
         self._sentiment_metrics_autosave_timer = QTimer(self)
         self._sentiment_metrics_autosave_timer.setSingleShot(True)
         self._sentiment_metrics_autosave_timer.timeout.connect(
@@ -30512,13 +30513,6 @@ class MainWindow(QMainWindow):
         if not self._lucygoosey:
             return True
 
-        pending_metadata_autosave = self._metadata_autosave_timer.isActive()
-        pending_metric_autosave = self._sentiment_metrics_autosave_timer.isActive()
-        if pending_metadata_autosave:
-            self._metadata_autosave_timer.stop()
-        if pending_metric_autosave:
-            self._sentiment_metrics_autosave_timer.stop()
-
         dialog = QMessageBox(self)
         dialog.setIcon(QMessageBox.Warning)
         dialog.setWindowTitle("Unsaved changes")
@@ -30530,20 +30524,19 @@ class MainWindow(QMainWindow):
         cancel_button = dialog.addButton("Cancel", QMessageBox.RejectRole)
         dialog.setDefaultButton(save_button)
         dialog.setEscapeButton(cancel_button)
-        dialog.exec()
+
+        self._leaving_chart_view_prompt_open = True
+        try:
+            dialog.exec()
+        finally:
+            self._leaving_chart_view_prompt_open = False
 
         clicked_button = dialog.clickedButton()
         if clicked_button == save_button:
-            return self.on_update_chart(show_dialog=True)
-        if clicked_button == discard_button:
+            self.on_update_chart(show_dialog=True)
+        elif clicked_button == discard_button:
             self._set_lucygoosey(False)
-            return True
-
-        if pending_metadata_autosave and self._lucygoosey:
-            self._metadata_autosave_timer.start(2000)
-        if pending_metric_autosave and self._lucygoosey:
-            self._sentiment_metrics_autosave_timer.start(2000)
-        return False
+        return not self._lucygoosey
 
     def _should_auto_update_sentiments(self) -> bool:
         return self.current_chart_id is not None
@@ -30572,8 +30565,11 @@ class MainWindow(QMainWindow):
             return
         if not self._ensure_current_chart_still_exists():
             return
-        if self.on_update_chart(show_dialog=False, recalculate_chart=False):
-            self._set_lucygoosey(False)
+        if self._leaving_chart_view_prompt_open:
+            self._metadata_autosave_timer.start(2000)
+            return
+        self.on_update_chart(show_dialog=False, recalculate_chart=False)
+        self._set_lucygoosey(False)
 
     def _on_sentiment_toggled(self, checked: bool) -> None:
         if self._suppress_lucygoosey:
@@ -30661,8 +30657,11 @@ class MainWindow(QMainWindow):
             return
         if not self._ensure_current_chart_still_exists():
             return
-        if self.on_update_chart(show_dialog=False, recalculate_chart=False):
-            self._set_lucygoosey(False)
+        if self._leaving_chart_view_prompt_open:
+            self._sentiment_metrics_autosave_timer.start(2000)
+            return
+        self.on_update_chart(show_dialog=False, recalculate_chart=False)
+        self._set_lucygoosey(False)
 
     def _clear_event_metadata_fields(self) -> None:
         # Event chart type intentionally removes sentiment/relationship metadata.
@@ -31902,7 +31901,7 @@ class MainWindow(QMainWindow):
         )
 
 
-    def on_update_chart(self, show_dialog: bool = True, recalculate_chart: bool = True) -> bool:
+    def on_update_chart(self, show_dialog: bool = True, recalculate_chart: bool = True):
         chart_id = self.current_chart_id
         is_placeholder = self.placeholder_chart_checkbox.isChecked()
         chart = None
@@ -31928,15 +31927,15 @@ class MainWindow(QMainWindow):
                                 "Delete error",
                                 f"Could not delete chart #{chart_id}:\n{e}",
                             )
-                            return False
+                            return
                         self._on_charts_deleted({chart_id})
                         self._manage_charts_pending_changed_ids.add(chart_id)
                     else:
                         self._reset_new_chart_form()
                     self.on_manage_charts()
-                    return True
+                    return
                 else:
-                    return False
+                    return
         if not recalculate_chart and chart_id is not None:
             try:
                 chart = load_chart(chart_id)
@@ -32020,7 +32019,7 @@ class MainWindow(QMainWindow):
             if chart_result is None:
                 self._highlight_required_fields()
                 self.placeholder_chart_checkbox.setChecked(True)
-                return False
+                return
             chart, place, location_msg, tz_override = chart_result
             chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
             chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
@@ -32076,7 +32075,7 @@ class MainWindow(QMainWindow):
 
         if is_new_chart:
             if not self._confirm_duplicate_chart_save(chart):
-                return False
+                return
             chart_id = save_chart(chart, **save_kwargs)
             set_current_chart(chart_id)
         else:
@@ -32166,7 +32165,6 @@ class MainWindow(QMainWindow):
 
         if not is_placeholder:
             self._schedule_chart_render(chart, sections={"wheel"})
-        return True
 
     def _reset_new_chart_form(self) -> None:
         self._chart_view_history.clear()
