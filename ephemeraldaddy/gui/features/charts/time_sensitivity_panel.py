@@ -499,12 +499,12 @@ def _time_sensitivity_factor_info_html(
     return (
         "<div style='white-space:normal;'>"
         f"<div style='font-size:14px; font-weight:700; color:{color};'>{escape(display)}</div>"
-        "<table style='border-collapse:collapse; margin-top:6px; font-size:12px;'>"
-        f"<tr><td><b>Min dominance</b></td><td style='padding-left:12px;'>{escape(f'{minimum:.0f}')}</td><td style='padding-left:12px;'> at {escape(trough_time)}</td></tr>"
-        f"<tr><td><b>Max dominance</b></td><td style='padding-left:12px;'>{escape(f'{maximum:.0f}')}</td><td style='padding-left:12px;'> at {escape(peak_time)}</td></tr>"
+        #"<table style='border-collapse:collapse; margin-top:6px; font-size:12px;'>"
+        f"<b>Min dominance</b>{escape(f'{minimum:.0f}')} at {escape(trough_time)}</br>"
+        f"<b>Max dominance</b>{escape(f'{maximum:.0f}')} at {escape(peak_time)}"
         #f"<tr><td><b>Trench time</b></td><td style='padding-left:12px;'>{escape(trough_time)}</td></tr>"
         #f"<tr><td><b>Peak time</b></td><td style='padding-left:12px;'>{escape(peak_time)}</td></tr>"
-        "</table>"
+        #"</table>"
         "</div>"
     )
 
