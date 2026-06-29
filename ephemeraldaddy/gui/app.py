@@ -1208,6 +1208,7 @@ GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS: frozenset[str] = frozenset(
     }
 )
 SIMILAR_CHARTS_EXPORT_FORMAT_KEY = "exports/similar_charts_format"
+SIMILARITIES_ANALYSIS_TEXT_EXPORT_FORMAT_KEY = "exports/similarities_analysis_text_format"
 CHART_VIEW_NAV_CACHE_LIMIT = 24
 
 DATABASE_METRICS_PERSISTENT_CACHE_VERSION = 1
@@ -8772,6 +8773,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         _export_similarities_analysis_json_dialog(
             self,
             self._similarities_export_sections,
+            settings=self._settings,
+            sample_size=self._similarities_export_sample_size(),
             reactivate_callback=self._reactivate_database_view,
         )
 
@@ -8787,7 +8790,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         header_name, accepted = QInputDialog.getText(
             self,
             "Selection name",
-            "Name this selection (used as a CSV column header):",
+            "Name this selection (used as an export column header):",
             text="Selection",
         )
         if not accepted:
@@ -8797,20 +8800,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         sanitized_header = re.sub(r"[^\w\s-]", "", header_name).strip() or "selection"
         sanitized_header = re.sub(r"\s+", "_", sanitized_header)
-        default_filename = (
-            f"ephemeraldaddy_{sanitized_header} similarities analysis_{timestamp}.csv"
-        )
-        file_path, _ = QFileDialog.getSaveFileName(
+        sample_size = self._similarities_export_sample_size()
+        sample_suffix = f"_{sample_size}samples" if sample_size > 0 else ""
+        file_path = _get_text_export_path(
             self,
-            "Export similarities analysis as CSV",
-            default_filename,
-            "CSV Files (*.csv)",
+            self._settings,
+            dialog_title="Export similarities analysis as text",
+            default_stem=f"ephemeraldaddy_{sanitized_header} similarities analysis_{timestamp}{sample_suffix}",
+            preference_key=SIMILARITIES_ANALYSIS_TEXT_EXPORT_FORMAT_KEY,
+            default_extension=".md",
         )
         QTimer.singleShot(0, self._reactivate_database_view)
         if not file_path:
             return
-        if not file_path.lower().endswith(".csv"):
-            file_path = f"{file_path}.csv"
 
         rows: list[list[str | int | float]] = []
         for section_title, matches in self._similarities_export_sections:
@@ -8853,36 +8855,76 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             return
 
+        headers = [
+            "category",
+            header_name,
+            f"{header_name} match count",
+            "selected chart count",
+            f"{header_name} match percent",
+            "database match count",
+            "database chart count",
+            "database match percent",
+            f"{header_name} minus database match percent",
+            f"{header_name} matching chart names",
+        ]
         try:
-            with open(file_path, "w", newline="", encoding="utf-8") as csv_file:
-                writer = csv.writer(csv_file)
-                writer.writerow([
-                    "category",
-                    header_name,
-                    f"{header_name} match count",
-                    "selected chart count",
-                    f"{header_name} match percent",
-                    "database match count",
-                    "database chart count",
-                    "database match percent",
-                    f"{header_name} minus database match percent",
-                    f"{header_name} matching chart names",
-                ])
-                writer.writerows(rows)
+            is_markdown = file_path.lower().endswith(".md")
+            export_text = self._format_similarities_analysis_text_export(
+                header_name,
+                headers,
+                rows,
+                is_markdown=is_markdown,
+            )
+            with open(file_path, "w", encoding="utf-8") as export_file:
+                export_file.write(export_text)
         except Exception as e:
             QMessageBox.critical(
                 self,
                 "Export failed",
-                f"Could not export similarities analysis as CSV:\n{e}",
+                f"Could not export similarities analysis as text:\n{e}",
             )
             return
 
         QMessageBox.information(
             self,
             "Export complete",
-            f"Saved similarities analysis CSV to:\n{file_path}",
+            f"Saved similarities analysis text export to:\n{file_path}",
         )
             
+    def _similarities_export_sample_size(self) -> int:
+        for _section_title, matches in self._similarities_export_sections:
+            for match in matches:
+                if len(match) >= 3:
+                    try:
+                        return int(match[2])
+                    except (TypeError, ValueError):
+                        continue
+        return len(self._exclude_similarities_placeholder_chart_ids(self._selected_chart_ids()))
+
+    def _format_similarities_analysis_text_export(
+        self,
+        header_name: str,
+        headers: list[str],
+        rows: list[list[str | int | float]],
+        *,
+        is_markdown: bool,
+    ) -> str:
+        if is_markdown:
+            lines = [f"# Similarities Analysis: {header_name}", ""]
+            lines.append("| " + " | ".join(headers) + " |")
+            lines.append("| " + " | ".join(["---"] * len(headers)) + " |")
+            for row in rows:
+                cells = [str(value).replace("|", "\\|").replace("\n", " ") for value in row]
+                lines.append("| " + " | ".join(cells) + " |")
+            return "\n".join(lines).rstrip() + "\n"
+
+        lines = [f"Similarities Analysis: {header_name}", "=" * (23 + len(header_name)), ""]
+        for row in rows:
+            for header, value in zip(headers, row, strict=False):
+                lines.append(f"{header}: {value}")
+            lines.append("")
+        return "\n".join(lines).rstrip() + "\n"
+
     def _build_sentiment_averages(
         self,
         chart_ids: list[int],

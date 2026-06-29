@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import datetime
+import os
 import re
 from collections import OrderedDict
 from typing import Callable
@@ -15,6 +16,21 @@ from ephemeraldaddy.gui.features.charts.similarities_export import (
     format_similarities_json_export_payload,
     similarities_json_payload_has_factors,
 )
+
+
+def _save_dialog_default_path(settings: QSettings, *, directory_key: str, default_filename: str) -> str:
+    """Return a default save path rooted in the last successful export directory."""
+    last_directory = str(settings.value(directory_key, "") or "").strip()
+    if last_directory and os.path.isdir(last_directory):
+        return os.path.join(last_directory, default_filename)
+    return default_filename
+
+
+def _remember_save_dialog_directory(settings: QSettings, *, directory_key: str, file_path: str) -> None:
+    """Persist the selected save directory for the next export dialog."""
+    directory = os.path.dirname(os.path.abspath(file_path))
+    if directory:
+        settings.setValue(directory_key, directory)
 
 
 def sanitize_export_token(value: str, fallback: str = "chart") -> str:
@@ -86,10 +102,16 @@ def get_text_export_path(
     else:
         filters = "Text Files (*.txt);;Markdown Files (*.md)"
     default_filename = f"{default_stem}{preferred_extension}"
+    directory_key = f"{preference_key}/last_directory"
+    default_path = _save_dialog_default_path(
+        settings,
+        directory_key=directory_key,
+        default_filename=default_filename,
+    )
     file_path, selected_filter = QFileDialog.getSaveFileName(
         parent,
         dialog_title,
-        default_filename,
+        default_path,
         filters,
     )
     if not file_path:
@@ -104,6 +126,7 @@ def get_text_export_path(
         file_path = f"{file_path}{selected_extension}"
 
     settings.setValue(preference_key, selected_extension)
+    _remember_save_dialog_directory(settings, directory_key=directory_key, file_path=file_path)
     return file_path
 
 
@@ -111,6 +134,9 @@ def export_similarities_analysis_json_dialog(
     parent: QWidget,
     export_sections,
     *,
+    settings: QSettings | None = None,
+    directory_key: str = "similarities_analysis/python_export/last_directory",
+    sample_size: int | None = None,
     reactivate_callback: Callable[[], None] | None = None,
 ) -> None:
     """Prompt for a name/path and export Similarities Analysis data as Python."""
@@ -144,11 +170,17 @@ def export_similarities_analysis_json_dialog(
     timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     sanitized_name = re.sub(r"[^\w\s-]", "", selection_name).strip() or "selection"
     sanitized_name = re.sub(r"\s+", "_", sanitized_name)
-    default_filename = f"ephemeraldaddy_{sanitized_name} similarities analysis_{timestamp}.py"
+    sample_suffix = f"_{sample_size}samples" if sample_size is not None and sample_size > 0 else ""
+    default_filename = f"ephemeraldaddy_{sanitized_name} similarities analysis_{timestamp}{sample_suffix}.py"
+    default_path = (
+        _save_dialog_default_path(settings, directory_key=directory_key, default_filename=default_filename)
+        if settings is not None
+        else default_filename
+    )
     file_path, _ = QFileDialog.getSaveFileName(
         parent,
         "Export similarities analysis as Python",
-        default_filename,
+        default_path,
         "Python Files (*.py)",
     )
     if reactivate_callback is not None:
@@ -157,6 +189,8 @@ def export_similarities_analysis_json_dialog(
         return
     if not file_path.lower().endswith(".py"):
         file_path = f"{file_path}.py"
+    if settings is not None:
+        _remember_save_dialog_directory(settings, directory_key=directory_key, file_path=file_path)
 
     try:
         with open(file_path, "w", encoding="utf-8") as export_file:
