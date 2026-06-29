@@ -45,22 +45,32 @@ def test_time_sensitivity_nakshatra_lookup_accepts_full_range_rows():
     assert _get_nakshatra(37.2) == "Bharani"
 
 
-def test_compute_time_sensitivity_keeps_numeric_samples_when_human_design_fails(monkeypatch):
+def test_compute_time_sensitivity_keeps_numeric_samples_when_human_design_fails(
+    monkeypatch,
+):
     from datetime import datetime
     from types import SimpleNamespace
 
     from ephemeraldaddy.analysis import time_sensitivity as module
     from ephemeraldaddy.analysis.time_sensitivity import compute_time_sensitivity
 
-    chart = SimpleNamespace(dt=datetime(2000, 1, 1, 12, 0), lat=0.0, lon=0.0, name="Example")
+    chart = SimpleNamespace(
+        dt=datetime(2000, 1, 1, 12, 0), lat=0.0, lon=0.0, name="Example"
+    )
     numeric = {group: {"example": 1.0} for group in module.NUMERIC_GROUPS}
 
     monkeypatch.setattr(module, "_variant_chart", lambda source, hour, minute: source)
     monkeypatch.setattr(module, "_numeric_snapshot", lambda variant: numeric)
     monkeypatch.setattr(module, "_categorical_snapshot", lambda variant: {})
-    monkeypatch.setattr(module, "_hd_snapshot", lambda variant: (_ for _ in ()).throw(ValueError("HD unavailable")))
+    monkeypatch.setattr(
+        module,
+        "_hd_snapshot",
+        lambda variant: (_ for _ in ()).throw(ValueError("HD unavailable")),
+    )
 
-    result = compute_time_sensitivity(chart, TimeSensitivityConfig(interval_minutes=720, include_day_end=False))
+    result = compute_time_sensitivity(
+        chart, TimeSensitivityConfig(interval_minutes=720, include_day_end=False)
+    )
 
     assert result.sample_count == 2
     assert result.numeric_ranges["dominant_planet_weights"]["example"]["min"] == 1.0
@@ -102,8 +112,12 @@ def test_baseline_time_for_chart_prefers_current_or_rectified_time():
 
     from ephemeraldaddy.analysis import time_sensitivity as module
 
-    known_time = SimpleNamespace(dt=datetime(2000, 1, 1, 8, 30), birthtime_unknown=False, retcon_time_used=False)
-    unknown_time = SimpleNamespace(dt=datetime(2000, 1, 1, 8, 30), birthtime_unknown=True, retcon_time_used=False)
+    known_time = SimpleNamespace(
+        dt=datetime(2000, 1, 1, 8, 30), birthtime_unknown=False, retcon_time_used=False
+    )
+    unknown_time = SimpleNamespace(
+        dt=datetime(2000, 1, 1, 8, 30), birthtime_unknown=True, retcon_time_used=False
+    )
     rectified_time = SimpleNamespace(
         dt=datetime(2000, 1, 1, 8, 30),
         birthtime_unknown=True,
@@ -112,16 +126,33 @@ def test_baseline_time_for_chart_prefers_current_or_rectified_time():
         retcon_minute=45,
     )
 
-    assert module._baseline_time_for_chart(known_time, None) == (8, 30, "08:30", "current chart time")
-    assert module._baseline_time_for_chart(unknown_time, None) == (12, 0, "12:00", "noon fallback")
-    assert module._baseline_time_for_chart(rectified_time, None) == (14, 45, "14:45", "rectified time")
+    assert module._baseline_time_for_chart(known_time, None) == (
+        8,
+        30,
+        "08:30",
+        "current chart time",
+    )
+    assert module._baseline_time_for_chart(unknown_time, None) == (
+        12,
+        0,
+        "12:00",
+        "noon fallback",
+    )
+    assert module._baseline_time_for_chart(rectified_time, None) == (
+        14,
+        45,
+        "14:45",
+        "rectified time",
+    )
 
 
 def test_time_sensitivity_result_loads_by_birth_date_not_chart_uid(tmp_path):
     from datetime import datetime
     from types import SimpleNamespace
 
-    from ephemeraldaddy.analysis.time_sensitivity import load_time_sensitivity_result_for_chart
+    from ephemeraldaddy.analysis.time_sensitivity import (
+        load_time_sensitivity_result_for_chart,
+    )
 
     config = TimeSensitivityConfig(interval_minutes=30, include_day_end=True)
     result = TimeSensitivityResult(
@@ -215,7 +246,12 @@ def test_save_time_sensitivity_does_not_delete_other_empty_uid_dates(tmp_path):
     import sqlite3
 
     with sqlite3.connect(db_path) as conn:
-        dates = [row[0] for row in conn.execute("SELECT birth_date_key FROM chart_time_sensitivity_ranges ORDER BY birth_date_key")]
+        dates = [
+            row[0]
+            for row in conn.execute(
+                "SELECT birth_date_key FROM chart_time_sensitivity_ranges ORDER BY birth_date_key"
+            )
+        ]
 
     assert dates == ["04-05-2001", "04-06-2001"]
 
@@ -223,8 +259,13 @@ def test_save_time_sensitivity_does_not_delete_other_empty_uid_dates(tmp_path):
 def test_time_sensitivity_html_color_codes_deltas_and_links_factors():
     import pytest
 
-    panel_module = pytest.importorskip("ephemeraldaddy.gui.features.charts.time_sensitivity_panel", exc_type=ImportError)
-    format_time_sensitivity_result_html = panel_module.format_time_sensitivity_result_html
+    panel_module = pytest.importorskip(
+        "ephemeraldaddy.gui.features.charts.time_sensitivity_panel",
+        exc_type=ImportError,
+    )
+    format_time_sensitivity_result_html = (
+        panel_module.format_time_sensitivity_result_html
+    )
 
     result = TimeSensitivityResult(
         chart_uid="CHARTUID",
@@ -235,14 +276,47 @@ def test_time_sensitivity_html_color_codes_deltas_and_links_factors():
         config=TimeSensitivityConfig().__dict__,
         sample_count=2,
         baseline_time="12:00",
-        overall={"stability_percent": 50.0, "max_total_change_from_baseline_percent": 50.0},
+        overall={
+            "stability_percent": 50.0,
+            "max_total_change_from_baseline_percent": 50.0,
+        },
         numeric_ranges={
             "dominant_sign_weights": {
-                "Aries": {"min": 1.0, "max": 3.0, "baseline": 1.0, "delta": 2.0, "percent_delta": 200.0, "max_decrease_percent": 0.0, "max_increase_percent": 200.0, "label": "Highly variable", "peak_times": ["12:00"]},
-                "Taurus": {"min": 1.0, "max": 1.5, "baseline": 1.0, "delta": 0.5, "percent_delta": 50.0, "max_decrease_percent": 0.0, "max_increase_percent": 50.0, "label": "Variable", "peak_times": ["00:00"]},
+                "Aries": {
+                    "min": 1.0,
+                    "max": 3.0,
+                    "baseline": 1.0,
+                    "delta": 2.0,
+                    "percent_delta": 200.0,
+                    "max_decrease_percent": 0.0,
+                    "max_increase_percent": 200.0,
+                    "label": "Highly variable",
+                    "peak_times": ["12:00"],
+                },
+                "Taurus": {
+                    "min": 1.0,
+                    "max": 1.5,
+                    "baseline": 1.0,
+                    "delta": 0.5,
+                    "percent_delta": 50.0,
+                    "max_decrease_percent": 0.0,
+                    "max_increase_percent": 50.0,
+                    "label": "Variable",
+                    "peak_times": ["00:00"],
+                },
             },
             "dominant_element_weights": {
-                "Fire": {"min": 0.0, "max": 2.0, "baseline": 1.0, "delta": 2.0, "percent_delta": 100.0, "max_decrease_percent": -100.0, "max_increase_percent": 100.0, "label": "Highly variable", "peak_times": ["23:59"]},
+                "Fire": {
+                    "min": 0.0,
+                    "max": 2.0,
+                    "baseline": 1.0,
+                    "delta": 2.0,
+                    "percent_delta": 100.0,
+                    "max_decrease_percent": -100.0,
+                    "max_increase_percent": 100.0,
+                    "label": "Highly variable",
+                    "peak_times": ["23:59"],
+                },
             },
         },
         human_design={
@@ -272,8 +346,13 @@ def test_time_sensitivity_html_color_codes_deltas_and_links_factors():
 def test_time_sensitivity_html_colors_min_and_max_against_separate_peer_scales():
     import pytest
 
-    panel_module = pytest.importorskip("ephemeraldaddy.gui.features.charts.time_sensitivity_panel", exc_type=ImportError)
-    format_time_sensitivity_result_html = panel_module.format_time_sensitivity_result_html
+    panel_module = pytest.importorskip(
+        "ephemeraldaddy.gui.features.charts.time_sensitivity_panel",
+        exc_type=ImportError,
+    )
+    format_time_sensitivity_result_html = (
+        panel_module.format_time_sensitivity_result_html
+    )
 
     result = TimeSensitivityResult(
         chart_uid="CHARTUID",
@@ -284,11 +363,34 @@ def test_time_sensitivity_html_colors_min_and_max_against_separate_peer_scales()
         config=TimeSensitivityConfig().__dict__,
         sample_count=2,
         baseline_time="12:00",
-        overall={"stability_percent": 50.0, "max_total_change_from_baseline_percent": 50.0},
+        overall={
+            "stability_percent": 50.0,
+            "max_total_change_from_baseline_percent": 50.0,
+        },
         numeric_ranges={
             "dominant_sign_weights": {
-                "Aries": {"min": 1.0, "max": 3.0, "baseline": 1.0, "delta": 2.0, "percent_delta": 200.0, "max_decrease_percent": 0.0, "max_increase_percent": 200.0, "label": "Highly variable", "peak_times": ["12:00"]},
-                "Taurus": {"min": 2.0, "max": 2.5, "baseline": 2.0, "delta": 0.5, "percent_delta": 25.0, "max_decrease_percent": 0.0, "max_increase_percent": 25.0, "label": "Variable", "peak_times": ["00:00"]},
+                "Aries": {
+                    "min": 1.0,
+                    "max": 3.0,
+                    "baseline": 1.0,
+                    "delta": 2.0,
+                    "percent_delta": 200.0,
+                    "max_decrease_percent": 0.0,
+                    "max_increase_percent": 200.0,
+                    "label": "Highly variable",
+                    "peak_times": ["12:00"],
+                },
+                "Taurus": {
+                    "min": 2.0,
+                    "max": 2.5,
+                    "baseline": 2.0,
+                    "delta": 0.5,
+                    "percent_delta": 25.0,
+                    "max_decrease_percent": 0.0,
+                    "max_increase_percent": 25.0,
+                    "label": "Variable",
+                    "peak_times": ["00:00"],
+                },
             },
         },
         human_design={},
@@ -304,10 +406,68 @@ def test_time_sensitivity_html_colors_min_and_max_against_separate_peer_scales()
     assert "<span style='color:#7a0000;'>2.50</span>" in taurus_item
 
 
-def test_time_sensitivity_confidence_uses_stability_percent_and_bright_green_scale():
+def test_body_sign_confidence_keys_include_nodes_asteroids_lilith_and_fortune():
+    from ephemeraldaddy.analysis.time_sensitivity import BODY_SIGN_CONFIDENCE_KEYS
+
+    assert {
+        "Rahu",
+        "Ketu",
+        "Neptune",
+        "Chiron",
+        "Ceres",
+        "Juno",
+        "Pallas",
+        "Vesta",
+        "Lilith",
+        "Lillith",
+        "Part of Fortune",
+        "Fortune",
+    }.issubset(BODY_SIGN_CONFIDENCE_KEYS)
+
+
+def test_categorical_snapshot_includes_extended_body_signs():
+    from types import SimpleNamespace
+
+    from ephemeraldaddy.analysis.time_sensitivity import _categorical_snapshot
+
+    chart = SimpleNamespace(
+        positions={
+            "Neptune": 330.0,
+            "Rahu": 0.0,
+            "Ketu": 180.0,
+            "Chiron": 30.0,
+            "Ceres": 60.0,
+            "Pallas": 90.0,
+            "Juno": 120.0,
+            "Vesta": 150.0,
+            "Lilith": 210.0,
+            "Part of Fortune": 240.0,
+            "Fortune": 270.0,
+        }
+    )
+
+    body_signs = _categorical_snapshot(chart)["body_signs"]
+
+    assert body_signs["Neptune"] == "Pisces"
+    assert body_signs["Rahu"] == "Aries"
+    assert body_signs["Ketu"] == "Libra"
+    assert body_signs["Chiron"] == "Taurus"
+    assert body_signs["Ceres"] == "Gemini"
+    assert body_signs["Pallas"] == "Cancer"
+    assert body_signs["Juno"] == "Leo"
+    assert body_signs["Vesta"] == "Virgo"
+    assert body_signs["Lilith"] == "Scorpio"
+    assert body_signs["Part of Fortune"] == "Sagittarius"
+    assert body_signs["Fortune"] == "Capricorn"
+
+
+def test_time_sensitivity_confidence_uses_ascertainment_percent_and_bright_green_scale():
     import pytest
 
-    panel_module = pytest.importorskip("ephemeraldaddy.gui.features.charts.time_sensitivity_panel", exc_type=ImportError)
+    panel_module = pytest.importorskip(
+        "ephemeraldaddy.gui.features.charts.time_sensitivity_panel",
+        exc_type=ImportError,
+    )
 
     result = TimeSensitivityResult(
         chart_uid="CHARTUID",
@@ -318,7 +478,10 @@ def test_time_sensitivity_confidence_uses_stability_percent_and_bright_green_sca
         config=TimeSensitivityConfig().__dict__,
         sample_count=2,
         baseline_time="12:00",
-        overall={"stability_percent": 42.5},
+        overall={
+            "stability_percent": 0.0,
+            "ascertainment_confidence": {"percent": 42.5},
+        },
         numeric_ranges={},
         human_design={},
         stable=[],
@@ -334,7 +497,10 @@ def test_time_sensitivity_confidence_uses_stability_percent_and_bright_green_sca
 def test_time_sensitivity_popout_factor_info_shows_min_max_peak_and_trench():
     import pytest
 
-    panel_module = pytest.importorskip("ephemeraldaddy.gui.features.charts.time_sensitivity_panel", exc_type=ImportError)
+    panel_module = pytest.importorskip(
+        "ephemeraldaddy.gui.features.charts.time_sensitivity_panel",
+        exc_type=ImportError,
+    )
 
     result = TimeSensitivityResult(
         chart_uid="CHARTUID",
@@ -362,7 +528,9 @@ def test_time_sensitivity_popout_factor_info_shows_min_max_peak_and_trench():
         warnings=[],
     )
 
-    html = panel_module._time_sensitivity_factor_info_html(result, "dominant_nakshatra_weights", "Ashwini")
+    html = panel_module._time_sensitivity_factor_info_html(
+        result, "dominant_nakshatra_weights", "Ashwini"
+    )
 
     assert "Ashwini" in html
     assert "Min dominance" in html
@@ -378,23 +546,32 @@ def test_time_sensitivity_popout_factor_info_shows_min_max_peak_and_trench():
 def test_time_sensitivity_popout_charts_include_all_numeric_factor_click_targets():
     from pathlib import Path
 
-    source = Path("ephemeraldaddy/gui/features/charts/time_sensitivity_panel.py").read_text()
+    source = Path(
+        "ephemeraldaddy/gui/features/charts/time_sensitivity_panel.py"
+    ).read_text()
 
     assert '"dominant_planet_weights": "Dominant Body Weight Distribution"' in source
     assert '"dominant_sign_weights": "Dominant Sign Weight Distribution"' in source
-    assert '"dominant_element_weights": "Dominant Element Weight Distribution"' in source
+    assert (
+        '"dominant_element_weights": "Dominant Element Weight Distribution"' in source
+    )
     assert '"dominant_house_weights": "Dominant House Weight Distribution"' in source
     assert '"dominant_mode_weights": "Dominant Mode Weight Distribution"' in source
-    assert '"dominant_nakshatra_weights": "Dominant Nakshatra Weight Distribution"' in source
-    assert "setattr(bar, \"_time_sensitivity_factor\", label)" in source
-    assert "setattr(tick_label, \"_time_sensitivity_factor\", label)" in source
+    assert (
+        '"dominant_nakshatra_weights": "Dominant Nakshatra Weight Distribution"'
+        in source
+    )
+    assert 'setattr(bar, "_time_sensitivity_factor", label)' in source
+    assert 'setattr(tick_label, "_time_sensitivity_factor", label)' in source
     assert "_install_factor_click(ax, clickable_artists, on_factor_click)" in source
 
 
 def test_time_sensitivity_chart_canvases_forward_wheel_events_to_parent_scroll_area():
     from pathlib import Path
 
-    source = Path("ephemeraldaddy/gui/features/charts/time_sensitivity_panel.py").read_text()
+    source = Path(
+        "ephemeraldaddy/gui/features/charts/time_sensitivity_panel.py"
+    ).read_text()
 
     assert "class TimeSensitivityFigureCanvas(FigureCanvas):" in source
     assert "def wheelEvent(self, event: object) -> None" in source
@@ -406,11 +583,92 @@ def test_time_sensitivity_chart_canvases_forward_wheel_events_to_parent_scroll_a
 def test_time_sensitivity_popout_captures_rendered_result_for_factor_clicks():
     from pathlib import Path
 
-    source = Path("ephemeraldaddy/gui/features/charts/time_sensitivity_panel.py").read_text()
+    source = Path(
+        "ephemeraldaddy/gui/features/charts/time_sensitivity_panel.py"
+    ).read_text()
     popout_source = source.split("def _show_likelihood_popout", 1)[1]
 
     assert "result = self._last_result" in popout_source
     assert "if result is None:" in popout_source
-    assert "_time_sensitivity_factor_info_html(result, group_key, label)" in popout_source
-    assert "_draw_likelihood_chart(ax, result, group_key, on_factor_click=show_factor_info)" in popout_source
-    assert "_time_sensitivity_factor_info_html(self._last_result, group_key, label)" not in popout_source
+    assert (
+        "_time_sensitivity_factor_info_html(result, group_key, label)" in popout_source
+    )
+    assert (
+        "_draw_likelihood_chart(ax, result, group_key, on_factor_click=show_factor_info)"
+        in popout_source
+    )
+    assert (
+        "_time_sensitivity_factor_info_html(self._last_result, group_key, label)"
+        not in popout_source
+    )
+
+
+def test_ascertainment_confidence_values_stable_planet_signs_over_volatile_scores():
+    from ephemeraldaddy.analysis.time_sensitivity import _ascertainment_confidence
+
+    samples = [
+        {
+            "human_design": {"type": "Generator", "profile": "1/3"},
+            "categorical": {
+                "body_signs": {
+                    "Sun": "Aries",
+                    "Moon": "Taurus",
+                    "Mercury": "Gemini",
+                    "Venus": "Cancer",
+                    "Mars": "Leo",
+                    "Jupiter": "Virgo",
+                    "Saturn": "Libra",
+                    "Uranus": "Scorpio",
+                    "Neptune": "Sagittarius",
+                    "Pluto": "Capricorn",
+                },
+                "angle_signs": {"AS": "Aries", "MC": "Cancer"},
+            },
+        },
+        {
+            "human_design": {"type": "Generator", "profile": "1/3"},
+            "categorical": {
+                "body_signs": {
+                    "Sun": "Aries",
+                    "Moon": "Taurus",
+                    "Mercury": "Gemini",
+                    "Venus": "Cancer",
+                    "Mars": "Leo",
+                    "Jupiter": "Virgo",
+                    "Saturn": "Libra",
+                    "Uranus": "Scorpio",
+                    "Neptune": "Sagittarius",
+                    "Pluto": "Capricorn",
+                },
+                "angle_signs": {"AS": "Libra", "MC": "Capricorn"},
+            },
+        },
+    ]
+    overall = {
+        "stability_percent": 0.0,
+        "group_deltas": {
+            "dominant_element_weights": 0.0,
+            "dominant_mode_weights": 0.0,
+            "dominant_nakshatra_weights": 0.0,
+        },
+        "dominance_likelihoods": {
+            "dominant_planet_weights": {"Sun": {"percent": 100.0}},
+            "dominant_sign_weights": {"Aries": {"percent": 100.0}},
+            "dominant_element_weights": {"Fire": {"percent": 100.0}},
+            "dominant_mode_weights": {"Cardinal": {"percent": 100.0}},
+            "dominant_nakshatra_weights": {"Ashwini": {"percent": 100.0}},
+        },
+    }
+    hd = {
+        "gates": {"always": [1], "sometimes": [2]},
+        "lines": {"always": ["1.1"], "sometimes": []},
+        "channels": {"always": ["1-8"], "sometimes": []},
+    }
+
+    confidence = _ascertainment_confidence(samples, overall, hd)
+
+    assert confidence["percent"] > 70.0
+    assert confidence["components"]["planetary sign stability"] == 100.0
+    assert confidence["components"]["angle sign stability"] == 50.0
+    assert confidence["components"]["human design stability"] == 90.0
+    assert confidence["components"]["element/mode/nakshatra stability"] == 100.0
