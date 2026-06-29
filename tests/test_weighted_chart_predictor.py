@@ -311,7 +311,7 @@ def test_weighted_position_entries_accepts_flat_and_nested_shapes():
         "Sun in Scorpio": 4.0,
         "Sun in H4": 6.0,
     }
-    assert weighted_position_entries({"Scorpio": {"houses": {"1": 5}}}) == {"AS in Scorpio": 5.0}
+    assert weighted_position_entries({"Scorpio": {"houses": {"1": 5}}}) == {"Scorpio in H1": 5.0}
 
 
 def test_weighted_position_entries_deduplicates_axis_and_node_tautologies():
@@ -324,7 +324,7 @@ def test_weighted_position_entries_deduplicates_axis_and_node_tautologies():
             "Cancer in H1": 6,
             "Capricorn in H7": 7,
         }
-    ) == {"AS in Cancer": 9.0}
+    ) == {"Cancer in H1": 6.0, "Capricorn in H7": 9.0}
     assert weighted_position_entries(
         {
             "MC in Sagittarius": 3,
@@ -332,7 +332,7 @@ def test_weighted_position_entries_deduplicates_axis_and_node_tautologies():
             "Sagittarius in H10": 5,
             "Gemini in H4": 7,
         }
-    ) == {"MC in Sagittarius": 8.0}
+    ) == {"Sagittarius in H10": 5.0, "Gemini in H4": 8.0}
     assert weighted_position_entries({"Rahu in Aries": 6, "Ketu in Libra": 10}) == {
         "Rahu in Aries": 10.0
     }

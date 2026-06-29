@@ -184,6 +184,30 @@ def test_dissimilarity_export_sections_include_unique_bazi_signs():
     }
 
 
+def test_similarity_factor_counts_prefer_house_cusp_labels_for_angle_sign_tautologies():
+    from ephemeraldaddy.gui.features.charts.similarities_analysis import _build_similarity_factor_counts
+
+    chart = _chart(
+        birthtime_unknown=False,
+        positions={"AS": 125.0, "IC": 95.0, "DS": 155.0, "MC": 5.0},
+        houses=[120.0, 150.0, 180.0, 90.0, 120.0, 150.0, 150.0, 180.0, 210.0, 0.0, 30.0, 60.0],
+    )
+    provider = FakeDissimilarityProvider({1: chart})
+
+    sections = _build_similarity_factor_counts(provider, [1])
+    position_counts, _position_totals = sections.get("Signs in positions in contrast", ({}, {}))
+    house_sign_counts, _house_sign_totals = sections["Signs in houses in contrast"]
+
+    assert "AS in Leo" not in position_counts
+    assert "IC in Cancer" not in position_counts
+    assert "DS in Virgo" not in position_counts
+    assert "MC in Aries" not in position_counts
+    assert "Leo in H1" in house_sign_counts
+    assert "Cancer in H4" in house_sign_counts
+    assert "Virgo in H7" in house_sign_counts
+    assert "Aries in H10" in house_sign_counts
+
+
 def test_dissimilarity_factor_counts_use_shared_aspect_display_rules():
     from ephemeraldaddy.gui.features.charts.similarities_analysis import _build_similarity_factor_counts
 

@@ -23,6 +23,7 @@ from ephemeraldaddy.analysis.get_astro_twin import (
     normalize_similar_charts_algorithm_mode,
 )
 from ephemeraldaddy.analysis.human_design_reference import canonicalize_hd_authority_label
+from ephemeraldaddy.analysis.weighted_chart_predictor import canonical_position_equivalence_spec
 from ephemeraldaddy.gui.features.charts.human_design_shared import HumanDesignSharedAggregates
 from ephemeraldaddy.core.aspect_display import ASPECT_DISPLAY_ANGLE_BODIES, aspect_is_displayable
 from ephemeraldaddy.core.chart import Chart
@@ -287,6 +288,10 @@ def _build_similarity_factor_counts(
         counts[label] = counts.get(label, 0) + 1
         totals.setdefault(label, int(total if total is not None else chart_count))
 
+    def add_position(section: str, label: str, total: int | None = None) -> None:
+        canonical_label = canonical_position_equivalence_spec(label) or label
+        add(section, canonical_label, total)
+
     for chart in charts:
         use_houses = chart_uses_houses(chart)
         for body in PLANET_ORDER:
@@ -296,11 +301,12 @@ def _build_similarity_factor_counts(
             if lon is None:
                 continue
             body_label = provider._similarities_body_label(body)
-            add(
-                "Signs in positions in contrast",
-                f"{body_label} in {sign_for_longitude(lon)}",
-                time_specific_chart_count if body in angular_bodies else chart_count,
-            )
+            if body not in angular_bodies:
+                add_position(
+                    "Signs in positions in contrast",
+                    f"{body_label} in {sign_for_longitude(lon)}",
+                    chart_count,
+                )
             if use_houses:
                 house_num = house_for_longitude(getattr(chart, "houses", None), lon)
                 if house_num is not None and (body, house_num) not in {
@@ -318,9 +324,9 @@ def _build_similarity_factor_counts(
             houses = getattr(chart, "houses", None)
             if houses and len(houses) >= 12:
                 for house_index in range(12):
-                    add(
+                    add_position(
                         "Signs in houses in contrast",
-                        f"House {house_index + 1}: {sign_for_longitude(houses[house_index])}",
+                        f"{sign_for_longitude(houses[house_index])} in H{house_index + 1}",
                         time_specific_chart_count,
                     )
 
