@@ -303,10 +303,9 @@ def refresh_search_tags_list(window, known_tags: list[str]) -> None:
         parent_item.addChild(item)
         checkbox = QuadStateSlider(display)
         checkbox.setMode(
-            existing_modes.get(
-                tag,
-                QuadStateSlider.MODE_TRUE if tag.casefold() in selected_tags else QuadStateSlider.MODE_EMPTY,
-            )
+            QuadStateSlider.MODE_TRUE
+            if tag.casefold() in selected_tags
+            else existing_modes.get(tag, QuadStateSlider.MODE_EMPTY)
         )
         checkbox.modeChanged.connect(lambda _mode, tag_name=tag: on_search_tag_mode_changed(window, tag_name))
         logic = make_logic_buttons(existing_logic.get(tag, "and"))
@@ -334,10 +333,9 @@ def refresh_search_tags_list(window, known_tags: list[str]) -> None:
         tree.addTopLevelItem(root_item)
         checkbox = QuadStateSlider(_tag_value_display_name(value))
         checkbox.setMode(
-            existing_modes.get(
-                tag,
-                QuadStateSlider.MODE_TRUE if tag.casefold() in selected_tags else QuadStateSlider.MODE_EMPTY,
-            )
+            QuadStateSlider.MODE_TRUE
+            if tag.casefold() in selected_tags
+            else existing_modes.get(tag, QuadStateSlider.MODE_EMPTY)
         )
         checkbox.modeChanged.connect(lambda _mode, tag_name=tag: on_search_tag_mode_changed(window, tag_name))
         logic = make_logic_buttons(existing_logic.get(tag, "and"))

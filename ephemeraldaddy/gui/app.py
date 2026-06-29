@@ -16788,6 +16788,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self.search_untagged_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             for checkbox in getattr(self, "search_tag_filter_checkboxes", {}).values():
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
+            for checkbox in getattr(self, "search_tag_category_checkboxes", {}).values():
+                checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             for checkbox in self.sentiment_filter_checkboxes.values():
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             if self._positive_sentiment_intensity_min_input is not None:
