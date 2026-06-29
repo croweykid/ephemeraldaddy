@@ -223,6 +223,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         self._unknown_format.setFontItalic(True)
         self._separator_format = QTextCharFormat()
         self._separator_format.setForeground(QColor(str(SEPARATOR_STYLE.get("color", "#555555"))))
+        self._separator_character = str(SEPARATOR_STYLE.get("character", ".") or ".")
         self._separator_minimum_space_run = int(SEPARATOR_STYLE.get("minimum_space_run", 2))
         self._default_body_format = QTextCharFormat()
         # Keep body text non-bold/non-italic by default, but do not force foreground color.
@@ -1079,7 +1080,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
 
     def _apply_separator_style(self, text: str) -> None:
         """Color only the existing whitespace between padded table columns."""
-        if self._separator_minimum_space_run <= 0:
+        if not self._separator_character or self._separator_minimum_space_run <= 0:
             return
         separator_pattern = rf"(?<=\S) {{{self._separator_minimum_space_run},}}(?=\S)"
         for separator in re.finditer(separator_pattern, text):

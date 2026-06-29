@@ -134,6 +134,7 @@ CHART_THEME_COLORS = {
 # ghost for existing whitespace between padded table columns: the underlying
 # plain text remains unchanged so fixed-width column positions do not shift.
 SEPARATOR_STYLE = {
+    "character": ".",
     "color": "#555555",
     "minimum_space_run": 2,
 }
