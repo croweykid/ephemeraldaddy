@@ -716,12 +716,14 @@ def _canonical_position_equivalence_key(raw_spec: str) -> tuple[str, str | int, 
     category, container, subject = parsed
 
     if category == "body_in_sign" and isinstance(container, str):
+        if subject == "AS":
+            return ("sign_in_house", 1, container)
         if subject == "DS":
-            opposite = _opposite_sign(container)
-            return ("body_in_sign", opposite, "AS") if opposite else parsed
+            return ("sign_in_house", 7, container)
+        if subject == "MC":
+            return ("sign_in_house", 10, container)
         if subject == "IC":
-            opposite = _opposite_sign(container)
-            return ("body_in_sign", opposite, "MC") if opposite else parsed
+            return ("sign_in_house", 4, container)
         if subject == "Ketu":
             opposite = _opposite_sign(container)
             return ("body_in_sign", opposite, "Rahu") if opposite else parsed
@@ -737,17 +739,21 @@ def _canonical_position_equivalence_key(raw_spec: str) -> tuple[str, str | int, 
         return parsed
 
     if category == "sign_in_house" and isinstance(container, int):
-        if container == 1:
-            return ("body_in_sign", subject, "AS")
-        if container == 7:
-            opposite = _opposite_sign(subject)
-            return ("body_in_sign", opposite, "AS") if opposite else parsed
-        if container == 10:
-            return ("body_in_sign", subject, "MC")
-        if container == 4:
-            opposite = _opposite_sign(subject)
-            return ("body_in_sign", opposite, "MC") if opposite else parsed
+        # Prefer house-cusp positions as the canonical representation for
+        # angle/sign structural duplicates. This keeps scoring/export criteria
+        # in the user-facing house-position form (e.g. ``Aries in H10``) while
+        # still collapsing equivalent angle labels such as ``MC in Aries``.
+        if container in {1, 4, 7, 10}:
+            return parsed
     return parsed
+
+
+def canonical_position_equivalence_spec(raw_spec: str) -> str | None:
+    """Return the preferred display/scoring spec for equivalent positions."""
+    key = _canonical_position_equivalence_key(raw_spec)
+    if key is None:
+        return None
+    return _canonical_position_spec_from_key(key, raw_spec)
 
 
 def _canonical_position_spec_from_key(key: tuple[str, str | int, str], fallback: str) -> str:
@@ -1113,6 +1119,17 @@ def _position_match_weight(
                 return 1.0
             return float(body_weights.get(subject, 0.0)) + float(house_weights.get(container, 0.0))
     elif category == "sign_in_house" and isinstance(container, int) and use_houses:
+        angle_for_house = {1: "AS", 4: "IC", 7: "DS", 10: "MC"}.get(container)
+        if angle_for_house:
+            angle_lon = (getattr(chart, "positions", None) or {}).get(angle_for_house)
+            try:
+                angle_lon_value = float(angle_lon)
+            except (TypeError, ValueError):
+                angle_lon_value = None
+            if angle_lon_value is not None and sign_for_longitude(angle_lon_value) == subject:
+                if not use_dominance_weighting:
+                    return 1.0
+                return float(sign_weights.get(subject, 0.0)) + float(house_weights.get(container, 0.0))
         for raw_body, lon in (getattr(chart, "positions", None) or {}).items():
             body = normalize_factor_value(str(raw_body))
             if body not in body_house_lookup or body_house_lookup[body] != container:
