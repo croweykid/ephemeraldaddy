@@ -7,6 +7,7 @@ from PySide6.QtCore import (
     QPoint,
     QPropertyAnimation,
     QSize,
+    QTimer,
     Qt,
     #QVariantAnimation,
 )
@@ -18,6 +19,7 @@ from PySide6.QtWidgets import (
     #QGraphicsOpacityEffect,
     #QLabel,
     QListView,
+    QScrollArea,
     QSizePolicy,
     QToolButton,
     QWidget,
@@ -688,6 +690,71 @@ def _install_collapsible_header_interactions(toggle: QToolButton, style_sheet: s
             )
         )
         toggle.setProperty("collapsible_header_wiggle_installed", True)
+    if not toggle.property("collapsible_header_autoscroll_installed"):
+        toggle.toggled.connect(
+            lambda checked=False, header_toggle=toggle: (
+                _schedule_collapsible_section_autoscroll(header_toggle) if checked else None
+            )
+        )
+        toggle.setProperty("collapsible_header_autoscroll_installed", True)
+
+
+def _nearest_scroll_area(widget: QWidget) -> QScrollArea | None:
+    """Return the nearest ancestor scroll area containing ``widget``."""
+    parent = widget.parentWidget()
+    while parent is not None:
+        if isinstance(parent, QScrollArea):
+            return parent
+        parent = parent.parentWidget()
+    return None
+
+
+def _collapsible_section_for_toggle(toggle: QToolButton) -> QWidget | None:
+    """Return the section widget controlled by a collapsible header toggle."""
+    section = toggle.parentWidget()
+    while section is not None and section.layout() is None:
+        section = section.parentWidget()
+    return section
+
+
+def _scroll_collapsible_section_bottom_into_view(toggle: QToolButton) -> None:
+    """Scroll a containing panel down until the expanded section bottom is visible."""
+    if not toggle.isChecked():
+        return
+
+    section = _collapsible_section_for_toggle(toggle)
+    if section is None:
+        return
+
+    scroll_area = _nearest_scroll_area(section)
+    if scroll_area is None:
+        return
+
+    scroll_widget = scroll_area.widget()
+    viewport = scroll_area.viewport()
+    scrollbar = scroll_area.verticalScrollBar()
+    if scroll_widget is None or viewport is None or scrollbar is None:
+        return
+
+    section_bottom_y = section.mapTo(scroll_widget, QPoint(0, section.height())).y()
+    target_value = section_bottom_y - viewport.height()
+    scrollbar.setValue(max(scrollbar.minimum(), min(target_value, scrollbar.maximum())))
+
+
+def _schedule_collapsible_section_autoscroll(toggle: QToolButton) -> None:
+    """Defer autoscroll until expansion layouts and lazy content refreshes settle."""
+    QTimer.singleShot(
+        0,
+        lambda header_toggle=toggle: _scroll_collapsible_section_bottom_into_view(
+            header_toggle
+        ),
+    )
+    QTimer.singleShot(
+        50,
+        lambda header_toggle=toggle: _scroll_collapsible_section_bottom_into_view(
+            header_toggle
+        ),
+    )
 
 
 def configure_share_export_icon_button(
