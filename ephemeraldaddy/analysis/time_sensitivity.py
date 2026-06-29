@@ -162,7 +162,7 @@ def _hd_snapshot(chart: Chart) -> dict[str, Any]:
 ANGLE_SIGN_CONFIDENCE_KEYS = ("AS", "MC", "DS", "IC")
 BODY_SIGN_CONFIDENCE_KEYS = tuple(
     body for body in PLANET_ORDER if body not in ANGLE_SIGN_CONFIDENCE_KEYS
-) + ("Fortune", "Lillith")
+)
 
 
 def _categorical_snapshot(chart: Chart) -> dict[str, Any]:
@@ -227,13 +227,16 @@ def _percent_delta(range_delta: float, baseline: float) -> float:
 
 
 def _variability_label(percent_delta: float) -> str:
+    """Return a plain-language label for a percent-delta spread."""
     if percent_delta < 5.0:
-        return "Stable"
+        return "minimal"
     if percent_delta < 15.0:
-        return "Moderate"
+        return "minor"
     if percent_delta < 35.0:
-        return "Variable"
-    return "High"
+        return "medium"
+    if percent_delta < 75.0:
+        return "high"
+    return "extreme"
 
 
 def _span_label(start_time: str, end_time: str) -> str:
@@ -295,6 +298,9 @@ def _aggregate_numeric(
             max_decrease = min_value - base_value
             baseline_delta = max(abs(max_increase), abs(max_decrease))
             pct = _percent_delta(baseline_delta, base_value)
+            max_increase_percent = _percent_delta(max_increase, base_value)
+            max_decrease_percent = _percent_delta(max_decrease, base_value)
+            variability_percent = max_increase_percent - max_decrease_percent
             max_group_delta = max(max_group_delta, abs(pct))
             present_times = [time for time, value in values if value > 0]
             peak_times = [time for time, value in values if value == max_value]

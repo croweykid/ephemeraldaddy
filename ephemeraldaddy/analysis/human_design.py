@@ -23,9 +23,11 @@ from ephemeraldaddy.core.human_design_system import (
     calculate_human_design,
 )
 from ephemeraldaddy.analysis.human_design_reference import AWARENESS_STREAMS, HD_CIRCUIT_GROUPS, HD_COLORS, HD_TONES, HD_PERSPECTIVE_NAMES, HD_DIGESTION_NAMES, HD_ENVIRONMENT_COLORS
-from ephemeraldaddy.gui.style import CHART_DATA_DIVIDER
+from ephemeraldaddy.gui.style import ARROW_STYLES, CHART_DATA_DIVIDER
 from ephemeraldaddy.analysis.hd_line_fixings import get_hd_line_fixing
 from ephemeraldaddy.core.interpretations import BODY_RELATIONAL_GLYPHS
+
+CHART_DATA_ARROW = ARROW_STYLES["classic"]
 
 ZODIAC_NAMES = (
     "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
@@ -226,7 +228,7 @@ def _collapsed_time_variant_tokens(tokens: tuple[str, str, str]) -> list[str]:
 
 
 def _format_time_variant_field(tokens: tuple[str, str, str]) -> str:
-    return "->".join(_collapsed_time_variant_tokens(tokens))
+    return CHART_DATA_ARROW.join(_collapsed_time_variant_tokens(tokens))
 
 
 def _time_variant_change_count(tokens: tuple[str, str, str]) -> int:

@@ -102,6 +102,8 @@ def test_aggregate_numeric_reports_delta_from_baseline_not_full_span():
     assert payload["percent_delta"] == 50.0
     assert payload["max_decrease_percent"] == -50.0
     assert payload["max_increase_percent"] == 50.0
+    assert payload["variability_percent"] == 100.0
+    assert payload["label"] == "extreme"
     assert payload["peak_times"] == ["23:59"]
     assert group_deltas["dominant_planet_weights"] == 50.0
 

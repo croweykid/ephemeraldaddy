@@ -476,8 +476,30 @@ def _single_time_value(values: Any) -> str:
     return first.strip() or "n/a"
 
 
+def _variability_scale_label(percent_delta_spread: float) -> str:
+    """Return a compact label for the spread between min and max percent deltas."""
+    spread = abs(float(percent_delta_spread))
+    if spread < 5.0:
+        return "minimal"
+    if spread < 15.0:
+        return "minor"
+    if spread < 35.0:
+        return "medium"
+    if spread < 75.0:
+        return "high"
+    return "extreme"
+
+
+def _variability_percent_spread(payload: dict[str, Any]) -> float:
+    if "variability_percent" in payload:
+        return abs(float(payload.get("variability_percent", 0.0)))
+    max_decrease = float(payload.get("max_decrease_percent", 0.0))
+    max_increase = float(payload.get("max_increase_percent", 0.0))
+    return abs(max_increase - max_decrease)
+
+
 def _variability_text(payload: dict[str, Any]) -> str:
-    return str(payload.get("label", "")).replace("Highly variable", "high") or "n/a"
+    return _variability_scale_label(_variability_percent_spread(payload))
 
 
 def _time_sensitivity_factor_info_html(
@@ -499,12 +521,12 @@ def _time_sensitivity_factor_info_html(
     return (
         "<div style='white-space:normal;'>"
         f"<div style='font-size:14px; font-weight:700; color:{color};'>{escape(display)}</div>"
-        "<table style='border-collapse:collapse; margin-top:6px; font-size:12px;'>"
-        f"<tr><td><b>Min dominance</b></td><td style='padding-left:12px;'>{escape(f'{minimum:.0f}')}</td></tr>"
-        f"<tr><td><b>Max dominance</b></td><td style='padding-left:12px;'>{escape(f'{maximum:.0f}')}</td></tr>"
-        f"<tr><td><b>Trench time</b></td><td style='padding-left:12px;'>{escape(trough_time)}</td></tr>"
-        f"<tr><td><b>Peak time</b></td><td style='padding-left:12px;'>{escape(peak_time)}</td></tr>"
-        "</table>"
+        #"<table style='border-collapse:collapse; margin-top:6px; font-size:12px;'>"
+        f"<b>Min dominance</b>{escape(f'{minimum:.0f}')} at {escape(trough_time)}</br>"
+        f"<b>Max dominance</b>{escape(f'{maximum:.0f}')} at {escape(peak_time)}"
+        #f"<tr><td><b>Trench time</b></td><td style='padding-left:12px;'>{escape(trough_time)}</td></tr>"
+        #f"<tr><td><b>Peak time</b></td><td style='padding-left:12px;'>{escape(peak_time)}</td></tr>"
+        #"</table>"
         "</div>"
     )
 

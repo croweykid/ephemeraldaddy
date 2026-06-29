@@ -29667,7 +29667,7 @@ class MainWindow(QMainWindow):
                         cursor.insertText(segment_text, segment_fmt)
                     else:
                         cursor.insertText(segment_text, plain_fmt)
-                cursor.insertText(f" in {sign_key}\n\n", plain_fmt)
+                #cursor.insertText(f" in {sign_key}\n\n", plain_fmt)
             else:
                 cursor.insertText(f"No chart placements in {sign_key}\n\n", plain_fmt)
         if best_keywords:

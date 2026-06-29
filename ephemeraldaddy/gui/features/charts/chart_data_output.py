@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime
 import re
 
-from PySide6.QtGui import QColor, QFont, QSyntaxHighlighter, QTextCharFormat
+from PySide6.QtGui import QColor, QFont, QPainter, QSyntaxHighlighter, QTextCharFormat, QTextCursor
 from PySide6.QtWidgets import QFrame, QPlainTextEdit, QToolTip, QWidget
 
 from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
@@ -43,8 +43,81 @@ from ephemeraldaddy.gui.style import (
     CHART_INFO_SPECIES_HEADER_COLOR,
     DND_STAT_EARTHTONE_COLORS,
     RELATIVE_YEAR_COLORS,
+    ARROW_STYLES,
+    SEPARATOR_STYLE,
     CHART_DATA_MONOSPACE_FONT_FAMILY,
 )
+
+
+def _separator_style_character() -> str:
+    return str(SEPARATOR_STYLE["character"])
+
+
+def _separator_style_color() -> QColor:
+    return QColor(str(SEPARATOR_STYLE["color"]))
+
+
+def _separator_style_minimum_space_run() -> int:
+    return int(SEPARATOR_STYLE["minimum_space_run"])
+
+
+def _chart_data_arrow() -> str:
+    return str(ARROW_STYLES["classic"])
+
+
+def _arrow_joined_token_pattern() -> str:
+    return rf"\S+(?:{re.escape(_chart_data_arrow())}\S+)*"
+
+
+def _gate_line_arrow_joined_pattern() -> str:
+    gate_line = r"(?:[1-9]|[1-5][0-9]|6[0-4])\.[1-6]"
+    return rf"{gate_line}(?:{re.escape(_chart_data_arrow())}{gate_line})*"
+
+
+def _qt_text_offset(text: str, index: int) -> int:
+    """Return a QTextCursor-compatible UTF-16 offset for a Python string index."""
+    return len(text[:index].encode("utf-16-le")) // 2
+
+
+def _separator_pattern() -> re.Pattern[str] | None:
+    minimum_space_run = _separator_style_minimum_space_run()
+    if minimum_space_run <= 0 or not _separator_style_character():
+        return None
+    return re.compile(rf"(?<=\S) {{{minimum_space_run},}}(?=\S)")
+
+
+def _paint_chart_data_separators(output_widget: QPlainTextEdit) -> None:
+    """Paint appwide ghost separator characters over table whitespace only."""
+    separator_pattern = _separator_pattern()
+    if separator_pattern is None:
+        return
+
+    painter = QPainter(output_widget.viewport())
+    painter.setPen(_separator_style_color())
+    font_metrics = output_widget.fontMetrics()
+    separator_character = _separator_style_character()
+
+    block = output_widget.firstVisibleBlock()
+    viewport_bottom = output_widget.viewport().height()
+    while block.isValid():
+        block_rect = output_widget.blockBoundingGeometry(block).translated(output_widget.contentOffset())
+        if block_rect.top() > viewport_bottom:
+            break
+        if block.isVisible() and block_rect.bottom() >= 0:
+            text = block.text()
+            block_position = block.position()
+            for separator in separator_pattern.finditer(text):
+                for column in range(separator.start(), separator.end()):
+                    cursor = QTextCursor(block)
+                    cursor.setPosition(block_position + _qt_text_offset(text, column))
+                    cursor_rect = output_widget.cursorRect(cursor)
+                    painter.drawText(
+                        cursor_rect.left(),
+                        cursor_rect.top() + font_metrics.ascent(),
+                        separator_character,
+                    )
+        block = block.next()
+    painter.end()
 
 
 class ChartDataTooltipOutput(QPlainTextEdit):
@@ -57,6 +130,10 @@ class ChartDataTooltipOutput(QPlainTextEdit):
 
     def set_tooltip_spans(self, spans: dict[int, list[dict[str, object]]] | None) -> None:
         self._tooltip_spans = spans or {}
+
+    def paintEvent(self, event) -> None:  # noqa: ANN001 - Qt event type varies by binding version.
+        super().paintEvent(event)
+        _paint_chart_data_separators(self)
 
     def mouseMoveEvent(self, event) -> None:  # noqa: ANN001 - Qt event type varies by binding version.
         cursor = self.cursorForPosition(event.pos())
@@ -114,6 +191,10 @@ class ChartDataTableOutput(QPlainTextEdit):
             emphasize_species_info_headers=emphasize_species_info_headers,
             human_design_synastry_mode=human_design_synastry_mode,
         )
+
+    def paintEvent(self, event) -> None:  # noqa: ANN001 - Qt event type varies by binding version.
+        super().paintEvent(event)
+        _paint_chart_data_separators(self)
 
 
 class ChartSummaryHighlighter(QSyntaxHighlighter):
@@ -533,7 +614,8 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         return None
 
     def _apply_hd_time_variant_colors(self, text: str, stripped_text: str) -> None:
-        if "->" not in stripped_text or self._current_chart_data_section() != "POSITIONS":
+        arrow = _chart_data_arrow()
+        if arrow not in stripped_text or self._current_chart_data_section() != "POSITIONS":
             return
         columns = self._split_padded_columns(text.rstrip())
         if len(columns) < 4:
@@ -553,10 +635,10 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         parsed_variant_fields: list[tuple[int, re.Match[str], list[str]]] = []
         row_has_three_way_variant = False
         for value_text, value_start, _value_end in variant_columns:
-            value_match = re.search(r"\S+(?:->\S+)*", value_text)
-            if value_match is None or "->" not in value_match.group(0):
+            value_match = re.search(_arrow_joined_token_pattern(), value_text)
+            if value_match is None or arrow not in value_match.group(0):
                 continue
-            segments = value_match.group(0).split("->")
+            segments = value_match.group(0).split(arrow)
             if len(segments) == 3:
                 row_has_three_way_variant = True
             parsed_variant_fields.append((value_start, value_match, segments))
@@ -576,7 +658,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                         self._qt_len(segment),
                         text_format,
                     )
-                cursor += len(segment) + len("->")
+                cursor += len(segment) + len(arrow)
 
     def _apply_hd_gate_side_color(self, text: str, stripped_text: str) -> None:
         if not stripped_text:
@@ -1070,8 +1152,6 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                 name_start = text.find(environment_value)
                 if name_start >= 0:
                     self.setFormat(self._qt_index(text, name_start), self._qt_len(environment_value), environment_fmt)
-
-
     def _current_chart_data_section(self) -> str:
         block = self.currentBlock()
         while block.isValid():
@@ -1161,7 +1241,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
 
             if is_hd_longitude:
                 for value_text, value_start, value_end in data_columns[3:7]:
-                    value_match = re.search(r"\S+(?:->\S+)*", value_text)
+                    value_match = re.search(_arrow_joined_token_pattern(), value_text)
                     if value_match is None:
                         continue
                     self.setFormat(
@@ -1174,7 +1254,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                 if gate_line_column is not None:
                     gate_line_text, gate_line_start, gate_line_end = gate_line_column
                     if re.fullmatch(
-                        r"(?:[1-9]|[1-5][0-9]|6[0-4])\.[1-6](?:->(?:[1-9]|[1-5][0-9]|6[0-4])\.[1-6])*",
+                        _gate_line_arrow_joined_pattern(),
                         gate_line_text.strip(),
                     ):
                         self.setFormat(
@@ -1284,8 +1364,9 @@ def apply_chart_data_highlighter(
     human_design_synastry_mode: bool = False,
 ) -> ChartSummaryHighlighter:
     """Attach the shared chart-data highlighter to an output widget."""
+    document = output_widget.document()
     highlighter = ChartSummaryHighlighter(
-        output_widget.document(),
+        document,
         emphasize_dnd_class_headers=emphasize_dnd_class_headers,
         emphasize_species_info_headers=emphasize_species_info_headers,
         human_design_synastry_mode=human_design_synastry_mode,
