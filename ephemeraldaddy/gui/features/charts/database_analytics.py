@@ -151,6 +151,12 @@ from ephemeraldaddy.gui.features.charts.statistical_significance import (
 )
 from ephemeraldaddy.gui.features.charts.provenance import chart_is_non_aggregable
 from ephemeraldaddy.gui.features.charts.tagging import normalize_tag_list
+from ephemeraldaddy.analysis.traits import (
+    DEFAULT_TRAIT_COLOR,
+    calculate_trait_likelihoods,
+    list_traits,
+    normalize_trait_color,
+)
 from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
     build_enneagram_popout_info_html,
     calculate_enneagram_type_weights as _calculate_enneagram_type_weights,
@@ -3978,6 +3984,141 @@ class DatabaseAnalyticsChartsMixin:
                 Qt.AlignTop,
             )
         return tag_export_rows
+
+
+    def _create_traits_database_analytics_section(self, panel: Any, layout: Any) -> None:
+        traits_section_layout = self._add_left_panel_collapsible_section(
+            panel,
+            layout,
+            "🧬Traits",
+            section_key="traits_distribution",
+            expanded=self._is_database_metrics_section_expanded("traits_distribution"),
+            on_toggled=lambda checked: self._set_database_metrics_section_expanded(
+                "traits_distribution",
+                checked,
+            ),
+        )
+        self._database_metrics_section_expanded["traits_distribution"] = self._is_database_metrics_section_expanded("traits_distribution")
+        self._create_analysis_chart_header(
+            traits_section_layout,
+            "🧬Traits",
+            "traits_distribution",
+            "traits_distribution",
+            dropdown_options=[("Trait Predictions", "traits_distribution")],
+            show_title=False,
+        )
+        self.traits_distribution_subheader_label = self._build_database_subheader_label(
+            "Average active custom trait likelihoods across the database. With selection, bars compare selection average to DB average."
+        )
+        traits_section_layout.addWidget(self.traits_distribution_subheader_label)
+        (
+            self.traits_distribution_chart_container,
+            self.traits_distribution_chart_layout,
+        ) = self._create_database_analytics_chart_container()
+        self._database_metrics_chart_layouts["traits_distribution"] = self.traits_distribution_chart_layout
+        traits_section_layout.addWidget(self.traits_distribution_chart_container)
+
+    def _collect_traits_distribution_analytics(self, chart_ids: list[int] | set[int]) -> dict[str, Any]:
+        trait_items = list_traits(active_only=True)
+        trait_names = [str(item.get("name", "")).strip() for item in trait_items if str(item.get("name", "")).strip()]
+        totals: dict[str, float] = {name: 0.0 for name in trait_names}
+        chart_count = 0
+        for chart_id in chart_ids:
+            chart = self._get_chart_for_filter(int(chart_id))
+            if chart is None or self._is_placeholder_chart(chart):
+                continue
+            try:
+                likelihoods = calculate_trait_likelihoods(chart, trait_items)
+            except Exception:
+                logger.exception(
+                    "Trait likelihood calculation failed for chart %s during database analytics refresh.",
+                    self._debug_chart_label(chart),
+                )
+                continue
+            chart_count += 1
+            for name in trait_names:
+                try:
+                    totals[name] += float(likelihoods.get(name, 0.0)) / 100.0
+                except (TypeError, ValueError):
+                    continue
+        colors = {
+            str(item.get("name", "")).strip(): normalize_trait_color(str(item.get("color", DEFAULT_TRAIT_COLOR)))
+            for item in trait_items
+            if str(item.get("name", "")).strip()
+        }
+        return {"trait_names": trait_names, "totals": totals, "chart_count": chart_count, "colors": colors}
+
+    def _render_traits_distribution_section(
+        self,
+        *,
+        chart_ids: list[int],
+        database_chart_ids: set[int],
+        loaded_charts: int,
+        should_refresh: Callable[[str], bool],
+    ) -> None:
+        selection_analytics = self._collect_traits_distribution_analytics(chart_ids)
+        database_analytics = self._collect_traits_distribution_analytics(database_chart_ids)
+        trait_names = list(database_analytics.get("trait_names", []))
+        if not trait_names:
+            trait_names = list(selection_analytics.get("trait_names", []))
+        selection_count = max(0, int(selection_analytics.get("chart_count", 0)))
+        database_count = max(0, int(database_analytics.get("chart_count", 0)))
+        selection_totals = selection_analytics.get("totals", {})
+        database_totals = database_analytics.get("totals", {})
+        selection_values = {
+            name: (float(selection_totals.get(name, 0.0)) / float(selection_count) if selection_count else 0.0)
+            for name in trait_names
+        }
+        database_values = {
+            name: (float(database_totals.get(name, 0.0)) / float(database_count) if database_count else 0.0)
+            for name in trait_names
+        }
+        ordered_labels = sorted(
+            trait_names,
+            key=lambda name: (
+                -(selection_values.get(name, 0.0) if loaded_charts else database_values.get(name, 0.0)),
+                name.casefold(),
+            ),
+        )
+        if loaded_charts > 0:
+            self.traits_distribution_subheader_label.setText(
+                "Active custom trait likelihood averages for selected chart(s) relative to database average."
+            )
+        else:
+            self.traits_distribution_subheader_label.setText(
+                f"Average active custom trait likelihoods across {database_count:,} non-placeholder database charts."
+            )
+        if should_refresh("traits_distribution"):
+            self._clear_layout(self.traits_distribution_chart_layout)
+            if ordered_labels and database_count > 0:
+                color_lookup = dict(database_analytics.get("colors", {}))
+                color_lookup.update(selection_analytics.get("colors", {}))
+                canvas = self._build_dominant_planet_chart(
+                    selection_planets={name: selection_values.get(name, 0.0) for name in ordered_labels},
+                    database_planets={name: database_values.get(name, 0.0) for name in ordered_labels},
+                    selection_planet_counts={name: selection_count for name in ordered_labels},
+                    database_planet_counts={name: database_count for name in ordered_labels},
+                    loaded_charts=loaded_charts,
+                    labels=ordered_labels,
+                    force_value_fallback_colors=False,
+                    label_colors={name: color_lookup.get(name, DEFAULT_TRAIT_COLOR) for name in ordered_labels},
+                    include_count_prefixes=False,
+                )
+                self.traits_distribution_chart_layout.addWidget(canvas, 0)
+            else:
+                self.traits_distribution_chart_layout.addWidget(
+                    self._build_text_analysis_widget(["No active traits available. Add or reactivate traits in Settings > Traits."]),
+                    0,
+                    Qt.AlignTop,
+                )
+        self._analysis_chart_export_rows["traits_distribution"] = self._build_analysis_export_rows(
+            labels=ordered_labels,
+            selection_values=[selection_values.get(label, 0.0) for label in ordered_labels],
+            database_values=[database_values.get(label, 0.0) for label in ordered_labels],
+            selection_counts=[selection_count for _label in ordered_labels],
+            database_counts=[database_count for _label in ordered_labels],
+            loaded_charts=loaded_charts,
+        )
 
     @staticmethod
     def _extract_birthplace_components(raw_place: str) -> tuple[str | None, str | None, str | None]:
