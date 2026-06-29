@@ -520,6 +520,15 @@ RELATIVE_YEAR_COLORS = {
     "other":"#ffffff"
 }
 
+ARROW_STYLES = {
+#"nope":"➡",
+"sensible":"→",
+"ascii":"˃",
+#"weirdo":"↝",
+"aggro":"↦",
+"superfast":"↠",
+}
+
 MIDDLE_PANEL_PLACEHOLDER_COLOR_RGBA = "rgba(200, 145, 79, 0.92)"
 CHART_VIEW_TIME_INPUT_WIDTH = 78
 CHART_VIEW_TIME_INPUT_DISPLAY_FORMAT = "HH:mm"
