@@ -147,6 +147,7 @@ def _chart_with_hypothetical_local_time(chart: Chart, hour: int, minute: int) ->
     datetimes loaded from storage still cross DST boundaries correctly.
     """
     chart_copy = copy.copy(chart)
+    chart_copy.retcon_time_used = False
     source_dt = getattr(chart, "dt", None)
     if not isinstance(source_dt, datetime):
         chart_copy.retcon_time_used = False

@@ -42,6 +42,7 @@ DATABASE_ANALYTICS_SECTION_KEYS: dict[str, bool] = {
     "database_metrics.birth_month": False,
     "database_metrics.birthplace": False,
     "database_metrics.tag_distribution": False,
+    "database_metrics.traits_distribution": False,
     "database_metrics.gender": False,
     "database_metrics.human_design": False,
     "database_metrics.bazi": True,

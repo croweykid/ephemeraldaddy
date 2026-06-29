@@ -940,7 +940,10 @@ from ephemeraldaddy.gui.features.charts.sign_distribution import (
 from ephemeraldaddy.gui.features.charts.exporters import (
     export_similarities_analysis_json_dialog as _export_similarities_analysis_json_dialog,
     get_text_export_path as _get_text_export_path,
+    remember_similarities_export_directory as _remember_similarities_export_directory,
     sanitize_export_token as _sanitize_export_token,
+    similarities_export_default_path as _similarities_export_default_path,
+    similarities_export_sample_suffix as _similarities_export_sample_suffix,
 )
 from ephemeraldaddy.gui.features.charts.similarities_export import (
     similarities_label_has_excluded_bodies as _similarities_label_has_excluded_bodies,
@@ -1203,6 +1206,7 @@ GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS: frozenset[str] = frozenset(
         "birth_month",
         "birthplace",
         "tag_distribution",
+        "traits_distribution",
         "human_design",
     }
 )
@@ -1229,6 +1233,7 @@ DATABASE_METRICS_SECTION_ORDER: tuple[str, ...] = (
     "birth_month",
     "birthplace",
     "tag_distribution",
+    "traits_distribution",
     "gender",
     "human_design",
     "bazi",
@@ -4984,6 +4989,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         ) = self._create_database_analytics_chart_container()
         self._database_metrics_chart_layouts["tag_distribution"] = self.tag_distribution_chart_layout
         tag_distribution_section_layout.addWidget(self.tag_distribution_chart_container)
+
+        # TRAITS DISTRIBUTION SECTION
+        self._create_traits_database_analytics_section(panel, layout)
 
 #end of lefthand Database Analytics panel, it closes below:
         return panel
@@ -8792,13 +8800,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         sanitized_header = re.sub(r"[^\w\s-]", "", header_name).strip() or "selection"
         sanitized_header = re.sub(r"\s+", "_", sanitized_header)
+        sample_suffix = _similarities_export_sample_suffix(self._similarities_export_sections)
         default_filename = (
-            f"ephemeraldaddy_{sanitized_header} similarities analysis_{timestamp}.csv"
+            f"ephemeraldaddy_{sanitized_header} similarities analysis_{timestamp}{sample_suffix}.csv"
         )
+        settings = QSettings()
         file_path, _ = QFileDialog.getSaveFileName(
             self,
             "Export similarities analysis as CSV",
-            default_filename,
+            _similarities_export_default_path(settings, default_filename),
             "CSV Files (*.csv)",
         )
         QTimer.singleShot(0, self._reactivate_database_view)
@@ -8806,6 +8816,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         if not file_path.lower().endswith(".csv"):
             file_path = f"{file_path}.csv"
+        _remember_similarities_export_directory(settings, file_path)
 
         rows: list[list[str | int | float]] = []
         for section_title, matches in self._similarities_export_sections:
@@ -12578,6 +12589,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 loaded_charts=loaded_charts,
                 should_refresh=_should_refresh_database_metric_section,
             )
+            if _should_refresh_database_metric_section("traits_distribution"):
+                self._render_traits_distribution_section(
+                    chart_ids=chart_ids,
+                    database_chart_ids=database_cache["chart_ids"],
+                    loaded_charts=loaded_charts,
+                    should_refresh=_should_refresh_database_metric_section,
+                )
 
         if update_similarities:
             self._update_similarities_analysis(chart_ids)
@@ -23188,6 +23206,7 @@ class MainWindow(QMainWindow):
         self._alignment_score_assigned = False
         self._alignment_programmatic_update = False
         self._lucygoosey = False
+        self._leaving_chart_view_prompt_open = False
         self._sentiment_metrics_autosave_timer = QTimer(self)
         self._sentiment_metrics_autosave_timer.setSingleShot(True)
         self._sentiment_metrics_autosave_timer.timeout.connect(
@@ -30536,18 +30555,37 @@ class MainWindow(QMainWindow):
         dialog.setIcon(QMessageBox.Warning)
         dialog.setWindowTitle("Unsaved changes")
         dialog.setText(
-            "You have unsaved changes. Save them before loading another chart?"
+            "You have unsaved changes. Save them before leaving Chart View?"
         )
         save_button = dialog.addButton("Save", QMessageBox.AcceptRole)
-        discard_button = dialog.addButton("Discard", QMessageBox.RejectRole)
-        dialog.exec()
-        if dialog.clickedButton() == save_button:
-            self.on_update_chart(show_dialog=True)
-        elif dialog.clickedButton() == discard_button:
-            self._set_lucygoosey(False)
-        return not self._lucygoosey
+        discard_button = dialog.addButton("Discard", QMessageBox.DestructiveRole)
+        cancel_button = dialog.addButton("Cancel", QMessageBox.RejectRole)
+        dialog.setDefaultButton(save_button)
+        dialog.setEscapeButton(cancel_button)
+
+        self._leaving_chart_view_prompt_open = True
+        try:
+            dialog.exec()
+            clicked_button = dialog.clickedButton()
+            if clicked_button == save_button:
+                self.on_update_chart(show_dialog=True)
+            elif clicked_button == discard_button:
+                self._set_lucygoosey(False)
+            return not self._lucygoosey
+        finally:
+            self._leaving_chart_view_prompt_open = False
 
     def _should_auto_update_sentiments(self) -> bool:
+        return self._can_autosave_current_chart()
+
+    def _can_autosave_current_chart(self) -> bool:
+        """Return whether timed dirty-state saves may update the open chart.
+
+        Lucygoosey autosaves are update-only: a chart must already have a
+        database id before these timers can write metadata back to storage. New
+        Chart View entries without a saved id/UID still require an explicit
+        formal save through the Save/Discard leave prompt or Save Chart button.
+        """
         return self.current_chart_id is not None
 
     def _ensure_current_chart_still_exists(self) -> bool:
@@ -30568,11 +30606,14 @@ class MainWindow(QMainWindow):
         self._set_lucygoosey(False)
 
     def _autosave_checkbox_state(self) -> None:
-        if self._suppress_lucygoosey or self.current_chart_id is None:
+        if self._suppress_lucygoosey or not self._can_autosave_current_chart():
             return
         if not self._lucygoosey:
             return
         if not self._ensure_current_chart_still_exists():
+            return
+        if self._leaving_chart_view_prompt_open:
+            self._metadata_autosave_timer.start(2000)
             return
         self.on_update_chart(show_dialog=False, recalculate_chart=False)
         self._set_lucygoosey(False)
@@ -30657,11 +30698,14 @@ class MainWindow(QMainWindow):
         had_pending_metric_save = self._sentiment_metrics_autosave_timer.isActive()
         if had_pending_metric_save:
             self._sentiment_metrics_autosave_timer.stop()
-        if not had_pending_metric_save and not self._lucygoosey:
+        if not self._lucygoosey:
             return
         if not self._should_auto_update_sentiments():
             return
         if not self._ensure_current_chart_still_exists():
+            return
+        if self._leaving_chart_view_prompt_open:
+            self._sentiment_metrics_autosave_timer.start(2000)
             return
         self.on_update_chart(show_dialog=False, recalculate_chart=False)
         self._set_lucygoosey(False)

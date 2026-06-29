@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import datetime
 import re
+from pathlib import Path
 from collections import OrderedDict
 from typing import Callable
 
@@ -15,6 +16,39 @@ from ephemeraldaddy.gui.features.charts.similarities_export import (
     format_similarities_json_export_payload,
     similarities_json_payload_has_factors,
 )
+
+
+_SIMILARITIES_EXPORT_SAVE_DIR_KEY = "similarities_analysis/last_export_directory"
+
+
+def similarities_export_sample_suffix(export_sections) -> str:
+    """Return a filename suffix such as ``_75samples`` for Similarities exports."""
+    for _section_title, matches in export_sections or []:
+        for match in matches or []:
+            if len(match) < 3:
+                continue
+            try:
+                sample_size = int(match[2])
+            except (TypeError, ValueError):
+                continue
+            if sample_size > 0:
+                return f"_{sample_size}samples"
+    return ""
+
+
+def similarities_export_default_path(settings: QSettings, default_filename: str) -> str:
+    """Return default filename in the most recent Similarities export directory."""
+    last_directory = str(settings.value(_SIMILARITIES_EXPORT_SAVE_DIR_KEY, "") or "").strip()
+    if last_directory:
+        return str(Path(last_directory) / default_filename)
+    return default_filename
+
+
+def remember_similarities_export_directory(settings: QSettings, file_path: str) -> None:
+    """Persist the directory containing the latest Similarities Analysis export."""
+    directory = str(Path(file_path).expanduser().parent)
+    if directory:
+        settings.setValue(_SIMILARITIES_EXPORT_SAVE_DIR_KEY, directory)
 
 
 def sanitize_export_token(value: str, fallback: str = "chart") -> str:
@@ -144,11 +178,13 @@ def export_similarities_analysis_json_dialog(
     timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     sanitized_name = re.sub(r"[^\w\s-]", "", selection_name).strip() or "selection"
     sanitized_name = re.sub(r"\s+", "_", sanitized_name)
-    default_filename = f"ephemeraldaddy_{sanitized_name} similarities analysis_{timestamp}.py"
+    sample_suffix = similarities_export_sample_suffix(export_sections)
+    default_filename = f"ephemeraldaddy_{sanitized_name} similarities analysis_{timestamp}{sample_suffix}.py"
+    settings = QSettings()
     file_path, _ = QFileDialog.getSaveFileName(
         parent,
         "Export similarities analysis as Python",
-        default_filename,
+        similarities_export_default_path(settings, default_filename),
         "Python Files (*.py)",
     )
     if reactivate_callback is not None:
@@ -157,6 +193,7 @@ def export_similarities_analysis_json_dialog(
         return
     if not file_path.lower().endswith(".py"):
         file_path = f"{file_path}.py"
+    remember_similarities_export_directory(settings, file_path)
 
     try:
         with open(file_path, "w", encoding="utf-8") as export_file:

@@ -464,7 +464,10 @@ def draw_enneagram_predictions(
     ax.figure.tight_layout()
     ax.figure.subplots_adjust(
         left=standard_chart_layout["left"],
-        bottom=standard_chart_layout["bottom"],
+        # Enneagram labels include both type numbers and names; reserve about
+        # 20px more bottom padding in Chart View's 240px graph canvas so the
+        # vertical labels are not clipped by the Predictions panel viewport.
+        bottom=max(float(standard_chart_layout["bottom"]), 0.28),
         top=standard_chart_layout["top"],
         right=standard_chart_layout["right"],
     )
