@@ -940,7 +940,10 @@ from ephemeraldaddy.gui.features.charts.sign_distribution import (
 from ephemeraldaddy.gui.features.charts.exporters import (
     export_similarities_analysis_json_dialog as _export_similarities_analysis_json_dialog,
     get_text_export_path as _get_text_export_path,
+    remember_similarities_export_directory as _remember_similarities_export_directory,
     sanitize_export_token as _sanitize_export_token,
+    similarities_export_default_path as _similarities_export_default_path,
+    similarities_export_sample_suffix as _similarities_export_sample_suffix,
 )
 from ephemeraldaddy.gui.features.charts.similarities_export import (
     similarities_label_has_excluded_bodies as _similarities_label_has_excluded_bodies,
@@ -8797,13 +8800,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         sanitized_header = re.sub(r"[^\w\s-]", "", header_name).strip() or "selection"
         sanitized_header = re.sub(r"\s+", "_", sanitized_header)
+        sample_suffix = _similarities_export_sample_suffix(self._similarities_export_sections)
         default_filename = (
-            f"ephemeraldaddy_{sanitized_header} similarities analysis_{timestamp}.csv"
+            f"ephemeraldaddy_{sanitized_header} similarities analysis_{timestamp}{sample_suffix}.csv"
         )
+        settings = QSettings()
         file_path, _ = QFileDialog.getSaveFileName(
             self,
             "Export similarities analysis as CSV",
-            default_filename,
+            _similarities_export_default_path(settings, default_filename),
             "CSV Files (*.csv)",
         )
         QTimer.singleShot(0, self._reactivate_database_view)
@@ -8811,6 +8816,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         if not file_path.lower().endswith(".csv"):
             file_path = f"{file_path}.csv"
+        _remember_similarities_export_directory(settings, file_path)
 
         rows: list[list[str | int | float]] = []
         for section_title, matches in self._similarities_export_sections:
