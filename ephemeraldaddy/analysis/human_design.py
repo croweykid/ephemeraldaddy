@@ -137,8 +137,14 @@ def build_circuit_group_completion(active_gate_set: set[int]) -> list[dict[str, 
 
 
 def _chart_with_hypothetical_local_time(chart: Chart, hour: int, minute: int) -> Chart:
-    """Return a lightweight chart copy pinned to a hypothetical local time."""
+    """Return a lightweight chart copy pinned to a hypothetical local time.
+
+    Rectified/retcon time is deliberately disabled on the copy so all-day
+    variants model the original unknown birth-time uncertainty instead of the
+    current rectification hypothesis.
+    """
     chart_copy = copy.copy(chart)
+    chart_copy.retcon_time_used = False
     source_dt = getattr(chart, "dt", None)
     if not isinstance(source_dt, datetime):
         return chart_copy
@@ -401,6 +407,58 @@ def _build_hd_positions_lines(
         if line_entries:
             info_map[len(lines) - 1] = line_entries
     return lines, info_map
+
+
+def _build_hd_uncertain_time_variant_lines(
+    hd_result: HumanDesignResult,
+    time_variant_results: tuple[HumanDesignResult, HumanDesignResult, HumanDesignResult],
+) -> list[str]:
+    """Build a reminder block of fields that may shift across an unknown day."""
+    variant_lookup = _activation_variant_lookup(time_variant_results)
+    rows: list[tuple[str, str, str, str, str, str]] = []
+    for activation in (*hd_result.personality_activations, *hd_result.design_activations):
+        variants = variant_lookup.get(_activation_key(activation))
+        if variants is None:
+            continue
+        sign_tokens = tuple(_sign_name_for_longitude(item.longitude) for item in variants)
+        gate_line_tokens = tuple(f"{item.gate}.{item.line}" for item in variants)
+        color_tokens = tuple(str(int(item.color)) for item in variants)
+        tone_tokens = tuple(str(int(item.tone)) for item in variants)
+        base_tokens = tuple(str(int(item.base)) for item in variants)
+        field_token_sets = (sign_tokens, gate_line_tokens, color_tokens, tone_tokens, base_tokens)
+        if all(len(set(tokens)) == 1 for tokens in field_token_sets):
+            continue
+        rows.append(
+            (
+                _hd_activation_body_display_label(activation),
+                _format_time_variant_field(sign_tokens) if len(set(sign_tokens)) > 1 else "—",
+                _format_time_variant_field(gate_line_tokens) if len(set(gate_line_tokens)) > 1 else "—",
+                _format_time_variant_field(color_tokens) if len(set(color_tokens)) > 1 else "—",
+                _format_time_variant_field(tone_tokens) if len(set(tone_tokens)) > 1 else "—",
+                _format_time_variant_field(base_tokens) if len(set(base_tokens)) > 1 else "—",
+            )
+        )
+    if not rows:
+        return []
+
+    body_width = max(len("Body"), *(len(row[0]) for row in rows))
+    sign_width = max(len("Sign(s)"), *(len(row[1]) for row in rows))
+    gl_width = max(len("G/L"), *(len(row[2]) for row in rows))
+    c_width = max(len("C"), *(len(row[3]) for row in rows))
+    t_width = max(len("T"), *(len(row[4]) for row in rows))
+    b_width = max(len("B"), *(len(row[5]) for row in rows))
+    lines = [
+        "UNCERTAIN TIME VARIANTS",
+        CHART_DATA_DIVIDER,
+        "Unknown/rectified birth time: possible 00:00→12:00→23:59 values.",
+        f"{'Body':<{body_width}}  {'Sign(s)':<{sign_width}}  {'G/L':<{gl_width}}  {'C':<{c_width}}  {'T':<{t_width}}  {'B':<{b_width}}",
+        CHART_DATA_DIVIDER,
+    ]
+    for body, sign, gate_line, color, tone, base in rows:
+        lines.append(
+            f"{body:<{body_width}}  {sign:<{sign_width}}  {gate_line:<{gl_width}}  {color:<{c_width}}  {tone:<{t_width}}  {base:<{b_width}}"
+        )
+    return lines
 
 
 def _render_clickable_gates(active_gates: set[int]) -> tuple[str, list[dict[str, object]]]:
@@ -902,7 +960,9 @@ def build_human_design_chart_data_output(
     position_info_map: dict[int, Any] = {}
 
     hd_result = calculate_human_design(chart)
-    time_variant_results = None if chart_uses_houses(chart) else _time_variant_human_design_results(chart)
+    uses_houses = chart_uses_houses(chart)
+    show_uncertain_time_variants = bool(getattr(chart, "retcon_time_used", False)) or not uses_houses
+    time_variant_results = _time_variant_human_design_results(chart) if show_uncertain_time_variants else None
     position_lines, positions_info_map = _build_hd_positions_lines(
         hd_result,
         time_variant_results=time_variant_results,
@@ -968,6 +1028,11 @@ def build_human_design_chart_data_output(
         "Incarnation Cross",
         [hd_result.incarnation_cross] if str(hd_result.incarnation_cross or "").strip() else [],
     )
+    uncertain_time_variant_lines = (
+        _build_hd_uncertain_time_variant_lines(hd_result, time_variant_results)
+        if time_variant_results is not None
+        else []
+    )
 
 #Chart Data Output panel output for Human Design Charts:
     rendered_lines = [
@@ -986,6 +1051,11 @@ def build_human_design_chart_data_output(
         motivation_line,
         digestion_line,
         "",
+        *(
+            [CHART_DATA_DIVIDER, *uncertain_time_variant_lines, ""]
+            if uncertain_time_variant_lines
+            else []
+        ),
         CHART_DATA_DIVIDER,
         *position_lines,
         "",
