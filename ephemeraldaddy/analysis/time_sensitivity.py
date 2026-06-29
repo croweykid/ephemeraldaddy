@@ -702,6 +702,20 @@ def compute_time_sensitivity(
         label: [sample["categorical"].get(source_key, "") for sample in samples]
         for label, source_key in categorical_sources.items()
     }
+    categorical_value_spans = {
+        label: {
+            value: _matching_spans(
+                [
+                    (sample["time"], sample["categorical"].get(source_key, ""))
+                    for sample in samples
+                ],
+                lambda candidate, expected=value: candidate == expected,
+            )
+            for value in dict.fromkeys(v for v in values if v)
+        }
+        for label, source_key in categorical_sources.items()
+        for values in [categorical_values.get(label, [])]
+    }
     stable = [
         f"{key}: stable all day ({values[0]})"
         for key, values in categorical_values.items()
@@ -731,6 +745,7 @@ def compute_time_sensitivity(
         "most_sensitive": most_sensitive,
         "least_sensitive": least_sensitive,
         "group_deltas": group_deltas,
+        "categorical_value_spans": categorical_value_spans,
         "dominance_likelihoods": {
             group: _dominance_likelihoods(samples, group)
             for group in (

@@ -933,6 +933,10 @@ from ephemeraldaddy.gui.features.charts.presentation import (
     sign_degrees as _sign_degrees,
     sign_for_longitude as _sign_for_longitude,
 )
+from ephemeraldaddy.gui.features.charts.time_sensitivity_panel import (
+    build_time_sensitivity_ascendant_sign_info_text as _build_time_sensitivity_ascendant_sign_info_text,
+    build_time_sensitivity_sign_info_text as _build_time_sensitivity_sign_info_text,
+)
 from ephemeraldaddy.gui.features.charts.sign_distribution import (
     SIGN_DISTRIBUTION_DROPDOWN_OPTIONS,
     SIGN_DISTRIBUTION_MODE_LABELS,
@@ -34285,6 +34289,20 @@ class MainWindow(QMainWindow):
             return
         if kind == "sign":
             self._show_sign_keyword_info(value)
+            return
+        if kind == "ts-ascendant-sign":
+            panel = getattr(self, "time_sensitivity_panel", None)
+            result = getattr(panel, "_last_result", None) if panel is not None else None
+            self.chart_info_output.setPlainText(
+                _build_time_sensitivity_ascendant_sign_info_text(result, value)
+            )
+            return
+        if kind == "ts-sign":
+            panel = getattr(self, "time_sensitivity_panel", None)
+            result = getattr(panel, "_last_result", None) if panel is not None else None
+            self.chart_info_output.setPlainText(
+                _build_time_sensitivity_sign_info_text(result, self._latest_chart, value)
+            )
             return
         if kind == "house":
             try:
