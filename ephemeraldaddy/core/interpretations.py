@@ -913,6 +913,15 @@ BAZI_ZODIAC = {
     },
 }
 
+OPPOSITE_SIGNS = {
+    "Aries":"Libra",
+    "Taurus":"Scorpio",
+    "Gemini":"Sagittarius",
+    "Cancer":"Capricorn",
+    "Leo":"Aquarius",
+    "Virgo":"Pisces"
+}
+
 SIGN_COLORS = {
     "Aries": ELEMENT_COLORS["Fire"],
     "Leo": ELEMENT_COLORS["Fire"],
