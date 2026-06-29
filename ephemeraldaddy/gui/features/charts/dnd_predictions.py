@@ -29,6 +29,35 @@ from ephemeraldaddy.analysis.dnd.species_assigner_v2 import (
     assign_top_three_species,
     assign_top_three_species_with_evidence,
 )
+from ephemeraldaddy.analysis.weighted_chart_predictor import (
+    active_bazi_sign_weights,
+    active_human_design_channels,
+    active_human_design_gates,
+    active_human_design_properties,
+    calculate_dominant_house_weights,
+    calculate_dominant_nakshatra_weights,
+    calculate_dominant_planet_weights,
+    calculate_dominant_sign_weights,
+    default_chart_uses_houses,
+    normalize_weight_map_for_dominance_activation,
+    parse_aspect_spec,
+    normalize_factor_value,
+    weighted_bazi_sign_entries,
+    weighted_channel_entries,
+    weighted_gate_entries,
+    weighted_hd_authority_entries,
+    weighted_hd_center_entries,
+    weighted_hd_profile_entries,
+    weighted_hd_type_entries,
+    weighted_house_entries,
+    weighted_position_entries,
+    weighted_string_entries,
+)
+from ephemeraldaddy.analysis.weighted_chart_predictor import (
+    _position_match_weight,
+    _weighted_text_entries,
+)
+from ephemeraldaddy.core.interpretations import ASPECT_SCORE_WEIGHTS
 from ephemeraldaddy.gui.style import (
     CHART_DATA_HIGHLIGHT_COLOR,
     DND_STAT_EARTHTONE_COLORS,
@@ -143,6 +172,153 @@ def _html_list(values: Any) -> str:
     return "<ul>" + "".join(f"<li>{html.escape(item)}</li>" for item in items) + "</ul>"
 
 
+def _format_signed_delta(value: float) -> str:
+    return f"{value:+.2f}"
+
+
+def _evidence_line(label: str, contribution: float, detail: str = "") -> str:
+    direction = "supports" if contribution >= 0 else "drags down"
+    detail_text = f"; {detail}" if detail else ""
+    return (
+        f"<li><b>{html.escape(label)}</b>: {direction} "
+        f"({_format_signed_delta(contribution)} raw evidence{html.escape(detail_text)})</li>"
+    )
+
+
+def _build_dnd_stat_evidence_html(chart: Any, stat_key: str, *, max_items_per_category: int = 8) -> str:
+    """Explain the chart-specific predictor evidence behind one D&D stat score."""
+    factors = DND_STAT_PREDICTORS.get(stat_key, {})
+    if not isinstance(factors, dict):
+        return ""
+
+    use_houses = default_chart_uses_houses(chart)
+    sign_weights = normalize_weight_map_for_dominance_activation(
+        getattr(chart, "dominant_sign_weights", None) or calculate_dominant_sign_weights(chart),
+        "range",
+    )
+    body_weights = normalize_weight_map_for_dominance_activation(
+        getattr(chart, "dominant_planet_weights", None) or calculate_dominant_planet_weights(chart),
+        "range",
+    )
+    house_weights = normalize_weight_map_for_dominance_activation(
+        calculate_dominant_house_weights(chart) if use_houses else {},
+        "range",
+    )
+    nakshatra_weights = normalize_weight_map_for_dominance_activation(
+        getattr(chart, "dominant_nakshatra_weights", None) or calculate_dominant_nakshatra_weights(chart),
+        "range",
+    )
+    body_house_lookup: dict[str, int] = {}
+    if use_houses:
+        from ephemeraldaddy.analysis.weighted_chart_predictor import house_for_longitude
+
+        for raw_body, lon in (getattr(chart, "positions", None) or {}).items():
+            body = normalize_factor_value(str(raw_body))
+            try:
+                house_num = house_for_longitude(getattr(chart, "houses", None), float(lon))
+            except (TypeError, ValueError):
+                continue
+            if house_num is not None:
+                body_house_lookup[body] = house_num
+
+    active_gates = active_human_design_gates(chart)
+    active_channels = active_human_design_channels(chart)
+    active_hd_type, active_centers, active_profile, active_authority = active_human_design_properties(chart)
+    bazi_weights = active_bazi_sign_weights(chart)
+
+    sections: list[tuple[str, list[tuple[float, str]]]] = []
+
+    def add_weight_matches(title: str, positive_key: str, negative_key: str, weights: dict[Any, float], entry_fn: Any) -> None:
+        rows: list[tuple[float, str]] = []
+        for key, criterion_weight in entry_fn(factors.get(positive_key, {})).items():
+            activation = float(weights.get(key, 0.0))
+            if activation:
+                contribution = activation * float(criterion_weight)
+                rows.append((contribution, _evidence_line(f"{key} {positive_key}", contribution, f"dominance {activation:.2f} × predictor weight {float(criterion_weight):+.2f}")))
+        for key, criterion_weight in entry_fn(factors.get(negative_key, {})).items():
+            activation = float(weights.get(key, 0.0))
+            if activation:
+                contribution = -activation * abs(float(criterion_weight))
+                rows.append((contribution, _evidence_line(f"{key} {negative_key}", contribution, f"dominance {activation:.2f} × anti weight {float(criterion_weight):+.2f}")))
+        if rows:
+            sections.append((title, rows))
+
+    add_weight_matches("Dominance weights: signs", "signs", "antisigns", sign_weights, weighted_string_entries)
+    add_weight_matches("Dominance weights: bodies", "bodies", "antibodies", body_weights, weighted_string_entries)
+    add_weight_matches("Dominance weights: nakshatras", "nakshatras", "antinakshatras", nakshatra_weights, weighted_string_entries)
+    if use_houses:
+        add_weight_matches("Dominance weights: houses", "houses", "antihouses", house_weights, weighted_house_entries)
+
+    position_rows: list[tuple[float, str]] = []
+    for bucket, sign in (("positions", 1.0), ("antipositions", -1.0)):
+        for spec, criterion_weight in weighted_position_entries(factors.get(bucket, {})).items():
+            activation = _position_match_weight(spec, chart, use_houses, body_house_lookup, body_weights, sign_weights, house_weights, use_dominance_weighting=True)
+            if activation:
+                contribution = sign * activation * abs(float(criterion_weight))
+                position_rows.append((contribution, _evidence_line(spec, contribution, f"matched position activation {activation:.2f} × predictor weight {float(criterion_weight):+.2f}")))
+    if position_rows:
+        sections.append(("Specific positions", position_rows))
+
+    aspect_rows: list[tuple[float, str]] = []
+    chart_aspects = getattr(chart, "aspects", []) or []
+    for bucket, sign in (("aspects", 1.0), ("antiaspects", -1.0)):
+        for spec, criterion_weight in _weighted_text_entries(factors.get(bucket, {})).items():
+            parsed = parse_aspect_spec(spec)
+            if parsed is None:
+                continue
+            left_body, aspect_type, right_body = parsed
+            for aspect in chart_aspects:
+                p1 = normalize_factor_value(str(aspect.get("p1", "")))
+                p2 = normalize_factor_value(str(aspect.get("p2", "")))
+                if str(aspect.get("type", "")).strip().lower() == aspect_type and {p1, p2} == {left_body, right_body}:
+                    activation = float(body_weights.get(left_body, 0.0)) + float(ASPECT_SCORE_WEIGHTS.get(aspect_type, 0.0)) + float(body_weights.get(right_body, 0.0))
+                    contribution = sign * activation * abs(float(criterion_weight))
+                    aspect_rows.append((contribution, _evidence_line(spec, contribution, f"aspect/body activation {activation:.2f} × predictor weight {float(criterion_weight):+.2f}")))
+                    break
+    if aspect_rows:
+        sections.append(("Aspects", aspect_rows))
+
+    def add_membership(title: str, positive_key: str, negative_key: str, active: Any, entry_fn: Any, formatter: Any = str) -> None:
+        rows: list[tuple[float, str]] = []
+        active_set = active if isinstance(active, set) else {active}
+        for key, criterion_weight in entry_fn(factors.get(positive_key, {})).items():
+            if key in active_set:
+                contribution = float(criterion_weight)
+                rows.append((contribution, _evidence_line(formatter(key), contribution, f"active match × predictor weight {float(criterion_weight):+.2f}")))
+        for key, criterion_weight in entry_fn(factors.get(negative_key, {})).items():
+            if key in active_set:
+                contribution = -abs(float(criterion_weight))
+                rows.append((contribution, _evidence_line(formatter(key), contribution, f"active anti-match × anti weight {float(criterion_weight):+.2f}")))
+        if rows:
+            sections.append((title, rows))
+
+    add_membership("Human Design gates", "gates", "antigates", active_gates, weighted_gate_entries, lambda gate: f"Gate {gate}")
+    add_membership("Human Design channels", "channels", "antichannels", active_channels, weighted_channel_entries, lambda channel: f"Channel {channel[0]}-{channel[1]}")
+    add_membership("Human Design metadata", "hdtypes", "antihdtypes", active_hd_type, weighted_hd_type_entries)
+    add_membership("Human Design centers", "centers", "anticenters", active_centers, weighted_hd_center_entries)
+    add_membership("Human Design profile", "profiles", "antiprofiles", active_profile, weighted_hd_profile_entries)
+    add_membership("Human Design authority", "authorities", "antiauthorities", active_authority, weighted_hd_authority_entries)
+    add_weight_matches("BaZi sign weights", "bazisigns", "antibazisigns", bazi_weights, weighted_bazi_sign_entries)
+
+    if not sections:
+        return "<div>No chart-specific predictor matches were found for this stat; the score is mostly baseline/normalization.</div>"
+
+    html_sections: list[str] = []
+    for title, rows in sections:
+        rows = sorted(rows, key=lambda row: abs(row[0]), reverse=True)
+        omitted = max(0, len(rows) - max_items_per_category)
+        rendered_rows = [line for _contribution, line in rows[:max_items_per_category]]
+        if omitted:
+            rendered_rows.append(f"<li>…{omitted} smaller matched item(s) omitted.</li>")
+        subtotal = sum(contribution for contribution, _line in rows)
+        html_sections.append(
+            f"<div><b>{html.escape(title)}</b> "
+            f"<span style='opacity:0.85;'>(subtotal {_format_signed_delta(subtotal)})</span>"
+            f"<ul>{''.join(rendered_rows)}</ul></div>"
+        )
+    return "".join(html_sections)
+
+
 def build_dnd_statblock_popout_info_html(chart: Any, stat_key: str) -> str:
     if chart is None:
         return "No chart is available for this D&D stat interpretation."
@@ -159,6 +335,18 @@ def build_dnd_statblock_popout_info_html(chart: Any, stat_key: str) -> str:
     header_style = f"font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR};"
     body_style = f"color:{text_color};font-weight:400;"
 
+    raw_score = float(statblock.raw_scores.get(normalized_stat_key, 0.0))
+    modifier = int(statblock.modifiers.get(normalized_stat_key, 0))
+    evidence_html = _build_dnd_stat_evidence_html(chart, normalized_stat_key)
+    score_context_html = (
+        f"<div style='{body_style}'>Final stat: <b>{stat_value}</b> "
+        f"(modifier {modifier:+d}); normalized predictor score {raw_score:.3f}. "
+        "The evidence below is broken out by the same weighted predictor categories "
+        "used by the stat calculator.</div>"
+        f"<div style='height:10px;'></div>"
+        f"<div style='{body_style}'><b>Why this chart got this score</b>{evidence_html}</div>"
+    )
+
     if stat_value > 11:
         return (
             f"<div><span style='{header_style}'>{html.escape(chart_name)}'s "
@@ -169,16 +357,22 @@ def build_dnd_statblock_popout_info_html(chart: Any, stat_key: str) -> str:
             f"{_html_list(stat_definition.get('skills'))}"
             f"and saving throws triggered by: "
             f"{_html_list(stat_definition.get('save_triggers'))}</div>"
+            f"<div style='height:12px;'></div>"
+            f"{score_context_html}"
         )
     if stat_value < 10:
         return (
             f"<div><span style='{header_style}'>{html.escape(chart_name)}'s "
             f"{html.escape(stat_name)} is lower than average, suggesting:</span>"
             f"<div style='{body_style}'>{_html_list(stat_definition.get('low_score_suggests'))}</div></div>"
+            f"<div style='height:12px;'></div>"
+            f"{score_context_html}"
         )
     return (
         f"<div><span style='{header_style}'>{html.escape(chart_name)}'s "
         f"{html.escape(stat_name)} is about average.</span></div>"
+        f"<div style='height:12px;'></div>"
+        f"{score_context_html}"
     )
 
 
