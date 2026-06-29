@@ -553,6 +553,7 @@ def test_ascertainment_confidence_values_stable_planet_signs_over_volatile_score
 
     samples = [
         {
+            "human_design": {"type": "Generator", "profile": "1/3"},
             "categorical": {
                 "body_signs": {
                     "Sun": "Aries",
@@ -567,9 +568,10 @@ def test_ascertainment_confidence_values_stable_planet_signs_over_volatile_score
                     "Pluto": "Capricorn",
                 },
                 "angle_signs": {"AS": "Aries", "MC": "Cancer"},
-            }
+            },
         },
         {
+            "human_design": {"type": "Generator", "profile": "1/3"},
             "categorical": {
                 "body_signs": {
                     "Sun": "Aries",
@@ -584,19 +586,34 @@ def test_ascertainment_confidence_values_stable_planet_signs_over_volatile_score
                     "Pluto": "Capricorn",
                 },
                 "angle_signs": {"AS": "Libra", "MC": "Capricorn"},
-            }
+            },
         },
     ]
     overall = {
         "stability_percent": 0.0,
+        "group_deltas": {
+            "dominant_element_weights": 0.0,
+            "dominant_mode_weights": 0.0,
+            "dominant_nakshatra_weights": 0.0,
+        },
         "dominance_likelihoods": {
             "dominant_planet_weights": {"Sun": {"percent": 100.0}},
             "dominant_sign_weights": {"Aries": {"percent": 100.0}},
+            "dominant_element_weights": {"Fire": {"percent": 100.0}},
+            "dominant_mode_weights": {"Cardinal": {"percent": 100.0}},
+            "dominant_nakshatra_weights": {"Ashwini": {"percent": 100.0}},
         },
     }
+    hd = {
+        "gates": {"always": [1], "sometimes": [2]},
+        "lines": {"always": ["1.1"], "sometimes": []},
+        "channels": {"always": ["1-8"], "sometimes": []},
+    }
 
-    confidence = _ascertainment_confidence(samples, overall)
+    confidence = _ascertainment_confidence(samples, overall, hd)
 
     assert confidence["percent"] > 70.0
     assert confidence["components"]["planetary sign stability"] == 100.0
     assert confidence["components"]["angle sign stability"] == 50.0
+    assert confidence["components"]["human design stability"] == 90.0
+    assert confidence["components"]["element/mode/nakshatra stability"] == 100.0

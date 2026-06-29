@@ -889,7 +889,8 @@ class TimeSensitivityPanel(QWidget):
         )
         self.confidence_label.setToolTip(
             "Confidence estimates how much useful chart information remains ascertainable across the sampled day: "
-            "planetary sign stability, angle/house ambiguity, dominance consistency, and weighted-score volatility."
+            "planetary signs, angle/house ambiguity, Human Design stability, element/mode/nakshatra stability, "
+            "dominance consistency, and weighted-score volatility."
         )
         self.confidence_label.setVisible(True)
 

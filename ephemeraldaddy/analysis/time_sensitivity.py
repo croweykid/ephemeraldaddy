@@ -16,7 +16,7 @@ from ephemeraldaddy.core.db import DB_DIR
 from ephemeraldaddy.core.human_design_system import calculate_human_design
 from ephemeraldaddy.core.interpretations import NAKSHATRA_RANGES, ZODIAC_NAMES
 
-TIME_SENSITIVITY_ALGORITHM_VERSION = "time-sensitivity-v5"
+TIME_SENSITIVITY_ALGORITHM_VERSION = "time-sensitivity-v6"
 TIME_SENSITIVITY_DB_PATH = DB_DIR / "time_sensitivity.db"
 NUMERIC_GROUPS = (
     "dominant_planet_weights",
@@ -455,7 +455,13 @@ def _average_factor_stability(
 def _dominance_confidence(overall: dict[str, Any]) -> float | None:
     dominance = overall.get("dominance_likelihoods", {})
     scores: list[float] = []
-    for group in ("dominant_planet_weights", "dominant_sign_weights"):
+    for group in (
+        "dominant_planet_weights",
+        "dominant_sign_weights",
+        "dominant_element_weights",
+        "dominant_mode_weights",
+        "dominant_nakshatra_weights",
+    ):
         group_values = dominance.get(group, {})
         if group_values:
             scores.append(
@@ -467,8 +473,52 @@ def _dominance_confidence(overall: dict[str, Any]) -> float | None:
     return sum(scores) / len(scores)
 
 
+def _group_delta_confidence(
+    overall: dict[str, Any], groups: Iterable[str]
+) -> float | None:
+    group_deltas = overall.get("group_deltas", {})
+    scores = [
+        max(0.0, min(100.0, 100.0 - float(group_deltas[group]))) / 100.0
+        for group in groups
+        if group in group_deltas
+    ]
+    if not scores:
+        return None
+    return sum(scores) / len(scores)
+
+
+def _presence_stability(summary: dict[str, Any]) -> float | None:
+    universe = set(summary.get("always", [])) | set(summary.get("sometimes", []))
+    if not universe:
+        return None
+    return len(summary.get("always", [])) / len(universe)
+
+
+def _human_design_confidence(
+    samples: list[dict[str, Any]], hd: dict[str, Any]
+) -> float | None:
+    scores: list[float] = []
+    type_score = _modal_stability(
+        sample["human_design"].get("type", "") for sample in samples
+    )
+    if type_score > 0.0:
+        scores.append(type_score)
+    profile_score = _modal_stability(
+        sample["human_design"].get("profile", "") for sample in samples
+    )
+    if profile_score > 0.0:
+        scores.append(profile_score)
+    for key in ("gates", "channels", "lines"):
+        presence_score = _presence_stability(hd.get(key, {}))
+        if presence_score is not None:
+            scores.append(presence_score)
+    if not scores:
+        return None
+    return sum(scores) / len(scores)
+
+
 def _ascertainment_confidence(
-    samples: list[dict[str, Any]], overall: dict[str, Any]
+    samples: list[dict[str, Any]], overall: dict[str, Any], hd: dict[str, Any]
 ) -> dict[str, Any]:
     """Estimate how much useful chart information survives an unknown birth time."""
     components: list[tuple[str, float, float]] = []
@@ -477,22 +527,37 @@ def _ascertainment_confidence(
         samples, "body_signs", BODY_SIGN_CONFIDENCE_KEYS
     )
     if body_score is not None:
-        components.append(("planetary sign stability", 0.55, body_score))
+        components.append(("planetary sign stability", 0.45, body_score))
 
     angle_score = _average_factor_stability(
         samples, "angle_signs", ANGLE_SIGN_CONFIDENCE_KEYS
     )
     if angle_score is not None:
-        components.append(("angle sign stability", 0.15, angle_score))
+        components.append(("angle sign stability", 0.10, angle_score))
+
+    zodiacal_score = _group_delta_confidence(
+        overall,
+        (
+            "dominant_element_weights",
+            "dominant_mode_weights",
+            "dominant_nakshatra_weights",
+        ),
+    )
+    if zodiacal_score is not None:
+        components.append(("element/mode/nakshatra stability", 0.15, zodiacal_score))
+
+    hd_score = _human_design_confidence(samples, hd)
+    if hd_score is not None:
+        components.append(("human design stability", 0.15, hd_score))
 
     dominance_score = _dominance_confidence(overall)
     if dominance_score is not None:
-        components.append(("dominance consistency", 0.20, dominance_score))
+        components.append(("dominance consistency", 0.10, dominance_score))
 
     stability_score = (
         max(0.0, min(100.0, float(overall.get("stability_percent", 0.0)))) / 100.0
     )
-    components.append(("weighted-score stability", 0.10, stability_score))
+    components.append(("weighted-score stability", 0.05, stability_score))
 
     total_weight = sum(weight for _name, weight, _score in components)
     confidence = (
@@ -666,24 +731,30 @@ def compute_time_sensitivity(
         "least_sensitive": least_sensitive,
         "group_deltas": group_deltas,
         "dominance_likelihoods": {
-            "dominant_planet_weights": _dominance_likelihoods(
-                samples, "dominant_planet_weights"
-            ),
-            "dominant_sign_weights": _dominance_likelihoods(
-                samples, "dominant_sign_weights"
-            ),
+            group: _dominance_likelihoods(samples, group)
+            for group in (
+                "dominant_planet_weights",
+                "dominant_sign_weights",
+                "dominant_element_weights",
+                "dominant_mode_weights",
+                "dominant_nakshatra_weights",
+            )
         },
         "cumulative_weight_likelihoods": {
-            "dominant_planet_weights": _cumulative_weight_likelihoods(
-                samples, "dominant_planet_weights"
-            ),
-            "dominant_sign_weights": _cumulative_weight_likelihoods(
-                samples, "dominant_sign_weights"
-            ),
+            group: _cumulative_weight_likelihoods(samples, group)
+            for group in (
+                "dominant_planet_weights",
+                "dominant_sign_weights",
+                "dominant_element_weights",
+                "dominant_mode_weights",
+                "dominant_nakshatra_weights",
+            )
         },
         "baseline_source": baseline_source,
     }
-    overall["ascertainment_confidence"] = _ascertainment_confidence(samples, overall)
+    overall["ascertainment_confidence"] = _ascertainment_confidence(
+        samples, overall, hd
+    )
 
     computed_at = (
         datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
