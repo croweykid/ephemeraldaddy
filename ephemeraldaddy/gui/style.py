@@ -741,8 +741,15 @@ def _scroll_collapsible_section_bottom_into_view(toggle: QToolButton) -> None:
         return
 
     section_bottom_y = section.mapTo(scroll_widget, QPoint(0, section.height())).y()
+    current_value = scrollbar.value()
+    viewport_bottom_y = current_value + viewport.height()
+    if section_bottom_y <= viewport_bottom_y:
+        return
+
     target_value = section_bottom_y - viewport.height()
-    scrollbar.setValue(max(scrollbar.minimum(), min(target_value, scrollbar.maximum())))
+    scrollbar.setValue(
+        max(current_value, min(target_value, scrollbar.maximum()))
+    )
 
 
 def _schedule_collapsible_section_autoscroll(toggle: QToolButton) -> None:

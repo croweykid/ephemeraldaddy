@@ -14,7 +14,11 @@ def test_collapsible_autoscroll_targets_nearest_scroll_area_section_bottom():
     assert "def _nearest_scroll_area" in STYLE_SOURCE
     assert "isinstance(parent, QScrollArea)" in STYLE_SOURCE
     assert "section.mapTo(scroll_widget, QPoint(0, section.height())).y()" in STYLE_SOURCE
+    assert "current_value = scrollbar.value()" in STYLE_SOURCE
+    assert "viewport_bottom_y = current_value + viewport.height()" in STYLE_SOURCE
+    assert "if section_bottom_y <= viewport_bottom_y:" in STYLE_SOURCE
     assert "target_value = section_bottom_y - viewport.height()" in STYLE_SOURCE
+    assert "max(current_value, min(target_value, scrollbar.maximum()))" in STYLE_SOURCE
 
 
 def test_collapsible_autoscroll_waits_for_layout_and_lazy_refreshes():
