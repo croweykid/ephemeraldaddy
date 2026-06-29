@@ -16,7 +16,7 @@ from ephemeraldaddy.core.db import DB_DIR
 from ephemeraldaddy.core.human_design_system import calculate_human_design
 from ephemeraldaddy.core.interpretations import NAKSHATRA_RANGES, ZODIAC_NAMES
 
-TIME_SENSITIVITY_ALGORITHM_VERSION = "time-sensitivity-v4"
+TIME_SENSITIVITY_ALGORITHM_VERSION = "time-sensitivity-v5"
 TIME_SENSITIVITY_DB_PATH = DB_DIR / "time_sensitivity.db"
 NUMERIC_GROUPS = (
     "dominant_planet_weights",
@@ -67,7 +67,9 @@ def birth_date_key_for_chart(chart: Any) -> str:
     return ""
 
 
-def scan_times(interval_minutes: int = 30, *, include_day_end: bool = True) -> list[tuple[int, int]]:
+def scan_times(
+    interval_minutes: int = 30, *, include_day_end: bool = True
+) -> list[tuple[int, int]]:
     """Return local clock times sampled through the birth day."""
     interval = max(1, int(interval_minutes or 30))
     times: list[tuple[int, int]] = []
@@ -115,12 +117,27 @@ def _numeric_snapshot(chart: Chart) -> dict[str, dict[str, float]]:
     )
 
     return {
-        "dominant_planet_weights": {str(k): float(v) for k, v in calculate_dominant_planet_weights(chart).items()},
-        "dominant_sign_weights": {str(k): float(v) for k, v in calculate_dominant_sign_weights(chart).items()},
-        "dominant_house_weights": {str(k): float(v) for k, v in calculate_dominant_house_weights(chart).items()},
-        "dominant_element_weights": {str(k): float(v) for k, v in calculate_dominant_element_weights(chart).items()},
-        "dominant_mode_weights": {str(k): float(v) for k, v in calculate_mode_weights(chart).items()},
-        "dominant_nakshatra_weights": {str(k): float(v) for k, v in calculate_dominant_nakshatra_weights(chart).items()},
+        "dominant_planet_weights": {
+            str(k): float(v)
+            for k, v in calculate_dominant_planet_weights(chart).items()
+        },
+        "dominant_sign_weights": {
+            str(k): float(v) for k, v in calculate_dominant_sign_weights(chart).items()
+        },
+        "dominant_house_weights": {
+            str(k): float(v) for k, v in calculate_dominant_house_weights(chart).items()
+        },
+        "dominant_element_weights": {
+            str(k): float(v)
+            for k, v in calculate_dominant_element_weights(chart).items()
+        },
+        "dominant_mode_weights": {
+            str(k): float(v) for k, v in calculate_mode_weights(chart).items()
+        },
+        "dominant_nakshatra_weights": {
+            str(k): float(v)
+            for k, v in calculate_dominant_nakshatra_weights(chart).items()
+        },
     }
 
 
@@ -130,18 +147,49 @@ def _hd_snapshot(chart: Chart) -> dict[str, Any]:
     return {
         "gates": sorted(int(gate) for gate in result.active_gates),
         "lines": sorted(f"{int(a.gate)}.{int(a.line)}" for a in activations),
-        "channels": sorted(f"{min(a, b)}-{max(a, b)}" for a, b, *_ in result.defined_channels),
+        "channels": sorted(
+            f"{min(a, b)}-{max(a, b)}" for a, b, *_ in result.defined_channels
+        ),
         "type": str(result.hd_type or ""),
         "profile": str(result.profile or ""),
     }
 
 
-def _categorical_snapshot(chart: Chart) -> dict[str, str]:
+BODY_SIGN_CONFIDENCE_KEYS = (
+    "Sun",
+    "Moon",
+    "Mercury",
+    "Venus",
+    "Mars",
+    "Jupiter",
+    "Saturn",
+    "Uranus",
+    "Neptune",
+    "Pluto",
+)
+ANGLE_SIGN_CONFIDENCE_KEYS = ("AS", "MC", "DS", "IC")
+
+
+def _categorical_snapshot(chart: Chart) -> dict[str, Any]:
     positions = getattr(chart, "positions", {}) or {}
+    body_signs = {
+        key: _sign_for_longitude(float(positions[key]))
+        for key in BODY_SIGN_CONFIDENCE_KEYS
+        if key in positions
+    }
+    angle_signs = {
+        key: _sign_for_longitude(float(positions[key]))
+        for key in ANGLE_SIGN_CONFIDENCE_KEYS
+        if key in positions
+    }
     return {
-        "Sun": _sign_for_longitude(float(positions["Sun"])) if "Sun" in positions else "",
-        "Nakshatra": _get_nakshatra(float(positions["Moon"])) if "Moon" in positions else "",
-        "AS": _sign_for_longitude(float(positions["AS"])) if "AS" in positions else "",
+        "Sun": body_signs.get("Sun", ""),
+        "Nakshatra": (
+            _get_nakshatra(float(positions["Moon"])) if "Moon" in positions else ""
+        ),
+        "AS": angle_signs.get("AS", ""),
+        "body_signs": body_signs,
+        "angle_signs": angle_signs,
     }
 
 
@@ -151,7 +199,15 @@ def _sign_for_longitude(lon: float) -> str:
 
 def _get_nakshatra(lon: float) -> str:
     lon = float(lon) % 360.0
-    for name, start_sign, start_deg, start_min, end_sign, end_deg, end_min in NAKSHATRA_RANGES:
+    for (
+        name,
+        start_sign,
+        start_deg,
+        start_min,
+        end_sign,
+        end_deg,
+        end_min,
+    ) in NAKSHATRA_RANGES:
         start = _sign_degrees(start_sign, start_deg, start_min)
         end = _sign_degrees(end_sign, end_deg, end_min)
         start_f = float(start) % 360.0
@@ -189,7 +245,9 @@ def _span_label(start_time: str, end_time: str) -> str:
     return f"{start_time}–{end_time}"
 
 
-def _matching_spans(values: list[tuple[str, float]], predicate: Callable[[float], bool]) -> list[str]:
+def _matching_spans(
+    values: list[tuple[str, float]], predicate: Callable[[float], bool]
+) -> list[str]:
     spans: list[str] = []
     start: str | None = None
     previous_time: str | None = None
@@ -209,21 +267,31 @@ def _matching_spans(values: list[tuple[str, float]], predicate: Callable[[float]
 
 def _transition_windows(values: list[tuple[str, float]]) -> list[str]:
     windows: list[str] = []
-    for (previous_time, previous_value), (time, value) in zip(values, values[1:], strict=False):
+    for (previous_time, previous_value), (time, value) in zip(
+        values, values[1:], strict=False
+    ):
         if abs(value - previous_value) > 1e-9:
             windows.append(_span_label(previous_time, time))
     return windows
 
 
-def _aggregate_numeric(samples: list[dict[str, Any]], baseline: dict[str, dict[str, float]]) -> tuple[dict[str, dict[str, dict[str, Any]]], dict[str, float]]:
+def _aggregate_numeric(
+    samples: list[dict[str, Any]], baseline: dict[str, dict[str, float]]
+) -> tuple[dict[str, dict[str, dict[str, Any]]], dict[str, float]]:
     ranges: dict[str, dict[str, dict[str, Any]]] = {}
     group_deltas: dict[str, float] = {}
     for group in NUMERIC_GROUPS:
-        keys = sorted({key for sample in samples for key in sample["numeric"].get(group, {})} | set(baseline.get(group, {})))
+        keys = sorted(
+            {key for sample in samples for key in sample["numeric"].get(group, {})}
+            | set(baseline.get(group, {}))
+        )
         group_ranges: dict[str, dict[str, Any]] = {}
         max_group_delta = 0.0
         for key in keys:
-            values = [(sample["time"], float(sample["numeric"].get(group, {}).get(key, 0.0))) for sample in samples]
+            values = [
+                (sample["time"], float(sample["numeric"].get(group, {}).get(key, 0.0)))
+                for sample in samples
+            ]
             min_value = min(value for _time, value in values)
             max_value = max(value for _time, value in values)
             base_value = float(baseline.get(group, {}).get(key, 0.0))
@@ -245,8 +313,12 @@ def _aggregate_numeric(samples: list[dict[str, Any]], baseline: dict[str, dict[s
                 "max_increase_from_baseline": round(max_increase, 6),
                 "max_decrease_from_baseline": round(max_decrease, 6),
                 "percent_delta": round(pct, 2),
-                "max_increase_percent": round(_percent_delta(max_increase, base_value), 2),
-                "max_decrease_percent": round(_percent_delta(max_decrease, base_value), 2),
+                "max_increase_percent": round(
+                    _percent_delta(max_increase, base_value), 2
+                ),
+                "max_decrease_percent": round(
+                    _percent_delta(max_decrease, base_value), 2
+                ),
                 "label": _variability_label(abs(pct)),
                 "times_at_min": trough_times,
                 "times_at_max": peak_times,
@@ -254,9 +326,13 @@ def _aggregate_numeric(samples: list[dict[str, Any]], baseline: dict[str, dict[s
                 "trough_times": trough_times,
                 "present_spans": _matching_spans(values, lambda value: value > 0.0),
                 "peak_spans": _matching_spans(values, lambda value: value == max_value),
-                "trough_spans": _matching_spans(values, lambda value: value == min_value),
+                "trough_spans": _matching_spans(
+                    values, lambda value: value == min_value
+                ),
                 "transition_windows": _transition_windows(values),
-                "appears_after": present_times[0] if min_value == 0.0 and present_times else None,
+                "appears_after": (
+                    present_times[0] if min_value == 0.0 and present_times else None
+                ),
             }
         ranges[group] = group_ranges
         group_deltas[group] = round(max_group_delta, 2)
@@ -265,11 +341,20 @@ def _aggregate_numeric(samples: list[dict[str, Any]], baseline: dict[str, dict[s
 
 def _presence_summary(samples: list[dict[str, Any]], key: str) -> dict[str, Any]:
     sample_count = len(samples)
-    universe = sorted({item for sample in samples for item in sample["human_design"].get(key, [])})
-    counts = {str(item): sum(1 for sample in samples if item in sample["human_design"].get(key, [])) for item in universe}
+    universe = sorted(
+        {item for sample in samples for item in sample["human_design"].get(key, [])}
+    )
+    counts = {
+        str(item): sum(
+            1 for sample in samples if item in sample["human_design"].get(key, [])
+        )
+        for item in universe
+    }
     return {
         "always": [item for item, count in counts.items() if count == sample_count],
-        "sometimes": [item for item, count in counts.items() if 0 < count < sample_count],
+        "sometimes": [
+            item for item, count in counts.items() if 0 < count < sample_count
+        ],
         "presence_counts": counts,
         "sample_count": sample_count,
     }
@@ -283,7 +368,9 @@ def _distribution(samples: list[dict[str, Any]], key: str) -> dict[str, int]:
     return dict(sorted(counts.items(), key=lambda item: (-item[1], item[0])))
 
 
-def _cumulative_weight_likelihoods(samples: list[dict[str, Any]], group: str) -> dict[str, dict[str, Any]]:
+def _cumulative_weight_likelihoods(
+    samples: list[dict[str, Any]], group: str
+) -> dict[str, dict[str, Any]]:
     """Average every factor's weight across samples and express it as a relative share."""
     sample_count = len(samples)
     totals: dict[str, float] = {}
@@ -303,7 +390,9 @@ def _cumulative_weight_likelihoods(samples: list[dict[str, Any]], group: str) ->
     }
 
 
-def _dominance_likelihoods(samples: list[dict[str, Any]], group: str) -> dict[str, dict[str, Any]]:
+def _dominance_likelihoods(
+    samples: list[dict[str, Any]], group: str
+) -> dict[str, dict[str, Any]]:
     """Count which weighted factor is dominant in each sampled chart."""
     counts: dict[str, float] = {}
     sample_count = len(samples)
@@ -330,9 +419,106 @@ def _dominance_likelihoods(samples: list[dict[str, Any]], group: str) -> dict[st
     return {
         key: {
             "count": round(count, 4),
-            "percent": round((count / sample_count) * 100.0, 2) if sample_count else 0.0,
+            "percent": (
+                round((count / sample_count) * 100.0, 2) if sample_count else 0.0
+            ),
         }
         for key, count in sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+    }
+
+
+def _modal_stability(values: Iterable[str]) -> float:
+    clean_values = [str(value) for value in values if str(value)]
+    if not clean_values:
+        return 0.0
+    counts: dict[str, int] = {}
+    for value in clean_values:
+        counts[value] = counts.get(value, 0) + 1
+    return max(counts.values()) / len(clean_values)
+
+
+def _average_factor_stability(
+    samples: list[dict[str, Any]], category: str, keys: Iterable[str]
+) -> float | None:
+    scores = []
+    for key in keys:
+        values = [
+            sample["categorical"].get(category, {}).get(key, "") for sample in samples
+        ]
+        if any(values):
+            scores.append(_modal_stability(values))
+    if not scores:
+        return None
+    return sum(scores) / len(scores)
+
+
+def _dominance_confidence(overall: dict[str, Any]) -> float | None:
+    dominance = overall.get("dominance_likelihoods", {})
+    scores: list[float] = []
+    for group in ("dominant_planet_weights", "dominant_sign_weights"):
+        group_values = dominance.get(group, {})
+        if group_values:
+            scores.append(
+                max(float(item.get("percent", 0.0)) for item in group_values.values())
+                / 100.0
+            )
+    if not scores:
+        return None
+    return sum(scores) / len(scores)
+
+
+def _ascertainment_confidence(
+    samples: list[dict[str, Any]], overall: dict[str, Any]
+) -> dict[str, Any]:
+    """Estimate how much useful chart information survives an unknown birth time."""
+    components: list[tuple[str, float, float]] = []
+
+    body_score = _average_factor_stability(
+        samples, "body_signs", BODY_SIGN_CONFIDENCE_KEYS
+    )
+    if body_score is not None:
+        components.append(("planetary sign stability", 0.55, body_score))
+
+    angle_score = _average_factor_stability(
+        samples, "angle_signs", ANGLE_SIGN_CONFIDENCE_KEYS
+    )
+    if angle_score is not None:
+        components.append(("angle sign stability", 0.15, angle_score))
+
+    dominance_score = _dominance_confidence(overall)
+    if dominance_score is not None:
+        components.append(("dominance consistency", 0.20, dominance_score))
+
+    stability_score = (
+        max(0.0, min(100.0, float(overall.get("stability_percent", 0.0)))) / 100.0
+    )
+    components.append(("weighted-score stability", 0.10, stability_score))
+
+    total_weight = sum(weight for _name, weight, _score in components)
+    confidence = (
+        sum(weight * score for _name, weight, score in components) / total_weight
+        if total_weight
+        else 0.0
+    )
+    variable_body_count = sum(
+        1
+        for key in BODY_SIGN_CONFIDENCE_KEYS
+        if len(
+            {
+                sample["categorical"].get("body_signs", {}).get(key, "")
+                for sample in samples
+                if sample["categorical"].get("body_signs", {}).get(key, "")
+            }
+        )
+        > 1
+    )
+    return {
+        "percent": round(max(0.0, min(100.0, confidence * 100.0)), 2),
+        "components": {
+            name: round(score * 100.0, 2) for name, _weight, score in components
+        },
+        "variable_body_sign_count": variable_body_count,
+        "description": "Relative confidence in chart facts that remain ascertainable across sampled birth times.",
     }
 
 
@@ -343,7 +529,9 @@ def _top_group_deltas(group_deltas: dict[str, float]) -> tuple[list[str], list[s
     return most, least
 
 
-def _baseline_time_for_chart(chart: Any, configured_baseline_time: str | None) -> tuple[int, int, str, str]:
+def _baseline_time_for_chart(
+    chart: Any, configured_baseline_time: str | None
+) -> tuple[int, int, str, str]:
     if configured_baseline_time:
         hour, minute = (int(part) for part in configured_baseline_time.split(":", 1))
         return hour, minute, _time_label(hour, minute), "configured time"
@@ -356,28 +544,47 @@ def _baseline_time_for_chart(chart: Any, configured_baseline_time: str | None) -
         dt = getattr(chart, "dt", None)
         fallback_hour = int(dt.hour) if isinstance(dt, datetime) else 12
         fallback_minute = int(dt.minute) if isinstance(dt, datetime) else 0
-        hour = int(getattr(chart, "retcon_hour", fallback_hour) if getattr(chart, "retcon_hour", None) is not None else fallback_hour)
-        minute = int(getattr(chart, "retcon_minute", fallback_minute) if getattr(chart, "retcon_minute", None) is not None else fallback_minute)
+        hour = int(
+            getattr(chart, "retcon_hour", fallback_hour)
+            if getattr(chart, "retcon_hour", None) is not None
+            else fallback_hour
+        )
+        minute = int(
+            getattr(chart, "retcon_minute", fallback_minute)
+            if getattr(chart, "retcon_minute", None) is not None
+            else fallback_minute
+        )
         return hour, minute, _time_label(hour, minute), "rectified time"
 
     dt = getattr(chart, "dt", None)
     if not isinstance(dt, datetime):
         dt = getattr(chart, "dt_local", None)
     if isinstance(dt, datetime):
-        return int(dt.hour), int(dt.minute), _time_label(int(dt.hour), int(dt.minute)), "current chart time"
+        return (
+            int(dt.hour),
+            int(dt.minute),
+            _time_label(int(dt.hour), int(dt.minute)),
+            "current chart time",
+        )
     return 12, 0, "12:00", "noon fallback"
 
 
-def compute_time_sensitivity(chart: Any, config: TimeSensitivityConfig | None = None) -> TimeSensitivityResult:
+def compute_time_sensitivity(
+    chart: Any, config: TimeSensitivityConfig | None = None
+) -> TimeSensitivityResult:
     """Compute sampled Time/Rectification Sensitivity ranges for one chart."""
     cfg = config or TimeSensitivityConfig()
     samples: list[dict[str, Any]] = []
     warnings: list[str] = []
-    baseline_hour, baseline_minute, baseline_time, baseline_source = _baseline_time_for_chart(chart, cfg.baseline_time)
+    baseline_hour, baseline_minute, baseline_time, baseline_source = (
+        _baseline_time_for_chart(chart, cfg.baseline_time)
+    )
     baseline_chart = _variant_chart(chart, baseline_hour, baseline_minute)
     baseline_numeric = _numeric_snapshot(baseline_chart)
 
-    for hour, minute in scan_times(cfg.interval_minutes, include_day_end=cfg.include_day_end):
+    for hour, minute in scan_times(
+        cfg.interval_minutes, include_day_end=cfg.include_day_end
+    ):
         label = _time_label(hour, minute)
         try:
             variant = _variant_chart(chart, hour, minute)
@@ -391,19 +598,29 @@ def compute_time_sensitivity(chart: Any, config: TimeSensitivityConfig | None = 
             human_design = _hd_snapshot(variant)
         except Exception as exc:
             warnings.append(f"{label} Human Design skipped: {exc}")
-            human_design = {"gates": [], "lines": [], "channels": [], "type": "", "profile": ""}
+            human_design = {
+                "gates": [],
+                "lines": [],
+                "channels": [],
+                "type": "",
+                "profile": "",
+            }
 
-        samples.append({
-            "time": label,
-            "numeric": numeric,
-            "human_design": human_design,
-            "categorical": categorical,
-        })
+        samples.append(
+            {
+                "time": label,
+                "numeric": numeric,
+                "human_design": human_design,
+                "categorical": categorical,
+            }
+        )
 
     if not samples:
         details = "; ".join(warnings[:5])
         suffix = f" First failures: {details}" if details else ""
-        raise ValueError(f"Time Sensitivity could not produce any valid sampled charts.{suffix}")
+        raise ValueError(
+            f"Time Sensitivity could not produce any valid sampled charts.{suffix}"
+        )
 
     numeric_ranges, group_deltas = _aggregate_numeric(samples, baseline_numeric)
     most_sensitive, least_sensitive = _top_group_deltas(group_deltas)
@@ -419,8 +636,16 @@ def compute_time_sensitivity(chart: Any, config: TimeSensitivityConfig | None = 
         label: [sample["categorical"].get(source_key, "") for sample in samples]
         for label, source_key in categorical_sources.items()
     }
-    stable = [f"{key}: stable all day ({values[0]})" for key, values in categorical_values.items() if values and len(set(values)) == 1 and values[0]]
-    variable = [f"{key}: {' / '.join(dict.fromkeys(v for v in values if v))}" for key, values in categorical_values.items() if len(set(v for v in values if v)) > 1]
+    stable = [
+        f"{key}: stable all day ({values[0]})"
+        for key, values in categorical_values.items()
+        if values and len(set(values)) == 1 and values[0]
+    ]
+    variable = [
+        f"{key}: {' / '.join(dict.fromkeys(v for v in values if v))}"
+        for key, values in categorical_values.items()
+        if len(set(v for v in values if v)) > 1
+    ]
 
     hd = {
         "gates": _presence_summary(samples, "gates"),
@@ -434,7 +659,35 @@ def compute_time_sensitivity(chart: Any, config: TimeSensitivityConfig | None = 
     else:
         variable.append("HD Type: " + " / ".join(hd["type_distribution"].keys()))
 
-    computed_at = datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    overall = {
+        "stability_percent": round(stability, 2),
+        "max_total_change_from_baseline_percent": round(max_delta, 2),
+        "most_sensitive": most_sensitive,
+        "least_sensitive": least_sensitive,
+        "group_deltas": group_deltas,
+        "dominance_likelihoods": {
+            "dominant_planet_weights": _dominance_likelihoods(
+                samples, "dominant_planet_weights"
+            ),
+            "dominant_sign_weights": _dominance_likelihoods(
+                samples, "dominant_sign_weights"
+            ),
+        },
+        "cumulative_weight_likelihoods": {
+            "dominant_planet_weights": _cumulative_weight_likelihoods(
+                samples, "dominant_planet_weights"
+            ),
+            "dominant_sign_weights": _cumulative_weight_likelihoods(
+                samples, "dominant_sign_weights"
+            ),
+        },
+        "baseline_source": baseline_source,
+    }
+    overall["ascertainment_confidence"] = _ascertainment_confidence(samples, overall)
+
+    computed_at = (
+        datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    )
     return TimeSensitivityResult(
         chart_uid=str(getattr(chart, "chart_uid", "") or ""),
         chart_name=str(getattr(chart, "name", "") or ""),
@@ -444,22 +697,7 @@ def compute_time_sensitivity(chart: Any, config: TimeSensitivityConfig | None = 
         config=asdict(cfg),
         sample_count=len(samples),
         baseline_time=baseline_time,
-        overall={
-            "stability_percent": round(stability, 2),
-            "max_total_change_from_baseline_percent": round(max_delta, 2),
-            "most_sensitive": most_sensitive,
-            "least_sensitive": least_sensitive,
-            "group_deltas": group_deltas,
-            "dominance_likelihoods": {
-                "dominant_planet_weights": _dominance_likelihoods(samples, "dominant_planet_weights"),
-                "dominant_sign_weights": _dominance_likelihoods(samples, "dominant_sign_weights"),
-            },
-            "cumulative_weight_likelihoods": {
-                "dominant_planet_weights": _cumulative_weight_likelihoods(samples, "dominant_planet_weights"),
-                "dominant_sign_weights": _cumulative_weight_likelihoods(samples, "dominant_sign_weights"),
-            },
-            "baseline_source": baseline_source,
-        },
+        overall=overall,
         numeric_ranges=numeric_ranges,
         human_design=hd,
         stable=stable,
@@ -480,8 +718,7 @@ def _config_hash(config: dict[str, Any]) -> str:
 def ensure_time_sensitivity_db(path: Path = TIME_SENSITIVITY_DB_PATH) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(path) as conn:
-        conn.execute(
-            """
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS chart_time_sensitivity_ranges (
                 id INTEGER PRIMARY KEY,
                 chart_uid TEXT NOT NULL,
@@ -494,21 +731,27 @@ def ensure_time_sensitivity_db(path: Path = TIME_SENSITIVITY_DB_PATH) -> None:
                 updated_at TEXT NOT NULL,
                 UNIQUE(chart_uid, algorithm_version, config_hash)
             )
-            """
-        )
-        columns = {row[1] for row in conn.execute("PRAGMA table_info(chart_time_sensitivity_ranges)").fetchall()}
+            """)
+        columns = {
+            row[1]
+            for row in conn.execute(
+                "PRAGMA table_info(chart_time_sensitivity_ranges)"
+            ).fetchall()
+        }
         if "birth_date_key" not in columns:
-            conn.execute("ALTER TABLE chart_time_sensitivity_ranges ADD COLUMN birth_date_key TEXT NOT NULL DEFAULT ''")
-        conn.execute(
-            """
+            conn.execute(
+                "ALTER TABLE chart_time_sensitivity_ranges ADD COLUMN birth_date_key TEXT NOT NULL DEFAULT ''"
+            )
+        conn.execute("""
             CREATE UNIQUE INDEX IF NOT EXISTS idx_time_sensitivity_birth_date_config
             ON chart_time_sensitivity_ranges(birth_date_key, algorithm_version, config_hash)
             WHERE birth_date_key != ''
-            """
-        )
+            """)
 
 
-def save_time_sensitivity_result(result: TimeSensitivityResult, path: Path = TIME_SENSITIVITY_DB_PATH) -> None:
+def save_time_sensitivity_result(
+    result: TimeSensitivityResult, path: Path = TIME_SENSITIVITY_DB_PATH
+) -> None:
     ensure_time_sensitivity_db(path)
     payload = result_to_dict(result)
     config_json = json.dumps(result.config, sort_keys=True)
@@ -538,7 +781,16 @@ def save_time_sensitivity_result(result: TimeSensitivityResult, path: Path = TIM
                 chart_uid, birth_date_key, algorithm_version, config_hash, config_json, result_json, created_at, updated_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (storage_chart_uid, result.birth_date_key, result.algorithm_version, config_hash, config_json, result_json, now, now),
+            (
+                storage_chart_uid,
+                result.birth_date_key,
+                result.algorithm_version,
+                config_hash,
+                config_json,
+                result_json,
+                now,
+                now,
+            ),
         )
 
 
