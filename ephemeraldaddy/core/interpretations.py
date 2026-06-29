@@ -5719,6 +5719,14 @@ TAROT_NUMBERS = { #swords & wands are intrinsically a harsh burden that age poor
     },
 }
 
+HD_CATEGORY_COLORS = {
+    "HD Profile":"#6699ff", #basic blue
+    "HD Type":"#6699ff", #basic blue
+    "Defined Centers":"#6699ff", #basic blue
+    "HD Authorities":"#6699ff", #basic blue
+    "Channels":"#6699ff", #basic blue
+}
+
 HD_GATES_BY_ELEMENT = {
     "fire": [
         4, 5, 7, 9, 11, 17, 21, 26, 31, 33, 34, 42, 51,
