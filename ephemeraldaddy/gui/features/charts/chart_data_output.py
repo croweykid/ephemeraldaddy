@@ -60,6 +60,11 @@ def _separator_style_minimum_space_run() -> int:
     return int(SEPARATOR_STYLE["minimum_space_run"])
 
 
+def _qt_text_offset(text: str, index: int) -> int:
+    """Return a QTextCursor-compatible UTF-16 offset for a Python string index."""
+    return len(text[:index].encode("utf-16-le")) // 2
+
+
 def _separator_pattern() -> re.Pattern[str] | None:
     minimum_space_run = _separator_style_minimum_space_run()
     if minimum_space_run <= 0 or not _separator_style_character():
@@ -90,7 +95,7 @@ def _paint_chart_data_separators(output_widget: QPlainTextEdit) -> None:
             for separator in separator_pattern.finditer(text):
                 for column in range(separator.start(), separator.end()):
                     cursor = QTextCursor(block)
-                    cursor.setPosition(block_position + column)
+                    cursor.setPosition(block_position + _qt_text_offset(text, column))
                     cursor_rect = output_widget.cursorRect(cursor)
                     painter.drawText(
                         cursor_rect.left(),

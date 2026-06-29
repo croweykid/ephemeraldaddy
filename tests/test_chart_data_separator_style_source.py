@@ -24,6 +24,9 @@ def test_chart_data_outputs_use_visual_only_whitespace_separators():
     assert 'SEPARATOR_STYLE["character"]' in CHART_DATA_OUTPUT_SOURCE
     assert 'SEPARATOR_STYLE["color"]' in CHART_DATA_OUTPUT_SOURCE
     assert 'SEPARATOR_STYLE["minimum_space_run"]' in CHART_DATA_OUTPUT_SOURCE
+    assert "def _qt_text_offset" in CHART_DATA_OUTPUT_SOURCE
+    assert 'encode("utf-16-le")' in CHART_DATA_OUTPUT_SOURCE
+    assert "block_position + _qt_text_offset(text, column)" in CHART_DATA_OUTPUT_SOURCE
     assert "def _paint_chart_data_separators" in CHART_DATA_OUTPUT_SOURCE
     assert "def paintEvent" in CHART_DATA_OUTPUT_SOURCE
     assert "(?<=\\S)" in CHART_DATA_OUTPUT_SOURCE
