@@ -172,6 +172,55 @@ def test_calculate_human_design_uses_chart_datetime_when_rectified_time_disabled
     assert captured_birth_utcs[0] == datetime(2000, 1, 1, 12, 0, tzinfo=timezone.utc)
 
 
+def test_hypothetical_hd_samples_use_location_timezone_when_bypassing_rectified_time(monkeypatch):
+    _install_gui_style_stub()
+    from ephemeraldaddy.analysis import human_design as hd_output
+
+    monkeypatch.setattr(
+        hd_output,
+        "timezone_from_latlon",
+        lambda _lat, _lon: (ZoneInfo("America/New_York"), True),
+    )
+    chart = SimpleNamespace(
+        dt=datetime.fromisoformat("2024-03-10T12:00:00-04:00"),
+        lat=40.7128,
+        lon=-74.0060,
+        retcon_time_used=True,
+        retcon_hour=1,
+        retcon_minute=30,
+    )
+
+    midnight = hd_output._chart_with_hypothetical_local_time(chart, 0, 0)
+    noon = hd_output._chart_with_hypothetical_local_time(chart, 12, 0)
+
+    assert midnight.retcon_time_used is False
+    assert noon.retcon_time_used is False
+    assert midnight.dt.isoformat() == "2024-03-10T00:00:00-05:00"
+    assert noon.dt.isoformat() == "2024-03-10T12:00:00-04:00"
+
+
+def test_hypothetical_hd_samples_fall_back_to_source_offset_when_timezone_inference_fails(monkeypatch):
+    _install_gui_style_stub()
+    from ephemeraldaddy.analysis import human_design as hd_output
+
+    monkeypatch.setattr(
+        hd_output,
+        "timezone_from_latlon",
+        lambda _lat, _lon: (ZoneInfo("UTC"), False),
+    )
+    chart = SimpleNamespace(
+        dt=datetime.fromisoformat("2024-03-10T12:00:00-04:00"),
+        lat=0.0,
+        lon=0.0,
+        retcon_time_used=True,
+    )
+
+    midnight = hd_output._chart_with_hypothetical_local_time(chart, 0, 0)
+
+    assert midnight.retcon_time_used is False
+    assert midnight.dt.isoformat() == "2024-03-10T00:00:00-04:00"
+
+
 def test_human_design_output_keeps_unknown_time_variants_when_houses_are_not_used(monkeypatch):
     _install_gui_style_stub()
     from ephemeraldaddy.analysis import human_design as hd_output
