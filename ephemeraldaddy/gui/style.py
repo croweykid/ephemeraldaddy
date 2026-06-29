@@ -522,7 +522,7 @@ RELATIVE_YEAR_COLORS = {
 
 ARROW_STYLES = {
 #"nope":"➡",
-"classic":"→",
+"sensible":"→",
 "ascii":"˃",
 #"weirdo":"↝",
 "aggro":"↦",
