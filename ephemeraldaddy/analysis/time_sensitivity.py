@@ -14,7 +14,11 @@ from typing import Any, Iterable
 from ephemeraldaddy.core.chart import Chart, chart_uses_houses
 from ephemeraldaddy.core.db import DB_DIR
 from ephemeraldaddy.core.human_design_system import calculate_human_design
-from ephemeraldaddy.core.interpretations import NAKSHATRA_RANGES, ZODIAC_NAMES
+from ephemeraldaddy.core.interpretations import (
+    NAKSHATRA_RANGES,
+    PLANET_ORDER,
+    ZODIAC_NAMES,
+)
 
 TIME_SENSITIVITY_ALGORITHM_VERSION = "time-sensitivity-v6"
 TIME_SENSITIVITY_DB_PATH = DB_DIR / "time_sensitivity.db"
@@ -155,19 +159,10 @@ def _hd_snapshot(chart: Chart) -> dict[str, Any]:
     }
 
 
-BODY_SIGN_CONFIDENCE_KEYS = (
-    "Sun",
-    "Moon",
-    "Mercury",
-    "Venus",
-    "Mars",
-    "Jupiter",
-    "Saturn",
-    "Uranus",
-    "Neptune",
-    "Pluto",
-)
 ANGLE_SIGN_CONFIDENCE_KEYS = ("AS", "MC", "DS", "IC")
+BODY_SIGN_CONFIDENCE_KEYS = tuple(
+    body for body in PLANET_ORDER if body not in ANGLE_SIGN_CONFIDENCE_KEYS
+)
 
 
 def _categorical_snapshot(chart: Chart) -> dict[str, Any]:
@@ -319,10 +314,13 @@ def _aggregate_numeric(
                 "max_increase_from_baseline": round(max_increase, 6),
                 "max_decrease_from_baseline": round(max_decrease, 6),
                 "percent_delta": round(pct, 2),
-                "max_increase_percent": round(max_increase_percent, 2),
-                "max_decrease_percent": round(max_decrease_percent, 2),
-                "variability_percent": round(variability_percent, 2),
-                "label": _variability_label(abs(variability_percent)),
+                "max_increase_percent": round(
+                    _percent_delta(max_increase, base_value), 2
+                ),
+                "max_decrease_percent": round(
+                    _percent_delta(max_decrease, base_value), 2
+                ),
+                "label": _variability_label(abs(pct)),
                 "times_at_min": trough_times,
                 "times_at_max": peak_times,
                 "peak_times": peak_times,

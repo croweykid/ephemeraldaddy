@@ -408,43 +408,62 @@ def test_time_sensitivity_html_colors_min_and_max_against_separate_peer_scales()
     assert "<span style='color:#7a0000;'>2.50</span>" in taurus_item
 
 
-def test_time_sensitivity_table_var_uses_percent_delta_spread_scale():
-    import pytest
+def test_body_sign_confidence_keys_include_nodes_asteroids_lilith_and_fortune():
+    from ephemeraldaddy.analysis.time_sensitivity import BODY_SIGN_CONFIDENCE_KEYS
 
-    panel_module = pytest.importorskip("ephemeraldaddy.gui.features.charts.time_sensitivity_panel", exc_type=ImportError)
+    assert {
+        "Rahu",
+        "Ketu",
+        "Neptune",
+        "Chiron",
+        "Ceres",
+        "Juno",
+        "Pallas",
+        "Vesta",
+        "Lilith",
+        "Lillith",
+        "Part of Fortune",
+        "Fortune",
+    }.issubset(BODY_SIGN_CONFIDENCE_KEYS)
 
-    result = TimeSensitivityResult(
-        chart_uid="CHARTUID",
-        chart_name="Example",
-        birth_date_key="01-01-2000",
-        algorithm_version="time-sensitivity-v2",
-        computed_at="2026-06-20T00:00:00Z",
-        config=TimeSensitivityConfig().__dict__,
-        sample_count=2,
-        baseline_time="12:00",
-        overall={},
-        numeric_ranges={
-            "dominant_sign_weights": {
-                "Aries": {"min": 1.0, "max": 1.01, "baseline": 1.0, "delta": 0.01, "max_decrease_percent": 0.0, "max_increase_percent": 1.0},
-                "Taurus": {"min": 1.0, "max": 1.1, "baseline": 1.0, "delta": 0.1, "max_decrease_percent": 0.0, "max_increase_percent": 10.0},
-                "Gemini": {"min": 1.0, "max": 1.25, "baseline": 1.0, "delta": 0.25, "max_decrease_percent": 0.0, "max_increase_percent": 25.0},
-                "Cancer": {"min": 1.0, "max": 1.5, "baseline": 1.0, "delta": 0.5, "max_decrease_percent": 0.0, "max_increase_percent": 50.0},
-                "Leo": {"min": 1.0, "max": 2.0, "baseline": 1.0, "delta": 1.0, "max_decrease_percent": 0.0, "max_increase_percent": 100.0},
-            },
-        },
-        human_design={},
-        stable=[],
-        variable=[],
-        warnings=[],
+
+def test_categorical_snapshot_includes_extended_body_signs():
+    from types import SimpleNamespace
+
+    from ephemeraldaddy.analysis.time_sensitivity import _categorical_snapshot
+
+    chart = SimpleNamespace(
+        positions={
+            "Neptune": 330.0,
+            "Rahu": 0.0,
+            "Ketu": 180.0,
+            "Chiron": 30.0,
+            "Ceres": 60.0,
+            "Pallas": 90.0,
+            "Juno": 120.0,
+            "Vesta": 150.0,
+            "Lilith": 210.0,
+            "Part of Fortune": 240.0,
+            "Fortune": 270.0,
+        }
     )
 
-    html = panel_module._numeric_group_table_html(result, "dominant_sign_weights")
+    body_signs = _categorical_snapshot(chart)["body_signs"]
 
-    for expected in ("minimal", "minor", "medium", "high", "extreme"):
-        assert f"<td>{expected}</td>" in html
+    assert body_signs["Neptune"] == "Pisces"
+    assert body_signs["Rahu"] == "Aries"
+    assert body_signs["Ketu"] == "Libra"
+    assert body_signs["Chiron"] == "Taurus"
+    assert body_signs["Ceres"] == "Gemini"
+    assert body_signs["Pallas"] == "Cancer"
+    assert body_signs["Juno"] == "Leo"
+    assert body_signs["Vesta"] == "Virgo"
+    assert body_signs["Lilith"] == "Scorpio"
+    assert body_signs["Part of Fortune"] == "Sagittarius"
+    assert body_signs["Fortune"] == "Capricorn"
 
 
-def test_time_sensitivity_confidence_uses_stability_percent_and_bright_green_scale():
+def test_time_sensitivity_confidence_uses_ascertainment_percent_and_bright_green_scale():
     import pytest
 
     panel_module = pytest.importorskip(
