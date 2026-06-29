@@ -26,6 +26,8 @@ from ephemeraldaddy.gui.style import CHART_DATA_DIVIDER
 from ephemeraldaddy.analysis.hd_line_fixings import get_hd_line_fixing
 from ephemeraldaddy.core.interpretations import BODY_RELATIONAL_GLYPHS
 
+CHART_DATA_COLUMN_SEPARATOR = " … "
+
 ZODIAC_NAMES = (
     "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
     "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces",
@@ -296,7 +298,15 @@ def _build_hd_positions_lines(
     c_width = max(1, *(len(display_values[1]) for _activation, _body_label, _sign_text, display_values in activation_rows))
     t_width = max(1, *(len(display_values[2]) for _activation, _body_label, _sign_text, display_values in activation_rows))
     b_width = max(1, *(len(display_values[3]) for _activation, _body_label, _sign_text, display_values in activation_rows))
-    header_line = f"{'Body':<{body_width}}  {'Sign':<{sign_width}}  {'Degree':<11}  {'G/L':<{gl_width}}  {'C':<{c_width}}  {'T':<{t_width}}  {'B':<{b_width}}"
+    header_line = CHART_DATA_COLUMN_SEPARATOR.join([
+        f"{'Body':<{body_width}}",
+        f"{'Sign':<{sign_width}}",
+        f"{'Degree':<11}",
+        f"{'G/L':<{gl_width}}",
+        f"{'C':<{c_width}}",
+        f"{'T':<{t_width}}",
+        f"{'B':<{b_width}}",
+    ])
     lines = [
         "POSITIONS",
         CHART_DATA_DIVIDER,
@@ -307,9 +317,16 @@ def _build_hd_positions_lines(
     for activation, body_label, sign_text, (gl_text, color_text, tone_text, base_text) in activation_rows:
         displayed_gl_text = BODY_RELATIONAL_GLYPHS.get("Exaltation", "") + gl_text if hd_line_fixing_for_activation(activation) == "exaltation" else gl_text
         line_text = (
-            f"{body_label:<{body_width}}  {sign_text:<{sign_width}}  {activation.longitude:>8.3f}°  "
-            f"{(displayed_gl_text):<{gl_width}}  {color_text:<{c_width}}  {tone_text:<{t_width}}  {base_text:<{b_width}}"
-            " ⓘ"
+            CHART_DATA_COLUMN_SEPARATOR.join([
+                f"{body_label:<{body_width}}",
+                f"{sign_text:<{sign_width}}",
+                f"{activation.longitude:>8.3f}°",
+                f"{(displayed_gl_text):<{gl_width}}",
+                f"{color_text:<{c_width}}",
+                f"{tone_text:<{t_width}}",
+                f"{base_text:<{b_width}}",
+            ])
+            + " ⓘ"
         )
         lines.append(line_text)
         body_start = line_text.find(body_label)
