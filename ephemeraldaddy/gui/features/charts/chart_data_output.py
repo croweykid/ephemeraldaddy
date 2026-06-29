@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime
 import re
 
-from PySide6.QtGui import QColor, QFont, QSyntaxHighlighter, QTextCharFormat, QTextOption
+from PySide6.QtGui import QColor, QFont, QPainter, QSyntaxHighlighter, QTextCharFormat, QTextCursor
 from PySide6.QtWidgets import QFrame, QPlainTextEdit, QToolTip, QWidget
 
 from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
@@ -48,6 +48,59 @@ from ephemeraldaddy.gui.style import (
 )
 
 
+def _separator_style_character() -> str:
+    return str(SEPARATOR_STYLE["character"])
+
+
+def _separator_style_color() -> QColor:
+    return QColor(str(SEPARATOR_STYLE["color"]))
+
+
+def _separator_style_minimum_space_run() -> int:
+    return int(SEPARATOR_STYLE["minimum_space_run"])
+
+
+def _separator_pattern() -> re.Pattern[str] | None:
+    minimum_space_run = _separator_style_minimum_space_run()
+    if minimum_space_run <= 0 or not _separator_style_character():
+        return None
+    return re.compile(rf"(?<=\S) {{{minimum_space_run},}}(?=\S)")
+
+
+def _paint_chart_data_separators(output_widget: QPlainTextEdit) -> None:
+    """Paint appwide ghost separator characters over table whitespace only."""
+    separator_pattern = _separator_pattern()
+    if separator_pattern is None:
+        return
+
+    painter = QPainter(output_widget.viewport())
+    painter.setPen(_separator_style_color())
+    font_metrics = output_widget.fontMetrics()
+    separator_character = _separator_style_character()
+
+    block = output_widget.firstVisibleBlock()
+    viewport_bottom = output_widget.viewport().height()
+    while block.isValid():
+        block_rect = output_widget.blockBoundingGeometry(block).translated(output_widget.contentOffset())
+        if block_rect.top() > viewport_bottom:
+            break
+        if block.isVisible() and block_rect.bottom() >= 0:
+            text = block.text()
+            block_position = block.position()
+            for separator in separator_pattern.finditer(text):
+                for column in range(separator.start(), separator.end()):
+                    cursor = QTextCursor(block)
+                    cursor.setPosition(block_position + column)
+                    cursor_rect = output_widget.cursorRect(cursor)
+                    painter.drawText(
+                        cursor_rect.left(),
+                        cursor_rect.top() + font_metrics.ascent(),
+                        separator_character,
+                    )
+        block = block.next()
+    painter.end()
+
+
 class ChartDataTooltipOutput(QPlainTextEdit):
     """Read-only plain-text chart output with per-token hover tooltips."""
 
@@ -58,6 +111,10 @@ class ChartDataTooltipOutput(QPlainTextEdit):
 
     def set_tooltip_spans(self, spans: dict[int, list[dict[str, object]]] | None) -> None:
         self._tooltip_spans = spans or {}
+
+    def paintEvent(self, event) -> None:  # noqa: ANN001 - Qt event type varies by binding version.
+        super().paintEvent(event)
+        _paint_chart_data_separators(self)
 
     def mouseMoveEvent(self, event) -> None:  # noqa: ANN001 - Qt event type varies by binding version.
         cursor = self.cursorForPosition(event.pos())
@@ -115,6 +172,10 @@ class ChartDataTableOutput(QPlainTextEdit):
             emphasize_species_info_headers=emphasize_species_info_headers,
             human_design_synastry_mode=human_design_synastry_mode,
         )
+
+    def paintEvent(self, event) -> None:  # noqa: ANN001 - Qt event type varies by binding version.
+        super().paintEvent(event)
+        _paint_chart_data_separators(self)
 
 
 class ChartSummaryHighlighter(QSyntaxHighlighter):
@@ -221,10 +282,6 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         self._section_header_names.update({"GATES & LINES"})
         self._unknown_format.setForeground(QColor("#666666"))
         self._unknown_format.setFontItalic(True)
-        self._separator_format = QTextCharFormat()
-        self._separator_format.setForeground(QColor(str(SEPARATOR_STYLE.get("color", "#555555"))))
-        self._separator_character = str(SEPARATOR_STYLE.get("character", ".") or ".")
-        self._separator_minimum_space_run = int(SEPARATOR_STYLE.get("minimum_space_run", 2))
         self._default_body_format = QTextCharFormat()
         # Keep body text non-bold/non-italic by default, but do not force foreground color.
         # This preserves intentional per-token coloring (including cursor-inserted formats)
@@ -1075,21 +1132,6 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                 name_start = text.find(environment_value)
                 if name_start >= 0:
                     self.setFormat(self._qt_index(text, name_start), self._qt_len(environment_value), environment_fmt)
-        self._apply_separator_style(text)
-
-
-    def _apply_separator_style(self, text: str) -> None:
-        """Color only the existing whitespace between padded table columns."""
-        if not self._separator_character or self._separator_minimum_space_run <= 0:
-            return
-        separator_pattern = rf"(?<=\S) {{{self._separator_minimum_space_run},}}(?=\S)"
-        for separator in re.finditer(separator_pattern, text):
-            self.setFormat(
-                self._qt_index(text, separator.start()),
-                self._qt_len(separator.group(0)),
-                self._separator_format,
-            )
-
     def _current_chart_data_section(self) -> str:
         block = self.currentBlock()
         while block.isValid():
@@ -1303,10 +1345,6 @@ def apply_chart_data_highlighter(
 ) -> ChartSummaryHighlighter:
     """Attach the shared chart-data highlighter to an output widget."""
     document = output_widget.document()
-    text_option = QTextOption(document.defaultTextOption())
-    show_spaces_flag = getattr(getattr(QTextOption, "Flag", QTextOption), "ShowTabsAndSpaces")
-    text_option.setFlags(text_option.flags() | show_spaces_flag)
-    document.setDefaultTextOption(text_option)
     highlighter = ChartSummaryHighlighter(
         document,
         emphasize_dnd_class_headers=emphasize_dnd_class_headers,
