@@ -58,6 +58,8 @@ from ephemeraldaddy.gui.style import (
 _TIME_SENSITIVITY_CHART_TITLES = {
     "dominant_planet_weights": "Dominant Body Weight Distribution",
     "dominant_sign_weights": "Dominant Sign Weight Distribution",
+    "dominant_house_weights": "Dominant House Weight Distribution",
+    "dominant_nakshatra_weights": "Dominant Nakshatra Weight Distribution",
 }
 
 
@@ -84,18 +86,23 @@ def _raw_weight_range_rows(result: TimeSensitivityResult, group_key: str) -> lis
 
 
 def _color_for_likelihood(group_key: str, label: str) -> str:
-    if group_key == "dominant_sign_weights":
-        return str(SIGN_COLORS.get(label, "#6fa8dc"))
-    return str(PLANET_COLORS.get(label, "#6fa8dc"))
+    return _factor_color(group_key, label)
 
 
 def _display_label_for_likelihood(group_key: str, label: str) -> str:
     if group_key == "dominant_planet_weights":
         return _display_body_name(label)
+    if group_key == "dominant_house_weights":
+        return str(label).removeprefix("House ").strip()
     return label
 
 
-def _draw_likelihood_chart(ax: Any, result: TimeSensitivityResult, group_key: str) -> None:
+def _draw_likelihood_chart(
+    ax: Any,
+    result: TimeSensitivityResult,
+    group_key: str,
+    on_factor_click: Any | None = None,
+) -> None:
     rows = _raw_weight_range_rows(result, group_key)
     labels = [label for label, _minimum, _maximum in rows]
     display_labels = [_display_label_for_likelihood(group_key, label) for label in labels]
@@ -113,12 +120,22 @@ def _draw_likelihood_chart(ax: Any, result: TimeSensitivityResult, group_key: st
     bars = ax.bar(x_positions, maximums, color=colors, alpha=0.72, edgecolor="#f5f5f5", linewidth=0.25)
     ax.bar(x_positions, minimums, color="#111111", alpha=0.50, edgecolor="none")
     hover_payloads = []
+    clickable_artists = []
     for bar, label, display_label, minimum, maximum in zip(bars, labels, display_labels, minimums, maximums, strict=True):
         bar.set_gid(f"time_sensitivity:{group_key}:{label}")
         bar.set_picker(True)
+        setattr(bar, "_time_sensitivity_factor", label)
+        clickable_artists.append((bar, label))
         hover_payloads.append((bar, f"{display_label}\nmin {minimum:.0f} • max {maximum:.0f}"))
     _install_bar_hover(ax, hover_payloads)
     ax.set_xticks(x_positions, display_labels)
+    for tick_label, label in zip(ax.get_xticklabels(), labels, strict=True):
+        tick_label.set_picker(True)
+        tick_label.set_gid(f"time_sensitivity:{group_key}:{label}:label")
+        setattr(tick_label, "_time_sensitivity_factor", label)
+        clickable_artists.append((tick_label, label))
+    if callable(on_factor_click):
+        _install_factor_click(ax, clickable_artists, on_factor_click)
     y_max = max(maximums) if maximums else 0.0
     ax.set_ylim(0, max(1.0, y_max * 1.12))
     ax.set_ylabel("raw weight range", color="#f5f5f5", fontsize=8)
@@ -130,6 +147,19 @@ def _draw_likelihood_chart(ax: Any, result: TimeSensitivityResult, group_key: st
         spine.set_color("#555555")
     ax.figure.tight_layout()
 
+
+
+def _install_factor_click(ax: Any, clickable_artists: list[tuple[Any, str]], on_factor_click: Any) -> None:
+    """Make Time Sensitivity bars and x-axis labels update the popout info panel."""
+
+    def on_click(event: Any) -> None:
+        for artist, label in clickable_artists:
+            contains, _details = artist.contains(event)
+            if contains:
+                on_factor_click(label)
+                return
+
+    ax.figure.canvas.mpl_connect("button_press_event", on_click)
 
 def _install_bar_hover(ax: Any, hover_payloads: list[tuple[Any, str]]) -> None:
     """Attach uncluttered on-hover labels to bars for Qt matplotlib canvases."""
@@ -343,6 +373,29 @@ def _single_time_value(values: Any) -> str:
 
 def _variability_text(payload: dict[str, Any]) -> str:
     return str(payload.get("label", "")).replace("Highly variable", "high") or "n/a"
+
+
+def _time_sensitivity_factor_info_html(result: TimeSensitivityResult, group_key: str, key: str) -> str:
+    payload = result.numeric_ranges.get(group_key, {}).get(key, {})
+    if not isinstance(payload, dict):
+        return "<div>No Time Sensitivity details available for that factor.</div>"
+    display = _display_label_for_likelihood(group_key, key)
+    color = escape(_factor_color(group_key, key), quote=True)
+    minimum = float(payload.get("min", 0.0))
+    maximum = float(payload.get("max", 0.0))
+    trough_time = _single_time_value(payload.get("trough_times") or payload.get("trough_spans"))
+    peak_time = _single_time_value(payload.get("peak_times") or payload.get("peak_spans"))
+    return (
+        "<div style='white-space:normal;'>"
+        f"<div style='font-size:14px; font-weight:700; color:{color};'>{escape(display)}</div>"
+        "<table style='border-collapse:collapse; margin-top:6px; font-size:12px;'>"
+        f"<tr><td><b>Min dominance</b></td><td style='padding-left:12px;'>{escape(f'{minimum:.0f}')}</td></tr>"
+        f"<tr><td><b>Max dominance</b></td><td style='padding-left:12px;'>{escape(f'{maximum:.0f}')}</td></tr>"
+        f"<tr><td><b>Trench time</b></td><td style='padding-left:12px;'>{escape(trough_time)}</td></tr>"
+        f"<tr><td><b>Peak time</b></td><td style='padding-left:12px;'>{escape(peak_time)}</td></tr>"
+        "</table>"
+        "</div>"
+    )
 
 
 def _numeric_group_table_html(result: TimeSensitivityResult, group_key: str) -> str:
@@ -812,7 +865,7 @@ class TimeSensitivityPanel(QWidget):
             section_layout.addWidget(content)
 
             canvas = None
-            if group_key in {"dominant_planet_weights", "dominant_sign_weights"}:
+            if group_key in _TIME_SENSITIVITY_CHART_TITLES:
                 figure = Figure(figsize=(5.5, 2.8))
                 ax = figure.add_subplot(111)
                 _draw_likelihood_chart(ax, result, group_key)
@@ -862,16 +915,20 @@ class TimeSensitivityPanel(QWidget):
         dialog.setLayout(layout)
         figure = Figure(figsize=(8.5, 4.6))
         ax = figure.add_subplot(111)
-        _draw_likelihood_chart(ax, self._last_result, group_key)
         canvas = FigureCanvas(figure)
-        canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        layout.addWidget(canvas, 1)
         info = QTextEdit()
         info.setReadOnly(True)
+
+        def show_factor_info(label: str) -> None:
+            info.setHtml(_time_sensitivity_factor_info_html(self._last_result, group_key, label))
+
+        _draw_likelihood_chart(ax, self._last_result, group_key, on_factor_click=show_factor_info)
+        canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        layout.addWidget(canvas, 1)
         info.setHtml(
             "<b>Raw weight range:</b> each bar shows the maximum raw weight reached by that factor; "
-            "the darker base marks its minimum raw weight across the sampled charts. Hover a bar "
-            "to see the exact rounded min/max values."
+            "the darker base marks its minimum raw weight across the sampled charts. Click a bar "
+            "or x-axis label to show that factor's min/max dominance plus peak and trench times."
         )
         info.setMaximumHeight(96)
         layout.addWidget(info)
