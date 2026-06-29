@@ -165,8 +165,9 @@ def _chart_with_hypothetical_local_time(chart: Chart, hour: int, minute: int) ->
     lon = getattr(chart, "lon", None)
     if lat is not None and lon is not None:
         try:
-            tz, _inferred_ok = timezone_from_latlon(float(lat), float(lon))
-            sampled_dt = sampled_naive.replace(tzinfo=tz)
+            tz, inferred_ok = timezone_from_latlon(float(lat), float(lon))
+            if inferred_ok:
+                sampled_dt = sampled_naive.replace(tzinfo=tz)
         except Exception:
             sampled_dt = None
     if sampled_dt is None and source_dt.tzinfo is not None:
