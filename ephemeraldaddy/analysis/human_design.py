@@ -22,11 +22,9 @@ from ephemeraldaddy.core.human_design_system import (
     calculate_human_design,
 )
 from ephemeraldaddy.analysis.human_design_reference import AWARENESS_STREAMS, HD_CIRCUIT_GROUPS, HD_COLORS, HD_TONES, HD_PERSPECTIVE_NAMES, HD_DIGESTION_NAMES, HD_ENVIRONMENT_COLORS
-from ephemeraldaddy.gui.style import CHART_DATA_DIVIDER
+from ephemeraldaddy.gui.style import CHART_DATA_DIVIDER, SEPARATOR_STYLE
 from ephemeraldaddy.analysis.hd_line_fixings import get_hd_line_fixing
 from ephemeraldaddy.core.interpretations import BODY_RELATIONAL_GLYPHS
-
-CHART_DATA_COLUMN_SEPARATOR = " … "
 
 ZODIAC_NAMES = (
     "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
@@ -298,7 +296,7 @@ def _build_hd_positions_lines(
     c_width = max(1, *(len(display_values[1]) for _activation, _body_label, _sign_text, display_values in activation_rows))
     t_width = max(1, *(len(display_values[2]) for _activation, _body_label, _sign_text, display_values in activation_rows))
     b_width = max(1, *(len(display_values[3]) for _activation, _body_label, _sign_text, display_values in activation_rows))
-    header_line = CHART_DATA_COLUMN_SEPARATOR.join([
+    header_line = SEPARATOR_STYLE["text"].join([
         f"{'Body':<{body_width}}",
         f"{'Sign':<{sign_width}}",
         f"{'Degree':<11}",
@@ -317,7 +315,7 @@ def _build_hd_positions_lines(
     for activation, body_label, sign_text, (gl_text, color_text, tone_text, base_text) in activation_rows:
         displayed_gl_text = BODY_RELATIONAL_GLYPHS.get("Exaltation", "") + gl_text if hd_line_fixing_for_activation(activation) == "exaltation" else gl_text
         line_text = (
-            CHART_DATA_COLUMN_SEPARATOR.join([
+            SEPARATOR_STYLE["text"].join([
                 f"{body_label:<{body_width}}",
                 f"{sign_text:<{sign_width}}",
                 f"{activation.longitude:>8.3f}°",
