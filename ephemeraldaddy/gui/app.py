@@ -1209,6 +1209,7 @@ GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS: frozenset[str] = frozenset(
 )
 SIMILAR_CHARTS_EXPORT_FORMAT_KEY = "exports/similar_charts_format"
 SIMILARITIES_ANALYSIS_TEXT_EXPORT_FORMAT_KEY = "exports/similarities_analysis_text_format"
+SIMILARITIES_ANALYSIS_CSV_EXPORT_DIRECTORY_KEY = "exports/similarities_analysis_csv_last_directory"
 CHART_VIEW_NAV_CACHE_LIMIT = 24
 
 DATABASE_METRICS_PERSISTENT_CACHE_VERSION = 1
@@ -8779,28 +8780,65 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
 
     def _export_similarities_analysis_csv(self) -> None:
-        if not self._similarities_export_sections:
-            QMessageBox.information(
+        export_data = self._prepare_similarities_analysis_tabular_export(
+            prompt_text="Name this selection (used as a CSV column header):",
+        )
+        if export_data is None:
+            return
+        header_name, headers, rows, sanitized_header, sample_size = export_data
+
+        timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        sample_suffix = f"_{sample_size}samples" if sample_size > 0 else ""
+        default_filename = f"ephemeraldaddy_{sanitized_header} similarities analysis_{timestamp}{sample_suffix}.csv"
+        last_directory = str(self._settings.value(SIMILARITIES_ANALYSIS_CSV_EXPORT_DIRECTORY_KEY, "") or "").strip()
+        default_path = (
+            os.path.join(last_directory, default_filename)
+            if last_directory and os.path.isdir(last_directory)
+            else default_filename
+        )
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export similarities analysis as CSV",
+            default_path,
+            "CSV Files (*.csv)",
+        )
+        QTimer.singleShot(0, self._reactivate_database_view)
+        if not file_path:
+            return
+        if not file_path.lower().endswith(".csv"):
+            file_path = f"{file_path}.csv"
+        directory = os.path.dirname(os.path.abspath(file_path))
+        if directory:
+            self._settings.setValue(SIMILARITIES_ANALYSIS_CSV_EXPORT_DIRECTORY_KEY, directory)
+
+        try:
+            with open(file_path, "w", newline="", encoding="utf-8") as csv_file:
+                writer = csv.writer(csv_file)
+                writer.writerow(headers)
+                writer.writerows(rows)
+        except Exception as e:
+            QMessageBox.critical(
                 self,
-                "No similarities data",
-                "Select at least 2 charts to generate similarities before exporting.",
+                "Export failed",
+                f"Could not export similarities analysis as CSV:\n{e}",
             )
             return
 
-        header_name, accepted = QInputDialog.getText(
+        QMessageBox.information(
             self,
-            "Selection name",
-            "Name this selection (used as an export column header):",
-            text="Selection",
+            "Export complete",
+            f"Saved similarities analysis CSV to:\n{file_path}",
         )
-        if not accepted:
+
+    def _export_similarities_analysis_text(self) -> None:
+        export_data = self._prepare_similarities_analysis_tabular_export(
+            prompt_text="Name this selection (used as an export column header):",
+        )
+        if export_data is None:
             return
-        header_name = header_name.strip() or "Selection"
+        header_name, headers, rows, sanitized_header, sample_size = export_data
 
         timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-        sanitized_header = re.sub(r"[^\w\s-]", "", header_name).strip() or "selection"
-        sanitized_header = re.sub(r"\s+", "_", sanitized_header)
-        sample_size = self._similarities_export_sample_size()
         sample_suffix = f"_{sample_size}samples" if sample_size > 0 else ""
         file_path = _get_text_export_path(
             self,
@@ -8813,6 +8851,56 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         QTimer.singleShot(0, self._reactivate_database_view)
         if not file_path:
             return
+
+        try:
+            is_markdown = file_path.lower().endswith(".md")
+            export_text = self._format_similarities_analysis_text_export(
+                header_name,
+                headers,
+                rows,
+                is_markdown=is_markdown,
+            )
+            with open(file_path, "w", encoding="utf-8") as export_file:
+                export_file.write(export_text)
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Export failed",
+                f"Could not export similarities analysis as text:\n{e}",
+            )
+            return
+
+        QMessageBox.information(
+            self,
+            "Export complete",
+            f"Saved similarities analysis text export to:\n{file_path}",
+        )
+
+    def _prepare_similarities_analysis_tabular_export(
+        self,
+        *,
+        prompt_text: str,
+    ) -> tuple[str, list[str], list[list[str | int | float]], str, int] | None:
+        if not self._similarities_export_sections:
+            QMessageBox.information(
+                self,
+                "No similarities data",
+                "Select at least 2 charts to generate similarities before exporting.",
+            )
+            return None
+
+        header_name, accepted = QInputDialog.getText(
+            self,
+            "Selection name",
+            prompt_text,
+            text="Selection",
+        )
+        if not accepted:
+            return None
+        header_name = header_name.strip() or "Selection"
+        sanitized_header = re.sub(r"[^\w\s-]", "", header_name).strip() or "selection"
+        sanitized_header = re.sub(r"\s+", "_", sanitized_header)
+        sample_size = self._similarities_export_sample_size()
 
         rows: list[list[str | int | float]] = []
         for section_title, matches in self._similarities_export_sections:
@@ -8853,7 +8941,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 "No similarities data",
                 "No shared similarities are available to export yet.",
             )
-            return
+            return None
 
         headers = [
             "category",
@@ -8867,30 +8955,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             f"{header_name} minus database match percent",
             f"{header_name} matching chart names",
         ]
-        try:
-            is_markdown = file_path.lower().endswith(".md")
-            export_text = self._format_similarities_analysis_text_export(
-                header_name,
-                headers,
-                rows,
-                is_markdown=is_markdown,
-            )
-            with open(file_path, "w", encoding="utf-8") as export_file:
-                export_file.write(export_text)
-        except Exception as e:
-            QMessageBox.critical(
-                self,
-                "Export failed",
-                f"Could not export similarities analysis as text:\n{e}",
-            )
-            return
+        return header_name, headers, rows, sanitized_header, sample_size
 
-        QMessageBox.information(
-            self,
-            "Export complete",
-            f"Saved similarities analysis text export to:\n{file_path}",
-        )
-            
     def _similarities_export_sample_size(self) -> int:
         for _section_title, matches in self._similarities_export_sections:
             for match in matches:

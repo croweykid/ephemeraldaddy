@@ -165,15 +165,25 @@ class SimilaritiesController:
         json_export_button.clicked.connect(self.host._export_similarities_analysis_json)
         title_layout.addWidget(json_export_button, alignment=Qt.AlignRight)
 
-        export_button = QPushButton()
+        csv_export_button = QPushButton()
         self.configure_export_button(
-            export_button,
-            label="text",
+            csv_export_button,
+            label="csv",
             tooltip="Export similarities analysis as CSV",
             share_icon_path=share_icon_path,
         )
-        export_button.clicked.connect(self.host._export_similarities_analysis_csv)
-        title_layout.addWidget(export_button, alignment=Qt.AlignRight)
+        csv_export_button.clicked.connect(self.host._export_similarities_analysis_csv)
+        title_layout.addWidget(csv_export_button, alignment=Qt.AlignRight)
+
+        text_export_button = QPushButton()
+        self.configure_export_button(
+            text_export_button,
+            label="text",
+            tooltip="Export similarities analysis as Markdown/Text",
+            share_icon_path=share_icon_path,
+        )
+        text_export_button.clicked.connect(self.host._export_similarities_analysis_text)
+        title_layout.addWidget(text_export_button, alignment=Qt.AlignRight)
         layout.addWidget(title_row)
 
         self.status_label = QLabel(
