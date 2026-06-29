@@ -30539,6 +30539,16 @@ class MainWindow(QMainWindow):
         return not self._lucygoosey
 
     def _should_auto_update_sentiments(self) -> bool:
+        return self._can_autosave_current_chart()
+
+    def _can_autosave_current_chart(self) -> bool:
+        """Return whether timed dirty-state saves may update the open chart.
+
+        Lucygoosey autosaves are update-only: a chart must already have a
+        database id before these timers can write metadata back to storage. New
+        Chart View entries without a saved id/UID still require an explicit
+        formal save through the Save/Discard leave prompt or Save Chart button.
+        """
         return self.current_chart_id is not None
 
     def _ensure_current_chart_still_exists(self) -> bool:
@@ -30559,7 +30569,7 @@ class MainWindow(QMainWindow):
         self._set_lucygoosey(False)
 
     def _autosave_checkbox_state(self) -> None:
-        if self._suppress_lucygoosey or self.current_chart_id is None:
+        if self._suppress_lucygoosey or not self._can_autosave_current_chart():
             return
         if not self._lucygoosey:
             return

@@ -53,6 +53,18 @@ def test_prompt_open_defers_but_does_not_disable_timed_autosaves():
     assert "self._sentiment_metrics_autosave_timer.start(2000)" in metric_method
 
 
+def test_lucygoosey_timed_autosaves_are_update_only_for_saved_charts():
+    should_auto_method = _method_source("_should_auto_update_sentiments")
+    can_autosave_method = _method_source("_can_autosave_current_chart")
+    autosave_method = _method_source("_autosave_checkbox_state")
+    metric_method = _method_source("_flush_pending_sentiment_metrics_save")
+    assert "return self._can_autosave_current_chart()" in should_auto_method
+    assert "return self.current_chart_id is not None" in can_autosave_method
+    assert "Lucygoosey autosaves are update-only" in can_autosave_method
+    assert "not self._can_autosave_current_chart()" in autosave_method
+    assert "if not self._should_auto_update_sentiments():" in metric_method
+
+
 def test_chart_save_signature_remains_void_for_existing_callers():
     method = _method_source("on_update_chart")
     assert "-> bool" not in method.splitlines()[0]
