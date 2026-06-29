@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QMessageBox,
     QPushButton,
+    QWidget,
 )
 
 from ephemeraldaddy.analysis.traits import (
@@ -30,6 +31,27 @@ from ephemeraldaddy.analysis.traits import (
     set_trait_archived,
     set_trait_color,
 )
+
+
+def _settings_dialog_for(owner: Any) -> QWidget:
+    """Return the Settings dialog when it is available, otherwise the owner window."""
+    dialog = getattr(owner, "_settings_dialog", None)
+    return dialog if isinstance(dialog, QWidget) else owner
+
+
+def _keep_settings_dialog_foreground(owner: Any) -> None:
+    """Keep Settings above Chart View after trait edits refresh predictions."""
+    dialog = getattr(owner, "_settings_dialog", None)
+    if not isinstance(dialog, QWidget) or not dialog.isVisible():
+        return
+
+    def raise_dialog() -> None:
+        if dialog.isVisible():
+            dialog.raise_()
+            dialog.activateWindow()
+            dialog.setFocus(Qt.ActiveWindowFocusReason)
+
+    QTimer.singleShot(0, raise_dialog)
 
 
 def add_traits_settings_section(owner: Any, content_layout: Any) -> None:
@@ -121,11 +143,13 @@ def _refresh_trait_predictions(owner: Any) -> None:
     render_traits = getattr(owner, "_render_traits_predictions", None)
     if callable(render_traits):
         render_traits(getattr(owner, "_latest_chart", None))
+    _keep_settings_dialog_foreground(owner)
 
 
 def on_trait_upload_clicked(owner: Any) -> None:
+    dialog_parent = _settings_dialog_for(owner)
     file_path, _selected_filter = QFileDialog.getOpenFileName(
-        owner,
+        dialog_parent,
         "Upload Trait File",
         "",
         "Trait files (*.json *.py);;JSON files (*.json);;Python files (*.py);;All files (*)",
@@ -133,34 +157,35 @@ def on_trait_upload_clicked(owner: Any) -> None:
     if not file_path:
         return
     default_name = Path(file_path).stem
-    name, accepted = QInputDialog.getText(owner, "Name new trait", "Trait name:", text=default_name)
+    name, accepted = QInputDialog.getText(dialog_parent, "Name new trait", "Trait name:", text=default_name)
     if not accepted:
         return
     clean_name = name.strip()
     if not clean_name:
-        QMessageBox.information(owner, "Trait name required", "Enter a name for the new trait.")
+        QMessageBox.information(dialog_parent, "Trait name required", "Enter a name for the new trait.")
         return
-    color = QColorDialog.getColor(QColor(DEFAULT_TRAIT_COLOR), owner, "Choose trait color")
+    color = QColorDialog.getColor(QColor(DEFAULT_TRAIT_COLOR), dialog_parent, "Choose trait color")
     if not color.isValid():
         return
     try:
         install_trait_file(file_path, clean_name, color=color.name())
     except Exception as exc:
-        QMessageBox.warning(owner, "Trait upload failed", f"Trait could not be installed: {exc}")
+        QMessageBox.warning(dialog_parent, "Trait upload failed", f"Trait could not be installed: {exc}")
         return
     refresh_traits_settings_list(owner)
     _refresh_trait_predictions(owner)
-    QMessageBox.information(owner, "Trait installed", f"Trait '{clean_name}' was installed.")
+    QMessageBox.information(dialog_parent, "Trait installed", f"Trait '{clean_name}' was installed.")
 
 
 def on_trait_delete_clicked(owner: Any) -> None:
+    dialog_parent = _settings_dialog_for(owner)
     item = selected_trait_item(owner)
     if item is None:
-        QMessageBox.information(owner, "No trait selected", "Select a trait to delete first.")
+        QMessageBox.information(dialog_parent, "No trait selected", "Select a trait to delete first.")
         return
     trait_name = item.text()
     choice = QMessageBox.question(
-        owner,
+        dialog_parent,
         "Delete trait?",
         f"Delete the trait '{trait_name}'? This cannot be undone.",
         QMessageBox.Yes | QMessageBox.No,
@@ -174,22 +199,23 @@ def on_trait_delete_clicked(owner: Any) -> None:
 
 
 def on_trait_rename_clicked(owner: Any) -> None:
+    dialog_parent = _settings_dialog_for(owner)
     item = selected_trait_item(owner)
     if item is None:
-        QMessageBox.information(owner, "No trait selected", "Select a trait to rename first.")
+        QMessageBox.information(dialog_parent, "No trait selected", "Select a trait to rename first.")
         return
     old_name = item.text()
-    new_name, accepted = QInputDialog.getText(owner, "Rename trait", "Trait name:", text=old_name)
+    new_name, accepted = QInputDialog.getText(dialog_parent, "Rename trait", "Trait name:", text=old_name)
     if not accepted:
         return
     clean_name = new_name.strip()
     if not clean_name:
-        QMessageBox.information(owner, "Trait name required", "Enter a new trait name.")
+        QMessageBox.information(dialog_parent, "Trait name required", "Enter a new trait name.")
         return
     try:
         rename_trait(item.data(Qt.UserRole), clean_name)
     except Exception as exc:
-        QMessageBox.warning(owner, "Trait rename failed", f"Trait could not be renamed: {exc}")
+        QMessageBox.warning(dialog_parent, "Trait rename failed", f"Trait could not be renamed: {exc}")
         return
     refresh_traits_settings_list(owner)
     _refresh_trait_predictions(owner)
@@ -204,34 +230,36 @@ def _sync_trait_action_buttons(owner: Any) -> None:
 
 
 def on_trait_recolor_clicked(owner: Any) -> None:
+    dialog_parent = _settings_dialog_for(owner)
     item = selected_trait_item(owner)
     if item is None:
-        QMessageBox.information(owner, "No trait selected", "Select a trait to recolor first.")
+        QMessageBox.information(dialog_parent, "No trait selected", "Select a trait to recolor first.")
         return
     current_color = normalize_trait_color(str(item.data(Qt.UserRole + 1) or DEFAULT_TRAIT_COLOR))
-    color = QColorDialog.getColor(QColor(current_color), owner, "Choose trait color")
+    color = QColorDialog.getColor(QColor(current_color), dialog_parent, "Choose trait color")
     if not color.isValid():
         return
     try:
         set_trait_color(item.data(Qt.UserRole), color.name())
     except Exception as exc:
-        QMessageBox.warning(owner, "Trait recolor failed", f"Trait could not be recolored: {exc}")
+        QMessageBox.warning(dialog_parent, "Trait recolor failed", f"Trait could not be recolored: {exc}")
         return
     refresh_traits_settings_list(owner)
     _refresh_trait_predictions(owner)
 
 
 def on_trait_archive_clicked(owner: Any) -> None:
+    dialog_parent = _settings_dialog_for(owner)
     item = selected_trait_item(owner)
     if item is None:
-        QMessageBox.information(owner, "No trait selected", "Select a trait to archive or reactivate first.")
+        QMessageBox.information(dialog_parent, "No trait selected", "Select a trait to archive or reactivate first.")
         return
     archived = bool(item.data(Qt.UserRole + 2))
     try:
         set_trait_archived(item.data(Qt.UserRole), not archived)
     except Exception as exc:
         action = "reactivated" if archived else "archived"
-        QMessageBox.warning(owner, "Trait update failed", f"Trait could not be {action}: {exc}")
+        QMessageBox.warning(dialog_parent, "Trait update failed", f"Trait could not be {action}: {exc}")
         return
     refresh_traits_settings_list(owner)
     _refresh_trait_predictions(owner)

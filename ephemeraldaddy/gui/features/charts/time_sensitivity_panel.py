@@ -189,6 +189,22 @@ _NUMERIC_GROUP_LINK_KINDS = {
 }
 
 
+def _confidence_color(percent: float) -> str:
+    """Return a dark-red→bright-green confidence color for a 0–100 percentage."""
+    ratio = max(0.0, min(1.0, float(percent) / 100.0))
+    start = (0x7A, 0x00, 0x00)
+    end = (0x00, 0xFF, 0x00)
+    red = round(start[0] + ((end[0] - start[0]) * ratio))
+    green = round(start[1] + ((end[1] - start[1]) * ratio))
+    blue = round(start[2] + ((end[2] - start[2]) * ratio))
+    return f"#{red:02x}{green:02x}{blue:02x}"
+
+
+def _confidence_percent(result: TimeSensitivityResult) -> float:
+    """Return chart confidence as the inverse of sampled time sensitivity."""
+    return max(0.0, min(100.0, float(result.overall.get("stability_percent", 0.0))))
+
+
 def _delta_intensity_color(value: float, values: list[float]) -> str:
     """Return the app-wide red→lime sensitivity color relative to peer deltas."""
     finite_values = [max(0.0, float(candidate)) for candidate in values]
@@ -550,6 +566,11 @@ class TimeSensitivityPanel(QWidget):
         title.setStyleSheet("font-weight: 700; font-size: 13px;")
         layout.addWidget(title)
 
+        self.confidence_label = QLabel("")
+        self.confidence_label.setWordWrap(True)
+        self.confidence_label.setVisible(False)
+        layout.addWidget(self.confidence_label)
+
         description = QLabel(
             "Scans hypothetical birth times across the known birth day and summarizes how much the chart can change."
         )
@@ -610,25 +631,46 @@ class TimeSensitivityPanel(QWidget):
             boundary_refinement=False,
         )
 
+    def _set_confidence_for_result(self, result: TimeSensitivityResult | None) -> None:
+        chart = self._current_chart()
+        if result is None or chart is None or not bool(getattr(chart, "birthtime_unknown", False)):
+            self.confidence_label.clear()
+            self.confidence_label.setVisible(False)
+            return
+        confidence = _confidence_percent(result)
+        color = escape(_confidence_color(confidence), quote=True)
+        self.confidence_label.setText(
+            f"<i><span style='color:{color};'>Confidence: {confidence:.0f}%</span></i>"
+        )
+        self.confidence_label.setToolTip(
+            "Confidence is the overall stability percentage from the Time Sensitivity scan; "
+            "lower confidence means more chart factors can shift when birth time is unknown."
+        )
+        self.confidence_label.setVisible(True)
+
     def refresh_for_current_chart(self) -> None:
         chart = self._current_chart()
         date_key = birth_date_key_for_chart(chart) if chart is not None else ""
         if date_key == self._chart_date_key:
+            self._set_confidence_for_result(self._last_result)
             return
         self._chart_date_key = date_key
         self._last_result = None
         if chart is None:
             self.compute_module.setVisible(False)
+            self._set_confidence_for_result(None)
             self.output.setPlainText("No active chart is loaded.")
             self._clear_weight_sections()
             return
         saved = load_time_sensitivity_result_for_chart(chart, self._current_config())
         if saved is not None:
             self._last_result = saved
+            self._set_confidence_for_result(saved)
             self.output.setHtml(format_time_sensitivity_result_html(saved))
             self._render_weight_sections(saved)
             self.compute_module.setVisible(False)
             return
+        self._set_confidence_for_result(None)
         self.compute_module.setVisible(bool(date_key))
         if date_key:
             self.output.setPlainText(
@@ -643,6 +685,7 @@ class TimeSensitivityPanel(QWidget):
         chart = self._current_chart()
         if chart is None:
             self.compute_module.setVisible(False)
+            self._set_confidence_for_result(None)
             self.output.setPlainText("No active chart is loaded.")
             return
         self.compute_button.setEnabled(False)
@@ -652,11 +695,13 @@ class TimeSensitivityPanel(QWidget):
             self._last_result = compute_time_sensitivity(chart, config)
             self._chart_date_key = birth_date_key_for_chart(chart)
             save_time_sensitivity_result(self._last_result)
+            self._set_confidence_for_result(self._last_result)
             self.output.setHtml(format_time_sensitivity_result_html(self._last_result))
             self._render_weight_sections(self._last_result)
             self.compute_module.setVisible(False)
         except Exception as exc:
             self._last_result = None
+            self._set_confidence_for_result(None)
             self.output.setPlainText(f"Unable to compute Time/Rectification Sensitivity:\n{exc}")
             self._clear_weight_sections()
         finally:
