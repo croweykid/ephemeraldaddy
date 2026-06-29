@@ -30560,15 +30560,14 @@ class MainWindow(QMainWindow):
         self._leaving_chart_view_prompt_open = True
         try:
             dialog.exec()
+            clicked_button = dialog.clickedButton()
+            if clicked_button == save_button:
+                self.on_update_chart(show_dialog=True)
+            elif clicked_button == discard_button:
+                self._set_lucygoosey(False)
+            return not self._lucygoosey
         finally:
             self._leaving_chart_view_prompt_open = False
-
-        clicked_button = dialog.clickedButton()
-        if clicked_button == save_button:
-            self.on_update_chart(show_dialog=True)
-        elif clicked_button == discard_button:
-            self._set_lucygoosey(False)
-        return not self._lucygoosey
 
     def _should_auto_update_sentiments(self) -> bool:
         return self._can_autosave_current_chart()
