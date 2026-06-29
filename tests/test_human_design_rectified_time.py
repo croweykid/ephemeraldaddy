@@ -1,4 +1,5 @@
 import sys
+from dataclasses import replace
 from datetime import datetime, timezone
 from types import ModuleType, SimpleNamespace
 from zoneinfo import ZoneInfo
@@ -171,6 +172,33 @@ def test_calculate_human_design_uses_chart_datetime_when_rectified_time_disabled
     assert captured_birth_utcs[0] == datetime(2000, 1, 1, 12, 0, tzinfo=timezone.utc)
 
 
+def test_hypothetical_hd_samples_use_location_timezone_when_bypassing_rectified_time(monkeypatch):
+    _install_gui_style_stub()
+    from ephemeraldaddy.analysis import human_design as hd_output
+
+    monkeypatch.setattr(
+        hd_output,
+        "timezone_from_latlon",
+        lambda _lat, _lon: (ZoneInfo("America/New_York"), True),
+    )
+    chart = SimpleNamespace(
+        dt=datetime.fromisoformat("2024-03-10T12:00:00-04:00"),
+        lat=40.7128,
+        lon=-74.0060,
+        retcon_time_used=True,
+        retcon_hour=1,
+        retcon_minute=30,
+    )
+
+    midnight = hd_output._chart_with_hypothetical_local_time(chart, 0, 0)
+    noon = hd_output._chart_with_hypothetical_local_time(chart, 12, 0)
+
+    assert midnight.retcon_time_used is False
+    assert noon.retcon_time_used is False
+    assert midnight.dt.isoformat() == "2024-03-10T00:00:00-05:00"
+    assert noon.dt.isoformat() == "2024-03-10T12:00:00-04:00"
+
+
 def test_human_design_output_keeps_unknown_time_variants_when_houses_are_not_used(monkeypatch):
     _install_gui_style_stub()
     from ephemeraldaddy.analysis import human_design as hd_output
@@ -222,6 +250,66 @@ def test_human_design_output_suppresses_unknown_time_variants_when_houses_are_us
     hd_output.build_human_design_chart_data_output(SimpleNamespace(), aspect_sort="orb")
 
     assert captured_variant_results == [None]
+
+
+def test_human_design_output_shows_uncertain_variants_for_rectified_time(monkeypatch):
+    _install_gui_style_stub()
+    from ephemeraldaddy.analysis import human_design as hd_output
+
+    hd_result = _minimal_human_design_result(datetime(2000, 1, 1, 12, 0, tzinfo=timezone.utc))
+    midnight = _minimal_human_design_result(datetime(2000, 1, 1, 0, 0, tzinfo=timezone.utc))
+    noon = _minimal_human_design_result(datetime(2000, 1, 1, 12, 0, tzinfo=timezone.utc))
+    late = _minimal_human_design_result(datetime(2000, 1, 1, 23, 59, tzinfo=timezone.utc))
+    midnight = replace(
+        midnight,
+        personality_activations=(
+            replace(midnight.personality_activations[0], longitude=29.9, gate=1, color=1, tone=1, base=1),
+            midnight.personality_activations[1],
+        ),
+    )
+    noon = replace(
+        noon,
+        personality_activations=(
+            replace(noon.personality_activations[0], longitude=30.1, gate=2, color=2, tone=2, base=2),
+            noon.personality_activations[1],
+        ),
+    )
+    late = replace(
+        late,
+        personality_activations=(
+            replace(late.personality_activations[0], longitude=30.2, gate=2, color=2, tone=2, base=2),
+            late.personality_activations[1],
+        ),
+    )
+    variant_results = (midnight, noon, late)
+    captured_variant_results = []
+
+    monkeypatch.setattr(hd_output, "calculate_human_design", lambda _chart: hd_result)
+    monkeypatch.setattr(hd_output, "chart_uses_houses", lambda _chart: True)
+    monkeypatch.setattr(hd_output, "_time_variant_human_design_results", lambda _chart: variant_results)
+
+    def fake_build_positions_lines(_hd_result, *, time_variant_results=None):
+        captured_variant_results.append(time_variant_results)
+        return ["POSITIONS"], {}
+
+    monkeypatch.setattr(hd_output, "_build_hd_positions_lines", fake_build_positions_lines)
+
+    output, position_info_map, *_ = hd_output.build_human_design_chart_data_output(
+        SimpleNamespace(retcon_time_used=True),
+        aspect_sort="orb",
+    )
+    lines = output.splitlines()
+
+    assert captured_variant_results == [variant_results]
+    assert "UNCERTAIN TIME VARIANTS" in lines
+    assert lines.index("UNCERTAIN TIME VARIANTS") < lines.index("POSITIONS")
+    variant_line_index = next(
+        index
+        for index, line in enumerate(lines)
+        if "Aries->Taurus" in line and "1.1->2.1" in line
+    )
+    variant_kinds = {entry.get("kind") for entry in position_info_map[variant_line_index]}
+    assert {"sign_keyword", "hd_gate_line", "hd_color", "hd_tone", "hd_base"}.issubset(variant_kinds)
 
 
 def test_body_longitudes_reuses_cached_planetary_positions(monkeypatch):

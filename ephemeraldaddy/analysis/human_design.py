@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Any
 
 from ephemeraldaddy.core.chart import Chart, chart_uses_houses
+from ephemeraldaddy.core.timeutils import timezone_from_latlon
 from ephemeraldaddy.core.human_design_system import (
     CHANNELS,
     HDActivation,
@@ -137,12 +138,42 @@ def build_circuit_group_completion(active_gate_set: set[int]) -> list[dict[str, 
 
 
 def _chart_with_hypothetical_local_time(chart: Chart, hour: int, minute: int) -> Chart:
-    """Return a lightweight chart copy pinned to a hypothetical local time."""
+    """Return a lightweight chart copy pinned to a hypothetical local time.
+
+    Rectified/retcon time is deliberately disabled on the copy so all-day
+    variants model the original unknown birth-time uncertainty instead of the
+    current rectification hypothesis.  Before bypassing retcon time, rebuild the
+    sampled wall time in the chart location's real timezone so fixed-offset
+    datetimes loaded from storage still cross DST boundaries correctly.
+    """
     chart_copy = copy.copy(chart)
     source_dt = getattr(chart, "dt", None)
     if not isinstance(source_dt, datetime):
+        chart_copy.retcon_time_used = False
         return chart_copy
-    chart_copy.dt = source_dt.replace(hour=hour, minute=minute, second=0, microsecond=0)
+
+    sampled_naive = datetime(
+        source_dt.year,
+        source_dt.month,
+        source_dt.day,
+        int(hour),
+        int(minute),
+    )
+    sampled_dt = None
+    lat = getattr(chart, "lat", None)
+    lon = getattr(chart, "lon", None)
+    if lat is not None and lon is not None:
+        try:
+            tz, _inferred_ok = timezone_from_latlon(float(lat), float(lon))
+            sampled_dt = sampled_naive.replace(tzinfo=tz)
+        except Exception:
+            sampled_dt = None
+    if sampled_dt is None and source_dt.tzinfo is not None:
+        sampled_dt = sampled_naive.replace(tzinfo=source_dt.tzinfo)
+    if sampled_dt is None:
+        sampled_dt = sampled_naive
+    chart_copy.dt = sampled_dt
+    chart_copy.retcon_time_used = False
     return chart_copy
 
 
@@ -400,6 +431,123 @@ def _build_hd_positions_lines(
                 )
         if line_entries:
             info_map[len(lines) - 1] = line_entries
+    return lines, info_map
+
+
+def _build_hd_uncertain_time_variant_lines(
+    hd_result: HumanDesignResult,
+    time_variant_results: tuple[HumanDesignResult, HumanDesignResult, HumanDesignResult],
+) -> tuple[list[str], dict[int, list[dict[str, object]]]]:
+    """Build a reminder block of fields that may shift across an unknown day."""
+    variant_lookup = _activation_variant_lookup(time_variant_results)
+    rows: list[tuple[str, str, str, str, str, str]] = []
+    for activation in (*hd_result.personality_activations, *hd_result.design_activations):
+        variants = variant_lookup.get(_activation_key(activation))
+        if variants is None:
+            continue
+        sign_tokens = tuple(_sign_name_for_longitude(item.longitude) for item in variants)
+        gate_line_tokens = tuple(f"{item.gate}.{item.line}" for item in variants)
+        color_tokens = tuple(str(int(item.color)) for item in variants)
+        tone_tokens = tuple(str(int(item.tone)) for item in variants)
+        base_tokens = tuple(str(int(item.base)) for item in variants)
+        field_token_sets = (sign_tokens, gate_line_tokens, color_tokens, tone_tokens, base_tokens)
+        if all(len(set(tokens)) == 1 for tokens in field_token_sets):
+            continue
+        rows.append(
+            (
+                _hd_activation_body_display_label(activation),
+                _format_time_variant_field(sign_tokens) if len(set(sign_tokens)) > 1 else "—",
+                _format_time_variant_field(gate_line_tokens) if len(set(gate_line_tokens)) > 1 else "—",
+                _format_time_variant_field(color_tokens) if len(set(color_tokens)) > 1 else "—",
+                _format_time_variant_field(tone_tokens) if len(set(tone_tokens)) > 1 else "—",
+                _format_time_variant_field(base_tokens) if len(set(base_tokens)) > 1 else "—",
+            )
+        )
+    if not rows:
+        return [], {}
+
+    body_width = max(len("Body"), *(len(row[0]) for row in rows))
+    sign_width = max(len("Sign(s)"), *(len(row[1]) for row in rows))
+    gl_width = max(len("G/L"), *(len(row[2]) for row in rows))
+    c_width = max(len("C"), *(len(row[3]) for row in rows))
+    t_width = max(len("T"), *(len(row[4]) for row in rows))
+    b_width = max(len("B"), *(len(row[5]) for row in rows))
+    lines = [
+        "UNCERTAIN TIME VARIANTS",
+        CHART_DATA_DIVIDER,
+        "Unknown/rectified birth time: possible 00:00→12:00→23:59 values.",
+        f"{'Body':<{body_width}}  {'Sign(s)':<{sign_width}}  {'G/L':<{gl_width}}  {'C':<{c_width}}  {'T':<{t_width}}  {'B':<{b_width}}",
+        CHART_DATA_DIVIDER,
+    ]
+    info_map: dict[int, list[dict[str, object]]] = {}
+    for body, sign, gate_line, color, tone, base in rows:
+        line_text = (
+            f"{body:<{body_width}}  {sign:<{sign_width}}  {gate_line:<{gl_width}}  "
+            f"{color:<{c_width}}  {tone:<{t_width}}  {base:<{b_width}}"
+        )
+        line_index = len(lines)
+        lines.append(line_text)
+        line_entries: list[dict[str, object]] = []
+        sign_start = line_text.find(sign)
+        gl_start = line_text.find(gate_line, sign_start + len(sign)) if sign_start != -1 else -1
+        color_start = line_text.find(color, gl_start + len(gate_line)) if gl_start != -1 else -1
+        tone_start = line_text.find(tone, color_start + len(color)) if color_start != -1 else -1
+        base_start = line_text.find(base, tone_start + len(tone)) if tone_start != -1 else -1
+        if sign_start != -1 and sign != "—":
+            for sign_match in re.finditer("|".join(re.escape(name) for name in ZODIAC_NAMES), sign):
+                line_entries.append(
+                    {
+                        "kind": "sign_keyword",
+                        "sign": sign_match.group(0),
+                        "body": body,
+                        "display_body": body,
+                        "span_start": sign_start + sign_match.start(),
+                        "span_end": sign_start + sign_match.end(),
+                    }
+                )
+        if gl_start != -1 and gate_line != "—":
+            for gl_match in re.finditer(rf"(?<![\d.])({_GATE_NUMBER_PATTERN})\.([1-6])(?![\d.])", gate_line):
+                line_entries.append(
+                    {
+                        "kind": "hd_gate_line",
+                        "gate": int(gl_match.group(1)),
+                        "line": int(gl_match.group(2)),
+                        "span_start": gl_start + gl_match.start(),
+                        "span_end": gl_start + gl_match.end(),
+                    }
+                )
+        if color_start != -1 and color != "—":
+            for color_match in re.finditer(r"(?<!\d)([1-6])(?!\d)", color):
+                line_entries.append(
+                    {
+                        "kind": "hd_color",
+                        "color": int(color_match.group(1)),
+                        "span_start": color_start + color_match.start(1),
+                        "span_end": color_start + color_match.end(1),
+                    }
+                )
+        if tone_start != -1 and tone != "—":
+            for tone_match in re.finditer(r"(?<!\d)([1-6])(?!\d)", tone):
+                line_entries.append(
+                    {
+                        "kind": "hd_tone",
+                        "tone": int(tone_match.group(1)),
+                        "span_start": tone_start + tone_match.start(1),
+                        "span_end": tone_start + tone_match.end(1),
+                    }
+                )
+        if base_start != -1 and base != "—":
+            for base_match in re.finditer(r"(?<!\d)([1-5])(?!\d)", base):
+                line_entries.append(
+                    {
+                        "kind": "hd_base",
+                        "base": int(base_match.group(1)),
+                        "span_start": base_start + base_match.start(1),
+                        "span_end": base_start + base_match.end(1),
+                    }
+                )
+        if line_entries:
+            info_map[line_index] = line_entries
     return lines, info_map
 
 
@@ -902,7 +1050,9 @@ def build_human_design_chart_data_output(
     position_info_map: dict[int, Any] = {}
 
     hd_result = calculate_human_design(chart)
-    time_variant_results = None if chart_uses_houses(chart) else _time_variant_human_design_results(chart)
+    uses_houses = chart_uses_houses(chart)
+    show_uncertain_time_variants = bool(getattr(chart, "retcon_time_used", False)) or not uses_houses
+    time_variant_results = _time_variant_human_design_results(chart) if show_uncertain_time_variants else None
     position_lines, positions_info_map = _build_hd_positions_lines(
         hd_result,
         time_variant_results=time_variant_results,
@@ -968,6 +1118,13 @@ def build_human_design_chart_data_output(
         "Incarnation Cross",
         [hd_result.incarnation_cross] if str(hd_result.incarnation_cross or "").strip() else [],
     )
+    uncertain_time_variant_lines: list[str] = []
+    uncertain_time_variant_info_map: dict[int, list[dict[str, object]]] = {}
+    if time_variant_results is not None:
+        uncertain_time_variant_lines, uncertain_time_variant_info_map = _build_hd_uncertain_time_variant_lines(
+            hd_result,
+            time_variant_results,
+        )
 
 #Chart Data Output panel output for Human Design Charts:
     rendered_lines = [
@@ -986,6 +1143,11 @@ def build_human_design_chart_data_output(
         motivation_line,
         digestion_line,
         "",
+        *(
+            [CHART_DATA_DIVIDER, *uncertain_time_variant_lines, ""]
+            if uncertain_time_variant_lines
+            else []
+        ),
         CHART_DATA_DIVIDER,
         *position_lines,
         "",
@@ -1009,6 +1171,11 @@ def build_human_design_chart_data_output(
     for relative_line_index, entries in gate_line_info_map.items():
         absolute_line_index = positions_start_index + gates_lines_block_start + relative_line_index
         position_info_map.setdefault(absolute_line_index, []).extend(entries)
+    if uncertain_time_variant_info_map:
+        uncertain_time_header_index = rendered_lines.index("UNCERTAIN TIME VARIANTS")
+        for relative_line_index, entries in uncertain_time_variant_info_map.items():
+            absolute_line_index = positions_start_index + uncertain_time_header_index + relative_line_index
+            position_info_map.setdefault(absolute_line_index, []).extend(entries)
     positions_header_index = rendered_lines.index("POSITIONS")
     for relative_line_index, entries in positions_info_map.items():
         absolute_line_index = positions_start_index + positions_header_index + relative_line_index
