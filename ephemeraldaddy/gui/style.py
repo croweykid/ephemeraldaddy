@@ -130,6 +130,14 @@ CHART_THEME_COLORS = {
     "accent": "#6fa8dc",
 }
 
+# Shared Chart Data Output separator styling. This is intentionally a visual-only
+# ghost for existing whitespace between padded table columns: the underlying
+# plain text remains unchanged so fixed-width column positions do not shift.
+SEPARATOR_STYLE = {
+    "color": "#555555",
+    "minimum_space_run": 2,
+}
+
 GENDER_GUESSER_COLORS = {
     "masculine": "#f16464",
     "feminine": "#7bdb7b",
