@@ -387,3 +387,15 @@ def test_time_sensitivity_popout_charts_include_body_sign_house_and_nakshatra_cl
     assert "setattr(bar, \"_time_sensitivity_factor\", label)" in source
     assert "setattr(tick_label, \"_time_sensitivity_factor\", label)" in source
     assert "_install_factor_click(ax, clickable_artists, on_factor_click)" in source
+
+
+def test_time_sensitivity_chart_canvases_forward_wheel_events_to_parent_scroll_area():
+    from pathlib import Path
+
+    source = Path("ephemeraldaddy/gui/features/charts/time_sensitivity_panel.py").read_text()
+
+    assert "class TimeSensitivityFigureCanvas(FigureCanvas):" in source
+    assert "def wheelEvent(self, event: object) -> None" in source
+    assert "scroll_area.verticalScrollBar()" in source
+    assert "event.accept()" in source
+    assert "canvas = TimeSensitivityFigureCanvas(figure)" in source

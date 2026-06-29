@@ -55,6 +55,36 @@ from ephemeraldaddy.gui.style import (
 )
 
 
+class TimeSensitivityFigureCanvas(FigureCanvas):
+    """Matplotlib canvas that lets the Time Sensitivity panel keep scrolling under charts."""
+
+    def wheelEvent(self, event: object) -> None:  # noqa: N802 - Qt API
+        scroll_area = self._nearest_scroll_area()
+        if scroll_area is None:
+            super().wheelEvent(event)
+            return
+        pixel_delta = event.pixelDelta().y() if hasattr(event, "pixelDelta") else 0
+        angle_delta = event.angleDelta().y() if hasattr(event, "angleDelta") else 0
+        if pixel_delta or angle_delta:
+            scrollbar = scroll_area.verticalScrollBar()
+            if pixel_delta:
+                scrollbar.setValue(scrollbar.value() - int(pixel_delta))
+            else:
+                steps = int(angle_delta / 120) if abs(angle_delta) >= 120 else (1 if angle_delta > 0 else -1)
+                scrollbar.setValue(scrollbar.value() - (steps * scrollbar.singleStep() * 3))
+            event.accept()
+            return
+        super().wheelEvent(event)
+
+    def _nearest_scroll_area(self) -> QAbstractScrollArea | None:
+        widget_parent = self.parentWidget()
+        while widget_parent is not None:
+            if isinstance(widget_parent, QAbstractScrollArea):
+                return widget_parent
+            widget_parent = widget_parent.parentWidget()
+        return None
+
+
 _TIME_SENSITIVITY_CHART_TITLES = {
     "dominant_planet_weights": "Dominant Body Weight Distribution",
     "dominant_sign_weights": "Dominant Sign Weight Distribution",
@@ -869,7 +899,7 @@ class TimeSensitivityPanel(QWidget):
                 figure = Figure(figsize=(5.5, 2.8))
                 ax = figure.add_subplot(111)
                 _draw_likelihood_chart(ax, result, group_key)
-                canvas = FigureCanvas(figure)
+                canvas = TimeSensitivityFigureCanvas(figure)
                 canvas.setMinimumHeight(250)
                 canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
                 canvas.setToolTip("Click to open a larger Time Sensitivity raw-weight range popout.")
@@ -915,7 +945,7 @@ class TimeSensitivityPanel(QWidget):
         dialog.setLayout(layout)
         figure = Figure(figsize=(8.5, 4.6))
         ax = figure.add_subplot(111)
-        canvas = FigureCanvas(figure)
+        canvas = TimeSensitivityFigureCanvas(figure)
         info = QTextEdit()
         info.setReadOnly(True)
 
