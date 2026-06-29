@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime
 import re
 
-from PySide6.QtGui import QColor, QFont, QSyntaxHighlighter, QTextCharFormat
+from PySide6.QtGui import QColor, QFont, QPainter, QSyntaxHighlighter, QTextCharFormat, QTextCursor
 from PySide6.QtWidgets import QFrame, QPlainTextEdit, QToolTip, QWidget
 
 from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
@@ -43,8 +43,67 @@ from ephemeraldaddy.gui.style import (
     CHART_INFO_SPECIES_HEADER_COLOR,
     DND_STAT_EARTHTONE_COLORS,
     RELATIVE_YEAR_COLORS,
+    SEPARATOR_STYLE,
     CHART_DATA_MONOSPACE_FONT_FAMILY,
 )
+
+
+def _separator_style_character() -> str:
+    return str(SEPARATOR_STYLE["character"])
+
+
+def _separator_style_color() -> QColor:
+    return QColor(str(SEPARATOR_STYLE["color"]))
+
+
+def _separator_style_minimum_space_run() -> int:
+    return int(SEPARATOR_STYLE["minimum_space_run"])
+
+
+def _qt_text_offset(text: str, index: int) -> int:
+    """Return a QTextCursor-compatible UTF-16 offset for a Python string index."""
+    return len(text[:index].encode("utf-16-le")) // 2
+
+
+def _separator_pattern() -> re.Pattern[str] | None:
+    minimum_space_run = _separator_style_minimum_space_run()
+    if minimum_space_run <= 0 or not _separator_style_character():
+        return None
+    return re.compile(rf"(?<=\S) {{{minimum_space_run},}}(?=\S)")
+
+
+def _paint_chart_data_separators(output_widget: QPlainTextEdit) -> None:
+    """Paint appwide ghost separator characters over table whitespace only."""
+    separator_pattern = _separator_pattern()
+    if separator_pattern is None:
+        return
+
+    painter = QPainter(output_widget.viewport())
+    painter.setPen(_separator_style_color())
+    font_metrics = output_widget.fontMetrics()
+    separator_character = _separator_style_character()
+
+    block = output_widget.firstVisibleBlock()
+    viewport_bottom = output_widget.viewport().height()
+    while block.isValid():
+        block_rect = output_widget.blockBoundingGeometry(block).translated(output_widget.contentOffset())
+        if block_rect.top() > viewport_bottom:
+            break
+        if block.isVisible() and block_rect.bottom() >= 0:
+            text = block.text()
+            block_position = block.position()
+            for separator in separator_pattern.finditer(text):
+                for column in range(separator.start(), separator.end()):
+                    cursor = QTextCursor(block)
+                    cursor.setPosition(block_position + _qt_text_offset(text, column))
+                    cursor_rect = output_widget.cursorRect(cursor)
+                    painter.drawText(
+                        cursor_rect.left(),
+                        cursor_rect.top() + font_metrics.ascent(),
+                        separator_character,
+                    )
+        block = block.next()
+    painter.end()
 
 
 class ChartDataTooltipOutput(QPlainTextEdit):
@@ -57,6 +116,10 @@ class ChartDataTooltipOutput(QPlainTextEdit):
 
     def set_tooltip_spans(self, spans: dict[int, list[dict[str, object]]] | None) -> None:
         self._tooltip_spans = spans or {}
+
+    def paintEvent(self, event) -> None:  # noqa: ANN001 - Qt event type varies by binding version.
+        super().paintEvent(event)
+        _paint_chart_data_separators(self)
 
     def mouseMoveEvent(self, event) -> None:  # noqa: ANN001 - Qt event type varies by binding version.
         cursor = self.cursorForPosition(event.pos())
@@ -114,6 +177,10 @@ class ChartDataTableOutput(QPlainTextEdit):
             emphasize_species_info_headers=emphasize_species_info_headers,
             human_design_synastry_mode=human_design_synastry_mode,
         )
+
+    def paintEvent(self, event) -> None:  # noqa: ANN001 - Qt event type varies by binding version.
+        super().paintEvent(event)
+        _paint_chart_data_separators(self)
 
 
 class ChartSummaryHighlighter(QSyntaxHighlighter):
@@ -1070,8 +1137,6 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                 name_start = text.find(environment_value)
                 if name_start >= 0:
                     self.setFormat(self._qt_index(text, name_start), self._qt_len(environment_value), environment_fmt)
-
-
     def _current_chart_data_section(self) -> str:
         block = self.currentBlock()
         while block.isValid():
@@ -1284,8 +1349,9 @@ def apply_chart_data_highlighter(
     human_design_synastry_mode: bool = False,
 ) -> ChartSummaryHighlighter:
     """Attach the shared chart-data highlighter to an output widget."""
+    document = output_widget.document()
     highlighter = ChartSummaryHighlighter(
-        output_widget.document(),
+        document,
         emphasize_dnd_class_headers=emphasize_dnd_class_headers,
         emphasize_species_info_headers=emphasize_species_info_headers,
         human_design_synastry_mode=human_design_synastry_mode,
