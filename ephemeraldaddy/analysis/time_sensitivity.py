@@ -14,7 +14,11 @@ from typing import Any, Iterable
 from ephemeraldaddy.core.chart import Chart, chart_uses_houses
 from ephemeraldaddy.core.db import DB_DIR
 from ephemeraldaddy.core.human_design_system import calculate_human_design
-from ephemeraldaddy.core.interpretations import NAKSHATRA_RANGES, ZODIAC_NAMES
+from ephemeraldaddy.core.interpretations import (
+    NAKSHATRA_RANGES,
+    PLANET_ORDER,
+    ZODIAC_NAMES,
+)
 
 TIME_SENSITIVITY_ALGORITHM_VERSION = "time-sensitivity-v6"
 TIME_SENSITIVITY_DB_PATH = DB_DIR / "time_sensitivity.db"
@@ -155,19 +159,10 @@ def _hd_snapshot(chart: Chart) -> dict[str, Any]:
     }
 
 
-BODY_SIGN_CONFIDENCE_KEYS = (
-    "Sun",
-    "Moon",
-    "Mercury",
-    "Venus",
-    "Mars",
-    "Jupiter",
-    "Saturn",
-    "Uranus",
-    "Neptune",
-    "Pluto",
-)
 ANGLE_SIGN_CONFIDENCE_KEYS = ("AS", "MC", "DS", "IC")
+BODY_SIGN_CONFIDENCE_KEYS = tuple(
+    body for body in PLANET_ORDER if body not in ANGLE_SIGN_CONFIDENCE_KEYS
+)
 
 
 def _categorical_snapshot(chart: Chart) -> dict[str, Any]:
@@ -232,13 +227,16 @@ def _percent_delta(range_delta: float, baseline: float) -> float:
 
 
 def _variability_label(percent_delta: float) -> str:
+    """Return a plain-language label for a percent-delta spread."""
     if percent_delta < 5.0:
-        return "Stable"
+        return "minimal"
     if percent_delta < 15.0:
-        return "Moderate"
+        return "minor"
     if percent_delta < 35.0:
-        return "Variable"
-    return "High"
+        return "medium"
+    if percent_delta < 75.0:
+        return "high"
+    return "extreme"
 
 
 def _span_label(start_time: str, end_time: str) -> str:
@@ -300,6 +298,9 @@ def _aggregate_numeric(
             max_decrease = min_value - base_value
             baseline_delta = max(abs(max_increase), abs(max_decrease))
             pct = _percent_delta(baseline_delta, base_value)
+            max_increase_percent = _percent_delta(max_increase, base_value)
+            max_decrease_percent = _percent_delta(max_decrease, base_value)
+            variability_percent = max_increase_percent - max_decrease_percent
             max_group_delta = max(max_group_delta, abs(pct))
             present_times = [time for time, value in values if value > 0]
             peak_times = [time for time, value in values if value == max_value]
@@ -701,6 +702,20 @@ def compute_time_sensitivity(
         label: [sample["categorical"].get(source_key, "") for sample in samples]
         for label, source_key in categorical_sources.items()
     }
+    categorical_value_spans = {
+        label: {
+            value: _matching_spans(
+                [
+                    (sample["time"], sample["categorical"].get(source_key, ""))
+                    for sample in samples
+                ],
+                lambda candidate, expected=value: candidate == expected,
+            )
+            for value in dict.fromkeys(v for v in values if v)
+        }
+        for label, source_key in categorical_sources.items()
+        for values in [categorical_values.get(label, [])]
+    }
     stable = [
         f"{key}: stable all day ({values[0]})"
         for key, values in categorical_values.items()
@@ -730,6 +745,7 @@ def compute_time_sensitivity(
         "most_sensitive": most_sensitive,
         "least_sensitive": least_sensitive,
         "group_deltas": group_deltas,
+        "categorical_value_spans": categorical_value_spans,
         "dominance_likelihoods": {
             group: _dominance_likelihoods(samples, group)
             for group in (

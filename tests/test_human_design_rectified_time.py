@@ -328,7 +328,7 @@ def test_human_design_output_shows_uncertain_variants_for_rectified_time(monkeyp
     variant_line_index = next(
         index
         for index, line in enumerate(lines)
-        if "Aries->Taurus" in line and "1.1->2.1" in line
+        if "Aries→Taurus" in line and "1.1→2.1" in line
     )
     variant_kinds = {entry.get("kind") for entry in position_info_map[variant_line_index]}
     assert {"sign_keyword", "hd_gate_line", "hd_color", "hd_tone", "hd_base"}.issubset(variant_kinds)

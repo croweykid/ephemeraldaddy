@@ -102,6 +102,8 @@ def test_aggregate_numeric_reports_delta_from_baseline_not_full_span():
     assert payload["percent_delta"] == 50.0
     assert payload["max_decrease_percent"] == -50.0
     assert payload["max_increase_percent"] == 50.0
+    assert payload["variability_percent"] == 100.0
+    assert payload["label"] == "extreme"
     assert payload["peak_times"] == ["23:59"]
     assert group_deltas["dominant_planet_weights"] == 50.0
 
@@ -404,6 +406,61 @@ def test_time_sensitivity_html_colors_min_and_max_against_separate_peer_scales()
 
     assert "<span style='color:#b7ff00;'>2.00</span>" in taurus_item
     assert "<span style='color:#7a0000;'>2.50</span>" in taurus_item
+
+
+def test_body_sign_confidence_keys_include_nodes_asteroids_lilith_and_fortune():
+    from ephemeraldaddy.analysis.time_sensitivity import BODY_SIGN_CONFIDENCE_KEYS
+
+    assert {
+        "Rahu",
+        "Ketu",
+        "Neptune",
+        "Chiron",
+        "Ceres",
+        "Juno",
+        "Pallas",
+        "Vesta",
+        "Lilith",
+        "Lillith",
+        "Part of Fortune",
+        "Fortune",
+    }.issubset(BODY_SIGN_CONFIDENCE_KEYS)
+
+
+def test_categorical_snapshot_includes_extended_body_signs():
+    from types import SimpleNamespace
+
+    from ephemeraldaddy.analysis.time_sensitivity import _categorical_snapshot
+
+    chart = SimpleNamespace(
+        positions={
+            "Neptune": 330.0,
+            "Rahu": 0.0,
+            "Ketu": 180.0,
+            "Chiron": 30.0,
+            "Ceres": 60.0,
+            "Pallas": 90.0,
+            "Juno": 120.0,
+            "Vesta": 150.0,
+            "Lilith": 210.0,
+            "Part of Fortune": 240.0,
+            "Fortune": 270.0,
+        }
+    )
+
+    body_signs = _categorical_snapshot(chart)["body_signs"]
+
+    assert body_signs["Neptune"] == "Pisces"
+    assert body_signs["Rahu"] == "Aries"
+    assert body_signs["Ketu"] == "Libra"
+    assert body_signs["Chiron"] == "Taurus"
+    assert body_signs["Ceres"] == "Gemini"
+    assert body_signs["Pallas"] == "Cancer"
+    assert body_signs["Juno"] == "Leo"
+    assert body_signs["Vesta"] == "Virgo"
+    assert body_signs["Lilith"] == "Scorpio"
+    assert body_signs["Part of Fortune"] == "Sagittarius"
+    assert body_signs["Fortune"] == "Capricorn"
 
 
 def test_time_sensitivity_confidence_uses_ascertainment_percent_and_bright_green_scale():

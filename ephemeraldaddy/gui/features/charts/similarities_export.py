@@ -151,9 +151,9 @@ def similarities_match_clears_delta_threshold(
     return abs(selection_percent - database_percent) >= threshold
 
 
-def empty_similarities_json_profile(selection_name: str) -> OrderedDict:
+def empty_similarities_json_profile(selection_name: str, samples: int = 0) -> OrderedDict:
     """Build the skeleton profile used by Similarities Analysis JSON exports."""
-    profile = OrderedDict([("name", selection_name)])
+    profile = OrderedDict([("name", selection_name), ("samples", int(samples))])
     for key in SIMILARITIES_JSON_FACTOR_KEYS:
         profile[key] = OrderedDict()
     profile["color"] = "#cc99ff"
@@ -290,6 +290,77 @@ def sort_similarities_json_positions(profile: OrderedDict) -> None:
         profile["positions"] = OrderedDict(sorted(positions.items(), key=_position_sort_key))
 
 
+SIMILARITIES_JSON_PRIMARY_ASPECT_BODIES: tuple[str, ...] = (
+    "Sun",
+    "Moon",
+    "Mercury",
+    "Venus",
+    "Mars",
+    "Jupiter",
+    "Saturn",
+    "Uranus",
+    "Neptune",
+    "Pluto",
+    "Rahu",
+    "Ketu",
+    "Chiron",
+    "Ceres",
+    "Pallas",
+    "Juno",
+    "Vesta",
+    "Lilith",
+    "Part of Fortune",
+)
+SIMILARITIES_JSON_ASPECT_ANGLE_BODIES: tuple[str, ...] = ("AS", "MC")
+SIMILARITIES_JSON_ASPECT_BODY_ORDER: tuple[str, ...] = (
+    *SIMILARITIES_JSON_PRIMARY_ASPECT_BODIES,
+    *(
+        body
+        for body in PLANET_ORDER
+        if body not in {*SIMILARITIES_JSON_PRIMARY_ASPECT_BODIES, *SIMILARITIES_JSON_ASPECT_ANGLE_BODIES}
+    ),
+    *SIMILARITIES_JSON_ASPECT_ANGLE_BODIES,
+)
+SIMILARITIES_JSON_ASPECT_BODY_INDEX = {
+    body: index for index, body in enumerate(SIMILARITIES_JSON_ASPECT_BODY_ORDER)
+}
+
+
+def _aspect_sort_key(item: tuple[str, int]) -> tuple[int, str, str]:
+    criterion, _weight = item
+    criterion_text = str(criterion)
+    body_index = len(SIMILARITIES_JSON_ASPECT_BODY_ORDER)
+    body_label = ""
+    for body in SIMILARITIES_JSON_ASPECT_BODY_ORDER:
+        if criterion_text == body or criterion_text.startswith(f"{body} "):
+            body_index = SIMILARITIES_JSON_ASPECT_BODY_INDEX[body]
+            body_label = body
+            break
+    return (body_index, body_label.casefold(), criterion_text.casefold())
+
+
+def sort_similarities_json_aspects(profile: OrderedDict) -> None:
+    """Sort exported aspect factors by leading body/planet order for readability."""
+    for key in ("aspects", "antiaspects"):
+        aspects = profile.get(key)
+        if isinstance(aspects, OrderedDict):
+            profile[key] = OrderedDict(sorted(aspects.items(), key=_aspect_sort_key))
+
+
+def _similarities_export_sample_size(export_sections) -> int:
+    for _section_title, matches in export_sections or []:
+        for match in matches or []:
+            if len(match) < 3:
+                continue
+            try:
+                sample_size = int(match[2])
+            except (TypeError, ValueError):
+                continue
+            if sample_size > 0:
+                return sample_size
+    return 0
+
+
 def _similarities_json_match_owner(match: tuple[object, ...]) -> str:
     return str(match[6]) if len(match) > 6 else ""
 
@@ -367,10 +438,11 @@ def build_similarities_json_export_payload(
     optionally a dissimilarity owner key (``chart_1`` or ``chart_2``).
     """
     if _has_dissimilarity_json_owner(export_sections):
-        bundle = OrderedDict([("name", selection_name)])
+        sample_size = _similarities_export_sample_size(export_sections)
+        bundle = OrderedDict([("name", selection_name), ("samples", sample_size)])
         for owner_key in ("chart_1", "chart_2"):
             bundle[DISSIMILARITIES_JSON_OWNER_LABELS[owner_key]] = empty_similarities_json_profile(
-                DISSIMILARITIES_JSON_OWNER_LABELS[owner_key]
+                DISSIMILARITIES_JSON_OWNER_LABELS[owner_key], samples=sample_size
             )
         for section_title, matches in export_sections:
             if not matches:
@@ -389,15 +461,19 @@ def build_similarities_json_export_payload(
                 )
         for owner_label in DISSIMILARITIES_JSON_OWNER_LABELS.values():
             sort_similarities_json_positions(bundle[owner_label])
+            sort_similarities_json_aspects(bundle[owner_label])
         return OrderedDict([(selection_name, bundle)])
 
-    profile = empty_similarities_json_profile(selection_name)
+    profile = empty_similarities_json_profile(
+        selection_name, samples=_similarities_export_sample_size(export_sections)
+    )
     for section_title, matches in export_sections:
         if not matches:
             continue
         for raw_match in matches:
             _add_similarity_json_match_to_profile(profile, section_title, tuple(raw_match))
     sort_similarities_json_positions(profile)
+    sort_similarities_json_aspects(profile)
     return OrderedDict([(selection_name, profile)])
 
 
