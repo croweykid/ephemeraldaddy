@@ -236,21 +236,21 @@ def test_human_design_output_shows_uncertain_variants_for_rectified_time(monkeyp
     midnight = replace(
         midnight,
         personality_activations=(
-            replace(midnight.personality_activations[0], longitude=29.9, gate=1),
+            replace(midnight.personality_activations[0], longitude=29.9, gate=1, color=1, tone=1, base=1),
             midnight.personality_activations[1],
         ),
     )
     noon = replace(
         noon,
         personality_activations=(
-            replace(noon.personality_activations[0], longitude=30.1, gate=2),
+            replace(noon.personality_activations[0], longitude=30.1, gate=2, color=2, tone=2, base=2),
             noon.personality_activations[1],
         ),
     )
     late = replace(
         late,
         personality_activations=(
-            replace(late.personality_activations[0], longitude=30.2, gate=2),
+            replace(late.personality_activations[0], longitude=30.2, gate=2, color=2, tone=2, base=2),
             late.personality_activations[1],
         ),
     )
@@ -267,7 +267,7 @@ def test_human_design_output_shows_uncertain_variants_for_rectified_time(monkeyp
 
     monkeypatch.setattr(hd_output, "_build_hd_positions_lines", fake_build_positions_lines)
 
-    output, *_ = hd_output.build_human_design_chart_data_output(
+    output, position_info_map, *_ = hd_output.build_human_design_chart_data_output(
         SimpleNamespace(retcon_time_used=True),
         aspect_sort="orb",
     )
@@ -276,7 +276,13 @@ def test_human_design_output_shows_uncertain_variants_for_rectified_time(monkeyp
     assert captured_variant_results == [variant_results]
     assert "UNCERTAIN TIME VARIANTS" in lines
     assert lines.index("UNCERTAIN TIME VARIANTS") < lines.index("POSITIONS")
-    assert any("Aries->Taurus" in line and "1.1->2.1" in line for line in lines)
+    variant_line_index = next(
+        index
+        for index, line in enumerate(lines)
+        if "Aries->Taurus" in line and "1.1->2.1" in line
+    )
+    variant_kinds = {entry.get("kind") for entry in position_info_map[variant_line_index]}
+    assert {"sign_keyword", "hd_gate_line", "hd_color", "hd_tone", "hd_base"}.issubset(variant_kinds)
 
 
 def test_body_longitudes_reuses_cached_planetary_positions(monkeypatch):
