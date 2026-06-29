@@ -43,6 +43,7 @@ from ephemeraldaddy.gui.style import (
     CHART_INFO_SPECIES_HEADER_COLOR,
     DND_STAT_EARTHTONE_COLORS,
     RELATIVE_YEAR_COLORS,
+    ARROW_STYLES,
     SEPARATOR_STYLE,
     CHART_DATA_MONOSPACE_FONT_FAMILY,
 )
@@ -58,6 +59,19 @@ def _separator_style_color() -> QColor:
 
 def _separator_style_minimum_space_run() -> int:
     return int(SEPARATOR_STYLE["minimum_space_run"])
+
+
+def _chart_data_arrow() -> str:
+    return str(ARROW_STYLES["classic"])
+
+
+def _arrow_joined_token_pattern() -> str:
+    return rf"\S+(?:{re.escape(_chart_data_arrow())}\S+)*"
+
+
+def _gate_line_arrow_joined_pattern() -> str:
+    gate_line = r"(?:[1-9]|[1-5][0-9]|6[0-4])\.[1-6]"
+    return rf"{gate_line}(?:{re.escape(_chart_data_arrow())}{gate_line})*"
 
 
 def _qt_text_offset(text: str, index: int) -> int:
@@ -600,7 +614,8 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         return None
 
     def _apply_hd_time_variant_colors(self, text: str, stripped_text: str) -> None:
-        if "->" not in stripped_text or self._current_chart_data_section() != "POSITIONS":
+        arrow = _chart_data_arrow()
+        if arrow not in stripped_text or self._current_chart_data_section() != "POSITIONS":
             return
         columns = self._split_padded_columns(text.rstrip())
         if len(columns) < 4:
@@ -620,10 +635,10 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         parsed_variant_fields: list[tuple[int, re.Match[str], list[str]]] = []
         row_has_three_way_variant = False
         for value_text, value_start, _value_end in variant_columns:
-            value_match = re.search(r"\S+(?:->\S+)*", value_text)
-            if value_match is None or "->" not in value_match.group(0):
+            value_match = re.search(_arrow_joined_token_pattern(), value_text)
+            if value_match is None or arrow not in value_match.group(0):
                 continue
-            segments = value_match.group(0).split("->")
+            segments = value_match.group(0).split(arrow)
             if len(segments) == 3:
                 row_has_three_way_variant = True
             parsed_variant_fields.append((value_start, value_match, segments))
@@ -643,7 +658,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                         self._qt_len(segment),
                         text_format,
                     )
-                cursor += len(segment) + len("->")
+                cursor += len(segment) + len(arrow)
 
     def _apply_hd_gate_side_color(self, text: str, stripped_text: str) -> None:
         if not stripped_text:
@@ -1226,7 +1241,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
 
             if is_hd_longitude:
                 for value_text, value_start, value_end in data_columns[3:7]:
-                    value_match = re.search(r"\S+(?:->\S+)*", value_text)
+                    value_match = re.search(_arrow_joined_token_pattern(), value_text)
                     if value_match is None:
                         continue
                     self.setFormat(
@@ -1239,7 +1254,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                 if gate_line_column is not None:
                     gate_line_text, gate_line_start, gate_line_end = gate_line_column
                     if re.fullmatch(
-                        r"(?:[1-9]|[1-5][0-9]|6[0-4])\.[1-6](?:->(?:[1-9]|[1-5][0-9]|6[0-4])\.[1-6])*",
+                        _gate_line_arrow_joined_pattern(),
                         gate_line_text.strip(),
                     ):
                         self.setFormat(
