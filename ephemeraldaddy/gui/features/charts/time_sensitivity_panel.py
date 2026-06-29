@@ -315,15 +315,14 @@ def _format_time_list(values: Any, limit: int = 3) -> str:
     return str(values)
 
 
-def _span_start_end(values: Any) -> tuple[str, str]:
-    """Return the first displayed span split into start/end time cells."""
+def _single_time_value(values: Any) -> str:
+    """Return one compact time value for peak/trench table cells."""
     if not values:
-        return "n/a", "n/a"
+        return "n/a"
     first = str(values[0] if isinstance(values, (list, tuple)) else values)
     if "–" in first:
-        start, end = first.split("–", 1)
-        return start.strip() or "n/a", end.strip() or "n/a"
-    return first.strip() or "n/a", first.strip() or "n/a"
+        first = first.split("–", 1)[0]
+    return first.strip() or "n/a"
 
 
 def _variability_text(payload: dict[str, Any]) -> str:
@@ -348,8 +347,8 @@ def _numeric_group_table_html(result: TimeSensitivityResult, group_key: str) -> 
     rows = []
     row_backgrounds = ("#111111", "#2b2b2b")
     for row_index, (key, payload) in enumerate(meaningful):
-        trough_start, trough_end = _span_start_end(payload.get("trough_spans") or payload.get("trough_times"))
-        peak_start, peak_end = _span_start_end(payload.get("peak_spans") or payload.get("peak_times"))
+        trough_time = _single_time_value(payload.get("trough_times") or payload.get("trough_spans"))
+        peak_time = _single_time_value(payload.get("peak_times") or payload.get("peak_spans"))
         minimum = float(payload.get("min", 0.0))
         maximum = float(payload.get("max", 0.0))
         max_decrease = float(payload.get("max_decrease_percent", 0.0))
@@ -364,10 +363,8 @@ def _numeric_group_table_html(result: TimeSensitivityResult, group_key: str) -> 
             f"<td>{_factor_anchor(group_key, key)}</td>"
             f"<td align='right' style='color:{min_color};'>{escape(f'{minimum:.0f}')}</td>"
             f"<td align='right' style='color:{max_color};'>{escape(f'{maximum:.0f}')}</td>"
-            f"<td>{escape(trough_start)}</td>"
-            f"<td>{escape(trough_end)}</td>"
-            f"<td>{escape(peak_start)}</td>"
-            f"<td>{escape(peak_end)}</td>"
+            f"<td>{escape(trough_time)}</td>"
+            f"<td>{escape(peak_time)}</td>"
             f"<td align='right' style='color:{decrease_color};'>{escape(f'{max_decrease:.0f}')}</td>"
             f"<td align='right' style='color:{increase_color};'>{escape(f'{max_increase:.0f}')}</td>"
             f"<td>{escape(_variability_text(payload))}</td>"
@@ -379,8 +376,8 @@ def _numeric_group_table_html(result: TimeSensitivityResult, group_key: str) -> 
         "<th align='left'>factor</th>" #body/sign/nak./H/el./mode
         "<th align='right'>min</th>"
         "<th align='right'>max</th>"
-        "<th align='center' colspan='2'>trench</th>"
-        "<th align='center' colspan='2'>peak</th>"
+        "<th align='center'>trench</th>"
+        "<th align='center'>peak</th>"
         "<th align='right'>-%△</th>"
         "<th align='right'>+%△</th>"
         "<th align='left'>var.</th>"
