@@ -329,3 +329,75 @@ def test_time_sensitivity_confidence_uses_stability_percent_and_bright_green_sca
     assert panel_module._confidence_percent(result) == 42.5
     assert panel_module._confidence_color(0) == "#7a0000"
     assert panel_module._confidence_color(100) == "#00ff00"
+
+
+def test_time_sensitivity_popout_factor_info_shows_min_max_peak_and_trench():
+    import pytest
+
+    panel_module = pytest.importorskip("ephemeraldaddy.gui.features.charts.time_sensitivity_panel", exc_type=ImportError)
+
+    result = TimeSensitivityResult(
+        chart_uid="CHARTUID",
+        chart_name="Example",
+        birth_date_key="01-01-2000",
+        algorithm_version="time-sensitivity-v2",
+        computed_at="2026-06-20T00:00:00Z",
+        config=TimeSensitivityConfig().__dict__,
+        sample_count=2,
+        baseline_time="12:00",
+        overall={},
+        numeric_ranges={
+            "dominant_nakshatra_weights": {
+                "Ashwini": {
+                    "min": 2.0,
+                    "max": 7.0,
+                    "trough_times": ["00:30"],
+                    "peak_times": ["23:30"],
+                },
+            },
+        },
+        human_design={},
+        stable=[],
+        variable=[],
+        warnings=[],
+    )
+
+    html = panel_module._time_sensitivity_factor_info_html(result, "dominant_nakshatra_weights", "Ashwini")
+
+    assert "Ashwini" in html
+    assert "Min dominance" in html
+    assert "2" in html
+    assert "Max dominance" in html
+    assert "7" in html
+    assert "Trench time" in html
+    assert "00:30" in html
+    assert "Peak time" in html
+    assert "23:30" in html
+
+
+def test_time_sensitivity_popout_charts_include_all_numeric_factor_click_targets():
+    from pathlib import Path
+
+    source = Path("ephemeraldaddy/gui/features/charts/time_sensitivity_panel.py").read_text()
+
+    assert '"dominant_planet_weights": "Dominant Body Weight Distribution"' in source
+    assert '"dominant_sign_weights": "Dominant Sign Weight Distribution"' in source
+    assert '"dominant_element_weights": "Dominant Element Weight Distribution"' in source
+    assert '"dominant_house_weights": "Dominant House Weight Distribution"' in source
+    assert '"dominant_mode_weights": "Dominant Mode Weight Distribution"' in source
+    assert '"dominant_nakshatra_weights": "Dominant Nakshatra Weight Distribution"' in source
+    assert "setattr(bar, \"_time_sensitivity_factor\", label)" in source
+    assert "setattr(tick_label, \"_time_sensitivity_factor\", label)" in source
+    assert "_install_factor_click(ax, clickable_artists, on_factor_click)" in source
+
+
+def test_time_sensitivity_chart_canvases_forward_wheel_events_to_parent_scroll_area():
+    from pathlib import Path
+
+    source = Path("ephemeraldaddy/gui/features/charts/time_sensitivity_panel.py").read_text()
+
+    assert "class TimeSensitivityFigureCanvas(FigureCanvas):" in source
+    assert "def wheelEvent(self, event: object) -> None" in source
+    assert "scroll_area.verticalScrollBar()" in source
+    assert "event.accept()" in source
+    assert "canvas = TimeSensitivityFigureCanvas(figure)" in source
