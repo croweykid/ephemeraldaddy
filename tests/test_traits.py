@@ -167,3 +167,20 @@ def test_trait_color_and_archive_metadata_are_persisted(tmp_path, monkeypatch):
     assert renamed_item["path"] == renamed
     assert renamed_item["color"] == traits.DEFAULT_TRAIT_COLOR
     assert renamed_item["archived"] is False
+
+
+def test_trait_description_metadata_is_persisted(tmp_path, monkeypatch):
+    monkeypatch.setattr(traits, "TRAIT_DIR", tmp_path / "traits")
+    source = tmp_path / "upload.py"
+    source.write_text('{"Original": {"name": "Original", "bodies": {"Moon": 1}}}', encoding="utf-8")
+
+    installed = traits.install_trait_file(source, "Described Trait")
+    traits.set_trait_description(installed, "  A custom trait description.  ")
+
+    item = traits.list_traits()[0]
+    assert item["description"] == "A custom trait description."
+    assert item["profile"]["description"] == "A custom trait description."
+
+    renamed = traits.rename_trait(installed, "Renamed Described Trait")
+    assert traits.list_traits()[0]["path"] == renamed
+    assert traits.list_traits()[0]["description"] == "A custom trait description."

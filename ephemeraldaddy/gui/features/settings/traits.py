@@ -30,6 +30,7 @@ from ephemeraldaddy.analysis.traits import (
     rename_trait,
     set_trait_archived,
     set_trait_color,
+    set_trait_description,
 )
 
 
@@ -90,6 +91,13 @@ def add_traits_settings_section(owner: Any, content_layout: Any) -> None:
     traits_button_row.addWidget(owner._traits_upload_button)
     traits_button_row.addStretch(1)
     traits_section.addLayout(traits_button_row)
+
+    traits_second_button_row = QHBoxLayout()
+    owner._traits_description_button = QPushButton("Add description…")
+    owner._traits_description_button.clicked.connect(lambda _checked=False: on_trait_description_clicked(owner))
+    traits_second_button_row.addWidget(owner._traits_description_button)
+    traits_second_button_row.addStretch(1)
+    traits_section.addLayout(traits_second_button_row)
     owner._traits_list_widget.itemSelectionChanged.connect(lambda: _sync_trait_action_buttons(owner))
 
     owner._traits_status_label = QLabel("")
@@ -123,6 +131,7 @@ def refresh_traits_settings_list(owner: Any) -> None:
             item.setData(Qt.UserRole, str(trait["path"]))
             item.setData(Qt.UserRole + 1, color)
             item.setData(Qt.UserRole + 2, archived)
+            item.setData(Qt.UserRole + 3, str(trait.get("description", "")).strip())
             item.setForeground(QColor(color))
             list_widget.addItem(item)
             if str(trait["path"]) == current_path:
@@ -227,6 +236,9 @@ def _sync_trait_action_buttons(owner: Any) -> None:
     archive_button = getattr(owner, "_traits_archive_button", None)
     if isinstance(archive_button, QPushButton):
         archive_button.setText("Reactivate" if archived else "Archive")
+    description_button = getattr(owner, "_traits_description_button", None)
+    if isinstance(description_button, QPushButton):
+        description_button.setEnabled(item is not None)
 
 
 def on_trait_recolor_clicked(owner: Any) -> None:
@@ -260,6 +272,31 @@ def on_trait_archive_clicked(owner: Any) -> None:
     except Exception as exc:
         action = "reactivated" if archived else "archived"
         QMessageBox.warning(dialog_parent, "Trait update failed", f"Trait could not be {action}: {exc}")
+        return
+    refresh_traits_settings_list(owner)
+    _refresh_trait_predictions(owner)
+
+
+def on_trait_description_clicked(owner: Any) -> None:
+    dialog_parent = _settings_dialog_for(owner)
+    item = selected_trait_item(owner)
+    if item is None:
+        QMessageBox.information(dialog_parent, "No trait selected", "Select a trait to describe first.")
+        return
+    trait_name = item.text().replace(" (archived)", "")
+    current_description = str(item.data(Qt.UserRole + 3) or "")
+    description, accepted = QInputDialog.getMultiLineText(
+        dialog_parent,
+        "Add trait description",
+        f"Description for {trait_name}:",
+        current_description,
+    )
+    if not accepted:
+        return
+    try:
+        set_trait_description(item.data(Qt.UserRole), description)
+    except Exception as exc:
+        QMessageBox.warning(dialog_parent, "Trait update failed", f"Trait description could not be saved: {exc}")
         return
     refresh_traits_settings_list(owner)
     _refresh_trait_predictions(owner)

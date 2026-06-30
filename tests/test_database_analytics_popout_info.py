@@ -95,3 +95,26 @@ def test_database_analytics_popout_info_reuses_chart_analytics_astro_explainers(
     assert analytics._build_database_analytics_popout_info_html(
         chart_title="Nakshatras", label="Ashwini", value=1.0
     ) == "nakshatra explainer: Ashwini"
+
+
+def test_database_analytics_popout_info_includes_trait_description(monkeypatch):
+    monkeypatch.setattr(
+        "ephemeraldaddy.gui.features.charts.database_analytics.list_traits",
+        lambda active_only=False: [
+            {
+                "name": "Creative Spark",
+                "description": "Finds patterns in unusual places.",
+                "color": "#cc99ff",
+                "archived": False,
+            }
+        ],
+    )
+
+    html = _FakeAnalytics()._build_database_analytics_popout_info_html(
+        chart_title="Traits",
+        label="Creative Spark",
+        value=None,
+    )
+
+    assert "Description:" in html
+    assert "Finds patterns in unusual places." in html

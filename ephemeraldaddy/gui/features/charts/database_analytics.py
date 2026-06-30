@@ -1540,6 +1540,16 @@ class DatabaseAnalyticsChartsMixin:
             return builder_host._build_house_popout_info(chart, int(house_match.group(1)))
         return None
 
+    @staticmethod
+    def _database_analytics_trait_description_for_label(label: str) -> str | None:
+        clean_label = DatabaseAnalyticsChartsMixin._clean_database_analytics_label(label)
+        for trait in list_traits(active_only=False):
+            if str(trait.get("name", "")).strip() != clean_label:
+                continue
+            description = str(trait.get("description", "")).strip()
+            return description or None
+        return None
+
     def _build_database_analytics_popout_info_html(
         self,
         *,
@@ -1570,6 +1580,9 @@ class DatabaseAnalyticsChartsMixin:
                 chart=None,
                 calculate_type_weights=None,
             )
+        trait_description = None
+        if "trait" in clean_title.casefold():
+            trait_description = self._database_analytics_trait_description_for_label(clean_label)
         definition = self._database_analytics_definition_for_label(clean_label, clean_title)
         value_line = ""
         if value is not None and math.isfinite(float(value)):
@@ -1596,10 +1609,17 @@ class DatabaseAnalyticsChartsMixin:
             )
         label_color = self._database_analytics_color_for_label(clean_label, clean_title)
         category_name = self._database_analytics_category_name(clean_label, clean_title)
+        description_line = ""
+        if trait_description:
+            description_line = (
+                f'<p><b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">Description:</b> '
+                f"{html.escape(trait_description)}</p>"
+            )
         return (
             f'<h3 style="color:{html.escape(label_color)}; font-weight:800;">{html.escape(clean_label)}</h3>'
             f'<p><b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">Category:</b> {html.escape(category_name)}</p>'
             f'<p><b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">What this measures:</b> {html.escape(definition)}</p>'
+            f"{description_line}"
             f'<p><b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">Where it appears:</b> <i>{html.escape(clean_title)}</i>.</p>'
             f"{value_line}"
             f"{std_dev_line}"
@@ -1908,6 +1928,9 @@ class DatabaseAnalyticsChartsMixin:
                 chart=None,
                 calculate_type_weights=None,
             )
+        trait_description = None
+        if "trait" in clean_title.casefold():
+            trait_description = self._database_analytics_trait_description_for_label(clean_label)
         definition = self._database_analytics_definition_for_label(clean_label, clean_title)
         value_line = ""
         if value is not None and math.isfinite(float(value)):
@@ -1934,10 +1957,17 @@ class DatabaseAnalyticsChartsMixin:
             )
         label_color = self._database_analytics_color_for_label(clean_label, clean_title)
         category_name = self._database_analytics_category_name(clean_label, clean_title)
+        description_line = ""
+        if trait_description:
+            description_line = (
+                f'<p><b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">Description:</b> '
+                f"{html.escape(trait_description)}</p>"
+            )
         return (
             f'<h3 style="color:{html.escape(label_color)}; font-weight:800;">{html.escape(clean_label)}</h3>'
             f'<p><b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">Category:</b> {html.escape(category_name)}</p>'
             f'<p><b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">What this measures:</b> {html.escape(definition)}</p>'
+            f"{description_line}"
             f'<p><b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">Where it appears:</b> <i>{html.escape(clean_title)}</i>.</p>'
             f"{value_line}"
             f"{std_dev_line}"
