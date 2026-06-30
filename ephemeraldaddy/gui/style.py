@@ -539,12 +539,16 @@ CHART_VIEW_TIME_OVERWRITE_ENABLED = True
 CHART_VIEW_RECTIFIED_GROUP_LEFT_SPACER = 12
 CHART_VIEW_RECTIFIED_LABEL_CHECKBOX_SPACING = 4
 DATABASE_VIEW_HEADER_COLOR = MIDDLE_PANEL_ACCENT_COLOR
-COLLAPSIBLE_SECTION_BACKGROUND = "#050505"  # Top-level collapsible sections stay near-black.
-COLLAPSIBLE_SUBSECTION_BACKGROUND = "#16071f"  # Subtle dark purple for nested subsections.
+COLLAPSIBLE_SECTION_BACKGROUND = "#050505"  # Standard appwide black section content.
+COLLAPSIBLE_NESTED_SECTION_BACKGROUND = "#16071f"  # Purple content for sections that contain nested subsections.
+COLLAPSIBLE_HEADER_BACKGROUND = "#1c1c1c"  # Dark charcoal for clickable collapsible headers.
 COLLAPSIBLE_SECTION_CONTENT_STYLE = f"background-color: {COLLAPSIBLE_SECTION_BACKGROUND};"
-COLLAPSIBLE_SUBSECTION_CONTENT_STYLE = (
-    f"background-color: {COLLAPSIBLE_SUBSECTION_BACKGROUND};"
+COLLAPSIBLE_NESTED_SECTION_CONTENT_STYLE = (
+    f"background-color: {COLLAPSIBLE_NESTED_SECTION_BACKGROUND};"
 )
+# Backward-compatible alias: nested subsections now use the standard section background.
+COLLAPSIBLE_SUBSECTION_BACKGROUND = COLLAPSIBLE_SECTION_BACKGROUND
+COLLAPSIBLE_SUBSECTION_CONTENT_STYLE = COLLAPSIBLE_SECTION_CONTENT_STYLE
 DATABASE_VIEW_PANEL_HEADER_STYLE = (
     f"font-weight: bold; font-size: 14.5px; color: {DATABASE_VIEW_HEADER_COLOR};"
 )
@@ -556,7 +560,7 @@ COLLAPSIBLE_SECTION_HEADER_WIGGLE_OFFSET_PX = 4
 def collapsible_section_header_toggle_style(
     *,
     text_color: str,
-    background_color: str = COLLAPSIBLE_SECTION_BACKGROUND,
+    background_color: str = COLLAPSIBLE_HEADER_BACKGROUND,
 ) -> str:
     """Return the appwide expandable/collapsible section-header text rule."""
     return (

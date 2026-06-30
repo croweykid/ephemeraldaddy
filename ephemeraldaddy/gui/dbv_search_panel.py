@@ -439,6 +439,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE = app_module.DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE
     COLLAPSIBLE_SECTION_CONTENT_STYLE = app_module.COLLAPSIBLE_SECTION_CONTENT_STYLE
     COLLAPSIBLE_SUBSECTION_CONTENT_STYLE = app_module.COLLAPSIBLE_SUBSECTION_CONTENT_STYLE
+    COLLAPSIBLE_NESTED_SECTION_CONTENT_STYLE = app_module.COLLAPSIBLE_NESTED_SECTION_CONTENT_STYLE
     DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS = app_module.DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS
     DATABASE_ANALYTICS_CONTENT_DEBUG_STYLE = app_module.DATABASE_ANALYTICS_CONTENT_DEBUG_STYLE
     DATABASE_ANALYTICS_SUBHEADER_STYLE = app_module.DATABASE_ANALYTICS_SUBHEADER_STYLE
@@ -641,7 +642,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     layout.addLayout(header_layout)
 
     def add_collapsible_section(
-        title: str, *, subsection: bool = False
+        title: str, *, subsection: bool = False, nested: bool = False
     ) -> tuple[QWidget, QVBoxLayout]:
         section = QWidget()
         section_layout = QVBoxLayout()
@@ -661,8 +662,8 @@ def build_dbv_search_panel(window) -> "QWidget":
         content_layout.setContentsMargins(8, 6, 8, 6)
         content.setLayout(content_layout)
         content_style = (
-            COLLAPSIBLE_SUBSECTION_CONTENT_STYLE
-            if subsection
+            COLLAPSIBLE_NESTED_SECTION_CONTENT_STYLE
+            if nested
             else COLLAPSIBLE_SECTION_CONTENT_STYLE
         )
         if DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS:
@@ -714,15 +715,15 @@ def build_dbv_search_panel(window) -> "QWidget":
     layout.addWidget(chart_type_section)
 
 
-    astro_category_section, astro_category_layout = add_collapsible_section("Astro")
+    astro_category_section, astro_category_layout = add_collapsible_section("Astro", nested=True)
     layout.addWidget(astro_category_section)
     human_design_category_section, human_design_category_layout = add_collapsible_section("Human Design")
     layout.addWidget(human_design_category_section)
-    interactions_category_section, interactions_category_layout = add_collapsible_section("Interactions")
+    interactions_category_section, interactions_category_layout = add_collapsible_section("Interactions", nested=True)
     layout.addWidget(interactions_category_section)
-    predictions_category_section, predictions_category_layout = add_collapsible_section("Predictions")
+    predictions_category_section, predictions_category_layout = add_collapsible_section("Predictions", nested=True)
     layout.addWidget(predictions_category_section)
-    demographics_category_section, demographics_category_layout = add_collapsible_section("Demographics")
+    demographics_category_section, demographics_category_layout = add_collapsible_section("Demographics", nested=True)
     layout.addWidget(demographics_category_section)
 
     #Search: data completeness & accuracy
