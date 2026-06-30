@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from ephemeraldaddy.gui.about import ABOUT_ONBOARDING_MARKDOWN
 from ephemeraldaddy.gui.about_sparkle import AboutCloseSparkleOverlay
+from ephemeraldaddy.gui.galaxy_explainer import show_guide_to_the_galaxy
 from ephemeraldaddy.gui.style import (
     ABOUT_DIALOG_ACCENT_BUTTON_COLOR,
     ABOUT_DIALOG_INTRO_STYLE,
@@ -207,6 +208,8 @@ def _show_about_from_onboarding(owner: "QWidget") -> None:
     dialog.show()
 
 def _minimize_window(owner: QWidget) -> None:
+    from PySide6.QtCore import Qt
+
     window = owner.window()
 
     if not window.testAttribute(Qt.WA_WState_Created):
@@ -309,6 +312,7 @@ def configure_main_window_chrome(window: "QMainWindow") -> None:
     # _bind_menu_action(view_menu, "Chart Analytics", window, "on_show_chart_analytics_panel")
 
     help_menu = menu_bar.addMenu("HALP!")
+    help_menu.addAction("Guide to the Galaxy", lambda: show_guide_to_the_galaxy(window))
     _bind_menu_action(help_menu, "Tutorial", window, "_on_manage_help_overlay", "on_manage_help_overlay", "_toggle_help_overlay")
     _bind_menu_action(help_menu, "About", window, "_show_about_from_onboarding(dialog)")
 
@@ -387,6 +391,7 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
     _bind_menu_action(view_menu, "Database Manager", dialog, "_toggle_edit_panel")
 
     help_menu = menu_bar.addMenu("HALP!")
+    help_menu.addAction("Guide to the Galaxy", lambda: show_guide_to_the_galaxy(dialog))
     _bind_menu_action(help_menu, "HALP!", dialog, "_on_manage_help_overlay", "on_manage_help_overlay")
     #_bind_menu_action(help_menu, "Sign Degrees Reference Circle", dialog, "_on_open_sign_degrees_reference_circle", "on_open_sign_degrees_reference_circle")
     help_menu.addAction("About", lambda: _show_about_from_onboarding(dialog))
