@@ -342,6 +342,10 @@ def set_trait_color(path: str | Path, color: str) -> Path:
 def set_trait_archived(path: str | Path, archived: bool) -> Path:
     return _rewrite_single_trait(path, {"archived": bool(archived)})
 
+
+def set_trait_description(path: str | Path, description: str) -> Path:
+    return _rewrite_single_trait(path, {"description": str(description).strip()})
+
 _TRAIT_SLUG_RE = re.compile(r"[^a-zA-Z0-9_.-]+")
 
 
@@ -478,6 +482,7 @@ def save_trait(name: str, profile: Mapping[str, Any], *, color: str | None = Non
     elif not _is_valid_trait_color(str(stored.get("color", ""))):
         stored["color"] = DEFAULT_TRAIT_COLOR
     stored["archived"] = bool(stored.get("archived", False))
+    stored["description"] = str(stored.get("description", "")).strip()
     destination.write_text(
         json.dumps({clean_name: _json_safe_trait_value(stored)}, ensure_ascii=False, indent=2),
         encoding="utf-8",
@@ -503,7 +508,17 @@ def list_traits(*, active_only: bool = False) -> list[dict[str, Any]]:
         if active_only and archived:
             continue
         color = normalize_trait_color(str(profile.get("color", DEFAULT_TRAIT_COLOR)))
-        items.append({"name": profile_name, "path": path, "profile": profile, "color": color, "archived": archived})
+        description = str(profile.get("description", "")).strip()
+        items.append(
+            {
+                "name": profile_name,
+                "path": path,
+                "profile": profile,
+                "color": color,
+                "archived": archived,
+                "description": description,
+            }
+        )
     return items
 
 
@@ -523,6 +538,7 @@ def rename_trait(path: str | Path, new_name: str) -> Path:
     stored["name"] = clean_name
     stored["color"] = normalize_trait_color(str(stored.get("color", DEFAULT_TRAIT_COLOR)))
     stored["archived"] = bool(stored.get("archived", False))
+    stored["description"] = str(stored.get("description", "")).strip()
     destination.write_text(
         json.dumps({clean_name: _json_safe_trait_value(stored)}, ensure_ascii=False, indent=2),
         encoding="utf-8",
