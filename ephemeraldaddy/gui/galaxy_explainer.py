@@ -74,6 +74,12 @@ class SignRange:
     sign: str
     start: _dt.datetime
     end: _dt.datetime
+    open_start: bool = False
+    open_end: bool = False
+
+    @property
+    def is_complete(self) -> bool:
+        return not self.open_start and not self.open_end
 
     @property
     def duration_days(self) -> float:
@@ -141,6 +147,7 @@ def sign_ranges_for_body(body_name: str, sign_name: str, window_years: int = 300
         return ()
     current_sign = _sign_for_longitude(first_lon)
     current_start = cursor
+    current_open_start = True
     ranges: list[SignRange] = []
     while cursor < end:
         probe = min(cursor + step, end)
@@ -152,12 +159,28 @@ def sign_ranges_for_body(body_name: str, sign_name: str, window_years: int = 300
         if probe_sign != current_sign:
             boundary = _refine_boundary(body_name, cursor, probe, current_sign, tolerance)
             if current_sign == sign_name:
-                ranges.append(SignRange(current_sign, current_start, boundary))
+                ranges.append(
+                    SignRange(
+                        current_sign,
+                        current_start,
+                        boundary,
+                        open_start=current_open_start,
+                    )
+                )
             current_sign = probe_sign
             current_start = boundary
+            current_open_start = False
         cursor = probe
     if current_sign == sign_name:
-        ranges.append(SignRange(current_sign, current_start, end))
+        ranges.append(
+            SignRange(
+                current_sign,
+                current_start,
+                end,
+                open_start=current_open_start,
+                open_end=True,
+            )
+        )
     return tuple(ranges)
 
 
@@ -190,26 +213,46 @@ def _build_ranges_html(body_name: str, sign_name: str, ranges: tuple[SignRange, 
         return header + "<p><em>No date-range lookup is available because this is not currently represented by the app ephemeris as a distinct object or point.</em></p>"
     if not ranges:
         return header + "<p><em>No ranges were available from the built-in ephemeris for this body/sign/window.</em></p>"
-    durations = [item.duration_days for item in ranges]
-    shortest = min(durations)
-    longest = max(durations)
-    sorted_durations = sorted(durations)
-    typical = sorted_durations[len(sorted_durations) // 2]
-    summary = (
-        "<h3>300-year summary</h3>"
-        f"<p><strong>Occurrences:</strong> {len(ranges)}<br/>"
-        f"<strong>Shortest:</strong> {_duration_text(shortest)} ({_timeline_label(shortest)})<br/>"
-        f"<strong>Modal-ish / median:</strong> {_duration_text(typical)} ({_timeline_label(typical)})<br/>"
-        f"<strong>Longest:</strong> {_duration_text(longest)} ({_timeline_label(longest)})</p>"
-    )
+    complete_ranges = tuple(item for item in ranges if item.is_complete)
+    open_count = len(ranges) - len(complete_ranges)
+    if complete_ranges:
+        durations = [item.duration_days for item in complete_ranges]
+        shortest = min(durations)
+        longest = max(durations)
+        sorted_durations = sorted(durations)
+        typical = sorted_durations[len(sorted_durations) // 2]
+        summary = (
+            "<h3>300-year summary</h3>"
+            f"<p><strong>Complete occurrences:</strong> {len(complete_ranges)}<br/>"
+            f"<strong>Open edge intervals excluded:</strong> {open_count}<br/>"
+            f"<strong>Shortest:</strong> {_duration_text(shortest)} ({_timeline_label(shortest)})<br/>"
+            f"<strong>Modal-ish / median:</strong> {_duration_text(typical)} ({_timeline_label(typical)})<br/>"
+            f"<strong>Longest:</strong> {_duration_text(longest)} ({_timeline_label(longest)})</p>"
+        )
+    else:
+        summary = (
+            "<h3>300-year summary</h3>"
+            f"<p><strong>Complete occurrences:</strong> 0<br/>"
+            f"<strong>Open edge intervals excluded:</strong> {open_count}</p>"
+            "<p><em>The selected body/sign only appeared as a leading or trailing open interval in this window, "
+            "so no complete duration summary is shown.</em></p>"
+        )
     rows = []
     for item in ranges[-80:]:
+        start_text = "open before scan" if item.open_start else _format_dt(item.start)
+        end_text = "still in sign at scan end" if item.open_end else _format_dt(item.end)
+        duration_text = (
+            "open interval; excluded from summary"
+            if not item.is_complete
+            else _duration_text(item.duration_days)
+        )
+        scale_text = "open" if not item.is_complete else _timeline_label(item.duration_days)
         rows.append(
             "<tr>"
-            f"<td>{_format_dt(item.start)}</td>"
-            f"<td>{_format_dt(item.end)}</td>"
-            f"<td>{_duration_text(item.duration_days)}</td>"
-            f"<td>{_timeline_label(item.duration_days)}</td>"
+            f"<td>{start_text}</td>"
+            f"<td>{end_text}</td>"
+            f"<td>{duration_text}</td>"
+            f"<td>{scale_text}</td>"
             "</tr>"
         )
     omitted = ""
