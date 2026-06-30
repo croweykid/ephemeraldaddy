@@ -1,4 +1,4 @@
-#The Sidereal vs Tropical Argument
+# The Sidereal vs. Tropical Argument
 
 The best pro-tropical argument is:
 
@@ -33,4 +33,7 @@ I think answer 2 is the strongest, but the Southern Hemisphere objection is not 
 
 **Tropical is the stronger system for Western astrology specifically**, because Western sign meanings are deeply tied to equinox/solstice logic. **Sidereal is stronger if your claim is that signs are anchored to fixed stars, traditional nakshatra assignments, or older star-based divination.** But sidereal does not automatically defeat tropical just by invoking precession. Precession only proves they are different coordinate systems. It does not prove which symbolic target astrology should prioritize.
 
-Note: this app uses tropical degrees for nakshatra calculation, in keeping with Vic DiCara's method (and that of some other contemporaries).
+
+## App Note
+
+This app uses tropical degrees for nakshatra calculation, in keeping with Vic DiCara's method (and that of some other contemporaries).
