@@ -160,25 +160,8 @@ def _hd_snapshot(chart: Chart) -> dict[str, Any]:
 
 
 ANGLE_SIGN_CONFIDENCE_KEYS = ("AS", "MC", "DS", "IC")
-_EXTENDED_BODY_SIGN_CONFIDENCE_KEYS = (
-    "Rahu",
-    "Ketu",
-    "Neptune",
-    "Chiron",
-    "Ceres",
-    "Juno",
-    "Pallas",
-    "Vesta",
-    "Lilith",
-    "Lillith",
-    "Part of Fortune",
-    "Fortune",
-)
 BODY_SIGN_CONFIDENCE_KEYS = tuple(
-    dict.fromkeys(
-        [body for body in PLANET_ORDER if body not in ANGLE_SIGN_CONFIDENCE_KEYS]
-        + list(_EXTENDED_BODY_SIGN_CONFIDENCE_KEYS)
-    )
+    body for body in PLANET_ORDER if body not in ANGLE_SIGN_CONFIDENCE_KEYS
 )
 
 
