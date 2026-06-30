@@ -207,6 +207,8 @@ def _show_about_from_onboarding(owner: "QWidget") -> None:
     dialog.show()
 
 def _minimize_window(owner: QWidget) -> None:
+    from PySide6.QtCore import Qt
+
     window = owner.window()
 
     if not window.testAttribute(Qt.WA_WState_Created):
@@ -249,6 +251,203 @@ def configure_application_identity(app: "QApplication") -> None:
     app.setApplicationName(APP_DISPLAY_NAME)
     app.setApplicationDisplayName(APP_DISPLAY_NAME)
     app.setOrganizationName(APP_DISPLAY_NAME)
+
+
+
+def _show_sidereal_discussion_help(owner: "QWidget") -> None:
+    """Open a placeholder sidereal discussion page from Guide to the Galaxy."""
+    from PySide6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QVBoxLayout
+
+    dialog = QDialog(owner)
+    dialog.setModal(False)
+    dialog.setWindowTitle("Sidereal Discussion")
+    dialog.resize(560, 360)
+
+    layout = QVBoxLayout(dialog)
+    label = QLabel(
+        "<h2>Sidereal Discussion</h2>"
+        "<p>This help page is intentionally blank for now.</p>"
+        "<p>Future notes can compare tropical and sidereal reference frames, "
+        "ayanāṃśa choices, and why astrological traditions do not always "
+        "map one-to-one onto astronomy.</p>"
+    )
+    label.setWordWrap(True)
+    label.setOpenExternalLinks(False)
+    layout.addWidget(label, 1)
+
+    buttons = QDialogButtonBox(QDialogButtonBox.Close, parent=dialog)
+    buttons.rejected.connect(dialog.reject)
+    layout.addWidget(buttons)
+    dialog.show()
+
+
+def _show_guide_to_the_galaxy(owner: "QWidget") -> None:
+    """Show an animated, draggable astrology-oriented solar-system explainer."""
+    from math import cos, pi, sin
+
+    from PySide6.QtCore import QPointF, QRectF, QTimer, Qt
+    from PySide6.QtGui import QColor, QFont, QPainter, QPen
+    from PySide6.QtWidgets import (
+        QDialog,
+        QDialogButtonBox,
+        QHBoxLayout,
+        QLabel,
+        QTextBrowser,
+        QVBoxLayout,
+        QWidget,
+    )
+
+    bodies = (
+        {"name": "Moon", "period": 27.32, "distance": 0.18, "color": "#d7dde8", "size": 6},
+        {"name": "Mercury", "period": 87.97, "distance": 0.30, "color": "#b9a58d", "size": 6},
+        {"name": "Venus", "period": 224.70, "distance": 0.40, "color": "#e4c477", "size": 7},
+        {"name": "Sun", "period": 365.25, "distance": 0.52, "color": "#ffcc45", "size": 9},
+        {"name": "Mars", "period": 686.98, "distance": 0.62, "color": "#d46a4c", "size": 7},
+        {"name": "Jupiter", "period": 4332.59, "distance": 0.73, "color": "#d2a679", "size": 10},
+        {"name": "Saturn", "period": 10759.22, "distance": 0.83, "color": "#c5b070", "size": 9},
+        {"name": "Uranus", "period": 30688.5, "distance": 0.91, "color": "#78c7d8", "size": 8},
+        {"name": "Neptune", "period": 60182.0, "distance": 0.98, "color": "#5c7dff", "size": 8},
+        {"name": "Pluto", "period": 90560.0, "distance": 1.05, "color": "#b8a6a0", "size": 5},
+    )
+
+    class SolarSystemModel(QWidget):
+        def __init__(self, parent=None):
+            super().__init__(parent)
+            self.setMinimumSize(520, 520)
+            self.setMouseTracking(True)
+            self._time_days = 0.0
+            self._dragging = False
+            self._drag_start_x = 0
+            self._drag_start_time = 0.0
+            self._paused = False
+            self._selected = "Earth"
+            self._timer = QTimer(self)
+            self._timer.timeout.connect(self._tick)
+            self._timer.start(33)
+
+        def _tick(self):
+            if not self._paused and not self._dragging:
+                self._time_days += 3.0
+                self.update()
+
+        def _body_positions(self):
+            rect = self.rect().adjusted(34, 34, -34, -34)
+            center = QPointF(rect.center())
+            max_radius = min(rect.width(), rect.height()) / 2.0 * 0.86
+            positions = []
+            for body in bodies:
+                radius = max_radius * float(body["distance"]) / 1.05
+                angle = (self._time_days / float(body["period"]) * 2.0 * pi) - pi / 2.0
+                point = QPointF(center.x() + cos(angle) * radius, center.y() + sin(angle) * radius)
+                positions.append((body, point, radius))
+            return center, positions
+
+        def paintEvent(self, event):  # noqa: ANN001 - Qt override signature varies.
+            super().paintEvent(event)
+            painter = QPainter(self)
+            painter.setRenderHint(QPainter.Antialiasing)
+            painter.fillRect(self.rect(), QColor("#08101f"))
+            center, positions = self._body_positions()
+            painter.setPen(QPen(QColor("#2f4265"), 1))
+            for body, _point, radius in positions:
+                painter.drawEllipse(center, radius, radius)
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QColor("#65a7ff"))
+            painter.drawEllipse(center, 11, 11)
+            painter.setPen(QColor("#dbe7ff"))
+            painter.drawText(QRectF(center.x() - 28, center.y() + 14, 56, 18), Qt.AlignCenter, "Earth")
+            for body, point, _radius in positions:
+                size = int(body["size"])
+                painter.setBrush(QColor(str(body["color"])))
+                painter.setPen(QPen(QColor("#ffffff") if body["name"] == self._selected else QColor("#18253f"), 2))
+                painter.drawEllipse(point, size, size)
+                painter.setPen(QColor("#dbe7ff"))
+                painter.drawText(QRectF(point.x() - 38, point.y() + size + 2, 76, 18), Qt.AlignCenter, str(body["name"]))
+            painter.setFont(QFont("", 9))
+            painter.setPen(QColor("#9fb5d9"))
+            painter.drawText(14, self.height() - 18, f"Drag left/right to scrub time • click bodies • model days elapsed: {int(self._time_days):,}")
+
+        def mousePressEvent(self, event):  # noqa: ANN001
+            if event.button() == Qt.LeftButton:
+                self._dragging = True
+                self._paused = True
+                self._drag_start_x = event.position().x()
+                self._drag_start_time = self._time_days
+                center, positions = self._body_positions()
+                if (event.position() - center).manhattanLength() < 16:
+                    self._selected = "Earth"
+                for body, point, _radius in positions:
+                    if (event.position() - point).manhattanLength() <= int(body["size"]) + 8:
+                        self._selected = str(body["name"])
+                self.update()
+            super().mousePressEvent(event)
+
+        def mouseMoveEvent(self, event):  # noqa: ANN001
+            if self._dragging:
+                self._time_days = max(0.0, self._drag_start_time + (event.position().x() - self._drag_start_x) * 10.0)
+                self.update()
+            super().mouseMoveEvent(event)
+
+        def mouseReleaseEvent(self, event):  # noqa: ANN001
+            if event.button() == Qt.LeftButton:
+                self._dragging = False
+                self._paused = False
+            super().mouseReleaseEvent(event)
+
+    dialog = QDialog(owner)
+    dialog.setModal(False)
+    dialog.setWindowTitle("Guide to the Galaxy")
+    dialog.resize(1060, 720)
+    layout = QVBoxLayout(dialog)
+    title = QLabel("<h1>Guide to the Galaxy</h1>")
+    layout.addWidget(title)
+    subhead = QTextBrowser(dialog)
+    subhead.setOpenExternalLinks(False)
+    subhead.setMaximumHeight(96)
+    subhead.setHtml(
+        "<p><em>This is not astronomy. The two are connected, but astronomy is an empirical, "
+        "materialist science. Astrology is subjective metaphysics, and many people would deem it "
+        "a pseudoscience in the pejorative sense. They do reference many of the same basic tools, "
+        "but they are not entirely in accord. For instance, the "
+        "<a href='ephemeraldaddy://help/sidereal-discussion'>sidereal discussion</a>.</em></p>"
+    )
+    subhead.anchorClicked.connect(lambda _url: _show_sidereal_discussion_help(dialog))
+    layout.addWidget(subhead)
+
+    row = QHBoxLayout()
+    model = SolarSystemModel(dialog)
+    row.addWidget(model, 3)
+    explain = QTextBrowser(dialog)
+    explain.setOpenExternalLinks(False)
+    explain.setHtml(
+        "<h2>Compressed model caveat</h2>"
+        "<p>The solar system is far vaster than any comfortable screen model. Orbit sizes, planet sizes, "
+        "and speeds are deliberately compressed so the pattern is legible. Earth is fixed at the center "
+        "because this is illustrating how astrology interprets sky positions from here on Earth.</p>"
+        "<h2>How quickly chart factors can change</h2>"
+        "<table border='1' cellspacing='0' cellpadding='4'>"
+        "<tr><th>Factor</th><th>Minimum</th><th>Modal / typical</th><th>Maximum</th></tr>"
+        "<tr><td>Ascendant / houses</td><td>Minutes</td><td>~2 hours per sign</td><td>~2.5 hours per sign</td></tr>"
+        "<tr><td>Moon sign</td><td>Hours near a boundary</td><td>~2.3 days per sign</td><td>~2.7 days per sign</td></tr>"
+        "<tr><td>Sun sign</td><td>Hours near a cusp</td><td>~30 days per sign</td><td>~31 days per sign</td></tr>"
+        "<tr><td>Mercury sign</td><td>Days</td><td>2-3 weeks</td><td>~2 months with retrograde loops</td></tr>"
+        "<tr><td>Venus sign</td><td>Days</td><td>3-4 weeks</td><td>Several months during retrograde</td></tr>"
+        "<tr><td>Mars sign</td><td>Weeks</td><td>~6-8 weeks</td><td>~7 months during retrograde</td></tr>"
+        "<tr><td>Jupiter sign</td><td>Months</td><td>~1 year</td><td>~13 months</td></tr>"
+        "<tr><td>Saturn sign</td><td>Months</td><td>~2.5 years</td><td>~3 years</td></tr>"
+        "<tr><td>Uranus sign</td><td>Months</td><td>~7 years</td><td>~8 years</td></tr>"
+        "<tr><td>Neptune sign</td><td>Months</td><td>~14 years</td><td>~15 years</td></tr>"
+        "<tr><td>Pluto sign</td><td>Months</td><td>~12-31 years</td><td>~31+ years</td></tr>"
+        "</table>"
+        "<p><strong>Rule of thumb:</strong> inner bodies personalize fast; outer bodies describe broader cohorts. "
+        "Exact chart angles can change within minutes, so birth time matters most for houses and angles.</p>"
+    )
+    row.addWidget(explain, 2)
+    layout.addLayout(row, 1)
+    buttons = QDialogButtonBox(QDialogButtonBox.Close, parent=dialog)
+    buttons.rejected.connect(dialog.reject)
+    layout.addWidget(buttons)
+    dialog.show()
 
 
 def configure_main_window_chrome(window: "QMainWindow") -> None:
@@ -309,6 +508,7 @@ def configure_main_window_chrome(window: "QMainWindow") -> None:
     # _bind_menu_action(view_menu, "Chart Analytics", window, "on_show_chart_analytics_panel")
 
     help_menu = menu_bar.addMenu("HALP!")
+    help_menu.addAction("Guide to the Galaxy", lambda: _show_guide_to_the_galaxy(window))
     _bind_menu_action(help_menu, "Tutorial", window, "_on_manage_help_overlay", "on_manage_help_overlay", "_toggle_help_overlay")
     _bind_menu_action(help_menu, "About", window, "_show_about_from_onboarding(dialog)")
 
@@ -387,6 +587,7 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
     _bind_menu_action(view_menu, "Database Manager", dialog, "_toggle_edit_panel")
 
     help_menu = menu_bar.addMenu("HALP!")
+    help_menu.addAction("Guide to the Galaxy", lambda: _show_guide_to_the_galaxy(dialog))
     _bind_menu_action(help_menu, "HALP!", dialog, "_on_manage_help_overlay", "on_manage_help_overlay")
     #_bind_menu_action(help_menu, "Sign Degrees Reference Circle", dialog, "_on_open_sign_degrees_reference_circle", "on_open_sign_degrees_reference_circle")
     help_menu.addAction("About", lambda: _show_about_from_onboarding(dialog))
