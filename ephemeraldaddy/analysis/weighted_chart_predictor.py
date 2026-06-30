@@ -871,27 +871,6 @@ def _bucketed_criteria_count_and_abs_weight(
     return len(buckets), sum(buckets.values())
 
 
-def _position_requires_house_context(raw_position: Any) -> bool:
-    parsed = parse_position_spec(str(raw_position))
-    if parsed is None:
-        return False
-    category, _container, _subject = parsed
-    return category in {"body_in_house", "sign_in_house"}
-
-
-def _filter_house_dependent_positions_when_unavailable(
-    entries: Mapping[str, float],
-    use_houses: bool,
-) -> dict[str, float]:
-    if use_houses:
-        return dict(entries)
-    return {
-        raw_position: weight
-        for raw_position, weight in entries.items()
-        if not _position_requires_house_context(raw_position)
-    }
-
-
 def _singleton_position_bucket(raw_position: Any) -> tuple[str, Any] | None:
     parsed = parse_position_spec(str(raw_position))
     if parsed is None:
@@ -1055,8 +1034,6 @@ def calculate_weighted_criteria_scores(
         antibazisigns = weighted_bazi_sign_entries(factors.get("antibazisigns", set()))
         positions = weighted_position_entries(factors.get("positions", set()))
         antipositions = weighted_position_entries(factors.get("antipositions", set()))
-        available_positions = _filter_house_dependent_positions_when_unavailable(positions, use_houses)
-        available_antipositions = _filter_house_dependent_positions_when_unavailable(antipositions, use_houses)
         aspects = _weighted_text_entries(factors.get("aspects", set()))
         antiaspects = _weighted_text_entries(factors.get("antiaspects", set()))
 
@@ -1104,7 +1081,7 @@ def calculate_weighted_criteria_scores(
 
         positions_positive = 0.0
         positions_negative = 0.0
-        for raw_position, criterion_weight in available_positions.items():
+        for raw_position, criterion_weight in positions.items():
             bonus = _position_match_weight(raw_position, chart, use_houses, body_house_lookup, body_weights, sign_weights, house_weights, use_dominance_weighting=options.use_position_dominance_weighting)
             if bonus > 0:
                 positions_positive += bonus * criterion_weight
@@ -1113,7 +1090,7 @@ def calculate_weighted_criteria_scores(
                         f"{debug_prefix} {chart_name}: {target_label(target)} position TRUE -> "
                         f"'{raw_position}' (+{bonus:.2f})"
                     )
-        for raw_position, criterion_weight in available_antipositions.items():
+        for raw_position, criterion_weight in antipositions.items():
             malus = _position_match_weight(raw_position, chart, use_houses, body_house_lookup, body_weights, sign_weights, house_weights, use_dominance_weighting=options.use_position_dominance_weighting)
             if malus > 0:
                 positions_negative += malus * criterion_weight
@@ -1146,13 +1123,13 @@ def calculate_weighted_criteria_scores(
         )
 
         category_scores: dict[str, tuple[float, int]] = {}
-        position_count, position_abs_weight = (len(available_positions) + len(available_antipositions), None)
+        position_count, position_abs_weight = (len(positions) + len(antipositions), None)
         hdtype_count, hdtype_abs_weight = (len(hdtypes) + len(antihdtypes), None)
         profile_count, profile_abs_weight = (len(profiles) + len(antiprofiles), None)
         authority_count, authority_abs_weight = (len(authorities) + len(antiauthorities), None)
         if options.use_mutual_exclusive_bucket_scoring:
             position_count, position_abs_weight = _bucketed_criteria_count_and_abs_weight(
-                available_positions, available_antipositions, bucket_for_key=_singleton_position_bucket
+                positions, antipositions, bucket_for_key=_singleton_position_bucket
             )
             hdtype_count, hdtype_abs_weight = _bucketed_criteria_count_and_abs_weight(
                 hdtypes, antihdtypes, bucket_for_key=_one_bucket
@@ -1209,14 +1186,11 @@ def calculate_weighted_criteria_scores(
         if score_mode == PREDICTION_SCORE_MODE_CATEGORY_Z and category_weight_total > 0:
             scores[target] /= category_weight_total
 
-        available_signature_weight_groups = [
+        for values in (
             signs, antisigns, bodies, antibodies, nakshatras, antinakshatras,
-            gates, antigates, channels, antichannels, centers, anticenters,
-            bazisigns, antibazisigns, aspects, antiaspects,
-        ]
-        if use_houses:
-            available_signature_weight_groups.extend([houses, antihouses])
-        for values in available_signature_weight_groups:
+            houses, antihouses, gates, antigates, channels, antichannels,
+            centers, anticenters, bazisigns, antibazisigns, aspects, antiaspects,
+        ):
             target_total_abs_weight += sum(abs(float(weight)) for weight in values.values())
         if options.use_mutual_exclusive_bucket_scoring:
             target_total_abs_weight += float(position_abs_weight or 0.0)
@@ -1224,7 +1198,7 @@ def calculate_weighted_criteria_scores(
             target_total_abs_weight += float(profile_abs_weight or 0.0)
             target_total_abs_weight += float(authority_abs_weight or 0.0)
         else:
-            for values in (hdtypes, antihdtypes, profiles, antiprofiles, authorities, antiauthorities, available_positions, available_antipositions):
+            for values in (hdtypes, antihdtypes, profiles, antiprofiles, authorities, antiauthorities, positions, antipositions):
                 target_total_abs_weight += sum(abs(float(weight)) for weight in values.values())
         if score_mode in {PREDICTION_SCORE_MODE_OPPORTUNITY, PREDICTION_SCORE_MODE_BACKGROUND_Z}:
             scores[target] = _apply_type_signature_scale(
