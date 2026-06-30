@@ -930,7 +930,13 @@ class _TagCategoryDropList(QListWidget):
         if category_prefix:
             self._on_drop_labels(category_prefix, labels)
             self._clear_drop_target_highlight()
-            event.acceptProposedAction()
+            # The dialog performs the rename/reload itself.  Do not report a
+            # Qt model move here: when multiple selected tags are dragged from
+            # the uncategorized tree, Qt may try to finish the source-side move
+            # against items that were just rebuilt by _reload_usage(), which can
+            # crash the app after the tags were successfully assigned.
+            event.setDropAction(Qt.CopyAction)
+            event.accept()
             return
         self._clear_drop_target_highlight()
         event.ignore()
@@ -1029,7 +1035,13 @@ class _TagHierarchyTree(QTreeWidget):
             event.ignore()
             return
         self._on_drop_labels(category_prefix, labels)
-        event.acceptProposedAction()
+        # The assignment callback updates the database and repopulates both tag
+        # trees.  Accepting the proposed MoveAction lets Qt perform source-side
+        # drag cleanup after those items no longer exist, which is especially
+        # crash-prone when moving multiple uncategorized tags at once.  Treat the
+        # DnD payload as a command instead of a model move.
+        event.setDropAction(Qt.CopyAction)
+        event.accept()
 
 
 class ManageMetadataLabelsDialog(QDialog):
