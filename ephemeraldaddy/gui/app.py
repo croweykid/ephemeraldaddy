@@ -15644,6 +15644,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.left_panel_stack.setCurrentWidget(widget)
         self._active_left_panel = panel_name
         self._set_left_panel_visible(True)
+        previous_database_metrics_baseline_mode = self._database_metrics_baseline_mode
 
         if panel_name == "database_metrics":
             self.database_metrics_panel_header_label.setText("Database Analytics")
@@ -15656,7 +15657,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._sync_database_metrics_section_visibility()
             self._update_position_sign_subheader()
             self._update_gender_subheader()
-            self._refresh_database_metrics_panel_on_show()
+            self._refresh_database_metrics_panel_on_show(
+                baseline_changed=previous_database_metrics_baseline_mode != self._database_metrics_baseline_mode,
+            )
         elif panel_name == "gen_pop_norms":
             self.database_metrics_panel_header_label.setText("General Population")
             self._database_metrics_baseline_mode = "gen_pop"
@@ -15668,7 +15671,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._sync_database_metrics_section_visibility()
             self._update_position_sign_subheader()
             self._update_gender_subheader()
-            self._refresh_database_metrics_panel_on_show()
+            self._refresh_database_metrics_panel_on_show(
+                baseline_changed=previous_database_metrics_baseline_mode != self._database_metrics_baseline_mode,
+            )
         elif panel_name == "similarities":
             self._update_sentiment_tally(
                 update_database_metrics=False,
@@ -15678,15 +15683,34 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._refresh_perceived_similarity_predictors_panel()
 
 
-    def _refresh_database_metrics_panel_on_show(self) -> None:
+    def _refresh_database_metrics_panel_on_show(self, *, baseline_changed: bool = False) -> None:
         """Refresh Database Analytics on panel show only when data is stale.
 
         Panel navigation alone should not show a loading state or redraw cached
         analytics.  If relevant chart rows changed, or expanded sections are not
         covered by the current metrics cache, run the normal deferred refresh.
-        Otherwise keep the transition instant and let the idle preloader continue
-        warming collapsed sections for later expansion.
+        If only the database/general-population baseline changed, redraw the
+        expanded sections from the existing cache so canvases and export rows
+        match the new baseline without recomputing snapshots.
         """
+        expanded_sections = frozenset(self._expanded_database_metric_sections())
+        if (
+            baseline_changed
+            and expanded_sections
+            and self._database_metrics_cache is not None
+            and not self._deferred_database_metrics_changed_ids
+            and not self._deferred_database_metrics_force_full_refresh
+            and not self._database_metrics_lucy_goosey_ids
+            and expanded_sections.issubset(self._database_metrics_snapshot_sections)
+        ):
+            self._show_database_analytics_pending_indicator(False)
+            self._update_sentiment_tally(
+                update_database_metrics=True,
+                update_similarities=False,
+                sections_to_refresh=set(expanded_sections),
+            )
+            self._schedule_database_metrics_background_preload()
+            return
         if not self._database_metrics_refresh_needed_on_panel_show():
             self._show_database_analytics_pending_indicator(False)
             self._schedule_database_metrics_background_preload()

@@ -40,8 +40,12 @@ def test_database_metrics_panel_open_and_section_expand_defer_heavy_refresh():
     database_panel_branch = show_method.split('if panel_name == "database_metrics":', 1)[1].split(
         'elif panel_name == "gen_pop_norms":', 1
     )[0]
-    assert "self._refresh_database_metrics_panel_on_show()" in database_panel_branch
+    assert "baseline_changed=previous_database_metrics_baseline_mode != self._database_metrics_baseline_mode" in database_panel_branch
     assert "self._update_sentiment_tally(" not in database_panel_branch
+    assert "baseline_changed: bool = False" in panel_show_method
+    assert "expanded_sections = frozenset(self._expanded_database_metric_sections())" in panel_show_method
+    assert "and expanded_sections.issubset(self._database_metrics_snapshot_sections)" in panel_show_method
+    assert "sections_to_refresh=set(expanded_sections)" in panel_show_method
     assert "if not self._database_metrics_refresh_needed_on_panel_show():" in panel_show_method
     assert "self._show_database_analytics_pending_indicator(False)" in panel_show_method
     assert "self._schedule_database_metrics_background_preload()" in panel_show_method
