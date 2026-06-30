@@ -162,7 +162,17 @@ class WeightedPredictorScoringOptions:
         return mode if mode in DOMINANCE_NORMALIZATION_MODES else DOMINANCE_NORMALIZATION_RANGE
 
 
-DEFAULT_SCORING_OPTIONS = WeightedPredictorScoringOptions(simplify_anti_factor_handling=False)
+BASELINE_DEFAULT_SCORING_OPTIONS = WeightedPredictorScoringOptions(simplify_anti_factor_handling=False)
+DEFAULT_SCORING_OPTIONS = BASELINE_DEFAULT_SCORING_OPTIONS
+
+
+def set_default_scoring_options(overrides: WeightedPredictorScoringOptions | Mapping[str, Any] | None) -> None:
+    """Set process-wide scoring options for shared Predictions scorers."""
+    global DEFAULT_SCORING_OPTIONS
+    if overrides is None:
+        DEFAULT_SCORING_OPTIONS = BASELINE_DEFAULT_SCORING_OPTIONS
+        return
+    DEFAULT_SCORING_OPTIONS = coerce_scoring_options(overrides)
 
 
 def coerce_scoring_options(value: WeightedPredictorScoringOptions | Mapping[str, Any] | None) -> WeightedPredictorScoringOptions:

@@ -400,3 +400,31 @@ def test_negative_unweighted_gate_entries_are_signed_weights():
     from ephemeraldaddy.analysis.weighted_chart_predictor import weighted_gate_entries
 
     assert weighted_gate_entries({-63, 11}) == {63: -1.0, 11: 1.0}
+
+
+def test_process_default_scoring_options_are_configurable_for_shared_predictions():
+    from ephemeraldaddy.analysis import weighted_chart_predictor as predictor
+
+    original = predictor.DEFAULT_SCORING_OPTIONS
+    try:
+        predictor.set_default_scoring_options(
+            WeightedPredictorScoringOptions(
+                average_scores_by_criterion_count=False,
+                type_signature_scale_mode="sqrt",
+                dominance_normalization_mode="share",
+            )
+        )
+        chart = SimpleNamespace(dominant_sign_weights={"Aries": 1})
+
+        scores = calculate_weighted_criteria_scores(
+            chart,
+            predictors={"target": {"signs": {"Aries": 9}}},
+            calculate_body_weights=_empty_weights,
+            calculate_house_weights=_empty_weights,
+            calculate_nakshatra_weights=_empty_weights,
+            uses_houses=lambda _chart: False,
+        )
+
+        assert scores == {"target": 3.0}
+    finally:
+        predictor.DEFAULT_SCORING_OPTIONS = original

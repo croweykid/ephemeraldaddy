@@ -1937,19 +1937,20 @@ ENNEAGRAM_CATEGORY_FACTOR_ROWS: tuple[tuple[str, str], ...] = (
     ("aspects", "Aspects"),
 )
 
-def build_enneagram_predictor_settings_section(
+def build_predictions_settings_section(
     *,
     dialog: QDialog,
     section_layout: QVBoxLayout,
     subheader_style: str,
     on_option_toggled: Callable[[str, bool], None],
     on_scale_mode_changed: Callable[[str], None],
+    on_dominance_normalization_mode_changed: Callable[[str], None],
 ) -> dict[str, object]:
-    label = QLabel("Enneagram Predictor")
+    label = QLabel("Predictions")
     label.setStyleSheet(subheader_style)
     section_layout.addWidget(label)
     description = _build_settings_help_label(
-        "Configure how Enneagram predictor criteria are scored. Property categories are used only "
+        "Configure how Predictions criteria are scored. Property categories are used only "
         "to parse criteria, not as independent score multipliers."
     )
     #description.setWordWrap(True)
@@ -2011,12 +2012,36 @@ def build_enneagram_predictor_settings_section(
     scale_row.addWidget(scale_combo)
     scale_row.addStretch(1)
     section_layout.addLayout(scale_row)
+
+    dominance_row = QHBoxLayout()
+    dominance_row.addWidget(QLabel("Dominance normalization:"))
+    dominance_combo = QComboBox()
+    for value, title in (
+        ("range", "range"),
+        ("share", "share"),
+    ):
+        dominance_combo.addItem(title, value)
+    dominance_combo.setToolTip(
+        "range normalizes each dominance map to 0..1; share treats active dominance values as shares of the total."
+    )
+    dominance_combo.currentIndexChanged.connect(
+        lambda _idx: on_dominance_normalization_mode_changed(str(dominance_combo.currentData() or "range"))
+    )
+    dominance_row.addWidget(dominance_combo)
+    dominance_row.addStretch(1)
+    section_layout.addLayout(dominance_row)
+
     return {
         "checkboxes": checkboxes,
         "scale_combo": scale_combo,
+        "dominance_combo": dominance_combo,
         # Legacy keys kept so older app/controller paths that still look them up do not crash.
         "default_radio": QRadioButton(dialog),
         "custom_radio": QRadioButton(dialog),
         "weight_spinboxes": {},
         "total_label": QLabel("disabled"),
     }
+
+
+# Backward-compatible alias for callers/tests that still use the old Enneagram-specific name.
+build_enneagram_predictor_settings_section = build_predictions_settings_section
