@@ -1274,7 +1274,7 @@ from ephemeraldaddy.gui.style import (
     CHART_VIEW_TIME_INPUT_WIDTH,
     CHART_VIEW_TIME_OVERWRITE_ENABLED,
     COLLAPSIBLE_SECTION_CONTENT_STYLE,
-    COLLAPSIBLE_SUBSECTION_CONTENT_STYLE,
+    COLLAPSIBLE_NESTED_SECTION_CONTENT_STYLE,
     CRASH_MESSAGE,
     DATABASE_ANALYTICS_CHART_CONTENT_MARGINS,
     DATABASE_ANALYTICS_CHART_CONTAINER_DEBUG_STYLE,
@@ -13346,7 +13346,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
 
         def add_collapsible_section(
-            title: str, *, subsection: bool = False
+            title: str, *, nested: bool = False
         ) -> tuple[QWidget, QVBoxLayout]:
             section = QWidget()
             section_layout = QVBoxLayout()
@@ -13366,8 +13366,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             content_layout.setContentsMargins(8, 6, 8, 6)
             content.setLayout(content_layout)
             content_style = (
-                COLLAPSIBLE_SUBSECTION_CONTENT_STYLE
-                if subsection
+                COLLAPSIBLE_NESTED_SECTION_CONTENT_STYLE
+                if nested
                 else COLLAPSIBLE_SECTION_CONTENT_STYLE
             )
             if DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS:
@@ -13436,7 +13436,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         relationship_section_layout.addWidget(relationship_widget)
         layout.addWidget(relationship_section)
 
-        tagging_section, tagging_section_layout = add_collapsible_section("🏷️Tagging")
+        tagging_section, tagging_section_layout = add_collapsible_section("🏷️Tagging", nested=True)
         tagging_row = QHBoxLayout()
         self.batch_tags_input = QLineEdit()
         self.batch_tags_input.setPlaceholderText("add one tag")
@@ -13475,7 +13475,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         tagging_section_layout.addWidget(self.batch_tags_toggle)
         self.batch_tags_list_widget = QListWidget()
-        self.batch_tags_list_widget.setStyleSheet(COLLAPSIBLE_SUBSECTION_CONTENT_STYLE)
+        self.batch_tags_list_widget.setStyleSheet(COLLAPSIBLE_SECTION_CONTENT_STYLE)
         self.batch_tags_list_widget.setSelectionMode(QListWidget.NoSelection)
         self.batch_tags_list_widget.setMaximumHeight(180)
         self.batch_tags_list_widget.itemClicked.connect(self._on_batch_tag_item_clicked)
