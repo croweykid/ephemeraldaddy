@@ -80,10 +80,19 @@ def test_chart_save_signature_remains_void_for_existing_callers():
     assert not method.rstrip().endswith("return True")
 
 
-def test_retcon_toggle_marks_dirty_before_immediate_autosave():
+def test_retcon_toggle_marks_dirty_before_deferred_autosave():
     method = _method_source("_on_retcon_time_toggled")
     assert "self._mark_lucygoosey()" in method
-    assert method.index("self._mark_lucygoosey()") < method.index("self._autosave_checkbox_state()")
+    assert "self._metadata_autosave_timer.start(2000)" in method
+    assert "self._autosave_checkbox_state()" not in method
+    assert method.index("self._mark_lucygoosey()") < method.index("self._metadata_autosave_timer.start(2000)")
+
+
+def test_retcon_time_edits_defer_autosave_so_leave_prompt_can_win():
+    method = _method_source("_on_retcon_time_changed")
+    assert "self._mark_lucygoosey()" in method
+    assert "self._metadata_autosave_timer.start(2000)" in method
+    assert "self._autosave_checkbox_state()" not in method
 
 
 def test_loaded_rectified_time_is_restored_before_checkbox_enabled():

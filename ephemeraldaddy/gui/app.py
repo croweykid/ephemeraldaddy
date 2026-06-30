@@ -32937,7 +32937,8 @@ class MainWindow(QMainWindow):
             self._mark_lucygoosey()
             self._reset_metric_canvases_for_retcon_timing_update()
             self._refresh_chart_preview()
-            self._autosave_checkbox_state()
+            if self._can_autosave_current_chart():
+                self._metadata_autosave_timer.start(2000)
 
     def _on_birth_time_changed(self, _time: QTime) -> None:
         if (
@@ -32959,7 +32960,8 @@ class MainWindow(QMainWindow):
         if should_refresh_retcon_preview:
             self._reset_metric_canvases_for_retcon_timing_update()
             self._refresh_chart_preview()
-            self._autosave_checkbox_state()
+            if self._can_autosave_current_chart():
+                self._metadata_autosave_timer.start(2000)
 
     def _update_time_input_visibility(self) -> None:
         self.time_edit.setVisible(not self.time_unknown_checkbox.isChecked())
