@@ -13436,7 +13436,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         relationship_section_layout.addWidget(relationship_widget)
         layout.addWidget(relationship_section)
 
-        tagging_section, tagging_section_layout = add_collapsible_section("Tagging")
+        tagging_section, tagging_section_layout = add_collapsible_section("🏷️Tagging")
         tagging_row = QHBoxLayout()
         self.batch_tags_input = QLineEdit()
         self.batch_tags_input.setPlaceholderText("add one tag")
@@ -13469,7 +13469,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.batch_tags_toggle = QToolButton()
         configure_collapsible_header_toggle(
             self.batch_tags_toggle,
-            title="Tags",
+            title="🏷️Tags",
             expanded=False,
             style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
         )

@@ -479,7 +479,7 @@ def _build_hd_uncertain_time_variant_lines(
     lines = [
         "UNCERTAIN TIME VARIANTS",
         CHART_DATA_DIVIDER,
-        "Unknown/rectified birth time: possible 00:00→12:00→23:59 values.",
+        #"Unknown/rectified birth time: possible 00:00→12:00→23:59 values.",
         f"{'Body':<{body_width}}  {'Sign':<{sign_width}}  {'G/L':<{gl_width}}  {'C':<{c_width}}  {'T':<{t_width}}  {'B':<{b_width}}",
         CHART_DATA_DIVIDER,
     ]

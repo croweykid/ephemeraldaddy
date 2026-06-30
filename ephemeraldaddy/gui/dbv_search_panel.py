@@ -684,7 +684,7 @@ def build_dbv_search_panel(window) -> "QWidget":
         section_layout.addWidget(content)
         return section, content_layout
 
-    tags_section, tags_group_layout = add_collapsible_section("Tags")
+    tags_section, tags_group_layout = add_collapsible_section("🏷️Tags")
     tags_group_layout.addLayout(tags_search_row)
     layout.addWidget(tags_section)
 
