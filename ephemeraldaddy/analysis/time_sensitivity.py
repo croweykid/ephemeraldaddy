@@ -20,7 +20,7 @@ from ephemeraldaddy.core.interpretations import (
     ZODIAC_NAMES,
 )
 
-TIME_SENSITIVITY_ALGORITHM_VERSION = "time-sensitivity-v8"
+TIME_SENSITIVITY_ALGORITHM_VERSION = "time-sensitivity-v9"
 TIME_SENSITIVITY_DB_PATH = DB_DIR / "time_sensitivity.db"
 NUMERIC_GROUPS = (
     "dominant_planet_weights",
@@ -160,8 +160,25 @@ def _hd_snapshot(chart: Chart) -> dict[str, Any]:
 
 
 ANGLE_SIGN_CONFIDENCE_KEYS = ("AS", "MC", "DS", "IC")
+_EXTENDED_BODY_SIGN_CONFIDENCE_KEYS = (
+    "Rahu",
+    "Ketu",
+    "Neptune",
+    "Chiron",
+    "Ceres",
+    "Juno",
+    "Pallas",
+    "Vesta",
+    "Lilith",
+    "Lillith",
+    "Part of Fortune",
+    "Fortune",
+)
 BODY_SIGN_CONFIDENCE_KEYS = tuple(
-    body for body in PLANET_ORDER if body not in ANGLE_SIGN_CONFIDENCE_KEYS
+    dict.fromkeys(
+        [body for body in PLANET_ORDER if body not in ANGLE_SIGN_CONFIDENCE_KEYS]
+        + list(_EXTENDED_BODY_SIGN_CONFIDENCE_KEYS)
+    )
 )
 
 
@@ -234,7 +251,7 @@ def _variability_label(percent_delta: float) -> str:
         return "minor"
     if percent_delta < 35.0:
         return "medium"
-    if percent_delta < 75.0:
+    if percent_delta < 50.0:
         return "high"
     return "extreme"
 
@@ -389,6 +406,10 @@ def _aggregate_numeric(
                 "appears_after": (
                     present_times[0] if min_value == 0.0 and present_times else None
                 ),
+                "weight_samples": [
+                    {"time": time, "weight": round(value, 6)}
+                    for time, value in values
+                ],
             }
         ranges[group] = group_ranges
         group_deltas[group] = round(max_group_delta, 2)
