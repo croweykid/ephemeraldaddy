@@ -144,6 +144,48 @@ def _display_label_for_likelihood(group_key: str, label: str) -> str:
     return label
 
 
+def _format_sampled_weight(weight: float) -> str:
+    """Show sampled weights at persisted precision without noisy trailing zeros."""
+    rounded = round(float(weight), 6)
+    if abs(rounded) < 0.0000005:
+        rounded = 0.0
+    return f"{rounded:.6f}".rstrip("0").rstrip(".")
+
+
+def _sampled_weight_points(
+    result: TimeSensitivityResult, group_key: str, labels: list[str]
+) -> tuple[list[float], list[float], list[str], list[str]]:
+    """Return scatterplot coordinates and hover labels for sampled raw weights."""
+    x_values: list[float] = []
+    y_values: list[float] = []
+    point_labels: list[str] = []
+    point_times: list[str] = []
+    ranges = result.numeric_ranges.get(group_key, {})
+    for x_position, label in enumerate(labels):
+        payload = ranges.get(label, {})
+        samples = payload.get("weight_samples", []) if isinstance(payload, dict) else []
+        if not isinstance(samples, list):
+            continue
+        display_label = _display_label_for_likelihood(group_key, label)
+        for sample in samples:
+            if not isinstance(sample, dict):
+                continue
+            time = str(sample.get("time", "")).strip()
+            if not time:
+                continue
+            try:
+                weight = float(sample.get("weight", 0.0))
+            except (TypeError, ValueError):
+                continue
+            x_values.append(float(x_position))
+            y_values.append(weight)
+            point_times.append(time)
+            point_labels.append(
+                f"{display_label}\n{time} • {_format_sampled_weight(weight)}"
+            )
+    return x_values, y_values, point_labels, point_times
+
+
 def _draw_likelihood_chart(
     ax: Any,
     result: TimeSensitivityResult,
@@ -183,6 +225,7 @@ def _draw_likelihood_chart(
     )
     ax.bar(x_positions, minimums, color="#111111", alpha=0.50, edgecolor="none")
     hover_payloads = []
+    scatter_payloads = []
     clickable_artists = []
     for bar, label, display_label, minimum, maximum in zip(
         bars, labels, display_labels, minimums, maximums, strict=True
@@ -194,7 +237,24 @@ def _draw_likelihood_chart(
         hover_payloads.append(
             (bar, f"{display_label}\nmin {minimum:.0f} • max {maximum:.0f}")
         )
-    _install_bar_hover(ax, hover_payloads)
+    point_x, point_y, point_labels, _point_times = _sampled_weight_points(
+        result, group_key, labels
+    )
+    if point_x:
+        scatter = ax.scatter(
+            point_x,
+            point_y,
+            s=24,
+            marker="o",
+            facecolors="#f5f5f5",
+            edgecolors="#111111",
+            linewidths=0.6,
+            alpha=0.96,
+            zorder=5,
+            picker=True,
+        )
+        scatter_payloads.append((scatter, point_labels))
+    _install_bar_hover(ax, hover_payloads, scatter_payloads)
     ax.set_xticks(x_positions, display_labels)
     for tick_label, label in zip(ax.get_xticklabels(), labels, strict=True):
         tick_label.set_picker(True)
@@ -235,8 +295,12 @@ def _install_factor_click(
     ax.figure.canvas.mpl_connect("button_press_event", on_click)
 
 
-def _install_bar_hover(ax: Any, hover_payloads: list[tuple[Any, str]]) -> None:
-    """Attach uncluttered on-hover labels to bars for Qt matplotlib canvases."""
+def _install_bar_hover(
+    ax: Any,
+    hover_payloads: list[tuple[Any, str]],
+    scatter_payloads: list[tuple[Any, list[str]]] | None = None,
+) -> None:
+    """Attach uncluttered on-hover labels to bars and sampled-weight points."""
     annotation = ax.annotate(
         "",
         xy=(0, 0),
@@ -254,6 +318,21 @@ def _install_bar_hover(ax: Any, hover_payloads: list[tuple[Any, str]]) -> None:
                 annotation.set_visible(False)
                 ax.figure.canvas.draw_idle()
             return
+        for scatter, labels in scatter_payloads or []:
+            contains, details = scatter.contains(event)
+            if contains:
+                indices = (
+                    list(details.get("ind", [])) if isinstance(details, dict) else []
+                )
+                if indices:
+                    index = int(indices[0])
+                    offsets = scatter.get_offsets()
+                    x_value, y_value = offsets[index]
+                    annotation.xy = (float(x_value), float(y_value))
+                    annotation.set_text(labels[index])
+                    annotation.set_visible(True)
+                    ax.figure.canvas.draw_idle()
+                    return
         for bar, label in hover_payloads:
             contains, _details = bar.contains(event)
             if contains:

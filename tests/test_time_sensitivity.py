@@ -457,23 +457,18 @@ def test_time_sensitivity_html_colors_min_and_max_against_separate_peer_scales()
     assert "<span style='color:#7a0000;'>2.50</span>" in taurus_item
 
 
-def test_body_sign_confidence_keys_include_nodes_asteroids_lilith_and_fortune():
-    from ephemeraldaddy.analysis.time_sensitivity import BODY_SIGN_CONFIDENCE_KEYS
+def test_body_sign_confidence_keys_follow_planet_order_without_angles():
+    from ephemeraldaddy.analysis.time_sensitivity import (
+        ANGLE_SIGN_CONFIDENCE_KEYS,
+        BODY_SIGN_CONFIDENCE_KEYS,
+    )
+    from ephemeraldaddy.core.interpretations import PLANET_ORDER
 
-    assert {
-        "Rahu",
-        "Ketu",
-        "Neptune",
-        "Chiron",
-        "Ceres",
-        "Juno",
-        "Pallas",
-        "Vesta",
-        "Lilith",
-        "Lillith",
-        "Part of Fortune",
-        "Fortune",
-    }.issubset(BODY_SIGN_CONFIDENCE_KEYS)
+    expected = tuple(
+        body for body in PLANET_ORDER if body not in ANGLE_SIGN_CONFIDENCE_KEYS
+    )
+
+    assert BODY_SIGN_CONFIDENCE_KEYS == expected
 
 
 def test_categorical_snapshot_includes_extended_body_signs():
@@ -493,7 +488,6 @@ def test_categorical_snapshot_includes_extended_body_signs():
             "Vesta": 150.0,
             "Lilith": 210.0,
             "Part of Fortune": 240.0,
-            "Fortune": 270.0,
         }
     )
 
@@ -509,7 +503,6 @@ def test_categorical_snapshot_includes_extended_body_signs():
     assert body_signs["Vesta"] == "Virgo"
     assert body_signs["Lilith"] == "Scorpio"
     assert body_signs["Part of Fortune"] == "Sagittarius"
-    assert body_signs["Fortune"] == "Capricorn"
 
 
 def test_time_sensitivity_confidence_uses_ascertainment_percent_and_bright_green_scale():
@@ -726,3 +719,69 @@ def test_ascertainment_confidence_values_stable_planet_signs_over_volatile_score
     assert confidence["components"]["angle sign stability"] == 50.0
     assert confidence["components"]["human design stability"] == 90.0
     assert confidence["components"]["element/mode/nakshatra stability"] == 100.0
+
+
+def test_aggregate_numeric_records_weight_samples_for_scatterplot_tooltips():
+    from ephemeraldaddy.analysis import time_sensitivity as module
+
+    samples = [
+        {"time": "00:00", "numeric": {group: {} for group in module.NUMERIC_GROUPS}},
+        {"time": "12:00", "numeric": {group: {} for group in module.NUMERIC_GROUPS}},
+    ]
+    for sample, value in zip(samples, (4.0, 9.0), strict=True):
+        sample["numeric"]["dominant_planet_weights"]["example"] = value
+    baseline = {group: {} for group in module.NUMERIC_GROUPS}
+    baseline["dominant_planet_weights"]["example"] = 4.0
+
+    ranges, _group_deltas = module._aggregate_numeric(samples, baseline)
+
+    assert ranges["dominant_planet_weights"]["example"]["weight_samples"] == [
+        {"time": "00:00", "weight": 4.0},
+        {"time": "12:00", "weight": 9.0},
+    ]
+
+
+def test_time_sensitivity_scatter_points_use_sample_times_as_hover_labels():
+    import pytest
+
+    panel_module = pytest.importorskip(
+        "ephemeraldaddy.gui.features.charts.time_sensitivity_panel",
+        exc_type=ImportError,
+    )
+
+    result = TimeSensitivityResult(
+        chart_uid="CHARTUID",
+        chart_name="Example",
+        birth_date_key="01-01-2000",
+        algorithm_version="time-sensitivity-v9",
+        computed_at="2026-06-20T00:00:00Z",
+        config=TimeSensitivityConfig().__dict__,
+        sample_count=2,
+        baseline_time="12:00",
+        overall={},
+        numeric_ranges={
+            "dominant_sign_weights": {
+                "Aries": {
+                    "min": 1.0,
+                    "max": 2.75,
+                    "weight_samples": [
+                        {"time": "00:00", "weight": 1.5},
+                        {"time": "12:00", "weight": 2.75},
+                    ],
+                }
+            }
+        },
+        human_design={},
+        stable=[],
+        variable=[],
+        warnings=[],
+    )
+
+    x_values, y_values, labels, times = panel_module._sampled_weight_points(
+        result, "dominant_sign_weights", ["Aries"]
+    )
+
+    assert x_values == [0.0, 0.0]
+    assert y_values == [1.5, 2.75]
+    assert times == ["00:00", "12:00"]
+    assert labels == ["Aries\n00:00 • 1.5", "Aries\n12:00 • 2.75"]
