@@ -1180,6 +1180,8 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         self._apply_hd_gate_side_color(text, stripped_text)
         self._apply_positions_row_colors(text, stripped_text)
         self._apply_hd_time_variant_colors(text, stripped_text)
+        if _is_chart_data_table_header_line(text):
+            self.setFormat(0, self._qt_len(text), self._plain_bold_format)
         if stripped_text.startswith("Environment:"):
             environment_value = stripped_text.partition(":")[2].strip().removesuffix("ⓘ").strip()
             environment_color_key = environment_value.split("(", 1)[0].strip().title()
