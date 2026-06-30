@@ -8,20 +8,7 @@ from functools import lru_cache
 from math import cos, pi, sin
 from typing import Callable
 
-SIGN_NAMES = (
-    "Aries",
-    "Taurus",
-    "Gemini",
-    "Cancer",
-    "Leo",
-    "Virgo",
-    "Libra",
-    "Scorpio",
-    "Sagittarius",
-    "Capricorn",
-    "Aquarius",
-    "Pisces",
-)
+from ephemeraldaddy.core.interpretations import ZODIAC_NAMES
 SECONDS = lambda n: _dt.timedelta(seconds=n)
 MINUTES = lambda n: _dt.timedelta(minutes=n)
 HOURS = lambda n: _dt.timedelta(hours=n)
@@ -94,7 +81,7 @@ class SignRange:
 
 
 def _sign_for_longitude(longitude: float) -> str:
-    return SIGN_NAMES[int((longitude % 360.0) // 30.0)]
+    return ZODIAC_NAMES[int((longitude % 360.0) // 30.0)]
 
 
 def _timeline_label(days: float) -> str:
@@ -392,7 +379,7 @@ def show_guide_to_the_galaxy(owner: "QWidget") -> None:
     body_combo = QComboBox(dialog)
     body_combo.addItems(DISPLAY_BODIES)
     sign_combo = QComboBox(dialog)
-    sign_combo.addItems(SIGN_NAMES)
+    sign_combo.addItems(ZODIAC_NAMES)
     calculate_button = QPushButton("Show 300-year sign ranges", dialog)
     controls.addWidget(QLabel("Body / point:"))
     controls.addWidget(body_combo)
