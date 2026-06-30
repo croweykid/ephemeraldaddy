@@ -4018,35 +4018,78 @@ class DatabaseAnalyticsChartsMixin:
         self._database_metrics_chart_layouts["traits_distribution"] = self.traits_distribution_chart_layout
         traits_section_layout.addWidget(self.traits_distribution_chart_container)
 
-    def _collect_traits_distribution_analytics(self, chart_ids: list[int] | set[int]) -> dict[str, Any]:
-        trait_items = list_traits(active_only=True)
-        trait_names = [str(item.get("name", "")).strip() for item in trait_items if str(item.get("name", "")).strip()]
+    @staticmethod
+    def _traits_distribution_signature(trait_items: list[dict[str, Any]]) -> tuple[tuple[str, str, str], ...]:
+        return tuple(
+            (
+                str(item.get("name", "")).strip(),
+                normalize_trait_color(str(item.get("color", DEFAULT_TRAIT_COLOR))),
+                repr(item.get("profile", {})),
+            )
+            for item in trait_items
+            if str(item.get("name", "")).strip() and not bool(item.get("archived", False))
+        )
+
+    def _clear_traits_distribution_analytics_cache(self) -> None:
+        self._traits_distribution_analytics_cache = {}
+        self._traits_distribution_chart_likelihood_cache = {}
+
+    def _collect_traits_distribution_analytics(
+        self,
+        chart_ids: list[int] | set[int],
+        trait_items: list[dict[str, Any]] | None = None,
+        trait_signature: tuple[tuple[str, str, str], ...] | None = None,
+    ) -> dict[str, Any]:
+        trait_items = trait_items if trait_items is not None else list_traits(active_only=True)
+        trait_signature = (
+            trait_signature
+            if trait_signature is not None
+            else self._traits_distribution_signature(trait_items)
+        )
+        normalized_chart_ids = tuple(sorted({int(chart_id) for chart_id in chart_ids}))
+        aggregate_cache = getattr(self, "_traits_distribution_analytics_cache", None)
+        if not isinstance(aggregate_cache, dict):
+            aggregate_cache = {}
+            self._traits_distribution_analytics_cache = aggregate_cache
+        aggregate_cache_key = (trait_signature, normalized_chart_ids)
+        cached = aggregate_cache.get(aggregate_cache_key)
+        if isinstance(cached, dict):
+            return copy.deepcopy(cached)
+
+        trait_names = [name for name, _color, _profile in trait_signature]
         totals: dict[str, float] = {name: 0.0 for name in trait_names}
+        colors = {name: color for name, color, _profile in trait_signature}
         chart_count = 0
-        for chart_id in chart_ids:
+        likelihood_cache = getattr(self, "_traits_distribution_chart_likelihood_cache", None)
+        if not isinstance(likelihood_cache, dict):
+            likelihood_cache = {}
+            self._traits_distribution_chart_likelihood_cache = likelihood_cache
+
+        for chart_id in normalized_chart_ids:
             chart = self._get_chart_for_filter(int(chart_id))
             if chart is None or self._is_placeholder_chart(chart):
                 continue
-            try:
-                likelihoods = calculate_trait_likelihoods(chart, trait_items)
-            except Exception:
-                logger.exception(
-                    "Trait likelihood calculation failed for chart %s during database analytics refresh.",
-                    self._debug_chart_label(chart),
-                )
-                continue
+            chart_cache_key = (trait_signature, int(chart_id))
+            likelihoods = likelihood_cache.get(chart_cache_key)
+            if likelihoods is None:
+                try:
+                    likelihoods = calculate_trait_likelihoods(chart, trait_items)
+                except Exception:
+                    logger.exception(
+                        "Trait likelihood calculation failed for chart %s during database analytics refresh.",
+                        self._debug_chart_label(chart),
+                    )
+                    continue
+                likelihood_cache[chart_cache_key] = dict(likelihoods)
             chart_count += 1
             for name in trait_names:
                 try:
                     totals[name] += float(likelihoods.get(name, 0.0)) / 100.0
                 except (TypeError, ValueError):
                     continue
-        colors = {
-            str(item.get("name", "")).strip(): normalize_trait_color(str(item.get("color", DEFAULT_TRAIT_COLOR)))
-            for item in trait_items
-            if str(item.get("name", "")).strip()
-        }
-        return {"trait_names": trait_names, "totals": totals, "chart_count": chart_count, "colors": colors}
+        result = {"trait_names": trait_names, "totals": totals, "chart_count": chart_count, "colors": colors}
+        aggregate_cache[aggregate_cache_key] = copy.deepcopy(result)
+        return result
 
     def _render_traits_distribution_section(
         self,
@@ -4059,8 +4102,21 @@ class DatabaseAnalyticsChartsMixin:
         if not should_refresh("traits_distribution"):
             return
 
-        selection_analytics = self._collect_traits_distribution_analytics(chart_ids)
-        database_analytics = self._collect_traits_distribution_analytics(database_chart_ids)
+        trait_items = list_traits(active_only=True)
+        trait_signature = self._traits_distribution_signature(trait_items)
+        database_analytics = self._collect_traits_distribution_analytics(
+            database_chart_ids,
+            trait_items=trait_items,
+            trait_signature=trait_signature,
+        )
+        if set(chart_ids) == set(database_chart_ids):
+            selection_analytics = copy.deepcopy(database_analytics)
+        else:
+            selection_analytics = self._collect_traits_distribution_analytics(
+                chart_ids,
+                trait_items=trait_items,
+                trait_signature=trait_signature,
+            )
         trait_names = list(database_analytics.get("trait_names", []))
         if not trait_names:
             trait_names = list(selection_analytics.get("trait_names", []))

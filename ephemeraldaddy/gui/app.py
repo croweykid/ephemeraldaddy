@@ -10408,8 +10408,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if changed_ids:
             self._database_metrics_lucy_goosey_ids.update(changed_ids)
             self._database_metrics_preloaded_sections.clear()
+            clear_traits_cache = getattr(self, "_clear_traits_distribution_analytics_cache", None)
+            if callable(clear_traits_cache):
+                clear_traits_cache()
         if force_full_refresh or (update_database_metrics and sections_to_refresh is None):
             self._database_metrics_preloaded_sections.clear()
+            if force_full_refresh:
+                clear_traits_cache = getattr(self, "_clear_traits_distribution_analytics_cache", None)
+                if callable(clear_traits_cache):
+                    clear_traits_cache()
 
         self._update_selection_header()
         if not update_database_metrics and not update_similarities:
