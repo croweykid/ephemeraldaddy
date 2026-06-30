@@ -457,23 +457,18 @@ def test_time_sensitivity_html_colors_min_and_max_against_separate_peer_scales()
     assert "<span style='color:#7a0000;'>2.50</span>" in taurus_item
 
 
-def test_body_sign_confidence_keys_include_nodes_asteroids_lilith_and_fortune():
-    from ephemeraldaddy.analysis.time_sensitivity import BODY_SIGN_CONFIDENCE_KEYS
+def test_body_sign_confidence_keys_follow_planet_order_without_angles():
+    from ephemeraldaddy.analysis.time_sensitivity import (
+        ANGLE_SIGN_CONFIDENCE_KEYS,
+        BODY_SIGN_CONFIDENCE_KEYS,
+    )
+    from ephemeraldaddy.core.interpretations import PLANET_ORDER
 
-    assert {
-        "Rahu",
-        "Ketu",
-        "Neptune",
-        "Chiron",
-        "Ceres",
-        "Juno",
-        "Pallas",
-        "Vesta",
-        "Lilith",
-        "Lillith",
-        "Part of Fortune",
-        "Fortune",
-    }.issubset(BODY_SIGN_CONFIDENCE_KEYS)
+    expected = tuple(
+        body for body in PLANET_ORDER if body not in ANGLE_SIGN_CONFIDENCE_KEYS
+    )
+
+    assert BODY_SIGN_CONFIDENCE_KEYS == expected
 
 
 def test_categorical_snapshot_includes_extended_body_signs():
@@ -493,7 +488,6 @@ def test_categorical_snapshot_includes_extended_body_signs():
             "Vesta": 150.0,
             "Lilith": 210.0,
             "Part of Fortune": 240.0,
-            "Fortune": 270.0,
         }
     )
 
@@ -509,7 +503,6 @@ def test_categorical_snapshot_includes_extended_body_signs():
     assert body_signs["Vesta"] == "Virgo"
     assert body_signs["Lilith"] == "Scorpio"
     assert body_signs["Part of Fortune"] == "Sagittarius"
-    assert body_signs["Fortune"] == "Capricorn"
 
 
 def test_time_sensitivity_confidence_uses_ascertainment_percent_and_bright_green_scale():
