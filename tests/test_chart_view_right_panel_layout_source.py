@@ -60,6 +60,23 @@ def test_dnd_prediction_statblock_uses_standard_vertical_axis_layout():
     assert "_ = apply_standard_bar_axes" not in function
 
 
+def test_dnd_stat_popout_evidence_imports_stat_predictors():
+    source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/dnd_predictions.py").read_text()
+    import_block = source[
+        source.index("from ephemeraldaddy.analysis.dnd.dnd_definitions import (") : source.index(
+            "from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import ("
+        )
+    ]
+    evidence_function = source[
+        source.index("def _build_dnd_stat_evidence_html") : source.index(
+            "def build_dnd_statblock_popout_info_html"
+        )
+    ]
+
+    assert "DND_STAT_PREDICTORS" in import_block
+    assert "DND_STAT_PREDICTORS.get(stat_key, {})" in evidence_function
+
+
 def test_prediction_metric_canvases_redraw_after_stacked_panel_layout_settles():
     source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
 
