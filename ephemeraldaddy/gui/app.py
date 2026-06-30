@@ -10403,7 +10403,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             sections_to_refresh = set(
                 database_metrics_sections_for_changed_fields(changed_fields)
             )
-        if changed_ids:
+        scoped_database_refresh_requested = sections_to_refresh is not None
+        if scoped_database_refresh_requested and not sections_to_refresh:
+            update_database_metrics = False
+        if changed_ids and update_database_metrics:
             self._database_metrics_lucy_goosey_ids.update(changed_ids)
             if sections_to_refresh is None:
                 self._database_metrics_preloaded_sections.clear()

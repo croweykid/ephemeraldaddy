@@ -60,9 +60,13 @@ def test_database_metrics_section_refresh_protocols_are_field_scoped():
     assert '"sentiments": frozenset({"sentiment_prevalence"})' in DB_ANALYTICS_SOURCE
     assert '"gender": frozenset({"gender"})' in DB_ANALYTICS_SOURCE
     assert "def database_metrics_sections_for_changed_fields" in DB_ANALYTICS_SOURCE
+    assert "if changed_fields is None:" in DB_ANALYTICS_SOURCE
+    assert "return frozenset()" in DB_ANALYTICS_SOURCE
     update_method = _method_source(APP_SOURCE, "_update_sentiment_tally")
     assert "changed_fields" in update_method
     assert "database_metrics_sections_for_changed_fields" in update_method
+    assert "if scoped_database_refresh_requested and not sections_to_refresh:" in update_method
+    assert "update_database_metrics = False" in update_method
     assert "self._database_metrics_preloaded_sections.difference_update(sections_to_refresh)" in update_method
     incremental_method = _method_source(APP_SOURCE, "_schedule_incremental_metrics_refresh")
     assert "sections_to_refresh" in incremental_method

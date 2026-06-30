@@ -90,8 +90,10 @@ def database_metrics_sections_for_changed_fields(
     changed_fields: set[str] | frozenset[str] | None,
 ) -> frozenset[str]:
     """Return the Database Analytics sections affected by edited chart fields."""
-    if not changed_fields:
+    if changed_fields is None:
         return frozenset(DATABASE_METRICS_SECTION_ORDER)
+    if not changed_fields:
+        return frozenset()
     sections: set[str] = set()
     for field in changed_fields:
         if field == "birth_data":
