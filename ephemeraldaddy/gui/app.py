@@ -2196,6 +2196,28 @@ def _handle_list_letter_jump(list_widget: QListWidget, event) -> bool:
 
     return False
 
+def _chart_list_item_raw_name(item: QListWidgetItem) -> str:
+    """Return the copy/paste name for a Database View chart-list item."""
+    metadata = item.data(Qt.UserRole + 1)
+    if isinstance(metadata, dict):
+        raw_name = str(metadata.get("raw_name") or "").strip()
+        if raw_name:
+            return raw_name
+    return item.text().strip()
+
+
+def _selected_chart_list_item_names(list_widget: QListWidget) -> list[str]:
+    """Return selected chart names in visible row order for clipboard export."""
+    selected_names: list[str] = []
+    for row in range(list_widget.count()):
+        item = list_widget.item(row)
+        if item is not None and item.isSelected():
+            name = _chart_list_item_raw_name(item)
+            if name:
+                selected_names.append(name)
+    return selected_names
+
+
 class ChartListWidget(QListWidget):
     """List widget with single-letter jump-to-name navigation."""
 
@@ -7107,6 +7129,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         else:
             QMessageBox.warning(self, tool_title, f"Unknown chart tool: {tool_key}")
 
+
+    def _copy_selected_chart_names_to_clipboard(self) -> bool:
+        if self.list_widget is None:
+            return False
+        selected_names = _selected_chart_list_item_names(self.list_widget)
+        if not selected_names:
+            return False
+        QApplication.clipboard().setText("\n".join(selected_names))
+        return True
 
     def _selected_chart_ids(
         self,
@@ -12824,6 +12855,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return True
         list_widget = getattr(self, "list_widget", None)
         if list_widget is not None and obj is list_widget:
+            if event.type() == QEvent.KeyPress and event.matches(QKeySequence.StandardKey.Copy):
+                if self._copy_selected_chart_names_to_clipboard():
+                    return True
             if event.type() == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
                 modifiers = event.modifiers()
                 additive = bool(
