@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import datetime as _dt
+import html as _html
+import re as _re
+from pathlib import Path
 from dataclasses import dataclass
 from functools import lru_cache
 from math import cos, pi, sin
@@ -14,6 +17,7 @@ MINUTES = lambda n: _dt.timedelta(minutes=n)
 HOURS = lambda n: _dt.timedelta(hours=n)
 DAYS = lambda n: _dt.timedelta(days=n)
 INFINITY = float("inf")
+_ACTIVE_RANGE_JOBS: set[tuple[object, object]] = set()
 
 TIMELINE_BUCKETS = (
     {"label": "minute-scale", "max_days": 1 / 24},
@@ -275,50 +279,113 @@ def _build_ranges_html(body_name: str, sign_name: str, ranges: tuple[SignRange, 
     return header + summary + omitted + "<table border='1' cellspacing='0' cellpadding='4'><tr><th>Start</th><th>End</th><th>Duration</th><th>Scale</th></tr>" + "".join(rows) + "</table>"
 
 
-def _show_sidereal_discussion_help(owner: "QWidget") -> None:
-    from PySide6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QVBoxLayout
+
+def _help_file_path(filename: str) -> Path:
+    return Path(__file__).resolve().parent.parent / "help" / filename
+
+
+def _format_inline_help_markup(text: str) -> str:
+    escaped = _html.escape(text)
+    escaped = _re.sub(r"`([^`]+)`", r"<code>\1</code>", escaped)
+    escaped = _re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", escaped)
+    return _re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r'<a href="\2">\1</a>', escaped)
+
+
+def _markdownish_help_to_html(text: str) -> str:
+    blocks: list[str] = []
+    paragraph: list[str] = []
+    ordered: list[str] = []
+    table_rows: list[list[str]] = []
+
+    def flush_paragraph() -> None:
+        nonlocal paragraph
+        if paragraph:
+            blocks.append(f"<p>{' '.join(paragraph)}</p>")
+            paragraph = []
+
+    def flush_ordered() -> None:
+        nonlocal ordered
+        if ordered:
+            blocks.append("<ol>" + "".join(f"<li>{item}</li>" for item in ordered) + "</ol>")
+            ordered = []
+
+    def flush_table() -> None:
+        nonlocal table_rows
+        if table_rows:
+            header, *body = table_rows
+            head_html = "".join(f"<th>{cell}</th>" for cell in header)
+            body_html = "".join("<tr>" + "".join(f"<td>{cell}</td>" for cell in row) + "</tr>" for row in body)
+            blocks.append(f"<table border='1' cellspacing='0' cellpadding='5'><thead><tr>{head_html}</tr></thead><tbody>{body_html}</tbody></table>")
+            table_rows = []
+
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            flush_paragraph()
+            flush_ordered()
+            flush_table()
+            continue
+        if line.startswith("|") and line.endswith("|"):
+            flush_paragraph()
+            flush_ordered()
+            cells = [_format_inline_help_markup(cell.strip()) for cell in line.strip("|").split("|")]
+            if all(set(cell.replace(" ", "")) <= {"-", ":"} for cell in cells):
+                continue
+            table_rows.append(cells)
+            continue
+        flush_table()
+        heading_level = len(line) - len(line.lstrip("#"))
+        if 1 <= heading_level <= 4 and line[heading_level:heading_level + 1] == " ":
+            flush_paragraph()
+            flush_ordered()
+            blocks.append(f"<h{heading_level}>{_format_inline_help_markup(line[heading_level:].strip())}</h{heading_level}>")
+            continue
+        ordered_match = _re.match(r"^\d+\.\s+(.*)$", line)
+        if ordered_match:
+            flush_paragraph()
+            ordered.append(_format_inline_help_markup(ordered_match.group(1)))
+            continue
+        flush_ordered()
+        paragraph.append(_format_inline_help_markup(line))
+
+    flush_paragraph()
+    flush_ordered()
+    flush_table()
+    return "".join(blocks)
+
+
+def _show_help_file(owner: "QWidget", title: str, filename: str) -> None:
+    from PySide6.QtWidgets import QDialog, QDialogButtonBox, QTextBrowser, QVBoxLayout
+
+    try:
+        body = _markdownish_help_to_html(_help_file_path(filename).read_text(encoding="utf-8"))
+    except OSError as exc:
+        body = f"<p><em>Could not load help file: {_html.escape(str(exc))}</em></p>"
 
     dialog = QDialog(owner)
     dialog.setModal(False)
-    dialog.setWindowTitle("Sidereal Discussion")
-    dialog.resize(560, 360)
+    dialog.setWindowTitle(title)
+    dialog.resize(760, 560)
     layout = QVBoxLayout(dialog)
-    label = QLabel(
-        "<h2>Sidereal Discussion</h2>"
-        "<p>This help page is intentionally blank for now.</p>"
-        "<p>Future notes can compare tropical and sidereal reference frames, ayanāṃśa choices, "
-        "and why astrological traditions do not always map one-to-one onto astronomy.</p>"
-    )
-    label.setWordWrap(True)
-    layout.addWidget(label, 1)
+    browser = QTextBrowser(dialog)
+    browser.setOpenExternalLinks(True)
+    browser.setHtml(f"<h1>{_html.escape(title)}</h1>{body}")
+    layout.addWidget(browser, 1)
     buttons = QDialogButtonBox(QDialogButtonBox.Close, parent=dialog)
     buttons.rejected.connect(dialog.reject)
     layout.addWidget(buttons)
     dialog.show()
 
-    def _show_discussion_help(owner: "QWidget") -> None:
-        from PySide6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QVBoxLayout
+def _show_sidereal_discussion_help(owner: "QWidget") -> None:
+    _show_help_file(owner, "Sidereal Discussion", "sidereal_argument.txt")
 
-        dialog = QDialog(owner)
-        dialog.setModal(False)
-        dialog.setWindowTitle("Heliocentric Astrology")
-        dialog.resize(560, 360)
-        layout = QVBoxLayout(dialog)
-        label = QLabel(
-            "<h2>Heliocentric Astrology</h2>"
-            "<p>Aristarchus of Samos, 3rd century BCE was the earliest known heliocentrist in the then-hybrid discipline of astrology/astronomy.</p>"
-            "<p>His own heliocentric work is lost, but Archimedes preserves the claim that Aristarchus proposed the fixed stars and Sun remain still while Earth revolves around the Sun.</p>"
-        )
-        label.setWordWrap(True)
-        layout.addWidget(label, 1)
-        buttons = QDialogButtonBox(QDialogButtonBox.Close, parent=dialog)
-        buttons.rejected.connect(dialog.reject)
-        layout.addWidget(buttons)
-        dialog.show()
+
+def _show_heliocentric_discussion_help(owner: "QWidget") -> None:
+    _show_help_file(owner, "Astrology / Astronomy Schism Timeline", "loose timeline of astrology-astronomy schism.txt")
 
 
 def show_guide_to_the_galaxy(owner: "QWidget") -> None:
-    from PySide6.QtCore import QPointF, QRectF, QTimer, Qt
+    from PySide6.QtCore import QObject, QPointF, QRectF, QThread, QTimer, Qt, Signal, Slot
     from PySide6.QtGui import QColor, QFont, QPainter, QPen
     from PySide6.QtWidgets import (
         QComboBox,
@@ -445,9 +512,16 @@ def show_guide_to_the_galaxy(owner: "QWidget") -> None:
         "<p><em>This is not astronomy. The two are connected, but astronomy is an empirical, materialist science that has been quite differentiated since at least the 1700s. Astrology is subjective metaphysics and many people would deem it a pseudoscience in the pejorative sense. They do reference many of the same basic tools, but they are not entirely in accord. For instance, the <a href='ephemeraldaddy://help/sidereal-discussion'>sidereal discussion</a>.</em></p>"
         "<p>You will notice that the model below reflects observed cosmic phenomena from the perspective of Earth (geocentric model), rather than a literal heliocentric model. The broad tradition of astrology predates the concept of heliocentrism, as far as most remaining <a href='ephemeraldaddy://help/heliocentric_astrology'>historical sources</a> indicate. That said, geocentric astrology is not automatically the same claim as 'geocentric physics'. A birth chart is cast from the native’s location on Earth, so geocentric coordinates make practical sense even in a heliocentric solar system.<p>"
         "<p>Nevertheless, it's worth noting that ancient astrologers usually were not making that modern distinction cleanly. Most probably assumed the geocentric cosmos was physically true, because that was the dominant educated model. This is a significant argument against mainstream adoption of astrology as a viable model for explaining any aspects of reality besides those which emerge out of faith-based and/or subconscious psychological projections.</p>"
-        "<p>Regardless, as far as the developer of this app has been able to personally determine, many aspects of it seem to correlate beyond expected standard deviation reliably enough to warrant further scrutiny, and so I for one am not entirely deterred by its anachronisms. It's possible that some systems function well by using relative rather than absolute observations. I would contend that if there is any validity to astrology, it is only because tropical astrology (specifically) is far more about earthly cycles mapped to celestial patterns rather than the cosmos themselves, a fact which tropical astrologers of any quality acknowledge. The great schism between astrology and astronomy arguably arose out of the distinction that astronomy studied the sky for the sky's sake, whereas in astrology, said cosmos were primarily used as (increasingly symbolic and mythologized) reference points for seasonal shifts, noteworthy impacts on temperature, weather, lighting. From this standpoint, the prior's validity conceivably remains in tact.</p>"
+        "<p>Regardless, as far as the developer of this app has been able to personally determine, many aspects of it seem to correlate beyond expected standard deviation reliably enough to warrant further scrutiny, and so I for one am not entirely deterred by its anachronisms. It's possible that some systems function well by using relative rather than absolute observations. I would contend that if there is any validity to astrology, it is only because tropical astrology (specifically) is far more about earthly cycles mapped to celestial patterns rather than the cosmos themselves, a fact which tropical astrologers of any quality acknowledge. The <a href='ephemeraldaddy://help/heliocentric_astrology'>great schism between astrology and astronomy</a> arguably arose out of the distinction that astronomy studied the sky for the sky's sake, whereas in astrology, said cosmos were primarily used as (increasingly symbolic and mythologized) reference points for seasonal shifts, noteworthy impacts on temperature, weather, lighting. From this standpoint, the prior's validity conceivably remains in tact.</p>"
     )
-    subhead.anchorClicked.connect(lambda _url: _show_sidereal_discussion_help(dialog))
+
+    def open_subhead_help(url):  # noqa: ANN001
+        if url.host() == "help" and url.path().strip("/") in {"sidereal-discussion", "sidereal_discussion"}:
+            _show_sidereal_discussion_help(dialog)
+        elif url.host() == "help" and url.path().strip("/") in {"heliocentric-astrology", "heliocentric_astrology"}:
+            _show_heliocentric_discussion_help(dialog)
+
+    subhead.anchorClicked.connect(open_subhead_help)
     layout.addWidget(subhead)
 
     row = QHBoxLayout()
@@ -493,19 +567,77 @@ def show_guide_to_the_galaxy(owner: "QWidget") -> None:
     row.addLayout(right, 2)
     layout.addLayout(row, 1)
 
+    class SignRangeWorker(QObject):
+        finished = Signal(str, str, object, object)
+
+        def __init__(self, body: str, sign: str) -> None:
+            super().__init__()
+            self._body = body
+            self._sign = sign
+
+        @Slot()
+        def run(self) -> None:
+            try:
+                ranges = sign_ranges_for_body(
+                    self._body,
+                    self._sign,
+                    BODY_UI_META[self._body]["default_window_years"],
+                    100,
+                )
+                self.finished.emit(self._body, self._sign, ranges, None)
+            except Exception as exc:  # defensive UI boundary for optional ephemeris data
+                self.finished.emit(self._body, self._sign, (), exc)
+
+    range_job: dict[str, object | None] = {"thread": None, "worker": None}
+    dialog_alive = {"value": True}
+
+    def _mark_dialog_closed() -> None:
+        dialog_alive["value"] = False
+
+    dialog.destroyed.connect(_mark_dialog_closed)
+
+    def _finish_range_job(thread: QThread, worker: SignRangeWorker) -> None:
+        range_job["thread"] = None
+        range_job["worker"] = None
+
+        def forget_job() -> None:
+            _ACTIVE_RANGE_JOBS.discard((thread, worker))
+            thread.deleteLater()
+
+        thread.finished.connect(forget_job)
+        worker.deleteLater()
+        thread.quit()
+
     def refresh_ranges() -> None:
         body = body_combo.currentText()
         sign = sign_combo.currentText()
         calculate_button.setEnabled(False)
         calculate_button.setText("Calculating…")
-        try:
-            ranges = sign_ranges_for_body(body, sign, BODY_UI_META[body]["default_window_years"], 100)
-            explain.setHtml(_build_ranges_html(body, sign, ranges))
-        except Exception as exc:  # defensive UI boundary for optional ephemeris data
-            explain.setHtml(f"<h2>{body} in {sign}</h2><p><em>Could not calculate ranges from the built-in ephemeris: {exc}</em></p>")
-        finally:
-            calculate_button.setEnabled(True)
-            calculate_button.setText("Show 300y past / 100y future sign ranges")
+        explain.setHtml(f"<h2>{body} in {sign}</h2><p><em>Calculating sign ranges in the background…</em></p>")
+
+        thread = QThread()
+        worker = SignRangeWorker(body, sign)
+        worker.moveToThread(thread)
+        range_job["thread"] = thread
+        range_job["worker"] = worker
+        _ACTIVE_RANGE_JOBS.add((thread, worker))
+
+        def handle_finished(done_body: str, done_sign: str, ranges: object, error: object) -> None:
+            if dialog_alive["value"]:
+                try:
+                    if error is None:
+                        explain.setHtml(_build_ranges_html(done_body, done_sign, ranges))
+                    else:
+                        explain.setHtml(f"<h2>{done_body} in {done_sign}</h2><p><em>Could not calculate ranges from the built-in ephemeris: {error}</em></p>")
+                    calculate_button.setEnabled(True)
+                    calculate_button.setText("Show 300y past / 100y future sign ranges")
+                except RuntimeError:
+                    dialog_alive["value"] = False
+            _finish_range_job(thread, worker)
+
+        thread.started.connect(worker.run)
+        worker.finished.connect(handle_finished)
+        thread.start()
 
     calculate_button.clicked.connect(refresh_ranges)
     buttons = QDialogButtonBox(QDialogButtonBox.Close, parent=dialog)
