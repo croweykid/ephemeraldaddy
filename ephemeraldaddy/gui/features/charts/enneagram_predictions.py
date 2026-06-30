@@ -35,6 +35,7 @@ from ephemeraldaddy.core.chart import chart_uses_houses
 from ephemeraldaddy.analysis.weighted_chart_predictor import (
     DEFAULT_CATEGORY_WEIGHTS as WEIGHTED_PREDICTOR_DEFAULT_CATEGORY_WEIGHTS,
     DOMINANCE_NORMALIZATION_SHARE,
+    PREDICTION_SCORE_MODE_OPPORTUNITY,
     TYPE_SIGNATURE_SCALE_SQRT,
     WeightedPredictorScoringOptions,
     calculate_weighted_criteria_scores,
@@ -54,7 +55,9 @@ ENNEAGRAM_SCORING_OPTIONS = WeightedPredictorScoringOptions(
     simplify_anti_factor_handling=True,
     average_scores_by_criterion_count=False,
     type_signature_scale_mode=TYPE_SIGNATURE_SCALE_SQRT,
+    score_mode=PREDICTION_SCORE_MODE_OPPORTUNITY,
     dominance_normalization_mode=DOMINANCE_NORMALIZATION_SHARE,
+    use_mutual_exclusive_bucket_scoring=True,
     human_design_activation_weight=1.0,
 )
 ENNEAGRAM_REALM_DISPLAY_ORDER = ("head", "heart", "body")
@@ -90,7 +93,9 @@ def default_enneagram_scoring_options() -> WeightedPredictorScoringOptions:
         simplify_anti_factor_handling=True,
         average_scores_by_criterion_count=False,
         type_signature_scale_mode=TYPE_SIGNATURE_SCALE_SQRT,
+        score_mode=PREDICTION_SCORE_MODE_OPPORTUNITY,
         dominance_normalization_mode=DOMINANCE_NORMALIZATION_SHARE,
+        use_mutual_exclusive_bucket_scoring=True,
         human_design_activation_weight=1.0,
     )
 
@@ -107,7 +112,9 @@ def merge_enneagram_scoring_options(payload: Any) -> WeightedPredictorScoringOpt
         "simplify_anti_factor_handling": defaults.simplify_anti_factor_handling,
         "average_scores_by_criterion_count": defaults.average_scores_by_criterion_count,
         "type_signature_scale_mode": defaults.type_signature_scale_mode,
+        "score_mode": defaults.score_mode,
         "dominance_normalization_mode": defaults.dominance_normalization_mode,
+        "use_mutual_exclusive_bucket_scoring": defaults.use_mutual_exclusive_bucket_scoring,
         "human_design_activation_weight": defaults.human_design_activation_weight,
     }
     merged.update(payload)
@@ -131,7 +138,9 @@ def enneagram_scoring_options_to_payload(options: WeightedPredictorScoringOption
         "simplify_anti_factor_handling": bool(options.simplify_anti_factor_handling),
         "average_scores_by_criterion_count": bool(options.average_scores_by_criterion_count),
         "type_signature_scale_mode": str(options.type_signature_scale_mode or TYPE_SIGNATURE_SCALE_SQRT),
+        "score_mode": str(options.score_mode or PREDICTION_SCORE_MODE_OPPORTUNITY),
         "dominance_normalization_mode": str(options.dominance_normalization_mode or DOMINANCE_NORMALIZATION_SHARE),
+        "use_mutual_exclusive_bucket_scoring": bool(options.use_mutual_exclusive_bucket_scoring),
         "human_design_activation_weight": float(options.human_design_activation_weight),
     }
 

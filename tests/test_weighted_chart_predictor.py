@@ -428,3 +428,111 @@ def test_process_default_scoring_options_are_configurable_for_shared_predictions
         assert scores == {"target": 3.0}
     finally:
         predictor.DEFAULT_SCORING_OPTIONS = original
+
+
+def test_prediction_score_mode_raw_skips_type_opportunity_scaling():
+    chart = SimpleNamespace(dominant_sign_weights={"Aries": 1})
+
+    scores = calculate_weighted_criteria_scores(
+        chart,
+        predictors={"target": {"signs": {"Aries": 9}}},
+        calculate_body_weights=_empty_weights,
+        calculate_house_weights=_empty_weights,
+        calculate_nakshatra_weights=_empty_weights,
+        uses_houses=lambda _chart: False,
+        scoring_options=WeightedPredictorScoringOptions(
+            average_scores_by_criterion_count=False,
+            type_signature_scale_mode="sqrt",
+            score_mode="raw",
+            dominance_normalization_mode="share",
+        ),
+    )
+
+    assert scores == {"target": 9.0}
+
+
+def test_background_z_score_mode_uses_supplied_target_distribution():
+    chart = SimpleNamespace(dominant_sign_weights={"Aries": 1})
+
+    scores = calculate_weighted_criteria_scores(
+        chart,
+        predictors={"target": {"signs": {"Aries": 9}}},
+        calculate_body_weights=_empty_weights,
+        calculate_house_weights=_empty_weights,
+        calculate_nakshatra_weights=_empty_weights,
+        uses_houses=lambda _chart: False,
+        scoring_options=WeightedPredictorScoringOptions(
+            average_scores_by_criterion_count=False,
+            type_signature_scale_mode="sqrt",
+            score_mode="background_z",
+            dominance_normalization_mode="share",
+        ),
+        background_score_stats={"target": {"mean": 1.0, "stddev": 2.0}},
+    )
+
+    assert scores == {"target": 1.0}
+
+
+def test_category_z_score_mode_combines_supplied_category_distributions():
+    chart = SimpleNamespace(dominant_sign_weights={"Aries": 1}, human_design_type="Generator", human_design_defined_centers=["Sacral"], human_design_profile="1/3", human_design_authority="Sacral")
+
+    scores = calculate_weighted_criteria_scores(
+        chart,
+        predictors={"target": {"signs": {"Aries": 4}, "hdtypes": {"Generator": 2}}},
+        calculate_body_weights=_empty_weights,
+        calculate_house_weights=_empty_weights,
+        calculate_nakshatra_weights=_empty_weights,
+        uses_houses=lambda _chart: False,
+        scoring_options=WeightedPredictorScoringOptions(
+            average_scores_by_criterion_count=False,
+            score_mode="category_z",
+            dominance_normalization_mode="share",
+        ),
+        category_background_stats={
+            "target": {
+                "signs": {"mean": 2.0, "stddev": 2.0},
+                "hdtypes": {"mean": 1.0, "stddev": 1.0},
+            }
+        },
+    )
+
+    assert scores == {"target": 1.0}
+
+
+def test_mutual_exclusive_bucket_scoring_limits_singleton_opportunity_weight():
+    chart = SimpleNamespace(dominant_sign_weights={"Aries": 1}, human_design_type="Generator", human_design_defined_centers=["Sacral"], human_design_profile="1/3", human_design_authority="Sacral")
+    predictors = {"target": {"hdtypes": {"Generator": 9, "Projector": 9, "Reflector": 9}}}
+
+    bucketed = calculate_weighted_criteria_scores(
+        chart,
+        predictors=predictors,
+        calculate_sign_weights=_empty_weights,
+        calculate_body_weights=_empty_weights,
+        calculate_house_weights=_empty_weights,
+        calculate_nakshatra_weights=_empty_weights,
+        uses_houses=lambda _chart: False,
+        scoring_options=WeightedPredictorScoringOptions(
+            average_scores_by_criterion_count=False,
+            type_signature_scale_mode="sqrt",
+            score_mode="opportunity",
+            use_mutual_exclusive_bucket_scoring=True,
+        ),
+    )
+    unbucketed = calculate_weighted_criteria_scores(
+        chart,
+        predictors=predictors,
+        calculate_sign_weights=_empty_weights,
+        calculate_body_weights=_empty_weights,
+        calculate_house_weights=_empty_weights,
+        calculate_nakshatra_weights=_empty_weights,
+        uses_houses=lambda _chart: False,
+        scoring_options=WeightedPredictorScoringOptions(
+            average_scores_by_criterion_count=False,
+            type_signature_scale_mode="sqrt",
+            score_mode="opportunity",
+            use_mutual_exclusive_bucket_scoring=False,
+        ),
+    )
+
+    assert bucketed == {"target": 3.0}
+    assert round(unbucketed["target"], 2) == 1.73
