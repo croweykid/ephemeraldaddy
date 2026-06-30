@@ -49,6 +49,8 @@ def test_sqrt_type_opportunity_scaling_ignores_unavailable_house_signature_weigh
                 "signs": {"Aries": 9},
                 "houses": {1: 9, 2: 9, 3: 9},
                 "antihouses": {4: 9},
+                "positions": {"Moon in H8": 9, "Cancer in H4": 9},
+                "antipositions": {"Mars in H12": 9},
             },
         },
         calculate_body_weights=lambda _chart: {},
