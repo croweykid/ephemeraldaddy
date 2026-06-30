@@ -133,14 +133,20 @@ def _refine_boundary(body_name: str, before: _dt.datetime, after: _dt.datetime, 
 
 
 @lru_cache(maxsize=96)
-def sign_ranges_for_body(body_name: str, sign_name: str, window_years: int = 300) -> tuple[SignRange, ...]:
+def sign_ranges_for_body(
+    body_name: str,
+    sign_name: str,
+    past_window_years: int = 300,
+    future_window_years: int = 100,
+) -> tuple[SignRange, ...]:
     if body_name in _UNSUPPORTED_RANGE_BODIES:
         return ()
     meta = BODY_UI_META[body_name]
     step = meta["sample_step"]
     tolerance = meta["boundary_tolerance"]
-    end = _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0)
-    start = end - _dt.timedelta(days=int(window_years * 365.2425))
+    now = _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0)
+    start = now - _dt.timedelta(days=int(past_window_years * 365.2425))
+    end = now + _dt.timedelta(days=int(future_window_years * 365.2425))
     cursor = start
     first_lon = _body_longitude(cursor, body_name)
     if first_lon is None:
@@ -223,7 +229,7 @@ def _build_ranges_html(body_name: str, sign_name: str, ranges: tuple[SignRange, 
         sorted_durations = sorted(durations)
         typical = sorted_durations[len(sorted_durations) // 2]
         summary = (
-            "<h3>300-year summary</h3>"
+            "<h3>400-year summary (300 past / 100 future)</h3>"
             f"<p><strong>Complete occurrences:</strong> {len(complete_ranges)}<br/>"
             f"<strong>Open edge intervals excluded:</strong> {open_count}<br/>"
             f"<strong>Shortest:</strong> {_duration_text(shortest)} ({_timeline_label(shortest)})<br/>"
@@ -232,14 +238,21 @@ def _build_ranges_html(body_name: str, sign_name: str, ranges: tuple[SignRange, 
         )
     else:
         summary = (
-            "<h3>300-year summary</h3>"
+            "<h3>400-year summary (300 past / 100 future)</h3>"
             f"<p><strong>Complete occurrences:</strong> 0<br/>"
             f"<strong>Open edge intervals excluded:</strong> {open_count}</p>"
             "<p><em>The selected body/sign only appeared as a leading or trailing open interval in this window, "
             "so no complete duration summary is shown.</em></p>"
         )
+    now = _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0)
+    preferred_display_end = now + _dt.timedelta(days=int(50 * 365.2425))
+    display_ranges = [item for item in ranges if item.start <= preferred_display_end][-80:]
+    if len(display_ranges) < 80:
+        display_ranges.extend(item for item in ranges if item.start > preferred_display_end)
+        display_ranges = display_ranges[:80]
+
     rows = []
-    for item in ranges[-80:]:
+    for item in display_ranges:
         start_text = "open before scan" if item.open_start else _format_dt(item.start)
         end_text = "still in sign at scan end" if item.open_end else _format_dt(item.end)
         duration_text = (
@@ -257,8 +270,8 @@ def _build_ranges_html(body_name: str, sign_name: str, ranges: tuple[SignRange, 
             "</tr>"
         )
     omitted = ""
-    if len(ranges) > 80:
-        omitted = f"<p><em>Showing the latest 80 of {len(ranges)} ranges to keep the panel readable.</em></p>"
+    if len(ranges) > len(display_ranges):
+        omitted = f"<p><em>Showing 80 of {len(ranges)} ranges to keep the panel readable, ending near 50 years in the future when available.</em></p>"
     return header + summary + omitted + "<table border='1' cellspacing='0' cellpadding='4'><tr><th>Start</th><th>End</th><th>Duration</th><th>Scale</th></tr>" + "".join(rows) + "</table>"
 
 
@@ -443,7 +456,7 @@ def show_guide_to_the_galaxy(owner: "QWidget") -> None:
     body_combo.addItems(DISPLAY_BODIES)
     sign_combo = QComboBox(dialog)
     sign_combo.addItems(ZODIAC_NAMES)
-    calculate_button = QPushButton("Show 300-year sign ranges", dialog)
+    calculate_button = QPushButton("Show 300y past / 100y future sign ranges", dialog)
     controls.addWidget(QLabel("Body / point:"))
     controls.addWidget(body_combo)
     controls.addWidget(QLabel("Sign:"))
@@ -486,13 +499,13 @@ def show_guide_to_the_galaxy(owner: "QWidget") -> None:
         calculate_button.setEnabled(False)
         calculate_button.setText("Calculating…")
         try:
-            ranges = sign_ranges_for_body(body, sign, BODY_UI_META[body]["default_window_years"])
+            ranges = sign_ranges_for_body(body, sign, BODY_UI_META[body]["default_window_years"], 100)
             explain.setHtml(_build_ranges_html(body, sign, ranges))
         except Exception as exc:  # defensive UI boundary for optional ephemeris data
             explain.setHtml(f"<h2>{body} in {sign}</h2><p><em>Could not calculate ranges from the built-in ephemeris: {exc}</em></p>")
         finally:
             calculate_button.setEnabled(True)
-            calculate_button.setText("Show 300-year sign ranges")
+            calculate_button.setText("Show 300y past / 100y future sign ranges")
 
     calculate_button.clicked.connect(refresh_ranges)
     buttons = QDialogButtonBox(QDialogButtonBox.Close, parent=dialog)
