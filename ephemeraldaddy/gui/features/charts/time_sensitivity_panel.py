@@ -522,10 +522,9 @@ def _color_code_text(text: str, *, sign_link_kind: str = "sign") -> str:
     return _COLOR_CODE_PATTERN.sub(replace, escaped_text)
 
 
-
 def _time_sensitivity_variable_item_html(result: TimeSensitivityResult, item: str) -> str:
     text = str(item)
-    if text.startswith("Ascendant:"):
+    if text.startswith(("Ascendant:", "AS:")):
         prefix, values_text = text.split(":", 1)
         linked_values = []
         for sign in [part.strip() for part in values_text.split("/") if part.strip()]:
@@ -546,15 +545,29 @@ def time_sensitivity_categorical_spans(
     spans_by_category = (
         overall.get("categorical_value_spans", {}) if isinstance(overall, dict) else {}
     )
-    spans_by_value = (
-        spans_by_category.get(category, {}) if isinstance(spans_by_category, dict) else {}
-    )
-    spans = (
-        spans_by_value.get(str(value or "").strip().title(), [])
-        if isinstance(spans_by_value, dict)
-        else []
-    )
-    return [str(span) for span in spans if str(span).strip()]
+    if not isinstance(spans_by_category, dict):
+        return []
+
+    category_key = str(category or "").strip()
+    category_aliases = {
+        "Ascendant": ("Ascendant", "AS"),
+        "AS": ("AS", "Ascendant"),
+    }.get(category_key, (category_key,))
+    value_key = str(value or "").strip()
+    value_aliases = dict.fromkeys((value_key, value_key.title(), value_key.upper()))
+
+    for candidate_category in category_aliases:
+        spans_by_value = spans_by_category.get(candidate_category, {})
+        if not isinstance(spans_by_value, dict):
+            continue
+        for candidate_value in value_aliases:
+            spans = spans_by_value.get(candidate_value, [])
+            if spans:
+                return [str(span) for span in spans if str(span).strip()]
+        for stored_value, spans in spans_by_value.items():
+            if str(stored_value).strip().casefold() == value_key.casefold() and spans:
+                return [str(span) for span in spans if str(span).strip()]
+    return []
 
 
 def build_time_sensitivity_ascendant_sign_info_text(

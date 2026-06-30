@@ -721,27 +721,7 @@ def test_ascertainment_confidence_values_stable_planet_signs_over_volatile_score
     assert confidence["components"]["element/mode/nakshatra stability"] == 100.0
 
 
-def test_aggregate_numeric_records_weight_samples_for_scatterplot_tooltips():
-    from ephemeraldaddy.analysis import time_sensitivity as module
-
-    samples = [
-        {"time": "00:00", "numeric": {group: {} for group in module.NUMERIC_GROUPS}},
-        {"time": "12:00", "numeric": {group: {} for group in module.NUMERIC_GROUPS}},
-    ]
-    for sample, value in zip(samples, (4.0, 9.0), strict=True):
-        sample["numeric"]["dominant_planet_weights"]["example"] = value
-    baseline = {group: {} for group in module.NUMERIC_GROUPS}
-    baseline["dominant_planet_weights"]["example"] = 4.0
-
-    ranges, _group_deltas = module._aggregate_numeric(samples, baseline)
-
-    assert ranges["dominant_planet_weights"]["example"]["weight_samples"] == [
-        {"time": "00:00", "weight": 4.0},
-        {"time": "12:00", "weight": 9.0},
-    ]
-
-
-def test_time_sensitivity_scatter_points_use_sample_times_as_hover_labels():
+def test_time_sensitivity_ascendant_info_uses_legacy_as_spans():
     import pytest
 
     panel_module = pytest.importorskip(
@@ -753,35 +733,22 @@ def test_time_sensitivity_scatter_points_use_sample_times_as_hover_labels():
         chart_uid="CHARTUID",
         chart_name="Example",
         birth_date_key="01-01-2000",
-        algorithm_version="time-sensitivity-v9",
+        algorithm_version="time-sensitivity-v7",
         computed_at="2026-06-20T00:00:00Z",
         config=TimeSensitivityConfig().__dict__,
         sample_count=2,
         baseline_time="12:00",
-        overall={},
-        numeric_ranges={
-            "dominant_sign_weights": {
-                "Aries": {
-                    "min": 1.0,
-                    "max": 2.75,
-                    "weight_samples": [
-                        {"time": "00:00", "weight": 1.5},
-                        {"time": "12:00", "weight": 2.75},
-                    ],
-                }
-            }
-        },
+        overall={"categorical_value_spans": {"AS": {"aries": ["00:00–01:00"]}}},
+        numeric_ranges={},
         human_design={},
         stable=[],
-        variable=[],
+        variable=["AS: aries / taurus"],
         warnings=[],
     )
 
-    x_values, y_values, labels, times = panel_module._sampled_weight_points(
-        result, "dominant_sign_weights", ["Aries"]
-    )
+    html = panel_module.format_time_sensitivity_result_html(result)
+    assert "distinguishing-factor:ts-ascendant-sign:Aries" in html
 
-    assert x_values == [0.0, 0.0]
-    assert y_values == [1.5, 2.75]
-    assert times == ["00:00", "12:00"]
-    assert labels == ["Aries\n00:00 • 1.5", "Aries\n12:00 • 2.75"]
+    text = panel_module.build_time_sensitivity_ascendant_sign_info_text(result, "Aries")
+    assert "from 00:00 to 01:00" in text
+    assert "from n/a to n/a" not in text
