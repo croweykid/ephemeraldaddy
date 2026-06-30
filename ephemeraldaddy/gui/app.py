@@ -827,9 +827,11 @@ from ephemeraldaddy.gui.features.charts.search_text import (
 )
 
 from ephemeraldaddy.gui.features.charts.database_analytics import (
+    DATABASE_METRICS_SECTION_ORDER,
     DatabaseAnalyticsChartsMixin,
     apply_decan_snapshot_delta,
     apply_nakshatra_snapshot_delta,
+    database_metrics_sections_for_changed_fields,
     decans_dropdown_options,
     decans_empty_cache_fields,
     nakshatras_dropdown_options,
@@ -1219,30 +1221,6 @@ CHART_VIEW_NAV_CACHE_LIMIT = 24
 
 DATABASE_METRICS_PERSISTENT_CACHE_VERSION = 1
 DATABASE_METRICS_PERSISTENT_CACHE_FILENAME = ".database_metrics_cache.json"
-DATABASE_METRICS_SECTION_ORDER: tuple[str, ...] = (
-    "planetary_sign_prevalence",
-    "sentiment_prevalence",
-    "relationship_prevalence",
-    "alignment_summary",
-    "matched_expectations_summary",
-    "sign_prevalence",
-    "dominant_signs",
-    "decans",
-    "nakshatras",
-    "cumulativedom_factors",
-    "enneagram",
-    "species_distribution",
-    "birth_time",
-    "age",
-    "birth_month",
-    "birthplace",
-    "tag_distribution",
-    "traits_distribution",
-    "gender",
-    "human_design",
-    "bazi",
-)
-
 GENERATION_UNKNOWN_OPTION = "unknown"
 GENERATION_FILTER_OPTIONS: tuple[str, ...] = tuple(
     [
@@ -2487,6 +2465,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._incremental_metrics_refresh_scheduled = False
         self._deferred_database_metrics_refresh_scheduled = False
         self._deferred_database_metrics_changed_ids: set[int] = set()
+        self._deferred_database_metrics_sections: set[str] = set()
         self._deferred_database_metrics_force_full_refresh = False
         self._database_metrics_background_preload_scheduled = False
         self._database_metrics_background_preload_sections: list[str] = []
@@ -3319,9 +3298,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self,
         *,
         changed_ids: set[int] | None = None,
+        sections_to_refresh: set[str] | frozenset[str] | None = None,
         force_full_refresh: bool = False,
     ) -> None:
-        self._incremental_metrics_refresh_sections = self._expanded_database_metric_sections()
+        expanded_sections = self._expanded_database_metric_sections()
+        if sections_to_refresh is not None:
+            allowed_sections = set(sections_to_refresh)
+            expanded_sections = [
+                section_key
+                for section_key in expanded_sections
+                if section_key in allowed_sections
+            ]
+        self._incremental_metrics_refresh_sections = expanded_sections
         self._incremental_metrics_refresh_changed_ids = set(changed_ids or set())
         self._incremental_metrics_force_full_refresh = force_full_refresh
         if self._incremental_metrics_refresh_scheduled:
@@ -10440,16 +10428,29 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         show_progress: bool = False,
         force_full_refresh: bool = False,
         changed_ids: set[int] | None = None,
+        changed_fields: set[str] | frozenset[str] | None = None,
         *,
         update_database_metrics: bool = True,
         update_similarities: bool = True,
         sections_to_refresh: set[str] | None = None,
     ) -> None:
-        if changed_ids:
+        if sections_to_refresh is None and changed_ids and changed_fields is not None:
+            sections_to_refresh = set(
+                database_metrics_sections_for_changed_fields(changed_fields)
+            )
+        scoped_database_refresh_requested = sections_to_refresh is not None
+        if scoped_database_refresh_requested and not sections_to_refresh:
+            update_database_metrics = False
+        if changed_ids and update_database_metrics:
             self._database_metrics_lucy_goosey_ids.update(changed_ids)
-            self._database_metrics_preloaded_sections.clear()
+            if sections_to_refresh is None:
+                self._database_metrics_preloaded_sections.clear()
+            else:
+                self._database_metrics_preloaded_sections.difference_update(sections_to_refresh)
             clear_traits_cache = getattr(self, "_clear_traits_distribution_analytics_cache", None)
-            if callable(clear_traits_cache):
+            if callable(clear_traits_cache) and (
+                sections_to_refresh is None or "traits_distribution" in sections_to_refresh
+            ):
                 clear_traits_cache(changed_ids)
         if force_full_refresh or (update_database_metrics and sections_to_refresh is None):
             self._database_metrics_preloaded_sections.clear()
@@ -14863,6 +14864,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._update_sentiment_tally(
             show_progress=True,
             changed_ids=changed_ids,
+            changed_fields={"sentiments"},
         )
         self._update_batch_edit_state()
         self._refresh_filters_after_batch_edit(changed_ids)
@@ -14945,6 +14947,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._update_sentiment_tally(
             show_progress=True,
             changed_ids=changed_ids,
+            changed_fields={"relationship_types"},
         )
         self._update_batch_edit_state()
         self._refresh_filters_after_batch_edit(changed_ids)
@@ -15016,6 +15019,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._update_sentiment_tally(
                 show_progress=True,
                 changed_ids=changed_ids,
+                changed_fields=set(),
             )
             self._update_batch_edit_state()
             self._refresh_filters_after_batch_edit(changed_ids)
@@ -15088,9 +15092,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
 
         changed_ids = set(chart_ids)
+        metric_sections = {"matched_expectations"} if metric_attr == "matched_expectations" else set()
         self._update_sentiment_tally(
             show_progress=True,
             changed_ids=changed_ids,
+            changed_fields=metric_sections,
         )
         self._set_batch_metric_lucygoosey_state(metric_attr, False)
         self._update_batch_edit_state()
@@ -15227,6 +15233,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._update_sentiment_tally(
             show_progress=True,
             changed_ids=changed_ids,
+            changed_fields={"alignment"},
         )
         self._update_batch_edit_state()
         self._refresh_filters_after_batch_edit(changed_ids)
@@ -15352,6 +15359,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._update_sentiment_tally(
             show_progress=True,
             changed_ids=changed_ids,
+            changed_fields={"birth_data"},
         )
         self._update_batch_edit_state()
         self._refresh_filters_after_batch_edit(changed_ids)
@@ -15406,6 +15414,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._update_sentiment_tally(
             show_progress=True,
             changed_ids=changed_ids,
+            changed_fields={"gender"},
         )
         self._update_batch_edit_state()
         self._refresh_filters_after_batch_edit(changed_ids)
@@ -15460,6 +15469,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._update_sentiment_tally(
             show_progress=True,
             changed_ids=changed_ids,
+            changed_fields={"birth_data"},
         )
         self._update_batch_edit_state()
         self._refresh_filters_after_batch_edit(changed_ids)
@@ -15512,6 +15522,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._update_sentiment_tally(
             show_progress=True,
             changed_ids=changed_ids,
+            changed_fields={"birth_data"},
         )
         self._update_batch_edit_state()
         self._refresh_filters_after_batch_edit(changed_ids)
@@ -15671,6 +15682,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.left_panel_stack.setCurrentWidget(widget)
         self._active_left_panel = panel_name
         self._set_left_panel_visible(True)
+        previous_database_metrics_baseline_mode = self._database_metrics_baseline_mode
 
         if panel_name == "database_metrics":
             self.database_metrics_panel_header_label.setText("Database Analytics")
@@ -15683,8 +15695,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._sync_database_metrics_section_visibility()
             self._update_position_sign_subheader()
             self._update_gender_subheader()
-            self._show_database_analytics_pending_indicator(True)
-            self._schedule_deferred_database_metrics_refresh()
+            self._refresh_database_metrics_panel_on_show(
+                baseline_changed=previous_database_metrics_baseline_mode != self._database_metrics_baseline_mode,
+            )
         elif panel_name == "gen_pop_norms":
             self.database_metrics_panel_header_label.setText("General Population")
             self._database_metrics_baseline_mode = "gen_pop"
@@ -15696,8 +15709,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._sync_database_metrics_section_visibility()
             self._update_position_sign_subheader()
             self._update_gender_subheader()
-            self._show_database_analytics_pending_indicator(True)
-            self._schedule_deferred_database_metrics_refresh()
+            self._refresh_database_metrics_panel_on_show(
+                baseline_changed=previous_database_metrics_baseline_mode != self._database_metrics_baseline_mode,
+            )
         elif panel_name == "similarities":
             self._update_sentiment_tally(
                 update_database_metrics=False,
@@ -15705,6 +15719,56 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
         elif panel_name == "perceived_similarity_predictors":
             self._refresh_perceived_similarity_predictors_panel()
+
+
+    def _refresh_database_metrics_panel_on_show(self, *, baseline_changed: bool = False) -> None:
+        """Refresh Database Analytics on panel show only when data is stale.
+
+        Panel navigation alone should not show a loading state or redraw cached
+        analytics.  If relevant chart rows changed, or expanded sections are not
+        covered by the current metrics cache, run the normal deferred refresh.
+        If only the database/general-population baseline changed, redraw the
+        expanded sections from the existing cache so canvases and export rows
+        match the new baseline without recomputing snapshots.
+        """
+        expanded_sections = frozenset(self._expanded_database_metric_sections())
+        if (
+            baseline_changed
+            and expanded_sections
+            and self._database_metrics_cache is not None
+            and not self._deferred_database_metrics_changed_ids
+            and not self._deferred_database_metrics_force_full_refresh
+            and not self._database_metrics_lucy_goosey_ids
+            and expanded_sections.issubset(self._database_metrics_snapshot_sections)
+        ):
+            self._show_database_analytics_pending_indicator(False)
+            self._update_sentiment_tally(
+                update_database_metrics=True,
+                update_similarities=False,
+                sections_to_refresh=set(expanded_sections),
+            )
+            self._schedule_database_metrics_background_preload()
+            return
+        if not self._database_metrics_refresh_needed_on_panel_show():
+            self._show_database_analytics_pending_indicator(False)
+            self._schedule_database_metrics_background_preload()
+            return
+        self._show_database_analytics_pending_indicator(True)
+        self._schedule_deferred_database_metrics_refresh()
+
+    def _database_metrics_refresh_needed_on_panel_show(self) -> bool:
+        expanded_sections = frozenset(self._expanded_database_metric_sections())
+        if not expanded_sections:
+            return False
+        if self._database_metrics_cache is None:
+            return True
+        if (
+            self._deferred_database_metrics_changed_ids
+            or self._deferred_database_metrics_force_full_refresh
+            or self._database_metrics_lucy_goosey_ids
+        ):
+            return True
+        return not expanded_sections.issubset(self._database_metrics_snapshot_sections)
 
     def _toggle_database_metrics_panel(self) -> None:
         if (
@@ -18699,8 +18763,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self,
         *,
         changed_ids: set[int] | None = None,
+        sections_to_refresh: set[str] | frozenset[str] | None = None,
         force_full_refresh: bool = False,
     ) -> None:
+        section_scope = set(sections_to_refresh) if sections_to_refresh is not None else None
         if self._should_use_incremental_metrics_refresh():
             self._update_sentiment_tally(
                 update_database_metrics=False,
@@ -18708,22 +18774,27 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             self._schedule_incremental_metrics_refresh(
                 changed_ids=changed_ids,
+                sections_to_refresh=section_scope,
                 force_full_refresh=force_full_refresh,
             )
         else:
             self._update_sentiment_tally(
                 force_full_refresh=force_full_refresh,
                 changed_ids=changed_ids,
+                sections_to_refresh=section_scope,
             )
 
     def _schedule_deferred_database_metrics_refresh(
         self,
         *,
         changed_ids: set[int] | None = None,
+        sections_to_refresh: set[str] | frozenset[str] | None = None,
         force_full_refresh: bool = False,
     ) -> None:
         if changed_ids:
             self._deferred_database_metrics_changed_ids.update(changed_ids)
+        if sections_to_refresh is not None:
+            self._deferred_database_metrics_sections.update(sections_to_refresh)
         self._deferred_database_metrics_force_full_refresh = (
             self._deferred_database_metrics_force_full_refresh or force_full_refresh
         )
@@ -18736,14 +18807,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._deferred_database_metrics_refresh_scheduled = False
         if self._is_closing:
             self._deferred_database_metrics_changed_ids.clear()
+            self._deferred_database_metrics_sections.clear()
             self._deferred_database_metrics_force_full_refresh = False
             return
         changed_ids = set(self._deferred_database_metrics_changed_ids) or None
+        sections_to_refresh = set(self._deferred_database_metrics_sections) or None
         force_full_refresh = self._deferred_database_metrics_force_full_refresh
         self._deferred_database_metrics_changed_ids.clear()
+        self._deferred_database_metrics_sections.clear()
         self._deferred_database_metrics_force_full_refresh = False
         self._run_database_metrics_refresh(
             changed_ids=changed_ids,
+            sections_to_refresh=sections_to_refresh,
             force_full_refresh=force_full_refresh,
         )
         if not self._incremental_metrics_refresh_scheduled:
