@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import statistics
 from html import escape
 from urllib.parse import quote
 from typing import Any
@@ -704,6 +705,69 @@ def _most_likely_weight_display(payload: dict[str, Any]) -> str:
     return f"{weight:.0f}"
 
 
+def _weight_sample_values(payload: dict[str, Any]) -> list[float]:
+    samples = payload.get("weight_samples") or []
+    values: list[float] = []
+    if isinstance(samples, list):
+        for sample in samples:
+            if not isinstance(sample, dict):
+                continue
+            try:
+                values.append(float(sample.get("weight", 0.0)))
+            except (TypeError, ValueError):
+                continue
+    return values
+
+
+def _weight_distribution_stats(payload: dict[str, Any]) -> dict[str, str]:
+    values = _weight_sample_values(payload)
+    if not values:
+        mode_payload = _most_likely_weight_payload(payload)
+        fallback_weight = mode_payload.get("weight")
+        if fallback_weight is None:
+            fallback_weight = (
+                float(payload.get("min", 0.0)) + float(payload.get("max", 0.0))
+            ) / 2.0
+        try:
+            values = [float(fallback_weight)]
+        except (TypeError, ValueError):
+            values = []
+    if not values:
+        return {"mode": "n/a", "median": "n/a", "mean": "n/a"}
+
+    mode_payload = _most_likely_weight_payload(payload)
+    tied_weights = mode_payload.get("tied_weights") or []
+    mode_weight = mode_payload.get("weight")
+    if (
+        mode_payload
+        and mode_payload.get("available", mode_weight is not None)
+        and mode_weight is not None
+    ):
+        mode_display = f"{float(mode_weight):.0f}"
+    elif tied_weights:
+        mode_display = ", ".join(f"{float(weight):.0f}" for weight in tied_weights[:4])
+        if len(tied_weights) > 4:
+            mode_display += ", …"
+    else:
+        counts: dict[float, int] = {}
+        for value in values:
+            rounded_value = round(float(value), 6)
+            counts[rounded_value] = counts.get(rounded_value, 0) + 1
+        max_count = max(counts.values())
+        modes = sorted(
+            weight for weight, count in counts.items() if count == max_count
+        )
+        mode_display = ", ".join(f"{weight:.0f}" for weight in modes[:4])
+        if len(modes) > 4:
+            mode_display += ", …"
+
+    return {
+        "mode": mode_display,
+        "median": f"{statistics.median(values):.0f}",
+        "mean": f"{statistics.fmean(values):.0f}",
+    }
+
+
 def _most_likely_weight_tooltip(payload: dict[str, Any]) -> str:
     mode_payload = _most_likely_weight_payload(payload)
     if not mode_payload:
@@ -764,7 +828,7 @@ def _time_sensitivity_factor_info_html(
     color = escape(_factor_color(group_key, key), quote=True)
     minimum = float(payload.get("min", 0.0))
     maximum = float(payload.get("max", 0.0))
-    likely_display = _most_likely_weight_display(payload)
+    stats = _weight_distribution_stats(payload)
     likely_tooltip = _most_likely_weight_tooltip(payload)
     trough_time = _single_time_value(
         payload.get("trough_times") or payload.get("trough_spans")
@@ -772,17 +836,16 @@ def _time_sensitivity_factor_info_html(
     peak_time = _single_time_value(
         payload.get("peak_times") or payload.get("peak_spans")
     )
+    label_style = f"font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR};"
     return (
-        "<div style='white-space:normal;'>"
-        f"<div style='font-size:14px; font-weight:700; color:{color};'>{escape(display)}</div>"
-        #"<table style='border-collapse:collapse; margin-top:6px; font-size:12px;'>"
-        f"<b>Min dominance</b>{escape(f'{minimum:.0f}')} at {escape(trough_time)}</br>"
-        f"<b>Most likely weight</b>{escape(likely_display)} "
-        f"<span title='{escape(likely_tooltip, quote=True)}'>ⓘ</span></br>"
-        f"<b>Max dominance</b>{escape(f'{maximum:.0f}')} at {escape(peak_time)}"
-        #f"<tr><td><b>Trench time</b></td><td style='padding-left:12px;'>{escape(trough_time)}</td></tr>"
-        #f"<tr><td><b>Peak time</b></td><td style='padding-left:12px;'>{escape(peak_time)}</td></tr>"
-        #"</table>"
+        "<div style='white-space:normal; line-height:1.45;'>"
+        f"<div style='font-size:14px; font-weight:700; color:{color}; margin-bottom:6px;'>{escape(display)}</div>"
+        f"<div><span style='{label_style}'>Min Dominance:</span> {escape(f'{minimum:.0f}')} at {escape(trough_time)}</div>"
+        f"<div><span style='{label_style}'>Mode:</span> {escape(stats['mode'])} "
+        f"<span title='{escape(likely_tooltip, quote=True)}'>ⓘ</span></div>"
+        f"<div><span style='{label_style}'>Median:</span> {escape(stats['median'])}</div>"
+        f"<div><span style='{label_style}'>Mean:</span> {escape(stats['mean'])}</div>"
+        f"<div><span style='{label_style}'>Max Dominance:</span> {escape(f'{maximum:.0f}')} at {escape(peak_time)}</div>"
         "</div>"
     )
 
