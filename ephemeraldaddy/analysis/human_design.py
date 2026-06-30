@@ -471,7 +471,7 @@ def _build_hd_uncertain_time_variant_lines(
         return [], {}
 
     body_width = max(len("Body"), *(len(row[0]) for row in rows))
-    sign_width = max(len("Sign(s)"), *(len(row[1]) for row in rows))
+    sign_width = max(len("Sign"), *(len(row[1]) for row in rows))
     gl_width = max(len("G/L"), *(len(row[2]) for row in rows))
     c_width = max(len("C"), *(len(row[3]) for row in rows))
     t_width = max(len("T"), *(len(row[4]) for row in rows))
@@ -480,7 +480,7 @@ def _build_hd_uncertain_time_variant_lines(
         "UNCERTAIN TIME VARIANTS",
         CHART_DATA_DIVIDER,
         "Unknown/rectified birth time: possible 00:00→12:00→23:59 values.",
-        f"{'Body':<{body_width}}  {'Sign(s)':<{sign_width}}  {'G/L':<{gl_width}}  {'C':<{c_width}}  {'T':<{t_width}}  {'B':<{b_width}}",
+        f"{'Body':<{body_width}}  {'Sign':<{sign_width}}  {'G/L':<{gl_width}}  {'C':<{c_width}}  {'T':<{t_width}}  {'B':<{b_width}}",
         CHART_DATA_DIVIDER,
     ]
     info_map: dict[int, list[dict[str, object]]] = {}
