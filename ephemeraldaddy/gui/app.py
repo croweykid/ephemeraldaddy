@@ -23623,9 +23623,7 @@ class MainWindow(QMainWindow):
         self.retcon_time_edit.setFixedWidth(CHART_VIEW_TIME_INPUT_WIDTH)
         self.retcon_time_checkbox = QCheckBox("")
         self.retcon_time_checkbox.toggled.connect(self._on_retcon_time_toggled)
-        self.retcon_time_checkbox.toggled.connect(self._mark_lucygoosey)
         self.retcon_time_edit.timeChanged.connect(self._on_retcon_time_changed)
-        self.retcon_time_edit.timeChanged.connect(self._mark_lucygoosey)
         self.year_first_encountered_edit = QLineEdit()
         self.year_first_encountered_edit.setMaxLength(4)
         self.year_first_encountered_edit.setPlaceholderText("Year 1st Encountered")
@@ -31939,6 +31937,7 @@ class MainWindow(QMainWindow):
         widget.setPlainText(str(value or ""))
 
     def _clear_material_facts_fields(self) -> None:
+        previous_suppress_lucygoosey = self._suppress_lucygoosey
         self._suppress_lucygoosey = True
         try:
             for attr_name in (
@@ -31949,9 +31948,10 @@ class MainWindow(QMainWindow):
             ):
                 self._set_material_fact_text(attr_name, "")
         finally:
-            self._suppress_lucygoosey = False
+            self._suppress_lucygoosey = previous_suppress_lucygoosey
 
     def _load_material_facts_for_chart(self, chart_id: int | None) -> None:
+        previous_suppress_lucygoosey = self._suppress_lucygoosey
         self._suppress_lucygoosey = True
         try:
             identifiers = load_personal_identifiers(chart_id)
@@ -31963,7 +31963,7 @@ class MainWindow(QMainWindow):
             if callable(refresh_photo_gallery):
                 refresh_photo_gallery(chart_id)
         finally:
-            self._suppress_lucygoosey = False
+            self._suppress_lucygoosey = previous_suppress_lucygoosey
 
     def _save_material_facts_for_chart(self, chart_id: int | None) -> None:
         if chart_id is None:

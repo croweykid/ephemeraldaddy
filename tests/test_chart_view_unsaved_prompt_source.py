@@ -101,3 +101,18 @@ def test_loaded_rectified_time_is_restored_before_checkbox_enabled():
     set_time_index = method.index("self.retcon_time_edit.setTime", stored_hour_index)
     checkbox_index = method.index("self.retcon_time_checkbox.setChecked(chart.retcon_time_used)")
     assert stored_hour_index < set_time_index < checkbox_index
+
+
+def test_retcon_controls_do_not_have_duplicate_dirty_signal_connections():
+    assert "self.retcon_time_checkbox.toggled.connect(self._mark_lucygoosey)" not in APP_SOURCE
+    assert "self.retcon_time_edit.timeChanged.connect(self._mark_lucygoosey)" not in APP_SOURCE
+    assert "self.retcon_time_checkbox.toggled.connect(self._on_retcon_time_toggled)" in APP_SOURCE
+    assert "self.retcon_time_edit.timeChanged.connect(self._on_retcon_time_changed)" in APP_SOURCE
+
+
+def test_material_facts_load_preserves_outer_lucygoosey_suppression():
+    method = _method_source("_load_material_facts_for_chart")
+    assert "previous_suppress_lucygoosey = self._suppress_lucygoosey" in method
+    assert "self._suppress_lucygoosey = True" in method
+    assert "self._suppress_lucygoosey = previous_suppress_lucygoosey" in method
+    assert "self._suppress_lucygoosey = False" not in method
