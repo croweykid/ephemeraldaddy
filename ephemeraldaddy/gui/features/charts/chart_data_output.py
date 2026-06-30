@@ -79,6 +79,39 @@ def _qt_text_offset(text: str, index: int) -> int:
     return len(text[:index].encode("utf-16-le")) // 2
 
 
+def _is_chart_data_table_header_line(text: str) -> bool:
+    """Return True for padded chart-data table header rows.
+
+    Header rows use the same whitespace padding as data rows for alignment, but
+    the visual separator glyphs should only be painted between actual data
+    values.
+    """
+    stripped = text.strip()
+    if not stripped or "  " not in stripped:
+        return False
+
+    header_tokens = re.split(r"\s{2,}", stripped)
+    if len(header_tokens) < 2:
+        return False
+
+    known_header_tokens = {
+        "Body",
+        "Sign",
+        "Sign(s)",
+        "Degree",
+        "Longitude",
+        "Nakshatra",
+        "House",
+        "G/L",
+        "G.L",
+        "G.L.",
+        "C",
+        "T",
+        "B",
+    }
+    return all(token.strip() in known_header_tokens for token in header_tokens)
+
+
 def _separator_pattern() -> re.Pattern[str] | None:
     minimum_space_run = _separator_style_minimum_space_run()
     if minimum_space_run <= 0 or not _separator_style_character():
@@ -105,6 +138,9 @@ def _paint_chart_data_separators(output_widget: QPlainTextEdit) -> None:
             break
         if block.isVisible() and block_rect.bottom() >= 0:
             text = block.text()
+            if _is_chart_data_table_header_line(text):
+                block = block.next()
+                continue
             block_position = block.position()
             for separator in separator_pattern.finditer(text):
                 for column in range(separator.start(), separator.end()):

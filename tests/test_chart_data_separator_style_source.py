@@ -28,6 +28,9 @@ def test_chart_data_outputs_use_visual_only_whitespace_separators():
     assert 'encode("utf-16-le")' in CHART_DATA_OUTPUT_SOURCE
     assert "block_position + _qt_text_offset(text, column)" in CHART_DATA_OUTPUT_SOURCE
     assert "def _paint_chart_data_separators" in CHART_DATA_OUTPUT_SOURCE
+    assert "def _is_chart_data_table_header_line" in CHART_DATA_OUTPUT_SOURCE
+    assert "if _is_chart_data_table_header_line(text):" in CHART_DATA_OUTPUT_SOURCE
+    assert "block = block.next()" in CHART_DATA_OUTPUT_SOURCE
     assert "def paintEvent" in CHART_DATA_OUTPUT_SOURCE
     assert "(?<=\\S)" in CHART_DATA_OUTPUT_SOURCE
     assert "(?=\\S)" in CHART_DATA_OUTPUT_SOURCE
@@ -38,3 +41,12 @@ def test_human_design_chart_data_outputs_use_shared_table_widget():
     assert "build_human_design_chart_data_output(" in APP_SOURCE
     assert "summary_output = ChartDataTableOutput(human_design_synastry_mode=True)" in HD_SYNASTRY_SOURCE
     assert "build_human_design_synastry_data_output(" in HD_SYNASTRY_SOURCE
+
+
+def test_chart_data_separator_skips_padded_table_headers():
+    assert '"Body",' in CHART_DATA_OUTPUT_SOURCE
+    assert '"Sign(s)",' in CHART_DATA_OUTPUT_SOURCE
+    assert '"Nakshatra",' in CHART_DATA_OUTPUT_SOURCE
+    assert '"G.L",' in CHART_DATA_OUTPUT_SOURCE
+    assert 're.split(r"\\s{2,}", stripped)' in CHART_DATA_OUTPUT_SOURCE
+    assert 'return all(token.strip() in known_header_tokens for token in header_tokens)' in CHART_DATA_OUTPUT_SOURCE
