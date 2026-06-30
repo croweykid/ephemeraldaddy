@@ -438,7 +438,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     DATABASE_VIEW_PANEL_HEADER_STYLE = app_module.DATABASE_VIEW_PANEL_HEADER_STYLE
     DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE = app_module.DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE
     COLLAPSIBLE_SECTION_CONTENT_STYLE = app_module.COLLAPSIBLE_SECTION_CONTENT_STYLE
-    COLLAPSIBLE_SUBSECTION_CONTENT_STYLE = app_module.COLLAPSIBLE_SUBSECTION_CONTENT_STYLE
+    COLLAPSIBLE_NESTED_SECTION_CONTENT_STYLE = app_module.COLLAPSIBLE_NESTED_SECTION_CONTENT_STYLE
     DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS = app_module.DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS
     DATABASE_ANALYTICS_CONTENT_DEBUG_STYLE = app_module.DATABASE_ANALYTICS_CONTENT_DEBUG_STYLE
     DATABASE_ANALYTICS_SUBHEADER_STYLE = app_module.DATABASE_ANALYTICS_SUBHEADER_STYLE
@@ -641,7 +641,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     layout.addLayout(header_layout)
 
     def add_collapsible_section(
-        title: str, *, subsection: bool = False
+        title: str, *, nested: bool = False
     ) -> tuple[QWidget, QVBoxLayout]:
         section = QWidget()
         section_layout = QVBoxLayout()
@@ -661,8 +661,8 @@ def build_dbv_search_panel(window) -> "QWidget":
         content_layout.setContentsMargins(8, 6, 8, 6)
         content.setLayout(content_layout)
         content_style = (
-            COLLAPSIBLE_SUBSECTION_CONTENT_STYLE
-            if subsection
+            COLLAPSIBLE_NESTED_SECTION_CONTENT_STYLE
+            if nested
             else COLLAPSIBLE_SECTION_CONTENT_STYLE
         )
         if DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS:
@@ -714,21 +714,20 @@ def build_dbv_search_panel(window) -> "QWidget":
     layout.addWidget(chart_type_section)
 
 
-    astro_category_section, astro_category_layout = add_collapsible_section("Astro")
+    astro_category_section, astro_category_layout = add_collapsible_section("Astro", nested=True)
     layout.addWidget(astro_category_section)
-    human_design_category_section, human_design_category_layout = add_collapsible_section("Human Design")
+    human_design_category_section, human_design_category_layout = add_collapsible_section("Human Design", nested=True)
     layout.addWidget(human_design_category_section)
-    interactions_category_section, interactions_category_layout = add_collapsible_section("Interactions")
+    interactions_category_section, interactions_category_layout = add_collapsible_section("Interactions", nested=True)
     layout.addWidget(interactions_category_section)
-    predictions_category_section, predictions_category_layout = add_collapsible_section("Predictions")
+    predictions_category_section, predictions_category_layout = add_collapsible_section("Predictions", nested=True)
     layout.addWidget(predictions_category_section)
-    demographics_category_section, demographics_category_layout = add_collapsible_section("Demographics")
+    demographics_category_section, demographics_category_layout = add_collapsible_section("Demographics", nested=True)
     layout.addWidget(demographics_category_section)
 
     #Search: data completeness & accuracy
     birth_info_status_section, birth_info_status_layout = add_collapsible_section(
         "Data Quality", #data icon contenders: 🧮 🗄️ 🪪 𖦏 🔢 🧩 ℹ️
-        subsection=True,
     )
 
     birth_status_mode_row = QHBoxLayout()
@@ -786,7 +785,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     astro_category_layout.addWidget(birth_info_status_section)
 
     #Search: Astrological Positions section
-    bodies_section, bodies_group_layout = add_collapsible_section("🪐Positions", subsection=True) #astrological positions
+    bodies_section, bodies_group_layout = add_collapsible_section("🪐Positions") #astrological positions
 
     bodies_layout = QFormLayout()
     bodies_layout.setLabelAlignment(Qt.AlignLeft)
@@ -852,7 +851,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     astro_category_layout.addWidget(bodies_section)
 
     #Search: Aspects section
-    aspect_section, aspect_group_layout = add_collapsible_section("🪐Aspect", subsection=True) #astrological aspect
+    aspect_section, aspect_group_layout = add_collapsible_section("🪐Aspect") #astrological aspect
 
     aspect_layout = QFormLayout()
     aspect_layout.setLabelAlignment(Qt.AlignLeft)
@@ -924,7 +923,6 @@ def build_dbv_search_panel(window) -> "QWidget":
     #Search: Sign section
     dominant_section, dominant_group_layout = add_collapsible_section(
         "🪐Sign", #dominant/subordinate astrological sign
-        subsection=True,
     )
 
     dominant_layout = QFormLayout()
@@ -987,7 +985,6 @@ def build_dbv_search_panel(window) -> "QWidget":
     #Search: Body section
     dominant_planet_section, dominant_planet_group_layout = add_collapsible_section(
         "🪐Body", #dominant/subordinate astrological bodies
-        subsection=True,
     )
 
     dominant_planet_layout = QFormLayout()
@@ -1051,7 +1048,6 @@ def build_dbv_search_panel(window) -> "QWidget":
     #Search: Nakshatra section
     dominant_nakshatra_section, dominant_nakshatra_group_layout = add_collapsible_section(
         "🪐Nakshatra",
-        subsection=True,
     )
 
     dominant_nakshatra_layout = QFormLayout()
@@ -1113,7 +1109,6 @@ def build_dbv_search_panel(window) -> "QWidget":
     #Search: Dominant Elements section
     dominant_element_section, dominant_element_group_layout = add_collapsible_section(
         "🪐Elements", #dominatn astrological elements
-        subsection=True,
     )
     dominant_element_layout = QFormLayout()
     dominant_element_layout.setLabelAlignment(Qt.AlignLeft)
@@ -1167,7 +1162,6 @@ def build_dbv_search_panel(window) -> "QWidget":
     #Search: Dominant Mode section
     dominant_mode_section, dominant_mode_group_layout = add_collapsible_section(
         "🪐Modes", #dominant astrological mode
-        subsection=True,
     )
 
     dominant_mode_layout = QFormLayout()
@@ -1221,7 +1215,6 @@ def build_dbv_search_panel(window) -> "QWidget":
     #Search: Body Dynamics section
     body_dynamics_section, body_dynamics_group_layout = add_collapsible_section(
         "🪐Body Dynamics",
-        subsection=True,
     )
 
     body_dynamics_layout = QFormLayout()
@@ -1279,7 +1272,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     astro_category_layout.addWidget(body_dynamics_section)
 
     # Search: Decans section
-    decan_section, decan_group_layout = add_collapsible_section("🪐Decans", subsection=True)
+    decan_section, decan_group_layout = add_collapsible_section("🪐Decans")
     decan_layout = QFormLayout()
     decan_layout.setLabelAlignment(Qt.AlignLeft)
     decan_group_layout.addLayout(decan_layout)
@@ -1317,7 +1310,6 @@ def build_dbv_search_panel(window) -> "QWidget":
     #Search: Isolated Factors section
     isolated_factors_section, isolated_factors_group_layout = add_collapsible_section(
         "🪐Isolated Factors",
-        subsection=True,
     )
 
     isolated_body_row = QHBoxLayout()
@@ -1484,7 +1476,6 @@ def build_dbv_search_panel(window) -> "QWidget":
     #Search: year first encountered
     year_first_encountered_section, year_first_encountered_group_layout = add_collapsible_section(
         "💭Year 1st Encountered", #year user first encountered
-        subsection=True,
     )
     year_first_encountered_range_row = QHBoxLayout()
     year_first_encountered_range_row.addWidget(QLabel("Earliest"))
@@ -1519,7 +1510,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     year_first_encountered_group_layout.addLayout(year_first_encountered_blank_row)
     interactions_category_layout.addWidget(year_first_encountered_section)
 
-    sentiment_section, sentiment_group_layout = add_collapsible_section("💭Sentiment", subsection=True)
+    sentiment_section, sentiment_group_layout = add_collapsible_section("💭Sentiment")
 
     #Search: Sentiments section
     sentiment_mode_layout = QHBoxLayout()
@@ -1611,7 +1602,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     interactions_category_layout.addWidget(sentiment_section)
 
     #Search: Alignment section
-    alignment_section, alignment_group_layout = add_collapsible_section("💭Alignment", subsection=True)
+    alignment_section, alignment_group_layout = add_collapsible_section("💭Alignment")
     alignment_range_row = QHBoxLayout()
     alignment_range_row.addWidget(QLabel("💭Alignment"))
     window._alignment_score_min_input = QLineEdit()
@@ -1640,7 +1631,6 @@ def build_dbv_search_panel(window) -> "QWidget":
     #Search: relationship types section
     relationship_section, relationship_group_layout = add_collapsible_section(
         "💭Relationships",
-        subsection=True,
     )
     relationship_mode_layout = QHBoxLayout()
     relationship_mode_layout.addWidget(QLabel("Relationship type"))
@@ -1674,7 +1664,6 @@ def build_dbv_search_panel(window) -> "QWidget":
     #Search: D&D section
     dnd_species_section, dnd_species_group_layout = add_collapsible_section(
         "⚔️D&&D-ification",
-        subsection=True,
     )
     class_filter_row = QHBoxLayout()
     class_filter_row.addWidget(QLabel("Top 3 Classes"))
@@ -1736,7 +1725,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     dnd_species_group_layout.addLayout(dnd_stat_grid)
     predictions_category_layout.addWidget(dnd_species_section)
 
-    timing_section, timing_section_layout = add_collapsible_section("Lifespan", subsection=True)
+    timing_section, timing_section_layout = add_collapsible_section("Lifespan")
 
     def add_birthdate_bound_row(
         row_label: str,
@@ -1828,7 +1817,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     timing_section_layout.addLayout(mortality_row)
 
     #Search: gender section
-    gender_section, gender_group_layout = add_collapsible_section("Gender", subsection=True)
+    gender_section, gender_group_layout = add_collapsible_section("Gender")
     gender_mode_layout = QHBoxLayout()
     gender_mode_layout.addWidget(QLabel("Gender"))
     gender_mode_layout.addStretch(1)
@@ -1870,7 +1859,7 @@ def build_dbv_search_panel(window) -> "QWidget":
 
 
     #Search: Locations section
-    locations_section, locations_group_layout = add_collapsible_section("Location", subsection=True)
+    locations_section, locations_group_layout = add_collapsible_section("Location")
 
     country_row = QHBoxLayout()
     country_row.addWidget(QLabel("Country"))
@@ -1901,7 +1890,6 @@ def build_dbv_search_panel(window) -> "QWidget":
 
     predictability_section, predictability_group_layout = add_collapsible_section(
         "💭Predictability",
-        subsection=True,
     )
     predictability_range_layout = QGridLayout()
     predictability_range_layout.setContentsMargins(0, 0, 0, 0)
@@ -1924,7 +1912,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     predictions_category_layout.addWidget(predictability_section)
 
     #Search: Notes section
-    notes_section, notes_group_layout = add_collapsible_section("Notes", subsection=True)
+    notes_section, notes_group_layout = add_collapsible_section("Notes")
 
     comments_row = QHBoxLayout()
     window._notes_comments_filter_checkbox = QuadStateSlider("Comments")
