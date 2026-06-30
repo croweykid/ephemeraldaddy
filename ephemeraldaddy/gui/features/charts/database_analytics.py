@@ -4060,9 +4060,26 @@ class DatabaseAnalyticsChartsMixin:
             if str(item.get("name", "")).strip() and not bool(item.get("archived", False))
         )
 
-    def _clear_traits_distribution_analytics_cache(self) -> None:
+    def _clear_traits_distribution_analytics_cache(self, changed_chart_ids: set[int] | None = None) -> None:
         self._traits_distribution_analytics_cache = {}
-        self._traits_distribution_chart_likelihood_cache = {}
+        if changed_chart_ids is None:
+            self._traits_distribution_chart_likelihood_cache = {}
+            return
+
+        likelihood_cache = getattr(self, "_traits_distribution_chart_likelihood_cache", None)
+        if not isinstance(likelihood_cache, dict):
+            self._traits_distribution_chart_likelihood_cache = {}
+            return
+
+        changed_ids = {int(chart_id) for chart_id in changed_chart_ids}
+        for cache_key in list(likelihood_cache):
+            if (
+                isinstance(cache_key, tuple)
+                and len(cache_key) >= 3
+                and isinstance(cache_key[2], int)
+                and cache_key[2] in changed_ids
+            ):
+                likelihood_cache.pop(cache_key, None)
 
     def _collect_traits_distribution_analytics(
         self,
