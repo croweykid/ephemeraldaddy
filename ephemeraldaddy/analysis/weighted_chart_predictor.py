@@ -138,6 +138,16 @@ DOMINANCE_NORMALIZATION_MODES = {
     DOMINANCE_NORMALIZATION_RANGE,
     DOMINANCE_NORMALIZATION_SHARE,
 }
+PREDICTION_SCORE_MODE_RAW = "raw"
+PREDICTION_SCORE_MODE_OPPORTUNITY = "opportunity"
+PREDICTION_SCORE_MODE_BACKGROUND_Z = "background_z"
+PREDICTION_SCORE_MODE_CATEGORY_Z = "category_z"
+PREDICTION_SCORE_MODES = {
+    PREDICTION_SCORE_MODE_RAW,
+    PREDICTION_SCORE_MODE_OPPORTUNITY,
+    PREDICTION_SCORE_MODE_BACKGROUND_Z,
+    PREDICTION_SCORE_MODE_CATEGORY_Z,
+}
 
 
 @dataclass(frozen=True)
@@ -150,19 +160,35 @@ class WeightedPredictorScoringOptions:
     simplify_anti_factor_handling: bool = True
     average_scores_by_criterion_count: bool = True
     type_signature_scale_mode: str = TYPE_SIGNATURE_SCALE_NONE
+    score_mode: str = PREDICTION_SCORE_MODE_OPPORTUNITY
     dominance_normalization_mode: str = DOMINANCE_NORMALIZATION_RANGE
+    use_mutual_exclusive_bucket_scoring: bool = True
     human_design_activation_weight: float = 1.0
 
     def normalized_type_signature_scale_mode(self) -> str:
         mode = str(self.type_signature_scale_mode or TYPE_SIGNATURE_SCALE_NONE).strip().lower()
         return mode if mode in TYPE_SIGNATURE_SCALE_MODES else TYPE_SIGNATURE_SCALE_NONE
 
+    def normalized_score_mode(self) -> str:
+        mode = str(self.score_mode or PREDICTION_SCORE_MODE_OPPORTUNITY).strip().lower()
+        return mode if mode in PREDICTION_SCORE_MODES else PREDICTION_SCORE_MODE_OPPORTUNITY
+
     def normalized_dominance_normalization_mode(self) -> str:
         mode = str(self.dominance_normalization_mode or DOMINANCE_NORMALIZATION_RANGE).strip().lower()
         return mode if mode in DOMINANCE_NORMALIZATION_MODES else DOMINANCE_NORMALIZATION_RANGE
 
 
-DEFAULT_SCORING_OPTIONS = WeightedPredictorScoringOptions(simplify_anti_factor_handling=False)
+BASELINE_DEFAULT_SCORING_OPTIONS = WeightedPredictorScoringOptions(simplify_anti_factor_handling=False)
+DEFAULT_SCORING_OPTIONS = BASELINE_DEFAULT_SCORING_OPTIONS
+
+
+def set_default_scoring_options(overrides: WeightedPredictorScoringOptions | Mapping[str, Any] | None) -> None:
+    """Set process-wide scoring options for shared Predictions scorers."""
+    global DEFAULT_SCORING_OPTIONS
+    if overrides is None:
+        DEFAULT_SCORING_OPTIONS = BASELINE_DEFAULT_SCORING_OPTIONS
+        return
+    DEFAULT_SCORING_OPTIONS = coerce_scoring_options(overrides)
 
 
 def coerce_scoring_options(value: WeightedPredictorScoringOptions | Mapping[str, Any] | None) -> WeightedPredictorScoringOptions:
@@ -199,9 +225,22 @@ def coerce_scoring_options(value: WeightedPredictorScoringOptions | Mapping[str,
         simplify_anti_factor_handling=_bool("simplify_anti_factor_handling", True),
         average_scores_by_criterion_count=_bool("average_scores_by_criterion_count", True),
         type_signature_scale_mode=str(value.get("type_signature_scale_mode", TYPE_SIGNATURE_SCALE_NONE) or TYPE_SIGNATURE_SCALE_NONE),
+        score_mode=str(value.get("score_mode", PREDICTION_SCORE_MODE_OPPORTUNITY) or PREDICTION_SCORE_MODE_OPPORTUNITY),
         dominance_normalization_mode=str(value.get("dominance_normalization_mode", DOMINANCE_NORMALIZATION_RANGE) or DOMINANCE_NORMALIZATION_RANGE),
+        use_mutual_exclusive_bucket_scoring=_bool("use_mutual_exclusive_bucket_scoring", True),
         human_design_activation_weight=_float("human_design_activation_weight", 1.0),
     )
+
+
+def _z_score(value: float, stats: Mapping[str, Any] | None) -> float:
+    if not isinstance(stats, Mapping):
+        return value
+    try:
+        mean = float(stats.get("mean", 0.0))
+        stddev = float(stats.get("stddev", stats.get("stdev", 0.0)))
+    except (TypeError, ValueError):
+        return value
+    return (value - mean) / stddev if stddev > 0 else value
 
 
 def _apply_type_signature_scale(score: float, total_abs_weight: float, mode: str) -> float:
@@ -812,6 +851,44 @@ def weighted_position_entries(values: Any) -> dict[str, float]:
     return entries
 
 
+
+def _bucketed_criteria_count_and_abs_weight(
+    positive_entries: Mapping[Any, float],
+    negative_entries: Mapping[Any, float],
+    *,
+    bucket_for_key: Callable[[Any], Any | None],
+) -> tuple[int, float]:
+    buckets: dict[Any, float] = {}
+    for key, weight in [*positive_entries.items(), *negative_entries.items()]:
+        bucket = bucket_for_key(key)
+        if bucket is None:
+            bucket = ("criterion", key)
+        try:
+            abs_weight = abs(float(weight))
+        except (TypeError, ValueError):
+            abs_weight = 1.0
+        buckets[bucket] = max(buckets.get(bucket, 0.0), abs_weight)
+    return len(buckets), sum(buckets.values())
+
+
+def _singleton_position_bucket(raw_position: Any) -> tuple[str, Any] | None:
+    parsed = parse_position_spec(str(raw_position))
+    if parsed is None:
+        return None
+    category, container, subject = parsed
+    if category == "body_in_sign":
+        return ("body_sign", subject)
+    if category == "body_in_house":
+        return ("body_house", subject)
+    if category == "sign_in_house":
+        return ("house_sign", container)
+    return None
+
+
+def _one_bucket(_key: Any) -> tuple[str, str]:
+    return ("singleton", "value")
+
+
 def _has_any_predictor_criteria(predictors: Mapping[Any, Mapping[str, Any]], category_keys: set[str]) -> bool:
     for raw_factors in predictors.values():
         if not isinstance(raw_factors, Mapping):
@@ -852,6 +929,8 @@ def calculate_weighted_criteria_scores(
     calculate_nakshatra_weights: Callable[[Any], Mapping[str, float]] = calculate_dominant_nakshatra_weights,
     uses_houses: Callable[[Any], bool] = default_chart_uses_houses,
     scoring_options: WeightedPredictorScoringOptions | Mapping[str, Any] | None = None,
+    background_score_stats: Mapping[Any, Mapping[str, Any]] | None = None,
+    category_background_stats: Mapping[Any, Mapping[str, Mapping[str, Any]]] | None = None,
     debug: Callable[[str], None] | None = None,
     debug_prefix: str = "[Weighted Predictor Debug]",
     parse_error_prefix: str = "[Weighted Predictor Parse Error]",
@@ -868,6 +947,7 @@ def calculate_weighted_criteria_scores(
     """
     scores = {target: 0.0 for target in predictors}
     options = coerce_scoring_options(scoring_options)
+    score_mode = options.normalized_score_mode()
     use_legacy_category_delta = not options.simplify_anti_factor_handling
     weights_by_category = _merged_category_weights(category_weights) if use_legacy_category_delta else dict(DEFAULT_CATEGORY_WEIGHTS)
     target_label = format_debug_target or (lambda target: str(target))
@@ -1043,6 +1123,24 @@ def calculate_weighted_criteria_scores(
         )
 
         category_scores: dict[str, tuple[float, int]] = {}
+        position_count, position_abs_weight = (len(positions) + len(antipositions), None)
+        hdtype_count, hdtype_abs_weight = (len(hdtypes) + len(antihdtypes), None)
+        profile_count, profile_abs_weight = (len(profiles) + len(antiprofiles), None)
+        authority_count, authority_abs_weight = (len(authorities) + len(antiauthorities), None)
+        if options.use_mutual_exclusive_bucket_scoring:
+            position_count, position_abs_weight = _bucketed_criteria_count_and_abs_weight(
+                positions, antipositions, bucket_for_key=_singleton_position_bucket
+            )
+            hdtype_count, hdtype_abs_weight = _bucketed_criteria_count_and_abs_weight(
+                hdtypes, antihdtypes, bucket_for_key=_one_bucket
+            )
+            profile_count, profile_abs_weight = _bucketed_criteria_count_and_abs_weight(
+                profiles, antiprofiles, bucket_for_key=_one_bucket
+            )
+            authority_count, authority_abs_weight = _bucketed_criteria_count_and_abs_weight(
+                authorities, antiauthorities, bucket_for_key=_one_bucket
+            )
+
         raw_category_pairs = {
             "signs": (sign_positive, sign_negative, len(signs) + len(antisigns)),
             "bodies": (body_positive, body_negative, len(bodies) + len(antibodies)),
@@ -1050,7 +1148,7 @@ def calculate_weighted_criteria_scores(
             "houses": (house_positive, house_negative, (len(houses) + len(antihouses)) if use_houses else 0),
             "gates": (gates_positive, gates_negative, len(gates) + len(antigates)),
             "channels": (channels_positive, channels_negative, len(channels) + len(antichannels)),
-            "positions": (positions_positive, positions_negative, len(positions) + len(antipositions)),
+            "positions": (positions_positive, positions_negative, position_count),
             "aspects": (aspects_positive, aspects_negative, len(aspects) + len(antiaspects)),
         }
         for category, (positive, negative, count) in raw_category_pairs.items():
@@ -1063,10 +1161,10 @@ def calculate_weighted_criteria_scores(
             category_scores[category] = (value, count)
 
         metadata_category_pairs = {
-            "hdtypes": (hdtype_positive, hdtype_negative, len(hdtypes) + len(antihdtypes)),
+            "hdtypes": (hdtype_positive, hdtype_negative, hdtype_count),
             "centers": (center_positive, center_negative, len(centers) + len(anticenters)),
-            "profiles": (profile_positive, profile_negative, len(profiles) + len(antiprofiles)),
-            "authorities": (authority_positive, authority_negative, len(authorities) + len(antiauthorities)),
+            "profiles": (profile_positive, profile_negative, profile_count),
+            "authorities": (authority_positive, authority_negative, authority_count),
             "bazisigns": (bazi_positive, bazi_negative, len(bazisigns) + len(antibazisigns)),
         }
         for category, (positive, negative, count) in metadata_category_pairs.items():
@@ -1076,25 +1174,41 @@ def calculate_weighted_criteria_scores(
             category_scores[category] = (value, count)
 
         target_total_abs_weight = 0.0
+        target_category_stats = category_background_stats.get(target, {}) if isinstance(category_background_stats, Mapping) else {}
+        category_weight_total = 0.0
         for category, (delta, _count) in category_scores.items():
-            scores[target] += (
-                weights_by_category[category]
-                * criterion_multiplier_for_target(factors, category)
-                * delta
-            )
+            if score_mode == PREDICTION_SCORE_MODE_CATEGORY_Z:
+                delta = _z_score(delta, target_category_stats.get(category) if isinstance(target_category_stats, Mapping) else None)
+            weighted_category = weights_by_category[category] * criterion_multiplier_for_target(factors, category)
+            scores[target] += weighted_category * delta
+            if score_mode == PREDICTION_SCORE_MODE_CATEGORY_Z and _count > 0 and weighted_category > 0:
+                category_weight_total += weighted_category
+        if score_mode == PREDICTION_SCORE_MODE_CATEGORY_Z and category_weight_total > 0:
+            scores[target] /= category_weight_total
+
         for values in (
             signs, antisigns, bodies, antibodies, nakshatras, antinakshatras,
             houses, antihouses, gates, antigates, channels, antichannels,
-            hdtypes, antihdtypes, centers, anticenters, profiles, antiprofiles,
-            authorities, antiauthorities, bazisigns, antibazisigns, positions,
-            antipositions, aspects, antiaspects,
+            centers, anticenters, bazisigns, antibazisigns, aspects, antiaspects,
         ):
             target_total_abs_weight += sum(abs(float(weight)) for weight in values.values())
-        scores[target] = _apply_type_signature_scale(
-            scores[target],
-            target_total_abs_weight,
-            options.normalized_type_signature_scale_mode(),
-        )
+        if options.use_mutual_exclusive_bucket_scoring:
+            target_total_abs_weight += float(position_abs_weight or 0.0)
+            target_total_abs_weight += float(hdtype_abs_weight or 0.0)
+            target_total_abs_weight += float(profile_abs_weight or 0.0)
+            target_total_abs_weight += float(authority_abs_weight or 0.0)
+        else:
+            for values in (hdtypes, antihdtypes, profiles, antiprofiles, authorities, antiauthorities, positions, antipositions):
+                target_total_abs_weight += sum(abs(float(weight)) for weight in values.values())
+        if score_mode in {PREDICTION_SCORE_MODE_OPPORTUNITY, PREDICTION_SCORE_MODE_BACKGROUND_Z}:
+            scores[target] = _apply_type_signature_scale(
+                scores[target],
+                target_total_abs_weight,
+                options.normalized_type_signature_scale_mode(),
+            )
+        if score_mode == PREDICTION_SCORE_MODE_BACKGROUND_Z:
+            stats = background_score_stats.get(target) if isinstance(background_score_stats, Mapping) else None
+            scores[target] = _z_score(scores[target], stats)
     return scores
 
 

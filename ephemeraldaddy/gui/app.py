@@ -501,7 +501,7 @@ from ephemeraldaddy.gui.dev_tools import (
     add_enneagram_predictions_debug_setting,
     add_similarity_perceived_accuracy_controls_setting,
     build_similarity_calculator_settings_section,
-    build_enneagram_predictor_settings_section,
+    build_predictions_settings_section,
     load_batch_tagging_terminal_debug_enabled,
     load_enneagram_predictions_debug_enabled,
     load_similarity_perceived_accuracy_controls_enabled,
@@ -1397,6 +1397,9 @@ from ephemeraldaddy.gui.features.charts.total_chart_exporter import (
 from ephemeraldaddy.gui.features.charts.batch_total_chart_export import (
     export_button_label as _chart_export_button_label,
     run_total_chart_export_flow as _run_total_chart_export_flow,
+)
+from ephemeraldaddy.analysis.weighted_chart_predictor import (
+    set_default_scoring_options as _set_prediction_scoring_options,
 )
 from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
     EnneagramPredictionPanelAdapter,
@@ -2325,6 +2328,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             _enneagram_scoring_options_to_payload(self._enneagram_scoring_options),
         )
         _set_enneagram_scoring_options(self._enneagram_scoring_options)
+        _set_prediction_scoring_options(self._enneagram_scoring_options)
         set_lilith_calculation_mode(self._lilith_calculation_method)
         self._feature_hub = FeatureEventHub()
         _apply_minimum_screen_height(self)
@@ -21269,16 +21273,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._load_similarity_calculator_controls()
         self._load_similarity_thresholds_into_controls()
 
-        enneagram_section = self._add_settings_collapsible_section(content_layout, "Enneagram Predictor")
-        enneagram_controls = build_enneagram_predictor_settings_section(
+        enneagram_section = self._add_settings_collapsible_section(content_layout, "Predictions")
+        enneagram_controls = build_predictions_settings_section(
             dialog=dialog,
             section_layout=enneagram_section,
             subheader_style=SETTINGS_SECTION_SUBHEADER_STYLE,
             on_option_toggled=self._on_enneagram_scoring_option_toggled,
+            on_score_mode_changed=self._on_prediction_score_mode_changed,
             on_scale_mode_changed=self._on_enneagram_type_signature_scale_changed,
+            on_dominance_normalization_mode_changed=self._on_prediction_dominance_normalization_changed,
         )
         self._enneagram_predictor_checkboxes = enneagram_controls["checkboxes"]
+        self._prediction_score_mode_combo = enneagram_controls["score_mode_combo"]
         self._enneagram_predictor_scale_combo = enneagram_controls["scale_combo"]
+        self._prediction_dominance_normalization_combo = enneagram_controls["dominance_combo"]
         self._enneagram_predictor_default_radio = enneagram_controls["default_radio"]
         self._enneagram_predictor_custom_radio = enneagram_controls["custom_radio"]
         self._enneagram_predictor_weight_spinboxes = enneagram_controls["weight_spinboxes"]
@@ -22005,12 +22013,26 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             blocker = QSignalBlocker(checkbox)
             checkbox.setChecked(bool(getattr(options, key, False)))
             del blocker
+        score_mode_combo = getattr(self, "_prediction_score_mode_combo", None)
+        if score_mode_combo is not None:
+            target_mode = options.normalized_score_mode()
+            index = score_mode_combo.findData(target_mode)
+            blocker = QSignalBlocker(score_mode_combo)
+            score_mode_combo.setCurrentIndex(index if index >= 0 else 0)
+            del blocker
         combo = getattr(self, "_enneagram_predictor_scale_combo", None)
         if combo is not None:
             target_mode = options.normalized_type_signature_scale_mode()
             index = combo.findData(target_mode)
             blocker = QSignalBlocker(combo)
             combo.setCurrentIndex(index if index >= 0 else 0)
+            del blocker
+        dominance_combo = getattr(self, "_prediction_dominance_normalization_combo", None)
+        if dominance_combo is not None:
+            target_mode = options.normalized_dominance_normalization_mode()
+            index = dominance_combo.findData(target_mode)
+            blocker = QSignalBlocker(dominance_combo)
+            dominance_combo.setCurrentIndex(index if index >= 0 else 0)
             del blocker
         self._update_enneagram_predictor_total_label()
         self._apply_enneagram_predictor_weights()
@@ -22044,11 +22066,49 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
         self._apply_enneagram_predictor_weights()
 
+    def _on_prediction_score_mode_changed(self, mode: str) -> None:
+        if not hasattr(self, "_enneagram_scoring_options"):
+            self._enneagram_scoring_options = _default_enneagram_scoring_options()
+        payload = _enneagram_scoring_options_to_payload(self._enneagram_scoring_options)
+        payload["score_mode"] = str(mode or "opportunity")
+        self._enneagram_scoring_options = _merge_enneagram_scoring_options(payload)
+        self._settings.setValue(
+            SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS,
+            _enneagram_scoring_options_to_payload(self._enneagram_scoring_options),
+        )
+        parent = self._owner_window()
+        if isinstance(parent, MainWindow):
+            parent._enneagram_scoring_options = self._enneagram_scoring_options
+            parent._settings.setValue(
+                SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS,
+                _enneagram_scoring_options_to_payload(self._enneagram_scoring_options),
+            )
+        self._apply_enneagram_predictor_weights()
+
     def _on_enneagram_type_signature_scale_changed(self, mode: str) -> None:
         if not hasattr(self, "_enneagram_scoring_options"):
             self._enneagram_scoring_options = _default_enneagram_scoring_options()
         payload = _enneagram_scoring_options_to_payload(self._enneagram_scoring_options)
         payload["type_signature_scale_mode"] = str(mode or "none")
+        self._enneagram_scoring_options = _merge_enneagram_scoring_options(payload)
+        self._settings.setValue(
+            SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS,
+            _enneagram_scoring_options_to_payload(self._enneagram_scoring_options),
+        )
+        parent = self._owner_window()
+        if isinstance(parent, MainWindow):
+            parent._enneagram_scoring_options = self._enneagram_scoring_options
+            parent._settings.setValue(
+                SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS,
+                _enneagram_scoring_options_to_payload(self._enneagram_scoring_options),
+            )
+        self._apply_enneagram_predictor_weights()
+
+    def _on_prediction_dominance_normalization_changed(self, mode: str) -> None:
+        if not hasattr(self, "_enneagram_scoring_options"):
+            self._enneagram_scoring_options = _default_enneagram_scoring_options()
+        payload = _enneagram_scoring_options_to_payload(self._enneagram_scoring_options)
+        payload["dominance_normalization_mode"] = str(mode or "range")
         self._enneagram_scoring_options = _merge_enneagram_scoring_options(payload)
         self._settings.setValue(
             SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS,
@@ -22070,6 +22130,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         _set_enneagram_category_weights(weights)
         options = getattr(self, "_enneagram_scoring_options", _default_enneagram_scoring_options())
         _set_enneagram_scoring_options(options)
+        _set_prediction_scoring_options(options)
         parent = self._owner_window()
         if isinstance(parent, MainWindow):
             parent._enneagram_predictor_mode = "default"
@@ -23219,6 +23280,7 @@ class MainWindow(QMainWindow):
             _enneagram_scoring_options_to_payload(self._enneagram_scoring_options),
         )
         _set_enneagram_scoring_options(self._enneagram_scoring_options)
+        _set_prediction_scoring_options(self._enneagram_scoring_options)
         set_lilith_calculation_mode(self._lilith_calculation_method)
         configure_main_window_chrome(self)
         self._feature_hub = FeatureEventHub()
@@ -34101,11 +34163,23 @@ class MainWindow(QMainWindow):
             blocker = QSignalBlocker(checkbox)
             checkbox.setChecked(bool(getattr(self._enneagram_scoring_options, key, False)))
             del blocker
+        score_mode_combo = getattr(self, "_prediction_score_mode_combo", None)
+        if score_mode_combo is not None:
+            index = score_mode_combo.findData(self._enneagram_scoring_options.normalized_score_mode())
+            blocker = QSignalBlocker(score_mode_combo)
+            score_mode_combo.setCurrentIndex(index if index >= 0 else 0)
+            del blocker
         combo = getattr(self, "_enneagram_predictor_scale_combo", None)
         if combo is not None:
             index = combo.findData(self._enneagram_scoring_options.normalized_type_signature_scale_mode())
             blocker = QSignalBlocker(combo)
             combo.setCurrentIndex(index if index >= 0 else 0)
+            del blocker
+        dominance_combo = getattr(self, "_prediction_dominance_normalization_combo", None)
+        if dominance_combo is not None:
+            index = dominance_combo.findData(self._enneagram_scoring_options.normalized_dominance_normalization_mode())
+            blocker = QSignalBlocker(dominance_combo)
+            dominance_combo.setCurrentIndex(index if index >= 0 else 0)
             del blocker
         self._update_enneagram_predictor_total_label()
         self._apply_enneagram_predictor_weights()
@@ -34131,6 +34205,18 @@ class MainWindow(QMainWindow):
         )
         self._apply_enneagram_predictor_weights()
 
+    def _on_prediction_score_mode_changed(self, mode: str) -> None:
+        if not hasattr(self, "_enneagram_scoring_options"):
+            self._enneagram_scoring_options = _default_enneagram_scoring_options()
+        payload = _enneagram_scoring_options_to_payload(self._enneagram_scoring_options)
+        payload["score_mode"] = str(mode or "opportunity")
+        self._enneagram_scoring_options = _merge_enneagram_scoring_options(payload)
+        self._settings.setValue(
+            SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS,
+            _enneagram_scoring_options_to_payload(self._enneagram_scoring_options),
+        )
+        self._apply_enneagram_predictor_weights()
+
     def _on_enneagram_type_signature_scale_changed(self, mode: str) -> None:
         if not hasattr(self, "_enneagram_scoring_options"):
             self._enneagram_scoring_options = _default_enneagram_scoring_options()
@@ -34143,13 +34229,25 @@ class MainWindow(QMainWindow):
         )
         self._apply_enneagram_predictor_weights()
 
+    def _on_prediction_dominance_normalization_changed(self, mode: str) -> None:
+        if not hasattr(self, "_enneagram_scoring_options"):
+            self._enneagram_scoring_options = _default_enneagram_scoring_options()
+        payload = _enneagram_scoring_options_to_payload(self._enneagram_scoring_options)
+        payload["dominance_normalization_mode"] = str(mode or "range")
+        self._enneagram_scoring_options = _merge_enneagram_scoring_options(payload)
+        self._settings.setValue(
+            SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS,
+            _enneagram_scoring_options_to_payload(self._enneagram_scoring_options),
+        )
+        self._apply_enneagram_predictor_weights()
+
     def _apply_enneagram_predictor_weights(self) -> None:
         weights = self._default_enneagram_category_weights()
         self._enneagram_predictor_weights = weights
         _set_enneagram_category_weights(weights)
-        _set_enneagram_scoring_options(
-            getattr(self, "_enneagram_scoring_options", _default_enneagram_scoring_options())
-        )
+        options = getattr(self, "_enneagram_scoring_options", _default_enneagram_scoring_options())
+        _set_enneagram_scoring_options(options)
+        _set_prediction_scoring_options(options)
         invalidate_metrics = getattr(self, "_invalidate_database_metrics_cache", None)
         if callable(invalidate_metrics):
             invalidate_metrics()

@@ -1937,19 +1937,21 @@ ENNEAGRAM_CATEGORY_FACTOR_ROWS: tuple[tuple[str, str], ...] = (
     ("aspects", "Aspects"),
 )
 
-def build_enneagram_predictor_settings_section(
+def build_predictions_settings_section(
     *,
     dialog: QDialog,
     section_layout: QVBoxLayout,
     subheader_style: str,
     on_option_toggled: Callable[[str, bool], None],
+    on_score_mode_changed: Callable[[str], None],
     on_scale_mode_changed: Callable[[str], None],
+    on_dominance_normalization_mode_changed: Callable[[str], None],
 ) -> dict[str, object]:
-    label = QLabel("Enneagram Predictor")
+    label = QLabel("Predictions")
     label.setStyleSheet(subheader_style)
     section_layout.addWidget(label)
     description = _build_settings_help_label(
-        "Configure how Enneagram predictor criteria are scored. Property categories are used only "
+        "Configure how Predictions criteria are scored. Property categories are used only "
         "to parse criteria, not as independent score multipliers."
     )
     #description.setWordWrap(True)
@@ -1985,6 +1987,11 @@ def build_enneagram_predictor_settings_section(
             "Average scores by criterion count",
             "Experimental: divide each category's evidence by its criterion count. Disabled by default.",
         ),
+        (
+            "use_mutual_exclusive_bucket_scoring",
+            "Use mutual-exclusive bucket scoring",
+            "Treat singleton fields such as body sign/house, HD type, profile, and authority as one bucket instead of many independent opportunities.",
+        ),
     )
     checkboxes: dict[str, QCheckBox] = {}
     for key, title, tooltip in checkbox_rows:
@@ -1997,6 +2004,27 @@ def build_enneagram_predictor_settings_section(
     advanced_label = QLabel("Advanced")
     advanced_label.setStyleSheet(subheader_style)
     section_layout.addWidget(advanced_label)
+
+    score_mode_row = QHBoxLayout()
+    score_mode_row.addWidget(QLabel("Prediction score mode:"))
+    score_mode_combo = QComboBox()
+    for value, title in (
+        ("raw", "raw weighted"),
+        ("opportunity", "type opportunity"),
+        ("background_z", "background z-score"),
+        ("category_z", "category z-score"),
+    ):
+        score_mode_combo.addItem(title, value)
+    score_mode_combo.setToolTip(
+        "Select raw scores, opportunity-scaled scores, database background z-scores, or category z-score combination when background stats are available."
+    )
+    score_mode_combo.currentIndexChanged.connect(
+        lambda _idx: on_score_mode_changed(str(score_mode_combo.currentData() or "opportunity"))
+    )
+    score_mode_row.addWidget(score_mode_combo)
+    score_mode_row.addStretch(1)
+    section_layout.addLayout(score_mode_row)
+
     scale_row = QHBoxLayout()
     scale_row.addWidget(QLabel("Type signature scale adjustment:"))
     scale_combo = QComboBox()
@@ -2011,12 +2039,37 @@ def build_enneagram_predictor_settings_section(
     scale_row.addWidget(scale_combo)
     scale_row.addStretch(1)
     section_layout.addLayout(scale_row)
+
+    dominance_row = QHBoxLayout()
+    dominance_row.addWidget(QLabel("Dominance normalization:"))
+    dominance_combo = QComboBox()
+    for value, title in (
+        ("range", "range"),
+        ("share", "share"),
+    ):
+        dominance_combo.addItem(title, value)
+    dominance_combo.setToolTip(
+        "range normalizes each dominance map to 0..1; share treats active dominance values as shares of the total."
+    )
+    dominance_combo.currentIndexChanged.connect(
+        lambda _idx: on_dominance_normalization_mode_changed(str(dominance_combo.currentData() or "range"))
+    )
+    dominance_row.addWidget(dominance_combo)
+    dominance_row.addStretch(1)
+    section_layout.addLayout(dominance_row)
+
     return {
         "checkboxes": checkboxes,
+        "score_mode_combo": score_mode_combo,
         "scale_combo": scale_combo,
+        "dominance_combo": dominance_combo,
         # Legacy keys kept so older app/controller paths that still look them up do not crash.
         "default_radio": QRadioButton(dialog),
         "custom_radio": QRadioButton(dialog),
         "weight_spinboxes": {},
         "total_label": QLabel("disabled"),
     }
+
+
+# Backward-compatible alias for callers/tests that still use the old Enneagram-specific name.
+build_enneagram_predictor_settings_section = build_predictions_settings_section
