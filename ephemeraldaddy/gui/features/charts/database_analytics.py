@@ -71,6 +71,7 @@ DATABASE_METRICS_BIRTH_DATA_SECTIONS: frozenset[str] = frozenset(
         "age",
         "birth_month",
         "birthplace",
+        "gender",
         "human_design",
         "bazi",
     }

@@ -46,6 +46,8 @@ def test_database_metrics_panel_open_and_section_expand_defer_heavy_refresh():
     assert "self._show_database_analytics_pending_indicator(False)" in panel_show_method
     assert "self._schedule_database_metrics_background_preload()" in panel_show_method
     assert "self._schedule_deferred_database_metrics_refresh()" in panel_show_method
+    assert refresh_needed_method.index("expanded_sections =") < refresh_needed_method.index("self._database_metrics_cache is None")
+    assert "if not expanded_sections:" in refresh_needed_method
     assert "self._database_metrics_lucy_goosey_ids" in refresh_needed_method
     assert "expanded_sections.issubset(self._database_metrics_snapshot_sections)" in refresh_needed_method
     assert "QTimer.singleShot(" in expand_method
@@ -59,6 +61,8 @@ def test_database_metrics_section_refresh_protocols_are_field_scoped():
     assert '"tags": frozenset({"tag_distribution"})' in DB_ANALYTICS_SOURCE
     assert '"sentiments": frozenset({"sentiment_prevalence"})' in DB_ANALYTICS_SOURCE
     assert '"gender": frozenset({"gender"})' in DB_ANALYTICS_SOURCE
+    birth_scope = DB_ANALYTICS_SOURCE.split("DATABASE_METRICS_BIRTH_DATA_SECTIONS", 1)[1].split("DATABASE_METRICS_SUBJECTIVE_SECTION_DEPENDENCIES", 1)[0]
+    assert '"gender"' in birth_scope
     assert "def database_metrics_sections_for_changed_fields" in DB_ANALYTICS_SOURCE
     assert "if changed_fields is None:" in DB_ANALYTICS_SOURCE
     assert "return frozenset()" in DB_ANALYTICS_SOURCE

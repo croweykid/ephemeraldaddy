@@ -15695,6 +15695,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._schedule_deferred_database_metrics_refresh()
 
     def _database_metrics_refresh_needed_on_panel_show(self) -> bool:
+        expanded_sections = frozenset(self._expanded_database_metric_sections())
+        if not expanded_sections:
+            return False
         if self._database_metrics_cache is None:
             return True
         if (
@@ -15703,9 +15706,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             or self._database_metrics_lucy_goosey_ids
         ):
             return True
-        expanded_sections = frozenset(self._expanded_database_metric_sections())
-        if not expanded_sections:
-            return False
         return not expanded_sections.issubset(self._database_metrics_snapshot_sections)
 
     def _toggle_database_metrics_panel(self) -> None:
