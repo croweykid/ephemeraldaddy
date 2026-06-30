@@ -501,7 +501,7 @@ from ephemeraldaddy.gui.dev_tools import (
     add_enneagram_predictions_debug_setting,
     add_similarity_perceived_accuracy_controls_setting,
     build_similarity_calculator_settings_section,
-    build_enneagram_predictor_settings_section,
+    build_predictions_settings_section,
     load_batch_tagging_terminal_debug_enabled,
     load_enneagram_predictions_debug_enabled,
     load_similarity_perceived_accuracy_controls_enabled,
@@ -1397,6 +1397,9 @@ from ephemeraldaddy.gui.features.charts.total_chart_exporter import (
 from ephemeraldaddy.gui.features.charts.batch_total_chart_export import (
     export_button_label as _chart_export_button_label,
     run_total_chart_export_flow as _run_total_chart_export_flow,
+)
+from ephemeraldaddy.analysis.weighted_chart_predictor import (
+    set_default_scoring_options as _set_prediction_scoring_options,
 )
 from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
     EnneagramPredictionPanelAdapter,
@@ -2325,6 +2328,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             _enneagram_scoring_options_to_payload(self._enneagram_scoring_options),
         )
         _set_enneagram_scoring_options(self._enneagram_scoring_options)
+        _set_prediction_scoring_options(self._enneagram_scoring_options)
         set_lilith_calculation_mode(self._lilith_calculation_method)
         self._feature_hub = FeatureEventHub()
         _apply_minimum_screen_height(self)
@@ -2504,6 +2508,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         # lazy changed-id refresh applies panel-wide by default.
         self._database_metric_snapshots: dict[int, dict[str, Any]] = {}
         self._database_metrics_cache: dict[str, Any] | None = None
+        self._database_metrics_cache_revision = 0
         self._database_metrics_snapshot_sections: frozenset[str] = frozenset()
         self._database_metrics_lucy_goosey_ids: set[int] = set()
         self.transit_panel_controller = TransitPanelController(
@@ -3540,9 +3545,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _invalidate_database_metrics_cache(self) -> None:
         self._database_metrics_cache = None
+        self._database_metrics_cache_revision = int(getattr(self, "_database_metrics_cache_revision", 0)) + 1
         self._database_metric_snapshots = {}
         self._database_metrics_snapshot_sections = frozenset()
         self._database_metrics_lucy_goosey_ids.clear()
+        clear_traits_cache = getattr(self, "_clear_traits_distribution_analytics_cache", None)
+        if callable(clear_traits_cache):
+            clear_traits_cache()
 
     def _update_position_sign_subheader(self) -> None:
         subheader = getattr(self, "position_sign_distribution_subheader", None)
@@ -10408,8 +10417,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if changed_ids:
             self._database_metrics_lucy_goosey_ids.update(changed_ids)
             self._database_metrics_preloaded_sections.clear()
+            clear_traits_cache = getattr(self, "_clear_traits_distribution_analytics_cache", None)
+            if callable(clear_traits_cache):
+                clear_traits_cache()
         if force_full_refresh or (update_database_metrics and sections_to_refresh is None):
             self._database_metrics_preloaded_sections.clear()
+            if force_full_refresh:
+                clear_traits_cache = getattr(self, "_clear_traits_distribution_analytics_cache", None)
+                if callable(clear_traits_cache):
+                    clear_traits_cache()
 
         self._update_selection_header()
         if not update_database_metrics and not update_similarities:
@@ -17051,8 +17067,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     @staticmethod
     def _set_button_enabled_if_changed(button: QPushButton, enabled: bool) -> None:
-        """Avoid redundant enabled-state updates during fast row selection changes."""
-        if button.isEnabled() != enabled:
+        """Avoid redundant local enabled-state updates during fast row selection changes."""
+        if button.testAttribute(Qt.WA_ForceDisabled) == enabled:
             button.setEnabled(enabled)
 
     def _update_batch_edit_action_buttons(self) -> None:
@@ -17779,9 +17795,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             progress.close()
 
         self._chart_cache.clear()
-        self._database_metrics_cache = None
-        self._database_metric_snapshots = {}
-        self._database_metrics_lucy_goosey_ids.clear()
+        self._invalidate_database_metrics_cache()
         self._refresh_charts(force_full_analysis_refresh=True)
 
     def _on_force_refresh_database_analysis(self) -> None:
@@ -17884,9 +17898,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
 
         self._chart_cache.clear()
-        self._database_metrics_cache = None
-        self._database_metric_snapshots = {}
-        self._database_metrics_lucy_goosey_ids.clear()
+        self._invalidate_database_metrics_cache()
         self._refresh_charts(force_full_analysis_refresh=True)
 
     def _on_import_database(self) -> None:
@@ -18154,9 +18166,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             owner = self._owner_window()
             if owner is not None and hasattr(owner, "_invalidate_chart_view_navigation_cache"):
                 owner._invalidate_chart_view_navigation_cache()
-            self._database_metrics_cache = None
-            self._database_metric_snapshots = {}
-            self._database_metrics_lucy_goosey_ids.clear()
+            self._invalidate_database_metrics_cache()
             self.similarities_controller.clear_db_baseline_cache()
         elif changed_ids:
             self._database_metrics_lucy_goosey_ids.update(changed_ids)
@@ -21263,16 +21273,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._load_similarity_calculator_controls()
         self._load_similarity_thresholds_into_controls()
 
-        enneagram_section = self._add_settings_collapsible_section(content_layout, "Enneagram Predictor")
-        enneagram_controls = build_enneagram_predictor_settings_section(
+        enneagram_section = self._add_settings_collapsible_section(content_layout, "Predictions")
+        enneagram_controls = build_predictions_settings_section(
             dialog=dialog,
             section_layout=enneagram_section,
             subheader_style=SETTINGS_SECTION_SUBHEADER_STYLE,
             on_option_toggled=self._on_enneagram_scoring_option_toggled,
+            on_score_mode_changed=self._on_prediction_score_mode_changed,
             on_scale_mode_changed=self._on_enneagram_type_signature_scale_changed,
+            on_dominance_normalization_mode_changed=self._on_prediction_dominance_normalization_changed,
         )
         self._enneagram_predictor_checkboxes = enneagram_controls["checkboxes"]
+        self._prediction_score_mode_combo = enneagram_controls["score_mode_combo"]
         self._enneagram_predictor_scale_combo = enneagram_controls["scale_combo"]
+        self._prediction_dominance_normalization_combo = enneagram_controls["dominance_combo"]
         self._enneagram_predictor_default_radio = enneagram_controls["default_radio"]
         self._enneagram_predictor_custom_radio = enneagram_controls["custom_radio"]
         self._enneagram_predictor_weight_spinboxes = enneagram_controls["weight_spinboxes"]
@@ -21444,8 +21458,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._settings.setValue(SETTINGS_KEY_LILITH_CALCULATION_METHOD, normalized)
         set_lilith_calculation_mode(normalized)
         self._chart_cache.clear()
-        self._database_metrics_cache = None
-        self._database_metrics_lucy_goosey_ids.clear()
+        self._invalidate_database_metrics_cache()
         invalidate_all_dominant_weight_caches()
         self._refresh_lilith_body_labels_in_filters()
         self._refresh_todays_transits_panel()
@@ -22000,12 +22013,26 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             blocker = QSignalBlocker(checkbox)
             checkbox.setChecked(bool(getattr(options, key, False)))
             del blocker
+        score_mode_combo = getattr(self, "_prediction_score_mode_combo", None)
+        if score_mode_combo is not None:
+            target_mode = options.normalized_score_mode()
+            index = score_mode_combo.findData(target_mode)
+            blocker = QSignalBlocker(score_mode_combo)
+            score_mode_combo.setCurrentIndex(index if index >= 0 else 0)
+            del blocker
         combo = getattr(self, "_enneagram_predictor_scale_combo", None)
         if combo is not None:
             target_mode = options.normalized_type_signature_scale_mode()
             index = combo.findData(target_mode)
             blocker = QSignalBlocker(combo)
             combo.setCurrentIndex(index if index >= 0 else 0)
+            del blocker
+        dominance_combo = getattr(self, "_prediction_dominance_normalization_combo", None)
+        if dominance_combo is not None:
+            target_mode = options.normalized_dominance_normalization_mode()
+            index = dominance_combo.findData(target_mode)
+            blocker = QSignalBlocker(dominance_combo)
+            dominance_combo.setCurrentIndex(index if index >= 0 else 0)
             del blocker
         self._update_enneagram_predictor_total_label()
         self._apply_enneagram_predictor_weights()
@@ -22039,11 +22066,49 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
         self._apply_enneagram_predictor_weights()
 
+    def _on_prediction_score_mode_changed(self, mode: str) -> None:
+        if not hasattr(self, "_enneagram_scoring_options"):
+            self._enneagram_scoring_options = _default_enneagram_scoring_options()
+        payload = _enneagram_scoring_options_to_payload(self._enneagram_scoring_options)
+        payload["score_mode"] = str(mode or "opportunity")
+        self._enneagram_scoring_options = _merge_enneagram_scoring_options(payload)
+        self._settings.setValue(
+            SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS,
+            _enneagram_scoring_options_to_payload(self._enneagram_scoring_options),
+        )
+        parent = self._owner_window()
+        if isinstance(parent, MainWindow):
+            parent._enneagram_scoring_options = self._enneagram_scoring_options
+            parent._settings.setValue(
+                SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS,
+                _enneagram_scoring_options_to_payload(self._enneagram_scoring_options),
+            )
+        self._apply_enneagram_predictor_weights()
+
     def _on_enneagram_type_signature_scale_changed(self, mode: str) -> None:
         if not hasattr(self, "_enneagram_scoring_options"):
             self._enneagram_scoring_options = _default_enneagram_scoring_options()
         payload = _enneagram_scoring_options_to_payload(self._enneagram_scoring_options)
         payload["type_signature_scale_mode"] = str(mode or "none")
+        self._enneagram_scoring_options = _merge_enneagram_scoring_options(payload)
+        self._settings.setValue(
+            SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS,
+            _enneagram_scoring_options_to_payload(self._enneagram_scoring_options),
+        )
+        parent = self._owner_window()
+        if isinstance(parent, MainWindow):
+            parent._enneagram_scoring_options = self._enneagram_scoring_options
+            parent._settings.setValue(
+                SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS,
+                _enneagram_scoring_options_to_payload(self._enneagram_scoring_options),
+            )
+        self._apply_enneagram_predictor_weights()
+
+    def _on_prediction_dominance_normalization_changed(self, mode: str) -> None:
+        if not hasattr(self, "_enneagram_scoring_options"):
+            self._enneagram_scoring_options = _default_enneagram_scoring_options()
+        payload = _enneagram_scoring_options_to_payload(self._enneagram_scoring_options)
+        payload["dominance_normalization_mode"] = str(mode or "range")
         self._enneagram_scoring_options = _merge_enneagram_scoring_options(payload)
         self._settings.setValue(
             SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS,
@@ -22065,6 +22130,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         _set_enneagram_category_weights(weights)
         options = getattr(self, "_enneagram_scoring_options", _default_enneagram_scoring_options())
         _set_enneagram_scoring_options(options)
+        _set_prediction_scoring_options(options)
         parent = self._owner_window()
         if isinstance(parent, MainWindow):
             parent._enneagram_predictor_mode = "default"
@@ -23214,6 +23280,7 @@ class MainWindow(QMainWindow):
             _enneagram_scoring_options_to_payload(self._enneagram_scoring_options),
         )
         _set_enneagram_scoring_options(self._enneagram_scoring_options)
+        _set_prediction_scoring_options(self._enneagram_scoring_options)
         set_lilith_calculation_mode(self._lilith_calculation_method)
         configure_main_window_chrome(self)
         self._feature_hub = FeatureEventHub()
@@ -23623,9 +23690,7 @@ class MainWindow(QMainWindow):
         self.retcon_time_edit.setFixedWidth(CHART_VIEW_TIME_INPUT_WIDTH)
         self.retcon_time_checkbox = QCheckBox("")
         self.retcon_time_checkbox.toggled.connect(self._on_retcon_time_toggled)
-        self.retcon_time_checkbox.toggled.connect(self._mark_lucygoosey)
         self.retcon_time_edit.timeChanged.connect(self._on_retcon_time_changed)
-        self.retcon_time_edit.timeChanged.connect(self._mark_lucygoosey)
         self.year_first_encountered_edit = QLineEdit()
         self.year_first_encountered_edit.setMaxLength(4)
         self.year_first_encountered_edit.setPlaceholderText("Year 1st Encountered")
@@ -31939,6 +32004,7 @@ class MainWindow(QMainWindow):
         widget.setPlainText(str(value or ""))
 
     def _clear_material_facts_fields(self) -> None:
+        previous_suppress_lucygoosey = self._suppress_lucygoosey
         self._suppress_lucygoosey = True
         try:
             for attr_name in (
@@ -31949,9 +32015,10 @@ class MainWindow(QMainWindow):
             ):
                 self._set_material_fact_text(attr_name, "")
         finally:
-            self._suppress_lucygoosey = False
+            self._suppress_lucygoosey = previous_suppress_lucygoosey
 
     def _load_material_facts_for_chart(self, chart_id: int | None) -> None:
+        previous_suppress_lucygoosey = self._suppress_lucygoosey
         self._suppress_lucygoosey = True
         try:
             identifiers = load_personal_identifiers(chart_id)
@@ -31963,7 +32030,7 @@ class MainWindow(QMainWindow):
             if callable(refresh_photo_gallery):
                 refresh_photo_gallery(chart_id)
         finally:
-            self._suppress_lucygoosey = False
+            self._suppress_lucygoosey = previous_suppress_lucygoosey
 
     def _save_material_facts_for_chart(self, chart_id: int | None) -> None:
         if chart_id is None:
@@ -32659,14 +32726,6 @@ class MainWindow(QMainWindow):
         self.time_unknown_checkbox.setChecked(chart.birthtime_unknown)
         if chart.birthtime_unknown:
             self.time_edit.setTime(default_noon)
-        self.retcon_time_checkbox.setChecked(chart.retcon_time_used)
-        self.deceased_checkbox.setChecked(bool(getattr(chart, "is_deceased", False)))
-        self.death_month_edit.setText(str(getattr(chart, "death_month", "") or ""))
-        self.death_day_edit.setText(str(getattr(chart, "death_day", "") or ""))
-        self.death_year_edit.setText(str(getattr(chart, "death_year", "") or ""))
-        self.death_time_unknown_checkbox.setChecked(bool(getattr(chart, "deathtime_unknown", False)))
-        self.death_time_edit.setTime(QTime(int(getattr(chart, "death_hour", 12) or 12), int(getattr(chart, "death_minute", 0) or 0)))
-        self.death_place_edit.setText(str(getattr(chart, "death_place", "") or ""))
         stored_retcon_hour = getattr(chart, "retcon_hour", None)
         stored_retcon_minute = getattr(chart, "retcon_minute", None)
         if stored_retcon_hour is not None and stored_retcon_minute is not None:
@@ -32675,6 +32734,14 @@ class MainWindow(QMainWindow):
             self.retcon_time_edit.setTime(qtime)
         else:
             self.retcon_time_edit.setTime(default_noon)
+        self.retcon_time_checkbox.setChecked(chart.retcon_time_used)
+        self.deceased_checkbox.setChecked(bool(getattr(chart, "is_deceased", False)))
+        self.death_month_edit.setText(str(getattr(chart, "death_month", "") or ""))
+        self.death_day_edit.setText(str(getattr(chart, "death_day", "") or ""))
+        self.death_year_edit.setText(str(getattr(chart, "death_year", "") or ""))
+        self.death_time_unknown_checkbox.setChecked(bool(getattr(chart, "deathtime_unknown", False)))
+        self.death_time_edit.setTime(QTime(int(getattr(chart, "death_hour", 12) or 12), int(getattr(chart, "death_minute", 0) or 0)))
+        self.death_place_edit.setText(str(getattr(chart, "death_place", "") or ""))
         self._birth_time_user_overridden = (
             not chart.birthtime_unknown and qtime != default_noon
         )
@@ -32934,9 +33001,11 @@ class MainWindow(QMainWindow):
         self._update_time_input_visibility()
         self._update_time_input_text_colors()
         if not self._suppress_lucygoosey:
+            self._mark_lucygoosey()
             self._reset_metric_canvases_for_retcon_timing_update()
             self._refresh_chart_preview()
-            self._autosave_checkbox_state()
+            if self._can_autosave_current_chart():
+                self._metadata_autosave_timer.start(2000)
 
     def _on_birth_time_changed(self, _time: QTime) -> None:
         if (
@@ -32958,7 +33027,8 @@ class MainWindow(QMainWindow):
         if should_refresh_retcon_preview:
             self._reset_metric_canvases_for_retcon_timing_update()
             self._refresh_chart_preview()
-            self._autosave_checkbox_state()
+            if self._can_autosave_current_chart():
+                self._metadata_autosave_timer.start(2000)
 
     def _update_time_input_visibility(self) -> None:
         self.time_edit.setVisible(not self.time_unknown_checkbox.isChecked())
@@ -34093,11 +34163,23 @@ class MainWindow(QMainWindow):
             blocker = QSignalBlocker(checkbox)
             checkbox.setChecked(bool(getattr(self._enneagram_scoring_options, key, False)))
             del blocker
+        score_mode_combo = getattr(self, "_prediction_score_mode_combo", None)
+        if score_mode_combo is not None:
+            index = score_mode_combo.findData(self._enneagram_scoring_options.normalized_score_mode())
+            blocker = QSignalBlocker(score_mode_combo)
+            score_mode_combo.setCurrentIndex(index if index >= 0 else 0)
+            del blocker
         combo = getattr(self, "_enneagram_predictor_scale_combo", None)
         if combo is not None:
             index = combo.findData(self._enneagram_scoring_options.normalized_type_signature_scale_mode())
             blocker = QSignalBlocker(combo)
             combo.setCurrentIndex(index if index >= 0 else 0)
+            del blocker
+        dominance_combo = getattr(self, "_prediction_dominance_normalization_combo", None)
+        if dominance_combo is not None:
+            index = dominance_combo.findData(self._enneagram_scoring_options.normalized_dominance_normalization_mode())
+            blocker = QSignalBlocker(dominance_combo)
+            dominance_combo.setCurrentIndex(index if index >= 0 else 0)
             del blocker
         self._update_enneagram_predictor_total_label()
         self._apply_enneagram_predictor_weights()
@@ -34123,6 +34205,18 @@ class MainWindow(QMainWindow):
         )
         self._apply_enneagram_predictor_weights()
 
+    def _on_prediction_score_mode_changed(self, mode: str) -> None:
+        if not hasattr(self, "_enneagram_scoring_options"):
+            self._enneagram_scoring_options = _default_enneagram_scoring_options()
+        payload = _enneagram_scoring_options_to_payload(self._enneagram_scoring_options)
+        payload["score_mode"] = str(mode or "opportunity")
+        self._enneagram_scoring_options = _merge_enneagram_scoring_options(payload)
+        self._settings.setValue(
+            SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS,
+            _enneagram_scoring_options_to_payload(self._enneagram_scoring_options),
+        )
+        self._apply_enneagram_predictor_weights()
+
     def _on_enneagram_type_signature_scale_changed(self, mode: str) -> None:
         if not hasattr(self, "_enneagram_scoring_options"):
             self._enneagram_scoring_options = _default_enneagram_scoring_options()
@@ -34135,13 +34229,25 @@ class MainWindow(QMainWindow):
         )
         self._apply_enneagram_predictor_weights()
 
+    def _on_prediction_dominance_normalization_changed(self, mode: str) -> None:
+        if not hasattr(self, "_enneagram_scoring_options"):
+            self._enneagram_scoring_options = _default_enneagram_scoring_options()
+        payload = _enneagram_scoring_options_to_payload(self._enneagram_scoring_options)
+        payload["dominance_normalization_mode"] = str(mode or "range")
+        self._enneagram_scoring_options = _merge_enneagram_scoring_options(payload)
+        self._settings.setValue(
+            SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS,
+            _enneagram_scoring_options_to_payload(self._enneagram_scoring_options),
+        )
+        self._apply_enneagram_predictor_weights()
+
     def _apply_enneagram_predictor_weights(self) -> None:
         weights = self._default_enneagram_category_weights()
         self._enneagram_predictor_weights = weights
         _set_enneagram_category_weights(weights)
-        _set_enneagram_scoring_options(
-            getattr(self, "_enneagram_scoring_options", _default_enneagram_scoring_options())
-        )
+        options = getattr(self, "_enneagram_scoring_options", _default_enneagram_scoring_options())
+        _set_enneagram_scoring_options(options)
+        _set_prediction_scoring_options(options)
         invalidate_metrics = getattr(self, "_invalidate_database_metrics_cache", None)
         if callable(invalidate_metrics):
             invalidate_metrics()

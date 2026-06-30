@@ -60,6 +60,23 @@ def test_dnd_prediction_statblock_uses_standard_vertical_axis_layout():
     assert "_ = apply_standard_bar_axes" not in function
 
 
+def test_dnd_stat_popout_evidence_imports_stat_predictors():
+    source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/dnd_predictions.py").read_text()
+    import_block = source[
+        source.index("from ephemeraldaddy.analysis.dnd.dnd_definitions import (") : source.index(
+            "from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import ("
+        )
+    ]
+    evidence_function = source[
+        source.index("def _build_dnd_stat_evidence_html") : source.index(
+            "def build_dnd_statblock_popout_info_html"
+        )
+    ]
+
+    assert "DND_STAT_PREDICTORS" in import_block
+    assert "DND_STAT_PREDICTORS.get(stat_key, {})" in evidence_function
+
+
 def test_prediction_metric_canvases_redraw_after_stacked_panel_layout_settles():
     source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
 
@@ -111,14 +128,14 @@ def test_property_managers_button_sits_below_settings_sections_with_padding():
     developer_tools_index = method.index('"Developer Tools"')
     database_stats_index = method.index("add_database_info_settings_section(self, content_layout)")
     similar_charts_index = method.index('"Similar Charts Calculator"')
-    enneagram_index = method.index('"Enneagram Predictor"')
+    predictions_index = method.index('"Predictions"')
     user_profile_index = method.index('"User Profile"')
     reset_index = method.index('"Reset All to Defaults"')
     property_managers_index = method.index('"Property Managers"')
     stretch_index = method.index("content_layout.addStretch(1)")
 
     assert data_visualization_index < developer_tools_index < database_stats_index
-    assert database_stats_index < similar_charts_index < enneagram_index < user_profile_index < reset_index
+    assert database_stats_index < similar_charts_index < predictions_index < user_profile_index < reset_index
     assert reset_index < property_managers_index < stretch_index
     assert "top_spacing=18" in method
     assert "parent_layout.addSpacing(top_spacing)" in source

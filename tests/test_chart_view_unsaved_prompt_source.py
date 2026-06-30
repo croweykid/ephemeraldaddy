@@ -78,3 +78,41 @@ def test_chart_save_signature_remains_void_for_existing_callers():
     method = _method_source("on_update_chart")
     assert "-> bool" not in method.splitlines()[0]
     assert not method.rstrip().endswith("return True")
+
+
+def test_retcon_toggle_marks_dirty_before_deferred_autosave():
+    method = _method_source("_on_retcon_time_toggled")
+    assert "self._mark_lucygoosey()" in method
+    assert "self._metadata_autosave_timer.start(2000)" in method
+    assert "self._autosave_checkbox_state()" not in method
+    assert method.index("self._mark_lucygoosey()") < method.index("self._metadata_autosave_timer.start(2000)")
+
+
+def test_retcon_time_edits_defer_autosave_so_leave_prompt_can_win():
+    method = _method_source("_on_retcon_time_changed")
+    assert "self._mark_lucygoosey()" in method
+    assert "self._metadata_autosave_timer.start(2000)" in method
+    assert "self._autosave_checkbox_state()" not in method
+
+
+def test_loaded_rectified_time_is_restored_before_checkbox_enabled():
+    method = _method_source("load_chart_by_id")
+    stored_hour_index = method.index('stored_retcon_hour = getattr(chart, "retcon_hour", None)')
+    set_time_index = method.index("self.retcon_time_edit.setTime", stored_hour_index)
+    checkbox_index = method.index("self.retcon_time_checkbox.setChecked(chart.retcon_time_used)")
+    assert stored_hour_index < set_time_index < checkbox_index
+
+
+def test_retcon_controls_do_not_have_duplicate_dirty_signal_connections():
+    assert "self.retcon_time_checkbox.toggled.connect(self._mark_lucygoosey)" not in APP_SOURCE
+    assert "self.retcon_time_edit.timeChanged.connect(self._mark_lucygoosey)" not in APP_SOURCE
+    assert "self.retcon_time_checkbox.toggled.connect(self._on_retcon_time_toggled)" in APP_SOURCE
+    assert "self.retcon_time_edit.timeChanged.connect(self._on_retcon_time_changed)" in APP_SOURCE
+
+
+def test_material_facts_load_preserves_outer_lucygoosey_suppression():
+    method = _method_source("_load_material_facts_for_chart")
+    assert "previous_suppress_lucygoosey = self._suppress_lucygoosey" in method
+    assert "self._suppress_lucygoosey = True" in method
+    assert "self._suppress_lucygoosey = previous_suppress_lucygoosey" in method
+    assert "self._suppress_lucygoosey = False" not in method

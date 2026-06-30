@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QLabel
 
 from ephemeraldaddy.analysis.dnd.dnd_definitions import (
     DND_CLASS_SUBCLASS_STATS,
+    DND_STAT_PREDICTORS,
     DND_STAT_EXPLANATIONS,
     SPECIES_DESCRIPTIONS,
 )
