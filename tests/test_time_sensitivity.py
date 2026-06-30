@@ -726,3 +726,36 @@ def test_ascertainment_confidence_values_stable_planet_signs_over_volatile_score
     assert confidence["components"]["angle sign stability"] == 50.0
     assert confidence["components"]["human design stability"] == 90.0
     assert confidence["components"]["element/mode/nakshatra stability"] == 100.0
+
+
+def test_time_sensitivity_ascendant_info_uses_legacy_as_spans():
+    import pytest
+
+    panel_module = pytest.importorskip(
+        "ephemeraldaddy.gui.features.charts.time_sensitivity_panel",
+        exc_type=ImportError,
+    )
+
+    result = TimeSensitivityResult(
+        chart_uid="CHARTUID",
+        chart_name="Example",
+        birth_date_key="01-01-2000",
+        algorithm_version="time-sensitivity-v7",
+        computed_at="2026-06-20T00:00:00Z",
+        config=TimeSensitivityConfig().__dict__,
+        sample_count=2,
+        baseline_time="12:00",
+        overall={"categorical_value_spans": {"AS": {"aries": ["00:00–01:00"]}}},
+        numeric_ranges={},
+        human_design={},
+        stable=[],
+        variable=["AS: aries / taurus"],
+        warnings=[],
+    )
+
+    html = panel_module.format_time_sensitivity_result_html(result)
+    assert "distinguishing-factor:ts-ascendant-sign:Aries" in html
+
+    text = panel_module.build_time_sensitivity_ascendant_sign_info_text(result, "Aries")
+    assert "from 00:00 to 01:00" in text
+    assert "from n/a to n/a" not in text
