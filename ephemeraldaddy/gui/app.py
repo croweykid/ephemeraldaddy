@@ -17043,19 +17043,38 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     active_left_scroll_value,
                 )
 
+    @staticmethod
+    def _set_button_text_if_changed(button: QPushButton, text: str) -> None:
+        """Avoid needless button relayouts when a selection keeps the same label."""
+        if button.text() != text:
+            button.setText(text)
+
+    @staticmethod
+    def _set_button_enabled_if_changed(button: QPushButton, enabled: bool) -> None:
+        """Avoid redundant enabled-state updates during fast row selection changes."""
+        if button.isEnabled() != enabled:
+            button.setEnabled(enabled)
+
     def _update_batch_edit_action_buttons(self) -> None:
         selected_count = len(self._selected_chart_ids()) if hasattr(self, "list_widget") else 0
         if hasattr(self, "batch_delete_chart_button"):
             chart_label = "Chart" if selected_count == 1 else "Charts"
-            self.batch_delete_chart_button.setText(
-                f"❌ {selected_count} {chart_label}"
+            self._set_button_text_if_changed(
+                self.batch_delete_chart_button,
+                f"❌ {selected_count} {chart_label}",
             )
         if hasattr(self, "batch_rename_chart_button"):
             rename_enabled = selected_count == 1
-            self.batch_rename_chart_button.setEnabled(rename_enabled)
+            self._set_button_enabled_if_changed(
+                self.batch_rename_chart_button,
+                rename_enabled,
+            )
         if hasattr(self, "total_chart_export_button"):
-            self.total_chart_export_button.setText(_chart_export_button_label(selected_count))
-            self.total_chart_export_button.setEnabled(True)
+            self._set_button_text_if_changed(
+                self.total_chart_export_button,
+                _chart_export_button_label(selected_count),
+            )
+            self._set_button_enabled_if_changed(self.total_chart_export_button, True)
         if hasattr(self, "mark_not_duplicates_button"):
             is_ready = (
                 self.mark_not_duplicates_button.isVisible()
