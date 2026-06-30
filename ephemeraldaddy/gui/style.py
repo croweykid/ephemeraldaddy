@@ -541,7 +541,7 @@ CHART_VIEW_RECTIFIED_LABEL_CHECKBOX_SPACING = 4
 DATABASE_VIEW_HEADER_COLOR = MIDDLE_PANEL_ACCENT_COLOR
 COLLAPSIBLE_SECTION_BACKGROUND = "#050505"  # Standard appwide black section content.
 COLLAPSIBLE_NESTED_SECTION_BACKGROUND = "#16071f"  # Purple content for sections that contain nested subsections.
-COLLAPSIBLE_HEADER_BACKGROUND = "#1c1c1c"  # Dark charcoal for clickable collapsible headers.
+COLLAPSIBLE_SECTION_HEADER_BACKGROUND = "#1c1c1c"  # Dark charcoal for clickable collapsible section headers.
 COLLAPSIBLE_SECTION_CONTENT_STYLE = f"background-color: {COLLAPSIBLE_SECTION_BACKGROUND};"
 COLLAPSIBLE_NESTED_SECTION_CONTENT_STYLE = (
     f"background-color: {COLLAPSIBLE_NESTED_SECTION_BACKGROUND};"
@@ -560,7 +560,7 @@ COLLAPSIBLE_SECTION_HEADER_WIGGLE_OFFSET_PX = 4
 def collapsible_section_header_toggle_style(
     *,
     text_color: str,
-    background_color: str = COLLAPSIBLE_HEADER_BACKGROUND,
+    background_color: str = COLLAPSIBLE_SECTION_HEADER_BACKGROUND,
 ) -> str:
     """Return the appwide expandable/collapsible section-header text rule."""
     return (
@@ -666,7 +666,7 @@ class _CollapsibleHeaderHoverFilter(QObject):
 
 
 def _run_collapsible_header_wiggle(toggle: QToolButton) -> None:
-    """Animate a compact up/down wiggle on a clicked collapsible header."""
+    """Animate a compact up/down wiggle on a clicked collapsible section header."""
     origin = toggle.pos()
     previous_animation = getattr(toggle, "_collapsible_header_wiggle_animation", None)
     if previous_animation is not None:
@@ -695,7 +695,7 @@ def _run_collapsible_header_wiggle(toggle: QToolButton) -> None:
 
 
 def _install_collapsible_header_interactions(toggle: QToolButton, style_sheet: str) -> None:
-    """Install the shared hover and click-wiggle behavior on a collapsible header."""
+    """Install the shared hover and click-wiggle behavior on a collapsible section header."""
     if not toggle.property("collapsible_header_hover_filter_installed"):
         hover_filter = _CollapsibleHeaderHoverFilter(toggle, style_sheet)
         toggle.installEventFilter(hover_filter)
@@ -728,7 +728,7 @@ def _nearest_scroll_area(widget: QWidget) -> QScrollArea | None:
 
 
 def _collapsible_section_for_toggle(toggle: QToolButton) -> QWidget | None:
-    """Return the section widget controlled by a collapsible header toggle."""
+    """Return the section widget controlled by a collapsible section header toggle."""
     section = toggle.parentWidget()
     while section is not None and section.layout() is None:
         section = section.parentWidget()
