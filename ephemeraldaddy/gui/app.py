@@ -32659,14 +32659,6 @@ class MainWindow(QMainWindow):
         self.time_unknown_checkbox.setChecked(chart.birthtime_unknown)
         if chart.birthtime_unknown:
             self.time_edit.setTime(default_noon)
-        self.retcon_time_checkbox.setChecked(chart.retcon_time_used)
-        self.deceased_checkbox.setChecked(bool(getattr(chart, "is_deceased", False)))
-        self.death_month_edit.setText(str(getattr(chart, "death_month", "") or ""))
-        self.death_day_edit.setText(str(getattr(chart, "death_day", "") or ""))
-        self.death_year_edit.setText(str(getattr(chart, "death_year", "") or ""))
-        self.death_time_unknown_checkbox.setChecked(bool(getattr(chart, "deathtime_unknown", False)))
-        self.death_time_edit.setTime(QTime(int(getattr(chart, "death_hour", 12) or 12), int(getattr(chart, "death_minute", 0) or 0)))
-        self.death_place_edit.setText(str(getattr(chart, "death_place", "") or ""))
         stored_retcon_hour = getattr(chart, "retcon_hour", None)
         stored_retcon_minute = getattr(chart, "retcon_minute", None)
         if stored_retcon_hour is not None and stored_retcon_minute is not None:
@@ -32675,6 +32667,14 @@ class MainWindow(QMainWindow):
             self.retcon_time_edit.setTime(qtime)
         else:
             self.retcon_time_edit.setTime(default_noon)
+        self.retcon_time_checkbox.setChecked(chart.retcon_time_used)
+        self.deceased_checkbox.setChecked(bool(getattr(chart, "is_deceased", False)))
+        self.death_month_edit.setText(str(getattr(chart, "death_month", "") or ""))
+        self.death_day_edit.setText(str(getattr(chart, "death_day", "") or ""))
+        self.death_year_edit.setText(str(getattr(chart, "death_year", "") or ""))
+        self.death_time_unknown_checkbox.setChecked(bool(getattr(chart, "deathtime_unknown", False)))
+        self.death_time_edit.setTime(QTime(int(getattr(chart, "death_hour", 12) or 12), int(getattr(chart, "death_minute", 0) or 0)))
+        self.death_place_edit.setText(str(getattr(chart, "death_place", "") or ""))
         self._birth_time_user_overridden = (
             not chart.birthtime_unknown and qtime != default_noon
         )
@@ -32934,6 +32934,7 @@ class MainWindow(QMainWindow):
         self._update_time_input_visibility()
         self._update_time_input_text_colors()
         if not self._suppress_lucygoosey:
+            self._mark_lucygoosey()
             self._reset_metric_canvases_for_retcon_timing_update()
             self._refresh_chart_preview()
             self._autosave_checkbox_state()
