@@ -31,18 +31,22 @@ def test_database_metrics_cache_is_saved_on_close_without_blocking_recompute():
 
 def test_database_metrics_panel_open_and_section_expand_defer_heavy_refresh():
     show_method = _method_source(APP_SOURCE, "_show_left_panel")
-    refresh_gate_method = _method_source(
-        APP_SOURCE, "_refresh_database_metrics_panel_if_sections_expanded"
+    panel_show_method = _method_source(APP_SOURCE, "_refresh_database_metrics_panel_on_show")
+    refresh_needed_method = _method_source(
+        APP_SOURCE, "_database_metrics_refresh_needed_on_panel_show"
     )
     expand_method = _method_source(APP_SOURCE, "_set_database_metrics_section_expanded")
     database_panel_branch = show_method.split('if panel_name == "database_metrics":', 1)[1].split(
         'elif panel_name == "gen_pop_norms":', 1
     )[0]
-    assert "self._refresh_database_metrics_panel_if_sections_expanded()" in database_panel_branch
+    assert "self._refresh_database_metrics_panel_on_show()" in database_panel_branch
     assert "self._update_sentiment_tally(" not in database_panel_branch
-    assert "if not self._expanded_database_metric_sections():" in refresh_gate_method
-    assert "self._show_database_analytics_pending_indicator(False)" in refresh_gate_method
-    assert "self._schedule_deferred_database_metrics_refresh()" in refresh_gate_method
+    assert "if not self._database_metrics_refresh_needed_on_panel_show():" in panel_show_method
+    assert "self._show_database_analytics_pending_indicator(False)" in panel_show_method
+    assert "self._schedule_database_metrics_background_preload()" in panel_show_method
+    assert "self._schedule_deferred_database_metrics_refresh()" in panel_show_method
+    assert "self._database_metrics_lucy_goosey_ids" in refresh_needed_method
+    assert "expanded_sections.issubset(self._database_metrics_snapshot_sections)" in refresh_needed_method
     assert "QTimer.singleShot(" in expand_method
     assert "self._refresh_expanded_database_metric_section(key)" in expand_method
 

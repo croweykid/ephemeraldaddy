@@ -15645,7 +15645,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._sync_database_metrics_section_visibility()
             self._update_position_sign_subheader()
             self._update_gender_subheader()
-            self._refresh_database_metrics_panel_if_sections_expanded()
+            self._refresh_database_metrics_panel_on_show()
         elif panel_name == "gen_pop_norms":
             self.database_metrics_panel_header_label.setText("General Population")
             self._database_metrics_baseline_mode = "gen_pop"
@@ -15657,7 +15657,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._sync_database_metrics_section_visibility()
             self._update_position_sign_subheader()
             self._update_gender_subheader()
-            self._refresh_database_metrics_panel_if_sections_expanded()
+            self._refresh_database_metrics_panel_on_show()
         elif panel_name == "similarities":
             self._update_sentiment_tally(
                 update_database_metrics=False,
@@ -15667,19 +15667,35 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._refresh_perceived_similarity_predictors_panel()
 
 
-    def _refresh_database_metrics_panel_if_sections_expanded(self) -> None:
-        """Refresh Database Analytics only when visible sections need data.
+    def _refresh_database_metrics_panel_on_show(self) -> None:
+        """Refresh Database Analytics on panel show only when data is stale.
 
-        Switching to the Database Analytics panel with every section collapsed is
-        just a panel navigation action.  In that state there is no chart canvas
-        to update, so avoid surfacing the pending/loading indicator and defer
-        the expensive analytics work until the user expands a section.
+        Panel navigation alone should not show a loading state or redraw cached
+        analytics.  If relevant chart rows changed, or expanded sections are not
+        covered by the current metrics cache, run the normal deferred refresh.
+        Otherwise keep the transition instant and let the idle preloader continue
+        warming collapsed sections for later expansion.
         """
-        if not self._expanded_database_metric_sections():
+        if not self._database_metrics_refresh_needed_on_panel_show():
             self._show_database_analytics_pending_indicator(False)
+            self._schedule_database_metrics_background_preload()
             return
         self._show_database_analytics_pending_indicator(True)
         self._schedule_deferred_database_metrics_refresh()
+
+    def _database_metrics_refresh_needed_on_panel_show(self) -> bool:
+        if self._database_metrics_cache is None:
+            return True
+        if (
+            self._deferred_database_metrics_changed_ids
+            or self._deferred_database_metrics_force_full_refresh
+            or self._database_metrics_lucy_goosey_ids
+        ):
+            return True
+        expanded_sections = frozenset(self._expanded_database_metric_sections())
+        if not expanded_sections:
+            return False
+        return not expanded_sections.issubset(self._database_metrics_snapshot_sections)
 
     def _toggle_database_metrics_panel(self) -> None:
         if (
