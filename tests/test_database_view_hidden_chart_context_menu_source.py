@@ -15,6 +15,13 @@ def test_show_hidden_setting_names_charts_explicitly():
     assert 'QCheckBox("Show Hidden")' not in APP_SOURCE
 
 
+def test_button_enabled_guard_compares_local_enabled_state():
+    method = _method_source("_set_button_enabled_if_changed")
+
+    assert "button.testAttribute(Qt.WA_ForceDisabled) == enabled" in method
+    assert "button.isEnabled() != enabled" not in method
+
+
 def test_context_menu_offers_rename_delete_and_unhide_actions():
     method = _method_source("_show_chart_list_context_menu")
 

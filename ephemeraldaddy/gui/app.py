@@ -17051,8 +17051,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     @staticmethod
     def _set_button_enabled_if_changed(button: QPushButton, enabled: bool) -> None:
-        """Avoid redundant enabled-state updates during fast row selection changes."""
-        if button.isEnabled() != enabled:
+        """Avoid redundant local enabled-state updates during fast row selection changes."""
+        if button.testAttribute(Qt.WA_ForceDisabled) == enabled:
             button.setEnabled(enabled)
 
     def _update_batch_edit_action_buttons(self) -> None:
