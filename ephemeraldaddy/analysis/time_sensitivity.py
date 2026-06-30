@@ -20,7 +20,7 @@ from ephemeraldaddy.core.interpretations import (
     ZODIAC_NAMES,
 )
 
-TIME_SENSITIVITY_ALGORITHM_VERSION = "time-sensitivity-v6"
+TIME_SENSITIVITY_ALGORITHM_VERSION = "time-sensitivity-v8"
 TIME_SENSITIVITY_DB_PATH = DB_DIR / "time_sensitivity.db"
 NUMERIC_GROUPS = (
     "dominant_planet_weights",
@@ -273,6 +273,57 @@ def _transition_windows(values: list[tuple[str, float]]) -> list[str]:
     return windows
 
 
+def _numeric_weight_mode(values: list[tuple[str, float]]) -> dict[str, Any]:
+    """Return a single sampled-weight mode, or mark tied modes unavailable."""
+    if not values:
+        return {
+            "available": False,
+            "reason": "no samples",
+            "weight": None,
+            "count": 0,
+            "percent": 0.0,
+            "times": [],
+            "spans": [],
+            "tied_weights": [],
+        }
+    counts: dict[float, int] = {}
+    for _time, value in values:
+        rounded_value = round(float(value), 6)
+        counts[rounded_value] = counts.get(rounded_value, 0) + 1
+    mode_count = max(counts.values())
+    mode_weights = sorted(
+        weight for weight, count in counts.items() if count == mode_count
+    )
+    mode_percent = round((mode_count / len(values)) * 100.0, 2)
+    if len(mode_weights) != 1:
+        return {
+            "available": False,
+            "reason": "multimodal",
+            "weight": None,
+            "count": mode_count,
+            "percent": mode_percent,
+            "times": [],
+            "spans": [],
+            "tied_weights": [round(weight, 6) for weight in mode_weights],
+        }
+    mode_weight = mode_weights[0]
+    mode_times = [
+        time for time, value in values if round(float(value), 6) == mode_weight
+    ]
+    return {
+        "available": True,
+        "weight": round(mode_weight, 6),
+        "count": mode_count,
+        "percent": mode_percent,
+        "times": mode_times,
+        "spans": _matching_spans(
+            values,
+            lambda value, expected=mode_weight: round(float(value), 6) == expected,
+        ),
+        "tied_weights": [],
+    }
+
+
 def _aggregate_numeric(
     samples: list[dict[str, Any]], baseline: dict[str, dict[str, float]]
 ) -> tuple[dict[str, dict[str, dict[str, Any]]], dict[str, float]]:
@@ -301,6 +352,7 @@ def _aggregate_numeric(
             max_increase_percent = _percent_delta(max_increase, base_value)
             max_decrease_percent = _percent_delta(max_decrease, base_value)
             variability_percent = max_increase_percent - max_decrease_percent
+            mode_payload = _numeric_weight_mode(values)
             max_group_delta = max(max_group_delta, abs(pct))
             present_times = [time for time, value in values if value > 0]
             peak_times = [time for time, value in values if value == max_value]
@@ -309,6 +361,8 @@ def _aggregate_numeric(
                 "min": round(min_value, 6),
                 "max": round(max_value, 6),
                 "baseline": round(base_value, 6),
+                "most_likely_weight": mode_payload,
+                "mode": mode_payload,
                 "delta": round(range_delta, 6),
                 "baseline_delta": round(baseline_delta, 6),
                 "max_increase_from_baseline": round(max_increase, 6),
@@ -320,6 +374,7 @@ def _aggregate_numeric(
                 "max_decrease_percent": round(
                     _percent_delta(max_decrease, base_value), 2
                 ),
+                "variability_percent": round(variability_percent, 2),
                 "label": _variability_label(abs(pct)),
                 "times_at_min": trough_times,
                 "times_at_max": peak_times,

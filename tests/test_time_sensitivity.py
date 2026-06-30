@@ -108,6 +108,55 @@ def test_aggregate_numeric_reports_delta_from_baseline_not_full_span():
     assert group_deltas["dominant_planet_weights"] == 50.0
 
 
+def test_aggregate_numeric_reports_most_likely_weight_from_sample_mode():
+    from ephemeraldaddy.analysis import time_sensitivity as module
+
+    samples = [
+        {"time": "00:00", "numeric": {group: {} for group in module.NUMERIC_GROUPS}},
+        {"time": "06:00", "numeric": {group: {} for group in module.NUMERIC_GROUPS}},
+        {"time": "12:00", "numeric": {group: {} for group in module.NUMERIC_GROUPS}},
+        {"time": "18:00", "numeric": {group: {} for group in module.NUMERIC_GROUPS}},
+    ]
+    for sample, value in zip(samples, (4.0, 9.0, 9.0, 2.0), strict=True):
+        sample["numeric"]["dominant_planet_weights"]["example"] = value
+    baseline = {group: {} for group in module.NUMERIC_GROUPS}
+    baseline["dominant_planet_weights"]["example"] = 4.0
+
+    ranges, _group_deltas = module._aggregate_numeric(samples, baseline)
+    mode = ranges["dominant_planet_weights"]["example"]["most_likely_weight"]
+
+    assert mode["available"] is True
+    assert mode["weight"] == 9.0
+    assert mode["count"] == 2
+    assert mode["percent"] == 50.0
+    assert mode["times"] == ["06:00", "12:00"]
+    assert mode["spans"] == ["06:00–12:00"]
+
+
+def test_aggregate_numeric_marks_tied_weight_modes_unavailable():
+    from ephemeraldaddy.analysis import time_sensitivity as module
+
+    samples = [
+        {"time": "00:00", "numeric": {group: {} for group in module.NUMERIC_GROUPS}},
+        {"time": "06:00", "numeric": {group: {} for group in module.NUMERIC_GROUPS}},
+        {"time": "12:00", "numeric": {group: {} for group in module.NUMERIC_GROUPS}},
+    ]
+    for sample, value in zip(samples, (4.0, 9.0, 2.0), strict=True):
+        sample["numeric"]["dominant_planet_weights"]["example"] = value
+    baseline = {group: {} for group in module.NUMERIC_GROUPS}
+    baseline["dominant_planet_weights"]["example"] = 4.0
+
+    ranges, _group_deltas = module._aggregate_numeric(samples, baseline)
+    mode = ranges["dominant_planet_weights"]["example"]["most_likely_weight"]
+
+    assert mode["available"] is False
+    assert mode["reason"] == "multimodal"
+    assert mode["weight"] is None
+    assert mode["count"] == 1
+    assert mode["percent"] == 33.33
+    assert mode["tied_weights"] == [2.0, 4.0, 9.0]
+
+
 def test_baseline_time_for_chart_prefers_current_or_rectified_time():
     from datetime import datetime
     from types import SimpleNamespace
@@ -519,6 +568,7 @@ def test_time_sensitivity_popout_factor_info_shows_min_max_peak_and_trench():
                 "Ashwini": {
                     "min": 2.0,
                     "max": 7.0,
+                    "most_likely_weight": {"weight": 5.0, "count": 3, "percent": 75.0},
                     "trough_times": ["00:30"],
                     "peak_times": ["23:30"],
                 },
@@ -537,6 +587,8 @@ def test_time_sensitivity_popout_factor_info_shows_min_max_peak_and_trench():
     assert "Ashwini" in html
     assert "Min dominance" in html
     assert "2" in html
+    assert "Most likely weight" in html
+    assert "5" in html
     assert "Max dominance" in html
     assert "7" in html
     assert "Trench time" in html

@@ -590,6 +590,52 @@ def _single_time_value(values: Any) -> str:
     return first.strip() or "n/a"
 
 
+def _most_likely_weight_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    value = payload.get("most_likely_weight") or payload.get("mode") or {}
+    return value if isinstance(value, dict) else {}
+
+
+def _most_likely_weight_value(payload: dict[str, Any]) -> float | None:
+    mode_payload = _most_likely_weight_payload(payload)
+    weight = mode_payload.get("weight")
+    if mode_payload.get("available", weight is not None) and weight is not None:
+        return float(weight)
+    if mode_payload:
+        return None
+    return (float(payload.get("min", 0.0)) + float(payload.get("max", 0.0))) / 2.0
+
+
+def _most_likely_weight_display(payload: dict[str, Any]) -> str:
+    weight = _most_likely_weight_value(payload)
+    if weight is None:
+        return "multi"
+    return f"{weight:.0f}"
+
+
+def _most_likely_weight_tooltip(payload: dict[str, Any]) -> str:
+    mode_payload = _most_likely_weight_payload(payload)
+    if not mode_payload:
+        return "Most likely weight unavailable for saved pre-v8 Time Sensitivity results."
+    percent = float(mode_payload.get("percent", 0.0))
+    count = int(mode_payload.get("count", 0))
+    if not mode_payload.get("available", mode_payload.get("weight") is not None):
+        tied_weights = mode_payload.get("tied_weights") or []
+        tied_text = ", ".join(f"{float(weight):.0f}" for weight in tied_weights[:8])
+        if len(tied_weights) > 8:
+            tied_text += ", …"
+        return (
+            "No single most likely weight: "
+            f"{len(tied_weights)} weights tie at {count} samples ({percent:.0f}%)."
+            + (f" Tied weights: {tied_text}" if tied_text else "")
+        )
+    spans = mode_payload.get("spans") or []
+    times = mode_payload.get("times") or []
+    when = "; ".join(str(span) for span in spans[:4]) or _format_time_list(
+        times, limit=4
+    )
+    return f"Mode of sampled raw weights: {count} samples ({percent:.0f}%). Times: {when}"
+
+
 def _variability_scale_label(percent_delta_spread: float) -> str:
     """Return a compact label for the spread between min and max percent deltas."""
     spread = abs(float(percent_delta_spread))
@@ -626,6 +672,8 @@ def _time_sensitivity_factor_info_html(
     color = escape(_factor_color(group_key, key), quote=True)
     minimum = float(payload.get("min", 0.0))
     maximum = float(payload.get("max", 0.0))
+    likely_display = _most_likely_weight_display(payload)
+    likely_tooltip = _most_likely_weight_tooltip(payload)
     trough_time = _single_time_value(
         payload.get("trough_times") or payload.get("trough_spans")
     )
@@ -637,6 +685,8 @@ def _time_sensitivity_factor_info_html(
         f"<div style='font-size:14px; font-weight:700; color:{color};'>{escape(display)}</div>"
         #"<table style='border-collapse:collapse; margin-top:6px; font-size:12px;'>"
         f"<b>Min dominance</b>{escape(f'{minimum:.0f}')} at {escape(trough_time)}</br>"
+        f"<b>Most likely weight</b>{escape(likely_display)} "
+        f"<span title='{escape(likely_tooltip, quote=True)}'>ⓘ</span></br>"
         f"<b>Max dominance</b>{escape(f'{maximum:.0f}')} at {escape(peak_time)}"
         #f"<tr><td><b>Trench time</b></td><td style='padding-left:12px;'>{escape(trough_time)}</td></tr>"
         #f"<tr><td><b>Peak time</b></td><td style='padding-left:12px;'>{escape(peak_time)}</td></tr>"
@@ -662,6 +712,12 @@ def _numeric_group_table_html(result: TimeSensitivityResult, group_key: str) -> 
         return "<div>No weighted results available.</div>"
     min_values = [float(payload.get("min", 0.0)) for _key, payload in meaningful]
     max_values = [float(payload.get("max", 0.0)) for _key, payload in meaningful]
+    likely_values = [
+        value
+        for _key, payload in meaningful
+        for value in [_most_likely_weight_value(payload)]
+        if value is not None
+    ]
     decrease_values = [
         float(payload.get("max_decrease_percent", 0.0)) for _key, payload in meaningful
     ]
@@ -679,10 +735,19 @@ def _numeric_group_table_html(result: TimeSensitivityResult, group_key: str) -> 
         )
         minimum = float(payload.get("min", 0.0))
         maximum = float(payload.get("max", 0.0))
+        likely = _most_likely_weight_value(payload)
+        likely_display = _most_likely_weight_display(payload)
+        likely_tooltip = _most_likely_weight_tooltip(payload)
         max_decrease = float(payload.get("max_decrease_percent", 0.0))
         max_increase = float(payload.get("max_increase_percent", 0.0))
         min_color = escape(_relative_value_color(minimum, min_values), quote=True)
         max_color = escape(_relative_value_color(maximum, max_values), quote=True)
+        likely_color = escape(
+            _relative_value_color(likely, likely_values)
+            if likely is not None
+            else "#bbbbbb",
+            quote=True,
+        )
         decrease_color = escape(
             _relative_value_color(max_decrease, decrease_values), quote=True
         )
@@ -695,6 +760,8 @@ def _numeric_group_table_html(result: TimeSensitivityResult, group_key: str) -> 
             f"<td>{_factor_anchor(group_key, key)}</td>"
             f"<td align='right' style='color:{min_color};'>{escape(f'{minimum:.0f}')}</td>"
             f"<td align='right' style='color:{max_color};'>{escape(f'{maximum:.0f}')}</td>"
+            f"<td align='right' title='{escape(likely_tooltip, quote=True)}' "
+            f"style='color:{likely_color};'>{escape(likely_display)}</td>"
             f"<td>{escape(trough_time)}</td>"
             f"<td>{escape(peak_time)}</td>"
             f"<td align='right' style='color:{decrease_color};'>{escape(f'{max_decrease:.0f}')}</td>"
@@ -708,6 +775,7 @@ def _numeric_group_table_html(result: TimeSensitivityResult, group_key: str) -> 
         "<th align='left'>factor</th>"  # body/sign/nak./H/el./mode
         "<th align='right'>min</th>"
         "<th align='right'>max</th>"
+        "<th align='right'>likely</th>"
         "<th align='center'>trench</th>"
         "<th align='center'>peak</th>"
         "<th align='right'>-%△</th>"
