@@ -35,7 +35,7 @@ from ephemeraldaddy.core.chart import chart_uses_houses
 from ephemeraldaddy.analysis.weighted_chart_predictor import (
     DEFAULT_CATEGORY_WEIGHTS as WEIGHTED_PREDICTOR_DEFAULT_CATEGORY_WEIGHTS,
     DOMINANCE_NORMALIZATION_SHARE,
-    TYPE_SIGNATURE_SCALE_NONE,
+    TYPE_SIGNATURE_SCALE_SQRT,
     WeightedPredictorScoringOptions,
     calculate_weighted_criteria_scores,
     coerce_scoring_options,
@@ -53,7 +53,7 @@ ENNEAGRAM_SCORING_OPTIONS = WeightedPredictorScoringOptions(
     use_aspect_dominance_weighting=True,
     simplify_anti_factor_handling=True,
     average_scores_by_criterion_count=False,
-    type_signature_scale_mode=TYPE_SIGNATURE_SCALE_NONE,
+    type_signature_scale_mode=TYPE_SIGNATURE_SCALE_SQRT,
     dominance_normalization_mode=DOMINANCE_NORMALIZATION_SHARE,
     human_design_activation_weight=1.0,
 )
@@ -89,7 +89,7 @@ def default_enneagram_scoring_options() -> WeightedPredictorScoringOptions:
         use_aspect_dominance_weighting=True,
         simplify_anti_factor_handling=True,
         average_scores_by_criterion_count=False,
-        type_signature_scale_mode=TYPE_SIGNATURE_SCALE_NONE,
+        type_signature_scale_mode=TYPE_SIGNATURE_SCALE_SQRT,
         dominance_normalization_mode=DOMINANCE_NORMALIZATION_SHARE,
         human_design_activation_weight=1.0,
     )
@@ -130,7 +130,7 @@ def enneagram_scoring_options_to_payload(options: WeightedPredictorScoringOption
         "use_aspect_dominance_weighting": bool(options.use_aspect_dominance_weighting),
         "simplify_anti_factor_handling": bool(options.simplify_anti_factor_handling),
         "average_scores_by_criterion_count": bool(options.average_scores_by_criterion_count),
-        "type_signature_scale_mode": str(options.type_signature_scale_mode or TYPE_SIGNATURE_SCALE_NONE),
+        "type_signature_scale_mode": str(options.type_signature_scale_mode or TYPE_SIGNATURE_SCALE_SQRT),
         "dominance_normalization_mode": str(options.dominance_normalization_mode or DOMINANCE_NORMALIZATION_SHARE),
         "human_design_activation_weight": float(options.human_design_activation_weight),
     }
