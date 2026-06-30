@@ -1398,9 +1398,6 @@ from ephemeraldaddy.gui.features.charts.batch_total_chart_export import (
     export_button_label as _chart_export_button_label,
     run_total_chart_export_flow as _run_total_chart_export_flow,
 )
-from ephemeraldaddy.analysis.weighted_chart_predictor import (
-    set_default_scoring_options as _set_prediction_scoring_options,
-)
 from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
     EnneagramPredictionPanelAdapter,
     calculate_enneagram_type_weights as _calculate_enneagram_type_weights,
@@ -2328,7 +2325,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             _enneagram_scoring_options_to_payload(self._enneagram_scoring_options),
         )
         _set_enneagram_scoring_options(self._enneagram_scoring_options)
-        _set_prediction_scoring_options(self._enneagram_scoring_options)
         set_lilith_calculation_mode(self._lilith_calculation_method)
         self._feature_hub = FeatureEventHub()
         _apply_minimum_screen_height(self)
@@ -22130,7 +22126,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         _set_enneagram_category_weights(weights)
         options = getattr(self, "_enneagram_scoring_options", _default_enneagram_scoring_options())
         _set_enneagram_scoring_options(options)
-        _set_prediction_scoring_options(options)
         parent = self._owner_window()
         if isinstance(parent, MainWindow):
             parent._enneagram_predictor_mode = "default"
@@ -23280,7 +23275,6 @@ class MainWindow(QMainWindow):
             _enneagram_scoring_options_to_payload(self._enneagram_scoring_options),
         )
         _set_enneagram_scoring_options(self._enneagram_scoring_options)
-        _set_prediction_scoring_options(self._enneagram_scoring_options)
         set_lilith_calculation_mode(self._lilith_calculation_method)
         configure_main_window_chrome(self)
         self._feature_hub = FeatureEventHub()
@@ -34247,7 +34241,6 @@ class MainWindow(QMainWindow):
         _set_enneagram_category_weights(weights)
         options = getattr(self, "_enneagram_scoring_options", _default_enneagram_scoring_options())
         _set_enneagram_scoring_options(options)
-        _set_prediction_scoring_options(options)
         invalidate_metrics = getattr(self, "_invalidate_database_metrics_cache", None)
         if callable(invalidate_metrics):
             invalidate_metrics()

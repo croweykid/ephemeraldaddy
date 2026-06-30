@@ -1186,11 +1186,14 @@ def calculate_weighted_criteria_scores(
         if score_mode == PREDICTION_SCORE_MODE_CATEGORY_Z and category_weight_total > 0:
             scores[target] /= category_weight_total
 
-        for values in (
+        available_signature_weight_groups = [
             signs, antisigns, bodies, antibodies, nakshatras, antinakshatras,
-            houses, antihouses, gates, antigates, channels, antichannels,
-            centers, anticenters, bazisigns, antibazisigns, aspects, antiaspects,
-        ):
+            gates, antigates, channels, antichannels, centers, anticenters,
+            bazisigns, antibazisigns, aspects, antiaspects,
+        ]
+        if use_houses:
+            available_signature_weight_groups.extend([houses, antihouses])
+        for values in available_signature_weight_groups:
             target_total_abs_weight += sum(abs(float(weight)) for weight in values.values())
         if options.use_mutual_exclusive_bucket_scoring:
             target_total_abs_weight += float(position_abs_weight or 0.0)

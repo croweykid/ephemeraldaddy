@@ -30,7 +30,9 @@ def test_predictions_settings_expose_dominance_normalization_mode():
     assert 'payload["dominance_normalization_mode"] = str(mode or "range")' in APP_SOURCE
 
 
-def test_predictions_settings_apply_shared_weighted_predictor_options():
-    assert "set_default_scoring_options as _set_prediction_scoring_options" in APP_SOURCE
-    assert "_set_prediction_scoring_options(self._enneagram_scoring_options)" in APP_SOURCE
-    assert "_set_prediction_scoring_options(options)" in APP_SOURCE
+def test_predictions_settings_keep_enneagram_scoring_options_enneagram_only():
+    assert "set_default_scoring_options as _set_prediction_scoring_options" not in APP_SOURCE
+    assert "_set_prediction_scoring_options(self._enneagram_scoring_options)" not in APP_SOURCE
+    assert "_set_prediction_scoring_options(options)" not in APP_SOURCE
+    assert "_set_enneagram_scoring_options(self._enneagram_scoring_options)" in APP_SOURCE
+    assert "_set_enneagram_scoring_options(options)" in APP_SOURCE
