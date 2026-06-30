@@ -205,6 +205,7 @@ def _build_ranges_html(body_name: str, sign_name: str, ranges: tuple[SignRange, 
     header = (
         f"<h2>{body_name} in {sign_name}</h2>"
         f"<p><strong>Kind:</strong> {meta['kind']} • <strong>Group:</strong> {meta['group']} • "
+        f"<p><strong>Kind:</strong> {meta['kind']} • <strong>Group:</strong> {meta['group']} • "
         f"<strong>Retrograde panel:</strong> {'yes' if meta['supports_retrograde_panel'] else 'no'} • "
         f"<strong>Speed plot:</strong> {'yes' if meta['supports_speed_plot'] else 'no'}</p>"
         f"<p>{meta['notes']}</p>"
@@ -281,6 +282,26 @@ def _show_sidereal_discussion_help(owner: "QWidget") -> None:
     buttons.rejected.connect(dialog.reject)
     layout.addWidget(buttons)
     dialog.show()
+
+    def _show_discussion_help(owner: "QWidget") -> None:
+        from PySide6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QVBoxLayout
+
+        dialog = QDialog(owner)
+        dialog.setModal(False)
+        dialog.setWindowTitle("Heliocentric Astrology")
+        dialog.resize(560, 360)
+        layout = QVBoxLayout(dialog)
+        label = QLabel(
+            "<h2>Heliocentric Astrology</h2>"
+            "<p>Aristarchus of Samos, 3rd century BCE was the earliest known heliocentrist in the then-hybrid discipline of astrology/astronomy.</p>"
+            "<p>His own heliocentric work is lost, but Archimedes preserves the claim that Aristarchus proposed the fixed stars and Sun remain still while Earth revolves around the Sun.</p>"
+        )
+        label.setWordWrap(True)
+        layout.addWidget(label, 1)
+        buttons = QDialogButtonBox(QDialogButtonBox.Close, parent=dialog)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+        dialog.show()
 
 
 def show_guide_to_the_galaxy(owner: "QWidget") -> None:
@@ -408,11 +429,10 @@ def show_guide_to_the_galaxy(owner: "QWidget") -> None:
     subhead.setOpenExternalLinks(False)
     subhead.setMaximumHeight(96)
     subhead.setHtml(
-        "<p><em>This is not astronomy. The two are connected, but astronomy is an empirical, "
-        "materialist science. Astrology is subjective metaphysics, and many people would deem it "
-        "a pseudoscience in the pejorative sense. They do reference many of the same basic tools, "
-        "but they are not entirely in accord. For instance, the "
-        "<a href='ephemeraldaddy://help/sidereal-discussion'>sidereal discussion</a>.</em></p>"
+        "<p><em>This is not astronomy. The two are connected, but astronomy is an empirical, materialist science that has been quite differentiated since at least the 1700s. Astrology is subjective metaphysics and many people would deem it a pseudoscience in the pejorative sense. They do reference many of the same basic tools, but they are not entirely in accord. For instance, the <a href='ephemeraldaddy://help/sidereal-discussion'>sidereal discussion</a>.</em></p>"
+        "<p>You will notice that the model below reflects observed cosmic phenomena from the perspective of Earth (geocentric model), rather than a literal heliocentric model. The broad tradition of astrology predates the concept of heliocentrism, as far as most remaining <a href='ephemeraldaddy://help/heliocentric_astrology'>historical sources</a> indicate. That said, geocentric astrology is not automatically the same claim as 'geocentric physics'. A birth chart is cast from the native’s location on Earth, so geocentric coordinates make practical sense even in a heliocentric solar system.<p>"
+        "<p>Nevertheless, it's worth noting that ancient astrologers usually were not making that modern distinction cleanly. Most probably assumed the geocentric cosmos was physically true, because that was the dominant educated model. This is a significant argument against mainstream adoption of astrology as a viable model for explaining any aspects of reality besides those which emerge out of faith-based and/or subconscious psychological projections.</p>"
+        "<p>Regardless, as far as the developer of this app has been able to personally determine, many aspects of it seem to correlate beyond expected standard deviation reliably enough to warrant further scrutiny, and so I for one am not entirely deterred by its anachronisms. It's possible that some systems function well by using relative rather than absolute observations. I would contend that if there is any validity to astrology, it is only because tropical astrology (specifically) is far more about earthly cycles mapped to celestial patterns rather than the cosmos themselves, a fact which tropical astrologers of any quality acknowledge. The great schism between astrology and astronomy arguably arose out of the distinction that astronomy studied the sky for the sky's sake, whereas in astrology, said cosmos were primarily used as (increasingly symbolic and mythologized) reference points for seasonal shifts, noteworthy impacts on temperature, weather, lighting. From this standpoint, the prior's validity conceivably remains in tact.</p>"
     )
     subhead.anchorClicked.connect(lambda _url: _show_sidereal_discussion_help(dialog))
     layout.addWidget(subhead)
