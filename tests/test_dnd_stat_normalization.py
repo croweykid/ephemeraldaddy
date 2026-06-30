@@ -119,13 +119,14 @@ def test_score_dnd_statblock_normalizes_criteria_budget_before_mapping(monkeypat
     statblock = stat_calculator.score_dnd_statblock(SimpleNamespace(name="Uneven criteria spread"))
 
     assert statblock.scores == {
-        "STR": 13,
-        "DEX": 12,
-        "CON": 12,
-        "INT": 12,
+        "STR": 16,
+        "DEX": 14,
+        "CON": 13,
+        "INT": 14,
         "WIS": 11,
-        "CHA": 10,
+        "CHA": 8,
     }
+    assert max(statblock.scores.values()) - min(statblock.scores.values()) >= 8
     assert 20 not in statblock.scores.values()
     assert 5 not in statblock.scores.values()
 

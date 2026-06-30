@@ -50,6 +50,12 @@ _MATCH_ONCE_PREDICTOR_CATEGORIES: Tuple[Tuple[str, str], ...] = (
     ("authorities", "antiauthorities"),
     ("bazisigns", "antibazisigns"),
 )
+# Keep criteria-volume normalization from flattening real evidence. A full
+# criteria budget is useful for comparing sparse vs. broad stat predictors, but
+# using that budget as the direct tanh divisor compresses normal matched
+# evidence into the 10-12 band. This scale preserves budget balancing while
+# letting clear positive/negative evidence produce visibly distinct stats.
+_EVIDENCE_DENOMINATOR_SCALE = 0.4
 
 
 def _to_dnd_stat(raw_score: float, floor: int = 5, ceiling: int = 20) -> int:
@@ -177,8 +183,9 @@ def _normalize_weighted_stat_scores(
     (0.5), reserves the 5/20 bounds for exceptional evidence, and avoids
     manufacturing CHA 5 / WIS 11 / several-20 profiles from ordinary weighted
     predictor matches. When per-stat denominators are supplied, raw evidence is
-    first divided by the stat's criteria budget so stats with dozens of criteria
-    are comparable to stats with sparse criteria.
+    first divided by a scaled criteria budget so stats with dozens of criteria
+    are comparable to stats with sparse criteria without compressing real
+    evidence into an overly flat 10-12 profile.
     """
     normalized: Dict[str, float] = {}
     for key, value in raw_scores.items():
@@ -187,7 +194,7 @@ def _normalize_weighted_stat_scores(
             calibrated_evidence = raw_value / 24.0
         else:
             denominator = max(1e-9, float(evidence_denominators.get(key, 1.0)))
-            calibrated_evidence = raw_value / denominator
+            calibrated_evidence = raw_value / (denominator * _EVIDENCE_DENOMINATOR_SCALE)
         normalized[key] = _clamp01(0.5 + (0.5 * math.tanh(calibrated_evidence)))
     return normalized
 
