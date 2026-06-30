@@ -763,10 +763,10 @@ def test_time_sensitivity_scatter_points_use_sample_times_as_hover_labels():
             "dominant_sign_weights": {
                 "Aries": {
                     "min": 1.0,
-                    "max": 3.0,
+                    "max": 2.75,
                     "weight_samples": [
-                        {"time": "00:00", "weight": 1.0},
-                        {"time": "12:00", "weight": 3.0},
+                        {"time": "00:00", "weight": 1.5},
+                        {"time": "12:00", "weight": 2.75},
                     ],
                 }
             }
@@ -782,6 +782,6 @@ def test_time_sensitivity_scatter_points_use_sample_times_as_hover_labels():
     )
 
     assert x_values == [0.0, 0.0]
-    assert y_values == [1.0, 3.0]
+    assert y_values == [1.5, 2.75]
     assert times == ["00:00", "12:00"]
-    assert labels == ["Aries\n00:00 • 1", "Aries\n12:00 • 3"]
+    assert labels == ["Aries\n00:00 • 1.5", "Aries\n12:00 • 2.75"]

@@ -144,6 +144,14 @@ def _display_label_for_likelihood(group_key: str, label: str) -> str:
     return label
 
 
+def _format_sampled_weight(weight: float) -> str:
+    """Show sampled weights at persisted precision without noisy trailing zeros."""
+    rounded = round(float(weight), 6)
+    if abs(rounded) < 0.0000005:
+        rounded = 0.0
+    return f"{rounded:.6f}".rstrip("0").rstrip(".")
+
+
 def _sampled_weight_points(
     result: TimeSensitivityResult, group_key: str, labels: list[str]
 ) -> tuple[list[float], list[float], list[str], list[str]]:
@@ -172,7 +180,9 @@ def _sampled_weight_points(
             x_values.append(float(x_position))
             y_values.append(weight)
             point_times.append(time)
-            point_labels.append(f"{display_label}\n{time} • {weight:.0f}")
+            point_labels.append(
+                f"{display_label}\n{time} • {_format_sampled_weight(weight)}"
+            )
     return x_values, y_values, point_labels, point_times
 
 
