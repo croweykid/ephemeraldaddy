@@ -125,11 +125,36 @@ def test_aggregate_numeric_reports_most_likely_weight_from_sample_mode():
     ranges, _group_deltas = module._aggregate_numeric(samples, baseline)
     mode = ranges["dominant_planet_weights"]["example"]["most_likely_weight"]
 
+    assert mode["available"] is True
     assert mode["weight"] == 9.0
     assert mode["count"] == 2
     assert mode["percent"] == 50.0
     assert mode["times"] == ["06:00", "12:00"]
     assert mode["spans"] == ["06:00–12:00"]
+
+
+def test_aggregate_numeric_marks_tied_weight_modes_unavailable():
+    from ephemeraldaddy.analysis import time_sensitivity as module
+
+    samples = [
+        {"time": "00:00", "numeric": {group: {} for group in module.NUMERIC_GROUPS}},
+        {"time": "06:00", "numeric": {group: {} for group in module.NUMERIC_GROUPS}},
+        {"time": "12:00", "numeric": {group: {} for group in module.NUMERIC_GROUPS}},
+    ]
+    for sample, value in zip(samples, (4.0, 9.0, 2.0), strict=True):
+        sample["numeric"]["dominant_planet_weights"]["example"] = value
+    baseline = {group: {} for group in module.NUMERIC_GROUPS}
+    baseline["dominant_planet_weights"]["example"] = 4.0
+
+    ranges, _group_deltas = module._aggregate_numeric(samples, baseline)
+    mode = ranges["dominant_planet_weights"]["example"]["most_likely_weight"]
+
+    assert mode["available"] is False
+    assert mode["reason"] == "multimodal"
+    assert mode["weight"] is None
+    assert mode["count"] == 1
+    assert mode["percent"] == 33.33
+    assert mode["tied_weights"] == [2.0, 4.0, 9.0]
 
 
 def test_baseline_time_for_chart_prefers_current_or_rectified_time():
