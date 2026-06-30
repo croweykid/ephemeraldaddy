@@ -51,6 +51,21 @@ def test_database_metrics_panel_open_and_section_expand_defer_heavy_refresh():
     assert "self._refresh_expanded_database_metric_section(key)" in expand_method
 
 
+
+def test_database_metrics_section_refresh_protocols_are_field_scoped():
+    assert "DATABASE_METRICS_BIRTH_DATA_SECTIONS" in APP_SOURCE
+    assert '"birth_data"' in APP_SOURCE
+    assert '"tags": frozenset({"tag_distribution"})' in APP_SOURCE
+    assert '"sentiments": frozenset({"sentiment_prevalence"})' in APP_SOURCE
+    assert '"gender": frozenset({"gender"})' in APP_SOURCE
+    update_method = _method_source(APP_SOURCE, "_update_sentiment_tally")
+    assert "changed_fields" in update_method
+    assert "_database_metrics_sections_for_changed_fields" in update_method
+    assert "self._database_metrics_preloaded_sections.difference_update(sections_to_refresh)" in update_method
+    incremental_method = _method_source(APP_SOURCE, "_schedule_incremental_metrics_refresh")
+    assert "sections_to_refresh" in incremental_method
+    assert "if section_key in allowed_sections" in incremental_method
+
 def test_incremental_refresh_reuses_same_changed_ids_for_every_section_step():
     method = _method_source(APP_SOURCE, "_run_incremental_metrics_refresh_step")
     assert "self._incremental_metrics_refresh_changed_ids.clear()" in method.split(
