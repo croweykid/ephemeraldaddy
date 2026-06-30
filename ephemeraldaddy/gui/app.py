@@ -2504,6 +2504,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         # lazy changed-id refresh applies panel-wide by default.
         self._database_metric_snapshots: dict[int, dict[str, Any]] = {}
         self._database_metrics_cache: dict[str, Any] | None = None
+        self._database_metrics_cache_revision = 0
         self._database_metrics_snapshot_sections: frozenset[str] = frozenset()
         self._database_metrics_lucy_goosey_ids: set[int] = set()
         self.transit_panel_controller = TransitPanelController(
@@ -3540,9 +3541,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _invalidate_database_metrics_cache(self) -> None:
         self._database_metrics_cache = None
+        self._database_metrics_cache_revision = int(getattr(self, "_database_metrics_cache_revision", 0)) + 1
         self._database_metric_snapshots = {}
         self._database_metrics_snapshot_sections = frozenset()
         self._database_metrics_lucy_goosey_ids.clear()
+        clear_traits_cache = getattr(self, "_clear_traits_distribution_analytics_cache", None)
+        if callable(clear_traits_cache):
+            clear_traits_cache()
 
     def _update_position_sign_subheader(self) -> None:
         subheader = getattr(self, "position_sign_distribution_subheader", None)
@@ -10408,8 +10413,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if changed_ids:
             self._database_metrics_lucy_goosey_ids.update(changed_ids)
             self._database_metrics_preloaded_sections.clear()
+            clear_traits_cache = getattr(self, "_clear_traits_distribution_analytics_cache", None)
+            if callable(clear_traits_cache):
+                clear_traits_cache()
         if force_full_refresh or (update_database_metrics and sections_to_refresh is None):
             self._database_metrics_preloaded_sections.clear()
+            if force_full_refresh:
+                clear_traits_cache = getattr(self, "_clear_traits_distribution_analytics_cache", None)
+                if callable(clear_traits_cache):
+                    clear_traits_cache()
 
         self._update_selection_header()
         if not update_database_metrics and not update_similarities:
@@ -17779,9 +17791,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             progress.close()
 
         self._chart_cache.clear()
-        self._database_metrics_cache = None
-        self._database_metric_snapshots = {}
-        self._database_metrics_lucy_goosey_ids.clear()
+        self._invalidate_database_metrics_cache()
         self._refresh_charts(force_full_analysis_refresh=True)
 
     def _on_force_refresh_database_analysis(self) -> None:
@@ -17884,9 +17894,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
 
         self._chart_cache.clear()
-        self._database_metrics_cache = None
-        self._database_metric_snapshots = {}
-        self._database_metrics_lucy_goosey_ids.clear()
+        self._invalidate_database_metrics_cache()
         self._refresh_charts(force_full_analysis_refresh=True)
 
     def _on_import_database(self) -> None:
@@ -18154,9 +18162,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             owner = self._owner_window()
             if owner is not None and hasattr(owner, "_invalidate_chart_view_navigation_cache"):
                 owner._invalidate_chart_view_navigation_cache()
-            self._database_metrics_cache = None
-            self._database_metric_snapshots = {}
-            self._database_metrics_lucy_goosey_ids.clear()
+            self._invalidate_database_metrics_cache()
             self.similarities_controller.clear_db_baseline_cache()
         elif changed_ids:
             self._database_metrics_lucy_goosey_ids.update(changed_ids)
@@ -21444,8 +21450,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._settings.setValue(SETTINGS_KEY_LILITH_CALCULATION_METHOD, normalized)
         set_lilith_calculation_mode(normalized)
         self._chart_cache.clear()
-        self._database_metrics_cache = None
-        self._database_metrics_lucy_goosey_ids.clear()
+        self._invalidate_database_metrics_cache()
         invalidate_all_dominant_weight_caches()
         self._refresh_lilith_body_labels_in_filters()
         self._refresh_todays_transits_panel()
