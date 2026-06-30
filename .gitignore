@@ -22,3 +22,4 @@ python
 build/
 dist/
 EphemeralDaddy.spec
+docs/dev log.pages
