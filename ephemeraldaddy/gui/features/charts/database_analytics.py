@@ -4051,7 +4051,8 @@ class DatabaseAnalyticsChartsMixin:
         if not isinstance(aggregate_cache, dict):
             aggregate_cache = {}
             self._traits_distribution_analytics_cache = aggregate_cache
-        aggregate_cache_key = (trait_signature, normalized_chart_ids)
+        cache_revision = int(getattr(self, "_database_metrics_cache_revision", 0))
+        aggregate_cache_key = (cache_revision, trait_signature, normalized_chart_ids)
         cached = aggregate_cache.get(aggregate_cache_key)
         if isinstance(cached, dict):
             return copy.deepcopy(cached)
@@ -4069,7 +4070,7 @@ class DatabaseAnalyticsChartsMixin:
             chart = self._get_chart_for_filter(int(chart_id))
             if chart is None or self._is_placeholder_chart(chart):
                 continue
-            chart_cache_key = (trait_signature, int(chart_id))
+            chart_cache_key = (cache_revision, trait_signature, int(chart_id))
             likelihoods = likelihood_cache.get(chart_cache_key)
             if likelihoods is None:
                 try:
