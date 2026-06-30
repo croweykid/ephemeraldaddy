@@ -53,14 +53,14 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
     if not ranked:
         label.setText("No scorable traits uploaded.")
         return
-    top_rows = ranked[:5]
-    bottom_rows = list(reversed(ranked[-5:])) if len(ranked) > 5 else []
+    top_rows = ranked[:7]
+    bottom_rows = list(reversed(ranked[-7:])) if len(ranked) > 7 else []
     parts = [
         "<div style='color:#d8d8d8; padding-bottom:4px;'>"
         "Traits are ranked by evidence likelihood: higher percentages indicate stronger matches to supporting criteria, "
         "while lower percentages indicate stronger matches to anti-criteria."
         "</div>",
-        "<b>Top 5 traits</b>",
+        "<p><b>Top 5 traits</b></p>",
         "<table cellspacing='0' cellpadding='0'>",
         *[
             _trait_rank_row(rank, name, pct, color=color_by_name.get(name, DEFAULT_TRAIT_COLOR))
@@ -70,7 +70,7 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
     ]
     if bottom_rows:
         parts.extend([
-            "<div style='padding-top:6px;'><b>Bottom 5 traits</b></div>",
+            "<div style='padding-top:6px;'><b>Bottom 7 traits</b></div>",
             "<table cellspacing='0' cellpadding='0'>",
             *[
                 _trait_rank_row(rank, name, pct, color=color_by_name.get(name, DEFAULT_TRAIT_COLOR))
