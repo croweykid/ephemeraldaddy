@@ -16551,11 +16551,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         # if self._help_overlay_active:
         #     self._rebuild_help_markers()
 
-    def moveEvent(self, event) -> None:
-        super().moveEvent(event)
-        if self.isVisible() and not getattr(self, "_applying_window_placement", False):
-            self._session_window_layout_adjusted = True
-
     def closeEvent(self, event) -> None:
         self._is_closing = True
         self._database_metrics_preload_enabled = False
@@ -32903,7 +32898,24 @@ class MainWindow(QMainWindow):
             startup_progress("Database View shell is open…", 92)
         QTimer.singleShot(0, self._raise_manage_charts_dialog)
         self._retarget_size_checker_to_database_view()
+        self._hide_chart_view_while_database_view_is_open()
         return True
+
+    def _hide_chart_view_while_database_view_is_open(self) -> None:
+        if not self.isVisible():
+            return
+        self._applying_window_placement = True
+        try:
+            if platform.system() == "Windows":
+                # A real hide() removes the app's taskbar entry on Windows when
+                # Database View is the active top-level window. Minimize Chart
+                # View instead so it is not visible behind Database View while
+                # the taskbar icon remains available throughout the transition.
+                self.showMinimized()
+            else:
+                self.hide()
+        finally:
+            self._applying_window_placement = False
 
     def _on_close_requested(self) -> None:
         self.close()
@@ -35357,16 +35369,6 @@ class MainWindow(QMainWindow):
             self._help_resize_overlay()
         # if self._help_overlay_active:
         #     self._rebuild_help_markers()
-
-    def moveEvent(self, event) -> None:
-        super().moveEvent(event)
-        if (
-            self.isVisible()
-            and not getattr(self, "_restoring_window_layout", False)
-            and not getattr(self, "_applying_window_placement", False)
-        ):
-            self._window_layout_customized = True
-            self._session_window_layout_adjusted = True
 
     def _ensure_help_overlay_widgets(self) -> None:
         if hasattr(self, "_help_scrim"):

@@ -566,9 +566,10 @@ class ChartsController:
                 apply_launch_window_policy(use_topmost_pulse=use_launch_pulse)
             self._raise_manage_dialog()
         else:
-            dialog.show()
             if callable(apply_launch_window_policy):
                 apply_launch_window_policy(use_topmost_pulse=use_launch_pulse)
+            else:
+                dialog.show()
             self._raise_manage_dialog()
         if refresh_after_show is not None:
             if progress_callback:
