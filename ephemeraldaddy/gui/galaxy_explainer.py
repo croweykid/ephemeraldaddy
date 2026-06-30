@@ -14,6 +14,7 @@ MINUTES = lambda n: _dt.timedelta(minutes=n)
 HOURS = lambda n: _dt.timedelta(hours=n)
 DAYS = lambda n: _dt.timedelta(days=n)
 INFINITY = float("inf")
+_ACTIVE_RANGE_JOBS: set[tuple[object, object]] = set()
 
 TIMELINE_BUCKETS = (
     {"label": "minute-scale", "max_days": 1 / 24},
@@ -318,7 +319,7 @@ def _show_sidereal_discussion_help(owner: "QWidget") -> None:
 
 
 def show_guide_to_the_galaxy(owner: "QWidget") -> None:
-    from PySide6.QtCore import QPointF, QRectF, QTimer, Qt
+    from PySide6.QtCore import QObject, QPointF, QRectF, QThread, QTimer, Qt, Signal, Slot
     from PySide6.QtGui import QColor, QFont, QPainter, QPen
     from PySide6.QtWidgets import (
         QComboBox,
@@ -493,19 +494,77 @@ def show_guide_to_the_galaxy(owner: "QWidget") -> None:
     row.addLayout(right, 2)
     layout.addLayout(row, 1)
 
+    class SignRangeWorker(QObject):
+        finished = Signal(str, str, object, object)
+
+        def __init__(self, body: str, sign: str) -> None:
+            super().__init__()
+            self._body = body
+            self._sign = sign
+
+        @Slot()
+        def run(self) -> None:
+            try:
+                ranges = sign_ranges_for_body(
+                    self._body,
+                    self._sign,
+                    BODY_UI_META[self._body]["default_window_years"],
+                    100,
+                )
+                self.finished.emit(self._body, self._sign, ranges, None)
+            except Exception as exc:  # defensive UI boundary for optional ephemeris data
+                self.finished.emit(self._body, self._sign, (), exc)
+
+    range_job: dict[str, object | None] = {"thread": None, "worker": None}
+    dialog_alive = {"value": True}
+
+    def _mark_dialog_closed() -> None:
+        dialog_alive["value"] = False
+
+    dialog.destroyed.connect(_mark_dialog_closed)
+
+    def _finish_range_job(thread: QThread, worker: SignRangeWorker) -> None:
+        range_job["thread"] = None
+        range_job["worker"] = None
+
+        def forget_job() -> None:
+            _ACTIVE_RANGE_JOBS.discard((thread, worker))
+            thread.deleteLater()
+
+        thread.finished.connect(forget_job)
+        worker.deleteLater()
+        thread.quit()
+
     def refresh_ranges() -> None:
         body = body_combo.currentText()
         sign = sign_combo.currentText()
         calculate_button.setEnabled(False)
         calculate_button.setText("Calculating…")
-        try:
-            ranges = sign_ranges_for_body(body, sign, BODY_UI_META[body]["default_window_years"], 100)
-            explain.setHtml(_build_ranges_html(body, sign, ranges))
-        except Exception as exc:  # defensive UI boundary for optional ephemeris data
-            explain.setHtml(f"<h2>{body} in {sign}</h2><p><em>Could not calculate ranges from the built-in ephemeris: {exc}</em></p>")
-        finally:
-            calculate_button.setEnabled(True)
-            calculate_button.setText("Show 300y past / 100y future sign ranges")
+        explain.setHtml(f"<h2>{body} in {sign}</h2><p><em>Calculating sign ranges in the background…</em></p>")
+
+        thread = QThread()
+        worker = SignRangeWorker(body, sign)
+        worker.moveToThread(thread)
+        range_job["thread"] = thread
+        range_job["worker"] = worker
+        _ACTIVE_RANGE_JOBS.add((thread, worker))
+
+        def handle_finished(done_body: str, done_sign: str, ranges: object, error: object) -> None:
+            if dialog_alive["value"]:
+                try:
+                    if error is None:
+                        explain.setHtml(_build_ranges_html(done_body, done_sign, ranges))
+                    else:
+                        explain.setHtml(f"<h2>{done_body} in {done_sign}</h2><p><em>Could not calculate ranges from the built-in ephemeris: {error}</em></p>")
+                    calculate_button.setEnabled(True)
+                    calculate_button.setText("Show 300y past / 100y future sign ranges")
+                except RuntimeError:
+                    dialog_alive["value"] = False
+            _finish_range_job(thread, worker)
+
+        thread.started.connect(worker.run)
+        worker.finished.connect(handle_finished)
+        thread.start()
 
     calculate_button.clicked.connect(refresh_ranges)
     buttons = QDialogButtonBox(QDialogButtonBox.Close, parent=dialog)
