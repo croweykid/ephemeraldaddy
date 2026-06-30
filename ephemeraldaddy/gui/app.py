@@ -2253,6 +2253,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.setWindowFlag(Qt.WindowMaximizeButtonHint, True)
         self.setWindowFlag(Qt.WindowCloseButtonHint, True)
         self._settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
+        self._applying_window_placement = False
+        self._session_window_layout_adjusted = False
         self._visibility = VisibilityStore(self._settings)
         self._lilith_calculation_method = _resolve_supported_lilith_calculation_method(
             self._settings.value(
@@ -16489,13 +16491,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.right_panel_stack.setVisible(self._right_panel_visible)
 
     def adopt_window_placement(self, source_window: QWidget | None) -> None:
-        if source_window is None:
+        if source_window is None or self._session_window_layout_adjusted:
             return
-        apply_window_placement(
-            self,
-            capture_window_placement(source_window),
-            show_window=False,
-        )
+        self._applying_window_placement = True
+        try:
+            apply_window_placement(
+                self,
+                capture_window_placement(source_window),
+                show_window=False,
+            )
+        finally:
+            self._applying_window_placement = False
 
     def apply_launch_window_policy(self, *, use_topmost_pulse: bool = False) -> None:
         # Keep Database View launch maximized across platforms (including macOS)
@@ -16508,11 +16514,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.isMinimized(),
             use_topmost_pulse,
         )
-        clear_fullscreen_and_minimized(self)
-        # Show directly in maximized state to avoid a visible normal-size flash
-        # during Chart View -> Database View transitions on Windows.
-        if not self.isVisible() or not self.isMaximized():
-            self.showMaximized()
+        self._applying_window_placement = True
+        try:
+            clear_fullscreen_and_minimized(self)
+            if self._session_window_layout_adjusted:
+                if self.isMaximized():
+                    self.showMaximized()
+                else:
+                    self.showNormal()
+            elif not self.isVisible() or not self.isMaximized():
+                # Show directly in maximized state to avoid a visible normal-size flash
+                # during Chart View -> Database View transitions on Windows.
+                self.showMaximized()
+        finally:
+            self._applying_window_placement = False
         bring_window_to_front(self, use_topmost_pulse=use_topmost_pulse)
         if use_topmost_pulse:
             self._launch_foreground_completed = True
@@ -16527,12 +16542,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
+        if self.isVisible() and not getattr(self, "_applying_window_placement", False):
+            self._session_window_layout_adjusted = True
         if hasattr(self, "_content_splitter"):
             configure_splitter_handle_resize_cursor(self._content_splitter)
         if hasattr(self, "_help_scrim"):
             self._help_resize_overlay()
         # if self._help_overlay_active:
         #     self._rebuild_help_markers()
+
+    def moveEvent(self, event) -> None:
+        super().moveEvent(event)
+        if self.isVisible() and not getattr(self, "_applying_window_placement", False):
+            self._session_window_layout_adjusted = True
 
     def closeEvent(self, event) -> None:
         self._is_closing = True
@@ -23319,8 +23341,10 @@ class MainWindow(QMainWindow):
         configure_main_window_chrome(self)
         self._feature_hub = FeatureEventHub()
         self._allow_app_exit_close = False
+        self._applying_window_placement = False
         self._restoring_window_layout = False
         self._window_layout_customized = False
+        self._session_window_layout_adjusted = False
         _apply_minimum_screen_height(self)
 
         # Chart Entry Window vs Chart Edit Window:
@@ -31131,22 +31155,26 @@ class MainWindow(QMainWindow):
     ) -> None:
         self._collapse_similar_charts_section()
         placement: WindowPlacement | None = None
-        if source_window is not None:
+        if source_window is not None and not self._session_window_layout_adjusted:
             placement = capture_window_placement(source_window)
             if maximize is None:
                 maximize = placement.maximized
 
         if maximize is None:
-            maximize = True
+            maximize = self.isMaximized() if self._session_window_layout_adjusted else True
 
-        self.show()
-        apply_window_placement(
-            self,
-            WindowPlacement(
-                geometry=placement.geometry if placement is not None else None,
-                maximized=maximize,
-            ),
-        )
+        self._applying_window_placement = True
+        try:
+            self.show()
+            apply_window_placement(
+                self,
+                WindowPlacement(
+                    geometry=placement.geometry if placement is not None else None,
+                    maximized=maximize,
+                ),
+            )
+        finally:
+            self._applying_window_placement = False
         if activate:
             self.raise_()
             self.activateWindow()
@@ -35318,10 +35346,27 @@ class MainWindow(QMainWindow):
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
+        if (
+            self.isVisible()
+            and not getattr(self, "_restoring_window_layout", False)
+            and not getattr(self, "_applying_window_placement", False)
+        ):
+            self._window_layout_customized = True
+            self._session_window_layout_adjusted = True
         if hasattr(self, "_help_scrim"):
             self._help_resize_overlay()
         # if self._help_overlay_active:
         #     self._rebuild_help_markers()
+
+    def moveEvent(self, event) -> None:
+        super().moveEvent(event)
+        if (
+            self.isVisible()
+            and not getattr(self, "_restoring_window_layout", False)
+            and not getattr(self, "_applying_window_placement", False)
+        ):
+            self._window_layout_customized = True
+            self._session_window_layout_adjusted = True
 
     def _ensure_help_overlay_widgets(self) -> None:
         if hasattr(self, "_help_scrim"):
