@@ -827,9 +827,11 @@ from ephemeraldaddy.gui.features.charts.search_text import (
 )
 
 from ephemeraldaddy.gui.features.charts.database_analytics import (
+    DATABASE_METRICS_SECTION_ORDER,
     DatabaseAnalyticsChartsMixin,
     apply_decan_snapshot_delta,
     apply_nakshatra_snapshot_delta,
+    database_metrics_sections_for_changed_fields,
     decans_dropdown_options,
     decans_empty_cache_fields,
     nakshatras_dropdown_options,
@@ -1219,57 +1221,6 @@ CHART_VIEW_NAV_CACHE_LIMIT = 24
 
 DATABASE_METRICS_PERSISTENT_CACHE_VERSION = 1
 DATABASE_METRICS_PERSISTENT_CACHE_FILENAME = ".database_metrics_cache.json"
-DATABASE_METRICS_SECTION_ORDER: tuple[str, ...] = (
-    "planetary_sign_prevalence",
-    "sentiment_prevalence",
-    "relationship_prevalence",
-    "alignment_summary",
-    "matched_expectations_summary",
-    "sign_prevalence",
-    "dominant_signs",
-    "decans",
-    "nakshatras",
-    "cumulativedom_factors",
-    "enneagram",
-    "species_distribution",
-    "birth_time",
-    "age",
-    "birth_month",
-    "birthplace",
-    "tag_distribution",
-    "traits_distribution",
-    "gender",
-    "human_design",
-    "bazi",
-)
-DATABASE_METRICS_BIRTH_DATA_SECTIONS: frozenset[str] = frozenset(
-    {
-        "planetary_sign_prevalence",
-        "sign_prevalence",
-        "dominant_signs",
-        "decans",
-        "nakshatras",
-        "cumulativedom_factors",
-        "enneagram",
-        "species_distribution",
-        "birth_time",
-        "age",
-        "birth_month",
-        "birthplace",
-        "human_design",
-        "bazi",
-    }
-)
-DATABASE_METRICS_SUBJECTIVE_SECTION_DEPENDENCIES: dict[str, frozenset[str]] = {
-    "sentiments": frozenset({"sentiment_prevalence"}),
-    "relationship_types": frozenset({"relationship_prevalence"}),
-    "alignment": frozenset({"alignment_summary"}),
-    "matched_expectations": frozenset({"matched_expectations_summary"}),
-    "gender": frozenset({"gender"}),
-    "tags": frozenset({"tag_distribution"}),
-    "traits": frozenset({"traits_distribution"}),
-}
-
 GENERATION_UNKNOWN_OPTION = "unknown"
 GENERATION_FILTER_OPTIONS: tuple[str, ...] = tuple(
     [
@@ -10450,7 +10401,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     ) -> None:
         if sections_to_refresh is None and changed_ids and changed_fields is not None:
             sections_to_refresh = set(
-                self._database_metrics_sections_for_changed_fields(changed_fields)
+                database_metrics_sections_for_changed_fields(changed_fields)
             )
         if changed_ids:
             self._database_metrics_lucy_goosey_ids.update(changed_ids)
@@ -15753,23 +15704,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if not expanded_sections:
             return False
         return not expanded_sections.issubset(self._database_metrics_snapshot_sections)
-
-    def _database_metrics_sections_for_changed_fields(
-        self,
-        changed_fields: set[str] | frozenset[str] | None,
-    ) -> frozenset[str]:
-        """Return the exact Database Analytics sections affected by field edits."""
-        if not changed_fields:
-            return frozenset(DATABASE_METRICS_SECTION_ORDER)
-        sections: set[str] = set()
-        for field in changed_fields:
-            if field == "birth_data":
-                sections.update(DATABASE_METRICS_BIRTH_DATA_SECTIONS)
-                continue
-            sections.update(
-                DATABASE_METRICS_SUBJECTIVE_SECTION_DEPENDENCIES.get(field, frozenset())
-            )
-        return frozenset(sections)
 
     def _toggle_database_metrics_panel(self) -> None:
         if (

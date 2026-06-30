@@ -34,6 +34,74 @@ from PySide6.QtWidgets import (
 
 from ephemeraldaddy.gui.features.charts.dnd_predictions import DND_STAT_KEYS
 
+DATABASE_METRICS_SECTION_ORDER: tuple[str, ...] = (
+    "planetary_sign_prevalence",
+    "sentiment_prevalence",
+    "relationship_prevalence",
+    "alignment_summary",
+    "matched_expectations_summary",
+    "sign_prevalence",
+    "dominant_signs",
+    "decans",
+    "nakshatras",
+    "cumulativedom_factors",
+    "enneagram",
+    "species_distribution",
+    "birth_time",
+    "age",
+    "birth_month",
+    "birthplace",
+    "tag_distribution",
+    "traits_distribution",
+    "gender",
+    "human_design",
+    "bazi",
+)
+DATABASE_METRICS_BIRTH_DATA_SECTIONS: frozenset[str] = frozenset(
+    {
+        "planetary_sign_prevalence",
+        "sign_prevalence",
+        "dominant_signs",
+        "decans",
+        "nakshatras",
+        "cumulativedom_factors",
+        "enneagram",
+        "species_distribution",
+        "birth_time",
+        "age",
+        "birth_month",
+        "birthplace",
+        "human_design",
+        "bazi",
+    }
+)
+DATABASE_METRICS_SUBJECTIVE_SECTION_DEPENDENCIES: dict[str, frozenset[str]] = {
+    "sentiments": frozenset({"sentiment_prevalence"}),
+    "relationship_types": frozenset({"relationship_prevalence"}),
+    "alignment": frozenset({"alignment_summary"}),
+    "matched_expectations": frozenset({"matched_expectations_summary"}),
+    "gender": frozenset({"gender"}),
+    "tags": frozenset({"tag_distribution"}),
+    "traits": frozenset({"traits_distribution"}),
+}
+
+
+def database_metrics_sections_for_changed_fields(
+    changed_fields: set[str] | frozenset[str] | None,
+) -> frozenset[str]:
+    """Return the Database Analytics sections affected by edited chart fields."""
+    if not changed_fields:
+        return frozenset(DATABASE_METRICS_SECTION_ORDER)
+    sections: set[str] = set()
+    for field in changed_fields:
+        if field == "birth_data":
+            sections.update(DATABASE_METRICS_BIRTH_DATA_SECTIONS)
+            continue
+        sections.update(
+            DATABASE_METRICS_SUBJECTIVE_SECTION_DEPENDENCIES.get(field, frozenset())
+        )
+    return frozenset(sections)
+
 
 class DatabaseAnalyticsPopoutScrollArea(QScrollArea):
     """Scroll area that keeps popout charts width-bound while preserving vertical scroll."""

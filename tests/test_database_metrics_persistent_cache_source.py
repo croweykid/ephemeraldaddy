@@ -2,6 +2,7 @@ from pathlib import Path
 
 APP_SOURCE = (Path(__file__).resolve().parents[1] / "ephemeraldaddy/gui/app.py").read_text()
 DB_SOURCE = (Path(__file__).resolve().parents[1] / "ephemeraldaddy/core/db.py").read_text()
+DB_ANALYTICS_SOURCE = (Path(__file__).resolve().parents[1] / "ephemeraldaddy/gui/features/charts/database_analytics.py").read_text()
 
 
 def _method_source(source: str, name: str, *, indented: bool = True) -> str:
@@ -53,14 +54,15 @@ def test_database_metrics_panel_open_and_section_expand_defer_heavy_refresh():
 
 
 def test_database_metrics_section_refresh_protocols_are_field_scoped():
-    assert "DATABASE_METRICS_BIRTH_DATA_SECTIONS" in APP_SOURCE
-    assert '"birth_data"' in APP_SOURCE
-    assert '"tags": frozenset({"tag_distribution"})' in APP_SOURCE
-    assert '"sentiments": frozenset({"sentiment_prevalence"})' in APP_SOURCE
-    assert '"gender": frozenset({"gender"})' in APP_SOURCE
+    assert "DATABASE_METRICS_BIRTH_DATA_SECTIONS" in DB_ANALYTICS_SOURCE
+    assert '"birth_data"' in DB_ANALYTICS_SOURCE
+    assert '"tags": frozenset({"tag_distribution"})' in DB_ANALYTICS_SOURCE
+    assert '"sentiments": frozenset({"sentiment_prevalence"})' in DB_ANALYTICS_SOURCE
+    assert '"gender": frozenset({"gender"})' in DB_ANALYTICS_SOURCE
+    assert "def database_metrics_sections_for_changed_fields" in DB_ANALYTICS_SOURCE
     update_method = _method_source(APP_SOURCE, "_update_sentiment_tally")
     assert "changed_fields" in update_method
-    assert "_database_metrics_sections_for_changed_fields" in update_method
+    assert "database_metrics_sections_for_changed_fields" in update_method
     assert "self._database_metrics_preloaded_sections.difference_update(sections_to_refresh)" in update_method
     incremental_method = _method_source(APP_SOURCE, "_schedule_incremental_metrics_refresh")
     assert "sections_to_refresh" in incremental_method
