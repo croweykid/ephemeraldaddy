@@ -232,6 +232,47 @@ class ChartDataTableOutput(QPlainTextEdit):
         super().paintEvent(event)
         _paint_chart_data_separators(self)
 
+    _UNCERTAIN_TIME_VARIANTS_HEADER = "UNCERTAIN TIME VARIANTS"
+
+    def _uncertain_time_variants_block(self):
+        block = self.document().firstBlock()
+        while block.isValid():
+            if block.text().strip() == self._UNCERTAIN_TIME_VARIANTS_HEADER:
+                return block
+            block = block.next()
+        return None
+
+    def _set_uncertain_time_variants_collapsed(self, collapsed: bool) -> None:
+        header_block = self._uncertain_time_variants_block()
+        if header_block is None:
+            return
+        block = header_block.next()
+        while block.isValid():
+            block_text = block.text().strip()
+            next_block = block.next()
+            if block_text == "POSITIONS":
+                break
+            block.setVisible(not collapsed)
+            block.setLineCount(1 if not collapsed else 0)
+            block = next_block
+        self.document().markContentsDirty(header_block.position(), self.document().characterCount())
+        self.viewport().update()
+
+    def mousePressEvent(self, event) -> None:  # noqa: ANN001 - Qt event type varies by binding version.
+        cursor = self.cursorForPosition(event.pos())
+        if cursor.block().text().strip() == self._UNCERTAIN_TIME_VARIANTS_HEADER:
+            collapsed = not bool(getattr(self, "_uncertain_time_variants_collapsed", False))
+            self._uncertain_time_variants_collapsed = collapsed
+            self._set_uncertain_time_variants_collapsed(collapsed)
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def setPlainText(self, text: str) -> None:  # noqa: N802 - Qt API
+        super().setPlainText(text)
+        self._uncertain_time_variants_collapsed = False
+        self._set_uncertain_time_variants_collapsed(False)
+
 
 class ChartSummaryHighlighter(QSyntaxHighlighter):
     """Shared formatter for every chart-data output panel."""
@@ -651,7 +692,8 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
 
     def _apply_hd_time_variant_colors(self, text: str, stripped_text: str) -> None:
         arrow = _chart_data_arrow()
-        if arrow not in stripped_text or self._current_chart_data_section() != "POSITIONS":
+        current_section = self._current_chart_data_section()
+        if arrow not in stripped_text or current_section not in {"POSITIONS", "UNCERTAIN TIME VARIANTS"}:
             return
         columns = self._split_padded_columns(text.rstrip())
         if len(columns) < 4:
@@ -663,11 +705,14 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         body_text = data_columns[0][0].strip()
         if not re.match(r"^[PD]\.\s+", body_text):
             return
-        degree_value = data_columns[2][0].strip()
-        if not re.fullmatch(r"\d{1,3}(?:\.\d+)?°", degree_value):
-            return
 
-        variant_columns = [data_columns[1], *data_columns[3:7]]
+        if current_section == "POSITIONS":
+            degree_value = data_columns[2][0].strip()
+            if not re.fullmatch(r"\d{1,3}(?:\.\d+)?°", degree_value):
+                return
+            variant_columns = [data_columns[1], *data_columns[3:7]]
+        else:
+            variant_columns = data_columns[1:6]
         parsed_variant_fields: list[tuple[int, re.Match[str], list[str]]] = []
         row_has_three_way_variant = False
         for value_text, value_start, _value_end in variant_columns:
@@ -1239,7 +1284,8 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         return columns
 
     def _apply_positions_row_colors(self, text: str, stripped_text: str) -> None:
-        if self._current_chart_data_section() != "POSITIONS":
+        current_section = self._current_chart_data_section()
+        if current_section not in {"POSITIONS", "UNCERTAIN TIME VARIANTS"}:
             return
         if not stripped_text or stripped_text == "POSITIONS" or stripped_text == CHART_DATA_DIVIDER:
             return
@@ -1264,6 +1310,9 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
 
         sign_text, _sign_start, _sign_end = data_columns[1]
         sign_format = self._format_for_sign_cell(sign_text)
+
+        if current_section == "UNCERTAIN TIME VARIANTS":
+            return
 
         if sign_format is not None:
             degree_text, degree_start, degree_end = data_columns[2]
