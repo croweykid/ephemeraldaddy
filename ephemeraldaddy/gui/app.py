@@ -15645,8 +15645,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._sync_database_metrics_section_visibility()
             self._update_position_sign_subheader()
             self._update_gender_subheader()
-            self._show_database_analytics_pending_indicator(True)
-            self._schedule_deferred_database_metrics_refresh()
+            self._refresh_database_metrics_panel_if_sections_expanded()
         elif panel_name == "gen_pop_norms":
             self.database_metrics_panel_header_label.setText("General Population")
             self._database_metrics_baseline_mode = "gen_pop"
@@ -15658,8 +15657,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._sync_database_metrics_section_visibility()
             self._update_position_sign_subheader()
             self._update_gender_subheader()
-            self._show_database_analytics_pending_indicator(True)
-            self._schedule_deferred_database_metrics_refresh()
+            self._refresh_database_metrics_panel_if_sections_expanded()
         elif panel_name == "similarities":
             self._update_sentiment_tally(
                 update_database_metrics=False,
@@ -15667,6 +15665,21 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
         elif panel_name == "perceived_similarity_predictors":
             self._refresh_perceived_similarity_predictors_panel()
+
+
+    def _refresh_database_metrics_panel_if_sections_expanded(self) -> None:
+        """Refresh Database Analytics only when visible sections need data.
+
+        Switching to the Database Analytics panel with every section collapsed is
+        just a panel navigation action.  In that state there is no chart canvas
+        to update, so avoid surfacing the pending/loading indicator and defer
+        the expensive analytics work until the user expands a section.
+        """
+        if not self._expanded_database_metric_sections():
+            self._show_database_analytics_pending_indicator(False)
+            return
+        self._show_database_analytics_pending_indicator(True)
+        self._schedule_deferred_database_metrics_refresh()
 
     def _toggle_database_metrics_panel(self) -> None:
         if (
