@@ -541,7 +541,7 @@ CHART_VIEW_RECTIFIED_LABEL_CHECKBOX_SPACING = 4
 DATABASE_VIEW_HEADER_COLOR = MIDDLE_PANEL_ACCENT_COLOR
 COLLAPSIBLE_SECTION_BACKGROUND = "#050505"  # Standard appwide black for regular sections and subsections.
 COLLAPSIBLE_NESTED_SECTION_BACKGROUND = "#16071f"  # Subtle dark purple for sections containing nested collapsibles.
-COLLAPSIBLE_HEADER_BACKGROUND = "#222222"  # Dark charcoal for clickable collapsible headers.
+COLLAPSIBLE_HEADER_BACKGROUND = "#101010"  # Dark charcoal for clickable collapsible headers.
 COLLAPSIBLE_SECTION_CONTENT_STYLE = f"background-color: {COLLAPSIBLE_SECTION_BACKGROUND};"
 COLLAPSIBLE_NESTED_SECTION_CONTENT_STYLE = (
     f"background-color: {COLLAPSIBLE_NESTED_SECTION_BACKGROUND};"
