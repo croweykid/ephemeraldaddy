@@ -81,8 +81,15 @@ def _style_prediction_bar_chart(ax: Any, *, labels: list[str], max_value: float,
     ax.figure.subplots_adjust(left=0.18, bottom=0.20, top=0.92, right=0.96)
 
 
-def draw_dnd_statblock_predictions(ax: Any, chart: Any, *, dnd_stat_keys: tuple[str, ...], apply_standard_bar_axes: Any) -> None:
-    statblock = score_dnd_statblock(chart)
+def draw_dnd_statblock_predictions(
+    ax: Any,
+    chart: Any,
+    *,
+    dnd_stat_keys: tuple[str, ...],
+    apply_standard_bar_axes: Any,
+    norm_charts: Any = None,
+) -> None:
+    statblock = score_dnd_statblock(chart, norm_charts=norm_charts)
     labels = list(dnd_stat_keys)
     values = [float(statblock.scores.get(label, 0.0)) for label in labels]
     max_value = max(values, default=0.0)
@@ -320,14 +327,14 @@ def _build_dnd_stat_evidence_html(chart: Any, stat_key: str, *, max_items_per_ca
     return "".join(html_sections)
 
 
-def build_dnd_statblock_popout_info_html(chart: Any, stat_key: str) -> str:
+def build_dnd_statblock_popout_info_html(chart: Any, stat_key: str, *, norm_charts: Any = None) -> str:
     if chart is None:
         return "No chart is available for this D&D stat interpretation."
     stat_definition = _stat_definition_for_key(stat_key)
     if stat_definition is None:
         return f"No D&D stat interpretation data available for {html.escape(str(stat_key))}."
 
-    statblock = score_dnd_statblock(chart)
+    statblock = score_dnd_statblock(chart, norm_charts=norm_charts)
     normalized_stat_key = str(stat_key or "").strip().upper()
     stat_value = int(statblock.scores.get(normalized_stat_key, 0))
     chart_name = str(getattr(chart, "name", "Chart") or "Chart").strip() or "Chart"
@@ -624,6 +631,7 @@ class DndPredictionPanelAdapter:
         apply_standard_bar_axes: Callable[[Any, list[str]], None],
         is_placeholder_chart: Callable[[Any], bool],
         dnd_stat_keys: tuple[str, ...] = DND_STAT_KEYS,
+        norm_charts_provider: Callable[[], Any] | None = None,
     ) -> None:
         self.chart_layout = chart_layout
         self.summary_label = summary_label
@@ -633,6 +641,15 @@ class DndPredictionPanelAdapter:
         self.apply_standard_bar_axes = apply_standard_bar_axes
         self.is_placeholder_chart = is_placeholder_chart
         self.dnd_stat_keys = dnd_stat_keys
+        self.norm_charts_provider = norm_charts_provider
+
+    def _norm_charts(self) -> Any:
+        if self.norm_charts_provider is None:
+            return None
+        try:
+            return self.norm_charts_provider()
+        except Exception:
+            return None
 
     def _ensure_summary_label(self) -> Any:
         summary_label_is_usable = False
@@ -669,13 +686,14 @@ class DndPredictionPanelAdapter:
             chart,
             dnd_stat_keys=self.dnd_stat_keys,
             apply_standard_bar_axes=self.apply_standard_bar_axes,
+            norm_charts=self._norm_charts(),
         )
 
     def build_popout_info(self, chart: Any | None, target: str) -> str:
-        return build_dnd_statblock_popout_info_html(chart, target)
+        return build_dnd_statblock_popout_info_html(chart, target, norm_charts=self._norm_charts())
 
     def cache_metadata(self, chart: Any) -> dict[str, float]:
-        statblock = score_dnd_statblock(chart)
+        statblock = score_dnd_statblock(chart, norm_charts=self._norm_charts())
         return {stat_key: float(statblock.scores.get(stat_key, 0.0)) for stat_key in self.dnd_stat_keys}
 
     def render(self, chart: Any | None, metric_panel_renderer: Callable[..., Any]) -> Any:

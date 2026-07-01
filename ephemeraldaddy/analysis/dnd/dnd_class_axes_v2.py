@@ -1578,6 +1578,7 @@ def score_dnd_statblock(
     *,
     stat_floor: int = 5,
     stat_ceiling: int = 20,
+    norm_charts: Any = None,
 ) -> DnDStatBlock:
     from .dnd_stat_calculator import score_dnd_statblock as _score_dnd_statblock
 
@@ -1585,6 +1586,7 @@ def score_dnd_statblock(
         chart,
         stat_floor=stat_floor,
         stat_ceiling=stat_ceiling,
+        norm_charts=norm_charts,
     )
 
 

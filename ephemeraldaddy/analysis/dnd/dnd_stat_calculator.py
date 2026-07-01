@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from typing import Any, Dict, Mapping, Optional, Tuple
+from typing import Any, Dict, Iterable, Mapping, Optional, Tuple
 
 from ephemeraldaddy.analysis.weighted_chart_predictor import (
     calculate_weighted_criteria_scores,
@@ -56,6 +56,49 @@ _MATCH_ONCE_PREDICTOR_CATEGORIES: Tuple[Tuple[str, str], ...] = (
 # evidence into the 10-12 band. This scale preserves budget balancing while
 # letting clear positive/negative evidence produce visibly distinct stats.
 _EVIDENCE_DENOMINATOR_SCALE = 0.4
+
+_DND_AVERAGE_STAT_ANCHOR = 11.0
+
+
+def _to_dnd_stat_from_db_norm(
+    chart_value: float,
+    db_average: float,
+    *,
+    floor: int = 5,
+    ceiling: int = 20,
+) -> int:
+    """Map a chart stat to D&D terms by direct ratio to the DB average.
+
+    The database norm is the anchor: whatever average value the database has for
+    a stat is treated as D&D 11. The chart value then moves up or down by the
+    exact same percentage deviation from that norm. No per-chart min/max, tanh,
+    or criteria-budget normalization is applied to this DB-relative path.
+    """
+    try:
+        norm = float(db_average)
+        value = float(chart_value)
+    except (TypeError, ValueError):
+        return int(round(_DND_AVERAGE_STAT_ANCHOR))
+    if not math.isfinite(norm) or abs(norm) <= 1e-9 or not math.isfinite(value):
+        return int(round(_DND_AVERAGE_STAT_ANCHOR))
+    stat_value = _DND_AVERAGE_STAT_ANCHOR * (value / norm)
+    return int(math.floor(max(floor, min(ceiling, stat_value)) + 0.5))
+
+
+def _calculate_db_norm_stat_averages(norm_charts: Iterable[Any] | None) -> Dict[str, float]:
+    totals = {key: 0.0 for key in _DND_STAT_COMPONENT_ORDER}
+    count = 0
+    for norm_chart in norm_charts or ():
+        raw_weighted_scores = calculate_weighted_criteria_scores(
+            norm_chart,
+            predictors=DND_STAT_PREDICTORS,
+        )
+        for key in _DND_STAT_COMPONENT_ORDER:
+            totals[key] += float(raw_weighted_scores.get(key, 0.0))
+        count += 1
+    if count <= 0:
+        return {}
+    return {key: totals[key] / float(count) for key in _DND_STAT_COMPONENT_ORDER}
 
 
 def _to_dnd_stat(raw_score: float, floor: int = 5, ceiling: int = 20) -> int:
@@ -204,20 +247,35 @@ def score_dnd_statblock(
     *,
     stat_floor: int = 5,
     stat_ceiling: int = 20,
+    norm_charts: Iterable[Any] | None = None,
 ) -> DnDStatBlock:
-    """Score D&D stats using the shared multi-criterion chart predictor model."""
+    """Score D&D stats using direct DB-relative stat ratios when norms exist."""
     raw_weighted_scores = calculate_weighted_criteria_scores(
         chart,
         predictors=DND_STAT_PREDICTORS,
     )
-    raw_scores = _normalize_weighted_stat_scores(
-        {key: float(raw_weighted_scores.get(key, 0.0)) for key in _DND_STAT_COMPONENT_ORDER},
-        evidence_denominators=_calculate_stat_evidence_denominators(DND_STAT_PREDICTORS),
-    )
-    scores = {
-        key: _to_dnd_stat(raw_scores[key], floor=stat_floor, ceiling=stat_ceiling)
-        for key in _DND_STAT_COMPONENT_ORDER
-    }
+    chart_raw_scores = {key: float(raw_weighted_scores.get(key, 0.0)) for key in _DND_STAT_COMPONENT_ORDER}
+    db_norm_averages = _calculate_db_norm_stat_averages(norm_charts)
+    if db_norm_averages:
+        raw_scores = chart_raw_scores
+        scores = {
+            key: _to_dnd_stat_from_db_norm(
+                chart_raw_scores[key],
+                db_norm_averages.get(key, 0.0),
+                floor=stat_floor,
+                ceiling=stat_ceiling,
+            )
+            for key in _DND_STAT_COMPONENT_ORDER
+        }
+    else:
+        raw_scores = _normalize_weighted_stat_scores(
+            chart_raw_scores,
+            evidence_denominators=_calculate_stat_evidence_denominators(DND_STAT_PREDICTORS),
+        )
+        scores = {
+            key: _to_dnd_stat(raw_scores[key], floor=stat_floor, ceiling=stat_ceiling)
+            for key in _DND_STAT_COMPONENT_ORDER
+        }
     modifiers = {key: int((value - 10) // 2) for key, value in scores.items()}
     return DnDStatBlock(raw_scores=raw_scores, scores=scores, modifiers=modifiers)
 
