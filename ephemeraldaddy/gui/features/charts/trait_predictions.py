@@ -9,6 +9,8 @@ from PySide6.QtWidgets import QLabel
 
 from ephemeraldaddy.analysis.traits import DEFAULT_TRAIT_COLOR, calculate_trait_likelihoods, list_traits, normalize_trait_color
 
+TRAIT_DEVIATION_ASSIGNMENT_THRESHOLD = 5.0
+
 
 def _format_signed_percentage(value: float | None) -> str:
     if value is None:
@@ -19,38 +21,65 @@ def _format_signed_percentage(value: float | None) -> str:
 def _traits_table_header() -> str:
     return (
         "<tr>"
-        "<th style='padding:1px 8px 2px 0; text-align:right; color:#f5f5f5;'>rank</th>"
         "<th style='padding:1px 8px 2px 0; text-align:left; color:#f5f5f5;'>trait</th>"
         "<th style='padding:1px 8px 2px 0; text-align:right; color:#f5f5f5;'>%</th>"
-        "<th style='padding:1px 0 2px 0; text-align:right; color:#f5f5f5;'>% difference from DB avg</th>"
+        "<th style='padding:1px 0 2px 0; text-align:right; color:#f5f5f5;'>vs DB avg</th>"
         "</tr>"
     )
 
 
 def _trait_rank_row(
-    rank: int,
     name: str,
     percentage: float,
     *,
     color: str,
-    db_difference: float | None,
+    db_average: float,
+    db_deviation: float,
 ) -> str:
     safe_name = html.escape(name)
     pct = max(0.0, min(100.0, percentage))
     safe_color = html.escape(normalize_trait_color(color))
-    difference_text = html.escape(_format_signed_percentage(db_difference))
+    difference_text = html.escape(_format_signed_percentage(db_deviation))
     difference_color = "#d8d8d8"
-    if (db_difference or 0.0) > 0:
+    if db_deviation > 0:
         difference_color = "#90ee90"
-    elif (db_difference or 0.0) < 0:
+    elif db_deviation < 0:
         difference_color = "#ffb3b3"
+    safe_title = html.escape(f"DB average: {max(0.0, min(100.0, db_average)):.1f}%")
     return (
         "<tr>"
-        f"<td style='padding:1px 8px 1px 0; text-align:right; color:#d8d8d8;'>{rank}</td>"
-        f"<td style='padding:1px 8px 1px 0; white-space:nowrap; color:{safe_color};'>{safe_name}</td>"
+        f"<td style='padding:1px 8px 1px 0; white-space:nowrap; color:{safe_color};' title='{safe_title}'>{safe_name}</td>"
         f"<td style='padding:1px 8px 1px 0; text-align:right; color:#d8d8d8;'>{pct:.1f}%</td>"
         f"<td style='padding:1px 0; text-align:right; color:{difference_color};'>{difference_text}</td>"
         "</tr>"
+    )
+
+
+def _trait_column(title: str, rows: list[tuple[str, float, float, float]], color_by_name: dict[str, str]) -> str:
+    if rows:
+        body = "".join(
+            _trait_rank_row(
+                name,
+                pct,
+                color=color_by_name.get(name, DEFAULT_TRAIT_COLOR),
+                db_average=db_average,
+                db_deviation=db_deviation,
+            )
+            for name, pct, db_average, db_deviation in rows
+        )
+    else:
+        body = (
+            "<tr><td colspan='3' style='padding:3px 0; color:#9a9a9a;'>"
+            "No traits meet the 5% deviation threshold."
+            "</td></tr>"
+        )
+    return (
+        "<td style='vertical-align:top; width:50%; padding-right:12px;'>"
+        f"<div style='padding-bottom:3px;'><b>{html.escape(title)}</b></div>"
+        "<table cellspacing='0' cellpadding='0' style='width:100%;'>"
+        f"{_traits_table_header()}{body}"
+        "</table>"
+        "</td>"
     )
 
 
@@ -111,52 +140,47 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
         for trait in traits
     }
     database_averages = _database_trait_averages(owner, traits)
-    db_differences = {
+    db_deviations = {
         name: float(pct) - float(database_averages[name])
         for name, pct in likelihoods.items()
         if name in database_averages
     }
-    ranked = sorted(likelihoods.items(), key=lambda item: item[1], reverse=True)
-    if not ranked:
+    if not likelihoods:
         label.setText("No scorable traits uploaded.")
         return
-    top_rows = ranked[:7]
-    bottom_rows = list(reversed(ranked[-7:])) if len(ranked) > 7 else []
+    if not database_averages:
+        label.setText("Trait predictions unavailable until database trait averages can be calculated.")
+        return
+    threshold = TRAIT_DEVIATION_ASSIGNMENT_THRESHOLD
+    above_avg_traits = sorted(
+        (
+            (name, float(likelihoods[name]), float(database_averages[name]), float(db_deviation))
+            for name, db_deviation in db_deviations.items()
+            if db_deviation >= threshold
+        ),
+        key=lambda item: item[3],
+        reverse=True,
+    )
+    below_avg_traits = sorted(
+        (
+            (name, float(likelihoods[name]), float(database_averages[name]), float(db_deviation))
+            for name, db_deviation in db_deviations.items()
+            if db_deviation <= -threshold
+        ),
+        key=lambda item: item[3],
+    )
     parts = [
         "<div style='color:#d8d8d8; padding-bottom:4px;'>"
-        "Traits are ranked by evidence likelihood: higher percentages indicate stronger matches to supporting criteria, "
-        "while lower percentages indicate stronger matches to anti-criteria."
+        "Traits are assigned by deviation from the active database average. "
+        f"Above-average traits are at least {threshold:.0f}% higher than DB average; "
+        f"below-average traits are at least {threshold:.0f}% lower than DB average."
         "</div>",
-        "<p><b>Top 5 traits</b></p>",
-        "<table cellspacing='0' cellpadding='0'>",
-        _traits_table_header(),
-        *[
-            _trait_rank_row(
-                rank,
-                name,
-                pct,
-                color=color_by_name.get(name, DEFAULT_TRAIT_COLOR),
-                db_difference=db_differences.get(name),
-            )
-            for rank, (name, pct) in enumerate(top_rows, start=1)
-        ],
-        "</table>",
+        "<table cellspacing='0' cellpadding='0' style='width:100%;'><tr>",
+        _trait_column("Above avg traits", above_avg_traits, color_by_name),
+        _trait_column("Below avg traits", below_avg_traits, color_by_name),
+        "</tr></table>",
+        "<div style='color:#9a9a9a; padding-top:4px;'>"
+        "Hover a trait name to see the DB average used for the comparison."
+        "</div>",
     ]
-    if bottom_rows:
-        parts.extend([
-            "<div style='padding-top:6px;'><b>Bottom 7 traits</b></div>",
-            "<table cellspacing='0' cellpadding='0'>",
-            _traits_table_header(),
-            *[
-                _trait_rank_row(
-                    rank,
-                    name,
-                    pct,
-                    color=color_by_name.get(name, DEFAULT_TRAIT_COLOR),
-                    db_difference=db_differences.get(name),
-                )
-                for rank, (name, pct) in enumerate(bottom_rows, start=1)
-            ],
-            "</table>",
-        ])
     label.setText("".join(parts))

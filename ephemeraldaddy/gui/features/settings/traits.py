@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +11,8 @@ from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QColorDialog,
+    QDialog,
+    QDialogButtonBox,
     QFileDialog,
     QHBoxLayout,
     QInputDialog,
@@ -17,7 +20,9 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QMessageBox,
+    QPlainTextEdit,
     QPushButton,
+    QVBoxLayout,
     QWidget,
 )
 
@@ -27,6 +32,7 @@ from ephemeraldaddy.analysis.traits import (
     install_trait_file,
     list_traits,
     normalize_trait_color,
+    parse_trait_file,
     rename_trait,
     set_trait_archived,
     set_trait_color,
@@ -93,6 +99,10 @@ def add_traits_settings_section(owner: Any, content_layout: Any) -> None:
     traits_section.addLayout(traits_button_row)
 
     traits_second_button_row = QHBoxLayout()
+    owner._traits_edit_button = QPushButton("Edit JSON…")
+    owner._traits_edit_button.clicked.connect(lambda _checked=False: on_trait_edit_clicked(owner))
+    traits_second_button_row.addWidget(owner._traits_edit_button)
+
     owner._traits_description_button = QPushButton("Add description…")
     owner._traits_description_button.clicked.connect(lambda _checked=False: on_trait_description_clicked(owner))
     traits_second_button_row.addWidget(owner._traits_description_button)
@@ -155,6 +165,29 @@ def _refresh_trait_predictions(owner: Any) -> None:
     _keep_settings_dialog_foreground(owner)
 
 
+def _mark_trait_definitions_changed(owner: Any) -> None:
+    """Invalidate trait-derived caches after a trait definition changes."""
+    invalidate_database_metrics = getattr(owner, "_invalidate_database_metrics_cache", None)
+    if callable(invalidate_database_metrics):
+        invalidate_database_metrics()
+        return
+    clear_traits_cache = getattr(owner, "_clear_traits_distribution_analytics_cache", None)
+    if callable(clear_traits_cache):
+        clear_traits_cache()
+
+
+def _validate_trait_source_text(source_path: Path, text: str) -> None:
+    """Validate edited trait source by parsing it before overwriting the installed file."""
+    suffix = source_path.suffix or ".json"
+    with tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=suffix, delete=False) as temp_file:
+        temp_path = Path(temp_file.name)
+        temp_file.write(text)
+    try:
+        parse_trait_file(temp_path)
+    finally:
+        temp_path.unlink(missing_ok=True)
+
+
 def on_trait_upload_clicked(owner: Any) -> None:
     dialog_parent = _settings_dialog_for(owner)
     file_path, _selected_filter = QFileDialog.getOpenFileName(
@@ -181,6 +214,7 @@ def on_trait_upload_clicked(owner: Any) -> None:
     except Exception as exc:
         QMessageBox.warning(dialog_parent, "Trait upload failed", f"Trait could not be installed: {exc}")
         return
+    _mark_trait_definitions_changed(owner)
     refresh_traits_settings_list(owner)
     _refresh_trait_predictions(owner)
     QMessageBox.information(dialog_parent, "Trait installed", f"Trait '{clean_name}' was installed.")
@@ -203,6 +237,7 @@ def on_trait_delete_clicked(owner: Any) -> None:
     if choice != QMessageBox.Yes:
         return
     delete_trait(item.data(Qt.UserRole))
+    _mark_trait_definitions_changed(owner)
     refresh_traits_settings_list(owner)
     _refresh_trait_predictions(owner)
 
@@ -226,6 +261,7 @@ def on_trait_rename_clicked(owner: Any) -> None:
     except Exception as exc:
         QMessageBox.warning(dialog_parent, "Trait rename failed", f"Trait could not be renamed: {exc}")
         return
+    _mark_trait_definitions_changed(owner)
     refresh_traits_settings_list(owner)
     _refresh_trait_predictions(owner)
 
@@ -239,6 +275,9 @@ def _sync_trait_action_buttons(owner: Any) -> None:
     description_button = getattr(owner, "_traits_description_button", None)
     if isinstance(description_button, QPushButton):
         description_button.setEnabled(item is not None)
+    edit_button = getattr(owner, "_traits_edit_button", None)
+    if isinstance(edit_button, QPushButton):
+        edit_button.setEnabled(item is not None)
 
 
 def on_trait_recolor_clicked(owner: Any) -> None:
@@ -256,6 +295,7 @@ def on_trait_recolor_clicked(owner: Any) -> None:
     except Exception as exc:
         QMessageBox.warning(dialog_parent, "Trait recolor failed", f"Trait could not be recolored: {exc}")
         return
+    _mark_trait_definitions_changed(owner)
     refresh_traits_settings_list(owner)
     _refresh_trait_predictions(owner)
 
@@ -273,6 +313,7 @@ def on_trait_archive_clicked(owner: Any) -> None:
         action = "reactivated" if archived else "archived"
         QMessageBox.warning(dialog_parent, "Trait update failed", f"Trait could not be {action}: {exc}")
         return
+    _mark_trait_definitions_changed(owner)
     refresh_traits_settings_list(owner)
     _refresh_trait_predictions(owner)
 
@@ -298,5 +339,63 @@ def on_trait_description_clicked(owner: Any) -> None:
     except Exception as exc:
         QMessageBox.warning(dialog_parent, "Trait update failed", f"Trait description could not be saved: {exc}")
         return
+    _mark_trait_definitions_changed(owner)
     refresh_traits_settings_list(owner)
     _refresh_trait_predictions(owner)
+
+
+def on_trait_edit_clicked(owner: Any) -> None:
+    dialog_parent = _settings_dialog_for(owner)
+    item = selected_trait_item(owner)
+    if item is None:
+        QMessageBox.information(dialog_parent, "No trait selected", "Select a trait to edit first.")
+        return
+
+    trait_path = Path(str(item.data(Qt.UserRole)))
+    trait_name = item.text().replace(" (archived)", "")
+    try:
+        original_text = trait_path.read_text(encoding="utf-8")
+    except Exception as exc:
+        QMessageBox.warning(dialog_parent, "Trait edit failed", f"Trait file could not be opened: {exc}")
+        return
+
+    dialog = QDialog(dialog_parent)
+    dialog.setWindowTitle(f"Edit Trait JSON - {trait_name}")
+    dialog.resize(760, 620)
+    layout = QVBoxLayout(dialog)
+
+    help_label = QLabel(
+        "Edit the installed trait JSON below. Save validates the file, writes it through the app, "
+        "then invalidates trait-derived analytics so chart trait calculations can refresh from the new definition."
+    )
+    help_label.setWordWrap(True)
+    help_label.setStyleSheet("color: #d8d8d8;")
+    layout.addWidget(help_label)
+
+    editor = QPlainTextEdit(dialog)
+    editor.setPlainText(original_text)
+    editor.setLineWrapMode(QPlainTextEdit.NoWrap)
+    layout.addWidget(editor, 1)
+
+    buttons = QDialogButtonBox(
+        QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel,
+        parent=dialog,
+    )
+    layout.addWidget(buttons)
+
+    def save_changes() -> None:
+        updated_text = editor.toPlainText()
+        try:
+            _validate_trait_source_text(trait_path, updated_text)
+            trait_path.write_text(updated_text, encoding="utf-8")
+        except Exception as exc:
+            QMessageBox.warning(dialog, "Trait JSON invalid", f"Trait could not be saved: {exc}")
+            return
+        _mark_trait_definitions_changed(owner)
+        refresh_traits_settings_list(owner)
+        _refresh_trait_predictions(owner)
+        dialog.accept()
+
+    buttons.accepted.connect(save_changes)
+    buttons.rejected.connect(dialog.reject)
+    dialog.exec()
