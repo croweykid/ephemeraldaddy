@@ -517,6 +517,31 @@ def render_nakshatras_chart(
 
 
 class DatabaseAnalyticsChartsMixin:
+
+    DATABASE_ANALYTICS_CATEGORY_TITLES: tuple[tuple[str, str], ...] = (
+        ("astro", "🪐Astro"),
+        ("esoteric", "🪷Esoteric Alternatives"),
+        ("subjective_notes", "💭Subjective Notes"),
+        ("predictions", "🎱Predictions"),
+        ("demographics", "🇨🇩Demographics"),
+    )
+
+    def _create_database_analytics_category_layouts(
+        self,
+        panel: Any,
+        layout: QVBoxLayout,
+    ) -> dict[str, QVBoxLayout]:
+        """Create parent category sections for the Database Analytics panel."""
+        return {
+            key: self._add_left_panel_collapsible_section(
+                panel,
+                layout,
+                title,
+                nested=True,
+            )
+            for key, title in self.DATABASE_ANALYTICS_CATEGORY_TITLES
+        }
+
     CHINESE_FONT_UNAVAILABLE: bool = True
     BAZI_EMOJI_FONT_FAMILIES: tuple[str, ...] = (
         "Noto Color Emoji",

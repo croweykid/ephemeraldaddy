@@ -4361,36 +4361,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.database_metrics_pending_label.setVisible(False)
         layout.addWidget(self.database_metrics_pending_label)
 
-        astro_category_layout = self._add_left_panel_collapsible_section(
+        database_analytics_categories = self._create_database_analytics_category_layouts(
             panel,
             layout,
-            "🪐Astro",
-            nested=True,
         )
-        esoteric_category_layout = self._add_left_panel_collapsible_section(
-            panel,
-            layout,
-            "🪷Esoteric Alternatives",
-            nested=True,
-        )
-        subjective_notes_category_layout = self._add_left_panel_collapsible_section(
-            panel,
-            layout,
-            "💭Subjective Notes",
-            nested=True,
-        )
-        predictions_category_layout = self._add_left_panel_collapsible_section(
-            panel,
-            layout,
-            "🎱Predictions",
-            nested=True,
-        )
-        demographics_category_layout = self._add_left_panel_collapsible_section(
-            panel,
-            layout,
-            "🇨🇩Demographics",
-            nested=True,
-        )
+        astro_category_layout = database_analytics_categories["astro"]
+        esoteric_category_layout = database_analytics_categories["esoteric"]
+        subjective_notes_category_layout = database_analytics_categories["subjective_notes"]
+        predictions_category_layout = database_analytics_categories["predictions"]
+        demographics_category_layout = database_analytics_categories["demographics"]
 
         # PLANETARY/POSITION SIGN DISTRIBUTION SECTION
         position_sign_section_layout = self._add_left_panel_collapsible_section(
