@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
 import html
+import json
+from pathlib import Path
 from typing import Any
 
 from PySide6.QtWidgets import QLabel
@@ -10,6 +13,8 @@ from PySide6.QtWidgets import QLabel
 from ephemeraldaddy.analysis.traits import DEFAULT_TRAIT_COLOR, calculate_trait_likelihoods, list_traits, normalize_trait_color
 
 TRAIT_DEVIATION_ASSIGNMENT_THRESHOLD = 5.0
+TRAIT_DB_NORMS_CACHE_VERSION = 1
+TRAIT_DB_NORMS_CACHE_PATH = Path.home() / ".ephemeraldaddy" / "cache" / "trait_db_norms.json"
 
 
 def _format_signed_percentage(value: float | None) -> str:
@@ -83,7 +88,15 @@ def _trait_column(title: str, rows: list[tuple[str, float, float, float]], color
     )
 
 
-def _database_trait_averages(owner: Any, traits: list[dict[str, Any]]) -> dict[str, float]:
+def _stable_json_hash(value: Any) -> str:
+    try:
+        payload = json.dumps(value, sort_keys=True, default=str, separators=(",", ":"))
+    except TypeError:
+        payload = repr(value)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _database_chart_ids(owner: Any) -> tuple[int, ...]:
     chart_rows = getattr(owner, "_chart_rows", [])
     normalize_row = getattr(owner, "_normalize_chart_row", None)
     chart_ids: set[int] = set()
@@ -94,23 +107,115 @@ def _database_trait_averages(owner: Any, traits: list[dict[str, Any]]) -> dict[s
             chart_ids.add(int(row[0]))
         except (TypeError, ValueError, IndexError):
             continue
+    return tuple(sorted(chart_ids))
+
+
+def _trait_norm_cache_key(chart_ids: tuple[int, ...], trait: dict[str, Any]) -> str | None:
+    name = str(trait.get("name", "")).strip()
+    if not name or bool(trait.get("archived", False)):
+        return None
+    payload = {
+        "version": TRAIT_DB_NORMS_CACHE_VERSION,
+        "chart_ids": chart_ids,
+        "trait_name": name,
+        "trait_color": normalize_trait_color(str(trait.get("color", DEFAULT_TRAIT_COLOR))),
+        "trait_profile": trait.get("profile", {}),
+    }
+    return _stable_json_hash(payload)
+
+
+def _load_trait_norm_cache() -> dict[str, dict[str, Any]]:
+    try:
+        payload = json.loads(TRAIT_DB_NORMS_CACHE_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    if not isinstance(payload, dict) or payload.get("version") != TRAIT_DB_NORMS_CACHE_VERSION:
+        return {}
+    entries = payload.get("entries", {})
+    return entries if isinstance(entries, dict) else {}
+
+
+def _save_trait_norm_cache(entries: dict[str, dict[str, Any]]) -> None:
+    try:
+        TRAIT_DB_NORMS_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        temp_path = TRAIT_DB_NORMS_CACHE_PATH.with_suffix(f"{TRAIT_DB_NORMS_CACHE_PATH.suffix}.tmp")
+        temp_path.write_text(
+            json.dumps(
+                {"version": TRAIT_DB_NORMS_CACHE_VERSION, "entries": entries},
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ),
+            encoding="utf-8",
+        )
+        temp_path.replace(TRAIT_DB_NORMS_CACHE_PATH)
+    except Exception:
+        return
+
+
+def clear_trait_norm_cache(trait_names: set[str] | None = None) -> None:
+    """Clear persisted DB norm cache entries for selected traits or all traits."""
+    if trait_names is None:
+        TRAIT_DB_NORMS_CACHE_PATH.unlink(missing_ok=True)
+        return
+    normalized_names = {name.casefold() for name in trait_names}
+    entries = _load_trait_norm_cache()
+    for key, entry in list(entries.items()):
+        if str(entry.get("trait_name", "")).casefold() in normalized_names:
+            entries.pop(key, None)
+    _save_trait_norm_cache(entries)
+
+
+def _database_trait_averages(owner: Any, traits: list[dict[str, Any]]) -> dict[str, float]:
+    chart_ids = _database_chart_ids(owner)
     collect = getattr(owner, "_collect_traits_distribution_analytics", None)
     signature_builder = getattr(owner, "_traits_distribution_signature", None)
     if not chart_ids or not callable(collect) or not callable(signature_builder):
         return {}
-    analytics = collect(
-        chart_ids,
-        trait_items=traits,
-        trait_signature=signature_builder(traits),
-    )
+    averages: dict[str, float] = {}
+    cache_entries = _load_trait_norm_cache()
+    missing_traits: list[dict[str, Any]] = []
+    for trait in traits:
+        name = str(trait.get("name", "")).strip()
+        cache_key = _trait_norm_cache_key(chart_ids, trait)
+        cached = cache_entries.get(cache_key or "")
+        if isinstance(cached, dict) and cached.get("trait_name") == name:
+            try:
+                averages[name] = float(cached["db_average"])
+                continue
+            except (KeyError, TypeError, ValueError):
+                pass
+        missing_traits.append(trait)
+    if not missing_traits:
+        return averages
+
+    analytics = collect(chart_ids, trait_items=missing_traits, trait_signature=signature_builder(missing_traits))
     chart_count = max(0, int(analytics.get("chart_count", 0)))
     if not chart_count:
-        return {}
+        return averages
     totals = analytics.get("totals", {})
-    return {
-        str(name): (float(totals.get(name, 0.0)) / float(chart_count)) * 100.0
-        for name in analytics.get("trait_names", [])
-    }
+    for trait_name in analytics.get("trait_names", []):
+        name = str(trait_name)
+        db_average = (float(totals.get(name, 0.0)) / float(chart_count)) * 100.0
+        averages[name] = db_average
+        trait_item = next((trait for trait in missing_traits if str(trait.get("name", "")).strip() == name), None)
+        cache_key = _trait_norm_cache_key(chart_ids, trait_item or {})
+        if cache_key:
+            cache_entries[cache_key] = {
+                "trait_name": name,
+                "db_average": db_average,
+                "chart_count": chart_count,
+            }
+    _save_trait_norm_cache(cache_entries)
+    return averages
+
+
+def warm_trait_database_norms(owner: Any, trait_names: set[str] | None = None) -> dict[str, float]:
+    """Precompute and persist DB norms for selected active traits."""
+    traits = list_traits(active_only=True)
+    if trait_names is not None:
+        normalized_names = {name.casefold() for name in trait_names}
+        traits = [trait for trait in traits if str(trait.get("name", "")).casefold() in normalized_names]
+    return _database_trait_averages(owner, traits)
 
 
 def render_traits_predictions(owner: Any, chart: Any | None) -> None:
