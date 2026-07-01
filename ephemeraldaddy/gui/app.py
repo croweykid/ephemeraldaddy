@@ -16515,6 +16515,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             use_topmost_pulse,
         )
         self._applying_window_placement = True
+        defer_guard_clear = False
         try:
             clear_fullscreen_and_minimized(self)
             if self._session_window_layout_adjusted:
@@ -16526,11 +16527,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 # Show directly in maximized state to avoid a visible normal-size flash
                 # during Chart View -> Database View transitions on Windows.
                 self.showMaximized()
+            bring_window_to_front(self, use_topmost_pulse=use_topmost_pulse)
+            defer_guard_clear = use_topmost_pulse
         finally:
-            self._applying_window_placement = False
-        bring_window_to_front(self, use_topmost_pulse=use_topmost_pulse)
+            if defer_guard_clear:
+                QTimer.singleShot(0, self._clear_window_placement_guard)
+            else:
+                self._applying_window_placement = False
         if use_topmost_pulse:
             self._launch_foreground_completed = True
+
+    def _clear_window_placement_guard(self) -> None:
+        self._applying_window_placement = False
 
     def _toggle_fullscreen(self) -> None:
         if self.isFullScreen():
