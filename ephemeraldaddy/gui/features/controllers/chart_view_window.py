@@ -4,12 +4,13 @@ import datetime
 import html
 import statistics
 import urllib.parse
+from pathlib import Path
 from collections import Counter
 from types import MethodType
 from typing import Callable
 
 from PySide6.QtCore import QEvent, QRect, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QDragEnterEvent, QDropEvent, QFont, QKeySequence, QLinearGradient, QPainter, QPixmap, QShortcut
+from PySide6.QtGui import QColor, QDragEnterEvent, QDropEvent, QFont, QIcon, QKeySequence, QLinearGradient, QPainter, QPixmap, QShortcut
 from PySide6.QtWidgets import (
     QAbstractButton,
     QApplication,
@@ -1029,7 +1030,7 @@ def build_chart_view_middle_header_controls(
         # Personal Transit
         ("personal_transit", "🌎", "Personal Transit", owner.on_get_current_transits),
         # Synastry Chart
-        ("synastry", "🧬", "Synastry Chart", owner.on_get_synastry_chart),
+        ("synastry", "", "Synastry Chart", owner.on_get_synastry_chart),
         ]
     if is_human_design_enabled:
         button_specs.insert(
@@ -1039,8 +1040,8 @@ def build_chart_view_middle_header_controls(
         )
     button_specs.extend(
         [
-            # See Similar Charts
-            ("similar_charts", "👯", "See Similar Charts", owner._show_similar_charts_popout),
+            # Astro Twin
+            ("similar_charts", "👯", "Astro Twin", owner._show_similar_charts_popout),
             # Create Gemstone Chart
             ("gemstone_chart", "💎", "Create Gemstone Chart", owner.on_create_gemstone_chartwheel),
             # Chart Predictor Quiz
@@ -1053,7 +1054,13 @@ def build_chart_view_middle_header_controls(
         action_button = QPushButton(button_label)
         action_button.setObjectName(f"chart_view_middle_{button_key}_button")
         action_button.setToolTip(button_tooltip)
-        apply_emoji_png_to_button(action_button, icon_px=16)
+        if button_key == "synastry":
+            synastry_icon_path = Path(__file__).resolve().parents[3] / "graphics" / "synastry_venn.png"
+            if synastry_icon_path.exists():
+                action_button.setIcon(QIcon(str(synastry_icon_path)))
+                action_button.setIconSize(QSize(16, 16))
+        else:
+            apply_emoji_png_to_button(action_button, icon_px=16)
         action_button.setAutoDefault(False)
         action_button.setDefault(False)
         action_button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)

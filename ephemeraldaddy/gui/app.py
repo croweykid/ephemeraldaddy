@@ -2572,7 +2572,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._toggle_gen_pop_norms_panel
         )
 
-        self.similarities_panel_button = QPushButton("👬📊") #Similarities Analysis panel
+        self.similarities_panel_button = QPushButton("👥") #Similarities Analysis panel
         self.similarities_panel_button.setObjectName("manage_toggle_similarities_panel_button")
         self.similarities_panel_button.clicked.connect(
             self._toggle_similarities_panel
@@ -2650,9 +2650,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             # Personal Transit
             ("personal_transit", "🌎", "Personal Transit"),
             # Synastry Chart
-            ("synastry", "🧬", "Synastry Chart"),
-            # See Similar Charts
-            ("similar_charts", "👯", "See Similar Charts"),
+            ("synastry", "", "Synastry Chart"),
+            # Astro Twin
+            ("similar_charts", "👯", "Astro Twin"),
             # Create Gemstone Chart
             ("gemstone_chart", "💎", "Create Gemstone Chart"),
             # Chart Predictor Quiz
@@ -2660,7 +2660,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         ]
         for button_key, button_label, button_tooltip in middle_action_button_specs:
             action_button = QPushButton(button_label)
-            apply_emoji_png_to_button(action_button, icon_px=16)
+            if button_key == "synastry":
+                synastry_icon_path = Path(__file__).resolve().parents[1] / "graphics" / "synastry_venn.png"
+                if synastry_icon_path.exists():
+                    action_button.setIcon(QIcon(str(synastry_icon_path)))
+                    action_button.setIconSize(QSize(16, 16))
+            else:
+                apply_emoji_png_to_button(action_button, icon_px=16)
             action_button.setObjectName(f"database_view_middle_{button_key}_button")
             action_button.setToolTip(button_tooltip)
             action_button.clicked.connect(
@@ -7085,7 +7091,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "human_design": "Human Design Chart",
             "personal_transit": "Personal Transit",
             "synastry": "Synastry Chart",
-            "similar_charts": "See Similar Charts",
+            "similar_charts": "Astro Twin",
             "gemstone_chart": "Create Gemstone Chart",
             "chart_predictor_quiz": "Chart Predictor Quiz",
         }
@@ -18972,7 +18978,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 ("bazi", "See BaZi Chart"),
                 ("human_design", "See Human Design Chart"),
                 ("personal_transit", "See Transit Chart"),
-                ("similar_charts", "See Similar Charts"),
+                ("similar_charts", "Astro Twin"),
             ):
                 tool_actions[menu.addAction(label)] = tool_key
         if menu.isEmpty():
@@ -21397,7 +21403,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         similarity_calculator_section = self._add_settings_collapsible_section(
             content_layout,
-            "Similar Charts Calculator",
+            "Astro Twin Calculator",
         )
         similarity_controls = build_similarity_calculator_settings_section(
             dialog=dialog,

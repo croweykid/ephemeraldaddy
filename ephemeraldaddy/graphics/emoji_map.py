@@ -43,7 +43,7 @@ EMOJI_TO_PNG: dict[str, str] = {
     "🧬": "dna-noto-512.png",
     "🕖": "seven-oclock-blobmoji-512.png",
     "❌": "cross-mark-blobmoji-512.png",
-    "👥": "busts-in-silhouette-blobmoji-512.png",
+    "👯": "twins noto.png",
     "♻": "recycling-symbol-fluentflat-512.png",
     "📝": "memo-blobmoji-512.png",
     "🔮": "crystal-ball-noto-512.png",
@@ -56,8 +56,6 @@ EMOJI_ALIASES: dict[str, str] = {
     "🌎": "🌍",
     "🌐": "🌍",
     "🗂": "🗄",
-    "👯": "👥",
-    "👬": "👥",
     "✗": "❌",
     "✕": "❌",
     "✓": "✅",  # currently no PNG equivalent available yet

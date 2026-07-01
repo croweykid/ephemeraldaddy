@@ -276,7 +276,7 @@ def configure_main_window_chrome(window: "QMainWindow") -> None:
     chart_menu.addSeparator()
     _bind_menu_action(chart_menu, "🐉 BaZi Chart", window, "on_open_bazi_window")
     _bind_menu_action(chart_menu, "🌎 Personal Transit", window, "on_get_current_transits")
-    _bind_menu_action(chart_menu, "🧬 Synastry Chart", window, "on_get_synastry_chart")
+    _bind_menu_action(chart_menu, "Synastry Chart", window, "on_get_synastry_chart")
     if _is_human_design_menu_enabled(window):
         human_design_menu = chart_menu.addMenu("🪷 Human Design Chart")
         _bind_menu_action(
@@ -296,7 +296,7 @@ def configure_main_window_chrome(window: "QMainWindow") -> None:
     tools_menu = menu_bar.addMenu("Tools")
     _bind_menu_action(
         tools_menu,
-        "👯 See Similar Charts",
+        "👯 Astro Twin",
         window,
         "_show_similar_charts_popout",
         "on_show_similar_charts_popout",
@@ -349,7 +349,7 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
     _bind_menu_action(charts_menu, "🌎 Personal Transit Chart", dialog, "_on_generate_personal_transit_for_selected_chart")
     _bind_menu_action(charts_menu, "Export Chart as MD/TXT", dialog, "_on_menu_export_chart")
     charts_menu.addSeparator()
-    _bind_menu_action(charts_menu, "🧬 Synastry Chart", dialog, "_on_generate_composite_chart")
+    _bind_menu_action(charts_menu, "Synastry Chart", dialog, "_on_generate_composite_chart")
     _bind_menu_action(charts_menu, "🐉 BaZi Chart", dialog, "_on_menu_open_bazi_window")
     if _is_human_design_menu_enabled(dialog):
         human_design_menu = charts_menu.addMenu("🪷 Human Design Chart")
@@ -364,7 +364,7 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
     tools_menu = menu_bar.addMenu("Tools")
     _bind_menu_action(
         tools_menu,
-        "👯 See Similar Charts",
+        "👯 Astro Twin",
         dialog,
         "_on_menu_see_similar_charts",
     )
