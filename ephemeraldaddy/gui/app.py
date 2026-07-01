@@ -2232,6 +2232,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.setWindowFlag(Qt.WindowMaximizeButtonHint, True)
         self.setWindowFlag(Qt.WindowCloseButtonHint, True)
         self._settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
+        self._applying_window_placement = False
+        self._session_window_layout_adjusted = False
         self._visibility = VisibilityStore(self._settings)
         self._lilith_calculation_method = _resolve_supported_lilith_calculation_method(
             self._settings.value(
@@ -16554,13 +16556,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.right_panel_stack.setVisible(self._right_panel_visible)
 
     def adopt_window_placement(self, source_window: QWidget | None) -> None:
-        if source_window is None:
+        if source_window is None or self._session_window_layout_adjusted:
             return
-        apply_window_placement(
-            self,
-            capture_window_placement(source_window),
-            show_window=False,
-        )
+        self._applying_window_placement = True
+        try:
+            apply_window_placement(
+                self,
+                capture_window_placement(source_window),
+                show_window=False,
+            )
+        finally:
+            self._applying_window_placement = False
 
     def apply_launch_window_policy(self, *, use_topmost_pulse: bool = False) -> None:
         # Keep Database View launch maximized across platforms (including macOS)
@@ -16573,14 +16579,31 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.isMinimized(),
             use_topmost_pulse,
         )
-        clear_fullscreen_and_minimized(self)
-        # Show directly in maximized state to avoid a visible normal-size flash
-        # during Chart View -> Database View transitions on Windows.
-        if not self.isVisible() or not self.isMaximized():
-            self.showMaximized()
-        bring_window_to_front(self, use_topmost_pulse=use_topmost_pulse)
+        self._applying_window_placement = True
+        defer_guard_clear = False
+        try:
+            clear_fullscreen_and_minimized(self)
+            if self._session_window_layout_adjusted:
+                if self.isMaximized():
+                    self.showMaximized()
+                else:
+                    self.showNormal()
+            elif not self.isVisible() or not self.isMaximized():
+                # Show directly in maximized state to avoid a visible normal-size flash
+                # during Chart View -> Database View transitions on Windows.
+                self.showMaximized()
+            bring_window_to_front(self, use_topmost_pulse=use_topmost_pulse)
+            defer_guard_clear = use_topmost_pulse
+        finally:
+            if defer_guard_clear:
+                QTimer.singleShot(0, self._clear_window_placement_guard)
+            else:
+                self._applying_window_placement = False
         if use_topmost_pulse:
             self._launch_foreground_completed = True
+
+    def _clear_window_placement_guard(self) -> None:
+        self._applying_window_placement = False
 
     def _toggle_fullscreen(self) -> None:
         if self.isFullScreen():
@@ -16592,12 +16615,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
+        if self.isVisible() and not getattr(self, "_applying_window_placement", False):
+            self._session_window_layout_adjusted = True
         if hasattr(self, "_content_splitter"):
             configure_splitter_handle_resize_cursor(self._content_splitter)
         if hasattr(self, "_help_scrim"):
             self._help_resize_overlay()
         # if self._help_overlay_active:
         #     self._rebuild_help_markers()
+
+    def moveEvent(self, event) -> None:
+        super().moveEvent(event)
+        if self.isVisible() and not getattr(self, "_applying_window_placement", False):
+            self._session_window_layout_adjusted = True
 
     def closeEvent(self, event) -> None:
         self._is_closing = True
@@ -23395,8 +23425,12 @@ class MainWindow(QMainWindow):
         configure_main_window_chrome(self)
         self._feature_hub = FeatureEventHub()
         self._allow_app_exit_close = False
+        self._applying_window_placement = False
+        self._chart_view_hidden_for_database_view = False
+        self._chart_view_hidden_window_opacity = 1.0
         self._restoring_window_layout = False
         self._window_layout_customized = False
+        self._session_window_layout_adjusted = False
         _apply_minimum_screen_height(self)
 
         # Chart Entry Window vs Chart Edit Window:
@@ -31205,9 +31239,16 @@ class MainWindow(QMainWindow):
         source_window: QWidget | None = None,
         activate: bool = True,
     ) -> None:
+        self._restore_chart_view_visibility_after_database_view()
         self._collapse_similar_charts_section()
         placement: WindowPlacement | None = None
-        if source_window is not None:
+        if self._session_window_layout_adjusted:
+            # Once Chart View has been adjusted in this app session, preserve its
+            # own maximized/normal state too. Database View callers often pass
+            # their current maximize state, and applying that here would discard
+            # Chart View's user-adjusted normal size.
+            maximize = self.isMaximized()
+        elif source_window is not None:
             placement = capture_window_placement(source_window)
             if maximize is None:
                 maximize = placement.maximized
@@ -31215,14 +31256,18 @@ class MainWindow(QMainWindow):
         if maximize is None:
             maximize = True
 
-        self.show()
-        apply_window_placement(
-            self,
-            WindowPlacement(
-                geometry=placement.geometry if placement is not None else None,
-                maximized=maximize,
-            ),
-        )
+        self._applying_window_placement = True
+        try:
+            self.show()
+            apply_window_placement(
+                self,
+                WindowPlacement(
+                    geometry=placement.geometry if placement is not None else None,
+                    maximized=maximize,
+                ),
+            )
+        finally:
+            self._applying_window_placement = False
         if activate:
             self.raise_()
             self.activateWindow()
@@ -32951,7 +32996,41 @@ class MainWindow(QMainWindow):
             startup_progress("Database View shell is open…", 92)
         QTimer.singleShot(0, self._raise_manage_charts_dialog)
         self._retarget_size_checker_to_database_view()
+        self._hide_chart_view_while_database_view_is_open()
         return True
+
+    def _hide_chart_view_while_database_view_is_open(self) -> None:
+        if not self.isVisible():
+            return
+        self._applying_window_placement = True
+        try:
+            if platform.system() == "Windows":
+                # Do not minimize Chart View: a minimized top-level window can
+                # create a distracting thumbnail/animation artifact around the
+                # Windows taskbar. Keep the top-level window shown and fully
+                # transparent instead, which preserves the app taskbar entry
+                # without leaving a visible Chart View behind Database View.
+                if not self._chart_view_hidden_for_database_view:
+                    self._chart_view_hidden_window_opacity = float(self.windowOpacity())
+                self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+                self.setWindowOpacity(0.0)
+                self._chart_view_hidden_for_database_view = True
+                self.lower()
+            else:
+                self.hide()
+        finally:
+            self._applying_window_placement = False
+
+    def _restore_chart_view_visibility_after_database_view(self) -> None:
+        if not self._chart_view_hidden_for_database_view:
+            return
+        self._applying_window_placement = True
+        try:
+            self.setAttribute(Qt.WA_TransparentForMouseEvents, False)
+            self.setWindowOpacity(self._chart_view_hidden_window_opacity)
+            self._chart_view_hidden_for_database_view = False
+        finally:
+            self._applying_window_placement = False
 
     def _on_close_requested(self) -> None:
         self.close()
@@ -35394,6 +35473,13 @@ class MainWindow(QMainWindow):
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
+        if (
+            self.isVisible()
+            and not getattr(self, "_restoring_window_layout", False)
+            and not getattr(self, "_applying_window_placement", False)
+        ):
+            self._window_layout_customized = True
+            self._session_window_layout_adjusted = True
         if hasattr(self, "_help_scrim"):
             self._help_resize_overlay()
         # if self._help_overlay_active:
