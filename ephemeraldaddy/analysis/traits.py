@@ -591,7 +591,17 @@ def _trait_possible_score(profile: Mapping[str, Any]) -> float:
     return max(total, 1.0)
 
 
-def calculate_trait_likelihoods(chart: Any, traits: list[dict[str, Any]] | None = None) -> dict[str, float]:
+def trait_possible_score(profile: Mapping[str, Any]) -> float:
+    """Return the maximum absolute evidence score available for a trait profile."""
+    return _trait_possible_score(profile)
+
+
+def calculate_trait_likelihoods(
+    chart: Any,
+    traits: list[dict[str, Any]] | None = None,
+    *,
+    possible_scores: Mapping[str, float] | None = None,
+) -> dict[str, float]:
     """Return trait scores as 0-100 evidence percentages centered on 50%.
 
     The weighted predictor returns signed evidence totals.  For Chart View, convert
@@ -609,7 +619,10 @@ def calculate_trait_likelihoods(chart: Any, traits: list[dict[str, Any]] | None 
         name = str(item.get("name", ""))
         if not name:
             continue
-        possible = _trait_possible_score(item.get("profile", {}))
+        if possible_scores is not None and name in possible_scores:
+            possible = max(float(possible_scores.get(name, 1.0)), 1.0)
+        else:
+            possible = _trait_possible_score(item.get("profile", {}))
         normalized = max(-1.0, min(1.0, float(raw_scores.get(name, 0.0)) / possible))
         likelihoods[name] = round(50.0 + (normalized * 50.0), 1)
     return likelihoods
