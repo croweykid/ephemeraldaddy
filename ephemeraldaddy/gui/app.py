@@ -23337,6 +23337,8 @@ class MainWindow(QMainWindow):
         self._feature_hub = FeatureEventHub()
         self._allow_app_exit_close = False
         self._applying_window_placement = False
+        self._chart_view_hidden_for_database_view = False
+        self._chart_view_hidden_window_opacity = 1.0
         self._restoring_window_layout = False
         self._window_layout_customized = False
         self._session_window_layout_adjusted = False
@@ -31148,6 +31150,7 @@ class MainWindow(QMainWindow):
         source_window: QWidget | None = None,
         activate: bool = True,
     ) -> None:
+        self._restore_chart_view_visibility_after_database_view()
         self._collapse_similar_charts_section()
         placement: WindowPlacement | None = None
         if source_window is not None and not self._session_window_layout_adjusted:
@@ -32907,13 +32910,30 @@ class MainWindow(QMainWindow):
         self._applying_window_placement = True
         try:
             if platform.system() == "Windows":
-                # A real hide() removes the app's taskbar entry on Windows when
-                # Database View is the active top-level window. Minimize Chart
-                # View instead so it is not visible behind Database View while
-                # the taskbar icon remains available throughout the transition.
-                self.showMinimized()
+                # Do not minimize Chart View: a minimized top-level window can
+                # create a distracting thumbnail/animation artifact around the
+                # Windows taskbar. Keep the top-level window shown and fully
+                # transparent instead, which preserves the app taskbar entry
+                # without leaving a visible Chart View behind Database View.
+                if not self._chart_view_hidden_for_database_view:
+                    self._chart_view_hidden_window_opacity = float(self.windowOpacity())
+                self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+                self.setWindowOpacity(0.0)
+                self._chart_view_hidden_for_database_view = True
+                self.lower()
             else:
                 self.hide()
+        finally:
+            self._applying_window_placement = False
+
+    def _restore_chart_view_visibility_after_database_view(self) -> None:
+        if not self._chart_view_hidden_for_database_view:
+            return
+        self._applying_window_placement = True
+        try:
+            self.setAttribute(Qt.WA_TransparentForMouseEvents, False)
+            self.setWindowOpacity(self._chart_view_hidden_window_opacity)
+            self._chart_view_hidden_for_database_view = False
         finally:
             self._applying_window_placement = False
 
