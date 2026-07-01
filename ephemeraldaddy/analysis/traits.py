@@ -290,8 +290,10 @@ TRAITS = {
 }
 # Local user-uploaded trait storage and scoring helpers.
 import ast
+import io
 import json
 import re
+import tokenize
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
@@ -426,30 +428,27 @@ def _extract_literal_from_python(text: str) -> Any:
 
 
 def _extract_hash_comments(text: str) -> list[str]:
-    """Return Python-style line comments from text while ignoring # in strings."""
+    """Return Python-style comments while ignoring # characters inside strings."""
     comments: list[str] = []
+    pythonish_lines: list[str] = []
     for line in text.splitlines():
         stripped = line.strip()
         if stripped.startswith("// #"):
             comments.append(stripped[3:].rstrip())
-            continue
-        in_string: str | None = None
-        escaped = False
-        for index, char in enumerate(line):
-            if in_string is not None:
-                if escaped:
-                    escaped = False
-                elif char == "\\":
-                    escaped = True
-                elif char == in_string:
-                    in_string = None
-            elif char in {"'", '"'}:
-                in_string = char
-            elif char == "#":
-                comment = line[index:].rstrip()
-                if comment.strip() != "#":
-                    comments.append(comment)
-                break
+        elif not stripped.startswith("//"):
+            pythonish_lines.append(line)
+
+    pythonish_text = "\n".join(pythonish_lines)
+    try:
+        tokens = tokenize.generate_tokens(io.StringIO(pythonish_text).readline)
+        for token in tokens:
+            if token.type != tokenize.COMMENT:
+                continue
+            comment = token.string.rstrip()
+            if comment.strip() != "#":
+                comments.append(comment)
+    except (IndentationError, tokenize.TokenError):
+        pass
     return comments
 
 

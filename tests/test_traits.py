@@ -220,3 +220,28 @@ def test_install_trait_file_preserves_samples_description_and_hash_comments(tmp_
     assert traits.list_traits()[0]["profile"]["samples"] == 14
     assert "// # cohort note" in renamed_text
     assert "// # dogmatic sample note" in renamed_text
+
+
+def test_install_trait_file_ignores_hashes_inside_multiline_strings(tmp_path, monkeypatch):
+    monkeypatch.setattr(traits, "TRAIT_DIR", tmp_path / "traits")
+    source = tmp_path / "upload.py"
+    source.write_text(
+        '''TRAITS = {
+    "Original": {
+        "name": "Original",
+        "description": """Line one
+# this is part of the description, not a comment
+Line three""",
+        "samples": 3,  # real sample note
+    },
+}
+''',
+        encoding="utf-8",
+    )
+
+    installed = traits.install_trait_file(source, "Multiline Trait")
+    saved_text = installed.read_text(encoding="utf-8")
+
+    assert "// # real sample note" in saved_text
+    assert "// # this is part of the description" not in saved_text
+    assert traits.list_traits()[0]["profile"]["description"].startswith("Line one\n# this is part")
