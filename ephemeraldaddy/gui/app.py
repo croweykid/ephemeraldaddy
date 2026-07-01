@@ -1620,7 +1620,12 @@ class QuadStateSlider(QWidget):
         else:
             visual = QUAD_STATE_SLIDER_VISUALS["empty"]
 
-        self._button.setText(visual["text"])
+        # Qt can leave the previous glyph painted on a QToolButton when its
+        # text is changed from the red exclusion mark to an empty string, which
+        # made cleared Database View search tickboxes look like the old red X
+        # was still stuck in place.  Paint a non-empty blank instead so the
+        # control always receives fresh text geometry for the empty state.
+        self._button.setText(visual["text"] or " ")
         self._button.setToolTip(visual["tooltip"])
         self._button.setFixedWidth(28)
         self._button.setStyleSheet(
