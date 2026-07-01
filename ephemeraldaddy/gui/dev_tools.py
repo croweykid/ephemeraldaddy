@@ -928,13 +928,18 @@ class _TagCategoryDropList(QListWidget):
             return
         category_prefix = str(target_item.data(Qt.UserRole) or "").strip()
         if category_prefix:
-            self._on_drop_labels(category_prefix, labels)
             self._clear_drop_target_highlight()
-            # The dialog performs the rename/reload itself.  Do not report a
-            # Qt model move here: when multiple selected tags are dragged from
-            # the uncategorized tree, Qt may try to finish the source-side move
-            # against items that were just rebuilt by _reload_usage(), which can
-            # crash the app after the tags were successfully assigned.
+            # Treat the DnD payload as a command, not a Qt item move.  Defer the
+            # database rename/reload until after Qt finishes drop cleanup so the
+            # source model is not rebuilt while Qt still holds dragged indexes.
+            deferred_labels = tuple(labels)
+            QTimer.singleShot(
+                0,
+                lambda prefix=category_prefix, dropped=deferred_labels: self._on_drop_labels(
+                    prefix,
+                    list(dropped),
+                ),
+            )
             event.setDropAction(Qt.CopyAction)
             event.accept()
             return
@@ -1034,12 +1039,17 @@ class _TagHierarchyTree(QTreeWidget):
         if not labels:
             event.ignore()
             return
-        self._on_drop_labels(category_prefix, labels)
-        # The assignment callback updates the database and repopulates both tag
-        # trees.  Accepting the proposed MoveAction lets Qt perform source-side
-        # drag cleanup after those items no longer exist, which is especially
-        # crash-prone when moving multiple uncategorized tags at once.  Treat the
-        # DnD payload as a command instead of a model move.
+        # Treat the DnD payload as a command, not a Qt item move.  Defer the
+        # database rename/reload until after Qt finishes drop cleanup so the
+        # source model is not rebuilt while Qt still holds dragged indexes.
+        deferred_labels = tuple(labels)
+        QTimer.singleShot(
+            0,
+            lambda prefix=category_prefix, dropped=deferred_labels: self._on_drop_labels(
+                prefix,
+                list(dropped),
+            ),
+        )
         event.setDropAction(Qt.CopyAction)
         event.accept()
 
