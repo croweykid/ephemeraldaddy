@@ -165,15 +165,30 @@ def _refresh_trait_predictions(owner: Any) -> None:
     _keep_settings_dialog_foreground(owner)
 
 
-def _mark_trait_definitions_changed(owner: Any) -> None:
+def _mark_trait_definitions_changed(
+    owner: Any,
+    *,
+    trait_names: set[str] | None = None,
+    clear_likelihoods: bool = True,
+) -> None:
     """Invalidate trait-derived caches after a trait definition changes."""
-    invalidate_database_metrics = getattr(owner, "_invalidate_database_metrics_cache", None)
-    if callable(invalidate_database_metrics):
-        invalidate_database_metrics()
+    from ephemeraldaddy.gui.features.charts.trait_predictions import clear_trait_norm_cache
+
+    clear_trait_norm_cache(trait_names)
+    if clear_likelihoods:
+        clear_traits_cache = getattr(owner, "_clear_traits_distribution_analytics_cache", None)
+        if callable(clear_traits_cache):
+            clear_traits_cache()
         return
-    clear_traits_cache = getattr(owner, "_clear_traits_distribution_analytics_cache", None)
-    if callable(clear_traits_cache):
-        clear_traits_cache()
+    if hasattr(owner, "_traits_distribution_analytics_cache"):
+        owner._traits_distribution_analytics_cache = {}
+
+
+def _warm_trait_definitions(owner: Any, trait_names: set[str] | None = None) -> None:
+    """Warm persisted DB norm cache for selected traits without blocking other trait caches."""
+    from ephemeraldaddy.gui.features.charts.trait_predictions import warm_trait_database_norms
+
+    warm_trait_database_norms(owner, trait_names)
 
 
 def _validate_trait_source_text(source_path: Path, text: str) -> None:
@@ -214,7 +229,8 @@ def on_trait_upload_clicked(owner: Any) -> None:
     except Exception as exc:
         QMessageBox.warning(dialog_parent, "Trait upload failed", f"Trait could not be installed: {exc}")
         return
-    _mark_trait_definitions_changed(owner)
+    _mark_trait_definitions_changed(owner, trait_names={clean_name}, clear_likelihoods=False)
+    _warm_trait_definitions(owner, {clean_name})
     refresh_traits_settings_list(owner)
     _refresh_trait_predictions(owner)
     QMessageBox.information(dialog_parent, "Trait installed", f"Trait '{clean_name}' was installed.")
@@ -237,7 +253,7 @@ def on_trait_delete_clicked(owner: Any) -> None:
     if choice != QMessageBox.Yes:
         return
     delete_trait(item.data(Qt.UserRole))
-    _mark_trait_definitions_changed(owner)
+    _mark_trait_definitions_changed(owner, trait_names={trait_name})
     refresh_traits_settings_list(owner)
     _refresh_trait_predictions(owner)
 
@@ -261,7 +277,7 @@ def on_trait_rename_clicked(owner: Any) -> None:
     except Exception as exc:
         QMessageBox.warning(dialog_parent, "Trait rename failed", f"Trait could not be renamed: {exc}")
         return
-    _mark_trait_definitions_changed(owner)
+    _mark_trait_definitions_changed(owner, trait_names={old_name, clean_name})
     refresh_traits_settings_list(owner)
     _refresh_trait_predictions(owner)
 
@@ -295,7 +311,7 @@ def on_trait_recolor_clicked(owner: Any) -> None:
     except Exception as exc:
         QMessageBox.warning(dialog_parent, "Trait recolor failed", f"Trait could not be recolored: {exc}")
         return
-    _mark_trait_definitions_changed(owner)
+    _mark_trait_definitions_changed(owner, trait_names={item.text().replace(" (archived)", "")})
     refresh_traits_settings_list(owner)
     _refresh_trait_predictions(owner)
 
@@ -313,7 +329,7 @@ def on_trait_archive_clicked(owner: Any) -> None:
         action = "reactivated" if archived else "archived"
         QMessageBox.warning(dialog_parent, "Trait update failed", f"Trait could not be {action}: {exc}")
         return
-    _mark_trait_definitions_changed(owner)
+    _mark_trait_definitions_changed(owner, trait_names={item.text().replace(" (archived)", "")})
     refresh_traits_settings_list(owner)
     _refresh_trait_predictions(owner)
 
@@ -339,7 +355,7 @@ def on_trait_description_clicked(owner: Any) -> None:
     except Exception as exc:
         QMessageBox.warning(dialog_parent, "Trait update failed", f"Trait description could not be saved: {exc}")
         return
-    _mark_trait_definitions_changed(owner)
+    _mark_trait_definitions_changed(owner, trait_names={trait_name})
     refresh_traits_settings_list(owner)
     _refresh_trait_predictions(owner)
 
@@ -391,7 +407,8 @@ def on_trait_edit_clicked(owner: Any) -> None:
         except Exception as exc:
             QMessageBox.warning(dialog, "Trait JSON invalid", f"Trait could not be saved: {exc}")
             return
-        _mark_trait_definitions_changed(owner)
+        _mark_trait_definitions_changed(owner, trait_names={trait_name})
+        _warm_trait_definitions(owner, {trait_name})
         refresh_traits_settings_list(owner)
         _refresh_trait_predictions(owner)
         dialog.accept()
