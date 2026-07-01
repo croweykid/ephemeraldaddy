@@ -23519,6 +23519,7 @@ class MainWindow(QMainWindow):
             "nakshatra",
             "modal",
             "gender",
+            "planet_dynamics_prepare",
             "planet_dynamics",
             "chart_type",
             "similar_charts",
@@ -27036,7 +27037,8 @@ class MainWindow(QMainWindow):
             ]
         if chart_key == "planet_dynamics":
             selected_planet = self._chart_analysis_selected_mode(chart_key, "")
-            scores = getattr(chart, "planet_dynamics_scores", None) or _calculate_planet_dynamics_scores(chart)
+            self._precompute_planet_dynamics_if_needed(chart)
+            scores = getattr(chart, "planet_dynamics_scores", None) or {}
             if selected_planet != "all" and (not selected_planet or selected_planet not in scores):
                 selected_planet = next(iter(scores), "")
             if not selected_planet:
@@ -28385,7 +28387,8 @@ class MainWindow(QMainWindow):
         ax.figure.subplots_adjust(left=0.09, bottom=0.28, top=0.82, right=0.97)
 
     def _draw_planet_dynamics(self, ax, chart: Chart) -> None:
-        scores = getattr(chart, "planet_dynamics_scores", None) or _calculate_planet_dynamics_scores(chart)
+        self._precompute_planet_dynamics_if_needed(chart)
+        scores = getattr(chart, "planet_dynamics_scores", None) or {}
         selected_planet = self._chart_analysis_selected_mode("planet_dynamics", "")
         if selected_planet != "all" and (not selected_planet or selected_planet not in scores):
             selected_planet = next(iter(scores), "")
@@ -33457,7 +33460,7 @@ class MainWindow(QMainWindow):
             allow_collapsed_sections=allow_collapsed_sections,
         )
         if "planet_dynamics" in sections:
-            chart.planet_dynamics_scores = _calculate_planet_dynamics_scores(chart)
+            sections.add("planet_dynamics_prepare")
         render_order = (
             "summary",
             "signs",
@@ -33467,6 +33470,7 @@ class MainWindow(QMainWindow):
             "nakshatra",
             "modal",
             "gender",
+            "planet_dynamics_prepare",
             "planet_dynamics",
             "chart_type",
             "wheel",
@@ -33512,6 +33516,8 @@ class MainWindow(QMainWindow):
             self._render_modal_distribution(chart)
         elif section == "gender":
             self._render_gender_guesser(chart)
+        elif section == "planet_dynamics_prepare":
+            self._precompute_planet_dynamics_if_needed(chart)
         elif section == "planet_dynamics":
             self._render_planet_dynamics(chart)
         elif section == "chart_type":
@@ -34298,9 +34304,30 @@ class MainWindow(QMainWindow):
             chart=chart,
         )
 
+
+    def _planet_dynamics_cache_signature(self, chart: Chart) -> tuple[object, ...]:
+        positions = getattr(chart, "positions", None) or {}
+        houses = getattr(chart, "houses", None) or []
+        return (
+            tuple(sorted((str(body), None if lon is None else round(float(lon), 8)) for body, lon in positions.items())),
+            tuple(None if cusp is None else round(float(cusp), 8) for cusp in houses),
+            bool(chart_uses_houses(chart)),
+        )
+
+    def _precompute_planet_dynamics_if_needed(self, chart: Chart) -> None:
+        signature = self._planet_dynamics_cache_signature(chart)
+        if (
+            getattr(chart, "_planet_dynamics_scores_signature", None) == signature
+            and getattr(chart, "planet_dynamics_scores", None)
+        ):
+            return
+        chart.planet_dynamics_scores = _calculate_planet_dynamics_scores(chart)
+        chart._planet_dynamics_scores_signature = signature
+
     def _render_planet_dynamics(self, chart: Chart) -> None:
         dropdown = self._chart_analysis_chart_dropdowns.get("planet_dynamics")
-        scores = getattr(chart, "planet_dynamics_scores", None) or _calculate_planet_dynamics_scores(chart)
+        self._precompute_planet_dynamics_if_needed(chart)
+        scores = getattr(chart, "planet_dynamics_scores", None) or {}
         dynamics_bodies = [
             body
             for body in PLANET_ORDER

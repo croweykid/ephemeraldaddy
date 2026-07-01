@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import heapq
 from math import sqrt
-from typing import Callable, Iterable
+from typing import Callable, Iterable, TypeVar
 
 from ephemeraldaddy.core.aspect_display import display_aspect_key
 from ephemeraldaddy.core.chart import Chart, chart_uses_houses
@@ -105,6 +105,8 @@ CORE_BODIES: tuple[str, ...] = (
     "Neptune",
     "Pluto",
 )
+_SimilarityCacheValue = TypeVar("_SimilarityCacheValue")
+
 BODY_WEIGHTS: dict[str, float] = {
     "Sun": 1.25,
     "Moon": 1.25,
@@ -940,6 +942,53 @@ def _aspect_similarity(query: Chart, candidate: Chart) -> float:
     return max(0.0, min(1.0, (source_recall + target_precision) / 2.0))
 
 
+
+def _chart_similarity_input_signature(chart: Chart, *parts: str) -> tuple[object, ...]:
+    """Return a lightweight signature for invalidating derived similarity caches."""
+    signature: list[object] = []
+    if "positions" in parts:
+        positions = getattr(chart, "positions", None) or {}
+        signature.append(tuple(sorted((str(body), None if lon is None else round(float(lon), 8)) for body, lon in positions.items())))
+    if "houses" in parts:
+        houses = getattr(chart, "houses", None) or []
+        signature.append(tuple(None if cusp is None else round(float(cusp), 8) for cusp in houses))
+        signature.append(bool(chart_uses_houses(chart)))
+    if "dominance" in parts:
+        for attr in ("dominant_planet_weights", "dominant_nakshatra_weights"):
+            values = getattr(chart, attr, None) or {}
+            signature.append(tuple(sorted((str(key), float(value or 0.0)) for key, value in values.items())))
+    if "human_design" in parts:
+        for attr in ("human_design_gates", "human_design_channels", "human_design_defined_centers"):
+            values = getattr(chart, attr, None) or []
+            signature.append(tuple(sorted(str(value) for value in values)))
+        signature.append(str(getattr(chart, "dt", "")))
+        signature.append(float(getattr(chart, "lat", 0.0) or 0.0))
+        signature.append(float(getattr(chart, "lon", 0.0) or 0.0))
+    return tuple(signature)
+
+
+def _get_chart_similarity_cached(chart: Chart, key: str, signature: tuple[object, ...]) -> object | None:
+    cache = getattr(chart, "_similarity_derived_cache", None)
+    if not isinstance(cache, dict):
+        return None
+    entry = cache.get(key)
+    if not isinstance(entry, tuple) or len(entry) != 2:
+        return None
+    cached_signature, value = entry
+    if cached_signature != signature:
+        cache.pop(key, None)
+        return None
+    return value
+
+
+def _set_chart_similarity_cached(chart: Chart, key: str, signature: tuple[object, ...], value: _SimilarityCacheValue) -> _SimilarityCacheValue:
+    cache = getattr(chart, "_similarity_derived_cache", None)
+    if not isinstance(cache, dict):
+        cache = {}
+        setattr(chart, "_similarity_derived_cache", cache)
+    cache[key] = (signature, value)
+    return value
+
 def _cosine_similarity(vec_a: dict[str, float], vec_b: dict[str, float]) -> float:
     keys = set(vec_a) | set(vec_b)
     dot = sum(float(vec_a.get(key, 0.0)) * float(vec_b.get(key, 0.0)) for key in keys)
@@ -950,52 +999,55 @@ def _cosine_similarity(vec_a: dict[str, float], vec_b: dict[str, float]) -> floa
     return max(0.0, min(1.0, dot / (norm_a * norm_b)))
 
 
+def _element_mode_distribution_profile(
+    chart: Chart,
+    *,
+    weighting_mode: str = PLACEMENT_WEIGHTING_MODE_CHART_DEFINED,
+) -> tuple[dict[str, float], dict[str, float]]:
+    signature = _chart_similarity_input_signature(chart, "positions") + (weighting_mode,)
+    cache_key = f"element-mode-distribution:{weighting_mode}"
+    cached = _get_chart_similarity_cached(chart, cache_key, signature)
+    if isinstance(cached, tuple) and len(cached) == 2:
+        return cached
+    positions = getattr(chart, "positions", None) or {}
+    body_weights = _placement_body_weights(chart, weighting_mode)
+    element_weights = {"fire": 0.0, "earth": 0.0, "air": 0.0, "water": 0.0}
+    mode_weights = {"cardinal": 0.0, "fixed": 0.0, "mutable": 0.0}
+    for body in CORE_BODIES:
+        sign = _sign_index(positions.get(body))
+        if sign is None:
+            continue
+        body_weight = max(0.0, float(body_weights.get(body, NATAL_WEIGHT.get(body, 1.0))))
+        element = _element_for_sign_index(sign)
+        mode = _mode_for_sign_index(sign)
+        if element is not None:
+            element_weights[element] = element_weights.get(element, 0.0) + body_weight
+        if mode is not None:
+            mode_weights[mode] = mode_weights.get(mode, 0.0) + body_weight
+    return _set_chart_similarity_cached(chart, cache_key, signature, (element_weights, mode_weights))
+
+
 def _distribution_similarity(
     query: Chart,
     candidate: Chart,
     *,
     weighting_mode: str = PLACEMENT_WEIGHTING_MODE_CHART_DEFINED,
 ) -> float:
-    q_positions = getattr(query, "positions", None) or {}
-    c_positions = getattr(candidate, "positions", None) or {}
-    body_weights = _placement_body_weights(query, weighting_mode)
-
-    element_total = 0.0
-    element_possible = 0.0
-    mode_total = 0.0
-    mode_possible = 0.0
-    for body in CORE_BODIES:
-        q_sign = _sign_index(q_positions.get(body))
-        c_sign = _sign_index(c_positions.get(body))
-        if q_sign is None or c_sign is None:
-            continue
-        body_weight = max(0.0, float(body_weights.get(body, NATAL_WEIGHT.get(body, 1.0))))
-
-        q_element = _element_for_sign_index(q_sign)
-        c_element = _element_for_sign_index(c_sign)
-        if q_element is not None and c_element is not None:
-            element_possible += body_weight
-            if q_element == c_element:
-                element_total += body_weight
-
-        q_mode = _mode_for_sign_index(q_sign)
-        c_mode = _mode_for_sign_index(c_sign)
-        if q_mode is not None and c_mode is not None:
-            mode_possible += body_weight
-            if q_mode == c_mode:
-                mode_total += body_weight
-
-    available_components: list[float] = []
-    if element_possible > 0.0:
-        available_components.append(_safe_divide(element_total, element_possible))
-    if mode_possible > 0.0:
-        available_components.append(_safe_divide(mode_total, mode_possible))
+    q_elements, q_modes = _element_mode_distribution_profile(query, weighting_mode=weighting_mode)
+    c_elements, c_modes = _element_mode_distribution_profile(candidate, weighting_mode=weighting_mode)
+    element_score = _weighted_overlap_similarity(q_elements, c_elements)
+    mode_score = _weighted_overlap_similarity(q_modes, c_modes)
+    available_components = [score for score in (element_score, mode_score) if score > 0.0]
     if not available_components:
         return 1.0
     return sum(available_components) / len(available_components)
 
 
 def _sign_weight_profile(chart: Chart) -> dict[int, float]:
+    signature = _chart_similarity_input_signature(chart, "positions")
+    cached = _get_chart_similarity_cached(chart, "sign-weight-profile", signature)
+    if isinstance(cached, dict):
+        return cached
     positions = getattr(chart, "positions", None) or {}
     weights = {index: 0.0 for index in range(12)}
     for body in CORE_BODIES:
@@ -1003,10 +1055,14 @@ def _sign_weight_profile(chart: Chart) -> dict[int, float]:
         if sign_idx is None:
             continue
         weights[sign_idx] += BODY_WEIGHTS.get(body, 0.8)
-    return weights
+    return _set_chart_similarity_cached(chart, "sign-weight-profile", signature, weights)
 
 
 def _body_dominance_profile(chart: Chart) -> dict[str, float]:
+    signature = _chart_similarity_input_signature(chart, "positions", "houses", "dominance")
+    cached = _get_chart_similarity_cached(chart, "body-dominance-profile", signature)
+    if isinstance(cached, dict):
+        return cached
     dominant_weights = getattr(chart, "dominant_planet_weights", None) or {}
     if dominant_weights:
         resolved_profile: dict[str, float] = {}
@@ -1018,7 +1074,8 @@ def _body_dominance_profile(chart: Chart) -> dict[str, float]:
         if resolved_profile:
             total = sum(resolved_profile.values())
             if total > 0.0:
-                return {body: value / total for body, value in resolved_profile.items()}
+                normalized = {body: value / total for body, value in resolved_profile.items()}
+                return _set_chart_similarity_cached(chart, "body-dominance-profile", signature, normalized)
 
     positions = getattr(chart, "positions", None) or {}
     profile: dict[str, float] = {}
@@ -1035,12 +1092,16 @@ def _body_dominance_profile(chart: Chart) -> dict[str, float]:
             elif house in {2, 5, 8, 11}:
                 weight *= 1.12
         profile[body] = weight
-    return profile
+    return _set_chart_similarity_cached(chart, "body-dominance-profile", signature, profile)
 
 
 def _house_weight_profile(chart: Chart) -> dict[int, float]:
+    signature = _chart_similarity_input_signature(chart, "positions", "houses")
+    cached = _get_chart_similarity_cached(chart, "house-weight-profile", signature)
+    if isinstance(cached, dict):
+        return cached
     if not chart_uses_houses(chart):
-        return {house: 0.0 for house in range(1, 13)}
+        return _set_chart_similarity_cached(chart, "house-weight-profile", signature, {house: 0.0 for house in range(1, 13)})
     positions = getattr(chart, "positions", None) or {}
     profile = {house: 0.0 for house in range(1, 13)}
     for body in CORE_BODIES:
@@ -1051,7 +1112,7 @@ def _house_weight_profile(chart: Chart) -> dict[int, float]:
         if house is None:
             continue
         profile[house] += BODY_WEIGHTS.get(body, 0.8)
-    return profile
+    return _set_chart_similarity_cached(chart, "house-weight-profile", signature, profile)
 
 
 def chart_sign_dominance_weights(chart: Chart) -> dict[str, float]:
@@ -1186,6 +1247,10 @@ def _nakshatra_weight_profile(chart: Chart) -> dict[int, float]:
     The weights here come from fixed body-importance values (`BODY_WEIGHTS`) only.
     This intentionally avoids nakshatra-lore dominance weighting.
     """
+    signature = _chart_similarity_input_signature(chart, "positions")
+    cached = _get_chart_similarity_cached(chart, "nakshatra-weight-profile", signature)
+    if isinstance(cached, dict):
+        return cached
     positions = getattr(chart, "positions", None) or {}
     weighted_counts = {index: 0.0 for index in range(27)}
     for body in CORE_BODIES:
@@ -1197,8 +1262,9 @@ def _nakshatra_weight_profile(chart: Chart) -> dict[int, float]:
         weighted_counts[nakshatra_idx] += BODY_WEIGHTS.get(body, 0.8)
     total = sum(weighted_counts.values())
     if total <= 0:
-        return weighted_counts
-    return {index: (value / total) for index, value in weighted_counts.items()}
+        return _set_chart_similarity_cached(chart, "nakshatra-weight-profile", signature, weighted_counts)
+    normalized = {index: (value / total) for index, value in weighted_counts.items()}
+    return _set_chart_similarity_cached(chart, "nakshatra-weight-profile", signature, normalized)
 
 
 def _nakshatra_similarity(query: Chart, candidate: Chart) -> float:
@@ -1229,6 +1295,10 @@ def _nakshatra_dominance_similarity(query: Chart, candidate: Chart) -> float:
 
 
 def _dominant_nakshatra_weight_profile(chart: Chart) -> dict[str, float]:
+    signature = _chart_similarity_input_signature(chart, "positions", "dominance")
+    cached = _get_chart_similarity_cached(chart, "dominant-nakshatra-weight-profile", signature)
+    if isinstance(cached, dict):
+        return cached
     raw_weights = getattr(chart, "dominant_nakshatra_weights", None) or {}
     if not raw_weights:
         raw_weights = calculate_dominant_nakshatra_weights(chart)
@@ -1238,14 +1308,19 @@ def _dominant_nakshatra_weight_profile(chart: Chart) -> dict[str, float]:
         normalized[str(nakshatra_name)] = max(0.0, float(raw_value or 0.0))
     total = sum(normalized.values())
     if total <= 0:
-        return normalized
-    return {
+        return _set_chart_similarity_cached(chart, "dominant-nakshatra-weight-profile", signature, normalized)
+    normalized = {
         nakshatra_name: (value / total)
         for nakshatra_name, value in normalized.items()
     }
+    return _set_chart_similarity_cached(chart, "dominant-nakshatra-weight-profile", signature, normalized)
 
 
 def _human_design_gates(chart: Chart) -> set[int]:
+    signature = _chart_similarity_input_signature(chart, "human_design")
+    cached = _get_chart_similarity_cached(chart, "human-design-gates", signature)
+    if isinstance(cached, set):
+        return cached
     raw_gates = getattr(chart, "human_design_gates", None) or []
     resolved_gates: set[int] = set()
     for gate in raw_gates:
@@ -1254,17 +1329,25 @@ def _human_design_gates(chart: Chart) -> set[int]:
         except (TypeError, ValueError):
             continue
     if resolved_gates:
-        return resolved_gates
+        return _set_chart_similarity_cached(chart, "human-design-gates", signature, resolved_gates)
     try:
         hd_result = calculate_human_design(chart)
     except Exception:
-        return set()
+        return _set_chart_similarity_cached(chart, "human-design-gates", signature, set())
     for gate in (getattr(hd_result, "active_gates", None) or []):
         try:
             resolved_gates.add(int(gate))
         except (TypeError, ValueError):
             continue
-    return resolved_gates
+    return _set_chart_similarity_cached(chart, "human-design-gates", signature, resolved_gates)
+
+
+def _human_design_channels(chart: Chart) -> set[tuple[int, int]]:
+    signature = _chart_similarity_input_signature(chart, "human_design")
+    cached = _get_chart_similarity_cached(chart, "human-design-channels", signature)
+    if isinstance(cached, set):
+        return cached
+    return _set_chart_similarity_cached(chart, "human-design-channels", signature, active_human_design_channels(chart))
 
 
 def _human_design_gates_similarity(query: Chart, candidate: Chart) -> float:
@@ -1280,8 +1363,8 @@ def _human_design_gates_similarity(query: Chart, candidate: Chart) -> float:
 
 
 def _human_design_channels_similarity(query: Chart, candidate: Chart) -> float:
-    q_channels = active_human_design_channels(query)
-    c_channels = active_human_design_channels(candidate)
+    q_channels = _human_design_channels(query)
+    c_channels = _human_design_channels(candidate)
     if not q_channels and not c_channels:
         return 1.0
     union = q_channels | c_channels
@@ -1386,12 +1469,17 @@ def _weighted_similarity_score(
 
 
 def _defined_centers(chart: Chart) -> set[str]:
+    signature = _chart_similarity_input_signature(chart, "human_design")
+    cached = _get_chart_similarity_cached(chart, "human-design-defined-centers", signature)
+    if isinstance(cached, set):
+        return cached
     centers = getattr(chart, "human_design_defined_centers", None) or []
-    return {
+    resolved = {
         str(center).strip().lower()
         for center in centers
         if str(center).strip()
     }
+    return _set_chart_similarity_cached(chart, "human-design-defined-centers", signature, resolved)
 
 
 def _defined_centers_similarity(query: Chart, candidate: Chart) -> float:
