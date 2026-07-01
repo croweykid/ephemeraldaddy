@@ -580,6 +580,7 @@ def rename_trait(path: str | Path, new_name: str) -> Path:
     if not clean_name:
         raise ValueError("Trait name cannot be blank.")
     source = Path(path)
+    source_text = source.read_text(encoding="utf-8")
     profiles = parse_trait_file(source)
     _old_name, profile = next(iter(profiles.items()))
     destination = _unique_trait_path(clean_name, existing_path=source)
@@ -589,7 +590,8 @@ def rename_trait(path: str | Path, new_name: str) -> Path:
     stored["archived"] = bool(stored.get("archived", False))
     stored["description"] = str(stored.get("description", "")).strip()
     destination.write_text(
-        json.dumps({clean_name: _json_safe_trait_value(stored)}, ensure_ascii=False, indent=2),
+        json.dumps({clean_name: _json_safe_trait_value(stored)}, ensure_ascii=False, indent=2)
+        + _format_preserved_comments(_extract_hash_comments(source_text)),
         encoding="utf-8",
     )
     if destination != source:

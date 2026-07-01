@@ -213,3 +213,10 @@ def test_install_trait_file_preserves_samples_description_and_hash_comments(tmp_
     assert item["profile"]["description"] == "Uploaded description."
     assert "// # cohort note" in saved_text
     assert "// # dogmatic sample note" in saved_text
+
+    renamed = traits.rename_trait(installed, "Renamed Uploaded Trait")
+    renamed_text = renamed.read_text(encoding="utf-8")
+
+    assert traits.list_traits()[0]["profile"]["samples"] == 14
+    assert "// # cohort note" in renamed_text
+    assert "// # dogmatic sample note" in renamed_text
