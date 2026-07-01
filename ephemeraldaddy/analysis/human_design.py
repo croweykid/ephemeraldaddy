@@ -41,6 +41,10 @@ def _human_design_input_signature(chart: Chart) -> tuple[object, ...]:
         str(getattr(chart, "dt", "")),
         float(getattr(chart, "lat", 0.0) or 0.0),
         float(getattr(chart, "lon", 0.0) or 0.0),
+        bool(getattr(chart, "retcon_time_used", False)),
+        getattr(chart, "retcon_hour", None),
+        getattr(chart, "retcon_minute", None),
+        bool(chart_uses_houses(chart)),
         tuple(sorted((str(body), None if lon is None else round(float(lon), 8)) for body, lon in positions.items())),
     )
 

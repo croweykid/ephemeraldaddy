@@ -702,7 +702,7 @@ def _house_for_body(chart: Chart, body: str) -> int | None:
 def _element_for_sign_index(sign_idx: int) -> str | None:
     if sign_idx < 0 or sign_idx >= len(ZODIAC_NAMES):
         return None
-    sign_name = str(ZODIAC_SIGNS[sign_idx])
+    sign_name = str(ZODIAC_NAMES[sign_idx])
     element = SIGN_ELEMENTS.get(sign_name)
     if not element:
         return None
@@ -964,6 +964,10 @@ def _chart_similarity_input_signature(chart: Chart, *parts: str) -> tuple[object
         signature.append(str(getattr(chart, "dt", "")))
         signature.append(float(getattr(chart, "lat", 0.0) or 0.0))
         signature.append(float(getattr(chart, "lon", 0.0) or 0.0))
+        signature.append(bool(getattr(chart, "retcon_time_used", False)))
+        signature.append(getattr(chart, "retcon_hour", None))
+        signature.append(getattr(chart, "retcon_minute", None))
+        signature.append(bool(chart_uses_houses(chart)))
     return tuple(signature)
 
 
@@ -1035,12 +1039,14 @@ def _distribution_similarity(
 ) -> float:
     q_elements, q_modes = _element_mode_distribution_profile(query, weighting_mode=weighting_mode)
     c_elements, c_modes = _element_mode_distribution_profile(candidate, weighting_mode=weighting_mode)
-    element_score = _weighted_overlap_similarity(q_elements, c_elements)
-    mode_score = _weighted_overlap_similarity(q_modes, c_modes)
-    available_components = [score for score in (element_score, mode_score) if score > 0.0]
-    if not available_components:
+    component_scores: list[float] = []
+    if sum(max(0.0, float(value)) for value in q_elements.values()) > 0.0 and sum(max(0.0, float(value)) for value in c_elements.values()) > 0.0:
+        component_scores.append(_weighted_overlap_similarity(q_elements, c_elements))
+    if sum(max(0.0, float(value)) for value in q_modes.values()) > 0.0 and sum(max(0.0, float(value)) for value in c_modes.values()) > 0.0:
+        component_scores.append(_weighted_overlap_similarity(q_modes, c_modes))
+    if not component_scores:
         return 1.0
-    return sum(available_components) / len(available_components)
+    return sum(component_scores) / len(component_scores)
 
 
 def _sign_weight_profile(chart: Chart) -> dict[int, float]:

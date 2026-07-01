@@ -24,3 +24,16 @@ def test_public_similarity_dominance_profiles_use_similarity_source_shapes():
     assert body_weights["Moon"] > 0
     assert house_weights[1] > 0
     assert house_weights[2] > 0
+
+
+def test_distribution_similarity_preserves_zero_overlap_components():
+    from ephemeraldaddy.analysis.get_astro_twin import _distribution_similarity
+
+    query = SimpleNamespace(
+        positions={"Sun": 0.0, "Moon": 120.0},  # Fire: cardinal + fixed
+    )
+    candidate = SimpleNamespace(
+        positions={"Sun": 270.0, "Moon": 30.0},  # Earth: cardinal + fixed
+    )
+
+    assert _distribution_similarity(query, candidate) == 0.5
