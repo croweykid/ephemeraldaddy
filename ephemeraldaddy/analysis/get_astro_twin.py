@@ -7,7 +7,7 @@ from typing import Callable, Iterable, TypeVar
 
 from ephemeraldaddy.core.aspect_display import display_aspect_key
 from ephemeraldaddy.core.chart import Chart, chart_uses_houses
-from ephemeraldaddy.core.human_design_system import calculate_human_design
+from ephemeraldaddy.core.human_design_system import CHANNELS, calculate_human_design
 from ephemeraldaddy.core.interpretations import (
     ASPECT_SCORE_MULTIPLIERS,
     ASPECT_SCORE_WEIGHTS,
@@ -1489,6 +1489,17 @@ def _defined_centers(chart: Chart) -> set[str]:
         for center in centers
         if str(center).strip()
     }
+    if not resolved:
+        channel_centers = {
+            tuple(sorted((int(gate_a), int(gate_b)))): (str(center_a), str(center_b))
+            for gate_a, gate_b, center_a, center_b in CHANNELS
+        }
+        for gate_a, gate_b in _human_design_channels(chart):
+            for center in channel_centers.get(tuple(sorted((int(gate_a), int(gate_b)))), ()):
+                if center.strip():
+                    resolved.add(center.strip().lower())
+    if resolved:
+        chart.human_design_defined_centers = sorted(resolved)
     return _set_chart_similarity_cached(chart, "human-design-defined-centers", signature, resolved)
 
 

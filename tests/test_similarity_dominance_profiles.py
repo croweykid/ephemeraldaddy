@@ -53,3 +53,12 @@ def test_distribution_profile_cache_invalidates_when_dominance_weights_change():
 
     assert first_elements["fire"] == first_elements["earth"]
     assert second_elements["fire"] > second_elements["earth"]
+
+
+def test_defined_centers_similarity_uses_stored_human_design_channels():
+    from ephemeraldaddy.analysis.get_astro_twin import _defined_centers
+
+    chart = SimpleNamespace(human_design_channels=["64-47"])
+
+    assert _defined_centers(chart) == {"head", "ajna"}
+    assert chart.human_design_defined_centers == ["ajna", "head"]

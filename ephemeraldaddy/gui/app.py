@@ -18011,6 +18011,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         f"{min(gate_a, gate_b)}-{max(gate_a, gate_b)}"
                         for gate_a, gate_b, _center_a, _center_b in hd_result.defined_channels
                     )
+                    chart.human_design_defined_centers = sorted(str(center) for center in hd_result.defined_centers)
                     update_chart(
                         chart_id,
                         chart,
