@@ -14,7 +14,7 @@ def build_batch_bio_section(
     add_collapsible_section: Callable[[str], tuple[QWidget, QVBoxLayout]],
 ) -> QWidget:
     """Build the Batch Editor Bio section and wire its From updater."""
-    bio_section, bio_section_layout = add_collapsible_section("Bio")
+    bio_section, bio_section_layout = add_collapsible_section("📝Bio")
     bio_from_row = QHBoxLayout()
     bio_from_row.addWidget(QLabel("From"))
 
