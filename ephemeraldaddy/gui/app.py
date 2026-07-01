@@ -3082,6 +3082,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         expanded: bool = False,
         on_toggled: Callable[[bool], None] | None = None,
         section_key: str | None = None,
+        nested: bool = False,
     ) -> QVBoxLayout:
         section = QWidget()
         section_layout = QVBoxLayout()
@@ -3104,7 +3105,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         content_layout.setContentsMargins(*DATABASE_ANALYTICS_CONTENT_MARGINS)
         content_layout.setSpacing(DATABASE_ANALYTICS_CONTENT_SPACING)
         content.setLayout(content_layout)
-        content_style = COLLAPSIBLE_SECTION_CONTENT_STYLE
+        content_style = (
+            COLLAPSIBLE_NESTED_SECTION_CONTENT_STYLE
+            if nested
+            else COLLAPSIBLE_SECTION_CONTENT_STYLE
+        )
         if DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS:
             content_style = f"{content_style} {DATABASE_ANALYTICS_CONTENT_DEBUG_STYLE}"
         content.setStyleSheet(content_style)
@@ -4356,10 +4361,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.database_metrics_pending_label.setVisible(False)
         layout.addWidget(self.database_metrics_pending_label)
 
+        database_analytics_categories = self._create_database_analytics_category_layouts(
+            panel,
+            layout,
+        )
+        astro_category_layout = database_analytics_categories["astro"]
+        esoteric_category_layout = database_analytics_categories["esoteric"]
+        subjective_notes_category_layout = database_analytics_categories["subjective_notes"]
+        predictions_category_layout = database_analytics_categories["predictions"]
+        demographics_category_layout = database_analytics_categories["demographics"]
+
         # PLANETARY/POSITION SIGN DISTRIBUTION SECTION
         position_sign_section_layout = self._add_left_panel_collapsible_section(
             panel,
-            layout,
+            astro_category_layout,
             "🪐Sign Distribution by Placement",
             section_key="planetary_sign_prevalence",
             expanded=self._is_database_metrics_section_expanded("planetary_sign_prevalence"),
@@ -4392,8 +4407,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         #SIGN PREVALENCE SECTION
         sign_section_layout = self._add_left_panel_collapsible_section(
             panel,
-            layout,
-            "🪐Astro Chart Prevalences",
+            astro_category_layout,
+            "🪐Chart Prevalences",
             section_key="sign_prevalence",
             expanded=self._is_database_metrics_section_expanded("sign_prevalence"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
@@ -4405,7 +4420,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         #Sign Prevalence Chart Header
         self._create_analysis_chart_header(
             sign_section_layout,
-            "🪐Astro Chart Prevalences",
+            "🪐Chart Prevalences",
             "sign_prevalence",
             "sign_prevalence",
             dropdown_options=[
@@ -4432,7 +4447,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         #DOMINANT FACTORS SECTION
         dominant_sign_section_layout = self._add_left_panel_collapsible_section(
             panel,
-            layout,
+            astro_category_layout,
             "🪐Dominant Factors (Top 3)",
             section_key="dominant_signs",
             expanded=self._is_database_metrics_section_expanded("dominant_signs"),
@@ -4467,7 +4482,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         #cumulativedom FACTORS SECTION
         cumulativedom_sign_section_layout = self._add_left_panel_collapsible_section(
             panel,
-            layout,
+            astro_category_layout,
             "🪐Dominant Factors (cumulative)",
             section_key="cumulativedom_factors",
             expanded=self._is_database_metrics_section_expanded("cumulativedom_factors"),
@@ -4502,7 +4517,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         # DECANS SECTION
         decans_section_layout = self._add_left_panel_collapsible_section(
             panel,
-            layout,
+            astro_category_layout,
             "🪐Decans",
             section_key="decans",
             expanded=self._is_database_metrics_section_expanded("decans"),
@@ -4532,7 +4547,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         # NAKSHATRAS SECTION
         nakshatras_section_layout = self._add_left_panel_collapsible_section(
             panel,
-            layout,
+            astro_category_layout,
             "✨Nakshatras",
             section_key="nakshatras",
             expanded=self._is_database_metrics_section_expanded("nakshatras"),
@@ -4562,7 +4577,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         # HUMAN DESIGN SECTION
         human_design_section_layout = self._add_left_panel_collapsible_section(
             panel,
-            layout,
+            esoteric_category_layout,
             "🪷Human Design",
             section_key="human_design",
             expanded=self._is_database_metrics_section_expanded("human_design"),
@@ -4601,12 +4616,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         human_design_section_layout.addWidget(self.human_design_chart_container)
 
         
-        self._create_bazi_database_analytics_section(panel, layout)
+        self._create_bazi_database_analytics_section(panel, esoteric_category_layout)
 
         #SENTIMENT PREVALENCE SECTION
         sentiment_section_layout = self._add_left_panel_collapsible_section(
             panel,
-            layout,
+            subjective_notes_category_layout,
             "💭Sentiment Prevalence",
             section_key="sentiment_prevalence",
             expanded=self._is_database_metrics_section_expanded("sentiment_prevalence"),
@@ -4648,7 +4663,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         #RELATIONSHIP PREVALENCE SECTION
         relationship_section_layout = self._add_left_panel_collapsible_section(
             panel,
-            layout,
+            subjective_notes_category_layout,
             "💭Relationship Prevalence",
             section_key="relationship_prevalence",
             expanded=self._is_database_metrics_section_expanded("relationship_prevalence"),
@@ -4694,7 +4709,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         #ALIGNMENT + SOCIAL SCORE SECTION
         alignment_section_layout = self._add_left_panel_collapsible_section(
             panel,
-            layout,
+            subjective_notes_category_layout,
             "💭Alignment && Social Score",
             section_key="alignment_summary",
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
@@ -4746,7 +4761,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         predictability_section_layout = self._add_left_panel_collapsible_section(
             panel,
-            layout,
+            subjective_notes_category_layout,
             "💭Predictability",
             section_key="matched_expectations_summary",
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
@@ -4775,12 +4790,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         predictability_section_layout.addWidget(self.matched_expectations_summary_chart_container)
 
-        self._create_enneagram_database_analytics_section(panel, layout)
+        self._create_traits_database_analytics_section(panel, predictions_category_layout)
+        self._create_enneagram_database_analytics_section(panel, predictions_category_layout)
 
         #D&D TYPING SECTION
         species_section_layout = self._add_left_panel_collapsible_section(
             panel,
-            layout,
+            predictions_category_layout,
             "⚔️D&&D-ification",
             section_key="species_distribution",
             expanded=self._is_database_metrics_section_expanded("species_distribution"),
@@ -4823,7 +4839,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         # GENDER SECTION
         gender_section_layout = self._add_left_panel_collapsible_section(
             panel,
-            layout,
+            demographics_category_layout,
             "Gender",
             section_key="gender",
             expanded=self._is_database_metrics_section_expanded("gender"),
@@ -4858,7 +4874,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         # AGE SECTION
         age_section_layout = self._add_left_panel_collapsible_section(
             panel,
-            layout,
+            demographics_category_layout,
             "Eras && Ages",
             section_key="age",
             expanded=self._is_database_metrics_section_expanded("age"),
@@ -4893,7 +4909,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         #BIRTH TIME SECTION #Birth Time section
         birth_time_section_layout = self._add_left_panel_collapsible_section(
             panel,
-            layout,
+            demographics_category_layout,
             "Birth Time",
             section_key="birth_time",
             expanded=self._is_database_metrics_section_expanded("birth_time"),
@@ -4927,7 +4943,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         #BIRTH MONTH SECTION #Birth Month Section
         birth_month_section_layout = self._add_left_panel_collapsible_section(
             panel,
-            layout,
+            demographics_category_layout,
             "Birth Day", #birthday
             section_key="birth_month",
             expanded=self._is_database_metrics_section_expanded("birth_month"),
@@ -4960,7 +4976,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         #BIRTH PLACE SECTION
         birth_place_section_layout = self._add_left_panel_collapsible_section(
             panel,
-            layout,
+            demographics_category_layout,
             "Birth Place",
             section_key="birthplace",
             expanded=self._is_database_metrics_section_expanded("birthplace"),
@@ -4991,40 +5007,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_metrics_chart_layouts["birthplace"] = self.birthplace_chart_layout
         birth_place_section_layout.addWidget(self.birthplace_chart_container)
 
-        # TAG DISTRIBUTION SECTION
-        tag_distribution_section_layout = self._add_left_panel_collapsible_section(
-            panel,
-            layout,
-            "🏷️Tags",
-            section_key="tag_distribution",
-            expanded=self._is_database_metrics_section_expanded("tag_distribution"),
-            on_toggled=lambda checked: self._set_database_metrics_section_expanded(
-                "tag_distribution",
-                checked,
-            ),
-        )
-        self._database_metrics_section_expanded["tag_distribution"] = self._is_database_metrics_section_expanded("tag_distribution")
-        self._create_analysis_chart_header(
-            tag_distribution_section_layout,
-            "🏷️Tags",
-            "tag_distribution",
-            "tag_distribution",
-            dropdown_options=[("All", "all")],
-            show_title=False,
-        )
-        tag_subheader = add_database_subheader(
-            "Repeated tags by category. With selection, rows show selection % relative to DB %."
-        )
-        tag_distribution_section_layout.addWidget(tag_subheader)
-        (
-            self.tag_distribution_chart_container,
-            self.tag_distribution_chart_layout,
-        ) = self._create_database_analytics_chart_container()
-        self._database_metrics_chart_layouts["tag_distribution"] = self.tag_distribution_chart_layout
-        tag_distribution_section_layout.addWidget(self.tag_distribution_chart_container)
-
-        # TRAITS DISTRIBUTION SECTION
-        self._create_traits_database_analytics_section(panel, layout)
+        # Keep the usual Tags section un-nested at the bottom of Database Analytics.
+        self._create_tags_database_analytics_section(panel, layout)
 
 #end of lefthand Database Analytics panel, it closes below:
         return panel

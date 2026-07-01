@@ -517,6 +517,31 @@ def render_nakshatras_chart(
 
 
 class DatabaseAnalyticsChartsMixin:
+
+    DATABASE_ANALYTICS_CATEGORY_TITLES: tuple[tuple[str, str], ...] = (
+        ("astro", "🪐Astro"),
+        ("esoteric", "🪷Esoteric Alternatives"),
+        ("subjective_notes", "💭Subjective Notes"),
+        ("predictions", "🎱Predictions"),
+        ("demographics", "🇨🇩Demographics"),
+    )
+
+    def _create_database_analytics_category_layouts(
+        self,
+        panel: Any,
+        layout: QVBoxLayout,
+    ) -> dict[str, QVBoxLayout]:
+        """Create parent category sections for the Database Analytics panel."""
+        return {
+            key: self._add_left_panel_collapsible_section(
+                panel,
+                layout,
+                title,
+                nested=True,
+            )
+            for key, title in self.DATABASE_ANALYTICS_CATEGORY_TITLES
+        }
+
     CHINESE_FONT_UNAVAILABLE: bool = True
     BAZI_EMOJI_FONT_FAMILIES: tuple[str, ...] = (
         "Noto Color Emoji",
@@ -4089,6 +4114,38 @@ class DatabaseAnalyticsChartsMixin:
             )
         return tag_export_rows
 
+    def _create_tags_database_analytics_section(self, panel: Any, layout: QVBoxLayout) -> None:
+        """Create the un-nested Tags section at the bottom of Database Analytics."""
+        tag_distribution_section_layout = self._add_left_panel_collapsible_section(
+            panel,
+            layout,
+            "🏷️Tags",
+            section_key="tag_distribution",
+            expanded=self._is_database_metrics_section_expanded("tag_distribution"),
+            on_toggled=lambda checked: self._set_database_metrics_section_expanded(
+                "tag_distribution",
+                checked,
+            ),
+        )
+        self._database_metrics_section_expanded["tag_distribution"] = self._is_database_metrics_section_expanded("tag_distribution")
+        self._create_analysis_chart_header(
+            tag_distribution_section_layout,
+            "🏷️Tags",
+            "tag_distribution",
+            "tag_distribution",
+            dropdown_options=[("All", "all")],
+            show_title=False,
+        )
+        tag_subheader = self._build_database_subheader_label(
+            "Repeated tags by category. With selection, rows show selection % relative to DB %."
+        )
+        tag_distribution_section_layout.addWidget(tag_subheader)
+        (
+            self.tag_distribution_chart_container,
+            self.tag_distribution_chart_layout,
+        ) = self._create_database_analytics_chart_container()
+        self._database_metrics_chart_layouts["tag_distribution"] = self.tag_distribution_chart_layout
+        tag_distribution_section_layout.addWidget(self.tag_distribution_chart_container)
 
     def _create_traits_database_analytics_section(self, panel: Any, layout: Any) -> None:
         traits_section_layout = self._add_left_panel_collapsible_section(
