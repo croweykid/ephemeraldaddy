@@ -34308,9 +34308,26 @@ class MainWindow(QMainWindow):
     def _planet_dynamics_cache_signature(self, chart: Chart) -> tuple[object, ...]:
         positions = getattr(chart, "positions", None) or {}
         houses = getattr(chart, "houses", None) or []
+        aspects = getattr(chart, "aspects", None) or []
+        aspect_signature = tuple(
+            sorted(
+                (
+                    str(aspect.get("p1", "")),
+                    str(aspect.get("p2", "")),
+                    str(aspect.get("type", "")),
+                    round(float(aspect.get("delta", 0.0) or 0.0), 8),
+                )
+                for aspect in aspects
+                if isinstance(aspect, Mapping)
+            )
+        )
         return (
             tuple(sorted((str(body), None if lon is None else round(float(lon), 8)) for body, lon in positions.items())),
             tuple(None if cusp is None else round(float(cusp), 8) for cusp in houses),
+            aspect_signature,
+            bool(getattr(chart, "retcon_time_used", False)),
+            getattr(chart, "retcon_hour", None),
+            getattr(chart, "retcon_minute", None),
             bool(chart_uses_houses(chart)),
         )
 

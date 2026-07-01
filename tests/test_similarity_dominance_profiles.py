@@ -37,3 +37,19 @@ def test_distribution_similarity_preserves_zero_overlap_components():
     )
 
     assert _distribution_similarity(query, candidate) == 0.5
+
+
+def test_distribution_profile_cache_invalidates_when_dominance_weights_change():
+    from ephemeraldaddy.analysis.get_astro_twin import _element_mode_distribution_profile
+
+    chart = SimpleNamespace(
+        positions={"Sun": 0.0, "Moon": 30.0},
+        dominant_planet_weights={"Sun": 1.0, "Moon": 1.0},
+    )
+
+    first_elements, _first_modes = _element_mode_distribution_profile(chart)
+    chart.dominant_planet_weights = {"Sun": 10.0, "Moon": 1.0}
+    second_elements, _second_modes = _element_mode_distribution_profile(chart)
+
+    assert first_elements["fire"] == first_elements["earth"]
+    assert second_elements["fire"] > second_elements["earth"]

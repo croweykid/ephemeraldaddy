@@ -1008,8 +1008,12 @@ def _element_mode_distribution_profile(
     *,
     weighting_mode: str = PLACEMENT_WEIGHTING_MODE_CHART_DEFINED,
 ) -> tuple[dict[str, float], dict[str, float]]:
-    signature = _chart_similarity_input_signature(chart, "positions") + (weighting_mode,)
-    cache_key = f"element-mode-distribution:{weighting_mode}"
+    normalized_mode = normalize_placement_weighting_mode(weighting_mode)
+    signature_parts = ["positions"]
+    if normalized_mode != PLACEMENT_WEIGHTING_MODE_GENERIC:
+        signature_parts.append("dominance")
+    signature = _chart_similarity_input_signature(chart, *signature_parts) + (normalized_mode,)
+    cache_key = f"element-mode-distribution:{normalized_mode}"
     cached = _get_chart_similarity_cached(chart, cache_key, signature)
     if isinstance(cached, tuple) and len(cached) == 2:
         return cached
