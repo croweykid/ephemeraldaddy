@@ -2427,6 +2427,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._visible_chart_ids: set[int] = set()
         self._filter_navigation_anchor_chart_id: int | None = None
         self._selection_update_mode = "replace"
+        self._prior_deselected_selection: list[int] = []
         self._syncing_visible_selection = False
         self._custom_collections: dict[str, CustomCollection] = {}
         self._active_collection_id = DEFAULT_COLLECTION_ALL
@@ -7190,11 +7191,36 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._update_batch_selection_order(ordered)
 
     def _clear_persistent_selection(self) -> None:
+        previous_selection = list(getattr(self, "_selected_chart_id_order", []))
+        self._remember_single_chart_deselection(previous_selection, [])
         self._replace_persistent_selection([])
         if self.list_widget is not None and self.list_widget.selectedItems():
             blocker = QSignalBlocker(self.list_widget)
             self.list_widget.clearSelection()
             blocker.unblock()
+
+
+    def _remember_single_chart_deselection(
+        self,
+        previous_selection: Iterable[int],
+        current_selection: Iterable[int],
+    ) -> None:
+        previous_ids = list(previous_selection)
+        current_ids = list(current_selection)
+        if len(previous_ids) == 1 and not current_ids:
+            self._prior_deselected_selection = previous_ids
+        elif current_ids:
+            self._prior_deselected_selection = []
+
+    def _restore_prior_deselected_selection(self) -> bool:
+        prior_selection = list(getattr(self, "_prior_deselected_selection", []))
+        if len(prior_selection) != 1:
+            return False
+        self._prior_deselected_selection = []
+        self._replace_persistent_selection(prior_selection)
+        self._sync_visible_selection_from_persistent_selection()
+        self._on_selection_changed(sync_persistent_selection=False)
+        return True
 
     def _reconcile_persistent_selection_with_database(self) -> None:
         chart_rows = getattr(self, "_chart_rows", [])
@@ -12866,6 +12892,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if event.type() == QEvent.KeyPress and event.matches(QKeySequence.StandardKey.Copy):
                 if self._copy_selected_chart_names_to_clipboard():
                     return True
+            if event.type() == QEvent.KeyPress and event.matches(QKeySequence.StandardKey.Undo):
+                if self._restore_prior_deselected_selection():
+                    return True
             if event.type() == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
                 modifiers = event.modifiers()
                 additive = bool(
@@ -17147,9 +17176,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         if self._syncing_visible_selection:
             return
+        previous_selection = list(getattr(self, "_selected_chart_id_order", []))
         if sync_persistent_selection:
             replace_selection = getattr(self, "_selection_update_mode", "replace") == "replace"
             self._merge_visible_selection_into_persistent_selection(replace=replace_selection)
+            self._remember_single_chart_deselection(
+                previous_selection,
+                getattr(self, "_selected_chart_id_order", []),
+            )
         selected_chart_ids = self._visible_selected_chart_ids()
         if selected_chart_ids:
             current_chart_id = self._chart_id_from_list_item(self.list_widget.currentItem())
