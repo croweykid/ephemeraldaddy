@@ -7150,10 +7150,47 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             QMessageBox.warning(self, tool_title, f"Unknown chart tool: {tool_key}")
 
 
-    def _copy_selected_chart_names_to_clipboard(self) -> bool:
+    def _selected_chart_names_for_clipboard(self) -> list[str]:
+        """Return all selected chart names for Database View clipboard export."""
         if self.list_widget is None:
-            return False
-        selected_names = _selected_chart_list_item_names(self.list_widget)
+            return []
+
+        self._reconcile_persistent_selection_with_database()
+        selected_ids = set(getattr(self, "_selected_chart_ids_set", set()))
+        if not selected_ids:
+            return _selected_chart_list_item_names(self.list_widget)
+
+        selected_names: list[str] = []
+        copied_ids: set[int] = set()
+        for row in range(self.list_widget.count()):
+            item = self.list_widget.item(row)
+            if item is None:
+                continue
+            chart_id = self._chart_id_from_list_item(item)
+            if chart_id is None or chart_id not in selected_ids:
+                continue
+            name = _chart_list_item_raw_name(item)
+            if name:
+                selected_names.append(name)
+                copied_ids.add(chart_id)
+
+        if len(copied_ids) == len(selected_ids):
+            return selected_names
+
+        chart_names_by_id = self._similar_charts_popout_chart_names_by_id(
+            getattr(self, "_chart_rows", [])
+        )
+        for chart_id in getattr(self, "_selected_chart_id_order", []):
+            if chart_id in copied_ids:
+                continue
+            name = str(chart_names_by_id.get(chart_id) or "").strip()
+            if name:
+                selected_names.append(name)
+                copied_ids.add(chart_id)
+        return selected_names
+
+    def _copy_selected_chart_names_to_clipboard(self) -> bool:
+        selected_names = self._selected_chart_names_for_clipboard()
         if not selected_names:
             return False
         QApplication.clipboard().setText("\n".join(selected_names))
