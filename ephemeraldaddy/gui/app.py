@@ -34504,17 +34504,25 @@ class MainWindow(QMainWindow):
         )
 
     def _prediction_norm_rows(self) -> list[Any]:
-        displayed_rows_by_id = getattr(self, "_displayed_chart_rows_by_id", None)
-        if displayed_rows_by_id is not None:
-            return list(displayed_rows_by_id.values())
+        chart_rows = getattr(self, "_chart_rows", None)
+        if chart_rows is not None:
+            return [
+                normalized
+                for row in chart_rows
+                if (normalized := self._normalize_chart_row(row)) is not None
+            ]
         manage_dialog = getattr(self, "_manage_charts_dialog", None)
-        dialog_displayed_rows_by_id = (
-            getattr(manage_dialog, "_displayed_chart_rows_by_id", None)
+        dialog_chart_rows = (
+            getattr(manage_dialog, "_chart_rows", None)
             if manage_dialog is not None
             else None
         )
-        if dialog_displayed_rows_by_id is not None:
-            return list(dialog_displayed_rows_by_id.values())
+        if dialog_chart_rows is not None:
+            return [
+                normalized
+                for row in dialog_chart_rows
+                if (normalized := self._normalize_chart_row(row)) is not None
+            ]
         try:
             return list(list_charts())
         except Exception:

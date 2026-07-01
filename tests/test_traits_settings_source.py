@@ -35,3 +35,15 @@ def test_trait_prediction_rendering_lives_outside_app_py():
     assert "def warm_trait_database_norms" in predictions_source
     assert "def clear_trait_norm_cache" in predictions_source
     assert "_load_trait_norm_cache()" in predictions_source
+
+
+def test_prediction_norm_rows_use_full_database_not_displayed_filter_scope():
+    app_source = (ROOT / "ephemeraldaddy" / "gui" / "app.py").read_text(encoding="utf-8")
+    method = app_source[
+        app_source.index("    def _prediction_norm_rows")
+        : app_source.index("    def _prediction_norms_render_token")
+    ]
+
+    assert 'chart_rows = getattr(self, "_chart_rows", None)' in method
+    assert 'getattr(manage_dialog, "_chart_rows", None)' in method
+    assert "_displayed_chart_rows_by_id" not in method
