@@ -2621,7 +2621,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.batch_delete_chart_button.setObjectName("database_view_middle_delete_chart_button")
         self.batch_delete_chart_button.clicked.connect(self._on_delete)
 
-        self.total_chart_export_button = QPushButton("Export chart")
+        self.total_chart_export_button = QPushButton("Export chart analysis")
         self.total_chart_export_button.setObjectName("database_view_middle_total_chart_export_button")
         self.total_chart_export_button.setToolTip("Export the selected chart's full Chart View, analytics, predictions, Human Design, and BaZi text")
 
@@ -7066,8 +7066,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self,
             self._selected_chart_ids(),
             prompt_for_chart=lambda: self._prompt_single_chart_selection(
-                dialog_title="Export chart",
-                submit_button_label="Export chart",
+                dialog_title="Export chart analysis",
+                submit_button_label="Export chart analysis",
                 placeholder_text="Look up the chart to export…",
             ),
             load_chart=load_chart,
@@ -17469,7 +17469,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if not chart_ids:
             QMessageBox.information(
                 self,
-                "Export charts",
+                "Export chart data",
                 "Select one or more charts to export.",
             )
             return
@@ -17478,7 +17478,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         default_filename = f"ephemeraldaddy_charts_export-{export_date}.csv"
         file_path, _ = QFileDialog.getSaveFileName(
             self,
-            "Export selected charts",
+            "Export data for selected charts",
             default_filename,
             "CSV Files (*.csv)",
         )
@@ -17580,13 +17580,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         QMessageBox.information(
             self,
             "Export complete",
-            f"Exported {len(chart_ids)} chart(s) to:\n{file_path}",
+            f"Exported data for {len(chart_ids)} chart(s) to:\n{file_path}",
         )
 
     def _on_import_csv_type_1(self) -> None:
         file_path, _ = QFileDialog.getOpenFileName(
             self,
-            "Import charts from CSV",
+            "Import chart data from CSV",
             "",
             "CSV Files (*.csv)",
         )
@@ -24550,7 +24550,7 @@ class MainWindow(QMainWindow):
             self.output_share_button.setText("↗")
         self.output_share_button.setAutoRaise(True)
         apply_button_cursor(self.output_share_button)
-        self.output_share_button.setToolTip("Export chart data output as Markdown or text")
+        self.output_share_button.setToolTip("Export chart analysis (MD or TXT)")
         self.output_share_button.clicked.connect(self._export_chart_data_output)
         self.output_share_button.resize(22, 22)
         self._position_output_share_button()
@@ -24836,7 +24836,7 @@ class MainWindow(QMainWindow):
             export_button.setText("↗")
         export_button.setAutoRaise(True)
         apply_button_cursor(export_button)
-        export_button.setToolTip("Export similar charts as TXT or Markdown")
+        export_button.setToolTip("Export similar charts (TXT or MD)")
         export_button.clicked.connect(self._export_similar_charts_share)
         header_layout.addWidget(export_button, 0, Qt.AlignRight)
         section_layout.addWidget(header_row)
@@ -27093,7 +27093,7 @@ class MainWindow(QMainWindow):
         default_filename = f"{default_stem}-{export_date}.csv"
         file_path, _ = QFileDialog.getSaveFileName(
             self,
-            f"Export {chart_title} as CSV",
+            f"Export {chart_title}'s data as CSV",
             default_filename,
             "CSV Files (*.csv)",
         )
@@ -28650,7 +28650,7 @@ class MainWindow(QMainWindow):
         default_filename = f"ephemeraldaddy_{safe_title}_chart-{export_date}.md"
         file_path, _ = QFileDialog.getSaveFileName(
             self,
-            "Export chart as Markdown",
+            "Export chart analysis (MD)",
             default_filename,
             "Markdown Files (*.md)",
         )
@@ -29142,7 +29142,7 @@ class MainWindow(QMainWindow):
         default_filename = f"chart-data-output-{export_date}.md"
         file_path, selected_filter = QFileDialog.getSaveFileName(
             self,
-            "Export chart Data Output",
+            "Export chart analysis", #aka chart data output
             default_filename,
             "Markdown Files (*.md);;Text Files (*.txt)",
         )
@@ -35256,7 +35256,7 @@ class MainWindow(QMainWindow):
             summary_share_button.setText("↗")
         summary_share_button.setAutoRaise(True)
         apply_button_cursor(summary_share_button)
-        summary_share_button.setToolTip("Export chart data output as Markdown or text")
+        summary_share_button.setToolTip("Export chart analysis (MD or TXT)")
         summary_share_button.setFixedSize(22, 22)
         summary_share_button.clicked.connect(
             lambda _checked=False: self._export_popout_chart_data_output(summary_output, hd_file_stem)
