@@ -240,92 +240,48 @@ def _normalize_channel_criterion(text: str) -> tuple[int, int] | None:
     return (min(gate_a, gate_b), max(gate_a, gate_b))
 
 
-def _sign_house_offset_for_label(section_title: str, label: object) -> int | None:
-    """Return structural zodiac-to-house offset for sign-in-house labels."""
-    if section_title not in {"Signs in houses in common", "Signs in houses in contrast"}:
-        return None
-    criterion = normalize_similarities_json_criterion(section_title, label)
+def _sign_house_criterion_details(criterion: object) -> tuple[int, int, int] | None:
+    """Return sign index, house number, and structural offset for sign-in-house criteria."""
     if not isinstance(criterion, str):
         return None
-    category, house_num, sign = _parse_sign_in_house_criterion(criterion)
-    if category != "sign_in_house" or not isinstance(house_num, int):
-        return None
-    try:
-        sign_index = ZODIAC_NAMES.index(sign)
-    except ValueError:
-        return None
-    return ((house_num - 1) - sign_index) % 12
-
-
-def _parse_sign_in_house_criterion(criterion: str) -> tuple[str | None, int | None, str]:
     sign, separator, house = criterion.partition(" in H")
-    if not separator or not house.isdigit():
-        return None, None, sign
-    if sign not in ZODIAC_NAMES:
-        return None, None, sign
+    if not separator or not house.isdigit() or sign not in ZODIAC_NAMES:
+        return None
     house_num = int(house)
     if not 1 <= house_num <= 12:
-        return None, None, sign
-    return "sign_in_house", house_num, sign
+        return None
+    sign_index = ZODIAC_NAMES.index(sign)
+    offset = ((house_num - 1) - sign_index) % 12
+    return sign_index, house_num, offset
 
 
-def _similarities_match_weight(match: tuple[object, ...]) -> float:
-    if len(match) < 5:
-        return 0.0
-    try:
-        match_count = int(match[1])
-        total_count = int(match[2])
-        database_match_count = int(match[3])
-        database_total_count = int(match[4])
-    except (TypeError, ValueError):
-        return 0.0
-    selection_percent = (match_count / total_count) * 100 if total_count else 0.0
-    database_percent = (
-        (database_match_count / database_total_count) * 100
-        if database_total_count
-        else 0.0
-    )
-    return selection_percent - database_percent
+def filter_structural_sign_house_profile_redundancies(profile: OrderedDict) -> None:
+    """Drop post-significance sign-house tautologies from profile position factors.
 
-
-def filter_structural_sign_house_redundancies(export_sections):
-    """Drop sequential sign-house tautologies while keeping strongest offset.
-
-    Placidus/equal-ish house sequences often produce runs such as Aries in H1,
-    Taurus in H2, Gemini in H3, etc. These are the same sign-to-house offset,
-    so exports keep only the highest absolute selection-vs-database weight for
-    each offset. Non-sequential exceptions (for example Gemini in H4 alongside
-    Taurus in H2) have different offsets and remain exportable.
+    The Similarities panel can surface linear sign-to-house sequences like
+    Aries in H1, Taurus in H2, Gemini in H3. Once those factors have already
+    passed the export relevance gate, keep the first encountered representative
+    for each linear zodiac-to-house offset and remove the later structurally
+    implied factors. Different offsets, such as Taurus in H2 alongside Gemini
+    in H4, remain because they are not the same linear sequence.
     """
-    filtered_sections = []
-    for section_title, matches in export_sections or []:
-        if section_title not in {"Signs in houses in common", "Signs in houses in contrast"}:
-            filtered_sections.append((section_title, matches))
+    for category in ("positions", "antipositions"):
+        positions = profile.get(category)
+        if not isinstance(positions, OrderedDict):
             continue
-        best_by_offset: dict[int, tuple[int, float]] = {}
-        normalized_matches = list(matches or [])
-        for index, raw_match in enumerate(normalized_matches):
-            match = tuple(raw_match)
-            if not match:
+        seen_offsets: set[int] = set()
+        filtered_positions = OrderedDict()
+        for criterion, weight in positions.items():
+            details = _sign_house_criterion_details(criterion)
+            if details is None:
+                filtered_positions[criterion] = weight
                 continue
-            offset = _sign_house_offset_for_label(section_title, match[0])
-            if offset is None:
+            _sign_index, _house_num, offset = details
+            if offset in seen_offsets:
                 continue
-            weight = abs(_similarities_match_weight(match))
-            previous = best_by_offset.get(offset)
-            if previous is None or weight > previous[1]:
-                best_by_offset[offset] = (index, weight)
-        if not best_by_offset:
-            filtered_sections.append((section_title, matches))
-            continue
-        keep_indexes = {index for index, _weight in best_by_offset.values()}
-        retained_matches = []
-        for index, match in enumerate(normalized_matches):
-            label = tuple(match)[0] if tuple(match) else ""
-            if index in keep_indexes or _sign_house_offset_for_label(section_title, label) is None:
-                retained_matches.append(match)
-        filtered_sections.append((section_title, retained_matches))
-    return filtered_sections
+            seen_offsets.add(offset)
+            filtered_positions[criterion] = weight
+        profile[category] = filtered_positions
 
 
 def similarity_delta_exceeds_export_standard_deviation_tier(
@@ -525,8 +481,6 @@ def build_similarities_json_export_payload(
     label, selection count/total, database count/total, matching names, and
     optionally a dissimilarity owner key (``chart_1`` or ``chart_2``).
     """
-    export_sections = filter_structural_sign_house_redundancies(export_sections)
-
     if _has_dissimilarity_json_owner(export_sections):
         sample_size = _similarities_export_sample_size(export_sections)
         bundle = OrderedDict([("name", selection_name), ("samples", sample_size)])
@@ -550,6 +504,7 @@ def build_similarities_json_export_payload(
                     require_database_significance=False,
                 )
         for owner_label in DISSIMILARITIES_JSON_OWNER_LABELS.values():
+            filter_structural_sign_house_profile_redundancies(bundle[owner_label])
             sort_similarities_json_positions(bundle[owner_label])
             sort_similarities_json_aspects(bundle[owner_label])
         return OrderedDict([(selection_name, bundle)])
@@ -562,6 +517,7 @@ def build_similarities_json_export_payload(
             continue
         for raw_match in matches:
             _add_similarity_json_match_to_profile(profile, section_title, tuple(raw_match))
+    filter_structural_sign_house_profile_redundancies(profile)
     sort_similarities_json_positions(profile)
     sort_similarities_json_aspects(profile)
     return OrderedDict([(selection_name, profile)])

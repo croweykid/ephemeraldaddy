@@ -91,7 +91,7 @@ def test_similarities_json_export_normalizes_underrepresented_factors_as_negativ
     assert profile["positions"] == {
         "Sun in H1": 30,
         "Moon in H12": -40,
-        "Pisces in H12": -40,
+        "Aries in H1": 30,
     }
     assert profile["antipositions"] == {}
     assert profile["houses"] == {"1": 30, "12": -40}
@@ -343,15 +343,15 @@ def test_similarities_json_export_deduplicates_structural_sign_house_offsets():
     }
 
 
-def test_similarities_json_export_keeps_strongest_structural_sign_house_offset_even_when_negative():
+def test_similarities_json_export_keeps_first_structural_sign_house_offset_after_relevance():
     payload = build_similarities_json_export_payload(
         "House Signs",
         [
             (
                 "Signs in houses in common",
                 [
-                    ("House 1: Aries", 2, 10, 50, 100, "A"),
-                    ("House 2: Taurus", 1, 10, 70, 100, "B"),
+                    ("House 1: Aries", 1, 10, 70, 100, "A"),
+                    ("House 2: Taurus", 1, 10, 90, 100, "B"),
                     ("House 4: Gemini", 5, 10, 0, 100, "C"),
                 ],
             ),
@@ -359,6 +359,24 @@ def test_similarities_json_export_keeps_strongest_structural_sign_house_offset_e
     )
 
     assert payload["House Signs"]["positions"] == {
-        "Taurus in H2": -60,
+        "Aries in H1": -60,
         "Gemini in H4": 50,
     }
+
+
+def test_similarities_json_export_filters_sign_house_tautologies_after_relevance_gate():
+    payload = build_similarities_json_export_payload(
+        "House Signs",
+        [
+            (
+                "Signs in houses in common",
+                [
+                    ("House 1: Aries", 52, 100, 50, 100, "A"),
+                    ("House 2: Taurus", 9, 10, 50, 100, "B"),
+                    ("House 3: Gemini", 8, 10, 50, 100, "C"),
+                ],
+            ),
+        ],
+    )
+
+    assert payload["House Signs"]["positions"] == {"Taurus in H2": 40}
