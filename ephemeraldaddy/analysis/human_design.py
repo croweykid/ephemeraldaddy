@@ -35,9 +35,36 @@ ZODIAC_NAMES = (
 )
 
 
+def _human_design_input_signature(chart: Chart) -> tuple[object, ...]:
+    positions = getattr(chart, "positions", None) or {}
+    return (
+        str(getattr(chart, "dt", "")),
+        float(getattr(chart, "lat", 0.0) or 0.0),
+        float(getattr(chart, "lon", 0.0) or 0.0),
+        bool(getattr(chart, "retcon_time_used", False)),
+        getattr(chart, "retcon_hour", None),
+        getattr(chart, "retcon_minute", None),
+        bool(chart_uses_houses(chart)),
+        tuple(sorted((str(body), None if lon is None else round(float(lon), 8)) for body, lon in positions.items())),
+    )
+
+
+def _cached_human_design_result(chart: Chart) -> HumanDesignResult:
+    signature = _human_design_input_signature(chart)
+    if (
+        getattr(chart, "_human_design_result_signature", None) == signature
+        and isinstance(getattr(chart, "_human_design_result_cache", None), HumanDesignResult)
+    ):
+        return chart._human_design_result_cache
+    result = calculate_human_design(chart)
+    chart._human_design_result_cache = result
+    chart._human_design_result_signature = signature
+    return result
+
+
 def get_active_human_design_gates_and_lines(chart: Chart) -> tuple[set[int], set[tuple[int, int]]]:
     """Return active Human Design gates and (gate, line) tuples for a chart."""
-    hd_result = calculate_human_design(chart)
+    hd_result = _cached_human_design_result(chart)
     activations = (*hd_result.personality_activations, *hd_result.design_activations)
     active_gate_set = {activation.gate for activation in activations}
     active_line_set = {(activation.gate, activation.line) for activation in activations}
@@ -46,7 +73,7 @@ def get_active_human_design_gates_and_lines(chart: Chart) -> tuple[set[int], set
 
 def build_human_design_result(chart: Chart) -> HumanDesignResult:
     """Expose full HD computation for UI renderers."""
-    return calculate_human_design(chart)
+    return _cached_human_design_result(chart)
 
 
 def derive_human_design_profile(
@@ -57,7 +84,7 @@ def derive_human_design_profile(
     This helper is the shared, canonical profile derivation path for all UI
     surfaces that need Human Design filter/analytics values.
     """
-    hd_result = calculate_human_design(chart)
+    hd_result = _cached_human_design_result(chart)
     activations = (*hd_result.personality_activations, *hd_result.design_activations)
     gates = sorted(int(gate) for gate in hd_result.active_gates)
     lines = sorted({int(activation.line) for activation in activations})
@@ -667,7 +694,7 @@ def describe_gate_line_placements(
     """Return formatted placement lines for a gate or gate/line in a chart."""
     gate_number = int(gate)
     line_number = int(line) if isinstance(line, int) else None
-    hd_result = calculate_human_design(chart)
+    hd_result = _cached_human_design_result(chart)
     matches: list[str] = []
     for activation in (*hd_result.personality_activations, *hd_result.design_activations):
         if int(activation.gate) != gate_number:
@@ -1053,7 +1080,7 @@ def build_human_design_chart_data_output(
     positions_start_index = 0
     position_info_map: dict[int, Any] = {}
 
-    hd_result = calculate_human_design(chart)
+    hd_result = _cached_human_design_result(chart)
     uses_houses = chart_uses_houses(chart)
     show_uncertain_time_variants = bool(getattr(chart, "retcon_time_used", False)) or not uses_houses
     time_variant_results = _time_variant_human_design_results(chart) if show_uncertain_time_variants else None

@@ -752,3 +752,70 @@ def test_time_sensitivity_ascendant_info_uses_legacy_as_spans():
     text = panel_module.build_time_sensitivity_ascendant_sign_info_text(result, "Aries")
     assert "from 00:00 to 01:00" in text
     assert "from n/a to n/a" not in text
+
+
+def test_human_design_cache_invalidates_when_rectified_time_changes(monkeypatch):
+    from datetime import datetime, timezone
+    from types import SimpleNamespace
+
+    import sys
+    from types import ModuleType
+
+    style_stub = ModuleType("ephemeraldaddy.gui.style")
+    style_stub.ARROW_STYLES = {"classic": "->"}
+    style_stub.CHART_DATA_DIVIDER = "---"
+    style_stub.blend_hex_colors = lambda color_a, color_b, ratio=0.5: color_a
+    monkeypatch.setitem(sys.modules, "ephemeraldaddy.gui.style", style_stub)
+
+    from ephemeraldaddy.analysis import human_design as module
+    from ephemeraldaddy.core.human_design_system import HumanDesignResult
+
+    calls = []
+
+    def fake_calculate_human_design(chart):
+        calls.append((
+            bool(getattr(chart, "retcon_time_used", False)),
+            getattr(chart, "retcon_hour", None),
+            getattr(chart, "retcon_minute", None),
+        ))
+        return HumanDesignResult(
+            birth_utc=datetime(2000, 1, 1, tzinfo=timezone.utc),
+            design_utc=datetime(1999, 12, 12, tzinfo=timezone.utc),
+            personality_activations=(),
+            design_activations=(),
+            active_gates=frozenset(),
+            defined_channels=(),
+            defined_centers=frozenset(),
+            hd_type=f"result-{len(calls)}",
+            authority="",
+            profile="",
+            strategy="",
+            split_definition="",
+            incarnation_cross="",
+        )
+
+    chart = SimpleNamespace(
+        dt=datetime(2000, 1, 1, 12, 0, tzinfo=timezone.utc),
+        lat=0.0,
+        lon=0.0,
+        positions={},
+        birthtime_unknown=False,
+        retcon_time_used=False,
+        retcon_hour=12,
+        retcon_minute=0,
+    )
+    monkeypatch.setattr(module, "calculate_human_design", fake_calculate_human_design)
+
+    first = module.build_human_design_result(chart)
+    second = module.build_human_design_result(chart)
+    chart.retcon_time_used = True
+    chart.retcon_hour = 1
+    chart.retcon_minute = 2
+    third = module.build_human_design_result(chart)
+
+    assert first is second
+    assert third is not first
+    assert [result.hd_type for result in (first, third)] == ["result-1", "result-2"]
+    assert calls == [(False, 12, 0), (True, 1, 2)]
+    sys.modules.pop("ephemeraldaddy.analysis.human_design", None)
+    sys.modules.pop("ephemeraldaddy.analysis.human_design_reference", None)
