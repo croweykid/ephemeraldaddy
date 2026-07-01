@@ -72,7 +72,7 @@ def calculate_pair_similarity_result(
     algorithm_mode: str,
     custom_settings: SimilarityCalculatorSettings | None,
 ) -> PairSimilarityResult:
-    """Calculate a pair score using the currently selected Similarities Calculator mode."""
+    """Calculate a pair score using the currently selected Astro Twin Calculator mode."""
 
     normalized_mode = normalize_similar_charts_algorithm_mode(algorithm_mode)
     settings = custom_settings or SimilarityCalculatorSettings.defaults_for_default_mode()
