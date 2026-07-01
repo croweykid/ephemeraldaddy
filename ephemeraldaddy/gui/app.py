@@ -5007,40 +5007,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_metrics_chart_layouts["birthplace"] = self.birthplace_chart_layout
         birth_place_section_layout.addWidget(self.birthplace_chart_container)
 
-        # TAG DISTRIBUTION SECTION
-        tag_distribution_section_layout = self._add_left_panel_collapsible_section(
-            panel,
-            layout,
-            "🏷️Tags",
-            section_key="tag_distribution",
-            expanded=self._is_database_metrics_section_expanded("tag_distribution"),
-            on_toggled=lambda checked: self._set_database_metrics_section_expanded(
-                "tag_distribution",
-                checked,
-            ),
-        )
-        self._database_metrics_section_expanded["tag_distribution"] = self._is_database_metrics_section_expanded("tag_distribution")
-        self._create_analysis_chart_header(
-            tag_distribution_section_layout,
-            "🏷️Tags",
-            "tag_distribution",
-            "tag_distribution",
-            dropdown_options=[("All", "all")],
-            show_title=False,
-        )
-        tag_subheader = add_database_subheader(
-            "Repeated tags by category. With selection, rows show selection % relative to DB %."
-        )
-        tag_distribution_section_layout.addWidget(tag_subheader)
-        (
-            self.tag_distribution_chart_container,
-            self.tag_distribution_chart_layout,
-        ) = self._create_database_analytics_chart_container()
-        self._database_metrics_chart_layouts["tag_distribution"] = self.tag_distribution_chart_layout
-        tag_distribution_section_layout.addWidget(self.tag_distribution_chart_container)
-
-        # TRAITS DISTRIBUTION SECTION
-        # Traits lives in the Predictions category above.
+        # Keep the usual Tags section un-nested at the bottom of Database Analytics.
+        self._create_tags_database_analytics_section(panel, layout)
 
 #end of lefthand Database Analytics panel, it closes below:
         return panel
