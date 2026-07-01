@@ -3119,9 +3119,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         content.setStyleSheet(content_style)
         content.setVisible(expanded)
 
+        def set_toggle_expanded_state(checked: bool) -> None:
+            if toggle.icon().isNull():
+                toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
+                return
+            toggle.setArrowType(Qt.NoArrow)
+            label_text = str(toggle.property("_edd_collapsible_label_text") or toggle.text()).lstrip("▾▸ ")
+            toggle.setProperty("_edd_collapsible_label_text", label_text)
+            toggle.setText(f"{'▾' if checked else '▸'} {label_text}")
+
         def toggle_content(checked: bool) -> None:
             content.setVisible(checked)
-            toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
+            set_toggle_expanded_state(checked)
             if on_toggled is not None:
                 on_toggled(checked)
             content.adjustSize()
@@ -3130,6 +3139,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             panel.updateGeometry()
 
         apply_emoji_png_to_button(toggle, icon_px=16)
+        set_toggle_expanded_state(expanded)
 
         toggle.toggled.connect(toggle_content)
 
@@ -13453,15 +13463,25 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             content.setStyleSheet(content_style)
             content.setVisible(False)
 
+            def set_toggle_expanded_state(checked: bool) -> None:
+                if toggle.icon().isNull():
+                    toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
+                    return
+                toggle.setArrowType(Qt.NoArrow)
+                label_text = str(toggle.property("_edd_collapsible_label_text") or toggle.text()).lstrip("▾▸ ")
+                toggle.setProperty("_edd_collapsible_label_text", label_text)
+                toggle.setText(f"{'▾' if checked else '▸'} {label_text}")
+
             def toggle_content(checked: bool) -> None:
                 content.setVisible(checked)
-                toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
+                set_toggle_expanded_state(checked)
                 content.adjustSize()
                 section.adjustSize()
                 panel.adjustSize()
                 panel.updateGeometry()
 
             apply_emoji_png_to_button(toggle, icon_px=16)
+            set_toggle_expanded_state(False)
 
             toggle.toggled.connect(toggle_content)
 

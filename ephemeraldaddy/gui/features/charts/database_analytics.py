@@ -522,8 +522,8 @@ class DatabaseAnalyticsChartsMixin:
         ("astro", "🪐Astro"),
         ("esoteric", "🪷Esoteric Alternatives"),
         ("subjective_notes", "💭Subjective Notes"),
-        ("predictions", "🎱Predictions"),
-        ("demographics", "🇨🇩Demographics"),
+        ("predictions", "🔮Predictions"),
+        ("demographics", "👥Demographics"),
     )
 
     def _create_database_analytics_category_layouts(
