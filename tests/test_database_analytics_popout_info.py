@@ -116,5 +116,7 @@ def test_database_analytics_popout_info_includes_trait_description(monkeypatch):
         value=None,
     )
 
-    assert "Description:" in html
-    assert "Finds patterns in unusual places." in html
+    title_index = html.index("Creative Spark")
+    description_index = html.index("<p><i>Finds patterns in unusual places.</i></p>")
+    category_index = html.index("Category:")
+    assert title_index < description_index < category_index
