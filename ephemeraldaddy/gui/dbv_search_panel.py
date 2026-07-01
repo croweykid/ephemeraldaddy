@@ -369,6 +369,52 @@ def sync_search_tags_list_selection(window, selected_tags: set[str]) -> None:
         if checkbox.mode() != QuadStateSlider.MODE_TRUE:
             checkbox.setMode(QuadStateSlider.MODE_TRUE, emit_signal=False)
 
+
+def refresh_tag_catalog_for_added_tags(window, tags: list[str]) -> None:
+    """Merge newly added tags into Database View tag UI state for this session.
+
+    This is intentionally event-driven: callers should use it after an explicit
+    tag-add action, not while the Database View tag search field is being typed
+    into.
+    """
+    from ephemeraldaddy.gui import app as app_module
+
+    QLineEdit = app_module.QLineEdit
+    apply_tag_completer = app_module.apply_tag_completer
+    normalize_tag_list = app_module.normalize_tag_list
+
+    normalized_tags = normalize_tag_list(tags)
+    if not normalized_tags:
+        return
+    known_by_key = {
+        tag.casefold(): tag
+        for tag in getattr(window, "_known_chart_tags", [])
+    }
+    changed = False
+    for tag in normalized_tags:
+        key = tag.casefold()
+        if key in known_by_key:
+            continue
+        known_by_key[key] = tag
+        changed = True
+    if not changed:
+        return
+
+    sorted_tags = sorted(known_by_key.values(), key=lambda value: value.casefold())
+    window._known_chart_tags = sorted_tags
+    for line_edit in (
+        getattr(window, "chart_tags_input", None),
+        getattr(window, "search_tags_input", None),
+        getattr(window, "batch_tags_input", None),
+    ):
+        if isinstance(line_edit, QLineEdit):
+            apply_tag_completer(line_edit, sorted_tags)
+
+    refresh_search_tags_list(window, sorted_tags)
+    refresh_batch_tags_list = getattr(window, "_refresh_batch_tags_list", None)
+    if callable(refresh_batch_tags_list):
+        refresh_batch_tags_list(sorted_tags)
+
 def on_search_tag_logic_changed(window, tag_name: str | None, mode: str, checked: bool) -> None:
     if not checked:
         return

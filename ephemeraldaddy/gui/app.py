@@ -32102,7 +32102,12 @@ class MainWindow(QMainWindow):
         self._update_tag_completers()
         self._tag_completer_revision_token = revision_token
 
-    def _update_tag_completers(self) -> None:
+    def _update_tag_completers(
+        self,
+        *,
+        refresh_location_completers: bool = True,
+        refresh_tag_lists: bool = True,
+    ) -> None:
         sorted_tags = list_recognized_tags()
         self._known_chart_tags = sorted_tags
         if hasattr(self, "chart_tags_input"):
@@ -32112,10 +32117,15 @@ class MainWindow(QMainWindow):
         if hasattr(self, "batch_tags_input"):
             apply_tag_completer(self.batch_tags_input, sorted_tags)
         self._update_reminds_me_of_completer()
-        self._update_location_completers()
-        refresh_search_tags_list = getattr(self, "_refresh_search_tags_list", None)
-        if callable(refresh_search_tags_list):
-            refresh_search_tags_list(sorted_tags)
+        if refresh_location_completers:
+            self._update_location_completers()
+        if refresh_tag_lists:
+            refresh_search_tags_list = getattr(self, "_refresh_search_tags_list", None)
+            if callable(refresh_search_tags_list):
+                refresh_search_tags_list(sorted_tags)
+            refresh_batch_tags_list = getattr(self, "_refresh_batch_tags_list", None)
+            if callable(refresh_batch_tags_list):
+                refresh_batch_tags_list(sorted_tags)
 
     def _on_chart_tags_changed(self, *_: object) -> None:
         on_chart_view_tags_changed(self)
