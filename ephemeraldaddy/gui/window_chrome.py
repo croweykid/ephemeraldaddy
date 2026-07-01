@@ -388,7 +388,7 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
     _bind_menu_action(view_menu, "General Population Comparison", dialog, "_show_gen_pop_comparison_panel")
     _bind_menu_action(view_menu, "Manage Collections", dialog, "_show_manage_collections_panel")
     _bind_menu_action(view_menu, "Search Database", dialog, "_show_search_database_panel")
-    _bind_menu_action(view_menu, "Database Manager", dialog, "_toggle_edit_panel")
+    _bind_menu_action(view_menu, "Database Manager", dialog, "_on_open_database_manager")
 
     help_menu = menu_bar.addMenu("HALP!")
     help_menu.addAction("Guide to the Galaxy", lambda: show_guide_to_the_galaxy(dialog))

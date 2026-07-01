@@ -2534,6 +2534,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._help_overlay_active = False
         self._help_marker_buttons: list[QToolButton] = []
         self._settings_dialog: QDialog | None = None
+        self._database_manager_dialog: QDialog | None = None
         self._batch_tagging_terminal_debug_checkbox: QCheckBox | None = None
         self._similarity_perceived_accuracy_controls_checkbox: QCheckBox | None = None
         self._settings_section_expanded_session: dict[str, bool] = {}
@@ -2588,15 +2589,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._toggle_perceived_similarity_predictors_panel
         )
 
-        self.manage_collections_button = QPushButton("Manage Collections")
+        self.manage_collections_button = QPushButton("Collections")
         self.manage_collections_button.setObjectName(
             "manage_toggle_collections_panel_button"
         )
         self.manage_collections_button.clicked.connect(
-            self._toggle_manage_collections_panel
+            self._show_manage_collections_panel
         )
 
-        self.edit_charts_button = QPushButton("📝📚") #Batch Edit #✎𓂃#Database Manager Panel button
+        self.database_manager_button = QPushButton("📚")
+        self.database_manager_button.setObjectName("manage_database_manager_button")
+        self.database_manager_button.clicked.connect(self._on_open_database_manager)
+
+        self.edit_charts_button = QPushButton("✍️") #Batch Edit #✎𓂃#Database Manager Panel button
         self.edit_charts_button.setObjectName("manage_toggle_batch_edit_panel_button")
         self.edit_charts_button.clicked.connect(self._toggle_edit_panel)
 
@@ -2619,6 +2624,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.total_chart_export_button = QPushButton("Export chart")
         self.total_chart_export_button.setObjectName("database_view_middle_total_chart_export_button")
         self.total_chart_export_button.setToolTip("Export the selected chart's full Chart View, analytics, predictions, Human Design, and BaZi text")
+
+        self.batch_export_selection_button = QPushButton("Export Selection to CSV")
+        self.batch_export_selection_button.setObjectName("database_view_middle_export_selection_button")
+        self.batch_export_selection_button.clicked.connect(self._on_export_selected)
+
         share_icon_path = _get_share_icon_path()
         if share_icon_path:
             self.total_chart_export_button.setIcon(QIcon(share_icon_path))
@@ -2672,9 +2682,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.batch_new_chart_button,
             self.batch_delete_chart_button,
             self.total_chart_export_button,
+            self.batch_export_selection_button,
             self.batch_rename_chart_button,
             *self.database_view_middle_header_action_buttons.values(),
             self.manage_collections_button,
+            self.database_manager_button,
             self.edit_charts_button,
             self.manage_settings_button,
             self.search_panel_button,
@@ -2844,6 +2856,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         right_controls_row.setLayout(right_controls_layout)
         right_controls_layout.addWidget(self.manage_settings_button)
         right_controls_layout.addWidget(self.search_panel_button)
+        right_controls_layout.addWidget(self.database_manager_button)
         right_controls_layout.addWidget(self.edit_charts_button)
         right_controls_layout.addWidget(self.manage_collections_button)
 
@@ -2857,6 +2870,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         middle_controls_layout.addWidget(self.batch_new_chart_button, 0, Qt.AlignHCenter)
         middle_controls_layout.addWidget(self.batch_delete_chart_button, 0, Qt.AlignHCenter)
         middle_controls_layout.addWidget(self.total_chart_export_button, 0, Qt.AlignHCenter)
+        middle_controls_layout.addWidget(self.batch_export_selection_button, 0, Qt.AlignHCenter)
         middle_controls_layout.addWidget(self.batch_rename_chart_button, 0, Qt.AlignHCenter)
         for action_button in self.database_view_middle_header_action_buttons.values():
             middle_controls_layout.addWidget(action_button, 0, Qt.AlignHCenter)
@@ -13304,19 +13318,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         QMessageBox.warning(self, "Export unavailable", "Chart export is unavailable right now.")
 
-    def _build_edit_panel(self) -> QWidget:
-        # Batch edit panel (right sidebar).
-        panel = EmojiTiledPanel("✏️", font_size=70, opacity=0.10) #Batch Edit panelbackground
-        panel.setMinimumWidth(260)
+    def _build_database_manager_panel(self) -> QWidget:
+        panel = EmojiTiledPanel("📚", font_size=70, opacity=0.10)
+        panel.setMinimumWidth(360)
         layout = QVBoxLayout()
         panel.setLayout(layout)
 
-        header_layout = QHBoxLayout()
         title = QLabel("Database Manager")
         title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
-        header_layout.addWidget(title)
-        header_layout.addStretch(1)
-        layout.addLayout(header_layout)
+        layout.addWidget(title)
 
         action_button_style = (
             "QPushButton {"
@@ -13330,94 +13340,41 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "QPushButton:disabled { background-color: #202020; color: #666666; border-color: #2f2f2f; }"
         )
 
-        actions_row_database = QWidget()
-        actions_row_database_layout = QGridLayout(actions_row_database)
-        actions_row_database_layout.setContentsMargins(0, 2, 0, 2)
-        actions_row_database_layout.setHorizontalSpacing(4)
-        actions_row_database_layout.setVerticalSpacing(4)
+        actions_layout = QGridLayout()
+        actions_layout.setContentsMargins(0, 2, 0, 2)
+        actions_layout.setHorizontalSpacing(4)
+        actions_layout.setVerticalSpacing(4)
+        layout.addLayout(actions_layout)
 
-        #Database Actions Buttons: should be a single row
-        self.batch_backup_database_button = QPushButton("Backup 📚") #Backup Database
-        self.batch_backup_database_button.clicked.connect(self._on_export_database)
-        self.batch_backup_database_button.setObjectName("manage_backup_database_button")
-        self.batch_backup_database_button.setStyleSheet(action_button_style)
-        actions_row_database_layout.addWidget(self.batch_backup_database_button, 0, 0)
-
-        self.batch_restore_database_button = QPushButton("Restore 📚") #Restore Database
-        self.batch_restore_database_button.clicked.connect(self._on_import_database)
-        self.batch_restore_database_button.setObjectName("manage_restore_database_button")
-        self.batch_restore_database_button.setStyleSheet(action_button_style)
-        actions_row_database_layout.addWidget(self.batch_restore_database_button, 0, 1)
-
-        self.batch_append_database_button = QPushButton("Append 📚") #Append Database
-        self.batch_append_database_button.clicked.connect(self._on_append_database_placeholder)
-        self.batch_append_database_button.setStyleSheet(action_button_style)
-        actions_row_database_layout.addWidget(self.batch_append_database_button, 0, 2)
-
-        self.batch_refresh_database_button = QPushButton("Refresh 📚") #Refresh Database
-        self.batch_refresh_database_button.clicked.connect(self._on_force_refresh_database_analysis)
-        self.batch_refresh_database_button.setObjectName("manage_force_refresh_button")
-        self.batch_refresh_database_button.setStyleSheet(action_button_style)
-        actions_row_database_layout.addWidget(self.batch_refresh_database_button, 0, 3)
-        #single row of database action buttons end here
-
-        for button in (
-            self.batch_backup_database_button,
-            self.batch_restore_database_button,
-            self.batch_append_database_button,
-            self.batch_refresh_database_button,
-        ):
+        button_specs = (
+            ("Backup 📚", self._on_export_database, "manage_backup_database_button"),
+            ("Restore 📚", self._on_import_database, "manage_restore_database_button"),
+            ("Append 📚", self._on_append_database_placeholder, None),
+            ("Refresh 📚", self._on_force_refresh_database_analysis, "manage_force_refresh_button"),
+            ("Import from CSV", self._on_import_csv, None),
+            ("Check for Duplicates", self._on_check_for_duplicates, None),
+        )
+        for idx, (label, handler, object_name) in enumerate(button_specs):
+            button = QPushButton(label)
+            button.clicked.connect(handler)
+            if object_name:
+                button.setObjectName(object_name)
+            button.setStyleSheet(action_button_style)
             button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
             button.setMinimumHeight(28)
-        for idx in range(4):
-            actions_row_database_layout.setColumnStretch(idx, 1)
-        layout.addWidget(actions_row_database)
+            actions_layout.addWidget(button, idx // 2, idx % 2)
 
-        actions_row_bottom = QWidget()
-        actions_row_bottom_layout = QHBoxLayout(actions_row_bottom)
-        actions_row_bottom_layout.setContentsMargins(0, 2, 0, 2)
-        actions_row_bottom_layout.setSpacing(4)
+        for idx in range(2):
+            actions_layout.setColumnStretch(idx, 1)
+        layout.addStretch(1)
+        return panel
 
-        self.batch_export_selection_button = QPushButton("Export Selection to CSV")
-        self.batch_export_selection_button.clicked.connect(self._on_export_selected)
-        self.batch_export_selection_button.setStyleSheet(action_button_style)
-        actions_row_bottom_layout.addWidget(self.batch_export_selection_button)
-
-        self.batch_import_csv_button = QPushButton("CSV Import")
-        self.batch_import_csv_button.clicked.connect(self._on_import_csv)
-        self.batch_import_csv_button.setStyleSheet(action_button_style)
-        actions_row_bottom_layout.addWidget(self.batch_import_csv_button)
-
-        self.batch_check_duplicates_button = QPushButton("Check for Duplicates")
-        self.batch_check_duplicates_button.clicked.connect(self._on_check_for_duplicates)
-        self.batch_check_duplicates_button.setStyleSheet(action_button_style)
-        actions_row_bottom_layout.addWidget(self.batch_check_duplicates_button)
-
-        layout.addWidget(actions_row_bottom)
-
-        divider_actions_charts = QFrame()
-        divider_actions_charts.setFrameShape(QFrame.HLine)
-        divider_actions_charts.setFrameShadow(QFrame.Sunken)
-        divider_actions_charts.setStyleSheet("color: #2f2f2f;")
-        layout.addWidget(divider_actions_charts)
-
-        actions_row_top = QWidget()
-        actions_row_top_layout = QHBoxLayout(actions_row_top)
-        actions_row_top_layout.setContentsMargins(0, 2, 0, 2)
-        actions_row_top_layout.setSpacing(4)
-
-        # self.batch_synastry_chart_button = QPushButton("Synastry Chart")
-        # self.batch_synastry_chart_button.clicked.connect(self._on_generate_composite_chart)
-        # self.batch_synastry_chart_button.setObjectName("manage_composite_chart_button")
-        # self.batch_synastry_chart_button.setStyleSheet(action_button_style)
-        # actions_row_top_layout.addWidget(self.batch_synastry_chart_button)
-        # layout.addWidget(actions_row_top)
-
-        divider_chart_editor = QFrame()
-        divider_chart_editor.setFrameShape(QFrame.HLine)
-        divider_chart_editor.setFrameShadow(QFrame.Sunken)
-        divider_chart_editor.setStyleSheet("color: #2f2f2f;")
-        layout.addWidget(divider_chart_editor)
+    def _build_edit_panel(self) -> QWidget:
+        # Batch edit panel (right sidebar).
+        panel = EmojiTiledPanel("✏️", font_size=70, opacity=0.10) #Batch Edit panelbackground
+        panel.setMinimumWidth(260)
+        layout = QVBoxLayout()
+        panel.setLayout(layout)
 
         batch_editor_title = QLabel("Batch Editor")
         batch_editor_title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
@@ -20958,6 +20915,33 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 combo.setCurrentIndex(current_index)
                 del blocker
         self._update_sentiment_tally(update_database_metrics=True, update_similarities=False)
+
+
+    def _on_open_database_manager(self) -> None:
+        dialog = self._ensure_database_manager_dialog()
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
+
+    def _ensure_database_manager_dialog(self) -> QDialog:
+        if self._database_manager_dialog is not None:
+            return self._database_manager_dialog
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Database Manager")
+        dialog.setWindowFlag(Qt.Window, True)
+        dialog.setModal(False)
+        dialog.setMinimumSize(420, 220)
+        dialog.setStyleSheet(
+            "QDialog { background-color: #111111; color: #ececec; }"
+            "QLabel { color: #ececec; }"
+        )
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.addWidget(self._build_database_manager_panel())
+        self._register_popout_shortcuts(dialog)
+        self._database_manager_dialog = dialog
+        return dialog
 
     def _on_open_settings(self) -> None:
         dialog = self._ensure_settings_dialog()
