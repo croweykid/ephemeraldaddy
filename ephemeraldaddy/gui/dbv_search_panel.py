@@ -344,6 +344,31 @@ def refresh_search_tags_list(window, known_tags: list[str]) -> None:
         tree.setItemWidget(root_item, 0, make_row(checkbox, logic, tag))
 
 
+def sync_search_tags_list_selection(window, selected_tags: set[str]) -> None:
+    """Update existing tag-filter widgets for typed tag text without rebuilding the tree.
+
+    Rebuilding the full tag tree on every ``QLineEdit.textChanged`` event is
+    expensive for large tag catalogs and can make typing appear to freeze the
+    app.  When the tag tree is visible, the typed tag list only needs to
+    mark matching existing per-tag sliders active, so keep the tree structure
+    intact and update modes in-place.
+    """
+    from ephemeraldaddy.gui import app as app_module
+
+    QToolButton = app_module.QToolButton
+    QuadStateSlider = app_module.QuadStateSlider
+
+    search_tags_toggle = getattr(window, "search_tags_toggle", None)
+    if isinstance(search_tags_toggle, QToolButton) and not search_tags_toggle.isChecked():
+        return
+
+    selected_casefolded = {str(tag).casefold() for tag in selected_tags}
+    for tag_name, checkbox in getattr(window, "search_tag_filter_checkboxes", {}).items():
+        if str(tag_name).casefold() not in selected_casefolded:
+            continue
+        if checkbox.mode() != QuadStateSlider.MODE_TRUE:
+            checkbox.setMode(QuadStateSlider.MODE_TRUE, emit_signal=False)
+
 def on_search_tag_logic_changed(window, tag_name: str | None, mode: str, checked: bool) -> None:
     if not checked:
         return

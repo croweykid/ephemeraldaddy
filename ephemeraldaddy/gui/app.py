@@ -861,6 +861,7 @@ from ephemeraldaddy.gui.dbv_search_panel import (
     on_search_tag_logic_changed,
     on_search_tag_mode_changed,
     refresh_search_tags_list,
+    sync_search_tags_list_selection,
     reset_body_dynamics_filters,
     weight_is_at_least_triple_next_highest,
 )
@@ -14336,7 +14337,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _on_search_tags_changed(self, *_: object) -> None:
         tags = parse_tag_text(self.search_tags_input.text())
         render_tag_chip_preview(self.search_tags_preview_label, tags)
-        self._refresh_search_tags_list(getattr(self, "_known_chart_tags", []))
+        sync_search_tags_list_selection(self, set(tags))
         self._on_filter_changed()
 
     def _refresh_search_tags_list(self, known_tags: list[str]) -> None:
