@@ -177,3 +177,59 @@ def test_weighted_stat_scores_reserve_bounds_for_exceptional_evidence():
     }
     assert 20 not in dnd_scores.values()
     assert 5 not in dnd_scores.values()
+
+
+def test_score_dnd_statblock_maps_db_norm_to_eleven_with_direct_ratio(monkeypatch):
+    current_chart = SimpleNamespace(name="Current")
+    norm_a = SimpleNamespace(name="Norm A")
+    norm_b = SimpleNamespace(name="Norm B")
+
+    def fake_weighted_scores(chart, *, predictors):
+        if chart is current_chart:
+            return {
+                "STR": 15.0,  # 50% above DB norm -> 16.5 -> 17
+                "DEX": 5.0,   # 50% below DB norm -> 5.5 -> 6
+                "CON": 10.0,
+                "INT": 10.0,
+                "WIS": 10.0,
+                "CHA": 10.0,
+            }
+        if chart is norm_a or chart is norm_b:
+            return {key: 10.0 for key in ("STR", "DEX", "CON", "INT", "WIS", "CHA")}
+        raise AssertionError(f"Unexpected chart: {chart!r}")
+
+    monkeypatch.setattr(
+        stat_calculator,
+        "calculate_weighted_criteria_scores",
+        fake_weighted_scores,
+    )
+
+    statblock = stat_calculator.score_dnd_statblock(current_chart, norm_charts=[norm_a, norm_b])
+
+    assert statblock.scores == {
+        "STR": 17,
+        "DEX": 6,
+        "CON": 11,
+        "INT": 11,
+        "WIS": 11,
+        "CHA": 11,
+    }
+    assert statblock.raw_scores["STR"] == 15.0
+
+
+def test_score_dnd_statblock_db_norm_zero_falls_back_to_average_anchor(monkeypatch):
+    monkeypatch.setattr(
+        stat_calculator,
+        "calculate_weighted_criteria_scores",
+        lambda chart, *, predictors: {
+            key: (0.0 if getattr(chart, "name", "") == "Norm" else 12.0)
+            for key in ("STR", "DEX", "CON", "INT", "WIS", "CHA")
+        },
+    )
+
+    statblock = stat_calculator.score_dnd_statblock(
+        SimpleNamespace(name="Current"),
+        norm_charts=[SimpleNamespace(name="Norm")],
+    )
+
+    assert statblock.scores == {key: 11 for key in ("STR", "DEX", "CON", "INT", "WIS", "CHA")}
