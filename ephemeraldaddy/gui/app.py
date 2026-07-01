@@ -14315,39 +14315,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._update_tag_completers()
         self._tag_completer_revision_token = revision_token
 
-    def _refresh_tag_catalog_for_added_tags(self, tags: list[str]) -> None:
-        normalized_tags = normalize_tag_list(tags)
-        if not normalized_tags:
-            return
-        known_by_key = {
-            tag.casefold(): tag
-            for tag in getattr(self, "_known_chart_tags", [])
-        }
-        changed = False
-        for tag in normalized_tags:
-            key = tag.casefold()
-            if key in known_by_key:
-                continue
-            known_by_key[key] = tag
-            changed = True
-        if not changed:
-            return
-        sorted_tags = sorted(known_by_key.values(), key=lambda value: value.casefold())
-        self._known_chart_tags = sorted_tags
-        for line_edit in (
-            getattr(self, "chart_tags_input", None),
-            getattr(self, "search_tags_input", None),
-            getattr(self, "batch_tags_input", None),
-        ):
-            if isinstance(line_edit, QLineEdit):
-                apply_tag_completer(line_edit, sorted_tags)
-        refresh_search_tags_list = getattr(self, "_refresh_search_tags_list", None)
-        if callable(refresh_search_tags_list):
-            refresh_search_tags_list(sorted_tags)
-        refresh_batch_tags_list = getattr(self, "_refresh_batch_tags_list", None)
-        if callable(refresh_batch_tags_list):
-            refresh_batch_tags_list(sorted_tags)
-
     def _update_tag_completers(
         self,
         *,
@@ -32134,39 +32101,6 @@ class MainWindow(QMainWindow):
             return
         self._update_tag_completers()
         self._tag_completer_revision_token = revision_token
-
-    def _refresh_tag_catalog_for_added_tags(self, tags: list[str]) -> None:
-        normalized_tags = normalize_tag_list(tags)
-        if not normalized_tags:
-            return
-        known_by_key = {
-            tag.casefold(): tag
-            for tag in getattr(self, "_known_chart_tags", [])
-        }
-        changed = False
-        for tag in normalized_tags:
-            key = tag.casefold()
-            if key in known_by_key:
-                continue
-            known_by_key[key] = tag
-            changed = True
-        if not changed:
-            return
-        sorted_tags = sorted(known_by_key.values(), key=lambda value: value.casefold())
-        self._known_chart_tags = sorted_tags
-        for line_edit in (
-            getattr(self, "chart_tags_input", None),
-            getattr(self, "search_tags_input", None),
-            getattr(self, "batch_tags_input", None),
-        ):
-            if isinstance(line_edit, QLineEdit):
-                apply_tag_completer(line_edit, sorted_tags)
-        refresh_search_tags_list = getattr(self, "_refresh_search_tags_list", None)
-        if callable(refresh_search_tags_list):
-            refresh_search_tags_list(sorted_tags)
-        refresh_batch_tags_list = getattr(self, "_refresh_batch_tags_list", None)
-        if callable(refresh_batch_tags_list):
-            refresh_batch_tags_list(sorted_tags)
 
     def _update_tag_completers(
         self,

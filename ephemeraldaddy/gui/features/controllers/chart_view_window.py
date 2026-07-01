@@ -74,6 +74,7 @@ from ephemeraldaddy.gui.features.charts.tagging import (
     parse_tag_text,
     render_tag_chip_preview,
 )
+from ephemeraldaddy.gui.dbv_search_panel import refresh_tag_catalog_for_added_tags
 
 CHART_INFO_PANEL_BUTTON_ATTRS: dict[str, str] = {
     "chart_info": "chart_info_toggle_button",
@@ -1801,9 +1802,7 @@ def on_chart_view_tag_add(owner: QWidget) -> None:
     owner.chart_tags_input.setText("")
     render_tag_chip_preview(owner.chart_tags_preview_label, [])
     render_chart_view_tag_selection(owner)
-    refresh_added_tags = getattr(owner, "_refresh_tag_catalog_for_added_tags", None)
-    if callable(refresh_added_tags):
-        refresh_added_tags([tag_to_add])
+    refresh_tag_catalog_for_added_tags(owner, [tag_to_add])
     owner._mark_lucygoosey()
 
 
