@@ -473,6 +473,85 @@ def collect_search_tag_filter_sets(window) -> tuple[set[str], set[str], set[str]
     return required_tags, optional_tags, excluded_tags
 
 
+def collect_search_trait_filter_sets(window) -> tuple[str, set[str], set[str]]:
+    """Return (direction, required, excluded) trait filters from the search UI."""
+    from ephemeraldaddy.gui import app as app_module
+
+    QuadStateSlider = app_module.QuadStateSlider
+    direction_combo = getattr(window, "search_traits_direction_combo", None)
+    direction = str(direction_combo.currentData() if direction_combo is not None else "above")
+    required_traits = {
+        value.strip()
+        for value in str(getattr(getattr(window, "search_traits_input", None), "text", lambda: "")() or "").split(",")
+        if value.strip()
+    }
+    excluded_traits: set[str] = set()
+    for name, checkbox in getattr(window, "search_trait_filter_checkboxes", {}).items():
+        if checkbox.mode() == QuadStateSlider.MODE_TRUE:
+            required_traits.add(name)
+        elif checkbox.mode() == QuadStateSlider.MODE_FALSE:
+            excluded_traits.add(name)
+    return direction, required_traits, excluded_traits
+
+
+def chart_matches_trait_filters(
+    window,
+    chart,
+    *,
+    direction: str,
+    required_traits: set[str],
+    excluded_traits: set[str],
+) -> bool:
+    """Apply active derived-trait metadata filters to a chart."""
+    if not required_traits and not excluded_traits:
+        return True
+    from ephemeraldaddy.gui.features.charts.trait_predictions import trait_metadata_for_chart
+
+    metadata = trait_metadata_for_chart(window, chart)
+    trait_names = metadata.get("below" if direction == "below" else "above", set())
+    normalized_chart_traits = {str(name).casefold() for name in trait_names}
+    if any(trait.casefold() not in normalized_chart_traits for trait in required_traits):
+        return False
+    if any(trait.casefold() in normalized_chart_traits for trait in excluded_traits):
+        return False
+    return True
+
+
+def refresh_search_traits_list(window) -> None:
+    """Refresh the Database View trait-filter tree for ``window``."""
+    from ephemeraldaddy.analysis.traits import list_traits
+    from ephemeraldaddy.gui import app as app_module
+    from PySide6.QtWidgets import QTreeWidgetItem
+
+    QuadStateSlider = app_module.QuadStateSlider
+    tree = getattr(window, "search_traits_list_widget", None)
+    if tree is None:
+        return
+    existing_modes = {
+        trait_name: checkbox.mode()
+        for trait_name, checkbox in getattr(window, "search_trait_filter_checkboxes", {}).items()
+    }
+    tree.clear()
+    window.search_trait_filter_checkboxes = {}
+    for trait in list_traits(active_only=True):
+        trait_name = str(trait.get("name", "")).strip()
+        if not trait_name:
+            continue
+        item = QTreeWidgetItem()
+        row = app_module.QWidget()
+        row_layout = app_module.QHBoxLayout(row)
+        row_layout.setContentsMargins(0, 0, 0, 0)
+        checkbox = QuadStateSlider(trait_name)
+        if trait_name in existing_modes:
+            checkbox.setMode(existing_modes[trait_name])
+        checkbox.modeChanged.connect(window._on_filter_changed)
+        row_layout.addWidget(checkbox)
+        row_layout.addStretch(1)
+        tree.addTopLevelItem(item)
+        tree.setItemWidget(item, 0, row)
+        window.search_trait_filter_checkboxes[trait_name] = checkbox
+
+
 if TYPE_CHECKING:
     from PyQt5.QtWidgets import QWidget
 
@@ -642,6 +721,44 @@ def build_dbv_search_panel(window) -> "QWidget":
     tags_search_row.addWidget(window.search_tags_list_widget)
     # Tags controls are added immediately below the Search Filters header.
 
+    traits_search_row = QVBoxLayout()
+    traits_search_row.setContentsMargins(0, 0, 0, 0)
+    traits_search_row.setSpacing(4)
+    window.search_traits_input = QLineEdit()
+    window.search_traits_input.setPlaceholderText("Search by trait")
+    window.search_traits_input.textChanged.connect(window._on_filter_changed)
+    window.search_traits_input.returnPressed.connect(window._on_filter_changed)
+    traits_search_row.addWidget(window.search_traits_input)
+
+    window.search_traits_direction_combo = QComboBox()
+    window.search_traits_direction_combo.addItem("Above avg traits", "above")
+    window.search_traits_direction_combo.addItem("Below avg traits", "below")
+    window.search_traits_direction_combo.currentIndexChanged.connect(window._on_filter_changed)
+    apply_default_dropdown_style(window.search_traits_direction_combo)
+    traits_search_row.addWidget(window.search_traits_direction_combo)
+
+    window.search_traits_toggle = QToolButton()
+    configure_collapsible_header_toggle(
+        window.search_traits_toggle,
+        title="Include/Exclude These Traits",
+        expanded=False,
+        style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
+    )
+    traits_search_row.addWidget(window.search_traits_toggle)
+
+    window.search_traits_list_widget = QTreeWidget()
+    window.search_traits_list_widget.setHeaderHidden(True)
+    window.search_traits_list_widget.setSelectionMode(QListWidget.NoSelection)
+    window.search_traits_list_widget.setIndentation(12)
+    window.search_traits_list_widget.setMaximumHeight(220)
+    window.search_traits_list_widget.setVisible(False)
+    window.search_trait_filter_checkboxes = {}
+    window.search_traits_toggle.toggled.connect(window.search_traits_list_widget.setVisible)
+    window.search_traits_toggle.toggled.connect(
+        lambda expanded: refresh_search_traits_list(window) if expanded else None
+    )
+    traits_search_row.addWidget(window.search_traits_list_widget)
+
     settings = getattr(window, "_settings", None)
 
     top_filter_layout = QVBoxLayout()
@@ -771,6 +888,10 @@ def build_dbv_search_panel(window) -> "QWidget":
     tags_section, tags_group_layout = add_collapsible_section("🏷️Tags")
     tags_group_layout.addLayout(tags_search_row)
     layout.addWidget(tags_section)
+
+    traits_section, traits_group_layout = add_collapsible_section("🧬Traits")
+    traits_group_layout.addLayout(traits_search_row)
+    layout.addWidget(traits_section)
 
     # Search: Chart Type is its own collapsible section above the categorized filters.
     chart_type_section, chart_type_group_layout = add_collapsible_section("Chart Type")

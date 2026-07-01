@@ -860,6 +860,8 @@ from ephemeraldaddy.gui.dbv_search_panel import (
     build_dbv_search_panel,
     chart_matches_body_dynamics_filters,
     collect_search_tag_filter_sets,
+    collect_search_trait_filter_sets,
+    chart_matches_trait_filters,
     on_search_tag_category_logic_changed,
     on_search_tag_category_mode_changed,
     on_search_tag_logic_changed,
@@ -16966,12 +16968,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self._search_location_state_input.setText("")
             if hasattr(self, "search_tags_input") and self.search_tags_input is not None:
                 self.search_tags_input.setText("")
+            if hasattr(self, "search_traits_input") and self.search_traits_input is not None:
+                self.search_traits_input.setText("")
+            if hasattr(self, "search_traits_direction_combo") and self.search_traits_direction_combo is not None:
+                self.search_traits_direction_combo.setCurrentIndex(0)
             if (
                 hasattr(self, "search_untagged_checkbox")
                 and self.search_untagged_checkbox is not None
             ):
                 self.search_untagged_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             for checkbox in getattr(self, "search_tag_filter_checkboxes", {}).values():
+                checkbox.setMode(QuadStateSlider.MODE_EMPTY)
+            for checkbox in getattr(self, "search_trait_filter_checkboxes", {}).values():
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             for checkbox in getattr(self, "search_tag_category_checkboxes", {}).values():
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
@@ -19049,6 +19057,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.search_tags_input.text() if hasattr(self, "search_tags_input") else ""
         )
         selected_search_tags, optional_search_tags, excluded_search_tags = collect_search_tag_filter_sets(self)
+        trait_filter_direction, required_search_traits, excluded_search_traits = collect_search_trait_filter_sets(self)
         selected_chart_types = {
             source
             for source, checkbox in self.chart_type_filter_checkboxes.items()
@@ -19720,6 +19729,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             excluded_tags=list(excluded_search_tags),
             untagged_mode=search_untagged_mode,
             optional_tags=list(optional_search_tags),
+        ):
+            return False
+
+        if (required_search_traits or excluded_search_traits) and not chart_matches_trait_filters(
+            self,
+            chart,
+            direction=trait_filter_direction,
+            required_traits=required_search_traits,
+            excluded_traits=excluded_search_traits,
         ):
             return False
 
@@ -34504,17 +34522,25 @@ class MainWindow(QMainWindow):
         )
 
     def _prediction_norm_rows(self) -> list[Any]:
-        displayed_rows_by_id = getattr(self, "_displayed_chart_rows_by_id", None)
-        if displayed_rows_by_id is not None:
-            return list(displayed_rows_by_id.values())
+        chart_rows = getattr(self, "_chart_rows", None)
+        if chart_rows is not None:
+            return [
+                normalized
+                for row in chart_rows
+                if (normalized := self._normalize_chart_row(row)) is not None
+            ]
         manage_dialog = getattr(self, "_manage_charts_dialog", None)
-        dialog_displayed_rows_by_id = (
-            getattr(manage_dialog, "_displayed_chart_rows_by_id", None)
+        dialog_chart_rows = (
+            getattr(manage_dialog, "_chart_rows", None)
             if manage_dialog is not None
             else None
         )
-        if dialog_displayed_rows_by_id is not None:
-            return list(dialog_displayed_rows_by_id.values())
+        if dialog_chart_rows is not None:
+            return [
+                normalized
+                for row in dialog_chart_rows
+                if (normalized := self._normalize_chart_row(row)) is not None
+            ]
         try:
             return list(list_charts())
         except Exception:
