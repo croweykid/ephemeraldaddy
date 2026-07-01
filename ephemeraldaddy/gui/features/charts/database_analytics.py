@@ -227,6 +227,7 @@ from ephemeraldaddy.analysis.traits import (
     calculate_trait_likelihoods,
     list_traits,
     normalize_trait_color,
+    trait_possible_score,
 )
 from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
     build_enneagram_popout_info_html,
@@ -4178,6 +4179,11 @@ class DatabaseAnalyticsChartsMixin:
         trait_names = [name for name, _color, _profile in trait_signature]
         totals: dict[str, float] = {name: 0.0 for name in trait_names}
         colors = {name: color for name, color, _profile in trait_signature}
+        possible_scores = {
+            str(item.get("name", "")): max(float(trait_possible_score(item.get("profile", {}))), 1.0)
+            for item in trait_items
+            if str(item.get("name", "")).strip() and not bool(item.get("archived", False))
+        }
         chart_count = 0
         likelihood_cache = getattr(self, "_traits_distribution_chart_likelihood_cache", None)
         if not isinstance(likelihood_cache, dict):
@@ -4192,7 +4198,11 @@ class DatabaseAnalyticsChartsMixin:
             likelihoods = likelihood_cache.get(chart_cache_key)
             if likelihoods is None:
                 try:
-                    likelihoods = calculate_trait_likelihoods(chart, trait_items)
+                    likelihoods = calculate_trait_likelihoods(
+                        chart,
+                        trait_items,
+                        possible_scores=possible_scores,
+                    )
                 except Exception:
                     logger.exception(
                         "Trait likelihood calculation failed for chart %s during database analytics refresh.",
