@@ -16551,6 +16551,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         # if self._help_overlay_active:
         #     self._rebuild_help_markers()
 
+    def moveEvent(self, event) -> None:
+        super().moveEvent(event)
+        if self.isVisible() and not getattr(self, "_applying_window_placement", False):
+            self._session_window_layout_adjusted = True
+
     def closeEvent(self, event) -> None:
         self._is_closing = True
         self._database_metrics_preload_enabled = False
@@ -31153,13 +31158,19 @@ class MainWindow(QMainWindow):
         self._restore_chart_view_visibility_after_database_view()
         self._collapse_similar_charts_section()
         placement: WindowPlacement | None = None
-        if source_window is not None and not self._session_window_layout_adjusted:
+        if self._session_window_layout_adjusted:
+            # Once Chart View has been adjusted in this app session, preserve its
+            # own maximized/normal state too. Database View callers often pass
+            # their current maximize state, and applying that here would discard
+            # Chart View's user-adjusted normal size.
+            maximize = self.isMaximized()
+        elif source_window is not None:
             placement = capture_window_placement(source_window)
             if maximize is None:
                 maximize = placement.maximized
 
         if maximize is None:
-            maximize = self.isMaximized() if self._session_window_layout_adjusted else True
+            maximize = True
 
         self._applying_window_placement = True
         try:
