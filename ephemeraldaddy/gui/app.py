@@ -470,7 +470,11 @@ class _ComboItemColorDelegate(QStyledItemDelegate):
 
 
 from ephemeraldaddy.gui.startup import StartupLoadingWidget, StartupProgress
-from ephemeraldaddy.gui.emoji_render import apply_emoji_png_to_button, install_emoji_png_rendering
+from ephemeraldaddy.gui.emoji_render import (
+    apply_emoji_png_to_button,
+    apply_emoji_pngs_to_label,
+    install_emoji_png_rendering,
+)
 
 from matplotlib import font_manager as mpl_font_manager
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
@@ -3115,9 +3119,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         content.setStyleSheet(content_style)
         content.setVisible(expanded)
 
+        def set_toggle_expanded_state(checked: bool) -> None:
+            if toggle.icon().isNull():
+                toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
+                return
+            toggle.setArrowType(Qt.NoArrow)
+            label_text = str(toggle.property("_edd_collapsible_label_text") or toggle.text()).lstrip("▾▸ ")
+            toggle.setProperty("_edd_collapsible_label_text", label_text)
+            toggle.setText(f"{'▾' if checked else '▸'} {label_text}")
+
         def toggle_content(checked: bool) -> None:
             content.setVisible(checked)
-            toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
+            set_toggle_expanded_state(checked)
             if on_toggled is not None:
                 on_toggled(checked)
             content.adjustSize()
@@ -3126,6 +3139,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             panel.updateGeometry()
 
         apply_emoji_png_to_button(toggle, icon_px=16)
+        set_toggle_expanded_state(expanded)
 
         toggle.toggled.connect(toggle_content)
 
@@ -4353,8 +4367,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             subheader.setWordWrap(DATABASE_VIEW_SUBHEADER_WORD_WRAP)
             return subheader
 
-        self.database_metrics_panel_header_label = QLabel("Database Analytics")
+        self.database_metrics_panel_header_label = QLabel("📊 Database Analytics")
         self.database_metrics_panel_header_label.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
+        apply_emoji_pngs_to_label(self.database_metrics_panel_header_label)
         layout.addWidget(self.database_metrics_panel_header_label)
         self.database_metrics_pending_label = QLabel("Updating analytics…")
         self.database_metrics_pending_label.setStyleSheet("color: #d8c77a; font-style: italic; padding: 0 4px 4px 4px;")
@@ -13447,13 +13462,25 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             content.setStyleSheet(content_style)
             content.setVisible(False)
 
+            def set_toggle_expanded_state(checked: bool) -> None:
+                if toggle.icon().isNull():
+                    toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
+                    return
+                toggle.setArrowType(Qt.NoArrow)
+                label_text = str(toggle.property("_edd_collapsible_label_text") or toggle.text()).lstrip("▾▸ ")
+                toggle.setProperty("_edd_collapsible_label_text", label_text)
+                toggle.setText(f"{'▾' if checked else '▸'} {label_text}")
+
             def toggle_content(checked: bool) -> None:
                 content.setVisible(checked)
-                toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
+                set_toggle_expanded_state(checked)
                 content.adjustSize()
                 section.adjustSize()
                 panel.adjustSize()
                 panel.updateGeometry()
+
+            apply_emoji_png_to_button(toggle, icon_px=16)
+            set_toggle_expanded_state(False)
 
             toggle.toggled.connect(toggle_content)
 
@@ -15706,7 +15733,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         previous_database_metrics_baseline_mode = self._database_metrics_baseline_mode
 
         if panel_name == "database_metrics":
-            self.database_metrics_panel_header_label.setText("Database Analytics")
+            self.database_metrics_panel_header_label.setText("📊 Database Analytics")
+            self.database_metrics_panel_header_label.setProperty("_edd_original_emoji_text", "📊 Database Analytics")
+            apply_emoji_pngs_to_label(self.database_metrics_panel_header_label)
             self._database_metrics_baseline_mode = "database"
             self._settings.setValue(
                 "manage_charts/database_metrics_baseline_mode",

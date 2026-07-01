@@ -703,6 +703,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     header_layout = QHBoxLayout()
     title = QLabel("Search Filters")
     title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
+    app_module.apply_emoji_pngs_to_label(title)
     header_layout.addWidget(title)
     header_layout.addStretch(1)
     #I removed this button, since there's a "Clear Filters" button on the bottom right now.
@@ -741,13 +742,25 @@ def build_dbv_search_panel(window) -> "QWidget":
         content.setStyleSheet(content_style)
         content.setVisible(False)
 
+        def set_toggle_expanded_state(checked: bool) -> None:
+            if toggle.icon().isNull():
+                toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
+                return
+            toggle.setArrowType(Qt.NoArrow)
+            label_text = str(toggle.property("_edd_collapsible_label_text") or toggle.text()).lstrip("▾▸ ")
+            toggle.setProperty("_edd_collapsible_label_text", label_text)
+            toggle.setText(f"{'▾' if checked else '▸'} {label_text}")
+
         def toggle_content(checked: bool) -> None:
             content.setVisible(checked)
-            toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
+            set_toggle_expanded_state(checked)
             content.adjustSize()
             section.adjustSize()
             panel.adjustSize()
             panel.updateGeometry()
+
+        app_module.apply_emoji_png_to_button(toggle, icon_px=16)
+        set_toggle_expanded_state(False)
 
         toggle.toggled.connect(toggle_content)
 
@@ -785,15 +798,15 @@ def build_dbv_search_panel(window) -> "QWidget":
     layout.addWidget(chart_type_section)
 
 
-    astro_category_section, astro_category_layout = add_collapsible_section("Astro", nested=True)
+    astro_category_section, astro_category_layout = add_collapsible_section("🪐Astro", nested=True)
     layout.addWidget(astro_category_section)
     human_design_category_section, human_design_category_layout = add_collapsible_section("Human Design", nested=True)
     layout.addWidget(human_design_category_section)
     interactions_category_section, interactions_category_layout = add_collapsible_section("Interactions", nested=True)
     layout.addWidget(interactions_category_section)
-    predictions_category_section, predictions_category_layout = add_collapsible_section("Predictions", nested=True)
+    predictions_category_section, predictions_category_layout = add_collapsible_section("🔮Predictions", nested=True)
     layout.addWidget(predictions_category_section)
-    demographics_category_section, demographics_category_layout = add_collapsible_section("Demographics", nested=True)
+    demographics_category_section, demographics_category_layout = add_collapsible_section("👥Demographics", nested=True)
     layout.addWidget(demographics_category_section)
 
     #Search: data completeness & accuracy
