@@ -701,8 +701,9 @@ def build_dbv_search_panel(window) -> "QWidget":
     layout.addWidget(divider)
 
     header_layout = QHBoxLayout()
-    title = QLabel("Search Filters")
+    title = QLabel("🔎 Search Filters")
     title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
+    app_module.apply_emoji_pngs_to_label(title)
     header_layout.addWidget(title)
     header_layout.addStretch(1)
     #I removed this button, since there's a "Clear Filters" button on the bottom right now.
@@ -748,6 +749,8 @@ def build_dbv_search_panel(window) -> "QWidget":
             section.adjustSize()
             panel.adjustSize()
             panel.updateGeometry()
+
+        app_module.apply_emoji_png_to_button(toggle, icon_px=16)
 
         toggle.toggled.connect(toggle_content)
 
