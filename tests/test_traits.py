@@ -184,3 +184,32 @@ def test_trait_description_metadata_is_persisted(tmp_path, monkeypatch):
     renamed = traits.rename_trait(installed, "Renamed Described Trait")
     assert traits.list_traits()[0]["path"] == renamed
     assert traits.list_traits()[0]["description"] == "A custom trait description."
+
+
+def test_install_trait_file_preserves_samples_description_and_hash_comments(tmp_path, monkeypatch):
+    monkeypatch.setattr(traits, "TRAIT_DIR", tmp_path / "traits")
+    source = tmp_path / "upload.py"
+    source.write_text(
+        '''TRAITS = {
+    "Original": {  # cohort note
+        "name": "Original",
+        "description": "Uploaded description.",
+        "samples": 14,
+        "houses": {
+            "9": 4,  # dogmatic sample note
+        },
+    },
+}
+''',
+        encoding="utf-8",
+    )
+
+    installed = traits.install_trait_file(source, "Uploaded Trait")
+    saved_text = installed.read_text(encoding="utf-8")
+    item = traits.list_traits()[0]
+
+    assert item["profile"]["samples"] == 14
+    assert item["description"] == "Uploaded description."
+    assert item["profile"]["description"] == "Uploaded description."
+    assert "// # cohort note" in saved_text
+    assert "// # dogmatic sample note" in saved_text

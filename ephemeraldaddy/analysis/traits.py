@@ -293,7 +293,7 @@ import ast
 import json
 import re
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Iterable, Mapping
 
 from ephemeraldaddy.analysis.weighted_chart_predictor import (
     DEFAULT_CATEGORY_WEIGHTS,
@@ -323,13 +323,15 @@ def normalize_trait_color(color: str) -> str:
 
 def _rewrite_single_trait(path: str | Path, profile_updates: Mapping[str, Any]) -> Path:
     source = Path(path)
+    source_text = source.read_text(encoding="utf-8")
     profiles = parse_trait_file(source)
     name, profile = next(iter(profiles.items()))
     stored = dict(profile)
     stored.update(profile_updates)
     stored["name"] = name
     source.write_text(
-        json.dumps({name: _json_safe_trait_value(stored)}, ensure_ascii=False, indent=2),
+        json.dumps({name: _json_safe_trait_value(stored)}, ensure_ascii=False, indent=2)
+        + _format_preserved_comments(_extract_hash_comments(source_text)),
         encoding="utf-8",
     )
     return source
@@ -422,6 +424,44 @@ def _extract_literal_from_python(text: str) -> Any:
     raise ValueError("Could not find a Python literal trait payload.")
 
 
+
+def _extract_hash_comments(text: str) -> list[str]:
+    """Return Python-style line comments from text while ignoring # in strings."""
+    comments: list[str] = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("// #"):
+            comments.append(stripped[3:].rstrip())
+            continue
+        in_string: str | None = None
+        escaped = False
+        for index, char in enumerate(line):
+            if in_string is not None:
+                if escaped:
+                    escaped = False
+                elif char == "\\":
+                    escaped = True
+                elif char == in_string:
+                    in_string = None
+            elif char in {"'", '"'}:
+                in_string = char
+            elif char == "#":
+                comment = line[index:].rstrip()
+                if comment.strip() != "#":
+                    comments.append(comment)
+                break
+    return comments
+
+
+def _format_preserved_comments(comments: Iterable[str]) -> str:
+    unique_comments = list(
+        dict.fromkeys(comment.rstrip() for comment in comments if comment.strip())
+    )
+    if not unique_comments:
+        return ""
+    body = "\n".join(f"// {comment}" for comment in unique_comments)
+    return f"\n\n// Preserved comments from uploaded trait file:\n{body}\n"
+
 def parse_trait_file(path: str | Path) -> dict[str, dict[str, Any]]:
     """Parse a JSON or Similarities Analysis Python export into trait profiles."""
     source = Path(path)
@@ -430,7 +470,11 @@ def parse_trait_file(path: str | Path) -> dict[str, dict[str, Any]]:
         try:
             payload = json.loads(text)
         except json.JSONDecodeError:
-            payload = _extract_literal_from_python(text)
+            comment_cleaned_text = _strip_line_comments(text)
+            try:
+                payload = json.loads(comment_cleaned_text)
+            except json.JSONDecodeError:
+                payload = _extract_literal_from_python(comment_cleaned_text)
     else:
         payload = _extract_literal_from_python(text)
     if not isinstance(payload, Mapping):
@@ -483,16 +527,21 @@ def save_trait(name: str, profile: Mapping[str, Any], *, color: str | None = Non
         stored["color"] = DEFAULT_TRAIT_COLOR
     stored["archived"] = bool(stored.get("archived", False))
     stored["description"] = str(stored.get("description", "")).strip()
+    preserved_comments = _extract_hash_comments(str(profile.get("_source_text", "")))
+    stored.pop("_source_text", None)
     destination.write_text(
-        json.dumps({clean_name: _json_safe_trait_value(stored)}, ensure_ascii=False, indent=2),
+        json.dumps({clean_name: _json_safe_trait_value(stored)}, ensure_ascii=False, indent=2)
+        + _format_preserved_comments(preserved_comments),
         encoding="utf-8",
     )
     return destination
 
 
 def install_trait_file(path: str | Path, name: str, *, color: str | None = None) -> Path:
-    profiles = parse_trait_file(path)
-    first_profile = next(iter(profiles.values()))
+    source = Path(path)
+    profiles = parse_trait_file(source)
+    first_profile = dict(next(iter(profiles.values())))
+    first_profile["_source_text"] = source.read_text(encoding="utf-8")
     return save_trait(name, first_profile, color=color)
 
 
