@@ -522,8 +522,8 @@ class DatabaseAnalyticsChartsMixin:
         ("astro", "🪐Astro"),
         ("esoteric", "🪷Esoteric Alternatives"),
         ("subjective_notes", "💭Subjective Notes"),
-        ("predictions", "🎱Predictions"),
-        ("demographics", "🇨🇩Demographics"),
+        ("predictions", "🔮Predictions"),
+        ("demographics", "👥Demographics"),
     )
 
     def _create_database_analytics_category_layouts(
@@ -1709,14 +1709,13 @@ class DatabaseAnalyticsChartsMixin:
         description_line = ""
         if trait_description:
             description_line = (
-                f'<p><b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">Description:</b> '
-                f"{html.escape(trait_description)}</p>"
+                f'<p><i>{html.escape(trait_description)}</i></p>'
             )
         return (
             f'<h3 style="color:{html.escape(label_color)}; font-weight:800;">{html.escape(clean_label)}</h3>'
+            f"{description_line}"
             f'<p><b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">Category:</b> {html.escape(category_name)}</p>'
             f'<p><b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">What this measures:</b> {html.escape(definition)}</p>'
-            f"{description_line}"
             f'<p><b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">Where it appears:</b> <i>{html.escape(clean_title)}</i>.</p>'
             f"{value_line}"
             f"{std_dev_line}"
@@ -3163,15 +3162,21 @@ class DatabaseAnalyticsChartsMixin:
         database_total: float | None = None,
         include_significance_guides: bool = True,
         label_tooltips: dict[str, str] | None = None,
+        auto_height: bool = False,
     ) -> FigureCanvas:
+        labels = list(labels or selection_planets.keys())
         clamped_height_scale = max(0.5, float(height_scale))
+        chart_height = (
+            max(2.9, min(14.0, (len(labels) * 0.38) + 1.0))
+            if auto_height
+            else 4 * clamped_height_scale
+        )
         # Keep bottom margin visually consistent in pixels when chart height is scaled up.
         scaled_bottom_margin = min(0.12, max(0.02, 0.12 / clamped_height_scale))
-        figure = Figure(figsize=(1.5, 4 * clamped_height_scale)) #width of graph, height of graph
+        figure = Figure(figsize=(1.5, chart_height)) #width of graph, height of graph
         figure.patch.set_facecolor(self._database_analytics_figure_facecolor())
         ax = figure.add_subplot(111)
         ax.set_facecolor(self._database_analytics_axes_facecolor())
-        labels = list(labels or selection_planets.keys())
         display_label_by_label = {
             label: _abbreviate_nakshatra_label(str(label))
             for label in labels
@@ -4349,6 +4354,7 @@ class DatabaseAnalyticsChartsMixin:
                 force_value_fallback_colors=False,
                 label_colors={name: color_lookup.get(name, DEFAULT_TRAIT_COLOR) for name in ordered_labels},
                 include_count_prefixes=False,
+                auto_height=True,
             )
             self.traits_distribution_chart_layout.addWidget(canvas, 0)
         else:

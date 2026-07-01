@@ -284,7 +284,7 @@ def _format_similarity_scoring_method(
         "custom": "Custom",
         "database_distinction": "Database Distinction Scan",
     }.get(mode, mode.replace("_", " ").title())
-    lines = [f"Current Settings > Similarities Calculator scoring system: {mode_label}."]
+    lines = [f"Current Settings > Astro Twin Calculator scoring system: {mode_label}."]
 
     settings = similarity_settings
     if mode == "all_or_nothing":
@@ -476,7 +476,7 @@ def build_total_chart_similar_charts_section_for_chart(
             f"{heading}\n\n"
             f"Similar charts unavailable: {exc}\n\n"
             f"{subheading}\n\n"
-            f"Current Settings > Similarities Calculator scoring system: "
+            f"Current Settings > Astro Twin Calculator scoring system: "
             f"{normalized_algorithm_mode.replace('_', ' ').title()}."
         )
 

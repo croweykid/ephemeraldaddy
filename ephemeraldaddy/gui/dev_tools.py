@@ -265,7 +265,7 @@ def build_similarity_calculator_settings_section(
     on_reset_thresholds_clicked: Callable[[], None],
     threshold_rows: tuple[tuple[str, str], ...],
 ) -> dict[str, object]:
-    similar_charts_algo_label = QLabel("Similarities Calculator")
+    similar_charts_algo_label = QLabel("Astro Twin Calculator")
     similar_charts_algo_label.setStyleSheet(subheader_style)
     section_layout.addWidget(similar_charts_algo_label)
     section_layout.addWidget(
@@ -829,7 +829,7 @@ class _MergeLabelsDialog(QDialog):
 
 TAG_CATEGORY_OPTIONS: tuple[tuple[str, str], ...] = (
     ("Occupation", "occupation"),
-    ("Trait", "trait"),
+    ("🧬 Trait", "trait"),
     ("Reputation", "reputation"),
     ("Affiliation/Subculture", "affiliation"),
     ("Crime", "crime"),
