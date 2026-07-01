@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import weakref
 from pathlib import Path
 from typing import Callable
 
+import shiboken6
 from PySide6.QtCore import QEvent, QPoint, Qt, QTimer
 from PySide6.QtGui import QColor, QIcon
 from PySide6.QtWidgets import (
@@ -862,6 +864,27 @@ def _compose_tag_category(prefix: str, tag_name: str) -> str:
     return clean_tag
 
 
+def _defer_tag_category_assignment(
+    receiver: QWidget,
+    category_prefix: str,
+    labels: list[str],
+) -> None:
+    """Run a Tag Manager drop assignment after Qt completes DnD cleanup."""
+    receiver_ref = weakref.ref(receiver)
+    deferred_prefix = str(category_prefix or "").strip()
+    deferred_labels = tuple(labels)
+
+    def assign_after_drop_cleanup() -> None:
+        target = receiver_ref()
+        if target is None or not shiboken6.isValid(target):
+            return
+        on_drop_labels = getattr(target, "_on_drop_labels", None)
+        if callable(on_drop_labels):
+            on_drop_labels(deferred_prefix, list(deferred_labels))
+
+    QTimer.singleShot(0, assign_after_drop_cleanup)
+
+
 class _TagCategoryDropList(QListWidget):
     def __init__(self, parent: QWidget, on_drop_labels: Callable[[str, list[str]], None]) -> None:
         super().__init__(parent)
@@ -932,14 +955,7 @@ class _TagCategoryDropList(QListWidget):
             # Treat the DnD payload as a command, not a Qt item move.  Defer the
             # database rename/reload until after Qt finishes drop cleanup so the
             # source model is not rebuilt while Qt still holds dragged indexes.
-            deferred_labels = tuple(labels)
-            QTimer.singleShot(
-                0,
-                lambda prefix=category_prefix, dropped=deferred_labels: self._on_drop_labels(
-                    prefix,
-                    list(dropped),
-                ),
-            )
+            _defer_tag_category_assignment(self, category_prefix, labels)
             event.setDropAction(Qt.CopyAction)
             event.accept()
             return
@@ -1042,14 +1058,7 @@ class _TagHierarchyTree(QTreeWidget):
         # Treat the DnD payload as a command, not a Qt item move.  Defer the
         # database rename/reload until after Qt finishes drop cleanup so the
         # source model is not rebuilt while Qt still holds dragged indexes.
-        deferred_labels = tuple(labels)
-        QTimer.singleShot(
-            0,
-            lambda prefix=category_prefix, dropped=deferred_labels: self._on_drop_labels(
-                prefix,
-                list(dropped),
-            ),
-        )
+        _defer_tag_category_assignment(self, category_prefix, labels)
         event.setDropAction(Qt.CopyAction)
         event.accept()
 
