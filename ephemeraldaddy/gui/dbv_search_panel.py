@@ -349,12 +349,19 @@ def sync_search_tags_list_selection(window, selected_tags: set[str]) -> None:
 
     Rebuilding the full tag tree on every ``QLineEdit.textChanged`` event is
     expensive for large tag catalogs and can make typing appear to freeze the
-    app.  The typed tag list only needs to mark matching existing per-tag
-    sliders active, so keep the tree structure intact and update modes in-place.
+    app.  When the tag tree is visible, the typed tag list only needs to
+    mark matching existing per-tag sliders active, so keep the tree structure
+    intact and update modes in-place.
     """
     from ephemeraldaddy.gui import app as app_module
 
+    QToolButton = app_module.QToolButton
     QuadStateSlider = app_module.QuadStateSlider
+
+    search_tags_toggle = getattr(window, "search_tags_toggle", None)
+    if isinstance(search_tags_toggle, QToolButton) and not search_tags_toggle.isChecked():
+        return
+
     selected_casefolded = {str(tag).casefold() for tag in selected_tags}
     for tag_name, checkbox in getattr(window, "search_tag_filter_checkboxes", {}).items():
         if str(tag_name).casefold() not in selected_casefolded:

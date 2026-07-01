@@ -14,6 +14,15 @@ def test_search_tags_typing_does_not_rebuild_tag_tree_on_each_keystroke():
     assert "_refresh_search_tags_list" not in handler
 
 
+def test_search_tags_selection_sync_respects_collapsed_tag_tree():
+    helper = SEARCH_PANEL_SOURCE.split("def sync_search_tags_list_selection", 1)[1].split(
+        "def on_search_tag_logic_changed", 1
+    )[0]
+    assert "search_tags_toggle" in helper
+    assert "not search_tags_toggle.isChecked()" in helper
+    assert "return" in helper.split("not search_tags_toggle.isChecked()", 1)[1]
+
+
 def test_search_tags_selection_sync_suppresses_per_checkbox_filter_signals():
     helper = SEARCH_PANEL_SOURCE.split("def sync_search_tags_list_selection", 1)[1].split(
         "def on_search_tag_logic_changed", 1
