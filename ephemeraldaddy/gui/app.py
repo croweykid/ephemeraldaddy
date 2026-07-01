@@ -2594,7 +2594,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "manage_toggle_collections_panel_button"
         )
         self.manage_collections_button.clicked.connect(
-            self._show_manage_collections_panel
+            self._toggle_manage_collections_panel
         )
 
         self.database_manager_button = QPushButton("📚")
