@@ -13419,9 +13419,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         divider_chart_editor.setStyleSheet("color: #2f2f2f;")
         layout.addWidget(divider_chart_editor)
 
-        batch_editor_title = QLabel("📝 Batch Editor")
+        batch_editor_title = QLabel("Batch Editor")
         batch_editor_title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
-        apply_emoji_pngs_to_label(batch_editor_title)
         layout.addWidget(batch_editor_title)
 
         self._update_batch_edit_action_buttons()
@@ -13594,7 +13593,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.addWidget(build_batch_similarity_section(self, add_collapsible_section))
         layout.addWidget(build_batch_bio_section(self, add_collapsible_section))
 
-        predictability_section, predictability_section_layout = add_collapsible_section("🔮Predictability")
+        predictability_section, predictability_section_layout = add_collapsible_section("💭Predictability")
         predictability_row = QHBoxLayout()
         predictability_row.addWidget(QLabel("Chart matches expectations (0-9):"))
         self.batch_matched_expectations_spin = QSpinBox()
@@ -13765,7 +13764,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         sentiment_section_layout.addWidget(sentiment_metrics_subheader)
         sentiment_section_layout.addWidget(sentiment_metrics_widget)
 
-        chart_type_section, chart_type_section_layout = add_collapsible_section("📚Chart Type")
+        chart_type_section, chart_type_section_layout = add_collapsible_section("Chart Type")
 
         self.batch_source_combo = QComboBox()
         self.batch_source_combo.addItem("Mixed / unchanged", "")
@@ -13777,7 +13776,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         chart_type_section_layout.addWidget(self.batch_source_combo)
         layout.addWidget(chart_type_section)
 
-        batch_gender_section, batch_gender_section_layout = add_collapsible_section("👥Gender")
+        batch_gender_section, batch_gender_section_layout = add_collapsible_section("Gender")
 
         self.batch_gender_combo = QComboBox()
         self.batch_gender_combo.addItem("Mixed / unchanged", "")
@@ -13799,7 +13798,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         birthtime_unknown_section_layout.addWidget(self.batch_birthtime_unknown_checkbox)
         layout.addWidget(birthtime_unknown_section)
 
-        mortality_section, mortality_section_layout = add_collapsible_section("🚫Mortality")
+        mortality_section, mortality_section_layout = add_collapsible_section("Mortality")
 
         self.batch_deceased_checkbox = QuadStateSlider("💀")
         self.batch_deceased_checkbox.modeChanged.connect(

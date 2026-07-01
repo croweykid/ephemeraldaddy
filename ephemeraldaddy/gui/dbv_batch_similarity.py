@@ -22,7 +22,7 @@ def build_batch_similarity_section(
     add_collapsible_section: Callable[[str], tuple[QWidget, QVBoxLayout]],
 ) -> QWidget:
     """Build the Batch Editor Similarity section and wire its Apply action."""
-    similarity_section, similarity_section_layout = add_collapsible_section("👥Similarity")
+    similarity_section, similarity_section_layout = add_collapsible_section("Similarity")
     similarity_help = QLabel(
         "Assign the selected chart(s) a perceived similarity score to another chart."
     )

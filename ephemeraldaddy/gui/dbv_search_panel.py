@@ -701,7 +701,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     layout.addWidget(divider)
 
     header_layout = QHBoxLayout()
-    title = QLabel("🔎 Search Filters")
+    title = QLabel("Search Filters")
     title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
     app_module.apply_emoji_pngs_to_label(title)
     header_layout.addWidget(title)
@@ -773,7 +773,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     layout.addWidget(tags_section)
 
     # Search: Chart Type is its own collapsible section above the categorized filters.
-    chart_type_section, chart_type_group_layout = add_collapsible_section("📚Chart Type")
+    chart_type_section, chart_type_group_layout = add_collapsible_section("Chart Type")
 
     chart_type_layout = QGridLayout()
     chart_type_layout.setContentsMargins(0, 0, 0, 0)
@@ -800,9 +800,9 @@ def build_dbv_search_panel(window) -> "QWidget":
 
     astro_category_section, astro_category_layout = add_collapsible_section("🪐Astro", nested=True)
     layout.addWidget(astro_category_section)
-    human_design_category_section, human_design_category_layout = add_collapsible_section("🧬Human Design", nested=True)
+    human_design_category_section, human_design_category_layout = add_collapsible_section("Human Design", nested=True)
     layout.addWidget(human_design_category_section)
-    interactions_category_section, interactions_category_layout = add_collapsible_section("💭Interactions", nested=True)
+    interactions_category_section, interactions_category_layout = add_collapsible_section("Interactions", nested=True)
     layout.addWidget(interactions_category_section)
     predictions_category_section, predictions_category_layout = add_collapsible_section("🔮Predictions", nested=True)
     layout.addWidget(predictions_category_section)
@@ -811,7 +811,7 @@ def build_dbv_search_panel(window) -> "QWidget":
 
     #Search: data completeness & accuracy
     birth_info_status_section, birth_info_status_layout = add_collapsible_section(
-        "🧩Data Quality", #data icon contenders: 🧮 🗄️ 🪪 𖦏 🔢 🧩 ℹ️
+        "Data Quality", #data icon contenders: 🧮 🗄️ 🪪 𖦏 🔢 🧩 ℹ️
     )
 
     birth_status_mode_row = QHBoxLayout()
@@ -1809,7 +1809,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     dnd_species_group_layout.addLayout(dnd_stat_grid)
     predictions_category_layout.addWidget(dnd_species_section)
 
-    timing_section, timing_section_layout = add_collapsible_section("🧓Lifespan")
+    timing_section, timing_section_layout = add_collapsible_section("Lifespan")
 
     def add_birthdate_bound_row(
         row_label: str,
@@ -1901,7 +1901,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     timing_section_layout.addLayout(mortality_row)
 
     #Search: gender section
-    gender_section, gender_group_layout = add_collapsible_section("👥Gender")
+    gender_section, gender_group_layout = add_collapsible_section("Gender")
     gender_mode_layout = QHBoxLayout()
     gender_mode_layout.addWidget(QLabel("Gender"))
     gender_mode_layout.addStretch(1)
@@ -1943,7 +1943,7 @@ def build_dbv_search_panel(window) -> "QWidget":
 
 
     #Search: Locations section
-    locations_section, locations_group_layout = add_collapsible_section("🌍Location")
+    locations_section, locations_group_layout = add_collapsible_section("Location")
 
     country_row = QHBoxLayout()
     country_row.addWidget(QLabel("Country"))
@@ -1973,7 +1973,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     locations_group_layout.addLayout(state_row)
 
     predictability_section, predictability_group_layout = add_collapsible_section(
-        "🔮Predictability",
+        "💭Predictability",
     )
     predictability_range_layout = QGridLayout()
     predictability_range_layout.setContentsMargins(0, 0, 0, 0)
@@ -1996,7 +1996,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     predictions_category_layout.addWidget(predictability_section)
 
     #Search: Notes section
-    notes_section, notes_group_layout = add_collapsible_section("📝Notes")
+    notes_section, notes_group_layout = add_collapsible_section("Notes")
 
     comments_row = QHBoxLayout()
     window._notes_comments_filter_checkbox = QuadStateSlider("Comments")
