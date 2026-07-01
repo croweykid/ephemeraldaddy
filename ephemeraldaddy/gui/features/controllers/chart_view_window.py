@@ -1801,6 +1801,9 @@ def on_chart_view_tag_add(owner: QWidget) -> None:
     owner.chart_tags_input.setText("")
     render_tag_chip_preview(owner.chart_tags_preview_label, [])
     render_chart_view_tag_selection(owner)
+    refresh_added_tags = getattr(owner, "_refresh_tag_catalog_for_added_tags", None)
+    if callable(refresh_added_tags):
+        refresh_added_tags([tag_to_add])
     owner._mark_lucygoosey()
 
 
