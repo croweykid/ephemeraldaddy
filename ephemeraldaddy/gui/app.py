@@ -953,6 +953,7 @@ from ephemeraldaddy.gui.features.charts.exporters import (
     similarities_export_sample_suffix as _similarities_export_sample_suffix,
 )
 from ephemeraldaddy.gui.features.charts.similarities_export import (
+    filter_structural_sign_house_redundancies as _filter_structural_sign_house_redundancies,
     similarities_label_has_excluded_bodies as _similarities_label_has_excluded_bodies,
     similarities_match_clears_delta_threshold as _similarities_match_clears_delta_threshold,
 )
@@ -8855,7 +8856,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         _remember_similarities_export_directory(settings, file_path)
 
         rows: list[list[str | int | float]] = []
-        for section_title, matches in self._similarities_export_sections:
+        filtered_export_sections = _filter_structural_sign_house_redundancies(
+            self._similarities_export_sections
+        )
+        for section_title, matches in filtered_export_sections:
             if not matches:
                 continue
             for match in matches:
