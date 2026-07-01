@@ -3259,8 +3259,10 @@ class DatabaseAnalyticsChartsMixin:
 
         for spine in ax.spines.values():
             spine.set_color(CHART_THEME_COLORS["spine"])
-        for tick_label in ax.get_yticklabels():
+        for index, tick_label in enumerate(ax.get_yticklabels()):
             tick_label.set_ha("right")
+            if label_colors is not None and index < len(colors):
+                tick_label.set_color(colors[index])
         self._apply_tight_layout(figure)
         figure.subplots_adjust(left=0.51, bottom=scaled_bottom_margin, right=0.97, top=0.98)
         canvas = FigureCanvas(figure)
