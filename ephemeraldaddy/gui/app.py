@@ -1108,6 +1108,7 @@ from ephemeraldaddy.gui.features.charts.similar_charts_popout import (
     make_similar_info_target,
     make_similar_why_target,
     map_similar_info_targets,
+    keep_similar_charts_popout_foreground_until_outside_click,
     OperationCanceled,
     raise_if_progress_canceled,
     render_predictions_panel_content,
@@ -26814,6 +26815,7 @@ class MainWindow(QMainWindow):
                 else None
             )
             dialog.show()
+            keep_similar_charts_popout_foreground_until_outside_click(dialog)
             update_similar_charts_loading_progress(progress, "Similar Charts ready.", 100)
         except OperationCanceled:
             return
