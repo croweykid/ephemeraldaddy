@@ -106,3 +106,17 @@ def test_chart_trait_metadata_migrates_legacy_chart_id_rows_to_uid(tmp_path, mon
     conn.close()
 
     assert db.get_chart_trait_metadata(chart_uid)[0]["trait_name"] == "Grounded"
+
+
+def test_list_charts_exposes_chart_uid_for_uid_based_cache_signatures(tmp_path, monkeypatch):
+    monkeypatch.setattr(db, "DB_DIR", tmp_path)
+    monkeypatch.setattr(db, "DB_PATH", tmp_path / "charts.db")
+
+    conn = db._get_conn()
+    with conn:
+        _chart_id, chart_uid = _insert_chart(conn)
+    conn.close()
+
+    rows = db.list_charts()
+
+    assert rows[0][-1] == chart_uid

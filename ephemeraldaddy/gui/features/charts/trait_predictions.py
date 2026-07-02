@@ -125,6 +125,37 @@ def _database_chart_ids(owner: Any) -> tuple[int, ...]:
     return tuple(sorted(chart_ids))
 
 
+def _database_chart_uids(owner: Any) -> tuple[str, ...]:
+    chart_rows = _database_chart_rows(owner)
+    chart_uids: set[str] = set()
+    missing_uid_ids: set[int] = set()
+    for row in chart_rows:
+        try:
+            chart_id = int(row[0])
+        except (TypeError, ValueError, IndexError):
+            continue
+        raw_uid = None
+        try:
+            raw_uid = row[32]
+        except (TypeError, IndexError):
+            raw_uid = None
+        chart_uid = str(raw_uid or "").strip().upper()
+        if chart_uid:
+            chart_uids.add(chart_uid)
+        else:
+            missing_uid_ids.add(chart_id)
+    if missing_uid_ids:
+        try:
+            chart_uids.update(
+                str(uid).strip().upper()
+                for uid in db.get_chart_uid_map(missing_uid_ids).values()
+                if str(uid or "").strip()
+            )
+        except Exception as exc:
+            logger.warning("Traits panel could not resolve chart UIDs for norm signature: %s", exc, exc_info=True)
+    return tuple(sorted(chart_uids))
+
+
 def _chart_uid_for_trait_metadata(chart: Any) -> str | None:
     chart_uid = str(getattr(chart, "chart_uid", "") or "").strip()
     return chart_uid or None
@@ -139,6 +170,8 @@ def _chart_trait_metadata_signature(chart: Any) -> str:
         {
             "birth_date": getattr(chart, "birth_date", None),
             "birth_time": getattr(chart, "birth_time", None),
+            "dt": getattr(chart, "dt", None),
+            "dt_local": getattr(chart, "dt_local", None),
             "birth_place": getattr(chart, "birth_place", None),
             "datetime": getattr(chart, "datetime", None),
             "datetime_iso": getattr(chart, "datetime_iso", None),
@@ -153,13 +186,13 @@ def _chart_trait_metadata_signature(chart: Any) -> str:
     )
 
 
-def _trait_norm_cache_key(chart_ids: tuple[int, ...], trait: dict[str, Any]) -> str | None:
+def _trait_norm_cache_key(chart_uids: tuple[str, ...], trait: dict[str, Any]) -> str | None:
     name = str(trait.get("name", "")).strip()
     if not name or bool(trait.get("archived", False)):
         return None
     payload = {
         "version": TRAIT_DB_NORMS_CACHE_VERSION,
-        "chart_ids": chart_ids,
+        "chart_uids": chart_uids,
         "trait_name": name,
         "trait_color": normalize_trait_color(str(trait.get("color", DEFAULT_TRAIT_COLOR))),
         "trait_profile": trait.get("profile", {}),
@@ -274,9 +307,10 @@ def _calculate_database_trait_averages_direct(
 
 def _database_trait_averages(owner: Any, traits: list[dict[str, Any]]) -> dict[str, float]:
     chart_ids = _database_chart_ids(owner)
+    chart_uids = _database_chart_uids(owner)
     collect = getattr(owner, "_collect_traits_distribution_analytics", None)
     signature_builder = getattr(owner, "_traits_distribution_signature", None)
-    if not chart_ids:
+    if not chart_ids or not chart_uids:
         return {}
     if not callable(collect) or not callable(signature_builder):
         return _calculate_database_trait_averages_direct(owner, chart_ids, traits)
@@ -285,7 +319,7 @@ def _database_trait_averages(owner: Any, traits: list[dict[str, Any]]) -> dict[s
     missing_traits: list[dict[str, Any]] = []
     for trait in traits:
         name = str(trait.get("name", "")).strip()
-        cache_key = _trait_norm_cache_key(chart_ids, trait)
+        cache_key = _trait_norm_cache_key(chart_uids, trait)
         cached = cache_entries.get(cache_key or "")
         if isinstance(cached, dict) and cached.get("trait_name") == name:
             try:
@@ -315,7 +349,7 @@ def _database_trait_averages(owner: Any, traits: list[dict[str, Any]]) -> dict[s
         db_average = (float(totals.get(name, 0.0)) / float(chart_count)) * 100.0
         averages[name] = db_average
         trait_item = next((trait for trait in missing_traits if str(trait.get("name", "")).strip() == name), None)
-        cache_key = _trait_norm_cache_key(chart_ids, trait_item or {})
+        cache_key = _trait_norm_cache_key(chart_uids, trait_item or {})
         if cache_key:
             cache_entries[cache_key] = {
                 "trait_name": name,
@@ -358,7 +392,7 @@ def trait_metadata_for_chart(owner: Any, chart: Any) -> dict[str, Any]:
             ],
         }
     )
-    norm_signature = _stable_json_hash(_database_chart_ids(owner))
+    norm_signature = _stable_json_hash(_database_chart_uids(owner))
     chart_signature = _chart_trait_metadata_signature(chart)
     signature = (TRAIT_DB_NORMS_CACHE_VERSION, trait_signature, norm_signature, chart_signature)
     cached = getattr(chart, "_trait_prediction_metadata_cache", None)

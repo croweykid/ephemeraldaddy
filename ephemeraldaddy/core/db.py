@@ -3419,7 +3419,7 @@ def list_charts() -> List[
     social_score, chart_type, is_placeholder, is_deceased,
     birth_month, birth_day, birth_year, retcon_hour, retcon_minute,
     from_whence, data_rating, relationship_types, tags, reminds_me_of,
-    dominant_sign_weights, dominant_planet_weights, dominant_mode)
+    dominant_sign_weights, dominant_planet_weights, dominant_mode, chart_uid)
 
     The first 22 fields are kept in their historical order for callers that
     index into the row tuple; lightweight display/filter fields are appended so
@@ -3462,7 +3462,8 @@ def list_charts() -> List[
                reminds_me_of,
                dominant_sign_weights,
                dominant_planet_weights,
-               dominant_mode
+               dominant_mode,
+               chart_uid
         FROM charts
         ORDER BY created_at DESC
         """
@@ -3539,6 +3540,7 @@ def list_charts() -> List[
                 row["dominant_sign_weights"],
                 row["dominant_planet_weights"],
                 row["dominant_mode"],
+                row["chart_uid"],
             )
         )
     return rows

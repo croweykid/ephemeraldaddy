@@ -4467,6 +4467,8 @@ class DatabaseAnalyticsChartsMixin:
             {
                 "birth_date": getattr(chart, "birth_date", None),
                 "birth_time": getattr(chart, "birth_time", None),
+                "dt": getattr(chart, "dt", None),
+                "dt_local": getattr(chart, "dt_local", None),
                 "birth_place": getattr(chart, "birth_place", None),
                 "datetime": getattr(chart, "datetime", None),
                 "datetime_iso": getattr(chart, "datetime_iso", None),
@@ -4506,7 +4508,10 @@ class DatabaseAnalyticsChartsMixin:
                 ],
             }
         )
-        norm_signature = self._stable_traits_metadata_hash(normalized_chart_ids)
+        uid_by_id = db.get_chart_uid_map(normalized_chart_ids)
+        norm_signature = self._stable_traits_metadata_hash(
+            tuple(sorted(str(uid).strip().upper() for uid in uid_by_id.values() if str(uid or "").strip()))
+        )
         threshold = TRAIT_DEVIATION_ASSIGNMENT_THRESHOLD
         for chart_id, likelihoods in chart_likelihoods.items():
             chart = self._get_chart_for_filter(int(chart_id))
