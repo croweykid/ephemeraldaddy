@@ -434,7 +434,11 @@ def draw_enneagram_predictions(
         f"{num} {str(enneagram.get(num, {}).get('name', '')).strip()}".strip()
         for num in range(1, 10)
     ]
-    type_scores = calculate_type_weights(chart)
+    cached_scores = getattr(chart, "enneagram_type_weights", None)
+    if isinstance(cached_scores, dict):
+        type_scores = cached_scores
+    else:
+        type_scores = calculate_type_weights(chart)
     values = [float(type_scores.get(num, 0.0)) for num in range(1, 10)]
     max_value = max(values) if values else 0.0
     avg_value = (sum(values) / len(values)) if values else 0.0
@@ -905,6 +909,12 @@ class EnneagramPredictionPanelAdapter:
         )
 
     def cache_metadata(self, chart: Any) -> dict[int, float]:
+        cached_scores = getattr(chart, "enneagram_type_weights", None)
+        if isinstance(cached_scores, dict):
+            try:
+                return {int(key): float(value) for key, value in cached_scores.items()}
+            except (TypeError, ValueError):
+                pass
         scores = self.calculate_type_weights(chart)
         return cache_enneagram_prediction_metadata(chart, scores)
 
