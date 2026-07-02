@@ -27269,7 +27269,15 @@ class MainWindow(QMainWindow):
             while scroll_area is not None and not isinstance(scroll_area, QScrollArea):
                 scroll_area = scroll_area.parentWidget()
             if isinstance(scroll_area, QScrollArea) and scroll_area.widget() is parent:
+                # During rectified-time preview rebuilds, Qt can briefly report a
+                # stale viewport width for the scroll content while the right-panel
+                # stack is still settling.  Clamping to the live scroll-area width
+                # mirrors the manual window-resize correction and prevents canvases
+                # from being fixed wider than the visible panel.
                 viewport_width = scroll_area.viewport().width()
+                scroll_area_width = scroll_area.width()
+                if scroll_area_width > 0:
+                    viewport_width = min(viewport_width, scroll_area_width)
                 return viewport_width if viewport_width > 0 else None
             parent = parent.parentWidget()
         return None
@@ -33438,6 +33446,7 @@ class MainWindow(QMainWindow):
 
     def _reset_metric_canvases_for_retcon_timing_update(self) -> None:
         """Reset only Chart View metric canvases affected by retcon timing edits."""
+        touched_layouts: list[QLayout] = []
         canvas_layout_pairs = (
             ("sign_chart_canvas", "sign_chart_container_layout"),
             ("planet_chart_canvas", "planet_chart_container_layout"),
@@ -33464,7 +33473,16 @@ class MainWindow(QMainWindow):
             if not canvas_is_visible:
                 continue
             self._clear_layout_widgets(layout)
+            touched_layouts.append(layout)
             setattr(self, canvas_attr, None)
+        for layout in touched_layouts:
+            layout.invalidate()
+            parent = layout.parentWidget()
+            if parent is not None:
+                parent.adjustSize()
+                parent.updateGeometry()
+        if touched_layouts:
+            self._schedule_deferred_visible_metric_canvas_layout_refreshes()
 
     def _refresh_chart_preview(self) -> None:
         if self._suppress_lucygoosey or self._latest_chart is None:
