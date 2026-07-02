@@ -8487,6 +8487,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 progress,
                 "Preparing similarities export data…",
             )
+            update_similarities_loading_progress(
+                progress,
+                "Rendering similarities results…",
+            )
             self.similarities_controller.set_export_sections([
                 (
                     "Signs in positions in common",
@@ -8773,10 +8777,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     f"No shared similarities found in at least 2 charts across "
                     f"{len(selected_non_placeholder_chart_ids)} selected chart(s)."
                 )
-            update_similarities_loading_progress(
-                progress,
-                "Rendering similarities results…",
-            )
             self._set_similarities_section_matches(
                 self.similarities_common_positions_list,
                 self.similarities_common_positions_toggle,
