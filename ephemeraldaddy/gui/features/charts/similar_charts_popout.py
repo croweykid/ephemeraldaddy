@@ -124,6 +124,7 @@ class SimilarChartsForegroundGuard(QObject):
     """Keep a Similar Charts popout foregrounded until a real outside mouse click."""
 
     _MOUSE_OUTSIDE_EVENTS = {QEvent.MouseButtonPress, QEvent.MouseButtonDblClick}
+    _APPLICATION_DEACTIVATION_EVENTS = {getattr(QEvent, "ApplicationDeactivate", None)} - {None}
 
     def __init__(self, dialog: QDialog) -> None:
         super().__init__(dialog)
@@ -138,6 +139,9 @@ class SimilarChartsForegroundGuard(QObject):
         app = QApplication.instance()
         if app is not None:
             app.installEventFilter(self)
+            state_changed = getattr(app, "applicationStateChanged", None)
+            if state_changed is not None:
+                state_changed.connect(self._on_application_state_changed)
         self._dialog.destroyed.connect(lambda _=None: self.disarm())
         self._dialog.setWindowFlag(Qt.WindowStaysOnTopHint, True)
         self._dialog.show()
@@ -152,6 +156,12 @@ class SimilarChartsForegroundGuard(QObject):
         app = QApplication.instance()
         if app is not None:
             app.removeEventFilter(self)
+            state_changed = getattr(app, "applicationStateChanged", None)
+            if state_changed is not None:
+                try:
+                    state_changed.disconnect(self._on_application_state_changed)
+                except (RuntimeError, TypeError):
+                    pass
         try:
             if self._dialog.isVisible():
                 self._dialog.setWindowFlag(Qt.WindowStaysOnTopHint, False)
@@ -160,7 +170,12 @@ class SimilarChartsForegroundGuard(QObject):
             return
 
     def eventFilter(self, _obj: QObject, event: QEvent) -> bool:
-        if not self._armed or event.type() not in self._MOUSE_OUTSIDE_EVENTS:
+        if not self._armed:
+            return False
+        if event.type() in self._APPLICATION_DEACTIVATION_EVENTS:
+            self.disarm()
+            return False
+        if event.type() not in self._MOUSE_OUTSIDE_EVENTS:
             return False
         try:
             if not self._dialog.isVisible():
@@ -172,6 +187,11 @@ class SimilarChartsForegroundGuard(QObject):
         except RuntimeError:
             self.disarm()
         return False
+
+    def _on_application_state_changed(self, state: Qt.ApplicationState) -> None:
+        inactive_state = getattr(Qt, "ApplicationInactive", None)
+        if self._armed and inactive_state is not None and state == inactive_state:
+            self.disarm()
 
     def _bring_forward(self) -> None:
         try:
