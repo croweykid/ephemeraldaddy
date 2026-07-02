@@ -9,7 +9,7 @@ import re
 import statistics
 from typing import Any, Callable, Mapping
 
-from PySide6.QtCore import QEventLoop, QSignalBlocker, QSize, Qt
+from PySide6.QtCore import QObject, QEvent, QEventLoop, QPoint, QSignalBlocker, QSize, QTimer, Qt
 from PySide6.QtGui import QIcon, QIntValidator
 from PySide6.QtWidgets import (
     QApplication,
@@ -118,6 +118,85 @@ _PERCEIVED_ACCURACY_FAILED_CHECKBOX_STYLE = (
     "QCheckBox::indicator { border: 1px solid #d9534f; background-color: rgba(217, 83, 79, 0.18); }"
     "QCheckBox::indicator:checked { background-color: #d9534f; }"
 )
+
+
+class SimilarChartsForegroundGuard(QObject):
+    """Keep a Similar Charts popout foregrounded until a real outside mouse click."""
+
+    _MOUSE_OUTSIDE_EVENTS = {QEvent.MouseButtonPress, QEvent.MouseButtonDblClick}
+
+    def __init__(self, dialog: QDialog) -> None:
+        super().__init__(dialog)
+        self._dialog = dialog
+        self._armed = False
+
+    def arm(self) -> None:
+        if self._armed:
+            self._bring_forward()
+            return
+        self._armed = True
+        app = QApplication.instance()
+        if app is not None:
+            app.installEventFilter(self)
+        self._dialog.destroyed.connect(lambda _=None: self.disarm())
+        self._dialog.setWindowFlag(Qt.WindowStaysOnTopHint, True)
+        self._dialog.show()
+        self._bring_forward()
+        QTimer.singleShot(0, self._bring_forward)
+        QTimer.singleShot(150, self._bring_forward)
+
+    def disarm(self) -> None:
+        if not self._armed:
+            return
+        self._armed = False
+        app = QApplication.instance()
+        if app is not None:
+            app.removeEventFilter(self)
+        try:
+            if self._dialog.isVisible():
+                self._dialog.setWindowFlag(Qt.WindowStaysOnTopHint, False)
+                self._dialog.show()
+        except RuntimeError:
+            return
+
+    def eventFilter(self, _obj: QObject, event: QEvent) -> bool:
+        if not self._armed or event.type() not in self._MOUSE_OUTSIDE_EVENTS:
+            return False
+        try:
+            if not self._dialog.isVisible():
+                self.disarm()
+                return False
+            global_pos = self._event_global_pos(event)
+            if global_pos is not None and not self._dialog.frameGeometry().contains(global_pos):
+                self.disarm()
+        except RuntimeError:
+            self.disarm()
+        return False
+
+    def _bring_forward(self) -> None:
+        try:
+            if self._armed and self._dialog.isVisible():
+                self._dialog.raise_()
+                self._dialog.activateWindow()
+        except RuntimeError:
+            self.disarm()
+
+    @staticmethod
+    def _event_global_pos(event: QEvent) -> QPoint | None:
+        global_position = getattr(event, "globalPosition", None)
+        if callable(global_position):
+            return global_position().toPoint()
+        global_pos = getattr(event, "globalPos", None)
+        if callable(global_pos):
+            return global_pos()
+        return None
+
+
+def keep_similar_charts_popout_foreground_until_outside_click(dialog: QDialog) -> None:
+    """Arm foreground behavior for a rendered Similar Charts popout."""
+    guard = SimilarChartsForegroundGuard(dialog)
+    dialog._similar_charts_foreground_guard = guard
+    guard.arm()
 
 
 def show_similar_charts_loading_progress(
