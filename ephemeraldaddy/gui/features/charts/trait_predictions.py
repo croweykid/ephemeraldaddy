@@ -136,7 +136,7 @@ def _database_chart_uids(owner: Any) -> tuple[str, ...]:
             continue
         raw_uid = None
         try:
-            raw_uid = row[32]
+            raw_uid = row[30]
         except (TypeError, IndexError):
             raw_uid = None
         chart_uid = str(raw_uid or "").strip().upper()
