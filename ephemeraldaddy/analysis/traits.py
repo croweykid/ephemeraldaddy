@@ -405,7 +405,6 @@ def _strip_line_comments(text: str) -> str:
 
 
 _JSON_LITERAL_NAME_RE = re.compile(r"\b(?:true|false|null)\b")
-_TRAILING_COMMA_RE = re.compile(r",(?=\s*[}\]])")
 
 
 def _replace_json_literal_names(text: str) -> str:
@@ -442,12 +441,38 @@ def _replace_json_literal_names(text: str) -> str:
 
 
 def _remove_trailing_commas(text: str) -> str:
-    previous = None
-    cleaned = text
-    while cleaned != previous:
-        previous = cleaned
-        cleaned = _TRAILING_COMMA_RE.sub("", cleaned)
-    return cleaned
+    """Remove trailing commas before object/array endings outside strings."""
+    output: list[str] = []
+    in_string: str | None = None
+    escaped = False
+    index = 0
+    while index < len(text):
+        char = text[index]
+        if in_string is not None:
+            output.append(char)
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == in_string:
+                in_string = None
+            index += 1
+            continue
+        if char in {"'", '"'}:
+            in_string = char
+            output.append(char)
+            index += 1
+            continue
+        if char == ",":
+            lookahead = index + 1
+            while lookahead < len(text) and text[lookahead].isspace():
+                lookahead += 1
+            if lookahead < len(text) and text[lookahead] in "}]":
+                index += 1
+                continue
+        output.append(char)
+        index += 1
+    return "".join(output)
 
 
 def _python_literal_candidates(text: str) -> list[str]:

@@ -131,6 +131,24 @@ def test_parse_installed_json_with_trailing_commas_and_json_literals(tmp_path):
     assert parsed["Selection"]["description"] is None
     assert parsed["Selection"]["houses"] == {"11": 4}
 
+def test_parse_jsonish_trailing_comma_cleanup_preserves_string_values(tmp_path):
+    source = tmp_path / "trait.json"
+    source.write_text(
+        '''{
+    "Selection": {
+        "name": "Selection",
+        "description": "literal ,} text is not syntax",
+        "bodies": {"Moon": 1,},
+    },
+}
+''',
+        encoding="utf-8",
+    )
+
+    parsed = traits.parse_trait_file(source)
+
+    assert parsed["Selection"]["description"] == "literal ,} text is not syntax"
+    assert parsed["Selection"]["bodies"] == {"Moon": 1}
 
 def test_list_traits_keeps_valid_jsonish_local_traits(tmp_path, monkeypatch):
     monkeypatch.setattr(traits, "TRAIT_DIR", tmp_path)
