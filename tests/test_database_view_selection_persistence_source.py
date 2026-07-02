@@ -67,3 +67,15 @@ def test_ctrl_z_restores_one_prior_deselected_selection():
     assert "self._sync_visible_selection_from_persistent_selection()" in restore_method
     assert "QKeySequence.StandardKey.Undo" in APP_SOURCE
     assert "self._restore_prior_deselected_selection()" in APP_SOURCE
+
+
+def test_copy_uses_persistent_selection_for_all_selected_chart_names():
+    method = _method_source("_selected_chart_names_for_clipboard")
+    copy_method = _method_source("_copy_selected_chart_names_to_clipboard")
+
+    assert "self._reconcile_persistent_selection_with_database()" in method
+    assert "_selected_chart_ids_set" in method
+    assert "chart_id not in selected_ids" in method
+    assert "_selected_chart_id_order" in method
+    assert "_similar_charts_popout_chart_names_by_id" in method
+    assert "\"\\n\".join(selected_names)" in copy_method

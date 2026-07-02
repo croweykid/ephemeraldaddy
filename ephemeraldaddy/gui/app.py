@@ -7150,10 +7150,47 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             QMessageBox.warning(self, tool_title, f"Unknown chart tool: {tool_key}")
 
 
-    def _copy_selected_chart_names_to_clipboard(self) -> bool:
+    def _selected_chart_names_for_clipboard(self) -> list[str]:
+        """Return all selected chart names for Database View clipboard export."""
         if self.list_widget is None:
-            return False
-        selected_names = _selected_chart_list_item_names(self.list_widget)
+            return []
+
+        self._reconcile_persistent_selection_with_database()
+        selected_ids = set(getattr(self, "_selected_chart_ids_set", set()))
+        if not selected_ids:
+            return _selected_chart_list_item_names(self.list_widget)
+
+        selected_names: list[str] = []
+        copied_ids: set[int] = set()
+        for row in range(self.list_widget.count()):
+            item = self.list_widget.item(row)
+            if item is None:
+                continue
+            chart_id = self._chart_id_from_list_item(item)
+            if chart_id is None or chart_id not in selected_ids:
+                continue
+            name = _chart_list_item_raw_name(item)
+            if name:
+                selected_names.append(name)
+                copied_ids.add(chart_id)
+
+        if len(copied_ids) == len(selected_ids):
+            return selected_names
+
+        chart_names_by_id = self._similar_charts_popout_chart_names_by_id(
+            getattr(self, "_chart_rows", [])
+        )
+        for chart_id in getattr(self, "_selected_chart_id_order", []):
+            if chart_id in copied_ids:
+                continue
+            name = str(chart_names_by_id.get(chart_id) or "").strip()
+            if name:
+                selected_names.append(name)
+                copied_ids.add(chart_id)
+        return selected_names
+
+    def _copy_selected_chart_names_to_clipboard(self) -> bool:
+        selected_names = self._selected_chart_names_for_clipboard()
         if not selected_names:
             return False
         QApplication.clipboard().setText("\n".join(selected_names))
@@ -18011,6 +18048,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         f"{min(gate_a, gate_b)}-{max(gate_a, gate_b)}"
                         for gate_a, gate_b, _center_a, _center_b in hd_result.defined_channels
                     )
+                    chart.human_design_defined_centers = sorted(str(center) for center in hd_result.defined_centers)
                     update_chart(
                         chart_id,
                         chart,
@@ -23519,6 +23557,7 @@ class MainWindow(QMainWindow):
             "nakshatra",
             "modal",
             "gender",
+            "planet_dynamics_prepare",
             "planet_dynamics",
             "chart_type",
             "similar_charts",
@@ -27036,7 +27075,8 @@ class MainWindow(QMainWindow):
             ]
         if chart_key == "planet_dynamics":
             selected_planet = self._chart_analysis_selected_mode(chart_key, "")
-            scores = getattr(chart, "planet_dynamics_scores", None) or _calculate_planet_dynamics_scores(chart)
+            self._precompute_planet_dynamics_if_needed(chart)
+            scores = getattr(chart, "planet_dynamics_scores", None) or {}
             if selected_planet != "all" and (not selected_planet or selected_planet not in scores):
                 selected_planet = next(iter(scores), "")
             if not selected_planet:
@@ -28385,7 +28425,8 @@ class MainWindow(QMainWindow):
         ax.figure.subplots_adjust(left=0.09, bottom=0.28, top=0.82, right=0.97)
 
     def _draw_planet_dynamics(self, ax, chart: Chart) -> None:
-        scores = getattr(chart, "planet_dynamics_scores", None) or _calculate_planet_dynamics_scores(chart)
+        self._precompute_planet_dynamics_if_needed(chart)
+        scores = getattr(chart, "planet_dynamics_scores", None) or {}
         selected_planet = self._chart_analysis_selected_mode("planet_dynamics", "")
         if selected_planet != "all" and (not selected_planet or selected_planet not in scores):
             selected_planet = next(iter(scores), "")
@@ -33457,7 +33498,7 @@ class MainWindow(QMainWindow):
             allow_collapsed_sections=allow_collapsed_sections,
         )
         if "planet_dynamics" in sections:
-            chart.planet_dynamics_scores = _calculate_planet_dynamics_scores(chart)
+            sections.add("planet_dynamics_prepare")
         render_order = (
             "summary",
             "signs",
@@ -33467,6 +33508,7 @@ class MainWindow(QMainWindow):
             "nakshatra",
             "modal",
             "gender",
+            "planet_dynamics_prepare",
             "planet_dynamics",
             "chart_type",
             "wheel",
@@ -33512,6 +33554,8 @@ class MainWindow(QMainWindow):
             self._render_modal_distribution(chart)
         elif section == "gender":
             self._render_gender_guesser(chart)
+        elif section == "planet_dynamics_prepare":
+            self._precompute_planet_dynamics_if_needed(chart)
         elif section == "planet_dynamics":
             self._render_planet_dynamics(chart)
         elif section == "chart_type":
@@ -34298,9 +34342,47 @@ class MainWindow(QMainWindow):
             chart=chart,
         )
 
+
+    def _planet_dynamics_cache_signature(self, chart: Chart) -> tuple[object, ...]:
+        positions = getattr(chart, "positions", None) or {}
+        houses = getattr(chart, "houses", None) or []
+        aspects = getattr(chart, "aspects", None) or []
+        aspect_signature = tuple(
+            sorted(
+                (
+                    str(aspect.get("p1", "")),
+                    str(aspect.get("p2", "")),
+                    str(aspect.get("type", "")),
+                    round(float(aspect.get("delta", 0.0) or 0.0), 8),
+                )
+                for aspect in aspects
+                if isinstance(aspect, Mapping)
+            )
+        )
+        return (
+            tuple(sorted((str(body), None if lon is None else round(float(lon), 8)) for body, lon in positions.items())),
+            tuple(None if cusp is None else round(float(cusp), 8) for cusp in houses),
+            aspect_signature,
+            bool(getattr(chart, "retcon_time_used", False)),
+            getattr(chart, "retcon_hour", None),
+            getattr(chart, "retcon_minute", None),
+            bool(chart_uses_houses(chart)),
+        )
+
+    def _precompute_planet_dynamics_if_needed(self, chart: Chart) -> None:
+        signature = self._planet_dynamics_cache_signature(chart)
+        if (
+            getattr(chart, "_planet_dynamics_scores_signature", None) == signature
+            and getattr(chart, "planet_dynamics_scores", None)
+        ):
+            return
+        chart.planet_dynamics_scores = _calculate_planet_dynamics_scores(chart)
+        chart._planet_dynamics_scores_signature = signature
+
     def _render_planet_dynamics(self, chart: Chart) -> None:
         dropdown = self._chart_analysis_chart_dropdowns.get("planet_dynamics")
-        scores = getattr(chart, "planet_dynamics_scores", None) or _calculate_planet_dynamics_scores(chart)
+        self._precompute_planet_dynamics_if_needed(chart)
+        scores = getattr(chart, "planet_dynamics_scores", None) or {}
         dynamics_bodies = [
             body
             for body in PLANET_ORDER
@@ -34504,17 +34586,25 @@ class MainWindow(QMainWindow):
         )
 
     def _prediction_norm_rows(self) -> list[Any]:
-        displayed_rows_by_id = getattr(self, "_displayed_chart_rows_by_id", None)
-        if displayed_rows_by_id is not None:
-            return list(displayed_rows_by_id.values())
+        chart_rows = getattr(self, "_chart_rows", None)
+        if chart_rows is not None:
+            return [
+                normalized
+                for row in chart_rows
+                if (normalized := self._normalize_chart_row(row)) is not None
+            ]
         manage_dialog = getattr(self, "_manage_charts_dialog", None)
-        dialog_displayed_rows_by_id = (
-            getattr(manage_dialog, "_displayed_chart_rows_by_id", None)
+        dialog_chart_rows = (
+            getattr(manage_dialog, "_chart_rows", None)
             if manage_dialog is not None
             else None
         )
-        if dialog_displayed_rows_by_id is not None:
-            return list(dialog_displayed_rows_by_id.values())
+        if dialog_chart_rows is not None:
+            return [
+                normalized
+                for row in dialog_chart_rows
+                if (normalized := self._normalize_chart_row(row)) is not None
+            ]
         try:
             return list(list_charts())
         except Exception:
