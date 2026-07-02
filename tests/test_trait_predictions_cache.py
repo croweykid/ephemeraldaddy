@@ -33,6 +33,54 @@ class _TraitsCacheOwner(DatabaseAnalyticsChartsMixin):
         return row
 
 
+def test_database_chart_uids_reads_appended_list_charts_uid_slot(monkeypatch):
+    owner = _TraitsCacheOwner(
+        (("uid:one", "row"),),
+        chart_rows=[
+            (
+                101,
+                "Name",
+                None,
+                None,
+                "",
+                None,
+                "",
+                0,
+                0,
+                0,
+                None,
+                0,
+                None,
+                0,
+                "Natal",
+                0,
+                0,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                "blank",
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                "UIDTRAIT0001",
+            )
+        ],
+    )
+
+    def fail_get_chart_uid_map(_chart_ids):
+        raise AssertionError("UID should be read from row slot 30 without fallback")
+
+    monkeypatch.setattr(trait_predictions.db, "get_chart_uid_map", fail_get_chart_uid_map)
+
+    assert trait_predictions._database_chart_uids(owner) == ("UIDTRAIT0001",)
+
+
 def test_traits_distribution_likelihood_cache_persists_across_matching_sessions(tmp_path, monkeypatch):
     from ephemeraldaddy.core import db
 
