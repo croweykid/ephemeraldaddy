@@ -9,7 +9,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtWidgets import QLabel
+from PySide6.QtWidgets import QLabel, QComboBox
 
 from ephemeraldaddy.analysis.traits import DEFAULT_TRAIT_COLOR, calculate_trait_likelihoods, list_traits, normalize_trait_color
 from ephemeraldaddy.core import db
@@ -64,7 +64,7 @@ def _trait_rank_row(
     )
 
 
-def _trait_column(title: str, rows: list[tuple[str, float, float, float]], color_by_name: dict[str, str]) -> str:
+def _trait_table(title: str, rows: list[tuple[str, float, float, float]], color_by_name: dict[str, str]) -> str:
     if rows:
         body = "".join(
             _trait_rank_row(
@@ -83,12 +83,10 @@ def _trait_column(title: str, rows: list[tuple[str, float, float, float]], color
             "</td></tr>"
         )
     return (
-        "<td style='vertical-align:top; width:50%; padding-right:12px;'>"
         f"<div style='padding-bottom:3px;'><b>{html.escape(title)}</b></div>"
         "<table cellspacing='0' cellpadding='0' style='width:100%;'>"
         f"{_traits_table_header()}{body}"
         "</table>"
-        "</td>"
     )
 
 
@@ -472,18 +470,28 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
         ),
         key=lambda item: item[3],
     )
-    parts = [
+    intro = (
         "<div style='color:#d8d8d8; padding-bottom:4px;'>"
         "Traits are assigned by deviation from the active database average. "
         f"Above-average traits are at least {threshold:.0f}% higher than DB average; "
         f"below-average traits are at least {threshold:.0f}% lower than DB average."
-        "</div>",
-        "<table cellspacing='0' cellpadding='0' style='width:100%;'><tr>",
-        _trait_column("Above avg traits", above_avg_traits, color_by_name),
-        _trait_column("Below avg traits", below_avg_traits, color_by_name),
-        "</tr></table>",
+        "</div>"
+    )
+    footer = (
         "<div style='color:#9a9a9a; padding-top:4px;'>"
         "Hover a trait name to see the DB average used for the comparison."
-        "</div>",
-    ]
-    label.setText("".join(parts))
+        "</div>"
+    )
+    owner._traits_prediction_above_avg_html = "".join(
+        [intro, _trait_table("Above avg traits", above_avg_traits, color_by_name), footer]
+    )
+    owner._traits_prediction_below_avg_html = "".join(
+        [intro, _trait_table("Below avg traits", below_avg_traits, color_by_name), footer]
+    )
+    combo = getattr(owner, "traits_prediction_mode_combo", None)
+    mode = combo.currentData() if isinstance(combo, QComboBox) else "above"
+    label.setText(
+        owner._traits_prediction_below_avg_html
+        if mode == "below"
+        else owner._traits_prediction_above_avg_html
+    )
