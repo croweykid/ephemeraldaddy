@@ -68,6 +68,7 @@ from ephemeraldaddy.gui.style import (
     apply_button_cursor,
     apply_chart_info_link_cursor,
     configure_collapsible_header_toggle,
+    apply_shared_dropdown_style,
 )
 from ephemeraldaddy.gui.emoji_render import apply_emoji_png_to_button
 from ephemeraldaddy.gui.features.charts.tagging import (
@@ -1353,11 +1354,51 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         title="Traits",
         expanded=True,
     )
+    traits_header_row = QWidget()
+    traits_header_layout = QHBoxLayout()
+    traits_header_layout.setContentsMargins(0, 0, 0, 0)
+    traits_header_layout.setSpacing(6)
+    traits_header_row.setLayout(traits_header_layout)
+    traits_header_layout.addStretch(1)
+    owner.traits_prediction_mode_combo = QComboBox()
+    combo_font = QFont(owner.traits_prediction_mode_combo.font())
+    combo_font.setCapitalization(QFont.AllUppercase)
+    if combo_font.pointSize() > 0:
+        combo_font.setPointSize(max(7, combo_font.pointSize() - 2))
+    owner.traits_prediction_mode_combo.setFont(combo_font)
+    owner.traits_prediction_mode_combo.setMinimumContentsLength(10)
+    apply_shared_dropdown_style(owner.traits_prediction_mode_combo)
+    owner.traits_prediction_mode_combo.addItem("ABOVE AVG", "above")
+    owner.traits_prediction_mode_combo.addItem("BELOW AVG", "below")
+    traits_header_layout.addWidget(owner.traits_prediction_mode_combo, alignment=Qt.AlignRight)
+    traits_section_layout.addWidget(traits_header_row)
+
     owner.traits_prediction_label = QLabel("No traits uploaded. Add traits in Settings > Traits.")
     owner.traits_prediction_label.setTextFormat(Qt.RichText)
     owner.traits_prediction_label.setWordWrap(True)
+    owner.traits_prediction_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
     owner.traits_prediction_label.setStyleSheet("color: #f5f5f5; padding: 4px 0 8px 0;")
-    traits_section_layout.addWidget(owner.traits_prediction_label)
+    owner.traits_prediction_scroll_area = QScrollArea()
+    owner.traits_prediction_scroll_area.setWidgetResizable(True)
+    owner.traits_prediction_scroll_area.setFrameShape(QFrame.NoFrame)
+    owner.traits_prediction_scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+    owner.traits_prediction_scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+    owner.traits_prediction_scroll_area.setMinimumHeight(120)
+    owner.traits_prediction_scroll_area.setMaximumHeight(260)
+    owner.traits_prediction_scroll_area.setStyleSheet("QScrollArea { background: transparent; border: 0; }")
+    owner.traits_prediction_scroll_area.setWidget(owner.traits_prediction_label)
+    traits_section_layout.addWidget(owner.traits_prediction_scroll_area)
+    owner.traits_prediction_mode_combo.currentIndexChanged.connect(
+        lambda _index: owner.traits_prediction_label.setText(
+            getattr(
+                owner,
+                "_traits_prediction_below_avg_html"
+                if owner.traits_prediction_mode_combo.currentData() == "below"
+                else "_traits_prediction_above_avg_html",
+                owner.traits_prediction_label.text(),
+            )
+        )
+    )
 
     enneagram_section_layout = owner._add_chart_analysis_collapsible_section(
         panel=panel,
