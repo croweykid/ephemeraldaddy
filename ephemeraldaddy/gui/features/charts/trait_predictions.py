@@ -13,6 +13,7 @@ from PySide6.QtWidgets import QLabel, QComboBox
 
 from ephemeraldaddy.analysis.traits import DEFAULT_TRAIT_COLOR, calculate_trait_likelihoods, list_traits, normalize_trait_color
 from ephemeraldaddy.core import db
+from ephemeraldaddy.core.chart import chart_uses_houses
 
 logger = logging.getLogger(__name__)
 
@@ -122,6 +123,34 @@ def _database_chart_ids(owner: Any) -> tuple[int, ...]:
         except (TypeError, ValueError, IndexError):
             continue
     return tuple(sorted(chart_ids))
+
+
+def _chart_uid_for_trait_metadata(chart: Any) -> str | None:
+    chart_uid = str(getattr(chart, "chart_uid", "") or "").strip()
+    return chart_uid or None
+
+
+def _chart_trait_metadata_signature(chart: Any) -> str:
+    try:
+        uses_houses = bool(chart_uses_houses(chart))
+    except Exception:
+        uses_houses = bool(getattr(chart, "use_birth_time_data", False))
+    return _stable_json_hash(
+        {
+            "birth_date": getattr(chart, "birth_date", None),
+            "birth_time": getattr(chart, "birth_time", None),
+            "birth_place": getattr(chart, "birth_place", None),
+            "datetime": getattr(chart, "datetime", None),
+            "datetime_iso": getattr(chart, "datetime_iso", None),
+            "lat": getattr(chart, "lat", None),
+            "lon": getattr(chart, "lon", None),
+            "birthtime_unknown": bool(getattr(chart, "birthtime_unknown", False)),
+            "retcon_time_used": bool(getattr(chart, "retcon_time_used", False)),
+            "retcon_hour": getattr(chart, "retcon_hour", None),
+            "retcon_minute": getattr(chart, "retcon_minute", None),
+            "chart_uses_houses": uses_houses,
+        }
+    )
 
 
 def _trait_norm_cache_key(chart_ids: tuple[int, ...], trait: dict[str, Any]) -> str | None:
@@ -330,20 +359,21 @@ def trait_metadata_for_chart(owner: Any, chart: Any) -> dict[str, Any]:
         }
     )
     norm_signature = _stable_json_hash(_database_chart_ids(owner))
-    signature = (TRAIT_DB_NORMS_CACHE_VERSION, trait_signature, norm_signature)
+    chart_signature = _chart_trait_metadata_signature(chart)
+    signature = (TRAIT_DB_NORMS_CACHE_VERSION, trait_signature, norm_signature, chart_signature)
     cached = getattr(chart, "_trait_prediction_metadata_cache", None)
     if isinstance(cached, dict) and cached.get("signature") == signature:
         return dict(cached.get("metadata", {}))
 
-    chart_id = getattr(chart, "id", None)
+    chart_uid = _chart_uid_for_trait_metadata(chart)
     active_trait_names = {str(trait.get("name", "")).strip() for trait in traits if str(trait.get("name", "")).strip()}
-    if chart_id is not None:
+    if chart_uid is not None:
         try:
-            rows = db.get_chart_trait_metadata(int(chart_id))
+            rows = db.get_chart_trait_metadata(chart_uid)
         except Exception as exc:
             logger.warning(
-                "Traits panel skipped cached DB trait metadata for chart %s: %s",
-                chart_id,
+                "Traits panel skipped cached DB trait metadata for chart UID %s: %s",
+                chart_uid,
                 exc,
                 exc_info=True,
             )
@@ -351,6 +381,7 @@ def trait_metadata_for_chart(owner: Any, chart: Any) -> dict[str, Any]:
         if rows and {str(row.get("trait_name", "")) for row in rows} == active_trait_names and all(
             str(row.get("trait_signature", "")) == trait_signature
             and str(row.get("norm_signature", "")) == norm_signature
+            and str(row.get("chart_signature", "")) == chart_signature
             for row in rows
         ):
             above = {str(row["trait_name"]) for row in rows if row.get("direction") == "above"}
@@ -392,10 +423,10 @@ def trait_metadata_for_chart(owner: Any, chart: Any) -> dict[str, Any]:
     setattr(chart, "predicted_traits_below_avg", set(below))
     setattr(chart, "predicted_trait_deviations", dict(deviations))
     setattr(chart, "_trait_prediction_metadata_cache", {"signature": signature, "metadata": metadata})
-    if chart_id is not None:
+    if chart_uid is not None:
         try:
             db.upsert_chart_trait_metadata(
-                int(chart_id),
+                chart_uid,
                 [
                     {
                         "trait_name": name,
@@ -408,11 +439,12 @@ def trait_metadata_for_chart(owner: Any, chart: Any) -> dict[str, Any]:
                 ],
                 trait_signature=trait_signature,
                 norm_signature=norm_signature,
+                chart_signature=chart_signature,
             )
         except Exception as exc:
             logger.warning(
-                "Traits panel could not update cached DB trait metadata for chart %s: %s",
-                chart_id,
+                "Traits panel could not update cached DB trait metadata for chart UID %s: %s",
+                chart_uid,
                 exc,
                 exc_info=True,
             )

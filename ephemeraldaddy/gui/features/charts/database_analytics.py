@@ -67,6 +67,7 @@ TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_VERSION = 2
 TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_FILENAME = ".traits_distribution_likelihood_cache.json"
 TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_MAX_ENTRIES = 100_000
 TRAITS_DISTRIBUTION_SCORING_TIME_BUDGET_SECONDS = 8.0
+TRAIT_DEVIATION_ASSIGNMENT_THRESHOLD = 5.0
 DATABASE_METRICS_BIRTH_DATA_SECTIONS: frozenset[str] = frozenset(
     {
         "planetary_sign_prevalence",
@@ -239,6 +240,7 @@ from ephemeraldaddy.analysis.traits import (
     normalize_trait_color,
     trait_possible_score,
 )
+from ephemeraldaddy.core import db
 from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
     build_enneagram_popout_info_html,
     calculate_enneagram_type_weights as _calculate_enneagram_type_weights,
@@ -4446,6 +4448,98 @@ class DatabaseAnalyticsChartsMixin:
             if str(item.get("name", "")).strip() and not bool(item.get("archived", False))
         )
 
+    @staticmethod
+    def _stable_traits_metadata_hash(value: Any) -> str:
+        try:
+            payload = json.dumps(value, sort_keys=True, default=str, separators=(",", ":"))
+        except TypeError:
+            payload = repr(value)
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+    def _chart_trait_metadata_signature(self, chart: Any) -> str:
+        try:
+            uses_houses = bool(chart_uses_houses(chart))
+        except Exception:
+            uses_houses = bool(getattr(chart, "use_birth_time_data", False))
+        return self._stable_traits_metadata_hash(
+            {
+                "birth_date": getattr(chart, "birth_date", None),
+                "birth_time": getattr(chart, "birth_time", None),
+                "birth_place": getattr(chart, "birth_place", None),
+                "datetime": getattr(chart, "datetime", None),
+                "datetime_iso": getattr(chart, "datetime_iso", None),
+                "lat": getattr(chart, "lat", None),
+                "lon": getattr(chart, "lon", None),
+                "birthtime_unknown": bool(getattr(chart, "birthtime_unknown", False)),
+                "retcon_time_used": bool(getattr(chart, "retcon_time_used", False)),
+                "retcon_hour": getattr(chart, "retcon_hour", None),
+                "retcon_minute": getattr(chart, "retcon_minute", None),
+                "chart_uses_houses": uses_houses,
+            }
+        )
+
+    def _persist_traits_distribution_metadata(
+        self,
+        *,
+        normalized_chart_ids: tuple[int, ...],
+        trait_items: list[dict[str, Any]],
+        trait_names: list[str],
+        chart_likelihoods: dict[int, dict[str, float]],
+        database_averages_pct: dict[str, float],
+    ) -> None:
+        """Passively backfill UID-keyed trait metadata from warmed analytics scores."""
+        if not normalized_chart_ids or not trait_names or not chart_likelihoods:
+            return
+        trait_signature_hash = self._stable_traits_metadata_hash(
+            {
+                "version": 1,
+                "traits": [
+                    {
+                        "name": trait.get("name", ""),
+                        "color": normalize_trait_color(str(trait.get("color", DEFAULT_TRAIT_COLOR))),
+                        "profile": trait.get("profile", {}),
+                    }
+                    for trait in trait_items
+                    if str(trait.get("name", "")).strip() and not bool(trait.get("archived", False))
+                ],
+            }
+        )
+        norm_signature = self._stable_traits_metadata_hash(normalized_chart_ids)
+        threshold = TRAIT_DEVIATION_ASSIGNMENT_THRESHOLD
+        for chart_id, likelihoods in chart_likelihoods.items():
+            chart = self._get_chart_for_filter(int(chart_id))
+            chart_uid = str(getattr(chart, "chart_uid", "") or "").strip()
+            if not chart_uid:
+                continue
+            rows: list[dict[str, Any]] = []
+            for name in trait_names:
+                if name not in database_averages_pct:
+                    continue
+                likelihood = float(likelihoods.get(name, 0.0))
+                db_average = float(database_averages_pct.get(name, 0.0))
+                deviation = likelihood - db_average
+                rows.append(
+                    {
+                        "trait_name": name,
+                        "direction": "above" if deviation >= threshold else "below" if deviation <= -threshold else "neutral",
+                        "likelihood": likelihood,
+                        "db_average": db_average,
+                        "deviation": deviation,
+                    }
+                )
+            if not rows:
+                continue
+            try:
+                db.upsert_chart_trait_metadata(
+                    chart_uid,
+                    rows,
+                    trait_signature=trait_signature_hash,
+                    norm_signature=norm_signature,
+                    chart_signature=self._chart_trait_metadata_signature(chart),
+                )
+            except Exception:
+                logger.exception("Failed to passively persist trait metadata for chart UID %s.", chart_uid)
+
     def _clear_traits_distribution_analytics_cache(self, changed_chart_ids: set[int] | None = None) -> None:
         self._traits_distribution_analytics_cache = {}
         if changed_chart_ids is None:
@@ -4686,6 +4780,7 @@ class DatabaseAnalyticsChartsMixin:
 
         cache_updated = False
         partial = False
+        chart_likelihoods_for_metadata: dict[int, dict[str, float]] = {}
         uncached_started_at = time.monotonic()
         for chart_id in normalized_chart_ids:
             chart = self._get_chart_for_filter(int(chart_id))
@@ -4733,6 +4828,8 @@ class DatabaseAnalyticsChartsMixin:
                     cache_updated = True
                 if len(likelihoods) >= len(trait_names):
                     likelihood_cache[chart_cache_key] = dict(likelihoods)
+            if len(likelihoods) >= len(trait_names):
+                chart_likelihoods_for_metadata[int(chart_id)] = dict(likelihoods)
             chart_count += 1
             for name in trait_names:
                 try:
@@ -4749,6 +4846,17 @@ class DatabaseAnalyticsChartsMixin:
         }
         if not partial:
             aggregate_cache[aggregate_cache_key] = copy.deepcopy(result)
+            if chart_count:
+                self._persist_traits_distribution_metadata(
+                    normalized_chart_ids=normalized_chart_ids,
+                    trait_items=trait_items,
+                    trait_names=trait_names,
+                    chart_likelihoods=chart_likelihoods_for_metadata,
+                    database_averages_pct={
+                        name: (float(total) / float(chart_count)) * 100.0
+                        for name, total in totals.items()
+                    },
+                )
         if cache_updated:
             self._traits_distribution_likelihood_cache_dirty = True
             self._save_traits_distribution_likelihood_cache()

@@ -260,7 +260,7 @@ def _is_personal_chart_type_for_age_inference(value: Optional[str]) -> bool:
     return normalized in {CHART_TYPE_PERSONAL, SOURCE_USER_SUBMITTED}
 
 
-SCHEMA_VERSION = 17
+SCHEMA_VERSION = 18
 
 CHART_UID_LENGTH = 16
 
@@ -575,10 +575,54 @@ def _create_duplicate_exclusions_table(conn: sqlite3.Connection) -> None:
 
 
 def _create_chart_trait_metadata_table(conn: sqlite3.Connection) -> None:
+    if _charts_table_exists(conn):
+        _ensure_chart_uids(conn)
+    existing_columns = _table_columns(conn, "chart_trait_metadata")
+    if existing_columns and "chart_uid" not in existing_columns:
+        conn.execute("ALTER TABLE chart_trait_metadata RENAME TO chart_trait_metadata_legacy")
+        _invalidate_table_columns_cache("chart_trait_metadata")
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS chart_trait_metadata (
+                chart_uid         TEXT NOT NULL,
+                trait_name        TEXT NOT NULL,
+                direction         TEXT NOT NULL,
+                likelihood        REAL NOT NULL,
+                db_average        REAL NOT NULL,
+                deviation         REAL NOT NULL,
+                trait_signature   TEXT NOT NULL,
+                norm_signature    TEXT NOT NULL,
+                chart_signature   TEXT NOT NULL DEFAULT '',
+                updated_at        TEXT NOT NULL,
+                PRIMARY KEY (chart_uid, trait_name),
+                CHECK (direction IN ('above', 'below', 'neutral'))
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO chart_trait_metadata (
+                chart_uid, trait_name, direction, likelihood, db_average,
+                deviation, trait_signature, norm_signature, chart_signature, updated_at
+            )
+            SELECT charts.chart_uid, legacy.trait_name, legacy.direction,
+                   legacy.likelihood, legacy.db_average, legacy.deviation,
+                   legacy.trait_signature, legacy.norm_signature, '', legacy.updated_at
+            FROM chart_trait_metadata_legacy AS legacy
+            JOIN charts ON charts.id = legacy.chart_id
+            WHERE charts.chart_uid IS NOT NULL AND charts.chart_uid != ''
+            """
+        )
+        conn.execute("DROP TABLE chart_trait_metadata_legacy")
+        _invalidate_table_columns_cache("chart_trait_metadata")
+        existing_columns = set()
+    if existing_columns and "chart_signature" not in existing_columns:
+        conn.execute("ALTER TABLE chart_trait_metadata ADD COLUMN chart_signature TEXT NOT NULL DEFAULT ''")
+        _invalidate_table_columns_cache("chart_trait_metadata")
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS chart_trait_metadata (
-            chart_id          INTEGER NOT NULL,
+            chart_uid         TEXT NOT NULL,
             trait_name        TEXT NOT NULL,
             direction         TEXT NOT NULL,
             likelihood        REAL NOT NULL,
@@ -586,9 +630,9 @@ def _create_chart_trait_metadata_table(conn: sqlite3.Connection) -> None:
             deviation         REAL NOT NULL,
             trait_signature   TEXT NOT NULL,
             norm_signature    TEXT NOT NULL,
+            chart_signature   TEXT NOT NULL DEFAULT '',
             updated_at        TEXT NOT NULL,
-            PRIMARY KEY (chart_id, trait_name),
-            FOREIGN KEY (chart_id) REFERENCES charts(id) ON DELETE CASCADE,
+            PRIMARY KEY (chart_uid, trait_name),
             CHECK (direction IN ('above', 'below', 'neutral'))
         )
         """
@@ -596,7 +640,7 @@ def _create_chart_trait_metadata_table(conn: sqlite3.Connection) -> None:
     conn.execute(
         """
         CREATE INDEX IF NOT EXISTS idx_chart_trait_metadata_lookup
-        ON chart_trait_metadata(trait_name, direction, chart_id)
+        ON chart_trait_metadata(trait_name, direction, chart_uid)
         """
     )
 
@@ -1322,6 +1366,11 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
     if user_version < 17:
         _create_chart_trait_metadata_table(conn)
         conn.execute("PRAGMA user_version = 17")
+        user_version = 17
+
+    if user_version < 18:
+        _create_chart_trait_metadata_table(conn)
+        conn.execute("PRAGMA user_version = 18")
 
 
 def _connect_raw() -> sqlite3.Connection:
@@ -3580,10 +3629,17 @@ def delete_charts(chart_ids: List[int]) -> int:
     conn = _get_conn()
     with conn:
         _create_chart_trait_metadata_table(conn)
-        conn.execute(
-            f"DELETE FROM chart_trait_metadata WHERE chart_id IN ({placeholders})",
+        uid_rows = conn.execute(
+            f"SELECT chart_uid FROM charts WHERE id IN ({placeholders})",
             chart_ids,
-        )
+        ).fetchall()
+        chart_uids = [str(row[0]) for row in uid_rows if row and row[0]]
+        if chart_uids:
+            uid_placeholders = ", ".join("?" for _ in chart_uids)
+            conn.execute(
+                f"DELETE FROM chart_trait_metadata WHERE chart_uid IN ({uid_placeholders})",
+                chart_uids,
+            )
         cur = conn.execute(
             f"DELETE FROM charts WHERE id IN ({placeholders})",
             chart_ids,
@@ -3832,13 +3888,17 @@ def set_alternate_chart_uid(chart_id: int, alternate_chart_uid: str | None) -> N
 
 
 def upsert_chart_trait_metadata(
-    chart_id: int,
+    chart_uid: str,
     rows: Iterable[Mapping[str, Any]],
     *,
     trait_signature: str,
     norm_signature: str,
+    chart_signature: str = "",
 ) -> None:
     """Persist derived trait metadata rows for a chart."""
+    normalized_uid = _normalize_chart_uid(chart_uid)
+    if normalized_uid is None:
+        raise ValueError(f"Invalid chart UID {chart_uid!r}")
     now = datetime.utcnow().isoformat(timespec="seconds")
     prepared: list[tuple[Any, ...]] = []
     for row in rows:
@@ -3850,7 +3910,7 @@ def upsert_chart_trait_metadata(
             direction = "neutral"
         prepared.append(
             (
-                int(chart_id),
+                normalized_uid,
                 trait_name,
                 direction,
                 float(row.get("likelihood", 0.0)),
@@ -3858,6 +3918,7 @@ def upsert_chart_trait_metadata(
                 float(row.get("deviation", 0.0)),
                 str(trait_signature),
                 str(norm_signature),
+                str(chart_signature),
                 now,
             )
         )
@@ -3865,22 +3926,23 @@ def upsert_chart_trait_metadata(
     try:
         with conn:
             _create_chart_trait_metadata_table(conn)
-            conn.execute("DELETE FROM chart_trait_metadata WHERE chart_id = ?", (int(chart_id),))
+            conn.execute("DELETE FROM chart_trait_metadata WHERE chart_uid = ?", (normalized_uid,))
             if prepared:
                 conn.executemany(
                     """
                     INSERT INTO chart_trait_metadata (
-                        chart_id, trait_name, direction, likelihood, db_average,
-                        deviation, trait_signature, norm_signature, updated_at
+                        chart_uid, trait_name, direction, likelihood, db_average,
+                        deviation, trait_signature, norm_signature, chart_signature, updated_at
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(chart_id, trait_name) DO UPDATE SET
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(chart_uid, trait_name) DO UPDATE SET
                         direction = excluded.direction,
                         likelihood = excluded.likelihood,
                         db_average = excluded.db_average,
                         deviation = excluded.deviation,
                         trait_signature = excluded.trait_signature,
                         norm_signature = excluded.norm_signature,
+                        chart_signature = excluded.chart_signature,
                         updated_at = excluded.updated_at
                     """,
                     prepared,
@@ -3889,8 +3951,11 @@ def upsert_chart_trait_metadata(
         conn.close()
 
 
-def get_chart_trait_metadata(chart_id: int) -> list[dict[str, Any]]:
-    """Return persisted derived trait metadata rows for a chart."""
+def get_chart_trait_metadata(chart_uid: str) -> list[dict[str, Any]]:
+    """Return persisted derived trait metadata rows for a chart UID."""
+    normalized_uid = _normalize_chart_uid(chart_uid)
+    if normalized_uid is None:
+        return []
     conn = _get_conn()
     conn.row_factory = sqlite3.Row
     try:
@@ -3898,12 +3963,12 @@ def get_chart_trait_metadata(chart_id: int) -> list[dict[str, Any]]:
         rows = conn.execute(
             """
             SELECT trait_name, direction, likelihood, db_average, deviation,
-                   trait_signature, norm_signature, updated_at
+                   trait_signature, norm_signature, chart_signature, updated_at
             FROM chart_trait_metadata
-            WHERE chart_id = ?
+            WHERE chart_uid = ?
             ORDER BY trait_name COLLATE NOCASE
             """,
-            (int(chart_id),),
+            (normalized_uid,),
         ).fetchall()
         return [dict(row) for row in rows]
     finally:
