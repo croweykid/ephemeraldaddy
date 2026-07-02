@@ -57,3 +57,18 @@ def test_enneagram_draw_and_adapter_use_complete_cache_validator():
     assert "type_scores = calculate_type_weights(chart)" in draw_source
     assert "_coerce_complete_enneagram_type_scores" in cache_source
     assert "scores = self.calculate_type_weights(chart)" in cache_source
+
+
+def test_enneagram_panel_render_reuses_one_cached_score_map_for_chart_and_label():
+    source = SOURCE_PATH.read_text()
+    render_start = source.index("    def render")
+    render_source = source[render_start : source.index("def connect_enneagram_popout_pick_handler", render_start)]
+
+    cache_index = render_source.index("scores = self.cache_metadata(chart)")
+    renderer_index = render_source.index("metric_panel_renderer(", cache_index)
+
+    assert cache_index < renderer_index
+    assert "def _draw_with_cached_scores" in render_source
+    assert "calculate_type_weights=lambda _chart: scores" in render_source
+    assert "draw_fn=_draw_with_cached_scores" in render_source
+    assert "tritype_text_for_scores(scores)" in render_source

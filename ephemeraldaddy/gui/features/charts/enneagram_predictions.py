@@ -964,15 +964,27 @@ class EnneagramPredictionPanelAdapter:
                     "<b>Predicted Tritype:</b> —" if chart is None else "<b>Predicted Tritype:</b> No data"
                 )
             return
+        scores = self.cache_metadata(chart)
+
+        def _draw_with_cached_scores(ax: Any, draw_chart: Any) -> None:
+            draw_enneagram_predictions(
+                ax,
+                chart=draw_chart,
+                enneagram=self.enneagram,
+                calculate_type_weights=lambda _chart: scores,
+                chart_theme_colors=self.chart_theme_colors,
+                apply_standard_bar_axes=self.apply_standard_bar_axes,
+                standard_chart_layout=self.standard_chart_layout,
+            )
+
         metric_panel_renderer(
             canvas_attr="enneagram_prediction_canvas",
             container_layout=self.enneagram_prediction_chart_layout,
             figsize=(5.5, 3.2),
             title="Enneagram",
-            draw_fn=self.draw,
+            draw_fn=_draw_with_cached_scores,
             chart=chart,
         )
-        scores = self.cache_metadata(chart)
         if self.tritype_label is not None:
             self.tritype_label.setText(
                 f"<b>Predicted Tritype:</b> {tritype_text_for_scores(scores)}"
