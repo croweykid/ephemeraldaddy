@@ -404,27 +404,90 @@ def _strip_line_comments(text: str) -> str:
     return "".join(output)
 
 
-def _extract_literal_from_python(text: str) -> Any:
+_JSON_LITERAL_NAME_RE = re.compile(r"\b(?:true|false|null)\b")
+_TRAILING_COMMA_RE = re.compile(r",(?=\s*[}\]])")
+
+
+def _replace_json_literal_names(text: str) -> str:
+    """Convert JSON true/false/null names outside strings to Python literals."""
+    output: list[str] = []
+    in_string: str | None = None
+    escaped = False
+    index = 0
+    while index < len(text):
+        char = text[index]
+        if in_string is not None:
+            output.append(char)
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == in_string:
+                in_string = None
+            index += 1
+            continue
+        if char in {"'", '"'}:
+            in_string = char
+            output.append(char)
+            index += 1
+            continue
+        match = _JSON_LITERAL_NAME_RE.match(text, index)
+        if match is not None:
+            output.append({"true": "True", "false": "False", "null": "None"}[match.group(0)])
+            index = match.end()
+            continue
+        output.append(char)
+        index += 1
+    return "".join(output)
+
+
+def _remove_trailing_commas(text: str) -> str:
+    previous = None
+    cleaned = text
+    while cleaned != previous:
+        previous = cleaned
+        cleaned = _TRAILING_COMMA_RE.sub("", cleaned)
+    return cleaned
+
+
+def _python_literal_candidates(text: str) -> list[str]:
     cleaned_text = _strip_line_comments(text)
-    try:
-        return ast.literal_eval(cleaned_text)
-    except (SyntaxError, ValueError):
-        pass
-    module = ast.parse(cleaned_text)
-    for node in reversed(module.body):
-        value_node: ast.AST | None = None
-        if isinstance(node, ast.Assign):
-            value_node = node.value
-        elif isinstance(node, ast.AnnAssign):
-            value_node = node.value
-        elif isinstance(node, ast.Expr):
-            value_node = node.value
-        if value_node is None:
-            continue
+    candidates = [cleaned_text]
+    jsonish = _remove_trailing_commas(_replace_json_literal_names(cleaned_text))
+    if jsonish != cleaned_text:
+        candidates.append(jsonish)
+    return candidates
+
+
+def _extract_literal_from_python(text: str) -> Any:
+    last_error: Exception | None = None
+    for cleaned_text in _python_literal_candidates(text):
         try:
-            return ast.literal_eval(value_node)
-        except (SyntaxError, ValueError):
+            return ast.literal_eval(cleaned_text)
+        except (SyntaxError, ValueError) as exc:
+            last_error = exc
+        try:
+            module = ast.parse(cleaned_text)
+        except SyntaxError as exc:
+            last_error = exc
             continue
+        for node in reversed(module.body):
+            value_node: ast.AST | None = None
+            if isinstance(node, ast.Assign):
+                value_node = node.value
+            elif isinstance(node, ast.AnnAssign):
+                value_node = node.value
+            elif isinstance(node, ast.Expr):
+                value_node = node.value
+            if value_node is None:
+                continue
+            try:
+                return ast.literal_eval(value_node)
+            except (SyntaxError, ValueError) as exc:
+                last_error = exc
+                continue
+    if last_error is not None:
+        raise ValueError("Could not find a Python literal trait payload.") from last_error
     raise ValueError("Could not find a Python literal trait payload.")
 
 
@@ -479,7 +542,7 @@ def parse_trait_file(path: str | Path, *, skip_invalid_profiles: bool = False) -
         except json.JSONDecodeError:
             comment_cleaned_text = _strip_line_comments(text)
             try:
-                payload = json.loads(comment_cleaned_text)
+                payload = json.loads(_remove_trailing_commas(comment_cleaned_text))
             except json.JSONDecodeError:
                 payload = _extract_literal_from_python(comment_cleaned_text)
     else:
