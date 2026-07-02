@@ -34395,7 +34395,7 @@ class MainWindow(QMainWindow):
             bool(getattr(chart, "retcon_time_used", False)),
             getattr(chart, "retcon_hour", None),
             getattr(chart, "retcon_minute", None),
-            bool(chart_uses_houses(chart)),
+            bool(_chart_uses_houses(chart)),
         )
 
     def _precompute_planet_dynamics_if_needed(self, chart: Chart) -> None:

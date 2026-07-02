@@ -15,3 +15,5 @@ def test_planet_dynamics_cache_signature_includes_aspects_and_rectified_time():
     assert 'getattr(chart, "retcon_time_used", False)' in method
     assert 'getattr(chart, "retcon_hour", None)' in method
     assert 'getattr(chart, "retcon_minute", None)' in method
+    assert "_chart_uses_houses(chart)" in method
+    assert "bool(chart_uses_houses(chart))" not in method
