@@ -1,4 +1,7 @@
 """Shared GUI styling and interface constants."""
+import html
+import re
+
 from PySide6.QtCore import (
     QEasingCurve,
     QEvent,
@@ -23,6 +26,20 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QToolButton,
     QWidget,
+)
+
+from ephemeraldaddy.analysis.human_design_reference import (
+    GATE_COLORS,
+    HD_AUTHORITY_COLORS,
+    HD_CENTERS,
+    HD_LINE_COLORS,
+    HD_TYPE_COLORS,
+)
+from ephemeraldaddy.core.interpretations import (
+    ASPECT_COLORS,
+    NAKSHATRA_PLANET_COLOR,
+    PLANET_COLORS,
+    SIGN_COLORS,
 )
 
 
@@ -149,6 +166,129 @@ GENDER_GUESSER_COLORS = {
 
 MIDDLE_PANEL_ACCENT_COLOR = "#c8914f"
 CHART_DATA_HIGHLIGHT_COLOR = MIDDLE_PANEL_ACCENT_COLOR
+
+CHART_INFO_POSITIVE_WEIGHT_COLOR = "#39ff6a"
+CHART_INFO_NEGATIVE_WEIGHT_COLOR = "#ff4d4d"
+
+
+def human_design_type_display_name(value: object) -> str:
+    """Return the appwide display label for a Human Design type key/value."""
+    text = str(value or "").strip()
+    normalized = re.sub(r"[^a-z0-9]+", "_", text.casefold()).strip("_")
+    if normalized == "manifesting_generator":
+        return "Manifesting Generator"
+    if normalized:
+        return normalized.replace("_", " ").title()
+    return text
+
+
+def _chart_info_center_colors() -> dict[str, str]:
+    return {
+        str(center_data.get("center", "")).strip(): str(center_data.get("color", ""))
+        for center_data in HD_CENTERS.values()
+        if isinstance(center_data, dict)
+        and str(center_data.get("center", "")).strip()
+        and str(center_data.get("color", "")).strip()
+    }
+
+
+def chart_info_token_color_map() -> dict[str, str]:
+    """Return appwide Chart Info text-token colors from canonical reference data."""
+    colors: dict[str, str] = {}
+    colors.update({str(name): str(color) for name, color in SIGN_COLORS.items() if color})
+    colors.update({str(name): str(color) for name, color in PLANET_COLORS.items() if color})
+    colors.update(
+        {
+            str(name): str(color)
+            for name, (_ruler, color) in NAKSHATRA_PLANET_COLOR.items()
+            if color
+        }
+    )
+    colors.update({str(name).replace("_", " ").title(): str(color) for name, color in ASPECT_COLORS.items() if color})
+    colors.update(_chart_info_center_colors())
+    colors.update({f"Gate {gate}": str(color) for gate, color in GATE_COLORS.items() if color})
+    colors.update({f"Line {line}": str(color) for line, color in HD_LINE_COLORS.items() if color})
+    colors.update({str(key): str(color) for key, color in HD_AUTHORITY_COLORS.items() if color})
+    colors.update(
+        {
+            human_design_type_display_name(key): str(color or "#6699ff")
+            for key, color in HD_TYPE_COLORS.items()
+        }
+    )
+    return colors
+
+
+def _sorted_chart_info_tokens() -> list[tuple[str, str]]:
+    return sorted(chart_info_token_color_map().items(), key=lambda item: len(item[0]), reverse=True)
+
+
+def _colorized_plain_chart_info_fragment(text: str) -> str:
+    """Escape and colorize one non-HTML fragment of Chart Info text."""
+    if not text:
+        return ""
+    text = html.unescape(text)
+    tokens = _sorted_chart_info_tokens()
+    pattern_parts = [re.escape(token) for token, _color in tokens if token]
+    weight_pattern = r"(?<![\w.])[-+]\d+(?:\.\d+)?(?![\w.])"
+    channel_pattern = r"\bChannel\s+\d{1,2}-\d{1,2}\b"
+    if pattern_parts:
+        token_pattern = "|".join(pattern_parts)
+        pattern = re.compile(f"({weight_pattern})|({channel_pattern})|({token_pattern})", re.IGNORECASE)
+    else:
+        pattern = re.compile(f"({weight_pattern})|({channel_pattern})", re.IGNORECASE)
+    color_by_casefold = {token.casefold(): color for token, color in tokens}
+
+    rendered: list[str] = []
+    last = 0
+    for match in pattern.finditer(text):
+        rendered.append(html.escape(text[last:match.start()]))
+        raw = match.group(0)
+        color = None
+        if re.match(weight_pattern, raw):
+            color = CHART_INFO_POSITIVE_WEIGHT_COLOR if raw.startswith("+") else CHART_INFO_NEGATIVE_WEIGHT_COLOR
+        elif re.match(channel_pattern, raw, re.IGNORECASE):
+            color = CHART_DATA_HIGHLIGHT_COLOR
+        else:
+            color = color_by_casefold.get(raw.casefold())
+        escaped = html.escape(raw)
+        rendered.append(
+            f'<span style="color:{html.escape(str(color), quote=True)};font-weight:700;">{escaped}</span>'
+            if color
+            else escaped
+        )
+        last = match.end()
+    rendered.append(html.escape(text[last:]))
+    return "".join(rendered)
+
+
+def colorize_chart_info_html(html_text: str) -> str:
+    """Apply universal Chart Info token/weight colors without disturbing markup."""
+    source = str(html_text or "")
+    if not source:
+        return ""
+    parts = re.split(r"(<[^>]+>)", source)
+    return "".join(part if part.startswith("<") and part.endswith(">") else _colorized_plain_chart_info_fragment(part) for part in parts)
+
+
+def chart_info_text_to_html(text: str) -> str:
+    """Convert plain Chart Info text to HTML and apply universal token colors."""
+    return _colorized_plain_chart_info_fragment(str(text or "")).replace("\n", "<br>")
+
+
+def set_chart_info_text(widget: QWidget, text: str) -> None:
+    """Set Chart Info plain text with the appwide reusable color formatter."""
+    if hasattr(widget, "setHtml"):
+        widget.setHtml(chart_info_text_to_html(text))
+    elif hasattr(widget, "setPlainText"):
+        widget.setPlainText(text)
+
+
+def set_chart_info_html(widget: QWidget, html_text: str) -> None:
+    """Set Chart Info HTML with the appwide reusable color formatter."""
+    if hasattr(widget, "setHtml"):
+        widget.setHtml(colorize_chart_info_html(html_text))
+    elif hasattr(widget, "setPlainText"):
+        widget.setPlainText(re.sub(r"<[^>]+>", "", str(html_text or "")))
 
 
 EARTH_TONE_COLOR_CYCLE = (
