@@ -321,29 +321,29 @@ def normalize_trait_samples(
     *,
     trait_name: str = "",
     source: str | Path | None = None,
-) -> list[int | float]:
-    """Return a trait samples array, accepting old integer samples with a warning."""
-    if isinstance(samples, list):
+) -> tuple[int | float, ...]:
+    """Return a trait samples tuple, accepting old integer samples with a warning."""
+    if isinstance(samples, (list, tuple)):
         normalized: list[int | float] = []
         for sample in samples:
             if isinstance(sample, bool):
                 continue
             if isinstance(sample, (int, float)):
                 normalized.append(sample)
-        return normalized
+        return tuple(normalized)
     if isinstance(samples, bool) or samples in (None, ""):
-        return []
+        return ()
     if isinstance(samples, (int, float)):
         location = f" in {source}" if source is not None else ""
         logger.warning(
-            "Trait %r%s uses legacy integer samples=%s; please update it to a samples array such as [%s, 0].",
+            "Trait %r%s uses legacy integer samples=%s; please update it to a samples tuple such as (%s, 0).",
             trait_name or "<unnamed>",
             location,
             samples,
             samples,
         )
-        return [samples]
-    return []
+        return (samples,)
+    return ()
 
 
 def trait_sample_total(

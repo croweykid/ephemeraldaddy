@@ -255,7 +255,7 @@ def test_install_trait_file_preserves_samples_description_and_hash_comments(tmp_
     "Original": {  # cohort note
         "name": "Original",
         "description": "Uploaded description.",
-        "samples": [14, 0],
+        "samples": (14, 0),
         "houses": {
             "9": 4,  # dogmatic sample note
         },
@@ -269,7 +269,7 @@ def test_install_trait_file_preserves_samples_description_and_hash_comments(tmp_
     saved_text = installed.read_text(encoding="utf-8")
     item = traits.list_traits()[0]
 
-    assert item["profile"]["samples"] == [14, 0]
+    assert item["profile"]["samples"] == (14, 0)
     assert item["description"] == "Uploaded description."
     assert item["profile"]["description"] == "Uploaded description."
     assert "// # cohort note" in saved_text
@@ -278,7 +278,7 @@ def test_install_trait_file_preserves_samples_description_and_hash_comments(tmp_
     renamed = traits.rename_trait(installed, "Renamed Uploaded Trait")
     renamed_text = renamed.read_text(encoding="utf-8")
 
-    assert traits.list_traits()[0]["profile"]["samples"] == [14, 0]
+    assert traits.list_traits()[0]["profile"]["samples"] == (14, 0)
     assert "// # cohort note" in renamed_text
     assert "// # dogmatic sample note" in renamed_text
 
@@ -298,7 +298,7 @@ def test_parse_trait_file_accepts_legacy_integer_samples_with_warning(tmp_path, 
 
     parsed = traits.parse_trait_file(source)
 
-    assert parsed["Legacy Samples"]["samples"] == [14]
+    assert parsed["Legacy Samples"]["samples"] == (14,)
     assert traits.trait_sample_total(parsed["Legacy Samples"]["samples"]) == 14
     assert "Legacy Samples" in caplog.text
     assert "legacy integer samples=14" in caplog.text
@@ -314,7 +314,7 @@ def test_install_trait_file_ignores_hashes_inside_multiline_strings(tmp_path, mo
         "description": """Line one
 # this is part of the description, not a comment
 Line three""",
-        "samples": [3, 0],  # real sample note
+        "samples": (3, 0),  # real sample note
     },
 }
 ''',
