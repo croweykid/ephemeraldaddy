@@ -271,9 +271,18 @@ def _database_trait_averages(owner: Any, traits: list[dict[str, Any]]) -> dict[s
         return averages
 
     try:
-        analytics = collect(chart_ids, trait_items=missing_traits, trait_signature=signature_builder(missing_traits))
+        analytics = collect(
+            chart_ids,
+            trait_items=missing_traits,
+            trait_signature=signature_builder(missing_traits),
+            time_budget_seconds=None,
+        )
     except Exception as exc:
         logger.warning("Traits panel could not collect Database Analytics trait averages: %s", exc, exc_info=True)
+        direct_averages = _calculate_database_trait_averages_direct(owner, chart_ids, missing_traits)
+        averages.update(direct_averages)
+        return averages
+    if bool(analytics.get("partial", False)):
         direct_averages = _calculate_database_trait_averages_direct(owner, chart_ids, missing_traits)
         averages.update(direct_averages)
         return averages
