@@ -2515,6 +2515,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._birth_month_mode = "month_distribution"
         self._birthplace_mode = "towns"
         self._tag_distribution_mode = "all"
+        self._traits_distribution_mode = "trait_predictions"
         self._gender_mode = "actual_gender"
         self._human_design_mode = "hd_gates"
         self._bazi_mode = "all"
@@ -3045,6 +3046,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "birth_month": self._birth_month_mode,
             "birthplace": self._birthplace_mode,
             "tag_distribution": self._tag_distribution_mode,
+            "traits_distribution": self._traits_distribution_mode,
             "gender": self._gender_mode,
             "human_design": self._human_design_mode,
             "bazi": self._bazi_mode,
@@ -3853,6 +3855,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             return
 
+        if chart_key == "traits_distribution":
+            dropdown = self._analysis_chart_dropdowns.get(chart_key)
+            if dropdown is not None:
+                selected_mode = dropdown.currentData()
+                if isinstance(selected_mode, str):
+                    self._traits_distribution_mode = selected_mode
+                    self._settings.setValue(
+                        "manage_charts/traits_distribution_mode",
+                        self._traits_distribution_mode,
+                    )
+            self._sync_traits_distribution_display_mode()
+            self._update_sentiment_tally(
+                update_database_metrics=True,
+                update_similarities=False,
+                sections_to_refresh={chart_key},
+            )
+            return
+
         if chart_key == "human_design":
             dropdown = self._analysis_chart_dropdowns.get(chart_key)
             if dropdown is not None:
@@ -4085,6 +4105,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 "top_three_ranked": "top_three_species",
                 "top_two_three_only": "top_three_species",
             }.get(stored_species_mode, stored_species_mode)
+
+        stored_traits_distribution_mode = self._settings.value(
+            "manage_charts/traits_distribution_mode",
+            self._traits_distribution_mode,
+        )
+        if isinstance(stored_traits_distribution_mode, str):
+            self._traits_distribution_mode = stored_traits_distribution_mode
 
         stored_alignment_social_mode = self._settings.value(
             "manage_charts/alignment_social_mode",
@@ -19061,6 +19088,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._hidden_chart_ids.update(normalized_ids)
         self._hidden_chart_uids.update(self._chart_uids_for_ids(normalized_ids))
         self._save_hidden_chart_uids_to_settings()
+        refresh_rankings = getattr(self, "_refresh_traits_distribution_rankings_after_hidden_chart_change", None)
+        if callable(refresh_rankings):
+            refresh_rankings(normalized_ids)
         remaining_selection = set(self._selected_chart_ids()) - normalized_ids
         self._populate_list(selected_ids=remaining_selection, refresh_metrics=False)
         self._on_selection_changed(sync_persistent_selection=False)
@@ -26209,6 +26239,8 @@ class MainWindow(QMainWindow):
                     least_similar=False,
                     algorithm_mode=algorithm_mode,
                     custom_settings=getattr(self, "_similarity_calculator_settings", None),
+                    hidden_chart_ids=set(getattr(self, "_hidden_chart_ids", set())),
+                    include_hidden_charts=False,
                 )
             )
         entries: list[dict[str, Any]] = []
@@ -26474,6 +26506,8 @@ class MainWindow(QMainWindow):
                         least_similar=False,
                         algorithm_mode=algorithm_mode,
                         custom_settings=getattr(self, "_similarity_calculator_settings", None),
+                        hidden_chart_ids=set(getattr(self, "_hidden_chart_ids", set())),
+                        include_hidden_charts=False,
                     )
                     if self._similar_charts_can_derive_least_from_full_similarity_ranking(algorithm_mode):
                         refreshed_least = self._least_similar_matches_from_similarity_ranking(refreshed_most)
@@ -26486,6 +26520,8 @@ class MainWindow(QMainWindow):
                             least_similar=True,
                             algorithm_mode=algorithm_mode,
                             custom_settings=getattr(self, "_similarity_calculator_settings", None),
+                            hidden_chart_ids=set(getattr(self, "_hidden_chart_ids", set())),
+                            include_hidden_charts=False,
                         )
                     most_similar_matches.extend(refreshed_most)
                     least_similar_matches.extend(refreshed_least)
@@ -26561,6 +26597,8 @@ class MainWindow(QMainWindow):
                             algorithm_mode=algorithm_mode,
                             custom_settings=getattr(self, "_similarity_calculator_settings", None),
                             should_cancel=lambda p=progress: bool(p.wasCanceled() or p.property("operation_canceled")),
+                            hidden_chart_ids=set(getattr(self, "_hidden_chart_ids", set())),
+                            include_hidden_charts=False,
                             progress_callback=_score_progress,
                         )
                         raise_if_progress_canceled(progress)
@@ -26586,6 +26624,8 @@ class MainWindow(QMainWindow):
                                 algorithm_mode=algorithm_mode,
                                 custom_settings=getattr(self, "_similarity_calculator_settings", None),
                                 should_cancel=lambda p=progress: bool(p.wasCanceled() or p.property("operation_canceled")),
+                                hidden_chart_ids=set(getattr(self, "_hidden_chart_ids", set())),
+                                include_hidden_charts=False,
                                 progress_callback=lambda done, total: _score_progress(done, total, start=82, end=90),
                             )
                         raise_if_progress_canceled(progress)
