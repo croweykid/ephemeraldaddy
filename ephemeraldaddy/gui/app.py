@@ -32455,6 +32455,8 @@ class MainWindow(QMainWindow):
             self._clear_required_field_highlights()
             if not chart_view_birth_data_is_complete(self):
                 self._highlight_required_fields()
+                if not show_dialog:
+                    return
                 incomplete_choice = prompt_incomplete_chart_save_choice(self)
                 if incomplete_choice == "placeholder":
                     self.placeholder_chart_checkbox.setChecked(True)
@@ -32557,10 +32559,11 @@ class MainWindow(QMainWindow):
             chart = self._build_placeholder_chart()
             place = chart.birth_place
         elif chart is None:
-            chart_result = self._build_chart_from_inputs()
+            chart_result = self._build_chart_from_inputs(show_feedback=show_dialog)
             if chart_result is None:
                 self._highlight_required_fields()
-                self.placeholder_chart_checkbox.setChecked(True)
+                if show_dialog:
+                    self.placeholder_chart_checkbox.setChecked(True)
                 return
             chart, place, location_msg, tz_override = chart_result
             chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)

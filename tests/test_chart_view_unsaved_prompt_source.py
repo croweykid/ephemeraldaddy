@@ -36,19 +36,27 @@ def test_unsaved_prompt_marks_modal_state_only_while_prompt_is_open():
 def test_timed_autosaves_keep_existing_save_and_dirty_state_defaults():
     autosave_method = _method_source("_autosave_checkbox_state")
     metric_method = _method_source("_flush_pending_sentiment_metrics_save")
-    assert "self.on_update_chart(show_dialog=False, recalculate_chart=False)" in autosave_method
+    assert "self.on_update_chart(show_dialog=False, recalculate_chart=recalculate_chart)" in autosave_method
     assert "self._set_lucygoosey(False)" in autosave_method
     assert "self.on_update_chart(show_dialog=False, recalculate_chart=False)" in metric_method
     assert "self._set_lucygoosey(False)" in metric_method
-    assert "if self.on_update_chart(show_dialog=False, recalculate_chart=False):" not in autosave_method
+    assert "if self.on_update_chart(show_dialog=False, recalculate_chart=recalculate_chart):" not in autosave_method
     assert "if self.on_update_chart(show_dialog=False, recalculate_chart=False):" not in metric_method
 
+
+def test_silent_recalculation_autosaves_do_not_prompt_or_convert_to_placeholder():
+    method = _method_source("on_update_chart")
+    assert "if not show_dialog:\n                    return\n                incomplete_choice = prompt_incomplete_chart_save_choice(self)" in method
+    assert "chart_result = self._build_chart_from_inputs(show_feedback=show_dialog)" in method
+    assert "if show_dialog:\n                    self.placeholder_chart_checkbox.setChecked(True)" in method
+    assert "chart_result = self._build_chart_from_inputs()" not in method
 
 def test_prompt_open_defers_but_does_not_disable_timed_autosaves():
     autosave_method = _method_source("_autosave_checkbox_state")
     metric_method = _method_source("_flush_pending_sentiment_metrics_save")
     assert "if self._leaving_chart_view_prompt_open:" in autosave_method
-    assert "self._metadata_autosave_timer.start(2000)" in autosave_method
+    assert "self._metadata_autosave_timer.start(delay_ms)" in autosave_method
+    assert "delay_ms = 2500 if self._metadata_autosave_requires_recalculation else 2000" in autosave_method
     assert "if self._leaving_chart_view_prompt_open:" in metric_method
     assert "self._sentiment_metrics_autosave_timer.start(2000)" in metric_method
 
@@ -83,15 +91,15 @@ def test_chart_save_signature_remains_void_for_existing_callers():
 def test_retcon_toggle_marks_dirty_before_deferred_autosave():
     method = _method_source("_on_retcon_time_toggled")
     assert "self._mark_lucygoosey()" in method
-    assert "self._metadata_autosave_timer.start(2000)" in method
+    assert "self._metadata_autosave_timer.start(2500)" in method
     assert "self._autosave_checkbox_state()" not in method
-    assert method.index("self._mark_lucygoosey()") < method.index("self._metadata_autosave_timer.start(2000)")
+    assert method.index("self._mark_lucygoosey()") < method.index("self._metadata_autosave_timer.start(2500)")
 
 
 def test_retcon_time_edits_defer_autosave_so_leave_prompt_can_win():
     method = _method_source("_on_retcon_time_changed")
     assert "self._mark_lucygoosey()" in method
-    assert "self._metadata_autosave_timer.start(2000)" in method
+    assert "self._metadata_autosave_timer.start(2500)" in method
     assert "self._autosave_checkbox_state()" not in method
 
 
