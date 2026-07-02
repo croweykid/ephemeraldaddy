@@ -34614,6 +34614,51 @@ class MainWindow(QMainWindow):
             chart_uses_houses=_chart_uses_houses,
         )
 
+    @staticmethod
+    def _normalize_chart_row(row: tuple | list | None) -> tuple[Any, ...] | None:
+        """Normalize a saved-chart database row into the padded shape used by chart views."""
+        if not row:
+            return None
+        padded = list(row)
+        if len(padded) < 30:
+            padded.extend([None] * (30 - len(padded)))
+        return (
+            int(padded[0]),
+            padded[1],
+            padded[2],
+            padded[3],
+            padded[4],
+            padded[5],
+            padded[6],
+            int(padded[7] or 0),
+            int(padded[8] or 0),
+            int(padded[9] or 0),
+            (
+                int(padded[10])
+                if padded[10] not in (None, "", "blank", "none", "null", "unset", "unknown")
+                else None
+            ),
+            max(0, int(padded[11] or 0)),
+            int(padded[12]) if padded[12] is not None else None,
+            int(padded[13] or 0),
+            _normalize_gui_source(padded[14] if padded[14] else SOURCE_PERSONAL),
+            int(padded[15] or 0),
+            int(padded[16] or 0),
+            int(padded[17]) if padded[17] is not None else None,
+            int(padded[18]) if padded[18] is not None else None,
+            int(padded[19]) if padded[19] is not None else None,
+            int(padded[20]) if padded[20] is not None else None,
+            int(padded[21]) if padded[21] is not None else None,
+            padded[22],
+            str(padded[23] or "blank"),
+            padded[24],
+            padded[25],
+            padded[26],
+            padded[27],
+            padded[28],
+            padded[29],
+        )
+
     def _prediction_norm_rows(self) -> list[Any]:
         chart_rows = getattr(self, "_chart_rows", None)
         if chart_rows is not None:
