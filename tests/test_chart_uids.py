@@ -247,12 +247,14 @@ def test_uid_native_update_and_delete_bridge_to_existing_id_storage(tmp_path, mo
 
     assert db.load_chart(first_id).name == "After Update"
     assert db.load_chart_by_uid("UIDUPDATE000001").chart_uid == "UIDUPDATE000001"
+    assert db.list_duplicate_exclusion_uids() == {("UIDUPDATE000001", "UIDUPDATE000002")}
 
     deleted = db.delete_charts_by_uids(["uidupdate000002", "unknown"])
 
     assert deleted == 1
     assert db.get_chart_id_by_uid("UIDUPDATE000002") is None
     assert db.list_duplicate_exclusions() == set()
+    assert db.list_duplicate_exclusion_uids() == set()
 
 
 def test_list_charts_projection_stays_aligned(tmp_path, monkeypatch):

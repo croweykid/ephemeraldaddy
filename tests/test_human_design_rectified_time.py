@@ -13,6 +13,7 @@ def _install_gui_style_stub():
         style_stub = ModuleType("ephemeraldaddy.gui.style")
         sys.modules["ephemeraldaddy.gui.style"] = style_stub
     style_stub.CHART_DATA_DIVIDER = "---------"
+    style_stub.ARROW_STYLES = {"classic": "→"}
     style_stub.blend_hex_colors = lambda color_a, _color_b, _ratio: color_a
 
 
@@ -274,7 +275,7 @@ def test_human_design_output_suppresses_unknown_time_variants_when_houses_are_us
     assert captured_variant_results == [None]
 
 
-def test_human_design_output_shows_uncertain_variants_for_rectified_time(monkeypatch):
+def test_human_design_output_shows_uncertain_variants_for_rectified_time_without_repeating_ranges_in_positions(monkeypatch):
     _install_gui_style_stub()
     from ephemeraldaddy.analysis import human_design as hd_output
 
@@ -317,12 +318,17 @@ def test_human_design_output_shows_uncertain_variants_for_rectified_time(monkeyp
     monkeypatch.setattr(hd_output, "_build_hd_positions_lines", fake_build_positions_lines)
 
     output, position_info_map, *_ = hd_output.build_human_design_chart_data_output(
-        SimpleNamespace(retcon_time_used=True),
+        SimpleNamespace(
+            birthtime_unknown=True,
+            retcon_time_used=True,
+            retcon_hour=14,
+            retcon_minute=30,
+        ),
         aspect_sort="orb",
     )
     lines = output.splitlines()
 
-    assert captured_variant_results == [variant_results]
+    assert captured_variant_results == [None]
     assert "UNCERTAIN TIME VARIANTS" in lines
     assert lines.index("UNCERTAIN TIME VARIANTS") < lines.index("POSITIONS")
     variant_line_index = next(

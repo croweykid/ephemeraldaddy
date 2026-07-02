@@ -577,7 +577,11 @@ from ephemeraldaddy.gui.window_placement import (
     capture_window_placement,
     clear_fullscreen_and_minimized,
 )
-from ephemeraldaddy.core.chart import Chart, apply_time_specific_metadata_policy
+from ephemeraldaddy.core.chart import (
+    Chart,
+    apply_time_specific_metadata_policy,
+    chart_uses_houses,
+)
 from ephemeraldaddy.analysis.bazi_getter import (
     BAZI_BRANCH_TO_SIGN,
     bazi_sign_weights_from_chart,
@@ -639,8 +643,8 @@ from ephemeraldaddy.core.curse_scoring import (
 from ephemeraldaddy.graphics.wheel_plot import draw_chart_wheel
 from ephemeraldaddy.graphics._chartwheel_generator_impl import draw_chartwheel
 from ephemeraldaddy.core.material_facts import (
-    load_personal_identifiers,
-    save_personal_identifiers,
+    load_personal_identifiers_by_uid,
+    save_personal_identifiers_by_uid,
 )
 from ephemeraldaddy.core.backups import BACKUP_PACKAGE_SUFFIX, create_backup_package
 from ephemeraldaddy.core.db import (
@@ -32384,7 +32388,7 @@ class MainWindow(QMainWindow):
         previous_suppress_lucygoosey = self._suppress_lucygoosey
         self._suppress_lucygoosey = True
         try:
-            identifiers = load_personal_identifiers(chart_id)
+            identifiers = load_personal_identifiers_by_uid(get_chart_uid(chart_id))
             self._set_material_fact_text("material_facts_addresses_edit", identifiers.get("addresses", ""))
             self._set_material_fact_text("material_facts_emails_edit", identifiers.get("emails", ""))
             self._set_material_fact_text("material_facts_websites_edit", identifiers.get("websites", ""))
@@ -32398,8 +32402,8 @@ class MainWindow(QMainWindow):
     def _save_material_facts_for_chart(self, chart_id: int | None) -> None:
         if chart_id is None:
             return
-        save_personal_identifiers(
-            int(chart_id),
+        save_personal_identifiers_by_uid(
+            get_chart_uid(chart_id),
             {
                 "addresses": self._material_fact_text("material_facts_addresses_edit"),
                 "emails": self._material_fact_text("material_facts_emails_edit"),
@@ -32562,6 +32566,15 @@ class MainWindow(QMainWindow):
         #chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
         #chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
         #chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
+        previous_chart_for_refresh = (
+            self._latest_chart
+            if (
+                self._latest_chart is not None
+                and chart_id is not None
+                and self.current_chart_id == chart_id
+            )
+            else None
+        )
         save_kwargs = dict(
             birth_place=place,
             retcon_time_used=getattr(chart, "retcon_time_used", False),
@@ -32626,6 +32639,19 @@ class MainWindow(QMainWindow):
             state = getattr(self, "_chart_right_panel_state", None)
             if state is not None:
                 state.last_render_chart_token = None
+        changed_fields = self._chart_metadata_changed_fields(
+            previous_chart_for_refresh,
+            chart,
+            birth_place=place,
+        )
+        self._update_sentiment_tally(
+            changed_ids={chart_id},
+            changed_fields=changed_fields,
+            update_database_metrics=True,
+            update_similarities=bool(
+                changed_fields is None or "birth_data" in changed_fields
+            ),
+        )
         self._manage_charts_pending_changed_ids.add(chart_id)
         self._refresh_manage_charts_in_background({chart_id})
         self._loaded_birth_place = place
@@ -33783,6 +33809,85 @@ class MainWindow(QMainWindow):
             "anagrams",
         }
 
+    @staticmethod
+    def _chart_birth_data_recalculation_token(
+        chart: Chart | None,
+        birth_place: str | None = None,
+    ) -> tuple:
+        """Return the small set of chart fields that should trigger recalculation.
+
+        Most saved chart metadata is descriptive flavor text.  Expensive chart
+        analytics should only be dirtied when birth data, place, birth-time /
+        rectified-time state, or the derived chart_uses_houses flag changes.
+        """
+        if chart is None:
+            return ()
+        dt_value = getattr(chart, "dt", None)
+        dt_token = dt_value.isoformat() if dt_value is not None else None
+        retcon_hour = getattr(chart, "retcon_hour", None)
+        retcon_minute = getattr(chart, "retcon_minute", None)
+        retcon_time_token = (
+            (int(retcon_hour), int(retcon_minute))
+            if retcon_hour is not None and retcon_minute is not None
+            else None
+        )
+        return (
+            dt_token,
+            (
+                birth_place
+                if birth_place is not None
+                else getattr(chart, "birth_place", None) or ""
+            ),
+            round(float(getattr(chart, "lat", 0.0) or 0.0), 6),
+            round(float(getattr(chart, "lon", 0.0) or 0.0), 6),
+            bool(getattr(chart, "birthtime_unknown", False)),
+            bool(getattr(chart, "retcon_time_used", False)),
+            retcon_time_token,
+            bool(chart_uses_houses(chart)),
+        )
+
+    @staticmethod
+    def _chart_metadata_changed_fields(
+        previous_chart: Chart | None,
+        chart: Chart,
+        *,
+        birth_place: str | None = None,
+    ) -> set[str] | None:
+        """Classify saved edits by the Database Analytics sections they affect."""
+        if previous_chart is None:
+            return None
+        changed_fields: set[str] = set()
+        if (
+            MainWindow._chart_birth_data_recalculation_token(previous_chart)
+            != MainWindow._chart_birth_data_recalculation_token(chart, birth_place)
+        ):
+            changed_fields.add("birth_data")
+        comparisons = {
+            "sentiments": lambda value: tuple(
+                sorted(
+                    str(item).casefold()
+                    for item in (getattr(value, "sentiments", []) or [])
+                )
+            ),
+            "relationship_types": lambda value: tuple(
+                sorted(
+                    str(item).casefold()
+                    for item in (getattr(value, "relationship_types", []) or [])
+                )
+            ),
+            "tags": lambda value: tuple(
+                tag.casefold()
+                for tag in normalize_tag_list(getattr(value, "tags", []) or [])
+            ),
+            "gender": lambda value: getattr(value, "gender", None),
+            "alignment": lambda value: getattr(value, "alignment_score", None),
+            "matched_expectations": lambda value: getattr(value, "matched_expectations", None),
+        }
+        for field, getter in comparisons.items():
+            if getter(previous_chart) != getter(chart):
+                changed_fields.add(field)
+        return changed_fields
+
     def _chart_analytics_cache_token(self, chart: Chart) -> str:
         chart_id = self.current_chart_id
         dt_value = getattr(chart, "dt", None)
@@ -33796,9 +33901,11 @@ class MainWindow(QMainWindow):
             if retcon_hour is not None and retcon_minute is not None
             else "none"
         )
+        chart_uses_houses_token = int(bool(chart_uses_houses(chart)))
         timing_token = (
             f"dt:{dt_token}|birthtime_unknown:{birthtime_unknown_token}|"
-            f"retcon_enabled:{retcon_enabled_token}|retcon_time:{retcon_time_token}"
+            f"retcon_enabled:{retcon_enabled_token}|retcon_time:{retcon_time_token}|"
+            f"chart_uses_houses:{chart_uses_houses_token}"
         )
         place_token = f"lat:{getattr(chart, 'lat', 0.0):.6f}|lon:{getattr(chart, 'lon', 0.0):.6f}"
         chart_scope_token = f"id:{int(chart_id)}" if chart_id is not None else "draft"

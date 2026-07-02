@@ -265,7 +265,7 @@ def _is_personal_chart_type_for_age_inference(value: Optional[str]) -> bool:
 # ordering, joins, and bounded internal lookup adapters while older call sites
 # are migrated. New cross-feature metadata, cache keys, relationships, exports,
 # and user-visible references should use chart_uid instead of chart_id.
-SCHEMA_VERSION = 18
+SCHEMA_VERSION = 19
 
 CHART_UID_LENGTH = 16
 
@@ -577,6 +577,58 @@ def _create_duplicate_exclusions_table(conn: sqlite3.Connection) -> None:
         ON duplicate_exclusions(chart_id_high)
         """
     )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS duplicate_exclusions_uid (
+            chart_uid_low  TEXT NOT NULL,
+            chart_uid_high TEXT NOT NULL,
+            created_at     TEXT NOT NULL,
+            PRIMARY KEY (chart_uid_low, chart_uid_high),
+            CHECK (chart_uid_low < chart_uid_high)
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_duplicate_exclusions_uid_low
+        ON duplicate_exclusions_uid(chart_uid_low)
+        """
+    )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_duplicate_exclusions_uid_high
+        ON duplicate_exclusions_uid(chart_uid_high)
+        """
+    )
+    if _charts_table_exists(conn):
+        _ensure_chart_uids(conn)
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO duplicate_exclusions_uid (
+                chart_uid_low,
+                chart_uid_high,
+                created_at
+            )
+            SELECT
+                CASE
+                    WHEN low.chart_uid < high.chart_uid THEN low.chart_uid
+                    ELSE high.chart_uid
+                END AS chart_uid_low,
+                CASE
+                    WHEN low.chart_uid < high.chart_uid THEN high.chart_uid
+                    ELSE low.chart_uid
+                END AS chart_uid_high,
+                legacy.created_at
+            FROM duplicate_exclusions AS legacy
+            JOIN charts AS low ON low.id = legacy.chart_id_low
+            JOIN charts AS high ON high.id = legacy.chart_id_high
+            WHERE low.chart_uid IS NOT NULL
+              AND low.chart_uid != ''
+              AND high.chart_uid IS NOT NULL
+              AND high.chart_uid != ''
+              AND low.chart_uid != high.chart_uid
+            """
+        )
 
 
 def _create_chart_trait_metadata_table(conn: sqlite3.Connection) -> None:
@@ -656,6 +708,13 @@ def _prune_duplicate_exclusions(conn: sqlite3.Connection) -> None:
         DELETE FROM duplicate_exclusions
         WHERE chart_id_low NOT IN (SELECT id FROM charts)
            OR chart_id_high NOT IN (SELECT id FROM charts)
+        """
+    )
+    conn.execute(
+        """
+        DELETE FROM duplicate_exclusions_uid
+        WHERE chart_uid_low NOT IN (SELECT chart_uid FROM charts WHERE chart_uid IS NOT NULL AND chart_uid != '')
+           OR chart_uid_high NOT IN (SELECT chart_uid FROM charts WHERE chart_uid IS NOT NULL AND chart_uid != '')
         """
     )
 
@@ -1376,6 +1435,12 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
     if user_version < 18:
         _create_chart_trait_metadata_table(conn)
         conn.execute("PRAGMA user_version = 18")
+        user_version = 18
+
+    if user_version < 19:
+        _create_duplicate_exclusions_table(conn)
+        _prune_duplicate_exclusions(conn)
+        conn.execute("PRAGMA user_version = 19")
 
 
 def _connect_raw() -> sqlite3.Connection:
@@ -3548,6 +3613,14 @@ def list_charts() -> List[
 
 def list_duplicate_exclusions() -> set[tuple[int, int]]:
     """Return canonical chart-id pairs explicitly marked as not duplicates."""
+    uid_pairs = list_duplicate_exclusion_uids()
+    if uid_pairs:
+        uid_to_id = get_chart_ids_by_uid(uid for pair in uid_pairs for uid in pair)
+        return {
+            tuple(sorted((int(uid_to_id[left_uid]), int(uid_to_id[right_uid]))))
+            for left_uid, right_uid in uid_pairs
+            if left_uid in uid_to_id and right_uid in uid_to_id
+        }
     conn = _get_conn()
     rows = conn.execute(
         """
@@ -3563,6 +3636,25 @@ def list_duplicate_exclusions() -> set[tuple[int, int]]:
     }
 
 
+def list_duplicate_exclusion_uids() -> set[tuple[str, str]]:
+    """Return canonical chart-UID pairs explicitly marked as not duplicates."""
+    conn = _get_conn()
+    with conn:
+        _create_duplicate_exclusions_table(conn)
+    rows = conn.execute(
+        """
+        SELECT chart_uid_low, chart_uid_high
+        FROM duplicate_exclusions_uid
+        """
+    ).fetchall()
+    conn.close()
+    return {
+        (str(chart_uid_low), str(chart_uid_high))
+        for chart_uid_low, chart_uid_high in rows
+        if chart_uid_low and chart_uid_high
+    }
+
+
 def save_duplicate_exclusions(chart_ids: List[int]) -> int:
     """
     Persist all pair combinations from the provided chart ids as non-duplicates.
@@ -3572,25 +3664,62 @@ def save_duplicate_exclusions(chart_ids: List[int]) -> int:
     normalized_ids = sorted({int(chart_id) for chart_id in chart_ids if chart_id is not None})
     if len(normalized_ids) < 2:
         return 0
+    uid_map = get_chart_uid_map(normalized_ids)
+    return save_duplicate_exclusions_by_uids(uid_map.values())
+
+
+def save_duplicate_exclusions_by_uids(chart_uids: Iterable[str | None]) -> int:
+    """
+    Persist all pair combinations from the provided chart UIDs as non-duplicates.
+
+    Returns the number of newly-inserted pairs.
+    """
+    normalized_uids = sorted(
+        {
+            normalized_uid
+            for raw_uid in chart_uids
+            if (normalized_uid := _normalize_chart_uid(raw_uid)) is not None
+        }
+    )
+    if len(normalized_uids) < 2:
+        return 0
     now_iso = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    pairs: list[tuple[int, int, str]] = []
-    for index, left_id in enumerate(normalized_ids):
-        for right_id in normalized_ids[index + 1 :]:
-            pairs.append((left_id, right_id, now_iso))
+    pairs: list[tuple[str, str, str]] = []
+    for index, left_uid in enumerate(normalized_uids):
+        for right_uid in normalized_uids[index + 1 :]:
+            pairs.append((left_uid, right_uid, now_iso))
     conn = _get_conn()
     inserted = 0
     with conn:
-        for left_id, right_id, created_at in pairs:
-            cursor = conn.execute(
+        _create_duplicate_exclusions_table(conn)
+        for left_uid, right_uid, created_at in pairs:
+            conn.execute(
                 """
                 INSERT OR IGNORE INTO duplicate_exclusions (
                     chart_id_low,
                     chart_id_high,
                     created_at
                 )
+                SELECT
+                    CASE WHEN low.id < high.id THEN low.id ELSE high.id END,
+                    CASE WHEN low.id < high.id THEN high.id ELSE low.id END,
+                    ?
+                FROM charts AS low
+                JOIN charts AS high ON high.chart_uid = ?
+                WHERE low.chart_uid = ?
+                """,
+                (created_at, right_uid, left_uid),
+            )
+            cursor = conn.execute(
+                """
+                INSERT OR IGNORE INTO duplicate_exclusions_uid (
+                    chart_uid_low,
+                    chart_uid_high,
+                    created_at
+                )
                 VALUES (?, ?, ?)
                 """,
-                (left_id, right_id, created_at),
+                (left_uid, right_uid, created_at),
             )
             inserted += int(cursor.rowcount or 0)
     conn.close()
@@ -3646,6 +3775,14 @@ def delete_charts(chart_ids: List[int]) -> int:
             conn.execute(
                 f"DELETE FROM chart_trait_metadata WHERE chart_uid IN ({uid_placeholders})",
                 chart_uids,
+            )
+            conn.execute(
+                f"""
+                DELETE FROM duplicate_exclusions_uid
+                WHERE chart_uid_low IN ({uid_placeholders})
+                   OR chart_uid_high IN ({uid_placeholders})
+                """,
+                chart_uids + chart_uids,
             )
         cur = conn.execute(
             f"DELETE FROM charts WHERE id IN ({placeholders})",
