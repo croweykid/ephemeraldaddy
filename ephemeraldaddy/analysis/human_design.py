@@ -1082,11 +1082,18 @@ def build_human_design_chart_data_output(
 
     hd_result = _cached_human_design_result(chart)
     uses_houses = chart_uses_houses(chart)
-    show_uncertain_time_variants = bool(getattr(chart, "retcon_time_used", False)) or not uses_houses
+    use_rectified_time = bool(getattr(chart, "retcon_time_used", False))
+    has_rectified_time = (
+        use_rectified_time
+        and getattr(chart, "retcon_hour", None) is not None
+        and getattr(chart, "retcon_minute", None) is not None
+    )
+    birthtime_unknown = bool(getattr(chart, "birthtime_unknown", False))
+    show_uncertain_time_variants = birthtime_unknown or not uses_houses
     time_variant_results = _time_variant_human_design_results(chart) if show_uncertain_time_variants else None
     position_lines, positions_info_map = _build_hd_positions_lines(
         hd_result,
-        time_variant_results=time_variant_results,
+        time_variant_results=None if has_rectified_time else time_variant_results,
     )
     activations = (*hd_result.personality_activations, *hd_result.design_activations)
     active_gate_set = {activation.gate for activation in activations}
