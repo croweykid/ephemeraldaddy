@@ -643,7 +643,7 @@ from ephemeraldaddy.core.curse_scoring import (
 from ephemeraldaddy.graphics.wheel_plot import draw_chart_wheel
 from ephemeraldaddy.graphics._chartwheel_generator_impl import draw_chartwheel
 from ephemeraldaddy.core.material_facts import (
-    load_personal_identifiers_by_uid,
+    load_personal_identifiers,
     save_personal_identifiers_by_uid,
 )
 from ephemeraldaddy.core.backups import BACKUP_PACKAGE_SUFFIX, create_backup_package
@@ -656,6 +656,7 @@ from ephemeraldaddy.core.db import (
     load_chart,
     load_charts,
     load_dominant_sign_weights,
+    get_chart_uid,
     get_chart_uid_map,
     get_chart_ids_by_uid,
     get_alternate_chart_uid,
@@ -32388,7 +32389,7 @@ class MainWindow(QMainWindow):
         previous_suppress_lucygoosey = self._suppress_lucygoosey
         self._suppress_lucygoosey = True
         try:
-            identifiers = load_personal_identifiers_by_uid(get_chart_uid(chart_id))
+            identifiers = load_personal_identifiers(chart_id)
             self._set_material_fact_text("material_facts_addresses_edit", identifiers.get("addresses", ""))
             self._set_material_fact_text("material_facts_emails_edit", identifiers.get("emails", ""))
             self._set_material_fact_text("material_facts_websites_edit", identifiers.get("websites", ""))

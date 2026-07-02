@@ -116,3 +116,9 @@ def test_material_facts_load_preserves_outer_lucygoosey_suppression():
     assert "self._suppress_lucygoosey = True" in method
     assert "self._suppress_lucygoosey = previous_suppress_lucygoosey" in method
     assert "self._suppress_lucygoosey = False" not in method
+
+
+def test_material_facts_load_uses_legacy_aware_loader():
+    method = _method_source("_load_material_facts_for_chart")
+    assert "identifiers = load_personal_identifiers(chart_id)" in method
+    assert "load_personal_identifiers_by_uid(get_chart_uid(chart_id))" not in method
