@@ -64,6 +64,9 @@ from ephemeraldaddy.gui.style import (
     DND_STAT_EARTHTONE_COLORS,
     apply_chart_info_link_cursor,
     get_cycled_earthtone_colors,
+    human_design_type_display_name,
+    set_chart_info_html,
+    set_chart_info_text,
 )
 
 
@@ -304,7 +307,7 @@ def _build_dnd_stat_evidence_html(chart: Any, stat_key: str, *, max_items_per_ca
 
     add_membership("Human Design gates", "gates", "antigates", active_gates, weighted_gate_entries, lambda gate: f"Gate {gate}")
     add_membership("Human Design channels", "channels", "antichannels", active_channels, weighted_channel_entries, lambda channel: f"Channel {channel[0]}-{channel[1]}")
-    add_membership("Human Design type", "hdtypes", "antihdtypes", active_hd_type, weighted_hd_type_entries)
+    add_membership("Human Design type", "hdtypes", "antihdtypes", active_hd_type, weighted_hd_type_entries, human_design_type_display_name)
     add_membership("Human Design centers", "centers", "anticenters", active_centers, weighted_hd_center_entries)
     add_membership("Human Design profile", "profiles", "antiprofiles", active_profile, weighted_hd_profile_entries)
     add_membership("Human Design authority", "authorities", "antiauthorities", active_authority, weighted_hd_authority_entries)
@@ -598,7 +601,7 @@ def configure_dnd_top_three_summary_label(
     def _show_text(text: str) -> None:
         if before_show is not None:
             before_show()
-        info_panel.setPlainText(text)
+        set_chart_info_text(info_panel, text)
 
     def _on_link_activated(href: str) -> None:
         prefix, _separator, index_text = str(href).partition(":")
@@ -810,6 +813,6 @@ def connect_dnd_statblock_popout_pick_handler(
         if not isinstance(artist_gid, str) or not artist_gid.startswith("dnd_stat:"):
             return
         _prefix, stat_key = artist_gid.split(":", 1)
-        info_panel.setHtml(build_info_html(stat_key))
+        set_chart_info_html(info_panel, build_info_html(stat_key))
 
     popout_canvas.mpl_connect("pick_event", _on_pick)

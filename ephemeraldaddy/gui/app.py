@@ -1329,6 +1329,7 @@ from ephemeraldaddy.gui.style import (
     similarity_gradient_rgb_for_range,
     configure_collapsible_header_toggle,
     install_appwide_cursor_defaults,
+    set_chart_info_text,
     format_chart_header,
     QUAD_STATE_SLIDER_VISUALS,
     TRISTATE_SENTIMENT_STYLE,
@@ -30860,7 +30861,8 @@ class MainWindow(QMainWindow):
         score: float,
         evidence: list[str],
     ) -> None:
-        self.chart_info_output.setPlainText(
+        set_chart_info_text(
+            self.chart_info_output,
             _format_dnd_species_info_text(family, subtype, score, evidence)
         )
 
@@ -30871,12 +30873,13 @@ class MainWindow(QMainWindow):
         _score: float,
         axis_scores: dict[str, float],
     ) -> None:
-        self.chart_info_output.setPlainText(
+        set_chart_info_text(
+            self.chart_info_output,
             _format_dnd_class_info_text(class_name, class_key, axis_scores)
         )
 
     def _show_dnd_statblock_info(self, profile_lines: list[str]) -> None:
-        self.chart_info_output.setPlainText(_format_dnd_statblock_info_text(profile_lines))
+        set_chart_info_text(self.chart_info_output, _format_dnd_statblock_info_text(profile_lines))
 
     def _show_aspect_info(
         self,
