@@ -4288,8 +4288,11 @@ class DatabaseAnalyticsChartsMixin:
         if not isinstance(likelihood_cache, dict):
             return []
         rows: list[dict[str, Any]] = []
+        hidden_chart_ids = {int(chart_id) for chart_id in getattr(self, "_hidden_chart_ids", set())}
         db_average_pct = float(database_values.get(selected_trait_name, 0.0)) * 100.0
         for chart_id in normalized_chart_ids:
+            if int(chart_id) in hidden_chart_ids:
+                continue
             chart = self._get_chart_for_filter(int(chart_id))
             if chart is None or self._is_placeholder_chart(chart):
                 continue

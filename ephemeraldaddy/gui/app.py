@@ -26209,6 +26209,8 @@ class MainWindow(QMainWindow):
                     least_similar=False,
                     algorithm_mode=algorithm_mode,
                     custom_settings=getattr(self, "_similarity_calculator_settings", None),
+                    hidden_chart_ids=set(getattr(self, "_hidden_chart_ids", set())),
+                    include_hidden_charts=False,
                 )
             )
         entries: list[dict[str, Any]] = []
@@ -26474,6 +26476,8 @@ class MainWindow(QMainWindow):
                         least_similar=False,
                         algorithm_mode=algorithm_mode,
                         custom_settings=getattr(self, "_similarity_calculator_settings", None),
+                        hidden_chart_ids=set(getattr(self, "_hidden_chart_ids", set())),
+                        include_hidden_charts=False,
                     )
                     if self._similar_charts_can_derive_least_from_full_similarity_ranking(algorithm_mode):
                         refreshed_least = self._least_similar_matches_from_similarity_ranking(refreshed_most)
@@ -26486,6 +26490,8 @@ class MainWindow(QMainWindow):
                             least_similar=True,
                             algorithm_mode=algorithm_mode,
                             custom_settings=getattr(self, "_similarity_calculator_settings", None),
+                            hidden_chart_ids=set(getattr(self, "_hidden_chart_ids", set())),
+                            include_hidden_charts=False,
                         )
                     most_similar_matches.extend(refreshed_most)
                     least_similar_matches.extend(refreshed_least)
@@ -26561,6 +26567,8 @@ class MainWindow(QMainWindow):
                             algorithm_mode=algorithm_mode,
                             custom_settings=getattr(self, "_similarity_calculator_settings", None),
                             should_cancel=lambda p=progress: bool(p.wasCanceled() or p.property("operation_canceled")),
+                            hidden_chart_ids=set(getattr(self, "_hidden_chart_ids", set())),
+                            include_hidden_charts=False,
                             progress_callback=_score_progress,
                         )
                         raise_if_progress_canceled(progress)
@@ -26586,6 +26594,8 @@ class MainWindow(QMainWindow):
                                 algorithm_mode=algorithm_mode,
                                 custom_settings=getattr(self, "_similarity_calculator_settings", None),
                                 should_cancel=lambda p=progress: bool(p.wasCanceled() or p.property("operation_canceled")),
+                                hidden_chart_ids=set(getattr(self, "_hidden_chart_ids", set())),
+                                include_hidden_charts=False,
                                 progress_callback=lambda done, total: _score_progress(done, total, start=82, end=90),
                             )
                         raise_if_progress_canceled(progress)
