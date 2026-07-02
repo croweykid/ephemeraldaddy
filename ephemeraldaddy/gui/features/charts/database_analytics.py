@@ -12,6 +12,7 @@ import math
 import re
 import statistics
 import textwrap
+import time
 import warnings
 from collections import Counter
 from typing import Any, Callable, Mapping, Sequence
@@ -64,6 +65,7 @@ DATABASE_METRICS_SECTION_ORDER: tuple[str, ...] = (
 TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_VERSION = 1
 TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_FILENAME = ".traits_distribution_likelihood_cache.json"
 TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_MAX_ENTRIES = 100_000
+TRAITS_DISTRIBUTION_SCORING_TIME_BUDGET_SECONDS = 8.0
 DATABASE_METRICS_BIRTH_DATA_SECTIONS: frozenset[str] = frozenset(
     {
         "planetary_sign_prevalence",
@@ -4599,6 +4601,7 @@ class DatabaseAnalyticsChartsMixin:
         chart_ids: list[int] | set[int],
         trait_items: list[dict[str, Any]] | None = None,
         trait_signature: tuple[tuple[str, str, str], ...] | None = None,
+        time_budget_seconds: float | None = TRAITS_DISTRIBUTION_SCORING_TIME_BUDGET_SECONDS,
     ) -> dict[str, Any]:
         trait_items = trait_items if trait_items is not None else list_traits(active_only=True)
         trait_signature = (
@@ -4635,6 +4638,8 @@ class DatabaseAnalyticsChartsMixin:
             self._traits_distribution_chart_likelihood_cache = likelihood_cache
 
         cache_updated = False
+        partial = False
+        uncached_started_at = time.monotonic()
         for chart_id in normalized_chart_ids:
             chart = self._get_chart_for_filter(int(chart_id))
             if chart is None or self._is_placeholder_chart(chart):
@@ -4642,6 +4647,14 @@ class DatabaseAnalyticsChartsMixin:
             chart_cache_key = (cache_revision, trait_signature, int(chart_id))
             likelihoods = likelihood_cache.get(chart_cache_key)
             if likelihoods is None:
+                if (
+                    time_budget_seconds is not None
+                    and time_budget_seconds >= 0
+                    and cache_updated
+                    and (time.monotonic() - uncached_started_at) >= float(time_budget_seconds)
+                ):
+                    partial = True
+                    break
                 try:
                     likelihoods = calculate_trait_likelihoods(
                         chart,
@@ -4662,8 +4675,16 @@ class DatabaseAnalyticsChartsMixin:
                     totals[name] += float(likelihoods.get(name, 0.0)) / 100.0
                 except (TypeError, ValueError):
                     continue
-        result = {"trait_names": trait_names, "totals": totals, "chart_count": chart_count, "colors": colors}
-        aggregate_cache[aggregate_cache_key] = copy.deepcopy(result)
+        result = {
+            "trait_names": trait_names,
+            "totals": totals,
+            "chart_count": chart_count,
+            "colors": colors,
+            "partial": partial,
+            "requested_chart_count": len(normalized_chart_ids),
+        }
+        if not partial:
+            aggregate_cache[aggregate_cache_key] = copy.deepcopy(result)
         if cache_updated:
             self._traits_distribution_likelihood_cache_dirty = True
             self._save_traits_distribution_likelihood_cache()
@@ -4720,7 +4741,7 @@ class DatabaseAnalyticsChartsMixin:
             "selected_trait_name": selected_trait_name or "",
             "database_values": dict(database_values),
             "scope_label": ranking_scope_label,
-            "cache_warmed": database_count > 0,
+            "cache_warmed": database_count > 0 and not bool(database_analytics.get("partial", False)),
         }
         if isinstance(rank_label, QLabel):
             rankings = self._traits_distribution_chart_rankings(
@@ -4735,7 +4756,7 @@ class DatabaseAnalyticsChartsMixin:
                     selected_trait_name,
                     rankings,
                     scope_label=ranking_scope_label,
-                    cache_warmed=database_count > 0,
+                    cache_warmed=database_count > 0 and not bool(database_analytics.get("partial", False)),
                 )
             )
         self._sync_traits_distribution_display_mode()
@@ -4746,14 +4767,28 @@ class DatabaseAnalyticsChartsMixin:
                 name.casefold(),
             ),
         )
+        database_partial = bool(database_analytics.get("partial", False))
+        requested_database_count = int(database_analytics.get("requested_chart_count", database_count) or database_count)
         if loaded_charts > 0:
-            self.traits_distribution_subheader_label.setText(
-                "Active custom trait likelihood averages for selected chart(s) relative to database average."
-            )
+            if database_partial:
+                self.traits_distribution_subheader_label.setText(
+                    "Active custom trait likelihood averages for selected chart(s) relative to a still-warming database average "
+                    f"({database_count:,}/{requested_database_count:,} charts scored so far)."
+                )
+            else:
+                self.traits_distribution_subheader_label.setText(
+                    "Active custom trait likelihood averages for selected chart(s) relative to database average."
+                )
         else:
-            self.traits_distribution_subheader_label.setText(
-                f"Average active custom trait likelihoods across {database_count:,} non-placeholder database charts."
-            )
+            if database_partial:
+                self.traits_distribution_subheader_label.setText(
+                    "Average active custom trait likelihoods across a time-bounded sample while the cache warms "
+                    f"({database_count:,}/{requested_database_count:,} non-placeholder database charts scored so far)."
+                )
+            else:
+                self.traits_distribution_subheader_label.setText(
+                    f"Average active custom trait likelihoods across {database_count:,} non-placeholder database charts."
+                )
         self._clear_layout(self.traits_distribution_chart_layout)
         if ordered_labels and database_count > 0:
             color_lookup = dict(database_analytics.get("colors", {}))
