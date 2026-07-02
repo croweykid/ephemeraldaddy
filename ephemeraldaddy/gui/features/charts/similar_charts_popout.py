@@ -124,10 +124,7 @@ class SimilarChartsForegroundGuard(QObject):
     """Keep a Similar Charts popout foregrounded until a real outside mouse click."""
 
     _MOUSE_OUTSIDE_EVENTS = {QEvent.MouseButtonPress, QEvent.MouseButtonDblClick}
-    _DEACTIVATION_EVENTS = {
-        getattr(QEvent, "ApplicationDeactivate", None),
-        getattr(QEvent, "WindowDeactivate", None),
-    } - {None}
+    _APPLICATION_DEACTIVATION_EVENTS = {getattr(QEvent, "ApplicationDeactivate", None)} - {None}
 
     def __init__(self, dialog: QDialog) -> None:
         super().__init__(dialog)
@@ -175,7 +172,7 @@ class SimilarChartsForegroundGuard(QObject):
     def eventFilter(self, _obj: QObject, event: QEvent) -> bool:
         if not self._armed:
             return False
-        if event.type() in self._DEACTIVATION_EVENTS:
+        if event.type() in self._APPLICATION_DEACTIVATION_EVENTS:
             self.disarm()
             return False
         if event.type() not in self._MOUSE_OUTSIDE_EVENTS:
