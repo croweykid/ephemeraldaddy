@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import html
+import math
 import random
 import re
 import statistics
@@ -161,34 +162,46 @@ def merge_enneagram_category_weights(payload: Any) -> dict[str, float]:
     return merged
 
 
-def _coerce_cached_enneagram_type_scores(cached_scores: Any) -> dict[int, float] | None:
-    """Return usable cached Enneagram scores, or None when the cache is blank/stale."""
-    if not isinstance(cached_scores, dict) or not cached_scores:
+def _coerce_complete_enneagram_type_scores(cached_scores: Any) -> dict[int, float] | None:
+    """Return a complete finite 1-9 score cache, or None when it must be recalculated."""
+    if not isinstance(cached_scores, dict):
         return None
     coerced: dict[int, float] = {}
-    for key, value in cached_scores.items():
+    for enneagram_type in range(1, 10):
+        if enneagram_type in cached_scores:
+            raw_score = cached_scores[enneagram_type]
+        elif str(enneagram_type) in cached_scores:
+            raw_score = cached_scores[str(enneagram_type)]
+        else:
+            return None
         try:
-            enneagram_type = int(key)
-            score = float(value)
+            score = float(raw_score)
         except (TypeError, ValueError):
-            continue
-        if 1 <= enneagram_type <= 9:
-            coerced[enneagram_type] = score
-    if not coerced:
-        return None
+            return None
+        if not math.isfinite(score):
+            return None
+        coerced[enneagram_type] = score
     return coerced
 
 
 def cache_enneagram_prediction_metadata(chart: Any, scores: dict[int, float]) -> dict[int, float]:
     """Write ranked Enneagram prediction metadata back onto a chart object."""
+    normalized_scores: dict[int, float] = {}
+    for enneagram_type in range(1, 10):
+        try:
+            score = float(scores.get(enneagram_type, 0.0))
+        except (AttributeError, TypeError, ValueError):
+            score = 0.0
+        normalized_scores[enneagram_type] = score if math.isfinite(score) else 0.0
+
     ranked_scores = sorted(
-        ((int(enneagram_type), float(score)) for enneagram_type, score in scores.items()),
+        normalized_scores.items(),
         key=lambda item: (-item[1], item[0]),
     )
+    chart.enneagram_type_weights = {
+        enneagram_type: score for enneagram_type, score in ranked_scores
+    }
     if ranked_scores and ranked_scores[0][1] > 0:
-        chart.enneagram_type_weights = {
-            enneagram_type: score for enneagram_type, score in ranked_scores
-        }
         chart.dominant_enneagram_type = ranked_scores[0][0]
         chart.top_three_enneagram_types = [
             enneagram_type
@@ -196,10 +209,9 @@ def cache_enneagram_prediction_metadata(chart: Any, scores: dict[int, float]) ->
             if score > 0
         ]
     else:
-        chart.enneagram_type_weights = {}
         chart.dominant_enneagram_type = None
         chart.top_three_enneagram_types = []
-    return scores
+    return normalized_scores
 
 
 def set_enneagram_category_weights(overrides: dict[str, float] | None) -> None:
@@ -452,7 +464,7 @@ def draw_enneagram_predictions(
         f"{num} {str(enneagram.get(num, {}).get('name', '')).strip()}".strip()
         for num in range(1, 10)
     ]
-    cached_scores = _coerce_cached_enneagram_type_scores(
+    cached_scores = _coerce_complete_enneagram_type_scores(
         getattr(chart, "enneagram_type_weights", None)
     )
     if cached_scores is not None:
@@ -929,7 +941,7 @@ class EnneagramPredictionPanelAdapter:
         )
 
     def cache_metadata(self, chart: Any) -> dict[int, float]:
-        cached_scores = _coerce_cached_enneagram_type_scores(
+        cached_scores = _coerce_complete_enneagram_type_scores(
             getattr(chart, "enneagram_type_weights", None)
         )
         if cached_scores is not None:
