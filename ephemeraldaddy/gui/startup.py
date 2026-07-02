@@ -170,7 +170,7 @@ class StartupLoadingWidget(QWidget):
         title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
         layout.addWidget(title)
 
-        self._status_label = QLabel("Bootstrapping UI modules…")
+        self._status_label = QLabel("...hold your horses while we get all pretty…")
         self._status_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         self._status_label.setStyleSheet("color: #efe9ff; font-size: 12px;")
         layout.addWidget(self._status_label)

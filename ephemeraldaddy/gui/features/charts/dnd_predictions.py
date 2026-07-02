@@ -304,7 +304,7 @@ def _build_dnd_stat_evidence_html(chart: Any, stat_key: str, *, max_items_per_ca
 
     add_membership("Human Design gates", "gates", "antigates", active_gates, weighted_gate_entries, lambda gate: f"Gate {gate}")
     add_membership("Human Design channels", "channels", "antichannels", active_channels, weighted_channel_entries, lambda channel: f"Channel {channel[0]}-{channel[1]}")
-    add_membership("Human Design metadata", "hdtypes", "antihdtypes", active_hd_type, weighted_hd_type_entries)
+    add_membership("Human Design type", "hdtypes", "antihdtypes", active_hd_type, weighted_hd_type_entries)
     add_membership("Human Design centers", "centers", "anticenters", active_centers, weighted_hd_center_entries)
     add_membership("Human Design profile", "profiles", "antiprofiles", active_profile, weighted_hd_profile_entries)
     add_membership("Human Design authority", "authorities", "antiauthorities", active_authority, weighted_hd_authority_entries)
@@ -349,12 +349,11 @@ def build_dnd_statblock_popout_info_html(chart: Any, stat_key: str, *, norm_char
     modifier = int(statblock.modifiers.get(normalized_stat_key, 0))
     evidence_html = _build_dnd_stat_evidence_html(chart, normalized_stat_key)
     score_context_html = (
-        f"<div style='{body_style}'>Final stat: <b>{stat_value}</b> "
+        f"<div style='{header_style}'>Final stat: <b>{stat_value}</b> "
         f"(modifier {modifier:+d}); normalized predictor score {raw_score:.3f}. "
-        "The evidence below is broken out by the same weighted predictor categories "
-        "used by the stat calculator.</div>"
-        f"<div style='height:10px;'></div>"
-        f"<div style='{body_style}'><b>Why this chart got this score</b>{evidence_html}</div>"
+        
+        f"<div style='height:10px;'></div><br>"
+        f"<p><div style='{header_style}'><b>Why this chart got this score</b>{evidence_html}</div></p>"
     )
 
     if stat_value > 11:

@@ -477,16 +477,11 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
         f"below-average traits are at least {threshold:.0f}% lower than DB average."
         "</div>"
     )
-    footer = (
-        "<div style='color:#9a9a9a; padding-top:4px;'>"
-        "Hover a trait name to see the DB average used for the comparison."
-        "</div>"
-    )
     owner._traits_prediction_above_avg_html = "".join(
-        [intro, _trait_table("Above avg traits", above_avg_traits, color_by_name), footer]
+        [_trait_table("Above avg traits", above_avg_traits, color_by_name)] #removed "intro, " and ", footer"  from "intro, _trait_table..., footer"
     )
     owner._traits_prediction_below_avg_html = "".join(
-        [intro, _trait_table("Below avg traits", below_avg_traits, color_by_name), footer]
+        [_trait_table("Below avg traits", below_avg_traits, color_by_name)] #removed "intro, " and ", footer" from "intro, _trait_table..., footer"
     )
     combo = getattr(owner, "traits_prediction_mode_combo", None)
     mode = combo.currentData() if isinstance(combo, QComboBox) else "above"

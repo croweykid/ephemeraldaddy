@@ -1383,7 +1383,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     owner.traits_prediction_scroll_area.setFrameShape(QFrame.NoFrame)
     owner.traits_prediction_scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
     owner.traits_prediction_scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-    owner.traits_prediction_scroll_area.setMinimumHeight(120)
+    owner.traits_prediction_scroll_area.setMinimumHeight(240)
     owner.traits_prediction_scroll_area.setMaximumHeight(260)
     owner.traits_prediction_scroll_area.setStyleSheet("QScrollArea { background: transparent; border: 0; }")
     owner.traits_prediction_scroll_area.setWidget(owner.traits_prediction_label)
