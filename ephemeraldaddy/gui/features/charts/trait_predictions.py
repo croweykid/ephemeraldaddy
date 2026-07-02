@@ -6,14 +6,16 @@ import hashlib
 import html
 import json
 import logging
+import urllib.parse
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtWidgets import QLabel, QComboBox
+from PySide6.QtWidgets import QLabel, QComboBox, QWidget
 
 from ephemeraldaddy.analysis.traits import DEFAULT_TRAIT_COLOR, calculate_trait_likelihoods, list_traits, normalize_trait_color
 from ephemeraldaddy.core import db
 from ephemeraldaddy.core.chart import chart_uses_houses
+from ephemeraldaddy.gui.style import apply_chart_info_link_cursor, set_chart_info_html
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +51,7 @@ def _trait_rank_row(
     safe_name = html.escape(name)
     pct = max(0.0, min(100.0, percentage))
     safe_color = html.escape(normalize_trait_color(color))
+    safe_href = html.escape(f"trait:{urllib.parse.quote(name, safe='')}", quote=True)
     difference_text = html.escape(_format_signed_percentage(db_deviation))
     difference_color = "#d8d8d8"
     if db_deviation > 0:
@@ -58,7 +61,9 @@ def _trait_rank_row(
     safe_title = html.escape(f"DB average: {max(0.0, min(100.0, db_average)):.1f}%")
     return (
         "<tr>"
-        f"<td style='padding:1px 8px 1px 0; white-space:nowrap; color:{safe_color};' title='{safe_title}'>{safe_name}</td>"
+        f"<td style='padding:1px 8px 1px 0; white-space:nowrap; color:{safe_color};' title='{safe_title}'>"
+        f"<a href='{safe_href}' style='color:{safe_color}; text-decoration:none;'>{safe_name}</a>"
+        "</td>"
         f"<td style='padding:1px 8px 1px 0; text-align:right; color:#d8d8d8;'>{pct:.1f}%</td>"
         f"<td style='padding:1px 0; text-align:right; color:{difference_color};'>{difference_text}</td>"
         "</tr>"
@@ -89,6 +94,67 @@ def _trait_table(title: str, rows: list[tuple[str, float, float, float]], color_
         f"{_traits_table_header()}{body}"
         "</table>"
     )
+
+
+def _trait_sample_count(trait: dict[str, Any]) -> int:
+    samples = trait.get("samples")
+    if samples is None and isinstance(trait.get("profile"), dict):
+        samples = trait["profile"].get("samples")
+    if isinstance(samples, (int, float)):
+        return max(0, int(samples))
+    if isinstance(samples, list):
+        if all(isinstance(sample, (int, float)) for sample in samples):
+            return max(0, int(sum(samples)))
+        return len(samples)
+    return 0
+
+
+def _trait_info_html(trait: dict[str, Any]) -> str:
+    name = str(trait.get("name", "")).strip() or "Trait"
+    color = normalize_trait_color(str(trait.get("color", DEFAULT_TRAIT_COLOR)))
+    description = str(trait.get("description", "")).strip() or "no description provided"
+    sample_count = _trait_sample_count(trait)
+    return (
+        f"<div style='font-size:18px; font-weight:700; color:{html.escape(color)};'>"
+        f"{html.escape(name)}</div>"
+        "<div style='height:6px;'></div>"
+        "<div style='font-size:12px; color:#f5f5f5; font-style:italic; line-height:1.35;'>"
+        f"{html.escape(description).replace(chr(10), '<br>')}"
+        "</div>"
+        "<div style='height:8px;'></div>"
+        "<div style='font-size:9px; color:#b8b8b8; font-variant:small-caps; letter-spacing:0.8px;'>"
+        f"based on aggregated data from {sample_count}"
+        "</div>"
+    )
+
+
+def _show_trait_chart_info(owner: Any, trait_name: str) -> None:
+    trait_lookup = getattr(owner, "_traits_prediction_trait_lookup", {}) or {}
+    trait = trait_lookup.get(str(trait_name or "").casefold())
+    if trait is None:
+        return
+    set_mode = getattr(owner, "_set_chart_info_panel_mode", None)
+    if callable(set_mode):
+        set_mode("chart_info")
+    output = getattr(owner, "chart_info_output", None)
+    if isinstance(output, QWidget) or hasattr(output, "setHtml") or hasattr(output, "setPlainText"):
+        set_chart_info_html(output, _trait_info_html(trait))
+
+
+def _on_trait_prediction_link_activated(owner: Any, target: str) -> None:
+    parts = str(target or "").split(":", 1)
+    if len(parts) != 2 or parts[0] != "trait":
+        return
+    _show_trait_chart_info(owner, urllib.parse.unquote(parts[1]))
+
+
+def _configure_traits_prediction_label(owner: Any, label: QLabel) -> None:
+    label.setOpenExternalLinks(False)
+    apply_chart_info_link_cursor(label)
+    if getattr(label, "_ephemeraldaddy_trait_links_connected", False):
+        return
+    label.linkActivated.connect(lambda target: _on_trait_prediction_link_activated(owner, target))
+    label._ephemeraldaddy_trait_links_connected = True
 
 
 def _stable_json_hash(value: Any) -> str:
@@ -491,7 +557,13 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
     label = getattr(owner, "traits_prediction_label", None)
     if not isinstance(label, QLabel):
         return
+    _configure_traits_prediction_label(owner, label)
     traits = list_traits(active_only=True)
+    owner._traits_prediction_trait_lookup = {
+        str(trait.get("name", "")).strip().casefold(): trait
+        for trait in traits
+        if str(trait.get("name", "")).strip()
+    }
     if not traits:
         if list_traits():
             label.setText("No active traits. Reactivate traits in Settings > Traits to include them in Predictions.")
