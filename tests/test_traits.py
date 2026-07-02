@@ -1,4 +1,5 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 from ephemeraldaddy.analysis import traits
 
@@ -334,3 +335,47 @@ def test_list_traits_can_raise_for_corrupt_trait_files(tmp_path, monkeypatch):
         pass
     else:
         raise AssertionError("Expected corrupt trait file to raise when skip_corrupt is False")
+
+
+def test_trait_possible_score_can_exclude_house_criteria():
+    profile = {
+        "signs": {"Aries": 10},
+        "houses": {"1": 8},
+        "antihouses": {"12": 6},
+        "positions": {
+            "Sun in Aries": 5,
+            "Sun in H10": 4,
+            "Gemini in H11": 3,
+        },
+        "antipositions": {
+            "Moon in Taurus": 2,
+            "Moon in H4": 7,
+        },
+    }
+
+    assert traits.trait_possible_score(profile, include_houses=True) == 45.0
+    assert traits.trait_possible_score(profile, include_houses=False) == 17.0
+
+
+def test_trait_likelihood_ignores_supplied_house_possible_score_when_chart_has_no_houses(monkeypatch):
+    trait_items = [
+        {
+            "name": "House Heavy",
+            "profile": {
+                "signs": {"Aries": 10},
+                "houses": {"1": 90},
+            },
+        }
+    ]
+    chart = SimpleNamespace(name="No Houses")
+
+    monkeypatch.setattr(traits, "chart_uses_houses", lambda _chart: False)
+    monkeypatch.setattr(traits, "calculate_trait_scores", lambda _chart, _traits: {"House Heavy": 10.0})
+
+    likelihoods = traits.calculate_trait_likelihoods(
+        chart,
+        trait_items,
+        possible_scores={"House Heavy": 100.0},
+    )
+
+    assert likelihoods == {"House Heavy": 100.0}
