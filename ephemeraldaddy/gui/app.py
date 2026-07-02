@@ -8893,6 +8893,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 db_match_counts=db_common_bazi_signs,
                 db_total_count=db_total_count,
             )
+        except OperationCanceled:
+            return
         finally:
             close_similarities_loading_progress(progress)
 
