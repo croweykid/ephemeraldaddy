@@ -88,8 +88,10 @@ def draw_dnd_statblock_predictions(
     dnd_stat_keys: tuple[str, ...],
     apply_standard_bar_axes: Any,
     norm_charts: Any = None,
+    statblock: Any = None,
 ) -> None:
-    statblock = score_dnd_statblock(chart, norm_charts=norm_charts)
+    if statblock is None:
+        statblock = score_dnd_statblock(chart, norm_charts=norm_charts)
     labels = list(dnd_stat_keys)
     values = [float(statblock.scores.get(label, 0.0)) for label in labels]
     max_value = max(values, default=0.0)
@@ -680,20 +682,42 @@ class DndPredictionPanelAdapter:
             fontweight="bold",
         )
 
+    def _statblock_cache_key(self, norm_charts: Any) -> tuple[Any, ...]:
+        try:
+            norm_count = len(norm_charts) if norm_charts is not None else 0
+        except TypeError:
+            norm_count = None
+        return (id(norm_charts), norm_count, tuple(self.dnd_stat_keys))
+
+    def _score_statblock(self, chart: Any, norm_charts: Any = None) -> Any:
+        cache_key = self._statblock_cache_key(norm_charts)
+        cached = getattr(chart, "_dnd_statblock_prediction_cache", None)
+        if isinstance(cached, dict) and cached.get("key") == cache_key and cached.get("statblock") is not None:
+            return cached["statblock"]
+        statblock = score_dnd_statblock(chart, norm_charts=norm_charts)
+        try:
+            setattr(chart, "_dnd_statblock_prediction_cache", {"key": cache_key, "statblock": statblock})
+        except Exception:
+            pass
+        return statblock
+
     def draw(self, ax: Any, chart: Any) -> None:
+        norm_charts = self._norm_charts()
         draw_dnd_statblock_predictions(
             ax,
             chart,
             dnd_stat_keys=self.dnd_stat_keys,
             apply_standard_bar_axes=self.apply_standard_bar_axes,
-            norm_charts=self._norm_charts(),
+            norm_charts=norm_charts,
+            statblock=self._score_statblock(chart, norm_charts),
         )
 
     def build_popout_info(self, chart: Any | None, target: str) -> str:
         return build_dnd_statblock_popout_info_html(chart, target, norm_charts=self._norm_charts())
 
     def cache_metadata(self, chart: Any) -> dict[str, float]:
-        statblock = score_dnd_statblock(chart, norm_charts=self._norm_charts())
+        norm_charts = self._norm_charts()
+        statblock = self._score_statblock(chart, norm_charts)
         return {stat_key: float(statblock.scores.get(stat_key, 0.0)) for stat_key in self.dnd_stat_keys}
 
     def render(self, chart: Any | None, metric_panel_renderer: Callable[..., Any]) -> Any:
