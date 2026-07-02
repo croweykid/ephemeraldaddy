@@ -245,3 +245,32 @@ Line three""",
     assert "// # real sample note" in saved_text
     assert "// # this is part of the description" not in saved_text
     assert traits.list_traits()[0]["profile"]["description"].startswith("Line one\n# this is part")
+
+
+def test_list_traits_logs_and_skips_corrupt_trait_files(tmp_path, monkeypatch, caplog):
+    monkeypatch.setattr(traits, "TRAIT_DIR", tmp_path)
+    good = tmp_path / "good.json"
+    good.write_text('{"Good": {"name": "Good", "bodies": {"Moon": 1}}}', encoding="utf-8")
+    corrupt = tmp_path / "broken.json"
+    corrupt.write_text('{"Broken": ', encoding="utf-8")
+
+    caplog.set_level("DEBUG", logger="ephemeraldaddy.analysis.traits")
+
+    items = traits.list_traits(skip_corrupt=True)
+
+    assert [item["name"] for item in items] == ["Good"]
+    assert "Traits panel skipped corrupt trait file" in caplog.text
+    assert str(corrupt) in caplog.text
+
+
+def test_list_traits_can_raise_for_corrupt_trait_files(tmp_path, monkeypatch):
+    monkeypatch.setattr(traits, "TRAIT_DIR", tmp_path)
+    corrupt = tmp_path / "broken.json"
+    corrupt.write_text('{"Broken": ', encoding="utf-8")
+
+    try:
+        traits.list_traits(skip_corrupt=False)
+    except Exception:
+        pass
+    else:
+        raise AssertionError("Expected corrupt trait file to raise when skip_corrupt is False")
