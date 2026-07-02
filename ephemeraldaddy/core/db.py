@@ -260,6 +260,11 @@ def _is_personal_chart_type_for_age_inference(value: Optional[str]) -> bool:
     return normalized in {CHART_TYPE_PERSONAL, SOURCE_USER_SUBMITTED}
 
 
+# UID migration rule: chart_uid is the durable app-wide chart identifier.
+# The integer charts.id column is retained only as a local SQLite row key for
+# ordering, joins, and bounded internal lookup adapters while older call sites
+# are migrated. New cross-feature metadata, cache keys, relationships, exports,
+# and user-visible references should use chart_uid instead of chart_id.
 SCHEMA_VERSION = 18
 
 CHART_UID_LENGTH = 16

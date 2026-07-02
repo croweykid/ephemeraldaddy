@@ -2561,6 +2561,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_metrics_cache: dict[str, Any] | None = None
         self._database_metrics_cache_revision = 0
         self._database_metrics_snapshot_sections: frozenset[str] = frozenset()
+        # Legacy DB-row IDs remain here only for local table selection/cache
+        # ordering. Durable chart identity for new app-wide state is chart_uid.
         self._database_metrics_lucy_goosey_ids: set[int] = set()
         self.transit_panel_controller = TransitPanelController(
             self,

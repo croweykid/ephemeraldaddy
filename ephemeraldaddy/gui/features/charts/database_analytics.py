@@ -1115,6 +1115,8 @@ class DatabaseAnalyticsChartsMixin:
         return ZODIAC_NAMES[int(normalized // 30) % 12]
 
     def _display_name_for_chart_id(self, chart_id: int) -> str:
+        # Integer chart IDs are a Database Analytics row/sort adapter only;
+        # app-wide identity and persisted metadata should be keyed by UID.
         row = self._active_chart_rows_by_id.get(int(chart_id))
         if row is not None and len(row) > 1:
             name = str(row[1] or "").strip()

@@ -1723,6 +1723,9 @@ def find_astro_twins(
     hidden_chart_ids: set[int] | None = None,
     include_hidden_charts: bool = False,
 ) -> list[AstroTwinMatch]:
+    # TODO UID migration: the candidate tuple's integer ID is retained as a
+    # heap tie-breaker/local DB row adapter. Similarity identity should flow
+    # through each chart's chart_uid wherever results leave this algorithm.
     target_k = max(1, int(top_k))
     # Keep only k best candidates as we iterate so we avoid sorting all rows.
     scored_matches: list[tuple[float, int, AstroTwinMatch]] = []
