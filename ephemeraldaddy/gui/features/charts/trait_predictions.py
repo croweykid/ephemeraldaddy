@@ -12,6 +12,7 @@ from typing import Any
 from PySide6.QtWidgets import QLabel
 
 from ephemeraldaddy.analysis.traits import DEFAULT_TRAIT_COLOR, calculate_trait_likelihoods, list_traits, normalize_trait_color
+from ephemeraldaddy.core import db
 
 logger = logging.getLogger(__name__)
 
@@ -99,15 +100,27 @@ def _stable_json_hash(value: Any) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+def _database_chart_rows(owner: Any) -> list[Any]:
+    chart_rows = list(getattr(owner, "_chart_rows", []) or [])
+    if chart_rows:
+        return chart_rows
+    try:
+        return list(db.list_charts())
+    except Exception as exc:
+        logger.warning("Traits panel could not load database chart rows for DB averages: %s", exc, exc_info=True)
+        return []
+
+
 def _database_chart_ids(owner: Any) -> tuple[int, ...]:
-    chart_rows = getattr(owner, "_chart_rows", [])
+    chart_rows = _database_chart_rows(owner)
     normalize_row = getattr(owner, "_normalize_chart_row", None)
     chart_ids: set[int] = set()
     for row in chart_rows:
-        if callable(normalize_row) and normalize_row(row) is None:
+        normalized = normalize_row(row) if callable(normalize_row) else row
+        if normalized is None:
             continue
         try:
-            chart_ids.add(int(row[0]))
+            chart_ids.add(int(normalized[0]))
         except (TypeError, ValueError, IndexError):
             continue
     return tuple(sorted(chart_ids))
@@ -272,8 +285,6 @@ def trait_metadata_for_chart(owner: Any, chart: Any) -> dict[str, Any]:
     active_trait_names = {str(trait.get("name", "")).strip() for trait in traits if str(trait.get("name", "")).strip()}
     if chart_id is not None:
         try:
-            from ephemeraldaddy.core import db
-
             rows = db.get_chart_trait_metadata(int(chart_id))
         except Exception as exc:
             logger.warning(
@@ -329,8 +340,6 @@ def trait_metadata_for_chart(owner: Any, chart: Any) -> dict[str, Any]:
     setattr(chart, "_trait_prediction_metadata_cache", {"signature": signature, "metadata": metadata})
     if chart_id is not None:
         try:
-            from ephemeraldaddy.core import db
-
             db.upsert_chart_trait_metadata(
                 int(chart_id),
                 [
