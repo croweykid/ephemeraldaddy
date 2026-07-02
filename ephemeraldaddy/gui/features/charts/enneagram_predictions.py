@@ -161,6 +161,24 @@ def merge_enneagram_category_weights(payload: Any) -> dict[str, float]:
     return merged
 
 
+def _coerce_cached_enneagram_type_scores(cached_scores: Any) -> dict[int, float] | None:
+    """Return usable cached Enneagram scores, or None when the cache is blank/stale."""
+    if not isinstance(cached_scores, dict) or not cached_scores:
+        return None
+    coerced: dict[int, float] = {}
+    for key, value in cached_scores.items():
+        try:
+            enneagram_type = int(key)
+            score = float(value)
+        except (TypeError, ValueError):
+            continue
+        if 1 <= enneagram_type <= 9:
+            coerced[enneagram_type] = score
+    if not coerced:
+        return None
+    return coerced
+
+
 def cache_enneagram_prediction_metadata(chart: Any, scores: dict[int, float]) -> dict[int, float]:
     """Write ranked Enneagram prediction metadata back onto a chart object."""
     ranked_scores = sorted(
@@ -434,8 +452,10 @@ def draw_enneagram_predictions(
         f"{num} {str(enneagram.get(num, {}).get('name', '')).strip()}".strip()
         for num in range(1, 10)
     ]
-    cached_scores = getattr(chart, "enneagram_type_weights", None)
-    if isinstance(cached_scores, dict):
+    cached_scores = _coerce_cached_enneagram_type_scores(
+        getattr(chart, "enneagram_type_weights", None)
+    )
+    if cached_scores is not None:
         type_scores = cached_scores
     else:
         type_scores = calculate_type_weights(chart)
@@ -909,12 +929,11 @@ class EnneagramPredictionPanelAdapter:
         )
 
     def cache_metadata(self, chart: Any) -> dict[int, float]:
-        cached_scores = getattr(chart, "enneagram_type_weights", None)
-        if isinstance(cached_scores, dict):
-            try:
-                return {int(key): float(value) for key, value in cached_scores.items()}
-            except (TypeError, ValueError):
-                pass
+        cached_scores = _coerce_cached_enneagram_type_scores(
+            getattr(chart, "enneagram_type_weights", None)
+        )
+        if cached_scores is not None:
+            return cached_scores
         scores = self.calculate_type_weights(chart)
         return cache_enneagram_prediction_metadata(chart, scores)
 

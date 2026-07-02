@@ -34,3 +34,11 @@ def test_predictions_settings_apply_shared_weighted_predictor_options():
     assert "set_default_scoring_options as _set_prediction_scoring_options" in APP_SOURCE
     assert "_set_prediction_scoring_options(self._enneagram_scoring_options)" in APP_SOURCE
     assert "_set_prediction_scoring_options(options)" in APP_SOURCE
+
+def test_enneagram_predictions_recompute_when_cached_scores_are_blank():
+    source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/enneagram_predictions.py").read_text()
+
+    assert "def _coerce_cached_enneagram_type_scores" in source
+    assert "if not isinstance(cached_scores, dict) or not cached_scores:" in source
+    assert "cached_scores = _coerce_cached_enneagram_type_scores(" in source
+    assert "if cached_scores is not None:" in source
