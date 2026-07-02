@@ -73,6 +73,7 @@ HD_AUTHORITY_ALIASES = {
 }
 CANONICAL_FACTOR_NAMES = tuple(dict.fromkeys([*PLANET_ORDER, *ZODIAC_NAMES, "AS", "DS", "IC", "MC"]))
 CANONICAL_FACTOR_LOOKUP = {name.casefold(): name for name in CANONICAL_FACTOR_NAMES}
+HOUSE_DEPENDENT_FACTORS = frozenset({"AS", "DS", "IC", "MC"})
 
 
 def sign_for_longitude(lon: float) -> str:
@@ -493,6 +494,26 @@ def parse_aspect_spec(raw_spec: str) -> tuple[str, str, str] | None:
     if not left or not right:
         return None
     return (left, aspect_type, right)
+
+
+def factor_uses_houses(raw_factor: Any) -> bool:
+    return normalize_factor_value(str(raw_factor)) in HOUSE_DEPENDENT_FACTORS
+
+
+def position_spec_uses_houses(raw_spec: Any) -> bool:
+    parsed = parse_position_spec(str(raw_spec))
+    if parsed is None:
+        return False
+    category, _container, subject = parsed
+    return category in {"body_in_house", "sign_in_house"} or factor_uses_houses(subject)
+
+
+def aspect_spec_uses_houses(raw_spec: Any) -> bool:
+    parsed = parse_aspect_spec(str(raw_spec))
+    if parsed is None:
+        return False
+    left, _aspect_type, right = parsed
+    return factor_uses_houses(left) or factor_uses_houses(right)
 
 
 def normalize_category_delta(
@@ -1036,6 +1057,31 @@ def calculate_weighted_criteria_scores(
         antipositions = weighted_position_entries(factors.get("antipositions", set()))
         aspects = _weighted_text_entries(factors.get("aspects", set()))
         antiaspects = _weighted_text_entries(factors.get("antiaspects", set()))
+        if not use_houses:
+            houses = {}
+            antihouses = {}
+            bodies = {body: weight for body, weight in bodies.items() if not factor_uses_houses(body)}
+            antibodies = {body: weight for body, weight in antibodies.items() if not factor_uses_houses(body)}
+            positions = {
+                position: weight
+                for position, weight in positions.items()
+                if not position_spec_uses_houses(position)
+            }
+            antipositions = {
+                position: weight
+                for position, weight in antipositions.items()
+                if not position_spec_uses_houses(position)
+            }
+            aspects = {
+                aspect: weight
+                for aspect, weight in aspects.items()
+                if not aspect_spec_uses_houses(aspect)
+            }
+            antiaspects = {
+                aspect: weight
+                for aspect, weight in antiaspects.items()
+                if not aspect_spec_uses_houses(aspect)
+            }
 
         if options.use_direct_dominance_activation:
             sign_positive = sum(float(sign_weights.get(sign, 0.0)) * weight for sign, weight in signs.items())

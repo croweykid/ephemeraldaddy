@@ -300,9 +300,13 @@ from typing import Any, Iterable, Mapping
 
 from ephemeraldaddy.analysis.weighted_chart_predictor import (
     DEFAULT_CATEGORY_WEIGHTS,
+    aspect_spec_uses_houses,
     calculate_weighted_criteria_scores,
     criterion_multiplier_for_target,
+    factor_uses_houses,
+    position_spec_uses_houses,
 )
+from ephemeraldaddy.core.chart import chart_uses_houses
 
 TRAIT_DIR = Path.home() / ".ephemeraldaddy" / "traits"
 TRAIT_FILE_SUFFIX = ".json"
@@ -745,7 +749,32 @@ _TRAIT_CATEGORY_ALIASES = {
 }
 
 
-def _criterion_abs_weight(value: Any) -> float:
+def _criterion_uses_houses(raw_value: Any, *, category: str) -> bool:
+    if category in {"houses", "antihouses"}:
+        return True
+    if category in {"bodies", "antibodies"}:
+        return factor_uses_houses(raw_value)
+    if category in {"positions", "antipositions"}:
+        return position_spec_uses_houses(raw_value)
+    if category in {"aspects", "antiaspects"}:
+        return aspect_spec_uses_houses(raw_value)
+    return False
+
+
+def _criterion_abs_weight(value: Any, *, include_houses: bool = True, category: str = "") -> float:
+    if not include_houses:
+        if isinstance(value, Mapping):
+            return sum(
+                abs(float(weight))
+                for criterion, weight in value.items()
+                if isinstance(weight, (int, float))
+                and not _criterion_uses_houses(criterion, category=category)
+            )
+        if isinstance(value, (set, list, tuple)):
+            return float(
+                sum(1 for criterion in value if not _criterion_uses_houses(criterion, category=category))
+            )
+        return 0.0
     if isinstance(value, Mapping):
         return sum(abs(float(weight)) for weight in value.values() if isinstance(weight, (int, float)))
     if isinstance(value, (set, list, tuple)):
@@ -753,19 +782,23 @@ def _criterion_abs_weight(value: Any) -> float:
     return 0.0
 
 
-def _trait_possible_score(profile: Mapping[str, Any]) -> float:
+def _trait_possible_score(profile: Mapping[str, Any], *, include_houses: bool = True) -> float:
     total = 0.0
     for raw_category in _TRAIT_SCORE_CATEGORIES:
         base_category = _TRAIT_CATEGORY_ALIASES.get(raw_category, raw_category)
         category_weight = float(DEFAULT_CATEGORY_WEIGHTS.get(base_category, 1.0))
         multiplier = float(criterion_multiplier_for_target(profile, base_category))
-        total += category_weight * multiplier * _criterion_abs_weight(profile.get(raw_category, {}))
+        total += category_weight * multiplier * _criterion_abs_weight(
+            profile.get(raw_category, {}),
+            include_houses=include_houses,
+            category=raw_category,
+        )
     return max(total, 1.0)
 
 
-def trait_possible_score(profile: Mapping[str, Any]) -> float:
+def trait_possible_score(profile: Mapping[str, Any], *, include_houses: bool = True) -> float:
     """Return the maximum absolute evidence score available for a trait profile."""
-    return _trait_possible_score(profile)
+    return _trait_possible_score(profile, include_houses=include_houses)
 
 
 def calculate_trait_likelihoods(
@@ -786,15 +819,16 @@ def calculate_trait_likelihoods(
     trait_items = traits if traits is not None else list_traits(active_only=True)
     trait_items = [item for item in trait_items if not bool(item.get("archived", False))]
     raw_scores = calculate_trait_scores(chart, trait_items)
+    include_houses = chart_uses_houses(chart)
     likelihoods: dict[str, float] = {}
     for item in trait_items:
         name = str(item.get("name", ""))
         if not name:
             continue
-        if possible_scores is not None and name in possible_scores:
+        if include_houses and possible_scores is not None and name in possible_scores:
             possible = max(float(possible_scores.get(name, 1.0)), 1.0)
         else:
-            possible = _trait_possible_score(item.get("profile", {}))
+            possible = _trait_possible_score(item.get("profile", {}), include_houses=include_houses)
         normalized = max(-1.0, min(1.0, float(raw_scores.get(name, 0.0)) / possible))
         likelihoods[name] = round(50.0 + (normalized * 50.0), 1)
     return likelihoods

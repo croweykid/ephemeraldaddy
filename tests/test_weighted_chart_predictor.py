@@ -451,6 +451,41 @@ def test_prediction_score_mode_raw_skips_type_opportunity_scaling():
     assert scores == {"target": 9.0}
 
 
+def test_no_house_charts_omit_house_dependent_criteria_from_shared_predictor_budget():
+    chart = SimpleNamespace(
+        dominant_sign_weights={"Aries": 1},
+        positions={"Sun": 5.0, "AS": 10.0},
+        aspects=[{"p1": "AS", "p2": "Sun", "type": "conjunction", "delta": 0.0}],
+    )
+    scoring_options = WeightedPredictorScoringOptions(
+        average_scores_by_criterion_count=False,
+        type_signature_scale_mode="sqrt",
+        score_mode="opportunity",
+        dominance_normalization_mode="share",
+    )
+
+    scores = calculate_weighted_criteria_scores(
+        chart,
+        predictors={
+            "clean": {"signs": {"Aries": 9}},
+            "mixed": {
+                "signs": {"Aries": 9},
+                "houses": {"1": 9},
+                "bodies": {"AS": 9},
+                "positions": {"Sun in H1": 9, "AS in Aries": 9},
+                "aspects": {"AS conjunction Sun": 9},
+            },
+        },
+        calculate_body_weights=lambda _chart: {"AS": 1, "Sun": 1},
+        calculate_house_weights=lambda _chart: {1: 1},
+        calculate_nakshatra_weights=_empty_weights,
+        uses_houses=lambda _chart: False,
+        scoring_options=scoring_options,
+    )
+
+    assert scores == {"clean": 3.0, "mixed": 3.0}
+
+
 def test_background_z_score_mode_uses_supplied_target_distribution():
     chart = SimpleNamespace(dominant_sign_weights={"Aries": 1})
 
