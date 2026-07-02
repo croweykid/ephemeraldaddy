@@ -324,8 +324,9 @@ def _build_dnd_stat_evidence_html(chart: Any, stat_key: str, *, max_items_per_ca
         if omitted:
             rendered_rows.append(f"<li>…{omitted} smaller matched item(s) omitted.</li>")
         subtotal = sum(contribution for contribution, _line in rows)
+        title_prefix = "✅ " if subtotal > 0 else "❌ " if subtotal < 0 else ""
         html_sections.append(
-            f"<div><b>{html.escape(title)}</b> "
+            f"<div><b>{title_prefix}{html.escape(title)}</b> "
             f"<span style='opacity:0.85;'>(subtotal {_format_signed_delta(subtotal)})</span>"
             f"<ul>{''.join(rendered_rows)}</ul></div>"
         )
