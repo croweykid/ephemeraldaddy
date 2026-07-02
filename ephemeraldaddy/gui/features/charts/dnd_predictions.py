@@ -654,6 +654,7 @@ class DndPredictionPanelAdapter:
         is_placeholder_chart: Callable[[Any], bool],
         dnd_stat_keys: tuple[str, ...] = DND_STAT_KEYS,
         norm_charts_provider: Callable[[], Any] | None = None,
+        norm_charts_token_provider: Callable[[], Any] | None = None,
     ) -> None:
         self.chart_layout = chart_layout
         self.summary_label = summary_label
@@ -664,6 +665,7 @@ class DndPredictionPanelAdapter:
         self.is_placeholder_chart = is_placeholder_chart
         self.dnd_stat_keys = dnd_stat_keys
         self.norm_charts_provider = norm_charts_provider
+        self.norm_charts_token_provider = norm_charts_token_provider
 
     def _norm_charts(self) -> Any:
         if self.norm_charts_provider is None:
@@ -702,12 +704,35 @@ class DndPredictionPanelAdapter:
             fontweight="bold",
         )
 
+    def _norm_charts_cache_token(self, norm_charts: Any) -> Any:
+        if self.norm_charts_token_provider is not None:
+            try:
+                return self.norm_charts_token_provider()
+            except Exception:
+                pass
+        if norm_charts is None:
+            return None
+        try:
+            return tuple(
+                (
+                    getattr(norm_chart, "uid", None)
+                    or getattr(norm_chart, "UID", None)
+                    or getattr(norm_chart, "chart_uid", None)
+                    or getattr(norm_chart, "id", None)
+                    or getattr(norm_chart, "chart_id", None)
+                    or repr(norm_chart)
+                )
+                for norm_chart in norm_charts
+            )
+        except TypeError:
+            return repr(norm_charts)
+
     def _statblock_cache_key(self, norm_charts: Any) -> tuple[Any, ...]:
         try:
             norm_count = len(norm_charts) if norm_charts is not None else 0
         except TypeError:
             norm_count = None
-        return (id(norm_charts), norm_count, tuple(self.dnd_stat_keys))
+        return (self._norm_charts_cache_token(norm_charts), norm_count, tuple(self.dnd_stat_keys))
 
     def _score_statblock(self, chart: Any, norm_charts: Any = None) -> Any:
         cache_key = self._statblock_cache_key(norm_charts)
