@@ -17,6 +17,7 @@ CHART_DATA_KEYS: dict[str, bool] = {
     "chart_analytics.anagrams": False,
     "chart_view.sexiness": False,
     "charts.standard_deviation_indicators": True,
+    "analytics.dnd_statblock_explainers": False,
 }
 
 DATABASE_ANALYTICS_VISIBILITY_KEYS: dict[str, bool] = {

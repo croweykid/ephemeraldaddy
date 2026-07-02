@@ -329,14 +329,22 @@ def _build_dnd_stat_evidence_html(chart: Any, stat_key: str, *, max_items_per_ca
     return "".join(html_sections)
 
 
-def build_dnd_statblock_popout_info_html(chart: Any, stat_key: str, *, norm_charts: Any = None) -> str:
+def build_dnd_statblock_popout_info_html(
+    chart: Any,
+    stat_key: str,
+    *,
+    norm_charts: Any = None,
+    statblock: Any = None,
+    show_explainers: bool = True,
+) -> str:
     if chart is None:
         return "No chart is available for this D&D stat interpretation."
     stat_definition = _stat_definition_for_key(stat_key)
     if stat_definition is None:
         return f"No D&D stat interpretation data available for {html.escape(str(stat_key))}."
 
-    statblock = score_dnd_statblock(chart, norm_charts=norm_charts)
+    if statblock is None:
+        statblock = score_dnd_statblock(chart, norm_charts=norm_charts)
     normalized_stat_key = str(stat_key or "").strip().upper()
     stat_value = int(statblock.scores.get(normalized_stat_key, 0))
     chart_name = str(getattr(chart, "name", "Chart") or "Chart").strip() or "Chart"
@@ -347,13 +355,22 @@ def build_dnd_statblock_popout_info_html(chart: Any, stat_key: str, *, norm_char
 
     raw_score = float(statblock.raw_scores.get(normalized_stat_key, 0.0))
     modifier = int(statblock.modifiers.get(normalized_stat_key, 0))
-    evidence_html = _build_dnd_stat_evidence_html(chart, normalized_stat_key)
+    if show_explainers:
+        evidence_html = _build_dnd_stat_evidence_html(chart, normalized_stat_key)
+        explainer_html = (
+            f"<div style='height:10px;'></div><br>"
+            f"<p><div style='{header_style}'><b>Why this chart got this score</b>{evidence_html}</div></p>"
+        )
+    else:
+        explainer_html = (
+            f"<div style='height:10px;'></div><br>"
+            f"<div style='{body_style};opacity:0.85;'>D&amp;D Statblock explainers are disabled in "
+            "Settings &gt; Analytics Visibility.</div>"
+        )
     score_context_html = (
         f"<div style='{header_style}'>Final stat: <b>{stat_value}</b> "
         f"(modifier {modifier:+d}); normalized predictor score {raw_score:.3f}. "
-        
-        f"<div style='height:10px;'></div><br>"
-        f"<p><div style='{header_style}'><b>Why this chart got this score</b>{evidence_html}</div></p>"
+        f"{explainer_html}"
     )
 
     if stat_value > 11:
@@ -711,8 +728,31 @@ class DndPredictionPanelAdapter:
             statblock=self._score_statblock(chart, norm_charts),
         )
 
-    def build_popout_info(self, chart: Any | None, target: str) -> str:
-        return build_dnd_statblock_popout_info_html(chart, target, norm_charts=self._norm_charts())
+    def build_popout_info(self, chart: Any | None, target: str, *, show_explainers: bool = True) -> str:
+        if chart is None:
+            return build_dnd_statblock_popout_info_html(chart, target, show_explainers=show_explainers)
+        norm_charts = self._norm_charts()
+        statblock = self._score_statblock(chart, norm_charts)
+        cache_key = (
+            *self._statblock_cache_key(norm_charts),
+            str(target or "").strip().upper(),
+            bool(show_explainers),
+        )
+        cached = getattr(chart, "_dnd_statblock_popout_info_cache", None)
+        if isinstance(cached, dict) and cached.get("key") == cache_key and cached.get("html"):
+            return str(cached["html"])
+        info_html = build_dnd_statblock_popout_info_html(
+            chart,
+            target,
+            norm_charts=norm_charts,
+            statblock=statblock,
+            show_explainers=show_explainers,
+        )
+        try:
+            setattr(chart, "_dnd_statblock_popout_info_cache", {"key": cache_key, "html": info_html})
+        except Exception:
+            pass
+        return info_html
 
     def cache_metadata(self, chart: Any) -> dict[str, float]:
         norm_charts = self._norm_charts()
