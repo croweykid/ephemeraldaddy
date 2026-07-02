@@ -3892,6 +3892,7 @@ def upsert_chart_trait_metadata(
 def get_chart_trait_metadata(chart_id: int) -> list[dict[str, Any]]:
     """Return persisted derived trait metadata rows for a chart."""
     conn = _get_conn()
+    conn.row_factory = sqlite3.Row
     try:
         _create_chart_trait_metadata_table(conn)
         rows = conn.execute(
