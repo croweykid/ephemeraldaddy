@@ -8487,7 +8487,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 progress,
                 "Preparing similarities export data…",
             )
-            self.similarities_controller.set_export_sections([
+            export_sections = [
                 (
                     "Signs in positions in common",
                     [
@@ -8740,8 +8740,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         for label, match_count, total_count in common_bazi_signs
                     ],
                 ),
-            ])
-            self.similarities_controller.set_export_sections([
+            ]
+            filtered_export_sections = [
                 (
                     section_title,
                     [
@@ -8756,12 +8756,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         )
                     ],
                 )
-                for section_title, matches in self._similarities_export_sections
-            ])
+                for section_title, matches in export_sections
+            ]
+            update_similarities_loading_progress(
+                progress,
+                "Rendering similarities results…",
+            )
+            self.similarities_controller.set_export_sections(filtered_export_sections)
 
             total_matches = sum(
                 len(section_matches)
-                for _section_title, section_matches in self._similarities_export_sections
+                for _section_title, section_matches in filtered_export_sections
             )
             if total_matches > 0:
                 self.similarities_status_label.setText(
@@ -8773,10 +8778,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     f"No shared similarities found in at least 2 charts across "
                     f"{len(selected_non_placeholder_chart_ids)} selected chart(s)."
                 )
-            update_similarities_loading_progress(
-                progress,
-                "Rendering similarities results…",
-            )
             self._set_similarities_section_matches(
                 self.similarities_common_positions_list,
                 self.similarities_common_positions_toggle,
@@ -8893,6 +8894,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 db_match_counts=db_common_bazi_signs,
                 db_total_count=db_total_count,
             )
+        except OperationCanceled:
+            return
         finally:
             close_similarities_loading_progress(progress)
 
