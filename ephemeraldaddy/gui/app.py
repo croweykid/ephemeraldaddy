@@ -32415,6 +32415,9 @@ class MainWindow(QMainWindow):
         previous_suppress_lucygoosey = self._suppress_lucygoosey
         self._suppress_lucygoosey = True
         try:
+            # Keep chart loading on the chart-ID compatibility helper so
+            # legacy material-facts sidecars are migrated to UID keys before
+            # the Chart View fields are populated.
             identifiers = load_personal_identifiers(chart_id)
             self._set_material_fact_text("material_facts_addresses_edit", identifiers.get("addresses", ""))
             self._set_material_fact_text("material_facts_emails_edit", identifiers.get("emails", ""))
