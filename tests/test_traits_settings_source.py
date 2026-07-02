@@ -26,6 +26,8 @@ def test_trait_prediction_rendering_lives_outside_app_py():
     predictions_source = (
         ROOT / "ephemeraldaddy" / "gui" / "features" / "charts" / "trait_predictions.py"
     ).read_text(encoding="utf-8")
+    db_source = (ROOT / "ephemeraldaddy" / "core" / "db.py").read_text(encoding="utf-8")
+    db_source = (ROOT / "ephemeraldaddy" / "core" / "db.py").read_text(encoding="utf-8")
 
     assert "def _render_traits_predictions" in app_source
     assert "_render_traits_predictions(self, chart)" in app_source
@@ -47,3 +49,25 @@ def test_prediction_norm_rows_use_full_database_not_displayed_filter_scope():
     assert 'chart_rows = getattr(self, "_chart_rows", None)' in method
     assert 'getattr(manage_dialog, "_chart_rows", None)' in method
     assert "_displayed_chart_rows_by_id" not in method
+
+
+def test_database_view_traits_search_lives_in_search_panel_and_uses_metadata():
+    app_source = (ROOT / "ephemeraldaddy" / "gui" / "app.py").read_text(encoding="utf-8")
+    search_source = (ROOT / "ephemeraldaddy" / "gui" / "dbv_search_panel.py").read_text(encoding="utf-8")
+    predictions_source = (
+        ROOT / "ephemeraldaddy" / "gui" / "features" / "charts" / "trait_predictions.py"
+    ).read_text(encoding="utf-8")
+
+    assert 'add_collapsible_section("🧬Traits")' in search_source
+    assert "def collect_search_trait_filter_sets" in search_source
+    assert "def chart_matches_trait_filters" in search_source
+    assert "collect_search_trait_filter_sets(self)" in app_source
+    assert "chart_matches_trait_filters(" in app_source
+    assert "def trait_metadata_for_chart" in predictions_source
+    assert "predicted_traits_above_avg" in predictions_source
+    assert "predicted_traits_below_avg" in predictions_source
+    assert "CREATE TABLE IF NOT EXISTS chart_trait_metadata" in db_source
+    assert "def upsert_chart_trait_metadata" in db_source
+    assert "def get_chart_trait_metadata" in db_source
+    assert "db.upsert_chart_trait_metadata" in predictions_source
+    assert "db.get_chart_trait_metadata" in predictions_source

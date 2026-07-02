@@ -218,6 +218,112 @@ def warm_trait_database_norms(owner: Any, trait_names: set[str] | None = None) -
     return _database_trait_averages(owner, traits)
 
 
+def trait_metadata_for_chart(owner: Any, chart: Any) -> dict[str, Any]:
+    """Return and attach derived trait metadata for a chart."""
+    traits = list_traits(active_only=True)
+    if chart is None or getattr(owner, "_is_placeholder_chart", lambda _chart: False)(chart) or not traits:
+        metadata = {"above": set(), "below": set(), "deviations": {}, "likelihoods": {}}
+        setattr(chart, "predicted_traits_above_avg", set())
+        setattr(chart, "predicted_traits_below_avg", set())
+        setattr(chart, "predicted_trait_deviations", {})
+        return metadata
+
+    trait_signature = _stable_json_hash(
+        {
+            "version": TRAIT_DB_NORMS_CACHE_VERSION,
+            "traits": [
+                {
+                    "name": trait.get("name", ""),
+                    "color": normalize_trait_color(str(trait.get("color", DEFAULT_TRAIT_COLOR))),
+                    "profile": trait.get("profile", {}),
+                }
+                for trait in traits
+            ],
+        }
+    )
+    norm_signature = _stable_json_hash(_database_chart_ids(owner))
+    signature = (TRAIT_DB_NORMS_CACHE_VERSION, trait_signature, norm_signature)
+    cached = getattr(chart, "_trait_prediction_metadata_cache", None)
+    if isinstance(cached, dict) and cached.get("signature") == signature:
+        return dict(cached.get("metadata", {}))
+
+    chart_id = getattr(chart, "id", None)
+    active_trait_names = {str(trait.get("name", "")).strip() for trait in traits if str(trait.get("name", "")).strip()}
+    if chart_id is not None:
+        try:
+            from ephemeraldaddy.core import db
+
+            rows = db.get_chart_trait_metadata(int(chart_id))
+        except Exception:
+            rows = []
+        if rows and {str(row.get("trait_name", "")) for row in rows} == active_trait_names and all(
+            str(row.get("trait_signature", "")) == trait_signature
+            and str(row.get("norm_signature", "")) == norm_signature
+            for row in rows
+        ):
+            above = {str(row["trait_name"]) for row in rows if row.get("direction") == "above"}
+            below = {str(row["trait_name"]) for row in rows if row.get("direction") == "below"}
+            deviations = {str(row["trait_name"]): float(row.get("deviation", 0.0)) for row in rows}
+            likelihoods = {str(row["trait_name"]): float(row.get("likelihood", 0.0)) for row in rows}
+            database_averages = {str(row["trait_name"]): float(row.get("db_average", 0.0)) for row in rows}
+            metadata = {
+                "above": above,
+                "below": below,
+                "deviations": deviations,
+                "likelihoods": likelihoods,
+                "database_averages": database_averages,
+            }
+            setattr(chart, "predicted_traits_above_avg", set(above))
+            setattr(chart, "predicted_traits_below_avg", set(below))
+            setattr(chart, "predicted_trait_deviations", dict(deviations))
+            setattr(chart, "_trait_prediction_metadata_cache", {"signature": signature, "metadata": metadata})
+            return metadata
+
+    likelihoods = calculate_trait_likelihoods(chart, traits)
+    database_averages = _database_trait_averages(owner, traits)
+    deviations = {
+        name: float(pct) - float(database_averages[name])
+        for name, pct in likelihoods.items()
+        if name in database_averages
+    }
+    threshold = TRAIT_DEVIATION_ASSIGNMENT_THRESHOLD
+    above = {name for name, deviation in deviations.items() if deviation >= threshold}
+    below = {name for name, deviation in deviations.items() if deviation <= -threshold}
+    metadata = {
+        "above": above,
+        "below": below,
+        "deviations": deviations,
+        "likelihoods": likelihoods,
+        "database_averages": database_averages,
+    }
+    setattr(chart, "predicted_traits_above_avg", set(above))
+    setattr(chart, "predicted_traits_below_avg", set(below))
+    setattr(chart, "predicted_trait_deviations", dict(deviations))
+    setattr(chart, "_trait_prediction_metadata_cache", {"signature": signature, "metadata": metadata})
+    if chart_id is not None:
+        try:
+            from ephemeraldaddy.core import db
+
+            db.upsert_chart_trait_metadata(
+                int(chart_id),
+                [
+                    {
+                        "trait_name": name,
+                        "direction": "above" if name in above else "below" if name in below else "neutral",
+                        "likelihood": likelihoods.get(name, 0.0),
+                        "db_average": database_averages.get(name, 0.0),
+                        "deviation": deviations.get(name, 0.0),
+                    }
+                    for name in active_trait_names
+                ],
+                trait_signature=trait_signature,
+                norm_signature=norm_signature,
+            )
+        except Exception:
+            pass
+    return metadata
+
+
 def render_traits_predictions(owner: Any, chart: Any | None) -> None:
     """Render uploaded custom trait scores into Chart View's Predictions panel."""
     label = getattr(owner, "traits_prediction_label", None)
@@ -234,21 +340,16 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
         label.setText("Trait predictions unavailable for this chart.")
         return
     try:
-        # calculate_trait_likelihoods wraps calculate_trait_scores and converts
-        # the signed raw totals to user-facing percentages.
-        likelihoods = calculate_trait_likelihoods(chart, traits)
+        metadata = trait_metadata_for_chart(owner, chart)
+        likelihoods = dict(metadata.get("likelihoods", {}))
+        database_averages = dict(metadata.get("database_averages", {}))
+        db_deviations = dict(metadata.get("deviations", {}))
     except Exception as exc:
         label.setText(f"Trait predictions unavailable: {html.escape(str(exc))}")
         return
     color_by_name = {
         str(trait.get("name", "")): normalize_trait_color(str(trait.get("color", DEFAULT_TRAIT_COLOR)))
         for trait in traits
-    }
-    database_averages = _database_trait_averages(owner, traits)
-    db_deviations = {
-        name: float(pct) - float(database_averages[name])
-        for name, pct in likelihoods.items()
-        if name in database_averages
     }
     if not likelihoods:
         label.setText("No scorable traits uploaded.")
