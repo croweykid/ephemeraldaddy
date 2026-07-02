@@ -33428,8 +33428,12 @@ class MainWindow(QMainWindow):
             self._mark_lucygoosey()
             self._reset_metric_canvases_for_retcon_timing_update()
             self._refresh_chart_preview()
-            if self._can_autosave_current_chart():
-                self._metadata_autosave_timer.start(2000)
+            # Keep rectified-time edits in a dirty preview state until the user
+            # clicks Update Chart.  The metadata autosave path intentionally
+            # skips chart recalculation; letting it run here can reload the
+            # saved chart with stale positions a couple seconds after the live
+            # preview already rendered the correct rectified-time chart.
+            self._metadata_autosave_timer.stop()
 
     def _on_birth_time_changed(self, _time: QTime) -> None:
         if (
@@ -33451,8 +33455,11 @@ class MainWindow(QMainWindow):
         if should_refresh_retcon_preview:
             self._reset_metric_canvases_for_retcon_timing_update()
             self._refresh_chart_preview()
-            if self._can_autosave_current_chart():
-                self._metadata_autosave_timer.start(2000)
+            # Rectified-time changes affect calculated positions, so do not run
+            # metadata-only autosave after the preview.  Autosave would reload
+            # the old saved chart and visually overwrite the correct live
+            # positions until Update Chart is clicked.
+            self._metadata_autosave_timer.stop()
 
     def _update_time_input_visibility(self) -> None:
         self.time_edit.setVisible(not self.time_unknown_checkbox.isChecked())
