@@ -292,6 +292,7 @@ TRAITS = {
 import ast
 import io
 import json
+import logging
 import re
 import tokenize
 from pathlib import Path
@@ -307,6 +308,7 @@ TRAIT_DIR = Path.home() / ".ephemeraldaddy" / "traits"
 TRAIT_FILE_SUFFIX = ".json"
 
 DEFAULT_TRAIT_COLOR = "#cc99ff"
+logger = logging.getLogger(__name__)
 _TRAIT_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 
 
@@ -461,8 +463,14 @@ def _format_preserved_comments(comments: Iterable[str]) -> str:
     body = "\n".join(f"// {comment}" for comment in unique_comments)
     return f"\n\n// Preserved comments from uploaded trait file:\n{body}\n"
 
-def parse_trait_file(path: str | Path) -> dict[str, dict[str, Any]]:
-    """Parse a JSON or Similarities Analysis Python export into trait profiles."""
+def parse_trait_file(path: str | Path, *, skip_invalid_profiles: bool = False) -> dict[str, dict[str, Any]]:
+    """Parse a JSON or Similarities Analysis Python export into trait profiles.
+
+    When ``skip_invalid_profiles`` is true, non-mapping or blank-name entries in
+    an otherwise readable trait payload are ignored instead of causing callers to
+    treat the whole payload as unusable. Syntax/JSON errors still surface so the
+    caller can decide whether to skip the corrupt file.
+    """
     source = Path(path)
     text = source.read_text(encoding="utf-8")
     if source.suffix.lower() == ".json":
@@ -481,9 +489,21 @@ def parse_trait_file(path: str | Path) -> dict[str, dict[str, Any]]:
     profiles: dict[str, dict[str, Any]] = {}
     for raw_name, raw_profile in payload.items():
         if not isinstance(raw_profile, Mapping):
+            if not skip_invalid_profiles:
+                continue
+            logger.debug(
+                "Traits parser skipped invalid profile %r from %s because it is not a mapping.",
+                raw_name,
+                source,
+            )
             continue
         name = str(raw_profile.get("name") or raw_name).strip()
         if not name:
+            if skip_invalid_profiles:
+                logger.debug(
+                    "Traits parser skipped an unnamed profile from %s while skip_invalid_profiles=True.",
+                    source,
+                )
             continue
         profiles[name] = dict(raw_profile)
         profiles[name]["name"] = name
@@ -544,12 +564,26 @@ def install_trait_file(path: str | Path, name: str, *, color: str | None = None)
     return save_trait(name, first_profile, color=color)
 
 
-def list_traits(*, active_only: bool = False) -> list[dict[str, Any]]:
+def list_traits(*, active_only: bool = False, skip_corrupt: bool = True) -> list[dict[str, Any]]:
+    """Return installed trait metadata.
+
+    ``skip_corrupt`` keeps the Traits panel usable when one local trait file is
+    unreadable; the skipped file is reported through the terminal/debug logger.
+    Pass ``False`` when callers need corrupt trait files to raise immediately.
+    """
     items: list[dict[str, Any]] = []
     for path in sorted(traits_dir().glob(f"*{TRAIT_FILE_SUFFIX}"), key=lambda p: p.name.casefold()):
         try:
-            profiles = parse_trait_file(path)
-        except Exception:
+            profiles = parse_trait_file(path, skip_invalid_profiles=skip_corrupt)
+        except Exception as exc:
+            if not skip_corrupt:
+                raise
+            logger.warning(
+                "Traits panel skipped corrupt trait file %s while loading local traits: %s",
+                path,
+                exc,
+                exc_info=True,
+            )
             continue
         profile_name, profile = next(iter(profiles.items()))
         archived = bool(profile.get("archived", False))

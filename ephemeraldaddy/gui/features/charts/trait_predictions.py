@@ -5,12 +5,15 @@ from __future__ import annotations
 import hashlib
 import html
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
 from PySide6.QtWidgets import QLabel
 
 from ephemeraldaddy.analysis.traits import DEFAULT_TRAIT_COLOR, calculate_trait_likelihoods, list_traits, normalize_trait_color
+
+logger = logging.getLogger(__name__)
 
 TRAIT_DEVIATION_ASSIGNMENT_THRESHOLD = 5.0
 TRAIT_DB_NORMS_CACHE_VERSION = 1
@@ -127,12 +130,30 @@ def _trait_norm_cache_key(chart_ids: tuple[int, ...], trait: dict[str, Any]) -> 
 def _load_trait_norm_cache() -> dict[str, dict[str, Any]]:
     try:
         payload = json.loads(TRAIT_DB_NORMS_CACHE_PATH.read_text(encoding="utf-8"))
-    except Exception:
+    except FileNotFoundError:
+        return {}
+    except Exception as exc:
+        logger.warning(
+            "Traits panel skipped corrupt DB norm cache %s: %s",
+            TRAIT_DB_NORMS_CACHE_PATH,
+            exc,
+            exc_info=True,
+        )
         return {}
     if not isinstance(payload, dict) or payload.get("version") != TRAIT_DB_NORMS_CACHE_VERSION:
+        logger.warning(
+            "Traits panel skipped DB norm cache %s because it has an unsupported format or version.",
+            TRAIT_DB_NORMS_CACHE_PATH,
+        )
         return {}
     entries = payload.get("entries", {})
-    return entries if isinstance(entries, dict) else {}
+    if not isinstance(entries, dict):
+        logger.warning(
+            "Traits panel skipped DB norm cache entries from %s because entries is not a mapping.",
+            TRAIT_DB_NORMS_CACHE_PATH,
+        )
+        return {}
+    return entries
 
 
 def _save_trait_norm_cache(entries: dict[str, dict[str, Any]]) -> None:
@@ -254,7 +275,13 @@ def trait_metadata_for_chart(owner: Any, chart: Any) -> dict[str, Any]:
             from ephemeraldaddy.core import db
 
             rows = db.get_chart_trait_metadata(int(chart_id))
-        except Exception:
+        except Exception as exc:
+            logger.warning(
+                "Traits panel skipped cached DB trait metadata for chart %s: %s",
+                chart_id,
+                exc,
+                exc_info=True,
+            )
             rows = []
         if rows and {str(row.get("trait_name", "")) for row in rows} == active_trait_names and all(
             str(row.get("trait_signature", "")) == trait_signature
@@ -319,8 +346,13 @@ def trait_metadata_for_chart(owner: Any, chart: Any) -> dict[str, Any]:
                 trait_signature=trait_signature,
                 norm_signature=norm_signature,
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning(
+                "Traits panel could not update cached DB trait metadata for chart %s: %s",
+                chart_id,
+                exc,
+                exc_info=True,
+            )
     return metadata
 
 
