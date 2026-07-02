@@ -21,8 +21,10 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from PySide6.QtCore import QEvent, QPoint, QSize, Qt, QTimer
 from PySide6.QtWidgets import (
+    QComboBox,
     QDialog,
     QFileDialog,
+    QHBoxLayout,
     QLabel,
     QLayout,
     QScrollArea,
@@ -31,6 +33,7 @@ from PySide6.QtWidgets import (
     QTextEdit,
     QToolTip,
     QVBoxLayout,
+    QWidget,
 )
 
 from ephemeraldaddy.gui.features.charts.dnd_predictions import DND_STAT_KEYS
@@ -4181,12 +4184,188 @@ class DatabaseAnalyticsChartsMixin:
             "Average active custom trait likelihoods across the database. With selection, bars compare selection average to DB average."
         )
         traits_section_layout.addWidget(self.traits_distribution_subheader_label)
+
+        trait_rank_row = QWidget()
+        trait_rank_layout = QHBoxLayout()
+        trait_rank_layout.setContentsMargins(0, 0, 0, 0)
+        trait_rank_layout.setSpacing(6)
+        trait_rank_row.setLayout(trait_rank_layout)
+        trait_rank_label = QLabel("Top charts for trait:")
+        trait_rank_label.setStyleSheet("color: #cfcfcf; font-size: 8pt;")
+        trait_rank_layout.addWidget(trait_rank_label)
+        self.traits_distribution_rank_combo = QComboBox()
+        self.traits_distribution_rank_combo.setMinimumContentsLength(22)
+        self.traits_distribution_rank_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+        self.traits_distribution_rank_combo.currentIndexChanged.connect(
+            lambda _index: self._on_traits_distribution_rank_trait_changed()
+        )
+        trait_rank_layout.addWidget(self.traits_distribution_rank_combo, 1)
+        traits_section_layout.addWidget(trait_rank_row)
+
+        self.traits_distribution_rank_label = QLabel("")
+        self.traits_distribution_rank_label.setTextFormat(Qt.RichText)
+        self.traits_distribution_rank_label.setWordWrap(True)
+        self.traits_distribution_rank_label.setStyleSheet("color: #d8d8d8; padding: 2px 0 6px 0;")
+        traits_section_layout.addWidget(self.traits_distribution_rank_label)
+
         (
             self.traits_distribution_chart_container,
             self.traits_distribution_chart_layout,
         ) = self._create_database_analytics_chart_container()
         self._database_metrics_chart_layouts["traits_distribution"] = self.traits_distribution_chart_layout
         traits_section_layout.addWidget(self.traits_distribution_chart_container)
+
+    def _on_traits_distribution_rank_trait_changed(self) -> None:
+        combo = getattr(self, "traits_distribution_rank_combo", None)
+        if not isinstance(combo, QComboBox):
+            return
+        selected_name = combo.currentData()
+        if isinstance(selected_name, str):
+            self._traits_distribution_rank_trait_name = selected_name
+        if getattr(self, "_traits_distribution_rank_refresh_pending", False):
+            return
+        self._traits_distribution_rank_refresh_pending = True
+
+        def _refresh() -> None:
+            self._traits_distribution_rank_refresh_pending = False
+            update = getattr(self, "_update_sentiment_tally", None)
+            if callable(update):
+                update(
+                    update_database_metrics=True,
+                    update_similarities=False,
+                    sections_to_refresh={"traits_distribution"},
+                )
+
+        QTimer.singleShot(0, _refresh)
+
+    def _sync_traits_distribution_rank_combo(self, trait_items: list[dict[str, Any]]) -> str | None:
+        combo = getattr(self, "traits_distribution_rank_combo", None)
+        if not isinstance(combo, QComboBox):
+            return None
+        active_traits = [
+            trait for trait in trait_items
+            if str(trait.get("name", "")).strip() and not bool(trait.get("archived", False))
+        ]
+        current_name = str(getattr(self, "_traits_distribution_rank_trait_name", "") or "")
+        combo.blockSignals(True)
+        try:
+            combo.clear()
+            if not active_traits:
+                combo.addItem("No active traits", "")
+                combo.setEnabled(False)
+                self._traits_distribution_rank_trait_name = ""
+                return None
+            combo.setEnabled(True)
+            for trait in active_traits:
+                name = str(trait.get("name", "")).strip()
+                combo.addItem(name, name)
+            selected_index = combo.findData(current_name)
+            if selected_index < 0:
+                selected_index = 0
+            combo.setCurrentIndex(selected_index)
+            selected_name = combo.currentData()
+            if isinstance(selected_name, str) and selected_name:
+                self._traits_distribution_rank_trait_name = selected_name
+                return selected_name
+            return None
+        finally:
+            combo.blockSignals(False)
+
+    def _traits_distribution_chart_rankings(
+        self,
+        *,
+        chart_ids: list[int] | set[int],
+        trait_signature: tuple[tuple[str, str, str], ...],
+        selected_trait_name: str,
+        database_values: Mapping[str, float],
+    ) -> list[dict[str, Any]]:
+        """Return cached top chart matches for a trait without a second all-traits pass."""
+        if not selected_trait_name:
+            return []
+        normalized_chart_ids = tuple(sorted({int(chart_id) for chart_id in chart_ids}))
+        cache_revision = int(getattr(self, "_database_metrics_cache_revision", 0))
+        likelihood_cache = getattr(self, "_traits_distribution_chart_likelihood_cache", None)
+        if not isinstance(likelihood_cache, dict):
+            return []
+        rows: list[dict[str, Any]] = []
+        db_average_pct = float(database_values.get(selected_trait_name, 0.0)) * 100.0
+        for chart_id in normalized_chart_ids:
+            chart = self._get_chart_for_filter(int(chart_id))
+            if chart is None or self._is_placeholder_chart(chart):
+                continue
+            chart_cache_key = (cache_revision, trait_signature, int(chart_id))
+            likelihoods = likelihood_cache.get(chart_cache_key)
+            if likelihoods is None:
+                # The aggregate collector should have warmed this cache already.
+                # Skip instead of doing surprise UI-thread work during dropdown use.
+                continue
+            try:
+                likelihood = float(likelihoods.get(selected_trait_name, 0.0))
+            except (TypeError, ValueError):
+                continue
+            chart_name = str(getattr(chart, "name", "") or f"Chart {chart_id}").strip()
+            rows.append(
+                {
+                    "chart_id": int(chart_id),
+                    "name": chart_name or f"Chart {chart_id}",
+                    "likelihood": likelihood,
+                    "deviation": likelihood - db_average_pct,
+                }
+            )
+        rows.sort(key=lambda row: (-float(row["likelihood"]), -float(row["deviation"]), str(row["name"]).casefold()))
+        return rows[:10]
+
+    @staticmethod
+    def _render_traits_distribution_rankings_html(
+        selected_trait_name: str | None,
+        rankings: list[dict[str, Any]],
+        *,
+        scope_label: str,
+        cache_warmed: bool,
+    ) -> str:
+        if not selected_trait_name:
+            return "<span style='color:#9a9a9a;'>No active trait selected for top-chart ranking.</span>"
+        safe_trait = html.escape(selected_trait_name)
+        safe_scope = html.escape(scope_label)
+        if not rankings:
+            if not cache_warmed:
+                return (
+                    f"<span style='color:#9a9a9a;'>Top chart matches for <b>{safe_trait}</b> "
+                    "will appear after trait scores finish warming.</span>"
+                )
+            return (
+                f"<span style='color:#9a9a9a;'>No non-placeholder charts are currently available "
+                f"to rank for <b>{safe_trait}</b>.</span>"
+            )
+        rows = []
+        for rank, row in enumerate(rankings, start=1):
+            name = html.escape(str(row.get("name", "")))
+            likelihood = float(row.get("likelihood", 0.0))
+            deviation = float(row.get("deviation", 0.0))
+            deviation_color = "#90ee90" if deviation >= 0 else "#ffb3b3"
+            rows.append(
+                "<tr>"
+                f"<td style='padding:1px 8px 1px 0; color:#9a9a9a; text-align:right;'>{rank}</td>"
+                f"<td style='padding:1px 8px 1px 0; color:#f0f0f0;'>{name}</td>"
+                f"<td style='padding:1px 8px 1px 0; color:#d8d8d8; text-align:right;'>{likelihood:.1f}%</td>"
+                f"<td style='padding:1px 0; color:{deviation_color}; text-align:right;'>{deviation:+.1f}</td>"
+                "</tr>"
+            )
+        return (
+            f"<div style='padding-bottom:3px;'>Top 10 <b>{safe_trait}</b> chart matches in {safe_scope}.</div>"
+            "<table cellspacing='0' cellpadding='0' style='width:100%;'>"
+            "<tr>"
+            "<th style='padding:1px 8px 2px 0; color:#f5f5f5; text-align:right;'>#</th>"
+            "<th style='padding:1px 8px 2px 0; color:#f5f5f5; text-align:left;'>chart</th>"
+            "<th style='padding:1px 8px 2px 0; color:#f5f5f5; text-align:right;'>match</th>"
+            "<th style='padding:1px 0 2px 0; color:#f5f5f5; text-align:right;'>vs DB</th>"
+            "</tr>"
+            f"{''.join(rows)}"
+            "</table>"
+            "<div style='color:#9a9a9a; padding-top:3px;'>"
+            "Ranking reuses warmed trait-score cache so dropdown changes do not launch another full scoring pass."
+            "</div>"
+        )
 
     @staticmethod
     def _traits_distribution_signature(trait_items: list[dict[str, Any]]) -> tuple[tuple[str, str, str], ...]:
@@ -4439,6 +4618,7 @@ class DatabaseAnalyticsChartsMixin:
 
         trait_items = list_traits(active_only=True)
         trait_signature = self._traits_distribution_signature(trait_items)
+        selected_trait_name = self._sync_traits_distribution_rank_combo(trait_items)
         database_analytics = self._collect_traits_distribution_analytics(
             database_chart_ids,
             trait_items=trait_items,
@@ -4467,6 +4647,24 @@ class DatabaseAnalyticsChartsMixin:
             name: (float(database_totals.get(name, 0.0)) / float(database_count) if database_count else 0.0)
             for name in trait_names
         }
+        ranking_scope_ids: list[int] | set[int] = chart_ids if loaded_charts > 0 else database_chart_ids
+        ranking_scope_label = "the current selection" if loaded_charts > 0 else "the database"
+        rank_label = getattr(self, "traits_distribution_rank_label", None)
+        if isinstance(rank_label, QLabel):
+            rankings = self._traits_distribution_chart_rankings(
+                chart_ids=ranking_scope_ids,
+                trait_signature=trait_signature,
+                selected_trait_name=selected_trait_name or "",
+                database_values=database_values,
+            )
+            rank_label.setText(
+                self._render_traits_distribution_rankings_html(
+                    selected_trait_name,
+                    rankings,
+                    scope_label=ranking_scope_label,
+                    cache_warmed=database_count > 0,
+                )
+            )
         ordered_labels = sorted(
             trait_names,
             key=lambda name: (
