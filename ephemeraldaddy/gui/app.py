@@ -639,8 +639,8 @@ from ephemeraldaddy.core.curse_scoring import (
 from ephemeraldaddy.graphics.wheel_plot import draw_chart_wheel
 from ephemeraldaddy.graphics._chartwheel_generator_impl import draw_chartwheel
 from ephemeraldaddy.core.material_facts import (
-    load_personal_identifiers,
-    save_personal_identifiers,
+    load_personal_identifiers_by_uid,
+    save_personal_identifiers_by_uid,
 )
 from ephemeraldaddy.core.backups import BACKUP_PACKAGE_SUFFIX, create_backup_package
 from ephemeraldaddy.core.db import (
@@ -2561,6 +2561,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_metrics_cache: dict[str, Any] | None = None
         self._database_metrics_cache_revision = 0
         self._database_metrics_snapshot_sections: frozenset[str] = frozenset()
+        # Legacy DB-row IDs remain here only for local table selection/cache
+        # ordering. Durable chart identity for new app-wide state is chart_uid.
         self._database_metrics_lucy_goosey_ids: set[int] = set()
         self.transit_panel_controller = TransitPanelController(
             self,
@@ -32372,7 +32374,7 @@ class MainWindow(QMainWindow):
         previous_suppress_lucygoosey = self._suppress_lucygoosey
         self._suppress_lucygoosey = True
         try:
-            identifiers = load_personal_identifiers(chart_id)
+            identifiers = load_personal_identifiers_by_uid(get_chart_uid(chart_id))
             self._set_material_fact_text("material_facts_addresses_edit", identifiers.get("addresses", ""))
             self._set_material_fact_text("material_facts_emails_edit", identifiers.get("emails", ""))
             self._set_material_fact_text("material_facts_websites_edit", identifiers.get("websites", ""))
@@ -32386,8 +32388,8 @@ class MainWindow(QMainWindow):
     def _save_material_facts_for_chart(self, chart_id: int | None) -> None:
         if chart_id is None:
             return
-        save_personal_identifiers(
-            int(chart_id),
+        save_personal_identifiers_by_uid(
+            get_chart_uid(chart_id),
             {
                 "addresses": self._material_fact_text("material_facts_addresses_edit"),
                 "emails": self._material_fact_text("material_facts_emails_edit"),

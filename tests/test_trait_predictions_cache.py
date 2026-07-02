@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 from ephemeraldaddy.gui.features.charts import trait_predictions
 from ephemeraldaddy.gui.features.charts.database_analytics import DatabaseAnalyticsChartsMixin
 
@@ -180,3 +182,43 @@ def test_traits_distribution_collection_scores_only_new_trait_when_existing_trai
         "Creative": 80.0,
         "Analytical": 65.0,
     }
+
+
+def test_traits_distribution_collection_passively_persists_uid_trait_metadata(monkeypatch):
+    owner = _TraitsCacheOwner((("uid:one", "row"),))
+    owner._traits_distribution_chart_likelihood_cache = {}
+    owner._traits_distribution_individual_likelihood_cache = {}
+    charts = {
+        1: SimpleNamespace(id=1, chart_uid="UIDTRAIT0001"),
+        2: SimpleNamespace(id=2, chart_uid="UIDTRAIT0002"),
+    }
+    owner._get_chart_for_filter = lambda chart_id: charts[int(chart_id)]
+    owner._is_placeholder_chart = lambda _chart: False
+    owner._debug_chart_label = lambda chart: str(getattr(chart, "id", ""))
+
+    def fake_likelihoods(chart, trait_items, possible_scores=None):
+        return {"Creative": 80.0 if chart.id == 1 else 40.0}
+
+    saved = []
+
+    def fake_upsert(chart_uid, rows, *, trait_signature, norm_signature, chart_signature=""):
+        saved.append((chart_uid, rows, trait_signature, norm_signature))
+
+    monkeypatch.setattr(
+        "ephemeraldaddy.gui.features.charts.database_analytics.calculate_trait_likelihoods",
+        fake_likelihoods,
+    )
+    monkeypatch.setattr("ephemeraldaddy.gui.features.charts.database_analytics.db.upsert_chart_trait_metadata", fake_upsert)
+
+    result = owner._collect_traits_distribution_analytics(
+        [1, 2],
+        trait_items=[{"name": "Creative", "profile": {}}],
+        trait_signature=(("Creative", "#ffffff", "{}"),),
+        time_budget_seconds=None,
+    )
+
+    assert result["partial"] is False
+    assert [entry[0] for entry in saved] == ["UIDTRAIT0001", "UIDTRAIT0002"]
+    assert saved[0][1][0]["direction"] == "above"
+    assert saved[0][1][0]["db_average"] == 60.0
+    assert saved[1][1][0]["direction"] == "below"
