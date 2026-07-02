@@ -23638,6 +23638,7 @@ class MainWindow(QMainWindow):
         self._metadata_autosave_timer = QTimer(self)
         self._metadata_autosave_timer.setSingleShot(True)
         self._metadata_autosave_timer.timeout.connect(self._flush_pending_metadata_save)
+        self._metadata_autosave_requires_recalculation = False
         # Suppress startup widget signal noise while we populate default values.
         self._suppress_lucygoosey = True
         self._latest_chart = None
@@ -31022,7 +31023,7 @@ class MainWindow(QMainWindow):
         return self._can_autosave_current_chart()
 
     def _can_autosave_current_chart(self) -> bool:
-        """Return whether timed dirty-state saves may update the open chart.
+        """Return whether timed lucygoosey saves may update the open chart.
 
         Lucygoosey autosaves are update-only: a chart must already have a
         database id before these timers can write metadata back to storage. New
@@ -31056,9 +31057,12 @@ class MainWindow(QMainWindow):
         if not self._ensure_current_chart_still_exists():
             return
         if self._leaving_chart_view_prompt_open:
-            self._metadata_autosave_timer.start(2000)
+            delay_ms = 2500 if self._metadata_autosave_requires_recalculation else 2000
+            self._metadata_autosave_timer.start(delay_ms)
             return
-        self.on_update_chart(show_dialog=False, recalculate_chart=False)
+        recalculate_chart = bool(self._metadata_autosave_requires_recalculation)
+        self._metadata_autosave_requires_recalculation = False
+        self.on_update_chart(show_dialog=False, recalculate_chart=recalculate_chart)
         self._set_lucygoosey(False)
 
     def _on_sentiment_toggled(self, checked: bool) -> None:
@@ -33428,12 +33432,12 @@ class MainWindow(QMainWindow):
             self._mark_lucygoosey()
             self._reset_metric_canvases_for_retcon_timing_update()
             self._refresh_chart_preview()
-            # Keep rectified-time edits in a dirty preview state until the user
-            # clicks Update Chart.  The metadata autosave path intentionally
-            # skips chart recalculation; letting it run here can reload the
-            # saved chart with stale positions a couple seconds after the live
-            # preview already rendered the correct rectified-time chart.
-            self._metadata_autosave_timer.stop()
+            # Rectified-time edits are lucygoosey until autosave fires, but they
+            # affect calculated positions and therefore must use the full chart
+            # recalculation save path instead of metadata-only autosave.
+            if self._can_autosave_current_chart():
+                self._metadata_autosave_requires_recalculation = True
+                self._metadata_autosave_timer.start(2500)
 
     def _on_birth_time_changed(self, _time: QTime) -> None:
         if (
@@ -33455,11 +33459,12 @@ class MainWindow(QMainWindow):
         if should_refresh_retcon_preview:
             self._reset_metric_canvases_for_retcon_timing_update()
             self._refresh_chart_preview()
-            # Rectified-time changes affect calculated positions, so do not run
-            # metadata-only autosave after the preview.  Autosave would reload
-            # the old saved chart and visually overwrite the correct live
-            # positions until Update Chart is clicked.
-            self._metadata_autosave_timer.stop()
+            # Restart the full recalculation autosave on every change so the
+            # currently selected rectified time is saved only after the user
+            # pauses adjustment.
+            if self._can_autosave_current_chart():
+                self._metadata_autosave_requires_recalculation = True
+                self._metadata_autosave_timer.start(2500)
 
     def _update_time_input_visibility(self) -> None:
         self.time_edit.setVisible(not self.time_unknown_checkbox.isChecked())
