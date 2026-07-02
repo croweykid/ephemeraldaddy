@@ -3395,6 +3395,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _start_database_metrics_cache_preload(self) -> None:
         """Deprecated no-op: Database Analytics now refreshes on demand only."""
+        self._load_database_metrics_persistent_cache()
+        load_traits_cache = getattr(self, "_load_traits_distribution_likelihood_cache", None)
+        if callable(load_traits_cache):
+            load_traits_cache()
         return
 
     def _schedule_database_metrics_background_preload(self) -> None:
@@ -16688,6 +16692,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_metrics_background_preload_scheduled = False
         self._deferred_database_metrics_refresh_scheduled = False
         self._incremental_metrics_refresh_scheduled = False
+        self._save_database_metrics_persistent_cache()
+        save_traits_cache = getattr(self, "_save_traits_distribution_likelihood_cache", None)
+        if callable(save_traits_cache):
+            save_traits_cache()
         if hasattr(self, "_batch_refresh_timer"):
             self._batch_refresh_timer.stop()
         if self._help_overlay_active:
