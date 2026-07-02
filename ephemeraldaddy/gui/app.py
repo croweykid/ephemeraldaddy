@@ -360,6 +360,7 @@ from PySide6.QtGui import (
     QFontMetrics,
     QGuiApplication,
     QIcon,
+    QPen,
     QKeySequence,
     QPainter,
     QPixmap,
@@ -1563,6 +1564,45 @@ class TriStateCheckBox(QCheckBox):
             self.setCheckState(Qt.Unchecked)
 
 
+class _QuadStateIndicatorButton(QToolButton):
+    """Small manually-painted button for Database View quad-state filters.
+
+    Some Qt/platform combinations can leave the previous QToolButton text glyph
+    in the backing store after a style-sheet/text transition (most visibly the
+    red exclusion X).  Painting the indicator ourselves clears the full button
+    rectangle on every state change before drawing the current glyph.
+    """
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._quad_state_text = ""
+        self._quad_state_background = "#111111"
+        self._quad_state_foreground = "#dddddd"
+        self._quad_state_border = "#444444"
+
+    def setQuadStateVisual(self, visual: Mapping[str, object]) -> None:
+        self._quad_state_text = str(visual.get("text") or "")
+        self._quad_state_background = str(visual.get("background") or "#111111")
+        self._quad_state_foreground = str(visual.get("foreground") or "#dddddd")
+        self._quad_state_border = str(visual.get("border") or "#444444")
+        self.update()
+
+    def paintEvent(self, event) -> None:  # noqa: N802 - Qt override
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        painter.fillRect(self.rect(), self.palette().window())
+        rect = self.rect().adjusted(1, 1, -1, -1)
+        painter.setBrush(QColor(self._quad_state_background))
+        painter.setPen(QPen(QColor(self._quad_state_border), 1))
+        painter.drawRoundedRect(rect, 10, 10)
+        if self._quad_state_text:
+            painter.setPen(QColor(self._quad_state_foreground))
+            font = painter.font()
+            font.setBold(True)
+            painter.setFont(font)
+            painter.drawText(rect, Qt.AlignCenter, self._quad_state_text)
+
+
 class QuadStateSlider(QWidget):
     modeChanged = Signal(int)
 
@@ -1574,7 +1614,7 @@ class QuadStateSlider(QWidget):
     def __init__(self, label: str, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._mode = self.MODE_EMPTY
-        self._button = QToolButton(self)
+        self._button = _QuadStateIndicatorButton(self)
         self._button.setCheckable(False)
         self._button.clicked.connect(self._advance_mode)
         self._label = QLabel(label)
@@ -1626,20 +1666,14 @@ class QuadStateSlider(QWidget):
         else:
             visual = QUAD_STATE_SLIDER_VISUALS["empty"]
 
-        # Qt can leave the previous glyph painted on a QToolButton when its
-        # text is changed from the red exclusion mark to an empty string, which
-        # made cleared Database View search tickboxes look like the old red X
-        # was still stuck in place.  Paint a non-empty blank instead so the
-        # control always receives fresh text geometry for the empty state.
-        self._button.setText(visual["text"] or " ")
-        self._button.setToolTip(visual["tooltip"])
+        # Keep the native button text empty and paint the indicator manually.
+        # This avoids stale foreground glyphs from previous states (especially
+        # the red exclusion X) being retained by QToolButton backing-store/style
+        # transitions after the red background has already been cleared.
+        self._button.setText("")
+        self._button.setToolTip(str(visual["tooltip"]))
         self._button.setFixedWidth(28)
-        self._button.setStyleSheet(
-            "QToolButton {"
-            f"{visual['style']}"
-            "border-radius: 10px; font-weight: bold; padding: 2px 0px;"
-            "}"
-        )
+        self._button.setQuadStateVisual(visual)
 
 class AlignmentEmojiSlider(QSlider):
     """Horizontal alignment slider with an emoji marker that tracks thresholds."""
