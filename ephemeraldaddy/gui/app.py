@@ -21215,6 +21215,21 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             content_layout,
             "Optional Modules",
         )
+
+        analytics_visibility_section = self._add_settings_collapsible_section(
+            content_layout,
+            "Analytics Visibility",
+        )
+        analytics_visibility_section.addWidget(self._build_settings_subheader_label("Chart View Predictions"))
+        dnd_statblock_explainers_checkbox = QCheckBox("Show D&&D Statblock explainers")
+        dnd_statblock_explainers_checkbox.setChecked(
+            self._visibility.get("analytics.dnd_statblock_explainers")
+        )
+        dnd_statblock_explainers_checkbox.toggled.connect(
+            self._set_dnd_statblock_explainer_visibility_from_settings
+        )
+        analytics_visibility_section.addWidget(dnd_statblock_explainers_checkbox)
+
         visibility_section.addWidget(self._build_settings_subheader_label("Chart Data Panel (Chart View)"))
 
         cursedness_checkbox = QCheckBox("Show cursedness analysis")
@@ -22785,6 +22800,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _set_standard_deviation_indicator_visibility_from_settings(self, checked: bool) -> None:
         self._visibility.set("charts.standard_deviation_indicators", checked)
+        self._refresh_charts(refresh_metrics=True)
+
+    def _set_dnd_statblock_explainer_visibility_from_settings(self, checked: bool) -> None:
+        self._visibility.set("analytics.dnd_statblock_explainers", checked)
         self._refresh_charts(refresh_metrics=True)
 
     def _resize_and_center_settings_dialog(self, dialog: QDialog) -> None:
@@ -35150,7 +35169,11 @@ class MainWindow(QMainWindow):
         self._dnd_prediction_adapter().draw(ax, chart)
 
     def _build_dnd_statblock_popout_info(self, stat_key: str, *, chart: Chart | None = None) -> str:
-        return self._dnd_prediction_adapter().build_popout_info(chart or self._latest_chart, stat_key)
+        return self._dnd_prediction_adapter().build_popout_info(
+            chart or self._latest_chart,
+            stat_key,
+            show_explainers=self._visibility.get("analytics.dnd_statblock_explainers"),
+        )
 
     def _render_dndification_predictions(self, chart: Chart | None) -> None:
         summary_label = self._dnd_prediction_adapter().render(chart, self._render_metric_panel)
