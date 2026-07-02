@@ -28,3 +28,15 @@ def test_profile_line_parser_keeps_only_valid_hd_lines() -> None:
     assert "line_number = int(raw_part)" in parser_block
     assert "if 1 <= line_number <= 6:" in parser_block
     assert "line_numbers.add(line_number)" in parser_block
+
+
+def test_popout_right_panel_toggle_arrows_point_toward_action() -> None:
+    source = SOURCE_PATH.read_text()
+    expanded_start = source.index("    def _set_hd_analytics_expanded")
+    expanded_end = source.index("    hd_analytics_toggle.toggled.connect", expanded_start)
+    expanded_block = source[expanded_start:expanded_end]
+
+    assert "hd_analytics_toggle.setArrowType(Qt.RightArrow)" in expanded_block.split("return", 1)[0]
+    assert 'hd_analytics_toggle.setToolTip("Collapse HD analytics panel")' in expanded_block.split("return", 1)[0]
+    assert "hd_analytics_toggle.setArrowType(Qt.LeftArrow)" in expanded_block.split("return", 1)[1]
+    assert 'hd_analytics_toggle.setToolTip("Expand HD analytics panel")' in expanded_block.split("return", 1)[1]
