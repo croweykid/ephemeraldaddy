@@ -151,9 +151,14 @@ def similarities_match_clears_delta_threshold(
     return abs(selection_percent - database_percent) >= threshold
 
 
+def similarities_export_samples_array(samples: int = 0) -> list[int]:
+    """Return the canonical trait export sample array: [positive, anti]."""
+    return [max(0, int(samples)), 0]
+
+
 def empty_similarities_json_profile(selection_name: str, samples: int = 0) -> OrderedDict:
     """Build the skeleton profile used by Similarities Analysis JSON exports."""
-    profile = OrderedDict([("name", selection_name), ("samples", int(samples))])
+    profile = OrderedDict([("name", selection_name), ("samples", similarities_export_samples_array(samples))])
     for key in SIMILARITIES_JSON_FACTOR_KEYS:
         profile[key] = OrderedDict()
     profile["color"] = "#cc99ff"
@@ -439,7 +444,7 @@ def build_similarities_json_export_payload(
     """
     if _has_dissimilarity_json_owner(export_sections):
         sample_size = _similarities_export_sample_size(export_sections)
-        bundle = OrderedDict([("name", selection_name), ("samples", sample_size)])
+        bundle = OrderedDict([("name", selection_name), ("samples", similarities_export_samples_array(sample_size))])
         for owner_key in ("chart_1", "chart_2"):
             bundle[DISSIMILARITIES_JSON_OWNER_LABELS[owner_key]] = empty_similarities_json_profile(
                 DISSIMILARITIES_JSON_OWNER_LABELS[owner_key], samples=sample_size

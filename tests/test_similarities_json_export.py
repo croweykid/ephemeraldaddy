@@ -274,10 +274,11 @@ def test_similarities_python_export_includes_sample_count():
     )
 
     profile = payload["Sampled"]
-    assert profile["samples"] == 12
+    assert profile["samples"] == [12, 0]
 
     formatted = format_similarities_json_export_payload(payload)
-    assert '"samples": 12,' in formatted
+    assert '"samples": [' in formatted
+    assert "12," in formatted
 
 
 def test_similarities_json_export_sorts_aspects_by_body_order_with_angles_last():

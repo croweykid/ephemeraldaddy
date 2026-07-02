@@ -316,6 +316,46 @@ logger = logging.getLogger(__name__)
 _TRAIT_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 
 
+def normalize_trait_samples(
+    samples: Any,
+    *,
+    trait_name: str = "",
+    source: str | Path | None = None,
+) -> list[int | float]:
+    """Return a trait samples array, accepting old integer samples with a warning."""
+    if isinstance(samples, list):
+        normalized: list[int | float] = []
+        for sample in samples:
+            if isinstance(sample, bool):
+                continue
+            if isinstance(sample, (int, float)):
+                normalized.append(sample)
+        return normalized
+    if isinstance(samples, bool) or samples in (None, ""):
+        return []
+    if isinstance(samples, (int, float)):
+        location = f" in {source}" if source is not None else ""
+        logger.warning(
+            "Trait %r%s uses legacy integer samples=%s; please update it to a samples array such as [%s, 0].",
+            trait_name or "<unnamed>",
+            location,
+            samples,
+            samples,
+        )
+        return [samples]
+    return []
+
+
+def trait_sample_total(
+    samples: Any,
+    *,
+    trait_name: str = "",
+    source: str | Path | None = None,
+) -> int:
+    """Return the summed total from a trait samples array, with legacy integer fallback."""
+    return max(0, int(sum(normalize_trait_samples(samples, trait_name=trait_name, source=source))))
+
+
 def _is_valid_trait_color(color: str) -> bool:
     return bool(_TRAIT_COLOR_RE.match(color.strip()))
 
@@ -599,6 +639,11 @@ def parse_trait_file(path: str | Path, *, skip_invalid_profiles: bool = False) -
             continue
         profiles[name] = dict(raw_profile)
         profiles[name]["name"] = name
+        profiles[name]["samples"] = normalize_trait_samples(
+            profiles[name].get("samples"),
+            trait_name=name,
+            source=source,
+        )
     if not profiles:
         raise ValueError("Trait file did not contain any usable trait profiles.")
     return profiles
@@ -638,6 +683,7 @@ def save_trait(name: str, profile: Mapping[str, Any], *, color: str | None = Non
         stored["color"] = DEFAULT_TRAIT_COLOR
     stored["archived"] = bool(stored.get("archived", False))
     stored["description"] = str(stored.get("description", "")).strip()
+    stored["samples"] = normalize_trait_samples(stored.get("samples"), trait_name=clean_name)
     preserved_comments = _extract_hash_comments(str(profile.get("_source_text", "")))
     stored.pop("_source_text", None)
     destination.write_text(
@@ -683,6 +729,7 @@ def list_traits(*, active_only: bool = False, skip_corrupt: bool = True) -> list
             continue
         color = normalize_trait_color(str(profile.get("color", DEFAULT_TRAIT_COLOR)))
         description = str(profile.get("description", "")).strip()
+        samples = normalize_trait_samples(profile.get("samples"), trait_name=profile_name, source=path)
         items.append(
             {
                 "name": profile_name,
@@ -691,6 +738,8 @@ def list_traits(*, active_only: bool = False, skip_corrupt: bool = True) -> list
                 "color": color,
                 "archived": archived,
                 "description": description,
+                "samples": samples,
+                "sample_total": trait_sample_total(samples),
             }
         )
     return items
@@ -714,6 +763,7 @@ def rename_trait(path: str | Path, new_name: str) -> Path:
     stored["color"] = normalize_trait_color(str(stored.get("color", DEFAULT_TRAIT_COLOR)))
     stored["archived"] = bool(stored.get("archived", False))
     stored["description"] = str(stored.get("description", "")).strip()
+    stored["samples"] = normalize_trait_samples(stored.get("samples"), trait_name=clean_name, source=source)
     destination.write_text(
         json.dumps({clean_name: _json_safe_trait_value(stored)}, ensure_ascii=False, indent=2)
         + _format_preserved_comments(_extract_hash_comments(source_text)),
