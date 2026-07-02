@@ -28,13 +28,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ephemeraldaddy.analysis.human_design_reference import (
-    GATE_COLORS,
-    HD_AUTHORITY_COLORS,
-    HD_CENTERS,
-    HD_LINE_COLORS,
-    HD_TYPE_COLORS,
-)
 from ephemeraldaddy.core.interpretations import (
     ASPECT_COLORS,
     NAKSHATRA_PLANET_COLOR,
@@ -183,6 +176,8 @@ def human_design_type_display_name(value: object) -> str:
 
 
 def _chart_info_center_colors() -> dict[str, str]:
+    from ephemeraldaddy.analysis.human_design_reference import HD_CENTERS
+
     return {
         str(center_data.get("center", "")).strip(): str(center_data.get("color", ""))
         for center_data in HD_CENTERS.values()
@@ -194,6 +189,13 @@ def _chart_info_center_colors() -> dict[str, str]:
 
 def chart_info_token_color_map() -> dict[str, str]:
     """Return appwide Chart Info text-token colors from canonical reference data."""
+    from ephemeraldaddy.analysis.human_design_reference import (
+        GATE_COLORS,
+        HD_AUTHORITY_COLORS,
+        HD_LINE_COLORS,
+        HD_TYPE_COLORS,
+    )
+
     colors: dict[str, str] = {}
     colors.update({str(name): str(color) for name, color in SIGN_COLORS.items() if color})
     colors.update({str(name): str(color) for name, color in PLANET_COLORS.items() if color})
