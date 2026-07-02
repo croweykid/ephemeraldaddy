@@ -35169,6 +35169,7 @@ class MainWindow(QMainWindow):
             apply_standard_bar_axes=self._apply_standard_ncv_bar_chart_axes,
             is_placeholder_chart=self._is_placeholder_chart,
             norm_charts_provider=self._prediction_norm_charts,
+            norm_charts_token_provider=self._prediction_norms_render_token,
         )
 
     def _draw_dnd_statblock_predictions(self, ax, chart: Chart) -> None:
