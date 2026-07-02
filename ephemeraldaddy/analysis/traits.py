@@ -300,9 +300,11 @@ from typing import Any, Iterable, Mapping
 
 from ephemeraldaddy.analysis.weighted_chart_predictor import (
     DEFAULT_CATEGORY_WEIGHTS,
+    aspect_spec_uses_houses,
     calculate_weighted_criteria_scores,
     criterion_multiplier_for_target,
-    parse_position_spec,
+    factor_uses_houses,
+    position_spec_uses_houses,
 )
 from ephemeraldaddy.core.chart import chart_uses_houses
 
@@ -747,23 +749,31 @@ _TRAIT_CATEGORY_ALIASES = {
 }
 
 
-def _is_house_position_criterion(raw_value: Any) -> bool:
-    parsed = parse_position_spec(str(raw_value))
-    return bool(parsed and parsed[0] in {"body_in_house", "sign_in_house"})
+def _criterion_uses_houses(raw_value: Any, *, category: str) -> bool:
+    if category in {"houses", "antihouses"}:
+        return True
+    if category in {"bodies", "antibodies"}:
+        return factor_uses_houses(raw_value)
+    if category in {"positions", "antipositions"}:
+        return position_spec_uses_houses(raw_value)
+    if category in {"aspects", "antiaspects"}:
+        return aspect_spec_uses_houses(raw_value)
+    return False
 
 
 def _criterion_abs_weight(value: Any, *, include_houses: bool = True, category: str = "") -> float:
-    if not include_houses and category in {"houses", "antihouses"}:
-        return 0.0
-    if not include_houses and category in {"positions", "antipositions"}:
+    if not include_houses:
         if isinstance(value, Mapping):
             return sum(
                 abs(float(weight))
                 for criterion, weight in value.items()
-                if isinstance(weight, (int, float)) and not _is_house_position_criterion(criterion)
+                if isinstance(weight, (int, float))
+                and not _criterion_uses_houses(criterion, category=category)
             )
         if isinstance(value, (set, list, tuple)):
-            return float(sum(1 for criterion in value if not _is_house_position_criterion(criterion)))
+            return float(
+                sum(1 for criterion in value if not _criterion_uses_houses(criterion, category=category))
+            )
         return 0.0
     if isinstance(value, Mapping):
         return sum(abs(float(weight)) for weight in value.values() if isinstance(weight, (int, float)))

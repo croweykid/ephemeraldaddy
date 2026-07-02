@@ -342,6 +342,7 @@ def test_trait_possible_score_can_exclude_house_criteria():
         "signs": {"Aries": 10},
         "houses": {"1": 8},
         "antihouses": {"12": 6},
+        "bodies": {"AS": 11},
         "positions": {
             "Sun in Aries": 5,
             "Sun in H10": 4,
@@ -351,9 +352,10 @@ def test_trait_possible_score_can_exclude_house_criteria():
             "Moon in Taurus": 2,
             "Moon in H4": 7,
         },
+        "aspects": {"AS conjunction Sun": 13},
     }
 
-    assert traits.trait_possible_score(profile, include_houses=True) == 45.0
+    assert traits.trait_possible_score(profile, include_houses=True) == 69.0
     assert traits.trait_possible_score(profile, include_houses=False) == 17.0
 
 
