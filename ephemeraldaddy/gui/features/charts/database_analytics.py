@@ -4177,13 +4177,19 @@ class DatabaseAnalyticsChartsMixin:
             "🧬Traits",
             "traits_distribution",
             "traits_distribution",
-            dropdown_options=[("Trait Predictions", "traits_distribution")],
+            dropdown_options=[("Trait Predictions", "trait_predictions"), ("Trait Rankings", "trait_rankings")],
             show_title=False,
         )
         self.traits_distribution_subheader_label = self._build_database_subheader_label(
             "Average active custom trait likelihoods across the database. With selection, bars compare selection average to DB average."
         )
         traits_section_layout.addWidget(self.traits_distribution_subheader_label)
+
+        self.traits_distribution_rank_container = QWidget()
+        trait_rank_container_layout = QVBoxLayout()
+        trait_rank_container_layout.setContentsMargins(0, 0, 0, 0)
+        trait_rank_container_layout.setSpacing(0)
+        self.traits_distribution_rank_container.setLayout(trait_rank_container_layout)
 
         trait_rank_row = QWidget()
         trait_rank_layout = QHBoxLayout()
@@ -4200,13 +4206,14 @@ class DatabaseAnalyticsChartsMixin:
             lambda _index: self._on_traits_distribution_rank_trait_changed()
         )
         trait_rank_layout.addWidget(self.traits_distribution_rank_combo, 1)
-        traits_section_layout.addWidget(trait_rank_row)
+        trait_rank_container_layout.addWidget(trait_rank_row)
 
         self.traits_distribution_rank_label = QLabel("")
         self.traits_distribution_rank_label.setTextFormat(Qt.RichText)
         self.traits_distribution_rank_label.setWordWrap(True)
         self.traits_distribution_rank_label.setStyleSheet("color: #d8d8d8; padding: 2px 0 6px 0;")
-        traits_section_layout.addWidget(self.traits_distribution_rank_label)
+        trait_rank_container_layout.addWidget(self.traits_distribution_rank_label)
+        traits_section_layout.addWidget(self.traits_distribution_rank_container)
 
         (
             self.traits_distribution_chart_container,
@@ -4214,6 +4221,60 @@ class DatabaseAnalyticsChartsMixin:
         ) = self._create_database_analytics_chart_container()
         self._database_metrics_chart_layouts["traits_distribution"] = self.traits_distribution_chart_layout
         traits_section_layout.addWidget(self.traits_distribution_chart_container)
+        self._sync_traits_distribution_display_mode()
+
+
+    def _traits_distribution_display_mode(self) -> str:
+        dropdown = getattr(self, "_analysis_chart_dropdowns", {}).get("traits_distribution")
+        if dropdown is not None:
+            selected_mode = dropdown.currentData()
+            if isinstance(selected_mode, str) and selected_mode in {"trait_predictions", "trait_rankings"}:
+                return selected_mode
+        selected_mode = str(getattr(self, "_traits_distribution_mode", "trait_predictions") or "trait_predictions")
+        return selected_mode if selected_mode in {"trait_predictions", "trait_rankings"} else "trait_predictions"
+
+    def _sync_traits_distribution_display_mode(self) -> None:
+        show_rankings = self._traits_distribution_display_mode() == "trait_rankings"
+        rank_container = getattr(self, "traits_distribution_rank_container", None)
+        if rank_container is not None:
+            rank_container.setVisible(show_rankings)
+        subheader = getattr(self, "traits_distribution_subheader_label", None)
+        if subheader is not None:
+            subheader.setVisible(not show_rankings)
+        chart_container = getattr(self, "traits_distribution_chart_container", None)
+        if chart_container is not None:
+            chart_container.setVisible(not show_rankings)
+
+    def _refresh_traits_distribution_rankings_from_cached_context(self) -> None:
+        context = getattr(self, "_traits_distribution_rank_context", None)
+        rank_label = getattr(self, "traits_distribution_rank_label", None)
+        if not isinstance(context, dict) or not isinstance(rank_label, QLabel):
+            return
+        rankings = self._traits_distribution_chart_rankings(
+            chart_ids=context.get("chart_ids", ()),
+            trait_signature=context.get("trait_signature", ()),
+            selected_trait_name=str(context.get("selected_trait_name", "") or ""),
+            database_values=context.get("database_values", {}),
+        )
+        self._traits_distribution_current_ranked_chart_ids = {
+            int(row["chart_id"])
+            for row in rankings
+            if isinstance(row, dict) and "chart_id" in row
+        }
+        rank_label.setText(
+            self._render_traits_distribution_rankings_html(
+                context.get("selected_trait_name"),
+                rankings,
+                scope_label=str(context.get("scope_label", "the database")),
+                cache_warmed=bool(context.get("cache_warmed", False)),
+            )
+        )
+
+    def _refresh_traits_distribution_rankings_after_hidden_chart_change(self, hidden_chart_ids: set[int]) -> None:
+        current_ranked_ids = getattr(self, "_traits_distribution_current_ranked_chart_ids", set())
+        if not hidden_chart_ids or not current_ranked_ids or not (set(hidden_chart_ids) & set(current_ranked_ids)):
+            return
+        self._refresh_traits_distribution_rankings_from_cached_context()
 
     def _on_traits_distribution_rank_trait_changed(self) -> None:
         combo = getattr(self, "traits_distribution_rank_combo", None)
@@ -4653,6 +4714,14 @@ class DatabaseAnalyticsChartsMixin:
         ranking_scope_ids: list[int] | set[int] = chart_ids if loaded_charts > 0 else database_chart_ids
         ranking_scope_label = "the current selection" if loaded_charts > 0 else "the database"
         rank_label = getattr(self, "traits_distribution_rank_label", None)
+        self._traits_distribution_rank_context = {
+            "chart_ids": tuple(sorted({int(chart_id) for chart_id in ranking_scope_ids})),
+            "trait_signature": trait_signature,
+            "selected_trait_name": selected_trait_name or "",
+            "database_values": dict(database_values),
+            "scope_label": ranking_scope_label,
+            "cache_warmed": database_count > 0,
+        }
         if isinstance(rank_label, QLabel):
             rankings = self._traits_distribution_chart_rankings(
                 chart_ids=ranking_scope_ids,
@@ -4660,6 +4729,7 @@ class DatabaseAnalyticsChartsMixin:
                 selected_trait_name=selected_trait_name or "",
                 database_values=database_values,
             )
+            self._traits_distribution_current_ranked_chart_ids = {int(row["chart_id"]) for row in rankings}
             rank_label.setText(
                 self._render_traits_distribution_rankings_html(
                     selected_trait_name,
@@ -4668,6 +4738,7 @@ class DatabaseAnalyticsChartsMixin:
                     cache_warmed=database_count > 0,
                 )
             )
+        self._sync_traits_distribution_display_mode()
         ordered_labels = sorted(
             trait_names,
             key=lambda name: (
