@@ -199,12 +199,60 @@ def clear_trait_norm_cache(trait_names: set[str] | None = None) -> None:
     _save_trait_norm_cache(entries)
 
 
+def _calculate_database_trait_averages_direct(
+    owner: Any,
+    chart_ids: tuple[int, ...],
+    traits: list[dict[str, Any]],
+) -> dict[str, float]:
+    """Calculate DB trait averages without relying on Database Analytics caches."""
+    if not chart_ids or not traits:
+        return {}
+    get_chart = getattr(owner, "_get_chart_for_filter", None)
+    is_placeholder = getattr(owner, "_is_placeholder_chart", None)
+    chart_count = 0
+    totals: dict[str, float] = {str(trait.get("name", "")).strip(): 0.0 for trait in traits}
+    totals = {name: total for name, total in totals.items() if name}
+    if not totals:
+        return {}
+    for chart_id in chart_ids:
+        try:
+            chart = get_chart(int(chart_id)) if callable(get_chart) else db.load_chart(int(chart_id))
+        except Exception as exc:
+            logger.warning("Traits panel could not load chart %s while calculating DB trait averages: %s", chart_id, exc)
+            continue
+        if chart is None:
+            continue
+        if callable(is_placeholder) and is_placeholder(chart):
+            continue
+        try:
+            likelihoods = calculate_trait_likelihoods(chart, traits)
+        except Exception as exc:
+            logger.warning(
+                "Traits panel could not score chart %s while calculating DB trait averages: %s",
+                chart_id,
+                exc,
+                exc_info=True,
+            )
+            continue
+        chart_count += 1
+        for name in totals:
+            try:
+                totals[name] += float(likelihoods.get(name, 0.0))
+            except (TypeError, ValueError):
+                continue
+    if not chart_count:
+        return {}
+    return {name: total / float(chart_count) for name, total in totals.items()}
+
+
 def _database_trait_averages(owner: Any, traits: list[dict[str, Any]]) -> dict[str, float]:
     chart_ids = _database_chart_ids(owner)
     collect = getattr(owner, "_collect_traits_distribution_analytics", None)
     signature_builder = getattr(owner, "_traits_distribution_signature", None)
-    if not chart_ids or not callable(collect) or not callable(signature_builder):
+    if not chart_ids:
         return {}
+    if not callable(collect) or not callable(signature_builder):
+        return _calculate_database_trait_averages_direct(owner, chart_ids, traits)
     averages: dict[str, float] = {}
     cache_entries = _load_trait_norm_cache()
     missing_traits: list[dict[str, Any]] = []
@@ -222,9 +270,17 @@ def _database_trait_averages(owner: Any, traits: list[dict[str, Any]]) -> dict[s
     if not missing_traits:
         return averages
 
-    analytics = collect(chart_ids, trait_items=missing_traits, trait_signature=signature_builder(missing_traits))
+    try:
+        analytics = collect(chart_ids, trait_items=missing_traits, trait_signature=signature_builder(missing_traits))
+    except Exception as exc:
+        logger.warning("Traits panel could not collect Database Analytics trait averages: %s", exc, exc_info=True)
+        direct_averages = _calculate_database_trait_averages_direct(owner, chart_ids, missing_traits)
+        averages.update(direct_averages)
+        return averages
     chart_count = max(0, int(analytics.get("chart_count", 0)))
     if not chart_count:
+        direct_averages = _calculate_database_trait_averages_direct(owner, chart_ids, missing_traits)
+        averages.update(direct_averages)
         return averages
     totals = analytics.get("totals", {})
     for trait_name in analytics.get("trait_names", []):
