@@ -12,7 +12,13 @@ from typing import Any
 
 from PySide6.QtWidgets import QLabel, QComboBox, QWidget
 
-from ephemeraldaddy.analysis.traits import DEFAULT_TRAIT_COLOR, calculate_trait_likelihoods, list_traits, normalize_trait_color
+from ephemeraldaddy.analysis.traits import (
+    DEFAULT_TRAIT_COLOR,
+    calculate_trait_likelihoods,
+    list_traits,
+    normalize_trait_color,
+    trait_sample_total,
+)
 from ephemeraldaddy.core import db
 from ephemeraldaddy.core.chart import chart_uses_houses
 from ephemeraldaddy.gui.style import apply_chart_info_link_cursor, set_chart_info_html
@@ -100,13 +106,7 @@ def _trait_sample_count(trait: dict[str, Any]) -> int:
     samples = trait.get("samples")
     if samples is None and isinstance(trait.get("profile"), dict):
         samples = trait["profile"].get("samples")
-    if isinstance(samples, (int, float)):
-        return max(0, int(samples))
-    if isinstance(samples, list):
-        if all(isinstance(sample, (int, float)) for sample in samples):
-            return max(0, int(sum(samples)))
-        return len(samples)
-    return 0
+    return trait_sample_total(samples, trait_name=str(trait.get("name", "")))
 
 
 def _trait_info_html(trait: dict[str, Any]) -> str:
