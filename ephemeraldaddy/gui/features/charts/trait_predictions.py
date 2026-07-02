@@ -12,6 +12,7 @@ from typing import Any
 from PySide6.QtWidgets import QLabel
 
 from ephemeraldaddy.analysis.traits import DEFAULT_TRAIT_COLOR, calculate_trait_likelihoods, list_traits, normalize_trait_color
+from ephemeraldaddy.core import db
 
 logger = logging.getLogger(__name__)
 
@@ -99,15 +100,27 @@ def _stable_json_hash(value: Any) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+def _database_chart_rows(owner: Any) -> list[Any]:
+    chart_rows = list(getattr(owner, "_chart_rows", []) or [])
+    if chart_rows:
+        return chart_rows
+    try:
+        return list(db.list_charts())
+    except Exception as exc:
+        logger.warning("Traits panel could not load database chart rows for DB averages: %s", exc, exc_info=True)
+        return []
+
+
 def _database_chart_ids(owner: Any) -> tuple[int, ...]:
-    chart_rows = getattr(owner, "_chart_rows", [])
+    chart_rows = _database_chart_rows(owner)
     normalize_row = getattr(owner, "_normalize_chart_row", None)
     chart_ids: set[int] = set()
     for row in chart_rows:
-        if callable(normalize_row) and normalize_row(row) is None:
+        normalized = normalize_row(row) if callable(normalize_row) else row
+        if normalized is None:
             continue
         try:
-            chart_ids.add(int(row[0]))
+            chart_ids.add(int(normalized[0]))
         except (TypeError, ValueError, IndexError):
             continue
     return tuple(sorted(chart_ids))
@@ -186,12 +199,60 @@ def clear_trait_norm_cache(trait_names: set[str] | None = None) -> None:
     _save_trait_norm_cache(entries)
 
 
+def _calculate_database_trait_averages_direct(
+    owner: Any,
+    chart_ids: tuple[int, ...],
+    traits: list[dict[str, Any]],
+) -> dict[str, float]:
+    """Calculate DB trait averages without relying on Database Analytics caches."""
+    if not chart_ids or not traits:
+        return {}
+    get_chart = getattr(owner, "_get_chart_for_filter", None)
+    is_placeholder = getattr(owner, "_is_placeholder_chart", None)
+    chart_count = 0
+    totals: dict[str, float] = {str(trait.get("name", "")).strip(): 0.0 for trait in traits}
+    totals = {name: total for name, total in totals.items() if name}
+    if not totals:
+        return {}
+    for chart_id in chart_ids:
+        try:
+            chart = get_chart(int(chart_id)) if callable(get_chart) else db.load_chart(int(chart_id))
+        except Exception as exc:
+            logger.warning("Traits panel could not load chart %s while calculating DB trait averages: %s", chart_id, exc)
+            continue
+        if chart is None:
+            continue
+        if callable(is_placeholder) and is_placeholder(chart):
+            continue
+        try:
+            likelihoods = calculate_trait_likelihoods(chart, traits)
+        except Exception as exc:
+            logger.warning(
+                "Traits panel could not score chart %s while calculating DB trait averages: %s",
+                chart_id,
+                exc,
+                exc_info=True,
+            )
+            continue
+        chart_count += 1
+        for name in totals:
+            try:
+                totals[name] += float(likelihoods.get(name, 0.0))
+            except (TypeError, ValueError):
+                continue
+    if not chart_count:
+        return {}
+    return {name: total / float(chart_count) for name, total in totals.items()}
+
+
 def _database_trait_averages(owner: Any, traits: list[dict[str, Any]]) -> dict[str, float]:
     chart_ids = _database_chart_ids(owner)
     collect = getattr(owner, "_collect_traits_distribution_analytics", None)
     signature_builder = getattr(owner, "_traits_distribution_signature", None)
-    if not chart_ids or not callable(collect) or not callable(signature_builder):
+    if not chart_ids:
         return {}
+    if not callable(collect) or not callable(signature_builder):
+        return _calculate_database_trait_averages_direct(owner, chart_ids, traits)
     averages: dict[str, float] = {}
     cache_entries = _load_trait_norm_cache()
     missing_traits: list[dict[str, Any]] = []
@@ -209,9 +270,17 @@ def _database_trait_averages(owner: Any, traits: list[dict[str, Any]]) -> dict[s
     if not missing_traits:
         return averages
 
-    analytics = collect(chart_ids, trait_items=missing_traits, trait_signature=signature_builder(missing_traits))
+    try:
+        analytics = collect(chart_ids, trait_items=missing_traits, trait_signature=signature_builder(missing_traits))
+    except Exception as exc:
+        logger.warning("Traits panel could not collect Database Analytics trait averages: %s", exc, exc_info=True)
+        direct_averages = _calculate_database_trait_averages_direct(owner, chart_ids, missing_traits)
+        averages.update(direct_averages)
+        return averages
     chart_count = max(0, int(analytics.get("chart_count", 0)))
     if not chart_count:
+        direct_averages = _calculate_database_trait_averages_direct(owner, chart_ids, missing_traits)
+        averages.update(direct_averages)
         return averages
     totals = analytics.get("totals", {})
     for trait_name in analytics.get("trait_names", []):
@@ -272,8 +341,6 @@ def trait_metadata_for_chart(owner: Any, chart: Any) -> dict[str, Any]:
     active_trait_names = {str(trait.get("name", "")).strip() for trait in traits if str(trait.get("name", "")).strip()}
     if chart_id is not None:
         try:
-            from ephemeraldaddy.core import db
-
             rows = db.get_chart_trait_metadata(int(chart_id))
         except Exception as exc:
             logger.warning(
@@ -329,8 +396,6 @@ def trait_metadata_for_chart(owner: Any, chart: Any) -> dict[str, Any]:
     setattr(chart, "_trait_prediction_metadata_cache", {"signature": signature, "metadata": metadata})
     if chart_id is not None:
         try:
-            from ephemeraldaddy.core import db
-
             db.upsert_chart_trait_metadata(
                 int(chart_id),
                 [

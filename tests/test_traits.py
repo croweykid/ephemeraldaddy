@@ -108,6 +108,66 @@ def test_parse_json_named_similarities_export_with_python_comments_and_trailing_
     assert parsed["Selection"]["antihouses"] == {"9": 4}
     assert parsed["Selection"]["channels"] == {(20, 34): 4}
     assert parsed["Selection"]["positions"] == {"Neptune in H3": 4}
+def test_parse_installed_json_with_trailing_commas_and_json_literals(tmp_path):
+    source = tmp_path / "trait.json"
+    source.write_text(
+        '''{
+    "Selection": {
+        "name": "Selection",
+        "archived": false,
+        "description": null,
+        "houses": {
+            "11": 4,
+        },
+    },
+}
+''',
+        encoding="utf-8",
+    )
+
+    parsed = traits.parse_trait_file(source)
+
+    assert parsed["Selection"]["archived"] is False
+    assert parsed["Selection"]["description"] is None
+    assert parsed["Selection"]["houses"] == {"11": 4}
+
+def test_parse_jsonish_trailing_comma_cleanup_preserves_string_values(tmp_path):
+    source = tmp_path / "trait.json"
+    source.write_text(
+        '''{
+    "Selection": {
+        "name": "Selection",
+        "description": "literal ,} text is not syntax",
+        "bodies": {"Moon": 1,},
+    },
+}
+''',
+        encoding="utf-8",
+    )
+
+    parsed = traits.parse_trait_file(source)
+
+    assert parsed["Selection"]["description"] == "literal ,} text is not syntax"
+    assert parsed["Selection"]["bodies"] == {"Moon": 1}
+
+def test_list_traits_keeps_valid_jsonish_local_traits(tmp_path, monkeypatch):
+    monkeypatch.setattr(traits, "TRAIT_DIR", tmp_path)
+    (tmp_path / "valid.json").write_text(
+        '''{
+    "Valid": {
+        "name": "Valid",
+        "archived": false,
+        "bodies": {"Moon": 1,},
+    },
+}
+''',
+        encoding="utf-8",
+    )
+    (tmp_path / "broken.json").write_text('{"Broken": ', encoding="utf-8")
+
+    items = traits.list_traits(active_only=True, skip_corrupt=True)
+
+    assert [item["name"] for item in items] == ["Valid"]
 
 
 def test_install_rename_delete_trait_uses_local_traits_directory(tmp_path, monkeypatch):
