@@ -453,6 +453,52 @@ class _GlobalCloseShortcutFilter(QObject):
         return True
 
 
+class _SimilarChartsForegroundFilter(QObject):
+    """Keep a Similar Charts popout foreground-locked until a real outside click."""
+
+    def __init__(self, dialog: QDialog) -> None:
+        super().__init__(dialog)
+        self._dialog = dialog
+
+    def eventFilter(self, _obj: QObject, event: QEvent) -> bool:
+        if event.type() != QEvent.MouseButtonPress:
+            return False
+
+        dialog = self._dialog
+        try:
+            if dialog is None or not dialog.isVisible():
+                self._release_foreground_lock()
+                return False
+            global_position = event.globalPosition().toPoint()
+        except AttributeError:
+            global_position = event.globalPos()
+        except RuntimeError:
+            self._release_foreground_lock()
+            return False
+
+        if dialog.frameGeometry().contains(global_position):
+            return False
+
+        self._release_foreground_lock()
+        return False
+
+    def _release_foreground_lock(self) -> None:
+        dialog = self._dialog
+        app = QApplication.instance()
+        if app is not None:
+            app.removeEventFilter(self)
+        try:
+            if dialog is None:
+                return
+            dialog._similar_chart_popout_foreground_locked = False
+            dialog._similar_chart_popout_foreground_filter = None
+            dialog.setWindowFlag(Qt.WindowStaysOnTopHint, False)
+            if dialog.isVisible():
+                dialog.show()
+        except RuntimeError:
+            return
+
+
 class _ComboItemColorDelegate(QStyledItemDelegate):
     """Respects per-item foreground role colors in combo popup rows."""
 
@@ -25262,6 +25308,25 @@ class MainWindow(QMainWindow):
             # The deferred foreground pass can race with the popout closing.
             return
 
+    def _lock_similar_charts_popout_foreground_until_outside_click(self, dialog: QDialog | None) -> None:
+        if dialog is None:
+            return
+        try:
+            dialog._similar_chart_popout_foreground_locked = True
+            dialog.setWindowFlag(Qt.WindowStaysOnTopHint, True)
+            foreground_filter = _SimilarChartsForegroundFilter(dialog)
+            dialog._similar_chart_popout_foreground_filter = foreground_filter
+            app = QApplication.instance()
+            if app is not None:
+                app.installEventFilter(foreground_filter)
+            dialog.destroyed.connect(
+                lambda _=None, filter_obj=foreground_filter: QApplication.instance().removeEventFilter(filter_obj)
+                if QApplication.instance() is not None
+                else None
+            )
+        except RuntimeError:
+            return
+
     def _transition_database_view_chart_link_to_chart_view(
         self,
         *,
@@ -26813,7 +26878,11 @@ class MainWindow(QMainWindow):
                 if popout in self._similar_charts_popout_dialogs
                 else None
             )
+            self._lock_similar_charts_popout_foreground_until_outside_click(dialog)
             dialog.show()
+            self._keep_similar_charts_popout_in_front(dialog)
+            QTimer.singleShot(0, lambda popout=dialog: self._keep_similar_charts_popout_in_front(popout))
+            QTimer.singleShot(100, lambda popout=dialog: self._keep_similar_charts_popout_in_front(popout))
             update_similar_charts_loading_progress(progress, "Similar Charts ready.", 100)
         except OperationCanceled:
             return

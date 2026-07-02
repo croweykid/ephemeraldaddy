@@ -68,6 +68,7 @@ def _install_style_stub():
     style.CHART_DATA_DIVIDER = getattr(style, "CHART_DATA_DIVIDER", "---------")
     style.CHART_DATA_HIGHLIGHT_COLOR = getattr(style, "CHART_DATA_HIGHLIGHT_COLOR", "#ffffff")
     style.DEFAULT_DROPDOWN_STYLE = getattr(style, "DEFAULT_DROPDOWN_STYLE", "")
+    style.ARROW_STYLES = getattr(style, "ARROW_STYLES", {"classic": "->"})
 
     def format_chart_header(*_args, **_kwargs):
         return ""
@@ -206,6 +207,18 @@ def test_popout_chart_name_links_request_database_to_chart_view_transition():
     assert "if current_chart_id == chart_id:" in source
     assert "chart_is_hypothetical as _chart_is_hypothetical" in source
     assert "if _chart_is_hypothetical(chart):" in source
+
+
+def test_similar_charts_popout_foreground_lock_only_releases_on_outside_mouse_click():
+    from pathlib import Path
+
+    source = (Path(__file__).resolve().parents[1] / "ephemeraldaddy/gui/app.py").read_text()
+    assert "class _SimilarChartsForegroundFilter(QObject):" in source
+    assert "event.type() != QEvent.MouseButtonPress" in source
+    assert "dialog.frameGeometry().contains(global_position)" in source
+    assert "dialog.setWindowFlag(Qt.WindowStaysOnTopHint, True)" in source
+    assert "_lock_similar_charts_popout_foreground_until_outside_click(dialog)" in source
+    assert "dialog.setWindowFlag(Qt.WindowStaysOnTopHint, False)" in source
 
 
 def test_similarity_reasoning_html_links_chart_info_terms():
