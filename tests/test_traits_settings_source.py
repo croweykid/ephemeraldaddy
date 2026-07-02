@@ -26,6 +26,8 @@ def test_trait_prediction_rendering_lives_outside_app_py():
     predictions_source = (
         ROOT / "ephemeraldaddy" / "gui" / "features" / "charts" / "trait_predictions.py"
     ).read_text(encoding="utf-8")
+    db_source = (ROOT / "ephemeraldaddy" / "core" / "db.py").read_text(encoding="utf-8")
+    db_source = (ROOT / "ephemeraldaddy" / "core" / "db.py").read_text(encoding="utf-8")
 
     assert "def _render_traits_predictions" in app_source
     assert "_render_traits_predictions(self, chart)" in app_source
@@ -64,3 +66,8 @@ def test_database_view_traits_search_lives_in_search_panel_and_uses_metadata():
     assert "def trait_metadata_for_chart" in predictions_source
     assert "predicted_traits_above_avg" in predictions_source
     assert "predicted_traits_below_avg" in predictions_source
+    assert "CREATE TABLE IF NOT EXISTS chart_trait_metadata" in db_source
+    assert "def upsert_chart_trait_metadata" in db_source
+    assert "def get_chart_trait_metadata" in db_source
+    assert "db.upsert_chart_trait_metadata" in predictions_source
+    assert "db.get_chart_trait_metadata" in predictions_source

@@ -228,15 +228,56 @@ def trait_metadata_for_chart(owner: Any, chart: Any) -> dict[str, Any]:
         setattr(chart, "predicted_trait_deviations", {})
         return metadata
 
-    signature = (
-        TRAIT_DB_NORMS_CACHE_VERSION,
-        _stable_json_hash([trait.get("name", "") for trait in traits]),
-        _stable_json_hash([trait.get("profile", {}) for trait in traits]),
-        _stable_json_hash(_database_chart_ids(owner)),
+    trait_signature = _stable_json_hash(
+        {
+            "version": TRAIT_DB_NORMS_CACHE_VERSION,
+            "traits": [
+                {
+                    "name": trait.get("name", ""),
+                    "color": normalize_trait_color(str(trait.get("color", DEFAULT_TRAIT_COLOR))),
+                    "profile": trait.get("profile", {}),
+                }
+                for trait in traits
+            ],
+        }
     )
+    norm_signature = _stable_json_hash(_database_chart_ids(owner))
+    signature = (TRAIT_DB_NORMS_CACHE_VERSION, trait_signature, norm_signature)
     cached = getattr(chart, "_trait_prediction_metadata_cache", None)
     if isinstance(cached, dict) and cached.get("signature") == signature:
         return dict(cached.get("metadata", {}))
+
+    chart_id = getattr(chart, "id", None)
+    active_trait_names = {str(trait.get("name", "")).strip() for trait in traits if str(trait.get("name", "")).strip()}
+    if chart_id is not None:
+        try:
+            from ephemeraldaddy.core import db
+
+            rows = db.get_chart_trait_metadata(int(chart_id))
+        except Exception:
+            rows = []
+        if rows and {str(row.get("trait_name", "")) for row in rows} == active_trait_names and all(
+            str(row.get("trait_signature", "")) == trait_signature
+            and str(row.get("norm_signature", "")) == norm_signature
+            for row in rows
+        ):
+            above = {str(row["trait_name"]) for row in rows if row.get("direction") == "above"}
+            below = {str(row["trait_name"]) for row in rows if row.get("direction") == "below"}
+            deviations = {str(row["trait_name"]): float(row.get("deviation", 0.0)) for row in rows}
+            likelihoods = {str(row["trait_name"]): float(row.get("likelihood", 0.0)) for row in rows}
+            database_averages = {str(row["trait_name"]): float(row.get("db_average", 0.0)) for row in rows}
+            metadata = {
+                "above": above,
+                "below": below,
+                "deviations": deviations,
+                "likelihoods": likelihoods,
+                "database_averages": database_averages,
+            }
+            setattr(chart, "predicted_traits_above_avg", set(above))
+            setattr(chart, "predicted_traits_below_avg", set(below))
+            setattr(chart, "predicted_trait_deviations", dict(deviations))
+            setattr(chart, "_trait_prediction_metadata_cache", {"signature": signature, "metadata": metadata})
+            return metadata
 
     likelihoods = calculate_trait_likelihoods(chart, traits)
     database_averages = _database_trait_averages(owner, traits)
@@ -259,6 +300,27 @@ def trait_metadata_for_chart(owner: Any, chart: Any) -> dict[str, Any]:
     setattr(chart, "predicted_traits_below_avg", set(below))
     setattr(chart, "predicted_trait_deviations", dict(deviations))
     setattr(chart, "_trait_prediction_metadata_cache", {"signature": signature, "metadata": metadata})
+    if chart_id is not None:
+        try:
+            from ephemeraldaddy.core import db
+
+            db.upsert_chart_trait_metadata(
+                int(chart_id),
+                [
+                    {
+                        "trait_name": name,
+                        "direction": "above" if name in above else "below" if name in below else "neutral",
+                        "likelihood": likelihoods.get(name, 0.0),
+                        "db_average": database_averages.get(name, 0.0),
+                        "deviation": deviations.get(name, 0.0),
+                    }
+                    for name in active_trait_names
+                ],
+                trait_signature=trait_signature,
+                norm_signature=norm_signature,
+            )
+        except Exception:
+            pass
     return metadata
 
 

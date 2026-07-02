@@ -11,7 +11,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Iterable, List, Tuple, Optional
+from typing import Any, Iterable, List, Mapping, Tuple, Optional
 
 from zoneinfo import ZoneInfo
 from ephemeraldaddy.core.chart import (
@@ -260,7 +260,7 @@ def _is_personal_chart_type_for_age_inference(value: Optional[str]) -> bool:
     return normalized in {CHART_TYPE_PERSONAL, SOURCE_USER_SUBMITTED}
 
 
-SCHEMA_VERSION = 16
+SCHEMA_VERSION = 17
 
 CHART_UID_LENGTH = 16
 
@@ -570,6 +570,33 @@ def _create_duplicate_exclusions_table(conn: sqlite3.Connection) -> None:
         """
         CREATE INDEX IF NOT EXISTS idx_duplicate_exclusions_high
         ON duplicate_exclusions(chart_id_high)
+        """
+    )
+
+
+def _create_chart_trait_metadata_table(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS chart_trait_metadata (
+            chart_id          INTEGER NOT NULL,
+            trait_name        TEXT NOT NULL,
+            direction         TEXT NOT NULL,
+            likelihood        REAL NOT NULL,
+            db_average        REAL NOT NULL,
+            deviation         REAL NOT NULL,
+            trait_signature   TEXT NOT NULL,
+            norm_signature    TEXT NOT NULL,
+            updated_at        TEXT NOT NULL,
+            PRIMARY KEY (chart_id, trait_name),
+            FOREIGN KEY (chart_id) REFERENCES charts(id) ON DELETE CASCADE,
+            CHECK (direction IN ('above', 'below', 'neutral'))
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_chart_trait_metadata_lookup
+        ON chart_trait_metadata(trait_name, direction, chart_id)
         """
     )
 
@@ -1194,6 +1221,7 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
         _migrate_charts_columns(conn)
         _backfill_non_placeholder_birth_date_parts(conn)
     _create_duplicate_exclusions_table(conn)
+    _create_chart_trait_metadata_table(conn)
     if _charts_table_exists(conn):
         _prune_duplicate_exclusions(conn)
 
@@ -1289,6 +1317,11 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
         if _charts_table_exists(conn):
             _clear_dominant_weight_caches(conn)
         conn.execute("PRAGMA user_version = 16")
+        user_version = 16
+
+    if user_version < 17:
+        _create_chart_trait_metadata_table(conn)
+        conn.execute("PRAGMA user_version = 17")
 
 
 def _connect_raw() -> sqlite3.Connection:
@@ -3546,6 +3579,11 @@ def delete_charts(chart_ids: List[int]) -> int:
     placeholders = ", ".join("?" for _ in chart_ids)
     conn = _get_conn()
     with conn:
+        _create_chart_trait_metadata_table(conn)
+        conn.execute(
+            f"DELETE FROM chart_trait_metadata WHERE chart_id IN ({placeholders})",
+            chart_ids,
+        )
         cur = conn.execute(
             f"DELETE FROM charts WHERE id IN ({placeholders})",
             chart_ids,
@@ -3789,6 +3827,84 @@ def set_alternate_chart_uid(chart_id: int, alternate_chart_uid: str | None) -> N
                 "UPDATE charts SET alternate_chart_uid = ? WHERE id = ?",
                 (normalized_uid or "", int(chart_id)),
             )
+    finally:
+        conn.close()
+
+
+def upsert_chart_trait_metadata(
+    chart_id: int,
+    rows: Iterable[Mapping[str, Any]],
+    *,
+    trait_signature: str,
+    norm_signature: str,
+) -> None:
+    """Persist derived trait metadata rows for a chart."""
+    now = datetime.utcnow().isoformat(timespec="seconds")
+    prepared: list[tuple[Any, ...]] = []
+    for row in rows:
+        trait_name = str(row.get("trait_name", "")).strip()
+        if not trait_name:
+            continue
+        direction = str(row.get("direction", "neutral") or "neutral")
+        if direction not in {"above", "below", "neutral"}:
+            direction = "neutral"
+        prepared.append(
+            (
+                int(chart_id),
+                trait_name,
+                direction,
+                float(row.get("likelihood", 0.0)),
+                float(row.get("db_average", 0.0)),
+                float(row.get("deviation", 0.0)),
+                str(trait_signature),
+                str(norm_signature),
+                now,
+            )
+        )
+    conn = _get_conn()
+    try:
+        with conn:
+            _create_chart_trait_metadata_table(conn)
+            conn.execute("DELETE FROM chart_trait_metadata WHERE chart_id = ?", (int(chart_id),))
+            if prepared:
+                conn.executemany(
+                    """
+                    INSERT INTO chart_trait_metadata (
+                        chart_id, trait_name, direction, likelihood, db_average,
+                        deviation, trait_signature, norm_signature, updated_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(chart_id, trait_name) DO UPDATE SET
+                        direction = excluded.direction,
+                        likelihood = excluded.likelihood,
+                        db_average = excluded.db_average,
+                        deviation = excluded.deviation,
+                        trait_signature = excluded.trait_signature,
+                        norm_signature = excluded.norm_signature,
+                        updated_at = excluded.updated_at
+                    """,
+                    prepared,
+                )
+    finally:
+        conn.close()
+
+
+def get_chart_trait_metadata(chart_id: int) -> list[dict[str, Any]]:
+    """Return persisted derived trait metadata rows for a chart."""
+    conn = _get_conn()
+    try:
+        _create_chart_trait_metadata_table(conn)
+        rows = conn.execute(
+            """
+            SELECT trait_name, direction, likelihood, db_average, deviation,
+                   trait_signature, norm_signature, updated_at
+            FROM chart_trait_metadata
+            WHERE chart_id = ?
+            ORDER BY trait_name COLLATE NOCASE
+            """,
+            (int(chart_id),),
+        ).fetchall()
+        return [dict(row) for row in rows]
     finally:
         conn.close()
 
