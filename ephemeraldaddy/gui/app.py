@@ -25374,25 +25374,6 @@ class MainWindow(QMainWindow):
         normalized_target = str(target or "").strip()
         if is_similar_info_target(normalized_target):
             dialog._similar_chart_popout_last_info_target = normalized_target
-            popout_analysis_dropdown = getattr(dialog, "_similar_chart_popout_analysis_dropdown", None)
-            selected_mode = (
-                str(popout_analysis_dropdown.currentData() or "").strip().lower()
-                if popout_analysis_dropdown is not None and hasattr(popout_analysis_dropdown, "currentData")
-                else ""
-            )
-            if selected_mode != "bio":
-                bio_index = (
-                    int(popout_analysis_dropdown.findData("bio"))
-                    if popout_analysis_dropdown is not None and hasattr(popout_analysis_dropdown, "findData")
-                    else -1
-                )
-                if bio_index >= 0 and hasattr(popout_analysis_dropdown, "setCurrentIndex"):
-                    signals_were_blocked = False
-                    if hasattr(popout_analysis_dropdown, "blockSignals"):
-                        signals_were_blocked = bool(popout_analysis_dropdown.blockSignals(True))
-                    popout_analysis_dropdown.setCurrentIndex(bio_index)
-                    if hasattr(popout_analysis_dropdown, "blockSignals"):
-                        popout_analysis_dropdown.blockSignals(signals_were_blocked)
             self._show_similar_chart_reasoning(normalized_target, target_dialog=dialog)
             return
         self._on_similar_chart_link_activated(
@@ -26835,7 +26816,7 @@ class MainWindow(QMainWindow):
             )
             self._similar_charts_reasoning_by_target.update(popout_reasoning_by_target)
             self._register_popout_shortcuts(dialog)
-            self._show_similar_chart_popout_predictions(dialog)
+            self._show_similar_chart_popout_empty_analysis(dialog, selected_mode="bio")
             self._similar_charts_popout_dialogs.append(dialog)
             dialog.destroyed.connect(
                 lambda _=None, popout=dialog: self._similar_charts_popout_dialogs.remove(popout)

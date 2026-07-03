@@ -26,13 +26,22 @@ def _install_pyside_stubs():
     class _QEventLoop:
         AllEvents = 1
 
+    class _QEvent:
+        MouseButtonPress = 1
+        MouseButtonDblClick = 2
+        ApplicationDeactivate = 3
+
     class _Widget:
         def __init__(self, *_args, **_kwargs):
             pass
 
     qt_core.QEventLoop = getattr(qt_core, "QEventLoop", _QEventLoop)
+    qt_core.QObject = getattr(qt_core, "QObject", _Widget)
+    qt_core.QEvent = getattr(qt_core, "QEvent", _QEvent)
+    qt_core.QPoint = getattr(qt_core, "QPoint", _Widget)
     qt_core.QSignalBlocker = getattr(qt_core, "QSignalBlocker", _Widget)
     qt_core.QSize = getattr(qt_core, "QSize", _Widget)
+    qt_core.QTimer = getattr(qt_core, "QTimer", _Widget)
     qt_core.Qt = getattr(qt_core, "Qt", _Qt)
     qt_gui.QIcon = getattr(qt_gui, "QIcon", _Widget)
     qt_gui.QIntValidator = getattr(qt_gui, "QIntValidator", _Widget)
@@ -68,6 +77,7 @@ def _install_style_stub():
     style.CHART_DATA_DIVIDER = getattr(style, "CHART_DATA_DIVIDER", "---------")
     style.CHART_DATA_HIGHLIGHT_COLOR = getattr(style, "CHART_DATA_HIGHLIGHT_COLOR", "#ffffff")
     style.DEFAULT_DROPDOWN_STYLE = getattr(style, "DEFAULT_DROPDOWN_STYLE", "")
+    style.ARROW_STYLES = getattr(style, "ARROW_STYLES", {"classic": "->"})
 
     def format_chart_header(*_args, **_kwargs):
         return ""
@@ -399,3 +409,22 @@ def test_database_distinction_components_render_in_summary_and_export_rows():
     assert "distinguishing factors 75%" in plain
     assert "repeated HD gates 50%" in markdown
     assert "placements 0.0%" not in plain
+
+
+def test_popout_info_click_preserves_selected_analysis_dropdown_mode():
+    from pathlib import Path
+
+    repo_root = Path(__file__).resolve().parents[1]
+    app_source = (repo_root / "ephemeraldaddy/gui/app.py").read_text()
+    popout_source = (repo_root / "ephemeraldaddy/gui/features/charts/similar_charts_popout.py").read_text()
+
+    link_handler = app_source.split("def _on_similar_chart_popout_link_activated", 1)[1].split(
+        "def _on_similar_chart_popout_chart_info_target_requested", 1
+    )[0]
+    assert 'findData("bio")' not in link_handler
+    assert "setCurrentIndex(bio_index)" not in link_handler
+    assert "self._show_similar_chart_reasoning(normalized_target, target_dialog=dialog)" in link_handler
+
+    popout_builder = popout_source.split("def build_similar_charts_popout_dialog", 1)[1]
+    assert 'bio_index = analysis_dropdown.findData("bio")' in popout_builder
+    assert "analysis_dropdown.setCurrentIndex(bio_index)" in popout_builder

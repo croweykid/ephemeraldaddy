@@ -3375,11 +3375,13 @@ def build_similar_charts_popout_dialog(
     analysis_dropdown.addItem("ⓘSIMILARITIES ANALYSIS", "similarities")
     analysis_dropdown.addItem("ⓘDISSIMILARITIES ANALYSIS", "dissimilarities")
     analysis_dropdown.addItem("ⓘBIO", "bio")
-    analysis_dropdown.setCurrentIndex(0)
+    bio_index = analysis_dropdown.findData("bio")
+    if bio_index >= 0:
+        analysis_dropdown.setCurrentIndex(bio_index)
     analysis_dropdown.setStyleSheet(DEFAULT_DROPDOWN_STYLE)
     info_layout.addWidget(analysis_dropdown, 0)
 
-    info_output = QLabel("Click ⓘ next to a chart to view similarities analysis.")
+    info_output = QLabel("Click ⓘ next to a chart to view biographical information.")
     info_output.setTextFormat(Qt.RichText)
     info_output.setWordWrap(True)
     info_output.setAlignment(Qt.AlignTop | Qt.AlignLeft)
