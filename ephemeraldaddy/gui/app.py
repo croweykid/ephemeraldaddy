@@ -1286,7 +1286,15 @@ from ephemeraldaddy.gui.style import (
     DATABASE_ANALYTICS_SECTION_DEBUG_STYLE,
     DATABASE_ANALYTICS_SUBHEADER_STYLE,
     DATABASE_ANALYTICS_SUBTITLE_DEBUG_STYLE,
+    DATABASE_VIEW_CHART_LIST_STYLE,
     DATABASE_VIEW_SUBHEADER_WORD_WRAP,
+    DATABASE_VIEW_CONTROL_ROW_BACKGROUND,
+    DATABASE_VIEW_LIST_PANEL_BACKGROUND,
+    DATABASE_VIEW_PANEL_BACKGROUND,
+    DATABASE_VIEW_TINY_FILTER_STYLE,
+    DATABASE_VIEW_TOOLBAR_BUTTON_STYLE,
+    DATABASE_VIEW_TOOLBAR_DANGER_BUTTON_STYLE,
+    DATABASE_VIEW_TOOLBAR_SUCCESS_BUTTON_STYLE,
     SETTINGS_COLLAPSIBLE_TOGGLE_STYLE,
     SETTINGS_SECTION_SUBHEADER_STYLE,
     DEFAULT_DROPDOWN_STYLE,
@@ -2721,11 +2729,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             self.database_view_middle_header_action_buttons[button_key] = action_button
 
-        database_view_header_button_style = (
-            "padding: 1px 5px; font-size: 11px; "
-            "background-color: #333333; border: 1px solid #555555;"
-        )
-
         for control_button in (
             self.todays_transits_panel_button,
             self.database_metrics_panel_button,
@@ -2748,23 +2751,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             control_button.setDefault(False)
             control_button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
             control_button.setMinimumWidth(0)
-            control_button.setStyleSheet(database_view_header_button_style)
-        self.batch_new_chart_button.setStyleSheet(
-            f"{database_view_header_button_style} color: #6fe06f; font-weight: 600;"
-        )
-        self.batch_delete_chart_button.setStyleSheet(
-            f"{database_view_header_button_style} color: #ff7b7b; font-weight: 600;"
-        )
+            control_button.setStyleSheet(DATABASE_VIEW_TOOLBAR_BUTTON_STYLE)
+        self.batch_new_chart_button.setStyleSheet(DATABASE_VIEW_TOOLBAR_SUCCESS_BUTTON_STYLE)
+        self.batch_delete_chart_button.setStyleSheet(DATABASE_VIEW_TOOLBAR_DANGER_BUTTON_STYLE)
 
         self.hide_hypothetical_checkbox = QCheckBox("hide\nhypothetical")
         self.hide_hypothetical_checkbox.setObjectName("manage_hide_hypothetical_checkbox")
         self.hide_hypothetical_checkbox.setToolTip("Hide Hypothetical charts from the Database View chart rows")
         self.hide_hypothetical_checkbox.setChecked(self._hide_hypothetical_charts)
         self.hide_hypothetical_checkbox.toggled.connect(self._on_hide_hypothetical_toggled)
-        self.hide_hypothetical_checkbox.setStyleSheet(
-            "QCheckBox { font-size: 6pt; padding: 0px; spacing: 3px; }"
-            "QCheckBox::indicator { width: 11px; height: 11px; }"
-        )
+        self.hide_hypothetical_checkbox.setStyleSheet(DATABASE_VIEW_TINY_FILTER_STYLE)
         self.hide_hypothetical_checkbox.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
 
         self.sort_button = QPushButton("Sort: Alphabetical") #default sorting method pt 2/2
@@ -2865,7 +2861,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._left_panel_sizes = None
 
         left_panel_container = QWidget()
-        left_panel_container.setStyleSheet("background-color: #000000;")
+        left_panel_container.setStyleSheet(f"background-color: {DATABASE_VIEW_PANEL_BACKGROUND};")
         left_panel_container.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         left_panel_container.setMinimumWidth(0)
         left_panel_container_layout = QVBoxLayout()
@@ -2875,7 +2871,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         left_panel_container_layout.addWidget(self.left_panel_stack, 1)
 
         right_panel_container = QWidget()
-        right_panel_container.setStyleSheet("background-color: #000000;")
+        right_panel_container.setStyleSheet(f"background-color: {DATABASE_VIEW_PANEL_BACKGROUND};")
         right_panel_container.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         right_panel_container.setMinimumWidth(0)
         right_panel_container_layout = QVBoxLayout()
@@ -2885,7 +2881,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         right_panel_container_layout.addWidget(self.right_panel_stack, 1)
 
         panel_controls_row = QWidget()
-        panel_controls_row.setStyleSheet("background-color: #000000;")
+        panel_controls_row.setStyleSheet(f"background-color: {DATABASE_VIEW_CONTROL_ROW_BACKGROUND};")
         panel_controls_layout = QHBoxLayout()
         panel_controls_layout.setContentsMargins(0, 0, 0, 0)
         panel_controls_layout.setSpacing(8)
@@ -2914,7 +2910,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         right_controls_layout.addWidget(self.manage_collections_button)
 
         middle_controls_row = QWidget()
-        middle_controls_row.setStyleSheet("background-color: #000000;")
+        middle_controls_row.setStyleSheet(f"background-color: {DATABASE_VIEW_CONTROL_ROW_BACKGROUND};")
         middle_controls_layout = QHBoxLayout()
         middle_controls_layout.setContentsMargins(0, 0, 0, 0)
         middle_controls_layout.setSpacing(4)
@@ -2940,18 +2936,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.list_widget = ChartListWidget()
         self.list_widget.setAlternatingRowColors(True)
         self.list_widget.setItemDelegate(ChartRowDelegate(self.list_widget))
-        self.list_widget.setStyleSheet(
-            "QListWidget {"
-            "  background-color: #151515;"
-            "  border: 1px solid #333333;"
-            "}"
-            "QListWidget::item {"
-            "  padding: 6px 8px;"
-            "}"
-            "QListWidget::item:selected {"
-            "  background-color: #2b3a4a;"
-            "}"
-        )
+        self.list_widget.setStyleSheet(DATABASE_VIEW_CHART_LIST_STYLE)
         self.list_widget.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.list_widget.setContextMenuPolicy(Qt.CustomContextMenu)
         self.list_widget.customContextMenuRequested.connect(self._show_chart_list_context_menu)
@@ -2960,14 +2945,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.list_widget.installEventFilter(self)
         
         self.list_panel = QWidget()
-        self.list_panel.setStyleSheet("background-color: #000000;")
+        self.list_panel.setStyleSheet(f"background-color: {DATABASE_VIEW_LIST_PANEL_BACKGROUND};")
         self.list_panel.setMinimumWidth(280) #was 420
         self.list_panel.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         list_layout = QVBoxLayout()
         list_layout.setContentsMargins(0, 0, 0, 0)
         self.list_panel.setLayout(list_layout)
         list_header_row = QWidget()
-        list_header_row.setStyleSheet("background-color: #000000;")
+        list_header_row.setStyleSheet(f"background-color: {DATABASE_VIEW_LIST_PANEL_BACKGROUND};")
         list_header_layout = QHBoxLayout()
         list_header_layout.setContentsMargins(0, 0, 0, 0)
         list_header_layout.setSpacing(8)

@@ -91,24 +91,52 @@ def install_appwide_cursor_defaults(app: QApplication) -> None:
     cursor_filter._apply_to_object(app)
 
 
-# Appwide widget styling shared by Chart View, Database View, and utility panels.
-# Keep text-entry controls charcoal instead of pure black so field boundaries stay
-# visible against the dark application background.
-APPWIDE_TEXT_INPUT_BACKGROUND_COLOR = "#222222"
-APPWIDE_TEXT_INPUT_BORDER_COLOR = "#444444"
-APPWIDE_BUTTON_BACKGROUND_COLOR = "#333333"
-APPWIDE_BUTTON_HOVER_BACKGROUND_COLOR = "#444444"
-APPWIDE_BUTTON_BORDER_COLOR = "#555555"
-APPWIDE_PLAIN_TEXT_INPUT_BACKGROUND_COLOR = "#181818"
+# Appwide design tokens shared by Chart View, Database View, and utility panels.
+# Keep these as the foundation for the dark UI so feature code can compose
+# professional, layered surfaces without scattering one-off hex values.
+COLOR_BG_APP = "#0f1014"
+COLOR_BG_PANEL = "#15161c"
+COLOR_BG_SURFACE = "#1c1e26"
+COLOR_BG_ELEVATED = "#242734"
+COLOR_BG_INPUT = "#20232d"
+COLOR_BORDER_SUBTLE = "#2c303d"  # Qt-safe approximation of rgba(255,255,255,0.08).
+COLOR_BORDER_STRONG = "#3c4252"
+COLOR_TEXT_PRIMARY = "#f4f1ea"
+COLOR_TEXT_SECONDARY = "#b7b0a4"
+COLOR_TEXT_MUTED = "#7f7a72"
+COLOR_ACCENT_PRIMARY = "#c8914f"
+COLOR_ACCENT_SUCCESS = "#68d391"
+COLOR_ACCENT_DANGER = "#f87171"
+COLOR_ACCENT_WARNING = "#f6c85f"
+
+SPACE_1 = 2
+SPACE_2 = 4
+SPACE_3 = 6
+SPACE_4 = 8
+SPACE_5 = 10
+SPACE_6 = 12
+
+FONT_SIZE_SMALL = 11
+FONT_SIZE_BODY = 13
+FONT_SIZE_HEADER = 15
+
+# Backward-compatible aliases for existing code paths while the UI migrates to
+# the token names above.
+APPWIDE_TEXT_INPUT_BACKGROUND_COLOR = COLOR_BG_INPUT
+APPWIDE_TEXT_INPUT_BORDER_COLOR = COLOR_BORDER_STRONG
+APPWIDE_BUTTON_BACKGROUND_COLOR = COLOR_BG_ELEVATED
+APPWIDE_BUTTON_HOVER_BACKGROUND_COLOR = "#303442"
+APPWIDE_BUTTON_BORDER_COLOR = COLOR_BORDER_STRONG
+APPWIDE_PLAIN_TEXT_INPUT_BACKGROUND_COLOR = COLOR_BG_SURFACE
 
 APPWIDE_DARK_THEME_STYLESHEET = f"""
 QMainWindow {{
-    background-color: #111111;
+    background-color: {COLOR_BG_APP};
 }}
 QWidget {{
-    color: #f5f5f5;
-    background-color: #111111;
-    font-size: 13px;
+    color: {COLOR_TEXT_PRIMARY};
+    background-color: {COLOR_BG_APP};
+    font-size: {FONT_SIZE_BODY}px;
 }}
 QLineEdit, QDateEdit, QTimeEdit, QTextEdit, QPlainTextEdit {{
     background-color: {APPWIDE_TEXT_INPUT_BACKGROUND_COLOR};
@@ -129,18 +157,18 @@ QPlainTextEdit {{
 """
 
 DARK_THEME = {
-    "background": "#111111",
-    "foreground": "#f5f5f5",
+    "background": COLOR_BG_APP,
+    "foreground": COLOR_TEXT_PRIMARY,
     "wheel_circle": "#444444",
     "house_line": "#333333",
     "planet": "#f1d28f",
 }
 
 CHART_THEME_COLORS = {
-    "background": "#111111",
-    "text": "#f5f5f5",
-    "muted_text": "#8b8b8b",
-    "spine": "#444444",
+    "background": COLOR_BG_APP,
+    "text": COLOR_TEXT_PRIMARY,
+    "muted_text": COLOR_TEXT_MUTED,
+    "spine": COLOR_BORDER_STRONG,
     "accent": "#6fa8dc",
 }
 
@@ -159,7 +187,7 @@ GENDER_GUESSER_COLORS = {
     "androgynous": "#ffd966",
 }
 
-MIDDLE_PANEL_ACCENT_COLOR = "#c8914f"
+MIDDLE_PANEL_ACCENT_COLOR = COLOR_ACCENT_PRIMARY
 CHART_DATA_HIGHLIGHT_COLOR = MIDDLE_PANEL_ACCENT_COLOR
 
 CHART_INFO_POSITIVE_WEIGHT_COLOR = "#39ff6a"
@@ -551,65 +579,65 @@ QUAD_STATE_SLIDER_VISUALS = {
 RIGHT_PANEL_SCROLLBAR_STYLE = """
 QScrollArea {
     border: none;
-    background: #111111;
+    background: __COLOR_BG_PANEL__;
 }
 QScrollArea::viewport {
-    background: #111111;
+    background: __COLOR_BG_PANEL__;
 }
 QScrollBar:vertical {
-    background: #240046;
+    background: __COLOR_BG_SURFACE__;
     width: 8px;
     margin: 0px;
 }
 QScrollBar::handle:vertical {
-    background: #3c096c;
+    background: __COLOR_BORDER_STRONG__;
     min-height: 20px;
     border-radius: 4px;
 }
 QScrollBar::handle:vertical:hover {
-    background: #5a189a;
+    background: #4a5163;
 }
 QScrollBar::add-line:vertical,
 QScrollBar::sub-line:vertical {
-    background: #240046;
+    background: __COLOR_BG_SURFACE__;
     height: 0px;
     width: 0px;
 }
 QScrollBar::add-page:vertical,
 QScrollBar::sub-page:vertical {
-    background: #240046;
+    background: __COLOR_BG_SURFACE__;
 }
 QScrollBar:horizontal {
-    background: #240046;
+    background: __COLOR_BG_SURFACE__;
     height: 8px;
     margin: 0px;
 }
 QScrollBar::handle:horizontal {
-    background: #3c096c;
+    background: __COLOR_BORDER_STRONG__;
     min-width: 20px;
     border-radius: 4px;
 }
 QScrollBar::handle:horizontal:hover {
-    background: #5a189a;
+    background: #4a5163;
 }
 QScrollBar::add-line:horizontal,
 QScrollBar::sub-line:horizontal {
-    background: #240046;
+    background: __COLOR_BG_SURFACE__;
     height: 0px;
     width: 0px;
 }
 QScrollBar::add-page:horizontal,
 QScrollBar::sub-page:horizontal {
-    background: #240046;
+    background: __COLOR_BG_SURFACE__;
 }
-"""
+""".replace("__COLOR_BG_PANEL__", COLOR_BG_PANEL).replace("__COLOR_BG_SURFACE__", COLOR_BG_SURFACE).replace("__COLOR_BORDER_STRONG__", COLOR_BORDER_STRONG)
 
 DEFAULT_DROPDOWN_STYLE = """
 QComboBox {
-    background-color: #1c1c1c;
-    alternate-background-color: #1c1c1c;
+    background-color: __COLOR_BG_SURFACE__;
+    alternate-background-color: __COLOR_BG_SURFACE__;
     color: __CHART_DATA_HIGHLIGHT_COLOR__;
-    border: 1px solid #3f3f3f;
+    border: 1px solid __COLOR_BORDER_STRONG__;
     border-radius: 4px;
     padding: 3px 2px;
     min-height: 24px;
@@ -621,8 +649,8 @@ QComboBox::drop-down {
     width: 18px;
 }
 QComboBox QAbstractItemView {
-    background-color: #1c1c1c;
-    alternate-background-color: #1c1c1c;
+    background-color: __COLOR_BG_SURFACE__;
+    alternate-background-color: __COLOR_BG_SURFACE__;
     selection-background-color: #4f3f25;
     outline: 0;
 }
@@ -652,13 +680,13 @@ QComboBox QAbstractItemView::indicator {
     margin: 0px;
     padding: 0px;
 }
-""".replace("__CHART_DATA_HIGHLIGHT_COLOR__", CHART_DATA_HIGHLIGHT_COLOR)
+""".replace("__COLOR_BG_SURFACE__", COLOR_BG_SURFACE).replace("__COLOR_BORDER_STRONG__", COLOR_BORDER_STRONG).replace("__CHART_DATA_HIGHLIGHT_COLOR__", CHART_DATA_HIGHLIGHT_COLOR)
 
 WINDOW_CHROME_MENU_STYLE = """
 QMenu {
-    background-color: #1c1c1c;
-    color: #f0f0f0;
-    border: 1px solid #2a2a2a;
+    background-color: __COLOR_BG_SURFACE__;
+    color: __COLOR_TEXT_PRIMARY__;
+    border: 1px solid __COLOR_BORDER_SUBTLE__;
 }
 QMenu::item {
     background-color: transparent;
@@ -685,7 +713,7 @@ QMenu::separator {
     height: 1px;
     margin: 4px 10px;
 }
-"""
+""".replace("__COLOR_BG_SURFACE__", COLOR_BG_SURFACE).replace("__COLOR_TEXT_PRIMARY__", COLOR_TEXT_PRIMARY).replace("__COLOR_BORDER_SUBTLE__", COLOR_BORDER_SUBTLE)
 
 INACTIVE_ACTION_BUTTON_STYLE = """
 QPushButton {
@@ -778,9 +806,64 @@ CHART_VIEW_TIME_OVERWRITE_ENABLED = True
 CHART_VIEW_RECTIFIED_GROUP_LEFT_SPACER = 12
 CHART_VIEW_RECTIFIED_LABEL_CHECKBOX_SPACING = 4
 DATABASE_VIEW_HEADER_COLOR = MIDDLE_PANEL_ACCENT_COLOR
-COLLAPSIBLE_SECTION_BACKGROUND = "#050505"  # Standard appwide black for regular sections and subsections.
+DATABASE_VIEW_PANEL_BACKGROUND = COLOR_BG_PANEL
+DATABASE_VIEW_CONTROL_ROW_BACKGROUND = COLOR_BG_PANEL
+DATABASE_VIEW_LIST_PANEL_BACKGROUND = COLOR_BG_PANEL
+DATABASE_VIEW_LIST_BACKGROUND = COLOR_BG_INPUT
+DATABASE_VIEW_LIST_SELECTION_BACKGROUND = "#2d3f55"
+DATABASE_VIEW_LIST_HOVER_BACKGROUND = COLOR_BG_ELEVATED
+DATABASE_VIEW_TOOLBAR_BUTTON_STYLE = (
+    "QPushButton {"
+    f"padding: {SPACE_1}px {SPACE_5}px; "
+    f"font-size: {FONT_SIZE_SMALL}px; "
+    f"background-color: {COLOR_BG_ELEVATED}; "
+    f"color: {COLOR_TEXT_PRIMARY}; "
+    f"border: 1px solid {COLOR_BORDER_STRONG};"
+    "}"
+    "QPushButton:hover {"
+    "background-color: #303442;"
+    "}"
+    "QPushButton:disabled {"
+    f"background-color: {COLOR_BG_SURFACE}; "
+    f"color: {COLOR_TEXT_MUTED}; "
+    f"border-color: {COLOR_BORDER_SUBTLE};"
+    "}"
+)
+DATABASE_VIEW_TOOLBAR_SUCCESS_BUTTON_STYLE = (
+    f"{DATABASE_VIEW_TOOLBAR_BUTTON_STYLE} "
+    f"QPushButton {{ color: {COLOR_ACCENT_SUCCESS}; font-weight: 600; }}"
+)
+DATABASE_VIEW_TOOLBAR_DANGER_BUTTON_STYLE = (
+    f"{DATABASE_VIEW_TOOLBAR_BUTTON_STYLE} "
+    f"QPushButton {{ color: {COLOR_ACCENT_DANGER}; font-weight: 600; }}"
+)
+DATABASE_VIEW_TINY_FILTER_STYLE = (
+    "QCheckBox {"
+    f"font-size: {FONT_SIZE_SMALL}px; "
+    f"color: {COLOR_TEXT_SECONDARY}; "
+    "padding: 0px; spacing: 3px;"
+    "}"
+    "QCheckBox::indicator { width: 11px; height: 11px; }"
+)
+DATABASE_VIEW_CHART_LIST_STYLE = (
+    "QListWidget {"
+    f"  background-color: {DATABASE_VIEW_LIST_BACKGROUND};"
+    f"  color: {COLOR_TEXT_PRIMARY};"
+    f"  border: 1px solid {COLOR_BORDER_SUBTLE};"
+    "}"
+    "QListWidget::item {"
+    f"  padding: {SPACE_3}px {SPACE_4}px;"
+    "}"
+    "QListWidget::item:hover {"
+    f"  background-color: {DATABASE_VIEW_LIST_HOVER_BACKGROUND};"
+    "}"
+    "QListWidget::item:selected {"
+    f"  background-color: {DATABASE_VIEW_LIST_SELECTION_BACKGROUND};"
+    "}"
+)
+COLLAPSIBLE_SECTION_BACKGROUND = COLOR_BG_APP
 COLLAPSIBLE_NESTED_SECTION_BACKGROUND = "#16071f"  # Subtle dark purple for sections containing nested collapsibles.
-COLLAPSIBLE_HEADER_BACKGROUND = "#101010"  # Dark charcoal for clickable collapsible headers.
+COLLAPSIBLE_HEADER_BACKGROUND = COLOR_BG_SURFACE  # Dark charcoal for clickable collapsible headers.
 COLLAPSIBLE_SECTION_CONTENT_STYLE = f"background-color: {COLLAPSIBLE_SECTION_BACKGROUND};"
 COLLAPSIBLE_NESTED_SECTION_CONTENT_STYLE = (
     f"background-color: {COLLAPSIBLE_NESTED_SECTION_BACKGROUND};"
