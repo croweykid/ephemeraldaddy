@@ -609,6 +609,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     SEARCH_GENDER_GUESSED_OPTIONS = app_module.SEARCH_GENDER_GUESSED_OPTIONS
     SOURCE_OPTIONS = app_module.SOURCE_OPTIONS
     configure_collapsible_header_toggle = app_module.configure_collapsible_header_toggle
+    configure_static_collapsible_header_label = app_module.configure_static_collapsible_header_label
     from ephemeraldaddy.gui.features.charts.presentation import abbreviate_body_label, abbreviate_nakshatra_label
     # Search panel (right sidebar).
     panel = EmojiTiledPanel("🔎", font_size=100, opacity=0.12) #Search panel background
@@ -719,7 +720,16 @@ def build_dbv_search_panel(window) -> "QWidget":
         ) if expanded else None
     )
     tags_search_row.addWidget(window.search_tags_list_widget)
-    # Tags controls are added immediately below the Search Filters header.
+    layout.addLayout(tags_search_row)
+
+    divider = QFrame()
+    divider.setFixedHeight(4)
+    divider.setStyleSheet(
+        "background-color: #1f1f1f;"
+        "border-top: 1px solid #3b3b3b;"
+        "border-bottom: 1px solid #0d0d0d;"
+    )
+    layout.addWidget(divider)
 
     traits_search_row = QVBoxLayout()
     traits_search_row.setContentsMargins(0, 0, 0, 0)
@@ -761,8 +771,6 @@ def build_dbv_search_panel(window) -> "QWidget":
 
     settings = getattr(window, "_settings", None)
 
-    top_filter_layout = QVBoxLayout()
-    top_filter_layout.setContentsMargins(0, 0, 0, 0)
     incomplete_birthdate_row = QHBoxLayout()
     window.incomplete_birthdate_checkbox = QuadStateSlider("placeholder charts")
     window.incomplete_birthdate_checkbox.setToolTip(
@@ -779,7 +787,6 @@ def build_dbv_search_panel(window) -> "QWidget":
     window.incomplete_birthdate_checkbox.modeChanged.connect(window._on_incomplete_birthdate_filter_changed)
     incomplete_birthdate_row.addWidget(window.incomplete_birthdate_checkbox)
     incomplete_birthdate_row.addStretch(1)
-    top_filter_layout.addLayout(incomplete_birthdate_row)
 
     window.hidden_charts_filter_row = QWidget()
     hidden_charts_filter_layout = QHBoxLayout()
@@ -804,18 +811,6 @@ def build_dbv_search_panel(window) -> "QWidget":
     window.hidden_charts_filter_row.setVisible(
         bool(getattr(window, "_show_hidden_charts", False))
     )
-    top_filter_layout.addWidget(window.hidden_charts_filter_row)
-    layout.addLayout(top_filter_layout)
-
-
-    divider = QFrame()
-    divider.setFixedHeight(4)
-    divider.setStyleSheet(
-        "background-color: #1f1f1f;"
-        "border-top: 1px solid #3b3b3b;"
-        "border-bottom: 1px solid #0d0d0d;"
-    )
-    layout.addWidget(divider)
 
     header_layout = QHBoxLayout()
     title = QLabel("Search Filters")
@@ -879,21 +874,13 @@ def build_dbv_search_panel(window) -> "QWidget":
         section_layout.addWidget(content)
         return section, content_layout
 
-    tags_section, tags_group_layout = add_collapsible_section("🏷️Tags")
-    tags_group_layout.addLayout(tags_search_row)
-    layout.addWidget(tags_section)
-
-    traits_section, traits_group_layout = add_collapsible_section("🧬Traits")
-    traits_group_layout.addLayout(traits_search_row)
-    layout.addWidget(traits_section)
-
-    # Search: Chart Type is a permanent static section below Tags.
+    # Search: Chart Type is a permanent static section below the top search controls.
     chart_type_section = QWidget()
     chart_type_section_layout = QVBoxLayout()
     chart_type_section_layout.setContentsMargins(0, 0, 0, 0)
     chart_type_section.setLayout(chart_type_section_layout)
-    chart_type_header = QLabel("Chart Type")
-    chart_type_header.setStyleSheet(DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE)
+    chart_type_header = QLabel()
+    configure_static_collapsible_header_label(chart_type_header, title="Chart Type")
     chart_type_section_layout.addWidget(chart_type_header)
     chart_type_content = QWidget()
     chart_type_group_layout = QVBoxLayout()
@@ -914,6 +901,8 @@ def build_dbv_search_panel(window) -> "QWidget":
         col = idx // chart_type_rows
         chart_type_layout.addWidget(checkbox, row, col)
     chart_type_group_layout.addLayout(chart_type_layout)
+    chart_type_group_layout.addLayout(incomplete_birthdate_row)
+    chart_type_group_layout.addWidget(window.hidden_charts_filter_row)
 
     chart_type_button_row = QHBoxLayout()
     chart_type_button_row.addStretch(1)
@@ -924,6 +913,9 @@ def build_dbv_search_panel(window) -> "QWidget":
 
     layout.addWidget(chart_type_section)
 
+    traits_section, traits_group_layout = add_collapsible_section("🧬Traits")
+    traits_group_layout.addLayout(traits_search_row)
+    layout.addWidget(traits_section)
 
     astro_category_section, astro_category_layout = add_collapsible_section("🪐Astro", nested=True)
     layout.addWidget(astro_category_section)
