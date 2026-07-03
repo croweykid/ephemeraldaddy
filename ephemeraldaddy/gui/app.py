@@ -31038,19 +31038,18 @@ class MainWindow(QMainWindow):
         dialog.setText(
             "You have unsaved changes. Save them before leaving Chart View?"
         )
-        save_button = dialog.addButton("Save", QMessageBox.AcceptRole)
-        discard_button = dialog.addButton("Discard", QMessageBox.DestructiveRole)
-        cancel_button = dialog.addButton("Cancel", QMessageBox.RejectRole)
-        dialog.setDefaultButton(save_button)
-        dialog.setEscapeButton(cancel_button)
+        dialog.setStandardButtons(
+            QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel
+        )
+        dialog.setDefaultButton(QMessageBox.Save)
+        dialog.setEscapeButton(QMessageBox.Cancel)
 
         self._leaving_chart_view_prompt_open = True
         try:
-            dialog.exec()
-            clicked_button = dialog.clickedButton()
-            if clicked_button == save_button:
+            choice = dialog.exec()
+            if choice == QMessageBox.Save:
                 self.on_update_chart(show_dialog=True)
-            elif clicked_button == discard_button:
+            elif choice == QMessageBox.Discard:
                 self._set_lucygoosey(False)
             return not self._lucygoosey
         finally:
@@ -33229,6 +33228,39 @@ class MainWindow(QMainWindow):
             self._manage_charts_dialog = ManageChartsDialog(self)
             self._manage_charts_dialog.setWindowModality(Qt.NonModal)
         return self._manage_charts_dialog
+
+    def _update_sentiment_tally(
+        self,
+        show_progress: bool = False,
+        force_full_refresh: bool = False,
+        changed_ids: set[int] | None = None,
+        changed_fields: set[str] | frozenset[str] | None = None,
+        *,
+        update_database_metrics: bool = True,
+        update_similarities: bool = True,
+        sections_to_refresh: set[str] | None = None,
+    ) -> None:
+        """Refresh Database View analytics from Chart View without requiring dialog state."""
+        if changed_ids:
+            self._manage_charts_pending_changed_ids.update(changed_ids)
+
+        manage_dialog = getattr(self, "_manage_charts_dialog", None)
+        if manage_dialog is None or not manage_dialog.isVisible():
+            return
+        if not getattr(manage_dialog, "_chart_rows", None):
+            return
+
+        manage_dialog._update_sentiment_tally(
+            show_progress=show_progress,
+            force_full_refresh=force_full_refresh,
+            changed_ids=changed_ids,
+            changed_fields=changed_fields,
+            update_database_metrics=update_database_metrics,
+            update_similarities=update_similarities,
+            sections_to_refresh=sections_to_refresh,
+        )
+        if changed_ids:
+            self._manage_charts_pending_changed_ids.difference_update(changed_ids)
 
     def _refresh_manage_charts_in_background(self, changed_ids: set[int]) -> None:
         if not changed_ids:
