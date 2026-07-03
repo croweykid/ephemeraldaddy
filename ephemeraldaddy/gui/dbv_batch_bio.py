@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QComboBox, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QVBoxLayout, QWidget
 
 from ephemeraldaddy.core.db import load_chart, update_chart
 
@@ -12,9 +13,47 @@ from ephemeraldaddy.core.db import load_chart, update_chart
 def build_batch_bio_section(
     owner: Any,
     add_collapsible_section: Callable[[str], tuple[QWidget, QVBoxLayout]],
+    source_options: list[tuple[str, str]] | tuple[tuple[str, str], ...],
+    gender_options: list[str] | tuple[str, ...],
+    quad_state_slider_class: type,
 ) -> QWidget:
-    """Build the Batch Editor Bio section and wire its From updater."""
-    bio_section, bio_section_layout = add_collapsible_section("Bio")
+    """Build the Batch Editor Biographical section and wire its updaters."""
+    bio_section, bio_section_layout = add_collapsible_section("👤Biographical")
+
+    bio_metadata_layout = QGridLayout()
+    bio_metadata_layout.setContentsMargins(0, 0, 0, 0)
+    bio_metadata_layout.setColumnStretch(1, 1)
+
+    chart_type_label = QLabel("Chart Type:")
+    chart_type_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+    owner.batch_source_combo = QComboBox()
+    owner.batch_source_combo.addItem("Mixed / unchanged", "")
+    for source_option_label, source_option_value in source_options:
+        owner.batch_source_combo.addItem(source_option_label, source_option_value)
+    owner.batch_source_combo.currentIndexChanged.connect(owner._on_batch_source_selected)
+    bio_metadata_layout.addWidget(chart_type_label, 0, 0)
+    bio_metadata_layout.addWidget(owner.batch_source_combo, 0, 1)
+
+    gender_label = QLabel("Gender:")
+    gender_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+    owner.batch_gender_combo = QComboBox()
+    owner.batch_gender_combo.addItem("Mixed / unchanged", "")
+    owner.batch_gender_combo.addItem("blank", "__blank__")
+    for gender_option in gender_options:
+        owner.batch_gender_combo.addItem(gender_option, gender_option)
+    owner.batch_gender_combo.currentIndexChanged.connect(owner._on_batch_gender_selected)
+    bio_metadata_layout.addWidget(gender_label, 1, 0)
+    bio_metadata_layout.addWidget(owner.batch_gender_combo, 1, 1)
+    bio_section_layout.addLayout(bio_metadata_layout)
+
+    owner.batch_birthtime_unknown_checkbox = quad_state_slider_class("birthtime unknown")
+    owner.batch_birthtime_unknown_checkbox.modeChanged.connect(owner._on_batch_birthtime_unknown_state_changed)
+    bio_section_layout.addWidget(owner.batch_birthtime_unknown_checkbox)
+
+    owner.batch_deceased_checkbox = quad_state_slider_class("💀deceased")
+    owner.batch_deceased_checkbox.modeChanged.connect(owner._on_batch_mortality_state_changed)
+    bio_section_layout.addWidget(owner.batch_deceased_checkbox)
+
     bio_from_row = QHBoxLayout()
     bio_from_row.addWidget(QLabel("From"))
 

@@ -3173,13 +3173,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         content.setVisible(expanded)
 
         def set_toggle_expanded_state(checked: bool) -> None:
-            if toggle.icon().isNull():
-                toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
-                return
             toggle.setArrowType(Qt.NoArrow)
-            label_text = str(toggle.property("_edd_collapsible_label_text") or toggle.text()).lstrip("▾▸ ")
-            toggle.setProperty("_edd_collapsible_label_text", label_text)
-            toggle.setText(f"{'▾' if checked else '▸'} {label_text}")
 
         def toggle_content(checked: bool) -> None:
             content.setVisible(checked)
@@ -13562,13 +13556,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             content.setVisible(False)
 
             def set_toggle_expanded_state(checked: bool) -> None:
-                if toggle.icon().isNull():
-                    toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
-                    return
                 toggle.setArrowType(Qt.NoArrow)
-                label_text = str(toggle.property("_edd_collapsible_label_text") or toggle.text()).lstrip("▾▸ ")
-                toggle.setProperty("_edd_collapsible_label_text", label_text)
-                toggle.setText(f"{'▾' if checked else '▸'} {label_text}")
 
             def toggle_content(checked: bool) -> None:
                 content.setVisible(checked)
@@ -13586,53 +13574,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             section_layout.addWidget(toggle)
             section_layout.addWidget(content)
             return section, content_layout
-
-        sentiment_section, sentiment_section_layout = add_collapsible_section("💭Sentiment") #user sentiment
-
-        self.batch_sentiment_checkboxes = {}
-        sentiment_widget = QWidget()
-        sentiment_layout = QGridLayout()
-        sentiment_layout.setContentsMargins(0, 0, 0, 0)
-        sentiment_rows = (len(SENTIMENT_OPTIONS) + 1) // 2
-        for idx, label in enumerate(SENTIMENT_OPTIONS):
-            checkbox = QuadStateSlider(label)
-            checkbox.setLabelColor(_sentiment_label_color(label))
-            checkbox.modeChanged.connect(
-                lambda state, name=label: self._on_batch_sentiment_state_changed(
-                    name,
-                    state,
-                )
-            )
-            self.batch_sentiment_checkboxes[label] = checkbox
-            row = idx % sentiment_rows
-            col = idx // sentiment_rows
-            sentiment_layout.addWidget(checkbox, row, col)
-        sentiment_widget.setLayout(sentiment_layout)
-        sentiment_section_layout.addWidget(sentiment_widget)
-        layout.addWidget(sentiment_section)
-
-        relationship_section, relationship_section_layout = add_collapsible_section("💭Relationships") #user relationships
-
-        self.batch_relationship_type_checkboxes = {}
-        relationship_widget = QWidget()
-        relationship_layout = QGridLayout()
-        relationship_layout.setContentsMargins(0, 0, 0, 0)
-        relationship_rows = (len(RELATION_TYPE) + 1) // 2
-        for idx, label in enumerate(RELATION_TYPE):
-            checkbox = QuadStateSlider(label)
-            checkbox.modeChanged.connect(
-                lambda state, name=label: self._on_batch_relationship_type_state_changed(
-                    name,
-                    state,
-                )
-            )
-            self.batch_relationship_type_checkboxes[label] = checkbox
-            row = idx % relationship_rows
-            col = idx // relationship_rows
-            relationship_layout.addWidget(checkbox, row, col)
-        relationship_widget.setLayout(relationship_layout)
-        relationship_section_layout.addWidget(relationship_widget)
-        layout.addWidget(relationship_section)
 
         tagging_section, tagging_section_layout = add_collapsible_section("🏷️Tagging", nested=True)
         tagging_row = QHBoxLayout()
@@ -13689,8 +13630,75 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._update_tag_completers()
         layout.addWidget(tagging_section)
 
+
+        sentiment_section, sentiment_section_layout = add_collapsible_section("💭Sentiment") #user sentiment
+
+        self.batch_sentiment_checkboxes = {}
+        sentiment_widget = QWidget()
+        sentiment_layout = QGridLayout()
+        sentiment_layout.setContentsMargins(0, 0, 0, 0)
+        sentiment_rows = (len(SENTIMENT_OPTIONS) + 1) // 2
+        for idx, label in enumerate(SENTIMENT_OPTIONS):
+            checkbox = QuadStateSlider(label)
+            checkbox.setLabelColor(_sentiment_label_color(label))
+            checkbox.modeChanged.connect(
+                lambda state, name=label: self._on_batch_sentiment_state_changed(
+                    name,
+                    state,
+                )
+            )
+            self.batch_sentiment_checkboxes[label] = checkbox
+            row = idx % sentiment_rows
+            col = idx // sentiment_rows
+            sentiment_layout.addWidget(checkbox, row, col)
+        sentiment_widget.setLayout(sentiment_layout)
+        sentiment_section_layout.addWidget(sentiment_widget)
+        layout.addWidget(sentiment_section)
+
+        relationship_section, relationship_section_layout = add_collapsible_section("💭Relationships") #user relationships
+
+        self.batch_relationship_type_checkboxes = {}
+        relationship_widget = QWidget()
+        relationship_layout = QGridLayout()
+        relationship_layout.setContentsMargins(0, 0, 0, 0)
+        relationship_rows = (len(RELATION_TYPE) + 1) // 2
+        for idx, label in enumerate(RELATION_TYPE):
+            checkbox = QuadStateSlider(label)
+            checkbox.modeChanged.connect(
+                lambda state, name=label: self._on_batch_relationship_type_state_changed(
+                    name,
+                    state,
+                )
+            )
+            self.batch_relationship_type_checkboxes[label] = checkbox
+            row = idx % relationship_rows
+            col = idx // relationship_rows
+            relationship_layout.addWidget(checkbox, row, col)
+        relationship_widget.setLayout(relationship_layout)
+        relationship_section_layout.addWidget(relationship_widget)
+        layout.addWidget(relationship_section)
+
+        alignment_section, alignment_section_layout = add_collapsible_section("💭Perceived Alignment")
+
+        self.batch_alignment_slider = AlignmentEmojiSlider()
+        self.batch_alignment_slider.valueChanged.connect(self._on_batch_alignment_changed)
+        self.batch_alignment_score_label = QLabel()
+        self._update_batch_alignment_score_label(self.batch_alignment_slider.value())
+        self.batch_alignment_apply_button = QPushButton("Apply alignment")
+        self.batch_alignment_apply_button.clicked.connect(self._on_batch_alignment_apply)
+
+        alignment_section_layout.addWidget(
+            QLabel("😈 Most evil   ⟷   Most altruistic 😇")
+        )
+        alignment_section_layout.addWidget(self.batch_alignment_slider)
+        alignment_section_layout.addWidget(self.batch_alignment_score_label)
+        alignment_section_layout.addWidget(self.batch_alignment_apply_button)
+        layout.addWidget(alignment_section)
+
+
+
         layout.addWidget(build_batch_similarity_section(self, add_collapsible_section))
-        layout.addWidget(build_batch_bio_section(self, add_collapsible_section))
+        layout.addWidget(build_batch_bio_section(self, add_collapsible_section, SOURCE_OPTIONS, GENDER_OPTIONS, QuadStateSlider))
 
         predictability_section, predictability_section_layout = add_collapsible_section("💭Predictability")
         predictability_row = QHBoxLayout()
@@ -13863,65 +13871,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         sentiment_section_layout.addWidget(sentiment_metrics_subheader)
         sentiment_section_layout.addWidget(sentiment_metrics_widget)
 
-        chart_type_section, chart_type_section_layout = add_collapsible_section("Chart Type")
-
-        self.batch_source_combo = QComboBox()
-        self.batch_source_combo.addItem("Mixed / unchanged", "")
-        for source_option_label, source_option_value in SOURCE_OPTIONS:
-            self.batch_source_combo.addItem(source_option_label, source_option_value)
-        self.batch_source_combo.currentIndexChanged.connect(
-            self._on_batch_source_selected
-        )
-        chart_type_section_layout.addWidget(self.batch_source_combo)
-        layout.addWidget(chart_type_section)
-
-        batch_gender_section, batch_gender_section_layout = add_collapsible_section("Gender")
-
-        self.batch_gender_combo = QComboBox()
-        self.batch_gender_combo.addItem("Mixed / unchanged", "")
-        self.batch_gender_combo.addItem("blank", "__blank__")
-        for gender_option in GENDER_OPTIONS:
-            self.batch_gender_combo.addItem(gender_option, gender_option)
-        self.batch_gender_combo.currentIndexChanged.connect(
-            self._on_batch_gender_selected
-        )
-        batch_gender_section_layout.addWidget(self.batch_gender_combo)
-        layout.addWidget(batch_gender_section)
-
-        birthtime_unknown_section, birthtime_unknown_section_layout = add_collapsible_section("🐣Info")
-
-        self.batch_birthtime_unknown_checkbox = QuadStateSlider("birthtime unknown")
-        self.batch_birthtime_unknown_checkbox.modeChanged.connect(
-            self._on_batch_birthtime_unknown_state_changed
-        )
-        birthtime_unknown_section_layout.addWidget(self.batch_birthtime_unknown_checkbox)
-        layout.addWidget(birthtime_unknown_section)
-
-        mortality_section, mortality_section_layout = add_collapsible_section("Mortality")
-
-        self.batch_deceased_checkbox = QuadStateSlider("💀")
-        self.batch_deceased_checkbox.modeChanged.connect(
-            self._on_batch_mortality_state_changed
-        )
-        mortality_section_layout.addWidget(self.batch_deceased_checkbox)
-        layout.addWidget(mortality_section)
-
-        alignment_section, alignment_section_layout = add_collapsible_section("💭Alignment")
-
-        self.batch_alignment_slider = AlignmentEmojiSlider()
-        self.batch_alignment_slider.valueChanged.connect(self._on_batch_alignment_changed)
-        self.batch_alignment_score_label = QLabel()
-        self._update_batch_alignment_score_label(self.batch_alignment_slider.value())
-        self.batch_alignment_apply_button = QPushButton("Apply alignment")
-        self.batch_alignment_apply_button.clicked.connect(self._on_batch_alignment_apply)
-
-        alignment_section_layout.addWidget(
-            QLabel("😈 Most evil   ⟷   Most altruistic 😇")
-        )
-        alignment_section_layout.addWidget(self.batch_alignment_slider)
-        alignment_section_layout.addWidget(self.batch_alignment_score_label)
-        alignment_section_layout.addWidget(self.batch_alignment_apply_button)
-        layout.addWidget(alignment_section)
 
         layout.addStretch(1)
 
