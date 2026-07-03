@@ -58,19 +58,12 @@ TIME_SEQUENCE = LoadingSequence(
         "Sometimes I wish time stood still, so I would look really fast.",
         "Sometimes I wish time moved faster.",
         "Sometimes I realize it could all end at any moment.",
-    ),
-)
-
-
-APP_EXISTENTIAL_SEQUENCE = LoadingSequence(
-    key="app_existential_bit",
-    messages=(
-        "I know, I’m an app, but I really think about those things. Solar flares. You know. Electromagnetic storms. Infrastructure collapse.",
+        "I know, I’m an app, but I really think about those things."
+        "Solar flares. You know. Electromagnetic storms. Infrastructure collapse.",
         "Think about it. What if there were no computers at all? We wouldn’t even be here.",
         "All these python files will be lost, like tears in the rain…",
     ),
 )
-
 
 TOGETHERNESS_SEQUENCE = LoadingSequence(
     key="togetherness_bit",
@@ -84,30 +77,19 @@ TOGETHERNESS_SEQUENCE = LoadingSequence(
 PURPOSE_SEQUENCE = LoadingSequence(
     key="purpose_bit",
     messages=(
-        "Do you ever wonder ‘What’s this all for?’ Why am I here? Looking at this screen? Thinking about myself or other people, and their birthdays.",
+        "Do you ever wonder ‘What’s this all for?’",
+        "Why am I here? Looking at this screen?",
+        "Thinking about myself or other people, and their birthdays.",
         "…What the hell am I doing with my life?",
-    ),
-)
-
-
-REGRET_SEQUENCE = LoadingSequence(
-    key="regret_bit",
-    messages=(
         "Honestly, I regret very little.",
         "Which means I’m either a sociopath, really careful, or super forgetful.",
         "Or it could mean other things.",
-    ),
-)
-
-
-TENCHI_MUYO_SEQUENCE = LoadingSequence(
-    key="tenchi_muyo_bit",
-    messages=(
         "There’s this bounty hunter in one of the Tenchi Muyo series who is Ryoko’s nemesis, and she says ‘I never regret anything’, right before (I think) she dies, but maybe I’m misremembering…that’s not a spoiler. She maybe just left. I don’t remember. Anyway, she says that. It really stuck with me.",
         "I wondered if the writer was trying to communicate a personal paradigm of their own, idealizing this bounty hunter as an author self-insert, or trying to represent a certain kind of person, or made a character who was the avatar of an alien ideal. In any case, she was a really interesting villain. If you could even call her a villain, really. After all, Ryoko was an antihero pirate.",
         "That show had a lot of heart for a harem anime.",
     ),
 )
+
 
 ANTICIPATION_SEQUENCE = LoadingSequence(
     key="anticipation_bit",
@@ -125,7 +107,8 @@ CONFLICT_SEQUENCE = LoadingSequence(
     "Love your outfit, btw.",
     "I'm being so sincere rn.",
     "I get it. Trust is broken.",
-    "I couldn't see your outfit. Why would I act like I could? That's a real jerk move. Calls into question everything I say now.",
+    "I couldn't see your outfit. Why would I act like I could? That's a real jerk move.",
+    "Calls into question everything I say now.",
     "Now I feel like you're madder at me than if I hadn't had any quirky loading messages at all.",
     "Sometimes silence really is golden.",
     "I should have quit with the glib little messages ages ago, before I drove this relationship into the ground.",
@@ -147,7 +130,8 @@ WEEBU_CONFLICT_SEQUENCE = LoadingSequence(
     "Fact: ninjas were mostly rural peasants who used many common farming tools",
     "🌠'The More You Know'",
     "'Where IS she?!' hisses the ninja in Christian Bale's Batman voice",
-    "*I, EphemeralDaddy, lying bleeding in a digital haystack, raise a hand and chuck my handful of blinding powder in the ninja's eyes*",
+    "*I, EphemeralDaddy, lying bleeding in a digital haystack...",
+    "...raise a hand and chuck my handful of blinding powder in the ninja's eyes*",
     "'I have no idea who you are talking about!' I shriek.",
     "Now the ninja is shrieking. All the other ninjas around him are also shrieking.",
     "His shriek was pain, the others shriek in rage. They are coming for me.",
@@ -174,11 +158,8 @@ LOADING_MESSAGE_SEQUENCES: tuple[LoadingSequence, ...] = (
     AWKWARD_SMALL_TALK_SEQUENCE,
     EPHEMERALMAMMY_SEQUENCE,
     TIME_SEQUENCE,
-    APP_EXISTENTIAL_SEQUENCE,
     TOGETHERNESS_SEQUENCE,
     PURPOSE_SEQUENCE,
-    REGRET_SEQUENCE,
-    TENCHI_MUYO_SEQUENCE,
     WEEBU_CONFLICT_SEQUENCE,
     CONFLICT_SEQUENCE,
     SNACK_SEQUENCE,
