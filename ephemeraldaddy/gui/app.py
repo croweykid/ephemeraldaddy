@@ -525,7 +525,7 @@ from ephemeraldaddy.gui.cleanup_metadata import (
     run_metadata_migration,
 )
 from ephemeraldaddy.gui.property_manager import PropertyManagerCoordinator
-from ephemeraldaddy.gui.tooltips import apply_default_text_tooltips
+from ephemeraldaddy.gui.tooltips import apply_default_text_tooltips, install_app_tooltip_style
 from ephemeraldaddy.gui.window_chrome import (
     APP_DISPLAY_NAME,
     configure_application_identity,
@@ -1999,6 +1999,7 @@ def _get_qapp():
         app._edd_global_close_filter = _GlobalCloseShortcutFilter(app)
         app.installEventFilter(app._edd_global_close_filter)
     _apply_global_dropdown_and_menu_styles(app)
+    install_app_tooltip_style(app)
     install_appwide_cursor_defaults(app)
     return app
 
