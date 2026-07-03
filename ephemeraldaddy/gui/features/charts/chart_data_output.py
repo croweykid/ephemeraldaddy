@@ -59,7 +59,7 @@ def _is_chart_data_section_header(text: str) -> bool:
 
 
 def _normalized_chart_data_text(text: str) -> str:
-    """Remove legacy ASCII divider rows around appwide section headers."""
+    """Blank legacy ASCII divider rows around appwide section headers without changing line maps."""
     lines = text.splitlines()
     normalized: list[str] = []
     for index, line in enumerate(lines):
@@ -68,6 +68,7 @@ def _normalized_chart_data_text(text: str) -> str:
             previous_line = lines[index - 1].strip() if index > 0 else ""
             next_line = lines[index + 1].strip() if index + 1 < len(lines) else ""
             if _is_chart_data_section_header(previous_line) or _is_chart_data_section_header(next_line):
+                normalized.append("")
                 continue
         normalized.append(line)
     return "\n".join(normalized)
@@ -461,6 +462,9 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         self._section_format = QTextCharFormat()
         self._section_format.setForeground(QColor(CHART_DATA_HIGHLIGHT_COLOR))
         self._section_format.setFontWeight(QFont.Bold)
+        self._table_header_format = QTextCharFormat()
+        self._table_header_format.setForeground(QColor(CHART_DATA_HIGHLIGHT_COLOR))
+        self._table_header_format.setFontWeight(QFont.Normal)
         self._plain_bold_format = QTextCharFormat()
         self._plain_bold_format.setFontWeight(QFont.Bold)
         self._copper_header_format = QTextCharFormat(self._plain_bold_format)
@@ -1033,7 +1037,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                         self.setFormat(
                             self._qt_index(text, token_start),
                             self._qt_len(header_token),
-                            self._plain_bold_format,
+                            self._table_header_format,
                         )
                     token_start = token_end
         if all(token in stripped_text for token in ("Body", "Sign", "Degree", "Nakshatra", "House", "G.L.")):
@@ -1046,7 +1050,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                     self.setFormat(
                         self._qt_index(text, token_start),
                         self._qt_len(header_token),
-                        self._plain_bold_format,
+                        self._table_header_format,
                     )
                     token_start += len(header_token)
         if lowered_stripped in {"defined", "undefined"}:

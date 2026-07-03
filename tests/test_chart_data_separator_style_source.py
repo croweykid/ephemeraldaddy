@@ -24,12 +24,20 @@ def test_chart_data_section_header_style_is_appwide_visible_width_overlay():
     assert '"background_color": COLOR_BG_ELEVATED' in STYLE_SOURCE
     assert '"text_color": COLOR_TEXT_PRIMARY' in STYLE_SOURCE
     assert "def _normalized_chart_data_text" in CHART_DATA_OUTPUT_SOURCE
-    assert "Remove legacy ASCII divider rows around appwide section headers." in CHART_DATA_OUTPUT_SOURCE
+    assert "Blank legacy ASCII divider rows around appwide section headers without changing line maps." in CHART_DATA_OUTPUT_SOURCE
+    assert 'normalized.append("")' in CHART_DATA_OUTPUT_SOURCE
     assert "def _paint_chart_data_section_headers" in CHART_DATA_OUTPUT_SOURCE
     assert "viewport_width = output_widget.viewport().width()" in CHART_DATA_OUTPUT_SOURCE
     assert "rect.setX(0)" in CHART_DATA_OUTPUT_SOURCE
     assert "rect.setWidth(viewport_width)" in CHART_DATA_OUTPUT_SOURCE
     assert "painter.drawText(rect, Qt.AlignCenter, text)" in CHART_DATA_OUTPUT_SOURCE
+
+
+def test_chart_data_table_header_tokens_are_colored_without_bold():
+    assert "self._table_header_format = QTextCharFormat()" in CHART_DATA_OUTPUT_SOURCE
+    assert "self._table_header_format.setForeground(QColor(CHART_DATA_HIGHLIGHT_COLOR))" in CHART_DATA_OUTPUT_SOURCE
+    assert "self._table_header_format.setFontWeight(QFont.Normal)" in CHART_DATA_OUTPUT_SOURCE
+    assert "self._qt_len(header_token),\n                            self._table_header_format," in CHART_DATA_OUTPUT_SOURCE
 
 
 def test_chart_data_outputs_use_visual_only_whitespace_separators():
