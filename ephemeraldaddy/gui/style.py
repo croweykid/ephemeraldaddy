@@ -936,6 +936,8 @@ DATABASE_VIEW_PANEL_HEADER_STYLE = (
 CHART_DATA_HIGHLIGHT_COLOR = MIDDLE_PANEL_ACCENT_COLOR
 COLLAPSIBLE_SECTION_HEADER_WIGGLE_DURATION_MS = 220
 COLLAPSIBLE_SECTION_HEADER_WIGGLE_OFFSET_PX = 4
+COLLAPSIBLE_HEADER_LEFT_ALIGNMENT_STYLE = "QToolButton { text-align: left; }"
+COLLAPSIBLE_STATIC_HEADER_LEFT_ALIGNMENT_STYLE = "text-align: left;"
 
 
 def collapsible_section_header_toggle_style(
@@ -965,6 +967,7 @@ COLLAPSIBLE_SECTION_STATIC_HEADER_STYLE = (
     "color: #ffffff; "
     "padding: 6px; text-align: left; "
     f"background-color: {COLLAPSIBLE_HEADER_BACKGROUND};"
+    f"{COLLAPSIBLE_STATIC_HEADER_LEFT_ALIGNMENT_STYLE}"
 )
 SETTINGS_COLLAPSIBLE_TOGGLE_STYLE = collapsible_section_header_toggle_style(
     text_color=DATABASE_VIEW_HEADER_COLOR,
@@ -1198,6 +1201,13 @@ def configure_share_export_icon_button(
     button.setToolTip(tooltip)
 
 
+def _collapsible_header_left_aligned_style(style_sheet: str) -> str:
+    """Return a collapsible-header stylesheet with appwide left-justified text."""
+    if COLLAPSIBLE_HEADER_LEFT_ALIGNMENT_STYLE in style_sheet:
+        return style_sheet
+    return f"{style_sheet} {COLLAPSIBLE_HEADER_LEFT_ALIGNMENT_STYLE}"
+
+
 def configure_collapsible_header_toggle(
     toggle: QToolButton,
     *,
@@ -1206,6 +1216,7 @@ def configure_collapsible_header_toggle(
     style_sheet: str,
 ) -> None:
     """Apply default shared behavior for collapsible/expandable section headers."""
+    style_sheet = _collapsible_header_left_aligned_style(style_sheet)
     toggle.setText(title)
     toggle.setCheckable(True)
     toggle.setChecked(expanded)
