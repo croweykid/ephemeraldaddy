@@ -43,12 +43,9 @@ def install_app_tooltip_style(app: QApplication) -> None:
 
 
 def apply_tooltip_signifier(widget: QWidget) -> None:
-    """Mark a widget as tooltip-bearing using the appwide question cursor."""
+    """Mark a widget as tooltip-bearing without adding local tooltip styles."""
     apply_chart_info_link_cursor(widget)
     widget.setMouseTracking(True)
-    existing_style = widget.styleSheet().strip()
-    if APP_TOOLTIP_STYLE not in existing_style:
-        widget.setStyleSheet((existing_style + "\n" + APP_TOOLTIP_STYLE).strip())
 
 
 class TooltipHelpLabel(QLabel):
@@ -202,7 +199,7 @@ EXACT_PLACEHOLDER_TOOLTIP_OVERRIDES: dict[str, str] = {
 def _format_tooltip_text(text: str) -> str:
     """Return high-contrast HTML tooltip text for reliable readability."""
     return (
-        '<span style="color: #f5f5f5; background-color: transparent; font-family: Sans-Serif;">'
+        f'<span style="color: {APP_TOOLTIP_TEXT_COLOR}; background-color: transparent; font-family: Sans-Serif;">'
         f"{escape(text)}"
         '</span>'
     )

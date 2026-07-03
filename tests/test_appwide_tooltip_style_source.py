@@ -20,6 +20,16 @@ def test_qapplication_installs_universal_tooltip_style():
     assert "install_app_tooltip_style(app)" in APP_SOURCE
 
 
+def test_tooltip_signifier_does_not_install_legacy_widget_tooltip_styles():
+    signifier_block = TOOLTIPS_SOURCE.split("def apply_tooltip_signifier", 1)[1].split(
+        "class TooltipHelpLabel", 1
+    )[0]
+
+    assert "setStyleSheet" not in signifier_block
+    assert "APP_TOOLTIP_STYLE not in existing_style" not in TOOLTIPS_SOURCE
+    assert 'style="color: {APP_TOOLTIP_TEXT_COLOR};' in TOOLTIPS_SOURCE
+
+
 def test_database_view_right_panel_buttons_have_default_tooltip_overrides():
     assert '"manage_settings_button": "Settings"' in TOOLTIPS_SOURCE
     assert '"manage_toggle_search_panel_button": "Search"' in TOOLTIPS_SOURCE
