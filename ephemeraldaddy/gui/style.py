@@ -936,13 +936,6 @@ DATABASE_VIEW_PANEL_HEADER_STYLE = (
 CHART_DATA_HIGHLIGHT_COLOR = MIDDLE_PANEL_ACCENT_COLOR
 COLLAPSIBLE_SECTION_HEADER_WIGGLE_DURATION_MS = 220
 COLLAPSIBLE_SECTION_HEADER_WIGGLE_OFFSET_PX = 4
-COLLAPSIBLE_HEADER_LEFT_ALIGNMENT_STYLE = (
-    "QToolButton { text-align: left; padding-left: 6px; padding-right: 6px; } "
-    "QToolButton:checked { text-align: left; } "
-    "QToolButton:hover { text-align: left; } "
-    "QToolButton:pressed { text-align: left; } "
-    "QToolButton:focus { text-align: left; }"
-)
 COLLAPSIBLE_STATIC_HEADER_LEFT_ALIGNMENT_STYLE = "text-align: left;"
 
 
@@ -1046,26 +1039,6 @@ CHART_INFO_SPECIES_DESCRIPTION_ITALIC = True
 CHART_INFO_EVIDENCE_LABEL_BOLD = True
 
 
-class _CollapsibleHeaderHoverFilter(QObject):
-    """Keep section-header hover color consistent for stylesheets without QSS hover blocks."""
-
-    def __init__(self, toggle: QToolButton, base_style_sheet: str) -> None:
-        super().__init__(toggle)
-        self._toggle = toggle
-        self._base_style_sheet = base_style_sheet
-
-    def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802 - Qt API
-        if watched is self._toggle:
-            if event.type() == QEvent.Enter:
-                self._toggle.setStyleSheet(
-                    f"{self._base_style_sheet} "
-                    f"QToolButton {{ color: {CHART_DATA_HIGHLIGHT_COLOR}; }}"
-                )
-            elif event.type() in (QEvent.Leave, QEvent.Hide, QEvent.EnabledChange):
-                self._toggle.setStyleSheet(self._base_style_sheet)
-        return super().eventFilter(watched, event)
-
-
 def _run_collapsible_header_wiggle(toggle: QToolButton) -> None:
     """Animate a compact up/down wiggle on a clicked collapsible header."""
     origin = toggle.pos()
@@ -1096,12 +1069,7 @@ def _run_collapsible_header_wiggle(toggle: QToolButton) -> None:
 
 
 def _install_collapsible_header_interactions(toggle: QToolButton, style_sheet: str) -> None:
-    """Install the shared hover and click-wiggle behavior on a collapsible header."""
-    if not toggle.property("collapsible_header_hover_filter_installed"):
-        hover_filter = _CollapsibleHeaderHoverFilter(toggle, style_sheet)
-        toggle.installEventFilter(hover_filter)
-        toggle._collapsible_header_hover_filter = hover_filter  # type: ignore[attr-defined]
-        toggle.setProperty("collapsible_header_hover_filter_installed", True)
+    """Install the shared click-wiggle and autoscroll behavior on a collapsible header."""
     if not toggle.property("collapsible_header_wiggle_installed"):
         toggle.clicked.connect(
             lambda _checked=False, header_toggle=toggle: _run_collapsible_header_wiggle(
@@ -1207,13 +1175,6 @@ def configure_share_export_icon_button(
     button.setToolTip(tooltip)
 
 
-def _collapsible_header_left_aligned_style(style_sheet: str) -> str:
-    """Return a collapsible-header stylesheet with appwide left-justified text."""
-    if COLLAPSIBLE_HEADER_LEFT_ALIGNMENT_STYLE in style_sheet:
-        return style_sheet
-    return f"{style_sheet} {COLLAPSIBLE_HEADER_LEFT_ALIGNMENT_STYLE}"
-
-
 def configure_collapsible_header_toggle(
     toggle: QToolButton,
     *,
@@ -1222,17 +1183,14 @@ def configure_collapsible_header_toggle(
     style_sheet: str,
 ) -> None:
     """Apply default shared behavior for collapsible/expandable section headers."""
-    style_sheet = _collapsible_header_left_aligned_style(style_sheet)
     toggle.setText(title)
     toggle.setCheckable(True)
     toggle.setChecked(expanded)
     toggle.setArrowType(Qt.NoArrow)
     toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
     toggle.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-    toggle.setMinimumWidth(0)
     toggle.setStyleSheet(style_sheet)
     toggle.setLayoutDirection(Qt.LeftToRight)
-    toggle.setProperty("collapsibleSectionHeader", True)
     _install_collapsible_header_interactions(toggle, style_sheet)
 
 
