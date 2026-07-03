@@ -36,6 +36,10 @@ If you *haven't* restarted your machine since the last time you ran the app, you
 1. py -V:3.11 -m venv venv
 2. python -m ephemeraldaddy.gui.app or python -m ephemeraldaddy.gui.bootstrap
 
+or just:
+venv\Scripts\activate
+python -m ephemeraldaddy.gui.app
+
 # Optional Windows one-command launcher (recommended):
 run_ephemeraldaddy_windows.cmd
 
