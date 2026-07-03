@@ -11554,12 +11554,33 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 )
             )
 
-            self._render_enneagram_database_analytics(
-                selection_cache=selection_cache,
-                database_cache=database_cache,
-                loaded_charts=loaded_charts,
-                should_refresh=_should_refresh_database_metric_section,
-            )
+            if _should_refresh_database_metric_section("enneagram"):
+                from ephemeraldaddy.core.loading_messages import LoadingMessageRotator
+                from ephemeraldaddy.gui.style import close_app_loading_progress, create_app_loading_progress, update_app_loading_progress
+                _enneagram_loading_messages = LoadingMessageRotator(initial_message="Loading Enneagram predictions…")
+                _enneagram_progress = create_app_loading_progress(
+                    parent=self,
+                    title="Database Analytics Predictions",
+                    message=_enneagram_loading_messages.next(),
+                )
+                try:
+                    update_app_loading_progress(_enneagram_progress, "Collecting Enneagram prediction scores…", 35)
+                    self._render_enneagram_database_analytics(
+                        selection_cache=selection_cache,
+                        database_cache=database_cache,
+                        loaded_charts=loaded_charts,
+                        should_refresh=_should_refresh_database_metric_section,
+                    )
+                    update_app_loading_progress(_enneagram_progress, "Enneagram predictions ready.", 100)
+                finally:
+                    close_app_loading_progress(_enneagram_progress)
+            else:
+                self._render_enneagram_database_analytics(
+                    selection_cache=selection_cache,
+                    database_cache=database_cache,
+                    loaded_charts=loaded_charts,
+                    should_refresh=_should_refresh_database_metric_section,
+                )
 
             if _should_refresh_database_metric_section("planetary_sign_prevalence"):
                 effective_loaded_charts = (
@@ -12812,12 +12833,25 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 should_refresh=_should_refresh_database_metric_section,
             )
             if _should_refresh_database_metric_section("traits_distribution"):
-                self._render_traits_distribution_section(
-                    chart_ids=chart_ids,
-                    database_chart_ids=database_cache["chart_ids"],
-                    loaded_charts=loaded_charts,
-                    should_refresh=_should_refresh_database_metric_section,
+                from ephemeraldaddy.core.loading_messages import LoadingMessageRotator
+                from ephemeraldaddy.gui.style import close_app_loading_progress, create_app_loading_progress, update_app_loading_progress
+                _traits_loading_messages = LoadingMessageRotator(initial_message="Loading trait predictions…")
+                _traits_progress = create_app_loading_progress(
+                    parent=self,
+                    title="Database Analytics Predictions",
+                    message=_traits_loading_messages.next(),
                 )
+                try:
+                    update_app_loading_progress(_traits_progress, "Scoring trait predictions…", 35)
+                    self._render_traits_distribution_section(
+                        chart_ids=chart_ids,
+                        database_chart_ids=database_cache["chart_ids"],
+                        loaded_charts=loaded_charts,
+                        should_refresh=_should_refresh_database_metric_section,
+                    )
+                    update_app_loading_progress(_traits_progress, "Trait predictions ready.", 100)
+                finally:
+                    close_app_loading_progress(_traits_progress)
 
         if update_similarities:
             self._update_similarities_analysis(chart_ids)

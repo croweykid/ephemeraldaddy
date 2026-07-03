@@ -12,6 +12,7 @@ from PySide6.QtCore import (
     QSize,
     QTimer,
     Qt,
+    QEventLoop,
     #QVariantAnimation,
 )
 from PySide6.QtGui import QFont, QIcon#, QFontMetrics
@@ -22,6 +23,7 @@ from PySide6.QtWidgets import (
     #QGraphicsOpacityEffect,
     #QLabel,
     QListView,
+    QProgressDialog,
     QScrollArea,
     QSizePolicy,
     QToolButton,
@@ -162,6 +164,89 @@ CHART_DATA_HIGHLIGHT_COLOR = MIDDLE_PANEL_ACCENT_COLOR
 
 CHART_INFO_POSITIVE_WEIGHT_COLOR = "#39ff6a"
 CHART_INFO_NEGATIVE_WEIGHT_COLOR = "#ff4d4d"
+
+
+APP_LOADING_PROGRESS_STYLESHEET = """
+QProgressDialog {
+    background: rgba(22, 18, 30, 245);
+    color: #f1e8ff;
+    border: 1px solid #8a2be2;
+    border-radius: 8px;
+}
+QProgressDialog QLabel {
+    color: #f1e8ff;
+    font-size: 11px;
+    font-weight: 600;
+}
+QProgressBar {
+    border: 1px solid #3f3f3f;
+    border-radius: 4px;
+    background: #101010;
+    color: #f1e8ff;
+    text-align: center;
+}
+QProgressBar::chunk {
+    background-color: #9933ff;
+    border-radius: 3px;
+}
+QPushButton {
+    background-color: #333333;
+    border: 1px solid #555555;
+    border-radius: 4px;
+    color: #f5f5f5;
+    padding: 5px 10px;
+}
+QPushButton:hover {
+    background-color: #444444;
+}
+"""
+
+
+def create_app_loading_progress(
+    *,
+    parent: QWidget | None = None,
+    title: str = "Loading",
+    message: str = "Preparing…",
+    cancel_text: str | None = None,
+    minimum: int = 0,
+    maximum: int = 100,
+) -> QProgressDialog:
+    """Create the universal in-app loading progress dialog (not startup splash)."""
+    progress = QProgressDialog(message, cancel_text or "", minimum, maximum, parent)
+    progress.setWindowTitle(title)
+    progress.setWindowModality(Qt.WindowModal)
+    progress.setMinimumDuration(0)
+    progress.setAutoClose(False)
+    progress.setAutoReset(False)
+    progress.setStyleSheet(APP_LOADING_PROGRESS_STYLESHEET)
+    if cancel_text is None:
+        progress.setCancelButton(None)
+    progress.setValue(minimum)
+    progress.show()
+    QApplication.processEvents(QEventLoop.AllEvents, 50)
+    return progress
+
+
+def update_app_loading_progress(
+    progress: QProgressDialog | None,
+    message: str,
+    percent: int | float | None = None,
+) -> None:
+    """Update the universal in-app loading progress dialog."""
+    if progress is None:
+        return
+    bounded_percent = 0 if percent is None else int(max(0, min(100, round(float(percent)))))
+    progress.setLabelText(f"{message} ({bounded_percent}%)")
+    progress.setValue(bounded_percent)
+    QApplication.processEvents(QEventLoop.AllEvents, 50)
+
+
+def close_app_loading_progress(progress: QProgressDialog | None) -> None:
+    """Close the universal in-app loading progress dialog."""
+    if progress is None:
+        return
+    progress.close()
+    QApplication.processEvents(QEventLoop.AllEvents, 50)
 
 
 def human_design_type_display_name(value: object) -> str:
