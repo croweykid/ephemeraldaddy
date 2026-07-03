@@ -7,6 +7,7 @@ from typing import Mapping
 
 from PySide6.QtCore import QEvent, QPoint
 from PySide6.QtWidgets import (
+    QApplication,
     QAbstractButton,
     QLabel,
     QLineEdit,
@@ -21,23 +22,30 @@ from ephemeraldaddy.gui.style import (
 )
 
 
+APP_TOOLTIP_BACKGROUND_COLOR = "#252525"
+APP_TOOLTIP_TEXT_COLOR = "#f5f5f5"
 APP_TOOLTIP_STYLE = (
     "QToolTip {"
-    "background-color: #252525;"
-    "color: #f5f5f5;"
+    f"background-color: {APP_TOOLTIP_BACKGROUND_COLOR};"
+    f"color: {APP_TOOLTIP_TEXT_COLOR};"
     f"border: 1px solid {CHART_DATA_HIGHLIGHT_COLOR};"
     "padding: 6px;"
     "}"
 )
 
 
+def install_app_tooltip_style(app: QApplication) -> None:
+    """Install the single appwide QToolTip stylesheet on the QApplication."""
+    existing_style = app.styleSheet() or ""
+    if APP_TOOLTIP_STYLE in existing_style:
+        return
+    app.setStyleSheet((existing_style + "\n" + APP_TOOLTIP_STYLE).strip())
+
+
 def apply_tooltip_signifier(widget: QWidget) -> None:
-    """Mark a widget as tooltip-bearing using the appwide question cursor."""
+    """Mark a widget as tooltip-bearing without adding local tooltip styles."""
     apply_chart_info_link_cursor(widget)
     widget.setMouseTracking(True)
-    existing_style = widget.styleSheet().strip()
-    if APP_TOOLTIP_STYLE not in existing_style:
-        widget.setStyleSheet((existing_style + "\n" + APP_TOOLTIP_STYLE).strip())
 
 
 class TooltipHelpLabel(QLabel):
@@ -97,6 +105,8 @@ DEFAULT_TOOLTIP_OVERRIDES: dict[str, str] = {
     "manage_force_refresh_button": "Refresh Database Analysis",
     "manage_settings_button": "Settings",
     "manage_help_overlay_toggle": "Help",
+    "manage_database_manager_button": "Database Manager",
+    "manage_toggle_collections_panel_button": "Collections",
     "manage_toggle_database_metrics_panel_button": "Database Metrics",
     "manage_toggle_gen_pop_norms_panel_button": "General Population Norms",
     "manage_toggle_similarities_panel_button": "Similarities Analysis",
@@ -189,7 +199,7 @@ EXACT_PLACEHOLDER_TOOLTIP_OVERRIDES: dict[str, str] = {
 def _format_tooltip_text(text: str) -> str:
     """Return high-contrast HTML tooltip text for reliable readability."""
     return (
-        '<span style="color: #f5f5f5; background-color: transparent; font-family: Sans-Serif;">'
+        f'<span style="color: {APP_TOOLTIP_TEXT_COLOR}; background-color: transparent; font-family: Sans-Serif;">'
         f"{escape(text)}"
         '</span>'
     )
