@@ -936,7 +936,13 @@ DATABASE_VIEW_PANEL_HEADER_STYLE = (
 CHART_DATA_HIGHLIGHT_COLOR = MIDDLE_PANEL_ACCENT_COLOR
 COLLAPSIBLE_SECTION_HEADER_WIGGLE_DURATION_MS = 220
 COLLAPSIBLE_SECTION_HEADER_WIGGLE_OFFSET_PX = 4
-COLLAPSIBLE_HEADER_LEFT_ALIGNMENT_STYLE = "QToolButton { text-align: left; }"
+COLLAPSIBLE_HEADER_LEFT_ALIGNMENT_STYLE = (
+    "QToolButton { text-align: left; padding-left: 6px; padding-right: 6px; } "
+    "QToolButton:checked { text-align: left; } "
+    "QToolButton:hover { text-align: left; } "
+    "QToolButton:pressed { text-align: left; } "
+    "QToolButton:focus { text-align: left; }"
+)
 COLLAPSIBLE_STATIC_HEADER_LEFT_ALIGNMENT_STYLE = "text-align: left;"
 
 
@@ -1223,8 +1229,10 @@ def configure_collapsible_header_toggle(
     toggle.setArrowType(Qt.NoArrow)
     toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
     toggle.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+    toggle.setMinimumWidth(0)
     toggle.setStyleSheet(style_sheet)
     toggle.setLayoutDirection(Qt.LeftToRight)
+    toggle.setProperty("collapsibleSectionHeader", True)
     _install_collapsible_header_interactions(toggle, style_sheet)
 
 
