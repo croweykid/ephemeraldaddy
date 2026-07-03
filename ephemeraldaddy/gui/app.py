@@ -18,6 +18,7 @@ import random
 import sqlite3
 import statistics
 import subprocess
+import shutil
 import sys
 import traceback
 import uuid
@@ -11540,12 +11541,33 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 )
             )
 
-            self._render_enneagram_database_analytics(
-                selection_cache=selection_cache,
-                database_cache=database_cache,
-                loaded_charts=loaded_charts,
-                should_refresh=_should_refresh_database_metric_section,
-            )
+            if _should_refresh_database_metric_section("enneagram"):
+                from ephemeraldaddy.core.loading_messages import LoadingMessageRotator
+                from ephemeraldaddy.gui.style import close_app_loading_progress, create_app_loading_progress, update_app_loading_progress
+                _enneagram_loading_messages = LoadingMessageRotator(initial_message="Loading Enneagram predictions…")
+                _enneagram_progress = create_app_loading_progress(
+                    parent=self,
+                    title="Database Analytics Predictions",
+                    message=_enneagram_loading_messages.next(),
+                )
+                try:
+                    update_app_loading_progress(_enneagram_progress, "Collecting Enneagram prediction scores…", 35)
+                    self._render_enneagram_database_analytics(
+                        selection_cache=selection_cache,
+                        database_cache=database_cache,
+                        loaded_charts=loaded_charts,
+                        should_refresh=_should_refresh_database_metric_section,
+                    )
+                    update_app_loading_progress(_enneagram_progress, "Enneagram predictions ready.", 100)
+                finally:
+                    close_app_loading_progress(_enneagram_progress)
+            else:
+                self._render_enneagram_database_analytics(
+                    selection_cache=selection_cache,
+                    database_cache=database_cache,
+                    loaded_charts=loaded_charts,
+                    should_refresh=_should_refresh_database_metric_section,
+                )
 
             if _should_refresh_database_metric_section("planetary_sign_prevalence"):
                 effective_loaded_charts = (
@@ -12798,12 +12820,25 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 should_refresh=_should_refresh_database_metric_section,
             )
             if _should_refresh_database_metric_section("traits_distribution"):
-                self._render_traits_distribution_section(
-                    chart_ids=chart_ids,
-                    database_chart_ids=database_cache["chart_ids"],
-                    loaded_charts=loaded_charts,
-                    should_refresh=_should_refresh_database_metric_section,
+                from ephemeraldaddy.core.loading_messages import LoadingMessageRotator
+                from ephemeraldaddy.gui.style import close_app_loading_progress, create_app_loading_progress, update_app_loading_progress
+                _traits_loading_messages = LoadingMessageRotator(initial_message="Loading trait predictions…")
+                _traits_progress = create_app_loading_progress(
+                    parent=self,
+                    title="Database Analytics Predictions",
+                    message=_traits_loading_messages.next(),
                 )
+                try:
+                    update_app_loading_progress(_traits_progress, "Scoring trait predictions…", 35)
+                    self._render_traits_distribution_section(
+                        chart_ids=chart_ids,
+                        database_chart_ids=database_cache["chart_ids"],
+                        loaded_charts=loaded_charts,
+                        should_refresh=_should_refresh_database_metric_section,
+                    )
+                    update_app_loading_progress(_traits_progress, "Trait predictions ready.", 100)
+                finally:
+                    close_app_loading_progress(_traits_progress)
 
         if update_similarities:
             self._update_similarities_analysis(chart_ids)
@@ -22112,12 +22147,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             cleared_count += parent._clear_similar_charts_popout_cache()
         QMessageBox.information(
             self,
-            "Similar Charts cache",
+            "Astro Twin cache",
             (
-                "Cleared cached Similar Charts rankings. "
-                "The next Similar Charts popout will recalculate on demand."
+                "Cleared cached Astro Twins rankings. "
+                "The next Astro Twins popout will recalculate on demand."
                 if cleared_count
-                else "Similar Charts cache was already empty."
+                else "Astro Twin cache was already empty."
             ),
         )
 
@@ -23514,6 +23549,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
 #Main Window Begins
 class MainWindow(QMainWindow):
+    _update_sentiment_tally = ManageChartsDialog._update_sentiment_tally
+
     def __init__(self):
         super().__init__()
 
@@ -24899,16 +24936,16 @@ class MainWindow(QMainWindow):
 
     def _similar_charts_section_title(self) -> str:
         if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_GENERIC_ASTRO:
-            return "Similar Charts ('generic astro' mode)"
+            return "Astro Twin Finder ('generic astro' mode)"
         if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
-            return "Similar Charts ('comprehensive' mode)"
+            return "Astro Twin Finder ('comprehensive' mode)"
         if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING:
-            return "Similar Charts ('all or nothing' mode)"
+            return "Astro Twin Finder ('all or nothing' mode)"
         if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_BIG_3:
             return "Similar Charts ('Big 3' mode)"
         if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_CUSTOM:
-            return "Similar Charts ('custom' mode)"
-        return "Similar Charts"
+            return "Astro Twin Finder ('custom' mode)"
+        return "Astro Twin Finder"
 
     def _refresh_similar_charts_section_title(self) -> None:
         section_widget = self._chart_analysis_section_widgets.get("similar_charts")
@@ -25360,25 +25397,6 @@ class MainWindow(QMainWindow):
         normalized_target = str(target or "").strip()
         if is_similar_info_target(normalized_target):
             dialog._similar_chart_popout_last_info_target = normalized_target
-            popout_analysis_dropdown = getattr(dialog, "_similar_chart_popout_analysis_dropdown", None)
-            selected_mode = (
-                str(popout_analysis_dropdown.currentData() or "").strip().lower()
-                if popout_analysis_dropdown is not None and hasattr(popout_analysis_dropdown, "currentData")
-                else ""
-            )
-            if selected_mode != "bio":
-                bio_index = (
-                    int(popout_analysis_dropdown.findData("bio"))
-                    if popout_analysis_dropdown is not None and hasattr(popout_analysis_dropdown, "findData")
-                    else -1
-                )
-                if bio_index >= 0 and hasattr(popout_analysis_dropdown, "setCurrentIndex"):
-                    signals_were_blocked = False
-                    if hasattr(popout_analysis_dropdown, "blockSignals"):
-                        signals_were_blocked = bool(popout_analysis_dropdown.blockSignals(True))
-                    popout_analysis_dropdown.setCurrentIndex(bio_index)
-                    if hasattr(popout_analysis_dropdown, "blockSignals"):
-                        popout_analysis_dropdown.blockSignals(signals_were_blocked)
             self._show_similar_chart_reasoning(normalized_target, target_dialog=dialog)
             return
         self._on_similar_chart_link_activated(
@@ -26821,7 +26839,7 @@ class MainWindow(QMainWindow):
             )
             self._similar_charts_reasoning_by_target.update(popout_reasoning_by_target)
             self._register_popout_shortcuts(dialog)
-            self._show_similar_chart_popout_predictions(dialog)
+            self._show_similar_chart_popout_empty_analysis(dialog, selected_mode="bio")
             self._similar_charts_popout_dialogs.append(dialog)
             dialog.destroyed.connect(
                 lambda _=None, popout=dialog: self._similar_charts_popout_dialogs.remove(popout)
@@ -26830,7 +26848,7 @@ class MainWindow(QMainWindow):
             )
             dialog.show()
             keep_similar_charts_popout_foreground_until_outside_click(dialog)
-            update_similar_charts_loading_progress(progress, "Similar Charts ready.", 100)
+            update_similar_charts_loading_progress(progress, "Long lost astro twins found.", 100)
         except OperationCanceled:
             return
         finally:
@@ -27041,7 +27059,7 @@ class MainWindow(QMainWindow):
                 build_similar_charts_export_lines(subject_name=subject_name, rows=least_rows, is_markdown=True)[2:]
             )
         else:
-            lines.append(f"Similar Charts for {subject_name}")
+            lines.append(f"{subject_name}'s Astro Twins")
             lines.append("")
             lines.append("Top 25 Most Similar Charts")
             lines.append("")
@@ -28972,8 +28990,102 @@ class MainWindow(QMainWindow):
 
 
 
-    def _show_gemstone_chartwheel_popout(self, image_path: str) -> None:
+    def _default_gemstone_chartwheel_filename(self, chart: Chart) -> str:
+        chart_name = (getattr(chart, "name", None) or "chart").strip() or "chart"
+        safe_chart_name = re.sub(r"[^A-Za-z0-9._ -]+", "_", chart_name).strip(" ._") or "chart"
+        return f"{safe_chart_name}-natal_chart-wheel_by-ephemeraldaddy.png"
+
+    def _gemstone_chartwheel_temp_dir(self) -> Path:
+        return Path.home() / ".ephemeraldaddy" / "temp" / "gem"
+
+    def _cleanup_gemstone_chartwheel_temp_files(
+        self,
+        *,
+        current_source_path: Path | None = None,
+        max_temp_pngs: int = 6,
+    ) -> None:
+        temp_dir = self._gemstone_chartwheel_temp_dir()
+        if not temp_dir.exists():
+            return
+
+        try:
+            temp_pngs = sorted(
+                (path for path in temp_dir.glob("*.png") if path.is_file()),
+                key=lambda path: path.stat().st_mtime,
+                reverse=True,
+            )
+        except OSError:
+            logger.exception("Could not inspect gemstone chartwheel temp directory: %s", temp_dir)
+            return
+
+        protected_path = current_source_path.resolve() if current_source_path is not None else None
+        retained_count = 0
+        for temp_png in temp_pngs:
+            try:
+                temp_png_resolved = temp_png.resolve()
+            except OSError:
+                temp_png_resolved = temp_png
+            if protected_path is not None and temp_png_resolved == protected_path:
+                retained_count += 1
+                continue
+            retained_count += 1
+            if retained_count <= max_temp_pngs:
+                continue
+            try:
+                temp_png.unlink(missing_ok=True)
+            except OSError:
+                logger.exception("Could not remove stale gemstone chartwheel temp file: %s", temp_png)
+
+    def _discard_gemstone_chartwheel_temp_file(self, source_path: Path) -> None:
+        try:
+            source_path.unlink(missing_ok=True)
+        except OSError:
+            logger.exception("Could not remove gemstone chartwheel temp file: %s", source_path)
+
+    def _gemstone_chartwheel_temp_path(self, chart: Chart) -> Path:
+        temp_dir = self._gemstone_chartwheel_temp_dir()
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        self._cleanup_gemstone_chartwheel_temp_files(max_temp_pngs=5)
+        stem = Path(self._default_gemstone_chartwheel_filename(chart)).stem
+        timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        return temp_dir / f"{stem}-{timestamp}-{uuid.uuid4().hex[:8]}.png"
+
+    def _save_gemstone_chartwheel_preview(self, source_path: Path, default_filename: str) -> bool:
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save Gemstone Chartwheel",
+            default_filename,
+            "PNG Files (*.png)",
+        )
+        if not file_path:
+            return False
+        if not file_path.lower().endswith(".png"):
+            file_path = f"{file_path}.png"
+
+        try:
+            shutil.copyfile(source_path, file_path)
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Gemstone chartwheel save failed",
+                f"Could not save gemstone chartwheel:\n{exc}",
+            )
+            return False
+
+        self._discard_gemstone_chartwheel_temp_file(source_path)
+        self._cleanup_gemstone_chartwheel_temp_files(max_temp_pngs=6)
+
+        QMessageBox.information(
+            self,
+            "Gemstone chartwheel saved",
+            f"Saved gemstone chartwheel to:\n{file_path}",
+        )
+        return True
+
+    def _show_gemstone_chartwheel_popout(self, image_path: str, default_filename: str) -> None:
+        source_path = Path(image_path)
         dialog = QDialog(self)
+        temp_file_saved_or_discarded = {"done": False}
         dialog.setWindowTitle("Gemstone Chartwheel Preview")
         dialog.resize(720, 760)
 
@@ -28981,11 +29093,27 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(8)
 
+        header_layout = QHBoxLayout()
+        header_label = QLabel("Preview generated. Use Save PNG to choose a permanent location.")
+        header_label.setWordWrap(True)
+        save_button = QPushButton("Save PNG…")
+        save_button.setToolTip("Save this gemstone chartwheel PNG to a permanent location.")
+
+        def save_preview() -> None:
+            if self._save_gemstone_chartwheel_preview(source_path, default_filename):
+                temp_file_saved_or_discarded["done"] = True
+                save_button.setEnabled(False)
+                path_label.setText("Saved to permanent location; temporary preview file removed.")
+
+        save_button.clicked.connect(save_preview)
+        header_layout.addWidget(header_label, 1)
+        header_layout.addWidget(save_button, 0, Qt.AlignRight)
+
         image_label = QLabel()
         image_label.setAlignment(Qt.AlignCenter)
         image_label.setMinimumSize(640, 640)
 
-        pixmap = QPixmap(image_path)
+        pixmap = QPixmap(str(source_path))
         if pixmap.isNull():
             image_label.setText("Could not load generated chartwheel image preview.")
         else:
@@ -28998,19 +29126,24 @@ class MainWindow(QMainWindow):
                 )
             )
 
-        path_label = QLabel(f"Saved to: {image_path}")
+        path_label = QLabel(f"Temporary preview: {source_path}")
         path_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
 
+        layout.addLayout(header_layout, 0)
         layout.addWidget(image_label, 1)
         layout.addWidget(path_label, 0)
 
+        def handle_preview_destroyed(_=None, d=dialog) -> None:
+            if d in self._gemstone_chartwheel_popouts:
+                self._gemstone_chartwheel_popouts.remove(d)
+            if not temp_file_saved_or_discarded["done"]:
+                self._discard_gemstone_chartwheel_temp_file(source_path)
+                temp_file_saved_or_discarded["done"] = True
+            self._cleanup_gemstone_chartwheel_temp_files(max_temp_pngs=6)
+
         self._register_popout_shortcuts(dialog)
         self._gemstone_chartwheel_popouts.append(dialog)
-        dialog.destroyed.connect(
-            lambda _=None, d=dialog: self._gemstone_chartwheel_popouts.remove(d)
-            if d in self._gemstone_chartwheel_popouts
-            else None
-        )
+        dialog.destroyed.connect(handle_preview_destroyed)
 
         dialog.show()
         dialog.raise_()
@@ -29173,21 +29306,11 @@ class MainWindow(QMainWindow):
             )
             return
 
-        chart_name = (getattr(chart, "name", None) or "chart").strip() or "chart"
-        default_filename = f"{chart_name}-natal_chart-wheel_by-ephemeraldaddy.png"
-        file_path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Export Gemstone Chartwheel",
-            default_filename,
-            "PNG Files (*.png)",
-        )
-        if not file_path:
-            return
-        if not file_path.lower().endswith(".png"):
-            file_path = f"{file_path}.png"
+        default_filename = self._default_gemstone_chartwheel_filename(chart)
+        temp_path = self._gemstone_chartwheel_temp_path(chart)
 
         try:
-            draw_chartwheel(Path(file_path), chart_positions=chart.positions)
+            draw_chartwheel(temp_path, chart_positions=chart.positions)
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -29196,12 +29319,7 @@ class MainWindow(QMainWindow):
             )
             return
 
-        self._show_gemstone_chartwheel_popout(file_path)
-        QMessageBox.information(
-            self,
-            "Gemstone chartwheel exported",
-            f"Saved gemstone chartwheel to:\n{file_path}",
-        )
+        self._show_gemstone_chartwheel_popout(str(temp_path), default_filename)
 
     def on_create_gemstone_chartwheel(self) -> None:
         self._create_gemstone_chartwheel(self._latest_chart)
@@ -31009,19 +31127,18 @@ class MainWindow(QMainWindow):
         dialog.setText(
             "You have unsaved changes. Save them before leaving Chart View?"
         )
-        save_button = dialog.addButton("Save", QMessageBox.AcceptRole)
-        discard_button = dialog.addButton("Discard", QMessageBox.DestructiveRole)
-        cancel_button = dialog.addButton("Cancel", QMessageBox.RejectRole)
-        dialog.setDefaultButton(save_button)
-        dialog.setEscapeButton(cancel_button)
+        dialog.setStandardButtons(
+            QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel
+        )
+        dialog.setDefaultButton(QMessageBox.Save)
+        dialog.setEscapeButton(QMessageBox.Cancel)
 
         self._leaving_chart_view_prompt_open = True
         try:
-            dialog.exec()
-            clicked_button = dialog.clickedButton()
-            if clicked_button == save_button:
+            choice = dialog.exec()
+            if choice == QMessageBox.Save:
                 self.on_update_chart(show_dialog=True)
-            elif clicked_button == discard_button:
+            elif choice == QMessageBox.Discard:
                 self._set_lucygoosey(False)
             return not self._lucygoosey
         finally:
@@ -33200,6 +33317,39 @@ class MainWindow(QMainWindow):
             self._manage_charts_dialog = ManageChartsDialog(self)
             self._manage_charts_dialog.setWindowModality(Qt.NonModal)
         return self._manage_charts_dialog
+
+    def _update_sentiment_tally(
+        self,
+        show_progress: bool = False,
+        force_full_refresh: bool = False,
+        changed_ids: set[int] | None = None,
+        changed_fields: set[str] | frozenset[str] | None = None,
+        *,
+        update_database_metrics: bool = True,
+        update_similarities: bool = True,
+        sections_to_refresh: set[str] | None = None,
+    ) -> None:
+        """Refresh Database View analytics from Chart View without requiring dialog state."""
+        if changed_ids:
+            self._manage_charts_pending_changed_ids.update(changed_ids)
+
+        manage_dialog = getattr(self, "_manage_charts_dialog", None)
+        if manage_dialog is None or not manage_dialog.isVisible():
+            return
+        if not getattr(manage_dialog, "_chart_rows", None):
+            return
+
+        manage_dialog._update_sentiment_tally(
+            show_progress=show_progress,
+            force_full_refresh=force_full_refresh,
+            changed_ids=changed_ids,
+            changed_fields=changed_fields,
+            update_database_metrics=update_database_metrics,
+            update_similarities=update_similarities,
+            sections_to_refresh=sections_to_refresh,
+        )
+        if changed_ids:
+            self._manage_charts_pending_changed_ids.difference_update(changed_ids)
 
     def _refresh_manage_charts_in_background(self, changed_ids: set[int]) -> None:
         if not changed_ids:
