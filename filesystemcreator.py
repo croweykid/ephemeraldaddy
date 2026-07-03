@@ -13,18 +13,27 @@ PROJECT_DIRS = [
     "examples"
 ]
 
+#last updated 7.2.2026 @ 6:00 PST.
 PROJECT_FILES = {
     "pyproject.toml": '''[project]
 name = "ephemeraldaddy"
-version = "0.1.0"
-description = "A modular, research-ready astrology toolkit."
-authors = [{name="Your Name"}]
+version = "3.0"
+description = "A research-ready astrology toolkit."
+authors = ["Croweykid"]
+readme = "README.md"
+license = "GNU General Public License"
+requires-python = "python=>3.14"
+keywords = ["astrology","database analysis","analytics","astrological","tropical astrology","tropical nakshatras","dark mode","open source","vibe coded"]
 dependencies = [
   "skyfield>=1.49",
   "pandas>=2.2",
   "matplotlib>=3.9",
   "numpy>=1.26",
   "rich>=13.7",
+]
+project_urls = [
+  "https://github.com/Croweykid/ephemeraldaddy",
+  "https://substack.com/@ephemeraldaddy",
 ]
 
 [build-system]

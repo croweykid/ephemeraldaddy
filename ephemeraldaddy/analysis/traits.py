@@ -288,3 +288,607 @@ TRAITS = {
         "quotes":{""},
         },
 }
+# Local user-uploaded trait storage and scoring helpers.
+import ast
+import io
+import json
+import logging
+import re
+import tokenize
+from pathlib import Path
+from typing import Any, Iterable, Mapping
+
+from ephemeraldaddy.analysis.weighted_chart_predictor import (
+    DEFAULT_CATEGORY_WEIGHTS,
+    aspect_spec_uses_houses,
+    calculate_weighted_criteria_scores,
+    criterion_multiplier_for_target,
+    factor_uses_houses,
+    position_spec_uses_houses,
+)
+from ephemeraldaddy.core.chart import chart_uses_houses
+
+TRAIT_DIR = Path.home() / ".ephemeraldaddy" / "traits"
+TRAIT_FILE_SUFFIX = ".json"
+
+DEFAULT_TRAIT_COLOR = "#cc99ff"
+logger = logging.getLogger(__name__)
+_TRAIT_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+
+
+def normalize_trait_samples(
+    samples: Any,
+    *,
+    trait_name: str = "",
+    source: str | Path | None = None,
+) -> list[int | float]:
+    """Return a trait samples array, accepting old integer samples with a warning."""
+    if isinstance(samples, list):
+        normalized: list[int | float] = []
+        for sample in samples:
+            if isinstance(sample, bool):
+                continue
+            if isinstance(sample, (int, float)):
+                normalized.append(sample)
+        return normalized
+    if isinstance(samples, bool) or samples in (None, ""):
+        return []
+    if isinstance(samples, (int, float)):
+        location = f" in {source}" if source is not None else ""
+        logger.warning(
+           "Trait %r%s uses legacy integer samples=%s; please update it to a samples array such as [%s, 0].",
+            trait_name or "<unnamed>",
+            location,
+            samples,
+            samples,
+        )
+        return [samples,]
+    return []
+
+
+def trait_sample_total(
+    samples: Any,
+    *,
+    trait_name: str = "",
+    source: str | Path | None = None,
+) -> int:
+    """Return the summed total from a trait samples array, with legacy integer fallback."""
+    return max(0, int(sum(normalize_trait_samples(samples, trait_name=trait_name, source=source))))
+
+
+def _is_valid_trait_color(color: str) -> bool:
+    return bool(_TRAIT_COLOR_RE.match(color.strip()))
+
+
+def normalize_trait_color(color: str) -> str:
+    clean = color.strip()
+    if not clean.startswith("#") and re.fullmatch(r"[0-9a-fA-F]{6}", clean):
+        clean = f"#{clean}"
+    if not _is_valid_trait_color(clean):
+        return DEFAULT_TRAIT_COLOR
+    return clean.lower()
+
+
+def _rewrite_single_trait(path: str | Path, profile_updates: Mapping[str, Any]) -> Path:
+    source = Path(path)
+    source_text = source.read_text(encoding="utf-8")
+    profiles = parse_trait_file(source)
+    name, profile = next(iter(profiles.items()))
+    stored = dict(profile)
+    stored.update(profile_updates)
+    stored["name"] = name
+    source.write_text(
+        json.dumps({name: _json_safe_trait_value(stored)}, ensure_ascii=False, indent=2)
+        + _format_preserved_comments(_extract_hash_comments(source_text)),
+        encoding="utf-8",
+    )
+    return source
+
+
+def set_trait_color(path: str | Path, color: str) -> Path:
+    return _rewrite_single_trait(path, {"color": normalize_trait_color(color)})
+
+
+def set_trait_archived(path: str | Path, archived: bool) -> Path:
+    return _rewrite_single_trait(path, {"archived": bool(archived)})
+
+
+def set_trait_description(path: str | Path, description: str) -> Path:
+    return _rewrite_single_trait(path, {"description": str(description).strip()})
+
+_TRAIT_SLUG_RE = re.compile(r"[^a-zA-Z0-9_.-]+")
+
+
+def traits_dir() -> Path:
+    TRAIT_DIR.mkdir(parents=True, exist_ok=True)
+    return TRAIT_DIR
+
+
+def _slugify_trait_name(name: str) -> str:
+    slug = _TRAIT_SLUG_RE.sub("_", name.strip()).strip("._-")
+    return slug or "trait"
+
+
+def _unique_trait_path(name: str, *, existing_path: Path | None = None) -> Path:
+    base = _slugify_trait_name(name)
+    directory = traits_dir()
+    candidate = directory / f"{base}{TRAIT_FILE_SUFFIX}"
+    index = 2
+    while candidate.exists() and (existing_path is None or candidate != existing_path):
+        candidate = directory / f"{base}_{index}{TRAIT_FILE_SUFFIX}"
+        index += 1
+    return candidate
+
+
+def _strip_line_comments(text: str) -> str:
+    """Remove JavaScript-style line comments while preserving string contents."""
+    output: list[str] = []
+    in_string: str | None = None
+    escaped = False
+    index = 0
+    while index < len(text):
+        char = text[index]
+        next_char = text[index + 1] if index + 1 < len(text) else ""
+        if in_string is None and char == "/" and next_char == "/":
+            index += 2
+            while index < len(text) and text[index] not in "\r\n":
+                index += 1
+            continue
+        output.append(char)
+        if in_string is not None:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == in_string:
+                in_string = None
+        elif char in {"'", '"'}:
+            in_string = char
+        index += 1
+    return "".join(output)
+
+
+_JSON_LITERAL_NAME_RE = re.compile(r"\b(?:true|false|null)\b")
+
+
+def _replace_json_literal_names(text: str) -> str:
+    """Convert JSON true/false/null names outside strings to Python literals."""
+    output: list[str] = []
+    in_string: str | None = None
+    escaped = False
+    index = 0
+    while index < len(text):
+        char = text[index]
+        if in_string is not None:
+            output.append(char)
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == in_string:
+                in_string = None
+            index += 1
+            continue
+        if char in {"'", '"'}:
+            in_string = char
+            output.append(char)
+            index += 1
+            continue
+        match = _JSON_LITERAL_NAME_RE.match(text, index)
+        if match is not None:
+            output.append({"true": "True", "false": "False", "null": "None"}[match.group(0)])
+            index = match.end()
+            continue
+        output.append(char)
+        index += 1
+    return "".join(output)
+
+
+def _remove_trailing_commas(text: str) -> str:
+    """Remove trailing commas before object/array endings outside strings."""
+    output: list[str] = []
+    in_string: str | None = None
+    escaped = False
+    index = 0
+    while index < len(text):
+        char = text[index]
+        if in_string is not None:
+            output.append(char)
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == in_string:
+                in_string = None
+            index += 1
+            continue
+        if char in {"'", '"'}:
+            in_string = char
+            output.append(char)
+            index += 1
+            continue
+        if char == ",":
+            lookahead = index + 1
+            while lookahead < len(text) and text[lookahead].isspace():
+                lookahead += 1
+            if lookahead < len(text) and text[lookahead] in "}]":
+                index += 1
+                continue
+        output.append(char)
+        index += 1
+    return "".join(output)
+
+
+def _python_literal_candidates(text: str) -> list[str]:
+    cleaned_text = _strip_line_comments(text)
+    candidates = [cleaned_text]
+    jsonish = _remove_trailing_commas(_replace_json_literal_names(cleaned_text))
+    if jsonish != cleaned_text:
+        candidates.append(jsonish)
+    return candidates
+
+
+def _extract_literal_from_python(text: str) -> Any:
+    last_error: Exception | None = None
+    for cleaned_text in _python_literal_candidates(text):
+        try:
+            return ast.literal_eval(cleaned_text)
+        except (SyntaxError, ValueError) as exc:
+            last_error = exc
+        try:
+            module = ast.parse(cleaned_text)
+        except SyntaxError as exc:
+            last_error = exc
+            continue
+        for node in reversed(module.body):
+            value_node: ast.AST | None = None
+            if isinstance(node, ast.Assign):
+                value_node = node.value
+            elif isinstance(node, ast.AnnAssign):
+                value_node = node.value
+            elif isinstance(node, ast.Expr):
+                value_node = node.value
+            if value_node is None:
+                continue
+            try:
+                return ast.literal_eval(value_node)
+            except (SyntaxError, ValueError) as exc:
+                last_error = exc
+                continue
+    if last_error is not None:
+        raise ValueError("Could not find a Python literal trait payload.") from last_error
+    raise ValueError("Could not find a Python literal trait payload.")
+
+
+
+def _extract_hash_comments(text: str) -> list[str]:
+    """Return Python-style comments while ignoring # characters inside strings."""
+    comments: list[str] = []
+    pythonish_lines: list[str] = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("// #"):
+            comments.append(stripped[3:].rstrip())
+        elif not stripped.startswith("//"):
+            pythonish_lines.append(line)
+
+    pythonish_text = "\n".join(pythonish_lines)
+    try:
+        tokens = tokenize.generate_tokens(io.StringIO(pythonish_text).readline)
+        for token in tokens:
+            if token.type != tokenize.COMMENT:
+                continue
+            comment = token.string.rstrip()
+            if comment.strip() != "#":
+                comments.append(comment)
+    except (IndentationError, tokenize.TokenError):
+        pass
+    return comments
+
+
+def _format_preserved_comments(comments: Iterable[str]) -> str:
+    unique_comments = list(
+        dict.fromkeys(comment.rstrip() for comment in comments if comment.strip())
+    )
+    if not unique_comments:
+        return ""
+    body = "\n".join(f"// {comment}" for comment in unique_comments)
+    return f"\n\n// Preserved comments from uploaded trait file:\n{body}\n"
+
+def parse_trait_file(path: str | Path, *, skip_invalid_profiles: bool = False) -> dict[str, dict[str, Any]]:
+    """Parse a JSON or Similarities Analysis Python export into trait profiles.
+
+    When ``skip_invalid_profiles`` is true, non-mapping or blank-name entries in
+    an otherwise readable trait payload are ignored instead of causing callers to
+    treat the whole payload as unusable. Syntax/JSON errors still surface so the
+    caller can decide whether to skip the corrupt file.
+    """
+    source = Path(path)
+    text = source.read_text(encoding="utf-8")
+    if source.suffix.lower() == ".json":
+        try:
+            payload = json.loads(text)
+        except json.JSONDecodeError:
+            comment_cleaned_text = _strip_line_comments(text)
+            try:
+                payload = json.loads(_remove_trailing_commas(comment_cleaned_text))
+            except json.JSONDecodeError:
+                payload = _extract_literal_from_python(comment_cleaned_text)
+    else:
+        payload = _extract_literal_from_python(text)
+    if not isinstance(payload, Mapping):
+        raise ValueError("Trait file must contain a mapping of trait names to profile data.")
+    profiles: dict[str, dict[str, Any]] = {}
+    for raw_name, raw_profile in payload.items():
+        if not isinstance(raw_profile, Mapping):
+            if not skip_invalid_profiles:
+                continue
+            logger.debug(
+                "Traits parser skipped invalid profile %r from %s because it is not a mapping.",
+                raw_name,
+                source,
+            )
+            continue
+        name = str(raw_profile.get("name") or raw_name).strip()
+        if not name:
+            if skip_invalid_profiles:
+                logger.debug(
+                    "Traits parser skipped an unnamed profile from %s while skip_invalid_profiles=True.",
+                    source,
+                )
+            continue
+        profiles[name] = dict(raw_profile)
+        profiles[name]["name"] = name
+        profiles[name]["samples"] = normalize_trait_samples(
+            profiles[name].get("samples"),
+            trait_name=name,
+            source=source,
+        )
+    if not profiles:
+        raise ValueError("Trait file did not contain any usable trait profiles.")
+    return profiles
+
+
+
+def _json_safe_trait_value(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        safe: dict[str, Any] = {}
+        for raw_key, child in value.items():
+            if isinstance(raw_key, tuple) and len(raw_key) == 2:
+                key = f"{raw_key[0]}-{raw_key[1]}"
+            else:
+                key = str(raw_key)
+            safe[key] = _json_safe_trait_value(child)
+        return safe
+    if isinstance(value, tuple):
+        return [_json_safe_trait_value(child) for child in value]
+    if isinstance(value, list):
+        return [_json_safe_trait_value(child) for child in value]
+    if isinstance(value, set):
+        return [_json_safe_trait_value(child) for child in sorted(value, key=str)]
+    return value
+
+def save_trait(name: str, profile: Mapping[str, Any], *, color: str | None = None) -> Path:
+    clean_name = name.strip()
+    if not clean_name:
+        raise ValueError("Trait name cannot be blank.")
+    destination = _unique_trait_path(clean_name)
+    stored = dict(profile)
+    stored["name"] = clean_name
+    stored["color"] = normalize_trait_color(str(stored.get("color", DEFAULT_TRAIT_COLOR)))
+    stored["archived"] = bool(stored.get("archived", False))
+    if color is not None:
+        stored["color"] = normalize_trait_color(color)
+    elif not _is_valid_trait_color(str(stored.get("color", ""))):
+        stored["color"] = DEFAULT_TRAIT_COLOR
+    stored["archived"] = bool(stored.get("archived", False))
+    stored["description"] = str(stored.get("description", "")).strip()
+    stored["samples"] = normalize_trait_samples(stored.get("samples"), trait_name=clean_name)
+    preserved_comments = _extract_hash_comments(str(profile.get("_source_text", "")))
+    stored.pop("_source_text", None)
+    destination.write_text(
+        json.dumps({clean_name: _json_safe_trait_value(stored)}, ensure_ascii=False, indent=2)
+        + _format_preserved_comments(preserved_comments),
+        encoding="utf-8",
+    )
+    return destination
+
+
+def install_trait_file(path: str | Path, name: str, *, color: str | None = None) -> Path:
+    source = Path(path)
+    profiles = parse_trait_file(source)
+    first_profile = dict(next(iter(profiles.values())))
+    first_profile["_source_text"] = source.read_text(encoding="utf-8")
+    return save_trait(name, first_profile, color=color)
+
+
+def list_traits(*, active_only: bool = False, skip_corrupt: bool = True) -> list[dict[str, Any]]:
+    """Return installed trait metadata.
+
+    ``skip_corrupt`` keeps the Traits panel usable when one local trait file is
+    unreadable; the skipped file is reported through the terminal/debug logger.
+    Pass ``False`` when callers need corrupt trait files to raise immediately.
+    """
+    items: list[dict[str, Any]] = []
+    for path in sorted(traits_dir().glob(f"*{TRAIT_FILE_SUFFIX}"), key=lambda p: p.name.casefold()):
+        try:
+            profiles = parse_trait_file(path, skip_invalid_profiles=skip_corrupt)
+        except Exception as exc:
+            if not skip_corrupt:
+                raise
+            logger.warning(
+                "Traits panel skipped corrupt trait file %s while loading local traits: %s",
+                path,
+                exc,
+                exc_info=True,
+            )
+            continue
+        profile_name, profile = next(iter(profiles.items()))
+        archived = bool(profile.get("archived", False))
+        if active_only and archived:
+            continue
+        color = normalize_trait_color(str(profile.get("color", DEFAULT_TRAIT_COLOR)))
+        description = str(profile.get("description", "")).strip()
+        samples = normalize_trait_samples(profile.get("samples"), trait_name=profile_name, source=path)
+        items.append(
+            {
+                "name": profile_name,
+                "path": path,
+                "profile": profile,
+                "color": color,
+                "archived": archived,
+                "description": description,
+                "samples": samples,
+                "sample_total": trait_sample_total(samples),
+            }
+        )
+    return items
+
+
+def delete_trait(path: str | Path) -> None:
+    Path(path).unlink(missing_ok=True)
+
+
+def rename_trait(path: str | Path, new_name: str) -> Path:
+    clean_name = new_name.strip()
+    if not clean_name:
+        raise ValueError("Trait name cannot be blank.")
+    source = Path(path)
+    source_text = source.read_text(encoding="utf-8")
+    profiles = parse_trait_file(source)
+    _old_name, profile = next(iter(profiles.items()))
+    destination = _unique_trait_path(clean_name, existing_path=source)
+    stored = dict(profile)
+    stored["name"] = clean_name
+    stored["color"] = normalize_trait_color(str(stored.get("color", DEFAULT_TRAIT_COLOR)))
+    stored["archived"] = bool(stored.get("archived", False))
+    stored["description"] = str(stored.get("description", "")).strip()
+    stored["samples"] = normalize_trait_samples(stored.get("samples"), trait_name=clean_name, source=source)
+    destination.write_text(
+        json.dumps({clean_name: _json_safe_trait_value(stored)}, ensure_ascii=False, indent=2)
+        + _format_preserved_comments(_extract_hash_comments(source_text)),
+        encoding="utf-8",
+    )
+    if destination != source:
+        source.unlink(missing_ok=True)
+    return destination
+
+
+_TRAIT_SCORE_CATEGORIES = (
+    "signs", "antisigns", "bodies", "antibodies", "nakshatras", "antinakshatras",
+    "houses", "antihouses", "gates", "antigates", "channels", "antichannels",
+    "hdtypes", "antihdtypes", "centers", "anticenters", "profiles", "antiprofiles",
+    "authorities", "antiauthorities", "bazisigns", "antibazisigns", "positions",
+    "antipositions", "aspects", "antiaspects",
+)
+
+_TRAIT_CATEGORY_ALIASES = {
+    "antisigns": "signs",
+    "antibodies": "bodies",
+    "antinakshatras": "nakshatras",
+    "antihouses": "houses",
+    "antigates": "gates",
+    "antichannels": "channels",
+    "antihdtypes": "hdtypes",
+    "anticenters": "centers",
+    "antiprofiles": "profiles",
+    "antiauthorities": "authorities",
+    "antibazisigns": "bazisigns",
+    "antipositions": "positions",
+    "antiaspects": "aspects",
+}
+
+
+def _criterion_uses_houses(raw_value: Any, *, category: str) -> bool:
+    if category in {"houses", "antihouses"}:
+        return True
+    if category in {"bodies", "antibodies"}:
+        return factor_uses_houses(raw_value)
+    if category in {"positions", "antipositions"}:
+        return position_spec_uses_houses(raw_value)
+    if category in {"aspects", "antiaspects"}:
+        return aspect_spec_uses_houses(raw_value)
+    return False
+
+
+def _criterion_abs_weight(value: Any, *, include_houses: bool = True, category: str = "") -> float:
+    if not include_houses:
+        if isinstance(value, Mapping):
+            return sum(
+                abs(float(weight))
+                for criterion, weight in value.items()
+                if isinstance(weight, (int, float))
+                and not _criterion_uses_houses(criterion, category=category)
+            )
+        if isinstance(value, (set, list, tuple)):
+            return float(
+                sum(1 for criterion in value if not _criterion_uses_houses(criterion, category=category))
+            )
+        return 0.0
+    if isinstance(value, Mapping):
+        return sum(abs(float(weight)) for weight in value.values() if isinstance(weight, (int, float)))
+    if isinstance(value, (set, list, tuple)):
+        return float(len(value))
+    return 0.0
+
+
+def _trait_possible_score(profile: Mapping[str, Any], *, include_houses: bool = True) -> float:
+    total = 0.0
+    for raw_category in _TRAIT_SCORE_CATEGORIES:
+        base_category = _TRAIT_CATEGORY_ALIASES.get(raw_category, raw_category)
+        category_weight = float(DEFAULT_CATEGORY_WEIGHTS.get(base_category, 1.0))
+        multiplier = float(criterion_multiplier_for_target(profile, base_category))
+        total += category_weight * multiplier * _criterion_abs_weight(
+            profile.get(raw_category, {}),
+            include_houses=include_houses,
+            category=raw_category,
+        )
+    return max(total, 1.0)
+
+
+def trait_possible_score(profile: Mapping[str, Any], *, include_houses: bool = True) -> float:
+    """Return the maximum absolute evidence score available for a trait profile."""
+    return _trait_possible_score(profile, include_houses=include_houses)
+
+
+def calculate_trait_likelihoods(
+    chart: Any,
+    traits: list[dict[str, Any]] | None = None,
+    *,
+    possible_scores: Mapping[str, float] | None = None,
+) -> dict[str, float]:
+    """Return trait scores as 0-100 evidence percentages centered on 50%.
+
+    The weighted predictor returns signed evidence totals.  For Chart View, convert
+    those totals into an easier-to-read likelihood-style percentage by comparing
+    each signed total with the total absolute criteria weight available for that
+    trait profile.  Fifty percent means neutral/no net evidence, higher values mean
+    supportive criteria outweighed anti-criteria, and lower values mean anti-criteria
+    outweighed supportive criteria.
+    """
+    trait_items = traits if traits is not None else list_traits(active_only=True)
+    trait_items = [item for item in trait_items if not bool(item.get("archived", False))]
+    raw_scores = calculate_trait_scores(chart, trait_items)
+    include_houses = chart_uses_houses(chart)
+    likelihoods: dict[str, float] = {}
+    for item in trait_items:
+        name = str(item.get("name", ""))
+        if not name:
+            continue
+        if include_houses and possible_scores is not None and name in possible_scores:
+            possible = max(float(possible_scores.get(name, 1.0)), 1.0)
+        else:
+            possible = _trait_possible_score(item.get("profile", {}), include_houses=include_houses)
+        normalized = max(-1.0, min(1.0, float(raw_scores.get(name, 0.0)) / possible))
+        likelihoods[name] = round(50.0 + (normalized * 50.0), 1)
+    return likelihoods
+
+
+def calculate_trait_scores(chart: Any, traits: list[dict[str, Any]] | None = None) -> dict[str, float]:
+    trait_items = traits if traits is not None else list_traits(active_only=True)
+    trait_items = [item for item in trait_items if not bool(item.get("archived", False))]
+    predictors = {item["name"]: item.get("profile", {}) for item in trait_items}
+    if not predictors:
+        return {}
+    raw_scores = calculate_weighted_criteria_scores(chart, predictors=predictors)
+    return {str(name): float(raw_scores.get(name, 0.0)) for name in predictors}

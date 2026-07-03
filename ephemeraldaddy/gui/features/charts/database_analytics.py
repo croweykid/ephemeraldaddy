@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import datetime
 import csv
 import html
+import json
 import logging
 import math
 import re
 import statistics
 import textwrap
+import time
 import warnings
 from collections import Counter
 from typing import Any, Callable, Mapping, Sequence
@@ -20,8 +23,10 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from PySide6.QtCore import QEvent, QPoint, QSize, Qt, QTimer
 from PySide6.QtWidgets import (
+    QComboBox,
     QDialog,
     QFileDialog,
+    QHBoxLayout,
     QLabel,
     QLayout,
     QScrollArea,
@@ -30,9 +35,86 @@ from PySide6.QtWidgets import (
     QTextEdit,
     QToolTip,
     QVBoxLayout,
+    QWidget,
 )
 
 from ephemeraldaddy.gui.features.charts.dnd_predictions import DND_STAT_KEYS
+
+DATABASE_METRICS_SECTION_ORDER: tuple[str, ...] = (
+    "planetary_sign_prevalence",
+    "sentiment_prevalence",
+    "relationship_prevalence",
+    "alignment_summary",
+    "matched_expectations_summary",
+    "sign_prevalence",
+    "dominant_signs",
+    "decans",
+    "nakshatras",
+    "cumulativedom_factors",
+    "enneagram",
+    "species_distribution",
+    "birth_time",
+    "age",
+    "birth_month",
+    "birthplace",
+    "tag_distribution",
+    "traits_distribution",
+    "gender",
+    "human_design",
+    "bazi",
+)
+TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_VERSION = 2
+TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_FILENAME = ".traits_distribution_likelihood_cache.json"
+TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_MAX_ENTRIES = 100_000
+TRAITS_DISTRIBUTION_SCORING_TIME_BUDGET_SECONDS = 8.0
+TRAIT_DEVIATION_ASSIGNMENT_THRESHOLD = 5.0
+DATABASE_METRICS_BIRTH_DATA_SECTIONS: frozenset[str] = frozenset(
+    {
+        "planetary_sign_prevalence",
+        "sign_prevalence",
+        "dominant_signs",
+        "decans",
+        "nakshatras",
+        "cumulativedom_factors",
+        "enneagram",
+        "species_distribution",
+        "birth_time",
+        "age",
+        "birth_month",
+        "birthplace",
+        "gender",
+        "human_design",
+        "bazi",
+    }
+)
+DATABASE_METRICS_SUBJECTIVE_SECTION_DEPENDENCIES: dict[str, frozenset[str]] = {
+    "sentiments": frozenset({"sentiment_prevalence"}),
+    "relationship_types": frozenset({"relationship_prevalence"}),
+    "alignment": frozenset({"alignment_summary"}),
+    "matched_expectations": frozenset({"matched_expectations_summary"}),
+    "gender": frozenset({"gender"}),
+    "tags": frozenset({"tag_distribution"}),
+    "traits": frozenset({"traits_distribution"}),
+}
+
+
+def database_metrics_sections_for_changed_fields(
+    changed_fields: set[str] | frozenset[str] | None,
+) -> frozenset[str]:
+    """Return the Database Analytics sections affected by edited chart fields."""
+    if changed_fields is None:
+        return frozenset(DATABASE_METRICS_SECTION_ORDER)
+    if not changed_fields:
+        return frozenset()
+    sections: set[str] = set()
+    for field in changed_fields:
+        if field == "birth_data":
+            sections.update(DATABASE_METRICS_BIRTH_DATA_SECTIONS)
+            continue
+        sections.update(
+            DATABASE_METRICS_SUBJECTIVE_SECTION_DEPENDENCIES.get(field, frozenset())
+        )
+    return frozenset(sections)
 
 
 class DatabaseAnalyticsPopoutScrollArea(QScrollArea):
@@ -151,6 +233,14 @@ from ephemeraldaddy.gui.features.charts.statistical_significance import (
 )
 from ephemeraldaddy.gui.features.charts.provenance import chart_is_non_aggregable
 from ephemeraldaddy.gui.features.charts.tagging import normalize_tag_list
+from ephemeraldaddy.analysis.traits import (
+    DEFAULT_TRAIT_COLOR,
+    calculate_trait_likelihoods,
+    list_traits,
+    normalize_trait_color,
+    trait_possible_score,
+)
+from ephemeraldaddy.core import db
 from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
     build_enneagram_popout_info_html,
     calculate_enneagram_type_weights as _calculate_enneagram_type_weights,
@@ -439,6 +529,31 @@ def render_nakshatras_chart(
 
 
 class DatabaseAnalyticsChartsMixin:
+
+    DATABASE_ANALYTICS_CATEGORY_TITLES: tuple[tuple[str, str], ...] = (
+        ("astro", "🪐Astro"),
+        ("esoteric", "🪷Esoteric Alternatives"),
+        ("subjective_notes", "💭Subjective Notes"),
+        ("predictions", "🔮Predictions"),
+        ("demographics", "👥Demographics"),
+    )
+
+    def _create_database_analytics_category_layouts(
+        self,
+        panel: Any,
+        layout: QVBoxLayout,
+    ) -> dict[str, QVBoxLayout]:
+        """Create parent category sections for the Database Analytics panel."""
+        return {
+            key: self._add_left_panel_collapsible_section(
+                panel,
+                layout,
+                title,
+                nested=True,
+            )
+            for key, title in self.DATABASE_ANALYTICS_CATEGORY_TITLES
+        }
+
     CHINESE_FONT_UNAVAILABLE: bool = True
     BAZI_EMOJI_FONT_FAMILIES: tuple[str, ...] = (
         "Noto Color Emoji",
@@ -1000,6 +1115,8 @@ class DatabaseAnalyticsChartsMixin:
         return ZODIAC_NAMES[int(normalized // 30) % 12]
 
     def _display_name_for_chart_id(self, chart_id: int) -> str:
+        # Integer chart IDs are a Database Analytics row/sort adapter only;
+        # app-wide identity and persisted metadata should be keyed by UID.
         row = self._active_chart_rows_by_id.get(int(chart_id))
         if row is not None and len(row) > 1:
             name = str(row[1] or "").strip()
@@ -1486,6 +1603,64 @@ class DatabaseAnalyticsChartsMixin:
         )
         return f"<h3>Incarnation Cross: {html.escape(cross_name)}</h3><ul>{detail_html}</ul>"
 
+    def _database_analytics_single_selected_chart(self) -> Any | None:
+        """Return the one selected chart, or None when Database Analytics is aggregating."""
+        selected_ids_method = getattr(self, "_selected_chart_ids", None)
+        exclude_method = getattr(self, "_exclude_placeholder_chart_ids", None)
+        get_chart = getattr(self, "_get_chart_for_filter", None)
+        if not callable(selected_ids_method) or not callable(get_chart):
+            return None
+        selected_ids = list(selected_ids_method() or [])
+        if callable(exclude_method):
+            selected_ids = list(exclude_method(selected_ids) or [])
+        if len(selected_ids) != 1:
+            return None
+        return get_chart(int(selected_ids[0]))
+
+    def _build_database_analytics_chart_analytics_info_html(
+        self,
+        *,
+        chart_title: str,
+        label: str,
+    ) -> str | None:
+        """Return the matching Chart Analytics explainer for known astro categories."""
+        del chart_title
+        clean_label = self._clean_database_analytics_label(label)
+        owner = getattr(self, "_app_owner", None)
+        chart = self._database_analytics_single_selected_chart()
+        if chart is None:
+            return None
+        builder_host = self if hasattr(self, "_build_body_popout_info") else owner
+        if builder_host is None:
+            return None
+
+        if clean_label in PLANET_COLORS and hasattr(builder_host, "_build_body_popout_info"):
+            return builder_host._build_body_popout_info(chart, clean_label)
+        if clean_label in SIGN_COLORS and hasattr(builder_host, "_build_sign_popout_info"):
+            return builder_host._build_sign_popout_info(chart, clean_label)
+        if clean_label in ELEMENT_COLORS and hasattr(builder_host, "_build_element_popout_info"):
+            return builder_host._build_element_popout_info(chart, clean_label)
+        if MODE_COLORS.get(clean_label.casefold()) and hasattr(builder_host, "_build_mode_popout_info"):
+            return builder_host._build_mode_popout_info(chart, clean_label)
+        if clean_label in {str(name) for name, *_ in NAKSHATRA_RANGES} and hasattr(
+            builder_host, "_build_nakshatra_popout_info"
+        ):
+            return builder_host._build_nakshatra_popout_info(chart, clean_label)
+        house_match = re.fullmatch(r"(?:house\s+)?(1[0-2]|[1-9])", clean_label.casefold())
+        if house_match and hasattr(builder_host, "_build_house_popout_info"):
+            return builder_host._build_house_popout_info(chart, int(house_match.group(1)))
+        return None
+
+    @staticmethod
+    def _database_analytics_trait_description_for_label(label: str) -> str | None:
+        clean_label = DatabaseAnalyticsChartsMixin._clean_database_analytics_label(label)
+        for trait in list_traits(active_only=False):
+            if str(trait.get("name", "")).strip() != clean_label:
+                continue
+            description = str(trait.get("description", "")).strip()
+            return description or None
+        return None
+
     def _build_database_analytics_popout_info_html(
         self,
         *,
@@ -1495,6 +1670,12 @@ class DatabaseAnalyticsChartsMixin:
     ) -> str:
         clean_title = self._clean_database_analytics_label(chart_title)
         clean_label = self._clean_database_analytics_label(label)
+        chart_analytics_html = self._build_database_analytics_chart_analytics_info_html(
+            chart_title=clean_title,
+            label=clean_label,
+        )
+        if chart_analytics_html:
+            return chart_analytics_html
         if "incarnation" in clean_title.casefold() and "cross" in clean_title.casefold():
             cross_html = self._database_analytics_incarnation_cross_info_html(clean_label)
             if cross_html:
@@ -1510,6 +1691,9 @@ class DatabaseAnalyticsChartsMixin:
                 chart=None,
                 calculate_type_weights=None,
             )
+        trait_description = None
+        if "trait" in clean_title.casefold():
+            trait_description = self._database_analytics_trait_description_for_label(clean_label)
         definition = self._database_analytics_definition_for_label(clean_label, clean_title)
         value_line = ""
         if value is not None and math.isfinite(float(value)):
@@ -1536,8 +1720,14 @@ class DatabaseAnalyticsChartsMixin:
             )
         label_color = self._database_analytics_color_for_label(clean_label, clean_title)
         category_name = self._database_analytics_category_name(clean_label, clean_title)
+        description_line = ""
+        if trait_description:
+            description_line = (
+                f'<p><i>{html.escape(trait_description)}</i></p>'
+            )
         return (
             f'<h3 style="color:{html.escape(label_color)}; font-weight:800;">{html.escape(clean_label)}</h3>'
+            f"{description_line}"
             f'<p><b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">Category:</b> {html.escape(category_name)}</p>'
             f'<p><b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">What this measures:</b> {html.escape(definition)}</p>'
             f'<p><b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">Where it appears:</b> <i>{html.escape(clean_title)}</i>.</p>'
@@ -1624,7 +1814,55 @@ class DatabaseAnalyticsChartsMixin:
                 )
             )
 
+        def _show_info_for_pick_target(label: str, value: float | None) -> None:
+            info_panel.setHtml(
+                self._build_database_analytics_popout_info_html(
+                    chart_title=chart_title,
+                    label=label,
+                    value=value,
+                )
+            )
+
+        def _on_click(event: Any) -> None:
+            if getattr(event, "inaxes", None) is None:
+                return
+            mouse_event = getattr(event, "guiEvent", None) or event
+            for artist in [*getattr(event.inaxes, "patches", [])]:
+                artist_gid = artist.get_gid() if hasattr(artist, "get_gid") else None
+                if (
+                    not isinstance(artist_gid, str)
+                    or not artist_gid.startswith("database_analytics_bar:")
+                ):
+                    continue
+                contains, _details = artist.contains(mouse_event)
+                if not contains:
+                    continue
+                payload = artist_gid.removeprefix("database_analytics_bar:")
+                label, _separator, raw_value = payload.rpartition(":")
+                try:
+                    value = float(raw_value)
+                except ValueError:
+                    value = None
+                _show_info_for_pick_target(label, value)
+                return
+            for tick_label in [
+                *event.inaxes.get_yticklabels(),
+                *event.inaxes.get_xticklabels(),
+            ]:
+                artist_gid = tick_label.get_gid() if hasattr(tick_label, "get_gid") else None
+                if (
+                    not isinstance(artist_gid, str)
+                    or not artist_gid.startswith("database_analytics_label:")
+                ):
+                    continue
+                contains, _details = tick_label.contains(mouse_event)
+                if contains:
+                    _prefix, label = artist_gid.split(":", 1)
+                    _show_info_for_pick_target(label, None)
+                    return
+
         popout_canvas.mpl_connect("pick_event", _on_pick)
+        popout_canvas.mpl_connect("button_press_event", _on_click)
         if hasattr(self, "_register_popout_shortcuts"):
             self._register_popout_shortcuts(dialog)
         dialog.resize(980, 720)
@@ -1779,6 +2017,12 @@ class DatabaseAnalyticsChartsMixin:
     ) -> str:
         clean_title = self._clean_database_analytics_label(chart_title)
         clean_label = self._clean_database_analytics_label(label)
+        chart_analytics_html = self._build_database_analytics_chart_analytics_info_html(
+            chart_title=clean_title,
+            label=clean_label,
+        )
+        if chart_analytics_html:
+            return chart_analytics_html
         if "incarnation" in clean_title.casefold() and "cross" in clean_title.casefold():
             cross_html = self._database_analytics_incarnation_cross_info_html(clean_label)
             if cross_html:
@@ -1794,6 +2038,9 @@ class DatabaseAnalyticsChartsMixin:
                 chart=None,
                 calculate_type_weights=None,
             )
+        trait_description = None
+        if "trait" in clean_title.casefold():
+            trait_description = self._database_analytics_trait_description_for_label(clean_label)
         definition = self._database_analytics_definition_for_label(clean_label, clean_title)
         value_line = ""
         if value is not None and math.isfinite(float(value)):
@@ -1820,10 +2067,17 @@ class DatabaseAnalyticsChartsMixin:
             )
         label_color = self._database_analytics_color_for_label(clean_label, clean_title)
         category_name = self._database_analytics_category_name(clean_label, clean_title)
+        description_line = ""
+        if trait_description:
+            description_line = (
+                f'<p><b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">Description:</b> '
+                f"{html.escape(trait_description)}</p>"
+            )
         return (
             f'<h3 style="color:{html.escape(label_color)}; font-weight:800;">{html.escape(clean_label)}</h3>'
             f'<p><b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">Category:</b> {html.escape(category_name)}</p>'
             f'<p><b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">What this measures:</b> {html.escape(definition)}</p>'
+            f"{description_line}"
             f'<p><b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">Where it appears:</b> <i>{html.escape(clean_title)}</i>.</p>'
             f"{value_line}"
             f"{std_dev_line}"
@@ -1908,7 +2162,55 @@ class DatabaseAnalyticsChartsMixin:
                 )
             )
 
+        def _show_info_for_pick_target(label: str, value: float | None) -> None:
+            info_panel.setHtml(
+                self._build_database_analytics_popout_info_html(
+                    chart_title=chart_title,
+                    label=label,
+                    value=value,
+                )
+            )
+
+        def _on_click(event: Any) -> None:
+            if getattr(event, "inaxes", None) is None:
+                return
+            mouse_event = getattr(event, "guiEvent", None) or event
+            for artist in [*getattr(event.inaxes, "patches", [])]:
+                artist_gid = artist.get_gid() if hasattr(artist, "get_gid") else None
+                if (
+                    not isinstance(artist_gid, str)
+                    or not artist_gid.startswith("database_analytics_bar:")
+                ):
+                    continue
+                contains, _details = artist.contains(mouse_event)
+                if not contains:
+                    continue
+                payload = artist_gid.removeprefix("database_analytics_bar:")
+                label, _separator, raw_value = payload.rpartition(":")
+                try:
+                    value = float(raw_value)
+                except ValueError:
+                    value = None
+                _show_info_for_pick_target(label, value)
+                return
+            for tick_label in [
+                *event.inaxes.get_yticklabels(),
+                *event.inaxes.get_xticklabels(),
+            ]:
+                artist_gid = tick_label.get_gid() if hasattr(tick_label, "get_gid") else None
+                if (
+                    not isinstance(artist_gid, str)
+                    or not artist_gid.startswith("database_analytics_label:")
+                ):
+                    continue
+                contains, _details = tick_label.contains(mouse_event)
+                if contains:
+                    _prefix, label = artist_gid.split(":", 1)
+                    _show_info_for_pick_target(label, None)
+                    return
+
         popout_canvas.mpl_connect("pick_event", _on_pick)
+        popout_canvas.mpl_connect("button_press_event", _on_click)
         if hasattr(self, "_register_popout_shortcuts"):
             self._register_popout_shortcuts(dialog)
         dialog.resize(980, 720)
@@ -2874,15 +3176,21 @@ class DatabaseAnalyticsChartsMixin:
         database_total: float | None = None,
         include_significance_guides: bool = True,
         label_tooltips: dict[str, str] | None = None,
+        auto_height: bool = False,
     ) -> FigureCanvas:
+        labels = list(labels or selection_planets.keys())
         clamped_height_scale = max(0.5, float(height_scale))
+        chart_height = (
+            max(2.9, min(14.0, (len(labels) * 0.38) + 1.0))
+            if auto_height
+            else 4 * clamped_height_scale
+        )
         # Keep bottom margin visually consistent in pixels when chart height is scaled up.
         scaled_bottom_margin = min(0.12, max(0.02, 0.12 / clamped_height_scale))
-        figure = Figure(figsize=(1.5, 4 * clamped_height_scale)) #width of graph, height of graph
+        figure = Figure(figsize=(1.5, chart_height)) #width of graph, height of graph
         figure.patch.set_facecolor(self._database_analytics_figure_facecolor())
         ax = figure.add_subplot(111)
         ax.set_facecolor(self._database_analytics_axes_facecolor())
-        labels = list(labels or selection_planets.keys())
         display_label_by_label = {
             label: _abbreviate_nakshatra_label(str(label))
             for label in labels
@@ -2995,8 +3303,10 @@ class DatabaseAnalyticsChartsMixin:
 
         for spine in ax.spines.values():
             spine.set_color(CHART_THEME_COLORS["spine"])
-        for tick_label in ax.get_yticklabels():
+        for index, tick_label in enumerate(ax.get_yticklabels()):
             tick_label.set_ha("right")
+            if label_colors is not None and index < len(colors):
+                tick_label.set_color(colors[index])
         self._apply_tight_layout(figure)
         figure.subplots_adjust(left=0.51, bottom=scaled_bottom_margin, right=0.97, top=0.98)
         canvas = FigureCanvas(figure)
@@ -3822,6 +4132,873 @@ class DatabaseAnalyticsChartsMixin:
                 Qt.AlignTop,
             )
         return tag_export_rows
+
+    def _create_tags_database_analytics_section(self, panel: Any, layout: QVBoxLayout) -> None:
+        """Create the un-nested Tags section at the bottom of Database Analytics."""
+        tag_distribution_section_layout = self._add_left_panel_collapsible_section(
+            panel,
+            layout,
+            "🏷️Tags",
+            section_key="tag_distribution",
+            expanded=self._is_database_metrics_section_expanded("tag_distribution"),
+            on_toggled=lambda checked: self._set_database_metrics_section_expanded(
+                "tag_distribution",
+                checked,
+            ),
+        )
+        self._database_metrics_section_expanded["tag_distribution"] = self._is_database_metrics_section_expanded("tag_distribution")
+        self._create_analysis_chart_header(
+            tag_distribution_section_layout,
+            "🏷️Tags",
+            "tag_distribution",
+            "tag_distribution",
+            dropdown_options=[("All", "all")],
+            show_title=False,
+        )
+        tag_subheader = self._build_database_subheader_label(
+            "Repeated tags by category. With selection, rows show selection % relative to DB %."
+        )
+        tag_distribution_section_layout.addWidget(tag_subheader)
+        (
+            self.tag_distribution_chart_container,
+            self.tag_distribution_chart_layout,
+        ) = self._create_database_analytics_chart_container()
+        self._database_metrics_chart_layouts["tag_distribution"] = self.tag_distribution_chart_layout
+        tag_distribution_section_layout.addWidget(self.tag_distribution_chart_container)
+
+    def _create_traits_database_analytics_section(self, panel: Any, layout: Any) -> None:
+        traits_section_layout = self._add_left_panel_collapsible_section(
+            panel,
+            layout,
+            "🧬Traits",
+            section_key="traits_distribution",
+            expanded=self._is_database_metrics_section_expanded("traits_distribution"),
+            on_toggled=lambda checked: self._set_database_metrics_section_expanded(
+                "traits_distribution",
+                checked,
+            ),
+        )
+        self._database_metrics_section_expanded["traits_distribution"] = self._is_database_metrics_section_expanded("traits_distribution")
+        self._create_analysis_chart_header(
+            traits_section_layout,
+            "🧬Traits",
+            "traits_distribution",
+            "traits_distribution",
+            dropdown_options=[("Trait Predictions", "trait_predictions"), ("Trait Rankings", "trait_rankings")],
+            show_title=False,
+        )
+        self.traits_distribution_subheader_label = self._build_database_subheader_label(
+            "Average active custom trait likelihoods across the database. With selection, bars compare selection average to DB average."
+        )
+        traits_section_layout.addWidget(self.traits_distribution_subheader_label)
+
+        self.traits_distribution_rank_container = QWidget()
+        trait_rank_container_layout = QVBoxLayout()
+        trait_rank_container_layout.setContentsMargins(0, 0, 0, 0)
+        trait_rank_container_layout.setSpacing(0)
+        self.traits_distribution_rank_container.setLayout(trait_rank_container_layout)
+
+        trait_rank_row = QWidget()
+        trait_rank_layout = QHBoxLayout()
+        trait_rank_layout.setContentsMargins(0, 0, 0, 0)
+        trait_rank_layout.setSpacing(6)
+        trait_rank_row.setLayout(trait_rank_layout)
+        trait_rank_label = QLabel("Top charts for trait:")
+        trait_rank_label.setStyleSheet("color: #cfcfcf; font-size: 8pt;")
+        trait_rank_layout.addWidget(trait_rank_label)
+        self.traits_distribution_rank_combo = QComboBox()
+        self.traits_distribution_rank_combo.setMinimumContentsLength(22)
+        self.traits_distribution_rank_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+        self.traits_distribution_rank_combo.currentIndexChanged.connect(
+            lambda _index: self._on_traits_distribution_rank_trait_changed()
+        )
+        trait_rank_layout.addWidget(self.traits_distribution_rank_combo, 1)
+        trait_rank_container_layout.addWidget(trait_rank_row)
+
+        self.traits_distribution_rank_label = QLabel("")
+        self.traits_distribution_rank_label.setTextFormat(Qt.RichText)
+        self.traits_distribution_rank_label.setWordWrap(True)
+        self.traits_distribution_rank_label.setStyleSheet("color: #d8d8d8; padding: 2px 0 6px 0;")
+        trait_rank_container_layout.addWidget(self.traits_distribution_rank_label)
+        traits_section_layout.addWidget(self.traits_distribution_rank_container)
+
+        (
+            self.traits_distribution_chart_container,
+            self.traits_distribution_chart_layout,
+        ) = self._create_database_analytics_chart_container()
+        self._database_metrics_chart_layouts["traits_distribution"] = self.traits_distribution_chart_layout
+        traits_section_layout.addWidget(self.traits_distribution_chart_container)
+        self._sync_traits_distribution_display_mode()
+
+
+    def _traits_distribution_display_mode(self) -> str:
+        dropdown = getattr(self, "_analysis_chart_dropdowns", {}).get("traits_distribution")
+        if dropdown is not None:
+            selected_mode = dropdown.currentData()
+            if isinstance(selected_mode, str) and selected_mode in {"trait_predictions", "trait_rankings"}:
+                return selected_mode
+        selected_mode = str(getattr(self, "_traits_distribution_mode", "trait_predictions") or "trait_predictions")
+        return selected_mode if selected_mode in {"trait_predictions", "trait_rankings"} else "trait_predictions"
+
+    def _sync_traits_distribution_display_mode(self) -> None:
+        show_rankings = self._traits_distribution_display_mode() == "trait_rankings"
+        rank_container = getattr(self, "traits_distribution_rank_container", None)
+        if rank_container is not None:
+            rank_container.setVisible(show_rankings)
+        subheader = getattr(self, "traits_distribution_subheader_label", None)
+        if subheader is not None:
+            subheader.setVisible(not show_rankings)
+        chart_container = getattr(self, "traits_distribution_chart_container", None)
+        if chart_container is not None:
+            chart_container.setVisible(not show_rankings)
+
+    def _refresh_traits_distribution_rankings_from_cached_context(self) -> None:
+        context = getattr(self, "_traits_distribution_rank_context", None)
+        rank_label = getattr(self, "traits_distribution_rank_label", None)
+        if not isinstance(context, dict) or not isinstance(rank_label, QLabel):
+            return
+        rankings = self._traits_distribution_chart_rankings(
+            chart_ids=context.get("chart_ids", ()),
+            trait_signature=context.get("trait_signature", ()),
+            selected_trait_name=str(context.get("selected_trait_name", "") or ""),
+            database_values=context.get("database_values", {}),
+        )
+        self._traits_distribution_current_ranked_chart_ids = {
+            int(row["chart_id"])
+            for row in rankings
+            if isinstance(row, dict) and "chart_id" in row
+        }
+        rank_label.setText(
+            self._render_traits_distribution_rankings_html(
+                context.get("selected_trait_name"),
+                rankings,
+                scope_label=str(context.get("scope_label", "the database")),
+                cache_warmed=bool(context.get("cache_warmed", False)),
+            )
+        )
+
+    def _refresh_traits_distribution_rankings_after_hidden_chart_change(self, hidden_chart_ids: set[int]) -> None:
+        current_ranked_ids = getattr(self, "_traits_distribution_current_ranked_chart_ids", set())
+        if not hidden_chart_ids or not current_ranked_ids or not (set(hidden_chart_ids) & set(current_ranked_ids)):
+            return
+        self._refresh_traits_distribution_rankings_from_cached_context()
+
+    def _on_traits_distribution_rank_trait_changed(self) -> None:
+        combo = getattr(self, "traits_distribution_rank_combo", None)
+        if not isinstance(combo, QComboBox):
+            return
+        selected_name = combo.currentData()
+        if isinstance(selected_name, str):
+            self._traits_distribution_rank_trait_name = selected_name
+        if getattr(self, "_traits_distribution_rank_refresh_pending", False):
+            return
+        self._traits_distribution_rank_refresh_pending = True
+
+        def _refresh() -> None:
+            self._traits_distribution_rank_refresh_pending = False
+            update = getattr(self, "_update_sentiment_tally", None)
+            if callable(update):
+                update(
+                    update_database_metrics=True,
+                    update_similarities=False,
+                    sections_to_refresh={"traits_distribution"},
+                )
+
+        QTimer.singleShot(0, _refresh)
+
+    def _sync_traits_distribution_rank_combo(self, trait_items: list[dict[str, Any]]) -> str | None:
+        combo = getattr(self, "traits_distribution_rank_combo", None)
+        if not isinstance(combo, QComboBox):
+            return None
+        active_traits = [
+            trait for trait in trait_items
+            if str(trait.get("name", "")).strip() and not bool(trait.get("archived", False))
+        ]
+        current_name = str(getattr(self, "_traits_distribution_rank_trait_name", "") or "")
+        combo.blockSignals(True)
+        try:
+            combo.clear()
+            if not active_traits:
+                combo.addItem("No active traits", "")
+                combo.setEnabled(False)
+                self._traits_distribution_rank_trait_name = ""
+                return None
+            combo.setEnabled(True)
+            for trait in active_traits:
+                name = str(trait.get("name", "")).strip()
+                combo.addItem(name, name)
+            selected_index = combo.findData(current_name)
+            if selected_index < 0:
+                selected_index = 0
+            combo.setCurrentIndex(selected_index)
+            selected_name = combo.currentData()
+            if isinstance(selected_name, str) and selected_name:
+                self._traits_distribution_rank_trait_name = selected_name
+                return selected_name
+            return None
+        finally:
+            combo.blockSignals(False)
+
+    def _traits_distribution_chart_rankings(
+        self,
+        *,
+        chart_ids: list[int] | set[int],
+        trait_signature: tuple[tuple[str, str, str], ...],
+        selected_trait_name: str,
+        database_values: Mapping[str, float],
+    ) -> list[dict[str, Any]]:
+        """Return cached top chart matches for a trait without a second all-traits pass."""
+        if not selected_trait_name:
+            return []
+        normalized_chart_ids = tuple(sorted({int(chart_id) for chart_id in chart_ids}))
+        cache_revision = int(getattr(self, "_database_metrics_cache_revision", 0))
+        likelihood_cache = getattr(self, "_traits_distribution_chart_likelihood_cache", None)
+        if not isinstance(likelihood_cache, dict):
+            return []
+        rows: list[dict[str, Any]] = []
+        hidden_chart_ids = {int(chart_id) for chart_id in getattr(self, "_hidden_chart_ids", set())}
+        db_average_pct = float(database_values.get(selected_trait_name, 0.0)) * 100.0
+        for chart_id in normalized_chart_ids:
+            if int(chart_id) in hidden_chart_ids:
+                continue
+            chart = self._get_chart_for_filter(int(chart_id))
+            if chart is None or self._is_placeholder_chart(chart):
+                continue
+            chart_cache_key = (cache_revision, trait_signature, int(chart_id))
+            likelihoods = likelihood_cache.get(chart_cache_key)
+            if likelihoods is None:
+                # The aggregate collector should have warmed this cache already.
+                # Skip instead of doing surprise UI-thread work during dropdown use.
+                continue
+            try:
+                likelihood = float(likelihoods.get(selected_trait_name, 0.0))
+            except (TypeError, ValueError):
+                continue
+            chart_name = str(getattr(chart, "name", "") or f"Chart {chart_id}").strip()
+            rows.append(
+                {
+                    "chart_id": int(chart_id),
+                    "name": chart_name or f"Chart {chart_id}",
+                    "likelihood": likelihood,
+                    "deviation": likelihood - db_average_pct,
+                }
+            )
+        rows.sort(key=lambda row: (-float(row["likelihood"]), -float(row["deviation"]), str(row["name"]).casefold()))
+        return rows[:10]
+
+    @staticmethod
+    def _render_traits_distribution_rankings_html(
+        selected_trait_name: str | None,
+        rankings: list[dict[str, Any]],
+        *,
+        scope_label: str,
+        cache_warmed: bool,
+    ) -> str:
+        if not selected_trait_name:
+            return "<span style='color:#9a9a9a;'>No active trait selected for top-chart ranking.</span>"
+        safe_trait = html.escape(selected_trait_name)
+        safe_scope = html.escape(scope_label)
+        if not rankings:
+            if not cache_warmed:
+                return (
+                    f"<span style='color:#9a9a9a;'>Top chart matches for <b>{safe_trait}</b> "
+                    "will appear after trait scores finish warming.</span>"
+                )
+            return (
+                f"<span style='color:#9a9a9a;'>No non-placeholder charts are currently available "
+                f"to rank for <b>{safe_trait}</b>.</span>"
+            )
+        rows = []
+        for rank, row in enumerate(rankings, start=1):
+            name = html.escape(str(row.get("name", "")))
+            likelihood = float(row.get("likelihood", 0.0))
+            deviation = float(row.get("deviation", 0.0))
+            deviation_color = "#90ee90" if deviation >= 0 else "#ffb3b3"
+            rows.append(
+                "<tr>"
+                f"<td style='padding:1px 8px 1px 0; color:#9a9a9a; text-align:right;'>{rank}</td>"
+                f"<td style='padding:1px 8px 1px 0; color:#f0f0f0;'>{name}</td>"
+                f"<td style='padding:1px 8px 1px 0; color:#d8d8d8; text-align:right;'>{likelihood:.1f}%</td>"
+                f"<td style='padding:1px 0; color:{deviation_color}; text-align:right;'>{deviation:+.1f}</td>"
+                "</tr>"
+            )
+        return (
+            f"<div style='padding-bottom:3px;'>Top 10 <b>{safe_trait}</b> chart matches in {safe_scope}.</div>"
+            "<table cellspacing='0' cellpadding='0' style='width:100%;'>"
+            "<tr>"
+            "<th style='padding:1px 8px 2px 0; color:#f5f5f5; text-align:right;'>#</th>"
+            "<th style='padding:1px 8px 2px 0; color:#f5f5f5; text-align:left;'>chart</th>"
+            "<th style='padding:1px 8px 2px 0; color:#f5f5f5; text-align:right;'>match</th>"
+            "<th style='padding:1px 0 2px 0; color:#f5f5f5; text-align:right;'>vs DB</th>"
+            "</tr>"
+            f"{''.join(rows)}"
+            "</table>"
+            "<div style='color:#9a9a9a; padding-top:3px;'>"
+            "Ranking reuses warmed trait-score cache so dropdown changes do not launch another full scoring pass."
+            "</div>"
+        )
+
+    @staticmethod
+    def _traits_distribution_signature(trait_items: list[dict[str, Any]]) -> tuple[tuple[str, str, str], ...]:
+        return tuple(
+            (
+                str(item.get("name", "")).strip(),
+                normalize_trait_color(str(item.get("color", DEFAULT_TRAIT_COLOR))),
+                repr(item.get("profile", {})),
+            )
+            for item in trait_items
+            if str(item.get("name", "")).strip() and not bool(item.get("archived", False))
+        )
+
+    @staticmethod
+    def _stable_traits_metadata_hash(value: Any) -> str:
+        try:
+            payload = json.dumps(value, sort_keys=True, default=str, separators=(",", ":"))
+        except TypeError:
+            payload = repr(value)
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+    def _chart_trait_metadata_signature(self, chart: Any) -> str:
+        try:
+            uses_houses = bool(chart_uses_houses(chart))
+        except Exception:
+            uses_houses = bool(getattr(chart, "use_birth_time_data", False))
+        return self._stable_traits_metadata_hash(
+            {
+                "birth_date": getattr(chart, "birth_date", None),
+                "birth_time": getattr(chart, "birth_time", None),
+                "dt": getattr(chart, "dt", None),
+                "dt_local": getattr(chart, "dt_local", None),
+                "birth_place": getattr(chart, "birth_place", None),
+                "datetime": getattr(chart, "datetime", None),
+                "datetime_iso": getattr(chart, "datetime_iso", None),
+                "lat": getattr(chart, "lat", None),
+                "lon": getattr(chart, "lon", None),
+                "birthtime_unknown": bool(getattr(chart, "birthtime_unknown", False)),
+                "retcon_time_used": bool(getattr(chart, "retcon_time_used", False)),
+                "retcon_hour": getattr(chart, "retcon_hour", None),
+                "retcon_minute": getattr(chart, "retcon_minute", None),
+                "chart_uses_houses": uses_houses,
+            }
+        )
+
+    def _persist_traits_distribution_metadata(
+        self,
+        *,
+        normalized_chart_ids: tuple[int, ...],
+        trait_items: list[dict[str, Any]],
+        trait_names: list[str],
+        chart_likelihoods: dict[int, dict[str, float]],
+        database_averages_pct: dict[str, float],
+    ) -> None:
+        """Passively backfill UID-keyed trait metadata from warmed analytics scores."""
+        if not normalized_chart_ids or not trait_names or not chart_likelihoods:
+            return
+        trait_signature_hash = self._stable_traits_metadata_hash(
+            {
+                "version": 1,
+                "traits": [
+                    {
+                        "name": trait.get("name", ""),
+                        "color": normalize_trait_color(str(trait.get("color", DEFAULT_TRAIT_COLOR))),
+                        "profile": trait.get("profile", {}),
+                    }
+                    for trait in trait_items
+                    if str(trait.get("name", "")).strip() and not bool(trait.get("archived", False))
+                ],
+            }
+        )
+        uid_by_id = db.get_chart_uid_map(normalized_chart_ids)
+        norm_signature = self._stable_traits_metadata_hash(
+            tuple(sorted(str(uid).strip().upper() for uid in uid_by_id.values() if str(uid or "").strip()))
+        )
+        threshold = TRAIT_DEVIATION_ASSIGNMENT_THRESHOLD
+        for chart_id, likelihoods in chart_likelihoods.items():
+            chart = self._get_chart_for_filter(int(chart_id))
+            chart_uid = str(getattr(chart, "chart_uid", "") or "").strip()
+            if not chart_uid:
+                continue
+            rows: list[dict[str, Any]] = []
+            for name in trait_names:
+                if name not in database_averages_pct:
+                    continue
+                likelihood = float(likelihoods.get(name, 0.0))
+                db_average = float(database_averages_pct.get(name, 0.0))
+                deviation = likelihood - db_average
+                rows.append(
+                    {
+                        "trait_name": name,
+                        "direction": "above" if deviation >= threshold else "below" if deviation <= -threshold else "neutral",
+                        "likelihood": likelihood,
+                        "db_average": db_average,
+                        "deviation": deviation,
+                    }
+                )
+            if not rows:
+                continue
+            try:
+                db.upsert_chart_trait_metadata(
+                    chart_uid,
+                    rows,
+                    trait_signature=trait_signature_hash,
+                    norm_signature=norm_signature,
+                    chart_signature=self._chart_trait_metadata_signature(chart),
+                )
+            except Exception:
+                logger.exception("Failed to passively persist trait metadata for chart UID %s.", chart_uid)
+
+    def _clear_traits_distribution_analytics_cache(self, changed_chart_ids: set[int] | None = None) -> None:
+        self._traits_distribution_analytics_cache = {}
+        if changed_chart_ids is None:
+            self._traits_distribution_chart_likelihood_cache = {}
+            return
+
+        likelihood_cache = getattr(self, "_traits_distribution_chart_likelihood_cache", None)
+        if not isinstance(likelihood_cache, dict):
+            self._traits_distribution_chart_likelihood_cache = {}
+            return
+
+        changed_ids = {int(chart_id) for chart_id in changed_chart_ids}
+        for cache_key in list(likelihood_cache):
+            if (
+                isinstance(cache_key, tuple)
+                and len(cache_key) >= 3
+                and isinstance(cache_key[2], int)
+                and cache_key[2] in changed_ids
+            ):
+                likelihood_cache.pop(cache_key, None)
+
+
+    def _traits_distribution_chart_tokens(self) -> dict[int, str]:
+        """Return stable per-chart row fingerprints for persisted trait-score reuse."""
+        cached_tokens = getattr(self, "_traits_distribution_chart_token_cache", None)
+        if isinstance(cached_tokens, dict):
+            return dict(cached_tokens)
+        normalize_row = getattr(self, "_normalize_chart_row", None)
+        encode_value = getattr(self, "_encode_database_metrics_cache_value", None)
+        tokens: dict[int, str] = {}
+        for row in getattr(self, "_chart_rows", []) or []:
+            normalized = normalize_row(row) if callable(normalize_row) else row
+            if normalized is None:
+                continue
+            try:
+                chart_id = int(normalized[0])
+            except (TypeError, ValueError, IndexError):
+                continue
+            encoded = encode_value(normalized) if callable(encode_value) else normalized
+            try:
+                payload = json.dumps(encoded, sort_keys=True, default=str, separators=(",", ":"))
+            except TypeError:
+                payload = repr(encoded)
+            tokens[chart_id] = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+        self._traits_distribution_chart_token_cache = dict(tokens)
+        return tokens
+
+    def _traits_distribution_likelihood_cache_path(self):
+        from ephemeraldaddy.core.db import DB_DIR
+
+        return DB_DIR / TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_FILENAME
+
+    def _load_traits_distribution_likelihood_cache(self) -> bool:
+        if getattr(self, "_traits_distribution_likelihood_cache_loaded", False):
+            return True
+        self._traits_distribution_likelihood_cache_loaded = True
+        path = self._traits_distribution_likelihood_cache_path()
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return False
+        except Exception:
+            logger.exception("Failed to load traits distribution likelihood cache from %s.", path)
+            return False
+        if not isinstance(payload, dict):
+            return False
+        if payload.get("version") != TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_VERSION:
+            return False
+        entries = payload.get("entries", [])
+        if not isinstance(entries, list):
+            return False
+        cache_revision = int(getattr(self, "_database_metrics_cache_revision", 0))
+        chart_tokens = self._traits_distribution_chart_tokens()
+        likelihood_cache: dict[tuple[Any, ...], dict[str, float]] = {}
+        individual_cache: dict[tuple[tuple[str, str, str], int], float] = {}
+        skipped_entries = 0
+        for entry in entries:
+            if not isinstance(entry, dict):
+                skipped_entries += 1
+                continue
+            try:
+                chart_id = int(entry.get("chart_id"))
+            except (TypeError, ValueError):
+                skipped_entries += 1
+                continue
+            saved_chart_token = str(entry.get("chart_token", "") or "")
+            current_chart_token = chart_tokens.get(chart_id)
+            if current_chart_token and saved_chart_token and saved_chart_token != current_chart_token:
+                skipped_entries += 1
+                continue
+            signature = entry.get("trait_signature")
+            likelihoods = entry.get("likelihoods")
+            if not isinstance(signature, list) or not isinstance(likelihoods, dict):
+                skipped_entries += 1
+                continue
+            trait_signature = tuple(
+                (str(item[0]), str(item[1]), str(item[2]))
+                for item in signature
+                if isinstance(item, (list, tuple)) and len(item) == 3
+            )
+            if not trait_signature:
+                skipped_entries += 1
+                continue
+            normalized_likelihoods: dict[str, float] = {}
+            trait_keys_by_name = {name: (name, color, profile) for name, color, profile in trait_signature}
+            for name, value in likelihoods.items():
+                if not isinstance(name, str):
+                    continue
+                try:
+                    likelihood = float(value)
+                except (TypeError, ValueError):
+                    skipped_entries += 1
+                    continue
+                normalized_likelihoods[str(name)] = likelihood
+                trait_key = trait_keys_by_name.get(str(name))
+                if trait_key is not None:
+                    individual_cache[(trait_key, chart_id)] = likelihood
+            if not normalized_likelihoods:
+                skipped_entries += 1
+                continue
+            likelihood_cache[(cache_revision, trait_signature, chart_id)] = normalized_likelihoods
+        if not likelihood_cache and not individual_cache:
+            return False
+        if skipped_entries:
+            logger.info(
+                "Skipped %s invalid or stale entr%s while loading traits distribution likelihood cache.",
+                skipped_entries,
+                "y" if skipped_entries == 1 else "ies",
+            )
+        self._traits_distribution_chart_likelihood_cache = likelihood_cache
+        self._traits_distribution_individual_likelihood_cache = individual_cache
+        self._traits_distribution_likelihood_cache_dirty = False
+        return True
+
+    def _save_traits_distribution_likelihood_cache(self) -> None:
+        likelihood_cache = getattr(self, "_traits_distribution_chart_likelihood_cache", None)
+        if not isinstance(likelihood_cache, dict) or not likelihood_cache:
+            return
+        entries: list[dict[str, Any]] = []
+        current_revision = int(getattr(self, "_database_metrics_cache_revision", 0))
+        chart_tokens = self._traits_distribution_chart_tokens()
+        for cache_key, likelihoods in likelihood_cache.items():
+            if (
+                not isinstance(cache_key, tuple)
+                or len(cache_key) != 3
+                or cache_key[0] != current_revision
+                or not isinstance(cache_key[1], tuple)
+                or not isinstance(likelihoods, dict)
+            ):
+                continue
+            try:
+                chart_id = int(cache_key[2])
+                normalized_likelihoods = {str(name): float(value) for name, value in likelihoods.items()}
+            except (TypeError, ValueError):
+                continue
+            entries.append(
+                {
+                    "trait_signature": [list(item) for item in cache_key[1]],
+                    "chart_id": chart_id,
+                    "chart_token": chart_tokens.get(chart_id, ""),
+                    "likelihoods": normalized_likelihoods,
+                }
+            )
+            if len(entries) >= TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_MAX_ENTRIES:
+                break
+        if not entries:
+            return
+        try:
+            path = self._traits_distribution_likelihood_cache_path()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            payload: dict[str, Any] = {
+                "version": TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_VERSION,
+                "entries": entries,
+            }
+            if len(likelihood_cache) > len(entries):
+                payload["truncated"] = True
+                payload["max_entries"] = TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_MAX_ENTRIES
+            temp_path = path.with_suffix(f"{path.suffix}.tmp")
+            temp_path.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
+            temp_path.replace(path)
+            self._traits_distribution_likelihood_cache_dirty = False
+        except Exception:
+            logger.exception("Failed to save traits distribution likelihood cache.")
+
+    def _collect_traits_distribution_analytics(
+        self,
+        chart_ids: list[int] | set[int],
+        trait_items: list[dict[str, Any]] | None = None,
+        trait_signature: tuple[tuple[str, str, str], ...] | None = None,
+        time_budget_seconds: float | None = TRAITS_DISTRIBUTION_SCORING_TIME_BUDGET_SECONDS,
+    ) -> dict[str, Any]:
+        trait_items = trait_items if trait_items is not None else list_traits(active_only=True)
+        trait_signature = (
+            trait_signature
+            if trait_signature is not None
+            else self._traits_distribution_signature(trait_items)
+        )
+        normalized_chart_ids = tuple(sorted({int(chart_id) for chart_id in chart_ids}))
+        aggregate_cache = getattr(self, "_traits_distribution_analytics_cache", None)
+        if not isinstance(aggregate_cache, dict):
+            aggregate_cache = {}
+            self._traits_distribution_analytics_cache = aggregate_cache
+        cache_revision = int(getattr(self, "_database_metrics_cache_revision", 0))
+        aggregate_cache_key = (cache_revision, trait_signature, normalized_chart_ids)
+        cached = aggregate_cache.get(aggregate_cache_key)
+        if isinstance(cached, dict):
+            return copy.deepcopy(cached)
+
+        trait_names = [name for name, _color, _profile in trait_signature]
+        totals: dict[str, float] = {name: 0.0 for name in trait_names}
+        colors = {name: color for name, color, _profile in trait_signature}
+        possible_scores = {
+            str(item.get("name", "")): max(float(trait_possible_score(item.get("profile", {}))), 1.0)
+            for item in trait_items
+            if str(item.get("name", "")).strip() and not bool(item.get("archived", False))
+        }
+        chart_count = 0
+        likelihood_cache = getattr(self, "_traits_distribution_chart_likelihood_cache", None)
+        if not isinstance(likelihood_cache, dict):
+            self._load_traits_distribution_likelihood_cache()
+            likelihood_cache = getattr(self, "_traits_distribution_chart_likelihood_cache", None)
+        if not isinstance(likelihood_cache, dict):
+            likelihood_cache = {}
+            self._traits_distribution_chart_likelihood_cache = likelihood_cache
+        individual_cache = getattr(self, "_traits_distribution_individual_likelihood_cache", None)
+        if not isinstance(individual_cache, dict):
+            individual_cache = {}
+            self._traits_distribution_individual_likelihood_cache = individual_cache
+        trait_items_by_key = {
+            (
+                str(item.get("name", "")).strip(),
+                normalize_trait_color(str(item.get("color", DEFAULT_TRAIT_COLOR))),
+                repr(item.get("profile", {})),
+            ): item
+            for item in trait_items
+            if str(item.get("name", "")).strip() and not bool(item.get("archived", False))
+        }
+
+        cache_updated = False
+        partial = False
+        chart_likelihoods_for_metadata: dict[int, dict[str, float]] = {}
+        uncached_started_at = time.monotonic()
+        for chart_id in normalized_chart_ids:
+            chart = self._get_chart_for_filter(int(chart_id))
+            if chart is None or self._is_placeholder_chart(chart):
+                continue
+            chart_cache_key = (cache_revision, trait_signature, int(chart_id))
+            likelihoods = likelihood_cache.get(chart_cache_key)
+            if likelihoods is None:
+                likelihoods = {}
+                missing_trait_items: list[dict[str, Any]] = []
+                for trait_key in trait_signature:
+                    cached_likelihood = individual_cache.get((trait_key, int(chart_id)))
+                    if cached_likelihood is None:
+                        trait_item = trait_items_by_key.get(trait_key)
+                        if trait_item is not None:
+                            missing_trait_items.append(trait_item)
+                        continue
+                    likelihoods[trait_key[0]] = float(cached_likelihood)
+                if missing_trait_items:
+                    if (
+                        time_budget_seconds is not None
+                        and time_budget_seconds >= 0
+                        and cache_updated
+                        and (time.monotonic() - uncached_started_at) >= float(time_budget_seconds)
+                    ):
+                        partial = True
+                        break
+                    try:
+                        missing_likelihoods = calculate_trait_likelihoods(
+                            chart,
+                            missing_trait_items,
+                            possible_scores=possible_scores,
+                        )
+                    except Exception:
+                        logger.exception(
+                            "Trait likelihood calculation failed for chart %s during database analytics refresh.",
+                            self._debug_chart_label(chart),
+                        )
+                        continue
+                    likelihoods.update(missing_likelihoods)
+                    for trait_key in trait_signature:
+                        name = trait_key[0]
+                        if name in missing_likelihoods:
+                            individual_cache[(trait_key, int(chart_id))] = float(missing_likelihoods[name])
+                    cache_updated = True
+                if len(likelihoods) >= len(trait_names):
+                    likelihood_cache[chart_cache_key] = dict(likelihoods)
+            if len(likelihoods) >= len(trait_names):
+                chart_likelihoods_for_metadata[int(chart_id)] = dict(likelihoods)
+            chart_count += 1
+            for name in trait_names:
+                try:
+                    totals[name] += float(likelihoods.get(name, 0.0)) / 100.0
+                except (TypeError, ValueError):
+                    continue
+        result = {
+            "trait_names": trait_names,
+            "totals": totals,
+            "chart_count": chart_count,
+            "colors": colors,
+            "partial": partial,
+            "requested_chart_count": len(normalized_chart_ids),
+        }
+        if not partial:
+            aggregate_cache[aggregate_cache_key] = copy.deepcopy(result)
+            if chart_count:
+                self._persist_traits_distribution_metadata(
+                    normalized_chart_ids=normalized_chart_ids,
+                    trait_items=trait_items,
+                    trait_names=trait_names,
+                    chart_likelihoods=chart_likelihoods_for_metadata,
+                    database_averages_pct={
+                        name: (float(total) / float(chart_count)) * 100.0
+                        for name, total in totals.items()
+                    },
+                )
+        if cache_updated:
+            self._traits_distribution_likelihood_cache_dirty = True
+            self._save_traits_distribution_likelihood_cache()
+        return result
+
+    def _render_traits_distribution_section(
+        self,
+        *,
+        chart_ids: list[int],
+        database_chart_ids: set[int],
+        loaded_charts: int,
+        should_refresh: Callable[[str], bool],
+    ) -> None:
+        if not should_refresh("traits_distribution"):
+            return
+
+        trait_items = list_traits(active_only=True)
+        trait_signature = self._traits_distribution_signature(trait_items)
+        selected_trait_name = self._sync_traits_distribution_rank_combo(trait_items)
+        database_analytics = self._collect_traits_distribution_analytics(
+            database_chart_ids,
+            trait_items=trait_items,
+            trait_signature=trait_signature,
+        )
+        if set(chart_ids) == set(database_chart_ids):
+            selection_analytics = copy.deepcopy(database_analytics)
+        else:
+            selection_analytics = self._collect_traits_distribution_analytics(
+                chart_ids,
+                trait_items=trait_items,
+                trait_signature=trait_signature,
+            )
+        trait_names = list(database_analytics.get("trait_names", []))
+        if not trait_names:
+            trait_names = list(selection_analytics.get("trait_names", []))
+        selection_count = max(0, int(selection_analytics.get("chart_count", 0)))
+        database_count = max(0, int(database_analytics.get("chart_count", 0)))
+        selection_totals = selection_analytics.get("totals", {})
+        database_totals = database_analytics.get("totals", {})
+        selection_values = {
+            name: (float(selection_totals.get(name, 0.0)) / float(selection_count) if selection_count else 0.0)
+            for name in trait_names
+        }
+        database_values = {
+            name: (float(database_totals.get(name, 0.0)) / float(database_count) if database_count else 0.0)
+            for name in trait_names
+        }
+        ranking_scope_ids: list[int] | set[int] = chart_ids if loaded_charts > 0 else database_chart_ids
+        ranking_scope_label = "the current selection" if loaded_charts > 0 else "the database"
+        rank_label = getattr(self, "traits_distribution_rank_label", None)
+        self._traits_distribution_rank_context = {
+            "chart_ids": tuple(sorted({int(chart_id) for chart_id in ranking_scope_ids})),
+            "trait_signature": trait_signature,
+            "selected_trait_name": selected_trait_name or "",
+            "database_values": dict(database_values),
+            "scope_label": ranking_scope_label,
+            "cache_warmed": database_count > 0 and not bool(database_analytics.get("partial", False)),
+        }
+        if isinstance(rank_label, QLabel):
+            rankings = self._traits_distribution_chart_rankings(
+                chart_ids=ranking_scope_ids,
+                trait_signature=trait_signature,
+                selected_trait_name=selected_trait_name or "",
+                database_values=database_values,
+            )
+            self._traits_distribution_current_ranked_chart_ids = {int(row["chart_id"]) for row in rankings}
+            rank_label.setText(
+                self._render_traits_distribution_rankings_html(
+                    selected_trait_name,
+                    rankings,
+                    scope_label=ranking_scope_label,
+                    cache_warmed=database_count > 0 and not bool(database_analytics.get("partial", False)),
+                )
+            )
+        self._sync_traits_distribution_display_mode()
+        ordered_labels = sorted(
+            trait_names,
+            key=lambda name: (
+                -(selection_values.get(name, 0.0) if loaded_charts else database_values.get(name, 0.0)),
+                name.casefold(),
+            ),
+        )
+        database_partial = bool(database_analytics.get("partial", False))
+        requested_database_count = int(database_analytics.get("requested_chart_count", database_count) or database_count)
+        if loaded_charts > 0:
+            if database_partial:
+                self.traits_distribution_subheader_label.setText(
+                    "Active custom trait likelihood averages for selected chart(s) relative to a still-warming database average "
+                    f"({database_count:,}/{requested_database_count:,} charts scored so far)."
+                )
+            else:
+                self.traits_distribution_subheader_label.setText(
+                    "Active custom trait likelihood averages for selected chart(s) relative to database average."
+                )
+        else:
+            if database_partial:
+                self.traits_distribution_subheader_label.setText(
+                    "Average active custom trait likelihoods across a time-bounded sample while the cache warms "
+                    f"({database_count:,}/{requested_database_count:,} non-placeholder database charts scored so far)."
+                )
+            else:
+                self.traits_distribution_subheader_label.setText(
+                    f"Average active custom trait likelihoods across {database_count:,} non-placeholder database charts."
+                )
+        self._clear_layout(self.traits_distribution_chart_layout)
+        if ordered_labels and database_count > 0:
+            color_lookup = dict(database_analytics.get("colors", {}))
+            color_lookup.update(selection_analytics.get("colors", {}))
+            canvas = self._build_dominant_planet_chart(
+                selection_planets={name: selection_values.get(name, 0.0) for name in ordered_labels},
+                database_planets={name: database_values.get(name, 0.0) for name in ordered_labels},
+                selection_planet_counts={name: selection_count for name in ordered_labels},
+                database_planet_counts={name: database_count for name in ordered_labels},
+                loaded_charts=loaded_charts,
+                labels=ordered_labels,
+                force_value_fallback_colors=False,
+                label_colors={name: color_lookup.get(name, DEFAULT_TRAIT_COLOR) for name in ordered_labels},
+                include_count_prefixes=False,
+                auto_height=True,
+            )
+            self.traits_distribution_chart_layout.addWidget(canvas, 0)
+        else:
+            self.traits_distribution_chart_layout.addWidget(
+                self._build_text_analysis_widget(["No active traits available. Add or reactivate traits in Settings > Traits."]),
+                0,
+                Qt.AlignTop,
+            )
+        self._analysis_chart_export_rows["traits_distribution"] = self._build_analysis_export_rows(
+            labels=ordered_labels,
+            selection_values=[selection_values.get(label, 0.0) for label in ordered_labels],
+            database_values=[database_values.get(label, 0.0) for label in ordered_labels],
+            selection_counts=[selection_count for _label in ordered_labels],
+            database_counts=[database_count for _label in ordered_labels],
+            loaded_charts=loaded_charts,
+        )
 
     @staticmethod
     def _extract_birthplace_components(raw_place: str) -> tuple[str | None, str | None, str | None]:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import html
+import math
 import random
 import re
 import statistics
@@ -35,7 +36,8 @@ from ephemeraldaddy.core.chart import chart_uses_houses
 from ephemeraldaddy.analysis.weighted_chart_predictor import (
     DEFAULT_CATEGORY_WEIGHTS as WEIGHTED_PREDICTOR_DEFAULT_CATEGORY_WEIGHTS,
     DOMINANCE_NORMALIZATION_SHARE,
-    TYPE_SIGNATURE_SCALE_NONE,
+    PREDICTION_SCORE_MODE_OPPORTUNITY,
+    TYPE_SIGNATURE_SCALE_SQRT,
     WeightedPredictorScoringOptions,
     calculate_weighted_criteria_scores,
     coerce_scoring_options,
@@ -53,8 +55,10 @@ ENNEAGRAM_SCORING_OPTIONS = WeightedPredictorScoringOptions(
     use_aspect_dominance_weighting=True,
     simplify_anti_factor_handling=True,
     average_scores_by_criterion_count=False,
-    type_signature_scale_mode=TYPE_SIGNATURE_SCALE_NONE,
+    type_signature_scale_mode=TYPE_SIGNATURE_SCALE_SQRT,
+    score_mode=PREDICTION_SCORE_MODE_OPPORTUNITY,
     dominance_normalization_mode=DOMINANCE_NORMALIZATION_SHARE,
+    use_mutual_exclusive_bucket_scoring=True,
     human_design_activation_weight=1.0,
 )
 ENNEAGRAM_REALM_DISPLAY_ORDER = ("head", "heart", "body")
@@ -89,8 +93,10 @@ def default_enneagram_scoring_options() -> WeightedPredictorScoringOptions:
         use_aspect_dominance_weighting=True,
         simplify_anti_factor_handling=True,
         average_scores_by_criterion_count=False,
-        type_signature_scale_mode=TYPE_SIGNATURE_SCALE_NONE,
+        type_signature_scale_mode=TYPE_SIGNATURE_SCALE_SQRT,
+        score_mode=PREDICTION_SCORE_MODE_OPPORTUNITY,
         dominance_normalization_mode=DOMINANCE_NORMALIZATION_SHARE,
+        use_mutual_exclusive_bucket_scoring=True,
         human_design_activation_weight=1.0,
     )
 
@@ -107,7 +113,9 @@ def merge_enneagram_scoring_options(payload: Any) -> WeightedPredictorScoringOpt
         "simplify_anti_factor_handling": defaults.simplify_anti_factor_handling,
         "average_scores_by_criterion_count": defaults.average_scores_by_criterion_count,
         "type_signature_scale_mode": defaults.type_signature_scale_mode,
+        "score_mode": defaults.score_mode,
         "dominance_normalization_mode": defaults.dominance_normalization_mode,
+        "use_mutual_exclusive_bucket_scoring": defaults.use_mutual_exclusive_bucket_scoring,
         "human_design_activation_weight": defaults.human_design_activation_weight,
     }
     merged.update(payload)
@@ -130,8 +138,10 @@ def enneagram_scoring_options_to_payload(options: WeightedPredictorScoringOption
         "use_aspect_dominance_weighting": bool(options.use_aspect_dominance_weighting),
         "simplify_anti_factor_handling": bool(options.simplify_anti_factor_handling),
         "average_scores_by_criterion_count": bool(options.average_scores_by_criterion_count),
-        "type_signature_scale_mode": str(options.type_signature_scale_mode or TYPE_SIGNATURE_SCALE_NONE),
+        "type_signature_scale_mode": str(options.type_signature_scale_mode or TYPE_SIGNATURE_SCALE_SQRT),
+        "score_mode": str(options.score_mode or PREDICTION_SCORE_MODE_OPPORTUNITY),
         "dominance_normalization_mode": str(options.dominance_normalization_mode or DOMINANCE_NORMALIZATION_SHARE),
+        "use_mutual_exclusive_bucket_scoring": bool(options.use_mutual_exclusive_bucket_scoring),
         "human_design_activation_weight": float(options.human_design_activation_weight),
     }
 
@@ -152,16 +162,46 @@ def merge_enneagram_category_weights(payload: Any) -> dict[str, float]:
     return merged
 
 
+def _coerce_complete_enneagram_type_scores(cached_scores: Any) -> dict[int, float] | None:
+    """Return a complete finite 1-9 score cache, or None when it must be recalculated."""
+    if not isinstance(cached_scores, dict):
+        return None
+    coerced: dict[int, float] = {}
+    for enneagram_type in range(1, 10):
+        if enneagram_type in cached_scores:
+            raw_score = cached_scores[enneagram_type]
+        elif str(enneagram_type) in cached_scores:
+            raw_score = cached_scores[str(enneagram_type)]
+        else:
+            return None
+        try:
+            score = float(raw_score)
+        except (TypeError, ValueError):
+            return None
+        if not math.isfinite(score):
+            return None
+        coerced[enneagram_type] = score
+    return coerced
+
+
 def cache_enneagram_prediction_metadata(chart: Any, scores: dict[int, float]) -> dict[int, float]:
     """Write ranked Enneagram prediction metadata back onto a chart object."""
+    normalized_scores: dict[int, float] = {}
+    for enneagram_type in range(1, 10):
+        try:
+            score = float(scores.get(enneagram_type, 0.0))
+        except (AttributeError, TypeError, ValueError):
+            score = 0.0
+        normalized_scores[enneagram_type] = score if math.isfinite(score) else 0.0
+
     ranked_scores = sorted(
-        ((int(enneagram_type), float(score)) for enneagram_type, score in scores.items()),
+        normalized_scores.items(),
         key=lambda item: (-item[1], item[0]),
     )
+    chart.enneagram_type_weights = {
+        enneagram_type: score for enneagram_type, score in ranked_scores
+    }
     if ranked_scores and ranked_scores[0][1] > 0:
-        chart.enneagram_type_weights = {
-            enneagram_type: score for enneagram_type, score in ranked_scores
-        }
         chart.dominant_enneagram_type = ranked_scores[0][0]
         chart.top_three_enneagram_types = [
             enneagram_type
@@ -169,10 +209,9 @@ def cache_enneagram_prediction_metadata(chart: Any, scores: dict[int, float]) ->
             if score > 0
         ]
     else:
-        chart.enneagram_type_weights = {}
         chart.dominant_enneagram_type = None
         chart.top_three_enneagram_types = []
-    return scores
+    return normalized_scores
 
 
 def set_enneagram_category_weights(overrides: dict[str, float] | None) -> None:
@@ -425,7 +464,13 @@ def draw_enneagram_predictions(
         f"{num} {str(enneagram.get(num, {}).get('name', '')).strip()}".strip()
         for num in range(1, 10)
     ]
-    type_scores = calculate_type_weights(chart)
+    cached_scores = _coerce_complete_enneagram_type_scores(
+        getattr(chart, "enneagram_type_weights", None)
+    )
+    if cached_scores is not None:
+        type_scores = cached_scores
+    else:
+        type_scores = calculate_type_weights(chart)
     values = [float(type_scores.get(num, 0.0)) for num in range(1, 10)]
     max_value = max(values) if values else 0.0
     avg_value = (sum(values) / len(values)) if values else 0.0
@@ -464,7 +509,10 @@ def draw_enneagram_predictions(
     ax.figure.tight_layout()
     ax.figure.subplots_adjust(
         left=standard_chart_layout["left"],
-        bottom=standard_chart_layout["bottom"],
+        # Enneagram labels include both type numbers and names; reserve about
+        # 20px more bottom padding in Chart View's 240px graph canvas so the
+        # vertical labels are not clipped by the Predictions panel viewport.
+        bottom=max(float(standard_chart_layout["bottom"]), 0.28),
         top=standard_chart_layout["top"],
         right=standard_chart_layout["right"],
     )
@@ -893,6 +941,11 @@ class EnneagramPredictionPanelAdapter:
         )
 
     def cache_metadata(self, chart: Any) -> dict[int, float]:
+        cached_scores = _coerce_complete_enneagram_type_scores(
+            getattr(chart, "enneagram_type_weights", None)
+        )
+        if cached_scores is not None:
+            return cached_scores
         scores = self.calculate_type_weights(chart)
         return cache_enneagram_prediction_metadata(chart, scores)
 
@@ -911,15 +964,27 @@ class EnneagramPredictionPanelAdapter:
                     "<b>Predicted Tritype:</b> —" if chart is None else "<b>Predicted Tritype:</b> No data"
                 )
             return
+        scores = self.cache_metadata(chart)
+
+        def _draw_with_cached_scores(ax: Any, draw_chart: Any) -> None:
+            draw_enneagram_predictions(
+                ax,
+                chart=draw_chart,
+                enneagram=self.enneagram,
+                calculate_type_weights=lambda _chart: scores,
+                chart_theme_colors=self.chart_theme_colors,
+                apply_standard_bar_axes=self.apply_standard_bar_axes,
+                standard_chart_layout=self.standard_chart_layout,
+            )
+
         metric_panel_renderer(
             canvas_attr="enneagram_prediction_canvas",
             container_layout=self.enneagram_prediction_chart_layout,
             figsize=(5.5, 3.2),
             title="Enneagram",
-            draw_fn=self.draw,
+            draw_fn=_draw_with_cached_scores,
             chart=chart,
         )
-        scores = self.cache_metadata(chart)
         if self.tritype_label is not None:
             self.tritype_label.setText(
                 f"<b>Predicted Tritype:</b> {tritype_text_for_scores(scores)}"

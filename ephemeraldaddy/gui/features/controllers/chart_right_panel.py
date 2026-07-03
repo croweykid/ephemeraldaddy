@@ -7,11 +7,16 @@ from typing import Literal
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QAbstractButton, QScrollArea, QWidget
 
+from ephemeraldaddy.core.loading_messages import LoadingMessageRotator
 from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import (
     ChartRightPanelStack,
     build_chart_right_panel_stack,
     prepare_chart_right_panel_for_loading,
     reveal_chart_right_panel_after_loading,
+    schedule_chart_render_for_active_right_panel,
+    set_chart_right_panel,
+    set_chart_right_panel_container_visible,
+    sync_chart_right_panel_placeholder_state,
 )
 
 RightPanelSection = Literal[
@@ -81,6 +86,9 @@ class ChartRightPanelController:
 
     def set_container_visible(self, visible: bool) -> None:
         """Show/hide Chart View's full right-side container."""
+        if self._stack is None and not hasattr(self._owner, "metrics_panel"):
+            set_chart_right_panel_container_visible(self._owner, visible)
+            return
         panel = getattr(self._owner, "metrics_panel", None)
         if panel is None:
             return
@@ -96,6 +104,9 @@ class ChartRightPanelController:
 
     def set_active_panel(self, panel_key: str) -> None:
         """Activate one right-panel section and schedule only its needed renders."""
+        if self._stack is None and not hasattr(self._owner, "chart_right_panel_stack"):
+            set_chart_right_panel(self._owner, panel_key)
+            return
         self._install_expand_autoscroll()
         panel_key = self._resolve_panel_key(panel_key)
         scroll_attr, _button_attr = self._PANEL_ATTRS[panel_key]
@@ -139,6 +150,9 @@ class ChartRightPanelController:
 
     def schedule_render_for_active_panel(self) -> None:
         """Backward-compatible wrapper around schedule_render()."""
+        if self._chart is None and not hasattr(self._owner, "_latest_chart"):
+            schedule_chart_render_for_active_right_panel(self._owner)
+            return
         self.schedule_render()
 
     def schedule_render(self, section: RightPanelSection | None = None) -> None:
@@ -160,23 +174,49 @@ class ChartRightPanelController:
             render_token = self._prediction_render_token(chart)
             if state is not None and state.last_render_chart_token == render_token:
                 return
+            render_traits = getattr(self._owner, "_render_traits_predictions", None)
             render_enneagram = getattr(self._owner, "_render_enneagram_predictions", None)
             render_dndification = getattr(self._owner, "_render_dndification_predictions", None)
-            if callable(render_enneagram):
-                render_enneagram(chart)
-            if callable(render_dndification):
-                render_dndification(chart)
-            if state is not None:
-                state.last_render_chart_token = render_token
+            from ephemeraldaddy.gui.style import (
+                close_app_loading_progress,
+                create_app_loading_progress,
+                update_app_loading_progress,
+            )
+
+            rotator = LoadingMessageRotator(initial_message="Loading Chart View predictions…")
+            progress = create_app_loading_progress(
+                parent=self._owner if isinstance(self._owner, QWidget) else None,
+                title="Chart View Predictions",
+                message=rotator.next(),
+            )
+            try:
+                update_app_loading_progress(progress, "Preparing prediction panels…", 12)
+                if callable(render_traits):
+                    update_app_loading_progress(progress, rotator.next("Loading trait predictions…"), 28)
+                    render_traits(chart)
+                if callable(render_enneagram):
+                    update_app_loading_progress(progress, rotator.next("Loading Enneagram predictions…"), 55)
+                    render_enneagram(chart)
+                if callable(render_dndification):
+                    update_app_loading_progress(progress, rotator.next("Loading D&D predictions…"), 78)
+                    render_dndification(chart)
+                update_app_loading_progress(progress, "Chart View predictions ready.", 100)
+                if state is not None:
+                    state.last_render_chart_token = render_token
+            finally:
+                close_app_loading_progress(progress)
             return
         if active_panel in {"subjective_notes", "anagrams"} and self._is_analysis_section_visible("anagrams"):
             schedule_chart_render = getattr(self._owner, "_schedule_chart_render", None)
             if callable(schedule_chart_render):
                 schedule_chart_render(chart, sections={"anagrams"})
 
-    def sync_placeholder_state(self) -> None:
+    def sync_placeholder_state(self, chart: object | None = None) -> None:
         """Sync tab availability for the current chart without clearing it implicitly."""
-        current_chart = self._chart
+        if chart is not None and self._chart is None and not hasattr(self._owner, "current_chart_id"):
+            sync_chart_right_panel_placeholder_state(self._owner, chart)
+            return
+        current_chart = self._chart if chart is None else chart
         is_placeholder = self._is_placeholder_chart(current_chart)
         is_saved_chart = bool(current_chart is not None and getattr(self._owner, "current_chart_id", None) is not None)
         analytics_available = bool(is_saved_chart and not is_placeholder)

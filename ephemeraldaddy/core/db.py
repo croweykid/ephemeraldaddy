@@ -11,7 +11,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Iterable, List, Tuple, Optional
+from typing import Any, Iterable, List, Mapping, Tuple, Optional
 
 from zoneinfo import ZoneInfo
 from ephemeraldaddy.core.chart import (
@@ -260,7 +260,12 @@ def _is_personal_chart_type_for_age_inference(value: Optional[str]) -> bool:
     return normalized in {CHART_TYPE_PERSONAL, SOURCE_USER_SUBMITTED}
 
 
-SCHEMA_VERSION = 16
+# UID migration rule: chart_uid is the durable app-wide chart identifier.
+# The integer charts.id column is retained only as a local SQLite row key for
+# ordering, joins, and bounded internal lookup adapters while older call sites
+# are migrated. New cross-feature metadata, cache keys, relationships, exports,
+# and user-visible references should use chart_uid instead of chart_id.
+SCHEMA_VERSION = 19
 
 CHART_UID_LENGTH = 16
 
@@ -572,6 +577,129 @@ def _create_duplicate_exclusions_table(conn: sqlite3.Connection) -> None:
         ON duplicate_exclusions(chart_id_high)
         """
     )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS duplicate_exclusions_uid (
+            chart_uid_low  TEXT NOT NULL,
+            chart_uid_high TEXT NOT NULL,
+            created_at     TEXT NOT NULL,
+            PRIMARY KEY (chart_uid_low, chart_uid_high),
+            CHECK (chart_uid_low < chart_uid_high)
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_duplicate_exclusions_uid_low
+        ON duplicate_exclusions_uid(chart_uid_low)
+        """
+    )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_duplicate_exclusions_uid_high
+        ON duplicate_exclusions_uid(chart_uid_high)
+        """
+    )
+    if _charts_table_exists(conn):
+        _ensure_chart_uids(conn)
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO duplicate_exclusions_uid (
+                chart_uid_low,
+                chart_uid_high,
+                created_at
+            )
+            SELECT
+                CASE
+                    WHEN low.chart_uid < high.chart_uid THEN low.chart_uid
+                    ELSE high.chart_uid
+                END AS chart_uid_low,
+                CASE
+                    WHEN low.chart_uid < high.chart_uid THEN high.chart_uid
+                    ELSE low.chart_uid
+                END AS chart_uid_high,
+                legacy.created_at
+            FROM duplicate_exclusions AS legacy
+            JOIN charts AS low ON low.id = legacy.chart_id_low
+            JOIN charts AS high ON high.id = legacy.chart_id_high
+            WHERE low.chart_uid IS NOT NULL
+              AND low.chart_uid != ''
+              AND high.chart_uid IS NOT NULL
+              AND high.chart_uid != ''
+              AND low.chart_uid != high.chart_uid
+            """
+        )
+
+
+def _create_chart_trait_metadata_table(conn: sqlite3.Connection) -> None:
+    if _charts_table_exists(conn):
+        _ensure_chart_uids(conn)
+    existing_columns = _table_columns(conn, "chart_trait_metadata")
+    if existing_columns and "chart_uid" not in existing_columns:
+        conn.execute("ALTER TABLE chart_trait_metadata RENAME TO chart_trait_metadata_legacy")
+        _invalidate_table_columns_cache("chart_trait_metadata")
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS chart_trait_metadata (
+                chart_uid         TEXT NOT NULL,
+                trait_name        TEXT NOT NULL,
+                direction         TEXT NOT NULL,
+                likelihood        REAL NOT NULL,
+                db_average        REAL NOT NULL,
+                deviation         REAL NOT NULL,
+                trait_signature   TEXT NOT NULL,
+                norm_signature    TEXT NOT NULL,
+                chart_signature   TEXT NOT NULL DEFAULT '',
+                updated_at        TEXT NOT NULL,
+                PRIMARY KEY (chart_uid, trait_name),
+                CHECK (direction IN ('above', 'below', 'neutral'))
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO chart_trait_metadata (
+                chart_uid, trait_name, direction, likelihood, db_average,
+                deviation, trait_signature, norm_signature, chart_signature, updated_at
+            )
+            SELECT charts.chart_uid, legacy.trait_name, legacy.direction,
+                   legacy.likelihood, legacy.db_average, legacy.deviation,
+                   legacy.trait_signature, legacy.norm_signature, '', legacy.updated_at
+            FROM chart_trait_metadata_legacy AS legacy
+            JOIN charts ON charts.id = legacy.chart_id
+            WHERE charts.chart_uid IS NOT NULL AND charts.chart_uid != ''
+            """
+        )
+        conn.execute("DROP TABLE chart_trait_metadata_legacy")
+        _invalidate_table_columns_cache("chart_trait_metadata")
+        existing_columns = set()
+    if existing_columns and "chart_signature" not in existing_columns:
+        conn.execute("ALTER TABLE chart_trait_metadata ADD COLUMN chart_signature TEXT NOT NULL DEFAULT ''")
+        _invalidate_table_columns_cache("chart_trait_metadata")
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS chart_trait_metadata (
+            chart_uid         TEXT NOT NULL,
+            trait_name        TEXT NOT NULL,
+            direction         TEXT NOT NULL,
+            likelihood        REAL NOT NULL,
+            db_average        REAL NOT NULL,
+            deviation         REAL NOT NULL,
+            trait_signature   TEXT NOT NULL,
+            norm_signature    TEXT NOT NULL,
+            chart_signature   TEXT NOT NULL DEFAULT '',
+            updated_at        TEXT NOT NULL,
+            PRIMARY KEY (chart_uid, trait_name),
+            CHECK (direction IN ('above', 'below', 'neutral'))
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_chart_trait_metadata_lookup
+        ON chart_trait_metadata(trait_name, direction, chart_uid)
+        """
+    )
 
 
 def _prune_duplicate_exclusions(conn: sqlite3.Connection) -> None:
@@ -580,6 +708,13 @@ def _prune_duplicate_exclusions(conn: sqlite3.Connection) -> None:
         DELETE FROM duplicate_exclusions
         WHERE chart_id_low NOT IN (SELECT id FROM charts)
            OR chart_id_high NOT IN (SELECT id FROM charts)
+        """
+    )
+    conn.execute(
+        """
+        DELETE FROM duplicate_exclusions_uid
+        WHERE chart_uid_low NOT IN (SELECT chart_uid FROM charts WHERE chart_uid IS NOT NULL AND chart_uid != '')
+           OR chart_uid_high NOT IN (SELECT chart_uid FROM charts WHERE chart_uid IS NOT NULL AND chart_uid != '')
         """
     )
 
@@ -1194,6 +1329,7 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
         _migrate_charts_columns(conn)
         _backfill_non_placeholder_birth_date_parts(conn)
     _create_duplicate_exclusions_table(conn)
+    _create_chart_trait_metadata_table(conn)
     if _charts_table_exists(conn):
         _prune_duplicate_exclusions(conn)
 
@@ -1289,6 +1425,22 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
         if _charts_table_exists(conn):
             _clear_dominant_weight_caches(conn)
         conn.execute("PRAGMA user_version = 16")
+        user_version = 16
+
+    if user_version < 17:
+        _create_chart_trait_metadata_table(conn)
+        conn.execute("PRAGMA user_version = 17")
+        user_version = 17
+
+    if user_version < 18:
+        _create_chart_trait_metadata_table(conn)
+        conn.execute("PRAGMA user_version = 18")
+        user_version = 18
+
+    if user_version < 19:
+        _create_duplicate_exclusions_table(conn)
+        _prune_duplicate_exclusions(conn)
+        conn.execute("PRAGMA user_version = 19")
 
 
 def _connect_raw() -> sqlite3.Connection:
@@ -3288,6 +3440,16 @@ def update_chart(
     conn.close()
 
 
+def update_chart_by_uid(chart_uid: str | None, chart, **kwargs: Any) -> None:
+    """Update a saved chart by stable chart UID."""
+    chart_id = get_chart_id_by_uid(chart_uid)
+    normalized_uid = _normalize_chart_uid(chart_uid)
+    if chart_id is None or normalized_uid is None:
+        raise ValueError(f"No chart with UID {chart_uid!r}")
+    setattr(chart, "chart_uid", normalized_uid)
+    update_chart(chart_id, chart, **kwargs)
+
+
 def list_charts() -> List[
     Tuple[
         int,
@@ -3322,7 +3484,7 @@ def list_charts() -> List[
     social_score, chart_type, is_placeholder, is_deceased,
     birth_month, birth_day, birth_year, retcon_hour, retcon_minute,
     from_whence, data_rating, relationship_types, tags, reminds_me_of,
-    dominant_sign_weights, dominant_planet_weights, dominant_mode)
+    dominant_sign_weights, dominant_planet_weights, dominant_mode, chart_uid)
 
     The first 22 fields are kept in their historical order for callers that
     index into the row tuple; lightweight display/filter fields are appended so
@@ -3365,7 +3527,8 @@ def list_charts() -> List[
                reminds_me_of,
                dominant_sign_weights,
                dominant_planet_weights,
-               dominant_mode
+               dominant_mode,
+               chart_uid
         FROM charts
         ORDER BY created_at DESC
         """
@@ -3442,6 +3605,7 @@ def list_charts() -> List[
                 row["dominant_sign_weights"],
                 row["dominant_planet_weights"],
                 row["dominant_mode"],
+                row["chart_uid"],
             )
         )
     return rows
@@ -3449,6 +3613,14 @@ def list_charts() -> List[
 
 def list_duplicate_exclusions() -> set[tuple[int, int]]:
     """Return canonical chart-id pairs explicitly marked as not duplicates."""
+    uid_pairs = list_duplicate_exclusion_uids()
+    if uid_pairs:
+        uid_to_id = get_chart_ids_by_uid(uid for pair in uid_pairs for uid in pair)
+        return {
+            tuple(sorted((int(uid_to_id[left_uid]), int(uid_to_id[right_uid]))))
+            for left_uid, right_uid in uid_pairs
+            if left_uid in uid_to_id and right_uid in uid_to_id
+        }
     conn = _get_conn()
     rows = conn.execute(
         """
@@ -3464,6 +3636,25 @@ def list_duplicate_exclusions() -> set[tuple[int, int]]:
     }
 
 
+def list_duplicate_exclusion_uids() -> set[tuple[str, str]]:
+    """Return canonical chart-UID pairs explicitly marked as not duplicates."""
+    conn = _get_conn()
+    with conn:
+        _create_duplicate_exclusions_table(conn)
+    rows = conn.execute(
+        """
+        SELECT chart_uid_low, chart_uid_high
+        FROM duplicate_exclusions_uid
+        """
+    ).fetchall()
+    conn.close()
+    return {
+        (str(chart_uid_low), str(chart_uid_high))
+        for chart_uid_low, chart_uid_high in rows
+        if chart_uid_low and chart_uid_high
+    }
+
+
 def save_duplicate_exclusions(chart_ids: List[int]) -> int:
     """
     Persist all pair combinations from the provided chart ids as non-duplicates.
@@ -3473,25 +3664,62 @@ def save_duplicate_exclusions(chart_ids: List[int]) -> int:
     normalized_ids = sorted({int(chart_id) for chart_id in chart_ids if chart_id is not None})
     if len(normalized_ids) < 2:
         return 0
+    uid_map = get_chart_uid_map(normalized_ids)
+    return save_duplicate_exclusions_by_uids(uid_map.values())
+
+
+def save_duplicate_exclusions_by_uids(chart_uids: Iterable[str | None]) -> int:
+    """
+    Persist all pair combinations from the provided chart UIDs as non-duplicates.
+
+    Returns the number of newly-inserted pairs.
+    """
+    normalized_uids = sorted(
+        {
+            normalized_uid
+            for raw_uid in chart_uids
+            if (normalized_uid := _normalize_chart_uid(raw_uid)) is not None
+        }
+    )
+    if len(normalized_uids) < 2:
+        return 0
     now_iso = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    pairs: list[tuple[int, int, str]] = []
-    for index, left_id in enumerate(normalized_ids):
-        for right_id in normalized_ids[index + 1 :]:
-            pairs.append((left_id, right_id, now_iso))
+    pairs: list[tuple[str, str, str]] = []
+    for index, left_uid in enumerate(normalized_uids):
+        for right_uid in normalized_uids[index + 1 :]:
+            pairs.append((left_uid, right_uid, now_iso))
     conn = _get_conn()
     inserted = 0
     with conn:
-        for left_id, right_id, created_at in pairs:
-            cursor = conn.execute(
+        _create_duplicate_exclusions_table(conn)
+        for left_uid, right_uid, created_at in pairs:
+            conn.execute(
                 """
                 INSERT OR IGNORE INTO duplicate_exclusions (
                     chart_id_low,
                     chart_id_high,
                     created_at
                 )
+                SELECT
+                    CASE WHEN low.id < high.id THEN low.id ELSE high.id END,
+                    CASE WHEN low.id < high.id THEN high.id ELSE low.id END,
+                    ?
+                FROM charts AS low
+                JOIN charts AS high ON high.chart_uid = ?
+                WHERE low.chart_uid = ?
+                """,
+                (created_at, right_uid, left_uid),
+            )
+            cursor = conn.execute(
+                """
+                INSERT OR IGNORE INTO duplicate_exclusions_uid (
+                    chart_uid_low,
+                    chart_uid_high,
+                    created_at
+                )
                 VALUES (?, ?, ?)
                 """,
-                (left_id, right_id, created_at),
+                (left_uid, right_uid, created_at),
             )
             inserted += int(cursor.rowcount or 0)
     conn.close()
@@ -3536,6 +3764,26 @@ def delete_charts(chart_ids: List[int]) -> int:
     placeholders = ", ".join("?" for _ in chart_ids)
     conn = _get_conn()
     with conn:
+        _create_chart_trait_metadata_table(conn)
+        uid_rows = conn.execute(
+            f"SELECT chart_uid FROM charts WHERE id IN ({placeholders})",
+            chart_ids,
+        ).fetchall()
+        chart_uids = [str(row[0]) for row in uid_rows if row and row[0]]
+        if chart_uids:
+            uid_placeholders = ", ".join("?" for _ in chart_uids)
+            conn.execute(
+                f"DELETE FROM chart_trait_metadata WHERE chart_uid IN ({uid_placeholders})",
+                chart_uids,
+            )
+            conn.execute(
+                f"""
+                DELETE FROM duplicate_exclusions_uid
+                WHERE chart_uid_low IN ({uid_placeholders})
+                   OR chart_uid_high IN ({uid_placeholders})
+                """,
+                chart_uids + chart_uids,
+            )
         cur = conn.execute(
             f"DELETE FROM charts WHERE id IN ({placeholders})",
             chart_ids,
@@ -3550,6 +3798,18 @@ def delete_charts(chart_ids: List[int]) -> int:
         )
     conn.close()
     return cur.rowcount
+
+
+def delete_charts_by_uids(chart_uids: Iterable[str | None]) -> int:
+    """Delete charts by stable chart UID.
+
+    Returns the number of chart rows deleted. Integer-ID cleanup, such as
+    duplicate exclusion pruning, is delegated to the legacy-ID delete helper
+    after resolving UIDs in the current database.
+    """
+    chart_ids = list(get_chart_ids_by_uid(chart_uids).values())
+    return delete_charts(chart_ids)
+
 
 def get_chart_uid_map(chart_ids: Iterable[int] | None = None) -> dict[int, str]:
     """Return stable chart UIDs keyed by local integer chart id."""
@@ -3605,6 +3865,55 @@ def get_chart_uid(chart_id: int | None) -> str | None:
     if chart_id is None:
         return None
     return get_chart_uid_map([int(chart_id)]).get(int(chart_id))
+
+
+def get_chart_id_by_uid(chart_uid: str | None) -> int | None:
+    """Return the local integer row id for a stable chart UID.
+
+    This is intended as a compatibility bridge while app-facing code migrates to
+    UID-first chart references.
+    """
+    normalized_uid = _normalize_chart_uid(chart_uid)
+    if normalized_uid is None:
+        return None
+    conn = _get_conn()
+    try:
+        with conn:
+            _ensure_chart_uids(conn)
+        row = conn.execute(
+            "SELECT id FROM charts WHERE chart_uid = ?",
+            (normalized_uid,),
+        ).fetchone()
+        if row is None:
+            return None
+        return int(row[0])
+    finally:
+        conn.close()
+
+
+def get_chart_ids_by_uid(chart_uids: Iterable[str | None]) -> dict[str, int]:
+    """Return local integer row ids keyed by normalized stable chart UID."""
+    normalized_uids = list(
+        dict.fromkeys(
+            normalized_uid
+            for raw_uid in chart_uids
+            if (normalized_uid := _normalize_chart_uid(raw_uid)) is not None
+        )
+    )
+    if not normalized_uids:
+        return {}
+    placeholders = ", ".join("?" for _ in normalized_uids)
+    conn = _get_conn()
+    try:
+        with conn:
+            _ensure_chart_uids(conn)
+        rows = conn.execute(
+            f"SELECT chart_uid, id FROM charts WHERE chart_uid IN ({placeholders})",
+            tuple(normalized_uids),
+        ).fetchall()
+        return {str(chart_uid): int(chart_id) for chart_uid, chart_id in rows if chart_uid}
+    finally:
+        conn.close()
 
 
 def find_chart_uid_by_name(name: str | None, *, exclude_chart_id: int | None = None) -> str | None:
@@ -3718,6 +4027,94 @@ def set_alternate_chart_uid(chart_id: int, alternate_chart_uid: str | None) -> N
                 "UPDATE charts SET alternate_chart_uid = ? WHERE id = ?",
                 (normalized_uid or "", int(chart_id)),
             )
+    finally:
+        conn.close()
+
+
+def upsert_chart_trait_metadata(
+    chart_uid: str,
+    rows: Iterable[Mapping[str, Any]],
+    *,
+    trait_signature: str,
+    norm_signature: str,
+    chart_signature: str = "",
+) -> None:
+    """Persist derived trait metadata rows for a chart."""
+    normalized_uid = _normalize_chart_uid(chart_uid)
+    if normalized_uid is None:
+        raise ValueError(f"Invalid chart UID {chart_uid!r}")
+    now = datetime.utcnow().isoformat(timespec="seconds")
+    prepared: list[tuple[Any, ...]] = []
+    for row in rows:
+        trait_name = str(row.get("trait_name", "")).strip()
+        if not trait_name:
+            continue
+        direction = str(row.get("direction", "neutral") or "neutral")
+        if direction not in {"above", "below", "neutral"}:
+            direction = "neutral"
+        prepared.append(
+            (
+                normalized_uid,
+                trait_name,
+                direction,
+                float(row.get("likelihood", 0.0)),
+                float(row.get("db_average", 0.0)),
+                float(row.get("deviation", 0.0)),
+                str(trait_signature),
+                str(norm_signature),
+                str(chart_signature),
+                now,
+            )
+        )
+    conn = _get_conn()
+    try:
+        with conn:
+            _create_chart_trait_metadata_table(conn)
+            conn.execute("DELETE FROM chart_trait_metadata WHERE chart_uid = ?", (normalized_uid,))
+            if prepared:
+                conn.executemany(
+                    """
+                    INSERT INTO chart_trait_metadata (
+                        chart_uid, trait_name, direction, likelihood, db_average,
+                        deviation, trait_signature, norm_signature, chart_signature, updated_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(chart_uid, trait_name) DO UPDATE SET
+                        direction = excluded.direction,
+                        likelihood = excluded.likelihood,
+                        db_average = excluded.db_average,
+                        deviation = excluded.deviation,
+                        trait_signature = excluded.trait_signature,
+                        norm_signature = excluded.norm_signature,
+                        chart_signature = excluded.chart_signature,
+                        updated_at = excluded.updated_at
+                    """,
+                    prepared,
+                )
+    finally:
+        conn.close()
+
+
+def get_chart_trait_metadata(chart_uid: str) -> list[dict[str, Any]]:
+    """Return persisted derived trait metadata rows for a chart UID."""
+    normalized_uid = _normalize_chart_uid(chart_uid)
+    if normalized_uid is None:
+        return []
+    conn = _get_conn()
+    conn.row_factory = sqlite3.Row
+    try:
+        _create_chart_trait_metadata_table(conn)
+        rows = conn.execute(
+            """
+            SELECT trait_name, direction, likelihood, db_average, deviation,
+                   trait_signature, norm_signature, chart_signature, updated_at
+            FROM chart_trait_metadata
+            WHERE chart_uid = ?
+            ORDER BY trait_name COLLATE NOCASE
+            """,
+            (normalized_uid,),
+        ).fetchall()
+        return [dict(row) for row in rows]
     finally:
         conn.close()
 
@@ -4073,10 +4470,56 @@ def load_chart_rows_for_ids(chart_ids: Iterable[int]) -> dict[int, sqlite3.Row]:
         conn.close()
 
 
+def load_chart_rows_for_uids(chart_uids: Iterable[str | None]) -> dict[str, sqlite3.Row]:
+    """Load raw chart rows for many stable chart UIDs using one database query."""
+    unique_uids = list(
+        dict.fromkeys(
+            normalized_uid
+            for raw_uid in chart_uids
+            if (normalized_uid := _normalize_chart_uid(raw_uid)) is not None
+        )
+    )
+    if not unique_uids:
+        return {}
+    conn = _get_conn()
+    conn.row_factory = sqlite3.Row
+    try:
+        with conn:
+            _ensure_chart_uids(conn)
+        columns = _table_columns(conn, "charts")
+        projection = _chart_row_projection(columns)
+        placeholders = ", ".join("?" for _ in unique_uids)
+        rows = conn.execute(
+            f"""
+            SELECT id, {projection}
+            FROM charts
+            WHERE chart_uid IN ({placeholders})
+            """,
+            unique_uids,
+        ).fetchall()
+        rows_by_uid = {str(row["chart_uid"]): row for row in rows if row["chart_uid"]}
+        return {
+            chart_uid: rows_by_uid[chart_uid]
+            for chart_uid in unique_uids
+            if chart_uid in rows_by_uid
+        }
+    finally:
+        conn.close()
+
+
 def load_charts(chart_ids: Iterable[int]) -> dict[int, Chart]:
     """Load many charts with a single SELECT and reconstruct them in memory."""
     rows_by_id = load_chart_rows_for_ids(chart_ids)
     return {chart_id: _chart_from_row(chart_id, row) for chart_id, row in rows_by_id.items()}
+
+
+def load_charts_by_uids(chart_uids: Iterable[str | None]) -> dict[str, Chart]:
+    """Load many charts by stable chart UID and reconstruct them in memory."""
+    rows_by_uid = load_chart_rows_for_uids(chart_uids)
+    return {
+        chart_uid: _chart_from_row(int(row["id"]), row)
+        for chart_uid, row in rows_by_uid.items()
+    }
 
 
 def load_chart(chart_id: int):
@@ -4090,6 +4533,22 @@ def load_chart(chart_id: int):
     chart = charts.get(chart_id)
     if chart is None:
         raise ValueError(f"No chart with id {chart_id}")
+    return chart
+
+
+def load_chart_by_uid(chart_uid: str | None):
+    """
+    Load a chart from the DB by stable chart UID and reconstruct a Chart instance.
+
+    Raises ValueError if no such chart exists.
+    """
+    normalized_uid = _normalize_chart_uid(chart_uid)
+    if normalized_uid is None:
+        raise ValueError(f"No chart with UID {chart_uid!r}")
+    charts = load_charts_by_uids([normalized_uid])
+    chart = charts.get(normalized_uid)
+    if chart is None:
+        raise ValueError(f"No chart with UID {normalized_uid}")
     return chart
 
 def load_dominant_sign_weights(

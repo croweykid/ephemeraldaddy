@@ -172,7 +172,7 @@ What they’re good for:
 - Chart View calculations, wheels, Human Design, BaZi, notes, and future reference.
 
 What they’re not used for:
-- Database Analytics, Similar Charts, Similarities Calculator, Astro Twin matching, or database averages."""
+- Database Analytics, Similar Charts, Astro Twin Calculator, Astro Twin matching, or database averages."""
         ),
         keywords=("chart type", "placeholder", "hypothetical", "interpretation"),
     ),

@@ -24,3 +24,41 @@ def test_public_similarity_dominance_profiles_use_similarity_source_shapes():
     assert body_weights["Moon"] > 0
     assert house_weights[1] > 0
     assert house_weights[2] > 0
+
+
+def test_distribution_similarity_preserves_zero_overlap_components():
+    from ephemeraldaddy.analysis.get_astro_twin import _distribution_similarity
+
+    query = SimpleNamespace(
+        positions={"Sun": 0.0, "Moon": 120.0},  # Fire: cardinal + fixed
+    )
+    candidate = SimpleNamespace(
+        positions={"Sun": 270.0, "Moon": 30.0},  # Earth: cardinal + fixed
+    )
+
+    assert _distribution_similarity(query, candidate) == 0.5
+
+
+def test_distribution_profile_cache_invalidates_when_dominance_weights_change():
+    from ephemeraldaddy.analysis.get_astro_twin import _element_mode_distribution_profile
+
+    chart = SimpleNamespace(
+        positions={"Sun": 0.0, "Moon": 30.0},
+        dominant_planet_weights={"Sun": 1.0, "Moon": 1.0},
+    )
+
+    first_elements, _first_modes = _element_mode_distribution_profile(chart)
+    chart.dominant_planet_weights = {"Sun": 10.0, "Moon": 1.0}
+    second_elements, _second_modes = _element_mode_distribution_profile(chart)
+
+    assert first_elements["fire"] == first_elements["earth"]
+    assert second_elements["fire"] > second_elements["earth"]
+
+
+def test_defined_centers_similarity_uses_stored_human_design_channels():
+    from ephemeraldaddy.analysis.get_astro_twin import _defined_centers
+
+    chart = SimpleNamespace(human_design_channels=["64-47"])
+
+    assert _defined_centers(chart) == {"head", "ajna"}
+    assert chart.human_design_defined_centers == ["ajna", "head"]

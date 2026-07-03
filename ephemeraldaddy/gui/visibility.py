@@ -15,7 +15,9 @@ CHART_DATA_KEYS: dict[str, bool] = {
     "popout.synastry_aspect_weights": False,
     "chart_analytics.planet_dynamics": False,
     "chart_analytics.anagrams": False,
+    "chart_view.sexiness": False,
     "charts.standard_deviation_indicators": True,
+    "analytics.dnd_statblock_explainers": False,
 }
 
 DATABASE_ANALYTICS_VISIBILITY_KEYS: dict[str, bool] = {
@@ -41,6 +43,7 @@ DATABASE_ANALYTICS_SECTION_KEYS: dict[str, bool] = {
     "database_metrics.birth_month": False,
     "database_metrics.birthplace": False,
     "database_metrics.tag_distribution": False,
+    "database_metrics.traits_distribution": False,
     "database_metrics.gender": False,
     "database_metrics.human_design": False,
     "database_metrics.bazi": True,

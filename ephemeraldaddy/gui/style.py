@@ -1,4 +1,7 @@
 """Shared GUI styling and interface constants."""
+import html
+import re
+
 from PySide6.QtCore import (
     QEasingCurve,
     QEvent,
@@ -7,7 +10,9 @@ from PySide6.QtCore import (
     QPoint,
     QPropertyAnimation,
     QSize,
+    QTimer,
     Qt,
+    QEventLoop,
     #QVariantAnimation,
 )
 from PySide6.QtGui import QFont, QIcon#, QFontMetrics
@@ -18,9 +23,18 @@ from PySide6.QtWidgets import (
     #QGraphicsOpacityEffect,
     #QLabel,
     QListView,
+    QProgressDialog,
+    QScrollArea,
     QSizePolicy,
     QToolButton,
     QWidget,
+)
+
+from ephemeraldaddy.core.interpretations import (
+    ASPECT_COLORS,
+    NAKSHATRA_PLANET_COLOR,
+    PLANET_COLORS,
+    SIGN_COLORS,
 )
 
 
@@ -76,6 +90,44 @@ def install_appwide_cursor_defaults(app: QApplication) -> None:
     app._edd_appwide_cursor_defaults_installed = True  # type: ignore[attr-defined]
     cursor_filter._apply_to_object(app)
 
+
+# Appwide widget styling shared by Chart View, Database View, and utility panels.
+# Keep text-entry controls charcoal instead of pure black so field boundaries stay
+# visible against the dark application background.
+APPWIDE_TEXT_INPUT_BACKGROUND_COLOR = "#222222"
+APPWIDE_TEXT_INPUT_BORDER_COLOR = "#444444"
+APPWIDE_BUTTON_BACKGROUND_COLOR = "#333333"
+APPWIDE_BUTTON_HOVER_BACKGROUND_COLOR = "#444444"
+APPWIDE_BUTTON_BORDER_COLOR = "#555555"
+APPWIDE_PLAIN_TEXT_INPUT_BACKGROUND_COLOR = "#181818"
+
+APPWIDE_DARK_THEME_STYLESHEET = f"""
+QMainWindow {{
+    background-color: #111111;
+}}
+QWidget {{
+    color: #f5f5f5;
+    background-color: #111111;
+    font-size: 13px;
+}}
+QLineEdit, QDateEdit, QTimeEdit, QTextEdit, QPlainTextEdit {{
+    background-color: {APPWIDE_TEXT_INPUT_BACKGROUND_COLOR};
+    border: 1px solid {APPWIDE_TEXT_INPUT_BORDER_COLOR};
+    padding: 4px;
+}}
+QPushButton {{
+    background-color: {APPWIDE_BUTTON_BACKGROUND_COLOR};
+    border: 1px solid {APPWIDE_BUTTON_BORDER_COLOR};
+    padding: 6px 10px;
+}}
+QPushButton:hover {{
+    background-color: {APPWIDE_BUTTON_HOVER_BACKGROUND_COLOR};
+}}
+QPlainTextEdit {{
+    background-color: {APPWIDE_PLAIN_TEXT_INPUT_BACKGROUND_COLOR};
+}}
+"""
+
 DARK_THEME = {
     "background": "#111111",
     "foreground": "#f5f5f5",
@@ -92,6 +144,15 @@ CHART_THEME_COLORS = {
     "accent": "#6fa8dc",
 }
 
+# Shared Chart Data Output separator styling. This is intentionally a visual-only
+# ghost for existing whitespace between padded table columns: the underlying
+# plain text remains unchanged so fixed-width column positions do not shift.
+SEPARATOR_STYLE = {
+    "character": ".",
+    "color": "#555555",
+    "minimum_space_run": 2,
+}
+
 GENDER_GUESSER_COLORS = {
     "masculine": "#f16464",
     "feminine": "#7bdb7b",
@@ -100,6 +161,221 @@ GENDER_GUESSER_COLORS = {
 
 MIDDLE_PANEL_ACCENT_COLOR = "#c8914f"
 CHART_DATA_HIGHLIGHT_COLOR = MIDDLE_PANEL_ACCENT_COLOR
+
+CHART_INFO_POSITIVE_WEIGHT_COLOR = "#39ff6a"
+CHART_INFO_NEGATIVE_WEIGHT_COLOR = "#ff4d4d"
+
+
+APP_LOADING_PROGRESS_STYLESHEET = """
+QProgressDialog {
+    background: rgba(22, 18, 30, 245);
+    color: #f1e8ff;
+    border: 1px solid #8a2be2;
+    border-radius: 8px;
+}
+QProgressDialog QLabel {
+    color: #f1e8ff;
+    font-size: 11px;
+    font-weight: 600;
+}
+QProgressBar {
+    border: 1px solid #3f3f3f;
+    border-radius: 4px;
+    background: #101010;
+    color: #f1e8ff;
+    text-align: center;
+}
+QProgressBar::chunk {
+    background-color: #9933ff;
+    border-radius: 3px;
+}
+QPushButton {
+    background-color: #333333;
+    border: 1px solid #555555;
+    border-radius: 4px;
+    color: #f5f5f5;
+    padding: 5px 10px;
+}
+QPushButton:hover {
+    background-color: #444444;
+}
+"""
+
+
+def create_app_loading_progress(
+    *,
+    parent: QWidget | None = None,
+    title: str = "Loading",
+    message: str = "Preparing…",
+    cancel_text: str | None = None,
+    minimum: int = 0,
+    maximum: int = 100,
+) -> QProgressDialog:
+    """Create the universal in-app loading progress dialog (not startup splash)."""
+    progress = QProgressDialog(message, cancel_text or "", minimum, maximum, parent)
+    progress.setWindowTitle(title)
+    progress.setWindowModality(Qt.WindowModal)
+    progress.setMinimumDuration(0)
+    progress.setAutoClose(False)
+    progress.setAutoReset(False)
+    progress.setStyleSheet(APP_LOADING_PROGRESS_STYLESHEET)
+    if cancel_text is None:
+        progress.setCancelButton(None)
+    progress.setValue(minimum)
+    progress.show()
+    QApplication.processEvents(QEventLoop.AllEvents, 50)
+    return progress
+
+
+def update_app_loading_progress(
+    progress: QProgressDialog | None,
+    message: str,
+    percent: int | float | None = None,
+) -> None:
+    """Update the universal in-app loading progress dialog."""
+    if progress is None:
+        return
+    bounded_percent = 0 if percent is None else int(max(0, min(100, round(float(percent)))))
+    progress.setLabelText(f"{message} ({bounded_percent}%)")
+    progress.setValue(bounded_percent)
+    QApplication.processEvents(QEventLoop.AllEvents, 50)
+
+
+def close_app_loading_progress(progress: QProgressDialog | None) -> None:
+    """Close the universal in-app loading progress dialog."""
+    if progress is None:
+        return
+    progress.close()
+    QApplication.processEvents(QEventLoop.AllEvents, 50)
+
+
+def human_design_type_display_name(value: object) -> str:
+    """Return the appwide display label for a Human Design type key/value."""
+    text = str(value or "").strip()
+    normalized = re.sub(r"[^a-z0-9]+", "_", text.casefold()).strip("_")
+    if normalized == "manifesting_generator":
+        return "Manifesting Generator"
+    if normalized:
+        return normalized.replace("_", " ").title()
+    return text
+
+
+def _chart_info_center_colors() -> dict[str, str]:
+    from ephemeraldaddy.analysis.human_design_reference import HD_CENTERS
+
+    return {
+        str(center_data.get("center", "")).strip(): str(center_data.get("color", ""))
+        for center_data in HD_CENTERS.values()
+        if isinstance(center_data, dict)
+        and str(center_data.get("center", "")).strip()
+        and str(center_data.get("color", "")).strip()
+    }
+
+
+def chart_info_token_color_map() -> dict[str, str]:
+    """Return appwide Chart Info text-token colors from canonical reference data."""
+    from ephemeraldaddy.analysis.human_design_reference import (
+        GATE_COLORS,
+        HD_AUTHORITY_COLORS,
+        HD_LINE_COLORS,
+        HD_TYPE_COLORS,
+    )
+
+    colors: dict[str, str] = {}
+    colors.update({str(name): str(color) for name, color in SIGN_COLORS.items() if color})
+    colors.update({str(name): str(color) for name, color in PLANET_COLORS.items() if color})
+    colors.update(
+        {
+            str(name): str(color)
+            for name, (_ruler, color) in NAKSHATRA_PLANET_COLOR.items()
+            if color
+        }
+    )
+    colors.update({str(name).replace("_", " ").title(): str(color) for name, color in ASPECT_COLORS.items() if color})
+    colors.update(_chart_info_center_colors())
+    colors.update({f"Gate {gate}": str(color) for gate, color in GATE_COLORS.items() if color})
+    colors.update({f"Line {line}": str(color) for line, color in HD_LINE_COLORS.items() if color})
+    colors.update({str(key): str(color) for key, color in HD_AUTHORITY_COLORS.items() if color})
+    colors.update(
+        {
+            human_design_type_display_name(key): str(color or "#6699ff")
+            for key, color in HD_TYPE_COLORS.items()
+        }
+    )
+    return colors
+
+
+def _sorted_chart_info_tokens() -> list[tuple[str, str]]:
+    return sorted(chart_info_token_color_map().items(), key=lambda item: len(item[0]), reverse=True)
+
+
+def _colorized_plain_chart_info_fragment(text: str) -> str:
+    """Escape and colorize one non-HTML fragment of Chart Info text."""
+    if not text:
+        return ""
+    text = html.unescape(text)
+    tokens = _sorted_chart_info_tokens()
+    pattern_parts = [re.escape(token) for token, _color in tokens if token]
+    weight_pattern = r"(?<![\w.])[-+]\d+(?:\.\d+)?(?![\w.])"
+    channel_pattern = r"\bChannel\s+\d{1,2}-\d{1,2}\b"
+    if pattern_parts:
+        token_pattern = "|".join(pattern_parts)
+        pattern = re.compile(f"({weight_pattern})|({channel_pattern})|({token_pattern})", re.IGNORECASE)
+    else:
+        pattern = re.compile(f"({weight_pattern})|({channel_pattern})", re.IGNORECASE)
+    color_by_casefold = {token.casefold(): color for token, color in tokens}
+
+    rendered: list[str] = []
+    last = 0
+    for match in pattern.finditer(text):
+        rendered.append(html.escape(text[last:match.start()]))
+        raw = match.group(0)
+        color = None
+        if re.match(weight_pattern, raw):
+            color = CHART_INFO_POSITIVE_WEIGHT_COLOR if raw.startswith("+") else CHART_INFO_NEGATIVE_WEIGHT_COLOR
+        elif re.match(channel_pattern, raw, re.IGNORECASE):
+            color = CHART_DATA_HIGHLIGHT_COLOR
+        else:
+            color = color_by_casefold.get(raw.casefold())
+        escaped = html.escape(raw)
+        rendered.append(
+            f'<span style="color:{html.escape(str(color), quote=True)};font-weight:700;">{escaped}</span>'
+            if color
+            else escaped
+        )
+        last = match.end()
+    rendered.append(html.escape(text[last:]))
+    return "".join(rendered)
+
+
+def colorize_chart_info_html(html_text: str) -> str:
+    """Apply universal Chart Info token/weight colors without disturbing markup."""
+    source = str(html_text or "")
+    if not source:
+        return ""
+    parts = re.split(r"(<[^>]+>)", source)
+    return "".join(part if part.startswith("<") and part.endswith(">") else _colorized_plain_chart_info_fragment(part) for part in parts)
+
+
+def chart_info_text_to_html(text: str) -> str:
+    """Convert plain Chart Info text to HTML and apply universal token colors."""
+    return _colorized_plain_chart_info_fragment(str(text or "")).replace("\n", "<br>")
+
+
+def set_chart_info_text(widget: QWidget, text: str) -> None:
+    """Set Chart Info plain text with the appwide reusable color formatter."""
+    if hasattr(widget, "setHtml"):
+        widget.setHtml(chart_info_text_to_html(text))
+    elif hasattr(widget, "setPlainText"):
+        widget.setPlainText(text)
+
+
+def set_chart_info_html(widget: QWidget, html_text: str) -> None:
+    """Set Chart Info HTML with the appwide reusable color formatter."""
+    if hasattr(widget, "setHtml"):
+        widget.setHtml(colorize_chart_info_html(html_text))
+    elif hasattr(widget, "setPlainText"):
+        widget.setPlainText(re.sub(r"<[^>]+>", "", str(html_text or "")))
 
 
 EARTH_TONE_COLOR_CYCLE = (
@@ -241,21 +517,33 @@ QUAD_STATE_SLIDER_VISUALS = {
     "true": {
         "text": "✓",
         "style": "background: #19391f; color: #4de06c; border: 1px solid #2d6a38;",
+        "background": "#19391f",
+        "foreground": "#4de06c",
+        "border": "#2d6a38",
         "tooltip": "All selected charts have this property.",
     },
     "false": {
         "text": "✕",
         "style": "background: #3a1717; color: #ff6b6b; border: 1px solid #7b2d2d;",
+        "background": "#3a1717",
+        "foreground": "#ff6b6b",
+        "border": "#7b2d2d",
         "tooltip": "All selected charts are set negative for this property.",
     },
     "mixed": {
         "text": "–",
         "style": "background: #2b2b2b; color: #b0b0b0; border: 1px solid #5a5a5a;",
+        "background": "#2b2b2b",
+        "foreground": "#b0b0b0",
+        "border": "#5a5a5a",
         "tooltip": "Selection has mixed values for this property.",
     },
     "empty": {
         "text": "",
         "style": "background: #111; color: #ddd; border: 1px solid #444;",
+        "background": "#111111",
+        "foreground": "#dddddd",
+        "border": "#444444",
         "tooltip": "No value set.",
     },
 }
@@ -473,6 +761,16 @@ RELATIVE_YEAR_COLORS = {
     "other":"#ffffff"
 }
 
+ARROW_STYLES = {
+#"nope":"➡",
+"classic":"→",
+"sensible":"→",
+"ascii":"˃",
+#"weirdo":"↝",
+"aggro":"↦",
+"superfast":"↠",
+}
+
 MIDDLE_PANEL_PLACEHOLDER_COLOR_RGBA = "rgba(200, 145, 79, 0.92)"
 CHART_VIEW_TIME_INPUT_WIDTH = 78
 CHART_VIEW_TIME_INPUT_DISPLAY_FORMAT = "HH:mm"
@@ -480,8 +778,13 @@ CHART_VIEW_TIME_OVERWRITE_ENABLED = True
 CHART_VIEW_RECTIFIED_GROUP_LEFT_SPACER = 12
 CHART_VIEW_RECTIFIED_LABEL_CHECKBOX_SPACING = 4
 DATABASE_VIEW_HEADER_COLOR = MIDDLE_PANEL_ACCENT_COLOR
-COLLAPSIBLE_SECTION_BACKGROUND = "#0f0515" #362b3d # Database View panel/section backgrounds should stay pure black.
+COLLAPSIBLE_SECTION_BACKGROUND = "#050505"  # Standard appwide black for regular sections and subsections.
+COLLAPSIBLE_NESTED_SECTION_BACKGROUND = "#16071f"  # Subtle dark purple for sections containing nested collapsibles.
+COLLAPSIBLE_HEADER_BACKGROUND = "#101010"  # Dark charcoal for clickable collapsible headers.
 COLLAPSIBLE_SECTION_CONTENT_STYLE = f"background-color: {COLLAPSIBLE_SECTION_BACKGROUND};"
+COLLAPSIBLE_NESTED_SECTION_CONTENT_STYLE = (
+    f"background-color: {COLLAPSIBLE_NESTED_SECTION_BACKGROUND};"
+)
 DATABASE_VIEW_PANEL_HEADER_STYLE = (
     f"font-weight: bold; font-size: 14.5px; color: {DATABASE_VIEW_HEADER_COLOR};"
 )
@@ -493,7 +796,7 @@ COLLAPSIBLE_SECTION_HEADER_WIGGLE_OFFSET_PX = 4
 def collapsible_section_header_toggle_style(
     *,
     text_color: str,
-    background_color: str = COLLAPSIBLE_SECTION_BACKGROUND,
+    background_color: str = COLLAPSIBLE_HEADER_BACKGROUND,
 ) -> str:
     """Return the appwide expandable/collapsible section-header text rule."""
     return (
@@ -526,6 +829,7 @@ CHART_DATA_SECTION_HEADERS = (
     "HOUSES",
     "ASPECTS",
     "BODYGRAPH PROPERTIES",
+    "UNCERTAIN TIME VARIANTS",
     "DEFINED CENTERS",
     "GATES",
     "LINES",
@@ -641,6 +945,78 @@ def _install_collapsible_header_interactions(toggle: QToolButton, style_sheet: s
             )
         )
         toggle.setProperty("collapsible_header_wiggle_installed", True)
+    if not toggle.property("collapsible_header_autoscroll_installed"):
+        toggle.toggled.connect(
+            lambda checked=False, header_toggle=toggle: (
+                _schedule_collapsible_section_autoscroll(header_toggle) if checked else None
+            )
+        )
+        toggle.setProperty("collapsible_header_autoscroll_installed", True)
+
+
+def _nearest_scroll_area(widget: QWidget) -> QScrollArea | None:
+    """Return the nearest ancestor scroll area containing ``widget``."""
+    parent = widget.parentWidget()
+    while parent is not None:
+        if isinstance(parent, QScrollArea):
+            return parent
+        parent = parent.parentWidget()
+    return None
+
+
+def _collapsible_section_for_toggle(toggle: QToolButton) -> QWidget | None:
+    """Return the section widget controlled by a collapsible header toggle."""
+    section = toggle.parentWidget()
+    while section is not None and section.layout() is None:
+        section = section.parentWidget()
+    return section
+
+
+def _scroll_collapsible_section_bottom_into_view(toggle: QToolButton) -> None:
+    """Scroll a containing panel down until the expanded section bottom is visible."""
+    if not toggle.isChecked():
+        return
+
+    section = _collapsible_section_for_toggle(toggle)
+    if section is None:
+        return
+
+    scroll_area = _nearest_scroll_area(section)
+    if scroll_area is None:
+        return
+
+    scroll_widget = scroll_area.widget()
+    viewport = scroll_area.viewport()
+    scrollbar = scroll_area.verticalScrollBar()
+    if scroll_widget is None or viewport is None or scrollbar is None:
+        return
+
+    section_bottom_y = section.mapTo(scroll_widget, QPoint(0, section.height())).y()
+    current_value = scrollbar.value()
+    viewport_bottom_y = current_value + viewport.height()
+    if section_bottom_y <= viewport_bottom_y:
+        return
+
+    target_value = section_bottom_y - viewport.height()
+    scrollbar.setValue(
+        max(current_value, min(target_value, scrollbar.maximum()))
+    )
+
+
+def _schedule_collapsible_section_autoscroll(toggle: QToolButton) -> None:
+    """Defer autoscroll until expansion layouts and lazy content refreshes settle."""
+    QTimer.singleShot(
+        0,
+        lambda header_toggle=toggle: _scroll_collapsible_section_bottom_into_view(
+            header_toggle
+        ),
+    )
+    QTimer.singleShot(
+        50,
+        lambda header_toggle=toggle: _scroll_collapsible_section_bottom_into_view(
+            header_toggle
+        ),
+    )
 
 
 def configure_share_export_icon_button(

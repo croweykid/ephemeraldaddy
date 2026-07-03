@@ -15,6 +15,13 @@ def test_show_hidden_setting_names_charts_explicitly():
     assert 'QCheckBox("Show Hidden")' not in APP_SOURCE
 
 
+def test_button_enabled_guard_compares_local_enabled_state():
+    method = _method_source("_set_button_enabled_if_changed")
+
+    assert "button.testAttribute(Qt.WA_ForceDisabled) == enabled" in method
+    assert "button.isEnabled() != enabled" not in method
+
+
 def test_context_menu_offers_rename_delete_and_unhide_actions():
     method = _method_source("_show_chart_list_context_menu")
 
@@ -45,7 +52,8 @@ def test_unhide_selected_charts_removes_ids_and_preserves_selection():
     method = _method_source("_unhide_selected_charts")
 
     assert "self._hidden_chart_ids.difference_update(normalized_ids)" in method
-    assert "self._save_hidden_chart_ids_to_settings()" in method
+    assert "self._hidden_chart_uids.difference_update(self._chart_uids_for_ids(normalized_ids))" in method
+    assert "self._save_hidden_chart_uids_to_settings()" in method
     assert "set(self._selected_chart_ids()) | normalized_ids" in method
     assert "sync_persistent_selection=False" in method
 

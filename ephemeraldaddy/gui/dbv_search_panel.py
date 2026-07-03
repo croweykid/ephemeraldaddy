@@ -303,10 +303,9 @@ def refresh_search_tags_list(window, known_tags: list[str]) -> None:
         parent_item.addChild(item)
         checkbox = QuadStateSlider(display)
         checkbox.setMode(
-            existing_modes.get(
-                tag,
-                QuadStateSlider.MODE_TRUE if tag.casefold() in selected_tags else QuadStateSlider.MODE_EMPTY,
-            )
+            QuadStateSlider.MODE_TRUE
+            if tag.casefold() in selected_tags
+            else existing_modes.get(tag, QuadStateSlider.MODE_EMPTY)
         )
         checkbox.modeChanged.connect(lambda _mode, tag_name=tag: on_search_tag_mode_changed(window, tag_name))
         logic = make_logic_buttons(existing_logic.get(tag, "and"))
@@ -334,10 +333,9 @@ def refresh_search_tags_list(window, known_tags: list[str]) -> None:
         tree.addTopLevelItem(root_item)
         checkbox = QuadStateSlider(_tag_value_display_name(value))
         checkbox.setMode(
-            existing_modes.get(
-                tag,
-                QuadStateSlider.MODE_TRUE if tag.casefold() in selected_tags else QuadStateSlider.MODE_EMPTY,
-            )
+            QuadStateSlider.MODE_TRUE
+            if tag.casefold() in selected_tags
+            else existing_modes.get(tag, QuadStateSlider.MODE_EMPTY)
         )
         checkbox.modeChanged.connect(lambda _mode, tag_name=tag: on_search_tag_mode_changed(window, tag_name))
         logic = make_logic_buttons(existing_logic.get(tag, "and"))
@@ -345,6 +343,77 @@ def refresh_search_tags_list(window, known_tags: list[str]) -> None:
         window.search_tag_filter_logic_buttons[tag] = logic
         tree.setItemWidget(root_item, 0, make_row(checkbox, logic, tag))
 
+
+def sync_search_tags_list_selection(window, selected_tags: set[str]) -> None:
+    """Update existing tag-filter widgets for typed tag text without rebuilding the tree.
+
+    Rebuilding the full tag tree on every ``QLineEdit.textChanged`` event is
+    expensive for large tag catalogs and can make typing appear to freeze the
+    app.  When the tag tree is visible, the typed tag list only needs to
+    mark matching existing per-tag sliders active, so keep the tree structure
+    intact and update modes in-place.
+    """
+    from ephemeraldaddy.gui import app as app_module
+
+    QToolButton = app_module.QToolButton
+    QuadStateSlider = app_module.QuadStateSlider
+
+    search_tags_toggle = getattr(window, "search_tags_toggle", None)
+    if isinstance(search_tags_toggle, QToolButton) and not search_tags_toggle.isChecked():
+        return
+
+    selected_casefolded = {str(tag).casefold() for tag in selected_tags}
+    for tag_name, checkbox in getattr(window, "search_tag_filter_checkboxes", {}).items():
+        if str(tag_name).casefold() not in selected_casefolded:
+            continue
+        if checkbox.mode() != QuadStateSlider.MODE_TRUE:
+            checkbox.setMode(QuadStateSlider.MODE_TRUE, emit_signal=False)
+
+
+def refresh_tag_catalog_for_added_tags(window, tags: list[str]) -> None:
+    """Merge newly added tags into Database View tag UI state for this session.
+
+    This is intentionally event-driven: callers should use it after an explicit
+    tag-add action, not while the Database View tag search field is being typed
+    into.
+    """
+    from ephemeraldaddy.gui import app as app_module
+
+    QLineEdit = app_module.QLineEdit
+    apply_tag_completer = app_module.apply_tag_completer
+    normalize_tag_list = app_module.normalize_tag_list
+
+    normalized_tags = normalize_tag_list(tags)
+    if not normalized_tags:
+        return
+    known_by_key = {
+        tag.casefold(): tag
+        for tag in getattr(window, "_known_chart_tags", [])
+    }
+    changed = False
+    for tag in normalized_tags:
+        key = tag.casefold()
+        if key in known_by_key:
+            continue
+        known_by_key[key] = tag
+        changed = True
+    if not changed:
+        return
+
+    sorted_tags = sorted(known_by_key.values(), key=lambda value: value.casefold())
+    window._known_chart_tags = sorted_tags
+    for line_edit in (
+        getattr(window, "chart_tags_input", None),
+        getattr(window, "search_tags_input", None),
+        getattr(window, "batch_tags_input", None),
+    ):
+        if isinstance(line_edit, QLineEdit):
+            apply_tag_completer(line_edit, sorted_tags)
+
+    refresh_search_tags_list(window, sorted_tags)
+    refresh_batch_tags_list = getattr(window, "_refresh_batch_tags_list", None)
+    if callable(refresh_batch_tags_list):
+        refresh_batch_tags_list(sorted_tags)
 
 def on_search_tag_logic_changed(window, tag_name: str | None, mode: str, checked: bool) -> None:
     if not checked:
@@ -404,6 +473,85 @@ def collect_search_tag_filter_sets(window) -> tuple[set[str], set[str], set[str]
     return required_tags, optional_tags, excluded_tags
 
 
+def collect_search_trait_filter_sets(window) -> tuple[str, set[str], set[str]]:
+    """Return (direction, required, excluded) trait filters from the search UI."""
+    from ephemeraldaddy.gui import app as app_module
+
+    QuadStateSlider = app_module.QuadStateSlider
+    direction_combo = getattr(window, "search_traits_direction_combo", None)
+    direction = str(direction_combo.currentData() if direction_combo is not None else "above")
+    required_traits = {
+        value.strip()
+        for value in str(getattr(getattr(window, "search_traits_input", None), "text", lambda: "")() or "").split(",")
+        if value.strip()
+    }
+    excluded_traits: set[str] = set()
+    for name, checkbox in getattr(window, "search_trait_filter_checkboxes", {}).items():
+        if checkbox.mode() == QuadStateSlider.MODE_TRUE:
+            required_traits.add(name)
+        elif checkbox.mode() == QuadStateSlider.MODE_FALSE:
+            excluded_traits.add(name)
+    return direction, required_traits, excluded_traits
+
+
+def chart_matches_trait_filters(
+    window,
+    chart,
+    *,
+    direction: str,
+    required_traits: set[str],
+    excluded_traits: set[str],
+) -> bool:
+    """Apply active derived-trait metadata filters to a chart."""
+    if not required_traits and not excluded_traits:
+        return True
+    from ephemeraldaddy.gui.features.charts.trait_predictions import trait_metadata_for_chart
+
+    metadata = trait_metadata_for_chart(window, chart)
+    trait_names = metadata.get("below" if direction == "below" else "above", set())
+    normalized_chart_traits = {str(name).casefold() for name in trait_names}
+    if any(trait.casefold() not in normalized_chart_traits for trait in required_traits):
+        return False
+    if any(trait.casefold() in normalized_chart_traits for trait in excluded_traits):
+        return False
+    return True
+
+
+def refresh_search_traits_list(window) -> None:
+    """Refresh the Database View trait-filter tree for ``window``."""
+    from ephemeraldaddy.analysis.traits import list_traits
+    from ephemeraldaddy.gui import app as app_module
+    from PySide6.QtWidgets import QTreeWidgetItem
+
+    QuadStateSlider = app_module.QuadStateSlider
+    tree = getattr(window, "search_traits_list_widget", None)
+    if tree is None:
+        return
+    existing_modes = {
+        trait_name: checkbox.mode()
+        for trait_name, checkbox in getattr(window, "search_trait_filter_checkboxes", {}).items()
+    }
+    tree.clear()
+    window.search_trait_filter_checkboxes = {}
+    for trait in list_traits(active_only=True):
+        trait_name = str(trait.get("name", "")).strip()
+        if not trait_name:
+            continue
+        item = QTreeWidgetItem()
+        row = app_module.QWidget()
+        row_layout = app_module.QHBoxLayout(row)
+        row_layout.setContentsMargins(0, 0, 0, 0)
+        checkbox = QuadStateSlider(trait_name)
+        if trait_name in existing_modes:
+            checkbox.setMode(existing_modes[trait_name])
+        checkbox.modeChanged.connect(window._on_filter_changed)
+        row_layout.addWidget(checkbox)
+        row_layout.addStretch(1)
+        tree.addTopLevelItem(item)
+        tree.setItemWidget(item, 0, row)
+        window.search_trait_filter_checkboxes[trait_name] = checkbox
+
+
 if TYPE_CHECKING:
     from PyQt5.QtWidgets import QWidget
 
@@ -440,6 +588,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     DATABASE_VIEW_PANEL_HEADER_STYLE = app_module.DATABASE_VIEW_PANEL_HEADER_STYLE
     DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE = app_module.DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE
     COLLAPSIBLE_SECTION_CONTENT_STYLE = app_module.COLLAPSIBLE_SECTION_CONTENT_STYLE
+    COLLAPSIBLE_NESTED_SECTION_CONTENT_STYLE = app_module.COLLAPSIBLE_NESTED_SECTION_CONTENT_STYLE
     DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS = app_module.DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS
     DATABASE_ANALYTICS_CONTENT_DEBUG_STYLE = app_module.DATABASE_ANALYTICS_CONTENT_DEBUG_STYLE
     DATABASE_ANALYTICS_SUBHEADER_STYLE = app_module.DATABASE_ANALYTICS_SUBHEADER_STYLE
@@ -572,6 +721,44 @@ def build_dbv_search_panel(window) -> "QWidget":
     tags_search_row.addWidget(window.search_tags_list_widget)
     # Tags controls are added immediately below the Search Filters header.
 
+    traits_search_row = QVBoxLayout()
+    traits_search_row.setContentsMargins(0, 0, 0, 0)
+    traits_search_row.setSpacing(4)
+    window.search_traits_input = QLineEdit()
+    window.search_traits_input.setPlaceholderText("Search by trait")
+    window.search_traits_input.textChanged.connect(window._on_filter_changed)
+    window.search_traits_input.returnPressed.connect(window._on_filter_changed)
+    traits_search_row.addWidget(window.search_traits_input)
+
+    window.search_traits_direction_combo = QComboBox()
+    window.search_traits_direction_combo.addItem("Above avg traits", "above")
+    window.search_traits_direction_combo.addItem("Below avg traits", "below")
+    window.search_traits_direction_combo.currentIndexChanged.connect(window._on_filter_changed)
+    apply_default_dropdown_style(window.search_traits_direction_combo)
+    traits_search_row.addWidget(window.search_traits_direction_combo)
+
+    window.search_traits_toggle = QToolButton()
+    configure_collapsible_header_toggle(
+        window.search_traits_toggle,
+        title="Include/Exclude These Traits",
+        expanded=False,
+        style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
+    )
+    traits_search_row.addWidget(window.search_traits_toggle)
+
+    window.search_traits_list_widget = QTreeWidget()
+    window.search_traits_list_widget.setHeaderHidden(True)
+    window.search_traits_list_widget.setSelectionMode(QListWidget.NoSelection)
+    window.search_traits_list_widget.setIndentation(12)
+    window.search_traits_list_widget.setMaximumHeight(220)
+    window.search_traits_list_widget.setVisible(False)
+    window.search_trait_filter_checkboxes = {}
+    window.search_traits_toggle.toggled.connect(window.search_traits_list_widget.setVisible)
+    window.search_traits_toggle.toggled.connect(
+        lambda expanded: refresh_search_traits_list(window) if expanded else None
+    )
+    traits_search_row.addWidget(window.search_traits_list_widget)
+
     settings = getattr(window, "_settings", None)
 
     top_filter_layout = QVBoxLayout()
@@ -633,6 +820,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     header_layout = QHBoxLayout()
     title = QLabel("Search Filters")
     title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
+    app_module.apply_emoji_pngs_to_label(title)
     header_layout.addWidget(title)
     header_layout.addStretch(1)
     #I removed this button, since there's a "Clear Filters" button on the bottom right now.
@@ -641,7 +829,9 @@ def build_dbv_search_panel(window) -> "QWidget":
     #header_layout.addWidget(reset_button)
     layout.addLayout(header_layout)
 
-    def add_collapsible_section(title: str) -> tuple[QWidget, QVBoxLayout]:
+    def add_collapsible_section(
+        title: str, *, nested: bool = False
+    ) -> tuple[QWidget, QVBoxLayout]:
         section = QWidget()
         section_layout = QVBoxLayout()
         section_layout.setContentsMargins(0, 0, 0, 0)
@@ -659,19 +849,35 @@ def build_dbv_search_panel(window) -> "QWidget":
         content_layout = QVBoxLayout()
         content_layout.setContentsMargins(8, 6, 8, 6)
         content.setLayout(content_layout)
-        content_style = COLLAPSIBLE_SECTION_CONTENT_STYLE
+        content_style = (
+            COLLAPSIBLE_NESTED_SECTION_CONTENT_STYLE
+            if nested
+            else COLLAPSIBLE_SECTION_CONTENT_STYLE
+        )
         if DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS:
             content_style = f"{content_style} {DATABASE_ANALYTICS_CONTENT_DEBUG_STYLE}"
         content.setStyleSheet(content_style)
         content.setVisible(False)
 
+        def set_toggle_expanded_state(checked: bool) -> None:
+            if toggle.icon().isNull():
+                toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
+                return
+            toggle.setArrowType(Qt.NoArrow)
+            label_text = str(toggle.property("_edd_collapsible_label_text") or toggle.text()).lstrip("▾▸ ")
+            toggle.setProperty("_edd_collapsible_label_text", label_text)
+            toggle.setText(f"{'▾' if checked else '▸'} {label_text}")
+
         def toggle_content(checked: bool) -> None:
             content.setVisible(checked)
-            toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
+            set_toggle_expanded_state(checked)
             content.adjustSize()
             section.adjustSize()
             panel.adjustSize()
             panel.updateGeometry()
+
+        app_module.apply_emoji_png_to_button(toggle, icon_px=16)
+        set_toggle_expanded_state(False)
 
         toggle.toggled.connect(toggle_content)
 
@@ -679,9 +885,13 @@ def build_dbv_search_panel(window) -> "QWidget":
         section_layout.addWidget(content)
         return section, content_layout
 
-    tags_section, tags_group_layout = add_collapsible_section("Tags")
+    tags_section, tags_group_layout = add_collapsible_section("🏷️Tags")
     tags_group_layout.addLayout(tags_search_row)
     layout.addWidget(tags_section)
+
+    traits_section, traits_group_layout = add_collapsible_section("🧬Traits")
+    traits_group_layout.addLayout(traits_search_row)
+    layout.addWidget(traits_section)
 
     # Search: Chart Type is its own collapsible section above the categorized filters.
     chart_type_section, chart_type_group_layout = add_collapsible_section("Chart Type")
@@ -709,20 +919,20 @@ def build_dbv_search_panel(window) -> "QWidget":
     layout.addWidget(chart_type_section)
 
 
-    astro_category_section, astro_category_layout = add_collapsible_section("Astro")
+    astro_category_section, astro_category_layout = add_collapsible_section("🪐Astro", nested=True)
     layout.addWidget(astro_category_section)
-    human_design_category_section, human_design_category_layout = add_collapsible_section("Human Design")
+    human_design_category_section, human_design_category_layout = add_collapsible_section("Human Design", nested=True)
     layout.addWidget(human_design_category_section)
-    interactions_category_section, interactions_category_layout = add_collapsible_section("Interactions")
+    interactions_category_section, interactions_category_layout = add_collapsible_section("Interactions", nested=True)
     layout.addWidget(interactions_category_section)
-    predictions_category_section, predictions_category_layout = add_collapsible_section("Predictions")
+    predictions_category_section, predictions_category_layout = add_collapsible_section("🔮Predictions", nested=True)
     layout.addWidget(predictions_category_section)
-    demographics_category_section, demographics_category_layout = add_collapsible_section("Demographics")
+    demographics_category_section, demographics_category_layout = add_collapsible_section("👥Demographics", nested=True)
     layout.addWidget(demographics_category_section)
 
     #Search: data completeness & accuracy
     birth_info_status_section, birth_info_status_layout = add_collapsible_section(
-        "Data Quality" #data icon contenders: 🧮 🗄️ 🪪 𖦏 🔢 🧩 ℹ️
+        "Data Quality", #data icon contenders: 🧮 🗄️ 🪪 𖦏 🔢 🧩 ℹ️
     )
 
     birth_status_mode_row = QHBoxLayout()
@@ -917,7 +1127,7 @@ def build_dbv_search_panel(window) -> "QWidget":
 
     #Search: Sign section
     dominant_section, dominant_group_layout = add_collapsible_section(
-        "🪐Sign" #dominant/subordinate astrological sign
+        "🪐Sign", #dominant/subordinate astrological sign
     )
 
     dominant_layout = QFormLayout()
@@ -979,7 +1189,7 @@ def build_dbv_search_panel(window) -> "QWidget":
 
     #Search: Body section
     dominant_planet_section, dominant_planet_group_layout = add_collapsible_section(
-        "🪐Body" #dominant/subordinate astrological bodies
+        "🪐Body", #dominant/subordinate astrological bodies
     )
 
     dominant_planet_layout = QFormLayout()
@@ -1042,7 +1252,7 @@ def build_dbv_search_panel(window) -> "QWidget":
 
     #Search: Nakshatra section
     dominant_nakshatra_section, dominant_nakshatra_group_layout = add_collapsible_section(
-        "🪐Nakshatra"
+        "🪐Nakshatra",
     )
 
     dominant_nakshatra_layout = QFormLayout()
@@ -1103,7 +1313,7 @@ def build_dbv_search_panel(window) -> "QWidget":
 
     #Search: Dominant Elements section
     dominant_element_section, dominant_element_group_layout = add_collapsible_section(
-        "🪐Elements" #dominatn astrological elements
+        "🪐Elements", #dominatn astrological elements
     )
     dominant_element_layout = QFormLayout()
     dominant_element_layout.setLabelAlignment(Qt.AlignLeft)
@@ -1156,7 +1366,7 @@ def build_dbv_search_panel(window) -> "QWidget":
 
     #Search: Dominant Mode section
     dominant_mode_section, dominant_mode_group_layout = add_collapsible_section(
-        "🪐Modes" #dominant astrological mode
+        "🪐Modes", #dominant astrological mode
     )
 
     dominant_mode_layout = QFormLayout()
@@ -1209,7 +1419,7 @@ def build_dbv_search_panel(window) -> "QWidget":
 
     #Search: Body Dynamics section
     body_dynamics_section, body_dynamics_group_layout = add_collapsible_section(
-        "🪐Body Dynamics"
+        "🪐Body Dynamics",
     )
 
     body_dynamics_layout = QFormLayout()
@@ -1304,7 +1514,7 @@ def build_dbv_search_panel(window) -> "QWidget":
 
     #Search: Isolated Factors section
     isolated_factors_section, isolated_factors_group_layout = add_collapsible_section(
-        "🪐Isolated Factors"
+        "🪐Isolated Factors",
     )
 
     isolated_body_row = QHBoxLayout()
@@ -1470,7 +1680,7 @@ def build_dbv_search_panel(window) -> "QWidget":
 
     #Search: year first encountered
     year_first_encountered_section, year_first_encountered_group_layout = add_collapsible_section(
-        "💭Year 1st Encountered" #year user first encountered
+        "💭Year 1st Encountered", #year user first encountered
     )
     year_first_encountered_range_row = QHBoxLayout()
     year_first_encountered_range_row.addWidget(QLabel("Earliest"))
@@ -1625,7 +1835,7 @@ def build_dbv_search_panel(window) -> "QWidget":
 
     #Search: relationship types section
     relationship_section, relationship_group_layout = add_collapsible_section(
-        "💭Relationships"
+        "💭Relationships",
     )
     relationship_mode_layout = QHBoxLayout()
     relationship_mode_layout.addWidget(QLabel("Relationship type"))
@@ -1658,7 +1868,7 @@ def build_dbv_search_panel(window) -> "QWidget":
 
     #Search: D&D section
     dnd_species_section, dnd_species_group_layout = add_collapsible_section(
-        "⚔️D&&D-ification"
+        "⚔️D&&D-ification",
     )
     class_filter_row = QHBoxLayout()
     class_filter_row.addWidget(QLabel("Top 3 Classes"))
@@ -1884,7 +2094,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     locations_group_layout.addLayout(state_row)
 
     predictability_section, predictability_group_layout = add_collapsible_section(
-        "💭Predictability"
+        "💭Predictability",
     )
     predictability_range_layout = QGridLayout()
     predictability_range_layout.setContentsMargins(0, 0, 0, 0)

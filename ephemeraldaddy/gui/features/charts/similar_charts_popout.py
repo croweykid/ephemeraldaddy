@@ -9,7 +9,7 @@ import re
 import statistics
 from typing import Any, Callable, Mapping
 
-from PySide6.QtCore import QEventLoop, QSignalBlocker, QSize, Qt
+from PySide6.QtCore import QObject, QEvent, QPoint, QSignalBlocker, QSize, QTimer, Qt
 from PySide6.QtGui import QIcon, QIntValidator
 from PySide6.QtWidgets import (
     QApplication,
@@ -22,7 +22,6 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
-    QProgressDialog,
     QToolButton,
     QScrollArea,
     QTextEdit,
@@ -57,7 +56,6 @@ from ephemeraldaddy.analysis.get_astro_twin import (
 )
 from ephemeraldaddy.core.aspect_display import display_aspect_key
 from ephemeraldaddy.core.chart import chart_uses_houses
-from ephemeraldaddy.core.loading_messages import LoadingMessageRotator
 from ephemeraldaddy.core.interpretations import (
     ALIGNMENT_SCALE,
     ASPECT_SCORE_WEIGHTS,
@@ -80,6 +78,11 @@ from ephemeraldaddy.gui.features.charts.progress_cancel import (
     OperationCanceled,
     mark_progress_canceled,
     raise_if_progress_canceled,
+)
+from ephemeraldaddy.gui.style import (
+    close_app_loading_progress,
+    create_app_loading_progress,
+    update_app_loading_progress,
 )
 from ephemeraldaddy.gui.features.charts.similarity_norms import similarity_z_score
 from ephemeraldaddy.gui.features.charts.chart_similarity_relationships import (
@@ -120,23 +123,118 @@ _PERCEIVED_ACCURACY_FAILED_CHECKBOX_STYLE = (
 )
 
 
+class SimilarChartsForegroundGuard(QObject):
+    """Keep a Similar Charts popout foregrounded until a real outside mouse click."""
+
+    _MOUSE_OUTSIDE_EVENTS = {QEvent.MouseButtonPress, QEvent.MouseButtonDblClick}
+    _APPLICATION_DEACTIVATION_EVENTS = {getattr(QEvent, "ApplicationDeactivate", None)} - {None}
+
+    def __init__(self, dialog: QDialog) -> None:
+        super().__init__(dialog)
+        self._dialog = dialog
+        self._armed = False
+
+    def arm(self) -> None:
+        if self._armed:
+            self._bring_forward()
+            return
+        self._armed = True
+        app = QApplication.instance()
+        if app is not None:
+            app.installEventFilter(self)
+            state_changed = getattr(app, "applicationStateChanged", None)
+            if state_changed is not None:
+                state_changed.connect(self._on_application_state_changed)
+        self._dialog.destroyed.connect(lambda _=None: self.disarm())
+        self._dialog.setWindowFlag(Qt.WindowStaysOnTopHint, True)
+        self._dialog.show()
+        self._bring_forward()
+        QTimer.singleShot(0, self._bring_forward)
+        QTimer.singleShot(150, self._bring_forward)
+
+    def disarm(self) -> None:
+        if not self._armed:
+            return
+        self._armed = False
+        app = QApplication.instance()
+        if app is not None:
+            app.removeEventFilter(self)
+            state_changed = getattr(app, "applicationStateChanged", None)
+            if state_changed is not None:
+                try:
+                    state_changed.disconnect(self._on_application_state_changed)
+                except (RuntimeError, TypeError):
+                    pass
+        try:
+            if self._dialog.isVisible():
+                self._dialog.setWindowFlag(Qt.WindowStaysOnTopHint, False)
+                self._dialog.show()
+        except RuntimeError:
+            return
+
+    def eventFilter(self, _obj: QObject, event: QEvent) -> bool:
+        if not self._armed:
+            return False
+        if event.type() in self._APPLICATION_DEACTIVATION_EVENTS:
+            self.disarm()
+            return False
+        if event.type() not in self._MOUSE_OUTSIDE_EVENTS:
+            return False
+        try:
+            if not self._dialog.isVisible():
+                self.disarm()
+                return False
+            global_pos = self._event_global_pos(event)
+            if global_pos is not None and not self._dialog.frameGeometry().contains(global_pos):
+                self.disarm()
+        except RuntimeError:
+            self.disarm()
+        return False
+
+    def _on_application_state_changed(self, state: Qt.ApplicationState) -> None:
+        inactive_state = getattr(Qt, "ApplicationInactive", None)
+        if self._armed and inactive_state is not None and state == inactive_state:
+            self.disarm()
+
+    def _bring_forward(self) -> None:
+        try:
+            if self._armed and self._dialog.isVisible():
+                self._dialog.raise_()
+                self._dialog.activateWindow()
+        except RuntimeError:
+            self.disarm()
+
+    @staticmethod
+    def _event_global_pos(event: QEvent) -> QPoint | None:
+        global_position = getattr(event, "globalPosition", None)
+        if callable(global_position):
+            return global_position().toPoint()
+        global_pos = getattr(event, "globalPos", None)
+        if callable(global_pos):
+            return global_pos()
+        return None
+
+
+def keep_similar_charts_popout_foreground_until_outside_click(dialog: QDialog) -> None:
+    """Arm foreground behavior for a rendered Similar Charts popout."""
+    guard = SimilarChartsForegroundGuard(dialog)
+    dialog._similar_charts_foreground_guard = guard
+    guard.arm()
+
+
 def show_similar_charts_loading_progress(
     *,
     parent: QWidget | None,
     message: str = "Preparing similar chart calculations…",
-) -> QProgressDialog:
-    progress = QProgressDialog(message, "Stop that!", 0, 100, parent)
-    progress.setWindowTitle("Similar Charts")
-    progress.setWindowModality(Qt.WindowModal)
-    progress.setMinimumDuration(0)
-    progress.setAutoClose(False)
-    progress.setAutoReset(False)
+) -> object:
+    progress = create_app_loading_progress(
+        parent=parent,
+        title="Astro Twin",
+        message=message,
+        cancel_text="Stop that!",
+    )
     progress.setProperty("operation_canceled", False)
     progress.canceled.connect(lambda p=progress: mark_progress_canceled(p))
-    progress.setValue(0)
-    progress.setProperty("loading_message_rotator", LoadingMessageRotator(initial_message=message))
-    progress.show()
-    QApplication.processEvents(QEventLoop.AllEvents, 50)
     return progress
 
 
@@ -148,10 +246,7 @@ def update_similar_charts_loading_progress(
     if progress is None:
         return
     raise_if_progress_canceled(progress)
-    bounded_percent = 0 if percent is None else int(max(0, min(100, round(float(percent)))))
-    progress.setLabelText(f"{message} ({bounded_percent}%)")
-    progress.setValue(bounded_percent)
-    QApplication.processEvents(QEventLoop.AllEvents, 50)
+    update_app_loading_progress(progress, message, percent)
     raise_if_progress_canceled(progress)
 
 
@@ -160,8 +255,7 @@ def close_similar_charts_loading_progress(
 ) -> None:
     if progress is None:
         return
-    progress.close()
-    QApplication.processEvents(QEventLoop.AllEvents, 50)
+    close_app_loading_progress(progress)
 
 
 def _set_checkbox_checked_silently(checkbox: QCheckBox, checked: bool) -> None:
@@ -724,7 +818,7 @@ def build_similar_charts_export_lines(
 ) -> list[str]:
     lines: list[str] = []
     if is_markdown:
-        lines.append(f"# Similar Charts for {subject_name}")
+        lines.append(f"# {subject_name}'s Astro Twins") #aka Similar Charts
         lines.append("")
         lines.append(
             "| Rank | Chart ID | Chart | Similarity | Band | Z-score | Components |"
@@ -740,7 +834,7 @@ def build_similar_charts_export_lines(
             )
         return lines
 
-    lines.append(f"Similar Charts for {subject_name}")
+    lines.append(f"{subject_name}'s Astro Twins") #aka Similar Charts
     lines.append("")
     for row in rows:
         z_score = row.get("similarity_z_score")
@@ -3203,7 +3297,7 @@ def build_similar_charts_popout_dialog(
     on_chart_info_target_requested: Callable[[QDialog, str], None] | None = None,
 ) -> QDialog:
     dialog = QDialog(parent)
-    dialog.setWindowTitle(f"Similar Charts — {subject_name}")
+    dialog.setWindowTitle(f"Astro Twins — {subject_name}")
     dialog.setModal(False)
     dialog.resize(860, 700)
     layout = QVBoxLayout(dialog)
@@ -3246,16 +3340,12 @@ def build_similar_charts_popout_dialog(
         export_button.setText("↗")
     export_button.setAutoRaise(True)
     apply_button_cursor(export_button)
-    export_button.setToolTip("Export Top 25 Most Similar & Top 25 Least Similar charts as TXT or Markdown")
+    export_button.setToolTip("Export top & bottom 25 Astro Twins (TXT or MD)")
     export_button.setVisible(on_export_clicked is not None)
     if on_export_clicked is not None:
         export_button.clicked.connect(lambda _checked=False: on_export_clicked(dialog))
     top_row.addWidget(export_button, 0, Qt.AlignRight)
     layout.addLayout(top_row)
-
-    # title_label = QLabel(f"Similar Charts for {subject_name}")
-    # title_label.setStyleSheet(header_style)
-    # layout.addWidget(title_label)
 
     splitter = QSplitter(Qt.Horizontal)
     splitter.setChildrenCollapsible(False)
@@ -3276,11 +3366,13 @@ def build_similar_charts_popout_dialog(
     analysis_dropdown.addItem("ⓘSIMILARITIES ANALYSIS", "similarities")
     analysis_dropdown.addItem("ⓘDISSIMILARITIES ANALYSIS", "dissimilarities")
     analysis_dropdown.addItem("ⓘBIO", "bio")
-    analysis_dropdown.setCurrentIndex(0)
+    bio_index = analysis_dropdown.findData("bio")
+    if bio_index >= 0:
+        analysis_dropdown.setCurrentIndex(bio_index)
     analysis_dropdown.setStyleSheet(DEFAULT_DROPDOWN_STYLE)
     info_layout.addWidget(analysis_dropdown, 0)
 
-    info_output = QLabel("Click ⓘ next to a chart to view similarities analysis.")
+    info_output = QLabel("Click ⓘ next to a chart to view biographical information.")
     info_output.setTextFormat(Qt.RichText)
     info_output.setWordWrap(True)
     info_output.setAlignment(Qt.AlignTop | Qt.AlignLeft)

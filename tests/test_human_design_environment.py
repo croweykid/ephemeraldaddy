@@ -6,6 +6,7 @@ style_stub = sys.modules.get("ephemeraldaddy.gui.style")
 if style_stub is None:
     style_stub = ModuleType("ephemeraldaddy.gui.style")
     sys.modules["ephemeraldaddy.gui.style"] = style_stub
+style_stub.ARROW_STYLES = {"classic": "→"}
 style_stub.CHART_DATA_DIVIDER = "---------"
 
 
@@ -127,7 +128,7 @@ def test_activation_display_values_marks_multiple_color_tone_base_changes_unknow
         (midnight, noon, late),
     )
 
-    assert gl_text == "24.5->17.3->14.2"
+    assert gl_text == "24.5→17.3→14.2"
     assert color_text == "?"
     assert tone_text == "?"
     assert base_text == "?"
@@ -147,10 +148,10 @@ def test_activation_display_values_shows_single_color_tone_base_change() -> None
         (midnight, noon, late),
     )
 
-    assert gl_text == "1.2->43.6"
-    assert color_text == "5->6"
-    assert tone_text == "1->4"
-    assert base_text == "3->4"
+    assert gl_text == "1.2→43.6"
+    assert color_text == "5→6"
+    assert tone_text == "1→4"
+    assert base_text == "3→4"
 
 
 def test_positions_lines_render_unknown_variant_fields_without_clickable_value_errors() -> None:
@@ -186,7 +187,7 @@ def test_positions_lines_render_unknown_variant_fields_without_clickable_value_e
         ),
     )
 
-    assert any("24.5->17.3->14.2" in line and "?" in line for line in lines)
+    assert any("24.5→17.3→14.2" in line and "?" in line for line in lines)
     assert any(entry.get("kind") == "hd_gate_line" for entries in info_map.values() for entry in entries)
 
 

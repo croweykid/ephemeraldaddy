@@ -1,0 +1,14 @@
+# Attribution Documentation
+
+## App SFX:
+beep.wav by Empty Bell -- https://freesound.org/s/180821/ -- License: Attribution 4.0
+
+correct by ertfelda -- https://freesound.org/s/243701/ -- License: Creative Commons 0
+
+BELL BLIP.wav by looppool -- https://freesound.org/s/13119/ -- License: Creative Commons 0
+
+Single bell 1.wav by connersaw8 -- https://freesound.org/s/125147/ -- License: Creative Commons 0
+
+sqeeeek_bell_ting2.wav by sqeeeek -- https://freesound.org/s/237105/ -- License: Creative Commons 0
+
+Cowbell_OS_3.aif by timgormly -- https://freesound.org/s/159758/ -- License: Creative Commons 0

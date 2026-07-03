@@ -4,12 +4,13 @@ import datetime
 import html
 import statistics
 import urllib.parse
+from pathlib import Path
 from collections import Counter
 from types import MethodType
 from typing import Callable
 
 from PySide6.QtCore import QEvent, QRect, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QDragEnterEvent, QDropEvent, QFont, QKeySequence, QLinearGradient, QPainter, QPixmap, QShortcut
+from PySide6.QtGui import QColor, QDragEnterEvent, QDropEvent, QFont, QIcon, QKeySequence, QLinearGradient, QPainter, QPixmap, QShortcut
 from PySide6.QtWidgets import (
     QAbstractButton,
     QApplication,
@@ -67,6 +68,7 @@ from ephemeraldaddy.gui.style import (
     apply_button_cursor,
     apply_chart_info_link_cursor,
     configure_collapsible_header_toggle,
+    apply_shared_dropdown_style,
 )
 from ephemeraldaddy.gui.emoji_render import apply_emoji_png_to_button
 from ephemeraldaddy.gui.features.charts.tagging import (
@@ -74,6 +76,7 @@ from ephemeraldaddy.gui.features.charts.tagging import (
     parse_tag_text,
     render_tag_chip_preview,
 )
+from ephemeraldaddy.gui.dbv_search_panel import refresh_tag_catalog_for_added_tags
 
 CHART_INFO_PANEL_BUTTON_ATTRS: dict[str, str] = {
     "chart_info": "chart_info_toggle_button",
@@ -1028,7 +1031,7 @@ def build_chart_view_middle_header_controls(
         # Personal Transit
         ("personal_transit", "🌎", "Personal Transit", owner.on_get_current_transits),
         # Synastry Chart
-        ("synastry", "🧬", "Synastry Chart", owner.on_get_synastry_chart),
+        ("synastry", "", "Synastry Chart", owner.on_get_synastry_chart),
         ]
     if is_human_design_enabled:
         button_specs.insert(
@@ -1038,8 +1041,8 @@ def build_chart_view_middle_header_controls(
         )
     button_specs.extend(
         [
-            # See Similar Charts
-            ("similar_charts", "👯", "See Similar Charts", owner._show_similar_charts_popout),
+            # Astro Twin
+            ("similar_charts", "👯", "Astro Twin", owner._show_similar_charts_popout),
             # Create Gemstone Chart
             ("gemstone_chart", "💎", "Create Gemstone Chart", owner.on_create_gemstone_chartwheel),
             # Chart Predictor Quiz
@@ -1052,7 +1055,13 @@ def build_chart_view_middle_header_controls(
         action_button = QPushButton(button_label)
         action_button.setObjectName(f"chart_view_middle_{button_key}_button")
         action_button.setToolTip(button_tooltip)
-        apply_emoji_png_to_button(action_button, icon_px=16)
+        if button_key == "synastry":
+            synastry_icon_path = Path(__file__).resolve().parents[3] / "graphics" / "synastry_venn.png"
+            if synastry_icon_path.exists():
+                action_button.setIcon(QIcon(str(synastry_icon_path)))
+                action_button.setIconSize(QSize(16, 16))
+        else:
+            apply_emoji_png_to_button(action_button, icon_px=16)
         action_button.setAutoDefault(False)
         action_button.setDefault(False)
         action_button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
@@ -1214,6 +1223,10 @@ def build_subjective_notes_alignment_sections(owner: QWidget, layout: QVBoxLayou
         title="Sexiness",
         content_builder=lambda content_layout: _populate_sexiness_section(owner, content_layout),
     )
+    owner.sexiness_section_box = sexiness_box
+    visibility = getattr(owner, "_visibility", None)
+    if visibility is not None:
+        sexiness_box.setVisible(visibility.get("chart_view.sexiness"))
     layout.addWidget(sexiness_box)
 
 
@@ -1334,6 +1347,58 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     layout.setSpacing(6)
     layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
     panel.setLayout(layout)
+
+    traits_section_layout = owner._add_chart_analysis_collapsible_section(
+        panel=panel,
+        layout=layout,
+        title="Traits",
+        expanded=True,
+    )
+    traits_header_row = QWidget()
+    traits_header_layout = QHBoxLayout()
+    traits_header_layout.setContentsMargins(0, 0, 0, 0)
+    traits_header_layout.setSpacing(6)
+    traits_header_row.setLayout(traits_header_layout)
+    traits_header_layout.addStretch(1)
+    owner.traits_prediction_mode_combo = QComboBox()
+    combo_font = QFont(owner.traits_prediction_mode_combo.font())
+    combo_font.setCapitalization(QFont.AllUppercase)
+    if combo_font.pointSize() > 0:
+        combo_font.setPointSize(max(7, combo_font.pointSize() - 2))
+    owner.traits_prediction_mode_combo.setFont(combo_font)
+    owner.traits_prediction_mode_combo.setMinimumContentsLength(10)
+    apply_shared_dropdown_style(owner.traits_prediction_mode_combo)
+    owner.traits_prediction_mode_combo.addItem("ABOVE AVG", "above")
+    owner.traits_prediction_mode_combo.addItem("BELOW AVG", "below")
+    traits_header_layout.addWidget(owner.traits_prediction_mode_combo, alignment=Qt.AlignRight)
+    traits_section_layout.addWidget(traits_header_row)
+
+    owner.traits_prediction_label = QLabel("No traits uploaded. Add traits in Settings > Traits.")
+    owner.traits_prediction_label.setTextFormat(Qt.RichText)
+    owner.traits_prediction_label.setWordWrap(True)
+    owner.traits_prediction_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+    owner.traits_prediction_label.setStyleSheet("color: #f5f5f5; padding: 4px 0 8px 0;")
+    owner.traits_prediction_scroll_area = QScrollArea()
+    owner.traits_prediction_scroll_area.setWidgetResizable(True)
+    owner.traits_prediction_scroll_area.setFrameShape(QFrame.NoFrame)
+    owner.traits_prediction_scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+    owner.traits_prediction_scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+    owner.traits_prediction_scroll_area.setMinimumHeight(240)
+    owner.traits_prediction_scroll_area.setMaximumHeight(260)
+    owner.traits_prediction_scroll_area.setStyleSheet("QScrollArea { background: transparent; border: 0; }")
+    owner.traits_prediction_scroll_area.setWidget(owner.traits_prediction_label)
+    traits_section_layout.addWidget(owner.traits_prediction_scroll_area)
+    owner.traits_prediction_mode_combo.currentIndexChanged.connect(
+        lambda _index: owner.traits_prediction_label.setText(
+            getattr(
+                owner,
+                "_traits_prediction_below_avg_html"
+                if owner.traits_prediction_mode_combo.currentData() == "below"
+                else "_traits_prediction_above_avg_html",
+                owner.traits_prediction_label.text(),
+            )
+        )
+    )
 
     enneagram_section_layout = owner._add_chart_analysis_collapsible_section(
         panel=panel,
@@ -1785,6 +1850,7 @@ def on_chart_view_tag_add(owner: QWidget) -> None:
     owner.chart_tags_input.setText("")
     render_tag_chip_preview(owner.chart_tags_preview_label, [])
     render_chart_view_tag_selection(owner)
+    refresh_tag_catalog_for_added_tags(owner, [tag_to_add])
     owner._mark_lucygoosey()
 
 

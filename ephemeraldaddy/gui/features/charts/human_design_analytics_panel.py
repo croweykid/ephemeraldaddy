@@ -177,7 +177,7 @@ def build_human_design_analytics_panel(
     hd_analytics_toggle.setCheckable(True)
     hd_analytics_toggle.setChecked(True)
     hd_analytics_toggle.setAutoRaise(True)
-    hd_analytics_toggle.setArrowType(Qt.LeftArrow)
+    hd_analytics_toggle.setArrowType(Qt.RightArrow)
     apply_button_cursor(hd_analytics_toggle)
     hd_analytics_toggle.setToolTip("Collapse HD analytics panel")
     hd_analytics_toggle.setStyleSheet(
@@ -496,7 +496,7 @@ def build_human_design_analytics_panel(
         nonlocal hd_analytics_expanded_width
         if expanded:
             hd_analytics_content.show()
-            hd_analytics_toggle.setArrowType(Qt.LeftArrow)
+            hd_analytics_toggle.setArrowType(Qt.RightArrow)
             hd_analytics_toggle.setToolTip("Collapse HD analytics panel")
             hd_analytics_container.setMinimumWidth(HD_ANALYTICS_CONTAINER_MIN_WIDTH)
             hd_analytics_container.setMaximumWidth(16777215)
@@ -508,7 +508,7 @@ def build_human_design_analytics_panel(
             hd_analytics_container.width(),
         )
         hd_analytics_content.hide()
-        hd_analytics_toggle.setArrowType(Qt.RightArrow)
+        hd_analytics_toggle.setArrowType(Qt.LeftArrow)
         hd_analytics_toggle.setToolTip("Expand HD analytics panel")
         hd_analytics_container.setMinimumWidth(hd_analytics_toggle.width() + 2)
         hd_analytics_container.setMaximumWidth(hd_analytics_toggle.width() + 2)

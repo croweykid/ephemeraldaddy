@@ -271,3 +271,30 @@ def test_significance_guides_accept_count_mappings_with_blank_label(monkeypatch)
 
     assert captured["selection_counts"] == [2, 3]
     assert captured["database_counts"] == [5, 7]
+
+
+def test_traits_distribution_cache_clear_evicts_only_changed_chart_likelihoods():
+    mixin = DatabaseAnalyticsChartsMixin()
+    trait_signature = (("Kind", "#ffffff", "{}"),)
+    mixin._traits_distribution_analytics_cache = {"aggregate": {"stale": True}}
+    mixin._traits_distribution_chart_likelihood_cache = {
+        (7, trait_signature, 101): {"Kind": 55.0},
+        (7, trait_signature, 202): {"Kind": 65.0},
+    }
+
+    mixin._clear_traits_distribution_analytics_cache({101})
+
+    assert mixin._traits_distribution_analytics_cache == {}
+    assert (7, trait_signature, 101) not in mixin._traits_distribution_chart_likelihood_cache
+    assert mixin._traits_distribution_chart_likelihood_cache[(7, trait_signature, 202)] == {"Kind": 65.0}
+
+
+def test_traits_distribution_cache_clear_without_changed_ids_drops_all_chart_likelihoods():
+    mixin = DatabaseAnalyticsChartsMixin()
+    mixin._traits_distribution_analytics_cache = {"aggregate": {"stale": True}}
+    mixin._traits_distribution_chart_likelihood_cache = {(7, (), 101): {"Kind": 55.0}}
+
+    mixin._clear_traits_distribution_analytics_cache()
+
+    assert mixin._traits_distribution_analytics_cache == {}
+    assert mixin._traits_distribution_chart_likelihood_cache == {}

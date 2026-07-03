@@ -192,7 +192,7 @@ def dominance_section_header_html(chart: Chart, *, highlight_color: str) -> str:
     """Return the shared dominance-reasoning section header."""
     chart_name = str(getattr(chart, "name", "") or "").strip() or "this chart"
     return (
-        f'<div style="font-weight: bold; color: {html.escape(highlight_color)};">'
+        f'<div style="font-weight: bold; color: {html.escape(highlight_color)}; margin-top: 0.75em;">'
         f"Why Dominant (or Not)? (for {html.escape(chart_name)})"
         "</div>"
     )

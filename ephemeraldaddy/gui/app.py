@@ -24,7 +24,7 @@ import uuid
 import urllib.parse
 import platform
 from collections import Counter, OrderedDict
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Iterable, Mapping
 from types import SimpleNamespace
 from pathlib import Path
 import re
@@ -54,6 +54,7 @@ SETTINGS_KEY_HIDE_PLACEHOLDER_CHARTS_FILTER = "manage_charts/hide_placeholder_ch
 SETTINGS_KEY_HIDDEN_CHARTS_FILTER_MODE = "manage_charts/hidden_charts_filter_mode"
 SETTINGS_KEY_SHOW_HIDDEN_CHARTS = "manage_charts/show_hidden_charts"
 SETTINGS_KEY_HIDDEN_CHART_IDS = "manage_charts/hidden_chart_ids"
+SETTINGS_KEY_HIDDEN_CHART_UIDS = "manage_charts/hidden_chart_uids"
 DATABASE_VIEW_ROW_INFO_OPTIONS: tuple[tuple[str, str], ...] = (
     ("name", "Name"),
     ("alias", "Alias"),
@@ -359,6 +360,7 @@ from PySide6.QtGui import (
     QFontMetrics,
     QGuiApplication,
     QIcon,
+    QPen,
     QKeySequence,
     QPainter,
     QPixmap,
@@ -469,7 +471,11 @@ class _ComboItemColorDelegate(QStyledItemDelegate):
 
 
 from ephemeraldaddy.gui.startup import StartupLoadingWidget, StartupProgress
-from ephemeraldaddy.gui.emoji_render import apply_emoji_png_to_button, install_emoji_png_rendering
+from ephemeraldaddy.gui.emoji_render import (
+    apply_emoji_png_to_button,
+    apply_emoji_pngs_to_label,
+    install_emoji_png_rendering,
+)
 
 from matplotlib import font_manager as mpl_font_manager
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
@@ -500,7 +506,7 @@ from ephemeraldaddy.gui.dev_tools import (
     add_enneagram_predictions_debug_setting,
     add_similarity_perceived_accuracy_controls_setting,
     build_similarity_calculator_settings_section,
-    build_enneagram_predictor_settings_section,
+    build_predictions_settings_section,
     load_batch_tagging_terminal_debug_enabled,
     load_enneagram_predictions_debug_enabled,
     load_similarity_perceived_accuracy_controls_enabled,
@@ -571,7 +577,11 @@ from ephemeraldaddy.gui.window_placement import (
     capture_window_placement,
     clear_fullscreen_and_minimized,
 )
-from ephemeraldaddy.core.chart import Chart, apply_time_specific_metadata_policy
+from ephemeraldaddy.core.chart import (
+    Chart,
+    apply_time_specific_metadata_policy,
+    chart_uses_houses,
+)
 from ephemeraldaddy.analysis.bazi_getter import (
     BAZI_BRANCH_TO_SIGN,
     bazi_sign_weights_from_chart,
@@ -634,7 +644,7 @@ from ephemeraldaddy.graphics.wheel_plot import draw_chart_wheel
 from ephemeraldaddy.graphics._chartwheel_generator_impl import draw_chartwheel
 from ephemeraldaddy.core.material_facts import (
     load_personal_identifiers,
-    save_personal_identifiers,
+    save_personal_identifiers_by_uid,
 )
 from ephemeraldaddy.core.backups import BACKUP_PACKAGE_SUFFIX, create_backup_package
 from ephemeraldaddy.core.db import (
@@ -646,7 +656,9 @@ from ephemeraldaddy.core.db import (
     load_chart,
     load_charts,
     load_dominant_sign_weights,
+    get_chart_uid,
     get_chart_uid_map,
+    get_chart_ids_by_uid,
     get_alternate_chart_uid,
     find_chart_uid_by_name,
     get_chart_display_name_map,
@@ -825,9 +837,11 @@ from ephemeraldaddy.gui.features.charts.search_text import (
 )
 
 from ephemeraldaddy.gui.features.charts.database_analytics import (
+    DATABASE_METRICS_SECTION_ORDER,
     DatabaseAnalyticsChartsMixin,
     apply_decan_snapshot_delta,
     apply_nakshatra_snapshot_delta,
+    database_metrics_sections_for_changed_fields,
     decans_dropdown_options,
     decans_empty_cache_fields,
     nakshatras_dropdown_options,
@@ -852,11 +866,14 @@ from ephemeraldaddy.gui.dbv_search_panel import (
     build_dbv_search_panel,
     chart_matches_body_dynamics_filters,
     collect_search_tag_filter_sets,
+    collect_search_trait_filter_sets,
+    chart_matches_trait_filters,
     on_search_tag_category_logic_changed,
     on_search_tag_category_mode_changed,
     on_search_tag_logic_changed,
     on_search_tag_mode_changed,
     refresh_search_tags_list,
+    sync_search_tags_list_selection,
     reset_body_dynamics_filters,
     weight_is_at_least_triple_next_highest,
 )
@@ -931,6 +948,10 @@ from ephemeraldaddy.gui.features.charts.presentation import (
     sign_degrees as _sign_degrees,
     sign_for_longitude as _sign_for_longitude,
 )
+from ephemeraldaddy.gui.features.charts.time_sensitivity_panel import (
+    build_time_sensitivity_ascendant_sign_info_text as _build_time_sensitivity_ascendant_sign_info_text,
+    build_time_sensitivity_sign_info_text as _build_time_sensitivity_sign_info_text,
+)
 from ephemeraldaddy.gui.features.charts.sign_distribution import (
     SIGN_DISTRIBUTION_DROPDOWN_OPTIONS,
     SIGN_DISTRIBUTION_MODE_LABELS,
@@ -938,7 +959,10 @@ from ephemeraldaddy.gui.features.charts.sign_distribution import (
 from ephemeraldaddy.gui.features.charts.exporters import (
     export_similarities_analysis_json_dialog as _export_similarities_analysis_json_dialog,
     get_text_export_path as _get_text_export_path,
+    remember_similarities_export_directory as _remember_similarities_export_directory,
     sanitize_export_token as _sanitize_export_token,
+    similarities_export_default_path as _similarities_export_default_path,
+    similarities_export_sample_suffix as _similarities_export_sample_suffix,
 )
 from ephemeraldaddy.gui.features.charts.similarities_export import (
     similarities_label_has_excluded_bodies as _similarities_label_has_excluded_bodies,
@@ -1089,6 +1113,7 @@ from ephemeraldaddy.gui.features.charts.similar_charts_popout import (
     make_similar_info_target,
     make_similar_why_target,
     map_similar_info_targets,
+    keep_similar_charts_popout_foreground_until_outside_click,
     OperationCanceled,
     raise_if_progress_canceled,
     render_predictions_panel_content,
@@ -1201,6 +1226,7 @@ GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS: frozenset[str] = frozenset(
         "birth_month",
         "birthplace",
         "tag_distribution",
+        "traits_distribution",
         "human_design",
     }
 )
@@ -1209,29 +1235,6 @@ CHART_VIEW_NAV_CACHE_LIMIT = 24
 
 DATABASE_METRICS_PERSISTENT_CACHE_VERSION = 1
 DATABASE_METRICS_PERSISTENT_CACHE_FILENAME = ".database_metrics_cache.json"
-DATABASE_METRICS_SECTION_ORDER: tuple[str, ...] = (
-    "planetary_sign_prevalence",
-    "sentiment_prevalence",
-    "relationship_prevalence",
-    "alignment_summary",
-    "matched_expectations_summary",
-    "sign_prevalence",
-    "dominant_signs",
-    "decans",
-    "nakshatras",
-    "cumulativedom_factors",
-    "enneagram",
-    "species_distribution",
-    "birth_time",
-    "age",
-    "birth_month",
-    "birthplace",
-    "tag_distribution",
-    "gender",
-    "human_design",
-    "bazi",
-)
-
 GENERATION_UNKNOWN_OPTION = "unknown"
 GENERATION_FILTER_OPTIONS: tuple[str, ...] = tuple(
     [
@@ -1256,12 +1259,14 @@ from ephemeraldaddy.gui.settings_widgets import (
 )
 
 from ephemeraldaddy.gui.style import (
+    APPWIDE_DARK_THEME_STYLESHEET,
     CHART_VIEW_RECTIFIED_GROUP_LEFT_SPACER,
     CHART_VIEW_RECTIFIED_LABEL_CHECKBOX_SPACING,
     CHART_VIEW_TIME_INPUT_DISPLAY_FORMAT,
     CHART_VIEW_TIME_INPUT_WIDTH,
     CHART_VIEW_TIME_OVERWRITE_ENABLED,
     COLLAPSIBLE_SECTION_CONTENT_STYLE,
+    COLLAPSIBLE_NESTED_SECTION_CONTENT_STYLE,
     CRASH_MESSAGE,
     DATABASE_ANALYTICS_CHART_CONTENT_MARGINS,
     DATABASE_ANALYTICS_CHART_CONTAINER_DEBUG_STYLE,
@@ -1324,6 +1329,7 @@ from ephemeraldaddy.gui.style import (
     similarity_gradient_rgb_for_range,
     configure_collapsible_header_toggle,
     install_appwide_cursor_defaults,
+    set_chart_info_text,
     format_chart_header,
     QUAD_STATE_SLIDER_VISUALS,
     TRISTATE_SENTIMENT_STYLE,
@@ -1375,6 +1381,8 @@ from ephemeraldaddy.gui.features.charts.bazi_window import (
 from ephemeraldaddy.gui.features.charts.chart_predictor_quiz import (
     create_chart_predictor_quiz_dialog,
 )
+from ephemeraldaddy.gui.features.settings.traits import add_traits_settings_section
+from ephemeraldaddy.gui.features.charts.trait_predictions import render_traits_predictions as _render_traits_predictions
 from ephemeraldaddy.gui.features.charts.total_chart_exporter import (
     build_total_chart_export_text as _build_total_chart_export_text,
     build_total_chart_similar_charts_section_for_chart as _build_total_chart_similar_charts_section_for_chart,
@@ -1382,6 +1390,9 @@ from ephemeraldaddy.gui.features.charts.total_chart_exporter import (
 from ephemeraldaddy.gui.features.charts.batch_total_chart_export import (
     export_button_label as _chart_export_button_label,
     run_total_chart_export_flow as _run_total_chart_export_flow,
+)
+from ephemeraldaddy.analysis.weighted_chart_predictor import (
+    set_default_scoring_options as _set_prediction_scoring_options,
 )
 from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
     EnneagramPredictionPanelAdapter,
@@ -1560,6 +1571,45 @@ class TriStateCheckBox(QCheckBox):
             self.setCheckState(Qt.Unchecked)
 
 
+class _QuadStateIndicatorButton(QToolButton):
+    """Small manually-painted button for Database View quad-state filters.
+
+    Some Qt/platform combinations can leave the previous QToolButton text glyph
+    in the backing store after a style-sheet/text transition (most visibly the
+    red exclusion X).  Painting the indicator ourselves clears the full button
+    rectangle on every state change before drawing the current glyph.
+    """
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._quad_state_text = ""
+        self._quad_state_background = "#111111"
+        self._quad_state_foreground = "#dddddd"
+        self._quad_state_border = "#444444"
+
+    def setQuadStateVisual(self, visual: Mapping[str, object]) -> None:
+        self._quad_state_text = str(visual.get("text") or "")
+        self._quad_state_background = str(visual.get("background") or "#111111")
+        self._quad_state_foreground = str(visual.get("foreground") or "#dddddd")
+        self._quad_state_border = str(visual.get("border") or "#444444")
+        self.update()
+
+    def paintEvent(self, event) -> None:  # noqa: N802 - Qt override
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        painter.fillRect(self.rect(), self.palette().window())
+        rect = self.rect().adjusted(1, 1, -1, -1)
+        painter.setBrush(QColor(self._quad_state_background))
+        painter.setPen(QPen(QColor(self._quad_state_border), 1))
+        painter.drawRoundedRect(rect, 10, 10)
+        if self._quad_state_text:
+            painter.setPen(QColor(self._quad_state_foreground))
+            font = painter.font()
+            font.setBold(True)
+            painter.setFont(font)
+            painter.drawText(rect, Qt.AlignCenter, self._quad_state_text)
+
+
 class QuadStateSlider(QWidget):
     modeChanged = Signal(int)
 
@@ -1571,7 +1621,7 @@ class QuadStateSlider(QWidget):
     def __init__(self, label: str, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._mode = self.MODE_EMPTY
-        self._button = QToolButton(self)
+        self._button = _QuadStateIndicatorButton(self)
         self._button.setCheckable(False)
         self._button.clicked.connect(self._advance_mode)
         self._label = QLabel(label)
@@ -1623,15 +1673,14 @@ class QuadStateSlider(QWidget):
         else:
             visual = QUAD_STATE_SLIDER_VISUALS["empty"]
 
-        self._button.setText(visual["text"])
-        self._button.setToolTip(visual["tooltip"])
+        # Keep the native button text empty and paint the indicator manually.
+        # This avoids stale foreground glyphs from previous states (especially
+        # the red exclusion X) being retained by QToolButton backing-store/style
+        # transitions after the red background has already been cleared.
+        self._button.setText("")
+        self._button.setToolTip(str(visual["tooltip"]))
         self._button.setFixedWidth(28)
-        self._button.setStyleSheet(
-            "QToolButton {"
-            f"{visual['style']}"
-            "border-radius: 10px; font-weight: bold; padding: 2px 0px;"
-            "}"
-        )
+        self._button.setQuadStateVisual(visual)
 
 class AlignmentEmojiSlider(QSlider):
     """Horizontal alignment slider with an emoji marker that tracks thresholds."""
@@ -1948,9 +1997,9 @@ def _get_qapp():
 
 
 def _apply_global_dropdown_and_menu_styles(app: QApplication) -> None:
-    """Apply global menu and dropdown styling so all combos look like input fields."""
+    """Apply appwide dark controls, menu, dropdown, and scrollbar styling."""
     global_rules = (
-        "\n"
+        f"{APPWIDE_DARK_THEME_STYLESHEET}\n"
         f"{DEFAULT_DROPDOWN_STYLE}\n"
         f"{WINDOW_CHROME_MENU_STYLE}\n"
         f"{RIGHT_PANEL_SCROLLBAR_STYLE}\n"
@@ -2181,6 +2230,28 @@ def _handle_list_letter_jump(list_widget: QListWidget, event) -> bool:
 
     return False
 
+def _chart_list_item_raw_name(item: QListWidgetItem) -> str:
+    """Return the copy/paste name for a Database View chart-list item."""
+    metadata = item.data(Qt.UserRole + 1)
+    if isinstance(metadata, dict):
+        raw_name = str(metadata.get("raw_name") or "").strip()
+        if raw_name:
+            return raw_name
+    return item.text().strip()
+
+
+def _selected_chart_list_item_names(list_widget: QListWidget) -> list[str]:
+    """Return selected chart names in visible row order for clipboard export."""
+    selected_names: list[str] = []
+    for row in range(list_widget.count()):
+        item = list_widget.item(row)
+        if item is not None and item.isSelected():
+            name = _chart_list_item_raw_name(item)
+            if name:
+                selected_names.append(name)
+    return selected_names
+
+
 class ChartListWidget(QListWidget):
     """List widget with single-letter jump-to-name navigation."""
 
@@ -2213,6 +2284,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.setWindowFlag(Qt.WindowMaximizeButtonHint, True)
         self.setWindowFlag(Qt.WindowCloseButtonHint, True)
         self._settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
+        self._applying_window_placement = False
+        self._session_window_layout_adjusted = False
         self._visibility = VisibilityStore(self._settings)
         self._lilith_calculation_method = _resolve_supported_lilith_calculation_method(
             self._settings.value(
@@ -2310,6 +2383,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             _enneagram_scoring_options_to_payload(self._enneagram_scoring_options),
         )
         _set_enneagram_scoring_options(self._enneagram_scoring_options)
+        _set_prediction_scoring_options(self._enneagram_scoring_options)
         set_lilith_calculation_mode(self._lilith_calculation_method)
         self._feature_hub = FeatureEventHub()
         _apply_minimum_screen_height(self)
@@ -2405,6 +2479,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._visible_chart_ids: set[int] = set()
         self._filter_navigation_anchor_chart_id: int | None = None
         self._selection_update_mode = "replace"
+        self._prior_deselected_selection: list[int] = []
         self._syncing_visible_selection = False
         self._custom_collections: dict[str, CustomCollection] = {}
         self._active_collection_id = DEFAULT_COLLECTION_ALL
@@ -2433,7 +2508,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             SETTINGS_KEY_SHOW_HIDDEN_CHARTS,
             int(self._show_hidden_charts),
         )
-        self._hidden_chart_ids = self._load_hidden_chart_ids_from_settings()
+        self._hidden_chart_uids = self._load_hidden_chart_uids_from_settings()
+        self._hidden_chart_ids = set(get_chart_ids_by_uid(self._hidden_chart_uids).values())
         self._analysis_chart_export_rows: dict[str, list[tuple[Any, ...]]] = {}
         self._analysis_chart_filenames: dict[str, str] = {}
         self._analysis_chart_dropdowns: dict[str, QComboBox] = {}
@@ -2445,6 +2521,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._incremental_metrics_refresh_scheduled = False
         self._deferred_database_metrics_refresh_scheduled = False
         self._deferred_database_metrics_changed_ids: set[int] = set()
+        self._deferred_database_metrics_sections: set[str] = set()
         self._deferred_database_metrics_force_full_refresh = False
         self._database_metrics_background_preload_scheduled = False
         self._database_metrics_background_preload_sections: list[str] = []
@@ -2479,6 +2556,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._birth_month_mode = "month_distribution"
         self._birthplace_mode = "towns"
         self._tag_distribution_mode = "all"
+        self._traits_distribution_mode = "trait_predictions"
         self._gender_mode = "actual_gender"
         self._human_design_mode = "hd_gates"
         self._bazi_mode = "all"
@@ -2488,7 +2566,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         # lazy changed-id refresh applies panel-wide by default.
         self._database_metric_snapshots: dict[int, dict[str, Any]] = {}
         self._database_metrics_cache: dict[str, Any] | None = None
+        self._database_metrics_cache_revision = 0
         self._database_metrics_snapshot_sections: frozenset[str] = frozenset()
+        # Legacy DB-row IDs remain here only for local table selection/cache
+        # ordering. Durable chart identity for new app-wide state is chart_uid.
         self._database_metrics_lucy_goosey_ids: set[int] = set()
         self.transit_panel_controller = TransitPanelController(
             self,
@@ -2499,6 +2580,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._help_overlay_active = False
         self._help_marker_buttons: list[QToolButton] = []
         self._settings_dialog: QDialog | None = None
+        self._database_manager_dialog: QDialog | None = None
         self._batch_tagging_terminal_debug_checkbox: QCheckBox | None = None
         self._similarity_perceived_accuracy_controls_checkbox: QCheckBox | None = None
         self._settings_section_expanded_session: dict[str, bool] = {}
@@ -2536,7 +2618,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._toggle_gen_pop_norms_panel
         )
 
-        self.similarities_panel_button = QPushButton("👬📊") #Similarities Analysis panel
+        self.similarities_panel_button = QPushButton("👥") #Similarities Analysis panel
         self.similarities_panel_button.setObjectName("manage_toggle_similarities_panel_button")
         self.similarities_panel_button.clicked.connect(
             self._toggle_similarities_panel
@@ -2553,7 +2635,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._toggle_perceived_similarity_predictors_panel
         )
 
-        self.manage_collections_button = QPushButton("Manage Collections")
+        self.manage_collections_button = QPushButton("Collections")
         self.manage_collections_button.setObjectName(
             "manage_toggle_collections_panel_button"
         )
@@ -2561,7 +2643,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._toggle_manage_collections_panel
         )
 
-        self.edit_charts_button = QPushButton("📝📚") #Batch Edit #✎𓂃#Database Manager Panel button
+        self.database_manager_button = QPushButton("📚")
+        self.database_manager_button.setObjectName("manage_database_manager_button")
+        self.database_manager_button.clicked.connect(self._on_open_database_manager)
+
+        self.edit_charts_button = QPushButton("✍️") #Batch Edit #✎𓂃#Database Manager Panel button
         self.edit_charts_button.setObjectName("manage_toggle_batch_edit_panel_button")
         self.edit_charts_button.clicked.connect(self._toggle_edit_panel)
 
@@ -2581,9 +2667,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.batch_delete_chart_button.setObjectName("database_view_middle_delete_chart_button")
         self.batch_delete_chart_button.clicked.connect(self._on_delete)
 
-        self.total_chart_export_button = QPushButton("Export chart")
+        self.total_chart_export_button = QPushButton("Export chart analysis")
         self.total_chart_export_button.setObjectName("database_view_middle_total_chart_export_button")
         self.total_chart_export_button.setToolTip("Export the selected chart's full Chart View, analytics, predictions, Human Design, and BaZi text")
+
+        self.batch_export_selection_button = QPushButton("Export Selection to CSV")
+        self.batch_export_selection_button.setObjectName("database_view_middle_export_selection_button")
+        self.batch_export_selection_button.clicked.connect(self._on_export_selected)
+
         share_icon_path = _get_share_icon_path()
         if share_icon_path:
             self.total_chart_export_button.setIcon(QIcon(share_icon_path))
@@ -2605,9 +2696,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             # Personal Transit
             ("personal_transit", "🌎", "Personal Transit"),
             # Synastry Chart
-            ("synastry", "🧬", "Synastry Chart"),
-            # See Similar Charts
-            ("similar_charts", "👯", "See Similar Charts"),
+            ("synastry", "", "Synastry Chart"),
+            # Astro Twin
+            ("similar_charts", "👯", "Astro Twin"),
             # Create Gemstone Chart
             ("gemstone_chart", "💎", "Create Gemstone Chart"),
             # Chart Predictor Quiz
@@ -2615,7 +2706,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         ]
         for button_key, button_label, button_tooltip in middle_action_button_specs:
             action_button = QPushButton(button_label)
-            apply_emoji_png_to_button(action_button, icon_px=16)
+            if button_key == "synastry":
+                synastry_icon_path = Path(__file__).resolve().parents[1] / "graphics" / "synastry_venn.png"
+                if synastry_icon_path.exists():
+                    action_button.setIcon(QIcon(str(synastry_icon_path)))
+                    action_button.setIconSize(QSize(16, 16))
+            else:
+                apply_emoji_png_to_button(action_button, icon_px=16)
             action_button.setObjectName(f"database_view_middle_{button_key}_button")
             action_button.setToolTip(button_tooltip)
             action_button.clicked.connect(
@@ -2637,9 +2734,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.batch_new_chart_button,
             self.batch_delete_chart_button,
             self.total_chart_export_button,
+            self.batch_export_selection_button,
             self.batch_rename_chart_button,
             *self.database_view_middle_header_action_buttons.values(),
             self.manage_collections_button,
+            self.database_manager_button,
             self.edit_charts_button,
             self.manage_settings_button,
             self.search_panel_button,
@@ -2809,6 +2908,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         right_controls_row.setLayout(right_controls_layout)
         right_controls_layout.addWidget(self.manage_settings_button)
         right_controls_layout.addWidget(self.search_panel_button)
+        right_controls_layout.addWidget(self.database_manager_button)
         right_controls_layout.addWidget(self.edit_charts_button)
         right_controls_layout.addWidget(self.manage_collections_button)
 
@@ -2822,6 +2922,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         middle_controls_layout.addWidget(self.batch_new_chart_button, 0, Qt.AlignHCenter)
         middle_controls_layout.addWidget(self.batch_delete_chart_button, 0, Qt.AlignHCenter)
         middle_controls_layout.addWidget(self.total_chart_export_button, 0, Qt.AlignHCenter)
+        middle_controls_layout.addWidget(self.batch_export_selection_button, 0, Qt.AlignHCenter)
         middle_controls_layout.addWidget(self.batch_rename_chart_button, 0, Qt.AlignHCenter)
         for action_button in self.database_view_middle_header_action_buttons.values():
             middle_controls_layout.addWidget(action_button, 0, Qt.AlignHCenter)
@@ -2988,6 +3089,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "birth_month": self._birth_month_mode,
             "birthplace": self._birthplace_mode,
             "tag_distribution": self._tag_distribution_mode,
+            "traits_distribution": self._traits_distribution_mode,
             "gender": self._gender_mode,
             "human_design": self._human_design_mode,
             "bazi": self._bazi_mode,
@@ -3051,6 +3153,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         expanded: bool = False,
         on_toggled: Callable[[bool], None] | None = None,
         section_key: str | None = None,
+        nested: bool = False,
     ) -> QVBoxLayout:
         section = QWidget()
         section_layout = QVBoxLayout()
@@ -3073,15 +3176,28 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         content_layout.setContentsMargins(*DATABASE_ANALYTICS_CONTENT_MARGINS)
         content_layout.setSpacing(DATABASE_ANALYTICS_CONTENT_SPACING)
         content.setLayout(content_layout)
-        content_style = COLLAPSIBLE_SECTION_CONTENT_STYLE
+        content_style = (
+            COLLAPSIBLE_NESTED_SECTION_CONTENT_STYLE
+            if nested
+            else COLLAPSIBLE_SECTION_CONTENT_STYLE
+        )
         if DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS:
             content_style = f"{content_style} {DATABASE_ANALYTICS_CONTENT_DEBUG_STYLE}"
         content.setStyleSheet(content_style)
         content.setVisible(expanded)
 
+        def set_toggle_expanded_state(checked: bool) -> None:
+            if toggle.icon().isNull():
+                toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
+                return
+            toggle.setArrowType(Qt.NoArrow)
+            label_text = str(toggle.property("_edd_collapsible_label_text") or toggle.text()).lstrip("▾▸ ")
+            toggle.setProperty("_edd_collapsible_label_text", label_text)
+            toggle.setText(f"{'▾' if checked else '▸'} {label_text}")
+
         def toggle_content(checked: bool) -> None:
             content.setVisible(checked)
-            toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
+            set_toggle_expanded_state(checked)
             if on_toggled is not None:
                 on_toggled(checked)
             content.adjustSize()
@@ -3090,6 +3206,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             panel.updateGeometry()
 
         apply_emoji_png_to_button(toggle, icon_px=16)
+        set_toggle_expanded_state(expanded)
 
         toggle.toggled.connect(toggle_content)
 
@@ -3276,9 +3393,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self,
         *,
         changed_ids: set[int] | None = None,
+        sections_to_refresh: set[str] | frozenset[str] | None = None,
         force_full_refresh: bool = False,
     ) -> None:
-        self._incremental_metrics_refresh_sections = self._expanded_database_metric_sections()
+        expanded_sections = self._expanded_database_metric_sections()
+        if sections_to_refresh is not None:
+            allowed_sections = set(sections_to_refresh)
+            expanded_sections = [
+                section_key
+                for section_key in expanded_sections
+                if section_key in allowed_sections
+            ]
+        self._incremental_metrics_refresh_sections = expanded_sections
         self._incremental_metrics_refresh_changed_ids = set(changed_ids or set())
         self._incremental_metrics_force_full_refresh = force_full_refresh
         if self._incremental_metrics_refresh_scheduled:
@@ -3314,6 +3440,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _start_database_metrics_cache_preload(self) -> None:
         """Deprecated no-op: Database Analytics now refreshes on demand only."""
+        self._load_database_metrics_persistent_cache()
+        load_traits_cache = getattr(self, "_load_traits_distribution_likelihood_cache", None)
+        if callable(load_traits_cache):
+            load_traits_cache()
         return
 
     def _schedule_database_metrics_background_preload(self) -> None:
@@ -3524,9 +3654,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _invalidate_database_metrics_cache(self) -> None:
         self._database_metrics_cache = None
+        self._database_metrics_cache_revision = int(getattr(self, "_database_metrics_cache_revision", 0)) + 1
         self._database_metric_snapshots = {}
         self._database_metrics_snapshot_sections = frozenset()
         self._database_metrics_lucy_goosey_ids.clear()
+        clear_traits_cache = getattr(self, "_clear_traits_distribution_analytics_cache", None)
+        if callable(clear_traits_cache):
+            clear_traits_cache()
 
     def _update_position_sign_subheader(self) -> None:
         subheader = getattr(self, "position_sign_distribution_subheader", None)
@@ -3757,6 +3891,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         "manage_charts/tag_distribution_mode",
                         self._tag_distribution_mode,
                     )
+            self._update_sentiment_tally(
+                update_database_metrics=True,
+                update_similarities=False,
+                sections_to_refresh={chart_key},
+            )
+            return
+
+        if chart_key == "traits_distribution":
+            dropdown = self._analysis_chart_dropdowns.get(chart_key)
+            if dropdown is not None:
+                selected_mode = dropdown.currentData()
+                if isinstance(selected_mode, str):
+                    self._traits_distribution_mode = selected_mode
+                    self._settings.setValue(
+                        "manage_charts/traits_distribution_mode",
+                        self._traits_distribution_mode,
+                    )
+            self._sync_traits_distribution_display_mode()
             self._update_sentiment_tally(
                 update_database_metrics=True,
                 update_similarities=False,
@@ -3997,6 +4149,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 "top_two_three_only": "top_three_species",
             }.get(stored_species_mode, stored_species_mode)
 
+        stored_traits_distribution_mode = self._settings.value(
+            "manage_charts/traits_distribution_mode",
+            self._traits_distribution_mode,
+        )
+        if isinstance(stored_traits_distribution_mode, str):
+            self._traits_distribution_mode = stored_traits_distribution_mode
+
         stored_alignment_social_mode = self._settings.value(
             "manage_charts/alignment_social_mode",
             self._alignment_social_mode,
@@ -4102,18 +4261,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             collection_id = normalize_collection_id(raw_id or name.replace(" ", "_"))
             if collection_id in DEFAULT_COLLECTION_IDS or collection_id in collections:
                 continue
-            raw_chart_ids = entry.get("chart_ids", [])
-            chart_ids: set[int] = set()
-            if isinstance(raw_chart_ids, list):
-                for value in raw_chart_ids:
-                    try:
-                        chart_ids.add(int(value))
-                    except (TypeError, ValueError):
-                        continue
+            chart_ids = self._coerce_chart_ids(entry.get("chart_ids", []))
+            chart_uids = self._coerce_chart_uids(entry.get("chart_uids", []))
+            if chart_ids:
+                chart_uids.update(self._chart_uids_for_ids(chart_ids))
+            if not chart_ids and chart_uids:
+                chart_ids.update(get_chart_ids_by_uid(chart_uids).values())
             collections[collection_id] = CustomCollection(
                 collection_id=collection_id,
                 name=name,
                 chart_ids=frozenset(chart_ids),
+                chart_uids=frozenset(chart_uids),
             )
         return collections
 
@@ -4122,11 +4280,40 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             {
                 "id": collection.collection_id,
                 "name": collection.name,
-                "chart_ids": sorted(collection.chart_ids),
+                "chart_uids": sorted(collection.chart_uids),
             }
             for collection in self._custom_collections.values()
         ]
         self._settings.setValue("manage_charts/custom_collections", json.dumps(payload))
+
+    @staticmethod
+    def _coerce_chart_ids(raw_values: object) -> set[int]:
+        chart_ids: set[int] = set()
+        if isinstance(raw_values, (list, tuple, set)):
+            for value in raw_values:
+                try:
+                    chart_ids.add(int(value))
+                except (TypeError, ValueError):
+                    continue
+        return chart_ids
+
+    @staticmethod
+    def _coerce_chart_uids(raw_values: object) -> set[str]:
+        chart_uids: set[str] = set()
+        if isinstance(raw_values, (list, tuple, set)):
+            for value in raw_values:
+                chart_uid = str(value or "").strip().upper()
+                if chart_uid:
+                    chart_uids.add(chart_uid)
+        return chart_uids
+
+    @staticmethod
+    def _chart_uids_for_ids(chart_ids: Iterable[int]) -> set[str]:
+        return {
+            str(chart_uid).strip().upper()
+            for chart_uid in get_chart_uid_map(chart_ids).values()
+            if str(chart_uid or "").strip()
+        }
 
     def _coerce_active_collection_id(self, value: object) -> str:
         candidate = normalize_collection_id(value)
@@ -4276,18 +4463,29 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             subheader.setWordWrap(DATABASE_VIEW_SUBHEADER_WORD_WRAP)
             return subheader
 
-        self.database_metrics_panel_header_label = QLabel("Database Analytics")
+        self.database_metrics_panel_header_label = QLabel("📊 Database Analytics")
         self.database_metrics_panel_header_label.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
+        apply_emoji_pngs_to_label(self.database_metrics_panel_header_label)
         layout.addWidget(self.database_metrics_panel_header_label)
         self.database_metrics_pending_label = QLabel("Updating analytics…")
         self.database_metrics_pending_label.setStyleSheet("color: #d8c77a; font-style: italic; padding: 0 4px 4px 4px;")
         self.database_metrics_pending_label.setVisible(False)
         layout.addWidget(self.database_metrics_pending_label)
 
+        database_analytics_categories = self._create_database_analytics_category_layouts(
+            panel,
+            layout,
+        )
+        astro_category_layout = database_analytics_categories["astro"]
+        esoteric_category_layout = database_analytics_categories["esoteric"]
+        subjective_notes_category_layout = database_analytics_categories["subjective_notes"]
+        predictions_category_layout = database_analytics_categories["predictions"]
+        demographics_category_layout = database_analytics_categories["demographics"]
+
         # PLANETARY/POSITION SIGN DISTRIBUTION SECTION
         position_sign_section_layout = self._add_left_panel_collapsible_section(
             panel,
-            layout,
+            astro_category_layout,
             "🪐Sign Distribution by Placement",
             section_key="planetary_sign_prevalence",
             expanded=self._is_database_metrics_section_expanded("planetary_sign_prevalence"),
@@ -4320,8 +4518,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         #SIGN PREVALENCE SECTION
         sign_section_layout = self._add_left_panel_collapsible_section(
             panel,
-            layout,
-            "🪐Astro Chart Prevalences",
+            astro_category_layout,
+            "🪐Chart Prevalences",
             section_key="sign_prevalence",
             expanded=self._is_database_metrics_section_expanded("sign_prevalence"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
@@ -4333,7 +4531,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         #Sign Prevalence Chart Header
         self._create_analysis_chart_header(
             sign_section_layout,
-            "🪐Astro Chart Prevalences",
+            "🪐Chart Prevalences",
             "sign_prevalence",
             "sign_prevalence",
             dropdown_options=[
@@ -4360,7 +4558,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         #DOMINANT FACTORS SECTION
         dominant_sign_section_layout = self._add_left_panel_collapsible_section(
             panel,
-            layout,
+            astro_category_layout,
             "🪐Dominant Factors (Top 3)",
             section_key="dominant_signs",
             expanded=self._is_database_metrics_section_expanded("dominant_signs"),
@@ -4395,7 +4593,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         #cumulativedom FACTORS SECTION
         cumulativedom_sign_section_layout = self._add_left_panel_collapsible_section(
             panel,
-            layout,
+            astro_category_layout,
             "🪐Dominant Factors (cumulative)",
             section_key="cumulativedom_factors",
             expanded=self._is_database_metrics_section_expanded("cumulativedom_factors"),
@@ -4430,7 +4628,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         # DECANS SECTION
         decans_section_layout = self._add_left_panel_collapsible_section(
             panel,
-            layout,
+            astro_category_layout,
             "🪐Decans",
             section_key="decans",
             expanded=self._is_database_metrics_section_expanded("decans"),
@@ -4460,7 +4658,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         # NAKSHATRAS SECTION
         nakshatras_section_layout = self._add_left_panel_collapsible_section(
             panel,
-            layout,
+            astro_category_layout,
             "✨Nakshatras",
             section_key="nakshatras",
             expanded=self._is_database_metrics_section_expanded("nakshatras"),
@@ -4490,7 +4688,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         # HUMAN DESIGN SECTION
         human_design_section_layout = self._add_left_panel_collapsible_section(
             panel,
-            layout,
+            esoteric_category_layout,
             "🪷Human Design",
             section_key="human_design",
             expanded=self._is_database_metrics_section_expanded("human_design"),
@@ -4529,12 +4727,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         human_design_section_layout.addWidget(self.human_design_chart_container)
 
         
-        self._create_bazi_database_analytics_section(panel, layout)
+        self._create_bazi_database_analytics_section(panel, esoteric_category_layout)
 
         #SENTIMENT PREVALENCE SECTION
         sentiment_section_layout = self._add_left_panel_collapsible_section(
             panel,
-            layout,
+            subjective_notes_category_layout,
             "💭Sentiment Prevalence",
             section_key="sentiment_prevalence",
             expanded=self._is_database_metrics_section_expanded("sentiment_prevalence"),
@@ -4576,7 +4774,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         #RELATIONSHIP PREVALENCE SECTION
         relationship_section_layout = self._add_left_panel_collapsible_section(
             panel,
-            layout,
+            subjective_notes_category_layout,
             "💭Relationship Prevalence",
             section_key="relationship_prevalence",
             expanded=self._is_database_metrics_section_expanded("relationship_prevalence"),
@@ -4622,7 +4820,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         #ALIGNMENT + SOCIAL SCORE SECTION
         alignment_section_layout = self._add_left_panel_collapsible_section(
             panel,
-            layout,
+            subjective_notes_category_layout,
             "💭Alignment && Social Score",
             section_key="alignment_summary",
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
@@ -4674,7 +4872,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         predictability_section_layout = self._add_left_panel_collapsible_section(
             panel,
-            layout,
+            subjective_notes_category_layout,
             "💭Predictability",
             section_key="matched_expectations_summary",
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
@@ -4703,12 +4901,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         predictability_section_layout.addWidget(self.matched_expectations_summary_chart_container)
 
-        self._create_enneagram_database_analytics_section(panel, layout)
+        self._create_traits_database_analytics_section(panel, predictions_category_layout)
+        self._create_enneagram_database_analytics_section(panel, predictions_category_layout)
 
         #D&D TYPING SECTION
         species_section_layout = self._add_left_panel_collapsible_section(
             panel,
-            layout,
+            predictions_category_layout,
             "⚔️D&&D-ification",
             section_key="species_distribution",
             expanded=self._is_database_metrics_section_expanded("species_distribution"),
@@ -4751,7 +4950,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         # GENDER SECTION
         gender_section_layout = self._add_left_panel_collapsible_section(
             panel,
-            layout,
+            demographics_category_layout,
             "Gender",
             section_key="gender",
             expanded=self._is_database_metrics_section_expanded("gender"),
@@ -4786,7 +4985,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         # AGE SECTION
         age_section_layout = self._add_left_panel_collapsible_section(
             panel,
-            layout,
+            demographics_category_layout,
             "Eras && Ages",
             section_key="age",
             expanded=self._is_database_metrics_section_expanded("age"),
@@ -4821,7 +5020,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         #BIRTH TIME SECTION #Birth Time section
         birth_time_section_layout = self._add_left_panel_collapsible_section(
             panel,
-            layout,
+            demographics_category_layout,
             "Birth Time",
             section_key="birth_time",
             expanded=self._is_database_metrics_section_expanded("birth_time"),
@@ -4855,7 +5054,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         #BIRTH MONTH SECTION #Birth Month Section
         birth_month_section_layout = self._add_left_panel_collapsible_section(
             panel,
-            layout,
+            demographics_category_layout,
             "Birth Day", #birthday
             section_key="birth_month",
             expanded=self._is_database_metrics_section_expanded("birth_month"),
@@ -4888,7 +5087,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         #BIRTH PLACE SECTION
         birth_place_section_layout = self._add_left_panel_collapsible_section(
             panel,
-            layout,
+            demographics_category_layout,
             "Birth Place",
             section_key="birthplace",
             expanded=self._is_database_metrics_section_expanded("birthplace"),
@@ -4919,37 +5118,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_metrics_chart_layouts["birthplace"] = self.birthplace_chart_layout
         birth_place_section_layout.addWidget(self.birthplace_chart_container)
 
-        # TAG DISTRIBUTION SECTION
-        tag_distribution_section_layout = self._add_left_panel_collapsible_section(
-            panel,
-            layout,
-            "🏷️Tags",
-            section_key="tag_distribution",
-            expanded=self._is_database_metrics_section_expanded("tag_distribution"),
-            on_toggled=lambda checked: self._set_database_metrics_section_expanded(
-                "tag_distribution",
-                checked,
-            ),
-        )
-        self._database_metrics_section_expanded["tag_distribution"] = self._is_database_metrics_section_expanded("tag_distribution")
-        self._create_analysis_chart_header(
-            tag_distribution_section_layout,
-            "🏷️Tags",
-            "tag_distribution",
-            "tag_distribution",
-            dropdown_options=[("All", "all")],
-            show_title=False,
-        )
-        tag_subheader = add_database_subheader(
-            "Repeated tags by category. With selection, rows show selection % relative to DB %."
-        )
-        tag_distribution_section_layout.addWidget(tag_subheader)
-        (
-            self.tag_distribution_chart_container,
-            self.tag_distribution_chart_layout,
-        ) = self._create_database_analytics_chart_container()
-        self._database_metrics_chart_layouts["tag_distribution"] = self.tag_distribution_chart_layout
-        tag_distribution_section_layout.addWidget(self.tag_distribution_chart_container)
+        # Keep the usual Tags section un-nested at the bottom of Database Analytics.
+        self._create_tags_database_analytics_section(panel, layout)
 
 #end of lefthand Database Analytics panel, it closes below:
         return panel
@@ -6972,8 +7142,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self,
             self._selected_chart_ids(),
             prompt_for_chart=lambda: self._prompt_single_chart_selection(
-                dialog_title="Export chart",
-                submit_button_label="Export chart",
+                dialog_title="Export chart analysis",
+                submit_button_label="Export chart analysis",
                 placeholder_text="Look up the chart to export…",
             ),
             load_chart=load_chart,
@@ -6997,7 +7167,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "human_design": "Human Design Chart",
             "personal_transit": "Personal Transit",
             "synastry": "Synastry Chart",
-            "similar_charts": "See Similar Charts",
+            "similar_charts": "Astro Twin",
             "gemstone_chart": "Create Gemstone Chart",
             "chart_predictor_quiz": "Chart Predictor Quiz",
         }
@@ -7056,6 +7226,52 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             QMessageBox.warning(self, tool_title, f"Unknown chart tool: {tool_key}")
 
 
+    def _selected_chart_names_for_clipboard(self) -> list[str]:
+        """Return all selected chart names for Database View clipboard export."""
+        if self.list_widget is None:
+            return []
+
+        self._reconcile_persistent_selection_with_database()
+        selected_ids = set(getattr(self, "_selected_chart_ids_set", set()))
+        if not selected_ids:
+            return _selected_chart_list_item_names(self.list_widget)
+
+        selected_names: list[str] = []
+        copied_ids: set[int] = set()
+        for row in range(self.list_widget.count()):
+            item = self.list_widget.item(row)
+            if item is None:
+                continue
+            chart_id = self._chart_id_from_list_item(item)
+            if chart_id is None or chart_id not in selected_ids:
+                continue
+            name = _chart_list_item_raw_name(item)
+            if name:
+                selected_names.append(name)
+                copied_ids.add(chart_id)
+
+        if len(copied_ids) == len(selected_ids):
+            return selected_names
+
+        chart_names_by_id = self._similar_charts_popout_chart_names_by_id(
+            getattr(self, "_chart_rows", [])
+        )
+        for chart_id in getattr(self, "_selected_chart_id_order", []):
+            if chart_id in copied_ids:
+                continue
+            name = str(chart_names_by_id.get(chart_id) or "").strip()
+            if name:
+                selected_names.append(name)
+                copied_ids.add(chart_id)
+        return selected_names
+
+    def _copy_selected_chart_names_to_clipboard(self) -> bool:
+        selected_names = self._selected_chart_names_for_clipboard()
+        if not selected_names:
+            return False
+        QApplication.clipboard().setText("\n".join(selected_names))
+        return True
+
     def _selected_chart_ids(
         self,
         selected_items: list[QListWidgetItem] | None = None,
@@ -7112,11 +7328,36 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._update_batch_selection_order(ordered)
 
     def _clear_persistent_selection(self) -> None:
+        previous_selection = list(getattr(self, "_selected_chart_id_order", []))
+        self._remember_single_chart_deselection(previous_selection, [])
         self._replace_persistent_selection([])
         if self.list_widget is not None and self.list_widget.selectedItems():
             blocker = QSignalBlocker(self.list_widget)
             self.list_widget.clearSelection()
             blocker.unblock()
+
+
+    def _remember_single_chart_deselection(
+        self,
+        previous_selection: Iterable[int],
+        current_selection: Iterable[int],
+    ) -> None:
+        previous_ids = list(previous_selection)
+        current_ids = list(current_selection)
+        if len(previous_ids) == 1 and not current_ids:
+            self._prior_deselected_selection = previous_ids
+        elif current_ids:
+            self._prior_deselected_selection = []
+
+    def _restore_prior_deselected_selection(self) -> bool:
+        prior_selection = list(getattr(self, "_prior_deselected_selection", []))
+        if len(prior_selection) != 1:
+            return False
+        self._prior_deselected_selection = []
+        self._replace_persistent_selection(prior_selection)
+        self._sync_visible_selection_from_persistent_selection()
+        self._on_selection_changed(sync_persistent_selection=False)
+        return True
 
     def _reconcile_persistent_selection_with_database(self) -> None:
         chart_rows = getattr(self, "_chart_rows", [])
@@ -8320,7 +8561,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 progress,
                 "Preparing similarities export data…",
             )
-            self.similarities_controller.set_export_sections([
+            export_sections = [
                 (
                     "Signs in positions in common",
                     [
@@ -8573,8 +8814,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         for label, match_count, total_count in common_bazi_signs
                     ],
                 ),
-            ])
-            self.similarities_controller.set_export_sections([
+            ]
+            filtered_export_sections = [
                 (
                     section_title,
                     [
@@ -8589,12 +8830,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         )
                     ],
                 )
-                for section_title, matches in self._similarities_export_sections
-            ])
+                for section_title, matches in export_sections
+            ]
+            update_similarities_loading_progress(
+                progress,
+                "Rendering similarities results…",
+            )
+            self.similarities_controller.set_export_sections(filtered_export_sections)
 
             total_matches = sum(
                 len(section_matches)
-                for _section_title, section_matches in self._similarities_export_sections
+                for _section_title, section_matches in filtered_export_sections
             )
             if total_matches > 0:
                 self.similarities_status_label.setText(
@@ -8606,10 +8852,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     f"No shared similarities found in at least 2 charts across "
                     f"{len(selected_non_placeholder_chart_ids)} selected chart(s)."
                 )
-            update_similarities_loading_progress(
-                progress,
-                "Rendering similarities results…",
-            )
             self._set_similarities_section_matches(
                 self.similarities_common_positions_list,
                 self.similarities_common_positions_toggle,
@@ -8726,6 +8968,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 db_match_counts=db_common_bazi_signs,
                 db_total_count=db_total_count,
             )
+        except OperationCanceled:
+            return
         finally:
             close_similarities_loading_progress(progress)
 
@@ -8758,13 +9002,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         sanitized_header = re.sub(r"[^\w\s-]", "", header_name).strip() or "selection"
         sanitized_header = re.sub(r"\s+", "_", sanitized_header)
+        sample_suffix = _similarities_export_sample_suffix(self._similarities_export_sections)
         default_filename = (
-            f"ephemeraldaddy_{sanitized_header} similarities analysis_{timestamp}.csv"
+            f"ephemeraldaddy_{sanitized_header} similarities analysis_{timestamp}{sample_suffix}.csv"
         )
+        settings = QSettings()
         file_path, _ = QFileDialog.getSaveFileName(
             self,
             "Export similarities analysis as CSV",
-            default_filename,
+            _similarities_export_default_path(settings, default_filename),
             "CSV Files (*.csv)",
         )
         QTimer.singleShot(0, self._reactivate_database_view)
@@ -8772,6 +9018,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         if not file_path.lower().endswith(".csv"):
             file_path = f"{file_path}.csv"
+        _remember_similarities_export_directory(settings, file_path)
 
         rows: list[list[str | int | float]] = []
         for section_title, matches in self._similarities_export_sections:
@@ -10350,16 +10597,36 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         show_progress: bool = False,
         force_full_refresh: bool = False,
         changed_ids: set[int] | None = None,
+        changed_fields: set[str] | frozenset[str] | None = None,
         *,
         update_database_metrics: bool = True,
         update_similarities: bool = True,
         sections_to_refresh: set[str] | None = None,
     ) -> None:
-        if changed_ids:
+        if sections_to_refresh is None and changed_ids and changed_fields is not None:
+            sections_to_refresh = set(
+                database_metrics_sections_for_changed_fields(changed_fields)
+            )
+        scoped_database_refresh_requested = sections_to_refresh is not None
+        if scoped_database_refresh_requested and not sections_to_refresh:
+            update_database_metrics = False
+        if changed_ids and update_database_metrics:
             self._database_metrics_lucy_goosey_ids.update(changed_ids)
-            self._database_metrics_preloaded_sections.clear()
+            if sections_to_refresh is None:
+                self._database_metrics_preloaded_sections.clear()
+            else:
+                self._database_metrics_preloaded_sections.difference_update(sections_to_refresh)
+            clear_traits_cache = getattr(self, "_clear_traits_distribution_analytics_cache", None)
+            if callable(clear_traits_cache) and (
+                sections_to_refresh is None or "traits_distribution" in sections_to_refresh
+            ):
+                clear_traits_cache(changed_ids)
         if force_full_refresh or (update_database_metrics and sections_to_refresh is None):
             self._database_metrics_preloaded_sections.clear()
+            if force_full_refresh:
+                clear_traits_cache = getattr(self, "_clear_traits_distribution_analytics_cache", None)
+                if callable(clear_traits_cache):
+                    clear_traits_cache()
 
         self._update_selection_header()
         if not update_database_metrics and not update_similarities:
@@ -11287,12 +11554,33 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 )
             )
 
-            self._render_enneagram_database_analytics(
-                selection_cache=selection_cache,
-                database_cache=database_cache,
-                loaded_charts=loaded_charts,
-                should_refresh=_should_refresh_database_metric_section,
-            )
+            if _should_refresh_database_metric_section("enneagram"):
+                from ephemeraldaddy.core.loading_messages import LoadingMessageRotator
+                from ephemeraldaddy.gui.style import close_app_loading_progress, create_app_loading_progress, update_app_loading_progress
+                _enneagram_loading_messages = LoadingMessageRotator(initial_message="Loading Enneagram predictions…")
+                _enneagram_progress = create_app_loading_progress(
+                    parent=self,
+                    title="Database Analytics Predictions",
+                    message=_enneagram_loading_messages.next(),
+                )
+                try:
+                    update_app_loading_progress(_enneagram_progress, "Collecting Enneagram prediction scores…", 35)
+                    self._render_enneagram_database_analytics(
+                        selection_cache=selection_cache,
+                        database_cache=database_cache,
+                        loaded_charts=loaded_charts,
+                        should_refresh=_should_refresh_database_metric_section,
+                    )
+                    update_app_loading_progress(_enneagram_progress, "Enneagram predictions ready.", 100)
+                finally:
+                    close_app_loading_progress(_enneagram_progress)
+            else:
+                self._render_enneagram_database_analytics(
+                    selection_cache=selection_cache,
+                    database_cache=database_cache,
+                    loaded_charts=loaded_charts,
+                    should_refresh=_should_refresh_database_metric_section,
+                )
 
             if _should_refresh_database_metric_section("planetary_sign_prevalence"):
                 effective_loaded_charts = (
@@ -12544,6 +12832,26 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 loaded_charts=loaded_charts,
                 should_refresh=_should_refresh_database_metric_section,
             )
+            if _should_refresh_database_metric_section("traits_distribution"):
+                from ephemeraldaddy.core.loading_messages import LoadingMessageRotator
+                from ephemeraldaddy.gui.style import close_app_loading_progress, create_app_loading_progress, update_app_loading_progress
+                _traits_loading_messages = LoadingMessageRotator(initial_message="Loading trait predictions…")
+                _traits_progress = create_app_loading_progress(
+                    parent=self,
+                    title="Database Analytics Predictions",
+                    message=_traits_loading_messages.next(),
+                )
+                try:
+                    update_app_loading_progress(_traits_progress, "Scoring trait predictions…", 35)
+                    self._render_traits_distribution_section(
+                        chart_ids=chart_ids,
+                        database_chart_ids=database_cache["chart_ids"],
+                        loaded_charts=loaded_charts,
+                        should_refresh=_should_refresh_database_metric_section,
+                    )
+                    update_app_loading_progress(_traits_progress, "Trait predictions ready.", 100)
+                finally:
+                    close_app_loading_progress(_traits_progress)
 
         if update_similarities:
             self._update_similarities_analysis(chart_ids)
@@ -12755,6 +13063,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return True
         list_widget = getattr(self, "list_widget", None)
         if list_widget is not None and obj is list_widget:
+            if event.type() == QEvent.KeyPress and event.matches(QKeySequence.StandardKey.Copy):
+                if self._copy_selected_chart_names_to_clipboard():
+                    return True
+            if event.type() == QEvent.KeyPress and event.matches(QKeySequence.StandardKey.Undo):
+                if self._restore_prior_deselected_selection():
+                    return True
             if event.type() == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
                 modifiers = event.modifiers()
                 additive = bool(
@@ -13160,19 +13474,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         QMessageBox.warning(self, "Export unavailable", "Chart export is unavailable right now.")
 
-    def _build_edit_panel(self) -> QWidget:
-        # Batch edit panel (right sidebar).
-        panel = EmojiTiledPanel("✏️", font_size=70, opacity=0.10) #Batch Edit panelbackground
-        panel.setMinimumWidth(260)
+    def _build_database_manager_panel(self) -> QWidget:
+        panel = EmojiTiledPanel("📚", font_size=70, opacity=0.10)
+        panel.setMinimumWidth(360)
         layout = QVBoxLayout()
         panel.setLayout(layout)
 
-        header_layout = QHBoxLayout()
         title = QLabel("Database Manager")
         title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
-        header_layout.addWidget(title)
-        header_layout.addStretch(1)
-        layout.addLayout(header_layout)
+        layout.addWidget(title)
 
         action_button_style = (
             "QPushButton {"
@@ -13186,94 +13496,41 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "QPushButton:disabled { background-color: #202020; color: #666666; border-color: #2f2f2f; }"
         )
 
-        actions_row_database = QWidget()
-        actions_row_database_layout = QGridLayout(actions_row_database)
-        actions_row_database_layout.setContentsMargins(0, 2, 0, 2)
-        actions_row_database_layout.setHorizontalSpacing(4)
-        actions_row_database_layout.setVerticalSpacing(4)
+        actions_layout = QGridLayout()
+        actions_layout.setContentsMargins(0, 2, 0, 2)
+        actions_layout.setHorizontalSpacing(4)
+        actions_layout.setVerticalSpacing(4)
+        layout.addLayout(actions_layout)
 
-        #Database Actions Buttons: should be a single row
-        self.batch_backup_database_button = QPushButton("Backup 📚") #Backup Database
-        self.batch_backup_database_button.clicked.connect(self._on_export_database)
-        self.batch_backup_database_button.setObjectName("manage_backup_database_button")
-        self.batch_backup_database_button.setStyleSheet(action_button_style)
-        actions_row_database_layout.addWidget(self.batch_backup_database_button, 0, 0)
-
-        self.batch_restore_database_button = QPushButton("Restore 📚") #Restore Database
-        self.batch_restore_database_button.clicked.connect(self._on_import_database)
-        self.batch_restore_database_button.setObjectName("manage_restore_database_button")
-        self.batch_restore_database_button.setStyleSheet(action_button_style)
-        actions_row_database_layout.addWidget(self.batch_restore_database_button, 0, 1)
-
-        self.batch_append_database_button = QPushButton("Append 📚") #Append Database
-        self.batch_append_database_button.clicked.connect(self._on_append_database_placeholder)
-        self.batch_append_database_button.setStyleSheet(action_button_style)
-        actions_row_database_layout.addWidget(self.batch_append_database_button, 0, 2)
-
-        self.batch_refresh_database_button = QPushButton("Refresh 📚") #Refresh Database
-        self.batch_refresh_database_button.clicked.connect(self._on_force_refresh_database_analysis)
-        self.batch_refresh_database_button.setObjectName("manage_force_refresh_button")
-        self.batch_refresh_database_button.setStyleSheet(action_button_style)
-        actions_row_database_layout.addWidget(self.batch_refresh_database_button, 0, 3)
-        #single row of database action buttons end here
-
-        for button in (
-            self.batch_backup_database_button,
-            self.batch_restore_database_button,
-            self.batch_append_database_button,
-            self.batch_refresh_database_button,
-        ):
+        button_specs = (
+            ("Backup 📚", self._on_export_database, "manage_backup_database_button"),
+            ("Restore 📚", self._on_import_database, "manage_restore_database_button"),
+            ("Append 📚", self._on_append_database_placeholder, None),
+            ("Refresh 📚", self._on_force_refresh_database_analysis, "manage_force_refresh_button"),
+            ("Import from CSV", self._on_import_csv, None),
+            ("Check for Duplicates", self._on_check_for_duplicates, None),
+        )
+        for idx, (label, handler, object_name) in enumerate(button_specs):
+            button = QPushButton(label)
+            button.clicked.connect(handler)
+            if object_name:
+                button.setObjectName(object_name)
+            button.setStyleSheet(action_button_style)
             button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
             button.setMinimumHeight(28)
-        for idx in range(4):
-            actions_row_database_layout.setColumnStretch(idx, 1)
-        layout.addWidget(actions_row_database)
+            actions_layout.addWidget(button, idx // 2, idx % 2)
 
-        actions_row_bottom = QWidget()
-        actions_row_bottom_layout = QHBoxLayout(actions_row_bottom)
-        actions_row_bottom_layout.setContentsMargins(0, 2, 0, 2)
-        actions_row_bottom_layout.setSpacing(4)
+        for idx in range(2):
+            actions_layout.setColumnStretch(idx, 1)
+        layout.addStretch(1)
+        return panel
 
-        self.batch_export_selection_button = QPushButton("Export Selection to CSV")
-        self.batch_export_selection_button.clicked.connect(self._on_export_selected)
-        self.batch_export_selection_button.setStyleSheet(action_button_style)
-        actions_row_bottom_layout.addWidget(self.batch_export_selection_button)
-
-        self.batch_import_csv_button = QPushButton("CSV Import")
-        self.batch_import_csv_button.clicked.connect(self._on_import_csv)
-        self.batch_import_csv_button.setStyleSheet(action_button_style)
-        actions_row_bottom_layout.addWidget(self.batch_import_csv_button)
-
-        self.batch_check_duplicates_button = QPushButton("Check for Duplicates")
-        self.batch_check_duplicates_button.clicked.connect(self._on_check_for_duplicates)
-        self.batch_check_duplicates_button.setStyleSheet(action_button_style)
-        actions_row_bottom_layout.addWidget(self.batch_check_duplicates_button)
-
-        layout.addWidget(actions_row_bottom)
-
-        divider_actions_charts = QFrame()
-        divider_actions_charts.setFrameShape(QFrame.HLine)
-        divider_actions_charts.setFrameShadow(QFrame.Sunken)
-        divider_actions_charts.setStyleSheet("color: #2f2f2f;")
-        layout.addWidget(divider_actions_charts)
-
-        actions_row_top = QWidget()
-        actions_row_top_layout = QHBoxLayout(actions_row_top)
-        actions_row_top_layout.setContentsMargins(0, 2, 0, 2)
-        actions_row_top_layout.setSpacing(4)
-
-        # self.batch_synastry_chart_button = QPushButton("Synastry Chart")
-        # self.batch_synastry_chart_button.clicked.connect(self._on_generate_composite_chart)
-        # self.batch_synastry_chart_button.setObjectName("manage_composite_chart_button")
-        # self.batch_synastry_chart_button.setStyleSheet(action_button_style)
-        # actions_row_top_layout.addWidget(self.batch_synastry_chart_button)
-        # layout.addWidget(actions_row_top)
-
-        divider_chart_editor = QFrame()
-        divider_chart_editor.setFrameShape(QFrame.HLine)
-        divider_chart_editor.setFrameShadow(QFrame.Sunken)
-        divider_chart_editor.setStyleSheet("color: #2f2f2f;")
-        layout.addWidget(divider_chart_editor)
+    def _build_edit_panel(self) -> QWidget:
+        # Batch edit panel (right sidebar).
+        panel = EmojiTiledPanel("✏️", font_size=70, opacity=0.10) #Batch Edit panelbackground
+        panel.setMinimumWidth(260)
+        layout = QVBoxLayout()
+        panel.setLayout(layout)
 
         batch_editor_title = QLabel("Batch Editor")
         batch_editor_title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
@@ -13288,7 +13545,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.addWidget(description)
 
 
-        def add_collapsible_section(title: str) -> tuple[QWidget, QVBoxLayout]:
+        def add_collapsible_section(
+            title: str, *, nested: bool = False
+        ) -> tuple[QWidget, QVBoxLayout]:
             section = QWidget()
             section_layout = QVBoxLayout()
             section_layout.setContentsMargins(0, 0, 0, 0)
@@ -13306,19 +13565,35 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             content_layout = QVBoxLayout()
             content_layout.setContentsMargins(8, 6, 8, 6)
             content.setLayout(content_layout)
-            content_style = COLLAPSIBLE_SECTION_CONTENT_STYLE
+            content_style = (
+                COLLAPSIBLE_NESTED_SECTION_CONTENT_STYLE
+                if nested
+                else COLLAPSIBLE_SECTION_CONTENT_STYLE
+            )
             if DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS:
                 content_style = f"{content_style} {DATABASE_ANALYTICS_CONTENT_DEBUG_STYLE}"
             content.setStyleSheet(content_style)
             content.setVisible(False)
 
+            def set_toggle_expanded_state(checked: bool) -> None:
+                if toggle.icon().isNull():
+                    toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
+                    return
+                toggle.setArrowType(Qt.NoArrow)
+                label_text = str(toggle.property("_edd_collapsible_label_text") or toggle.text()).lstrip("▾▸ ")
+                toggle.setProperty("_edd_collapsible_label_text", label_text)
+                toggle.setText(f"{'▾' if checked else '▸'} {label_text}")
+
             def toggle_content(checked: bool) -> None:
                 content.setVisible(checked)
-                toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
+                set_toggle_expanded_state(checked)
                 content.adjustSize()
                 section.adjustSize()
                 panel.adjustSize()
                 panel.updateGeometry()
+
+            apply_emoji_png_to_button(toggle, icon_px=16)
+            set_toggle_expanded_state(False)
 
             toggle.toggled.connect(toggle_content)
 
@@ -13373,7 +13648,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         relationship_section_layout.addWidget(relationship_widget)
         layout.addWidget(relationship_section)
 
-        tagging_section, tagging_section_layout = add_collapsible_section("Tagging")
+        tagging_section, tagging_section_layout = add_collapsible_section("🏷️Tagging", nested=True)
         tagging_row = QHBoxLayout()
         self.batch_tags_input = QLineEdit()
         self.batch_tags_input.setPlaceholderText("add one tag")
@@ -13406,12 +13681,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.batch_tags_toggle = QToolButton()
         configure_collapsible_header_toggle(
             self.batch_tags_toggle,
-            title="Tags",
+            title="🏷️Tags",
             expanded=False,
             style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
         )
         tagging_section_layout.addWidget(self.batch_tags_toggle)
         self.batch_tags_list_widget = QListWidget()
+        self.batch_tags_list_widget.setStyleSheet(COLLAPSIBLE_SECTION_CONTENT_STYLE)
         self.batch_tags_list_widget.setSelectionMode(QListWidget.NoSelection)
         self.batch_tags_list_widget.setMaximumHeight(180)
         self.batch_tags_list_widget.itemClicked.connect(self._on_batch_tag_item_clicked)
@@ -14221,7 +14497,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _on_search_tags_changed(self, *_: object) -> None:
         tags = parse_tag_text(self.search_tags_input.text())
         render_tag_chip_preview(self.search_tags_preview_label, tags)
-        self._refresh_search_tags_list(getattr(self, "_known_chart_tags", []))
+        sync_search_tags_list_selection(self, set(tags))
         self._on_filter_changed()
 
     def _refresh_search_tags_list(self, known_tags: list[str]) -> None:
@@ -14749,6 +15025,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._update_sentiment_tally(
             show_progress=True,
             changed_ids=changed_ids,
+            changed_fields={"sentiments"},
         )
         self._update_batch_edit_state()
         self._refresh_filters_after_batch_edit(changed_ids)
@@ -14831,6 +15108,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._update_sentiment_tally(
             show_progress=True,
             changed_ids=changed_ids,
+            changed_fields={"relationship_types"},
         )
         self._update_batch_edit_state()
         self._refresh_filters_after_batch_edit(changed_ids)
@@ -14902,6 +15180,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._update_sentiment_tally(
                 show_progress=True,
                 changed_ids=changed_ids,
+                changed_fields=set(),
             )
             self._update_batch_edit_state()
             self._refresh_filters_after_batch_edit(changed_ids)
@@ -14974,9 +15253,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
 
         changed_ids = set(chart_ids)
+        metric_sections = {"matched_expectations"} if metric_attr == "matched_expectations" else set()
         self._update_sentiment_tally(
             show_progress=True,
             changed_ids=changed_ids,
+            changed_fields=metric_sections,
         )
         self._set_batch_metric_lucygoosey_state(metric_attr, False)
         self._update_batch_edit_state()
@@ -15113,6 +15394,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._update_sentiment_tally(
             show_progress=True,
             changed_ids=changed_ids,
+            changed_fields={"alignment"},
         )
         self._update_batch_edit_state()
         self._refresh_filters_after_batch_edit(changed_ids)
@@ -15238,6 +15520,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._update_sentiment_tally(
             show_progress=True,
             changed_ids=changed_ids,
+            changed_fields={"birth_data"},
         )
         self._update_batch_edit_state()
         self._refresh_filters_after_batch_edit(changed_ids)
@@ -15292,6 +15575,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._update_sentiment_tally(
             show_progress=True,
             changed_ids=changed_ids,
+            changed_fields={"gender"},
         )
         self._update_batch_edit_state()
         self._refresh_filters_after_batch_edit(changed_ids)
@@ -15346,6 +15630,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._update_sentiment_tally(
             show_progress=True,
             changed_ids=changed_ids,
+            changed_fields={"birth_data"},
         )
         self._update_batch_edit_state()
         self._refresh_filters_after_batch_edit(changed_ids)
@@ -15398,6 +15683,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._update_sentiment_tally(
             show_progress=True,
             changed_ids=changed_ids,
+            changed_fields={"birth_data"},
         )
         self._update_batch_edit_state()
         self._refresh_filters_after_batch_edit(changed_ids)
@@ -15557,9 +15843,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.left_panel_stack.setCurrentWidget(widget)
         self._active_left_panel = panel_name
         self._set_left_panel_visible(True)
+        previous_database_metrics_baseline_mode = self._database_metrics_baseline_mode
 
         if panel_name == "database_metrics":
-            self.database_metrics_panel_header_label.setText("Database Analytics")
+            self.database_metrics_panel_header_label.setText("📊 Database Analytics")
+            self.database_metrics_panel_header_label.setProperty("_edd_original_emoji_text", "📊 Database Analytics")
+            apply_emoji_pngs_to_label(self.database_metrics_panel_header_label)
             self._database_metrics_baseline_mode = "database"
             self._settings.setValue(
                 "manage_charts/database_metrics_baseline_mode",
@@ -15569,8 +15858,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._sync_database_metrics_section_visibility()
             self._update_position_sign_subheader()
             self._update_gender_subheader()
-            self._show_database_analytics_pending_indicator(True)
-            self._schedule_deferred_database_metrics_refresh()
+            self._refresh_database_metrics_panel_on_show(
+                baseline_changed=previous_database_metrics_baseline_mode != self._database_metrics_baseline_mode,
+            )
         elif panel_name == "gen_pop_norms":
             self.database_metrics_panel_header_label.setText("General Population")
             self._database_metrics_baseline_mode = "gen_pop"
@@ -15582,8 +15872,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._sync_database_metrics_section_visibility()
             self._update_position_sign_subheader()
             self._update_gender_subheader()
-            self._show_database_analytics_pending_indicator(True)
-            self._schedule_deferred_database_metrics_refresh()
+            self._refresh_database_metrics_panel_on_show(
+                baseline_changed=previous_database_metrics_baseline_mode != self._database_metrics_baseline_mode,
+            )
         elif panel_name == "similarities":
             self._update_sentiment_tally(
                 update_database_metrics=False,
@@ -15591,6 +15882,56 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
         elif panel_name == "perceived_similarity_predictors":
             self._refresh_perceived_similarity_predictors_panel()
+
+
+    def _refresh_database_metrics_panel_on_show(self, *, baseline_changed: bool = False) -> None:
+        """Refresh Database Analytics on panel show only when data is stale.
+
+        Panel navigation alone should not show a loading state or redraw cached
+        analytics.  If relevant chart rows changed, or expanded sections are not
+        covered by the current metrics cache, run the normal deferred refresh.
+        If only the database/general-population baseline changed, redraw the
+        expanded sections from the existing cache so canvases and export rows
+        match the new baseline without recomputing snapshots.
+        """
+        expanded_sections = frozenset(self._expanded_database_metric_sections())
+        if (
+            baseline_changed
+            and expanded_sections
+            and self._database_metrics_cache is not None
+            and not self._deferred_database_metrics_changed_ids
+            and not self._deferred_database_metrics_force_full_refresh
+            and not self._database_metrics_lucy_goosey_ids
+            and expanded_sections.issubset(self._database_metrics_snapshot_sections)
+        ):
+            self._show_database_analytics_pending_indicator(False)
+            self._update_sentiment_tally(
+                update_database_metrics=True,
+                update_similarities=False,
+                sections_to_refresh=set(expanded_sections),
+            )
+            self._schedule_database_metrics_background_preload()
+            return
+        if not self._database_metrics_refresh_needed_on_panel_show():
+            self._show_database_analytics_pending_indicator(False)
+            self._schedule_database_metrics_background_preload()
+            return
+        self._show_database_analytics_pending_indicator(True)
+        self._schedule_deferred_database_metrics_refresh()
+
+    def _database_metrics_refresh_needed_on_panel_show(self) -> bool:
+        expanded_sections = frozenset(self._expanded_database_metric_sections())
+        if not expanded_sections:
+            return False
+        if self._database_metrics_cache is None:
+            return True
+        if (
+            self._deferred_database_metrics_changed_ids
+            or self._deferred_database_metrics_force_full_refresh
+            or self._database_metrics_lucy_goosey_ids
+        ):
+            return True
+        return not expanded_sections.issubset(self._database_metrics_snapshot_sections)
 
     def _toggle_database_metrics_panel(self) -> None:
         if (
@@ -16034,6 +16375,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             collection_id=candidate,
             name=clean_name,
             chart_ids=frozenset(selected_chart_ids if include_selected_charts else ()),
+            chart_uids=frozenset(self._chart_uids_for_ids(selected_chart_ids) if include_selected_charts else ()),
         )
         self._save_custom_collections_to_settings()
         self._refresh_collection_controls()
@@ -16060,6 +16402,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             collection_id=collection.collection_id,
             name=clean_name,
             chart_ids=collection.chart_ids,
+            chart_uids=collection.chart_uids,
         )
         self._save_custom_collections_to_settings()
         self._refresh_collection_controls()
@@ -16106,10 +16449,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         collection = self._custom_collections[collection_id]
         updated_ids = set(collection.chart_ids)
         updated_ids.update(chart_ids)
+        updated_uids = set(collection.chart_uids)
+        updated_uids.update(self._chart_uids_for_ids(chart_ids))
         self._custom_collections[collection_id] = CustomCollection(
             collection_id=collection.collection_id,
             name=collection.name,
             chart_ids=frozenset(updated_ids),
+            chart_uids=frozenset(updated_uids),
         )
         self._save_custom_collections_to_settings()
         self._refresh_collection_controls()
@@ -16144,10 +16490,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         collection = self._custom_collections[collection_id]
         updated_ids = {int(chart_id) for chart_id in collection.chart_ids}
         updated_ids.difference_update(chart_ids)
+        removed_uids = self._chart_uids_for_ids(chart_ids)
+        updated_uids = set(collection.chart_uids)
+        updated_uids.difference_update(removed_uids)
         self._custom_collections[collection_id] = CustomCollection(
             collection_id=collection.collection_id,
             name=collection.name,
             chart_ids=frozenset(updated_ids),
+            chart_uids=frozenset(updated_uids),
         )
         self._save_custom_collections_to_settings()
         self._refresh_collection_controls()
@@ -16164,10 +16514,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         updated_ids = set(collection.chart_ids)
         updated_ids.add(chart_id)
+        updated_uids = set(collection.chart_uids)
+        updated_uids.update(self._chart_uids_for_ids([chart_id]))
         self._custom_collections[collection_id] = CustomCollection(
             collection_id=collection.collection_id,
             name=collection.name,
             chart_ids=frozenset(updated_ids),
+            chart_uids=frozenset(updated_uids),
         )
         self._save_custom_collections_to_settings()
         self._refresh_collection_controls()
@@ -16363,13 +16716,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.right_panel_stack.setVisible(self._right_panel_visible)
 
     def adopt_window_placement(self, source_window: QWidget | None) -> None:
-        if source_window is None:
+        if source_window is None or self._session_window_layout_adjusted:
             return
-        apply_window_placement(
-            self,
-            capture_window_placement(source_window),
-            show_window=False,
-        )
+        self._applying_window_placement = True
+        try:
+            apply_window_placement(
+                self,
+                capture_window_placement(source_window),
+                show_window=False,
+            )
+        finally:
+            self._applying_window_placement = False
 
     def apply_launch_window_policy(self, *, use_topmost_pulse: bool = False) -> None:
         # Keep Database View launch maximized across platforms (including macOS)
@@ -16382,14 +16739,31 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.isMinimized(),
             use_topmost_pulse,
         )
-        clear_fullscreen_and_minimized(self)
-        # Show directly in maximized state to avoid a visible normal-size flash
-        # during Chart View -> Database View transitions on Windows.
-        if not self.isVisible() or not self.isMaximized():
-            self.showMaximized()
-        bring_window_to_front(self, use_topmost_pulse=use_topmost_pulse)
+        self._applying_window_placement = True
+        defer_guard_clear = False
+        try:
+            clear_fullscreen_and_minimized(self)
+            if self._session_window_layout_adjusted:
+                if self.isMaximized():
+                    self.showMaximized()
+                else:
+                    self.showNormal()
+            elif not self.isVisible() or not self.isMaximized():
+                # Show directly in maximized state to avoid a visible normal-size flash
+                # during Chart View -> Database View transitions on Windows.
+                self.showMaximized()
+            bring_window_to_front(self, use_topmost_pulse=use_topmost_pulse)
+            defer_guard_clear = use_topmost_pulse
+        finally:
+            if defer_guard_clear:
+                QTimer.singleShot(0, self._clear_window_placement_guard)
+            else:
+                self._applying_window_placement = False
         if use_topmost_pulse:
             self._launch_foreground_completed = True
+
+    def _clear_window_placement_guard(self) -> None:
+        self._applying_window_placement = False
 
     def _toggle_fullscreen(self) -> None:
         if self.isFullScreen():
@@ -16401,12 +16775,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
+        if self.isVisible() and not getattr(self, "_applying_window_placement", False):
+            self._session_window_layout_adjusted = True
         if hasattr(self, "_content_splitter"):
             configure_splitter_handle_resize_cursor(self._content_splitter)
         if hasattr(self, "_help_scrim"):
             self._help_resize_overlay()
         # if self._help_overlay_active:
         #     self._rebuild_help_markers()
+
+    def moveEvent(self, event) -> None:
+        super().moveEvent(event)
+        if self.isVisible() and not getattr(self, "_applying_window_placement", False):
+            self._session_window_layout_adjusted = True
 
     def closeEvent(self, event) -> None:
         self._is_closing = True
@@ -16415,6 +16796,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_metrics_background_preload_scheduled = False
         self._deferred_database_metrics_refresh_scheduled = False
         self._incremental_metrics_refresh_scheduled = False
+        self._save_database_metrics_persistent_cache()
+        save_traits_cache = getattr(self, "_save_traits_distribution_likelihood_cache", None)
+        if callable(save_traits_cache) and getattr(self, "_traits_distribution_likelihood_cache_dirty", False):
+            save_traits_cache()
         if hasattr(self, "_batch_refresh_timer"):
             self._batch_refresh_timer.stop()
         if self._help_overlay_active:
@@ -16735,12 +17120,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self._search_location_state_input.setText("")
             if hasattr(self, "search_tags_input") and self.search_tags_input is not None:
                 self.search_tags_input.setText("")
+            if hasattr(self, "search_traits_input") and self.search_traits_input is not None:
+                self.search_traits_input.setText("")
+            if hasattr(self, "search_traits_direction_combo") and self.search_traits_direction_combo is not None:
+                self.search_traits_direction_combo.setCurrentIndex(0)
             if (
                 hasattr(self, "search_untagged_checkbox")
                 and self.search_untagged_checkbox is not None
             ):
                 self.search_untagged_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             for checkbox in getattr(self, "search_tag_filter_checkboxes", {}).values():
+                checkbox.setMode(QuadStateSlider.MODE_EMPTY)
+            for checkbox in getattr(self, "search_trait_filter_checkboxes", {}).values():
+                checkbox.setMode(QuadStateSlider.MODE_EMPTY)
+            for checkbox in getattr(self, "search_tag_category_checkboxes", {}).values():
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             for checkbox in self.sentiment_filter_checkboxes.values():
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
@@ -16924,9 +17317,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         if self._syncing_visible_selection:
             return
+        previous_selection = list(getattr(self, "_selected_chart_id_order", []))
         if sync_persistent_selection:
             replace_selection = getattr(self, "_selection_update_mode", "replace") == "replace"
             self._merge_visible_selection_into_persistent_selection(replace=replace_selection)
+            self._remember_single_chart_deselection(
+                previous_selection,
+                getattr(self, "_selected_chart_id_order", []),
+            )
         selected_chart_ids = self._visible_selected_chart_ids()
         if selected_chart_ids:
             current_chart_id = self._chart_id_from_list_item(self.list_widget.currentItem())
@@ -16965,19 +17363,38 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     active_left_scroll_value,
                 )
 
+    @staticmethod
+    def _set_button_text_if_changed(button: QPushButton, text: str) -> None:
+        """Avoid needless button relayouts when a selection keeps the same label."""
+        if button.text() != text:
+            button.setText(text)
+
+    @staticmethod
+    def _set_button_enabled_if_changed(button: QPushButton, enabled: bool) -> None:
+        """Avoid redundant local enabled-state updates during fast row selection changes."""
+        if button.testAttribute(Qt.WA_ForceDisabled) == enabled:
+            button.setEnabled(enabled)
+
     def _update_batch_edit_action_buttons(self) -> None:
         selected_count = len(self._selected_chart_ids()) if hasattr(self, "list_widget") else 0
         if hasattr(self, "batch_delete_chart_button"):
             chart_label = "Chart" if selected_count == 1 else "Charts"
-            self.batch_delete_chart_button.setText(
-                f"❌ {selected_count} {chart_label}"
+            self._set_button_text_if_changed(
+                self.batch_delete_chart_button,
+                f"❌ {selected_count} {chart_label}",
             )
         if hasattr(self, "batch_rename_chart_button"):
             rename_enabled = selected_count == 1
-            self.batch_rename_chart_button.setEnabled(rename_enabled)
+            self._set_button_enabled_if_changed(
+                self.batch_rename_chart_button,
+                rename_enabled,
+            )
         if hasattr(self, "total_chart_export_button"):
-            self.total_chart_export_button.setText(_chart_export_button_label(selected_count))
-            self.total_chart_export_button.setEnabled(True)
+            self._set_button_text_if_changed(
+                self.total_chart_export_button,
+                _chart_export_button_label(selected_count),
+            )
+            self._set_button_enabled_if_changed(self.total_chart_export_button, True)
         if hasattr(self, "mark_not_duplicates_button"):
             is_ready = (
                 self.mark_not_duplicates_button.isVisible()
@@ -17212,7 +17629,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if not chart_ids:
             QMessageBox.information(
                 self,
-                "Export charts",
+                "Export chart data",
                 "Select one or more charts to export.",
             )
             return
@@ -17221,7 +17638,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         default_filename = f"ephemeraldaddy_charts_export-{export_date}.csv"
         file_path, _ = QFileDialog.getSaveFileName(
             self,
-            "Export selected charts",
+            "Export data for selected charts",
             default_filename,
             "CSV Files (*.csv)",
         )
@@ -17323,13 +17740,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         QMessageBox.information(
             self,
             "Export complete",
-            f"Exported {len(chart_ids)} chart(s) to:\n{file_path}",
+            f"Exported data for {len(chart_ids)} chart(s) to:\n{file_path}",
         )
 
     def _on_import_csv_type_1(self) -> None:
         file_path, _ = QFileDialog.getOpenFileName(
             self,
-            "Import charts from CSV",
+            "Import chart data from CSV",
             "",
             "CSV Files (*.csv)",
         )
@@ -17682,9 +18099,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             progress.close()
 
         self._chart_cache.clear()
-        self._database_metrics_cache = None
-        self._database_metric_snapshots = {}
-        self._database_metrics_lucy_goosey_ids.clear()
+        self._invalidate_database_metrics_cache()
         self._refresh_charts(force_full_analysis_refresh=True)
 
     def _on_force_refresh_database_analysis(self) -> None:
@@ -17756,6 +18171,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         f"{min(gate_a, gate_b)}-{max(gate_a, gate_b)}"
                         for gate_a, gate_b, _center_a, _center_b in hd_result.defined_channels
                     )
+                    chart.human_design_defined_centers = sorted(str(center) for center in hd_result.defined_centers)
                     update_chart(
                         chart_id,
                         chart,
@@ -17787,9 +18203,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
 
         self._chart_cache.clear()
-        self._database_metrics_cache = None
-        self._database_metric_snapshots = {}
-        self._database_metrics_lucy_goosey_ids.clear()
+        self._invalidate_database_metrics_cache()
         self._refresh_charts(force_full_analysis_refresh=True)
 
     def _on_import_database(self) -> None:
@@ -18057,9 +18471,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             owner = self._owner_window()
             if owner is not None and hasattr(owner, "_invalidate_chart_view_navigation_cache"):
                 owner._invalidate_chart_view_navigation_cache()
-            self._database_metrics_cache = None
-            self._database_metric_snapshots = {}
-            self._database_metrics_lucy_goosey_ids.clear()
+            self._invalidate_database_metrics_cache()
             self.similarities_controller.clear_db_baseline_cache()
         elif changed_ids:
             self._database_metrics_lucy_goosey_ids.update(changed_ids)
@@ -18558,8 +18970,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self,
         *,
         changed_ids: set[int] | None = None,
+        sections_to_refresh: set[str] | frozenset[str] | None = None,
         force_full_refresh: bool = False,
     ) -> None:
+        section_scope = set(sections_to_refresh) if sections_to_refresh is not None else None
         if self._should_use_incremental_metrics_refresh():
             self._update_sentiment_tally(
                 update_database_metrics=False,
@@ -18567,22 +18981,27 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             self._schedule_incremental_metrics_refresh(
                 changed_ids=changed_ids,
+                sections_to_refresh=section_scope,
                 force_full_refresh=force_full_refresh,
             )
         else:
             self._update_sentiment_tally(
                 force_full_refresh=force_full_refresh,
                 changed_ids=changed_ids,
+                sections_to_refresh=section_scope,
             )
 
     def _schedule_deferred_database_metrics_refresh(
         self,
         *,
         changed_ids: set[int] | None = None,
+        sections_to_refresh: set[str] | frozenset[str] | None = None,
         force_full_refresh: bool = False,
     ) -> None:
         if changed_ids:
             self._deferred_database_metrics_changed_ids.update(changed_ids)
+        if sections_to_refresh is not None:
+            self._deferred_database_metrics_sections.update(sections_to_refresh)
         self._deferred_database_metrics_force_full_refresh = (
             self._deferred_database_metrics_force_full_refresh or force_full_refresh
         )
@@ -18595,14 +19014,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._deferred_database_metrics_refresh_scheduled = False
         if self._is_closing:
             self._deferred_database_metrics_changed_ids.clear()
+            self._deferred_database_metrics_sections.clear()
             self._deferred_database_metrics_force_full_refresh = False
             return
         changed_ids = set(self._deferred_database_metrics_changed_ids) or None
+        sections_to_refresh = set(self._deferred_database_metrics_sections) or None
         force_full_refresh = self._deferred_database_metrics_force_full_refresh
         self._deferred_database_metrics_changed_ids.clear()
+        self._deferred_database_metrics_sections.clear()
         self._deferred_database_metrics_force_full_refresh = False
         self._run_database_metrics_refresh(
             changed_ids=changed_ids,
+            sections_to_refresh=sections_to_refresh,
             force_full_refresh=force_full_refresh,
         )
         if not self._incremental_metrics_refresh_scheduled:
@@ -18641,34 +19064,36 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         self._on_selection_changed(sync_persistent_selection=False)
 
-    def _load_hidden_chart_ids_from_settings(self) -> set[int]:
-        raw_value = self._settings.value(SETTINGS_KEY_HIDDEN_CHART_IDS, "[]")
+    def _load_hidden_chart_uids_from_settings(self) -> set[str]:
+        raw_value = self._settings.value(SETTINGS_KEY_HIDDEN_CHART_UIDS, "[]")
         if isinstance(raw_value, str):
             try:
-                raw_ids = json.loads(raw_value)
+                raw_uids = json.loads(raw_value)
             except json.JSONDecodeError:
-                raw_ids = []
+                raw_uids = []
         else:
-            raw_ids = raw_value or []
-        hidden_ids: set[int] = set()
-        if isinstance(raw_ids, (list, tuple, set)):
-            for raw_id in raw_ids:
-                try:
-                    hidden_ids.add(int(raw_id))
-                except (TypeError, ValueError):
-                    continue
-        return hidden_ids
+            raw_uids = raw_value or []
+        hidden_uids = self._coerce_chart_uids(raw_uids)
 
-    def _save_hidden_chart_ids_to_settings(self) -> None:
+        legacy_value = self._settings.value(SETTINGS_KEY_HIDDEN_CHART_IDS, "[]")
+        if isinstance(legacy_value, str):
+            try:
+                legacy_raw_ids = json.loads(legacy_value)
+            except json.JSONDecodeError:
+                legacy_raw_ids = []
+        else:
+            legacy_raw_ids = legacy_value or []
+        legacy_ids = self._coerce_chart_ids(legacy_raw_ids)
+        if legacy_ids:
+            hidden_uids.update(self._chart_uids_for_ids(legacy_ids))
+        return hidden_uids
+
+    def _save_hidden_chart_uids_to_settings(self) -> None:
         self._settings.setValue(
-            SETTINGS_KEY_HIDDEN_CHART_IDS,
-            json.dumps(
-                sorted(
-                    int(chart_id)
-                    for chart_id in getattr(self, "_hidden_chart_ids", set())
-                )
-            ),
+            SETTINGS_KEY_HIDDEN_CHART_UIDS,
+            json.dumps(sorted(getattr(self, "_hidden_chart_uids", set()))),
         )
+        self._settings.remove(SETTINGS_KEY_HIDDEN_CHART_IDS)
 
     def _show_chart_list_context_menu(self, position: QPoint) -> None:
         selected_ids = self._visible_selected_chart_ids()
@@ -18714,7 +19139,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 ("bazi", "See BaZi Chart"),
                 ("human_design", "See Human Design Chart"),
                 ("personal_transit", "See Transit Chart"),
-                ("similar_charts", "See Similar Charts"),
+                ("similar_charts", "Astro Twin"),
             ):
                 tool_actions[menu.addAction(label)] = tool_key
         if menu.isEmpty():
@@ -18738,7 +19163,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if not normalized_ids:
             return
         self._hidden_chart_ids.update(normalized_ids)
-        self._save_hidden_chart_ids_to_settings()
+        self._hidden_chart_uids.update(self._chart_uids_for_ids(normalized_ids))
+        self._save_hidden_chart_uids_to_settings()
+        refresh_rankings = getattr(self, "_refresh_traits_distribution_rankings_after_hidden_chart_change", None)
+        if callable(refresh_rankings):
+            refresh_rankings(normalized_ids)
         remaining_selection = set(self._selected_chart_ids()) - normalized_ids
         self._populate_list(selected_ids=remaining_selection, refresh_metrics=False)
         self._on_selection_changed(sync_persistent_selection=False)
@@ -18748,7 +19177,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if not normalized_ids:
             return
         self._hidden_chart_ids.difference_update(normalized_ids)
-        self._save_hidden_chart_ids_to_settings()
+        self._hidden_chart_uids.difference_update(self._chart_uids_for_ids(normalized_ids))
+        self._save_hidden_chart_uids_to_settings()
         self._populate_list(selected_ids=set(self._selected_chart_ids()) | normalized_ids, refresh_metrics=False)
         self._on_selection_changed(sync_persistent_selection=False)
 
@@ -18783,6 +19213,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.search_tags_input.text() if hasattr(self, "search_tags_input") else ""
         )
         selected_search_tags, optional_search_tags, excluded_search_tags = collect_search_tag_filter_sets(self)
+        trait_filter_direction, required_search_traits, excluded_search_traits = collect_search_trait_filter_sets(self)
         selected_chart_types = {
             source
             for source, checkbox in self.chart_type_filter_checkboxes.items()
@@ -19454,6 +19885,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             excluded_tags=list(excluded_search_tags),
             untagged_mode=search_untagged_mode,
             optional_tags=list(optional_search_tags),
+        ):
+            return False
+
+        if (required_search_traits or excluded_search_traits) and not chart_matches_trait_filters(
+            self,
+            chart,
+            direction=trait_filter_direction,
+            required_traits=required_search_traits,
+            excluded_traits=excluded_search_traits,
         ):
             return False
 
@@ -20131,12 +20571,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return chart_id in self._possible_duplicate_chart_ids
         chart_source = normalized_row[14]
         chart = self._get_chart_for_filter(chart_id)
+        chart_uid = str(getattr(chart, "chart_uid", "") or "").strip()
         return chart_belongs_to_collection(
             self._active_collection_id,
             chart=chart,
             source=chart_source,
             custom_collections=self._custom_collections,
             chart_id=chart_id,
+            chart_uid=chart_uid,
         )
 
     @staticmethod
@@ -20654,6 +21096,33 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 del blocker
         self._update_sentiment_tally(update_database_metrics=True, update_similarities=False)
 
+
+    def _on_open_database_manager(self) -> None:
+        dialog = self._ensure_database_manager_dialog()
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
+
+    def _ensure_database_manager_dialog(self) -> QDialog:
+        if self._database_manager_dialog is not None:
+            return self._database_manager_dialog
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Database Manager")
+        dialog.setWindowFlag(Qt.Window, True)
+        dialog.setModal(False)
+        dialog.setMinimumSize(420, 220)
+        dialog.setStyleSheet(
+            "QDialog { background-color: #111111; color: #ececec; }"
+            "QLabel { color: #ececec; }"
+        )
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.addWidget(self._build_database_manager_panel())
+        self._register_popout_shortcuts(dialog)
+        self._database_manager_dialog = dialog
+        return dialog
+
     def _on_open_settings(self) -> None:
         dialog = self._ensure_settings_dialog()
         self._similarities_algorithm_settings_open_snapshot = self._current_similarity_algorithm_snapshot()
@@ -20781,6 +21250,21 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             content_layout,
             "Optional Modules",
         )
+
+        analytics_visibility_section = self._add_settings_collapsible_section(
+            content_layout,
+            "Analytics Visibility",
+        )
+        analytics_visibility_section.addWidget(self._build_settings_subheader_label("Chart View Predictions"))
+        dnd_statblock_explainers_checkbox = QCheckBox("Show D&&D Statblock explainers")
+        dnd_statblock_explainers_checkbox.setChecked(
+            self._visibility.get("analytics.dnd_statblock_explainers")
+        )
+        dnd_statblock_explainers_checkbox.toggled.connect(
+            self._set_dnd_statblock_explainer_visibility_from_settings
+        )
+        analytics_visibility_section.addWidget(dnd_statblock_explainers_checkbox)
+
         visibility_section.addWidget(self._build_settings_subheader_label("Chart Data Panel (Chart View)"))
 
         cursedness_checkbox = QCheckBox("Show cursedness analysis")
@@ -20837,6 +21321,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         visibility_section.addSpacing(8)
         visibility_section.addWidget(self._build_settings_subheader_label("Subjective Notes Panel (Chart View)"))
+
+        sexiness_checkbox = QCheckBox("Show Sexiness (Subjective Notes)")
+        sexiness_checkbox.setChecked(self._visibility.get("chart_view.sexiness"))
+        sexiness_checkbox.toggled.connect(
+            self._set_chart_view_sexiness_visibility_from_settings
+        )
+        visibility_section.addWidget(sexiness_checkbox)
 
         visibility_section.addSpacing(8)
         anagrams_checkbox = QCheckBox("Show Anagrams (Subjective Notes)")
@@ -21101,7 +21592,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         similarity_calculator_section = self._add_settings_collapsible_section(
             content_layout,
-            "Similar Charts Calculator",
+            "Astro Twin Calculator",
         )
         similarity_controls = build_similarity_calculator_settings_section(
             dialog=dialog,
@@ -21153,21 +21644,27 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._load_similarity_calculator_controls()
         self._load_similarity_thresholds_into_controls()
 
-        enneagram_section = self._add_settings_collapsible_section(content_layout, "Enneagram Predictor")
-        enneagram_controls = build_enneagram_predictor_settings_section(
+        enneagram_section = self._add_settings_collapsible_section(content_layout, "Predictions")
+        enneagram_controls = build_predictions_settings_section(
             dialog=dialog,
             section_layout=enneagram_section,
             subheader_style=SETTINGS_SECTION_SUBHEADER_STYLE,
             on_option_toggled=self._on_enneagram_scoring_option_toggled,
+            on_score_mode_changed=self._on_prediction_score_mode_changed,
             on_scale_mode_changed=self._on_enneagram_type_signature_scale_changed,
+            on_dominance_normalization_mode_changed=self._on_prediction_dominance_normalization_changed,
         )
         self._enneagram_predictor_checkboxes = enneagram_controls["checkboxes"]
+        self._prediction_score_mode_combo = enneagram_controls["score_mode_combo"]
         self._enneagram_predictor_scale_combo = enneagram_controls["scale_combo"]
+        self._prediction_dominance_normalization_combo = enneagram_controls["dominance_combo"]
         self._enneagram_predictor_default_radio = enneagram_controls["default_radio"]
         self._enneagram_predictor_custom_radio = enneagram_controls["custom_radio"]
         self._enneagram_predictor_weight_spinboxes = enneagram_controls["weight_spinboxes"]
         self._enneagram_predictor_total_label = enneagram_controls["total_label"]
         self._load_enneagram_predictor_controls()
+
+        add_traits_settings_section(self, content_layout)
 
         plugins_section = self._add_settings_collapsible_section(content_layout, "Plugins")
         plugins_section.addWidget(
@@ -21243,6 +21740,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._settings_dialog = dialog
         self._resize_and_center_settings_dialog(dialog)
         return dialog
+
 
     def _refresh_plugins_status_labels(self) -> None:
         recognized_plugins = recognized_plugin_names()
@@ -21331,8 +21829,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._settings.setValue(SETTINGS_KEY_LILITH_CALCULATION_METHOD, normalized)
         set_lilith_calculation_mode(normalized)
         self._chart_cache.clear()
-        self._database_metrics_cache = None
-        self._database_metrics_lucy_goosey_ids.clear()
+        self._invalidate_database_metrics_cache()
         invalidate_all_dominant_weight_caches()
         self._refresh_lilith_body_labels_in_filters()
         self._refresh_todays_transits_panel()
@@ -21663,12 +22160,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             cleared_count += parent._clear_similar_charts_popout_cache()
         QMessageBox.information(
             self,
-            "Similar Charts cache",
+            "Astro Twin cache",
             (
-                "Cleared cached Similar Charts rankings. "
-                "The next Similar Charts popout will recalculate on demand."
+                "Cleared cached Astro Twins rankings. "
+                "The next Astro Twins popout will recalculate on demand."
                 if cleared_count
-                else "Similar Charts cache was already empty."
+                else "Astro Twin cache was already empty."
             ),
         )
 
@@ -21887,12 +22384,26 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             blocker = QSignalBlocker(checkbox)
             checkbox.setChecked(bool(getattr(options, key, False)))
             del blocker
+        score_mode_combo = getattr(self, "_prediction_score_mode_combo", None)
+        if score_mode_combo is not None:
+            target_mode = options.normalized_score_mode()
+            index = score_mode_combo.findData(target_mode)
+            blocker = QSignalBlocker(score_mode_combo)
+            score_mode_combo.setCurrentIndex(index if index >= 0 else 0)
+            del blocker
         combo = getattr(self, "_enneagram_predictor_scale_combo", None)
         if combo is not None:
             target_mode = options.normalized_type_signature_scale_mode()
             index = combo.findData(target_mode)
             blocker = QSignalBlocker(combo)
             combo.setCurrentIndex(index if index >= 0 else 0)
+            del blocker
+        dominance_combo = getattr(self, "_prediction_dominance_normalization_combo", None)
+        if dominance_combo is not None:
+            target_mode = options.normalized_dominance_normalization_mode()
+            index = dominance_combo.findData(target_mode)
+            blocker = QSignalBlocker(dominance_combo)
+            dominance_combo.setCurrentIndex(index if index >= 0 else 0)
             del blocker
         self._update_enneagram_predictor_total_label()
         self._apply_enneagram_predictor_weights()
@@ -21926,11 +22437,49 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
         self._apply_enneagram_predictor_weights()
 
+    def _on_prediction_score_mode_changed(self, mode: str) -> None:
+        if not hasattr(self, "_enneagram_scoring_options"):
+            self._enneagram_scoring_options = _default_enneagram_scoring_options()
+        payload = _enneagram_scoring_options_to_payload(self._enneagram_scoring_options)
+        payload["score_mode"] = str(mode or "opportunity")
+        self._enneagram_scoring_options = _merge_enneagram_scoring_options(payload)
+        self._settings.setValue(
+            SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS,
+            _enneagram_scoring_options_to_payload(self._enneagram_scoring_options),
+        )
+        parent = self._owner_window()
+        if isinstance(parent, MainWindow):
+            parent._enneagram_scoring_options = self._enneagram_scoring_options
+            parent._settings.setValue(
+                SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS,
+                _enneagram_scoring_options_to_payload(self._enneagram_scoring_options),
+            )
+        self._apply_enneagram_predictor_weights()
+
     def _on_enneagram_type_signature_scale_changed(self, mode: str) -> None:
         if not hasattr(self, "_enneagram_scoring_options"):
             self._enneagram_scoring_options = _default_enneagram_scoring_options()
         payload = _enneagram_scoring_options_to_payload(self._enneagram_scoring_options)
         payload["type_signature_scale_mode"] = str(mode or "none")
+        self._enneagram_scoring_options = _merge_enneagram_scoring_options(payload)
+        self._settings.setValue(
+            SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS,
+            _enneagram_scoring_options_to_payload(self._enneagram_scoring_options),
+        )
+        parent = self._owner_window()
+        if isinstance(parent, MainWindow):
+            parent._enneagram_scoring_options = self._enneagram_scoring_options
+            parent._settings.setValue(
+                SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS,
+                _enneagram_scoring_options_to_payload(self._enneagram_scoring_options),
+            )
+        self._apply_enneagram_predictor_weights()
+
+    def _on_prediction_dominance_normalization_changed(self, mode: str) -> None:
+        if not hasattr(self, "_enneagram_scoring_options"):
+            self._enneagram_scoring_options = _default_enneagram_scoring_options()
+        payload = _enneagram_scoring_options_to_payload(self._enneagram_scoring_options)
+        payload["dominance_normalization_mode"] = str(mode or "range")
         self._enneagram_scoring_options = _merge_enneagram_scoring_options(payload)
         self._settings.setValue(
             SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS,
@@ -21952,6 +22501,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         _set_enneagram_category_weights(weights)
         options = getattr(self, "_enneagram_scoring_options", _default_enneagram_scoring_options())
         _set_enneagram_scoring_options(options)
+        _set_prediction_scoring_options(options)
         parent = self._owner_window()
         if isinstance(parent, MainWindow):
             parent._enneagram_predictor_mode = "default"
@@ -22259,6 +22809,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if isinstance(parent, MainWindow):
             parent._set_chart_analysis_section_visible(section_key, checked)
 
+    def _set_chart_view_sexiness_visibility_from_settings(self, checked: bool) -> None:
+        self._visibility.set("chart_view.sexiness", checked)
+        parent = self._owner_window()
+        if isinstance(parent, MainWindow):
+            parent._sync_chart_view_sexiness_visibility()
+
     def _set_database_metric_section_visibility_from_settings(self, section_key: str, checked: bool) -> None:
         self._set_database_metrics_section_visible(section_key, checked)
         self._refresh_charts(refresh_metrics=True)
@@ -22279,6 +22835,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _set_standard_deviation_indicator_visibility_from_settings(self, checked: bool) -> None:
         self._visibility.set("charts.standard_deviation_indicators", checked)
+        self._refresh_charts(refresh_metrics=True)
+
+    def _set_dnd_statblock_explainer_visibility_from_settings(self, checked: bool) -> None:
+        self._visibility.set("analytics.dnd_statblock_explainers", checked)
         self._refresh_charts(refresh_metrics=True)
 
     def _resize_and_center_settings_dialog(self, dialog: QDialog) -> None:
@@ -23095,12 +23655,17 @@ class MainWindow(QMainWindow):
             _enneagram_scoring_options_to_payload(self._enneagram_scoring_options),
         )
         _set_enneagram_scoring_options(self._enneagram_scoring_options)
+        _set_prediction_scoring_options(self._enneagram_scoring_options)
         set_lilith_calculation_mode(self._lilith_calculation_method)
         configure_main_window_chrome(self)
         self._feature_hub = FeatureEventHub()
         self._allow_app_exit_close = False
+        self._applying_window_placement = False
+        self._chart_view_hidden_for_database_view = False
+        self._chart_view_hidden_window_opacity = 1.0
         self._restoring_window_layout = False
         self._window_layout_customized = False
+        self._session_window_layout_adjusted = False
         _apply_minimum_screen_height(self)
 
         # Chart Entry Window vs Chart Edit Window:
@@ -23118,6 +23683,7 @@ class MainWindow(QMainWindow):
         self._alignment_score_assigned = False
         self._alignment_programmatic_update = False
         self._lucygoosey = False
+        self._leaving_chart_view_prompt_open = False
         self._sentiment_metrics_autosave_timer = QTimer(self)
         self._sentiment_metrics_autosave_timer.setSingleShot(True)
         self._sentiment_metrics_autosave_timer.timeout.connect(
@@ -23126,6 +23692,7 @@ class MainWindow(QMainWindow):
         self._metadata_autosave_timer = QTimer(self)
         self._metadata_autosave_timer.setSingleShot(True)
         self._metadata_autosave_timer.timeout.connect(self._flush_pending_metadata_save)
+        self._metadata_autosave_requires_recalculation = False
         # Suppress startup widget signal noise while we populate default values.
         self._suppress_lucygoosey = True
         self._latest_chart = None
@@ -23146,6 +23713,7 @@ class MainWindow(QMainWindow):
             "nakshatra",
             "modal",
             "gender",
+            "planet_dynamics_prepare",
             "planet_dynamics",
             "chart_type",
             "similar_charts",
@@ -23503,9 +24071,7 @@ class MainWindow(QMainWindow):
         self.retcon_time_edit.setFixedWidth(CHART_VIEW_TIME_INPUT_WIDTH)
         self.retcon_time_checkbox = QCheckBox("")
         self.retcon_time_checkbox.toggled.connect(self._on_retcon_time_toggled)
-        self.retcon_time_checkbox.toggled.connect(self._mark_lucygoosey)
         self.retcon_time_edit.timeChanged.connect(self._on_retcon_time_changed)
-        self.retcon_time_edit.timeChanged.connect(self._mark_lucygoosey)
         self.year_first_encountered_edit = QLineEdit()
         self.year_first_encountered_edit.setMaxLength(4)
         self.year_first_encountered_edit.setPlaceholderText("Year 1st Encountered")
@@ -24179,7 +24745,7 @@ class MainWindow(QMainWindow):
             self.output_share_button.setText("↗")
         self.output_share_button.setAutoRaise(True)
         apply_button_cursor(self.output_share_button)
-        self.output_share_button.setToolTip("Export chart data output as Markdown or text")
+        self.output_share_button.setToolTip("Export chart analysis (MD or TXT)")
         self.output_share_button.clicked.connect(self._export_chart_data_output)
         self.output_share_button.resize(22, 22)
         self._position_output_share_button()
@@ -24323,6 +24889,11 @@ class MainWindow(QMainWindow):
         for section_key, section_widget in self._chart_analysis_section_widgets.items():
             section_widget.setVisible(self._is_chart_analysis_section_visible(section_key))
 
+    def _sync_chart_view_sexiness_visibility(self) -> None:
+        sexiness_section = getattr(self, "sexiness_section_box", None)
+        if sexiness_section is not None:
+            sexiness_section.setVisible(self._visibility.get("chart_view.sexiness"))
+
     def _add_chart_analysis_collapsible_section(
         self,
         panel: QWidget,
@@ -24376,16 +24947,16 @@ class MainWindow(QMainWindow):
 
     def _similar_charts_section_title(self) -> str:
         if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_GENERIC_ASTRO:
-            return "Similar Charts ('generic astro' mode)"
+            return "Astro Twin Finder ('generic astro' mode)"
         if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
-            return "Similar Charts ('comprehensive' mode)"
+            return "Astro Twin Finder ('comprehensive' mode)"
         if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING:
-            return "Similar Charts ('all or nothing' mode)"
+            return "Astro Twin Finder ('all or nothing' mode)"
         if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_BIG_3:
             return "Similar Charts ('Big 3' mode)"
         if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_CUSTOM:
-            return "Similar Charts ('custom' mode)"
-        return "Similar Charts"
+            return "Astro Twin Finder ('custom' mode)"
+        return "Astro Twin Finder"
 
     def _refresh_similar_charts_section_title(self) -> None:
         section_widget = self._chart_analysis_section_widgets.get("similar_charts")
@@ -24460,7 +25031,7 @@ class MainWindow(QMainWindow):
             export_button.setText("↗")
         export_button.setAutoRaise(True)
         apply_button_cursor(export_button)
-        export_button.setToolTip("Export similar charts as TXT or Markdown")
+        export_button.setToolTip("Export similar charts (TXT or MD)")
         export_button.clicked.connect(self._export_similar_charts_share)
         header_layout.addWidget(export_button, 0, Qt.AlignRight)
         section_layout.addWidget(header_row)
@@ -24837,25 +25408,6 @@ class MainWindow(QMainWindow):
         normalized_target = str(target or "").strip()
         if is_similar_info_target(normalized_target):
             dialog._similar_chart_popout_last_info_target = normalized_target
-            popout_analysis_dropdown = getattr(dialog, "_similar_chart_popout_analysis_dropdown", None)
-            selected_mode = (
-                str(popout_analysis_dropdown.currentData() or "").strip().lower()
-                if popout_analysis_dropdown is not None and hasattr(popout_analysis_dropdown, "currentData")
-                else ""
-            )
-            if selected_mode != "bio":
-                bio_index = (
-                    int(popout_analysis_dropdown.findData("bio"))
-                    if popout_analysis_dropdown is not None and hasattr(popout_analysis_dropdown, "findData")
-                    else -1
-                )
-                if bio_index >= 0 and hasattr(popout_analysis_dropdown, "setCurrentIndex"):
-                    signals_were_blocked = False
-                    if hasattr(popout_analysis_dropdown, "blockSignals"):
-                        signals_were_blocked = bool(popout_analysis_dropdown.blockSignals(True))
-                    popout_analysis_dropdown.setCurrentIndex(bio_index)
-                    if hasattr(popout_analysis_dropdown, "blockSignals"):
-                        popout_analysis_dropdown.blockSignals(signals_were_blocked)
             self._show_similar_chart_reasoning(normalized_target, target_dialog=dialog)
             return
         self._on_similar_chart_link_activated(
@@ -25065,6 +25617,7 @@ class MainWindow(QMainWindow):
             collection_id=candidate_id,
             name=collection_name,
             chart_ids=frozenset(chart_ids),
+            chart_uids=frozenset(self._chart_uids_for_ids(chart_ids)),
         )
         self._active_collection_id = candidate_id
         self._settings.setValue("manage_charts/active_collection_id", candidate_id)
@@ -25108,18 +25661,17 @@ class MainWindow(QMainWindow):
             collection_id = normalize_collection_id(raw_id or name.replace(" ", "_"))
             if collection_id in DEFAULT_COLLECTION_IDS or collection_id in collections:
                 continue
-            raw_chart_ids = entry.get("chart_ids", [])
-            chart_ids: set[int] = set()
-            if isinstance(raw_chart_ids, list):
-                for value in raw_chart_ids:
-                    try:
-                        chart_ids.add(int(value))
-                    except (TypeError, ValueError):
-                        continue
+            chart_ids = self._coerce_chart_ids(entry.get("chart_ids", []))
+            chart_uids = self._coerce_chart_uids(entry.get("chart_uids", []))
+            if chart_ids:
+                chart_uids.update(self._chart_uids_for_ids(chart_ids))
+            if not chart_ids and chart_uids:
+                chart_ids.update(get_chart_ids_by_uid(chart_uids).values())
             collections[collection_id] = CustomCollection(
                 collection_id=collection_id,
                 name=name,
                 chart_ids=frozenset(chart_ids),
+                chart_uids=frozenset(chart_uids),
             )
         return collections
 
@@ -25131,12 +25683,41 @@ class MainWindow(QMainWindow):
             {
                 "id": collection.collection_id,
                 "name": collection.name,
-                "chart_ids": sorted(collection.chart_ids),
+                "chart_uids": sorted(collection.chart_uids),
             }
             for collection in collections.values()
             if isinstance(collection, CustomCollection)
         ]
         self._settings.setValue("manage_charts/custom_collections", json.dumps(payload))
+
+    @staticmethod
+    def _coerce_chart_ids(raw_values: object) -> set[int]:
+        chart_ids: set[int] = set()
+        if isinstance(raw_values, (list, tuple, set)):
+            for value in raw_values:
+                try:
+                    chart_ids.add(int(value))
+                except (TypeError, ValueError):
+                    continue
+        return chart_ids
+
+    @staticmethod
+    def _coerce_chart_uids(raw_values: object) -> set[str]:
+        chart_uids: set[str] = set()
+        if isinstance(raw_values, (list, tuple, set)):
+            for value in raw_values:
+                chart_uid = str(value or "").strip().upper()
+                if chart_uid:
+                    chart_uids.add(chart_uid)
+        return chart_uids
+
+    @staticmethod
+    def _chart_uids_for_ids(chart_ids: Iterable[int]) -> set[str]:
+        return {
+            str(chart_uid).strip().upper()
+            for chart_uid in get_chart_uid_map(chart_ids).values()
+            if str(chart_uid or "").strip()
+        }
 
     @staticmethod
     def _extract_similar_match_chart_id(similar_match: object) -> int | None:
@@ -25736,6 +26317,8 @@ class MainWindow(QMainWindow):
                     least_similar=False,
                     algorithm_mode=algorithm_mode,
                     custom_settings=getattr(self, "_similarity_calculator_settings", None),
+                    hidden_chart_ids=set(getattr(self, "_hidden_chart_ids", set())),
+                    include_hidden_charts=False,
                 )
             )
         entries: list[dict[str, Any]] = []
@@ -26001,6 +26584,8 @@ class MainWindow(QMainWindow):
                         least_similar=False,
                         algorithm_mode=algorithm_mode,
                         custom_settings=getattr(self, "_similarity_calculator_settings", None),
+                        hidden_chart_ids=set(getattr(self, "_hidden_chart_ids", set())),
+                        include_hidden_charts=False,
                     )
                     if self._similar_charts_can_derive_least_from_full_similarity_ranking(algorithm_mode):
                         refreshed_least = self._least_similar_matches_from_similarity_ranking(refreshed_most)
@@ -26013,6 +26598,8 @@ class MainWindow(QMainWindow):
                             least_similar=True,
                             algorithm_mode=algorithm_mode,
                             custom_settings=getattr(self, "_similarity_calculator_settings", None),
+                            hidden_chart_ids=set(getattr(self, "_hidden_chart_ids", set())),
+                            include_hidden_charts=False,
                         )
                     most_similar_matches.extend(refreshed_most)
                     least_similar_matches.extend(refreshed_least)
@@ -26088,6 +26675,8 @@ class MainWindow(QMainWindow):
                             algorithm_mode=algorithm_mode,
                             custom_settings=getattr(self, "_similarity_calculator_settings", None),
                             should_cancel=lambda p=progress: bool(p.wasCanceled() or p.property("operation_canceled")),
+                            hidden_chart_ids=set(getattr(self, "_hidden_chart_ids", set())),
+                            include_hidden_charts=False,
                             progress_callback=_score_progress,
                         )
                         raise_if_progress_canceled(progress)
@@ -26113,6 +26702,8 @@ class MainWindow(QMainWindow):
                                 algorithm_mode=algorithm_mode,
                                 custom_settings=getattr(self, "_similarity_calculator_settings", None),
                                 should_cancel=lambda p=progress: bool(p.wasCanceled() or p.property("operation_canceled")),
+                                hidden_chart_ids=set(getattr(self, "_hidden_chart_ids", set())),
+                                include_hidden_charts=False,
                                 progress_callback=lambda done, total: _score_progress(done, total, start=82, end=90),
                             )
                         raise_if_progress_canceled(progress)
@@ -26259,7 +26850,7 @@ class MainWindow(QMainWindow):
             )
             self._similar_charts_reasoning_by_target.update(popout_reasoning_by_target)
             self._register_popout_shortcuts(dialog)
-            self._show_similar_chart_popout_predictions(dialog)
+            self._show_similar_chart_popout_empty_analysis(dialog, selected_mode="bio")
             self._similar_charts_popout_dialogs.append(dialog)
             dialog.destroyed.connect(
                 lambda _=None, popout=dialog: self._similar_charts_popout_dialogs.remove(popout)
@@ -26267,7 +26858,8 @@ class MainWindow(QMainWindow):
                 else None
             )
             dialog.show()
-            update_similar_charts_loading_progress(progress, "Similar Charts ready.", 100)
+            keep_similar_charts_popout_foreground_until_outside_click(dialog)
+            update_similar_charts_loading_progress(progress, "Long lost astro twins found.", 100)
         except OperationCanceled:
             return
         finally:
@@ -26478,7 +27070,7 @@ class MainWindow(QMainWindow):
                 build_similar_charts_export_lines(subject_name=subject_name, rows=least_rows, is_markdown=True)[2:]
             )
         else:
-            lines.append(f"Similar Charts for {subject_name}")
+            lines.append(f"{subject_name}'s Astro Twins")
             lines.append("")
             lines.append("Top 25 Most Similar Charts")
             lines.append("")
@@ -26631,7 +27223,8 @@ class MainWindow(QMainWindow):
             ]
         if chart_key == "planet_dynamics":
             selected_planet = self._chart_analysis_selected_mode(chart_key, "")
-            scores = getattr(chart, "planet_dynamics_scores", None) or _calculate_planet_dynamics_scores(chart)
+            self._precompute_planet_dynamics_if_needed(chart)
+            scores = getattr(chart, "planet_dynamics_scores", None) or {}
             if selected_planet != "all" and (not selected_planet or selected_planet not in scores):
                 selected_planet = next(iter(scores), "")
             if not selected_planet:
@@ -26688,7 +27281,7 @@ class MainWindow(QMainWindow):
         default_filename = f"{default_stem}-{export_date}.csv"
         file_path, _ = QFileDialog.getSaveFileName(
             self,
-            f"Export {chart_title} as CSV",
+            f"Export {chart_title}'s data as CSV",
             default_filename,
             "CSV Files (*.csv)",
         )
@@ -26719,7 +27312,15 @@ class MainWindow(QMainWindow):
             while scroll_area is not None and not isinstance(scroll_area, QScrollArea):
                 scroll_area = scroll_area.parentWidget()
             if isinstance(scroll_area, QScrollArea) and scroll_area.widget() is parent:
+                # During rectified-time preview rebuilds, Qt can briefly report a
+                # stale viewport width for the scroll content while the right-panel
+                # stack is still settling.  Clamping to the live scroll-area width
+                # mirrors the manual window-resize correction and prevents canvases
+                # from being fixed wider than the visible panel.
                 viewport_width = scroll_area.viewport().width()
+                scroll_area_width = scroll_area.width()
+                if scroll_area_width > 0:
+                    viewport_width = min(viewport_width, scroll_area_width)
                 return viewport_width if viewport_width > 0 else None
             parent = parent.parentWidget()
         return None
@@ -27980,7 +28581,8 @@ class MainWindow(QMainWindow):
         ax.figure.subplots_adjust(left=0.09, bottom=0.28, top=0.82, right=0.97)
 
     def _draw_planet_dynamics(self, ax, chart: Chart) -> None:
-        scores = getattr(chart, "planet_dynamics_scores", None) or _calculate_planet_dynamics_scores(chart)
+        self._precompute_planet_dynamics_if_needed(chart)
+        scores = getattr(chart, "planet_dynamics_scores", None) or {}
         selected_planet = self._chart_analysis_selected_mode("planet_dynamics", "")
         if selected_planet != "all" and (not selected_planet or selected_planet not in scores):
             selected_planet = next(iter(scores), "")
@@ -28245,7 +28847,7 @@ class MainWindow(QMainWindow):
         default_filename = f"ephemeraldaddy_{safe_title}_chart-{export_date}.md"
         file_path, _ = QFileDialog.getSaveFileName(
             self,
-            "Export chart as Markdown",
+            "Export chart analysis (MD)",
             default_filename,
             "Markdown Files (*.md)",
         )
@@ -28737,7 +29339,7 @@ class MainWindow(QMainWindow):
         default_filename = f"chart-data-output-{export_date}.md"
         file_path, selected_filter = QFileDialog.getSaveFileName(
             self,
-            "Export chart Data Output",
+            "Export chart analysis", #aka chart data output
             default_filename,
             "Markdown Files (*.md);;Text Files (*.txt)",
         )
@@ -29544,7 +30146,7 @@ class MainWindow(QMainWindow):
                         cursor.insertText(segment_text, segment_fmt)
                     else:
                         cursor.insertText(segment_text, plain_fmt)
-                cursor.insertText(f" in {sign_key}\n\n", plain_fmt)
+                #cursor.insertText(f" in {sign_key}\n\n", plain_fmt)
             else:
                 cursor.insertText(f"No chart placements in {sign_key}\n\n", plain_fmt)
         if best_keywords:
@@ -30274,7 +30876,8 @@ class MainWindow(QMainWindow):
         score: float,
         evidence: list[str],
     ) -> None:
-        self.chart_info_output.setPlainText(
+        set_chart_info_text(
+            self.chart_info_output,
             _format_dnd_species_info_text(family, subtype, score, evidence)
         )
 
@@ -30285,12 +30888,13 @@ class MainWindow(QMainWindow):
         _score: float,
         axis_scores: dict[str, float],
     ) -> None:
-        self.chart_info_output.setPlainText(
+        set_chart_info_text(
+            self.chart_info_output,
             _format_dnd_class_info_text(class_name, class_key, axis_scores)
         )
 
     def _show_dnd_statblock_info(self, profile_lines: list[str]) -> None:
-        self.chart_info_output.setPlainText(_format_dnd_statblock_info_text(profile_lines))
+        set_chart_info_text(self.chart_info_output, _format_dnd_statblock_info_text(profile_lines))
 
     def _show_aspect_info(
         self,
@@ -30432,18 +31036,37 @@ class MainWindow(QMainWindow):
         dialog.setIcon(QMessageBox.Warning)
         dialog.setWindowTitle("Unsaved changes")
         dialog.setText(
-            "You have unsaved changes. Save them before loading another chart?"
+            "You have unsaved changes. Save them before leaving Chart View?"
         )
         save_button = dialog.addButton("Save", QMessageBox.AcceptRole)
-        discard_button = dialog.addButton("Discard", QMessageBox.RejectRole)
-        dialog.exec()
-        if dialog.clickedButton() == save_button:
-            self.on_update_chart(show_dialog=True)
-        elif dialog.clickedButton() == discard_button:
-            self._set_lucygoosey(False)
-        return not self._lucygoosey
+        discard_button = dialog.addButton("Discard", QMessageBox.DestructiveRole)
+        cancel_button = dialog.addButton("Cancel", QMessageBox.RejectRole)
+        dialog.setDefaultButton(save_button)
+        dialog.setEscapeButton(cancel_button)
+
+        self._leaving_chart_view_prompt_open = True
+        try:
+            dialog.exec()
+            clicked_button = dialog.clickedButton()
+            if clicked_button == save_button:
+                self.on_update_chart(show_dialog=True)
+            elif clicked_button == discard_button:
+                self._set_lucygoosey(False)
+            return not self._lucygoosey
+        finally:
+            self._leaving_chart_view_prompt_open = False
 
     def _should_auto_update_sentiments(self) -> bool:
+        return self._can_autosave_current_chart()
+
+    def _can_autosave_current_chart(self) -> bool:
+        """Return whether timed lucygoosey saves may update the open chart.
+
+        Lucygoosey autosaves are update-only: a chart must already have a
+        database id before these timers can write metadata back to storage. New
+        Chart View entries without a saved id/UID still require an explicit
+        formal save through the Save/Discard leave prompt or Save Chart button.
+        """
         return self.current_chart_id is not None
 
     def _ensure_current_chart_still_exists(self) -> bool:
@@ -30464,13 +31087,19 @@ class MainWindow(QMainWindow):
         self._set_lucygoosey(False)
 
     def _autosave_checkbox_state(self) -> None:
-        if self._suppress_lucygoosey or self.current_chart_id is None:
+        if self._suppress_lucygoosey or not self._can_autosave_current_chart():
             return
         if not self._lucygoosey:
             return
         if not self._ensure_current_chart_still_exists():
             return
-        self.on_update_chart(show_dialog=False, recalculate_chart=False)
+        if self._leaving_chart_view_prompt_open:
+            delay_ms = 2500 if self._metadata_autosave_requires_recalculation else 2000
+            self._metadata_autosave_timer.start(delay_ms)
+            return
+        recalculate_chart = bool(self._metadata_autosave_requires_recalculation)
+        self._metadata_autosave_requires_recalculation = False
+        self.on_update_chart(show_dialog=False, recalculate_chart=recalculate_chart)
         self._set_lucygoosey(False)
 
     def _on_sentiment_toggled(self, checked: bool) -> None:
@@ -30553,11 +31182,14 @@ class MainWindow(QMainWindow):
         had_pending_metric_save = self._sentiment_metrics_autosave_timer.isActive()
         if had_pending_metric_save:
             self._sentiment_metrics_autosave_timer.stop()
-        if not had_pending_metric_save and not self._lucygoosey:
+        if not self._lucygoosey:
             return
         if not self._should_auto_update_sentiments():
             return
         if not self._ensure_current_chart_still_exists():
+            return
+        if self._leaving_chart_view_prompt_open:
+            self._sentiment_metrics_autosave_timer.start(2000)
             return
         self.on_update_chart(show_dialog=False, recalculate_chart=False)
         self._set_lucygoosey(False)
@@ -30851,9 +31483,16 @@ class MainWindow(QMainWindow):
         source_window: QWidget | None = None,
         activate: bool = True,
     ) -> None:
+        self._restore_chart_view_visibility_after_database_view()
         self._collapse_similar_charts_section()
         placement: WindowPlacement | None = None
-        if source_window is not None:
+        if self._session_window_layout_adjusted:
+            # Once Chart View has been adjusted in this app session, preserve its
+            # own maximized/normal state too. Database View callers often pass
+            # their current maximize state, and applying that here would discard
+            # Chart View's user-adjusted normal size.
+            maximize = self.isMaximized()
+        elif source_window is not None:
             placement = capture_window_placement(source_window)
             if maximize is None:
                 maximize = placement.maximized
@@ -30861,14 +31500,18 @@ class MainWindow(QMainWindow):
         if maximize is None:
             maximize = True
 
-        self.show()
-        apply_window_placement(
-            self,
-            WindowPlacement(
-                geometry=placement.geometry if placement is not None else None,
-                maximized=maximize,
-            ),
-        )
+        self._applying_window_placement = True
+        try:
+            self.show()
+            apply_window_placement(
+                self,
+                WindowPlacement(
+                    geometry=placement.geometry if placement is not None else None,
+                    maximized=maximize,
+                ),
+            )
+        finally:
+            self._applying_window_placement = False
         if activate:
             self.raise_()
             self.activateWindow()
@@ -30892,33 +31535,7 @@ class MainWindow(QMainWindow):
         self.setWindowState(self.windowState() | Qt.WindowFullScreen)
 
     def _apply_dark_theme(self):
-        self.setStyleSheet("""
-            QMainWindow {
-                background-color: #111111;
-            }
-            QWidget {
-                color: #f5f5f5;
-                background-color: #111111;
-                font-size: 13px;
-            }
-            QLineEdit, QDateEdit, QTimeEdit {
-                background-color: #222222;
-                border: 1px solid #444444;
-                padding: 4px;
-            }
-            QPushButton {
-                background-color: #333333;
-                border: 1px solid #555555;
-                padding: 6px 10px;
-            }
-            QPushButton:hover {
-                background-color: #444444;
-            }
-            QPlainTextEdit {
-                background-color: #181818;
-                border: 1px solid #444444;
-            }
-        """)
+        self.setStyleSheet(APPWIDE_DARK_THEME_STYLESHEET)
 
     def _handle_database_health(self) -> None:
         ok, message = check_database_health()
@@ -31176,9 +31793,11 @@ class MainWindow(QMainWindow):
         rating_index = self.data_rating_combo.findData(target_data_rating)
         if rating_index >= 0 and self.data_rating_combo.currentIndex() != rating_index:
             self.data_rating_combo.setCurrentIndex(rating_index)
-        self.data_rating_combo.setVisible(not checked)
+        # Keep the Data quality control visible even for placeholder charts so the
+        # middle panel always exposes the saved Rodden/data rating state.
+        self.data_rating_combo.setVisible(True)
         if hasattr(self, "data_quality_label"):
-            self.data_quality_label.setVisible(not checked)
+            self.data_quality_label.setVisible(True)
 
     def _clear_required_field_highlights(self) -> None:
         for widget in (
@@ -31727,7 +32346,12 @@ class MainWindow(QMainWindow):
         self._update_tag_completers()
         self._tag_completer_revision_token = revision_token
 
-    def _update_tag_completers(self) -> None:
+    def _update_tag_completers(
+        self,
+        *,
+        refresh_location_completers: bool = True,
+        refresh_tag_lists: bool = True,
+    ) -> None:
         sorted_tags = list_recognized_tags()
         self._known_chart_tags = sorted_tags
         if hasattr(self, "chart_tags_input"):
@@ -31737,10 +32361,15 @@ class MainWindow(QMainWindow):
         if hasattr(self, "batch_tags_input"):
             apply_tag_completer(self.batch_tags_input, sorted_tags)
         self._update_reminds_me_of_completer()
-        self._update_location_completers()
-        refresh_search_tags_list = getattr(self, "_refresh_search_tags_list", None)
-        if callable(refresh_search_tags_list):
-            refresh_search_tags_list(sorted_tags)
+        if refresh_location_completers:
+            self._update_location_completers()
+        if refresh_tag_lists:
+            refresh_search_tags_list = getattr(self, "_refresh_search_tags_list", None)
+            if callable(refresh_search_tags_list):
+                refresh_search_tags_list(sorted_tags)
+            refresh_batch_tags_list = getattr(self, "_refresh_batch_tags_list", None)
+            if callable(refresh_batch_tags_list):
+                refresh_batch_tags_list(sorted_tags)
 
     def _on_chart_tags_changed(self, *_: object) -> None:
         on_chart_view_tags_changed(self)
@@ -31784,6 +32413,7 @@ class MainWindow(QMainWindow):
         widget.setPlainText(str(value or ""))
 
     def _clear_material_facts_fields(self) -> None:
+        previous_suppress_lucygoosey = self._suppress_lucygoosey
         self._suppress_lucygoosey = True
         try:
             for attr_name in (
@@ -31794,11 +32424,15 @@ class MainWindow(QMainWindow):
             ):
                 self._set_material_fact_text(attr_name, "")
         finally:
-            self._suppress_lucygoosey = False
+            self._suppress_lucygoosey = previous_suppress_lucygoosey
 
     def _load_material_facts_for_chart(self, chart_id: int | None) -> None:
+        previous_suppress_lucygoosey = self._suppress_lucygoosey
         self._suppress_lucygoosey = True
         try:
+            # Keep chart loading on the chart-ID compatibility helper so
+            # legacy material-facts sidecars are migrated to UID keys before
+            # the Chart View fields are populated.
             identifiers = load_personal_identifiers(chart_id)
             self._set_material_fact_text("material_facts_addresses_edit", identifiers.get("addresses", ""))
             self._set_material_fact_text("material_facts_emails_edit", identifiers.get("emails", ""))
@@ -31808,13 +32442,13 @@ class MainWindow(QMainWindow):
             if callable(refresh_photo_gallery):
                 refresh_photo_gallery(chart_id)
         finally:
-            self._suppress_lucygoosey = False
+            self._suppress_lucygoosey = previous_suppress_lucygoosey
 
     def _save_material_facts_for_chart(self, chart_id: int | None) -> None:
         if chart_id is None:
             return
-        save_personal_identifiers(
-            int(chart_id),
+        save_personal_identifiers_by_uid(
+            get_chart_uid(chart_id),
             {
                 "addresses": self._material_fact_text("material_facts_addresses_edit"),
                 "emails": self._material_fact_text("material_facts_emails_edit"),
@@ -31977,6 +32611,15 @@ class MainWindow(QMainWindow):
         #chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
         #chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
         #chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
+        previous_chart_for_refresh = (
+            self._latest_chart
+            if (
+                self._latest_chart is not None
+                and chart_id is not None
+                and self.current_chart_id == chart_id
+            )
+            else None
+        )
         save_kwargs = dict(
             birth_place=place,
             retcon_time_used=getattr(chart, "retcon_time_used", False),
@@ -32041,6 +32684,19 @@ class MainWindow(QMainWindow):
             state = getattr(self, "_chart_right_panel_state", None)
             if state is not None:
                 state.last_render_chart_token = None
+        changed_fields = self._chart_metadata_changed_fields(
+            previous_chart_for_refresh,
+            chart,
+            birth_place=place,
+        )
+        self._update_sentiment_tally(
+            changed_ids={chart_id},
+            changed_fields=changed_fields,
+            update_database_metrics=True,
+            update_similarities=bool(
+                changed_fields is None or "birth_data" in changed_fields
+            ),
+        )
         self._manage_charts_pending_changed_ids.add(chart_id)
         self._refresh_manage_charts_in_background({chart_id})
         self._loaded_birth_place = place
@@ -32465,6 +33121,7 @@ class MainWindow(QMainWindow):
             int(loaded_alignment or 0),
             assigned=isinstance(loaded_alignment, int),
         )
+        self._set_sexiness_score_state(0)
         self._set_sexiness_score_state(getattr(chart, "sexiness_score", 0) or 0)
         self._chart_familiarity_factors = list(
             getattr(chart, "familiarity_factors", []) or []
@@ -32503,14 +33160,6 @@ class MainWindow(QMainWindow):
         self.time_unknown_checkbox.setChecked(chart.birthtime_unknown)
         if chart.birthtime_unknown:
             self.time_edit.setTime(default_noon)
-        self.retcon_time_checkbox.setChecked(chart.retcon_time_used)
-        self.deceased_checkbox.setChecked(bool(getattr(chart, "is_deceased", False)))
-        self.death_month_edit.setText(str(getattr(chart, "death_month", "") or ""))
-        self.death_day_edit.setText(str(getattr(chart, "death_day", "") or ""))
-        self.death_year_edit.setText(str(getattr(chart, "death_year", "") or ""))
-        self.death_time_unknown_checkbox.setChecked(bool(getattr(chart, "deathtime_unknown", False)))
-        self.death_time_edit.setTime(QTime(int(getattr(chart, "death_hour", 12) or 12), int(getattr(chart, "death_minute", 0) or 0)))
-        self.death_place_edit.setText(str(getattr(chart, "death_place", "") or ""))
         stored_retcon_hour = getattr(chart, "retcon_hour", None)
         stored_retcon_minute = getattr(chart, "retcon_minute", None)
         if stored_retcon_hour is not None and stored_retcon_minute is not None:
@@ -32519,6 +33168,14 @@ class MainWindow(QMainWindow):
             self.retcon_time_edit.setTime(qtime)
         else:
             self.retcon_time_edit.setTime(default_noon)
+        self.retcon_time_checkbox.setChecked(chart.retcon_time_used)
+        self.deceased_checkbox.setChecked(bool(getattr(chart, "is_deceased", False)))
+        self.death_month_edit.setText(str(getattr(chart, "death_month", "") or ""))
+        self.death_day_edit.setText(str(getattr(chart, "death_day", "") or ""))
+        self.death_year_edit.setText(str(getattr(chart, "death_year", "") or ""))
+        self.death_time_unknown_checkbox.setChecked(bool(getattr(chart, "deathtime_unknown", False)))
+        self.death_time_edit.setTime(QTime(int(getattr(chart, "death_hour", 12) or 12), int(getattr(chart, "death_minute", 0) or 0)))
+        self.death_place_edit.setText(str(getattr(chart, "death_place", "") or ""))
         self._birth_time_user_overridden = (
             not chart.birthtime_unknown and qtime != default_noon
         )
@@ -32618,7 +33275,41 @@ class MainWindow(QMainWindow):
             startup_progress("Database View shell is open…", 92)
         QTimer.singleShot(0, self._raise_manage_charts_dialog)
         self._retarget_size_checker_to_database_view()
+        self._hide_chart_view_while_database_view_is_open()
         return True
+
+    def _hide_chart_view_while_database_view_is_open(self) -> None:
+        if not self.isVisible():
+            return
+        self._applying_window_placement = True
+        try:
+            if platform.system() == "Windows":
+                # Do not minimize Chart View: a minimized top-level window can
+                # create a distracting thumbnail/animation artifact around the
+                # Windows taskbar. Keep the top-level window shown and fully
+                # transparent instead, which preserves the app taskbar entry
+                # without leaving a visible Chart View behind Database View.
+                if not self._chart_view_hidden_for_database_view:
+                    self._chart_view_hidden_window_opacity = float(self.windowOpacity())
+                self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+                self.setWindowOpacity(0.0)
+                self._chart_view_hidden_for_database_view = True
+                self.lower()
+            else:
+                self.hide()
+        finally:
+            self._applying_window_placement = False
+
+    def _restore_chart_view_visibility_after_database_view(self) -> None:
+        if not self._chart_view_hidden_for_database_view:
+            return
+        self._applying_window_placement = True
+        try:
+            self.setAttribute(Qt.WA_TransparentForMouseEvents, False)
+            self.setWindowOpacity(self._chart_view_hidden_window_opacity)
+            self._chart_view_hidden_for_database_view = False
+        finally:
+            self._applying_window_placement = False
 
     def _on_close_requested(self) -> None:
         self.close()
@@ -32778,9 +33469,15 @@ class MainWindow(QMainWindow):
         self._update_time_input_visibility()
         self._update_time_input_text_colors()
         if not self._suppress_lucygoosey:
+            self._mark_lucygoosey()
             self._reset_metric_canvases_for_retcon_timing_update()
             self._refresh_chart_preview()
-            self._autosave_checkbox_state()
+            # Rectified-time edits are lucygoosey until autosave fires, but they
+            # affect calculated positions and therefore must use the full chart
+            # recalculation save path instead of metadata-only autosave.
+            if self._can_autosave_current_chart():
+                self._metadata_autosave_requires_recalculation = True
+                self._metadata_autosave_timer.start(2500)
 
     def _on_birth_time_changed(self, _time: QTime) -> None:
         if (
@@ -32802,7 +33499,12 @@ class MainWindow(QMainWindow):
         if should_refresh_retcon_preview:
             self._reset_metric_canvases_for_retcon_timing_update()
             self._refresh_chart_preview()
-            self._autosave_checkbox_state()
+            # Restart the full recalculation autosave on every change so the
+            # currently selected rectified time is saved only after the user
+            # pauses adjustment.
+            if self._can_autosave_current_chart():
+                self._metadata_autosave_requires_recalculation = True
+                self._metadata_autosave_timer.start(2500)
 
     def _update_time_input_visibility(self) -> None:
         self.time_edit.setVisible(not self.time_unknown_checkbox.isChecked())
@@ -32825,6 +33527,7 @@ class MainWindow(QMainWindow):
 
     def _reset_metric_canvases_for_retcon_timing_update(self) -> None:
         """Reset only Chart View metric canvases affected by retcon timing edits."""
+        touched_layouts: list[QLayout] = []
         canvas_layout_pairs = (
             ("sign_chart_canvas", "sign_chart_container_layout"),
             ("planet_chart_canvas", "planet_chart_container_layout"),
@@ -32851,7 +33554,16 @@ class MainWindow(QMainWindow):
             if not canvas_is_visible:
                 continue
             self._clear_layout_widgets(layout)
+            touched_layouts.append(layout)
             setattr(self, canvas_attr, None)
+        for layout in touched_layouts:
+            layout.invalidate()
+            parent = layout.parentWidget()
+            if parent is not None:
+                parent.adjustSize()
+                parent.updateGeometry()
+        if touched_layouts:
+            self._schedule_deferred_visible_metric_canvas_layout_refreshes()
 
     def _refresh_chart_preview(self) -> None:
         if self._suppress_lucygoosey or self._latest_chart is None:
@@ -32990,7 +33702,7 @@ class MainWindow(QMainWindow):
             allow_collapsed_sections=allow_collapsed_sections,
         )
         if "planet_dynamics" in sections:
-            chart.planet_dynamics_scores = _calculate_planet_dynamics_scores(chart)
+            sections.add("planet_dynamics_prepare")
         render_order = (
             "summary",
             "signs",
@@ -33000,6 +33712,7 @@ class MainWindow(QMainWindow):
             "nakshatra",
             "modal",
             "gender",
+            "planet_dynamics_prepare",
             "planet_dynamics",
             "chart_type",
             "wheel",
@@ -33045,6 +33758,8 @@ class MainWindow(QMainWindow):
             self._render_modal_distribution(chart)
         elif section == "gender":
             self._render_gender_guesser(chart)
+        elif section == "planet_dynamics_prepare":
+            self._precompute_planet_dynamics_if_needed(chart)
         elif section == "planet_dynamics":
             self._render_planet_dynamics(chart)
         elif section == "chart_type":
@@ -33147,6 +33862,85 @@ class MainWindow(QMainWindow):
             "anagrams",
         }
 
+    @staticmethod
+    def _chart_birth_data_recalculation_token(
+        chart: Chart | None,
+        birth_place: str | None = None,
+    ) -> tuple:
+        """Return the small set of chart fields that should trigger recalculation.
+
+        Most saved chart metadata is descriptive flavor text.  Expensive chart
+        analytics should only be dirtied when birth data, place, birth-time /
+        rectified-time state, or the derived chart_uses_houses flag changes.
+        """
+        if chart is None:
+            return ()
+        dt_value = getattr(chart, "dt", None)
+        dt_token = dt_value.isoformat() if dt_value is not None else None
+        retcon_hour = getattr(chart, "retcon_hour", None)
+        retcon_minute = getattr(chart, "retcon_minute", None)
+        retcon_time_token = (
+            (int(retcon_hour), int(retcon_minute))
+            if retcon_hour is not None and retcon_minute is not None
+            else None
+        )
+        return (
+            dt_token,
+            (
+                birth_place
+                if birth_place is not None
+                else getattr(chart, "birth_place", None) or ""
+            ),
+            round(float(getattr(chart, "lat", 0.0) or 0.0), 6),
+            round(float(getattr(chart, "lon", 0.0) or 0.0), 6),
+            bool(getattr(chart, "birthtime_unknown", False)),
+            bool(getattr(chart, "retcon_time_used", False)),
+            retcon_time_token,
+            bool(chart_uses_houses(chart)),
+        )
+
+    @staticmethod
+    def _chart_metadata_changed_fields(
+        previous_chart: Chart | None,
+        chart: Chart,
+        *,
+        birth_place: str | None = None,
+    ) -> set[str] | None:
+        """Classify saved edits by the Database Analytics sections they affect."""
+        if previous_chart is None:
+            return None
+        changed_fields: set[str] = set()
+        if (
+            MainWindow._chart_birth_data_recalculation_token(previous_chart)
+            != MainWindow._chart_birth_data_recalculation_token(chart, birth_place)
+        ):
+            changed_fields.add("birth_data")
+        comparisons = {
+            "sentiments": lambda value: tuple(
+                sorted(
+                    str(item).casefold()
+                    for item in (getattr(value, "sentiments", []) or [])
+                )
+            ),
+            "relationship_types": lambda value: tuple(
+                sorted(
+                    str(item).casefold()
+                    for item in (getattr(value, "relationship_types", []) or [])
+                )
+            ),
+            "tags": lambda value: tuple(
+                tag.casefold()
+                for tag in normalize_tag_list(getattr(value, "tags", []) or [])
+            ),
+            "gender": lambda value: getattr(value, "gender", None),
+            "alignment": lambda value: getattr(value, "alignment_score", None),
+            "matched_expectations": lambda value: getattr(value, "matched_expectations", None),
+        }
+        for field, getter in comparisons.items():
+            if getter(previous_chart) != getter(chart):
+                changed_fields.add(field)
+        return changed_fields
+
     def _chart_analytics_cache_token(self, chart: Chart) -> str:
         chart_id = self.current_chart_id
         dt_value = getattr(chart, "dt", None)
@@ -33160,9 +33954,11 @@ class MainWindow(QMainWindow):
             if retcon_hour is not None and retcon_minute is not None
             else "none"
         )
+        chart_uses_houses_token = int(bool(chart_uses_houses(chart)))
         timing_token = (
             f"dt:{dt_token}|birthtime_unknown:{birthtime_unknown_token}|"
-            f"retcon_enabled:{retcon_enabled_token}|retcon_time:{retcon_time_token}"
+            f"retcon_enabled:{retcon_enabled_token}|retcon_time:{retcon_time_token}|"
+            f"chart_uses_houses:{chart_uses_houses_token}"
         )
         place_token = f"lat:{getattr(chart, 'lat', 0.0):.6f}|lon:{getattr(chart, 'lon', 0.0):.6f}"
         chart_scope_token = f"id:{int(chart_id)}" if chart_id is not None else "draft"
@@ -33378,6 +34174,7 @@ class MainWindow(QMainWindow):
             self._render_flush_timer.stop()
         self.output_text.clear()
         self.chart_info_output.clear()
+        self._set_sexiness_score_state(0)
         self._update_unknown_positions_summary(None)
         self._position_info_map = {}
         self._aspect_info_map = {}
@@ -33830,9 +34627,47 @@ class MainWindow(QMainWindow):
             chart=chart,
         )
 
+
+    def _planet_dynamics_cache_signature(self, chart: Chart) -> tuple[object, ...]:
+        positions = getattr(chart, "positions", None) or {}
+        houses = getattr(chart, "houses", None) or []
+        aspects = getattr(chart, "aspects", None) or []
+        aspect_signature = tuple(
+            sorted(
+                (
+                    str(aspect.get("p1", "")),
+                    str(aspect.get("p2", "")),
+                    str(aspect.get("type", "")),
+                    round(float(aspect.get("delta", 0.0) or 0.0), 8),
+                )
+                for aspect in aspects
+                if isinstance(aspect, Mapping)
+            )
+        )
+        return (
+            tuple(sorted((str(body), None if lon is None else round(float(lon), 8)) for body, lon in positions.items())),
+            tuple(None if cusp is None else round(float(cusp), 8) for cusp in houses),
+            aspect_signature,
+            bool(getattr(chart, "retcon_time_used", False)),
+            getattr(chart, "retcon_hour", None),
+            getattr(chart, "retcon_minute", None),
+            bool(_chart_uses_houses(chart)),
+        )
+
+    def _precompute_planet_dynamics_if_needed(self, chart: Chart) -> None:
+        signature = self._planet_dynamics_cache_signature(chart)
+        if (
+            getattr(chart, "_planet_dynamics_scores_signature", None) == signature
+            and getattr(chart, "planet_dynamics_scores", None)
+        ):
+            return
+        chart.planet_dynamics_scores = _calculate_planet_dynamics_scores(chart)
+        chart._planet_dynamics_scores_signature = signature
+
     def _render_planet_dynamics(self, chart: Chart) -> None:
         dropdown = self._chart_analysis_chart_dropdowns.get("planet_dynamics")
-        scores = getattr(chart, "planet_dynamics_scores", None) or _calculate_planet_dynamics_scores(chart)
+        self._precompute_planet_dynamics_if_needed(chart)
+        scores = getattr(chart, "planet_dynamics_scores", None) or {}
         dynamics_bodies = [
             body
             for body in PLANET_ORDER
@@ -33936,11 +34771,23 @@ class MainWindow(QMainWindow):
             blocker = QSignalBlocker(checkbox)
             checkbox.setChecked(bool(getattr(self._enneagram_scoring_options, key, False)))
             del blocker
+        score_mode_combo = getattr(self, "_prediction_score_mode_combo", None)
+        if score_mode_combo is not None:
+            index = score_mode_combo.findData(self._enneagram_scoring_options.normalized_score_mode())
+            blocker = QSignalBlocker(score_mode_combo)
+            score_mode_combo.setCurrentIndex(index if index >= 0 else 0)
+            del blocker
         combo = getattr(self, "_enneagram_predictor_scale_combo", None)
         if combo is not None:
             index = combo.findData(self._enneagram_scoring_options.normalized_type_signature_scale_mode())
             blocker = QSignalBlocker(combo)
             combo.setCurrentIndex(index if index >= 0 else 0)
+            del blocker
+        dominance_combo = getattr(self, "_prediction_dominance_normalization_combo", None)
+        if dominance_combo is not None:
+            index = dominance_combo.findData(self._enneagram_scoring_options.normalized_dominance_normalization_mode())
+            blocker = QSignalBlocker(dominance_combo)
+            dominance_combo.setCurrentIndex(index if index >= 0 else 0)
             del blocker
         self._update_enneagram_predictor_total_label()
         self._apply_enneagram_predictor_weights()
@@ -33966,6 +34813,18 @@ class MainWindow(QMainWindow):
         )
         self._apply_enneagram_predictor_weights()
 
+    def _on_prediction_score_mode_changed(self, mode: str) -> None:
+        if not hasattr(self, "_enneagram_scoring_options"):
+            self._enneagram_scoring_options = _default_enneagram_scoring_options()
+        payload = _enneagram_scoring_options_to_payload(self._enneagram_scoring_options)
+        payload["score_mode"] = str(mode or "opportunity")
+        self._enneagram_scoring_options = _merge_enneagram_scoring_options(payload)
+        self._settings.setValue(
+            SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS,
+            _enneagram_scoring_options_to_payload(self._enneagram_scoring_options),
+        )
+        self._apply_enneagram_predictor_weights()
+
     def _on_enneagram_type_signature_scale_changed(self, mode: str) -> None:
         if not hasattr(self, "_enneagram_scoring_options"):
             self._enneagram_scoring_options = _default_enneagram_scoring_options()
@@ -33978,13 +34837,25 @@ class MainWindow(QMainWindow):
         )
         self._apply_enneagram_predictor_weights()
 
+    def _on_prediction_dominance_normalization_changed(self, mode: str) -> None:
+        if not hasattr(self, "_enneagram_scoring_options"):
+            self._enneagram_scoring_options = _default_enneagram_scoring_options()
+        payload = _enneagram_scoring_options_to_payload(self._enneagram_scoring_options)
+        payload["dominance_normalization_mode"] = str(mode or "range")
+        self._enneagram_scoring_options = _merge_enneagram_scoring_options(payload)
+        self._settings.setValue(
+            SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS,
+            _enneagram_scoring_options_to_payload(self._enneagram_scoring_options),
+        )
+        self._apply_enneagram_predictor_weights()
+
     def _apply_enneagram_predictor_weights(self) -> None:
         weights = self._default_enneagram_category_weights()
         self._enneagram_predictor_weights = weights
         _set_enneagram_category_weights(weights)
-        _set_enneagram_scoring_options(
-            getattr(self, "_enneagram_scoring_options", _default_enneagram_scoring_options())
-        )
+        options = getattr(self, "_enneagram_scoring_options", _default_enneagram_scoring_options())
+        _set_enneagram_scoring_options(options)
+        _set_prediction_scoring_options(options)
         invalidate_metrics = getattr(self, "_invalidate_database_metrics_cache", None)
         if callable(invalidate_metrics):
             invalidate_metrics()
@@ -33999,18 +34870,71 @@ class MainWindow(QMainWindow):
             chart_uses_houses=_chart_uses_houses,
         )
 
+    @staticmethod
+    def _normalize_chart_row(row: tuple | list | None) -> tuple[Any, ...] | None:
+        """Normalize a saved-chart database row into the padded shape used by chart views."""
+        if not row:
+            return None
+        padded = list(row)
+        if len(padded) < 30:
+            padded.extend([None] * (30 - len(padded)))
+        return (
+            int(padded[0]),
+            padded[1],
+            padded[2],
+            padded[3],
+            padded[4],
+            padded[5],
+            padded[6],
+            int(padded[7] or 0),
+            int(padded[8] or 0),
+            int(padded[9] or 0),
+            (
+                int(padded[10])
+                if padded[10] not in (None, "", "blank", "none", "null", "unset", "unknown")
+                else None
+            ),
+            max(0, int(padded[11] or 0)),
+            int(padded[12]) if padded[12] is not None else None,
+            int(padded[13] or 0),
+            _normalize_gui_source(padded[14] if padded[14] else SOURCE_PERSONAL),
+            int(padded[15] or 0),
+            int(padded[16] or 0),
+            int(padded[17]) if padded[17] is not None else None,
+            int(padded[18]) if padded[18] is not None else None,
+            int(padded[19]) if padded[19] is not None else None,
+            int(padded[20]) if padded[20] is not None else None,
+            int(padded[21]) if padded[21] is not None else None,
+            padded[22],
+            str(padded[23] or "blank"),
+            padded[24],
+            padded[25],
+            padded[26],
+            padded[27],
+            padded[28],
+            padded[29],
+        )
+
     def _prediction_norm_rows(self) -> list[Any]:
-        displayed_rows_by_id = getattr(self, "_displayed_chart_rows_by_id", None)
-        if displayed_rows_by_id is not None:
-            return list(displayed_rows_by_id.values())
+        chart_rows = getattr(self, "_chart_rows", None)
+        if chart_rows is not None:
+            return [
+                normalized
+                for row in chart_rows
+                if (normalized := self._normalize_chart_row(row)) is not None
+            ]
         manage_dialog = getattr(self, "_manage_charts_dialog", None)
-        dialog_displayed_rows_by_id = (
-            getattr(manage_dialog, "_displayed_chart_rows_by_id", None)
+        dialog_chart_rows = (
+            getattr(manage_dialog, "_chart_rows", None)
             if manage_dialog is not None
             else None
         )
-        if dialog_displayed_rows_by_id is not None:
-            return list(dialog_displayed_rows_by_id.values())
+        if dialog_chart_rows is not None:
+            return [
+                normalized
+                for row in dialog_chart_rows
+                if (normalized := self._normalize_chart_row(row)) is not None
+            ]
         try:
             return list(list_charts())
         except Exception:
@@ -34160,6 +35084,20 @@ class MainWindow(QMainWindow):
         if kind == "sign":
             self._show_sign_keyword_info(value)
             return
+        if kind == "ts-ascendant-sign":
+            panel = getattr(self, "time_sensitivity_panel", None)
+            result = getattr(panel, "_last_result", None) if panel is not None else None
+            self.chart_info_output.setPlainText(
+                _build_time_sensitivity_ascendant_sign_info_text(result, value)
+            )
+            return
+        if kind == "ts-sign":
+            panel = getattr(self, "time_sensitivity_panel", None)
+            result = getattr(panel, "_last_result", None) if panel is not None else None
+            self.chart_info_output.setPlainText(
+                _build_time_sensitivity_sign_info_text(result, self._latest_chart, value)
+            )
+            return
         if kind == "house":
             try:
                 house_num = int(value)
@@ -34233,6 +35171,9 @@ class MainWindow(QMainWindow):
     def _render_enneagram_predictions(self, chart: Chart | None) -> None:
         self._enneagram_prediction_adapter().render(chart, self._render_metric_panel)
 
+    def _render_traits_predictions(self, chart: Chart | None) -> None:
+        _render_traits_predictions(self, chart)
+
     def _dnd_prediction_adapter(self) -> DndPredictionPanelAdapter:
         return DndPredictionPanelAdapter(
             chart_layout=getattr(self, "dnd_predictions_chart_layout", None),
@@ -34242,13 +35183,19 @@ class MainWindow(QMainWindow):
             chart_theme_colors=CHART_THEME_COLORS,
             apply_standard_bar_axes=self._apply_standard_ncv_bar_chart_axes,
             is_placeholder_chart=self._is_placeholder_chart,
+            norm_charts_provider=self._prediction_norm_charts,
+            norm_charts_token_provider=self._prediction_norms_render_token,
         )
 
     def _draw_dnd_statblock_predictions(self, ax, chart: Chart) -> None:
         self._dnd_prediction_adapter().draw(ax, chart)
 
     def _build_dnd_statblock_popout_info(self, stat_key: str, *, chart: Chart | None = None) -> str:
-        return self._dnd_prediction_adapter().build_popout_info(chart or self._latest_chart, stat_key)
+        return self._dnd_prediction_adapter().build_popout_info(
+            chart or self._latest_chart,
+            stat_key,
+            show_explainers=self._visibility.get("analytics.dnd_statblock_explainers"),
+        )
 
     def _render_dndification_predictions(self, chart: Chart | None) -> None:
         summary_label = self._dnd_prediction_adapter().render(chart, self._render_metric_panel)
@@ -34734,7 +35681,7 @@ class MainWindow(QMainWindow):
             summary_share_button.setText("↗")
         summary_share_button.setAutoRaise(True)
         apply_button_cursor(summary_share_button)
-        summary_share_button.setToolTip("Export chart data output as Markdown or text")
+        summary_share_button.setToolTip("Export chart analysis (MD or TXT)")
         summary_share_button.setFixedSize(22, 22)
         summary_share_button.clicked.connect(
             lambda _checked=False: self._export_popout_chart_data_output(summary_output, hd_file_stem)
@@ -35004,6 +35951,13 @@ class MainWindow(QMainWindow):
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
+        if (
+            self.isVisible()
+            and not getattr(self, "_restoring_window_layout", False)
+            and not getattr(self, "_applying_window_placement", False)
+        ):
+            self._window_layout_customized = True
+            self._session_window_layout_adjusted = True
         if hasattr(self, "_help_scrim"):
             self._help_resize_overlay()
         # if self._help_overlay_active:

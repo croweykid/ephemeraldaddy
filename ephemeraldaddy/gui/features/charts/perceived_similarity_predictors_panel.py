@@ -348,7 +348,7 @@ class PerceivedSimilarityPredictorsPanel(QWidget):
                 f"<div style='color:#d9d9d9; margin: 6px 0; font-style: italic;'>Reviewed {len(candidates)} "
                 "saved perceived-similarity score(s). Each factor is tested independently: "
                 "higher values mean that factor's single-factor rank aligns better with "
-                "your perceived-similarity scores, regardless of the active Similarities Calculator setting.</div>"
+                "your perceived-similarity scores, regardless of the active Astro Twin Calculator setting.</div>"
                 f"<ol>{''.join(rows)}</ol>"
             )
 

@@ -404,6 +404,9 @@ def run_metadata_migration(
     lookup_location_label: Callable[[str], str | None] | None = None,
     random_delay_seconds_range: tuple[int, int] | None = None,
 ) -> tuple[MetadataMigrationOutcome, set[int]]:
+    # Legacy integer chart IDs are accepted here only because this worker is
+    # driven by selected SQLite rows. New metadata associations should resolve
+    # and persist chart_uid before crossing feature boundaries.
     changed_chart_ids: set[int] = set()
     changed_unit_count = 0
     error_count = 0

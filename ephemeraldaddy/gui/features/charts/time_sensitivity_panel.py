@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import statistics
 from html import escape
 from urllib.parse import quote
 from typing import Any
@@ -42,7 +43,9 @@ from ephemeraldaddy.core.interpretations import (
     MODE_COLORS,
     NAKSHATRA_PLANET_COLOR,
     PLANET_COLORS,
+    PLANET_ORDER,
     SIGN_COLORS,
+    SIGN_KEYWORDS,
 )
 from ephemeraldaddy.gui.features.charts.chart_analytics_popout import _display_body_name
 from ephemeraldaddy.gui.style import (
@@ -55,24 +58,71 @@ from ephemeraldaddy.gui.style import (
 )
 
 
+class TimeSensitivityFigureCanvas(FigureCanvas):
+    """Matplotlib canvas that lets the Time Sensitivity panel keep scrolling under charts."""
+
+    def wheelEvent(self, event: object) -> None:  # noqa: N802 - Qt API
+        scroll_area = self._nearest_scroll_area()
+        if scroll_area is None:
+            super().wheelEvent(event)
+            return
+        pixel_delta = event.pixelDelta().y() if hasattr(event, "pixelDelta") else 0
+        angle_delta = event.angleDelta().y() if hasattr(event, "angleDelta") else 0
+        if pixel_delta or angle_delta:
+            scrollbar = scroll_area.verticalScrollBar()
+            if pixel_delta:
+                scrollbar.setValue(scrollbar.value() - int(pixel_delta))
+            else:
+                steps = (
+                    int(angle_delta / 120)
+                    if abs(angle_delta) >= 120
+                    else (1 if angle_delta > 0 else -1)
+                )
+                scrollbar.setValue(
+                    scrollbar.value() - (steps * scrollbar.singleStep() * 3)
+                )
+            event.accept()
+            return
+        super().wheelEvent(event)
+
+    def _nearest_scroll_area(self) -> QAbstractScrollArea | None:
+        widget_parent = self.parentWidget()
+        while widget_parent is not None:
+            if isinstance(widget_parent, QAbstractScrollArea):
+                return widget_parent
+            widget_parent = widget_parent.parentWidget()
+        return None
+
+
 _TIME_SENSITIVITY_CHART_TITLES = {
     "dominant_planet_weights": "Dominant Body Weight Distribution",
     "dominant_sign_weights": "Dominant Sign Weight Distribution",
+    "dominant_element_weights": "Dominant Element Weight Distribution",
+    "dominant_house_weights": "Dominant House Weight Distribution",
+    "dominant_mode_weights": "Dominant Mode Weight Distribution",
+    "dominant_nakshatra_weights": "Dominant Nakshatra Weight Distribution",
 }
 
 
-def _likelihood_rows(result: TimeSensitivityResult, group_key: str) -> list[tuple[str, float]]:
+def _likelihood_rows(
+    result: TimeSensitivityResult, group_key: str
+) -> list[tuple[str, float]]:
     """Return non-zero average raw-weight rows for Time Sensitivity charts."""
     ranges = result.numeric_ranges.get(group_key, {})
     rows = [
-        (str(key), (float(payload.get("min", 0.0)) + float(payload.get("max", 0.0))) / 2.0)
+        (
+            str(key),
+            (float(payload.get("min", 0.0)) + float(payload.get("max", 0.0))) / 2.0,
+        )
         for key, payload in ranges.items()
         if isinstance(payload, dict) and float(payload.get("max", 0.0)) > 0.0
     ]
     return sorted(rows, key=lambda item: (-item[1], item[0]))
 
 
-def _raw_weight_range_rows(result: TimeSensitivityResult, group_key: str) -> list[tuple[str, float, float]]:
+def _raw_weight_range_rows(
+    result: TimeSensitivityResult, group_key: str
+) -> list[tuple[str, float, float]]:
     """Return labels with min/max raw weights across sampled charts."""
     ranges = result.numeric_ranges.get(group_key, {})
     rows = [
@@ -84,45 +134,145 @@ def _raw_weight_range_rows(result: TimeSensitivityResult, group_key: str) -> lis
 
 
 def _color_for_likelihood(group_key: str, label: str) -> str:
-    if group_key == "dominant_sign_weights":
-        return str(SIGN_COLORS.get(label, "#6fa8dc"))
-    return str(PLANET_COLORS.get(label, "#6fa8dc"))
+    return _factor_color(group_key, label)
 
 
 def _display_label_for_likelihood(group_key: str, label: str) -> str:
     if group_key == "dominant_planet_weights":
         return _display_body_name(label)
+    if group_key == "dominant_house_weights":
+        return str(label).removeprefix("House ").strip()
     return label
 
 
-def _draw_likelihood_chart(ax: Any, result: TimeSensitivityResult, group_key: str) -> None:
+def _format_sampled_weight(weight: float) -> str:
+    """Show sampled weights at persisted precision without noisy trailing zeros."""
+    rounded = round(float(weight), 6)
+    if abs(rounded) < 0.0000005:
+        rounded = 0.0
+    return f"{rounded:.6f}".rstrip("0").rstrip(".")
+
+
+def _sampled_weight_points(
+    result: TimeSensitivityResult, group_key: str, labels: list[str]
+) -> tuple[list[float], list[float], list[str], list[str]]:
+    """Return scatterplot coordinates and hover labels for sampled raw weights."""
+    x_values: list[float] = []
+    y_values: list[float] = []
+    point_labels: list[str] = []
+    point_times: list[str] = []
+    ranges = result.numeric_ranges.get(group_key, {})
+    for x_position, label in enumerate(labels):
+        payload = ranges.get(label, {})
+        samples = payload.get("weight_samples", []) if isinstance(payload, dict) else []
+        if not isinstance(samples, list):
+            continue
+        display_label = _display_label_for_likelihood(group_key, label)
+        for sample in samples:
+            if not isinstance(sample, dict):
+                continue
+            time = str(sample.get("time", "")).strip()
+            if not time:
+                continue
+            try:
+                weight = float(sample.get("weight", 0.0))
+            except (TypeError, ValueError):
+                continue
+            x_values.append(float(x_position))
+            y_values.append(weight)
+            point_times.append(time)
+            point_labels.append(
+                f"{display_label}\n{time} • {_format_sampled_weight(weight)}"
+            )
+    return x_values, y_values, point_labels, point_times
+
+
+def _draw_likelihood_chart(
+    ax: Any,
+    result: TimeSensitivityResult,
+    group_key: str,
+    on_factor_click: Any | None = None,
+) -> None:
     rows = _raw_weight_range_rows(result, group_key)
     labels = [label for label, _minimum, _maximum in rows]
-    display_labels = [_display_label_for_likelihood(group_key, label) for label in labels]
+    display_labels = [
+        _display_label_for_likelihood(group_key, label) for label in labels
+    ]
     minimums = [minimum for _label, minimum, _maximum in rows]
     maximums = [maximum for _label, _minimum, maximum in rows]
     colors = [_color_for_likelihood(group_key, label) for label in labels]
     ax.set_facecolor("#111111")
     ax.figure.patch.set_facecolor("#111111")
     if not rows:
-        ax.text(0.5, 0.5, "No raw weight range data available.", ha="center", va="center", color="#f5f5f5")
+        ax.text(
+            0.5,
+            0.5,
+            "No raw weight range data available.",
+            ha="center",
+            va="center",
+            color="#f5f5f5",
+        )
         ax.set_axis_off()
         return
 
     x_positions = list(range(len(rows)))
-    bars = ax.bar(x_positions, maximums, color=colors, alpha=0.72, edgecolor="#f5f5f5", linewidth=0.25)
+    bars = ax.bar(
+        x_positions,
+        maximums,
+        color=colors,
+        alpha=0.72,
+        edgecolor="#f5f5f5",
+        linewidth=0.25,
+    )
     ax.bar(x_positions, minimums, color="#111111", alpha=0.50, edgecolor="none")
     hover_payloads = []
-    for bar, label, display_label, minimum, maximum in zip(bars, labels, display_labels, minimums, maximums, strict=True):
+    scatter_payloads = []
+    clickable_artists = []
+    for bar, label, display_label, minimum, maximum in zip(
+        bars, labels, display_labels, minimums, maximums, strict=True
+    ):
         bar.set_gid(f"time_sensitivity:{group_key}:{label}")
         bar.set_picker(True)
-        hover_payloads.append((bar, f"{display_label}\nmin {minimum:.0f} • max {maximum:.0f}"))
-    _install_bar_hover(ax, hover_payloads)
+        setattr(bar, "_time_sensitivity_factor", label)
+        clickable_artists.append((bar, label))
+        hover_payloads.append(
+            (bar, f"{display_label}\nmin {minimum:.0f} • max {maximum:.0f}")
+        )
+    point_x, point_y, point_labels, _point_times = _sampled_weight_points(
+        result, group_key, labels
+    )
+    if point_x:
+        scatter = ax.scatter(
+            point_x,
+            point_y,
+            s=24,
+            marker="o",
+            facecolors="#f5f5f5",
+            edgecolors="#111111",
+            linewidths=0.6,
+            alpha=0.96,
+            zorder=5,
+            picker=True,
+        )
+        scatter_payloads.append((scatter, point_labels))
+    _install_bar_hover(ax, hover_payloads, scatter_payloads)
     ax.set_xticks(x_positions, display_labels)
+    for tick_label, label in zip(ax.get_xticklabels(), labels, strict=True):
+        tick_label.set_picker(True)
+        tick_label.set_gid(f"time_sensitivity:{group_key}:{label}:label")
+        setattr(tick_label, "_time_sensitivity_factor", label)
+        clickable_artists.append((tick_label, label))
+    if callable(on_factor_click):
+        _install_factor_click(ax, clickable_artists, on_factor_click)
     y_max = max(maximums) if maximums else 0.0
     ax.set_ylim(0, max(1.0, y_max * 1.12))
     ax.set_ylabel("raw weight range", color="#f5f5f5", fontsize=8)
-    ax.set_title(_TIME_SENSITIVITY_CHART_TITLES.get(group_key, group_key), color="#f5f5f5", fontsize=10, fontweight="bold")
+    ax.set_title(
+        _TIME_SENSITIVITY_CHART_TITLES.get(group_key, group_key),
+        color="#f5f5f5",
+        fontsize=10,
+        fontweight="bold",
+    )
     ax.tick_params(axis="x", colors="#f5f5f5", labelrotation=90, labelsize=8)
     ax.tick_params(axis="y", colors="#f5f5f5", labelsize=8)
     ax.grid(axis="y", color="#333333", linewidth=0.5, alpha=0.8)
@@ -131,8 +281,27 @@ def _draw_likelihood_chart(ax: Any, result: TimeSensitivityResult, group_key: st
     ax.figure.tight_layout()
 
 
-def _install_bar_hover(ax: Any, hover_payloads: list[tuple[Any, str]]) -> None:
-    """Attach uncluttered on-hover labels to bars for Qt matplotlib canvases."""
+def _install_factor_click(
+    ax: Any, clickable_artists: list[tuple[Any, str]], on_factor_click: Any
+) -> None:
+    """Make Time Sensitivity bars and x-axis labels update the popout info panel."""
+
+    def on_click(event: Any) -> None:
+        for artist, label in clickable_artists:
+            contains, _details = artist.contains(event)
+            if contains:
+                on_factor_click(label)
+                return
+
+    ax.figure.canvas.mpl_connect("button_press_event", on_click)
+
+
+def _install_bar_hover(
+    ax: Any,
+    hover_payloads: list[tuple[Any, str]],
+    scatter_payloads: list[tuple[Any, list[str]]] | None = None,
+) -> None:
+    """Attach uncluttered on-hover labels to bars and sampled-weight points."""
     annotation = ax.annotate(
         "",
         xy=(0, 0),
@@ -150,6 +319,21 @@ def _install_bar_hover(ax: Any, hover_payloads: list[tuple[Any, str]]) -> None:
                 annotation.set_visible(False)
                 ax.figure.canvas.draw_idle()
             return
+        for scatter, labels in scatter_payloads or []:
+            contains, details = scatter.contains(event)
+            if contains:
+                indices = (
+                    list(details.get("ind", [])) if isinstance(details, dict) else []
+                )
+                if indices:
+                    index = int(indices[0])
+                    offsets = scatter.get_offsets()
+                    x_value, y_value = offsets[index]
+                    annotation.xy = (float(x_value), float(y_value))
+                    annotation.set_text(labels[index])
+                    annotation.set_visible(True)
+                    ax.figure.canvas.draw_idle()
+                    return
         for bar, label in hover_payloads:
             contains, _details = bar.contains(event)
             if contains:
@@ -176,7 +360,12 @@ def _group_title(group_key: str) -> str:
     }
     if group_key in titles:
         return titles[group_key]
-    return group_key.replace("dominant_", "Dominant ").replace("_weights", "").replace("_", " ").title()
+    return (
+        group_key.replace("dominant_", "Dominant ")
+        .replace("_weights", "")
+        .replace("_", " ")
+        .title()
+    )
 
 
 _NUMERIC_GROUP_LINK_KINDS = {
@@ -187,6 +376,25 @@ _NUMERIC_GROUP_LINK_KINDS = {
     "dominant_mode_weights": "mode",
     "dominant_nakshatra_weights": "nakshatra",
 }
+
+
+def _confidence_color(percent: float) -> str:
+    """Return a dark-red→bright-green confidence color for a 0–100 percentage."""
+    ratio = max(0.0, min(1.0, float(percent) / 100.0))
+    start = (0x7A, 0x00, 0x00)
+    end = (0x00, 0xFF, 0x00)
+    red = round(start[0] + ((end[0] - start[0]) * ratio))
+    green = round(start[1] + ((end[1] - start[1]) * ratio))
+    blue = round(start[2] + ((end[2] - start[2]) * ratio))
+    return f"#{red:02x}{green:02x}{blue:02x}"
+
+
+def _confidence_percent(result: TimeSensitivityResult) -> float:
+    """Return relative confidence in what can be ascertained despite unknown birth time."""
+    confidence = result.overall.get("ascertainment_confidence", {})
+    if isinstance(confidence, dict) and "percent" in confidence:
+        return max(0.0, min(100.0, float(confidence.get("percent", 0.0))))
+    return max(0.0, min(100.0, float(result.overall.get("stability_percent", 0.0))))
 
 
 def _delta_intensity_color(value: float, values: list[float]) -> str:
@@ -249,23 +457,43 @@ def _factor_color(group_key: str, key: str) -> str:
 
 
 _COLOR_CODE_TERMS: dict[str, tuple[str, str, str]] = {
-    **{str(name): (str(color), "sign", str(name)) for name, color in SIGN_COLORS.items()},
-    **{str(name): (str(color), "planet", str(name)) for name, color in PLANET_COLORS.items()},
-    **{str(name): (str(color), "element", str(name)) for name, color in ELEMENT_COLORS.items()},
-    **{str(name).title(): (str(color), "mode", str(name)) for name, color in MODE_COLORS.items()},
-    **{str(name): (str(color), "nakshatra", str(name)) for name, (_planet, color) in NAKSHATRA_PLANET_COLOR.items()},
-    **{f"House {house}": (str(color), "house", str(house)) for house, color in HOUSE_COLORS.items()},
+    **{
+        str(name): (str(color), "sign", str(name))
+        for name, color in SIGN_COLORS.items()
+    },
+    **{
+        str(name): (str(color), "planet", str(name))
+        for name, color in PLANET_COLORS.items()
+    },
+    **{
+        str(name): (str(color), "element", str(name))
+        for name, color in ELEMENT_COLORS.items()
+    },
+    **{
+        str(name).title(): (str(color), "mode", str(name))
+        for name, color in MODE_COLORS.items()
+    },
+    **{
+        str(name): (str(color), "nakshatra", str(name))
+        for name, (_planet, color) in NAKSHATRA_PLANET_COLOR.items()
+    },
+    **{
+        f"House {house}": (str(color), "house", str(house))
+        for house, color in HOUSE_COLORS.items()
+    },
 }
 
 _COLOR_CODE_PATTERN = re.compile(
     r"(?<![\w-])("
-    + "|".join(re.escape(term) for term in sorted(_COLOR_CODE_TERMS, key=len, reverse=True))
+    + "|".join(
+        re.escape(term) for term in sorted(_COLOR_CODE_TERMS, key=len, reverse=True)
+    )
     + r")(?![\w-])",
     re.IGNORECASE,
 )
 
 
-def _color_code_text(text: str) -> str:
+def _color_code_text(text: str, *, sign_link_kind: str = "sign") -> str:
     """Escape text and turn known astrological category names into Chart Info links."""
     escaped_text = escape(str(text))
 
@@ -283,7 +511,8 @@ def _color_code_text(text: str) -> str:
             )
         color, kind, value = payload
         safe_matched = escape(matched)
-        href = f"distinguishing-factor:{kind}:{quote(value)}" if kind else ""
+        link_kind = sign_link_kind if kind == "sign" else kind
+        href = f"distinguishing-factor:{link_kind}:{quote(value)}" if link_kind else ""
         if href:
             return (
                 f"<a href='{href}' style='color:{escape(color, quote=True)}; text-decoration: none;'>"
@@ -293,12 +522,141 @@ def _color_code_text(text: str) -> str:
 
     return _COLOR_CODE_PATTERN.sub(replace, escaped_text)
 
+
+def _time_sensitivity_variable_item_html(result: TimeSensitivityResult, item: str) -> str:
+    text = str(item)
+    if text.startswith(("Ascendant:", "AS:")):
+        prefix, values_text = text.split(":", 1)
+        linked_values = []
+        for sign in [part.strip() for part in values_text.split("/") if part.strip()]:
+            color = escape(SIGN_COLORS.get(sign.title(), "#6fa8dc"), quote=True)
+            linked_values.append(
+                f"<a href='distinguishing-factor:ts-ascendant-sign:{quote(sign.title())}' "
+                f"style='color:{color}; text-decoration: none;'>{escape(sign)}</a>"
+            )
+        return f"{escape(prefix)}: " + " / ".join(linked_values)
+    return _color_code_text(text, sign_link_kind="ts-sign")
+
+
+def time_sensitivity_categorical_spans(
+    result: TimeSensitivityResult | None, category: str, value: str
+) -> list[str]:
+    """Return sampled Time Sensitivity spans for a categorical value."""
+    overall = getattr(result, "overall", {}) if result is not None else {}
+    spans_by_category = (
+        overall.get("categorical_value_spans", {}) if isinstance(overall, dict) else {}
+    )
+    if not isinstance(spans_by_category, dict):
+        return []
+
+    category_key = str(category or "").strip()
+    category_aliases = {
+        "Ascendant": ("Ascendant", "AS"),
+        "AS": ("AS", "Ascendant"),
+    }.get(category_key, (category_key,))
+    value_key = str(value or "").strip()
+    value_aliases = dict.fromkeys((value_key, value_key.title(), value_key.upper()))
+
+    for candidate_category in category_aliases:
+        spans_by_value = spans_by_category.get(candidate_category, {})
+        if not isinstance(spans_by_value, dict):
+            continue
+        for candidate_value in value_aliases:
+            spans = spans_by_value.get(candidate_value, [])
+            if spans:
+                return [str(span) for span in spans if str(span).strip()]
+        for stored_value, spans in spans_by_value.items():
+            if str(stored_value).strip().casefold() == value_key.casefold() and spans:
+                return [str(span) for span in spans if str(span).strip()]
+    return []
+
+
+def build_time_sensitivity_ascendant_sign_info_text(
+    result: TimeSensitivityResult | None, sign_name: str
+) -> str:
+    """Return Chart Info text for a Time Sensitivity Ascendant sign link."""
+    sign_key = str(sign_name or "").strip().title()
+    sign_keywords = SIGN_KEYWORDS.get(sign_key, {})
+    best_keywords = [
+        str(item).strip() for item in sign_keywords.get("best", []) if str(item).strip()
+    ]
+    worst_keywords = [
+        str(item).strip() for item in sign_keywords.get("worst", []) if str(item).strip()
+    ]
+    spans = time_sensitivity_categorical_spans(result, "Ascendant", sign_key)
+    if spans:
+        start = spans[0].split("–", 1)[0].strip()
+        end = spans[-1].split("–", 1)[-1].strip()
+        time_line = f"from {start} to {end}"
+    else:
+        time_line = "from n/a to n/a"
+    lines = [
+        f"Ascendant in {sign_key}",
+        "",
+        time_line,
+        "",
+        "Interfacing with the world in a way that is…",
+    ]
+    if best_keywords:
+        lines.extend(["At best:", *(f"• {keyword}" for keyword in best_keywords)])
+    if worst_keywords:
+        if best_keywords:
+            lines.append("")
+        lines.extend(["At worst:", *(f"• {keyword}" for keyword in worst_keywords)])
+    return "\n".join(lines)
+
+
+def build_time_sensitivity_sign_info_text(
+    result: TimeSensitivityResult | None, chart: Any, sign_name: str
+) -> str:
+    """Return Chart Info text for a non-Ascendant Time Sensitivity sign link."""
+    sign_key = str(sign_name or "").strip().title()
+    sign_keywords = SIGN_KEYWORDS.get(sign_key, {})
+    best_keywords = [
+        str(item).strip() for item in sign_keywords.get("best", []) if str(item).strip()
+    ]
+    worst_keywords = [
+        str(item).strip() for item in sign_keywords.get("worst", []) if str(item).strip()
+    ]
+    placements = []
+    possible = []
+    if chart is not None:
+        sign_by_body = chart.signs() if hasattr(chart, "signs") else {}
+        for body in PLANET_ORDER:
+            if str(sign_by_body.get(body, "")).strip().title() == sign_key:
+                placements.append(_display_body_name(body))
+        for category, label in (("Sun sign", "Sun"), ("Ascendant", "Ascendant")):
+            if time_sensitivity_categorical_spans(result, category, sign_key):
+                display_label = _display_body_name(label) if label != "Ascendant" else label
+                if display_label not in placements and display_label not in possible:
+                    possible.append(display_label)
+    placement_line = ", ".join(placements)
+    if placements:
+        placement_line += "."
+    if possible:
+        possible_line = "Possibly " + ", ".join(possible)
+        placement_line = f"{placement_line} {possible_line}" if placement_line else possible_line
+    if not placement_line:
+        placement_line = f"No chart placements in {sign_key}"
+    lines = [sign_key, "", placement_line, ""]
+    if best_keywords:
+        lines.extend(["At best:", *(f"• {keyword}" for keyword in best_keywords)])
+    if worst_keywords:
+        if best_keywords:
+            lines.append("")
+        lines.extend(["At worst:", *(f"• {keyword}" for keyword in worst_keywords)])
+    return "\n".join(lines)
+
 def _header_html(label: str) -> str:
     return f"<div style='color:{CHART_DATA_HIGHLIGHT_COLOR}; font-weight:700; margin-top:8px;'>{escape(label)}</div>"
 
 
 def _list_html(items: list[str]) -> str:
-    return "<ul style='margin-top:2px; margin-bottom:6px;'>" + "".join(f"<li>{item}</li>" for item in items) + "</ul>"
+    return (
+        "<ul style='margin-top:2px; margin-bottom:6px;'>"
+        + "".join(f"<li>{item}</li>" for item in items)
+        + "</ul>"
+    )
 
 
 def _factor_link(group_key: str, key: str) -> str:
@@ -315,19 +673,181 @@ def _format_time_list(values: Any, limit: int = 3) -> str:
     return str(values)
 
 
-def _span_start_end(values: Any) -> tuple[str, str]:
-    """Return the first displayed span split into start/end time cells."""
+def _single_time_value(values: Any) -> str:
+    """Return one compact time value for peak/trench table cells."""
     if not values:
-        return "n/a", "n/a"
+        return "n/a"
     first = str(values[0] if isinstance(values, (list, tuple)) else values)
     if "–" in first:
-        start, end = first.split("–", 1)
-        return start.strip() or "n/a", end.strip() or "n/a"
-    return first.strip() or "n/a", first.strip() or "n/a"
+        first = first.split("–", 1)[0]
+    return first.strip() or "n/a"
+
+
+def _most_likely_weight_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    value = payload.get("most_likely_weight") or payload.get("mode") or {}
+    return value if isinstance(value, dict) else {}
+
+
+def _most_likely_weight_value(payload: dict[str, Any]) -> float | None:
+    mode_payload = _most_likely_weight_payload(payload)
+    weight = mode_payload.get("weight")
+    if mode_payload.get("available", weight is not None) and weight is not None:
+        return float(weight)
+    if mode_payload:
+        return None
+    return (float(payload.get("min", 0.0)) + float(payload.get("max", 0.0))) / 2.0
+
+
+def _most_likely_weight_display(payload: dict[str, Any]) -> str:
+    weight = _most_likely_weight_value(payload)
+    if weight is None:
+        return "multi"
+    return f"{weight:.0f}"
+
+
+def _weight_sample_values(payload: dict[str, Any]) -> list[float]:
+    samples = payload.get("weight_samples") or []
+    values: list[float] = []
+    if isinstance(samples, list):
+        for sample in samples:
+            if not isinstance(sample, dict):
+                continue
+            try:
+                values.append(float(sample.get("weight", 0.0)))
+            except (TypeError, ValueError):
+                continue
+    return values
+
+
+def _weight_distribution_stats(payload: dict[str, Any]) -> dict[str, str]:
+    values = _weight_sample_values(payload)
+    if not values:
+        mode_payload = _most_likely_weight_payload(payload)
+        fallback_weight = mode_payload.get("weight")
+        if fallback_weight is None:
+            fallback_weight = (
+                float(payload.get("min", 0.0)) + float(payload.get("max", 0.0))
+            ) / 2.0
+        try:
+            values = [float(fallback_weight)]
+        except (TypeError, ValueError):
+            values = []
+    if not values:
+        return {"mode": "n/a", "median": "n/a", "mean": "n/a"}
+
+    mode_payload = _most_likely_weight_payload(payload)
+    tied_weights = mode_payload.get("tied_weights") or []
+    mode_weight = mode_payload.get("weight")
+    if (
+        mode_payload
+        and mode_payload.get("available", mode_weight is not None)
+        and mode_weight is not None
+    ):
+        mode_display = f"{float(mode_weight):.0f}"
+    elif tied_weights:
+        mode_display = ", ".join(f"{float(weight):.0f}" for weight in tied_weights[:4])
+        if len(tied_weights) > 4:
+            mode_display += ", …"
+    else:
+        counts: dict[float, int] = {}
+        for value in values:
+            rounded_value = round(float(value), 6)
+            counts[rounded_value] = counts.get(rounded_value, 0) + 1
+        max_count = max(counts.values())
+        modes = sorted(
+            weight for weight, count in counts.items() if count == max_count
+        )
+        mode_display = ", ".join(f"{weight:.0f}" for weight in modes[:4])
+        if len(modes) > 4:
+            mode_display += ", …"
+
+    return {
+        "mode": mode_display,
+        "median": f"{statistics.median(values):.0f}",
+        "mean": f"{statistics.fmean(values):.0f}",
+    }
+
+
+def _most_likely_weight_tooltip(payload: dict[str, Any]) -> str:
+    mode_payload = _most_likely_weight_payload(payload)
+    if not mode_payload:
+        return "Most likely weight unavailable for saved pre-v8 Time Sensitivity results."
+    percent = float(mode_payload.get("percent", 0.0))
+    count = int(mode_payload.get("count", 0))
+    if not mode_payload.get("available", mode_payload.get("weight") is not None):
+        tied_weights = mode_payload.get("tied_weights") or []
+        tied_text = ", ".join(f"{float(weight):.0f}" for weight in tied_weights[:8])
+        if len(tied_weights) > 8:
+            tied_text += ", …"
+        return (
+            "No single most likely weight: "
+            f"{len(tied_weights)} weights tie at {count} samples ({percent:.0f}%)."
+            + (f" Tied weights: {tied_text}" if tied_text else "")
+        )
+    spans = mode_payload.get("spans") or []
+    times = mode_payload.get("times") or []
+    when = "; ".join(str(span) for span in spans[:4]) or _format_time_list(
+        times, limit=4
+    )
+    return f"Mode of sampled raw weights: {count} samples ({percent:.0f}%). Times: {when}"
+
+
+def _variability_scale_label(percent_delta_spread: float) -> str:
+    """Return a compact label for the spread between min and max percent deltas."""
+    spread = abs(float(percent_delta_spread))
+    if spread < 5.0:
+        return "minimal"
+    if spread < 15.0:
+        return "minor"
+    if spread < 35.0:
+        return "medium"
+    if spread < 75.0:
+        return "high"
+    return "extreme"
+
+
+def _variability_percent_spread(payload: dict[str, Any]) -> float:
+    if "variability_percent" in payload:
+        return abs(float(payload.get("variability_percent", 0.0)))
+    max_decrease = float(payload.get("max_decrease_percent", 0.0))
+    max_increase = float(payload.get("max_increase_percent", 0.0))
+    return abs(max_increase - max_decrease)
 
 
 def _variability_text(payload: dict[str, Any]) -> str:
-    return str(payload.get("label", "")).replace("Highly variable", "high") or "n/a"
+    return _variability_scale_label(_variability_percent_spread(payload))
+
+
+def _time_sensitivity_factor_info_html(
+    result: TimeSensitivityResult, group_key: str, key: str
+) -> str:
+    payload = result.numeric_ranges.get(group_key, {}).get(key, {})
+    if not isinstance(payload, dict):
+        return "<div>No Time Sensitivity details available for that factor.</div>"
+    display = _display_label_for_likelihood(group_key, key)
+    color = escape(_factor_color(group_key, key), quote=True)
+    minimum = float(payload.get("min", 0.0))
+    maximum = float(payload.get("max", 0.0))
+    stats = _weight_distribution_stats(payload)
+    likely_tooltip = _most_likely_weight_tooltip(payload)
+    trough_time = _single_time_value(
+        payload.get("trough_times") or payload.get("trough_spans")
+    )
+    peak_time = _single_time_value(
+        payload.get("peak_times") or payload.get("peak_spans")
+    )
+    label_style = f"font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR};"
+    return (
+        "<div style='white-space:normal; line-height:1.45;'>"
+        f"<div style='font-size:14px; font-weight:700; color:{color}; margin-bottom:6px;'>{escape(display)}</div>"
+        f"<div><span style='{label_style}'>Min Dominance:</span> {escape(f'{minimum:.0f}')} at {escape(trough_time)}</div>"
+        f"<div><span style='{label_style}'>Mode:</span> {escape(stats['mode'])} "
+        f"<span title='{escape(likely_tooltip, quote=True)}'>ⓘ</span></div>"
+        f"<div><span style='{label_style}'>Median:</span> {escape(stats['median'])}</div>"
+        f"<div><span style='{label_style}'>Mean:</span> {escape(stats['mean'])}</div>"
+        f"<div><span style='{label_style}'>Max Dominance:</span> {escape(f'{maximum:.0f}')} at {escape(peak_time)}</div>"
+        "</div>"
+    )
 
 
 def _numeric_group_table_html(result: TimeSensitivityResult, group_key: str) -> str:
@@ -336,38 +856,69 @@ def _numeric_group_table_html(result: TimeSensitivityResult, group_key: str) -> 
         (str(key), payload)
         for key, payload in ranges.items()
         if isinstance(payload, dict)
-        and (float(payload.get("delta", 0.0)) > 0.0 or float(payload.get("baseline", 0.0)) > 0.0 or float(payload.get("max", 0.0)) > 0.0)
+        and (
+            float(payload.get("delta", 0.0)) > 0.0
+            or float(payload.get("baseline", 0.0)) > 0.0
+            or float(payload.get("max", 0.0)) > 0.0
+        )
     ]
     meaningful.sort(key=lambda item: float(item[1].get("max", 0.0)), reverse=True)
     if not meaningful:
         return "<div>No weighted results available.</div>"
     min_values = [float(payload.get("min", 0.0)) for _key, payload in meaningful]
     max_values = [float(payload.get("max", 0.0)) for _key, payload in meaningful]
-    decrease_values = [float(payload.get("max_decrease_percent", 0.0)) for _key, payload in meaningful]
-    increase_values = [float(payload.get("max_increase_percent", 0.0)) for _key, payload in meaningful]
+    likely_values = [
+        value
+        for _key, payload in meaningful
+        for value in [_most_likely_weight_value(payload)]
+        if value is not None
+    ]
+    decrease_values = [
+        float(payload.get("max_decrease_percent", 0.0)) for _key, payload in meaningful
+    ]
+    increase_values = [
+        float(payload.get("max_increase_percent", 0.0)) for _key, payload in meaningful
+    ]
     rows = []
     row_backgrounds = ("#111111", "#2b2b2b")
     for row_index, (key, payload) in enumerate(meaningful):
-        trough_start, trough_end = _span_start_end(payload.get("trough_spans") or payload.get("trough_times"))
-        peak_start, peak_end = _span_start_end(payload.get("peak_spans") or payload.get("peak_times"))
+        trough_time = _single_time_value(
+            payload.get("trough_times") or payload.get("trough_spans")
+        )
+        peak_time = _single_time_value(
+            payload.get("peak_times") or payload.get("peak_spans")
+        )
         minimum = float(payload.get("min", 0.0))
         maximum = float(payload.get("max", 0.0))
+        likely = _most_likely_weight_value(payload)
+        likely_display = _most_likely_weight_display(payload)
+        likely_tooltip = _most_likely_weight_tooltip(payload)
         max_decrease = float(payload.get("max_decrease_percent", 0.0))
         max_increase = float(payload.get("max_increase_percent", 0.0))
         min_color = escape(_relative_value_color(minimum, min_values), quote=True)
         max_color = escape(_relative_value_color(maximum, max_values), quote=True)
-        decrease_color = escape(_relative_value_color(max_decrease, decrease_values), quote=True)
-        increase_color = escape(_relative_value_color(max_increase, increase_values), quote=True)
+        likely_color = escape(
+            _relative_value_color(likely, likely_values)
+            if likely is not None
+            else "#bbbbbb",
+            quote=True,
+        )
+        decrease_color = escape(
+            _relative_value_color(max_decrease, decrease_values), quote=True
+        )
+        increase_color = escape(
+            _relative_value_color(max_increase, increase_values), quote=True
+        )
         row_background = row_backgrounds[row_index % len(row_backgrounds)]
         rows.append(
             f"<tr style='background-color:{row_background};'>"
             f"<td>{_factor_anchor(group_key, key)}</td>"
             f"<td align='right' style='color:{min_color};'>{escape(f'{minimum:.0f}')}</td>"
             f"<td align='right' style='color:{max_color};'>{escape(f'{maximum:.0f}')}</td>"
-            f"<td>{escape(trough_start)}</td>"
-            f"<td>{escape(trough_end)}</td>"
-            f"<td>{escape(peak_start)}</td>"
-            f"<td>{escape(peak_end)}</td>"
+            f"<td align='right' title='{escape(likely_tooltip, quote=True)}' "
+            f"style='color:{likely_color};'>{escape(likely_display)}</td>"
+            f"<td>{escape(trough_time)}</td>"
+            f"<td>{escape(peak_time)}</td>"
             f"<td align='right' style='color:{decrease_color};'>{escape(f'{max_decrease:.0f}')}</td>"
             f"<td align='right' style='color:{increase_color};'>{escape(f'{max_increase:.0f}')}</td>"
             f"<td>{escape(_variability_text(payload))}</td>"
@@ -376,28 +927,29 @@ def _numeric_group_table_html(result: TimeSensitivityResult, group_key: str) -> 
     return (
         "<table style='border-collapse:collapse; border:0; width:100%; font-size:11px;'>"
         "<thead><tr>"
-        "<th align='left'>factor</th>" #body/sign/nak./H/el./mode
+        "<th align='left'>factor</th>"  # body/sign/nak./H/el./mode
         "<th align='right'>min</th>"
         "<th align='right'>max</th>"
-        "<th align='center' colspan='2'>trench</th>"
-        "<th align='center' colspan='2'>peak</th>"
+        "<th align='right'>likely</th>"
+        "<th align='center'>trench</th>"
+        "<th align='center'>peak</th>"
         "<th align='right'>-%△</th>"
         "<th align='right'>+%△</th>"
         "<th align='left'>var.</th>"
-        "</tr></thead><tbody>"
-        + "".join(rows)
-        + "</tbody></table>"
+        "</tr></thead><tbody>" + "".join(rows) + "</tbody></table>"
     )
+
 
 def _factor_anchor(group_key: str, key: str) -> str:
     color = escape(_factor_color(group_key, key), quote=True)
-    text = escape(_display_body_name(key) if group_key == "dominant_planet_weights" else str(key))
+    text = escape(
+        _display_body_name(key) if group_key == "dominant_planet_weights" else str(key)
+    )
     href = _factor_link(group_key, key)
     if not href:
         return f"<span style='color:{color};'>{text}</span>"
     return (
-        f"<a href='{href}' style='color:{color}; text-decoration: none;'>"
-        f"{text}</a>"
+        f"<a href='{href}' style='color:{color}; text-decoration: none;'>" f"{text}</a>"
     )
 
 
@@ -411,7 +963,9 @@ def _gate_anchor(gate: str) -> str:
     safe_gate = escape(gate_text, quote=True)
     if "." in gate_text:
         gate_number, line_number = gate_text.split(".", 1)
-        href = f"distinguishing-factor:gate-line:{quote(gate_number)}:{quote(line_number)}"
+        href = (
+            f"distinguishing-factor:gate-line:{quote(gate_number)}:{quote(line_number)}"
+        )
     elif "-" not in gate_text:
         href = f"distinguishing-factor:gate:{quote(gate_text)}"
     else:
@@ -424,7 +978,9 @@ def _gate_anchor(gate: str) -> str:
 
 def _hd_property_anchor(property_key: str, value: str) -> str:
     safe_value = escape(str(value), quote=True)
-    href = f"distinguishing-factor:hd-property:{quote(property_key)}:{quote(str(value))}"
+    href = (
+        f"distinguishing-factor:hd-property:{quote(property_key)}:{quote(str(value))}"
+    )
     return f"<a href='{href}' style='color:#d7b5ff; text-decoration:none;'>{safe_value}</a>"
 
 
@@ -436,18 +992,38 @@ def format_time_sensitivity_result_html(result: TimeSensitivityResult) -> str:
 def _summary_html(result: TimeSensitivityResult) -> str:
     """Return the overview/stability summary HTML."""
     overall = result.overall
-    baseline_label = f"{result.baseline_time} ({overall.get('baseline_source', 'baseline')})"
+    baseline_label = (
+        f"{result.baseline_time} ({overall.get('baseline_source', 'baseline')})"
+    )
     html_lines: list[str] = [
         f"<div><strong>Overall stability:</strong> {float(overall.get('stability_percent', 0)):.0f}%</div>",
         f"<div><strong>Max possible change from {escape(baseline_label)}:</strong> {float(overall.get('max_total_change_from_baseline_percent', 0)):.0f}%</div>",
-        "<div><strong>Most sensitive:</strong> " + _color_code_text(", ".join(overall.get("most_sensitive", []) or ["n/a"])) + "</div>",
-        "<div><strong>Least sensitive:</strong> " + _color_code_text(", ".join(overall.get("least_sensitive", []) or ["n/a"])) + "</div>",
+        "<div><strong>Most sensitive:</strong> "
+        + _color_code_text(", ".join(overall.get("most_sensitive", []) or ["n/a"]))
+        + "</div>",
+        "<div><strong>Least sensitive:</strong> "
+        + _color_code_text(", ".join(overall.get("least_sensitive", []) or ["n/a"]))
+        + "</div>",
         f"<div><strong>Samples:</strong> {result.sample_count} hypothetical standard charts + {result.sample_count} Human Design charts</div>",
         _header_html("Highly Stable:"),
     ]
-    html_lines.append(_list_html([_color_code_text(item) for item in (result.stable or ["No all-day stable highlights found."])]))
+    html_lines.append(
+        _list_html(
+            [
+                _color_code_text(item, sign_link_kind="ts-sign")
+                for item in (result.stable or ["No all-day stable highlights found."])
+            ]
+        )
+    )
     html_lines.append(_header_html("Variable:"))
-    html_lines.append(_list_html([_color_code_text(item) for item in (result.variable or ["No categorical variability found."])]))
+    html_lines.append(
+        _list_html(
+            [
+                _time_sensitivity_variable_item_html(result, item)
+                for item in (result.variable or ["No categorical variability found."])
+            ]
+        )
+    )
 
     if result.warnings:
         html_lines.append(_header_html("Warnings:"))
@@ -461,8 +1037,14 @@ def _human_design_html(result: TimeSensitivityResult) -> str:
     hd_items = []
     for key in ("gates", "lines", "channels"):
         summary = hd.get(key, {})
-        always = ", ".join(_gate_anchor(item) for item in summary.get("always", [])[:20]) or "none"
-        sometimes = ", ".join(_gate_anchor(item) for item in summary.get("sometimes", [])[:20]) or "none"
+        always = (
+            ", ".join(_gate_anchor(item) for item in summary.get("always", [])[:20])
+            or "none"
+        )
+        sometimes = (
+            ", ".join(_gate_anchor(item) for item in summary.get("sometimes", [])[:20])
+            or "none"
+        )
         hd_items.append(f"Definite {escape(key.title())}: {always}")
         hd_items.append(f"Possible {escape(key.title())}: {sometimes}")
     type_bits = [
@@ -489,26 +1071,47 @@ def _legacy_full_html(result: TimeSensitivityResult) -> str:
         meaningful = [
             (key, payload)
             for key, payload in ranges.items()
-            if float(payload.get("delta", 0.0)) > 0.0 or float(payload.get("baseline", 0.0)) > 0.0
+            if float(payload.get("delta", 0.0)) > 0.0
+            or float(payload.get("baseline", 0.0)) > 0.0
         ]
-        meaningful.sort(key=lambda item: float(item[1].get("percent_delta", 0.0)), reverse=True)
-        delta_values = [abs(float(payload.get("percent_delta", 0.0))) for _key, payload in meaningful]
+        meaningful.sort(
+            key=lambda item: float(item[1].get("percent_delta", 0.0)), reverse=True
+        )
+        delta_values = [
+            abs(float(payload.get("percent_delta", 0.0)))
+            for _key, payload in meaningful
+        ]
         min_values = [float(payload.get("min", 0.0)) for _key, payload in meaningful]
         max_values = [float(payload.get("max", 0.0)) for _key, payload in meaningful]
         html_lines.append(_header_html(_group_title(group_key)))
         group_items = []
         for key, payload in meaningful[:12]:
             appears_after = payload.get("appears_after")
-            suffix = f" appears after {appears_after}" if appears_after else f" {payload.get('label', '')}"
+            suffix = (
+                f" appears after {appears_after}"
+                if appears_after
+                else f" {payload.get('label', '')}"
+            )
             span_bits = []
             if payload.get("present_spans"):
-                span_bits.append("present " + "; ".join(payload.get("present_spans", [])[:6]))
+                span_bits.append(
+                    "present " + "; ".join(payload.get("present_spans", [])[:6])
+                )
             if payload.get("peak_spans"):
-                span_bits.append("peaks " + "; ".join(payload.get("peak_spans", [])[:6]))
+                span_bits.append(
+                    "peaks " + "; ".join(payload.get("peak_spans", [])[:6])
+                )
             if payload.get("transition_windows"):
-                span_bits.append("changes " + "; ".join(payload.get("transition_windows", [])[:8]))
+                span_bits.append(
+                    "changes " + "; ".join(payload.get("transition_windows", [])[:8])
+                )
             tooltip = " | ".join(span_bits) or "No sampled time-span changes."
-            delta_color = escape(_delta_intensity_color(abs(float(payload.get("percent_delta", 0.0))), delta_values), quote=True)
+            delta_color = escape(
+                _delta_intensity_color(
+                    abs(float(payload.get("percent_delta", 0.0))), delta_values
+                ),
+                quote=True,
+            )
             minimum = float(payload.get("min", 0.0))
             maximum = float(payload.get("max", 0.0))
             min_color = escape(_relative_value_color(minimum, min_values), quote=True)
@@ -521,9 +1124,13 @@ def _legacy_full_html(result: TimeSensitivityResult) -> str:
                 + f"<span style='color:{min_color};'>{escape(f'{minimum:.0f}')}</span>"
                 + escape("–")
                 + f"<span style='color:{max_color};'>{escape(f'{maximum:.0f}')}</span>"
-                + escape(f"   peak {', '.join(payload.get('peak_times', [])[:3]) or 'n/a'}   vs {result.baseline_time}: ")
+                + escape(
+                    f"   peak {', '.join(payload.get('peak_times', [])[:3]) or 'n/a'}   vs {result.baseline_time}: "
+                )
                 + f"<span style='color:{delta_color};'>"
-                + escape(f"{float(payload.get('max_decrease_percent', 0.0)):+.0f}% to {float(payload.get('max_increase_percent', 0.0)):+.0f}%")
+                + escape(
+                    f"{float(payload.get('max_decrease_percent', 0.0)):+.0f}% to {float(payload.get('max_increase_percent', 0.0)):+.0f}%"
+                )
                 + "</span>"
                 + escape(f"{suffix}".replace("Highly variable", "high"))
                 + "</span>"
@@ -553,6 +1160,11 @@ class TimeSensitivityPanel(QWidget):
         title.setStyleSheet("font-weight: 700; font-size: 13px;")
         layout.addWidget(title)
 
+        self.confidence_label = QLabel("")
+        self.confidence_label.setWordWrap(True)
+        self.confidence_label.setVisible(False)
+        layout.addWidget(self.confidence_label)
+
         description = QLabel(
             "Scans hypothetical birth times across the known birth day and summarizes how much the chart can change."
         )
@@ -568,9 +1180,13 @@ class TimeSensitivityPanel(QWidget):
         refinement_row = QHBoxLayout()
         self.boundary_refinement_checkbox = QCheckBox("boundary refinement")
         self.boundary_refinement_checkbox.setEnabled(False)
-        self.boundary_refinement_checkbox.setToolTip("examines thresholds of change; takes longer but more accurate")
+        self.boundary_refinement_checkbox.setToolTip(
+            "examines thresholds of change; takes longer but more accurate"
+        )
         refinement_info = QLabel("ⓘ")
-        refinement_info.setToolTip("examines thresholds of change; takes longer but more accurate")
+        refinement_info.setToolTip(
+            "examines thresholds of change; takes longer but more accurate"
+        )
         refinement_row.addWidget(self.boundary_refinement_checkbox)
         refinement_row.addWidget(refinement_info)
         refinement_row.addStretch(1)
@@ -599,7 +1215,9 @@ class TimeSensitivityPanel(QWidget):
         self.output.setOpenLinks(False)
         self.output.anchorClicked.connect(self._open_chart_info_link)
         self.output.setMinimumHeight(80)
-        self.output.setPlainText("Click Compute Range to scan 49 sampled times: every 30 minutes plus 23:59.")
+        self.output.setPlainText(
+            "Click Compute Range to scan 49 sampled times: every 30 minutes plus 23:59."
+        )
         layout.addWidget(self.output)
 
     def _current_chart(self) -> Any | None:
@@ -613,25 +1231,51 @@ class TimeSensitivityPanel(QWidget):
             boundary_refinement=False,
         )
 
+    def _set_confidence_for_result(self, result: TimeSensitivityResult | None) -> None:
+        chart = self._current_chart()
+        if (
+            result is None
+            or chart is None
+            or not bool(getattr(chart, "birthtime_unknown", False))
+        ):
+            self.confidence_label.clear()
+            self.confidence_label.setVisible(False)
+            return
+        confidence = _confidence_percent(result)
+        color = escape(_confidence_color(confidence), quote=True)
+        self.confidence_label.setText(
+            f"<i><span style='color:{color};'>Confidence: {confidence:.0f}%</span></i>"
+        )
+        self.confidence_label.setToolTip(
+            "Confidence estimates how much useful chart information remains ascertainable across the sampled day: "
+            "planetary signs, angle/house ambiguity, Human Design stability, element/mode/nakshatra stability, "
+            "dominance consistency, and weighted-score volatility."
+        )
+        self.confidence_label.setVisible(True)
+
     def refresh_for_current_chart(self) -> None:
         chart = self._current_chart()
         date_key = birth_date_key_for_chart(chart) if chart is not None else ""
         if date_key == self._chart_date_key:
+            self._set_confidence_for_result(self._last_result)
             return
         self._chart_date_key = date_key
         self._last_result = None
         if chart is None:
             self.compute_module.setVisible(False)
+            self._set_confidence_for_result(None)
             self.output.setPlainText("No active chart is loaded.")
             self._clear_weight_sections()
             return
         saved = load_time_sensitivity_result_for_chart(chart, self._current_config())
         if saved is not None:
             self._last_result = saved
+            self._set_confidence_for_result(saved)
             self.output.setHtml(format_time_sensitivity_result_html(saved))
             self._render_weight_sections(saved)
             self.compute_module.setVisible(False)
             return
+        self._set_confidence_for_result(None)
         self.compute_module.setVisible(bool(date_key))
         if date_key:
             self.output.setPlainText(
@@ -639,13 +1283,16 @@ class TimeSensitivityPanel(QWidget):
                 "Click Compute Range to scan 49 sampled times: every 30 minutes plus 23:59."
             )
         else:
-            self.output.setPlainText("No usable birth date found for Time/Rectification Sensitivity storage.")
+            self.output.setPlainText(
+                "No usable birth date found for Time/Rectification Sensitivity storage."
+            )
         self._clear_weight_sections()
 
     def compute_range(self) -> None:
         chart = self._current_chart()
         if chart is None:
             self.compute_module.setVisible(False)
+            self._set_confidence_for_result(None)
             self.output.setPlainText("No active chart is loaded.")
             return
         self.compute_button.setEnabled(False)
@@ -655,12 +1302,16 @@ class TimeSensitivityPanel(QWidget):
             self._last_result = compute_time_sensitivity(chart, config)
             self._chart_date_key = birth_date_key_for_chart(chart)
             save_time_sensitivity_result(self._last_result)
+            self._set_confidence_for_result(self._last_result)
             self.output.setHtml(format_time_sensitivity_result_html(self._last_result))
             self._render_weight_sections(self._last_result)
             self.compute_module.setVisible(False)
         except Exception as exc:
             self._last_result = None
-            self.output.setPlainText(f"Unable to compute Time/Rectification Sensitivity:\n{exc}")
+            self._set_confidence_for_result(None)
+            self.output.setPlainText(
+                f"Unable to compute Time/Rectification Sensitivity:\n{exc}"
+            )
             self._clear_weight_sections()
         finally:
             self.compute_button.setEnabled(True)
@@ -682,7 +1333,9 @@ class TimeSensitivityPanel(QWidget):
         self._chart_canvases = {}
         self.output.show()
 
-    def _add_html_section(self, section_key: str, title: str, html: str, *, expanded: bool = True) -> QWidget:
+    def _add_html_section(
+        self, section_key: str, title: str, html: str, *, expanded: bool = True
+    ) -> QWidget:
         section = QWidget()
         section_layout = QVBoxLayout(section)
         section_layout.setContentsMargins(0, 0, 0, 0)
@@ -732,7 +1385,9 @@ class TimeSensitivityPanel(QWidget):
     def _render_weight_sections(self, result: TimeSensitivityResult) -> None:
         self._clear_weight_sections()
         self.output.hide()
-        self._add_html_section("summary", "Overall Time Sensitivity", _summary_html(result), expanded=True)
+        self._add_html_section(
+            "summary", "Overall Time Sensitivity", _summary_html(result), expanded=True
+        )
         for group_key in (
             "dominant_planet_weights",
             "dominant_sign_weights",
@@ -770,14 +1425,16 @@ class TimeSensitivityPanel(QWidget):
             section_layout.addWidget(content)
 
             canvas = None
-            if group_key in {"dominant_planet_weights", "dominant_sign_weights"}:
+            if group_key in _TIME_SENSITIVITY_CHART_TITLES:
                 figure = Figure(figsize=(5.5, 2.8))
                 ax = figure.add_subplot(111)
                 _draw_likelihood_chart(ax, result, group_key)
-                canvas = FigureCanvas(figure)
+                canvas = TimeSensitivityFigureCanvas(figure)
                 canvas.setMinimumHeight(250)
                 canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-                canvas.setToolTip("Click to open a larger Time Sensitivity raw-weight range popout.")
+                canvas.setToolTip(
+                    "Click to open a larger Time Sensitivity raw-weight range popout."
+                )
                 canvas.mpl_connect(
                     "button_press_event",
                     lambda _event, key=group_key: self._show_likelihood_popout(key),
@@ -806,10 +1463,13 @@ class TimeSensitivityPanel(QWidget):
                 canvas.draw_idle()
                 self._chart_canvases[group_key] = canvas
             self._chart_sections[group_key] = section
-        self._add_html_section("human_design", "Human Design", _human_design_html(result), expanded=False)
+        self._add_html_section(
+            "human_design", "Human Design", _human_design_html(result), expanded=False
+        )
 
     def _show_likelihood_popout(self, group_key: str) -> None:
-        if self._last_result is None:
+        result = self._last_result
+        if result is None:
             return
         dialog = QDialog(self)
         title = _TIME_SENSITIVITY_CHART_TITLES.get(group_key, "Dominance Likelihood")
@@ -820,16 +1480,20 @@ class TimeSensitivityPanel(QWidget):
         dialog.setLayout(layout)
         figure = Figure(figsize=(8.5, 4.6))
         ax = figure.add_subplot(111)
-        _draw_likelihood_chart(ax, self._last_result, group_key)
-        canvas = FigureCanvas(figure)
-        canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        layout.addWidget(canvas, 1)
+        canvas = TimeSensitivityFigureCanvas(figure)
         info = QTextEdit()
         info.setReadOnly(True)
+
+        def show_factor_info(label: str) -> None:
+            info.setHtml(_time_sensitivity_factor_info_html(result, group_key, label))
+
+        _draw_likelihood_chart(ax, result, group_key, on_factor_click=show_factor_info)
+        canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        layout.addWidget(canvas, 1)
         info.setHtml(
             "<b>Raw weight range:</b> each bar shows the maximum raw weight reached by that factor; "
-            "the darker base marks its minimum raw weight across the sampled charts. Hover a bar "
-            "to see the exact rounded min/max values."
+            "the darker base marks its minimum raw weight across the sampled charts. Click a bar "
+            "or x-axis label to show that factor's min/max dominance plus peak and trench times."
         )
         info.setMaximumHeight(96)
         layout.addWidget(info)

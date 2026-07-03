@@ -2,6 +2,7 @@ from pathlib import Path
 
 APP_SOURCE = (Path(__file__).resolve().parents[1] / "ephemeraldaddy/gui/app.py").read_text()
 DB_SOURCE = (Path(__file__).resolve().parents[1] / "ephemeraldaddy/core/db.py").read_text()
+DB_ANALYTICS_SOURCE = (Path(__file__).resolve().parents[1] / "ephemeraldaddy/gui/features/charts/database_analytics.py").read_text()
 
 
 def _method_source(source: str, name: str, *, indented: bool = True) -> str:
@@ -31,15 +32,53 @@ def test_database_metrics_cache_is_saved_on_close_without_blocking_recompute():
 
 def test_database_metrics_panel_open_and_section_expand_defer_heavy_refresh():
     show_method = _method_source(APP_SOURCE, "_show_left_panel")
+    panel_show_method = _method_source(APP_SOURCE, "_refresh_database_metrics_panel_on_show")
+    refresh_needed_method = _method_source(
+        APP_SOURCE, "_database_metrics_refresh_needed_on_panel_show"
+    )
     expand_method = _method_source(APP_SOURCE, "_set_database_metrics_section_expanded")
-    assert "self._schedule_deferred_database_metrics_refresh()" in show_method
     database_panel_branch = show_method.split('if panel_name == "database_metrics":', 1)[1].split(
         'elif panel_name == "gen_pop_norms":', 1
     )[0]
+    assert "baseline_changed=previous_database_metrics_baseline_mode != self._database_metrics_baseline_mode" in database_panel_branch
     assert "self._update_sentiment_tally(" not in database_panel_branch
+    assert "baseline_changed: bool = False" in panel_show_method
+    assert "expanded_sections = frozenset(self._expanded_database_metric_sections())" in panel_show_method
+    assert "and expanded_sections.issubset(self._database_metrics_snapshot_sections)" in panel_show_method
+    assert "sections_to_refresh=set(expanded_sections)" in panel_show_method
+    assert "if not self._database_metrics_refresh_needed_on_panel_show():" in panel_show_method
+    assert "self._show_database_analytics_pending_indicator(False)" in panel_show_method
+    assert "self._schedule_database_metrics_background_preload()" in panel_show_method
+    assert "self._schedule_deferred_database_metrics_refresh()" in panel_show_method
+    assert refresh_needed_method.index("expanded_sections =") < refresh_needed_method.index("self._database_metrics_cache is None")
+    assert "if not expanded_sections:" in refresh_needed_method
+    assert "self._database_metrics_lucy_goosey_ids" in refresh_needed_method
+    assert "expanded_sections.issubset(self._database_metrics_snapshot_sections)" in refresh_needed_method
     assert "QTimer.singleShot(" in expand_method
     assert "self._refresh_expanded_database_metric_section(key)" in expand_method
 
+
+
+def test_database_metrics_section_refresh_protocols_are_field_scoped():
+    assert "DATABASE_METRICS_BIRTH_DATA_SECTIONS" in DB_ANALYTICS_SOURCE
+    assert '"birth_data"' in DB_ANALYTICS_SOURCE
+    assert '"tags": frozenset({"tag_distribution"})' in DB_ANALYTICS_SOURCE
+    assert '"sentiments": frozenset({"sentiment_prevalence"})' in DB_ANALYTICS_SOURCE
+    assert '"gender": frozenset({"gender"})' in DB_ANALYTICS_SOURCE
+    birth_scope = DB_ANALYTICS_SOURCE.split("DATABASE_METRICS_BIRTH_DATA_SECTIONS", 1)[1].split("DATABASE_METRICS_SUBJECTIVE_SECTION_DEPENDENCIES", 1)[0]
+    assert '"gender"' in birth_scope
+    assert "def database_metrics_sections_for_changed_fields" in DB_ANALYTICS_SOURCE
+    assert "if changed_fields is None:" in DB_ANALYTICS_SOURCE
+    assert "return frozenset()" in DB_ANALYTICS_SOURCE
+    update_method = _method_source(APP_SOURCE, "_update_sentiment_tally")
+    assert "changed_fields" in update_method
+    assert "database_metrics_sections_for_changed_fields" in update_method
+    assert "if scoped_database_refresh_requested and not sections_to_refresh:" in update_method
+    assert "update_database_metrics = False" in update_method
+    assert "self._database_metrics_preloaded_sections.difference_update(sections_to_refresh)" in update_method
+    incremental_method = _method_source(APP_SOURCE, "_schedule_incremental_metrics_refresh")
+    assert "sections_to_refresh" in incremental_method
+    assert "if section_key in allowed_sections" in incremental_method
 
 def test_incremental_refresh_reuses_same_changed_ids_for_every_section_step():
     method = _method_source(APP_SOURCE, "_run_incremental_metrics_refresh_step")

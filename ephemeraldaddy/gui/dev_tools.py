@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import weakref
 from pathlib import Path
 from typing import Callable
 
+import shiboken6
 from PySide6.QtCore import QEvent, QPoint, Qt, QTimer
 from PySide6.QtGui import QColor, QIcon
 from PySide6.QtWidgets import (
@@ -263,7 +265,7 @@ def build_similarity_calculator_settings_section(
     on_reset_thresholds_clicked: Callable[[], None],
     threshold_rows: tuple[tuple[str, str], ...],
 ) -> dict[str, object]:
-    similar_charts_algo_label = QLabel("Similarities Calculator")
+    similar_charts_algo_label = QLabel("Astro Twin Calculator")
     similar_charts_algo_label.setStyleSheet(subheader_style)
     section_layout.addWidget(similar_charts_algo_label)
     section_layout.addWidget(
@@ -827,7 +829,7 @@ class _MergeLabelsDialog(QDialog):
 
 TAG_CATEGORY_OPTIONS: tuple[tuple[str, str], ...] = (
     ("Occupation", "occupation"),
-    ("Trait", "trait"),
+    ("🧬 Trait", "trait"),
     ("Reputation", "reputation"),
     ("Affiliation/Subculture", "affiliation"),
     ("Crime", "crime"),
@@ -860,6 +862,27 @@ def _compose_tag_category(prefix: str, tag_name: str) -> str:
     if clean_prefix:
         return f"{clean_prefix}.{clean_tag}"
     return clean_tag
+
+
+def _defer_tag_category_assignment(
+    receiver: QWidget,
+    category_prefix: str,
+    labels: list[str],
+) -> None:
+    """Run a Tag Manager drop assignment after Qt completes DnD cleanup."""
+    receiver_ref = weakref.ref(receiver)
+    deferred_prefix = str(category_prefix or "").strip()
+    deferred_labels = tuple(labels)
+
+    def assign_after_drop_cleanup() -> None:
+        target = receiver_ref()
+        if target is None or not shiboken6.isValid(target):
+            return
+        on_drop_labels = getattr(target, "_on_drop_labels", None)
+        if callable(on_drop_labels):
+            on_drop_labels(deferred_prefix, list(deferred_labels))
+
+    QTimer.singleShot(0, assign_after_drop_cleanup)
 
 
 class _TagCategoryDropList(QListWidget):
@@ -928,9 +951,13 @@ class _TagCategoryDropList(QListWidget):
             return
         category_prefix = str(target_item.data(Qt.UserRole) or "").strip()
         if category_prefix:
-            self._on_drop_labels(category_prefix, labels)
             self._clear_drop_target_highlight()
-            event.acceptProposedAction()
+            # Treat the DnD payload as a command, not a Qt item move.  Defer the
+            # database rename/reload until after Qt finishes drop cleanup so the
+            # source model is not rebuilt while Qt still holds dragged indexes.
+            _defer_tag_category_assignment(self, category_prefix, labels)
+            event.setDropAction(Qt.CopyAction)
+            event.accept()
             return
         self._clear_drop_target_highlight()
         event.ignore()
@@ -1015,8 +1042,10 @@ class _TagHierarchyTree(QTreeWidget):
         if not category_prefix:
             event.ignore()
             return
+        source = event.source()
+        source_items = source.selectedItems() if isinstance(source, QTreeWidget) else self.selectedItems()
         labels: list[str] = []
-        for item in self.selectedItems():
+        for item in source_items:
             if item.childCount() > 0:
                 continue
             label = str(item.data(0, Qt.UserRole + 2) or item.data(0, Qt.UserRole) or "").strip()
@@ -1026,8 +1055,12 @@ class _TagHierarchyTree(QTreeWidget):
         if not labels:
             event.ignore()
             return
-        self._on_drop_labels(category_prefix, labels)
-        event.acceptProposedAction()
+        # Treat the DnD payload as a command, not a Qt item move.  Defer the
+        # database rename/reload until after Qt finishes drop cleanup so the
+        # source model is not rebuilt while Qt still holds dragged indexes.
+        _defer_tag_category_assignment(self, category_prefix, labels)
+        event.setDropAction(Qt.CopyAction)
+        event.accept()
 
 
 class ManageMetadataLabelsDialog(QDialog):
@@ -1057,7 +1090,7 @@ class ManageMetadataLabelsDialog(QDialog):
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(window_title)
-        self.resize(580, 520)
+        self.resize(860, 520)
         self._load_usage = load_usage
         self._apply_change = apply_change
         self._load_chart_names = load_chart_names
@@ -1121,13 +1154,31 @@ QComboBox QAbstractItemView {
         layout.addLayout(sort_row)
 
         split_layout = QHBoxLayout()
+        self._unsorted_panel = QVBoxLayout()
+        self._unsorted_panel.addWidget(QLabel("Uncategorized tags"))
+        self._unsorted_list_widget = _TagHierarchyTree(
+            self,
+            self._active_field,
+            self._assign_tags_to_category,
+        )
+        self._unsorted_list_widget.itemSelectionChanged.connect(
+            lambda: self._on_selection_changed(self._unsorted_list_widget)
+        )
+        self._unsorted_list_widget.currentItemChanged.connect(
+            lambda _current, _previous: self._on_selection_changed(self._unsorted_list_widget)
+        )
+        self._unsorted_panel.addWidget(self._unsorted_list_widget, 1)
+        split_layout.addLayout(self._unsorted_panel, 1)
+
         self._list_widget = _TagHierarchyTree(
             self,
             self._active_field,
             self._assign_tags_to_category,
         )
-        self._list_widget.itemSelectionChanged.connect(self._on_selection_changed)
-        self._list_widget.currentItemChanged.connect(lambda _current, _previous: self._on_selection_changed())
+        self._list_widget.itemSelectionChanged.connect(lambda: self._on_selection_changed(self._list_widget))
+        self._list_widget.currentItemChanged.connect(
+            lambda _current, _previous: self._on_selection_changed(self._list_widget)
+        )
         self._list_widget.itemDoubleClicked.connect(self._rename_tag_category_display_name)
         split_layout.addWidget(self._list_widget, 2)
 
@@ -1231,7 +1282,7 @@ QComboBox QAbstractItemView {
     def _selected_category_prefix(self) -> str:
         if self._active_field() != self.FIELD_TAGS:
             return ""
-        item = self._list_widget.currentItem()
+        item = self._current_selection_item()
         if item is None or item.childCount() <= 0:
             return ""
         return str(item.data(0, Qt.UserRole + 10) or "").strip()
@@ -1239,7 +1290,7 @@ QComboBox QAbstractItemView {
     def _selected_tag_node_kind(self) -> str:
         if self._active_field() != self.FIELD_TAGS:
             return ""
-        item = self._list_widget.currentItem()
+        item = self._current_selection_item()
         if item is None or item.childCount() <= 0:
             return ""
         return str(item.data(0, Qt.UserRole + 11) or "").strip()
@@ -1324,18 +1375,29 @@ QComboBox QAbstractItemView {
         target_label = str(label or "").strip()
         if not target_label:
             return
-        iterator = QTreeWidgetItemIterator(self._list_widget)
-        while iterator.value() is not None:
-            item = iterator.value()
-            if item is not None and item.childCount() == 0:
-                item_label = str(item.data(0, Qt.UserRole + 2) or item.data(0, Qt.UserRole) or "").strip()
-                if item_label == target_label:
-                    self._list_widget.clearSelection()
-                    self._list_widget.setCurrentItem(item)
-                    item.setSelected(True)
-                    self._list_widget.scrollToItem(item)
-                    return
-            iterator += 1
+        for tree in self._selection_trees():
+            iterator = QTreeWidgetItemIterator(tree)
+            while iterator.value() is not None:
+                item = iterator.value()
+                if item is not None and item.childCount() == 0:
+                    item_label = str(item.data(0, Qt.UserRole + 2) or item.data(0, Qt.UserRole) or "").strip()
+                    if item_label == target_label:
+                        for other_tree in self._selection_trees():
+                            if other_tree is not tree:
+                                other_tree.clearSelection()
+                        tree.clearSelection()
+                        tree.setCurrentItem(item)
+                        item.setSelected(True)
+                        tree.scrollToItem(item)
+                        return
+                iterator += 1
+
+    def _selection_trees(self) -> list[QTreeWidget]:
+        trees = [self._list_widget]
+        unsorted_tree = getattr(self, "_unsorted_list_widget", None)
+        if isinstance(unsorted_tree, QTreeWidget):
+            trees.insert(0, unsorted_tree)
+        return trees
 
     def _refresh_list(self) -> None:
         rows = self._active_rows()
@@ -1349,6 +1411,8 @@ QComboBox QAbstractItemView {
                 if key:
                     expanded_state[key] = top_level.isExpanded()
         self._list_widget.clear()
+        if hasattr(self, "_unsorted_list_widget"):
+            self._unsorted_list_widget.clear()
         minimum_count = 0
         maximum_count = 0
         if rows:
@@ -1418,6 +1482,7 @@ QComboBox QAbstractItemView {
                 node.setText(0, f"{base_label} ({tag_count} tags)")
                 node.setExpanded(expanded_state.get(str(node.data(0, Qt.UserRole + 10) or ""), False))
             for item in uncategorized_items:
+                self._unsorted_list_widget.addTopLevelItem(item.clone())
                 self._list_widget.addTopLevelItem(item)
         else:
             for row in rows:
@@ -1434,6 +1499,14 @@ QComboBox QAbstractItemView {
                 )
                 item.setForeground(0, QColor(red, green, blue))
                 self._list_widget.addTopLevelItem(item)
+        tags_mode = self._active_field() == self.FIELD_TAGS
+        if hasattr(self, "_unsorted_list_widget"):
+            self._unsorted_list_widget.setVisible(tags_mode)
+            for index in range(self._unsorted_panel.count()):
+                item = self._unsorted_panel.itemAt(index)
+                widget = item.widget() if item is not None else None
+                if widget is not None:
+                    widget.setVisible(tags_mode)
         self._on_selection_changed()
 
     def _selected_label(self) -> str:
@@ -1442,16 +1515,23 @@ QComboBox QAbstractItemView {
 
     def _selected_labels(self) -> list[str]:
         labels: list[str] = []
-        for item in self._list_widget.selectedItems():
-            if item.childCount() > 0:
-                continue
-            label = str(item.data(0, Qt.UserRole + 2) or item.data(0, Qt.UserRole) or "").strip()
-            if label:
-                labels.append(label)
-        return labels
+        for tree in self._selection_trees():
+            for item in tree.selectedItems():
+                if item.childCount() > 0:
+                    continue
+                label = str(item.data(0, Qt.UserRole + 2) or item.data(0, Qt.UserRole) or "").strip()
+                if label:
+                    labels.append(label)
+        return list(dict.fromkeys(labels))
+
+    def _current_selection_item(self) -> QTreeWidgetItem | None:
+        for tree in self._selection_trees():
+            if tree.selectedItems():
+                return tree.currentItem() or tree.selectedItems()[0]
+        return self._list_widget.currentItem()
 
     def _selected_key(self) -> str:
-        item = self._list_widget.currentItem()
+        item = self._current_selection_item()
         if item is None or item.childCount() > 0:
             return ""
         return str(item.data(0, Qt.UserRole + 1) or "").strip()
@@ -1534,7 +1614,14 @@ QComboBox QAbstractItemView {
                 return row
         return None
 
-    def _on_selection_changed(self) -> None:
+    def _on_selection_changed(self, source_tree: QTreeWidget | None = None) -> None:
+        if source_tree is not None and source_tree.selectedItems():
+            for tree in self._selection_trees():
+                if tree is not source_tree:
+                    tree.blockSignals(True)
+                    tree.clearSelection()
+                    tree.setCurrentItem(None)
+                    tree.blockSignals(False)
         self._sync_action_buttons()
         self._refresh_chart_names()
 
@@ -1639,7 +1726,7 @@ QComboBox QAbstractItemView {
         if category_prefix:
             self._rename_selected_tag_category(category_prefix)
             return
-        item = self._list_widget.currentItem()
+        item = self._current_selection_item()
         old_label = (
             str(item.data(0, Qt.UserRole + 2) or item.data(0, Qt.UserRole) or "").strip()
             if item is not None
@@ -1881,19 +1968,21 @@ ENNEAGRAM_CATEGORY_FACTOR_ROWS: tuple[tuple[str, str], ...] = (
     ("aspects", "Aspects"),
 )
 
-def build_enneagram_predictor_settings_section(
+def build_predictions_settings_section(
     *,
     dialog: QDialog,
     section_layout: QVBoxLayout,
     subheader_style: str,
     on_option_toggled: Callable[[str, bool], None],
+    on_score_mode_changed: Callable[[str], None],
     on_scale_mode_changed: Callable[[str], None],
+    on_dominance_normalization_mode_changed: Callable[[str], None],
 ) -> dict[str, object]:
-    label = QLabel("Enneagram Predictor")
+    label = QLabel("Predictions")
     label.setStyleSheet(subheader_style)
     section_layout.addWidget(label)
     description = _build_settings_help_label(
-        "Configure how Enneagram predictor criteria are scored. Property categories are used only "
+        "Configure how Predictions criteria are scored. Property categories are used only "
         "to parse criteria, not as independent score multipliers."
     )
     #description.setWordWrap(True)
@@ -1929,6 +2018,11 @@ def build_enneagram_predictor_settings_section(
             "Average scores by criterion count",
             "Experimental: divide each category's evidence by its criterion count. Disabled by default.",
         ),
+        (
+            "use_mutual_exclusive_bucket_scoring",
+            "Use mutual-exclusive bucket scoring",
+            "Treat singleton fields such as body sign/house, HD type, profile, and authority as one bucket instead of many independent opportunities.",
+        ),
     )
     checkboxes: dict[str, QCheckBox] = {}
     for key, title, tooltip in checkbox_rows:
@@ -1941,6 +2035,27 @@ def build_enneagram_predictor_settings_section(
     advanced_label = QLabel("Advanced")
     advanced_label.setStyleSheet(subheader_style)
     section_layout.addWidget(advanced_label)
+
+    score_mode_row = QHBoxLayout()
+    score_mode_row.addWidget(QLabel("Prediction score mode:"))
+    score_mode_combo = QComboBox()
+    for value, title in (
+        ("raw", "raw weighted"),
+        ("opportunity", "type opportunity"),
+        ("background_z", "background z-score"),
+        ("category_z", "category z-score"),
+    ):
+        score_mode_combo.addItem(title, value)
+    score_mode_combo.setToolTip(
+        "Select raw scores, opportunity-scaled scores, database background z-scores, or category z-score combination when background stats are available."
+    )
+    score_mode_combo.currentIndexChanged.connect(
+        lambda _idx: on_score_mode_changed(str(score_mode_combo.currentData() or "opportunity"))
+    )
+    score_mode_row.addWidget(score_mode_combo)
+    score_mode_row.addStretch(1)
+    section_layout.addLayout(score_mode_row)
+
     scale_row = QHBoxLayout()
     scale_row.addWidget(QLabel("Type signature scale adjustment:"))
     scale_combo = QComboBox()
@@ -1955,12 +2070,37 @@ def build_enneagram_predictor_settings_section(
     scale_row.addWidget(scale_combo)
     scale_row.addStretch(1)
     section_layout.addLayout(scale_row)
+
+    dominance_row = QHBoxLayout()
+    dominance_row.addWidget(QLabel("Dominance normalization:"))
+    dominance_combo = QComboBox()
+    for value, title in (
+        ("range", "range"),
+        ("share", "share"),
+    ):
+        dominance_combo.addItem(title, value)
+    dominance_combo.setToolTip(
+        "range normalizes each dominance map to 0..1; share treats active dominance values as shares of the total."
+    )
+    dominance_combo.currentIndexChanged.connect(
+        lambda _idx: on_dominance_normalization_mode_changed(str(dominance_combo.currentData() or "range"))
+    )
+    dominance_row.addWidget(dominance_combo)
+    dominance_row.addStretch(1)
+    section_layout.addLayout(dominance_row)
+
     return {
         "checkboxes": checkboxes,
+        "score_mode_combo": score_mode_combo,
         "scale_combo": scale_combo,
+        "dominance_combo": dominance_combo,
         # Legacy keys kept so older app/controller paths that still look them up do not crash.
         "default_radio": QRadioButton(dialog),
         "custom_radio": QRadioButton(dialog),
         "weight_spinboxes": {},
         "total_label": QLabel("disabled"),
     }
+
+
+# Backward-compatible alias for callers/tests that still use the old Enneagram-specific name.
+build_enneagram_predictor_settings_section = build_predictions_settings_section

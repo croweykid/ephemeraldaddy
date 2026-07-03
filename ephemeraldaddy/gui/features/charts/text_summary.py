@@ -255,8 +255,8 @@ def _aspect_body_with_sign(body: str, positions: dict[str, float]) -> str:
     return f"{display_body} ({sign_for_longitude(lon)})"
 
 
-def _display_body_with_glyph(body: str) -> str:
-    display_body = _display_body_name(body)
+def _display_body_with_glyph(body: str, *, use_lilith_alias: bool = False) -> str:
+    display_body = _display_body_name(body, use_lilith_alias=use_lilith_alias)
     glyph = PLANET_GLYPHS.get(body) or PLANET_GLYPHS.get(display_body)
     if not glyph:
         return display_body
@@ -267,13 +267,15 @@ def _display_body_with_glyph(body: str) -> str:
     return f"{glyph} {display_body}"
 
 
-def _display_body_name(body: str) -> str:
+def _display_body_name(body: str, *, use_lilith_alias: bool = False) -> str:
     if body == "Lilith (mean)":
         return "Black☽ Lilith"
     if body == "Lilith":
         display_name = get_lilith_display_name()
         if display_name == "Black Moon Lilith":
             return "Black☽ Lilith"
+        if use_lilith_alias and display_name == "True Lilith":
+            return "Lilith"
         return display_name
     if body == "Part of Fortune":
         return "Fortune"
@@ -611,7 +613,7 @@ def format_chart_text(
     ordered_bodies.extend(extras)
     personality_gate_lines = _personality_gate_line_map(chart)
     for body in ordered_bodies:
-        display_body = _display_body_with_glyph(body)
+        display_body = _display_body_with_glyph(body, use_lilith_alias=True)
         lon = chart.positions.get(body)
         if lon is None:
             lines.append(f"{display_body:<9} Unknown")

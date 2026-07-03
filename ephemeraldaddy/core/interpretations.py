@@ -913,6 +913,15 @@ BAZI_ZODIAC = {
     },
 }
 
+OPPOSITE_SIGNS = {
+    "Aries":"Libra",
+    "Taurus":"Scorpio",
+    "Gemini":"Sagittarius",
+    "Cancer":"Capricorn",
+    "Leo":"Aquarius",
+    "Virgo":"Pisces"
+}
+
 SIGN_COLORS = {
     "Aries": ELEMENT_COLORS["Fire"],
     "Leo": ELEMENT_COLORS["Fire"],
@@ -4597,7 +4606,7 @@ SOCIAL_ROLE = [
     "plow-horse", #can endure
 ]
 
-#enneagram (approximated). One problem with this system is some thing get double counted by 'dominant' and also fulfilling the positions of certain criteria.
+#enneagram (approximated). One problem with this system is something get double counted by 'dominant' and also fulfilling the positions of certain criteria.
 ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached to it for relevance, because not all predictors are equally important...
 #if sign, house, body, or nakshatra exists in this constant, add its weight within the chart to the sum of the enneagram type number. 
 # Optional per-type criterion multipliers can be supplied via: "criterion_multipliers": {"houses":1.25,"signs":1.0,...}.
@@ -5708,6 +5717,14 @@ TAROT_NUMBERS = { #swords & wands are intrinsically a harsh burden that age poor
     10:{
         "definition":"culmination, no further action required/accepted, final chapter, nearing overextension, approaching reset to aces", #the suit is concluded here, its means achieved or not. 10 of cups (emotional fulfillment), 10 of wands (you've taken on as much as you possibly can), 10 of pentacles (legacy, material stability), 10 of swords (dark night of the soul, nadir, total collapse - why is this always negative? but it is. so are swords inherently negative? why are swords the only completely negative 10? your mind is at its limit? sometimes your body is, too, and you still get 10 of swords. sometimes it's just the weather, sometimes it's just the fates - it's out of your hands, but you have been devastated by that which you couldn't see or help, or could have and failed at; is the message that you can never win with thoughts? that the culmination of all our thoughts is just catastrophe & devastation? there is no satisfying end to the mental process, only collapse?)
     },
+}
+
+HD_CATEGORY_COLORS = {
+    "HD Profile":"#6699ff", #basic blue
+    "HD Type":"#6699ff", #basic blue
+    "Defined Centers":"#6699ff", #basic blue
+    "HD Authorities":"#6699ff", #basic blue
+    "Channels":"#6699ff", #basic blue
 }
 
 HD_GATES_BY_ELEMENT = {
