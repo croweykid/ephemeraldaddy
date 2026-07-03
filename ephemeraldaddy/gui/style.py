@@ -193,6 +193,68 @@ CHART_DATA_HIGHLIGHT_COLOR = MIDDLE_PANEL_ACCENT_COLOR
 CHART_INFO_POSITIVE_WEIGHT_COLOR = "#39ff6a"
 CHART_INFO_NEGATIVE_WEIGHT_COLOR = "#ff4d4d"
 
+# Tags styling
+TAG_CHIP_BACKGROUND_COLOR = "#2d2d2d"
+TAG_CHIP_ALL_SELECTED_BACKGROUND_COLOR = "#7b2cbf"
+TAG_CHIP_TEXT_COLOR = "#f4f1ea"
+TAG_CHIP_MUTED_TEXT_COLOR = "#d6d1c9"
+TAG_CHIP_BORDER_COLOR = "#4a4a4a"
+TAG_CHIP_ALL_SELECTED_BORDER_COLOR = "#9d4edd"
+TAG_CHIP_REMOVE_COLOR = "#ff6f6f"
+
+
+def tag_chip_style(*, shared_by_all: bool = False) -> str:
+    """Return the appwide rich-text CSS for rounded tag chips."""
+    background = (
+        TAG_CHIP_ALL_SELECTED_BACKGROUND_COLOR
+        if shared_by_all
+        else TAG_CHIP_BACKGROUND_COLOR
+    )
+    border = TAG_CHIP_ALL_SELECTED_BORDER_COLOR if shared_by_all else TAG_CHIP_BORDER_COLOR
+    color = TAG_CHIP_TEXT_COLOR if shared_by_all else TAG_CHIP_MUTED_TEXT_COLOR
+    return (
+        "display:inline-block;"
+        "white-space:nowrap;"
+        f"background:{background};"
+        f"color:{color};"
+        f"border:1px solid {border};"
+        "border-radius:999px;"
+        "padding:2px 8px;"
+        "margin:2px 4px 2px 0;"
+    )
+
+
+def tag_remove_link_style() -> str:
+    """Return the appwide rich-text CSS for tag-chip remove links."""
+    return (
+        "display:inline-block;"
+        "white-space:nowrap;"
+        "margin-left:5px;"
+        f"color:{TAG_CHIP_REMOVE_COLOR};"
+        "text-decoration:none;"
+        "font-weight:700;"
+    )
+
+
+def build_tag_chip_html(
+    tag: str,
+    *,
+    remove_href: str | None = None,
+    shared_by_all: bool = False,
+) -> str:
+    """Build one rounded tag chip, optionally with the remove X kept inside it."""
+    escaped_tag = html.escape(str(tag or ""))
+    remove_html = (
+        f"<a href='{html.escape(remove_href, quote=True)}' style='{tag_remove_link_style()}'>✕</a>"
+        if remove_href
+        else ""
+    )
+    return (
+        f"<span style='{tag_chip_style(shared_by_all=shared_by_all)}'>"
+        f"{escaped_tag}{remove_html}"
+        "</span>"
+    )
+
 
 APP_LOADING_PROGRESS_STYLESHEET = """
 QProgressDialog {

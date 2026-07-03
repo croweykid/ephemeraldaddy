@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-import html
 from typing import Iterable
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QCompleter, QLabel, QLineEdit
+
+from ephemeraldaddy.gui.style import build_tag_chip_html
 
 
 def normalize_tag_list(tags: Iterable[str] | None) -> list[str]:
@@ -38,18 +39,7 @@ def render_tag_chip_preview(preview_label: QLabel | None, tags: list[str]) -> No
         return
     chips = []
     for tag in tags:
-        chips.append(
-            "<span style=\""
-            "background:#d9d9d9;"
-            "color:#222;"
-            "border:1px solid #bdbdbd;"
-            "border-radius:8px;"
-            "padding:1px 6px;"
-            "margin-right:4px;"
-            "\">"
-            f"{html.escape(tag)}"
-            "</span>"
-        )
+        chips.append(build_tag_chip_html(tag))
     preview_label.setText(" ".join(chips))
 
 
