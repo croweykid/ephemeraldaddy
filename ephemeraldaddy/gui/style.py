@@ -1187,7 +1187,10 @@ def configure_collapsible_header_toggle(
     toggle.setCheckable(True)
     toggle.setChecked(expanded)
     toggle.setArrowType(Qt.NoArrow)
-    toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+    # Collapsible headers are text headers, not icon buttons. Using text-only
+    # rendering keeps Qt from centering an icon+text label group within the
+    # available header width on some styles/platforms.
+    toggle.setToolButtonStyle(Qt.ToolButtonTextOnly)
     toggle.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
     toggle.setStyleSheet(style_sheet)
     toggle.setLayoutDirection(Qt.LeftToRight)
