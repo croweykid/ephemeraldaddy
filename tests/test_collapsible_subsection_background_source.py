@@ -7,13 +7,13 @@ APP_SOURCE = (ROOT / "ephemeraldaddy/gui/app.py").read_text()
 
 
 def test_nested_section_background_has_distinct_dark_purple_style():
-    assert 'COLLAPSIBLE_SECTION_BACKGROUND = "#050505"' in STYLE_SOURCE
+    assert "COLLAPSIBLE_SECTION_BACKGROUND = COLOR_BG_APP" in STYLE_SOURCE
     assert 'COLLAPSIBLE_NESTED_SECTION_BACKGROUND = "#16071f"' in STYLE_SOURCE
     assert "COLLAPSIBLE_NESTED_SECTION_CONTENT_STYLE" in STYLE_SOURCE
 
 
 def test_collapsible_headers_use_appwide_charcoal_background():
-    assert 'COLLAPSIBLE_HEADER_BACKGROUND = "#222222"' in STYLE_SOURCE
+    assert "COLLAPSIBLE_HEADER_BACKGROUND = COLOR_BG_SURFACE" in STYLE_SOURCE
     assert "background_color: str = COLLAPSIBLE_HEADER_BACKGROUND" in STYLE_SOURCE
 
 
