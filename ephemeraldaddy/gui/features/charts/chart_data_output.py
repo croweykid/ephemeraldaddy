@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime
 import re
 
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QFont, QPainter, QSyntaxHighlighter, QTextCharFormat, QTextCursor
 from PySide6.QtWidgets import QFrame, QPlainTextEdit, QToolTip, QWidget
 
@@ -37,6 +38,7 @@ from ephemeraldaddy.gui.style import (
     CHART_DATA_DND_SUBHEADER_NOTE_BOLD,
     CHART_DATA_DND_SUBHEADER_NOTE_ITALIC,
     CHART_DATA_HIGHLIGHT_COLOR,
+    CHART_DATA_SECTION_HEADER_STYLE,
     CHART_DATA_SECTION_HEADERS,
     CHART_INFO_EVIDENCE_LABEL_BOLD,
     CHART_INFO_SPECIES_DESCRIPTION_ITALIC,
@@ -48,6 +50,55 @@ from ephemeraldaddy.gui.style import (
     CHART_DATA_MONOSPACE_FONT_FAMILY,
 )
 
+
+_CHART_DATA_SECTION_HEADER_NAMES = {header.upper() for header in CHART_DATA_SECTION_HEADERS}
+
+
+def _is_chart_data_section_header(text: str) -> bool:
+    return text.strip().upper() in _CHART_DATA_SECTION_HEADER_NAMES
+
+
+def _normalized_chart_data_text(text: str) -> str:
+    """Blank legacy ASCII divider rows around appwide section headers without changing line maps."""
+    lines = text.splitlines()
+    normalized: list[str] = []
+    for index, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped == CHART_DATA_DIVIDER:
+            previous_line = lines[index - 1].strip() if index > 0 else ""
+            next_line = lines[index + 1].strip() if index + 1 < len(lines) else ""
+            if _is_chart_data_section_header(previous_line) or _is_chart_data_section_header(next_line):
+                normalized.append("")
+                continue
+        normalized.append(line)
+    return "\n".join(normalized)
+
+
+def _paint_chart_data_section_headers(output_widget: QPlainTextEdit) -> None:
+    """Paint appwide full-visible-width section headers over plain text rows."""
+    painter = QPainter(output_widget.viewport())
+    viewport_width = output_widget.viewport().width()
+    viewport_bottom = output_widget.viewport().height()
+    painter.setPen(QColor(str(CHART_DATA_SECTION_HEADER_STYLE["text_color"])))
+    painter.setBrush(QColor(str(CHART_DATA_SECTION_HEADER_STYLE["background_color"])))
+    font = QFont(output_widget.font())
+    font.setBold(True)
+    painter.setFont(font)
+
+    block = output_widget.firstVisibleBlock()
+    while block.isValid():
+        block_rect = output_widget.blockBoundingGeometry(block).translated(output_widget.contentOffset())
+        if block_rect.top() > viewport_bottom:
+            break
+        text = block.text().strip()
+        if block.isVisible() and block_rect.bottom() >= 0 and _is_chart_data_section_header(text):
+            rect = block_rect.toRect()
+            rect.setX(0)
+            rect.setWidth(viewport_width)
+            painter.fillRect(rect, QColor(str(CHART_DATA_SECTION_HEADER_STYLE["background_color"])))
+            painter.drawText(rect, Qt.AlignCenter, text)
+        block = block.next()
+    painter.end()
 
 def _separator_style_character() -> str:
     return str(SEPARATOR_STYLE["character"])
@@ -170,6 +221,7 @@ class ChartDataTooltipOutput(QPlainTextEdit):
     def paintEvent(self, event) -> None:  # noqa: ANN001 - Qt event type varies by binding version.
         super().paintEvent(event)
         _paint_chart_data_separators(self)
+        _paint_chart_data_section_headers(self)
 
     def mouseMoveEvent(self, event) -> None:  # noqa: ANN001 - Qt event type varies by binding version.
         cursor = self.cursorForPosition(event.pos())
@@ -194,6 +246,9 @@ class ChartDataTooltipOutput(QPlainTextEdit):
     def leaveEvent(self, event) -> None:  # noqa: ANN001 - Qt event type varies by binding version.
         QToolTip.hideText()
         super().leaveEvent(event)
+
+    def setPlainText(self, text: str) -> None:  # noqa: N802 - Qt API
+        super().setPlainText(_normalized_chart_data_text(text))
 
 
 class ChartDataTableOutput(QPlainTextEdit):
@@ -231,6 +286,7 @@ class ChartDataTableOutput(QPlainTextEdit):
     def paintEvent(self, event) -> None:  # noqa: ANN001 - Qt event type varies by binding version.
         super().paintEvent(event)
         _paint_chart_data_separators(self)
+        _paint_chart_data_section_headers(self)
 
     _UNCERTAIN_TIME_VARIANTS_HEADER = "UNCERTAIN TIME VARIANTS"
 
@@ -269,7 +325,7 @@ class ChartDataTableOutput(QPlainTextEdit):
         super().mousePressEvent(event)
 
     def setPlainText(self, text: str) -> None:  # noqa: N802 - Qt API
-        super().setPlainText(text)
+        super().setPlainText(_normalized_chart_data_text(text))
         self._uncertain_time_variants_collapsed = False
         self._set_uncertain_time_variants_collapsed(False)
 
@@ -406,6 +462,9 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         self._section_format = QTextCharFormat()
         self._section_format.setForeground(QColor(CHART_DATA_HIGHLIGHT_COLOR))
         self._section_format.setFontWeight(QFont.Bold)
+        self._table_header_format = QTextCharFormat()
+        self._table_header_format.setForeground(QColor(CHART_DATA_HIGHLIGHT_COLOR))
+        self._table_header_format.setFontWeight(QFont.Normal)
         self._plain_bold_format = QTextCharFormat()
         self._plain_bold_format.setFontWeight(QFont.Bold)
         self._copper_header_format = QTextCharFormat(self._plain_bold_format)
@@ -978,7 +1037,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                         self.setFormat(
                             self._qt_index(text, token_start),
                             self._qt_len(header_token),
-                            self._plain_bold_format,
+                            self._table_header_format,
                         )
                     token_start = token_end
         if all(token in stripped_text for token in ("Body", "Sign", "Degree", "Nakshatra", "House", "G.L.")):
@@ -991,7 +1050,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                     self.setFormat(
                         self._qt_index(text, token_start),
                         self._qt_len(header_token),
-                        self._plain_bold_format,
+                        self._table_header_format,
                     )
                     token_start += len(header_token)
         if lowered_stripped in {"defined", "undefined"}:
