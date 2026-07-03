@@ -18,6 +18,7 @@ import random
 import sqlite3
 import statistics
 import subprocess
+import shutil
 import sys
 import traceback
 import uuid
@@ -28967,7 +28968,48 @@ class MainWindow(QMainWindow):
 
 
 
-    def _show_gemstone_chartwheel_popout(self, image_path: str) -> None:
+    def _default_gemstone_chartwheel_filename(self, chart: Chart) -> str:
+        chart_name = (getattr(chart, "name", None) or "chart").strip() or "chart"
+        safe_chart_name = re.sub(r"[^A-Za-z0-9._ -]+", "_", chart_name).strip(" ._") or "chart"
+        return f"{safe_chart_name}-natal_chart-wheel_by-ephemeraldaddy.png"
+
+    def _gemstone_chartwheel_temp_path(self, chart: Chart) -> Path:
+        temp_dir = Path.home() / ".ephemeraldaddy" / "temp" / "gem"
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        stem = Path(self._default_gemstone_chartwheel_filename(chart)).stem
+        timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        return temp_dir / f"{stem}-{timestamp}-{uuid.uuid4().hex[:8]}.png"
+
+    def _save_gemstone_chartwheel_preview(self, source_path: Path, default_filename: str) -> None:
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save Gemstone Chartwheel",
+            default_filename,
+            "PNG Files (*.png)",
+        )
+        if not file_path:
+            return
+        if not file_path.lower().endswith(".png"):
+            file_path = f"{file_path}.png"
+
+        try:
+            shutil.copyfile(source_path, file_path)
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Gemstone chartwheel save failed",
+                f"Could not save gemstone chartwheel:\n{exc}",
+            )
+            return
+
+        QMessageBox.information(
+            self,
+            "Gemstone chartwheel saved",
+            f"Saved gemstone chartwheel to:\n{file_path}",
+        )
+
+    def _show_gemstone_chartwheel_popout(self, image_path: str, default_filename: str) -> None:
+        source_path = Path(image_path)
         dialog = QDialog(self)
         dialog.setWindowTitle("Gemstone Chartwheel Preview")
         dialog.resize(720, 760)
@@ -28976,11 +29018,25 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(8)
 
+        header_layout = QHBoxLayout()
+        header_label = QLabel("Preview generated. Use Save PNG to choose a permanent location.")
+        header_label.setWordWrap(True)
+        save_button = QPushButton("Save PNG…")
+        save_button.setToolTip("Save this gemstone chartwheel PNG to a permanent location.")
+        save_button.clicked.connect(
+            lambda _checked=False, path=source_path, filename=default_filename: self._save_gemstone_chartwheel_preview(
+                path,
+                filename,
+            )
+        )
+        header_layout.addWidget(header_label, 1)
+        header_layout.addWidget(save_button, 0, Qt.AlignRight)
+
         image_label = QLabel()
         image_label.setAlignment(Qt.AlignCenter)
         image_label.setMinimumSize(640, 640)
 
-        pixmap = QPixmap(image_path)
+        pixmap = QPixmap(str(source_path))
         if pixmap.isNull():
             image_label.setText("Could not load generated chartwheel image preview.")
         else:
@@ -28993,9 +29049,10 @@ class MainWindow(QMainWindow):
                 )
             )
 
-        path_label = QLabel(f"Saved to: {image_path}")
+        path_label = QLabel(f"Temporary preview: {source_path}")
         path_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
 
+        layout.addLayout(header_layout, 0)
         layout.addWidget(image_label, 1)
         layout.addWidget(path_label, 0)
 
@@ -29168,21 +29225,11 @@ class MainWindow(QMainWindow):
             )
             return
 
-        chart_name = (getattr(chart, "name", None) or "chart").strip() or "chart"
-        default_filename = f"{chart_name}-natal_chart-wheel_by-ephemeraldaddy.png"
-        file_path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Export Gemstone Chartwheel",
-            default_filename,
-            "PNG Files (*.png)",
-        )
-        if not file_path:
-            return
-        if not file_path.lower().endswith(".png"):
-            file_path = f"{file_path}.png"
+        default_filename = self._default_gemstone_chartwheel_filename(chart)
+        temp_path = self._gemstone_chartwheel_temp_path(chart)
 
         try:
-            draw_chartwheel(Path(file_path), chart_positions=chart.positions)
+            draw_chartwheel(temp_path, chart_positions=chart.positions)
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -29191,12 +29238,7 @@ class MainWindow(QMainWindow):
             )
             return
 
-        self._show_gemstone_chartwheel_popout(file_path)
-        QMessageBox.information(
-            self,
-            "Gemstone chartwheel exported",
-            f"Saved gemstone chartwheel to:\n{file_path}",
-        )
+        self._show_gemstone_chartwheel_popout(str(temp_path), default_filename)
 
     def on_create_gemstone_chartwheel(self) -> None:
         self._create_gemstone_chartwheel(self._latest_chart)
