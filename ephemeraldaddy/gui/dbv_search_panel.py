@@ -696,11 +696,10 @@ def build_dbv_search_panel(window) -> "QWidget":
     window.search_tags_toggle = QToolButton()
     configure_collapsible_header_toggle(
         window.search_tags_toggle,
-        title="🏷️Include/Exclude These Tags",
+        title="Include/Exclude These Tags",
         expanded=False,
         style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
     )
-    app_module.apply_emoji_png_to_button(window.search_tags_toggle, icon_px=16)
     tags_search_row.addWidget(window.search_tags_toggle)
 
     window.search_tags_list_widget = QTreeWidget()
@@ -741,11 +740,10 @@ def build_dbv_search_panel(window) -> "QWidget":
     window.search_traits_toggle = QToolButton()
     configure_collapsible_header_toggle(
         window.search_traits_toggle,
-        title="🧬Include/Exclude These Traits",
+        title="Include/Exclude These Traits",
         expanded=False,
         style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
     )
-    app_module.apply_emoji_png_to_button(window.search_traits_toggle, icon_px=16)
     traits_search_row.addWidget(window.search_traits_toggle)
 
     window.search_traits_list_widget = QTreeWidget()

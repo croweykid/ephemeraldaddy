@@ -4932,7 +4932,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         gender_section_layout = self._add_left_panel_collapsible_section(
             panel,
             demographics_category_layout,
-            "⚧️Gender",
+            "Gender",
             section_key="gender",
             expanded=self._is_database_metrics_section_expanded("gender"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
@@ -4967,7 +4967,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         age_section_layout = self._add_left_panel_collapsible_section(
             panel,
             demographics_category_layout,
-            "🕰️Eras && Ages",
+            "Eras && Ages",
             section_key="age",
             expanded=self._is_database_metrics_section_expanded("age"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
@@ -5002,7 +5002,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         birth_time_section_layout = self._add_left_panel_collapsible_section(
             panel,
             demographics_category_layout,
-            "🐣Birth Time",
+            "Birth Time",
             section_key="birth_time",
             expanded=self._is_database_metrics_section_expanded("birth_time"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
@@ -5036,7 +5036,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         birth_month_section_layout = self._add_left_panel_collapsible_section(
             panel,
             demographics_category_layout,
-            "🐣Birth Day", #birthday
+            "Birth Day", #birthday
             section_key="birth_month",
             expanded=self._is_database_metrics_section_expanded("birth_month"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
@@ -5069,7 +5069,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         birth_place_section_layout = self._add_left_panel_collapsible_section(
             panel,
             demographics_category_layout,
-            "📍Birth Place",
+            "Birth Place",
             section_key="birthplace",
             expanded=self._is_database_metrics_section_expanded("birthplace"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
