@@ -1261,6 +1261,7 @@ from ephemeraldaddy.gui.settings_widgets import (
 
 from ephemeraldaddy.gui.style import (
     APPWIDE_DARK_THEME_STYLESHEET,
+    build_tag_chip_html,
     CHART_VIEW_RECTIFIED_GROUP_LEFT_SPACER,
     CHART_VIEW_RECTIFIED_LABEL_CHECKBOX_SPACING,
     CHART_VIEW_TIME_INPUT_DISPLAY_FORMAT,
@@ -14625,19 +14626,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         for tag in sorted(tag_counts, key=lambda value: value.casefold()):
             count = int(tag_counts.get(tag, 0))
             is_global = count >= selected_count
-            chip_style = (
-                "background:#d9d9d9;color:#222;border:1px solid #bdbdbd;"
-                if is_global
-                else "background:#2d2d2d;color:#bdbdbd;border:1px solid #4a4a4a;"
-            )
             encoded_tag = urllib.parse.quote(tag, safe="")
             chips.append(
-                "<span style='display:inline-block;"
-                f"{chip_style}"
-                "border-radius:8px;padding:1px 6px;margin:2px 4px 2px 0;'>"
-                f"{html.escape(tag)}"
-                f"<a href='remove_tag:{encoded_tag}' style='color:#ff6f6f;text-decoration:none;font-weight:700;'> ✕</a>"
-                "</span>"
+                build_tag_chip_html(
+                    tag,
+                    remove_href=f"remove_tag:{encoded_tag}",
+                    shared_by_all=is_global,
+                )
             )
         self.batch_tags_selection_label.setText("".join(chips))
 
