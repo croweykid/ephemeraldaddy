@@ -23562,6 +23562,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
 #Main Window Begins
 class MainWindow(QMainWindow):
+    _update_sentiment_tally = ManageChartsDialog._update_sentiment_tally
+
     def __init__(self):
         super().__init__()
 
@@ -31038,19 +31040,18 @@ class MainWindow(QMainWindow):
         dialog.setText(
             "You have unsaved changes. Save them before leaving Chart View?"
         )
-        save_button = dialog.addButton("Save", QMessageBox.AcceptRole)
-        discard_button = dialog.addButton("Discard", QMessageBox.DestructiveRole)
-        cancel_button = dialog.addButton("Cancel", QMessageBox.RejectRole)
-        dialog.setDefaultButton(save_button)
-        dialog.setEscapeButton(cancel_button)
+        dialog.setStandardButtons(
+            QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel
+        )
+        dialog.setDefaultButton(QMessageBox.Save)
+        dialog.setEscapeButton(QMessageBox.Cancel)
 
         self._leaving_chart_view_prompt_open = True
         try:
-            dialog.exec()
-            clicked_button = dialog.clickedButton()
-            if clicked_button == save_button:
+            choice = dialog.exec()
+            if choice == QMessageBox.Save:
                 self.on_update_chart(show_dialog=True)
-            elif clicked_button == discard_button:
+            elif choice == QMessageBox.Discard:
                 self._set_lucygoosey(False)
             return not self._lucygoosey
         finally:
