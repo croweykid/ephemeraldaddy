@@ -823,7 +823,7 @@ def build_similar_charts_export_lines(
 ) -> list[str]:
     lines: list[str] = []
     if is_markdown:
-        lines.append(f"# Similar Charts for {subject_name}")
+        lines.append(f"# {subject_name}'s Astro Twins") #aka Similar Charts
         lines.append("")
         lines.append(
             "| Rank | Chart ID | Chart | Similarity | Band | Z-score | Components |"
@@ -839,7 +839,7 @@ def build_similar_charts_export_lines(
             )
         return lines
 
-    lines.append(f"Similar Charts for {subject_name}")
+    lines.append(f"{subject_name}'s Astro Twins") #aka Similar Charts
     lines.append("")
     for row in rows:
         z_score = row.get("similarity_z_score")
@@ -3302,7 +3302,7 @@ def build_similar_charts_popout_dialog(
     on_chart_info_target_requested: Callable[[QDialog, str], None] | None = None,
 ) -> QDialog:
     dialog = QDialog(parent)
-    dialog.setWindowTitle(f"Similar Charts — {subject_name}")
+    dialog.setWindowTitle(f"Astro Twins — {subject_name}")
     dialog.setModal(False)
     dialog.resize(860, 700)
     layout = QVBoxLayout(dialog)
@@ -3345,16 +3345,12 @@ def build_similar_charts_popout_dialog(
         export_button.setText("↗")
     export_button.setAutoRaise(True)
     apply_button_cursor(export_button)
-    export_button.setToolTip("Export Top 25 Most Similar & Top 25 Least Similar charts as TXT or Markdown")
+    export_button.setToolTip("Export top & bottom 25 Astro Twins (TXT or MD)")
     export_button.setVisible(on_export_clicked is not None)
     if on_export_clicked is not None:
         export_button.clicked.connect(lambda _checked=False: on_export_clicked(dialog))
     top_row.addWidget(export_button, 0, Qt.AlignRight)
     layout.addLayout(top_row)
-
-    # title_label = QLabel(f"Similar Charts for {subject_name}")
-    # title_label.setStyleSheet(header_style)
-    # layout.addWidget(title_label)
 
     splitter = QSplitter(Qt.Horizontal)
     splitter.setChildrenCollapsible(False)

@@ -127,7 +127,7 @@ def test_property_managers_button_sits_below_settings_sections_with_padding():
     data_visualization_index = method.index('"Data Visualization"')
     developer_tools_index = method.index('"Developer Tools"')
     database_stats_index = method.index("add_database_info_settings_section(self, content_layout)")
-    similar_charts_index = method.index('"Similar Charts Calculator"')
+    similar_charts_index = method.index('"Astro Twin Calculator"')
     predictions_index = method.index('"Predictions"')
     user_profile_index = method.index('"User Profile"')
     reset_index = method.index('"Reset All to Defaults"')

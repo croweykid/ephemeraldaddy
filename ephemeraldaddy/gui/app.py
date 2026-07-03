@@ -22126,12 +22126,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             cleared_count += parent._clear_similar_charts_popout_cache()
         QMessageBox.information(
             self,
-            "Similar Charts cache",
+            "Astro Twin cache",
             (
-                "Cleared cached Similar Charts rankings. "
-                "The next Similar Charts popout will recalculate on demand."
+                "Cleared cached Astro Twins rankings. "
+                "The next Astro Twins popout will recalculate on demand."
                 if cleared_count
-                else "Similar Charts cache was already empty."
+                else "Astro Twin cache was already empty."
             ),
         )
 
@@ -24913,16 +24913,16 @@ class MainWindow(QMainWindow):
 
     def _similar_charts_section_title(self) -> str:
         if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_GENERIC_ASTRO:
-            return "Similar Charts ('generic astro' mode)"
+            return "Astro Twin Finder ('generic astro' mode)"
         if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
-            return "Similar Charts ('comprehensive' mode)"
+            return "Astro Twin Finder ('comprehensive' mode)"
         if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING:
-            return "Similar Charts ('all or nothing' mode)"
+            return "Astro Twin Finder ('all or nothing' mode)"
         if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_BIG_3:
             return "Similar Charts ('Big 3' mode)"
         if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_CUSTOM:
-            return "Similar Charts ('custom' mode)"
-        return "Similar Charts"
+            return "Astro Twin Finder ('custom' mode)"
+        return "Astro Twin Finder"
 
     def _refresh_similar_charts_section_title(self) -> None:
         section_widget = self._chart_analysis_section_widgets.get("similar_charts")
@@ -26844,7 +26844,7 @@ class MainWindow(QMainWindow):
             )
             dialog.show()
             keep_similar_charts_popout_foreground_until_outside_click(dialog)
-            update_similar_charts_loading_progress(progress, "Similar Charts ready.", 100)
+            update_similar_charts_loading_progress(progress, "Long lost astro twins found.", 100)
         except OperationCanceled:
             return
         finally:
@@ -27055,7 +27055,7 @@ class MainWindow(QMainWindow):
                 build_similar_charts_export_lines(subject_name=subject_name, rows=least_rows, is_markdown=True)[2:]
             )
         else:
-            lines.append(f"Similar Charts for {subject_name}")
+            lines.append(f"{subject_name}'s Astro Twins")
             lines.append("")
             lines.append("Top 25 Most Similar Charts")
             lines.append("")
