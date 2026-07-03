@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from ephemeraldaddy.core.loading_messages import LoadingMessageRotator
+from ephemeraldaddy.gui.style import APP_LOADING_PROGRESS_STYLESHEET
 
 MAX_BATCH_EXPORT_CHARTS = 10
 LARGE_BATCH_EXPORT_THRESHOLD = 5
@@ -48,14 +49,13 @@ class ChartExportProgressWidget(QFrame):
         )
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setStyleSheet(
-            "QFrame#chart_export_progress_widget {"
-            " background: rgba(22, 18, 30, 230);"
-            " border: 1px solid #8a2be2;"
-            " border-radius: 8px;"
-            "}"
-            "QLabel { color: #f1e8ff; font-size: 10px; font-weight: 600; }"
-            "QProgressBar { border: 1px solid #3f3f3f; border-radius: 4px; background: #101010; }"
-            "QProgressBar::chunk { background-color: #9933ff; border-radius: 3px; }"
+            APP_LOADING_PROGRESS_STYLESHEET
+            + "QFrame#chart_export_progress_widget {"
+            + " background: rgba(22, 18, 30, 230);"
+            + " border: 1px solid #8a2be2;"
+            + " border-radius: 8px;"
+            + "}"
+            + "QLabel { color: #f1e8ff; font-size: 10px; font-weight: 600; }"
         )
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)

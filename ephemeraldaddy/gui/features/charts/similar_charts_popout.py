@@ -9,7 +9,7 @@ import re
 import statistics
 from typing import Any, Callable, Mapping
 
-from PySide6.QtCore import QObject, QEvent, QEventLoop, QPoint, QSignalBlocker, QSize, QTimer, Qt
+from PySide6.QtCore import QObject, QEvent, QPoint, QSignalBlocker, QSize, QTimer, Qt
 from PySide6.QtGui import QIcon, QIntValidator
 from PySide6.QtWidgets import (
     QApplication,
@@ -22,7 +22,6 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
-    QProgressDialog,
     QToolButton,
     QScrollArea,
     QTextEdit,
@@ -57,7 +56,6 @@ from ephemeraldaddy.analysis.get_astro_twin import (
 )
 from ephemeraldaddy.core.aspect_display import display_aspect_key
 from ephemeraldaddy.core.chart import chart_uses_houses
-from ephemeraldaddy.core.loading_messages import LoadingMessageRotator
 from ephemeraldaddy.core.interpretations import (
     ALIGNMENT_SCALE,
     ASPECT_SCORE_WEIGHTS,
@@ -80,6 +78,11 @@ from ephemeraldaddy.gui.features.charts.progress_cancel import (
     OperationCanceled,
     mark_progress_canceled,
     raise_if_progress_canceled,
+)
+from ephemeraldaddy.gui.style import (
+    close_app_loading_progress,
+    create_app_loading_progress,
+    update_app_loading_progress,
 )
 from ephemeraldaddy.gui.features.charts.similarity_norms import similarity_z_score
 from ephemeraldaddy.gui.features.charts.chart_similarity_relationships import (
@@ -223,19 +226,15 @@ def show_similar_charts_loading_progress(
     *,
     parent: QWidget | None,
     message: str = "Preparing similar chart calculations…",
-) -> QProgressDialog:
-    progress = QProgressDialog(message, "Stop that!", 0, 100, parent)
-    progress.setWindowTitle("Similar Charts")
-    progress.setWindowModality(Qt.WindowModal)
-    progress.setMinimumDuration(0)
-    progress.setAutoClose(False)
-    progress.setAutoReset(False)
+) -> object:
+    progress = create_app_loading_progress(
+        parent=parent,
+        title="Astro Twin",
+        message=message,
+        cancel_text="Stop that!",
+    )
     progress.setProperty("operation_canceled", False)
     progress.canceled.connect(lambda p=progress: mark_progress_canceled(p))
-    progress.setValue(0)
-    progress.setProperty("loading_message_rotator", LoadingMessageRotator(initial_message=message))
-    progress.show()
-    QApplication.processEvents(QEventLoop.AllEvents, 50)
     return progress
 
 
@@ -247,10 +246,7 @@ def update_similar_charts_loading_progress(
     if progress is None:
         return
     raise_if_progress_canceled(progress)
-    bounded_percent = 0 if percent is None else int(max(0, min(100, round(float(percent)))))
-    progress.setLabelText(f"{message} ({bounded_percent}%)")
-    progress.setValue(bounded_percent)
-    QApplication.processEvents(QEventLoop.AllEvents, 50)
+    update_app_loading_progress(progress, message, percent)
     raise_if_progress_canceled(progress)
 
 
@@ -259,8 +255,7 @@ def close_similar_charts_loading_progress(
 ) -> None:
     if progress is None:
         return
-    progress.close()
-    QApplication.processEvents(QEventLoop.AllEvents, 50)
+    close_app_loading_progress(progress)
 
 
 def _set_checkbox_checked_silently(checkbox: QCheckBox, checked: bool) -> None:
