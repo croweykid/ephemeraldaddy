@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
     QAbstractButton,
     QComboBox,
     #QGraphicsOpacityEffect,
-    #QLabel,
+    QLabel,
     QListView,
     QProgressDialog,
     QScrollArea,
@@ -960,6 +960,12 @@ def collapsible_section_header_toggle_style(
 DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE = collapsible_section_header_toggle_style(
     text_color="#ffffff",
 )
+COLLAPSIBLE_SECTION_STATIC_HEADER_STYLE = (
+    "font-weight: bold; font-size: 12px; "
+    "color: #ffffff; "
+    "padding: 6px; text-align: left; "
+    f"background-color: {COLLAPSIBLE_HEADER_BACKGROUND};"
+)
 SETTINGS_COLLAPSIBLE_TOGGLE_STYLE = collapsible_section_header_toggle_style(
     text_color=DATABASE_VIEW_HEADER_COLOR,
 )
@@ -1203,7 +1209,15 @@ def configure_collapsible_header_toggle(
     toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
     toggle.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
     toggle.setStyleSheet(style_sheet)
+    toggle.setLayoutDirection(Qt.LeftToRight)
     _install_collapsible_header_interactions(toggle, style_sheet)
+
+
+def configure_static_collapsible_header_label(label: QLabel, *, title: str) -> None:
+    """Apply the shared left-aligned visual rule to non-collapsible section headers."""
+    label.setText(title)
+    label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+    label.setStyleSheet(COLLAPSIBLE_SECTION_STATIC_HEADER_STYLE)
 
 
 def apply_shared_dropdown_style(dropdown: QComboBox) -> None:
