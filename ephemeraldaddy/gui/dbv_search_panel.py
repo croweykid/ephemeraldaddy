@@ -696,10 +696,11 @@ def build_dbv_search_panel(window) -> "QWidget":
     window.search_tags_toggle = QToolButton()
     configure_collapsible_header_toggle(
         window.search_tags_toggle,
-        title="Include/Exclude These Tags",
+        title="🏷️Include/Exclude These Tags",
         expanded=False,
         style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
     )
+    app_module.apply_emoji_png_to_button(window.search_tags_toggle, icon_px=16)
     tags_search_row.addWidget(window.search_tags_toggle)
 
     window.search_tags_list_widget = QTreeWidget()
@@ -740,10 +741,11 @@ def build_dbv_search_panel(window) -> "QWidget":
     window.search_traits_toggle = QToolButton()
     configure_collapsible_header_toggle(
         window.search_traits_toggle,
-        title="Include/Exclude These Traits",
+        title="🧬Include/Exclude These Traits",
         expanded=False,
         style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
     )
+    app_module.apply_emoji_png_to_button(window.search_traits_toggle, icon_px=16)
     traits_search_row.addWidget(window.search_traits_toggle)
 
     window.search_traits_list_widget = QTreeWidget()
@@ -860,13 +862,7 @@ def build_dbv_search_panel(window) -> "QWidget":
         content.setVisible(False)
 
         def set_toggle_expanded_state(checked: bool) -> None:
-            if toggle.icon().isNull():
-                toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
-                return
             toggle.setArrowType(Qt.NoArrow)
-            label_text = str(toggle.property("_edd_collapsible_label_text") or toggle.text()).lstrip("▾▸ ")
-            toggle.setProperty("_edd_collapsible_label_text", label_text)
-            toggle.setText(f"{'▾' if checked else '▸'} {label_text}")
 
         def toggle_content(checked: bool) -> None:
             content.setVisible(checked)
@@ -893,8 +889,20 @@ def build_dbv_search_panel(window) -> "QWidget":
     traits_group_layout.addLayout(traits_search_row)
     layout.addWidget(traits_section)
 
-    # Search: Chart Type is its own collapsible section above the categorized filters.
-    chart_type_section, chart_type_group_layout = add_collapsible_section("Chart Type")
+    # Search: Chart Type is a permanent static section below Tags.
+    chart_type_section = QWidget()
+    chart_type_section_layout = QVBoxLayout()
+    chart_type_section_layout.setContentsMargins(0, 0, 0, 0)
+    chart_type_section.setLayout(chart_type_section_layout)
+    chart_type_header = QLabel("Chart Type")
+    chart_type_header.setStyleSheet(DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE)
+    chart_type_section_layout.addWidget(chart_type_header)
+    chart_type_content = QWidget()
+    chart_type_group_layout = QVBoxLayout()
+    chart_type_group_layout.setContentsMargins(8, 6, 8, 6)
+    chart_type_content.setLayout(chart_type_group_layout)
+    chart_type_content.setStyleSheet(COLLAPSIBLE_SECTION_CONTENT_STYLE)
+    chart_type_section_layout.addWidget(chart_type_content)
 
     chart_type_layout = QGridLayout()
     chart_type_layout.setContentsMargins(0, 0, 0, 0)
@@ -921,9 +929,9 @@ def build_dbv_search_panel(window) -> "QWidget":
 
     astro_category_section, astro_category_layout = add_collapsible_section("🪐Astro", nested=True)
     layout.addWidget(astro_category_section)
-    human_design_category_section, human_design_category_layout = add_collapsible_section("Human Design", nested=True)
+    human_design_category_section, human_design_category_layout = add_collapsible_section("🪷Human Design", nested=True)
     layout.addWidget(human_design_category_section)
-    interactions_category_section, interactions_category_layout = add_collapsible_section("Interactions", nested=True)
+    interactions_category_section, interactions_category_layout = add_collapsible_section("💭Personal Experiences", nested=True)
     layout.addWidget(interactions_category_section)
     predictions_category_section, predictions_category_layout = add_collapsible_section("🔮Predictions", nested=True)
     layout.addWidget(predictions_category_section)
@@ -932,7 +940,7 @@ def build_dbv_search_panel(window) -> "QWidget":
 
     #Search: data completeness & accuracy
     birth_info_status_section, birth_info_status_layout = add_collapsible_section(
-        "Data Quality", #data icon contenders: 🧮 🗄️ 🪪 𖦏 🔢 🧩 ℹ️
+        "🐣Data Quality", #data icon contenders: 🧮 🗄️ 🪪 𖦏 🔢 🧩 ℹ️
     )
 
     birth_status_mode_row = QHBoxLayout()
@@ -1930,7 +1938,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     dnd_species_group_layout.addLayout(dnd_stat_grid)
     predictions_category_layout.addWidget(dnd_species_section)
 
-    timing_section, timing_section_layout = add_collapsible_section("Lifespan")
+    timing_section, timing_section_layout = add_collapsible_section("🕰️Lifespan")
 
     def add_birthdate_bound_row(
         row_label: str,
@@ -2022,7 +2030,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     timing_section_layout.addLayout(mortality_row)
 
     #Search: gender section
-    gender_section, gender_group_layout = add_collapsible_section("Gender")
+    gender_section, gender_group_layout = add_collapsible_section("⚧️Gender")
     gender_mode_layout = QHBoxLayout()
     gender_mode_layout.addWidget(QLabel("Gender"))
     gender_mode_layout.addStretch(1)
@@ -2064,7 +2072,7 @@ def build_dbv_search_panel(window) -> "QWidget":
 
 
     #Search: Locations section
-    locations_section, locations_group_layout = add_collapsible_section("Location")
+    locations_section, locations_group_layout = add_collapsible_section("📍Location")
 
     country_row = QHBoxLayout()
     country_row.addWidget(QLabel("Country"))
@@ -2117,7 +2125,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     predictions_category_layout.addWidget(predictability_section)
 
     #Search: Notes section
-    notes_section, notes_group_layout = add_collapsible_section("Notes")
+    notes_section, notes_group_layout = add_collapsible_section("💭Notes")
 
     comments_row = QHBoxLayout()
     window._notes_comments_filter_checkbox = QuadStateSlider("Comments")

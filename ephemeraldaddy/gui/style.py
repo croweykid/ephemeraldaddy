@@ -1137,7 +1137,7 @@ def configure_collapsible_header_toggle(
     toggle.setText(title)
     toggle.setCheckable(True)
     toggle.setChecked(expanded)
-    toggle.setArrowType(Qt.DownArrow if expanded else Qt.RightArrow)
+    toggle.setArrowType(Qt.NoArrow)
     toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
     toggle.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
     toggle.setStyleSheet(style_sheet)
