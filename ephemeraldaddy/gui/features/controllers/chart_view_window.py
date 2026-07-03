@@ -1214,7 +1214,7 @@ def build_subjective_notes_alignment_sections(owner: QWidget, layout: QVBoxLayou
     """Build Subjective Notes Alignment and Sexiness collapsible sections."""
     alignment_box = _build_subjective_notes_metric_section(
         owner,
-        title="💭Alignment",
+        title="💭Perceived alignment",
         content_builder=lambda content_layout: _populate_alignment_section(owner, content_layout),
     )
     layout.addWidget(alignment_box)

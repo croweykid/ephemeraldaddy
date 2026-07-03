@@ -13870,7 +13870,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         sentiment_metrics_divider.setFrameShape(QFrame.HLine)
         sentiment_metrics_divider.setFrameShadow(QFrame.Sunken)
         sentiment_section_layout.addWidget(sentiment_metrics_divider)
-        sentiment_metrics_subheader = QLabel("Relevance")
+        sentiment_metrics_subheader = QLabel("Personal Relevance")
         sentiment_metrics_subheader.setStyleSheet("font-weight: 600;")
         sentiment_section_layout.addWidget(sentiment_metrics_subheader)
         sentiment_section_layout.addWidget(sentiment_metrics_widget)
@@ -24176,7 +24176,7 @@ class MainWindow(QMainWindow):
         self.sentiment_panel_toggle = QToolButton()
         configure_collapsible_header_toggle(
             self.sentiment_panel_toggle,
-            title="Sentiment Types",
+            title="💭Sentiment Types",
             expanded=False,
             style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
         )
@@ -24290,7 +24290,7 @@ class MainWindow(QMainWindow):
         self.reminds_me_of_panel_toggle = QToolButton()
         configure_collapsible_header_toggle(
             self.reminds_me_of_panel_toggle,
-            title="Reminds me of",
+            title="💭Reminds me of",
             expanded=False,
             style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
         )
@@ -24463,7 +24463,7 @@ class MainWindow(QMainWindow):
         relevance_box_layout.setSpacing(6)
         relevance_box.setLayout(relevance_box_layout)
 
-        relevance_header = QLabel("Relevance")
+        relevance_header = QLabel("Personal Relevance")
         relevance_header.setStyleSheet(
             "QLabel {"
             "font-weight: 600;"
