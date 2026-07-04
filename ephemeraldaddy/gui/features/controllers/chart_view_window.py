@@ -68,6 +68,7 @@ from ephemeraldaddy.gui.style import (
     apply_button_cursor,
     apply_chart_info_link_cursor,
     build_tag_chip_html,
+    configure_tag_chip_label,
     configure_collapsible_header_toggle,
     apply_shared_dropdown_style,
 )
@@ -1779,13 +1780,11 @@ def setup_chart_view_tags_section(*, owner: QWidget, tags_content_layout: QVBoxL
     tags_content_layout.addLayout(chart_tagging_row)
 
     owner.chart_tags_preview_label = QLabel()
-    owner.chart_tags_preview_label.setWordWrap(True)
-    owner.chart_tags_preview_label.setTextFormat(Qt.RichText)
+    configure_tag_chip_label(owner.chart_tags_preview_label)
     tags_content_layout.addWidget(owner.chart_tags_preview_label)
 
     owner.chart_tags_selection_label = QLabel()
-    owner.chart_tags_selection_label.setWordWrap(True)
-    owner.chart_tags_selection_label.setTextFormat(Qt.RichText)
+    configure_tag_chip_label(owner.chart_tags_selection_label)
     owner.chart_tags_selection_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
     owner.chart_tags_selection_label.setCursor(Qt.PointingHandCursor)
     owner.chart_tags_selection_label.linkActivated.connect(
@@ -1816,7 +1815,7 @@ def render_chart_view_tag_selection(owner: QWidget) -> None:
                 remove_href=f"remove_chart_tag:{encoded_tag}",
             )
         )
-    owner.chart_tags_selection_label.setText(" ".join(chips))
+    owner.chart_tags_selection_label.setText("".join(chips))
 
 
 def set_chart_view_tag_state(owner: QWidget, tags: list[str]) -> None:
