@@ -98,3 +98,19 @@ def test_trait_database_norm_cache_uses_scaled_refresh_threshold():
     assert "def _database_norm_signature_for_traits" in predictions_source
     assert "fresh_signatures.add(cached_signature)" in predictions_source
     assert "database_statistics_threshold" in predictions_source
+
+
+def test_trait_uid_source_and_metadata_wiring_are_present():
+    traits_source = (ROOT / "ephemeraldaddy" / "analysis" / "traits.py").read_text(encoding="utf-8")
+    predictions_source = (
+        ROOT / "ephemeraldaddy" / "gui" / "features" / "charts" / "trait_predictions.py"
+    ).read_text(encoding="utf-8")
+    db_source = (ROOT / "ephemeraldaddy" / "core" / "db.py").read_text(encoding="utf-8")
+
+    assert "def normalize_trait_uid" in traits_source
+    assert "def trait_uid_for_profile" in traits_source
+    assert '"uid": trait_uid' in traits_source
+    assert "trait_uid         TEXT NOT NULL DEFAULT ''" in db_source
+    assert "trait_uid = excluded.trait_uid" in db_source
+    assert "traits_by_uid" in predictions_source
+    assert '"trait_uid": trait_uids_by_name.get(name, "")' in predictions_source

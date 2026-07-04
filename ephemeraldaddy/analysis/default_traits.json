@@ -80,7 +80,8 @@
     "motivation": "",
     "description": "",
     "quotes": {},
-    "archived": false
+    "archived": false,
+    "uid": "default_actor"
   },
   "agriculture": {
     "name": "agriculture",
@@ -241,7 +242,8 @@
     "motivation": "",
     "description": "People who live/work on farms.",
     "quotes": {},
-    "archived": false
+    "archived": false,
+    "uid": "default_agriculture"
   },
   "antiestablishment": {
     "name": "antiestablishment",
@@ -379,7 +381,8 @@
     "motivation": "",
     "description": "",
     "quotes": {},
-    "archived": false
+    "archived": false,
+    "uid": "default_antiestablishment"
   },
   "comedian": {
     "name": "comedian",
@@ -553,7 +556,8 @@
     "motivation": "",
     "description": "",
     "quotes": {},
-    "archived": false
+    "archived": false,
+    "uid": "default_comedian"
   },
   "criminal": {
     "name": "criminal",
@@ -711,7 +715,8 @@
     "motivation": "",
     "description": "",
     "quotes": {},
-    "archived": false
+    "archived": false,
+    "uid": "default_criminal"
   },
   "dancer": {
     "name": "dancer",
@@ -863,7 +868,8 @@
     "motivation": "",
     "description": "",
     "quotes": {},
-    "archived": false
+    "archived": false,
+    "uid": "default_dancer"
   },
   "engineer": {
     "name": "engineer",
@@ -1010,7 +1016,8 @@
     "motivation": "",
     "description": "",
     "quotes": {},
-    "archived": false
+    "archived": false,
+    "uid": "default_engineer"
   },
   "famous scientist": {
     "name": "famous scientist",
@@ -1206,7 +1213,8 @@
     "motivation": "",
     "description": "",
     "quotes": {},
-    "archived": false
+    "archived": false,
+    "uid": "default_famous_scientist"
   },
   "hilarious": {
     "name": "hilarious",
@@ -1386,7 +1394,8 @@
     "color": "#fac606",
     "motivation": "",
     "description": "",
-    "quotes": {}
+    "quotes": {},
+    "uid": "default_hilarious"
   },
   "human cinderblock": {
     "name": "human cinderblock",
@@ -1535,7 +1544,8 @@
     "motivation": "",
     "description": "Probably seems dumber than they are. Not likely to change their minds. May come across as overly simplistic or 'brute'. But it isn't an indicator of actual intelligence, as it shows up in the charts of eccentric, stubborn hermit geniuses. High density. Low verbal sparkle, low polish. Useful in construction. Bad at brunch.",
     "quotes": {},
-    "archived": false
+    "archived": false,
+    "uid": "default_human_cinderblock"
   },
   "humorless/zero chill": {
     "name": "humorless/zero chill",
@@ -1674,7 +1684,8 @@
     "motivation": "",
     "description": "Unlikely to get the joke. Or at least unlikely to respond to it, if they do.",
     "quotes": {},
-    "archived": false
+    "archived": false,
+    "uid": "default_humorless_zero_chill"
   },
   "imperialist head of state": {
     "name": "imperialist head of state",
@@ -1801,7 +1812,8 @@
     "motivation": "",
     "description": "",
     "quotes": {},
-    "archived": false
+    "archived": false,
+    "uid": "default_imperialist_head_of_state"
   },
   "intellectual": {
     "name": "intellectual",
@@ -1901,7 +1913,8 @@
     "motivation": "",
     "description": "Intellectuals & deep thinkers. Emphasis on abstraction and theory but not exclusive to those categories of genius.",
     "quotes": {},
-    "archived": false
+    "archived": false,
+    "uid": "default_intellectual"
   },
   "musician": {
     "name": "musician",
@@ -1986,7 +1999,8 @@
     "motivation": "",
     "description": "",
     "quotes": {},
-    "archived": false
+    "archived": false,
+    "uid": "default_musician"
   },
   "neoimperial capitalist": {
     "name": "neoimperial capitalist",
@@ -2145,7 +2159,8 @@
     "motivation": "",
     "description": "",
     "quotes": {},
-    "archived": false
+    "archived": false,
+    "uid": "default_neoimperial_capitalist"
   },
   "politician (full time)": {
     "name": "politician (full time)",
@@ -2284,7 +2299,8 @@
     "motivation": "",
     "description": "",
     "quotes": {},
-    "archived": false
+    "archived": false,
+    "uid": "default_politician_full_time"
   },
   "pro athlete": {
     "name": "pro athlete",
@@ -2586,7 +2602,8 @@
     "description": "",
     "quotes": {},
     "archived": false,
-    "samples": []
+    "samples": [],
+    "uid": "default_pro_athlete"
   },
   "regular scientist": {
     "samples": 0,
@@ -2740,7 +2757,8 @@
     "description": "Regular scientists: methodical investigators marked by technical reasoning, repeatable work, correction, depth, focused attention, and disciplined pattern recognition rather than fame, shock, or pioneer branding.",
     "quotes": {},
     "name": "regular scientist",
-    "archived": false
+    "archived": false,
+    "uid": "default_regular_scientist"
   },
   "renowned feminist": {
     "name": "renowned feminist",
@@ -2894,7 +2912,8 @@
     "motivation": "",
     "description": "",
     "quotes": {},
-    "archived": false
+    "archived": false,
+    "uid": "default_renowned_feminist"
   },
   "revolutionary": {
     "name": "revolutionary",
@@ -3061,7 +3080,8 @@
     "motivation": "",
     "description": "",
     "quotes": {},
-    "archived": false
+    "archived": false,
+    "uid": "default_revolutionary"
   },
   "sex symbol (all)": {
     "name": "sex symbol (all)",
@@ -3171,7 +3191,8 @@
     "motivation": "",
     "description": "",
     "quotes": {},
-    "archived": false
+    "archived": false,
+    "uid": "default_sex_symbol_all"
   },
   "talk show host": {
     "name": "talk show host",
@@ -3352,7 +3373,8 @@
     "color": "#d09f6f",
     "motivation": "",
     "description": "Forged from the aggregated charts of every talk show host I am aware of, after a lot of research into talkshow hosts in Western Media.\nEmphasis on Western media.",
-    "quotes": {}
+    "quotes": {},
+    "uid": "default_talk_show_host"
   },
   "technocrat": {
     "name": "technocrat",
@@ -3540,7 +3562,8 @@
     "motivation": "",
     "description": "",
     "quotes": {},
-    "archived": false
+    "archived": false,
+    "uid": "default_technocrat"
   },
   "treacherous": {
     "name": "treacherous",
@@ -3673,6 +3696,7 @@
     "motivation": "",
     "description": "",
     "quotes": {},
-    "archived": false
+    "archived": false,
+    "uid": "default_treacherous"
   }
 }

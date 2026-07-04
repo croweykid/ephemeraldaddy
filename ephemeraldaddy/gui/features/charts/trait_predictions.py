@@ -18,6 +18,7 @@ from ephemeraldaddy.analysis.traits import (
     list_traits,
     normalize_trait_color,
     trait_sample_total,
+    trait_uid_for_profile,
 )
 from ephemeraldaddy.core import db
 from ephemeraldaddy.core.chart import chart_uses_houses
@@ -379,14 +380,28 @@ def _database_norm_signature_for_traits(owner: Any, traits: list[dict[str, Any]]
 
 
 def _trait_definition_signature(trait: dict[str, Any]) -> str:
+    trait_uid = str(trait.get("uid") or trait.get("trait_uid") or "").strip()
+    profile = trait.get("profile", {})
+    scoring_profile = {
+        str(key): value
+        for key, value in (profile.items() if isinstance(profile, dict) else [])
+        if str(key) not in {"name", "color", "description", "archived", "uid", "trait_uid", "samples"}
+    }
     return _stable_json_hash(
         {
             "version": TRAIT_DB_NORMS_CACHE_VERSION,
-            "name": trait.get("name", ""),
-            "color": normalize_trait_color(str(trait.get("color", DEFAULT_TRAIT_COLOR))),
-            "profile": trait.get("profile", {}),
+            "uid": trait_uid,
+            "profile": scoring_profile,
         }
     )
+
+
+def _trait_uid_for_item(trait: dict[str, Any]) -> str:
+    uid = str(trait.get("uid") or trait.get("trait_uid") or "").strip()
+    if uid:
+        return uid
+    name = str(trait.get("name", "")).strip()
+    return trait_uid_for_profile(name, trait.get("profile", {}) if isinstance(trait.get("profile"), dict) else {})
 
 
 def _trait_norm_cache_key(chart_uids: tuple[str, ...], trait: dict[str, Any]) -> str | None:
@@ -612,6 +627,9 @@ def trait_metadata_for_chart(owner: Any, chart: Any) -> dict[str, Any]:
 
     chart_uid = _chart_uid_for_trait_metadata(chart)
     traits_by_name = {str(trait.get("name", "")).strip(): trait for trait in traits if str(trait.get("name", "")).strip()}
+    trait_uids_by_name = {name: _trait_uid_for_item(trait) for name, trait in traits_by_name.items()}
+    traits_by_uid = {uid: trait for name, trait in traits_by_name.items() if (uid := trait_uids_by_name.get(name))}
+    names_by_uid = {uid: name for name, uid in trait_uids_by_name.items() if uid}
     active_trait_names = set(traits_by_name)
     cached_rows_by_name: dict[str, dict[str, Any]] = {}
     if chart_uid is not None:
@@ -626,8 +644,9 @@ def trait_metadata_for_chart(owner: Any, chart: Any) -> dict[str, Any]:
             )
             rows = []
         for row in rows:
-            name = str(row.get("trait_name", "")).strip()
-            trait = traits_by_name.get(name)
+            row_uid = str(row.get("trait_uid", "") or "").strip()
+            name = names_by_uid.get(row_uid) if row_uid else str(row.get("trait_name", "")).strip()
+            trait = traits_by_uid.get(row_uid) if row_uid else traits_by_name.get(name)
             if trait is None:
                 continue
             row_trait_signature = str(row.get("trait_signature", ""))
@@ -693,6 +712,7 @@ def trait_metadata_for_chart(owner: Any, chart: Any) -> dict[str, Any]:
                 [
                     {
                         "trait_name": name,
+                        "trait_uid": trait_uids_by_name.get(name, ""),
                         "trait_signature": _trait_definition_signature(traits_by_name[name]),
                         "direction": "above" if name in above else "below" if name in below else "neutral",
                         "likelihood": likelihoods.get(name, 0.0),

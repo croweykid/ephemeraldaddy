@@ -438,6 +438,7 @@ def test_list_traits_loads_bundled_defaults_before_local_custom_traits(tmp_path,
     assert shared["source"] == "bundled"
     assert shared["path"] == default_path
     assert shared["color"] == "#111111"
+    assert shared["uid"] == "default_shared"
 
 
 def test_list_traits_keeps_non_overlapping_local_traits_with_defaults(tmp_path, monkeypatch):
@@ -452,3 +453,4 @@ def test_list_traits_keeps_non_overlapping_local_traits_with_defaults(tmp_path, 
     items = traits.list_traits(active_only=True)
 
     assert [(item["name"], item["source"]) for item in items] == [("Bundled", "bundled"), ("Custom", "local")]
+    assert {item["name"]: item["uid"] for item in items} == {"Bundled": "default_bundled", "Custom": "custom_custom"}

@@ -295,6 +295,7 @@ import json
 import logging
 import re
 import tokenize
+import uuid
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
@@ -315,6 +316,7 @@ DEFAULT_TRAITS_PATH = Path(__file__).with_name("default_traits.json")
 DEFAULT_TRAIT_COLOR = "#cc99ff"
 logger = logging.getLogger(__name__)
 _TRAIT_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+_TRAIT_UID_RE = re.compile(r"[^a-zA-Z0-9_.:-]+")
 
 
 def normalize_trait_samples(
@@ -368,6 +370,25 @@ def normalize_trait_color(color: str) -> str:
     if not _is_valid_trait_color(clean):
         return DEFAULT_TRAIT_COLOR
     return clean.lower()
+
+
+def normalize_trait_uid(value: Any) -> str:
+    clean = _TRAIT_UID_RE.sub("_", str(value or "").strip()).strip("._:-")
+    return clean[:96]
+
+
+def _new_trait_uid(*, bundled: bool = False) -> str:
+    prefix = "default" if bundled else "custom"
+    return f"{prefix}_{uuid.uuid4().hex[:16]}"
+
+
+def trait_uid_for_profile(name: str, profile: Mapping[str, Any], *, bundled: bool = False) -> str:
+    for key in ("uid", "trait_uid"):
+        uid = normalize_trait_uid(profile.get(key))
+        if uid:
+            return uid
+    slug = _slugify_trait_name(name).lower()
+    return f"{'default' if bundled else 'custom'}_{slug}"
 
 
 def _rewrite_single_trait(path: str | Path, profile_updates: Mapping[str, Any]) -> Path:
@@ -676,6 +697,7 @@ def save_trait(name: str, profile: Mapping[str, Any], *, color: str | None = Non
     destination = _unique_trait_path(clean_name)
     stored = dict(profile)
     stored["name"] = clean_name
+    stored["uid"] = trait_uid_for_profile(clean_name, stored) or _new_trait_uid()
     stored["color"] = normalize_trait_color(str(stored.get("color", DEFAULT_TRAIT_COLOR)))
     stored["archived"] = bool(stored.get("archived", False))
     if color is not None:
@@ -707,8 +729,11 @@ def _trait_item_from_profile(name: str, profile: Mapping[str, Any], path: Path, 
     color = normalize_trait_color(str(profile.get("color", DEFAULT_TRAIT_COLOR)))
     description = str(profile.get("description", "")).strip()
     samples = normalize_trait_samples(profile.get("samples"), trait_name=name, source=path)
+    trait_uid = trait_uid_for_profile(name, profile, bundled=bundled)
     return {
         "name": name,
+        "uid": trait_uid,
+        "trait_uid": trait_uid,
         "path": path,
         "profile": dict(profile),
         "color": color,
@@ -811,6 +836,7 @@ def rename_trait(path: str | Path, new_name: str) -> Path:
     destination = _unique_trait_path(clean_name, existing_path=source)
     stored = dict(profile)
     stored["name"] = clean_name
+    stored["uid"] = trait_uid_for_profile(clean_name, stored) or _new_trait_uid()
     stored["color"] = normalize_trait_color(str(stored.get("color", DEFAULT_TRAIT_COLOR)))
     stored["archived"] = bool(stored.get("archived", False))
     stored["description"] = str(stored.get("description", "")).strip()

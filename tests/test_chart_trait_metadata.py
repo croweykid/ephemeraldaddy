@@ -55,6 +55,7 @@ def test_get_chart_trait_metadata_returns_mapping_rows(tmp_path, monkeypatch):
 
     assert rows == [
         {
+            "trait_uid": "",
             "trait_name": "Adventurous",
             "direction": "above",
             "likelihood": 0.75,
