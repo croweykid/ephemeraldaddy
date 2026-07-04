@@ -4060,7 +4060,7 @@ def upsert_chart_trait_metadata(
                 float(row.get("likelihood", 0.0)),
                 float(row.get("db_average", 0.0)),
                 float(row.get("deviation", 0.0)),
-                str(trait_signature),
+                str(row.get("trait_signature", trait_signature)),
                 str(norm_signature),
                 str(chart_signature),
                 now,

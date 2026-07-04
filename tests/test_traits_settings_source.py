@@ -16,7 +16,7 @@ def test_traits_settings_ui_lives_outside_app_py():
     assert "Edit JSON…" in settings_source
     assert "def on_trait_edit_clicked" in settings_source
     assert "parse_trait_file(temp_path)" in settings_source
-    assert "_mark_trait_definitions_changed(owner)" in settings_source
+    assert "def _mark_trait_definitions_changed" in settings_source
     assert "clear_likelihoods=False" in settings_source
     assert "_warm_trait_definitions(owner, {clean_name})" in settings_source
 
@@ -32,7 +32,7 @@ def test_trait_prediction_rendering_lives_outside_app_py():
     assert "def _render_traits_predictions" in app_source
     assert "_render_traits_predictions(self, chart)" in app_source
     assert "def render_traits_predictions" in predictions_source
-    assert "calculate_trait_scores" in predictions_source
+    assert "calculate_trait_likelihoods" in predictions_source
     assert "TRAIT_DB_NORMS_CACHE_PATH" in predictions_source
     assert "def warm_trait_database_norms" in predictions_source
     assert "def clear_trait_norm_cache" in predictions_source
@@ -57,6 +57,7 @@ def test_database_view_traits_search_lives_in_search_panel_and_uses_metadata():
     predictions_source = (
         ROOT / "ephemeraldaddy" / "gui" / "features" / "charts" / "trait_predictions.py"
     ).read_text(encoding="utf-8")
+    db_source = (ROOT / "ephemeraldaddy" / "core" / "db.py").read_text(encoding="utf-8")
 
     assert 'add_collapsible_section("🧬Traits")' in search_source
     assert "def collect_search_trait_filter_sets" in search_source
@@ -71,3 +72,27 @@ def test_database_view_traits_search_lives_in_search_panel_and_uses_metadata():
     assert "def get_chart_trait_metadata" in db_source
     assert "db.upsert_chart_trait_metadata" in predictions_source
     assert "db.get_chart_trait_metadata" in predictions_source
+
+
+def test_chart_view_trait_metadata_is_incremental_by_trait_signature():
+    predictions_source = (
+        ROOT / "ephemeraldaddy" / "gui" / "features" / "charts" / "trait_predictions.py"
+    ).read_text(encoding="utf-8")
+    db_source = (ROOT / "ephemeraldaddy" / "core" / "db.py").read_text(encoding="utf-8")
+
+    assert "def _trait_definition_signature" in predictions_source
+    assert "cached_rows_by_name" in predictions_source
+    assert "missing_traits = [trait for name, trait in traits_by_name.items()" in predictions_source
+    assert 'row.get("trait_signature", trait_signature)' in db_source
+
+
+def test_trait_database_norm_cache_uses_scaled_refresh_threshold():
+    predictions_source = (
+        ROOT / "ephemeraldaddy" / "gui" / "features" / "charts" / "trait_predictions.py"
+    ).read_text(encoding="utf-8")
+
+    assert "TRAIT_DB_NORMS_MAX_STALE_RATIO = 0.10" in predictions_source
+    assert "def _database_norm_refresh_threshold" in predictions_source
+    assert "return max(1, int(count * TRAIT_DB_NORMS_MAX_STALE_RATIO))" in predictions_source
+    assert "_database_norm_state_is_fresh(cached_state, current_norm_state)" in predictions_source
+    assert "database_statistics_threshold" in predictions_source

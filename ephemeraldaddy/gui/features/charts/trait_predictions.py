@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 TRAIT_DEVIATION_ASSIGNMENT_THRESHOLD = 5.0
 TRAIT_DB_NORMS_CACHE_VERSION = 1
 TRAIT_DB_NORMS_CACHE_PATH = Path.home() / ".ephemeraldaddy" / "cache" / "trait_db_norms.json"
+TRAIT_DB_NORMS_MAX_STALE_RATIO = 0.10
 
 
 def _format_signed_percentage(value: float | None) -> str:
@@ -253,13 +254,123 @@ def _chart_trait_metadata_signature(chart: Any) -> str:
     )
 
 
+def _database_norm_refresh_threshold(chart_count: int) -> int:
+    """Return how many birth-data cohort changes justify refreshing DB norms."""
+    count = max(0, int(chart_count))
+    if count < 10:
+        return 1
+    return max(1, int(count * TRAIT_DB_NORMS_MAX_STALE_RATIO))
+
+
+def _database_norm_chart_token_source(owner: Any) -> tuple[tuple[str, str], ...]:
+    """Return stable tokens for the non-placeholder charts that define DB norms."""
+    rows_provider = getattr(owner, "_prediction_norm_rows", None)
+    normalize_row = getattr(owner, "_normalize_chart_row", None)
+    rows: list[Any] = []
+    if callable(rows_provider):
+        try:
+            rows = list(rows_provider())
+        except Exception:
+            rows = []
+    if not rows:
+        return tuple((uid, "") for uid in _database_chart_uids(owner))
+
+    normalized_rows_by_id: dict[int, Any] = {}
+    for row in rows:
+        normalized = normalize_row(row) if callable(normalize_row) else row
+        if normalized is None:
+            continue
+        try:
+            chart_id = int(normalized[0])
+        except Exception:
+            continue
+        normalized_rows_by_id[chart_id] = normalized
+
+    tokens: list[tuple[str, str]] = []
+    uid_map: dict[int, str] = {}
+    missing_uid_ids: list[int] = []
+    for chart_id, normalized in normalized_rows_by_id.items():
+        uid = ""
+        if isinstance(normalized, (list, tuple)) and len(normalized) > 30 and normalized[30]:
+            uid = str(normalized[30]).strip().upper()
+        if not uid:
+            missing_uid_ids.append(chart_id)
+            continue
+        token_payload = {
+            "uid": uid,
+            "row": repr(normalized),
+        }
+        tokens.append((uid, _stable_json_hash(token_payload)))
+
+    if missing_uid_ids:
+        try:
+            uid_map = db.get_chart_uid_map(missing_uid_ids)
+        except Exception:
+            uid_map = {}
+        for chart_id in missing_uid_ids:
+            normalized = normalized_rows_by_id.get(chart_id)
+            uid = str(uid_map.get(chart_id, "")).strip().upper()
+            if not uid:
+                continue
+            token_payload = {
+                "uid": uid,
+                "row": repr(normalized),
+            }
+            tokens.append((uid, _stable_json_hash(token_payload)))
+    return tuple(sorted(tokens))
+
+
+def _database_norm_state(owner: Any) -> dict[str, Any]:
+    tokens = _database_norm_chart_token_source(owner)
+    return {
+        "version": TRAIT_DB_NORMS_CACHE_VERSION,
+        "chart_count": len(tokens),
+        "chart_tokens": {uid: token for uid, token in tokens},
+    }
+
+
+def _database_norm_state_change_count(saved_state: dict[str, Any], current_state: dict[str, Any]) -> int:
+    saved_tokens = saved_state.get("chart_tokens", {}) if isinstance(saved_state, dict) else {}
+    current_tokens = current_state.get("chart_tokens", {}) if isinstance(current_state, dict) else {}
+    if not isinstance(saved_tokens, dict) or not isinstance(current_tokens, dict):
+        return max(
+            int(saved_state.get("chart_count", 0) or 0) if isinstance(saved_state, dict) else 0,
+            int(current_state.get("chart_count", 0) or 0) if isinstance(current_state, dict) else 0,
+        )
+    all_uids = set(saved_tokens) | set(current_tokens)
+    return sum(1 for uid in all_uids if saved_tokens.get(uid) != current_tokens.get(uid))
+
+
+def _database_norm_state_is_fresh(saved_state: dict[str, Any], current_state: dict[str, Any]) -> bool:
+    saved_count = int(saved_state.get("chart_count", 0) or 0) if isinstance(saved_state, dict) else 0
+    current_count = int(current_state.get("chart_count", 0) or 0) if isinstance(current_state, dict) else 0
+    threshold = _database_norm_refresh_threshold(max(saved_count, current_count))
+    return _database_norm_state_change_count(saved_state, current_state) < threshold
+
+
+def _database_norm_signature_from_state(state: dict[str, Any]) -> str:
+    """Return the semi-permanent DB-norm generation used by per-chart metadata."""
+    return f"trait_db_norms_v{TRAIT_DB_NORMS_CACHE_VERSION}:database_statistics_threshold"
+
+
+def _trait_definition_signature(trait: dict[str, Any]) -> str:
+    return _stable_json_hash(
+        {
+            "version": TRAIT_DB_NORMS_CACHE_VERSION,
+            "name": trait.get("name", ""),
+            "color": normalize_trait_color(str(trait.get("color", DEFAULT_TRAIT_COLOR))),
+            "profile": trait.get("profile", {}),
+        }
+    )
+
+
 def _trait_norm_cache_key(chart_uids: tuple[str, ...], trait: dict[str, Any]) -> str | None:
     name = str(trait.get("name", "")).strip()
     if not name or bool(trait.get("archived", False)):
         return None
     payload = {
         "version": TRAIT_DB_NORMS_CACHE_VERSION,
-        "chart_uids": chart_uids,
+        "trait_norm_scope": "database_statistics_threshold",
         "trait_name": name,
         "trait_color": normalize_trait_color(str(trait.get("color", DEFAULT_TRAIT_COLOR))),
         "trait_profile": trait.get("profile", {}),
@@ -375,6 +486,7 @@ def _calculate_database_trait_averages_direct(
 def _database_trait_averages(owner: Any, traits: list[dict[str, Any]]) -> dict[str, float]:
     chart_ids = _database_chart_ids(owner)
     chart_uids = _database_chart_uids(owner)
+    current_norm_state = _database_norm_state(owner)
     collect = getattr(owner, "_collect_traits_distribution_analytics", None)
     signature_builder = getattr(owner, "_traits_distribution_signature", None)
     if not chart_ids or not chart_uids:
@@ -388,7 +500,12 @@ def _database_trait_averages(owner: Any, traits: list[dict[str, Any]]) -> dict[s
         name = str(trait.get("name", "")).strip()
         cache_key = _trait_norm_cache_key(chart_uids, trait)
         cached = cache_entries.get(cache_key or "")
-        if isinstance(cached, dict) and cached.get("trait_name") == name:
+        cached_state = cached.get("norm_state", {}) if isinstance(cached, dict) else {}
+        if (
+            isinstance(cached, dict)
+            and cached.get("trait_name") == name
+            and _database_norm_state_is_fresh(cached_state, current_norm_state)
+        ):
             try:
                 averages[name] = float(cached["db_average"])
                 continue
@@ -422,6 +539,8 @@ def _database_trait_averages(owner: Any, traits: list[dict[str, Any]]) -> dict[s
                 "trait_name": name,
                 "db_average": db_average,
                 "chart_count": chart_count,
+                "norm_state": current_norm_state,
+                "norm_signature": _database_norm_signature_from_state(current_norm_state),
             }
     _save_trait_norm_cache(cache_entries)
     return averages
@@ -459,7 +578,8 @@ def trait_metadata_for_chart(owner: Any, chart: Any) -> dict[str, Any]:
             ],
         }
     )
-    norm_signature = _stable_json_hash(_database_chart_uids(owner))
+    current_norm_state = _database_norm_state(owner)
+    norm_signature = _database_norm_signature_from_state(current_norm_state)
     chart_signature = _chart_trait_metadata_signature(chart)
     signature = (TRAIT_DB_NORMS_CACHE_VERSION, trait_signature, norm_signature, chart_signature)
     cached = getattr(chart, "_trait_prediction_metadata_cache", None)
@@ -467,7 +587,9 @@ def trait_metadata_for_chart(owner: Any, chart: Any) -> dict[str, Any]:
         return dict(cached.get("metadata", {}))
 
     chart_uid = _chart_uid_for_trait_metadata(chart)
-    active_trait_names = {str(trait.get("name", "")).strip() for trait in traits if str(trait.get("name", "")).strip()}
+    traits_by_name = {str(trait.get("name", "")).strip(): trait for trait in traits if str(trait.get("name", "")).strip()}
+    active_trait_names = set(traits_by_name)
+    cached_rows_by_name: dict[str, dict[str, Any]] = {}
     if chart_uid is not None:
         try:
             rows = db.get_chart_trait_metadata(chart_uid)
@@ -479,17 +601,25 @@ def trait_metadata_for_chart(owner: Any, chart: Any) -> dict[str, Any]:
                 exc_info=True,
             )
             rows = []
-        if rows and {str(row.get("trait_name", "")) for row in rows} == active_trait_names and all(
-            str(row.get("trait_signature", "")) == trait_signature
-            and str(row.get("norm_signature", "")) == norm_signature
-            and str(row.get("chart_signature", "")) == chart_signature
-            for row in rows
-        ):
-            above = {str(row["trait_name"]) for row in rows if row.get("direction") == "above"}
-            below = {str(row["trait_name"]) for row in rows if row.get("direction") == "below"}
-            deviations = {str(row["trait_name"]): float(row.get("deviation", 0.0)) for row in rows}
-            likelihoods = {str(row["trait_name"]): float(row.get("likelihood", 0.0)) for row in rows}
-            database_averages = {str(row["trait_name"]): float(row.get("db_average", 0.0)) for row in rows}
+        for row in rows:
+            name = str(row.get("trait_name", "")).strip()
+            trait = traits_by_name.get(name)
+            if trait is None:
+                continue
+            row_trait_signature = str(row.get("trait_signature", ""))
+            valid_trait_signature = row_trait_signature in {trait_signature, _trait_definition_signature(trait)}
+            if (
+                valid_trait_signature
+                and str(row.get("norm_signature", "")) == norm_signature
+                and str(row.get("chart_signature", "")) == chart_signature
+            ):
+                cached_rows_by_name[name] = row
+        if active_trait_names and set(cached_rows_by_name) == active_trait_names:
+            above = {name for name, row in cached_rows_by_name.items() if row.get("direction") == "above"}
+            below = {name for name, row in cached_rows_by_name.items() if row.get("direction") == "below"}
+            deviations = {name: float(row.get("deviation", 0.0)) for name, row in cached_rows_by_name.items()}
+            likelihoods = {name: float(row.get("likelihood", 0.0)) for name, row in cached_rows_by_name.items()}
+            database_averages = {name: float(row.get("db_average", 0.0)) for name, row in cached_rows_by_name.items()}
             metadata = {
                 "above": above,
                 "below": below,
@@ -503,8 +633,16 @@ def trait_metadata_for_chart(owner: Any, chart: Any) -> dict[str, Any]:
             setattr(chart, "_trait_prediction_metadata_cache", {"signature": signature, "metadata": metadata})
             return metadata
 
-    likelihoods = calculate_trait_likelihoods(chart, traits)
-    database_averages = _database_trait_averages(owner, traits)
+    cached_likelihoods = {name: float(row.get("likelihood", 0.0)) for name, row in cached_rows_by_name.items()}
+    cached_database_averages = {name: float(row.get("db_average", 0.0)) for name, row in cached_rows_by_name.items()}
+    missing_traits = [trait for name, trait in traits_by_name.items() if name not in cached_rows_by_name]
+    likelihoods = dict(cached_likelihoods)
+    if missing_traits:
+        likelihoods.update(calculate_trait_likelihoods(chart, missing_traits))
+    database_averages = dict(cached_database_averages)
+    missing_average_traits = [trait for name, trait in traits_by_name.items() if name not in database_averages]
+    if missing_average_traits:
+        database_averages.update(_database_trait_averages(owner, missing_average_traits))
     deviations = {
         name: float(pct) - float(database_averages[name])
         for name, pct in likelihoods.items()
@@ -531,6 +669,7 @@ def trait_metadata_for_chart(owner: Any, chart: Any) -> dict[str, Any]:
                 [
                     {
                         "trait_name": name,
+                        "trait_signature": _trait_definition_signature(traits_by_name[name]),
                         "direction": "above" if name in above else "below" if name in below else "neutral",
                         "likelihood": likelihoods.get(name, 0.0),
                         "db_average": database_averages.get(name, 0.0),
