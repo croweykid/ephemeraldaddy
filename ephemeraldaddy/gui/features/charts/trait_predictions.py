@@ -349,8 +349,33 @@ def _database_norm_state_is_fresh(saved_state: dict[str, Any], current_state: di
 
 
 def _database_norm_signature_from_state(state: dict[str, Any]) -> str:
-    """Return the semi-permanent DB-norm generation used by per-chart metadata."""
-    return f"trait_db_norms_v{TRAIT_DB_NORMS_CACHE_VERSION}:database_statistics_threshold"
+    """Return the DB-norm generation used by per-chart metadata."""
+    return _stable_json_hash(
+        {
+            "version": TRAIT_DB_NORMS_CACHE_VERSION,
+            "scope": "database_statistics_threshold",
+            "chart_count": int(state.get("chart_count", 0) or 0),
+            "chart_tokens": state.get("chart_tokens", {}),
+        }
+    )
+
+
+def _database_norm_signature_for_traits(owner: Any, traits: list[dict[str, Any]]) -> str:
+    """Return the active DB norm signature, preserving it until the refresh threshold is crossed."""
+    current_norm_state = _database_norm_state(owner)
+    cache_entries = _load_trait_norm_cache()
+    fresh_signatures: set[str] = set()
+    chart_uids = _database_chart_uids(owner)
+    for trait in traits:
+        cache_key = _trait_norm_cache_key(chart_uids, trait)
+        cached = cache_entries.get(cache_key or "")
+        cached_state = cached.get("norm_state", {}) if isinstance(cached, dict) else {}
+        cached_signature = str(cached.get("norm_signature", "")).strip() if isinstance(cached, dict) else ""
+        if cached_signature and _database_norm_state_is_fresh(cached_state, current_norm_state):
+            fresh_signatures.add(cached_signature)
+    if fresh_signatures:
+        return sorted(fresh_signatures)[0]
+    return _database_norm_signature_from_state(current_norm_state)
 
 
 def _trait_definition_signature(trait: dict[str, Any]) -> str:
@@ -578,8 +603,7 @@ def trait_metadata_for_chart(owner: Any, chart: Any) -> dict[str, Any]:
             ],
         }
     )
-    current_norm_state = _database_norm_state(owner)
-    norm_signature = _database_norm_signature_from_state(current_norm_state)
+    norm_signature = _database_norm_signature_for_traits(owner, traits)
     chart_signature = _chart_trait_metadata_signature(chart)
     signature = (TRAIT_DB_NORMS_CACHE_VERSION, trait_signature, norm_signature, chart_signature)
     cached = getattr(chart, "_trait_prediction_metadata_cache", None)

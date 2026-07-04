@@ -95,4 +95,6 @@ def test_trait_database_norm_cache_uses_scaled_refresh_threshold():
     assert "def _database_norm_refresh_threshold" in predictions_source
     assert "return max(1, int(count * TRAIT_DB_NORMS_MAX_STALE_RATIO))" in predictions_source
     assert "_database_norm_state_is_fresh(cached_state, current_norm_state)" in predictions_source
+    assert "def _database_norm_signature_for_traits" in predictions_source
+    assert "fresh_signatures.add(cached_signature)" in predictions_source
     assert "database_statistics_threshold" in predictions_source
