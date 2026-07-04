@@ -57,3 +57,18 @@ def test_display_interval_scales_proportionately_after_twenty_characters():
     assert rotator.display_interval_ms("x" * 20, default_ms=3200) == 3200
     assert rotator.display_interval_ms("x" * 40, default_ms=3200) == 6400
     assert rotator.display_interval_ms("x" * 30, default_ms=3200) == 4800
+
+
+def test_sequence_constants_are_registered_as_full_loading_steps():
+    import ephemeraldaddy.core.loading_messages as loading_messages
+
+    sequence_constants = tuple(
+        value
+        for name, value in vars(loading_messages).items()
+        if name.endswith("_SEQUENCE") and isinstance(value, LoadingSequence)
+    )
+
+    assert loading_messages.LOADING_MESSAGE_SEQUENCES == sequence_constants
+    assert sequence_constants
+    for sequence in sequence_constants:
+        assert sequence.step_count == len(sequence.messages)
