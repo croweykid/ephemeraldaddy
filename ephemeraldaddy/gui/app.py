@@ -1262,6 +1262,7 @@ from ephemeraldaddy.gui.settings_widgets import (
 from ephemeraldaddy.gui.style import (
     APPWIDE_DARK_THEME_STYLESHEET,
     build_tag_chip_html,
+    configure_tag_chip_label,
     CHART_VIEW_RECTIFIED_GROUP_LEFT_SPACER,
     CHART_VIEW_RECTIFIED_LABEL_CHECKBOX_SPACING,
     CHART_VIEW_TIME_INPUT_DISPLAY_FORMAT,
@@ -13600,12 +13601,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         tagging_row.addWidget(batch_tags_apply_button, 0)
         tagging_section_layout.addLayout(tagging_row)
         self.batch_tags_preview_label = QLabel()
-        self.batch_tags_preview_label.setWordWrap(True)
-        self.batch_tags_preview_label.setTextFormat(Qt.RichText)
+        configure_tag_chip_label(self.batch_tags_preview_label)
         tagging_section_layout.addWidget(self.batch_tags_preview_label)
         self.batch_tags_selection_label = QLabel()
-        self.batch_tags_selection_label.setWordWrap(True)
-        self.batch_tags_selection_label.setTextFormat(Qt.RichText)
+        configure_tag_chip_label(self.batch_tags_selection_label)
         self.batch_tags_selection_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
         self.batch_tags_selection_label.setCursor(Qt.PointingHandCursor)
         self.batch_tags_selection_label.linkActivated.connect(self._on_batch_tag_remove_link_clicked)
