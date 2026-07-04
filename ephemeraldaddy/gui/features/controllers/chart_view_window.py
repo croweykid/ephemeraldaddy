@@ -83,6 +83,7 @@ from ephemeraldaddy.gui.dbv_search_panel import refresh_tag_catalog_for_added_ta
 CHART_INFO_PANEL_BUTTON_ATTRS: dict[str, str] = {
     "chart_info": "chart_info_toggle_button",
     "comments": "chart_comments_toggle_button",
+    "tags": "chart_tags_toggle_button",
     "rectification": "chart_rectification_toggle_button",
     "biography": "chart_bio_toggle_button",
     "source": "chart_source_toggle_button",
@@ -91,6 +92,7 @@ CHART_INFO_PANEL_BUTTON_ATTRS: dict[str, str] = {
 CHART_INFO_PANEL_CONTENT_ATTRS: dict[str, str] = {
     "chart_info": "chart_info_output",
     "comments": "comments_edit",
+    "tags": "chart_tags_panel_widget",
     "rectification": "rectification_edit",
     "biography": "biography_edit",
     "source": "source_edit",
@@ -748,6 +750,8 @@ def refresh_chart_info_panel_toggle_button_styles(owner: QWidget) -> None:
         content_widget = getattr(owner, content_attr, None)
         if isinstance(content_widget, (QTextEdit, QPlainTextEdit)):
             has_content_by_mode[mode] = bool(content_widget.toPlainText().strip())
+        elif mode == "tags":
+            has_content_by_mode[mode] = bool(getattr(owner, "_chart_tags_current", []))
         else:
             has_content_by_mode[mode] = False
 
@@ -954,6 +958,14 @@ def build_chart_view_left_panel(
         lambda: owner._set_chart_info_panel_mode("comments")
     )
 
+    owner.chart_tags_toggle_button = QPushButton("🏷️") #Tags
+    owner.chart_tags_toggle_button.setCheckable(True)
+    apply_button_cursor(owner.chart_tags_toggle_button)
+    owner.chart_tags_toggle_button.setMinimumHeight(24)
+    owner.chart_tags_toggle_button.clicked.connect(
+        lambda: owner._set_chart_info_panel_mode("tags")
+    )
+
     owner.chart_rectification_toggle_button = QPushButton("⏳💬") #Rectification Notes
     owner.chart_rectification_toggle_button.setCheckable(True)
     apply_button_cursor(owner.chart_rectification_toggle_button)
@@ -973,6 +985,7 @@ def build_chart_view_left_panel(
     chart_info_header_layout.addWidget(owner.chart_info_toggle_button, 0)
     chart_info_header_layout.addWidget(owner.chart_bio_toggle_button, 0)
     chart_info_header_layout.addWidget(owner.chart_comments_toggle_button, 0)
+    chart_info_header_layout.addWidget(owner.chart_tags_toggle_button, 0)
     chart_info_header_layout.addWidget(owner.chart_rectification_toggle_button, 0)
     chart_info_header_layout.addWidget(owner.chart_source_toggle_button, 0)
     chart_info_header_layout.addStretch(1)
@@ -1803,8 +1816,11 @@ def on_chart_view_tags_changed(owner: QWidget) -> None:
 def render_chart_view_tag_selection(owner: QWidget) -> None:
     if not hasattr(owner, "chart_tags_selection_label"):
         return
+    refresh_buttons = getattr(owner, "_refresh_chart_info_panel_toggle_buttons", None)
     if not getattr(owner, "_chart_tags_current", []):
         owner.chart_tags_selection_label.setText("<span style='color:#8d8d8d;'>No tags yet.</span>")
+        if callable(refresh_buttons):
+            refresh_buttons()
         return
     chips: list[str] = []
     for tag in sorted(owner._chart_tags_current, key=lambda value: value.casefold()):
@@ -1816,6 +1832,8 @@ def render_chart_view_tag_selection(owner: QWidget) -> None:
             )
         )
     owner.chart_tags_selection_label.setText("".join(chips))
+    if callable(refresh_buttons):
+        refresh_buttons()
 
 
 def set_chart_view_tag_state(owner: QWidget, tags: list[str]) -> None:

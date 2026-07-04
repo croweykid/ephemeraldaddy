@@ -24339,51 +24339,6 @@ class MainWindow(QMainWindow):
         reminds_me_of_box_layout.addWidget(reminds_me_of_content_widget)
         sentiment_relation_layout.addWidget(reminds_me_of_box)
 
-        tags_box = QFrame()
-        tags_box.setStyleSheet(
-            "QFrame {"
-            "background-color: #1c1c1c;"
-            "border: 1px solid #2b2b2b;"
-            "border-radius: 6px;"
-            "}"
-        )
-        tags_box_layout = QVBoxLayout()
-        tags_box_layout.setContentsMargins(8, 8, 8, 8)
-        tags_box_layout.setSpacing(6)
-        tags_box.setLayout(tags_box_layout)
-        tags_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
-
-        self.tags_panel_toggle = QToolButton()
-        configure_collapsible_header_toggle(
-            self.tags_panel_toggle,
-            title="Tags",
-            expanded=False,
-            style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
-        )
-        tags_box_layout.addWidget(self.tags_panel_toggle)
-
-        tags_content_widget = QWidget()
-        tags_content_layout = QVBoxLayout()
-        tags_content_layout.setContentsMargins(0, 0, 0, 0)
-        tags_content_layout.setSpacing(4)
-        tags_content_widget.setLayout(tags_content_layout)
-        self.chart_tags_input = QLineEdit()
-        setup_chart_view_tags_section(
-            owner=self,
-            tags_content_layout=tags_content_layout,
-        )
-        self.tags_panel_toggle.toggled.connect(
-            lambda expanded: self._toggle_chart_panel_content(
-                self.tags_panel_toggle,
-                tags_content_widget,
-                expanded,
-            )
-        )
-        tags_content_widget.setVisible(False)
-        tags_box_layout.addWidget(tags_content_widget)
-        sentiment_relation_layout.addWidget(tags_box)
-        self._update_tag_completers()
-
         sentiment_metrics_row = QWidget()
         sentiment_metrics_row.setSizePolicy(
             QSizePolicy.Maximum,
@@ -24408,6 +24363,21 @@ class MainWindow(QMainWindow):
         self.comments_edit.textChanged.connect(self._mark_lucygoosey)
         self.comments_edit.setMinimumHeight(140)
         self.chart_info_content_stack.addWidget(self.comments_edit)
+
+        self.chart_tags_panel_widget = QWidget()
+        chart_tags_panel_layout = QVBoxLayout()
+        chart_tags_panel_layout.setContentsMargins(0, 0, 0, 0)
+        chart_tags_panel_layout.setSpacing(6)
+        self.chart_tags_panel_widget.setLayout(chart_tags_panel_layout)
+        self.chart_tags_input = QLineEdit()
+        setup_chart_view_tags_section(
+            owner=self,
+            tags_content_layout=chart_tags_panel_layout,
+        )
+        self.chart_tags_panel_widget.setMinimumHeight(140)
+        self.chart_info_content_stack.addWidget(self.chart_tags_panel_widget)
+        self._update_tag_completers()
+
         self.rectification_edit = QTextEdit()
         self.rectification_edit.setPlaceholderText("Rectification Notes: if birth data/time is unknown, any notes about what dates/time(s) it might be & why can go here.")
         self.rectification_edit.textChanged.connect(self._mark_lucygoosey)
@@ -29318,16 +29288,17 @@ class MainWindow(QMainWindow):
         )
 
     def _set_chart_info_panel_mode(self, mode: str) -> None:
-        if mode not in {"chart_info", "comments", "rectification", "biography", "source"}:
+        if mode not in {"chart_info", "comments", "tags", "rectification", "biography", "source"}:
             return
         self._chart_info_panel_mode = mode
         if hasattr(self, "chart_info_content_stack"):
             mode_to_index = {
                 "chart_info": 0,
                 "comments": 1,
-                "rectification": 2,
-                "biography": 3,
-                "source": 4,
+                "tags": 2,
+                "rectification": 3,
+                "biography": 4,
+                "source": 5,
             }
             self.chart_info_content_stack.setCurrentIndex(mode_to_index[mode])
         self._refresh_chart_info_panel_toggle_buttons()

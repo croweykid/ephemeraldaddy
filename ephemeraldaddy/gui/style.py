@@ -206,12 +206,12 @@ TAG_CHIP_GAP_PX = 3
 
 
 def configure_tag_chip_label(label: QLabel | None) -> None:
-    """Apply appwide label behavior for one-row tag-chip displays."""
+    """Apply appwide rich-text label behavior for wrapping tag-chip lists."""
     if label is None:
         return
-    label.setWordWrap(False)
+    label.setWordWrap(True)
     label.setTextFormat(Qt.RichText)
-    label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+    label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
 
 
 def tag_chip_style(*, shared_by_all: bool = False) -> str:
