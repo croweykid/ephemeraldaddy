@@ -1252,6 +1252,7 @@ validate_transit_window_mode_flags()
 from ephemeraldaddy.gui.features.retcon.workers import RetconSearchWorker
 
 from ephemeraldaddy.gui.features.dialogues import FamiliarityCalculatorDialog, RetconEngineDialog
+from ephemeraldaddy.gui.cmd_pallette import CommandPaletteAction, install_command_palette
 
 from ephemeraldaddy.gui import help as help_notes
 from ephemeraldaddy.gui.settings_widgets import (
@@ -3018,6 +3019,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._shortcut_close_cmd.activated.connect(self.close)
         self._shortcut_fullscreen_toggle = QShortcut(QKeySequence("F11"), self)
         self._shortcut_fullscreen_toggle.activated.connect(self._toggle_fullscreen)
+        install_command_palette(self, self._command_palette_actions)
 
         self._initial_progress_pending = True
         self._restore_window_settings()
@@ -15917,6 +15919,72 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         self._show_left_panel("perceived_similarity_predictors")
 
+    def _command_palette_actions(self) -> list[CommandPaletteAction]:
+        """Return Database View quick-switcher commands."""
+
+        return [
+            CommandPaletteAction(
+                "Search",
+                self._show_search_database_panel,
+                keywords=("filter", "find", "database search", "right panel"),
+                subtitle="Show the Database View search/filter panel",
+            ),
+            CommandPaletteAction(
+                "New chart",
+                self._on_new_chart,
+                keywords=("create chart", "add chart", "birth data"),
+                subtitle="Switch to Chart View and start a new chart",
+            ),
+            CommandPaletteAction(
+                "Open Human Design",
+                self._on_menu_get_human_design_info,
+                keywords=("human design chart", "hd", "gates", "channels"),
+                subtitle="Open the selected chart's Human Design popout",
+            ),
+            CommandPaletteAction(
+                "Show Database Analytics",
+                self._show_database_analytics_panel,
+                keywords=("analytics", "database metrics", "metrics", "left panel"),
+                subtitle="Show the Database Analytics panel",
+            ),
+            CommandPaletteAction(
+                "Export selected",
+                self._on_export_selected_total_chart,
+                keywords=("export chart analysis", "total chart export", "download"),
+                subtitle="Export the selected chart's full analysis",
+            ),
+            CommandPaletteAction(
+                "Settings",
+                self._on_open_settings,
+                keywords=("preferences", "options", "configuration"),
+                subtitle="Open Settings & Preferences",
+            ),
+            CommandPaletteAction(
+                "Create Gemstone Chart",
+                self._on_menu_create_gemstone_chart,
+                keywords=("gem", "gemstone chartwheel", "chartwheel"),
+                subtitle="Create a gemstone chartwheel for the active chart",
+            ),
+            CommandPaletteAction(
+                "Show Similarities Analysis",
+                self._show_similarities_panel,
+                keywords=("similar charts", "astro twin", "similarity"),
+                subtitle="Show the Similarities Analysis panel",
+            ),
+            CommandPaletteAction(
+                "Show Current Transits",
+                self._show_current_transits_panel,
+                keywords=("transit", "today", "left panel"),
+                subtitle="Show today's transits panel",
+            ),
+            CommandPaletteAction(
+                "Database Manager",
+                self._on_open_database_manager,
+                keywords=("manage database", "backups", "database tools"),
+                subtitle="Open the Database Manager popup",
+            ),
+        ]
+
     def _show_database_analytics_panel(self) -> None:
         self._show_left_panel("database_metrics")
 
@@ -24702,6 +24770,7 @@ class MainWindow(QMainWindow):
         self._shortcut_close_cmd.activated.connect(self._on_close_requested)
         self._shortcut_fullscreen_toggle = QShortcut(QKeySequence("F11"), self)
         self._shortcut_fullscreen_toggle.activated.connect(self._toggle_fullscreen)
+        install_command_palette(self, self._command_palette_actions)
 
         self.chart_canvas = None
         self.sign_chart_canvas = None
@@ -28905,6 +28974,81 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Chart action", f"Unknown chart action: {action_name}")
 
 
+
+    def _command_palette_actions(self) -> list[CommandPaletteAction]:
+        """Return Chart View quick-switcher commands."""
+
+        def show_database_panel(panel_callback_name: str) -> None:
+            self.on_manage_charts()
+            dialog = self._get_or_create_manage_charts_dialog()
+            callback = getattr(dialog, panel_callback_name, None)
+            if callable(callback):
+                QTimer.singleShot(0, callback)
+
+        def open_database_settings() -> None:
+            self.on_manage_charts()
+            dialog = self._get_or_create_manage_charts_dialog()
+            QTimer.singleShot(0, dialog._on_open_settings)
+
+        def export_active_chart() -> None:
+            self._run_chart_action_from_active_context("export_chart")
+
+        return [
+            CommandPaletteAction(
+                "Search",
+                lambda: show_database_panel("_show_search_database_panel"),
+                keywords=("filter", "find", "database search", "right panel"),
+                subtitle="Switch to Database View and show search/filter tools",
+            ),
+            CommandPaletteAction(
+                "New chart",
+                self.on_new_chart,
+                keywords=("create chart", "add chart", "birth data"),
+                subtitle="Clear Chart View inputs for a new chart",
+            ),
+            CommandPaletteAction(
+                "Open Human Design",
+                lambda: self._run_chart_action_from_active_context("get_human_design_info"),
+                keywords=("human design chart", "hd", "gates", "channels"),
+                subtitle="Open the active chart's Human Design popout",
+            ),
+            CommandPaletteAction(
+                "Show Database Analytics",
+                lambda: show_database_panel("_show_database_analytics_panel"),
+                keywords=("analytics", "database metrics", "metrics", "left panel"),
+                subtitle="Switch to Database View and show Database Analytics",
+            ),
+            CommandPaletteAction(
+                "Export selected",
+                export_active_chart,
+                keywords=("export chart", "download", "selected chart"),
+                subtitle="Export the active chart",
+            ),
+            CommandPaletteAction(
+                "Settings",
+                open_database_settings,
+                keywords=("preferences", "options", "configuration"),
+                subtitle="Open Settings & Preferences",
+            ),
+            CommandPaletteAction(
+                "Create Gemstone Chart",
+                lambda: self._run_chart_action_from_active_context("create_gemstone_chartwheel"),
+                keywords=("gem", "gemstone chartwheel", "chartwheel"),
+                subtitle="Create a gemstone chartwheel for the active chart",
+            ),
+            CommandPaletteAction(
+                "Open BaZi",
+                lambda: self._run_chart_action_from_active_context("open_bazi_window"),
+                keywords=("bazi", "four pillars"),
+                subtitle="Open the active chart's BaZi popout",
+            ),
+            CommandPaletteAction(
+                "Open Database View",
+                self.on_manage_charts,
+                keywords=("database", "charts manager", "switch view"),
+                subtitle="Switch to Database View",
+            ),
+        ]
 
 
 
