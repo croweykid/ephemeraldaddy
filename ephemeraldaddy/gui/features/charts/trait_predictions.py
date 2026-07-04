@@ -404,6 +404,22 @@ def _trait_uid_for_item(trait: dict[str, Any]) -> str:
     return trait_uid_for_profile(name, trait.get("profile", {}) if isinstance(trait.get("profile"), dict) else {})
 
 
+def _trait_signature_payload(traits: list[dict[str, Any]], *, strip_uids: bool = False) -> dict[str, Any]:
+    trait_payloads: list[dict[str, Any]] = []
+    for trait in traits:
+        profile = trait.get("profile", {})
+        if strip_uids and isinstance(profile, dict):
+            profile = {key: value for key, value in profile.items() if str(key) not in {"uid", "trait_uid"}}
+        trait_payloads.append(
+            {
+                "name": trait.get("name", ""),
+                "color": normalize_trait_color(str(trait.get("color", DEFAULT_TRAIT_COLOR))),
+                "profile": profile,
+            }
+        )
+    return {"version": TRAIT_DB_NORMS_CACHE_VERSION, "traits": trait_payloads}
+
+
 def _trait_norm_cache_key(chart_uids: tuple[str, ...], trait: dict[str, Any]) -> str | None:
     name = str(trait.get("name", "")).strip()
     if not name or bool(trait.get("archived", False)):
@@ -605,19 +621,8 @@ def trait_metadata_for_chart(owner: Any, chart: Any) -> dict[str, Any]:
         setattr(chart, "predicted_trait_deviations", {})
         return metadata
 
-    trait_signature = _stable_json_hash(
-        {
-            "version": TRAIT_DB_NORMS_CACHE_VERSION,
-            "traits": [
-                {
-                    "name": trait.get("name", ""),
-                    "color": normalize_trait_color(str(trait.get("color", DEFAULT_TRAIT_COLOR))),
-                    "profile": trait.get("profile", {}),
-                }
-                for trait in traits
-            ],
-        }
-    )
+    trait_signature = _stable_json_hash(_trait_signature_payload(traits))
+    legacy_trait_signature = _stable_json_hash(_trait_signature_payload(traits, strip_uids=True))
     norm_signature = _database_norm_signature_for_traits(owner, traits)
     chart_signature = _chart_trait_metadata_signature(chart)
     signature = (TRAIT_DB_NORMS_CACHE_VERSION, trait_signature, norm_signature, chart_signature)
@@ -650,7 +655,11 @@ def trait_metadata_for_chart(owner: Any, chart: Any) -> dict[str, Any]:
             if trait is None:
                 continue
             row_trait_signature = str(row.get("trait_signature", ""))
-            valid_trait_signature = row_trait_signature in {trait_signature, _trait_definition_signature(trait)}
+            valid_trait_signature = row_trait_signature in {
+                trait_signature,
+                legacy_trait_signature,
+                _trait_definition_signature(trait),
+            }
             if (
                 valid_trait_signature
                 and str(row.get("norm_signature", "")) == norm_signature

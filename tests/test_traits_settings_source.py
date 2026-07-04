@@ -114,3 +114,19 @@ def test_trait_uid_source_and_metadata_wiring_are_present():
     assert "trait_uid = excluded.trait_uid" in db_source
     assert "traits_by_uid" in predictions_source
     assert '"trait_uid": trait_uids_by_name.get(name, "")' in predictions_source
+
+
+def test_legacy_trait_signature_and_parenthesized_names_are_preserved():
+    predictions_source = (
+        ROOT / "ephemeraldaddy" / "gui" / "features" / "charts" / "trait_predictions.py"
+    ).read_text(encoding="utf-8")
+    settings_source = (ROOT / "ephemeraldaddy" / "gui" / "features" / "settings" / "traits.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert "def _trait_signature_payload" in predictions_source
+    assert "legacy_trait_signature" in predictions_source
+    assert "strip_uids=True" in predictions_source
+    assert "item.setData(Qt.UserRole + 5, name)" in settings_source
+    assert "raw_name = item.data(Qt.UserRole + 5)" in settings_source
+    assert "text.endswith(suffix)" in settings_source

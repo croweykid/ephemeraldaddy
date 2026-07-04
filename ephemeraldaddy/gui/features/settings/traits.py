@@ -126,7 +126,14 @@ def selected_trait_item(owner: Any) -> QListWidgetItem | None:
 
 
 def _trait_display_name(item: QListWidgetItem) -> str:
-    return item.text().split(" (", 1)[0]
+    raw_name = item.data(Qt.UserRole + 5)
+    if raw_name is not None:
+        return str(raw_name)
+    text = item.text()
+    for suffix in (" (default, archived)", " (default)", " (archived)"):
+        if text.endswith(suffix):
+            return text[: -len(suffix)]
+    return text
 
 
 def refresh_traits_settings_list(owner: Any) -> None:
@@ -154,6 +161,7 @@ def refresh_traits_settings_list(owner: Any) -> None:
             item.setData(Qt.UserRole + 2, archived)
             item.setData(Qt.UserRole + 3, str(trait.get("description", "")).strip())
             item.setData(Qt.UserRole + 4, bundled)
+            item.setData(Qt.UserRole + 5, name)
             item.setForeground(QColor(color))
             list_widget.addItem(item)
             if str(trait["path"]) == current_path:
