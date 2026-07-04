@@ -108,7 +108,7 @@ def _is_human_design_menu_enabled(owner: "QWidget") -> bool:
     get_visibility = getattr(visibility_store, "get", None)
     if not callable(get_visibility):
         return False
-    return bool(get_visibility("chart_data.human_design_alpha_prototype"))
+    return bool(get_visibility("chart_data.human_design"))
 
 
 def _show_about_from_onboarding(owner: "QWidget") -> None:

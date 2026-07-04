@@ -1252,6 +1252,7 @@ validate_transit_window_mode_flags()
 from ephemeraldaddy.gui.features.retcon.workers import RetconSearchWorker
 
 from ephemeraldaddy.gui.features.dialogues import FamiliarityCalculatorDialog, RetconEngineDialog
+from ephemeraldaddy.gui.cmd_pallette import CommandPaletteAction, install_command_palette
 
 from ephemeraldaddy.gui import help as help_notes
 from ephemeraldaddy.gui.settings_widgets import (
@@ -1262,6 +1263,7 @@ from ephemeraldaddy.gui.settings_widgets import (
 from ephemeraldaddy.gui.style import (
     APPWIDE_DARK_THEME_STYLESHEET,
     build_tag_chip_html,
+    configure_tag_chip_label,
     CHART_VIEW_RECTIFIED_GROUP_LEFT_SPACER,
     CHART_VIEW_RECTIFIED_LABEL_CHECKBOX_SPACING,
     CHART_VIEW_TIME_INPUT_DISPLAY_FORMAT,
@@ -1340,6 +1342,7 @@ from ephemeraldaddy.gui.style import (
     similarity_gradient_rgb_for_range,
     configure_collapsible_header_toggle,
     configure_static_collapsible_header_label,
+    set_collapsible_header_title,
     install_appwide_cursor_defaults,
     set_chart_info_text,
     format_chart_header,
@@ -3016,6 +3019,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._shortcut_close_cmd.activated.connect(self.close)
         self._shortcut_fullscreen_toggle = QShortcut(QKeySequence("F11"), self)
         self._shortcut_fullscreen_toggle.activated.connect(self._toggle_fullscreen)
+        install_command_palette(self, self._command_palette_actions)
 
         self._initial_progress_pending = True
         self._restore_window_settings()
@@ -7748,9 +7752,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         stored_base_title = str(toggle.property("similarities_base_title") or toggle.text())
         base_title = display_title or stored_base_title
         if not show_no_match_row and not matches:
-            toggle.setText(base_title)
+            set_collapsible_header_title(toggle, base_title)
         else:
-            toggle.setText(f"{len(matches)} {base_title}")
+            set_collapsible_header_title(toggle, f"{len(matches)} {base_title}")
         if matches:
             filtered_matches: list[tuple[str, int, int, int, int]] = []
             for label, match_count, total_count in matches:
@@ -7771,7 +7775,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     continue
                 filtered_matches.append((label, match_count, total_count, db_match_count, db_label_total_count))
 
-            toggle.setText(f"{len(filtered_matches)} {base_title}")
+            set_collapsible_header_title(toggle, f"{len(filtered_matches)} {base_title}")
             for label, match_count, total_count, db_match_count, db_label_total_count in filtered_matches:
                 percent_value = int(round((match_count / total_count) * 100)) if total_count else 0
                 db_percent_value = (
@@ -13599,12 +13603,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         tagging_row.addWidget(batch_tags_apply_button, 0)
         tagging_section_layout.addLayout(tagging_row)
         self.batch_tags_preview_label = QLabel()
-        self.batch_tags_preview_label.setWordWrap(True)
-        self.batch_tags_preview_label.setTextFormat(Qt.RichText)
+        configure_tag_chip_label(self.batch_tags_preview_label)
         tagging_section_layout.addWidget(self.batch_tags_preview_label)
         self.batch_tags_selection_label = QLabel()
-        self.batch_tags_selection_label.setWordWrap(True)
-        self.batch_tags_selection_label.setTextFormat(Qt.RichText)
+        configure_tag_chip_label(self.batch_tags_selection_label)
         self.batch_tags_selection_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
         self.batch_tags_selection_label.setCursor(Qt.PointingHandCursor)
         self.batch_tags_selection_label.linkActivated.connect(self._on_batch_tag_remove_link_clicked)
@@ -15916,6 +15918,72 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._set_left_panel_visible(False)
             return
         self._show_left_panel("perceived_similarity_predictors")
+
+    def _command_palette_actions(self) -> list[CommandPaletteAction]:
+        """Return Database View quick-switcher commands."""
+
+        return [
+            CommandPaletteAction(
+                "Search",
+                self._show_search_database_panel,
+                keywords=("filter", "find", "database search", "right panel"),
+                subtitle="Show the Database View search/filter panel",
+            ),
+            CommandPaletteAction(
+                "New chart",
+                self._on_new_chart,
+                keywords=("create chart", "add chart", "birth data"),
+                subtitle="Switch to Chart View and start a new chart",
+            ),
+            CommandPaletteAction(
+                "Open Human Design",
+                self._on_menu_get_human_design_info,
+                keywords=("human design chart", "hd", "gates", "channels"),
+                subtitle="Open the selected chart's Human Design popout",
+            ),
+            CommandPaletteAction(
+                "Show Database Analytics",
+                self._show_database_analytics_panel,
+                keywords=("analytics", "database metrics", "metrics", "left panel"),
+                subtitle="Show the Database Analytics panel",
+            ),
+            CommandPaletteAction(
+                "Export selected",
+                self._on_export_selected_total_chart,
+                keywords=("export chart analysis", "total chart export", "download"),
+                subtitle="Export the selected chart's full analysis",
+            ),
+            CommandPaletteAction(
+                "Settings",
+                self._on_open_settings,
+                keywords=("preferences", "options", "configuration"),
+                subtitle="Open Settings & Preferences",
+            ),
+            CommandPaletteAction(
+                "Create Gemstone Chart",
+                self._on_menu_create_gemstone_chart,
+                keywords=("gem", "gemstone chartwheel", "chartwheel"),
+                subtitle="Create a gemstone chartwheel for the active chart",
+            ),
+            CommandPaletteAction(
+                "Show Similarities Analysis",
+                self._show_similarities_panel,
+                keywords=("similar charts", "astro twin", "similarity"),
+                subtitle="Show the Similarities Analysis panel",
+            ),
+            CommandPaletteAction(
+                "Show Current Transits",
+                self._show_current_transits_panel,
+                keywords=("transit", "today", "left panel"),
+                subtitle="Show today's transits panel",
+            ),
+            CommandPaletteAction(
+                "Database Manager",
+                self._on_open_database_manager,
+                keywords=("manage database", "backups", "database tools"),
+                subtitle="Open the Database Manager popup",
+            ),
+        ]
 
     def _show_database_analytics_panel(self) -> None:
         self._show_left_panel("database_metrics")
@@ -21181,24 +21249,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         visibility_section = self._add_settings_collapsible_section(
             content_layout,
-            "Optional Modules",
+            "Show/Hide Modules",
         )
 
-        analytics_visibility_section = self._add_settings_collapsible_section(
-            content_layout,
-            "Analytics Visibility",
-        )
-        analytics_visibility_section.addWidget(self._build_settings_subheader_label("Chart View Predictions"))
-        dnd_statblock_explainers_checkbox = QCheckBox("Show D&&D Statblock explainers")
-        dnd_statblock_explainers_checkbox.setChecked(
-            self._visibility.get("analytics.dnd_statblock_explainers")
-        )
-        dnd_statblock_explainers_checkbox.toggled.connect(
-            self._set_dnd_statblock_explainer_visibility_from_settings
-        )
-        analytics_visibility_section.addWidget(dnd_statblock_explainers_checkbox)
-
-        visibility_section.addWidget(self._build_settings_subheader_label("Chart Data Panel (Chart View)"))
+        visibility_section.addWidget(self._build_settings_subheader_label("Chart Data (Chart View)"))
 
         cursedness_checkbox = QCheckBox("Show cursedness analysis")
         cursedness_checkbox.setChecked(self._visibility.get("chart_data.cursedness"))
@@ -21214,29 +21268,21 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         visibility_section.addWidget(dnd_species_checkbox)
 
-        human_design_alpha_checkbox = QCheckBox("Show Human Design (alpha prototype)")
+        human_design_alpha_checkbox = QCheckBox("Show Human Design gates/lines")
         human_design_alpha_checkbox.setChecked(
-            self._visibility.get("chart_data.human_design_alpha_prototype")
+            self._visibility.get("chart_data.human_design")
         )
         human_design_alpha_checkbox.toggled.connect(
             lambda checked: self._set_chart_data_visibility(
-                "chart_data.human_design_alpha_prototype",
+                "chart_data.human_design",
                 checked,
             )
         )
         visibility_section.addWidget(human_design_alpha_checkbox)
 
         visibility_section.addSpacing(8)
-        visibility_section.addWidget(self._build_settings_subheader_label("Synastry Charts (Popout Charts)"))
 
-        synastry_aspect_weights_checkbox = QCheckBox("Show Synastry popout Aspect Weights")
-        synastry_aspect_weights_checkbox.setChecked(self._visibility.get("popout.synastry_aspect_weights"))
-        synastry_aspect_weights_checkbox.toggled.connect(
-            lambda checked: self._set_popout_visibility("popout.synastry_aspect_weights", checked)
-        )
-        visibility_section.addWidget(synastry_aspect_weights_checkbox)
-
-        visibility_section.addWidget(self._build_settings_subheader_label("Chart Analytics Panel (Chart View View)"))
+        visibility_section.addWidget(self._build_settings_subheader_label("Chart Analytics (Chart View)"))
 
         planet_dynamics_checkbox = QCheckBox("Show Body Dynamics (Chart Analytics)")
         parent = self._owner_window()
@@ -21276,17 +21322,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         visibility_section.addWidget(anagrams_checkbox)
 
-        visibility_section.addSpacing(8)
-        visibility_section.addWidget(self._build_settings_subheader_label("Data Visualization"))
 
-        standard_deviation_checkbox = QCheckBox("Show standard deviation indicator lines")
-        standard_deviation_checkbox.setChecked(
-            self._visibility.get("charts.standard_deviation_indicators")
+        visibility_section.addSpacing(8)
+        visibility_section.addWidget(self._build_settings_subheader_label("Predictions (popout chart)"))
+
+        dnd_statblock_explainers_checkbox = QCheckBox("Show D&&D Statblock explainers")
+        dnd_statblock_explainers_checkbox.setChecked(
+            self._visibility.get("analytics.dnd_statblock_explainers")
         )
-        standard_deviation_checkbox.toggled.connect(
-            self._set_standard_deviation_indicator_visibility_from_settings
+        dnd_statblock_explainers_checkbox.toggled.connect(
+            self._set_dnd_statblock_explainer_visibility_from_settings
         )
-        visibility_section.addWidget(standard_deviation_checkbox)
+        visibility_section.addWidget(dnd_statblock_explainers_checkbox)
+
 
         visibility_section.addSpacing(8)
         visibility_section.addWidget(self._build_settings_subheader_label("Database Analytics Panel (DB View)"))
@@ -21314,6 +21362,28 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
         )
         visibility_section.addWidget(bazi_checkbox)
+
+        visibility_section.addSpacing(8)
+        visibility_section.addWidget(self._build_settings_subheader_label("Data Visualization"))
+
+        standard_deviation_checkbox = QCheckBox("Show standard deviation indicator lines")
+        standard_deviation_checkbox.setChecked(
+            self._visibility.get("charts.standard_deviation_indicators")
+        )
+        standard_deviation_checkbox.toggled.connect(
+            self._set_standard_deviation_indicator_visibility_from_settings
+        )
+        visibility_section.addWidget(standard_deviation_checkbox)
+
+        visibility_section.addSpacing(8)
+        visibility_section.addWidget(self._build_settings_subheader_label("Synastry Charts"))
+
+        synastry_aspect_weights_checkbox = QCheckBox("Show Synastry Aspect Weights")
+        synastry_aspect_weights_checkbox.setChecked(self._visibility.get("popout.synastry_aspect_weights"))
+        synastry_aspect_weights_checkbox.toggled.connect(
+            lambda checked: self._set_popout_visibility("popout.synastry_aspect_weights", checked)
+        )
+        visibility_section.addWidget(synastry_aspect_weights_checkbox)
 
         database_view_section = self._add_settings_collapsible_section(
             content_layout,
@@ -22719,7 +22789,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _set_chart_data_visibility(self, key: str, checked: bool) -> None:
         self._visibility.set(key, checked)
-        if key == "chart_data.human_design_alpha_prototype":
+        if key == "chart_data.human_design":
             self._refresh_human_design_menu_visibility()
 
         parent = self._owner_window()
@@ -24337,51 +24407,6 @@ class MainWindow(QMainWindow):
         reminds_me_of_box_layout.addWidget(reminds_me_of_content_widget)
         sentiment_relation_layout.addWidget(reminds_me_of_box)
 
-        tags_box = QFrame()
-        tags_box.setStyleSheet(
-            "QFrame {"
-            "background-color: #1c1c1c;"
-            "border: 1px solid #2b2b2b;"
-            "border-radius: 6px;"
-            "}"
-        )
-        tags_box_layout = QVBoxLayout()
-        tags_box_layout.setContentsMargins(8, 8, 8, 8)
-        tags_box_layout.setSpacing(6)
-        tags_box.setLayout(tags_box_layout)
-        tags_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
-
-        self.tags_panel_toggle = QToolButton()
-        configure_collapsible_header_toggle(
-            self.tags_panel_toggle,
-            title="Tags",
-            expanded=False,
-            style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
-        )
-        tags_box_layout.addWidget(self.tags_panel_toggle)
-
-        tags_content_widget = QWidget()
-        tags_content_layout = QVBoxLayout()
-        tags_content_layout.setContentsMargins(0, 0, 0, 0)
-        tags_content_layout.setSpacing(4)
-        tags_content_widget.setLayout(tags_content_layout)
-        self.chart_tags_input = QLineEdit()
-        setup_chart_view_tags_section(
-            owner=self,
-            tags_content_layout=tags_content_layout,
-        )
-        self.tags_panel_toggle.toggled.connect(
-            lambda expanded: self._toggle_chart_panel_content(
-                self.tags_panel_toggle,
-                tags_content_widget,
-                expanded,
-            )
-        )
-        tags_content_widget.setVisible(False)
-        tags_box_layout.addWidget(tags_content_widget)
-        sentiment_relation_layout.addWidget(tags_box)
-        self._update_tag_completers()
-
         sentiment_metrics_row = QWidget()
         sentiment_metrics_row.setSizePolicy(
             QSizePolicy.Maximum,
@@ -24406,6 +24431,21 @@ class MainWindow(QMainWindow):
         self.comments_edit.textChanged.connect(self._mark_lucygoosey)
         self.comments_edit.setMinimumHeight(140)
         self.chart_info_content_stack.addWidget(self.comments_edit)
+
+        self.chart_tags_panel_widget = QWidget()
+        chart_tags_panel_layout = QVBoxLayout()
+        chart_tags_panel_layout.setContentsMargins(0, 0, 0, 0)
+        chart_tags_panel_layout.setSpacing(6)
+        self.chart_tags_panel_widget.setLayout(chart_tags_panel_layout)
+        self.chart_tags_input = QLineEdit()
+        setup_chart_view_tags_section(
+            owner=self,
+            tags_content_layout=chart_tags_panel_layout,
+        )
+        self.chart_tags_panel_widget.setMinimumHeight(140)
+        self.chart_info_content_stack.addWidget(self.chart_tags_panel_widget)
+        self._update_tag_completers()
+
         self.rectification_edit = QTextEdit()
         self.rectification_edit.setPlaceholderText("Rectification Notes: if birth data/time is unknown, any notes about what dates/time(s) it might be & why can go here.")
         self.rectification_edit.textChanged.connect(self._mark_lucygoosey)
@@ -24730,6 +24770,7 @@ class MainWindow(QMainWindow):
         self._shortcut_close_cmd.activated.connect(self._on_close_requested)
         self._shortcut_fullscreen_toggle = QShortcut(QKeySequence("F11"), self)
         self._shortcut_fullscreen_toggle.activated.connect(self._toggle_fullscreen)
+        install_command_palette(self, self._command_palette_actions)
 
         self.chart_canvas = None
         self.sign_chart_canvas = None
@@ -24900,7 +24941,7 @@ class MainWindow(QMainWindow):
         toggle = section_widget.findChild(QToolButton)
         if toggle is None:
             return
-        toggle.setText(self._similar_charts_section_title())
+        set_collapsible_header_title(toggle, self._similar_charts_section_title())
 
     def _collapse_similar_charts_section(self) -> None:
         self._chart_analysis_section_expanded["similar_charts"] = False
@@ -28934,6 +28975,81 @@ class MainWindow(QMainWindow):
 
 
 
+    def _command_palette_actions(self) -> list[CommandPaletteAction]:
+        """Return Chart View quick-switcher commands."""
+
+        def show_database_panel(panel_callback_name: str) -> None:
+            self.on_manage_charts()
+            dialog = self._get_or_create_manage_charts_dialog()
+            callback = getattr(dialog, panel_callback_name, None)
+            if callable(callback):
+                QTimer.singleShot(0, callback)
+
+        def open_database_settings() -> None:
+            self.on_manage_charts()
+            dialog = self._get_or_create_manage_charts_dialog()
+            QTimer.singleShot(0, dialog._on_open_settings)
+
+        def export_active_chart() -> None:
+            self._run_chart_action_from_active_context("export_chart")
+
+        return [
+            CommandPaletteAction(
+                "Search",
+                lambda: show_database_panel("_show_search_database_panel"),
+                keywords=("filter", "find", "database search", "right panel"),
+                subtitle="Switch to Database View and show search/filter tools",
+            ),
+            CommandPaletteAction(
+                "New chart",
+                self.on_new_chart,
+                keywords=("create chart", "add chart", "birth data"),
+                subtitle="Clear Chart View inputs for a new chart",
+            ),
+            CommandPaletteAction(
+                "Open Human Design",
+                lambda: self._run_chart_action_from_active_context("get_human_design_info"),
+                keywords=("human design chart", "hd", "gates", "channels"),
+                subtitle="Open the active chart's Human Design popout",
+            ),
+            CommandPaletteAction(
+                "Show Database Analytics",
+                lambda: show_database_panel("_show_database_analytics_panel"),
+                keywords=("analytics", "database metrics", "metrics", "left panel"),
+                subtitle="Switch to Database View and show Database Analytics",
+            ),
+            CommandPaletteAction(
+                "Export selected",
+                export_active_chart,
+                keywords=("export chart", "download", "selected chart"),
+                subtitle="Export the active chart",
+            ),
+            CommandPaletteAction(
+                "Settings",
+                open_database_settings,
+                keywords=("preferences", "options", "configuration"),
+                subtitle="Open Settings & Preferences",
+            ),
+            CommandPaletteAction(
+                "Create Gemstone Chart",
+                lambda: self._run_chart_action_from_active_context("create_gemstone_chartwheel"),
+                keywords=("gem", "gemstone chartwheel", "chartwheel"),
+                subtitle="Create a gemstone chartwheel for the active chart",
+            ),
+            CommandPaletteAction(
+                "Open BaZi",
+                lambda: self._run_chart_action_from_active_context("open_bazi_window"),
+                keywords=("bazi", "four pillars"),
+                subtitle="Open the active chart's BaZi popout",
+            ),
+            CommandPaletteAction(
+                "Open Database View",
+                self.on_manage_charts,
+                keywords=("database", "charts manager", "switch view"),
+                subtitle="Switch to Database View",
+            ),
+        ]
+
 
 
     def _default_gemstone_chartwheel_filename(self, chart: Chart) -> str:
@@ -29316,16 +29432,17 @@ class MainWindow(QMainWindow):
         )
 
     def _set_chart_info_panel_mode(self, mode: str) -> None:
-        if mode not in {"chart_info", "comments", "rectification", "biography", "source"}:
+        if mode not in {"chart_info", "comments", "tags", "rectification", "biography", "source"}:
             return
         self._chart_info_panel_mode = mode
         if hasattr(self, "chart_info_content_stack"):
             mode_to_index = {
                 "chart_info": 0,
                 "comments": 1,
-                "rectification": 2,
-                "biography": 3,
-                "source": 4,
+                "tags": 2,
+                "rectification": 3,
+                "biography": 4,
+                "source": 5,
             }
             self.chart_info_content_stack.setCurrentIndex(mode_to_index[mode])
         self._refresh_chart_info_panel_toggle_buttons()

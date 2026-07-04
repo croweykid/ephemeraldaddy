@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QListView,
     QProgressDialog,
+    QHBoxLayout,
     QScrollArea,
     QSizePolicy,
     QToolButton,
@@ -201,6 +202,16 @@ TAG_CHIP_MUTED_TEXT_COLOR = "#d6d1c9"
 TAG_CHIP_BORDER_COLOR = "#4a4a4a"
 TAG_CHIP_ALL_SELECTED_BORDER_COLOR = "#9d4edd"
 TAG_CHIP_REMOVE_COLOR = "#ff6f6f"
+TAG_CHIP_GAP_PX = 3
+
+
+def configure_tag_chip_label(label: QLabel | None) -> None:
+    """Apply appwide rich-text label behavior for wrapping tag-chip lists."""
+    if label is None:
+        return
+    label.setWordWrap(True)
+    label.setTextFormat(Qt.RichText)
+    label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
 
 
 def tag_chip_style(*, shared_by_all: bool = False) -> str:
@@ -220,7 +231,7 @@ def tag_chip_style(*, shared_by_all: bool = False) -> str:
         f"border:1px solid {border};"
         "border-radius:999px;"
         "padding:2px 8px;"
-        "margin:2px 4px 2px 0;"
+        f"margin:2px {TAG_CHIP_GAP_PX}px 2px 0;"
     )
 
 
@@ -229,7 +240,7 @@ def tag_remove_link_style() -> str:
     return (
         "display:inline-block;"
         "white-space:nowrap;"
-        "margin-left:5px;"
+        f"margin-left:{TAG_CHIP_GAP_PX}px;"
         f"color:{TAG_CHIP_REMOVE_COLOR};"
         "text-decoration:none;"
         "font-weight:700;"
@@ -405,15 +416,40 @@ def _colorized_plain_chart_info_fragment(text: str) -> str:
         return ""
     text = html.unescape(text)
     tokens = _sorted_chart_info_tokens()
-    pattern_parts = [re.escape(token) for token, _color in tokens if token]
+    uppercase_word_only_tokens = {"AS", "IC", "G"}
+    strict_pattern_parts = [
+        re.escape(token)
+        for token, _color in tokens
+        if token in uppercase_word_only_tokens
+    ]
+    pattern_parts = [
+        re.escape(token)
+        for token, _color in tokens
+        if token and token not in uppercase_word_only_tokens
+    ]
     weight_pattern = r"(?<![\w.])[-+]\d+(?:\.\d+)?(?![\w.])"
     channel_pattern = r"\bChannel\s+\d{1,2}-\d{1,2}\b"
+    strict_token_pattern = (
+        rf"(?<!\w)(?:{'|'.join(strict_pattern_parts)})(?!\w)"
+        if strict_pattern_parts
+        else ""
+    )
     if pattern_parts:
         token_pattern = "|".join(pattern_parts)
-        pattern = re.compile(f"({weight_pattern})|({channel_pattern})|({token_pattern})", re.IGNORECASE)
+        token_group = f"(?i:{token_pattern})"
+        if strict_token_pattern:
+            pattern = re.compile(
+                f"({weight_pattern})|({channel_pattern})|({strict_token_pattern})|({token_group})"
+            )
+        else:
+            pattern = re.compile(f"({weight_pattern})|({channel_pattern})|({token_group})")
     else:
-        pattern = re.compile(f"({weight_pattern})|({channel_pattern})", re.IGNORECASE)
+        if strict_token_pattern:
+            pattern = re.compile(f"({weight_pattern})|({channel_pattern})|({strict_token_pattern})")
+        else:
+            pattern = re.compile(f"({weight_pattern})|({channel_pattern})")
     color_by_casefold = {token.casefold(): color for token, color in tokens}
+    color_by_exact = {token: color for token, color in tokens}
 
     rendered: list[str] = []
     last = 0
@@ -425,6 +461,8 @@ def _colorized_plain_chart_info_fragment(text: str) -> str:
             color = CHART_INFO_POSITIVE_WEIGHT_COLOR if raw.startswith("+") else CHART_INFO_NEGATIVE_WEIGHT_COLOR
         elif re.match(channel_pattern, raw, re.IGNORECASE):
             color = CHART_DATA_HIGHLIGHT_COLOR
+        elif raw in uppercase_word_only_tokens:
+            color = color_by_exact.get(raw)
         else:
             color = color_by_casefold.get(raw.casefold())
         escaped = html.escape(raw)
@@ -936,6 +974,7 @@ DATABASE_VIEW_PANEL_HEADER_STYLE = (
 CHART_DATA_HIGHLIGHT_COLOR = MIDDLE_PANEL_ACCENT_COLOR
 COLLAPSIBLE_SECTION_HEADER_WIGGLE_DURATION_MS = 220
 COLLAPSIBLE_SECTION_HEADER_WIGGLE_OFFSET_PX = 4
+COLLAPSIBLE_STATIC_HEADER_LEFT_ALIGNMENT_STYLE = "text-align: left;"
 
 
 def collapsible_section_header_toggle_style(
@@ -965,6 +1004,7 @@ COLLAPSIBLE_SECTION_STATIC_HEADER_STYLE = (
     "color: #ffffff; "
     "padding: 6px; text-align: left; "
     f"background-color: {COLLAPSIBLE_HEADER_BACKGROUND};"
+    f"{COLLAPSIBLE_STATIC_HEADER_LEFT_ALIGNMENT_STYLE}"
 )
 SETTINGS_COLLAPSIBLE_TOGGLE_STYLE = collapsible_section_header_toggle_style(
     text_color=DATABASE_VIEW_HEADER_COLOR,
@@ -973,6 +1013,10 @@ SETTINGS_SECTION_SUBHEADER_STYLE = "font-weight: 700;"
 DATABASE_ANALYTICS_COLLAPSIBLE_TOGGLE_STYLE = DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE
 CHART_DATA_MONOSPACE_FONT_FAMILY = "Courier New"
 CHART_DATA_DIVIDER = "---------"
+CHART_DATA_SECTION_HEADER_STYLE = {
+    "background_color": COLOR_BG_ELEVATED,
+    "text_color": COLOR_TEXT_PRIMARY,
+}
 CHART_DATA_SECTION_HEADERS = (
     "CHART INFO",
     "CORE DESIGNATION",
@@ -1033,26 +1077,6 @@ CHART_INFO_SPECIES_DESCRIPTION_ITALIC = True
 CHART_INFO_EVIDENCE_LABEL_BOLD = True
 
 
-class _CollapsibleHeaderHoverFilter(QObject):
-    """Keep section-header hover color consistent for stylesheets without QSS hover blocks."""
-
-    def __init__(self, toggle: QToolButton, base_style_sheet: str) -> None:
-        super().__init__(toggle)
-        self._toggle = toggle
-        self._base_style_sheet = base_style_sheet
-
-    def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802 - Qt API
-        if watched is self._toggle:
-            if event.type() == QEvent.Enter:
-                self._toggle.setStyleSheet(
-                    f"{self._base_style_sheet} "
-                    f"QToolButton {{ color: {CHART_DATA_HIGHLIGHT_COLOR}; }}"
-                )
-            elif event.type() in (QEvent.Leave, QEvent.Hide, QEvent.EnabledChange):
-                self._toggle.setStyleSheet(self._base_style_sheet)
-        return super().eventFilter(watched, event)
-
-
 def _run_collapsible_header_wiggle(toggle: QToolButton) -> None:
     """Animate a compact up/down wiggle on a clicked collapsible header."""
     origin = toggle.pos()
@@ -1083,12 +1107,7 @@ def _run_collapsible_header_wiggle(toggle: QToolButton) -> None:
 
 
 def _install_collapsible_header_interactions(toggle: QToolButton, style_sheet: str) -> None:
-    """Install the shared hover and click-wiggle behavior on a collapsible header."""
-    if not toggle.property("collapsible_header_hover_filter_installed"):
-        hover_filter = _CollapsibleHeaderHoverFilter(toggle, style_sheet)
-        toggle.installEventFilter(hover_filter)
-        toggle._collapsible_header_hover_filter = hover_filter  # type: ignore[attr-defined]
-        toggle.setProperty("collapsible_header_hover_filter_installed", True)
+    """Install the shared click-wiggle and autoscroll behavior on a collapsible header."""
     if not toggle.property("collapsible_header_wiggle_installed"):
         toggle.clicked.connect(
             lambda _checked=False, header_toggle=toggle: _run_collapsible_header_wiggle(
@@ -1194,6 +1213,20 @@ def configure_share_export_icon_button(
     button.setToolTip(tooltip)
 
 
+def _extract_qss_color(style_sheet: str, fallback: str = COLOR_TEXT_PRIMARY) -> str:
+    """Return the first CSS color declaration from a QSS block."""
+    match = re.search(r"(?:^|[;{]\s*)color\s*:\s*([^;}]+)", style_sheet)
+    return match.group(1).strip() if match else fallback
+
+
+def set_collapsible_header_title(toggle: QToolButton, title: str) -> None:
+    """Set the visible left-aligned title for a configured collapsible header."""
+    toggle.setText(title)
+    title_label = getattr(toggle, "_collapsible_header_title_label", None)
+    if isinstance(title_label, QLabel):
+        title_label.setText(title)
+
+
 def configure_collapsible_header_toggle(
     toggle: QToolButton,
     *,
@@ -1202,14 +1235,28 @@ def configure_collapsible_header_toggle(
     style_sheet: str,
 ) -> None:
     """Apply default shared behavior for collapsible/expandable section headers."""
-    toggle.setText(title)
     toggle.setCheckable(True)
     toggle.setChecked(expanded)
     toggle.setArrowType(Qt.NoArrow)
-    toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+    toggle.setToolButtonStyle(Qt.ToolButtonTextOnly)
     toggle.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-    toggle.setStyleSheet(style_sheet)
+    toggle.setStyleSheet(f"{style_sheet} QToolButton {{ color: transparent; }}")
     toggle.setLayoutDirection(Qt.LeftToRight)
+
+    title_label = QLabel(toggle)
+    title_label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+    title_label.setStyleSheet(
+        "background: transparent; "
+        f"color: {_extract_qss_color(style_sheet)}; "
+        "font-weight: bold; font-size: 12px;"
+    )
+    title_layout = QHBoxLayout(toggle)
+    title_layout.setContentsMargins(6, 0, 6, 0)
+    title_layout.setSpacing(0)
+    title_layout.addWidget(title_label, 0, Qt.AlignLeft | Qt.AlignVCenter)
+    title_layout.addStretch(1)
+    toggle._collapsible_header_title_label = title_label  # type: ignore[attr-defined]
+    set_collapsible_header_title(toggle, title)
     _install_collapsible_header_interactions(toggle, style_sheet)
 
 
