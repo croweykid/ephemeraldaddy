@@ -10,6 +10,12 @@ class LoadingSequence:
     key: str
     messages: tuple[str, ...]
 
+    @property
+    def step_count(self) -> int:
+        """Return the number of loading steps needed to play this sequence."""
+
+        return len(self.messages)
+
 
 BASIC_LOADING_SEQUENCE = LoadingSequence(
     key="basic_escalation",
@@ -152,19 +158,24 @@ SNACK_SEQUENCE = LoadingSequence(
     ),
 )
 
-LOADING_MESSAGE_SEQUENCES: tuple[LoadingSequence, ...] = (
-    BASIC_LOADING_SEQUENCE,
-    RAM_LOADING_SEQUENCE,
-    AWKWARD_SMALL_TALK_SEQUENCE,
-    EPHEMERALMAMMY_SEQUENCE,
-    TIME_SEQUENCE,
-    TOGETHERNESS_SEQUENCE,
-    PURPOSE_SEQUENCE,
-    WEEBU_CONFLICT_SEQUENCE,
-    CONFLICT_SEQUENCE,
-    SNACK_SEQUENCE,
-    ANTICIPATION_SEQUENCE,
-)
+
+def _sequence_constants() -> tuple[LoadingSequence, ...]:
+    """Return every module-level ``*_SEQUENCE`` as an ordered step sequence.
+
+    Loading dialogue constants are intentionally named with a ``_SEQUENCE``
+    suffix to signal that every string is a required step in that dialogue.
+    Discovering them by name keeps future sequence constants from silently
+    being treated as optional one-off messages.
+    """
+
+    return tuple(
+        value
+        for name, value in globals().items()
+        if name.endswith("_SEQUENCE") and isinstance(value, LoadingSequence)
+    )
+
+
+LOADING_MESSAGE_SEQUENCES: tuple[LoadingSequence, ...] = _sequence_constants()
 
 
 STANDALONE_LOADING_MESSAGES: tuple[str, ...] = (
