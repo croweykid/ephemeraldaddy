@@ -1023,7 +1023,7 @@ def build_chart_view_middle_header_controls(
     get_visibility = getattr(visibility_store, "get", None)
     is_human_design_enabled = bool(
         callable(get_visibility)
-        and get_visibility("chart_data.human_design_alpha_prototype")
+        and get_visibility("chart_data.human_design")
     )
 
     button_specs: list[tuple[str, str, str, Callable[..., object]]] = [

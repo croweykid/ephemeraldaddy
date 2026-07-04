@@ -21181,24 +21181,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         visibility_section = self._add_settings_collapsible_section(
             content_layout,
-            "Optional Modules",
+            "Show/Hide Modules",
         )
 
-        analytics_visibility_section = self._add_settings_collapsible_section(
-            content_layout,
-            "Analytics Visibility",
-        )
-        analytics_visibility_section.addWidget(self._build_settings_subheader_label("Chart View Predictions"))
-        dnd_statblock_explainers_checkbox = QCheckBox("Show D&&D Statblock explainers")
-        dnd_statblock_explainers_checkbox.setChecked(
-            self._visibility.get("analytics.dnd_statblock_explainers")
-        )
-        dnd_statblock_explainers_checkbox.toggled.connect(
-            self._set_dnd_statblock_explainer_visibility_from_settings
-        )
-        analytics_visibility_section.addWidget(dnd_statblock_explainers_checkbox)
-
-        visibility_section.addWidget(self._build_settings_subheader_label("Chart Data Panel (Chart View)"))
+        visibility_section.addWidget(self._build_settings_subheader_label("Chart Data (Chart View)"))
 
         cursedness_checkbox = QCheckBox("Show cursedness analysis")
         cursedness_checkbox.setChecked(self._visibility.get("chart_data.cursedness"))
@@ -21214,29 +21200,21 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         visibility_section.addWidget(dnd_species_checkbox)
 
-        human_design_alpha_checkbox = QCheckBox("Show Human Design (alpha prototype)")
+        human_design_alpha_checkbox = QCheckBox("Show Human Design gates/lines")
         human_design_alpha_checkbox.setChecked(
-            self._visibility.get("chart_data.human_design_alpha_prototype")
+            self._visibility.get("chart_data.human_design")
         )
         human_design_alpha_checkbox.toggled.connect(
             lambda checked: self._set_chart_data_visibility(
-                "chart_data.human_design_alpha_prototype",
+                "chart_data.human_design",
                 checked,
             )
         )
         visibility_section.addWidget(human_design_alpha_checkbox)
 
         visibility_section.addSpacing(8)
-        visibility_section.addWidget(self._build_settings_subheader_label("Synastry Charts (Popout Charts)"))
 
-        synastry_aspect_weights_checkbox = QCheckBox("Show Synastry popout Aspect Weights")
-        synastry_aspect_weights_checkbox.setChecked(self._visibility.get("popout.synastry_aspect_weights"))
-        synastry_aspect_weights_checkbox.toggled.connect(
-            lambda checked: self._set_popout_visibility("popout.synastry_aspect_weights", checked)
-        )
-        visibility_section.addWidget(synastry_aspect_weights_checkbox)
-
-        visibility_section.addWidget(self._build_settings_subheader_label("Chart Analytics Panel (Chart View View)"))
+        visibility_section.addWidget(self._build_settings_subheader_label("Chart Analytics (Chart View)"))
 
         planet_dynamics_checkbox = QCheckBox("Show Body Dynamics (Chart Analytics)")
         parent = self._owner_window()
@@ -21276,17 +21254,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         visibility_section.addWidget(anagrams_checkbox)
 
-        visibility_section.addSpacing(8)
-        visibility_section.addWidget(self._build_settings_subheader_label("Data Visualization"))
 
-        standard_deviation_checkbox = QCheckBox("Show standard deviation indicator lines")
-        standard_deviation_checkbox.setChecked(
-            self._visibility.get("charts.standard_deviation_indicators")
+        visibility_section.addSpacing(8)
+        visibility_section.addWidget(self._build_settings_subheader_label("Predictions (popout chart)"))
+
+        dnd_statblock_explainers_checkbox = QCheckBox("Show D&&D Statblock explainers")
+        dnd_statblock_explainers_checkbox.setChecked(
+            self._visibility.get("analytics.dnd_statblock_explainers")
         )
-        standard_deviation_checkbox.toggled.connect(
-            self._set_standard_deviation_indicator_visibility_from_settings
+        dnd_statblock_explainers_checkbox.toggled.connect(
+            self._set_dnd_statblock_explainer_visibility_from_settings
         )
-        visibility_section.addWidget(standard_deviation_checkbox)
+        visibility_section.addWidget(dnd_statblock_explainers_checkbox)
+
 
         visibility_section.addSpacing(8)
         visibility_section.addWidget(self._build_settings_subheader_label("Database Analytics Panel (DB View)"))
@@ -21314,6 +21294,28 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
         )
         visibility_section.addWidget(bazi_checkbox)
+
+        visibility_section.addSpacing(8)
+        visibility_section.addWidget(self._build_settings_subheader_label("Data Visualization"))
+
+        standard_deviation_checkbox = QCheckBox("Show standard deviation indicator lines")
+        standard_deviation_checkbox.setChecked(
+            self._visibility.get("charts.standard_deviation_indicators")
+        )
+        standard_deviation_checkbox.toggled.connect(
+            self._set_standard_deviation_indicator_visibility_from_settings
+        )
+        visibility_section.addWidget(standard_deviation_checkbox)
+
+        visibility_section.addSpacing(8)
+        visibility_section.addWidget(self._build_settings_subheader_label("Synastry Charts"))
+
+        synastry_aspect_weights_checkbox = QCheckBox("Show Synastry Aspect Weights")
+        synastry_aspect_weights_checkbox.setChecked(self._visibility.get("popout.synastry_aspect_weights"))
+        synastry_aspect_weights_checkbox.toggled.connect(
+            lambda checked: self._set_popout_visibility("popout.synastry_aspect_weights", checked)
+        )
+        visibility_section.addWidget(synastry_aspect_weights_checkbox)
 
         database_view_section = self._add_settings_collapsible_section(
             content_layout,
@@ -22719,7 +22721,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _set_chart_data_visibility(self, key: str, checked: bool) -> None:
         self._visibility.set(key, checked)
-        if key == "chart_data.human_design_alpha_prototype":
+        if key == "chart_data.human_design":
             self._refresh_human_design_menu_visibility()
 
         parent = self._owner_window()
