@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QListView,
     QProgressDialog,
+    QHBoxLayout,
     QScrollArea,
     QSizePolicy,
     QToolButton,
@@ -1202,6 +1203,20 @@ def configure_share_export_icon_button(
     button.setToolTip(tooltip)
 
 
+def _extract_qss_color(style_sheet: str, fallback: str = COLOR_TEXT_PRIMARY) -> str:
+    """Return the first CSS color declaration from a QSS block."""
+    match = re.search(r"(?:^|[;{]\s*)color\s*:\s*([^;}]+)", style_sheet)
+    return match.group(1).strip() if match else fallback
+
+
+def set_collapsible_header_title(toggle: QToolButton, title: str) -> None:
+    """Set the visible left-aligned title for a configured collapsible header."""
+    toggle.setText(title)
+    title_label = getattr(toggle, "_collapsible_header_title_label", None)
+    if isinstance(title_label, QLabel):
+        title_label.setText(title)
+
+
 def configure_collapsible_header_toggle(
     toggle: QToolButton,
     *,
@@ -1210,17 +1225,28 @@ def configure_collapsible_header_toggle(
     style_sheet: str,
 ) -> None:
     """Apply default shared behavior for collapsible/expandable section headers."""
-    toggle.setText(title)
     toggle.setCheckable(True)
     toggle.setChecked(expanded)
     toggle.setArrowType(Qt.NoArrow)
-    # Collapsible headers are text headers, not icon buttons. Using text-only
-    # rendering keeps Qt from centering an icon+text label group within the
-    # available header width on some styles/platforms.
     toggle.setToolButtonStyle(Qt.ToolButtonTextOnly)
     toggle.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-    toggle.setStyleSheet(style_sheet)
+    toggle.setStyleSheet(f"{style_sheet} QToolButton {{ color: transparent; }}")
     toggle.setLayoutDirection(Qt.LeftToRight)
+
+    title_label = QLabel(toggle)
+    title_label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+    title_label.setStyleSheet(
+        "background: transparent; "
+        f"color: {_extract_qss_color(style_sheet)}; "
+        "font-weight: bold; font-size: 12px;"
+    )
+    title_layout = QHBoxLayout(toggle)
+    title_layout.setContentsMargins(6, 0, 6, 0)
+    title_layout.setSpacing(0)
+    title_layout.addWidget(title_label, 0, Qt.AlignLeft | Qt.AlignVCenter)
+    title_layout.addStretch(1)
+    toggle._collapsible_header_title_label = title_label  # type: ignore[attr-defined]
+    set_collapsible_header_title(toggle, title)
     _install_collapsible_header_interactions(toggle, style_sheet)
 
 

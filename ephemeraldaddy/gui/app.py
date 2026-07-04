@@ -1340,6 +1340,7 @@ from ephemeraldaddy.gui.style import (
     similarity_gradient_rgb_for_range,
     configure_collapsible_header_toggle,
     configure_static_collapsible_header_label,
+    set_collapsible_header_title,
     install_appwide_cursor_defaults,
     set_chart_info_text,
     format_chart_header,
@@ -7748,9 +7749,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         stored_base_title = str(toggle.property("similarities_base_title") or toggle.text())
         base_title = display_title or stored_base_title
         if not show_no_match_row and not matches:
-            toggle.setText(base_title)
+            set_collapsible_header_title(toggle, base_title)
         else:
-            toggle.setText(f"{len(matches)} {base_title}")
+            set_collapsible_header_title(toggle, f"{len(matches)} {base_title}")
         if matches:
             filtered_matches: list[tuple[str, int, int, int, int]] = []
             for label, match_count, total_count in matches:
@@ -7771,7 +7772,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     continue
                 filtered_matches.append((label, match_count, total_count, db_match_count, db_label_total_count))
 
-            toggle.setText(f"{len(filtered_matches)} {base_title}")
+            set_collapsible_header_title(toggle, f"{len(filtered_matches)} {base_title}")
             for label, match_count, total_count, db_match_count, db_label_total_count in filtered_matches:
                 percent_value = int(round((match_count / total_count) * 100)) if total_count else 0
                 db_percent_value = (
@@ -24902,7 +24903,7 @@ class MainWindow(QMainWindow):
         toggle = section_widget.findChild(QToolButton)
         if toggle is None:
             return
-        toggle.setText(self._similar_charts_section_title())
+        set_collapsible_header_title(toggle, self._similar_charts_section_title())
 
     def _collapse_similar_charts_section(self) -> None:
         self._chart_analysis_section_expanded["similar_charts"] = False
