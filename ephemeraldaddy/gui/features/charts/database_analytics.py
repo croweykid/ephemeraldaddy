@@ -1552,13 +1552,13 @@ class DatabaseAnalyticsChartsMixin:
         if clean_label in PLANET_COLORS:
             return f"{clean_label} is an astrological body or point; this bar compares how often it is the measured or dominant factor."
         if clean_label in HOUSE_COLORS or re.fullmatch(r"house\s+(1[0-2]|[1-9])", label_key):
-            return f"{clean_label} is an astrological house category; this bar compares how often placements or dominance land there."
+            return f"This bar compares how often placements or dominance lands in {clean_label} for the chart(s) selected."
         if clean_label in ELEMENT_COLORS:
             return f"{clean_label} is an elemental category; this bar compares that element's share in the analytics."
         if MODE_COLORS.get(label_key):
             return f"{clean_label} is a mode/modality category; this bar compares how often Cardinal, Fixed, or Mutable emphasis appears."
         if clean_label in {str(name) for name, *_ in NAKSHATRA_RANGES}:
-            return f"{clean_label} is a nakshatra category; this bar compares how often placements or dominance fall in that lunar mansion."
+            return f"This bar compares how often placement or dominance falls in the lunar mansion of {clean_label} for the chart(s) currently selected. Note: Nakshatras are calculated tropically in EphemeralDaddy, despite Vedic astrological tradition being primarily sidereal. Some contemporaries find this a more effective method."
         if clean_label in RELATION_TYPE:
             return f"{clean_label} is a relationship classification assigned to charts; this bar compares its frequency."
         if clean_label in SENTIMENT_COLORS or "sentiment" in title_key:
