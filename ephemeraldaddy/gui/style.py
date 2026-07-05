@@ -254,7 +254,11 @@ def build_tag_chip_html(
     shared_by_all: bool = False,
 ) -> str:
     """Build one rounded tag chip, optionally with the remove X kept inside it."""
-    escaped_tag = html.escape(str(tag or ""))
+    # QLabel rich text can still wrap at ordinary spaces inside an inline span,
+    # which visually slices a tag phrase across rows.  Convert intra-tag
+    # whitespace to non-breaking spaces and leave a normal space after each chip
+    # so the label wraps only between complete Tumblr-style tag pills.
+    escaped_tag = re.sub(r"\s+", "&nbsp;", html.escape(str(tag or "")))
     remove_html = (
         f"<a href='{html.escape(remove_href, quote=True)}' style='{tag_remove_link_style()}'>✕</a>"
         if remove_href
@@ -263,7 +267,7 @@ def build_tag_chip_html(
     return (
         f"<span style='{tag_chip_style(shared_by_all=shared_by_all)}'>"
         f"{escaped_tag}{remove_html}"
-        "</span>"
+        "</span> "
     )
 
 
