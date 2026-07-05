@@ -2598,6 +2598,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._settings_dialog: QDialog | None = None
         self._database_manager_dialog: QDialog | None = None
         self._batch_tagging_terminal_debug_checkbox: QCheckBox | None = None
+        self._astrotwin_granular_explanation_checkbox: QCheckBox | None = None
         self._similarity_perceived_accuracy_controls_checkbox: QCheckBox | None = None
         self._settings_section_expanded_session: dict[str, bool] = {}
         self._settings_db_info_label: QLabel | None = None
@@ -21156,6 +21157,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _ensure_settings_dialog(self) -> QDialog:
         if self._settings_dialog is not None:
+            if isinstance(self._astrotwin_granular_explanation_checkbox, QCheckBox):
+                blocker = QSignalBlocker(self._astrotwin_granular_explanation_checkbox)
+                self._astrotwin_granular_explanation_checkbox.setChecked(
+                    bool(getattr(self, "_astrotwin_granular_explanation", False))
+                )
+                del blocker
             if isinstance(self._batch_tagging_terminal_debug_checkbox, QCheckBox):
                 blocker = QSignalBlocker(self._batch_tagging_terminal_debug_checkbox)
                 self._batch_tagging_terminal_debug_checkbox.setChecked(
@@ -21384,6 +21391,21 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             lambda checked: self._set_popout_visibility("popout.synastry_aspect_weights", checked)
         )
         visibility_section.addWidget(synastry_aspect_weights_checkbox)
+
+        visibility_section.addSpacing(8)
+        visibility_section.addWidget(self._build_settings_subheader_label("Astro Twin window"))
+
+        granular_explanations_checkbox = QCheckBox(
+            "Astro Twin: show granular algorithmic breakdowns"
+        )
+        granular_explanations_checkbox.setChecked(
+            bool(getattr(self, "_astrotwin_granular_explanation", False))
+        )
+        granular_explanations_checkbox.toggled.connect(
+            self._on_astrotwin_granular_explanation_toggled
+        )
+        visibility_section.addWidget(granular_explanations_checkbox)
+        self._astrotwin_granular_explanation_checkbox = granular_explanations_checkbox
 
         database_view_section = self._add_settings_collapsible_section(
             content_layout,
@@ -21620,8 +21642,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             on_placement_weighting_mode_changed=self._on_similarity_calculator_placement_weighting_mode_changed,
             on_all_or_nothing_criterion_changed=self._on_similarity_calculator_all_or_nothing_component_changed,
             on_reset_weights_clicked=self._reset_similarity_calculator_defaults,
-            on_granular_explanations_toggled=self._on_astrotwin_granular_explanation_toggled,
-            show_granular_explanations=bool(getattr(self, "_astrotwin_granular_explanation", False)),
             on_calibrate_clicked=self._calibrate_similarity_norms,
             on_save_thresholds_clicked=self._save_similarity_threshold_overrides,
             on_reset_thresholds_clicked=self._reset_similarity_threshold_defaults,
@@ -21641,7 +21661,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._similarity_calculator_total_label = similarity_controls["calculator_total_label"]
         self._similarity_calculator_placement_weighting_mode_combo = similarity_controls["placement_weighting_mode_combo"]
         self._similarity_calculator_all_or_nothing_component_combo = similarity_controls["all_or_nothing_criterion_combo"]
-        self._astrotwin_granular_explanation_checkbox = similarity_controls["granular_explanations_checkbox"]
         self._similarity_threshold_spinboxes = similarity_controls["threshold_spinboxes"]
         self._set_similar_charts_algorithm_mode(self._similar_charts_algorithm_mode)
         self._load_similarity_calculator_controls()
