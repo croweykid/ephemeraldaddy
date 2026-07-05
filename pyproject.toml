@@ -24,6 +24,7 @@ dependencies = [
 ephemeraldaddy = "ephemeraldaddy.gui.bootstrap:main"
 
 [tool.setuptools.package-data]
+"ephemeraldaddy.analysis" = ["default_traits.json"]
 "ephemeraldaddy.gui" = ["fonts/*.ttf", "fonts/*.otf", "fonts/*.ttc", "fonts/*.md"]
 
 [build-system]

@@ -420,6 +420,12 @@ def build_similarity_calculator_settings_section(
     reset_similarity_weights_button = QPushButton("Reset Weights to Defaults")
     reset_similarity_weights_button.clicked.connect(on_reset_weights_clicked)
     custom_fields_layout.addWidget(reset_similarity_weights_button, alignment=Qt.AlignLeft)
+
+    #reset_granular_row = QHBoxLayout()
+    #reset_granular_row.addWidget(reset_similarity_weights_button, alignment=Qt.AlignLeft)
+    #reset_granular_row.addStretch(1)
+    #reset_granular_row.addWidget(granular_explanations_checkbox, alignment=Qt.AlignRight)
+    #custom_fields_layout.addLayout(reset_granular_row)
     section_layout.addWidget(custom_fields_frame)
 
     section_divider = QFrame()

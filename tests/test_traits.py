@@ -1,7 +1,15 @@
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from ephemeraldaddy.analysis import traits
+
+
+@pytest.fixture(autouse=True)
+def _disable_bundled_default_traits(tmp_path, monkeypatch):
+    monkeypatch.setattr(traits, "DEFAULT_TRAITS_PATH", tmp_path / "missing_default_traits.json")
+
 
 
 def test_parse_similarities_python_export_preserves_trait_profile(tmp_path):
@@ -269,7 +277,7 @@ def test_install_trait_file_preserves_samples_description_and_hash_comments(tmp_
     saved_text = installed.read_text(encoding="utf-8")
     item = traits.list_traits()[0]
 
-    assert item["profile"]["samples"] == (14, 0)
+    assert item["profile"]["samples"] == [14, 0]
     assert item["description"] == "Uploaded description."
     assert item["profile"]["description"] == "Uploaded description."
     assert "// # cohort note" in saved_text
@@ -278,7 +286,7 @@ def test_install_trait_file_preserves_samples_description_and_hash_comments(tmp_
     renamed = traits.rename_trait(installed, "Renamed Uploaded Trait")
     renamed_text = renamed.read_text(encoding="utf-8")
 
-    assert traits.list_traits()[0]["profile"]["samples"] == (14, 0)
+    assert traits.list_traits()[0]["profile"]["samples"] == [14, 0]
     assert "// # cohort note" in renamed_text
     assert "// # dogmatic sample note" in renamed_text
 
@@ -298,7 +306,7 @@ def test_parse_trait_file_accepts_legacy_integer_samples_with_warning(tmp_path, 
 
     parsed = traits.parse_trait_file(source)
 
-    assert parsed["Legacy Samples"]["samples"] == (14,)
+    assert parsed["Legacy Samples"]["samples"] == [14]
     assert traits.trait_sample_total(parsed["Legacy Samples"]["samples"]) == 14
     assert "Legacy Samples" in caplog.text
     assert "legacy integer samples=14" in caplog.text
@@ -402,3 +410,47 @@ def test_trait_likelihood_ignores_supplied_house_possible_score_when_chart_has_n
     )
 
     assert likelihoods == {"House Heavy": 100.0}
+
+def test_list_traits_loads_bundled_defaults_before_local_custom_traits(tmp_path, monkeypatch):
+    default_path = tmp_path / "default_traits.json"
+    default_path.write_text(
+        '{"Shared": {"name": "Shared", "color": "#111111"}, "Bundled Only": {"name": "Bundled Only"}}',
+        encoding="utf-8",
+    )
+    trait_dir = tmp_path / "traits"
+    trait_dir.mkdir()
+    (trait_dir / "shared.json").write_text(
+        '{"Shared": {"name": "Shared", "color": "#222222"}}',
+        encoding="utf-8",
+    )
+    (trait_dir / "custom.json").write_text(
+        '{"Custom": {"name": "Custom", "color": "#333333"}}',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(traits, "DEFAULT_TRAITS_PATH", default_path)
+    monkeypatch.setattr(traits, "TRAIT_DIR", trait_dir)
+
+    items = traits.list_traits()
+
+    assert [item["name"] for item in items] == ["Bundled Only", "Shared", "Custom"]
+    shared = next(item for item in items if item["name"] == "Shared")
+    assert shared["bundled"] is True
+    assert shared["source"] == "bundled"
+    assert shared["path"] == default_path
+    assert shared["color"] == "#111111"
+    assert shared["uid"] == "default_shared"
+
+
+def test_list_traits_keeps_non_overlapping_local_traits_with_defaults(tmp_path, monkeypatch):
+    default_path = tmp_path / "default_traits.json"
+    default_path.write_text('{"Bundled": {"name": "Bundled"}}', encoding="utf-8")
+    trait_dir = tmp_path / "traits"
+    trait_dir.mkdir()
+    (trait_dir / "custom.json").write_text('{"Custom": {"name": "Custom"}}', encoding="utf-8")
+    monkeypatch.setattr(traits, "DEFAULT_TRAITS_PATH", default_path)
+    monkeypatch.setattr(traits, "TRAIT_DIR", trait_dir)
+
+    items = traits.list_traits(active_only=True)
+
+    assert [(item["name"], item["source"]) for item in items] == [("Bundled", "bundled"), ("Custom", "local")]
+    assert {item["name"]: item["uid"] for item in items} == {"Bundled": "default_bundled", "Custom": "custom_custom"}
