@@ -3028,7 +3028,7 @@ def render_similar_match_blocks(
         why_expanded = why_target in (expanded_why_targets or set())
         why_html = (
             f' - <a href="{why_target}" style="color: #ffffff; text-decoration: none;">why?</a>'
-            f' <span style="font-weight: 400; color: {_SIMILARITY_LIST_TEXT_COLOR};">why: ({component_summary})</span>'
+            f' <span style="font-weight: 400; color: {_SIMILARITY_LIST_TEXT_COLOR};">{component_summary}</span>'
             if why_expanded
             else f' - <a href="{why_target}" style="color: #ffffff; text-decoration: none;">why?</a>'
         )
