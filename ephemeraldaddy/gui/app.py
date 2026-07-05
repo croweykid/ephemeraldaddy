@@ -21385,6 +21385,21 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         visibility_section.addWidget(synastry_aspect_weights_checkbox)
 
+        visibility_section.addSpacing(8)
+        visibility_section.addWidget(self._build_settings_subheader_label("Astro Twin window"))
+
+        astrotwin_weights_debug_checkbox = QCheckBox(
+            "Show 'Similarities/Dissimilarities Analysis' weights debugging"
+        )
+        astrotwin_weights_debug_checkbox.setChecked(
+            bool(getattr(self, "_astrotwin_granular_explanation", False))
+        )
+        astrotwin_weights_debug_checkbox.toggled.connect(
+            self._on_astrotwin_granular_explanation_toggled
+        )
+        self._astrotwin_weights_debug_checkbox = astrotwin_weights_debug_checkbox
+        visibility_section.addWidget(astrotwin_weights_debug_checkbox)
+
         database_view_section = self._add_settings_collapsible_section(
             content_layout,
             "Database View",
@@ -21992,10 +22007,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             blocker = QSignalBlocker(granular_checkbox)
             granular_checkbox.setChecked(bool(getattr(self, "_astrotwin_granular_explanation", False)))
             del blocker
+        weights_debug_checkbox = getattr(self, "_astrotwin_weights_debug_checkbox", None)
+        if isinstance(weights_debug_checkbox, QCheckBox):
+            blocker = QSignalBlocker(weights_debug_checkbox)
+            weights_debug_checkbox.setChecked(bool(getattr(self, "_astrotwin_granular_explanation", False)))
+            del blocker
         self._update_similarity_calculator_weight_constraints_and_total()
 
     def _on_astrotwin_granular_explanation_toggled(self, checked: bool) -> None:
         self._astrotwin_granular_explanation = bool(checked)
+        for checkbox_attr in (
+            "_astrotwin_granular_explanation_checkbox",
+            "_astrotwin_weights_debug_checkbox",
+        ):
+            checkbox = getattr(self, checkbox_attr, None)
+            if isinstance(checkbox, QCheckBox) and checkbox.isChecked() != self._astrotwin_granular_explanation:
+                blocker = QSignalBlocker(checkbox)
+                checkbox.setChecked(self._astrotwin_granular_explanation)
+                del blocker
         self._settings.setValue(
             SETTINGS_KEY_ASTROTWIN_GRANULAR_EXPLANATION,
             int(self._astrotwin_granular_explanation),
