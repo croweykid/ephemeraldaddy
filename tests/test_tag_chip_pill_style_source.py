@@ -9,6 +9,8 @@ def test_tag_chip_style_uses_universal_wrapping_list_with_nowrap_pills_and_three
 
     assert "TAG_CHIP_GAP_PX = 3" in style_source
     assert "def configure_tag_chip_label" in style_source
+    assert 're.sub(r"\\s+", "&nbsp;", html.escape(str(tag or "")))' in style_source
+    assert '"</span> "' in style_source
     assert "label.setWordWrap(True)" in style_source
     assert "label.setTextFormat(Qt.RichText)" in style_source
     assert '"white-space:nowrap;"' in style_source
@@ -45,3 +47,10 @@ def test_chart_tags_live_in_chart_info_stack_not_subjective_notes_panel():
     assert '"tags": 2' in app_source
     assert "tags_box = QFrame()" not in app_source
     assert "self.tags_panel_toggle" not in app_source
+
+
+def test_event_chart_save_paths_persist_visible_chart_tags():
+    app_source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text(encoding="utf-8")
+
+    assert "chart.tags = [] if is_event_chart else get_chart_view_tags(self)" not in app_source
+    assert app_source.count("chart.tags = get_chart_view_tags(self)") >= 2

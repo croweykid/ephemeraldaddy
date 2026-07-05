@@ -32179,7 +32179,7 @@ class MainWindow(QMainWindow):
             chart.chart_data_source = self.source_edit.toPlainText().strip()
         chart.alternate_chart_uid = self._current_alternate_chart_uid_for_save(chart_type_value)
         if hasattr(chart, "tags"):
-            chart.tags = [] if is_event_chart else get_chart_view_tags(self)
+            chart.tags = get_chart_view_tags(self)
         if hasattr(chart, "reminds_me_of"):
             chart.reminds_me_of = (
                 ""
@@ -32660,7 +32660,7 @@ class MainWindow(QMainWindow):
                 is_event_chart = chart_type_value == SOURCE_EVENT
                 chart.sentiments = [] if is_event_chart else list(self._selected_sentiments())
                 chart.relationship_types = [] if is_event_chart else list(self._selected_relationship_types())
-                chart.tags = [] if is_event_chart else get_chart_view_tags(self)
+                chart.tags = get_chart_view_tags(self)
                 chart.comments = self.comments_edit.toPlainText().strip()
                 chart.rectification_notes = self.rectification_edit.toPlainText().strip()
                 chart.biography = self.biography_edit.toPlainText().strip()
