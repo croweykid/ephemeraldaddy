@@ -125,6 +125,17 @@ def selected_trait_item(owner: Any) -> QListWidgetItem | None:
     return selected[0] if selected else None
 
 
+def _trait_display_name(item: QListWidgetItem) -> str:
+    raw_name = item.data(Qt.UserRole + 5)
+    if raw_name is not None:
+        return str(raw_name)
+    text = item.text()
+    for suffix in (" (default, archived)", " (default)", " (archived)"):
+        if text.endswith(suffix):
+            return text[: -len(suffix)]
+    return text
+
+
 def refresh_traits_settings_list(owner: Any) -> None:
     list_widget = getattr(owner, "_traits_list_widget", None)
     if isinstance(list_widget, QListWidget):
@@ -136,12 +147,22 @@ def refresh_traits_settings_list(owner: Any) -> None:
         for trait in list_traits():
             name = str(trait["name"])
             archived = bool(trait.get("archived", False))
+            bundled = bool(trait.get("bundled", False))
             color = normalize_trait_color(str(trait.get("color", DEFAULT_TRAIT_COLOR)))
-            item = QListWidgetItem(f"{name} {'(archived)' if archived else ''}".strip())
+            labels = []
+            if bundled:
+                labels.append("default")
+            if archived:
+                labels.append("archived")
+            suffix = f" ({', '.join(labels)})" if labels else ""
+            item = QListWidgetItem(f"{name}{suffix}")
             item.setData(Qt.UserRole, str(trait["path"]))
             item.setData(Qt.UserRole + 1, color)
             item.setData(Qt.UserRole + 2, archived)
             item.setData(Qt.UserRole + 3, str(trait.get("description", "")).strip())
+            item.setData(Qt.UserRole + 4, bundled)
+            item.setData(Qt.UserRole + 5, name)
+            item.setData(Qt.UserRole + 6, str(trait.get("uid") or trait.get("trait_uid") or "").strip())
             item.setForeground(QColor(color))
             list_widget.addItem(item)
             if str(trait["path"]) == current_path:
@@ -151,8 +172,11 @@ def refresh_traits_settings_list(owner: Any) -> None:
         traits = list_traits()
         count = len(traits)
         archived_count = sum(1 for trait in traits if bool(trait.get("archived", False)))
+        bundled_count = sum(1 for trait in traits if bool(trait.get("bundled", False)))
+        custom_count = count - bundled_count
         status_label.setText(
-            f"{count} trait{'s' if count != 1 else ''} installed; "
+            f"{count} trait{'s' if count != 1 else ''} available "
+            f"({bundled_count} bundled default, {custom_count} custom); "
             f"{archived_count} archived and excluded from Predictions."
         )
     _sync_trait_action_buttons(owner)
@@ -242,7 +266,14 @@ def on_trait_delete_clicked(owner: Any) -> None:
     if item is None:
         QMessageBox.information(dialog_parent, "No trait selected", "Select a trait to delete first.")
         return
-    trait_name = item.text()
+    if bool(item.data(Qt.UserRole + 4)):
+        QMessageBox.information(
+            dialog_parent,
+            "Default trait protected",
+            "Bundled default traits are read-only. Duplicate local traits with the same name are automatically retired instead.",
+        )
+        return
+    trait_name = _trait_display_name(item)
     choice = QMessageBox.question(
         dialog_parent,
         "Delete trait?",
@@ -251,6 +282,18 @@ def on_trait_delete_clicked(owner: Any) -> None:
         QMessageBox.No,
     )
     if choice != QMessageBox.Yes:
+        return
+    trait_uid = str(item.data(Qt.UserRole + 6) or "").strip()
+    try:
+        from ephemeraldaddy.core import db
+
+        db.purge_chart_trait_metadata_for_trait(trait_uid=trait_uid, trait_name=trait_name)
+    except Exception as exc:
+        QMessageBox.warning(
+            dialog_parent,
+            "Trait metadata cleanup failed",
+            f"Trait metadata for '{trait_name}' could not be purged: {exc}",
+        )
         return
     delete_trait(item.data(Qt.UserRole))
     _mark_trait_definitions_changed(owner, trait_names={trait_name})
@@ -264,7 +307,10 @@ def on_trait_rename_clicked(owner: Any) -> None:
     if item is None:
         QMessageBox.information(dialog_parent, "No trait selected", "Select a trait to rename first.")
         return
-    old_name = item.text()
+    if bool(item.data(Qt.UserRole + 4)):
+        QMessageBox.information(dialog_parent, "Default trait protected", "Bundled default traits cannot be renamed.")
+        return
+    old_name = _trait_display_name(item)
     new_name, accepted = QInputDialog.getText(dialog_parent, "Rename trait", "Trait name:", text=old_name)
     if not accepted:
         return
@@ -285,15 +331,21 @@ def on_trait_rename_clicked(owner: Any) -> None:
 def _sync_trait_action_buttons(owner: Any) -> None:
     item = selected_trait_item(owner)
     archived = bool(item.data(Qt.UserRole + 2)) if item is not None else False
+    bundled = bool(item.data(Qt.UserRole + 4)) if item is not None else False
     archive_button = getattr(owner, "_traits_archive_button", None)
     if isinstance(archive_button, QPushButton):
         archive_button.setText("Reactivate" if archived else "Archive")
+        archive_button.setEnabled(item is not None and not bundled)
+    for attr in ("_traits_delete_button", "_traits_rename_button", "_traits_recolor_button"):
+        button = getattr(owner, attr, None)
+        if isinstance(button, QPushButton):
+            button.setEnabled(item is not None and not bundled)
     description_button = getattr(owner, "_traits_description_button", None)
     if isinstance(description_button, QPushButton):
-        description_button.setEnabled(item is not None)
+        description_button.setEnabled(item is not None and not bundled)
     edit_button = getattr(owner, "_traits_edit_button", None)
     if isinstance(edit_button, QPushButton):
-        edit_button.setEnabled(item is not None)
+        edit_button.setEnabled(item is not None and not bundled)
 
 
 def on_trait_recolor_clicked(owner: Any) -> None:
@@ -301,6 +353,9 @@ def on_trait_recolor_clicked(owner: Any) -> None:
     item = selected_trait_item(owner)
     if item is None:
         QMessageBox.information(dialog_parent, "No trait selected", "Select a trait to recolor first.")
+        return
+    if bool(item.data(Qt.UserRole + 4)):
+        QMessageBox.information(dialog_parent, "Default trait protected", "Bundled default traits cannot be recolored.")
         return
     current_color = normalize_trait_color(str(item.data(Qt.UserRole + 1) or DEFAULT_TRAIT_COLOR))
     color = QColorDialog.getColor(QColor(current_color), dialog_parent, "Choose trait color")
@@ -311,7 +366,7 @@ def on_trait_recolor_clicked(owner: Any) -> None:
     except Exception as exc:
         QMessageBox.warning(dialog_parent, "Trait recolor failed", f"Trait could not be recolored: {exc}")
         return
-    _mark_trait_definitions_changed(owner, trait_names={item.text().replace(" (archived)", "")})
+    _mark_trait_definitions_changed(owner, trait_names={_trait_display_name(item)})
     refresh_traits_settings_list(owner)
     _refresh_trait_predictions(owner)
 
@@ -322,6 +377,9 @@ def on_trait_archive_clicked(owner: Any) -> None:
     if item is None:
         QMessageBox.information(dialog_parent, "No trait selected", "Select a trait to archive or reactivate first.")
         return
+    if bool(item.data(Qt.UserRole + 4)):
+        QMessageBox.information(dialog_parent, "Default trait protected", "Bundled default traits cannot be archived.")
+        return
     archived = bool(item.data(Qt.UserRole + 2))
     try:
         set_trait_archived(item.data(Qt.UserRole), not archived)
@@ -329,7 +387,7 @@ def on_trait_archive_clicked(owner: Any) -> None:
         action = "reactivated" if archived else "archived"
         QMessageBox.warning(dialog_parent, "Trait update failed", f"Trait could not be {action}: {exc}")
         return
-    _mark_trait_definitions_changed(owner, trait_names={item.text().replace(" (archived)", "")})
+    _mark_trait_definitions_changed(owner, trait_names={_trait_display_name(item)})
     refresh_traits_settings_list(owner)
     _refresh_trait_predictions(owner)
 
@@ -340,7 +398,10 @@ def on_trait_description_clicked(owner: Any) -> None:
     if item is None:
         QMessageBox.information(dialog_parent, "No trait selected", "Select a trait to describe first.")
         return
-    trait_name = item.text().replace(" (archived)", "")
+    if bool(item.data(Qt.UserRole + 4)):
+        QMessageBox.information(dialog_parent, "Default trait protected", "Bundled default trait descriptions are read-only.")
+        return
+    trait_name = _trait_display_name(item)
     current_description = str(item.data(Qt.UserRole + 3) or "")
     description, accepted = QInputDialog.getMultiLineText(
         dialog_parent,
@@ -366,9 +427,12 @@ def on_trait_edit_clicked(owner: Any) -> None:
     if item is None:
         QMessageBox.information(dialog_parent, "No trait selected", "Select a trait to edit first.")
         return
+    if bool(item.data(Qt.UserRole + 4)):
+        QMessageBox.information(dialog_parent, "Default trait protected", "Bundled default trait JSON is read-only.")
+        return
 
     trait_path = Path(str(item.data(Qt.UserRole)))
-    trait_name = item.text().replace(" (archived)", "")
+    trait_name = _trait_display_name(item)
     try:
         original_text = trait_path.read_text(encoding="utf-8")
     except Exception as exc:

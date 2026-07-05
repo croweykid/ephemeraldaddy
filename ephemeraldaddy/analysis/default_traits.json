@@ -161,7 +161,8 @@
     "motivation": "",
     "description": "Nimbleness, sleight of hand. This is an agregated sample of magicians, pickpockets, acrobats, dancers and martial artists.",
     "quotes": {},
-    "archived": false
+    "archived": false,
+    "uid": "default_actor"
   },
   "agriculture": {
     "name": "agriculture",
@@ -322,7 +323,8 @@
     "motivation": "",
     "description": "People who live/work on farms.",
     "quotes": {},
-    "archived": false
+    "archived": false,
+    "uid": "default_agriculture"
   },
   "antiestablishment": {
     "name": "antiestablishment",
@@ -460,7 +462,8 @@
     "motivation": "",
     "description": "You can't trust the SYSTEM. MAN.",
     "quotes": {},
-    "archived": false
+    "archived": false,
+    "uid": "default_antiestablishment"
   },
   "artist": {
     "name": "artist",
@@ -901,7 +904,8 @@
     "motivation": "",
     "description": "People who are cowboys or at least have played one on TV.",
     "quotes": {},
-    "archived": false
+    "archived": false,
+    "uid": "default_comedian"
   },
   "criminal": {
     "name": "criminal",
@@ -1059,7 +1063,8 @@
     "motivation": "",
     "description": "Admittedly a very small sample size of ALL kinds of criminals. Mostly created as a gag.",
     "quotes": {},
-    "archived": false
+    "archived": false,
+    "uid": "default_criminal"
   },
   "democratically elected": {
     "name": "democratically elected",
@@ -1231,7 +1236,8 @@
     "motivation": "",
     "description": "",
     "quotes": {},
-    "archived": false
+    "archived": false,
+    "uid": "default_dancer"
   },
   "effortless magnetism": {
     "name": "effortless magnetism",
@@ -2141,7 +2147,8 @@
     "motivation": "",
     "description": "Overlapping chart factors shared between an agregate of heads of state (including democratically elected, monarchs and dictators).",
     "quotes": {},
-    "archived": false
+    "archived": false,
+    "uid": "default_famous_scientist"
   },
   "hilarious": {
     "name": "hilarious",
@@ -2323,6 +2330,7 @@
     "description": "Just funny as hell.",
     "quotes": {},
     "samples": []
+    "uid": "default_hilarious"
   },
   "human cinderblock": {
     "name": "human cinderblock",
@@ -2472,6 +2480,7 @@
     "description": "Probably seems dumber than they are. Not likely to change their minds. May come across as overly simplistic or 'brute'. But it isn't an indicator of actual intelligence, as it shows up in the charts of eccentric, stubborn hermit geniuses. High density. Low verbal sparkle, low polish. Useful in construction. Bad at brunch.",
     "quotes": {},
     "archived": false,
+    "uid": "default_human_cinderblock"
     "samples": []
   },
   "humorless/zero chill": {
@@ -2612,6 +2621,7 @@
     "description": "Unlikely to get the joke. Or at least unlikely to respond to it, if they do. Some of these people have a sense of humor, but most have moments where they can't process the world with that kind of levity due to heightened sensitivity/emotional stakes and poor abillity to regulate stress response around those stakes. It is not mutually exclusive with 'hilarious' or 'comedian', but if the two show up in the same person, that person might be *quite* volatile.",
     "quotes": {},
     "archived": false,
+    "uid": "default_humorless_zero_chill"
     "samples": []
   },
   "imperialist head of state": {
@@ -2741,7 +2751,8 @@
     "motivation": "",
     "description": "Official heads of state who oversaw their nations during an aggressively expansionist militaristic and/or colonial period.",
     "quotes": {},
-    "archived": false
+    "archived": false,
+    "uid": "default_imperialist_head_of_state"
   },
   "intellectual": {
     "name": "intellectual",
@@ -2842,6 +2853,7 @@
     "description": "Intellectuals & deep thinkers. Emphasis on abstraction and theory but not exclusive to those categories of genius.",
     "quotes": {},
     "archived": false,
+    "uid": "default_intellectual"
     "samples": []
   },
   "loves kids": {
@@ -3208,7 +3220,8 @@
     "motivation": "",
     "description": "This is such a broad category that it's surprising to find a signature in it. The developer added roughly a gazillion musicians to the database, then agregated their charts. This is what arose from the overlap. The list isn't all \"good musicians\". In fact, some musicians are in the database solely out of spite. It also includes a bunch of local gig musicians who are basically unknown, but have been committed musicians as a defining aspect of their identity for most of their lives. So the only common thread really is 'musician as an identity'.",
     "quotes": {},
-    "archived": false
+    "archived": false,
+    "uid": "default_musician"
   },
   "neoimperial capitalist": {
     "name": "neoimperial capitalist",
@@ -3369,7 +3382,8 @@
     "motivation": "",
     "description": "Trait based on chart similarities between founders, CEOs and top executive of global conglomerations during their most acquisitory phases.",
     "quotes": {},
-    "archived": false
+    "archived": false,
+    "uid": "default_neoimperial_capitalist"
   },
   "polarizing feminist": {
     "name": "polarizing feminist",
@@ -3665,7 +3679,8 @@
     "motivation": "",
     "description": "There are lots of people one might deem 'political' or 'good at politics', but this trait is specifically based on the agregated charts of a huge number of (all party affiliations) working politicians, for whom politics in an official capacity is their daily life, and their primary public identity.",
     "quotes": {},
-    "archived": false
+    "archived": false,
+    "uid": "default_politician_full_time"
   },
   "private empire builder": {
     "name": "private empire builder",
@@ -4120,7 +4135,8 @@
     "description": "",
     "quotes": {},
     "archived": false,
-    "samples": []
+    "samples": [],
+    "uid": "default_pro_athlete"
   },
   "professional actor": {
     "name": "professional actor",
@@ -4357,7 +4373,177 @@
     "description": "Regular scientists: methodical investigators marked by technical reasoning, repeatable work, correction, depth, focused attention, and disciplined pattern recognition rather than fame, shock, or pioneer branding.",
     "quotes": {},
     "name": "regular scientist",
-    "archived": false
+    "archived": false,
+    "uid": "default_regular_scientist"
+  },
+  "renowned feminist": {
+    "name": "renowned feminist",
+    "signs": {
+      "Libra": 14,
+      "Aquarius": 15,
+      "Virgo": -15
+    },
+    "antisigns": {},
+    "houses": {
+      "1": -9,
+      "3": -9
+    },
+    "antihouses": {},
+    "bodies": {},
+    "antibodies": {},
+    "nakshatras": {
+      "Hasta": 10,
+      "Purva Phalguni": -9
+    },
+    "antinakshatras": {},
+    "positions": {
+      "Sun in Aquarius": 9,
+      "Jupiter in Taurus": 9,
+      "Jupiter in H9": 13,
+      "Uranus in Aries": 9,
+      "Uranus in Taurus": 9,
+      "Neptune in Virgo": 15,
+      "Neptune in H8": 13,
+      "Pluto in Cancer": 11,
+      "Pluto in Virgo": -15,
+      "Pluto in Pisces": 5,
+      "Pluto in H7": 12,
+      "Chiron in Libra": 6,
+      "Chiron in Pisces": -10,
+      "Chiron in H3": 12,
+      "Chiron in H5": 13,
+      "Chiron in H8": 22,
+      "Ceres in H7": 17,
+      "Pallas in Libra": 8,
+      "Pallas in Aquarius": -9,
+      "Vesta in H1": 12,
+      "Rahu in Libra": 8,
+      "Rahu in H10": 12,
+      "Aries in H12": 10,
+      "Libra in H6": 10,
+      "True Lilith in Sagittarius": 10
+    },
+    "antipositions": {},
+    "aspects": {
+      "Neptune sextile Pluto": -32,
+      "Ceres trine Neptune": 10,
+      "Neptune trine Uranus": 9,
+      "Chiron opposition Uranus": -20,
+      "Juno square Saturn": 8,
+      "Moon sextile Saturn": 9,
+      "Neptune sextile True Lilith": 9,
+      "Neptune trine Saturn": 8,
+      "Pluto square Saturn": 8,
+      "Pluto trine Venus": 7,
+      "Saturn square Sun": 9,
+      "Chiron conjunction Jupiter": 8,
+      "Jupiter square Pluto": 7,
+      "Mars sextile Vesta": 8,
+      "Moon square True Lilith": 7,
+      "Pallas trine Saturn": 8,
+      "Chiron trine Uranus": 10,
+      "Pluto sextile Rahu": 7,
+      "Pluto square Uranus": 8,
+      "Chiron trine Neptune": -11,
+      "Juno sextile Rahu": 6,
+      "True Lilith conjunction Venus": 6,
+      "Ceres conjunction Pallas": 8,
+      "Chiron sextile Neptune": 6,
+      "MC sextile Neptune": 18,
+      "Moon quintile Part of Fortune": 5,
+      "Neptune conjunction Pallas": 5,
+      "Neptune conjunction Sun": 6,
+      "Neptune conjunction Venus": 5,
+      "Pallas biquintile Saturn": 6,
+      "Part of Fortune quincunx Saturn": 7,
+      "Rahu conjunction Uranus": 6,
+      "Rahu opposition Sun": 5,
+      "AS trine Mercury": 12,
+      "Ceres sesquiquadrate Pluto": 6,
+      "Chiron conjunction Pluto": 5,
+      "MC trine Sun": 13,
+      "Mercury quintile Neptune": 6,
+      "Saturn biquintile Sun": 6,
+      "Saturn quincunx True Lilith": 5,
+      "AS square Rahu": 11,
+      "Chiron sesquiquadrate Jupiter": 4,
+      "Chiron sextile Uranus": 4,
+      "Juno quintile Venus": 4,
+      "Juno semisextile Mercury": 4,
+      "Jupiter sesquiquadrate Mars": 4,
+      "Mars biquintile Rahu": 5,
+      "Neptune sesquiquadrate Uranus": 5,
+      "Part of Fortune sesquiquadrate Uranus": 4,
+      "Pluto quintile Rahu": 4,
+      "Rahu biquintile Sun": 4,
+      "Rahu biquintile True Lilith": 4,
+      "Saturn biquintile True Lilith": 5,
+      "Sun semisextile Uranus": 4,
+      "Sun semisquare Uranus": 4,
+      "Venus biquintile Vesta": 5,
+      "Ceres sesquiquadrate Vesta": 3,
+      "Chiron opposition Pluto": -10,
+      "Chiron quintile Pluto": 3,
+      "Chiron semisquare MC": 11,
+      "Chiron semisquare Pluto": 4,
+      "Juno sesquiquadrate Mars": 3,
+      "Juno sesquiquadrate Venus": 3,
+      "Jupiter biquintile Mercury": 3,
+      "Jupiter semisextile MC": 10,
+      "MC conjunction Pallas": 9,
+      "AS sesquiquadrate Chiron": 7,
+      "Juno biquintile MC": 6,
+      "Juno semisextile MC": 7,
+      "Jupiter semisquare MC": 7,
+      "MC semisquare Neptune": 7,
+      "MC sesquiquadrate Mercury": 7
+    },
+    "antiaspects": {},
+    "gates": {
+      "9": 18,
+      "18": 16,
+      "48": 18,
+      "58": 10,
+      "61": 14,
+      "24": 12,
+      "63": 14,
+      "4": 10,
+      "17": 8,
+      "62": 10,
+      "16": 8,
+      "57": 6,
+      "21": -8,
+      "49": -6,
+      "51": -10
+    },
+    "antigates": {},
+    "channels": {
+      "18-58": 16,
+      "16-48": 14,
+      "24-61": 14,
+      "63-4": 12,
+      "17-62": 10,
+      "25-51": -10,
+      "3-60": 6
+    },
+    "antichannels": {},
+    "centers": {
+      "Ajna": 12,
+      "Spleen": 8
+    },
+    "anticenters": {},
+    "profiles": {},
+    "antiprofiles": {},
+    "authorities": {},
+    "antiauthorities": {},
+    "bazisigns": {},
+    "antibazisigns": {},
+    "color": "#8bfa29",
+    "motivation": "methodical inquiry",
+    "description": "Regular scientists: methodical investigators marked by technical reasoning, repeatable work, correction, depth, focused attention, and disciplined pattern recognition rather than fame, shock, or pioneer branding.",
+    "quotes": {},
+    "archived": false,
+    "uid": "default_regular_feminist"
   },
   "revolutionary": {
     "name": "revolutionary",
@@ -4525,6 +4711,7 @@
     "description": "“Sartre distinguished between rebels and revolutionaries. The rebel, he says, secretly quite wants the world and the system to remain as it is. Its permanence, after all, is the guarantee of his continuing ability to 'rebel.' The revolutionary, in contrast, really wishes to overthrow and replace existing conditions. The second enterprise is obviously no laughing matter.” ― Christopher Hitchens, Letters to a Young Contrarian\nThat said, this is likely a combination of both: it is the agregated charts of everyone the developer could think of who has overtly tried to massively & systemically upset the status quo on a broad, social level.",
     "quotes": {},
     "archived": false,
+    "uid": "default_revolutionary"
     "samples": []
   },
   "sex symbol (all)": {
@@ -4636,6 +4823,7 @@
     "description": "Male & female sex symbols: agregated similarities. Charts tagged based on a number of generic \"top 25 sex symbols throughout history\" and the like. Very 'Western Media'-centric. Mostly American, and at very least intelligible sex appeal for American audiences (such as Shahrukh Khan). These were based on democratically sourced internet lists, not the developer's personal opinion.",
     "quotes": {},
     "archived": false,
+    "uid": "default_sex_symbol_all"
     "samples": []
   },
   "talk show host": {
@@ -4817,7 +5005,8 @@
     "color": "#d09f6f",
     "motivation": "",
     "description": "Forged from the aggregated charts of every talk show host I am aware of, after a lot of research into talkshow hosts in Western Media.\nEmphasis on Western media.",
-    "quotes": {}
+    "quotes": {},
+    "uid": "default_talk_show_host"
   },
   "technocrat": {
     "name": "technocrat",
@@ -5007,7 +5196,8 @@
     "motivation": "",
     "description": "All the billionnaires advocating for 'effective altruism' while building glam bunkers, basically. What does it mean if your chart has this and you haven't built you glam bunker yet? Still waiting to see...",
     "quotes": {},
-    "archived": false
+    "archived": false,
+    "uid": "default_technocrat"
   },
   "treacherous": {
     "name": "treacherous",
@@ -5296,6 +5486,7 @@
     "motivation": "",
     "description": "Mostly ballet. This was 'democratically sourced' from internet lists of 'best dancers of the 20th & 21st century', mixed with a selection of great dancers and choreographers the developer is personally aware of. The internet lists skewed ballet and world-famous. The developer's list was rather more eclectic & niche, but contributed only a few entries.",
     "quotes": {},
-    "archived": false
+    "archived": false,
+    "uid": "default_treacherous"
   }
 }
