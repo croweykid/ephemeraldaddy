@@ -162,6 +162,7 @@ def refresh_traits_settings_list(owner: Any) -> None:
             item.setData(Qt.UserRole + 3, str(trait.get("description", "")).strip())
             item.setData(Qt.UserRole + 4, bundled)
             item.setData(Qt.UserRole + 5, name)
+            item.setData(Qt.UserRole + 6, str(trait.get("uid") or trait.get("trait_uid") or "").strip())
             item.setForeground(QColor(color))
             list_widget.addItem(item)
             if str(trait["path"]) == current_path:
@@ -281,6 +282,18 @@ def on_trait_delete_clicked(owner: Any) -> None:
         QMessageBox.No,
     )
     if choice != QMessageBox.Yes:
+        return
+    trait_uid = str(item.data(Qt.UserRole + 6) or "").strip()
+    try:
+        from ephemeraldaddy.core import db
+
+        db.purge_chart_trait_metadata_for_trait(trait_uid=trait_uid, trait_name=trait_name)
+    except Exception as exc:
+        QMessageBox.warning(
+            dialog_parent,
+            "Trait metadata cleanup failed",
+            f"Trait metadata for '{trait_name}' could not be purged: {exc}",
+        )
         return
     delete_trait(item.data(Qt.UserRole))
     _mark_trait_definitions_changed(owner, trait_names={trait_name})

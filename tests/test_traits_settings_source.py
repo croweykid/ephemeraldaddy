@@ -130,3 +130,15 @@ def test_legacy_trait_signature_and_parenthesized_names_are_preserved():
     assert "item.setData(Qt.UserRole + 5, name)" in settings_source
     assert "raw_name = item.data(Qt.UserRole + 5)" in settings_source
     assert "text.endswith(suffix)" in settings_source
+
+
+def test_deleted_traits_purge_uid_metadata_from_settings_handler():
+    settings_source = (ROOT / "ephemeraldaddy" / "gui" / "features" / "settings" / "traits.py").read_text(
+        encoding="utf-8"
+    )
+    db_source = (ROOT / "ephemeraldaddy" / "core" / "db.py").read_text(encoding="utf-8")
+
+    assert "item.setData(Qt.UserRole + 6" in settings_source
+    assert "purge_chart_trait_metadata_for_trait" in settings_source
+    assert "def purge_chart_trait_metadata_for_trait" in db_source
+    assert "trait_uid = ?" in db_source

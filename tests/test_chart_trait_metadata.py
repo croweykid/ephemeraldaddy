@@ -121,3 +121,54 @@ def test_list_charts_exposes_chart_uid_for_uid_based_cache_signatures(tmp_path, 
     rows = db.list_charts()
 
     assert rows[0][-1] == chart_uid
+
+
+def test_purge_chart_trait_metadata_for_deleted_trait_removes_uid_and_legacy_name_rows(tmp_path, monkeypatch):
+    monkeypatch.setattr(db, "DB_DIR", tmp_path)
+    monkeypatch.setattr(db, "DB_PATH", tmp_path / "charts.db")
+
+    conn = db._get_conn()
+    with conn:
+        _chart_id, chart_uid = _insert_chart(conn)
+    conn.close()
+
+    db.upsert_chart_trait_metadata(
+        chart_uid,
+        [
+            {
+                "trait_uid": "custom_visual_artist",
+                "trait_name": "artist (visual)",
+                "direction": "above",
+                "likelihood": 80.0,
+                "db_average": 50.0,
+                "deviation": 30.0,
+            },
+            {
+                "trait_name": "Legacy Trait",
+                "direction": "neutral",
+                "likelihood": 50.0,
+                "db_average": 50.0,
+                "deviation": 0.0,
+            },
+            {
+                "trait_uid": "keep_me",
+                "trait_name": "Keep Me",
+                "direction": "below",
+                "likelihood": 20.0,
+                "db_average": 50.0,
+                "deviation": -30.0,
+            },
+        ],
+        trait_signature="trait-signature",
+        norm_signature="norm-signature",
+        chart_signature="chart-signature",
+    )
+
+    assert db.purge_chart_trait_metadata_for_trait(
+        trait_uid="custom_visual_artist",
+        trait_name="Legacy Trait",
+    ) == 2
+
+    rows = db.get_chart_trait_metadata(chart_uid)
+    assert [row["trait_name"] for row in rows] == ["Keep Me"]
+    assert rows[0]["trait_uid"] == "keep_me"

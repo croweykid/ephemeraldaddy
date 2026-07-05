@@ -4133,6 +4133,33 @@ def get_chart_trait_metadata(chart_uid: str) -> list[dict[str, Any]]:
         conn.close()
 
 
+def purge_chart_trait_metadata_for_trait(*, trait_uid: str = "", trait_name: str = "") -> int:
+    """Delete persisted derived trait metadata for a removed trait across all charts."""
+    normalized_uid = str(trait_uid or "").strip()
+    normalized_name = str(trait_name or "").strip()
+    if not normalized_uid and not normalized_name:
+        return 0
+    clauses: list[str] = []
+    params: list[Any] = []
+    if normalized_uid:
+        clauses.append("trait_uid = ?")
+        params.append(normalized_uid)
+    if normalized_name:
+        clauses.append("(trait_uid = '' AND trait_name = ?)")
+        params.append(normalized_name)
+    conn = _get_conn()
+    try:
+        with conn:
+            _create_chart_trait_metadata_table(conn)
+            cursor = conn.execute(
+                f"DELETE FROM chart_trait_metadata WHERE {' OR '.join(clauses)}",
+                tuple(params),
+            )
+            return int(cursor.rowcount or 0)
+    finally:
+        conn.close()
+
+
 def get_alternate_chart_uid_groups() -> dict[str, list[str]]:
     """Return linked UID groups keyed by a normal chart UID."""
     conn = _get_conn()
