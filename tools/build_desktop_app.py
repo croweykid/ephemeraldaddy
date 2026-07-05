@@ -100,6 +100,7 @@ def _build_datas() -> list[tuple[str, str]]:
             datas.append((src.relative_to(REPO_ROOT).as_posix(), dest))
 
     for src_dir, dest in (
+        (REPO_ROOT / "ephemeraldaddy" / "analysis" / "default_traits.json", "ephemeraldaddy/analysis"),
         (REPO_ROOT / "ephemeraldaddy" / "graphics", "ephemeraldaddy/graphics"),
         (REPO_ROOT / "ephemeraldaddy" / "gui" / "fonts", "ephemeraldaddy/gui/fonts"),
         (REPO_ROOT / "ephemeraldaddy" / "data" / "compiled", "ephemeraldaddy/data/compiled"),
