@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QListView,
     QProgressDialog,
+    QHBoxLayout,
     QScrollArea,
     QSizePolicy,
     QToolButton,
@@ -201,6 +202,16 @@ TAG_CHIP_MUTED_TEXT_COLOR = "#d6d1c9"
 TAG_CHIP_BORDER_COLOR = "#4a4a4a"
 TAG_CHIP_ALL_SELECTED_BORDER_COLOR = "#9d4edd"
 TAG_CHIP_REMOVE_COLOR = "#ff6f6f"
+TAG_CHIP_GAP_PX = 3
+
+
+def configure_tag_chip_label(label: QLabel | None) -> None:
+    """Apply appwide rich-text label behavior for wrapping tag-chip lists."""
+    if label is None:
+        return
+    label.setWordWrap(True)
+    label.setTextFormat(Qt.RichText)
+    label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
 
 
 def tag_chip_style(*, shared_by_all: bool = False) -> str:
@@ -220,7 +231,7 @@ def tag_chip_style(*, shared_by_all: bool = False) -> str:
         f"border:1px solid {border};"
         "border-radius:999px;"
         "padding:2px 8px;"
-        "margin:2px 4px 2px 0;"
+        f"margin:2px {TAG_CHIP_GAP_PX}px 2px 0;"
     )
 
 
@@ -229,7 +240,7 @@ def tag_remove_link_style() -> str:
     return (
         "display:inline-block;"
         "white-space:nowrap;"
-        "margin-left:5px;"
+        f"margin-left:{TAG_CHIP_GAP_PX}px;"
         f"color:{TAG_CHIP_REMOVE_COLOR};"
         "text-decoration:none;"
         "font-weight:700;"
@@ -243,7 +254,11 @@ def build_tag_chip_html(
     shared_by_all: bool = False,
 ) -> str:
     """Build one rounded tag chip, optionally with the remove X kept inside it."""
-    escaped_tag = html.escape(str(tag or ""))
+    # QLabel rich text can still wrap at ordinary spaces inside an inline span,
+    # which visually slices a tag phrase across rows.  Convert intra-tag
+    # whitespace to non-breaking spaces and leave a normal space after each chip
+    # so the label wraps only between complete Tumblr-style tag pills.
+    escaped_tag = re.sub(r"\s+", "&nbsp;", html.escape(str(tag or "")))
     remove_html = (
         f"<a href='{html.escape(remove_href, quote=True)}' style='{tag_remove_link_style()}'>✕</a>"
         if remove_href
@@ -252,7 +267,7 @@ def build_tag_chip_html(
     return (
         f"<span style='{tag_chip_style(shared_by_all=shared_by_all)}'>"
         f"{escaped_tag}{remove_html}"
-        "</span>"
+        "</span> "
     )
 
 
@@ -405,15 +420,40 @@ def _colorized_plain_chart_info_fragment(text: str) -> str:
         return ""
     text = html.unescape(text)
     tokens = _sorted_chart_info_tokens()
-    pattern_parts = [re.escape(token) for token, _color in tokens if token]
+    uppercase_word_only_tokens = {"AS", "IC", "G"}
+    strict_pattern_parts = [
+        re.escape(token)
+        for token, _color in tokens
+        if token in uppercase_word_only_tokens
+    ]
+    pattern_parts = [
+        re.escape(token)
+        for token, _color in tokens
+        if token and token not in uppercase_word_only_tokens
+    ]
     weight_pattern = r"(?<![\w.])[-+]\d+(?:\.\d+)?(?![\w.])"
     channel_pattern = r"\bChannel\s+\d{1,2}-\d{1,2}\b"
+    strict_token_pattern = (
+        rf"(?<!\w)(?:{'|'.join(strict_pattern_parts)})(?!\w)"
+        if strict_pattern_parts
+        else ""
+    )
     if pattern_parts:
         token_pattern = "|".join(pattern_parts)
-        pattern = re.compile(f"({weight_pattern})|({channel_pattern})|({token_pattern})", re.IGNORECASE)
+        token_group = f"(?i:{token_pattern})"
+        if strict_token_pattern:
+            pattern = re.compile(
+                f"({weight_pattern})|({channel_pattern})|({strict_token_pattern})|({token_group})"
+            )
+        else:
+            pattern = re.compile(f"({weight_pattern})|({channel_pattern})|({token_group})")
     else:
-        pattern = re.compile(f"({weight_pattern})|({channel_pattern})", re.IGNORECASE)
+        if strict_token_pattern:
+            pattern = re.compile(f"({weight_pattern})|({channel_pattern})|({strict_token_pattern})")
+        else:
+            pattern = re.compile(f"({weight_pattern})|({channel_pattern})")
     color_by_casefold = {token.casefold(): color for token, color in tokens}
+    color_by_exact = {token: color for token, color in tokens}
 
     rendered: list[str] = []
     last = 0
@@ -425,6 +465,8 @@ def _colorized_plain_chart_info_fragment(text: str) -> str:
             color = CHART_INFO_POSITIVE_WEIGHT_COLOR if raw.startswith("+") else CHART_INFO_NEGATIVE_WEIGHT_COLOR
         elif re.match(channel_pattern, raw, re.IGNORECASE):
             color = CHART_DATA_HIGHLIGHT_COLOR
+        elif raw in uppercase_word_only_tokens:
+            color = color_by_exact.get(raw)
         else:
             color = color_by_casefold.get(raw.casefold())
         escaped = html.escape(raw)
@@ -1175,6 +1217,49 @@ def configure_share_export_icon_button(
     button.setToolTip(tooltip)
 
 
+def _extract_qss_color(style_sheet: str, fallback: str = COLOR_TEXT_PRIMARY) -> str:
+    """Return the first CSS color declaration from a QSS block."""
+    match = re.search(r"(?:^|[;{]\s*)color\s*:\s*([^;}]+)", style_sheet)
+    return match.group(1).strip() if match else fallback
+
+
+def set_collapsible_header_title(toggle: QToolButton, title: str) -> None:
+    """Set the visible left-aligned title for a configured collapsible header."""
+    # The visible title is rendered by the overlay label installed in
+    # ``configure_collapsible_header_toggle``.  Keep the native QToolButton text
+    # empty so Qt style hover painting cannot draw a second, centered copy of
+    # the title over the left-aligned label.
+    toggle.setText("")
+    toggle.setAccessibleName(title)
+    title_label = getattr(toggle, "_collapsible_header_title_label", None)
+    if isinstance(title_label, QLabel):
+        title_label.setText(title)
+
+
+class _CollapsibleHeaderHoverFilter(QObject):
+    """Keep overlay header labels left-aligned while applying hover highlight."""
+
+    def __init__(self, toggle: QToolButton, label: QLabel, base_color: str) -> None:
+        super().__init__(toggle)
+        self._label = label
+        self._base_color = base_color
+
+    def _set_hovered(self, hovered: bool) -> None:
+        color = CHART_DATA_HIGHLIGHT_COLOR if hovered else self._base_color
+        self._label.setStyleSheet(
+            "background: transparent; "
+            f"color: {color}; "
+            "font-weight: bold; font-size: 12px;"
+        )
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802
+        if event.type() == QEvent.Enter:
+            self._set_hovered(True)
+        elif event.type() in (QEvent.Leave, QEvent.EnabledChange):
+            self._set_hovered(False)
+        return super().eventFilter(watched, event)
+
+
 def configure_collapsible_header_toggle(
     toggle: QToolButton,
     *,
@@ -1183,14 +1268,36 @@ def configure_collapsible_header_toggle(
     style_sheet: str,
 ) -> None:
     """Apply default shared behavior for collapsible/expandable section headers."""
-    toggle.setText(title)
     toggle.setCheckable(True)
     toggle.setChecked(expanded)
     toggle.setArrowType(Qt.NoArrow)
-    toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+    toggle.setToolButtonStyle(Qt.ToolButtonTextOnly)
     toggle.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-    toggle.setStyleSheet(style_sheet)
+    toggle.setStyleSheet(
+        f"{style_sheet} "
+        "QToolButton { color: transparent; text-align: left; } "
+        "QToolButton:hover { color: transparent; text-align: left; }"
+    )
     toggle.setLayoutDirection(Qt.LeftToRight)
+
+    title_label = QLabel(toggle)
+    title_label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+    base_title_color = _extract_qss_color(style_sheet)
+    title_label.setStyleSheet(
+        "background: transparent; "
+        f"color: {base_title_color}; "
+        "font-weight: bold; font-size: 12px;"
+    )
+    title_layout = QHBoxLayout(toggle)
+    title_layout.setContentsMargins(6, 0, 6, 0)
+    title_layout.setSpacing(0)
+    title_layout.addWidget(title_label, 0, Qt.AlignLeft | Qt.AlignVCenter)
+    title_layout.addStretch(1)
+    toggle._collapsible_header_title_label = title_label  # type: ignore[attr-defined]
+    hover_filter = _CollapsibleHeaderHoverFilter(toggle, title_label, base_title_color)
+    toggle.installEventFilter(hover_filter)
+    toggle._collapsible_header_hover_filter = hover_filter  # type: ignore[attr-defined]
+    set_collapsible_header_title(toggle, title)
     _install_collapsible_header_interactions(toggle, style_sheet)
 
 

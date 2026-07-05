@@ -421,9 +421,6 @@ def build_similarity_calculator_settings_section(
 
     reset_similarity_weights_button = QPushButton("Reset Weights to Defaults")
     reset_similarity_weights_button.clicked.connect(on_reset_weights_clicked)
-    granular_explanations_checkbox = QCheckBox("Similar Charts: show granular algorithmic breakdowns")
-    granular_explanations_checkbox.setChecked(bool(show_granular_explanations))
-    granular_explanations_checkbox.toggled.connect(on_granular_explanations_toggled)
 
     reset_granular_row = QHBoxLayout()
     reset_granular_row.addWidget(reset_similarity_weights_button, alignment=Qt.AlignLeft)
