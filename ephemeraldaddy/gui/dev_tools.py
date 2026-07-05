@@ -258,8 +258,6 @@ def build_similarity_calculator_settings_section(
     on_placement_weighting_mode_changed: Callable[[str], None],
     on_all_or_nothing_criterion_changed: Callable[[str], None],
     on_reset_weights_clicked: Callable[[], None],
-    on_granular_explanations_toggled: Callable[[bool], None],
-    show_granular_explanations: bool,
     on_calibrate_clicked: Callable[[], None],
     on_save_thresholds_clicked: Callable[[], None],
     on_reset_thresholds_clicked: Callable[[], None],
@@ -421,15 +419,7 @@ def build_similarity_calculator_settings_section(
 
     reset_similarity_weights_button = QPushButton("Reset Weights to Defaults")
     reset_similarity_weights_button.clicked.connect(on_reset_weights_clicked)
-    granular_explanations_checkbox = QCheckBox("Similar Charts: show granular algorithmic breakdowns")
-    granular_explanations_checkbox.setChecked(bool(show_granular_explanations))
-    granular_explanations_checkbox.toggled.connect(on_granular_explanations_toggled)
-
-    reset_granular_row = QHBoxLayout()
-    reset_granular_row.addWidget(reset_similarity_weights_button, alignment=Qt.AlignLeft)
-    reset_granular_row.addStretch(1)
-    reset_granular_row.addWidget(granular_explanations_checkbox, alignment=Qt.AlignRight)
-    custom_fields_layout.addLayout(reset_granular_row)
+    custom_fields_layout.addWidget(reset_similarity_weights_button, alignment=Qt.AlignLeft)
     section_layout.addWidget(custom_fields_frame)
 
     section_divider = QFrame()
@@ -497,7 +487,6 @@ def build_similarity_calculator_settings_section(
         "calculator_total_label": total_weight_value_label,
         "placement_weighting_mode_combo": weighting_mode_combo,
         "all_or_nothing_criterion_combo": all_or_nothing_criterion_combo,
-        "granular_explanations_checkbox": granular_explanations_checkbox,
         "threshold_spinboxes": threshold_spinboxes,
     }
 
