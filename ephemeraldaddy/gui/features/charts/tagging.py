@@ -7,7 +7,7 @@ from typing import Iterable
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QCompleter, QLabel, QLineEdit
 
-from ephemeraldaddy.gui.style import build_tag_chip_html
+from ephemeraldaddy.gui.style import build_tag_chip_html, configure_tag_chip_label
 
 
 def normalize_tag_list(tags: Iterable[str] | None) -> list[str]:
@@ -34,13 +34,17 @@ def parse_tag_text(raw_value: str | None) -> list[str]:
 def render_tag_chip_preview(preview_label: QLabel | None, tags: list[str]) -> None:
     if preview_label is None:
         return
+    configure_tag_chip_label(preview_label)
+    if hasattr(preview_label, "set_chip_tags"):
+        preview_label.set_chip_tags(tags)
+        return
     if not tags:
         preview_label.setText("")
         return
     chips = []
     for tag in tags:
         chips.append(build_tag_chip_html(tag))
-    preview_label.setText(" ".join(chips))
+    preview_label.setText("".join(chips))
 
 
 def replace_active_tag_segment(line_edit: QLineEdit, completed_tag: str) -> None:

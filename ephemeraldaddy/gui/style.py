@@ -8,11 +8,13 @@ from PySide6.QtCore import (
     QObject,
     #QParallelAnimationGroup,
     QPoint,
+    QRect,
     QPropertyAnimation,
     QSize,
     QTimer,
     Qt,
     QEventLoop,
+    Signal,
     #QVariantAnimation,
 )
 from PySide6.QtGui import QFont, QIcon#, QFontMetrics
@@ -25,10 +27,12 @@ from PySide6.QtWidgets import (
     QListView,
     QProgressDialog,
     QHBoxLayout,
+    QLayout,
     QScrollArea,
     QSizePolicy,
     QToolButton,
     QWidget,
+    QWidgetItem,
 )
 
 from ephemeraldaddy.core.interpretations import (
@@ -202,6 +206,16 @@ TAG_CHIP_MUTED_TEXT_COLOR = "#d6d1c9"
 TAG_CHIP_BORDER_COLOR = "#4a4a4a"
 TAG_CHIP_ALL_SELECTED_BORDER_COLOR = "#9d4edd"
 TAG_CHIP_REMOVE_COLOR = "#ff6f6f"
+TAG_CHIP_GAP_PX = 3
+
+
+def configure_tag_chip_label(label: QLabel | None) -> None:
+    """Apply appwide rich-text label behavior for wrapping tag-chip lists."""
+    if label is None:
+        return
+    label.setWordWrap(True)
+    label.setTextFormat(Qt.RichText)
+    label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
 
 
 def tag_chip_style(*, shared_by_all: bool = False) -> str:
@@ -221,7 +235,7 @@ def tag_chip_style(*, shared_by_all: bool = False) -> str:
         f"border:1px solid {border};"
         "border-radius:999px;"
         "padding:2px 8px;"
-        "margin:2px 4px 2px 0;"
+        f"margin:2px {TAG_CHIP_GAP_PX}px 2px 0;"
     )
 
 
@@ -230,7 +244,7 @@ def tag_remove_link_style() -> str:
     return (
         "display:inline-block;"
         "white-space:nowrap;"
-        "margin-left:5px;"
+        f"margin-left:{TAG_CHIP_GAP_PX}px;"
         f"color:{TAG_CHIP_REMOVE_COLOR};"
         "text-decoration:none;"
         "font-weight:700;"
@@ -255,6 +269,175 @@ def build_tag_chip_html(
         f"{escaped_tag}{remove_html}"
         "</span>"
     )
+
+
+class TagChipFlowLayout(QLayout):
+    """Layout tag-chip widgets so whole chips wrap between rows."""
+
+    def __init__(self, parent: QWidget | None = None, *, spacing: int = TAG_CHIP_GAP_PX) -> None:
+        super().__init__(parent)
+        self._items: list[QWidgetItem] = []
+        self.setContentsMargins(0, 0, 0, 0)
+        self.setSpacing(spacing)
+
+    def addItem(self, item: QWidgetItem) -> None:  # noqa: N802 - Qt API
+        self._items.append(item)
+
+    def count(self) -> int:
+        return len(self._items)
+
+    def itemAt(self, index: int) -> QWidgetItem | None:  # noqa: N802 - Qt API
+        if 0 <= index < len(self._items):
+            return self._items[index]
+        return None
+
+    def takeAt(self, index: int) -> QWidgetItem | None:  # noqa: N802 - Qt API
+        if 0 <= index < len(self._items):
+            return self._items.pop(index)
+        return None
+
+    def expandingDirections(self) -> Qt.Orientations:  # noqa: N802 - Qt API
+        return Qt.Orientations(Qt.Orientation(0))
+
+    def hasHeightForWidth(self) -> bool:  # noqa: N802 - Qt API
+        return True
+
+    def heightForWidth(self, width: int) -> int:  # noqa: N802 - Qt API
+        return self._do_layout(QRect(0, 0, width, 0), test_only=True)
+
+    def setGeometry(self, rect: QRect) -> None:  # noqa: N802 - Qt API
+        super().setGeometry(rect)
+        self._do_layout(rect, test_only=False)
+
+    def sizeHint(self) -> QSize:  # noqa: N802 - Qt API
+        return self.minimumSize()
+
+    def minimumSize(self) -> QSize:  # noqa: N802 - Qt API
+        size = QSize()
+        for item in self._items:
+            size = size.expandedTo(item.minimumSize())
+        margins = self.contentsMargins()
+        size += QSize(margins.left() + margins.right(), margins.top() + margins.bottom())
+        return size
+
+    def clear(self) -> None:
+        while self._items:
+            item = self.takeAt(0)
+            widget = item.widget() if item is not None else None
+            if widget is not None:
+                widget.setParent(None)
+                widget.deleteLater()
+
+    def _smart_spacing(self) -> int:
+        spacing = self.spacing()
+        if spacing >= 0:
+            return spacing
+        parent = self.parent()
+        if isinstance(parent, QWidget):
+            return parent.style().layoutSpacing(QSizePolicy.PushButton, QSizePolicy.PushButton, Qt.Horizontal)
+        return TAG_CHIP_GAP_PX
+
+    def _do_layout(self, rect: QRect, *, test_only: bool) -> int:
+        x = rect.x()
+        y = rect.y()
+        line_height = 0
+        spacing = self._smart_spacing()
+        right_edge = rect.right()
+        for item in self._items:
+            item_size = item.sizeHint()
+            next_x = x + item_size.width() + spacing
+            if line_height > 0 and next_x - spacing > right_edge:
+                x = rect.x()
+                y = y + line_height + spacing
+                next_x = x + item_size.width() + spacing
+                line_height = 0
+            if not test_only:
+                item.setGeometry(QRect(QPoint(x, y), item_size))
+            x = next_x
+            line_height = max(line_height, item_size.height())
+        return y + line_height - rect.y()
+
+
+class TagChipListWidget(QWidget):
+    """Widget-backed tag chip list that wraps whole chips, never chip text."""
+
+    linkActivated = Signal(str)
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._layout = TagChipFlowLayout(self, spacing=TAG_CHIP_GAP_PX)
+        self.setLayout(self._layout)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
+        self._empty_label: QLabel | None = None
+
+    def setWordWrap(self, _enabled: bool) -> None:  # noqa: N802 - QLabel-compatible API
+        return
+
+    def setTextFormat(self, _format: Qt.TextFormat) -> None:  # noqa: N802 - QLabel-compatible API
+        return
+
+    def setText(self, text: str) -> None:  # noqa: N802 - QLabel-compatible API
+        self._layout.clear()
+        cleaned = str(text or "")
+        if not cleaned:
+            self._empty_label = None
+            self.updateGeometry()
+            return
+        label = QLabel(cleaned)
+        label.setTextFormat(Qt.RichText)
+        label.setWordWrap(True)
+        label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        self._layout.addWidget(label)
+        self._empty_label = label
+        self.updateGeometry()
+
+    def set_chip_tags(self, tags: list[tuple[str, str | None, bool]] | list[str]) -> None:
+        """Render tag chips as widgets so whole chips flow to the next row."""
+        self._layout.clear()
+        self._empty_label = None
+        for item in tags:
+            if isinstance(item, tuple):
+                tag, remove_href, shared_by_all = item
+            else:
+                tag, remove_href, shared_by_all = str(item), None, False
+            self._layout.addWidget(self._build_chip(str(tag), remove_href, shared_by_all))
+        self.updateGeometry()
+
+    def _build_chip(self, tag: str, remove_href: str | None, shared_by_all: bool) -> QWidget:
+        background = TAG_CHIP_ALL_SELECTED_BACKGROUND_COLOR if shared_by_all else TAG_CHIP_BACKGROUND_COLOR
+        border = TAG_CHIP_ALL_SELECTED_BORDER_COLOR if shared_by_all else TAG_CHIP_BORDER_COLOR
+        color = TAG_CHIP_TEXT_COLOR if shared_by_all else TAG_CHIP_MUTED_TEXT_COLOR
+        chip = QWidget(self)
+        chip.setStyleSheet(
+            "QWidget {"
+            f"background:{background};"
+            f"border:1px solid {border};"
+            "border-radius:999px;"
+            "}"
+        )
+        chip_layout = QHBoxLayout(chip)
+        chip_layout.setContentsMargins(8, 2, 8, 2)
+        chip_layout.setSpacing(TAG_CHIP_GAP_PX)
+        label = QLabel(tag, chip)
+        label.setWordWrap(False)
+        label.setStyleSheet(f"color:{color}; border:0; background:transparent;")
+        label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        chip_layout.addWidget(label, 0)
+        if remove_href:
+            remove_button = QToolButton(chip)
+            apply_button_cursor(remove_button)
+            remove_button.setText("✕")
+            remove_button.setAutoRaise(True)
+            remove_button.setStyleSheet(
+                "QToolButton {"
+                f"color:{TAG_CHIP_REMOVE_COLOR};"
+                "border:0; background:transparent; font-weight:700; padding:0;"
+                "}"
+            )
+            remove_button.clicked.connect(lambda _checked=False, href=remove_href: self.linkActivated.emit(href))
+            chip_layout.addWidget(remove_button, 0)
+        chip.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        return chip
 
 
 APP_LOADING_PROGRESS_STYLESHEET = """
