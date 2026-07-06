@@ -8,7 +8,7 @@ from typing import Protocol, runtime_checkable
 
 from PySide6.QtCore import QCoreApplication, QEventLoop, QPointF, QRectF, Qt, QTimer
 from PySide6.QtGui import QColor, QGuiApplication, QPainter, QPainterPath, QPen
-from PySide6.QtWidgets import QLabel, QProgressBar, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QLabel, QProgressBar, QStyle, QStyleOptionProgressBar, QVBoxLayout, QWidget
 
 from ephemeraldaddy.gui.style import DATABASE_VIEW_PANEL_HEADER_STYLE
 
@@ -91,27 +91,61 @@ class _StartupAnimationBackground(QWidget):
 
     def _build_wavy_rect_path(self, rect: QRectF) -> QPainterPath:
         step = 4.0
-        path = QPainterPath()
-        path.moveTo(rect.left(), rect.top())
-        x = rect.left()
-        while x <= rect.right():
-            y = rect.top() + math.sin((x / self._wave_length) + self._wave_phase) * self._wave_amplitude
-            path.lineTo(QPointF(x, y))
+
+        def top_point(x: float) -> QPointF:
+            return QPointF(
+                x,
+                rect.top()
+                + math.sin((x / self._wave_length) + self._wave_phase)
+                * self._wave_amplitude,
+            )
+
+        def right_point(y: float) -> QPointF:
+            return QPointF(
+                rect.right()
+                + math.sin((y / self._wave_length) + self._wave_phase)
+                * self._wave_amplitude,
+                y,
+            )
+
+        def bottom_point(x: float) -> QPointF:
+            return QPointF(
+                x,
+                rect.bottom()
+                + math.sin((x / self._wave_length) + self._wave_phase + math.pi)
+                * self._wave_amplitude,
+            )
+
+        def left_point(y: float) -> QPointF:
+            return QPointF(
+                rect.left()
+                + math.sin((y / self._wave_length) + self._wave_phase + math.pi)
+                * self._wave_amplitude,
+                y,
+            )
+
+        path = QPainterPath(top_point(rect.left()))
+        x = rect.left() + step
+        while x < rect.right():
+            path.lineTo(top_point(x))
             x += step
-        y = rect.top()
-        while y <= rect.bottom():
-            x = rect.right() + math.sin((y / self._wave_length) + self._wave_phase) * self._wave_amplitude
-            path.lineTo(QPointF(x, y))
+        path.lineTo(top_point(rect.right()))
+
+        y = rect.top() + step
+        while y < rect.bottom():
+            path.lineTo(right_point(y))
             y += step
-        x = rect.right()
-        while x >= rect.left():
-            y = rect.bottom() + math.sin((x / self._wave_length) + self._wave_phase + math.pi) * self._wave_amplitude
-            path.lineTo(QPointF(x, y))
+        path.lineTo(right_point(rect.bottom()))
+
+        x = rect.right() - step
+        while x > rect.left():
+            path.lineTo(bottom_point(x))
             x -= step
-        y = rect.bottom()
-        while y >= rect.top():
-            x = rect.left() + math.sin((y / self._wave_length) + self._wave_phase + math.pi) * self._wave_amplitude
-            path.lineTo(QPointF(x, y))
+        path.lineTo(bottom_point(rect.left()))
+
+        y = rect.bottom() - step
+        while y > rect.top():
+            path.lineTo(left_point(y))
             y -= step
         path.closeSubpath()
         return path
@@ -133,8 +167,67 @@ class _StartupAnimationBackground(QWidget):
         painter.setClipPath(wave_path)
         self._draw_starburst_particles(painter, content_rect)
         painter.restore()
-        painter.setPen(QPen(QColor("#aa77ff"), 1.5))
+        border_pen = QPen(QColor("#aa77ff"), 1.8)
+        border_pen.setJoinStyle(Qt.RoundJoin)
+        border_pen.setCapStyle(Qt.RoundCap)
+        painter.setPen(border_pen)
         painter.drawPath(wave_path)
+
+
+class _SparkleProgressBar(QProgressBar):
+    """Progress bar that keeps the launch sparkle layer visible above the chunk."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._sparkle_phase = 0.0
+        self._sparkle_timer = QTimer(self)
+        self._sparkle_timer.setInterval(45)
+        self._sparkle_timer.timeout.connect(self._advance_sparkles)
+        self._sparkle_timer.start()
+
+    def _advance_sparkles(self) -> None:
+        self._sparkle_phase = (self._sparkle_phase + 0.28) % (2.0 * math.pi)
+        self.update()
+
+    def paintEvent(self, event) -> None:  # type: ignore[override]
+        super().paintEvent(event)
+        if self.maximum() <= self.minimum():
+            return
+
+        option = QStyleOptionProgressBar()
+        self.initStyleOption(option)
+        groove = self.style().subElementRect(
+            QStyle.SE_ProgressBarGroove, option, self
+        )
+        fill_ratio = (self.value() - self.minimum()) / (self.maximum() - self.minimum())
+        fill_width = max(0.0, groove.width() * min(max(fill_ratio, 0.0), 1.0))
+        if fill_width < 8.0:
+            return
+
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        painter.setClipRect(
+            QRectF(groove.left(), groove.top(), fill_width, groove.height())
+        )
+        sparkle_count = 7
+        for index in range(sparkle_count):
+            phase = self._sparkle_phase + (index * 1.17)
+            x = groove.left() + ((index + 0.6) / sparkle_count) * fill_width
+            y = groove.center().y() + math.sin(phase * 1.4) * (groove.height() * 0.22)
+            strength = (math.sin(phase) + 1.0) / 2.0
+            alpha = int(90 + strength * 150)
+            radius = 1.0 + strength * 1.5
+            center = QPointF(x, y)
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QColor(255, 244, 210, alpha))
+            painter.drawEllipse(center, radius, radius)
+            painter.setPen(QPen(QColor(255, 255, 255, min(alpha + 20, 255)), 1.0))
+            painter.drawLine(
+                QPointF(x - radius * 2.2, y), QPointF(x + radius * 2.2, y)
+            )
+            painter.drawLine(
+                QPointF(x, y - radius * 2.2), QPointF(x, y + radius * 2.2)
+            )
 
 
 class StartupLoadingWidget(QWidget):
@@ -175,7 +268,7 @@ class StartupLoadingWidget(QWidget):
         self._status_label.setStyleSheet("color: #efe9ff; font-size: 12px;")
         layout.addWidget(self._status_label)
 
-        self._progress = QProgressBar()
+        self._progress = _SparkleProgressBar()
         self._progress.setRange(0, 100)
         self._progress.setValue(5)
         self._progress.setStyleSheet(
