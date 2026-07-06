@@ -1514,6 +1514,13 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     owner.dnd_predictions_chart_layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
     owner.dnd_predictions_chart_panel.setLayout(owner.dnd_predictions_chart_layout)
     dnd_section_layout.addWidget(owner.dnd_predictions_chart_panel)
+    owner.dnd_alignment_chart_panel = QWidget()
+    owner.dnd_alignment_chart_layout = QVBoxLayout()
+    owner.dnd_alignment_chart_layout.setContentsMargins(0, 0, 0, 0)
+    owner.dnd_alignment_chart_layout.setSpacing(6)
+    owner.dnd_alignment_chart_layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+    owner.dnd_alignment_chart_panel.setLayout(owner.dnd_alignment_chart_layout)
+    dnd_section_layout.addWidget(owner.dnd_alignment_chart_panel)
     layout.addStretch(1)
     return panel
 
