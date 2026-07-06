@@ -80,27 +80,61 @@ class StartupAnimationWindow(QWidget):
 
     def _build_wavy_rect_path(self, rect: QRectF) -> QPainterPath:
         step = 4.0
-        path = QPainterPath()
-        path.moveTo(rect.left(), rect.top())
-        x = rect.left()
-        while x <= rect.right():
-            y = rect.top() + math.sin((x / self._wave_length) + self._wave_phase) * self._wave_amplitude
-            path.lineTo(QPointF(x, y))
+
+        def top_point(x: float) -> QPointF:
+            return QPointF(
+                x,
+                rect.top()
+                + math.sin((x / self._wave_length) + self._wave_phase)
+                * self._wave_amplitude,
+            )
+
+        def right_point(y: float) -> QPointF:
+            return QPointF(
+                rect.right()
+                + math.sin((y / self._wave_length) + self._wave_phase)
+                * self._wave_amplitude,
+                y,
+            )
+
+        def bottom_point(x: float) -> QPointF:
+            return QPointF(
+                x,
+                rect.bottom()
+                + math.sin((x / self._wave_length) + self._wave_phase + math.pi)
+                * self._wave_amplitude,
+            )
+
+        def left_point(y: float) -> QPointF:
+            return QPointF(
+                rect.left()
+                + math.sin((y / self._wave_length) + self._wave_phase + math.pi)
+                * self._wave_amplitude,
+                y,
+            )
+
+        path = QPainterPath(top_point(rect.left()))
+        x = rect.left() + step
+        while x < rect.right():
+            path.lineTo(top_point(x))
             x += step
-        y = rect.top()
-        while y <= rect.bottom():
-            x = rect.right() + math.sin((y / self._wave_length) + self._wave_phase) * self._wave_amplitude
-            path.lineTo(QPointF(x, y))
+        path.lineTo(top_point(rect.right()))
+
+        y = rect.top() + step
+        while y < rect.bottom():
+            path.lineTo(right_point(y))
             y += step
-        x = rect.right()
-        while x >= rect.left():
-            y = rect.bottom() + math.sin((x / self._wave_length) + self._wave_phase + math.pi) * self._wave_amplitude
-            path.lineTo(QPointF(x, y))
+        path.lineTo(right_point(rect.bottom()))
+
+        x = rect.right() - step
+        while x > rect.left():
+            path.lineTo(bottom_point(x))
             x -= step
-        y = rect.bottom()
-        while y >= rect.top():
-            x = rect.left() + math.sin((y / self._wave_length) + self._wave_phase + math.pi) * self._wave_amplitude
-            path.lineTo(QPointF(x, y))
+        path.lineTo(bottom_point(rect.left()))
+
+        y = rect.bottom() - step
+        while y > rect.top():
+            path.lineTo(left_point(y))
             y -= step
         path.closeSubpath()
         return path
@@ -116,15 +150,17 @@ class StartupAnimationWindow(QWidget):
             outer_rect.width() - (self._edge_padding * 2.0),
             outer_rect.height() - (self._edge_padding * 2.0),
         )
-        frame_path = QPainterPath()
-        frame_path.addRoundedRect(content_rect, 12.0, 12.0)
-        painter.fillPath(frame_path, QColor("#141218"))
+        wave_path = self._build_wavy_rect_path(content_rect)
+        painter.fillPath(wave_path, QColor("#141218"))
         painter.save()
-        painter.setClipPath(frame_path)
+        painter.setClipPath(wave_path)
         self._draw_starburst_particles(painter, content_rect)
         painter.restore()
-        painter.setPen(QPen(QColor("#aa77ff"), 1.8))
-        painter.drawPath(frame_path)
+        border_pen = QPen(QColor("#aa77ff"), 1.8)
+        border_pen.setJoinStyle(Qt.RoundJoin)
+        border_pen.setCapStyle(Qt.RoundCap)
+        painter.setPen(border_pen)
+        painter.drawPath(wave_path)
 
 
 def main() -> int:
