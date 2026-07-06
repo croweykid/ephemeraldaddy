@@ -930,6 +930,29 @@ def _forget_traits_prediction_worker_job(
     thread.deleteLater()
 
 
+def stop_traits_prediction_refresh_workers(owner: Any, wait_msecs: int | None = None) -> None:
+    """Stop Chart View trait prediction refresh threads before their owner is destroyed."""
+    owner._traits_prediction_render_token = object()
+    jobs = getattr(owner, "_traits_prediction_worker_jobs", None)
+    if not isinstance(jobs, list) or not jobs:
+        return
+
+    for thread, _worker, _receiver in list(jobs):
+        if not isinstance(thread, QThread):
+            continue
+        try:
+            if thread.isRunning():
+                thread.requestInterruption()
+                thread.quit()
+                if wait_msecs is None:
+                    thread.wait()
+                else:
+                    thread.wait(max(0, int(wait_msecs)))
+        except RuntimeError:
+            continue
+    jobs.clear()
+
+
 def _start_traits_prediction_refresh_worker(
     owner: Any,
     chart: Any,
