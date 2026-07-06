@@ -9,6 +9,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLabel
 
 from ephemeraldaddy.analysis.dnd.dnd_definitions import (
+    DND_ALIGNMENTS,
     DND_CLASS_SUBCLASS_STATS,
     DND_STAT_PREDICTORS,
     DND_STAT_EXPLANATIONS,
@@ -58,7 +59,9 @@ from ephemeraldaddy.analysis.weighted_chart_predictor import (
     _position_match_weight,
     _weighted_text_entries,
 )
+from ephemeraldaddy.analysis.traits import calculate_trait_likelihoods
 from ephemeraldaddy.core.interpretations import ASPECT_SCORE_WEIGHTS
+from ephemeraldaddy.gui.features.charts.trait_predictions import _database_trait_averages
 from ephemeraldaddy.gui.style import (
     CHART_DATA_HIGHLIGHT_COLOR,
     DND_STAT_EARTHTONE_COLORS,
@@ -580,6 +583,97 @@ def build_dnd_top_three_summary_html(chart: Any, *, linked: bool = False) -> str
     )
 
 
+ALIGNMENT_TRAIT_KEYS: tuple[str, ...] = ("good", "evil", "lawful", "chaotic")
+
+
+def _dnd_alignment_trait_items() -> list[dict[str, Any]]:
+    """Expose D&D alignments through the same trait scoring shape as custom traits."""
+    items: list[dict[str, Any]] = []
+    for key in ALIGNMENT_TRAIT_KEYS:
+        definition = DND_ALIGNMENTS.get(key, {})
+        if not isinstance(definition, dict):
+            continue
+        label = str(definition.get("label") or key.title()).strip()
+        profile = {
+            name: value
+            for name, value in definition.items()
+            if name not in {"label", "name", "confidence", "color", "motivation", "description", "quotes", "samples", "archived"}
+        }
+        items.append({"name": label, "profile": profile})
+    return items
+
+
+def dnd_alignment_deviations(owner: Any, chart: Any) -> dict[str, float]:
+    """Return D&D alignment trait deviation percentages versus database norms."""
+    trait_items = _dnd_alignment_trait_items()
+    if chart is None or not trait_items:
+        return {}
+    likelihoods = calculate_trait_likelihoods(chart, trait_items)
+    try:
+        database_averages = _database_trait_averages(owner, trait_items)
+    except Exception:
+        database_averages = {}
+    deviations: dict[str, float] = {}
+    for trait in trait_items:
+        label = str(trait.get("name", "")).strip()
+        key = label.casefold()
+        if label not in likelihoods or label not in database_averages:
+            continue
+        deviations[key] = float(likelihoods[label]) - float(database_averages[label])
+    return deviations
+
+
+def draw_dnd_alignment_grid(ax: Any, chart: Any, *, owner: Any) -> None:
+    """Draw the D&D alignment net coordinate as a two-axis deviation grid."""
+    import numpy as np
+    from matplotlib.colors import LinearSegmentedColormap
+
+    deviations = dnd_alignment_deviations(owner, chart)
+    good = float(deviations.get("good", 0.0))
+    evil = float(deviations.get("evil", 0.0))
+    lawful = float(deviations.get("lawful", 0.0))
+    chaotic = float(deviations.get("chaotic", 0.0))
+    net_y = good - evil
+    net_x = lawful - chaotic
+    limit = max(10.0, min(100.0, max(abs(good), abs(evil), abs(lawful), abs(chaotic), abs(net_x), abs(net_y))))
+
+    ax.set_xlim(-limit, limit)
+    ax.set_ylim(-limit, limit)
+    ax.set_aspect("equal", adjustable="box")
+    y = np.linspace(0, 1, 256).reshape(256, 1)
+    ax.imshow(
+        y,
+        cmap=LinearSegmentedColormap.from_list("dnd_good_evil", ["#b32020", "#22252f", "#2458ff"]),
+        extent=(-limit, limit, -limit, limit),
+        origin="lower",
+        alpha=0.92,
+        zorder=0,
+    )
+    xs = np.linspace(0, 1, 160)
+    ys = np.linspace(0, 1, 120)
+    xx, yy = np.meshgrid(xs, ys)
+    stipple_alpha = ((np.sin(xx * 80.0) * np.sin(yy * 80.0)) > 0.25).astype(float) * 0.28
+    stipple_rgb = np.zeros((*stipple_alpha.shape, 4))
+    stipple_rgb[..., :3] = xx[..., None]
+    stipple_rgb[..., 3] = stipple_alpha
+    ax.imshow(stipple_rgb, extent=(-limit, limit, -limit, limit), origin="lower", zorder=1)
+
+    ax.axhline(0, color="#f5f5f5", linewidth=0.8, alpha=0.65, zorder=2)
+    ax.axvline(0, color="#f5f5f5", linewidth=0.8, alpha=0.65, zorder=2)
+    trait_points = [(-chaotic, 0.0, "Chaotic"), (lawful, 0.0, "Lawful"), (0.0, good, "Good"), (0.0, -evil, "Evil")]
+    for x_coord, y_coord, label in trait_points:
+        ax.scatter([x_coord], [y_coord], s=42, facecolors="#ffffff", edgecolors="#222222", linewidths=0.8, zorder=4)
+        ax.annotate(label, (x_coord, y_coord), xytext=(4, 4), textcoords="offset points", color="#ffffff", fontsize=7, zorder=5)
+    ax.scatter([net_x], [net_y], marker="*", s=180, facecolors="#ffd700", edgecolors="#fff5a3", linewidths=0.9, zorder=6)
+    ax.set_title("D&D Alignment vs DB Norm", color="#f5f5f5", fontsize=10, pad=8)
+    ax.set_xlabel("Chaotic  ←  deviation %  →  Lawful", color="#d8d8d8", fontsize=8)
+    ax.set_ylabel("Evil  ←  deviation %  →  Good", color="#d8d8d8", fontsize=8)
+    ax.tick_params(colors="#d8d8d8", labelsize=7)
+    for spine in ax.spines.values():
+        spine.set_color("#666666")
+    ax.figure.tight_layout()
+
+
 def configure_dnd_top_three_summary_label(
     label: Any,
     chart: Any,
@@ -645,7 +739,9 @@ class DndPredictionPanelAdapter:
     def __init__(
         self,
         *,
+        owner: Any = None,
         chart_layout: Any,
+        alignment_layout: Any = None,
         summary_label: Any = None,
         info_panel: Any = None,
         before_show: Callable[[], None] | None = None,
@@ -656,7 +752,9 @@ class DndPredictionPanelAdapter:
         norm_charts_provider: Callable[[], Any] | None = None,
         norm_charts_token_provider: Callable[[], Any] | None = None,
     ) -> None:
+        self.owner = owner
         self.chart_layout = chart_layout
+        self.alignment_layout = alignment_layout
         self.summary_label = summary_label
         self.info_panel = info_panel
         self.before_show = before_show
@@ -757,6 +855,9 @@ class DndPredictionPanelAdapter:
             statblock=self._score_statblock(chart, norm_charts),
         )
 
+    def draw_alignment(self, ax: Any, chart: Any) -> None:
+        draw_dnd_alignment_grid(ax, chart, owner=self.owner or self)
+
     def build_popout_info(self, chart: Any | None, target: str, *, show_explainers: bool = True) -> str:
         if chart is None:
             return build_dnd_statblock_popout_info_html(chart, target, show_explainers=show_explainers)
@@ -804,6 +905,15 @@ class DndPredictionPanelAdapter:
             if self.chart_layout.indexOf(summary_label) < 0:
                 self.chart_layout.addWidget(summary_label)
             summary_label.setText("<b>Top three:</b> —" if chart is None else "<b>Top three:</b> No data")
+            if self.alignment_layout is not None:
+                metric_panel_renderer(
+                    canvas_attr="dnd_prediction_alignment_canvas",
+                    container_layout=self.alignment_layout,
+                    figsize=(5.5, 3.4),
+                    title="D&D Alignment",
+                    draw_fn=self._draw_no_data,
+                    chart=chart,
+                )
             return summary_label
         metric_panel_renderer(
             canvas_attr="dnd_prediction_statblock_canvas",
@@ -822,6 +932,15 @@ class DndPredictionPanelAdapter:
                 chart,
                 info_panel=self.info_panel,
                 before_show=self.before_show,
+            )
+        if self.alignment_layout is not None:
+            metric_panel_renderer(
+                canvas_attr="dnd_prediction_alignment_canvas",
+                container_layout=self.alignment_layout,
+                figsize=(5.5, 3.8),
+                title="D&D Alignment",
+                draw_fn=self.draw_alignment,
+                chart=chart,
             )
         return summary_label
 
