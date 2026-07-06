@@ -1170,6 +1170,7 @@ from ephemeraldaddy.gui.features.controllers.chart_view_window import (
     on_chart_view_tag_remove_link,
     on_chart_view_tags_changed,
     refresh_chart_info_panel_toggle_button_styles,
+    refresh_euphonics_for_chart,
     render_chart_view_tag_selection,
     set_chart_view_tag_state,
     setup_chart_view_tags_section,
@@ -27104,6 +27105,7 @@ class MainWindow(QMainWindow):
             chart,
             reset_to_chart_name=reset_to_chart_name,
         )
+        refresh_euphonics_for_chart(self, chart)
 
     def _render_anagrams(self, chart: Chart) -> None:
         if self._anagrams_presenter is None:
@@ -34307,7 +34309,7 @@ class MainWindow(QMainWindow):
         if not self.metrics_panel.isVisible():
             return False
         active_panel = self._chart_right_panel_state.active_tab
-        expected_panel = "subjective_notes" if render_key == "anagrams" else "analytics"
+        expected_panel = "abc" if render_key == "anagrams" else "analytics"
         if active_panel != expected_panel:
             return False
         if not allow_collapsed and not self._chart_analysis_section_expanded.get(section_key, True):

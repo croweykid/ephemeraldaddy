@@ -23,6 +23,7 @@ RightPanelSection = Literal[
     "analytics",
     "predictions",
     "subjective_notes",
+    "abc",
     "material_facts",
     "time_sensitivity",
     "photo_gallery",
@@ -38,6 +39,7 @@ class ChartRightPanelController:
         "analytics": ("chart_analytics_panel_scroll", "chart_analytics_panel_button"),
         "predictions": ("predictions_panel_scroll", "predictions_panel_button"),
         "subjective_notes": ("subjective_notes_panel_scroll", "subjective_notes_panel_button"),
+        "abc": ("abc_panel_scroll", "abc_panel_button"),
         "material_facts": ("material_facts_panel_scroll", "material_facts_panel_button"),
         "time_sensitivity": ("time_sensitivity_panel_scroll", "time_sensitivity_panel_button"),
         "photo_gallery": ("photo_gallery_panel_scroll", "photo_gallery_panel_button"),
@@ -56,6 +58,7 @@ class ChartRightPanelController:
         analytics_content_widget: QWidget,
         predictions_content_widget: QWidget,
         subjective_notes_content_widget: QWidget,
+        abc_content_widget: QWidget,
         material_facts_content_widget: QWidget,
         time_sensitivity_content_widget: QWidget,
         photo_gallery_content_widget: QWidget,
@@ -66,12 +69,14 @@ class ChartRightPanelController:
             analytics_content_widget=analytics_content_widget,
             predictions_content_widget=predictions_content_widget,
             subjective_notes_content_widget=subjective_notes_content_widget,
+            abc_content_widget=abc_content_widget,
             material_facts_content_widget=material_facts_content_widget,
             time_sensitivity_content_widget=time_sensitivity_content_widget,
             photo_gallery_content_widget=photo_gallery_content_widget,
             on_show_analytics=lambda: self.set_active_panel("analytics"),
             on_show_predictions=lambda: self.set_active_panel("predictions"),
             on_show_subjective_notes=lambda: self.set_active_panel("subjective_notes"),
+            on_show_abc=lambda: self.set_active_panel("abc"),
             on_show_material_facts=lambda: self.set_active_panel("material_facts"),
             on_show_time_sensitivity=lambda: self.set_active_panel("time_sensitivity"),
             on_show_photo_gallery=lambda: self.set_active_panel("photo_gallery"),
@@ -125,7 +130,7 @@ class ChartRightPanelController:
                 button.setChecked(panel_key == tab_key)
         if panel_key == "analytics":
             self.set_section_visible("similar_charts", False)
-        if panel_key == "subjective_notes":
+        if panel_key in {"subjective_notes", "abc"}:
             self._scroll_panel_to_top(active_scroll)
         self.schedule_render(panel_key)
 
@@ -206,7 +211,7 @@ class ChartRightPanelController:
             finally:
                 close_app_loading_progress(progress)
             return
-        if active_panel in {"subjective_notes", "anagrams"} and self._is_analysis_section_visible("anagrams"):
+        if active_panel in {"abc", "anagrams"} and self._is_analysis_section_visible("anagrams"):
             schedule_chart_render = getattr(self._owner, "_schedule_chart_render", None)
             if callable(schedule_chart_render):
                 schedule_chart_render(chart, sections={"anagrams"})
