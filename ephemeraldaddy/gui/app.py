@@ -24809,9 +24809,11 @@ class MainWindow(QMainWindow):
         self.planet_dynamics_canvas = None
         self.enneagram_prediction_canvas = None
         self.dnd_prediction_statblock_canvas = None
+        self.dnd_prediction_alignment_canvas = None
         self.dnd_prediction_species_canvas = None
         self.dnd_prediction_classes_canvas = None
         self.dnd_prediction_statblock_canvas = None
+        self.dnd_prediction_alignment_canvas = None
         self.dnd_prediction_species_canvas = None
         self.dnd_prediction_classes_canvas = None
         self.planet_dynamics_summary_label = None
@@ -33840,6 +33842,7 @@ class MainWindow(QMainWindow):
             ("planet_dynamics_canvas", "planet_dynamics_container_layout"),
             ("enneagram_prediction_canvas", "enneagram_prediction_chart_layout"),
             ("dnd_prediction_statblock_canvas", "dnd_predictions_chart_layout"),
+            ("dnd_prediction_alignment_canvas", "dnd_alignment_chart_layout"),
         )
         for canvas_attr, layout_attr in canvas_layout_pairs:
             canvas = getattr(self, canvas_attr, None)
@@ -34500,6 +34503,7 @@ class MainWindow(QMainWindow):
         self.planet_dynamics_canvas = None
         self.enneagram_prediction_canvas = None
         self.dnd_prediction_statblock_canvas = None
+        self.dnd_prediction_alignment_canvas = None
         self.dnd_prediction_top_three_label = None
         if getattr(self, "distinguishing_factors_label", None) is not None:
             self.distinguishing_factors_label.setText("Database distinction scan: —")
@@ -35477,7 +35481,9 @@ class MainWindow(QMainWindow):
 
     def _dnd_prediction_adapter(self) -> DndPredictionPanelAdapter:
         return DndPredictionPanelAdapter(
+            owner=self,
             chart_layout=getattr(self, "dnd_predictions_chart_layout", None),
+            alignment_layout=getattr(self, "dnd_alignment_chart_layout", None),
             summary_label=getattr(self, "dnd_prediction_top_three_label", None),
             info_panel=self.chart_info_output,
             before_show=lambda: self._set_chart_info_panel_mode("chart_info"),

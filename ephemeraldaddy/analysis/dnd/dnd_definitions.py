@@ -424,7 +424,7 @@ DND_ALIGNMENTS = {
     "description": "",
     "quotes": {},
     "samples": [1,0]
-}
+},
 "lawful": {
     "name": "lawful",
     "samples": [35,0],
@@ -592,7 +592,7 @@ DND_ALIGNMENTS = {
     "motivation": "",
     "description": "Institutional force: the badge, the office, the chain of command, the locked door, the rule that does not care how charming your explanation is.\nDisciplinary Order. Authority Through Consequence.",
     "quotes": {},
-    "archived": false
+    "archived": False
 },
 "chaotic":{
     "samples": [
