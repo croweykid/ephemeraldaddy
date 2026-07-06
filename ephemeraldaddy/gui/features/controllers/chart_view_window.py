@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QAbstractButton,
     QApplication,
     QComboBox,
+    QCompleter,
     QDialog,
     QFileDialog,
     QFrame,
@@ -40,6 +41,7 @@ from PySide6.QtWidgets import (
 )
 
 from ephemeraldaddy.core.chart import Chart, apply_unknown_sign_metadata
+from ephemeraldaddy.core.db import get_chart_uid_map, list_charts
 from ephemeraldaddy.core.photo_gallery import (
     add_photo_file,
     add_photo_url,
@@ -1219,6 +1221,72 @@ def _build_material_facts_panel(owner: QWidget) -> QWidget:
         setattr(owner, attr_name, editor)
         layout.addWidget(editor)
         _fit_editor_to_text(editor)
+
+    relatives_label = QLabel("Relatives")
+    relatives_label.setStyleSheet("font-weight: 700; color: #f5f5f5;")
+    layout.addWidget(relatives_label)
+
+    relatives_help = QLabel("Link relatives already in the database by name, alias, or UID.")
+    relatives_help.setWordWrap(True)
+    relatives_help.setStyleSheet("color: #bdbdbd;")
+    layout.addWidget(relatives_help)
+
+    relative_input_row = QWidget()
+    relative_input_layout = QHBoxLayout(relative_input_row)
+    relative_input_layout.setContentsMargins(0, 0, 0, 0)
+    relative_input_layout.setSpacing(4)
+    relative_input = QLineEdit()
+    relative_input.setPlaceholderText("Search database relatives by name")
+    relative_choices: list[str] = []
+    chart_rows = list_charts()
+    chart_uids = get_chart_uid_map(row[0] for row in chart_rows)
+    for row in chart_rows:
+        chart_id = int(row[0])
+        uid = chart_uids.get(chart_id, "")
+        for choice in (row[1] if len(row) > 1 else "", row[2] if len(row) > 2 else "", uid):
+            choice_text = str(choice or "").strip()
+            if choice_text and choice_text not in relative_choices:
+                relative_choices.append(choice_text)
+    completer = QCompleter(relative_choices, relative_input)
+    completer.setCaseSensitivity(Qt.CaseInsensitive)
+    completer.setFilterMode(Qt.MatchContains)
+    completer.popup().setFocusPolicy(Qt.NoFocus)
+    relative_input.setCompleter(completer)
+    relative_input.returnPressed.connect(owner._add_material_relative_from_input)
+    setattr(owner, "material_facts_relative_search_edit", relative_input)
+    setattr(owner, "_material_facts_relative_completer", completer)
+    relative_input_layout.addWidget(relative_input, 1)
+    add_relative_button = QPushButton("✅")
+    add_relative_button.setToolTip("Link this relative")
+    add_relative_button.clicked.connect(owner._add_material_relative_from_input)
+    relative_input_layout.addWidget(add_relative_button)
+    layout.addWidget(relative_input_row)
+
+    chips_widget = QWidget()
+    chips_layout = QVBoxLayout(chips_widget)
+    chips_layout.setContentsMargins(0, 0, 0, 0)
+    chips_layout.setSpacing(4)
+    setattr(owner, "material_facts_relatives_chips_widget", chips_widget)
+    setattr(owner, "material_facts_relatives_chips_layout", chips_layout)
+    setattr(owner, "_material_facts_linked_relative_uids", [])
+    layout.addWidget(chips_widget)
+
+    unlisted_label = QLabel("Relatives not in database")
+    unlisted_label.setStyleSheet("color: #f5f5f5;")
+    layout.addWidget(unlisted_label)
+    unlisted_editor = QTextEdit()
+    unlisted_editor.setAcceptRichText(False)
+    unlisted_editor.setPlaceholderText("Names of relatives who do not have charts here")
+    line_height = unlisted_editor.fontMetrics().lineSpacing() + 14
+    unlisted_editor.setProperty("materialFactsMinimumHeight", line_height)
+    unlisted_editor.setProperty("materialFactsMaximumHeight", 72)
+    unlisted_editor.setMinimumHeight(line_height)
+    unlisted_editor.setMaximumHeight(72)
+    unlisted_editor.textChanged.connect(owner._mark_lucygoosey)
+    unlisted_editor.textChanged.connect(lambda editor=unlisted_editor: _fit_editor_to_text(editor))
+    setattr(owner, "material_facts_unlisted_relatives_edit", unlisted_editor)
+    layout.addWidget(unlisted_editor)
+    _fit_editor_to_text(unlisted_editor)
     layout.addStretch(1)
     return panel
 

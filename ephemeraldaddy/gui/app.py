@@ -660,6 +660,7 @@ from ephemeraldaddy.core.db import (
     get_chart_uid,
     get_chart_uid_map,
     get_chart_ids_by_uid,
+    get_chart_id_by_uid,
     get_alternate_chart_uid,
     find_chart_uid_by_name,
     get_chart_display_name_map,
@@ -32582,6 +32583,94 @@ class MainWindow(QMainWindow):
             return
         widget.setPlainText(str(value or ""))
 
+
+    def _material_relative_uids_for_save(self) -> list[str]:
+        return list(getattr(self, "_material_facts_linked_relative_uids", []) or [])
+
+    def _set_material_relative_uids(self, relative_uids: object) -> None:
+        normalized: list[str] = []
+        seen: set[str] = set()
+        for raw_uid in relative_uids if isinstance(relative_uids, (list, tuple, set)) else []:
+            uid = str(raw_uid or "").strip().upper()
+            if not uid or uid in seen:
+                continue
+            normalized.append(uid)
+            seen.add(uid)
+        self._material_facts_linked_relative_uids = normalized
+        self._render_material_relative_chips()
+
+    def _render_material_relative_chips(self) -> None:
+        layout = getattr(self, "material_facts_relatives_chips_layout", None)
+        if layout is None:
+            return
+        while layout.count():
+            item = layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+        relative_uids = list(getattr(self, "_material_facts_linked_relative_uids", []) or [])
+        if not relative_uids:
+            empty_label = QLabel("No database relatives linked yet.")
+            empty_label.setStyleSheet("color: #8f8f8f; font-style: italic;")
+            layout.addWidget(empty_label)
+            return
+        for relative_uid in relative_uids:
+            chip = QFrame()
+            chip.setStyleSheet(
+                "QFrame { background: #2f3a46; border: 1px solid #607d8b; "
+                "border-radius: 10px; }"
+            )
+            chip_layout = QHBoxLayout(chip)
+            chip_layout.setContentsMargins(8, 2, 4, 2)
+            chip_layout.setSpacing(4)
+            name_button = QPushButton(get_chart_display_name_by_uid(relative_uid))
+            name_button.setFlat(True)
+            name_button.setStyleSheet("color: #d6ecff; text-align: left; border: none; padding: 0;")
+            name_button.clicked.connect(lambda _checked=False, uid=relative_uid: self._open_material_relative_chart(uid))
+            chip_layout.addWidget(name_button, 1)
+            remove_button = QPushButton("✕")
+            remove_button.setFixedWidth(22)
+            remove_button.setToolTip("Unlink this relative")
+            remove_button.setStyleSheet("color: #ff6b6b; border: none; font-weight: 700; padding: 0;")
+            remove_button.clicked.connect(lambda _checked=False, uid=relative_uid: self._remove_material_relative(uid))
+            chip_layout.addWidget(remove_button, 0)
+            layout.addWidget(chip)
+
+    def _add_material_relative_from_input(self) -> None:
+        line_edit = getattr(self, "material_facts_relative_search_edit", None)
+        if not isinstance(line_edit, QLineEdit):
+            return
+        text = line_edit.text().strip()
+        if not text:
+            return
+        chart_uid = find_chart_uid_by_name(text, exclude_chart_id=getattr(self, "current_chart_id", None))
+        if not chart_uid:
+            QMessageBox.information(
+                self,
+                "Relative not found",
+                "Choose one existing chart name, alias, or UID from autocomplete.",
+            )
+            return
+        relative_uids = self._material_relative_uids_for_save()
+        if chart_uid not in relative_uids:
+            relative_uids.append(chart_uid)
+            self._set_material_relative_uids(relative_uids)
+            self._mark_lucygoosey()
+        line_edit.clear()
+
+    def _remove_material_relative(self, chart_uid: str) -> None:
+        relative_uids = [uid for uid in self._material_relative_uids_for_save() if uid != chart_uid]
+        self._set_material_relative_uids(relative_uids)
+        self._mark_lucygoosey()
+
+    def _open_material_relative_chart(self, chart_uid: str) -> None:
+        chart_id = get_chart_id_by_uid(chart_uid)
+        if chart_id is None:
+            QMessageBox.warning(self, "Open relative", "Unable to find this relative chart.")
+            return
+        if self.load_chart_by_id(chart_id, from_chart_link=True):
+            self._show_chart_view_maximized(maximize=self.isMaximized())
+
     def _clear_material_facts_fields(self) -> None:
         previous_suppress_lucygoosey = self._suppress_lucygoosey
         self._suppress_lucygoosey = True
@@ -32591,8 +32680,10 @@ class MainWindow(QMainWindow):
                 "material_facts_emails_edit",
                 "material_facts_websites_edit",
                 "material_facts_phone_numbers_edit",
+                "material_facts_unlisted_relatives_edit",
             ):
                 self._set_material_fact_text(attr_name, "")
+            self._set_material_relative_uids([])
         finally:
             self._suppress_lucygoosey = previous_suppress_lucygoosey
 
@@ -32608,6 +32699,8 @@ class MainWindow(QMainWindow):
             self._set_material_fact_text("material_facts_emails_edit", identifiers.get("emails", ""))
             self._set_material_fact_text("material_facts_websites_edit", identifiers.get("websites", ""))
             self._set_material_fact_text("material_facts_phone_numbers_edit", identifiers.get("phone_numbers", ""))
+            self._set_material_fact_text("material_facts_unlisted_relatives_edit", identifiers.get("unlisted_relatives", ""))
+            self._set_material_relative_uids(identifiers.get("linked_relative_uids", []))
             refresh_photo_gallery = getattr(self, "_refresh_photo_gallery_for_chart", None)
             if callable(refresh_photo_gallery):
                 refresh_photo_gallery(chart_id)
@@ -32624,6 +32717,8 @@ class MainWindow(QMainWindow):
                 "emails": self._material_fact_text("material_facts_emails_edit"),
                 "websites": self._material_fact_text("material_facts_websites_edit"),
                 "phone_numbers": self._material_fact_text("material_facts_phone_numbers_edit"),
+                "unlisted_relatives": self._material_fact_text("material_facts_unlisted_relatives_edit"),
+                "linked_relative_uids": self._material_relative_uids_for_save(),
             },
         )
 
