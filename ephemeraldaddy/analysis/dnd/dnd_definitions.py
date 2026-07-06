@@ -592,7 +592,6 @@ DND_ALIGNMENTS = {
     "motivation": "",
     "description": "Institutional force: the badge, the office, the chain of command, the locked door, the rule that does not care how charming your explanation is.\nDisciplinary Order. Authority Through Consequence.",
     "quotes": {},
-    "archived": False
 },
 "chaotic":{
     "samples": [
