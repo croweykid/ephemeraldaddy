@@ -746,14 +746,34 @@ def trait_metadata_for_chart(owner: Any, chart: Any) -> dict[str, Any]:
     return metadata
 
 
-def _trait_predictions_cache_key(chart: Any | None) -> str | None:
+def _trait_predictions_cache_key(
+    owner: Any,
+    chart: Any | None,
+    traits: list[dict[str, Any]],
+) -> str | None:
     if chart is None:
         return None
     chart_uid = str(getattr(chart, "chart_uid", "") or "").strip().upper()
-    if chart_uid:
-        return f"uid:{chart_uid}"
-    chart_signature = _chart_trait_metadata_signature(chart)
-    return f"draft:{chart_signature}"
+    chart_scope = f"uid:{chart_uid}" if chart_uid else "draft"
+    trait_signature = _stable_json_hash(_trait_signature_payload(traits))
+    try:
+        norm_signature = _database_norm_signature_for_traits(owner, traits)
+    except Exception as exc:
+        logger.warning(
+            "Traits panel could not build DB norm signature for view cache: %s",
+            exc,
+            exc_info=True,
+        )
+        norm_signature = "norm:unavailable"
+    return _stable_json_hash(
+        {
+            "version": TRAIT_DB_NORMS_CACHE_VERSION,
+            "chart_scope": chart_scope,
+            "chart_signature": _chart_trait_metadata_signature(chart),
+            "trait_signature": trait_signature,
+            "norm_signature": norm_signature,
+        }
+    )
 
 
 def _trait_predictions_refresh_message(updated_at: str | None) -> str:
@@ -1018,7 +1038,7 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
         )
         return
 
-    cache_key = _trait_predictions_cache_key(chart)
+    cache_key = _trait_predictions_cache_key(owner, chart, traits)
     cached = (getattr(owner, "_traits_prediction_view_cache", {}) or {}).get(cache_key or "")
     if isinstance(cached, dict):
         _apply_traits_prediction_view(
