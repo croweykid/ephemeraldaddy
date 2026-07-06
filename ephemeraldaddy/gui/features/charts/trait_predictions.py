@@ -7,9 +7,11 @@ import html
 import json
 import logging
 import urllib.parse
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QLabel, QComboBox, QWidget
 
 from ephemeraldaddy.analysis.traits import (
@@ -744,45 +746,58 @@ def trait_metadata_for_chart(owner: Any, chart: Any) -> dict[str, Any]:
     return metadata
 
 
-def render_traits_predictions(owner: Any, chart: Any | None) -> None:
-    """Render uploaded custom trait scores into Chart View's Predictions panel."""
+def _trait_predictions_cache_key(chart: Any | None) -> str | None:
+    if chart is None:
+        return None
+    chart_uid = str(getattr(chart, "chart_uid", "") or "").strip().upper()
+    if chart_uid:
+        return f"uid:{chart_uid}"
+    chart_signature = _chart_trait_metadata_signature(chart)
+    return f"draft:{chart_signature}"
+
+
+def _trait_predictions_refresh_message(updated_at: str | None) -> str:
+    timestamp = html.escape(updated_at or "never")
+    return (
+        "<div style='color:#70d878; font-style:italic; padding-bottom:5px; text-align:center;'>"
+        f"Predictions panel is refreshing. Current results last updated: {timestamp} ♻️"
+        "</div>"
+    )
+
+
+def _current_traits_prediction_html(owner: Any) -> str:
+    combo = getattr(owner, "traits_prediction_mode_combo", None)
+    mode = combo.currentData() if isinstance(combo, QComboBox) else "above"
+    return getattr(
+        owner,
+        "_traits_prediction_below_avg_html" if mode == "below" else "_traits_prediction_above_avg_html",
+        "",
+    )
+
+
+def _set_traits_prediction_label_for_mode(owner: Any) -> None:
     label = getattr(owner, "traits_prediction_label", None)
-    if not isinstance(label, QLabel):
-        return
-    _configure_traits_prediction_label(owner, label)
-    traits = list_traits(active_only=True)
-    owner._traits_prediction_trait_lookup = {
-        str(trait.get("name", "")).strip().casefold(): trait
-        for trait in traits
-        if str(trait.get("name", "")).strip()
-    }
-    if not traits:
-        if list_traits():
-            label.setText("No active traits. Reactivate traits in Settings > Traits to include them in Predictions.")
-        else:
-            label.setText("No traits uploaded. Add traits in Settings > Traits.")
-        return
-    if chart is None or owner._is_placeholder_chart(chart):
-        label.setText("Trait predictions unavailable for this chart.")
-        return
-    try:
-        metadata = trait_metadata_for_chart(owner, chart)
-        likelihoods = dict(metadata.get("likelihoods", {}))
-        database_averages = dict(metadata.get("database_averages", {}))
-        db_deviations = dict(metadata.get("deviations", {}))
-    except Exception as exc:
-        label.setText(f"Trait predictions unavailable: {html.escape(str(exc))}")
-        return
+    if isinstance(label, QLabel):
+        label.setText(_current_traits_prediction_html(owner) or "Trait predictions unavailable for this chart.")
+
+
+def _trait_predictions_html_from_metadata(
+    traits: list[dict[str, Any]],
+    metadata: dict[str, Any],
+) -> tuple[str, str]:
+    likelihoods = dict(metadata.get("likelihoods", {}))
+    database_averages = dict(metadata.get("database_averages", {}))
+    db_deviations = dict(metadata.get("deviations", {}))
+    if not likelihoods:
+        message = "No scorable traits uploaded."
+        return message, message
+    if not database_averages:
+        message = "Trait predictions unavailable until database trait averages can be calculated."
+        return message, message
     color_by_name = {
         str(trait.get("name", "")): normalize_trait_color(str(trait.get("color", DEFAULT_TRAIT_COLOR)))
         for trait in traits
     }
-    if not likelihoods:
-        label.setText("No scorable traits uploaded.")
-        return
-    if not database_averages:
-        label.setText("Trait predictions unavailable until database trait averages can be calculated.")
-        return
     threshold = TRAIT_DEVIATION_ASSIGNMENT_THRESHOLD
     above_avg_traits = sorted(
         (
@@ -801,23 +816,106 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
         ),
         key=lambda item: item[3],
     )
-    intro = (
-        "<div style='color:#d8d8d8; padding-bottom:4px;'>"
-        "Traits are assigned by deviation from the active database average. "
-        f"Above-average traits are at least {threshold:.0f}% higher than DB average; "
-        f"below-average traits are at least {threshold:.0f}% lower than DB average."
-        "</div>"
+    return (
+        _trait_table("Above avg traits", above_avg_traits, color_by_name),
+        _trait_table("Below avg traits", below_avg_traits, color_by_name),
     )
-    owner._traits_prediction_above_avg_html = "".join(
-        [_trait_table("Above avg traits", above_avg_traits, color_by_name)] #removed "intro, " and ", footer"  from "intro, _trait_table..., footer"
-    )
-    owner._traits_prediction_below_avg_html = "".join(
-        [_trait_table("Below avg traits", below_avg_traits, color_by_name)] #removed "intro, " and ", footer" from "intro, _trait_table..., footer"
-    )
-    combo = getattr(owner, "traits_prediction_mode_combo", None)
-    mode = combo.currentData() if isinstance(combo, QComboBox) else "above"
-    label.setText(
-        owner._traits_prediction_below_avg_html
-        if mode == "below"
-        else owner._traits_prediction_above_avg_html
+
+
+def _cache_traits_prediction_view(
+    owner: Any,
+    cache_key: str,
+    above_html: str,
+    below_html: str,
+    updated_at: str,
+) -> None:
+    cache = getattr(owner, "_traits_prediction_view_cache", None)
+    if not isinstance(cache, dict):
+        cache = {}
+        owner._traits_prediction_view_cache = cache
+    cache[cache_key] = {"above": above_html, "below": below_html, "updated_at": updated_at}
+
+
+def _apply_traits_prediction_view(owner: Any, above_html: str, below_html: str, *, prefix_html: str = "") -> None:
+    owner._traits_prediction_above_avg_html = f"{prefix_html}{above_html}"
+    owner._traits_prediction_below_avg_html = f"{prefix_html}{below_html}"
+    _set_traits_prediction_label_for_mode(owner)
+
+
+def _render_traits_predictions_now(
+    owner: Any,
+    chart: Any,
+    traits: list[dict[str, Any]],
+    cache_key: str,
+    token: object,
+) -> None:
+    label = getattr(owner, "traits_prediction_label", None)
+    if not isinstance(label, QLabel):
+        return
+    if getattr(owner, "_traits_prediction_render_token", None) is not token:
+        return
+    try:
+        metadata = trait_metadata_for_chart(owner, chart)
+        above_html, below_html = _trait_predictions_html_from_metadata(traits, metadata)
+    except Exception as exc:
+        if getattr(owner, "_traits_prediction_render_token", None) is token:
+            message = f"Trait predictions unavailable: {html.escape(str(exc))}"
+            _apply_traits_prediction_view(owner, message, message)
+        return
+    if getattr(owner, "_traits_prediction_render_token", None) is not token:
+        return
+    updated_at = datetime.now().isoformat(timespec="seconds")
+    _cache_traits_prediction_view(owner, cache_key, above_html, below_html, updated_at)
+    _apply_traits_prediction_view(owner, above_html, below_html)
+
+
+def render_traits_predictions(owner: Any, chart: Any | None) -> None:
+    """Render uploaded custom trait scores into Chart View's Predictions panel without showing stale chart data."""
+    label = getattr(owner, "traits_prediction_label", None)
+    if not isinstance(label, QLabel):
+        return
+    _configure_traits_prediction_label(owner, label)
+    owner._traits_prediction_render_token = object()
+    token = owner._traits_prediction_render_token
+    traits = list_traits(active_only=True)
+    owner._traits_prediction_trait_lookup = {
+        str(trait.get("name", "")).strip().casefold(): trait
+        for trait in traits
+        if str(trait.get("name", "")).strip()
+    }
+    if not traits:
+        message = (
+            "No active traits. Reactivate traits in Settings > Traits to include them in Predictions."
+            if list_traits()
+            else "No traits uploaded. Add traits in Settings > Traits."
+        )
+        _apply_traits_prediction_view(owner, message, message)
+        return
+    if chart is None or owner._is_placeholder_chart(chart):
+        _apply_traits_prediction_view(
+            owner,
+            "Trait predictions unavailable for this chart.",
+            "Trait predictions unavailable for this chart.",
+        )
+        return
+
+    cache_key = _trait_predictions_cache_key(chart)
+    cached = (getattr(owner, "_traits_prediction_view_cache", {}) or {}).get(cache_key or "")
+    if isinstance(cached, dict):
+        _apply_traits_prediction_view(
+            owner,
+            str(cached.get("above", "")),
+            str(cached.get("below", "")),
+            prefix_html=_trait_predictions_refresh_message(str(cached.get("updated_at", "") or "unknown")),
+        )
+    else:
+        message = (
+            _trait_predictions_refresh_message(None)
+            + "<div style='color:#d8d8d8;'>Loading trait predictions for this chart…</div>"
+        )
+        _apply_traits_prediction_view(owner, message, message)
+
+    QTimer.singleShot(
+        250,
+        lambda: _render_traits_predictions_now(owner, chart, traits, cache_key or "", token),
     )
