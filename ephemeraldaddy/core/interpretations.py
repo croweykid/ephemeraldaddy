@@ -4241,6 +4241,7 @@ SENTIMENT_OPTIONS = [ #you can reorder these,
     "relatable (background)",
     "relatable",
     "hilarious",
+    "ineffable",
 #neg
     "can't trust",
     "can't respect",
@@ -4255,6 +4256,7 @@ SENTIMENT_OPTIONS = [ #you can reorder these,
     "creepy",
     "dislike", #enemy
     "despise", #archnemesis
+    "boring",
 ]
 
 SENTIMENT_COLORS = {
@@ -4274,6 +4276,7 @@ SENTIMENT_COLORS = {
     "relatable (background)":"#33ccff",
     "relatable":"#33ccff",
     "hilarious":"#ffd966",
+    "ineffable":"#c92bfb",
 #neg
     "frustrating":"#993300",
     "unreachable":"#dbccbd",
@@ -4288,6 +4291,7 @@ SENTIMENT_COLORS = {
     "can't forgive": "#4d4d4d",
     "dislike": "#5b0f0f",
     "despise": "#df3a3a",
+    "boring": "#8f8f8f",
  }
 
 #Don't rename these or delete them without first taking remedial actions.
