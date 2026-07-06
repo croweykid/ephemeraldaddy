@@ -17,6 +17,8 @@ def test_personal_identifiers_are_saved_by_chart_uid(tmp_path, monkeypatch):
         "emails": "",
         "websites": "https://example.com",
         "phone_numbers": "",
+        "unlisted_relatives": "",
+        "linked_relative_uids": [],
     }
 
 
@@ -34,3 +36,20 @@ def test_legacy_personal_identifier_id_key_migrates_to_uid(tmp_path, monkeypatch
     assert facts["addresses"] == "Old Address"
     assert "7" not in payload
     assert payload["MIGRATEDUID00001"]["addresses"] == "Old Address"
+
+
+def test_personal_identifiers_save_relatives_by_uid(tmp_path, monkeypatch):
+    monkeypatch.setattr(material_facts, "DB_PATH", tmp_path / "charts.db")
+
+    material_facts.save_personal_identifiers_by_uid(
+        "abc12345uid",
+        {
+            "linked_relative_uids": ["rel111", "REL111", "rel222"],
+            "unlisted_relatives": "  Cousin Not In DB  ",
+        },
+    )
+
+    facts = material_facts.load_personal_identifiers_by_uid("ABC12345UID")
+
+    assert facts["linked_relative_uids"] == ["REL111", "REL222"]
+    assert facts["unlisted_relatives"] == "Cousin Not In DB"

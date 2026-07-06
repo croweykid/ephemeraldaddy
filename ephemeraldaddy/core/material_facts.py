@@ -20,7 +20,9 @@ IDENTIFIER_FIELDS: tuple[str, ...] = (
     "emails",
     "websites",
     "phone_numbers",
+    "unlisted_relatives",
 )
+RELATIVE_UIDS_FIELD = "linked_relative_uids"
 
 
 def _sidecar_path(filename: str) -> Path:
@@ -61,11 +63,31 @@ def _clean_multiline_text(value: object) -> str:
     )
 
 
-def _normalize_facts(raw: dict[str, Any], fields: tuple[str, ...]) -> dict[str, str]:
-    return {
+def _normalize_relative_uids(value: object) -> list[str]:
+    if isinstance(value, str):
+        candidates = value.replace("\n", ",").split(",")
+    elif isinstance(value, (list, tuple, set)):
+        candidates = value
+    else:
+        candidates = []
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        uid = _clean_chart_uid(str(candidate or ""))
+        if uid is None or uid in seen:
+            continue
+        normalized.append(uid)
+        seen.add(uid)
+    return normalized
+
+
+def _normalize_facts(raw: dict[str, Any], fields: tuple[str, ...]) -> dict[str, Any]:
+    facts: dict[str, Any] = {
         field: _clean_multiline_text(raw.get(field, ""))
         for field in fields
     }
+    facts[RELATIVE_UIDS_FIELD] = _normalize_relative_uids(raw.get(RELATIVE_UIDS_FIELD, []))
+    return facts
 
 
 def _clean_chart_uid(chart_uid: str | None) -> str | None:
@@ -82,8 +104,9 @@ def _legacy_chart_id_key(chart_id: int | None) -> str | None:
         return None
 
 
-def load_personal_identifiers_by_uid(chart_uid: str | None) -> dict[str, str]:
-    facts = {field: "" for field in IDENTIFIER_FIELDS}
+def load_personal_identifiers_by_uid(chart_uid: str | None) -> dict[str, Any]:
+    facts: dict[str, Any] = {field: "" for field in IDENTIFIER_FIELDS}
+    facts[RELATIVE_UIDS_FIELD] = []
     normalized_uid = _clean_chart_uid(chart_uid)
     if normalized_uid is None:
         return facts
@@ -105,7 +128,7 @@ def save_personal_identifiers_by_uid(chart_uid: str | None, facts: dict[str, Any
     _save_sidecar(path, payload)
 
 
-def load_personal_identifiers(chart_id: int | None) -> dict[str, str]:
+def load_personal_identifiers(chart_id: int | None) -> dict[str, Any]:
     chart_uid = get_chart_uid(chart_id)
     facts = load_personal_identifiers_by_uid(chart_uid)
     legacy_key = _legacy_chart_id_key(chart_id)
