@@ -116,14 +116,15 @@ class StartupAnimationWindow(QWidget):
             outer_rect.width() - (self._edge_padding * 2.0),
             outer_rect.height() - (self._edge_padding * 2.0),
         )
-        wave_path = self._build_wavy_rect_path(content_rect)
-        painter.fillPath(wave_path, QColor("#141218"))
+        frame_path = QPainterPath()
+        frame_path.addRoundedRect(content_rect, 12.0, 12.0)
+        painter.fillPath(frame_path, QColor("#141218"))
         painter.save()
-        painter.setClipPath(wave_path)
+        painter.setClipPath(frame_path)
         self._draw_starburst_particles(painter, content_rect)
         painter.restore()
-        painter.setPen(QPen(QColor("#aa77ff"), 1.5))
-        painter.drawPath(wave_path)
+        painter.setPen(QPen(QColor("#aa77ff"), 1.8))
+        painter.drawPath(frame_path)
 
 
 def main() -> int:
