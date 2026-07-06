@@ -38,6 +38,8 @@ def test_chart_data_table_header_tokens_are_colored_without_bold():
     assert "self._table_header_format.setForeground(QColor(CHART_DATA_HIGHLIGHT_COLOR))" in CHART_DATA_OUTPUT_SOURCE
     assert "self._table_header_format.setFontWeight(QFont.Normal)" in CHART_DATA_OUTPUT_SOURCE
     assert "self._qt_len(header_token),\n                            self._table_header_format," in CHART_DATA_OUTPUT_SOURCE
+    assert "if _is_chart_data_table_header_line(text):\n            self.setFormat(0, self._qt_len(text), self._table_header_format)" in CHART_DATA_OUTPUT_SOURCE
+    assert "if _is_chart_data_table_header_line(text):\n            self.setFormat(0, self._qt_len(text), self._plain_bold_format)" not in CHART_DATA_OUTPUT_SOURCE
 
 
 def test_chart_data_outputs_use_visual_only_whitespace_separators():
