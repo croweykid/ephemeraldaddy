@@ -7,6 +7,11 @@ from dataclasses import dataclass
 from typing import Callable
 
 from PySide6.QtCore import QPoint, QTimer, Qt
+try:
+    from PySide6.QtGui import QColor, QPainter
+except Exception:  # pragma: no cover - test stubs may omit QtGui
+    QColor = None  # type: ignore[assignment]
+    QPainter = None  # type: ignore[assignment]
 from PySide6.QtWidgets import (
     QAbstractButton,
     QHBoxLayout,
@@ -36,6 +41,7 @@ class ChartRightPanelStack:
     analytics_button: QPushButton
     predictions_button: QPushButton
     subjective_notes_button: QPushButton
+    abc_button: QPushButton
     material_facts_button: QPushButton
     time_sensitivity_button: QPushButton
     photo_gallery_button: QPushButton
@@ -43,9 +49,42 @@ class ChartRightPanelStack:
     analytics_scroll: QScrollArea
     predictions_scroll: QScrollArea
     subjective_notes_scroll: QScrollArea
+    abc_scroll: QScrollArea
     material_facts_scroll: QScrollArea
     time_sensitivity_scroll: QScrollArea
     photo_gallery_scroll: QScrollArea
+
+
+class _AbcPanelButton(QPushButton):
+    """Small tab button that paints A/B/C in violet, red, and baby blue."""
+
+    def paintEvent(self, event: object) -> None:  # noqa: N802 - Qt override
+        if QPainter is None or QColor is None:
+            return super().paintEvent(event)
+        from PySide6.QtWidgets import QStyle, QStyleOptionButton
+
+        painter = QPainter(self)
+        option = QStyleOptionButton()
+        self.initStyleOption(option)
+        option.text = ""
+        self.style().drawControl(QStyle.CE_PushButton, option, painter, self)
+
+        font = painter.font()
+        font.setBold(True)
+        painter.setFont(font)
+        metrics = painter.fontMetrics()
+        letters = "ABC"
+        colors = (QColor("#8f5cff"), QColor("#ff4b4b"), QColor("#9bd3ff"))
+        spacing = 1
+        widths = [metrics.horizontalAdvance(letter) for letter in letters]
+        total_width = sum(widths) + spacing * (len(letters) - 1)
+        x = int((self.width() - total_width) / 2)
+        baseline = int((self.height() + metrics.ascent() - metrics.descent()) / 2)
+        for letter, color, width in zip(letters, colors, widths, strict=True):
+            painter.setPen(color)
+            painter.drawText(x, baseline, letter)
+            x += width + spacing
+        painter.end()
 
 
 def format_mode_popout_info_html(
@@ -165,12 +204,14 @@ def build_chart_right_panel_stack(
     analytics_content_widget: QWidget,
     predictions_content_widget: QWidget,
     subjective_notes_content_widget: QWidget,
+    abc_content_widget: QWidget,
     material_facts_content_widget: QWidget,
     time_sensitivity_content_widget: QWidget,
     photo_gallery_content_widget: QWidget,
     on_show_analytics: Callable[[], None],
     on_show_predictions: Callable[[], None],
     on_show_subjective_notes: Callable[[], None],
+    on_show_abc: Callable[[], None],
     on_show_material_facts: Callable[[], None],
     on_show_time_sensitivity: Callable[[], None],
     on_show_photo_gallery: Callable[[], None],
@@ -193,6 +234,11 @@ def build_chart_right_panel_stack(
     subjective_notes_button = QPushButton("💭")
     subjective_notes_button.setObjectName("chart_view_toggle_subjective_notes_panel_button")
     subjective_notes_button.clicked.connect(on_show_subjective_notes)
+    abc_button = _AbcPanelButton("ABC")
+    abc_button.setObjectName("chart_view_toggle_abc_panel_button")
+    abc_button.setToolTip("ABC: Anagrams and Euphonics")
+    abc_button.setStyleSheet("padding: 1px 5px; font-size: 11px; font-weight: 700; color: #c7e8ff;")
+    abc_button.clicked.connect(on_show_abc)
     material_facts_button = QPushButton("🗒️")
     material_facts_button.setObjectName("chart_view_toggle_material_facts_panel_button")
     material_facts_button.clicked.connect(on_show_material_facts)
@@ -204,13 +250,14 @@ def build_chart_right_panel_stack(
     photo_gallery_button.setObjectName("chart_view_toggle_photo_gallery_panel_button")
     photo_gallery_button.clicked.connect(on_show_photo_gallery)
 
-    for control_button in (analytics_button, predictions_button, subjective_notes_button, material_facts_button, photo_gallery_button, time_sensitivity_button):
+    for control_button in (analytics_button, predictions_button, subjective_notes_button, abc_button, material_facts_button, photo_gallery_button, time_sensitivity_button):
         control_button.setCheckable(True)
         control_button.setAutoDefault(False)
         control_button.setDefault(False)
         control_button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
         control_button.setMinimumWidth(0)
-        control_button.setStyleSheet("padding: 1px 5px; font-size: 11px;")
+        if control_button is not abc_button:
+            control_button.setStyleSheet("padding: 1px 5px; font-size: 11px;")
 
     controls_row = QWidget()
     controls_layout = QHBoxLayout()
@@ -220,6 +267,7 @@ def build_chart_right_panel_stack(
     controls_layout.addWidget(analytics_button)
     controls_layout.addWidget(predictions_button)
     controls_layout.addWidget(subjective_notes_button)
+    controls_layout.addWidget(abc_button)
     controls_layout.addWidget(material_facts_button)
     controls_layout.addWidget(time_sensitivity_button)
     controls_layout.addWidget(photo_gallery_button)
@@ -248,6 +296,12 @@ def build_chart_right_panel_stack(
     )
     stack.addWidget(subjective_notes_scroll)
 
+    abc_scroll = QScrollArea()
+    _configure_chart_right_panel_scroll_area(
+        abc_scroll, abc_content_widget, scrollbar_style
+    )
+    stack.addWidget(abc_scroll)
+
     material_facts_scroll = QScrollArea()
     _configure_chart_right_panel_scroll_area(
         material_facts_scroll, material_facts_content_widget, scrollbar_style
@@ -270,6 +324,7 @@ def build_chart_right_panel_stack(
         analytics_button=analytics_button,
         predictions_button=predictions_button,
         subjective_notes_button=subjective_notes_button,
+        abc_button=abc_button,
         material_facts_button=material_facts_button,
         time_sensitivity_button=time_sensitivity_button,
         photo_gallery_button=photo_gallery_button,
@@ -277,6 +332,7 @@ def build_chart_right_panel_stack(
         analytics_scroll=analytics_scroll,
         predictions_scroll=predictions_scroll,
         subjective_notes_scroll=subjective_notes_scroll,
+        abc_scroll=abc_scroll,
         material_facts_scroll=material_facts_scroll,
         time_sensitivity_scroll=time_sensitivity_scroll,
         photo_gallery_scroll=photo_gallery_scroll,
@@ -371,6 +427,7 @@ def _install_expand_autoscroll(owner: object) -> None:
         "chart_analytics_panel_scroll",
         "predictions_panel_scroll",
         "subjective_notes_panel_scroll",
+        "abc_panel_scroll",
         "material_facts_panel_scroll",
         "photo_gallery_panel_scroll",
         "time_sensitivity_panel_scroll",
@@ -400,6 +457,7 @@ def _chart_right_panel_definitions(owner: object) -> dict[str, tuple[str, str]]:
         "analytics": ("chart_analytics_panel_scroll", "chart_analytics_panel_button"),
         "predictions": ("predictions_panel_scroll", "predictions_panel_button"),
         "subjective_notes": ("subjective_notes_panel_scroll", "subjective_notes_panel_button"),
+        "abc": ("abc_panel_scroll", "abc_panel_button"),
         "material_facts": ("material_facts_panel_scroll", "material_facts_panel_button"),
         "time_sensitivity": ("time_sensitivity_panel_scroll","time_sensitivity_panel_button"),
         "photo_gallery": ("photo_gallery_panel_scroll", "photo_gallery_panel_button"),
@@ -539,7 +597,7 @@ def schedule_chart_render_for_active_right_panel(owner: object) -> None:
         if state is not None:
             state.last_render_chart_token = render_token
         return
-    if active_panel == "subjective_notes" and owner._is_chart_analysis_section_visible("anagrams"):
+    if active_panel in {"subjective_notes", "abc"} and owner._is_chart_analysis_section_visible("anagrams"):
         owner._schedule_chart_render(chart, sections={"anagrams"})
 
 

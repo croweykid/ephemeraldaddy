@@ -62,6 +62,7 @@ from ephemeraldaddy.core.interpretations import (
 )
 
 from ephemeraldaddy.gui.features.charts.anagrams import AnagramsPresenter, build_anagrams_section
+from ephemeraldaddy.gui.features.charts.euphonics import render_euphonics_html
 from ephemeraldaddy.gui.features.charts.loading_overlay import ChartLoadingOverlay
 from ephemeraldaddy.gui.features.charts.time_sensitivity_panel import TimeSensitivityPanel
 from ephemeraldaddy.gui.features.controllers.chart_right_panel import ChartRightPanelController
@@ -1372,6 +1373,44 @@ def _populate_sexiness_section(owner: QWidget, content_layout: QVBoxLayout) -> N
     content_layout.addWidget(owner.sexiness_slider)
     content_layout.addWidget(owner.sexiness_score_label)
 
+
+def _build_abc_panel(owner: QWidget) -> tuple[QWidget, QVBoxLayout]:
+    """Build the ABC tab with Anagrams and Euphonics sections."""
+    panel = QWidget()
+    layout = QVBoxLayout()
+    layout.setContentsMargins(6, 6, 6, 6)
+    layout.setSpacing(6)
+    layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+    panel.setLayout(layout)
+    return panel, layout
+
+
+def _build_euphonics_section(owner: QWidget, panel: QWidget, layout: QVBoxLayout) -> None:
+    """Build Euphonics section using the chart name and bundled euphonics meanings."""
+    section_layout = owner._add_chart_analysis_collapsible_section(
+        panel=panel,
+        layout=layout,
+        title="Euphonics",
+        expanded=True,
+        section_key="euphonics",
+    )
+    owner.euphonics_label = QLabel("No chart name available for Euphonics.")
+    owner.euphonics_label.setTextFormat(Qt.RichText)
+    owner.euphonics_label.setWordWrap(True)
+    owner.euphonics_label.setTextInteractionFlags(Qt.TextSelectableByMouse | Qt.LinksAccessibleByMouse)
+    owner.euphonics_label.setStyleSheet("color: #f5f5f5; padding: 4px 0 8px 0;")
+    section_layout.addWidget(owner.euphonics_label)
+
+
+def refresh_euphonics_for_chart(owner: QWidget, chart: Chart | None) -> None:
+    """Refresh the ABC tab's Euphonics list for the active chart name."""
+    label = getattr(owner, "euphonics_label", None)
+    if label is None:
+        return
+    chart_name = getattr(chart, "name", "") if chart is not None else ""
+    label.setText(render_euphonics_html(str(chart_name or "")))
+
+
 def _build_subjective_notes_panel(owner: QWidget) -> tuple[QWidget, QVBoxLayout]:
     """Build Subjective Notes tab body widget + layout."""
     panel = QWidget()
@@ -1767,6 +1806,7 @@ def build_chart_view_right_panel(
     metrics_content.setLayout(owner.metrics_layout)
 
     subjective_notes_panel, subjective_notes_layout = _build_subjective_notes_panel(owner)
+    abc_panel, abc_layout = _build_abc_panel(owner)
     material_facts_panel = _build_material_facts_panel(owner)
     photo_gallery_panel = _build_photo_gallery_panel(owner)
 
@@ -1780,6 +1820,7 @@ def build_chart_view_right_panel(
         analytics_content_widget=metrics_content,
         predictions_content_widget=predictions_panel,
         subjective_notes_content_widget=subjective_notes_panel,
+        abc_content_widget=abc_panel,
         material_facts_content_widget=material_facts_panel,
         time_sensitivity_content_widget=time_sensitivity_panel,
         photo_gallery_content_widget=photo_gallery_panel,
@@ -1789,6 +1830,7 @@ def build_chart_view_right_panel(
     owner.chart_analytics_panel_button = chart_right_panel.analytics_button
     owner.predictions_panel_button = chart_right_panel.predictions_button
     owner.subjective_notes_panel_button = chart_right_panel.subjective_notes_button
+    owner.abc_panel_button = chart_right_panel.abc_button
     owner.material_facts_panel_button = chart_right_panel.material_facts_button
     owner.time_sensitivity_panel_button = chart_right_panel.time_sensitivity_button
     owner.photo_gallery_panel_button = chart_right_panel.photo_gallery_button
@@ -1796,6 +1838,7 @@ def build_chart_view_right_panel(
     owner.chart_analytics_panel_scroll = chart_right_panel.analytics_scroll
     owner.predictions_panel_scroll = chart_right_panel.predictions_scroll
     owner.subjective_notes_panel_scroll = chart_right_panel.subjective_notes_scroll
+    owner.abc_panel_scroll = chart_right_panel.abc_scroll
     owner.material_facts_panel_scroll = chart_right_panel.material_facts_scroll
     owner.time_sensitivity_panel_scroll = chart_right_panel.time_sensitivity_scroll
     owner.photo_gallery_panel_scroll = chart_right_panel.photo_gallery_scroll
@@ -1808,6 +1851,8 @@ def build_chart_view_right_panel(
     owner._register_metric_scroll_widget(predictions_panel)
     owner._register_metric_scroll_widget(owner.subjective_notes_panel_scroll)
     owner._register_metric_scroll_widget(subjective_notes_panel)
+    owner._register_metric_scroll_widget(owner.abc_panel_scroll)
+    owner._register_metric_scroll_widget(abc_panel)
     owner._register_metric_scroll_widget(owner.material_facts_panel_scroll)
     owner._register_metric_scroll_widget(material_facts_panel)
     owner._register_metric_scroll_widget(owner.time_sensitivity_panel_scroll)
@@ -1819,8 +1864,8 @@ def build_chart_view_right_panel(
     owner._create_chart_analysis_sections(metrics_content)
     owner._create_similar_charts_section(metrics_content)
     anagrams_section = build_anagrams_section(
-        panel=subjective_notes_panel,
-        layout=subjective_notes_layout,
+        panel=abc_panel,
+        layout=abc_layout,
         on_toggled=lambda checked: owner._set_chart_analysis_section_expanded(
             "anagrams",
             checked,
@@ -1837,9 +1882,11 @@ def build_chart_view_right_panel(
     owner._anagrams_source_dropdown = anagrams_section.source_dropdown
     owner._anagrams_presenter = AnagramsPresenter(anagrams_section)
     owner._chart_analysis_section_widgets["anagrams"] = anagrams_section.container
+    _build_euphonics_section(owner, abc_panel, abc_layout)
     owner._sync_chart_analysis_section_visibility()
     owner.metrics_layout.addStretch(1)
     subjective_notes_layout.addStretch(1)
+    abc_layout.addStretch(1)
     state = getattr(owner, "_chart_right_panel_state", None)
     if state is not None:
         state.active_tab = "subjective_notes"
