@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QObject, QThread, Signal, Slot
+from PySide6.QtCore import QObject, QThread, Qt, Signal, Slot
 from PySide6.QtWidgets import QLabel, QComboBox, QWidget
 
 from ephemeraldaddy.analysis.traits import (
@@ -847,6 +847,54 @@ class _TraitPredictionsRefreshWorker(QObject):
         self.finished.emit(self._token, above_html, below_html)
 
 
+class _TraitPredictionsRefreshReceiver(QObject):
+    """Receive worker results on the GUI thread before touching widgets."""
+
+    def __init__(self, owner: Any, cache_key: str, token: object) -> None:
+        parent = owner if isinstance(owner, QWidget) else None
+        super().__init__(parent)
+        self._owner = owner
+        self._cache_key = cache_key
+        self._token = token
+        self._thread: QThread | None = None
+        self._worker: QObject | None = None
+
+    def set_job(self, thread: QThread, worker: QObject) -> None:
+        self._thread = thread
+        self._worker = worker
+
+    @Slot(object, object, object)
+    def handle_finished(self, finished_token: object, above_html: object, below_html: object) -> None:
+        if finished_token is not self._token:
+            return
+        if getattr(self._owner, "_traits_prediction_render_token", None) is not finished_token:
+            return
+        updated_at = datetime.now().isoformat(timespec="seconds")
+        _cache_traits_prediction_view(
+            self._owner,
+            self._cache_key,
+            str(above_html),
+            str(below_html),
+            updated_at,
+        )
+        _apply_traits_prediction_view(self._owner, str(above_html), str(below_html))
+
+    @Slot(object, str)
+    def handle_failed(self, finished_token: object, error_message: str) -> None:
+        if finished_token is not self._token:
+            return
+        if getattr(self._owner, "_traits_prediction_render_token", None) is not finished_token:
+            return
+        message = f"Trait predictions unavailable: {html.escape(error_message)}"
+        _apply_traits_prediction_view(self._owner, message, message)
+
+    @Slot()
+    def cleanup(self) -> None:
+        if self._thread is not None and self._worker is not None:
+            _forget_traits_prediction_worker_job(self._owner, self._thread, self._worker, self)
+        self.deleteLater()
+
+
 def _cache_traits_prediction_view(
     owner: Any,
     cache_key: str,
@@ -867,11 +915,16 @@ def _apply_traits_prediction_view(owner: Any, above_html: str, below_html: str, 
     _set_traits_prediction_label_for_mode(owner)
 
 
-def _forget_traits_prediction_worker_job(owner: Any, thread: QThread, worker: QObject) -> None:
+def _forget_traits_prediction_worker_job(
+    owner: Any,
+    thread: QThread,
+    worker: QObject,
+    receiver: QObject,
+) -> None:
     jobs = getattr(owner, "_traits_prediction_worker_jobs", None)
     if isinstance(jobs, list):
         try:
-            jobs.remove((thread, worker))
+            jobs.remove((thread, worker, receiver))
         except ValueError:
             pass
     thread.deleteLater()
@@ -891,35 +944,24 @@ def _start_traits_prediction_refresh_worker(
     thread_parent = owner if isinstance(owner, QWidget) else None
     thread = QThread(thread_parent)
     worker = _TraitPredictionsRefreshWorker(owner, chart, traits, token)
+    receiver = _TraitPredictionsRefreshReceiver(owner, cache_key, token)
+    receiver.set_job(thread, worker)
     worker.moveToThread(thread)
 
-    def handle_finished(finished_token: object, above_html: str, below_html: str) -> None:
-        if getattr(owner, "_traits_prediction_render_token", None) is not finished_token:
-            return
-        updated_at = datetime.now().isoformat(timespec="seconds")
-        _cache_traits_prediction_view(owner, cache_key, above_html, below_html, updated_at)
-        _apply_traits_prediction_view(owner, above_html, below_html)
-
-    def handle_failed(finished_token: object, error_message: str) -> None:
-        if getattr(owner, "_traits_prediction_render_token", None) is not finished_token:
-            return
-        message = f"Trait predictions unavailable: {html.escape(error_message)}"
-        _apply_traits_prediction_view(owner, message, message)
-
     thread.started.connect(worker.run)
-    worker.finished.connect(handle_finished)
-    worker.failed.connect(handle_failed)
+    worker.finished.connect(receiver.handle_finished, Qt.QueuedConnection)
+    worker.failed.connect(receiver.handle_failed, Qt.QueuedConnection)
     worker.finished.connect(worker.deleteLater)
     worker.failed.connect(worker.deleteLater)
     worker.finished.connect(thread.quit)
     worker.failed.connect(thread.quit)
-    thread.finished.connect(lambda: _forget_traits_prediction_worker_job(owner, thread, worker))
+    thread.finished.connect(receiver.cleanup, Qt.QueuedConnection)
 
     jobs = getattr(owner, "_traits_prediction_worker_jobs", None)
     if not isinstance(jobs, list):
         jobs = []
         owner._traits_prediction_worker_jobs = jobs
-    jobs.append((thread, worker))
+    jobs.append((thread, worker, receiver))
     thread.start()
 
 
