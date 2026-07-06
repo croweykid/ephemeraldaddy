@@ -4217,6 +4217,11 @@ class DatabaseAnalyticsChartsMixin:
 
         self.traits_distribution_rank_label = QLabel("")
         self.traits_distribution_rank_label.setTextFormat(Qt.RichText)
+        self.traits_distribution_rank_label.setTextInteractionFlags(Qt.LinksAccessibleByMouse)
+        self.traits_distribution_rank_label.setOpenExternalLinks(False)
+        self.traits_distribution_rank_label.linkActivated.connect(
+            self._on_traits_distribution_rank_chart_link_activated
+        )
         self.traits_distribution_rank_label.setWordWrap(True)
         self.traits_distribution_rank_label.setStyleSheet("color: #d8d8d8; padding: 2px 0 6px 0;")
         trait_rank_container_layout.addWidget(self.traits_distribution_rank_label)
@@ -4386,6 +4391,24 @@ class DatabaseAnalyticsChartsMixin:
         rows.sort(key=lambda row: (-float(row["likelihood"]), -float(row["deviation"]), str(row["name"]).casefold()))
         return rows[:10]
 
+    def _on_traits_distribution_rank_chart_link_activated(self, target: str) -> None:
+        """Open a clicked Traits ranking chart in Chart View."""
+        normalized_target = str(target or "").strip()
+        if normalized_target.startswith("chart:"):
+            normalized_target = normalized_target.split(":", 1)[1].strip()
+        try:
+            chart_id = int(normalized_target)
+        except (TypeError, ValueError):
+            return
+        owner = self._owner_window() if hasattr(self, "_owner_window") else getattr(self, "_app_owner", None)
+        open_link = getattr(owner, "_on_similar_chart_link_activated", None)
+        if callable(open_link):
+            open_link(str(chart_id), transition_to_chart_view=True)
+            return
+        load_chart_by_id = getattr(owner, "load_chart_by_id", None)
+        if callable(load_chart_by_id):
+            load_chart_by_id(chart_id)
+
     @staticmethod
     def _render_traits_distribution_rankings_html(
         selected_trait_name: str | None,
@@ -4411,13 +4434,22 @@ class DatabaseAnalyticsChartsMixin:
         rows = []
         for rank, row in enumerate(rankings, start=1):
             name = html.escape(str(row.get("name", "")))
+            try:
+                chart_id = int(row.get("chart_id"))
+            except (TypeError, ValueError):
+                chart_id = 0
+            chart_link = (
+                f"<a href='chart:{chart_id}' style='color:#f0f0f0; text-decoration:none;'>{name}</a>"
+                if chart_id
+                else name
+            )
             likelihood = float(row.get("likelihood", 0.0))
             deviation = float(row.get("deviation", 0.0))
             deviation_color = "#90ee90" if deviation >= 0 else "#ffb3b3"
             rows.append(
                 "<tr>"
                 f"<td style='padding:1px 8px 1px 0; color:#9a9a9a; text-align:right;'>{rank}</td>"
-                f"<td style='padding:1px 8px 1px 0; color:#f0f0f0;'>{name}</td>"
+                f"<td style='padding:1px 8px 1px 0; color:#f0f0f0;'>{chart_link}</td>"
                 f"<td style='padding:1px 8px 1px 0; color:#d8d8d8; text-align:right;'>{likelihood:.1f}%</td>"
                 f"<td style='padding:1px 0; color:{deviation_color}; text-align:right;'>{deviation:+.1f}</td>"
                 "</tr>"
