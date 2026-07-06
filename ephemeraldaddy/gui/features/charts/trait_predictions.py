@@ -7,9 +7,11 @@ import html
 import json
 import logging
 import urllib.parse
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from PySide6.QtCore import QObject, QThread, Qt, Signal, Slot
 from PySide6.QtWidgets import QLabel, QComboBox, QWidget
 
 from ephemeraldaddy.analysis.traits import (
@@ -744,45 +746,78 @@ def trait_metadata_for_chart(owner: Any, chart: Any) -> dict[str, Any]:
     return metadata
 
 
-def render_traits_predictions(owner: Any, chart: Any | None) -> None:
-    """Render uploaded custom trait scores into Chart View's Predictions panel."""
-    label = getattr(owner, "traits_prediction_label", None)
-    if not isinstance(label, QLabel):
-        return
-    _configure_traits_prediction_label(owner, label)
-    traits = list_traits(active_only=True)
-    owner._traits_prediction_trait_lookup = {
-        str(trait.get("name", "")).strip().casefold(): trait
-        for trait in traits
-        if str(trait.get("name", "")).strip()
-    }
-    if not traits:
-        if list_traits():
-            label.setText("No active traits. Reactivate traits in Settings > Traits to include them in Predictions.")
-        else:
-            label.setText("No traits uploaded. Add traits in Settings > Traits.")
-        return
-    if chart is None or owner._is_placeholder_chart(chart):
-        label.setText("Trait predictions unavailable for this chart.")
-        return
+def _trait_predictions_cache_key(
+    owner: Any,
+    chart: Any | None,
+    traits: list[dict[str, Any]],
+) -> str | None:
+    if chart is None:
+        return None
+    chart_uid = str(getattr(chart, "chart_uid", "") or "").strip().upper()
+    chart_scope = f"uid:{chart_uid}" if chart_uid else "draft"
+    trait_signature = _stable_json_hash(_trait_signature_payload(traits))
     try:
-        metadata = trait_metadata_for_chart(owner, chart)
-        likelihoods = dict(metadata.get("likelihoods", {}))
-        database_averages = dict(metadata.get("database_averages", {}))
-        db_deviations = dict(metadata.get("deviations", {}))
+        norm_signature = _database_norm_signature_for_traits(owner, traits)
     except Exception as exc:
-        label.setText(f"Trait predictions unavailable: {html.escape(str(exc))}")
-        return
+        logger.warning(
+            "Traits panel could not build DB norm signature for view cache: %s",
+            exc,
+            exc_info=True,
+        )
+        norm_signature = "norm:unavailable"
+    return _stable_json_hash(
+        {
+            "version": TRAIT_DB_NORMS_CACHE_VERSION,
+            "chart_scope": chart_scope,
+            "chart_signature": _chart_trait_metadata_signature(chart),
+            "trait_signature": trait_signature,
+            "norm_signature": norm_signature,
+        }
+    )
+
+
+def _trait_predictions_refresh_message(updated_at: str | None) -> str:
+    timestamp = html.escape(updated_at or "never")
+    return (
+        "<div style='color:#70d878; font-style:italic; padding-bottom:5px; text-align:center;'>"
+        f"Predictions panel is refreshing. Current results last updated: {timestamp} ♻️"
+        "</div>"
+    )
+
+
+def _current_traits_prediction_html(owner: Any) -> str:
+    combo = getattr(owner, "traits_prediction_mode_combo", None)
+    mode = combo.currentData() if isinstance(combo, QComboBox) else "above"
+    return getattr(
+        owner,
+        "_traits_prediction_below_avg_html" if mode == "below" else "_traits_prediction_above_avg_html",
+        "",
+    )
+
+
+def _set_traits_prediction_label_for_mode(owner: Any) -> None:
+    label = getattr(owner, "traits_prediction_label", None)
+    if isinstance(label, QLabel):
+        label.setText(_current_traits_prediction_html(owner) or "Trait predictions unavailable for this chart.")
+
+
+def _trait_predictions_html_from_metadata(
+    traits: list[dict[str, Any]],
+    metadata: dict[str, Any],
+) -> tuple[str, str]:
+    likelihoods = dict(metadata.get("likelihoods", {}))
+    database_averages = dict(metadata.get("database_averages", {}))
+    db_deviations = dict(metadata.get("deviations", {}))
+    if not likelihoods:
+        message = "No scorable traits uploaded."
+        return message, message
+    if not database_averages:
+        message = "Trait predictions unavailable until database trait averages can be calculated."
+        return message, message
     color_by_name = {
         str(trait.get("name", "")): normalize_trait_color(str(trait.get("color", DEFAULT_TRAIT_COLOR)))
         for trait in traits
     }
-    if not likelihoods:
-        label.setText("No scorable traits uploaded.")
-        return
-    if not database_averages:
-        label.setText("Trait predictions unavailable until database trait averages can be calculated.")
-        return
     threshold = TRAIT_DEVIATION_ASSIGNMENT_THRESHOLD
     above_avg_traits = sorted(
         (
@@ -801,23 +836,222 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
         ),
         key=lambda item: item[3],
     )
-    intro = (
-        "<div style='color:#d8d8d8; padding-bottom:4px;'>"
-        "Traits are assigned by deviation from the active database average. "
-        f"Above-average traits are at least {threshold:.0f}% higher than DB average; "
-        f"below-average traits are at least {threshold:.0f}% lower than DB average."
-        "</div>"
+    return (
+        _trait_table("Above avg traits", above_avg_traits, color_by_name),
+        _trait_table("Below avg traits", below_avg_traits, color_by_name),
     )
-    owner._traits_prediction_above_avg_html = "".join(
-        [_trait_table("Above avg traits", above_avg_traits, color_by_name)] #removed "intro, " and ", footer"  from "intro, _trait_table..., footer"
-    )
-    owner._traits_prediction_below_avg_html = "".join(
-        [_trait_table("Below avg traits", below_avg_traits, color_by_name)] #removed "intro, " and ", footer" from "intro, _trait_table..., footer"
-    )
-    combo = getattr(owner, "traits_prediction_mode_combo", None)
-    mode = combo.currentData() if isinstance(combo, QComboBox) else "above"
-    label.setText(
-        owner._traits_prediction_below_avg_html
-        if mode == "below"
-        else owner._traits_prediction_above_avg_html
-    )
+
+
+class _TraitPredictionsRefreshWorker(QObject):
+    """Calculate trait prediction HTML away from the Qt GUI thread."""
+
+    finished = Signal(object, object, object)
+    failed = Signal(object, str)
+
+    def __init__(self, owner: Any, chart: Any, traits: list[dict[str, Any]], token: object) -> None:
+        super().__init__()
+        self._owner = owner
+        self._chart = chart
+        self._traits = traits
+        self._token = token
+
+    @Slot()
+    def run(self) -> None:
+        try:
+            metadata = trait_metadata_for_chart(self._owner, self._chart)
+            above_html, below_html = _trait_predictions_html_from_metadata(self._traits, metadata)
+        except Exception as exc:
+            logger.warning("Traits panel background refresh failed: %s", exc, exc_info=True)
+            self.failed.emit(self._token, str(exc))
+            return
+        self.finished.emit(self._token, above_html, below_html)
+
+
+class _TraitPredictionsRefreshReceiver(QObject):
+    """Receive worker results on the GUI thread before touching widgets."""
+
+    def __init__(self, owner: Any, cache_key: str, token: object) -> None:
+        parent = owner if isinstance(owner, QWidget) else None
+        super().__init__(parent)
+        self._owner = owner
+        self._cache_key = cache_key
+        self._token = token
+        self._thread: QThread | None = None
+        self._worker: QObject | None = None
+
+    def set_job(self, thread: QThread, worker: QObject) -> None:
+        self._thread = thread
+        self._worker = worker
+
+    @Slot(object, object, object)
+    def handle_finished(self, finished_token: object, above_html: object, below_html: object) -> None:
+        if finished_token is not self._token:
+            return
+        if getattr(self._owner, "_traits_prediction_render_token", None) is not finished_token:
+            return
+        updated_at = datetime.now().isoformat(timespec="seconds")
+        _cache_traits_prediction_view(
+            self._owner,
+            self._cache_key,
+            str(above_html),
+            str(below_html),
+            updated_at,
+        )
+        _apply_traits_prediction_view(self._owner, str(above_html), str(below_html))
+
+    @Slot(object, str)
+    def handle_failed(self, finished_token: object, error_message: str) -> None:
+        if finished_token is not self._token:
+            return
+        if getattr(self._owner, "_traits_prediction_render_token", None) is not finished_token:
+            return
+        message = f"Trait predictions unavailable: {html.escape(error_message)}"
+        _apply_traits_prediction_view(self._owner, message, message)
+
+    @Slot()
+    def cleanup(self) -> None:
+        if self._thread is not None and self._worker is not None:
+            _forget_traits_prediction_worker_job(self._owner, self._thread, self._worker, self)
+        self.deleteLater()
+
+
+def _cache_traits_prediction_view(
+    owner: Any,
+    cache_key: str,
+    above_html: str,
+    below_html: str,
+    updated_at: str,
+) -> None:
+    cache = getattr(owner, "_traits_prediction_view_cache", None)
+    if not isinstance(cache, dict):
+        cache = {}
+        owner._traits_prediction_view_cache = cache
+    cache[cache_key] = {"above": above_html, "below": below_html, "updated_at": updated_at}
+
+
+def _apply_traits_prediction_view(owner: Any, above_html: str, below_html: str, *, prefix_html: str = "") -> None:
+    owner._traits_prediction_above_avg_html = f"{prefix_html}{above_html}"
+    owner._traits_prediction_below_avg_html = f"{prefix_html}{below_html}"
+    _set_traits_prediction_label_for_mode(owner)
+
+
+def _forget_traits_prediction_worker_job(
+    owner: Any,
+    thread: QThread,
+    worker: QObject,
+    receiver: QObject,
+) -> None:
+    jobs = getattr(owner, "_traits_prediction_worker_jobs", None)
+    if isinstance(jobs, list):
+        try:
+            jobs.remove((thread, worker, receiver))
+        except ValueError:
+            pass
+    thread.deleteLater()
+
+
+def stop_traits_prediction_refresh_workers(owner: Any, wait_msecs: int | None = None) -> None:
+    """Stop Chart View trait prediction refresh threads before their owner is destroyed."""
+    owner._traits_prediction_render_token = object()
+    jobs = getattr(owner, "_traits_prediction_worker_jobs", None)
+    if not isinstance(jobs, list) or not jobs:
+        return
+
+    for thread, _worker, _receiver in list(jobs):
+        if not isinstance(thread, QThread):
+            continue
+        try:
+            if thread.isRunning():
+                thread.requestInterruption()
+                thread.quit()
+                if wait_msecs is None:
+                    thread.wait()
+                else:
+                    thread.wait(max(0, int(wait_msecs)))
+        except RuntimeError:
+            continue
+    jobs.clear()
+
+
+def _start_traits_prediction_refresh_worker(
+    owner: Any,
+    chart: Any,
+    traits: list[dict[str, Any]],
+    cache_key: str,
+    token: object,
+) -> None:
+    label = getattr(owner, "traits_prediction_label", None)
+    if not isinstance(label, QLabel):
+        return
+
+    thread_parent = owner if isinstance(owner, QWidget) else None
+    thread = QThread(thread_parent)
+    worker = _TraitPredictionsRefreshWorker(owner, chart, traits, token)
+    receiver = _TraitPredictionsRefreshReceiver(owner, cache_key, token)
+    receiver.set_job(thread, worker)
+    worker.moveToThread(thread)
+
+    thread.started.connect(worker.run)
+    worker.finished.connect(receiver.handle_finished, Qt.QueuedConnection)
+    worker.failed.connect(receiver.handle_failed, Qt.QueuedConnection)
+    worker.finished.connect(worker.deleteLater)
+    worker.failed.connect(worker.deleteLater)
+    worker.finished.connect(thread.quit)
+    worker.failed.connect(thread.quit)
+    thread.finished.connect(receiver.cleanup, Qt.QueuedConnection)
+
+    jobs = getattr(owner, "_traits_prediction_worker_jobs", None)
+    if not isinstance(jobs, list):
+        jobs = []
+        owner._traits_prediction_worker_jobs = jobs
+    jobs.append((thread, worker, receiver))
+    thread.start()
+
+
+def render_traits_predictions(owner: Any, chart: Any | None) -> None:
+    """Render uploaded custom trait scores into Chart View's Predictions panel without showing stale chart data."""
+    label = getattr(owner, "traits_prediction_label", None)
+    if not isinstance(label, QLabel):
+        return
+    _configure_traits_prediction_label(owner, label)
+    owner._traits_prediction_render_token = object()
+    token = owner._traits_prediction_render_token
+    traits = list_traits(active_only=True)
+    owner._traits_prediction_trait_lookup = {
+        str(trait.get("name", "")).strip().casefold(): trait
+        for trait in traits
+        if str(trait.get("name", "")).strip()
+    }
+    if not traits:
+        message = (
+            "No active traits. Reactivate traits in Settings > Traits to include them in Predictions."
+            if list_traits()
+            else "No traits uploaded. Add traits in Settings > Traits."
+        )
+        _apply_traits_prediction_view(owner, message, message)
+        return
+    if chart is None or owner._is_placeholder_chart(chart):
+        _apply_traits_prediction_view(
+            owner,
+            "Trait predictions unavailable for this chart.",
+            "Trait predictions unavailable for this chart.",
+        )
+        return
+
+    cache_key = _trait_predictions_cache_key(owner, chart, traits)
+    cached = (getattr(owner, "_traits_prediction_view_cache", {}) or {}).get(cache_key or "")
+    if isinstance(cached, dict):
+        _apply_traits_prediction_view(
+            owner,
+            str(cached.get("above", "")),
+            str(cached.get("below", "")),
+            prefix_html=_trait_predictions_refresh_message(str(cached.get("updated_at", "") or "unknown")),
+        )
+    else:
+        message = (
+            _trait_predictions_refresh_message(None)
+            + "<div style='color:#d8d8d8;'>Loading trait predictions for this chart…</div>"
+        )
+        _apply_traits_prediction_view(owner, message, message)
+
+    _start_traits_prediction_refresh_worker(owner, chart, traits, cache_key or "", token)

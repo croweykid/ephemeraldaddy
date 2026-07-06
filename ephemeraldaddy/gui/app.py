@@ -1398,7 +1398,10 @@ from ephemeraldaddy.gui.features.charts.chart_predictor_quiz import (
     create_chart_predictor_quiz_dialog,
 )
 from ephemeraldaddy.gui.features.settings.traits import add_traits_settings_section
-from ephemeraldaddy.gui.features.charts.trait_predictions import render_traits_predictions as _render_traits_predictions
+from ephemeraldaddy.gui.features.charts.trait_predictions import (
+    render_traits_predictions as _render_traits_predictions,
+    stop_traits_prediction_refresh_workers as _stop_traits_prediction_refresh_workers,
+)
 from ephemeraldaddy.gui.features.charts.total_chart_exporter import (
     build_total_chart_export_text as _build_total_chart_export_text,
     build_total_chart_similar_charts_section_for_chart as _build_total_chart_similar_charts_section_for_chart,
@@ -36225,6 +36228,7 @@ class MainWindow(QMainWindow):
         if not self._confirm_discard_or_save():
             event.ignore()
             return
+        _stop_traits_prediction_refresh_workers(self)
         if self._size_checker_popup is not None:
             self._size_checker_popup.close()
             self._size_checker_popup = None
