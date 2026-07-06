@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QObject, QThread, Signal, Slot
 from PySide6.QtWidgets import QLabel, QComboBox, QWidget
 
 from ephemeraldaddy.analysis.traits import (
@@ -822,6 +822,31 @@ def _trait_predictions_html_from_metadata(
     )
 
 
+class _TraitPredictionsRefreshWorker(QObject):
+    """Calculate trait prediction HTML away from the Qt GUI thread."""
+
+    finished = Signal(object, object, object)
+    failed = Signal(object, str)
+
+    def __init__(self, owner: Any, chart: Any, traits: list[dict[str, Any]], token: object) -> None:
+        super().__init__()
+        self._owner = owner
+        self._chart = chart
+        self._traits = traits
+        self._token = token
+
+    @Slot()
+    def run(self) -> None:
+        try:
+            metadata = trait_metadata_for_chart(self._owner, self._chart)
+            above_html, below_html = _trait_predictions_html_from_metadata(self._traits, metadata)
+        except Exception as exc:
+            logger.warning("Traits panel background refresh failed: %s", exc, exc_info=True)
+            self.failed.emit(self._token, str(exc))
+            return
+        self.finished.emit(self._token, above_html, below_html)
+
+
 def _cache_traits_prediction_view(
     owner: Any,
     cache_key: str,
@@ -842,7 +867,17 @@ def _apply_traits_prediction_view(owner: Any, above_html: str, below_html: str, 
     _set_traits_prediction_label_for_mode(owner)
 
 
-def _render_traits_predictions_now(
+def _forget_traits_prediction_worker_job(owner: Any, thread: QThread, worker: QObject) -> None:
+    jobs = getattr(owner, "_traits_prediction_worker_jobs", None)
+    if isinstance(jobs, list):
+        try:
+            jobs.remove((thread, worker))
+        except ValueError:
+            pass
+    thread.deleteLater()
+
+
+def _start_traits_prediction_refresh_worker(
     owner: Any,
     chart: Any,
     traits: list[dict[str, Any]],
@@ -852,21 +887,40 @@ def _render_traits_predictions_now(
     label = getattr(owner, "traits_prediction_label", None)
     if not isinstance(label, QLabel):
         return
-    if getattr(owner, "_traits_prediction_render_token", None) is not token:
-        return
-    try:
-        metadata = trait_metadata_for_chart(owner, chart)
-        above_html, below_html = _trait_predictions_html_from_metadata(traits, metadata)
-    except Exception as exc:
-        if getattr(owner, "_traits_prediction_render_token", None) is token:
-            message = f"Trait predictions unavailable: {html.escape(str(exc))}"
-            _apply_traits_prediction_view(owner, message, message)
-        return
-    if getattr(owner, "_traits_prediction_render_token", None) is not token:
-        return
-    updated_at = datetime.now().isoformat(timespec="seconds")
-    _cache_traits_prediction_view(owner, cache_key, above_html, below_html, updated_at)
-    _apply_traits_prediction_view(owner, above_html, below_html)
+
+    thread_parent = owner if isinstance(owner, QWidget) else None
+    thread = QThread(thread_parent)
+    worker = _TraitPredictionsRefreshWorker(owner, chart, traits, token)
+    worker.moveToThread(thread)
+
+    def handle_finished(finished_token: object, above_html: str, below_html: str) -> None:
+        if getattr(owner, "_traits_prediction_render_token", None) is not finished_token:
+            return
+        updated_at = datetime.now().isoformat(timespec="seconds")
+        _cache_traits_prediction_view(owner, cache_key, above_html, below_html, updated_at)
+        _apply_traits_prediction_view(owner, above_html, below_html)
+
+    def handle_failed(finished_token: object, error_message: str) -> None:
+        if getattr(owner, "_traits_prediction_render_token", None) is not finished_token:
+            return
+        message = f"Trait predictions unavailable: {html.escape(error_message)}"
+        _apply_traits_prediction_view(owner, message, message)
+
+    thread.started.connect(worker.run)
+    worker.finished.connect(handle_finished)
+    worker.failed.connect(handle_failed)
+    worker.finished.connect(worker.deleteLater)
+    worker.failed.connect(worker.deleteLater)
+    worker.finished.connect(thread.quit)
+    worker.failed.connect(thread.quit)
+    thread.finished.connect(lambda: _forget_traits_prediction_worker_job(owner, thread, worker))
+
+    jobs = getattr(owner, "_traits_prediction_worker_jobs", None)
+    if not isinstance(jobs, list):
+        jobs = []
+        owner._traits_prediction_worker_jobs = jobs
+    jobs.append((thread, worker))
+    thread.start()
 
 
 def render_traits_predictions(owner: Any, chart: Any | None) -> None:
@@ -915,7 +969,4 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
         )
         _apply_traits_prediction_view(owner, message, message)
 
-    QTimer.singleShot(
-        250,
-        lambda: _render_traits_predictions_now(owner, chart, traits, cache_key or "", token),
-    )
+    _start_traits_prediction_refresh_worker(owner, chart, traits, cache_key or "", token)
