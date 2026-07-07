@@ -34507,6 +34507,7 @@ class MainWindow(QMainWindow):
         self.dnd_prediction_statblock_canvas = None
         self.dnd_prediction_alignment_canvas = None
         self.dnd_prediction_top_three_label = None
+        self.dnd_prediction_alignment_debug_label = None
         if getattr(self, "distinguishing_factors_label", None) is not None:
             self.distinguishing_factors_label.setText("Database distinction scan: —")
         self.chart_type_label = None #this might be in the wrong order - should mayb ebe below planet_dynamics_summary_label

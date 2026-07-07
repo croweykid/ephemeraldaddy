@@ -233,5 +233,7 @@ def test_dnd_alignment_debug_summary_renders_under_alignment_graph():
     assert "Lawful: {_format_percent(lawful)}" in source
     assert "Net evil/good: {_format_percent(net_good_evil)}" in source
     assert "Net chaotic/lawful: {_format_percent(net_lawful_chaotic)}" in source
+    assert 'getattr(owner, "dnd_prediction_alignment_debug_label", None)' in source
+    assert 'setattr(self.owner, "dnd_prediction_alignment_debug_label", self.alignment_debug_label)' in source
     assert "self.alignment_layout.addWidget(label)" in source
     assert "self._render_alignment_debug_summary(chart)" in source

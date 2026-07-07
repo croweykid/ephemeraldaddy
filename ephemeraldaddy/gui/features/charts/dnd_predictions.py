@@ -788,7 +788,7 @@ class DndPredictionPanelAdapter:
         self.dnd_stat_keys = dnd_stat_keys
         self.norm_charts_provider = norm_charts_provider
         self.norm_charts_token_provider = norm_charts_token_provider
-        self.alignment_debug_label = None
+        self.alignment_debug_label = getattr(owner, "dnd_prediction_alignment_debug_label", None)
 
     def _norm_charts(self) -> Any:
         if self.norm_charts_provider is None:
@@ -895,6 +895,11 @@ class DndPredictionPanelAdapter:
             self.alignment_debug_label.setWordWrap(True)
             self.alignment_debug_label.setTextFormat(Qt.RichText)
             self.alignment_debug_label.setStyleSheet("color: #d8d8d8; padding-top: 2px;")
+            if self.owner is not None:
+                try:
+                    setattr(self.owner, "dnd_prediction_alignment_debug_label", self.alignment_debug_label)
+                except Exception:
+                    pass
         return self.alignment_debug_label
 
     def _render_alignment_debug_summary(self, chart: Any | None) -> None:
