@@ -698,6 +698,30 @@ def build_dnd_alignment_breakdown_html(owner: Any, chart: Any) -> str:
     )
 
 
+def build_dnd_alignment_debug_summary_html(owner: Any, chart: Any) -> str:
+    """Return the raw D&D alignment deviation values shown below the grid."""
+    deviations = dnd_alignment_deviations(owner, chart)
+    good = float(deviations.get("good", 0.0))
+    evil = float(deviations.get("evil", 0.0))
+    lawful = float(deviations.get("lawful", 0.0))
+    chaotic = float(deviations.get("chaotic", 0.0))
+    net_good_evil = good - evil
+    net_lawful_chaotic = lawful - chaotic
+
+    def _format_percent(value: float) -> str:
+        return f"{value:+.2f}%"
+
+    return (
+        "<b>Alignment debug deviations from DB norm:</b><br>"
+        f"Evil: {_format_percent(evil)} &nbsp; "
+        f"Good: {_format_percent(good)} &nbsp; "
+        f"Chaotic: {_format_percent(chaotic)} &nbsp; "
+        f"Lawful: {_format_percent(lawful)}<br>"
+        f"Net evil/good: {_format_percent(net_good_evil)} &nbsp; "
+        f"Net chaotic/lawful: {_format_percent(net_lawful_chaotic)}"
+    )
+
+
 def draw_dnd_alignment_grid(ax: Any, chart: Any, *, owner: Any) -> None:
     """Draw the D&D alignment net coordinate as a two-axis deviation grid."""
     import numpy as np
@@ -875,6 +899,7 @@ class DndPredictionPanelAdapter:
         self.dnd_stat_keys = dnd_stat_keys
         self.norm_charts_provider = norm_charts_provider
         self.norm_charts_token_provider = norm_charts_token_provider
+        self.alignment_debug_label = getattr(owner, "dnd_prediction_alignment_debug_label", None)
 
     def _norm_charts(self) -> Any:
         if self.norm_charts_provider is None:
@@ -969,6 +994,36 @@ class DndPredictionPanelAdapter:
     def draw_alignment(self, ax: Any, chart: Any) -> None:
         draw_dnd_alignment_grid(ax, chart, owner=self.owner or self)
 
+    def _ensure_alignment_debug_label(self) -> Any:
+        label_is_usable = False
+        if self.alignment_debug_label is not None:
+            try:
+                label_is_usable = self.alignment_debug_label.parent() is not None
+            except RuntimeError:
+                label_is_usable = False
+        if not label_is_usable:
+            self.alignment_debug_label = QLabel()
+            self.alignment_debug_label.setWordWrap(True)
+            self.alignment_debug_label.setTextFormat(Qt.RichText)
+            self.alignment_debug_label.setStyleSheet("color: #d8d8d8; padding-top: 2px;")
+            if self.owner is not None:
+                try:
+                    setattr(self.owner, "dnd_prediction_alignment_debug_label", self.alignment_debug_label)
+                except Exception:
+                    pass
+        return self.alignment_debug_label
+
+    def _render_alignment_debug_summary(self, chart: Any | None) -> None:
+        if self.alignment_layout is None:
+            return
+        label = self._ensure_alignment_debug_label()
+        if self.alignment_layout.indexOf(label) < 0:
+            self.alignment_layout.addWidget(label)
+        if chart is None or self.is_placeholder_chart(chart):
+            label.setText("<b>Alignment debug deviations from DB norm:</b> —")
+            return
+        label.setText(build_dnd_alignment_debug_summary_html(self.owner or self, chart))
+
     def build_popout_info(self, chart: Any | None, target: str, *, show_explainers: bool = True) -> str:
         if chart is None:
             return build_dnd_statblock_popout_info_html(chart, target, show_explainers=show_explainers)
@@ -1025,6 +1080,7 @@ class DndPredictionPanelAdapter:
                     draw_fn=self._draw_no_data,
                     chart=chart,
                 )
+                self._render_alignment_debug_summary(chart)
             return summary_label
         metric_panel_renderer(
             canvas_attr="dnd_prediction_statblock_canvas",
@@ -1053,6 +1109,7 @@ class DndPredictionPanelAdapter:
                 draw_fn=self.draw_alignment,
                 chart=chart,
             )
+            self._render_alignment_debug_summary(chart)
         return summary_label
 
 

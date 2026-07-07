@@ -4915,6 +4915,7 @@ ENNEAGRAM = {
         "results interpreted":{}
         },
     3:{
+        "name":"Performer",
         "samples": [64, 0],
         "signs": {
             "Aries": 13,
