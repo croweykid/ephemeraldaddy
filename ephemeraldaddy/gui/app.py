@@ -34498,6 +34498,7 @@ class MainWindow(QMainWindow):
             self.chart_type_container_layout,
             self.enneagram_prediction_chart_layout,
             self.dnd_predictions_chart_layout,
+            self.dnd_alignment_chart_layout,
         ):
             self._clear_layout_widgets(layout)
         self._pending_render_chart = None
@@ -35525,6 +35526,14 @@ class MainWindow(QMainWindow):
 
     def _draw_dnd_statblock_predictions(self, ax, chart: Chart) -> None:
         self._dnd_prediction_adapter().draw(ax, chart)
+
+    def _draw_dnd_alignment_predictions(self, ax, chart: Chart) -> None:
+        self._dnd_prediction_adapter().draw_alignment(ax, chart)
+
+    def _build_dnd_alignment_popout_info(self, *, chart: Chart | None = None) -> str:
+        from ephemeraldaddy.gui.features.charts.dnd_predictions import build_dnd_alignment_breakdown_html
+
+        return build_dnd_alignment_breakdown_html(self, chart or self._latest_chart)
 
     def _build_dnd_statblock_popout_info(self, stat_key: str, *, chart: Chart | None = None) -> str:
         return self._dnd_prediction_adapter().build_popout_info(

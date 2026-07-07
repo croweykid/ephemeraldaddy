@@ -114,6 +114,16 @@ def _configure_dnd(owner: Owner, canvas: Canvas, info_panel: InfoPanel, chart: C
     )
 
 
+def _configure_dnd_alignment(owner: Owner, canvas: Canvas, info_panel: InfoPanel, chart: Chart) -> None:
+    from ephemeraldaddy.gui.features.charts.dnd_predictions import connect_dnd_alignment_popout_pick_handler
+
+    connect_dnd_alignment_popout_pick_handler(
+        canvas,
+        info_panel,
+        build_breakdown_html=lambda: owner._build_dnd_alignment_popout_info(chart=chart),
+    )
+
+
 def _configure_gender_guesser(owner: Owner, canvas: Canvas, info_panel: InfoPanel, chart: Chart) -> None:
     del owner, canvas
     from ephemeraldaddy.gui.features.charts.algorithmic_transparency import build_gender_guesser_breakdown_text
@@ -186,6 +196,14 @@ METRIC_PANEL_SPECS: tuple[MetricPanelSpec, ...] = (
         popout_size=(8.5, 4.2),
         placeholder="Click a stat bar to view what that D&D ability score suggests.",
         configure_info=_configure_dnd,
+    ),
+    MetricPanelSpec(
+        key="dnd_alignment",
+        title="D&D Alignment",
+        draw=_call_draw("_draw_dnd_alignment_predictions"),
+        popout_size=(8.5, 6.0),
+        placeholder="Click an alignment point to view its description, or the gold star for the math breakdown.",
+        configure_info=_configure_dnd_alignment,
     ),
     MetricPanelSpec(
         key="elements",
