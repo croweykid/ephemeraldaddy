@@ -43,6 +43,7 @@ from ephemeraldaddy.analysis.weighted_chart_predictor import (
     calculate_dominant_nakshatra_weights,
     calculate_dominant_planet_weights,
     calculate_dominant_sign_weights,
+    calculate_weighted_criteria_scores,
     default_chart_uses_houses,
     normalize_weight_map_for_dominance_activation,
     parse_aspect_spec,
@@ -363,6 +364,7 @@ def _build_dnd_stat_evidence_html(chart: Any, stat_key: str, *, max_items_per_ca
 
 
 def _build_dnd_stat_math_html(
+    chart: Any,
     stat_key: str,
     statblock: Any,
     subtotals: list[tuple[str, float]],
@@ -378,6 +380,12 @@ def _build_dnd_stat_math_html(
         for label, value in subtotals
     ) or "<li>No matched evidence subtotals; total evidence is +0.00.</li>"
     raw_score = float(statblock.raw_scores.get(stat_key, 0.0))
+    try:
+        scorer_raw_total = float(
+            calculate_weighted_criteria_scores(chart, predictors=DND_STAT_PREDICTORS).get(stat_key, 0.0)
+        )
+    except Exception:
+        scorer_raw_total = raw_score
     final_score = int(statblock.scores.get(stat_key, 0))
     db_norms = _calculate_db_norm_stat_averages(norm_charts)
     db_average = float(db_norms.get(stat_key, 0.0)) if db_norms else 0.0
@@ -397,11 +405,11 @@ def _build_dnd_stat_math_html(
         )
     else:
         denominator = max(1e-9, float(_calculate_stat_evidence_denominators(DND_STAT_PREDICTORS).get(stat_key, 1.0)))
-        scaled = subtotal_total / (denominator * _EVIDENCE_DENOMINATOR_SCALE)
+        scaled = scorer_raw_total / (denominator * _EVIDENCE_DENOMINATOR_SCALE)
         normalized = max(0.0, min(1.0, 0.5 + (0.5 * math.tanh(scaled))))
         norm_line = f"DB norm for {html.escape(stat_key)}: unavailable or zero (last checked {timestamp}); using fallback predictor normalization."
         formula_line = (
-            f"Formula: subtotal total {subtotal_total:+.3f} ÷ criteria scale "
+            f"Formula: scorer-equivalent raw total {scorer_raw_total:+.3f} ÷ criteria scale "
             f"({denominator:.3f} × {_EVIDENCE_DENOMINATOR_SCALE:.1f}) = {scaled:.3f}; "
             f"tanh-normalized score = {normalized:.3f}; mapped to {floor}-{ceiling} = {final_score}."
         )
@@ -409,7 +417,8 @@ def _build_dnd_stat_math_html(
         "<hr style='border:0;border-top:1px solid rgba(255,255,255,0.35);margin:10px 0;'>"
         "<div><b>Math walkthrough</b>"
         f"<ul>{subtotal_rows}</ul>"
-        f"<div>Subtotal sum: {' + '.join(_format_signed_delta(value) for _label, value in subtotals) or '+0.00'} = {_format_signed_delta(subtotal_total)}.</div>"
+        f"<div>Displayed subtotal sum: {' + '.join(_format_signed_delta(value) for _label, value in subtotals) or '+0.00'} = {_format_signed_delta(subtotal_total)}.</div>"
+        f"<div>Scorer-equivalent raw total after criteria weighting: {scorer_raw_total:+.3f}.</div>"
         f"<div>{norm_line}</div>"
         f"<div>{formula_line}</div>"
         f"<div><b>Final displayed {html.escape(stat_key)} value: {final_score}</b>.</div>"
@@ -447,6 +456,7 @@ def build_dnd_statblock_popout_info_html(
     if show_explainers:
         evidence_html, evidence_subtotals = _build_dnd_stat_evidence_html(chart, normalized_stat_key)
         math_html = _build_dnd_stat_math_html(
+            chart,
             normalized_stat_key,
             statblock,
             evidence_subtotals,
