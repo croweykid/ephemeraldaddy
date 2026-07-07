@@ -2329,7 +2329,7 @@
     "motivation": "",
     "description": "Just funny as hell.",
     "quotes": {},
-    "samples": []
+    "samples": [],
     "uid": "default_hilarious"
   },
   "human cinderblock": {
@@ -2480,7 +2480,7 @@
     "description": "Probably seems dumber than they are. Not likely to change their minds. May come across as overly simplistic or 'brute'. But it isn't an indicator of actual intelligence, as it shows up in the charts of eccentric, stubborn hermit geniuses. High density. Low verbal sparkle, low polish. Useful in construction. Bad at brunch.",
     "quotes": {},
     "archived": false,
-    "uid": "default_human_cinderblock"
+    "uid": "default_human_cinderblock",
     "samples": []
   },
   "humorless/zero chill": {
@@ -2621,7 +2621,7 @@
     "description": "Unlikely to get the joke. Or at least unlikely to respond to it, if they do. Some of these people have a sense of humor, but most have moments where they can't process the world with that kind of levity due to heightened sensitivity/emotional stakes and poor abillity to regulate stress response around those stakes. It is not mutually exclusive with 'hilarious' or 'comedian', but if the two show up in the same person, that person might be *quite* volatile.",
     "quotes": {},
     "archived": false,
-    "uid": "default_humorless_zero_chill"
+    "uid": "default_humorless_zero_chill",
     "samples": []
   },
   "imperialist head of state": {
@@ -2853,7 +2853,7 @@
     "description": "Intellectuals & deep thinkers. Emphasis on abstraction and theory but not exclusive to those categories of genius.",
     "quotes": {},
     "archived": false,
-    "uid": "default_intellectual"
+    "uid": "default_intellectual",
     "samples": []
   },
   "loves kids": {
@@ -4711,7 +4711,7 @@
     "description": "“Sartre distinguished between rebels and revolutionaries. The rebel, he says, secretly quite wants the world and the system to remain as it is. Its permanence, after all, is the guarantee of his continuing ability to 'rebel.' The revolutionary, in contrast, really wishes to overthrow and replace existing conditions. The second enterprise is obviously no laughing matter.” ― Christopher Hitchens, Letters to a Young Contrarian\nThat said, this is likely a combination of both: it is the agregated charts of everyone the developer could think of who has overtly tried to massively & systemically upset the status quo on a broad, social level.",
     "quotes": {},
     "archived": false,
-    "uid": "default_revolutionary"
+    "uid": "default_revolutionary",
     "samples": []
   },
   "sex symbol (all)": {
@@ -4823,7 +4823,7 @@
     "description": "Male & female sex symbols: agregated similarities. Charts tagged based on a number of generic \"top 25 sex symbols throughout history\" and the like. Very 'Western Media'-centric. Mostly American, and at very least intelligible sex appeal for American audiences (such as Shahrukh Khan). These were based on democratically sourced internet lists, not the developer's personal opinion.",
     "quotes": {},
     "archived": false,
-    "uid": "default_sex_symbol_all"
+    "uid": "default_sex_symbol_all",
     "samples": []
   },
   "talk show host": {

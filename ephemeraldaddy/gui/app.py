@@ -550,6 +550,7 @@ from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import (
     schedule_chart_render_for_active_right_panel,
     set_chart_right_panel,
     set_chart_right_panel_container_visible,
+    stop_background_prediction_render as _stop_background_prediction_render,
     sync_chart_right_panel_placeholder_state,
 )
 from ephemeraldaddy.gui.features.charts.right_panel_state import ChartRightPanelState
@@ -36273,6 +36274,7 @@ class MainWindow(QMainWindow):
         if not self._confirm_discard_or_save():
             event.ignore()
             return
+        _stop_background_prediction_render(self)
         _stop_traits_prediction_refresh_workers(self)
         if self._size_checker_popup is not None:
             self._size_checker_popup.close()

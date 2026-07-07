@@ -45,14 +45,25 @@ class _PredictionsWarmupWorker(QObject):
         self._owner = owner
         self._chart = chart
         self._render_token = render_token
+        self._cancelled = False
+
+    @Slot()
+    def cancel(self) -> None:
+        self._cancelled = True
 
     @Slot()
     def run(self) -> None:
         error: Exception | None = None
         try:
+            if self._cancelled or QThread.currentThread().isInterruptionRequested():
+                self.finished.emit(self._chart, self._render_token, None)
+                return
             cache_enneagram = getattr(self._owner, "_cache_enneagram_prediction_metadata", None)
             if callable(cache_enneagram):
                 cache_enneagram(self._chart)
+            if self._cancelled or QThread.currentThread().isInterruptionRequested():
+                self.finished.emit(self._chart, self._render_token, None)
+                return
             adapter_factory = getattr(self._owner, "_dnd_prediction_adapter", None)
             if callable(adapter_factory):
                 adapter = adapter_factory()
@@ -612,8 +623,6 @@ def _finish_background_prediction_render(owner: object, chart: object, render_to
         return
     setattr(owner, "_predictions_background_render_token", None)
     setattr(owner, "_predictions_background_chart", None)
-    setattr(owner, "_predictions_background_thread", None)
-    setattr(owner, "_predictions_background_worker", None)
 
     chart_name = _chart_display_name(chart)
     if error is not None:
@@ -640,6 +649,57 @@ def _finish_background_prediction_render(owner: object, chart: object, render_to
         label.linkActivated.connect(lambda _link: set_chart_right_panel(owner, "predictions"))
 
 
+def _retain_background_prediction_job(owner: object, thread: QThread, worker: QObject) -> None:
+    jobs = getattr(owner, "_predictions_background_jobs", None)
+    if not isinstance(jobs, list):
+        jobs = []
+        setattr(owner, "_predictions_background_jobs", jobs)
+    jobs.append((thread, worker))
+
+
+def _forget_background_prediction_job(owner: object, thread: QThread, worker: QObject) -> None:
+    jobs = getattr(owner, "_predictions_background_jobs", None)
+    if isinstance(jobs, list):
+        try:
+            jobs.remove((thread, worker))
+        except ValueError:
+            pass
+    if getattr(owner, "_predictions_background_thread", None) is thread:
+        setattr(owner, "_predictions_background_thread", None)
+    if getattr(owner, "_predictions_background_worker", None) is worker:
+        setattr(owner, "_predictions_background_worker", None)
+
+
+def stop_background_prediction_render(owner: object, wait_msecs: int | None = None) -> None:
+    """Cancel in-flight Predictions warmup threads before owner or thread wrappers are destroyed."""
+    setattr(owner, "_predictions_background_render_token", None)
+    setattr(owner, "_predictions_background_chart", None)
+    jobs = list(getattr(owner, "_predictions_background_jobs", []) or [])
+    active_thread = getattr(owner, "_predictions_background_thread", None)
+    active_worker = getattr(owner, "_predictions_background_worker", None)
+    if isinstance(active_thread, QThread) and all(thread is not active_thread for thread, _worker in jobs):
+        jobs.append((active_thread, active_worker))
+    for thread, worker in jobs:
+        if not isinstance(thread, QThread):
+            continue
+        try:
+            if hasattr(worker, "cancel"):
+                worker.cancel()
+            if thread.isRunning():
+                thread.requestInterruption()
+                thread.quit()
+                if wait_msecs is None:
+                    thread.wait()
+                else:
+                    thread.wait(max(0, int(wait_msecs)))
+        except RuntimeError:
+            continue
+    if isinstance(getattr(owner, "_predictions_background_jobs", None), list):
+        owner._predictions_background_jobs.clear()
+    setattr(owner, "_predictions_background_thread", None)
+    setattr(owner, "_predictions_background_worker", None)
+
+
 def _start_background_prediction_render(owner: object, chart: object, render_token: str) -> None:
     chart_name = _chart_display_name(chart)
     _set_predictions_status(owner, f"Loading Predictions for <b>{html.escape(chart_name)}</b> in the background…")
@@ -651,10 +711,12 @@ def _start_background_prediction_render(owner: object, chart: object, render_tok
     worker.finished.connect(thread.quit)
     worker.finished.connect(worker.deleteLater)
     thread.finished.connect(thread.deleteLater)
+    thread.finished.connect(lambda t=thread, w=worker: _forget_background_prediction_job(owner, t, w))
     setattr(owner, "_predictions_background_thread", thread)
     setattr(owner, "_predictions_background_worker", worker)
     setattr(owner, "_predictions_background_chart", chart)
     setattr(owner, "_predictions_background_render_token", render_token)
+    _retain_background_prediction_job(owner, thread, worker)
     thread.start()
 
 
@@ -731,6 +793,10 @@ def schedule_chart_render_for_active_right_panel(owner: object) -> None:
             if isinstance(thread, QThread):
                 thread.requestInterruption()
                 thread.quit()
+                jobs = getattr(owner, "_predictions_background_jobs", None)
+                if not isinstance(jobs, list) or not any(job_thread is thread for job_thread, _worker in jobs):
+                    worker = getattr(owner, "_predictions_background_worker", None)
+                    _retain_background_prediction_job(owner, thread, worker)
         _start_background_prediction_render(owner, chart, render_token)
         return
     if active_panel in {"subjective_notes", "abc"} and owner._is_chart_analysis_section_visible("anagrams"):
