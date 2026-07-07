@@ -535,7 +535,7 @@ class DatabaseAnalyticsChartsMixin:
         ("astro", "🪐Astro"),
         ("esoteric", "🪷Esoteric Alternatives"),
         ("subjective_notes", "💭Subjective Notes"),
-        ("predictions", "🔮Predictions"),
+        ("predictions", "🎱Predictions"),
         ("demographics", "👥Demographics"),
     )
 

@@ -131,6 +131,18 @@ def test_settings_dialog_section_labels_wrap_to_available_width():
     assert "self._configure_settings_section_text_wrap(content)" in source
 
 
+
+def test_settings_collapsible_headers_match_appwide_style_centered():
+    source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
+    style_source = (REPO_ROOT / "ephemeraldaddy/gui/style.py").read_text()
+
+    assert "SETTINGS_COLLAPSIBLE_TOGGLE_STYLE = DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE" in style_source
+    settings_method = source[source.index("    def _add_settings_collapsible_section") : source.index("    def _add_settings_action_section")]
+    assert "style_sheet=SETTINGS_COLLAPSIBLE_TOGGLE_STYLE" in settings_method
+    assert "title_alignment=Qt.AlignCenter" in settings_method
+    assert "QToolButton:hover" in style_source
+    assert "padding: 6px; text-align: left;" in style_source
+
 def test_property_managers_button_sits_below_settings_sections_with_padding():
     source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
     method_start = source.index("    def _ensure_settings_dialog")
