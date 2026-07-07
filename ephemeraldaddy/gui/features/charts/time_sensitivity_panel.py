@@ -1010,11 +1010,11 @@ def human_design_time_range_text(
         if isinstance(summary, dict)
         else []
     )
-    heading = f"Approximate Time Sensitivity range for HD Gate {gate}"
+    heading = f"Timing: " #for HD Gate {gate}
     if line is not None:
         heading += f".{line}"
     if spans:
-        return f"{heading}: {'; '.join(str(span) for span in spans)} (rounded to sampled blocks)"
+        return f"{heading}: {'; '.join(str(span) for span in spans)} (rounded by sample interval)"
     return f"{heading}: not present in the saved sampled range."
 
 
