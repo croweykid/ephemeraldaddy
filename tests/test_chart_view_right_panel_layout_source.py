@@ -286,3 +286,8 @@ def test_predictions_sections_show_calculate_prompt_instead_of_auto_calculating(
     assert "if \"dnd_alignment\" in self._sections" in stack_source
     assert "calculate_callback(chart, \"enneagram\")" in enneagram_source
     assert "calculate_callback(chart, section)" in dnd_source
+    assert 'reset_canvas_callback("enneagram_prediction_canvas")' in enneagram_source
+    assert "reset_canvas_callback(canvas_attr)" in dnd_source
+    assert "def _dnd_alignment_cache_key" in dnd_source
+    assert 'cached.get("key") == cache_key' in dnd_source
+    assert "_prediction_norms_render_token" in dnd_source

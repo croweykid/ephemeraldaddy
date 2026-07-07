@@ -603,11 +603,26 @@ def _dnd_alignment_trait_items() -> list[dict[str, Any]]:
     return items
 
 
+def _dnd_alignment_cache_key(owner: Any, chart: Any) -> tuple[str, str]:
+    chart_token_fn = getattr(owner, "_chart_analytics_cache_token", None)
+    try:
+        chart_token = str(chart_token_fn(chart)) if callable(chart_token_fn) else f"object:{id(chart)}"
+    except Exception:
+        chart_token = f"object:{id(chart)}"
+    norms_token_fn = getattr(owner, "_prediction_norms_render_token", None)
+    try:
+        norms_token = str(norms_token_fn()) if callable(norms_token_fn) else "prediction_norms:unavailable"
+    except Exception:
+        norms_token = "prediction_norms:unavailable"
+    return (chart_token, norms_token)
+
+
 def _dnd_alignment_score_parts(owner: Any, chart: Any) -> dict[str, dict[str, float]]:
     """Return chart, database, and deviation values for each D&D alignment axis."""
+    cache_key = _dnd_alignment_cache_key(owner, chart)
     cached = getattr(chart, "_dnd_alignment_score_parts_cache", None)
-    if isinstance(cached, dict):
-        return cached
+    if isinstance(cached, dict) and cached.get("key") == cache_key and isinstance(cached.get("parts"), dict):
+        return cached["parts"]
     trait_items = _dnd_alignment_trait_items()
     if chart is None or not trait_items:
         return {}
@@ -630,7 +645,7 @@ def _dnd_alignment_score_parts(owner: Any, chart: Any) -> dict[str, dict[str, fl
             "deviation": chart_score - database_score,
         }
     try:
-        setattr(chart, "_dnd_alignment_score_parts_cache", parts)
+        setattr(chart, "_dnd_alignment_score_parts_cache", {"key": cache_key, "parts": parts})
     except Exception:
         pass
     return parts
@@ -923,6 +938,7 @@ class DndPredictionPanelAdapter:
         norm_charts_token_provider: Callable[[], Any] | None = None,
         clear_layout_widgets: Callable[[Any], None] | None = None,
         calculate_callback: Callable[[Any, str], None] | None = None,
+        reset_canvas_callback: Callable[[str], None] | None = None,
     ) -> None:
         self.owner = owner
         self.chart_layout = chart_layout
@@ -939,6 +955,7 @@ class DndPredictionPanelAdapter:
         self.alignment_debug_label = getattr(owner, "dnd_prediction_alignment_debug_label", None)
         self.clear_layout_widgets = clear_layout_widgets
         self.calculate_callback = calculate_callback
+        self.reset_canvas_callback = reset_canvas_callback
 
     def _show_calculate_prompt(self, chart: Any | None, *, layout: Any = None, section: str = "dnd_statblock", summary_text: str | None = None) -> None:
         target_layout = layout or self.chart_layout
@@ -946,6 +963,9 @@ class DndPredictionPanelAdapter:
             return
         if callable(self.clear_layout_widgets):
             self.clear_layout_widgets(target_layout)
+        if callable(self.reset_canvas_callback):
+            canvas_attr = "dnd_prediction_alignment_canvas" if section == "dnd_alignment" else "dnd_prediction_statblock_canvas"
+            self.reset_canvas_callback(canvas_attr)
         panel = QWidget()
         panel_layout = QVBoxLayout()
         panel_layout.setContentsMargins(12, 18, 12, 18)
@@ -1175,7 +1195,8 @@ class DndPredictionPanelAdapter:
             self._show_calculate_prompt(chart, section="dnd_statblock")
 
         if self.alignment_layout is not None:
-            if isinstance(getattr(chart, "_dnd_alignment_score_parts_cache", None), dict):
+            alignment_cache = getattr(chart, "_dnd_alignment_score_parts_cache", None)
+            if isinstance(alignment_cache, dict) and alignment_cache.get("key") == _dnd_alignment_cache_key(self.owner or self, chart):
                 metric_panel_renderer(
                     canvas_attr="dnd_prediction_alignment_canvas",
                     container_layout=self.alignment_layout,

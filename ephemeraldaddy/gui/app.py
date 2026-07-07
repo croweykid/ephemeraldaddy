@@ -35654,6 +35654,7 @@ class MainWindow(QMainWindow):
             debug_math_enabled=bool(getattr(self, "_enneagram_predictions_debug", False)),
             clear_layout_widgets=self._clear_layout_widgets,
             calculate_callback=self._calculate_predictions_on_demand,
+            reset_canvas_callback=lambda attr: setattr(self, attr, None),
         )
 
     def _draw_enneagram_predictions(self, ax, chart: Chart) -> None:
@@ -35700,6 +35701,7 @@ class MainWindow(QMainWindow):
             norm_charts_token_provider=self._prediction_norms_render_token,
             clear_layout_widgets=self._clear_layout_widgets,
             calculate_callback=self._calculate_predictions_on_demand,
+            reset_canvas_callback=lambda attr: setattr(self, attr, None),
         )
 
     def _draw_dnd_statblock_predictions(self, ax, chart: Chart) -> None:

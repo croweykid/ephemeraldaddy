@@ -896,6 +896,7 @@ class EnneagramPredictionPanelAdapter:
         debug_math_enabled: bool = False,
         clear_layout_widgets: Callable[[Any], None] | None = None,
         calculate_callback: Callable[[Any, str], None] | None = None,
+        reset_canvas_callback: Callable[[str], None] | None = None,
     ) -> None:
         self.enneagram = enneagram
         self.calculate_type_weights = calculate_type_weights
@@ -908,6 +909,7 @@ class EnneagramPredictionPanelAdapter:
         self.debug_math_enabled = debug_math_enabled
         self.clear_layout_widgets = clear_layout_widgets
         self.calculate_callback = calculate_callback
+        self.reset_canvas_callback = reset_canvas_callback
 
     def _show_calculate_prompt(self, chart: Any | None) -> None:
         layout = self.enneagram_prediction_chart_layout
@@ -915,6 +917,8 @@ class EnneagramPredictionPanelAdapter:
             return
         if callable(self.clear_layout_widgets):
             self.clear_layout_widgets(layout)
+        if callable(self.reset_canvas_callback):
+            self.reset_canvas_callback("enneagram_prediction_canvas")
         panel = QWidget()
         panel_layout = QVBoxLayout()
         panel_layout.setContentsMargins(12, 18, 12, 18)
