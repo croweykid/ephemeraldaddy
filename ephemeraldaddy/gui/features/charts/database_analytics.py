@@ -4981,7 +4981,17 @@ class DatabaseAnalyticsChartsMixin:
         self._traits_distribution_latest_selected_chart_ids = tuple(
             sorted({int(chart_id) for chart_id in chart_ids})
         ) if loaded_charts > 0 else ()
-        if rankings_mode:
+        manual_rank_ids = tuple(
+            int(chart_id)
+            for chart_id in getattr(self, "_traits_distribution_manual_rank_chart_ids", ())
+        )
+        if rankings_mode and manual_rank_ids:
+            selection_analytics = self._collect_traits_distribution_analytics(
+                list(manual_rank_ids),
+                trait_items=trait_items,
+                trait_signature=trait_signature,
+            )
+        elif rankings_mode:
             selection_analytics = copy.deepcopy(database_analytics)
         elif set(chart_ids) == set(database_chart_ids):
             selection_analytics = copy.deepcopy(database_analytics)
@@ -5006,10 +5016,6 @@ class DatabaseAnalyticsChartsMixin:
             name: (float(database_totals.get(name, 0.0)) / float(database_count) if database_count else 0.0)
             for name in trait_names
         }
-        manual_rank_ids = tuple(
-            int(chart_id)
-            for chart_id in getattr(self, "_traits_distribution_manual_rank_chart_ids", ())
-        )
         if manual_rank_ids:
             ranking_scope_ids: list[int] | set[int] = list(manual_rank_ids)
             ranking_scope_label = "the manually ranked selection"
@@ -5018,7 +5024,11 @@ class DatabaseAnalyticsChartsMixin:
             ranking_scope_label = "the database"
         rank_selected_button = getattr(self, "traits_distribution_rank_selected_button", None)
         if isinstance(rank_selected_button, QPushButton):
-            rank_selected_button.setEnabled(bool(getattr(self, "_traits_distribution_latest_selected_chart_ids", ())))
+            has_current_selection = bool(getattr(self, "_traits_distribution_latest_selected_chart_ids", ()))
+            rank_selected_button.setEnabled(has_current_selection or bool(manual_rank_ids))
+            rank_selected_button.setText(
+                "rank selected" if has_current_selection else "show database"
+            )
         rank_label = getattr(self, "traits_distribution_rank_label", None)
         self._traits_distribution_rank_context = {
             "chart_ids": tuple(sorted({int(chart_id) for chart_id in ranking_scope_ids})),
