@@ -1170,6 +1170,7 @@ from ephemeraldaddy.gui.features.controllers.chart_view_window import (
     on_chart_view_tag_remove_link,
     on_chart_view_tags_changed,
     refresh_chart_info_panel_toggle_button_styles,
+    refresh_euphonics_for_chart,
     render_chart_view_tag_selection,
     set_chart_view_tag_state,
     setup_chart_view_tags_section,
@@ -13222,11 +13223,37 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 QMessageBox.warning(self, "Astrotheme import", f"Could not load Astrotheme profile:\n{exc}")
                 return
 
-            QMessageBox.information(
-                self,
-                "Astrotheme import",
-                f"{raw_query} cannot be found on Astrotheme - trying Wikipedia...",
+            wikipedia_prompt = QMessageBox(self)
+            wikipedia_prompt.setIcon(QMessageBox.Icon.Information)
+            wikipedia_prompt.setWindowTitle("Astrotheme import")
+            wikipedia_prompt.setText(
+                f"{raw_query} cannot be found on Astrotheme - trying Wikipedia..."
             )
+            cancel_button = wikipedia_prompt.addButton(
+                "Cancel", QMessageBox.ButtonRole.RejectRole
+            )
+            cool_button = wikipedia_prompt.addButton(
+                "Cool", QMessageBox.ButtonRole.AcceptRole
+            )
+            wikipedia_prompt.setDefaultButton(cool_button)
+            wikipedia_prompt.setEscapeButton(cancel_button)
+            cancel_button.setStyleSheet(
+                "QPushButton { background-color: #5f6368; border-color: #747981; color: #f4f1ea; }"
+                "QPushButton:hover { background-color: #6f747c; }"
+            )
+            cool_button.setStyleSheet(
+                "QPushButton { background-color: #7b2cbf; border-color: #9d4edd; color: #ffffff; }"
+                "QPushButton:hover { background-color: #8f3fd1; }"
+            )
+            wikipedia_prompt.exec()
+            if wikipedia_prompt.clickedButton() is cancel_button:
+                logger.info(
+                    "Astrotheme import canceled before Wikipedia backup (id=%s query=%r).",
+                    debug_id,
+                    raw_query,
+                )
+                return
+
             try:
                 resolution = resolve_wikipedia_page_options(raw_query)
             except Exception as wikipedia_exc:
@@ -27104,6 +27131,7 @@ class MainWindow(QMainWindow):
             chart,
             reset_to_chart_name=reset_to_chart_name,
         )
+        refresh_euphonics_for_chart(self, chart)
 
     def _render_anagrams(self, chart: Chart) -> None:
         if self._anagrams_presenter is None:
@@ -34307,7 +34335,7 @@ class MainWindow(QMainWindow):
         if not self.metrics_panel.isVisible():
             return False
         active_panel = self._chart_right_panel_state.active_tab
-        expected_panel = "subjective_notes" if render_key == "anagrams" else "analytics"
+        expected_panel = "abc" if render_key == "anagrams" else "analytics"
         if active_panel != expected_panel:
             return False
         if not allow_collapsed and not self._chart_analysis_section_expanded.get(section_key, True):
