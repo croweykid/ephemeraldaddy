@@ -713,11 +713,15 @@ def _finish_background_prediction_render(owner: object, chart: object, render_to
     )
     label = getattr(owner, "predictions_background_status_label", None)
     if isinstance(label, QLabel):
-        try:
-            label.linkActivated.disconnect()
-        except (TypeError, RuntimeError):
-            pass
-        label.linkActivated.connect(lambda _link: set_chart_right_panel(owner, "predictions"))
+        previous_handler = getattr(label, "_ephemeraldaddy_predictions_status_link_handler", None)
+        if previous_handler is not None:
+            try:
+                label.linkActivated.disconnect(previous_handler)
+            except (TypeError, RuntimeError):
+                pass
+        handler = lambda _link: set_chart_right_panel(owner, "predictions")
+        label.linkActivated.connect(handler)
+        label._ephemeraldaddy_predictions_status_link_handler = handler
 
 
 def _retain_background_prediction_job(
