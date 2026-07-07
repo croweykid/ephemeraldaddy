@@ -45,7 +45,7 @@ class SwissEphemerisPrefetchWorker(QObject):
         self.finished.emit(True, "Swiss Ephemeris prefetch complete.")
 
 
-class _BaseSearchWorker(QObject):
+class RetconSearchWorker(QObject):
     progress = Signal(int, int)
     match_found = Signal(dict)
     finished = Signal(list)
@@ -73,12 +73,11 @@ class _BaseSearchWorker(QObject):
         self._search_fn = search_fn
         self._cancel_event = threading.Event()
 
-    def _default_search_fn(self) -> Callable[..., list[dict]]:
-        raise NotImplementedError
-
     def _resolve_search_fn(self) -> Callable[..., list[dict]]:
         if self._search_fn is None:
-            self._search_fn = self._default_search_fn()
+            from ephemeraldaddy.core.retcon import search_retcon_candidates
+
+            self._search_fn = search_retcon_candidates
         return self._search_fn
 
     def cancel(self) -> None:
@@ -105,17 +104,3 @@ class _BaseSearchWorker(QObject):
             self.failed.emit(str(exc))
             return
         self.finished.emit(matches)
-
-
-class RetconSearchWorker(_BaseSearchWorker):
-    def _default_search_fn(self) -> Callable[..., list[dict]]:
-        from ephemeraldaddy.core.retcon import search_retcon_candidates
-
-        return search_retcon_candidates
-
-
-class EventPlannerSearchWorker(_BaseSearchWorker):
-    def _default_search_fn(self) -> Callable[..., list[dict]]:
-        from ephemeraldaddy.core.retcon import search_event_planner_candidates
-
-        return search_event_planner_candidates
