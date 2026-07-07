@@ -1070,7 +1070,7 @@ def build_chart_view_middle_header_controls(
             # Create Gemstone Chart
             ("gemstone_chart", "💎", "Create Gemstone Chart", owner.on_create_gemstone_chartwheel),
             # Chart Predictor Quiz
-            ("chart_predictor_quiz", "🔮", "Chart Predictor Quiz", owner.on_open_chart_predictor_quiz),
+            ("chart_predictor_quiz", "🎱", "Chart Predictor Quiz", owner.on_open_chart_predictor_quiz),
         ]
     )
 

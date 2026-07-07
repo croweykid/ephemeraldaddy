@@ -409,7 +409,7 @@ def build_chart_right_panel_stack(
     analytics_button = QPushButton("📊")
     analytics_button.setObjectName("chart_view_toggle_analytics_panel_button")
     analytics_button.clicked.connect(on_show_analytics)
-    predictions_button = QPushButton("🎱")
+    predictions_button = QPushButton("🔮")
     predictions_button.setObjectName("chart_view_toggle_predictions_panel_button")
     predictions_button.clicked.connect(on_show_predictions)
     subjective_notes_button = QPushButton("💭")

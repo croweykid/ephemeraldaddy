@@ -304,7 +304,7 @@ def configure_main_window_chrome(window: "QMainWindow") -> None:
     )
     _bind_menu_action(tools_menu, "💎 Create Gemstone Chart", window, "on_create_gemstone_chartwheel")
     _bind_menu_action(tools_menu, "🧓 Interpret Astro Age (alpha)", window, "on_interpret_astro_age")
-    _bind_menu_action(tools_menu, "🔮 Chart Predictor Quiz (alpha)", window, "on_open_chart_predictor_quiz")
+    _bind_menu_action(tools_menu, "🎱 Chart Predictor Quiz (alpha)", window, "on_open_chart_predictor_quiz")
     _bind_menu_action(tools_menu, "🕗 Rectification Engine", window, "_on_retcon_engine")
     _bind_menu_action(tools_menu, "🔘 Sign Degrees Reference Circle", window, "_on_open_sign_degrees_reference_circle",
                       "on_open_sign_degrees_reference_circle")
@@ -376,7 +376,7 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
     #to do: add a link here to find charts most similar to the currently selected chart if one is selected, the text will say "Find Similar Charts"
     _bind_menu_action(
         tools_menu,
-        "🔮 Chart Predictor Quiz (alpha)",
+        "🎱 Chart Predictor Quiz (alpha)",
         dialog,
         "_on_menu_open_chart_predictor_quiz",
         "on_open_chart_predictor_quiz",

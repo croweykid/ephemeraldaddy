@@ -2742,7 +2742,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             # Create Gemstone Chart
             ("gemstone_chart", "💎", "Create Gemstone Chart"),
             # Chart Predictor Quiz
-            ("chart_predictor_quiz", "🔮", "Chart Predictor Quiz"),
+            ("chart_predictor_quiz", "🎱", "Chart Predictor Quiz"),
         ]
         for button_key, button_label, button_tooltip in middle_action_button_specs:
             action_button = QPushButton(button_label)
