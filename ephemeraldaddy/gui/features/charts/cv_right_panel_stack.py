@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import html
 import logging
+import uuid
 from dataclasses import dataclass
 from typing import Callable
 
@@ -43,13 +44,14 @@ MODE_POPOUT_COLORS: dict[str, str] = {
 class _PredictionsWarmupWorker(QObject):
     """Precompute slow Predictions data away from the GUI thread."""
 
-    finished = Signal(object, str, object)
+    finished = Signal(object, str, str, object)
 
-    def __init__(self, owner: object, chart: object, render_token: str) -> None:
+    def __init__(self, owner: object, chart: object, render_token: str, job_token: str) -> None:
         super().__init__()
         self._owner = owner
         self._chart = chart
         self._render_token = render_token
+        self._job_token = job_token
         self._cancelled = False
 
     @Slot()
@@ -61,13 +63,13 @@ class _PredictionsWarmupWorker(QObject):
         error: Exception | None = None
         try:
             if self._cancelled or QThread.currentThread().isInterruptionRequested():
-                self.finished.emit(self._chart, self._render_token, None)
+                self.finished.emit(self._chart, self._render_token, self._job_token, None)
                 return
             cache_enneagram = getattr(self._owner, "_cache_enneagram_prediction_metadata", None)
             if callable(cache_enneagram):
                 cache_enneagram(self._chart)
             if self._cancelled or QThread.currentThread().isInterruptionRequested():
-                self.finished.emit(self._chart, self._render_token, None)
+                self.finished.emit(self._chart, self._render_token, self._job_token, None)
                 return
             adapter_factory = getattr(self._owner, "_dnd_prediction_adapter", None)
             if callable(adapter_factory):
@@ -83,18 +85,19 @@ class _PredictionsWarmupWorker(QObject):
                 exc_info=True,
             )
             error = exc
-        self.finished.emit(self._chart, self._render_token, error)
+        self.finished.emit(self._chart, self._render_token, self._job_token, error)
 
 
 class _PredictionsWarmupReceiver(QObject):
     """Deliver Predictions warmup completion to the GUI thread and own its watchdog."""
 
-    def __init__(self, owner: object, chart: object, render_token: str) -> None:
+    def __init__(self, owner: object, chart: object, render_token: str, job_token: str) -> None:
         parent = owner if isinstance(owner, QWidget) else None
         super().__init__(parent)
         self._owner = owner
         self._chart = chart
         self._render_token = render_token
+        self._job_token = job_token
         self._thread: QThread | None = None
         self._worker: QObject | None = None
         self._watchdog = QTimer(self)
@@ -108,15 +111,17 @@ class _PredictionsWarmupReceiver(QObject):
     def start_watchdog(self) -> None:
         self._watchdog.start(PREDICTIONS_BACKGROUND_TIMEOUT_MS)
 
-    @Slot(object, str, object)
-    def handle_finished(self, chart: object, render_token: str, error: object) -> None:
+    @Slot(object, str, str, object)
+    def handle_finished(self, chart: object, render_token: str, job_token: str, error: object) -> None:
+        if job_token != self._job_token:
+            return
         self._watchdog.stop()
-        _finish_background_prediction_render(self._owner, chart, render_token, error)
+        _finish_background_prediction_render(self._owner, chart, render_token, job_token, error)
 
     @Slot()
     def _handle_timeout(self) -> None:
-        active_token = getattr(self._owner, "_predictions_background_render_token", None)
-        if active_token != self._render_token:
+        active_job_token = getattr(self._owner, "_predictions_background_job_token", None)
+        if active_job_token != self._job_token:
             return
         chart_name = _chart_display_name(self._chart)
         logger.error("Predictions warmup timed out for %s", chart_name)
@@ -137,6 +142,7 @@ class _PredictionsWarmupReceiver(QObject):
             self._owner,
             self._chart,
             self._render_token,
+            self._job_token,
             "Timed out while preparing predictions. Try reopening the panel; check the terminal log for the stuck scorer.",
         )
 
@@ -688,11 +694,18 @@ def _prompt_prediction_render_conflict(owner: object, requested_chart: object) -
     return message.clickedButton() is replace_button
 
 
-def _finish_background_prediction_render(owner: object, chart: object, render_token: str, error: object) -> None:
-    active_token = getattr(owner, "_predictions_background_render_token", None)
-    if active_token != render_token:
+def _finish_background_prediction_render(
+    owner: object,
+    chart: object,
+    render_token: str,
+    job_token: str,
+    error: object,
+) -> None:
+    active_job_token = getattr(owner, "_predictions_background_job_token", None)
+    if active_job_token != job_token:
         return
     setattr(owner, "_predictions_background_render_token", None)
+    setattr(owner, "_predictions_background_job_token", None)
     setattr(owner, "_predictions_background_chart", None)
 
     chart_name = _chart_display_name(chart)
@@ -762,6 +775,7 @@ def _forget_background_prediction_job(
 def stop_background_prediction_render(owner: object, wait_msecs: int | None = None) -> None:
     """Cancel in-flight Predictions warmup threads before owner or thread wrappers are destroyed."""
     setattr(owner, "_predictions_background_render_token", None)
+    setattr(owner, "_predictions_background_job_token", None)
     setattr(owner, "_predictions_background_chart", None)
     jobs = list(getattr(owner, "_predictions_background_jobs", []) or [])
     active_thread = getattr(owner, "_predictions_background_thread", None)
@@ -794,14 +808,16 @@ def stop_background_prediction_render(owner: object, wait_msecs: int | None = No
     setattr(owner, "_predictions_background_thread", None)
     setattr(owner, "_predictions_background_worker", None)
     setattr(owner, "_predictions_background_receiver", None)
+    setattr(owner, "_predictions_background_job_token", None)
 
 
 def _start_background_prediction_render(owner: object, chart: object, render_token: str) -> None:
     chart_name = _chart_display_name(chart)
     _set_predictions_status(owner, f"Loading Predictions for <b>{html.escape(chart_name)}</b> in the background…")
     thread = QThread()
-    worker = _PredictionsWarmupWorker(owner, chart, render_token)
-    receiver = _PredictionsWarmupReceiver(owner, chart, render_token)
+    job_token = uuid.uuid4().hex
+    worker = _PredictionsWarmupWorker(owner, chart, render_token, job_token)
+    receiver = _PredictionsWarmupReceiver(owner, chart, render_token, job_token)
     receiver.set_job(thread, worker)
     worker.moveToThread(thread)
     thread.started.connect(worker.run)
@@ -818,6 +834,7 @@ def _start_background_prediction_render(owner: object, chart: object, render_tok
     setattr(owner, "_predictions_background_receiver", receiver)
     setattr(owner, "_predictions_background_chart", chart)
     setattr(owner, "_predictions_background_render_token", render_token)
+    setattr(owner, "_predictions_background_job_token", job_token)
     _retain_background_prediction_job(owner, thread, worker, receiver)
     receiver.start_watchdog()
     thread.start()
