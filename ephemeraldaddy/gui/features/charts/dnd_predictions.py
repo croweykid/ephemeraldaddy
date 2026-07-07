@@ -1313,21 +1313,53 @@ class DndPredictionPanelAdapter:
 
     def _statblock_cache_is_stale(self, chart: Any, norm_charts: Any) -> bool:
         cached = self._restore_statblock_cache(chart)
-        current_key = self._statblock_cache_key(norm_charts)
+        current_key = self._statblock_cache_key(norm_charts, chart)
         return isinstance(cached, dict) and (
             cached.get("key") != current_key
             and cached.get("key_fingerprint") != _cache_key_fingerprint(current_key)
         )
 
-    def _statblock_cache_key(self, norm_charts: Any) -> tuple[Any, ...]:
+    def _chart_state_cache_token(self, chart: Any) -> str:
+        chart_token_fn = getattr(self.owner, "_chart_analytics_cache_token", None)
+        if callable(chart_token_fn):
+            try:
+                return str(chart_token_fn(chart))
+            except Exception as exc:
+                logger.error(
+                    "D&D statblock cache could not build chart state token for chart '%s': %s",
+                    _chart_name_for_uid_error(chart),
+                    exc,
+                    exc_info=True,
+                )
+        chart_uid = _chart_prediction_cache_uid(chart)
+        if not chart_uid:
+            _log_missing_chart_uid(chart, "D&D statblock chart state token")
+            return "missing_uid"
+        state_payload = {
+            "uid": chart_uid,
+            "name": str(getattr(chart, "name", "") or ""),
+            "dt_local": str(getattr(chart, "dt_local", "") or ""),
+            "birth_place": str(getattr(chart, "birth_place", "") or ""),
+            "lat": str(getattr(chart, "lat", "") or ""),
+            "lon": str(getattr(chart, "lon", "") or ""),
+            "birthtime_unknown": bool(getattr(chart, "birthtime_unknown", False)),
+            "retcon_time_used": bool(getattr(chart, "retcon_time_used", False)),
+            "retcon_hour": getattr(chart, "retcon_hour", None),
+            "retcon_minute": getattr(chart, "retcon_minute", None),
+            "chart_uses_houses": bool(default_chart_uses_houses(chart)),
+        }
+        return f"chart_state:{_cache_key_fingerprint(state_payload)}"
+
+    def _statblock_cache_key(self, norm_charts: Any, chart: Any | None = None) -> tuple[Any, ...]:
         try:
             norm_count = len(norm_charts) if norm_charts is not None else 0
         except TypeError:
             norm_count = None
-        return (self._norm_charts_cache_token(norm_charts), norm_count, tuple(self.dnd_stat_keys))
+        chart_state_token = self._chart_state_cache_token(chart) if chart is not None else "chart_state:unavailable"
+        return (chart_state_token, self._norm_charts_cache_token(norm_charts), norm_count, tuple(self.dnd_stat_keys))
 
     def _score_statblock(self, chart: Any, norm_charts: Any = None, *, allow_stale: bool = True) -> Any:
-        cache_key = self._statblock_cache_key(norm_charts)
+        cache_key = self._statblock_cache_key(norm_charts, chart)
         cached = self._restore_statblock_cache(chart)
         if isinstance(cached, dict) and cached.get("statblock") is not None:
             if cached.get("key") == cache_key or cached.get("key_fingerprint") == _cache_key_fingerprint(cache_key) or allow_stale:
@@ -1414,7 +1446,7 @@ class DndPredictionPanelAdapter:
         statblock_key_fingerprint = (
             statblock_cache.get("key_fingerprint")
             if isinstance(statblock_cache, dict)
-            else _cache_key_fingerprint(self._statblock_cache_key(norm_charts))
+            else _cache_key_fingerprint(self._statblock_cache_key(norm_charts, chart))
         )
         cache_key = (
             statblock_key_fingerprint,
