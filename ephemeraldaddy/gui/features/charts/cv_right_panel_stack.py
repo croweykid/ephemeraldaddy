@@ -6,7 +6,7 @@ import html
 from dataclasses import dataclass
 from typing import Callable
 
-from PySide6.QtCore import QPoint, QTimer, Qt
+from PySide6.QtCore import QObject, QPoint, QThread, QTimer, Qt, Signal, Slot
 try:
     from PySide6.QtGui import QColor, QPainter
 except Exception:  # pragma: no cover - test stubs may omit QtGui
@@ -14,7 +14,9 @@ except Exception:  # pragma: no cover - test stubs may omit QtGui
     QPainter = None  # type: ignore[assignment]
 from PySide6.QtWidgets import (
     QAbstractButton,
+    QLabel,
     QHBoxLayout,
+    QMessageBox,
     QPushButton,
     QScrollArea,
     QSizePolicy,
@@ -31,6 +33,35 @@ MODE_POPOUT_COLORS: dict[str, str] = {
     "mutable": "#6699ff",
     "fixed": "#336600",
 }
+
+
+class _PredictionsWarmupWorker(QObject):
+    """Precompute slow Predictions data away from the GUI thread."""
+
+    finished = Signal(object, str, object)
+
+    def __init__(self, owner: object, chart: object, render_token: str) -> None:
+        super().__init__()
+        self._owner = owner
+        self._chart = chart
+        self._render_token = render_token
+
+    @Slot()
+    def run(self) -> None:
+        error: Exception | None = None
+        try:
+            cache_enneagram = getattr(self._owner, "_cache_enneagram_prediction_metadata", None)
+            if callable(cache_enneagram):
+                cache_enneagram(self._chart)
+            adapter_factory = getattr(self._owner, "_dnd_prediction_adapter", None)
+            if callable(adapter_factory):
+                adapter = adapter_factory()
+                cache_dnd = getattr(adapter, "cache_metadata", None)
+                if callable(cache_dnd):
+                    cache_dnd(self._chart)
+        except Exception as exc:  # pragma: no cover - defensive UI path
+            error = exc
+        self.finished.emit(self._chart, self._render_token, error)
 
 
 @dataclass
@@ -539,6 +570,94 @@ def _chart_right_panel_prediction_render_token(owner: object, chart: object) -> 
     return f"{chart_token}|{norms_token}"
 
 
+def _chart_display_name(chart: object | None) -> str:
+    if chart is None:
+        return "this chart"
+    for attr in ("name", "full_name", "display_name"):
+        value = str(getattr(chart, attr, "") or "").strip()
+        if value:
+            return value
+    return "this chart"
+
+
+def _set_predictions_status(owner: object, message: str) -> None:
+    label = getattr(owner, "predictions_background_status_label", None)
+    if isinstance(label, QLabel):
+        label.setText(message)
+        label.setVisible(True)
+
+
+def _prompt_prediction_render_conflict(owner: object, requested_chart: object) -> bool:
+    active_chart = getattr(owner, "_predictions_background_chart", None)
+    active_name = _chart_display_name(active_chart)
+    requested_name = _chart_display_name(requested_chart)
+    message = QMessageBox(getattr(owner, "window", lambda: None)())
+    message.setIcon(QMessageBox.Warning)
+    message.setWindowTitle("Predictions still rendering")
+    message.setText(
+        f"Still currently rendering Predictions for {active_name}.\n\n"
+        f"Continue, or predict for {requested_name} instead?"
+    )
+    continue_button = message.addButton("Continue", QMessageBox.AcceptRole)
+    continue_button.setStyleSheet("background-color: #7b4dff; color: white; font-weight: bold;")
+    replace_button = message.addButton(f"Predict for {requested_name} instead", QMessageBox.DestructiveRole)
+    replace_button.setStyleSheet("background-color: #666; color: #eee;")
+    message.exec()
+    return message.clickedButton() is replace_button
+
+
+def _finish_background_prediction_render(owner: object, chart: object, render_token: str, error: object) -> None:
+    active_token = getattr(owner, "_predictions_background_render_token", None)
+    if active_token != render_token:
+        return
+    setattr(owner, "_predictions_background_render_token", None)
+    setattr(owner, "_predictions_background_chart", None)
+    setattr(owner, "_predictions_background_thread", None)
+    setattr(owner, "_predictions_background_worker", None)
+
+    chart_name = _chart_display_name(chart)
+    if error is not None:
+        _set_predictions_status(owner, f"Predictions for <b>{html.escape(chart_name)}</b> failed: {html.escape(str(error))}")
+        return
+
+    state = getattr(owner, "_chart_right_panel_state", None)
+    if getattr(owner, "_latest_chart", None) is chart:
+        owner._render_enneagram_predictions(chart)
+        owner._render_dndification_predictions(chart)
+        if state is not None:
+            state.last_render_chart_token = render_token
+    _set_predictions_status(
+        owner,
+        f"Predictions for <b>{html.escape(chart_name)}</b> are ready. "
+        "<a href='show-predictions'>Open Predictions</a>",
+    )
+    label = getattr(owner, "predictions_background_status_label", None)
+    if isinstance(label, QLabel):
+        try:
+            label.linkActivated.disconnect()
+        except (TypeError, RuntimeError):
+            pass
+        label.linkActivated.connect(lambda _link: set_chart_right_panel(owner, "predictions"))
+
+
+def _start_background_prediction_render(owner: object, chart: object, render_token: str) -> None:
+    chart_name = _chart_display_name(chart)
+    _set_predictions_status(owner, f"Loading Predictions for <b>{html.escape(chart_name)}</b> in the background…")
+    thread = QThread()
+    worker = _PredictionsWarmupWorker(owner, chart, render_token)
+    worker.moveToThread(thread)
+    thread.started.connect(worker.run)
+    worker.finished.connect(lambda c, t, e: _finish_background_prediction_render(owner, c, t, e))
+    worker.finished.connect(thread.quit)
+    worker.finished.connect(worker.deleteLater)
+    thread.finished.connect(thread.deleteLater)
+    setattr(owner, "_predictions_background_thread", thread)
+    setattr(owner, "_predictions_background_worker", worker)
+    setattr(owner, "_predictions_background_chart", chart)
+    setattr(owner, "_predictions_background_render_token", render_token)
+    thread.start()
+
+
 def _chart_right_panel_analytics_has_stale_sections(owner: object, chart: object) -> bool:
     """Return whether Analytics needs recalculation for the current chart token."""
     cache_token = getattr(owner, "_chart_analytics_cache_token", None)
@@ -592,10 +711,27 @@ def schedule_chart_render_for_active_right_panel(owner: object) -> None:
         render_token = _chart_right_panel_prediction_render_token(owner, chart)
         if state is not None and state.last_render_chart_token == render_token:
             return
-        owner._render_enneagram_predictions(chart)
-        owner._render_dndification_predictions(chart)
-        if state is not None:
-            state.last_render_chart_token = render_token
+        active_token = getattr(owner, "_predictions_background_render_token", None)
+        active_chart = getattr(owner, "_predictions_background_chart", None)
+        if active_token is not None:
+            if active_token == render_token:
+                _set_predictions_status(
+                    owner,
+                    f"Loading Predictions for <b>{html.escape(_chart_display_name(chart))}</b> in the background…",
+                )
+                return
+            if not _prompt_prediction_render_conflict(owner, chart):
+                if active_chart is not None:
+                    _set_predictions_status(
+                        owner,
+                        f"Still loading Predictions for <b>{html.escape(_chart_display_name(active_chart))}</b>…",
+                    )
+                return
+            thread = getattr(owner, "_predictions_background_thread", None)
+            if isinstance(thread, QThread):
+                thread.requestInterruption()
+                thread.quit()
+        _start_background_prediction_render(owner, chart, render_token)
         return
     if active_panel in {"subjective_notes", "abc"} and owner._is_chart_analysis_section_visible("anagrams"):
         owner._schedule_chart_render(chart, sections={"anagrams"})
