@@ -3042,6 +3042,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._shortcut_close_cmd.activated.connect(self.close)
         self._shortcut_fullscreen_toggle = QShortcut(QKeySequence("F11"), self)
         self._shortcut_fullscreen_toggle.activated.connect(self._toggle_fullscreen)
+        self._shortcut_focus_search_ctrl = QShortcut(QKeySequence("Ctrl+F"), self)
+        self._shortcut_focus_search_ctrl.activated.connect(self._focus_database_search_input)
+        self._shortcut_focus_search_cmd = QShortcut(QKeySequence("Meta+F"), self)
+        self._shortcut_focus_search_cmd.activated.connect(self._focus_database_search_input)
         install_command_palette(self, self._command_palette_actions)
 
         self._initial_progress_pending = True
@@ -3054,6 +3058,21 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         # schedules the first refresh after the Database View shell is visible
         # and the startup loading widget has had a chance to close.
         apply_default_text_tooltips(self)
+
+
+    def _focus_database_search_input(self) -> None:
+        """Move keyboard focus to Database View's chart search field."""
+        search_input = getattr(self, "search_text_input", None)
+        if not isinstance(search_input, QLineEdit):
+            return
+        search_panel_button = getattr(self, "search_panel_button", None)
+        if search_panel_button is not None and hasattr(search_panel_button, "setChecked"):
+            search_panel_button.setChecked(True)
+        show_search_panel = getattr(self, "_show_search_database_panel", None)
+        if callable(show_search_panel):
+            show_search_panel()
+        search_input.setFocus(Qt.ShortcutFocusReason)
+        search_input.selectAll()
 
     # Database & Selection Analysis Panel (left sidebar).
     #export chart function:
@@ -24968,6 +24987,10 @@ class MainWindow(QMainWindow):
         self._shortcut_close_cmd.activated.connect(self._on_close_requested)
         self._shortcut_fullscreen_toggle = QShortcut(QKeySequence("F11"), self)
         self._shortcut_fullscreen_toggle.activated.connect(self._toggle_fullscreen)
+        self._shortcut_save_ctrl = QShortcut(QKeySequence("Ctrl+S"), self)
+        self._shortcut_save_ctrl.activated.connect(lambda: self.on_update_chart(show_dialog=True))
+        self._shortcut_save_cmd = QShortcut(QKeySequence("Meta+S"), self)
+        self._shortcut_save_cmd.activated.connect(lambda: self.on_update_chart(show_dialog=True))
         install_command_palette(self, self._command_palette_actions)
 
         self.chart_canvas = None

@@ -264,6 +264,7 @@ def configure_main_window_chrome(window: "QMainWindow") -> None:
     menu_bar.clear()
 
     app_menu = menu_bar.addMenu(APP_DISPLAY_NAME)
+    _bind_menu_action(app_menu, "Settings", window, "_on_open_settings", "on_open_settings")
     _add_preferences_submenu(app_menu, window)
     app_menu.addAction("About", lambda: _show_about_from_onboarding(window))
     app_menu.addAction("Minimize", lambda: _minimize_window(window))
@@ -327,6 +328,7 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
     menu_bar.setStyleSheet(WINDOW_CHROME_MENU_STYLE)
 
     app_menu = menu_bar.addMenu(APP_DISPLAY_NAME)
+    _bind_menu_action(app_menu, "Settings", dialog, "_on_open_settings", "on_open_settings")
     _add_preferences_submenu(app_menu, dialog)
     app_menu.addAction("Minimize", lambda: _minimize_window(dialog))
     app_menu.addSeparator()
