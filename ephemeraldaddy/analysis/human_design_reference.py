@@ -1789,11 +1789,11 @@ HD_BASES = [
 def format_gate_line_info(gate: int, line: int | None = None) -> str:
     gate_num = int(gate)
     gate_info = GATE_REFERENCE.get(gate_num, {"name": "Unknown Gate", "meaning": "No gate reference available."})
-    header = f"<strong>Gate {gate_num}</strong> • {gate_info['name']}"
-    body_lines = [f"<strong>Gate {gate_num}:</strong> {gate_info['meaning']}"]
+    header = f"Gate {gate_num} • {gate_info['name']}"
+    body_lines = [f"Gate {gate_num}: {gate_info['meaning']}"]
     if line is not None:
         line_num = int(line)
         line_text = LINE_ARCHETYPES.get(line_num, "No line archetype available.")
-        body_lines.append(f"<strong>Line {line_num} Archetype:</strong> {line_text}")
+        body_lines.append(f"Line {line_num} Archetype: {line_text}")
         header = f"Gate {gate_num} • Line {line_num}"
     return "\n".join([header, "", *body_lines])
