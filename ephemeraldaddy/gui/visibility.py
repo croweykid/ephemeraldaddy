@@ -16,6 +16,7 @@ CHART_DATA_KEYS: dict[str, bool] = {
     "chart_analytics.planet_dynamics": False,
     "chart_analytics.anagrams": False,
     "chart_view.sexiness": False,
+    "chart_view.predictability": False,
     "charts.standard_deviation_indicators": True,
     "analytics.dnd_statblock_explainers": False,
 }

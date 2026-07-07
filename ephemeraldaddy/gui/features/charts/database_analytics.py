@@ -535,7 +535,7 @@ class DatabaseAnalyticsChartsMixin:
         ("astro", "🪐Astro"),
         ("esoteric", "🪷Esoteric Alternatives"),
         ("subjective_notes", "💭Subjective Notes"),
-        ("predictions", "🔮Predictions"),
+        ("predictions", "🎱Predictions"),
         ("demographics", "👥Demographics"),
     )
 
@@ -3832,6 +3832,7 @@ class DatabaseAnalyticsChartsMixin:
         selection_average: float,
         database_average: float,
         loaded_charts: int,
+        metric_label: str = "Alignment",
     ) -> FigureCanvas:
         figure = Figure(figsize=(4.8, 1.6))
         figure.patch.set_facecolor(self._database_analytics_figure_facecolor())
@@ -3880,7 +3881,7 @@ class DatabaseAnalyticsChartsMixin:
                 f"DB Avg: {database_average:+.2f}"
             )
         else:
-            subtitle = f"DB Avg Alignment: {database_average:+.2f}"
+            subtitle = f"DB Avg {metric_label}: {database_average:+.2f}"
 
         subtitle = textwrap.fill(
             subtitle,
