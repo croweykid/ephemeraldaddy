@@ -1470,6 +1470,14 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
     panel.setLayout(layout)
 
+    owner.predictions_background_status_label = QLabel("Predictions render on demand in the background.")
+    owner.predictions_background_status_label.setTextFormat(Qt.RichText)
+    owner.predictions_background_status_label.setWordWrap(True)
+    owner.predictions_background_status_label.setStyleSheet(
+        "color: #d8c8ff; background: rgba(129, 86, 255, 0.10); border: 1px solid rgba(180, 150, 255, 0.35); border-radius: 6px; padding: 6px;"
+    )
+    layout.addWidget(owner.predictions_background_status_label)
+
     traits_section_layout = owner._add_chart_analysis_collapsible_section(
         panel=panel,
         layout=layout,
