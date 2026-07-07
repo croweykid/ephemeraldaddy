@@ -35608,10 +35608,9 @@ class MainWindow(QMainWindow):
             if kind == "ts-gate":
                 panel = getattr(self, "time_sensitivity_panel", None)
                 result = getattr(panel, "_last_result", None) if panel is not None else None
-                existing = self.chart_info_output.toPlainText()
-                self.chart_info_output.setPlainText(
-                    _human_design_time_range_text(result, gate) + "\n\n" + existing
-                )
+                cursor = self.chart_info_output.textCursor()
+                cursor.movePosition(QTextCursor.Start)
+                cursor.insertText(_human_design_time_range_text(result, gate) + "\n\n")
             return
         if kind in {"gate-line", "ts-gate-line"} and len(parts) >= 4:
             try:
@@ -35623,10 +35622,9 @@ class MainWindow(QMainWindow):
             if kind == "ts-gate-line":
                 panel = getattr(self, "time_sensitivity_panel", None)
                 result = getattr(panel, "_last_result", None) if panel is not None else None
-                existing = self.chart_info_output.toPlainText()
-                self.chart_info_output.setPlainText(
-                    _human_design_time_range_text(result, gate, line) + "\n\n" + existing
-                )
+                cursor = self.chart_info_output.textCursor()
+                cursor.movePosition(QTextCursor.Start)
+                cursor.insertText(_human_design_time_range_text(result, gate, line) + "\n\n")
             return
         if kind == "hd-channel":
             gate_parts = value.split("-", 1)
