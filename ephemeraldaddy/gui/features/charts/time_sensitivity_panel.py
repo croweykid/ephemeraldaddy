@@ -1082,10 +1082,15 @@ def _human_design_html(result: TimeSensitivityResult) -> str:
         hd_items.append(f"Definite {escape(key.title())}: {always}")
         hd_items.append(f"Possible {escape(key.title())}: {sometimes}")
     centers = hd.get("centers", {})
+    definite_centers = (
+        ", ".join(escape(str(item)) for item in centers.get("always", [])[:20])
+        or "none"
+    )
     possible_centers = (
         ", ".join(escape(str(item)) for item in centers.get("sometimes", [])[:20])
         or "none"
     )
+    hd_items.append(f"Definite Defined Centers: {definite_centers}")
     hd_items.append(f"Possible Defined Centers: {possible_centers}")
     type_bits = [
         f"{_hd_property_anchor('type', str(k))} ({int(v)})"
