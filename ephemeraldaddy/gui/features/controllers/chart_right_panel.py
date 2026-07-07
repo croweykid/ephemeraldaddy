@@ -7,7 +7,6 @@ from typing import Literal
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QAbstractButton, QScrollArea, QWidget
 
-from ephemeraldaddy.core.loading_messages import LoadingMessageRotator
 from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import (
     ChartRightPanelStack,
     build_chart_right_panel_stack,
@@ -180,36 +179,9 @@ class ChartRightPanelController:
             if state is not None and state.last_render_chart_token == render_token:
                 return
             render_traits = getattr(self._owner, "_render_traits_predictions", None)
-            render_enneagram = getattr(self._owner, "_render_enneagram_predictions", None)
-            render_dndification = getattr(self._owner, "_render_dndification_predictions", None)
-            from ephemeraldaddy.gui.style import (
-                close_app_loading_progress,
-                create_app_loading_progress,
-                update_app_loading_progress,
-            )
-
-            rotator = LoadingMessageRotator(initial_message="Loading Chart View predictions…")
-            progress = create_app_loading_progress(
-                parent=self._owner if isinstance(self._owner, QWidget) else None,
-                title="Chart View Predictions",
-                message=rotator.next(),
-            )
-            try:
-                update_app_loading_progress(progress, "Preparing prediction panels…", 12)
-                if callable(render_traits):
-                    update_app_loading_progress(progress, rotator.next("Loading trait predictions…"), 28)
-                    render_traits(chart)
-                if callable(render_enneagram):
-                    update_app_loading_progress(progress, rotator.next("Loading Enneagram predictions…"), 55)
-                    render_enneagram(chart)
-                if callable(render_dndification):
-                    update_app_loading_progress(progress, rotator.next("Loading D&D predictions…"), 78)
-                    render_dndification(chart)
-                update_app_loading_progress(progress, "Chart View predictions ready.", 100)
-                if state is not None:
-                    state.last_render_chart_token = render_token
-            finally:
-                close_app_loading_progress(progress)
+            if callable(render_traits):
+                render_traits(chart)
+            schedule_chart_render_for_active_right_panel(self._owner)
             return
         if active_panel in {"abc", "anagrams"} and self._is_analysis_section_visible("anagrams"):
             schedule_chart_render = getattr(self._owner, "_schedule_chart_render", None)

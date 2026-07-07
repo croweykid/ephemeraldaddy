@@ -46,6 +46,18 @@ def test_dnd_prediction_summary_is_added_after_metric_panel_render_clears_layout
     assert first_render < first_add
 
 
+def test_chart_right_panel_controller_delegates_predictions_to_background_scheduler():
+    source = (REPO_ROOT / "ephemeraldaddy/gui/features/controllers/chart_right_panel.py").read_text()
+    branch_start = source.index('        if active_panel == "predictions":')
+    branch = source[
+        branch_start : source.index('        if active_panel in {"abc", "anagrams"}', branch_start)
+    ]
+
+    assert "schedule_chart_render_for_active_right_panel(self._owner)" in branch
+    assert "_render_enneagram_predictions" not in branch
+    assert "_render_dndification_predictions" not in branch
+
+
 def test_dnd_prediction_statblock_uses_standard_vertical_axis_layout():
     source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/dnd_predictions.py").read_text()
     function = source[
