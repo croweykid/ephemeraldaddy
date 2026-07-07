@@ -10461,12 +10461,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._alignment_score_blank_checkbox is not None
             and self._alignment_score_blank_checkbox.isChecked()
         )
-        matched_expectations_min = self._parse_integer_filter_text(
+        matched_expectations_min = self._parse_signed_integer_filter_text(
             self._matched_expectations_min_input.text()
             if self._matched_expectations_min_input is not None
             else ""
         )
-        matched_expectations_max = self._parse_integer_filter_text(
+        matched_expectations_max = self._parse_signed_integer_filter_text(
             self._matched_expectations_max_input.text()
             if self._matched_expectations_max_input is not None
             else ""
@@ -11615,13 +11615,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             matched_expectations_selection_counts = [selected_chart_count] * len(matched_expectations_labels)
             matched_expectations_database_counts = [database_loaded_charts] * len(matched_expectations_labels)
             if _should_refresh_database_metric_section("matched_expectations_summary"):
-                predictability_canvas = self._build_social_score_summary_chart(
-                    labels=matched_expectations_labels,
-                    selection_values=matched_expectations_selection_values,
-                    database_values=matched_expectations_database_values,
+                predictability_canvas = self._build_alignment_cumulative_chart(
+                    selection_cumulative=sum(selection_matched_expectations),
+                    selection_average=selection_matched_expectations_average,
+                    database_average=database_matched_expectations_average,
                     loaded_charts=selected_chart_count,
-                    social_score_min=0.0,
-                    social_score_max=9.0,
+                    metric_label="Predictability",
                 )
                 self._clear_layout(self.matched_expectations_summary_chart_layout)
                 self.matched_expectations_summary_chart_layout.addWidget(
@@ -13832,27 +13831,25 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         predictability_section, predictability_section_layout = add_collapsible_section("💭Predictability")
         self.batch_predictability_section = predictability_section
         predictability_section.setVisible(self._visibility.get("chart_view.predictability"))
-        predictability_row = QHBoxLayout()
-        predictability_row.addWidget(QLabel("Chart matches expectations (0-9):"))
-        self.batch_matched_expectations_spin = QSpinBox()
-        self.batch_matched_expectations_spin.setRange(0, 9)
-        self.batch_matched_expectations_spin.setValue(0)
-        self.batch_matched_expectations_spin.valueChanged.connect(
-            lambda _value: self._on_batch_metric_field_lucygoosey("matched_expectations")
+        self.batch_matched_expectations_slider = AlignmentEmojiSlider()
+        self.batch_matched_expectations_slider.valueChanged.connect(
+            self._on_batch_predictability_changed
         )
-        predictability_row.addWidget(self.batch_matched_expectations_spin)
-        batch_matched_expectations_button = QPushButton("Apply")
+        self.batch_matched_expectations_score_label = QLabel()
+        self._update_batch_predictability_score_label(
+            self.batch_matched_expectations_slider.value()
+        )
+        batch_matched_expectations_button = QPushButton("Apply predictability")
         batch_matched_expectations_button.clicked.connect(
-            lambda: self._on_batch_sentiment_metric_assign(
-                "matched_expectations",
-                "matched expectations",
-                self.batch_matched_expectations_spin.value(),
-            )
+            self._on_batch_predictability_apply
         )
-        predictability_row.addWidget(batch_matched_expectations_button)
-        predictability_row.addStretch(1)
-        predictability_section_layout.addLayout(predictability_row)
-        self._bind_batch_enter_apply(self.batch_matched_expectations_spin, batch_matched_expectations_button.click)
+
+        predictability_section_layout.addWidget(
+            QLabel("😈 Defies expectations   ⟷   Matches expectations 😇")
+        )
+        predictability_section_layout.addWidget(self.batch_matched_expectations_slider)
+        predictability_section_layout.addWidget(self.batch_matched_expectations_score_label)
+        predictability_section_layout.addWidget(batch_matched_expectations_button)
         layout.addWidget(predictability_section)
 
         sentiment_metrics_widget = QWidget()
@@ -14221,9 +14218,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             familiarity_values,
             preserve_lucygoosey=preserve_lucygoosey_metrics,
         )
-        self._set_batch_metric_spin_state(
-            "matched_expectations",
-            self.batch_matched_expectations_spin,
+        self._set_batch_predictability_state(
             matched_expectations_values,
             preserve_lucygoosey=preserve_lucygoosey_metrics,
         )
@@ -14419,7 +14414,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             parsed_value = int(raw_value) if raw_value is not None else 0
         except (TypeError, ValueError):
             parsed_value = 0
-        return max(0, min(9, parsed_value))
+        return max(-10, min(10, parsed_value))
 
     def _set_batch_alignment_state(self, items: list[tuple[int, Chart]]) -> None:
         if not items:
@@ -14452,6 +14447,33 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
         else:
             self.batch_alignment_slider.setToolTip("")
+
+    def _set_batch_predictability_state(
+        self,
+        values: list[int],
+        *,
+        preserve_lucygoosey: bool,
+    ) -> None:
+        if preserve_lucygoosey and self._batch_metric_lucygoosey.get("matched_expectations"):
+            return
+        if not values:
+            selected_value = 0
+            mixed = False
+        else:
+            selected_value = int(values[0])
+            mixed = len(set(values)) > 1
+        self._batch_metric_programmatic_update = True
+        self.batch_matched_expectations_slider.blockSignals(True)
+        self.batch_matched_expectations_slider.setValue(selected_value)
+        self.batch_matched_expectations_slider.blockSignals(False)
+        self._batch_metric_programmatic_update = False
+        self._update_batch_predictability_score_label(selected_value)
+        self.batch_matched_expectations_slider.setToolTip(
+            "Selected charts have mixed predictability scores. Applying will overwrite all selected charts."
+            if mixed
+            else ""
+        )
+        self._set_batch_metric_lucygoosey_state("matched_expectations", False)
 
     @staticmethod
     def _build_birthdate_filter_date(
@@ -15411,6 +15433,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _on_batch_alignment_changed(self, value: int) -> None:
         self._update_batch_alignment_score_label(value)
 
+    def _update_batch_predictability_score_label(self, value: int) -> None:
+        self.batch_matched_expectations_score_label.setText(f"Predictability score: {int(value):+d}")
+
+    def _on_batch_predictability_changed(self, value: int) -> None:
+        self._update_batch_predictability_score_label(value)
+        self._on_batch_metric_field_lucygoosey("matched_expectations")
+
+    def _on_batch_predictability_apply(self) -> None:
+        self._on_batch_sentiment_metric_assign(
+            "matched_expectations",
+            "predictability",
+            int(self.batch_matched_expectations_slider.value()),
+        )
+
     def _on_batch_alignment_apply(self) -> None:
         chart_ids = self._selected_chart_ids()
         if not chart_ids:
@@ -15464,7 +15500,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "positive_sentiment_intensity": self.batch_positive_sentiment_intensity_spin,
             "negative_sentiment_intensity": self.batch_negative_sentiment_intensity_spin,
             "familiarity": self.batch_familiarity_spin,
-            "matched_expectations": self.batch_matched_expectations_spin,
+            "matched_expectations": self.batch_matched_expectations_slider,
             "year_first_encountered": self.batch_year_first_encountered_edit,
         }
         return mapping.get(field_key)
@@ -15473,6 +15509,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._batch_metric_lucygoosey[field_key] = is_lucygoosey
         widget = self._batch_metric_widget_for_key(field_key)
         if widget is None:
+            return
+        if isinstance(widget, AlignmentEmojiSlider):
+            # Preserve the slider's gradient stylesheet; QSlider-level styling
+            # here would replace the full custom handle/groove definition.
             return
         style = (
             "color: #a9a9a9; font-style: italic;"
@@ -16759,8 +16799,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.batch_negative_sentiment_intensity_spin.setToolTip("")
         self.batch_familiarity_spin.setValue(0)
         self.batch_familiarity_spin.setToolTip("")
-        self.batch_matched_expectations_spin.setValue(0)
-        self.batch_matched_expectations_spin.setToolTip("")
+        self.batch_matched_expectations_slider.blockSignals(True)
+        self.batch_matched_expectations_slider.setValue(0)
+        self.batch_matched_expectations_slider.blockSignals(False)
+        self._update_batch_predictability_score_label(0)
+        self.batch_matched_expectations_slider.setToolTip("")
         self.batch_year_first_encountered_edit.setText("")
         self.batch_year_first_encountered_edit.setToolTip("")
         if hasattr(self, "batch_tags_input"):
@@ -19637,12 +19680,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._alignment_score_blank_checkbox is not None
             and self._alignment_score_blank_checkbox.isChecked()
         )
-        matched_expectations_min = self._parse_integer_filter_text(
+        matched_expectations_min = self._parse_signed_integer_filter_text(
             self._matched_expectations_min_input.text()
             if self._matched_expectations_min_input is not None
             else ""
         )
-        matched_expectations_max = self._parse_integer_filter_text(
+        matched_expectations_max = self._parse_signed_integer_filter_text(
             self._matched_expectations_max_input.text()
             if self._matched_expectations_max_input is not None
             else ""
@@ -20102,7 +20145,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         chart_matched_expectations_raw = getattr(chart, "matched_expectations", None)
         chart_matched_expectations = (
-            max(0, min(9, int(chart_matched_expectations_raw)))
+            max(-10, min(10, int(chart_matched_expectations_raw)))
             if isinstance(chart_matched_expectations_raw, int)
             else None
         )
@@ -24500,14 +24543,14 @@ class MainWindow(QMainWindow):
         predictability_content_layout.setSpacing(6)
         predictability_content_widget.setLayout(predictability_content_layout)
         predictability_content_layout.addWidget(
-            QLabel("Chart matches expectations (0-9):")
+            QLabel("Defies expectations   ⟷   Matches expectations")
         )
-        self.matched_expectations_spin = QSpinBox()
-        self.matched_expectations_spin.setRange(0, 9)
-        self.matched_expectations_spin.setValue(0)
-        self.matched_expectations_spin.valueChanged.connect(self._on_sentiment_metric_changed)
-        predictability_content_layout.addWidget(self.matched_expectations_spin)
-        predictability_content_layout.addStretch(1)
+        self.matched_expectations_slider = AlignmentEmojiSlider()
+        self.matched_expectations_slider.valueChanged.connect(self._on_predictability_changed)
+        self.matched_expectations_score_label = QLabel()
+        self._update_predictability_score_label(self.matched_expectations_slider.value())
+        predictability_content_layout.addWidget(self.matched_expectations_slider, 1)
+        predictability_content_layout.addWidget(self.matched_expectations_score_label)
         self.predictability_panel_toggle.toggled.connect(
             lambda expanded: self._toggle_chart_panel_content(
                 self.predictability_panel_toggle,
@@ -24825,7 +24868,7 @@ class MainWindow(QMainWindow):
             self.birth_year_edit,
             self.time_edit,
             self.retcon_time_edit,
-            self.matched_expectations_spin,
+            self.matched_expectations_slider,
             self.positive_sentiment_intensity_spin,
             self.negative_sentiment_intensity_spin,
             self.familiarity_spin,
@@ -31499,6 +31542,13 @@ class MainWindow(QMainWindow):
         self._update_alignment_score_label(value)
         self._on_sentiment_metric_changed(value)
 
+    def _update_predictability_score_label(self, value: int) -> None:
+        self.matched_expectations_score_label.setText(f"Predictability score: {int(value):+d}")
+
+    def _on_predictability_changed(self, value: int) -> None:
+        self._update_predictability_score_label(value)
+        self._on_sentiment_metric_changed(value)
+
     def _update_sexiness_score_label(self, value: int) -> None:
         self.sexiness_score_label.setText(f"Sexiness score: {int(value)}")
 
@@ -31542,7 +31592,7 @@ class MainWindow(QMainWindow):
         self.positive_sentiment_intensity_spin.setValue(0)
         self.negative_sentiment_intensity_spin.setValue(0)
         self.familiarity_spin.setValue(1)
-        self.matched_expectations_spin.setValue(0)
+        self.matched_expectations_slider.setValue(0)
         self._set_alignment_score_state(0, assigned=False)
         self._set_sexiness_score_state(0)
         self.familiarity_spin.setToolTip("")
@@ -32213,7 +32263,7 @@ class MainWindow(QMainWindow):
         placeholder.positive_sentiment_intensity = self.positive_sentiment_intensity_spin.value()
         placeholder.negative_sentiment_intensity = self.negative_sentiment_intensity_spin.value()
         placeholder.familiarity = self.familiarity_spin.value()
-        placeholder.matched_expectations = self.matched_expectations_spin.value()
+        placeholder.matched_expectations = self.matched_expectations_slider.value()
         placeholder.alignment_score = self.alignment_slider.value()
         placeholder.sexiness_score = self.sexiness_slider.value()
         placeholder.familiarity_factors = list(getattr(self, "_chart_familiarity_factors", []))
@@ -32384,7 +32434,7 @@ class MainWindow(QMainWindow):
         if hasattr(chart, "sexiness_score"):
             chart.sexiness_score = 0 if is_event_chart else self.sexiness_slider.value()
         if hasattr(chart, "matched_expectations"):
-            chart.matched_expectations = 0 if is_event_chart else self.matched_expectations_spin.value()
+            chart.matched_expectations = 0 if is_event_chart else self.matched_expectations_slider.value()
         if hasattr(chart, "alignment_score"):
             chart.alignment_score = (
                 0
@@ -32951,7 +33001,7 @@ class MainWindow(QMainWindow):
                 chart.positive_sentiment_intensity = 0 if is_event_chart else self.positive_sentiment_intensity_spin.value()
                 chart.negative_sentiment_intensity = 0 if is_event_chart else self.negative_sentiment_intensity_spin.value()
                 chart.familiarity = 1 if is_event_chart else self.familiarity_spin.value()
-                chart.matched_expectations = 0 if is_event_chart else self.matched_expectations_spin.value()
+                chart.matched_expectations = 0 if is_event_chart else self.matched_expectations_slider.value()
                 chart.alignment_score = (
                     0
                     if is_event_chart
@@ -33235,7 +33285,7 @@ class MainWindow(QMainWindow):
         self.positive_sentiment_intensity_spin.setValue(0)
         self.negative_sentiment_intensity_spin.setValue(0)
         self.familiarity_spin.setValue(1)
-        self.matched_expectations_spin.setValue(0)
+        self.matched_expectations_slider.setValue(0)
         self._set_alignment_score_state(0, assigned=False)
         self.familiarity_spin.setToolTip("")
         self._chart_familiarity_factors = []
@@ -33489,7 +33539,7 @@ class MainWindow(QMainWindow):
             parsed_value = int(raw_value) if raw_value is not None else 0
         except (TypeError, ValueError):
             parsed_value = 0
-        return max(0, min(9, parsed_value))
+        return max(-10, min(10, parsed_value))
 
     def load_chart_by_id(self, chart_id: int, *, from_chart_link: bool = False) -> bool:
         if not self._confirm_discard_or_save():
@@ -33582,7 +33632,7 @@ class MainWindow(QMainWindow):
         self.familiarity_spin.setValue(
             getattr(chart, "familiarity", 1) or 1
         )
-        self.matched_expectations_spin.setValue(
+        self.matched_expectations_slider.setValue(
             self._matched_expectations_value_for_chart(chart)
         )
         loaded_alignment = getattr(chart, "alignment_score", None)
