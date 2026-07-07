@@ -280,3 +280,9 @@ def test_predictions_sections_show_calculate_prompt_instead_of_auto_calculating(
     assert "_start_background_prediction_render(owner, chart, render_token)" not in active_branch
     assert "owner._render_enneagram_predictions(chart)" in active_branch
     assert "owner._render_dndification_predictions(chart)" in active_branch
+    assert "sections: set[str] | None = None" in stack_source
+    assert "self._sections = set(sections or" in stack_source
+    assert "if \"dnd_statblock\" in self._sections" in stack_source
+    assert "if \"dnd_alignment\" in self._sections" in stack_source
+    assert "calculate_callback(chart, \"enneagram\")" in enneagram_source
+    assert "calculate_callback(chart, section)" in dnd_source

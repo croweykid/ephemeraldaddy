@@ -35672,7 +35672,7 @@ class MainWindow(QMainWindow):
         _render_traits_predictions(self, chart)
 
 
-    def _calculate_predictions_on_demand(self, chart: Chart | None) -> None:
+    def _calculate_predictions_on_demand(self, chart: Chart | None, section: str | None = None) -> None:
         if chart is None or self._is_placeholder_chart(chart):
             return
         render_token = self._prediction_norms_render_token() if hasattr(self, "_prediction_norms_render_token") else ""
@@ -35682,7 +35682,8 @@ class MainWindow(QMainWindow):
             render_token = _chart_right_panel_prediction_render_token(self, chart)
         except Exception:
             pass
-        _start_background_prediction_render(self, chart, str(render_token))
+        sections = {section} if section else None
+        _start_background_prediction_render(self, chart, str(render_token), sections=sections)
 
     def _dnd_prediction_adapter(self) -> DndPredictionPanelAdapter:
         return DndPredictionPanelAdapter(

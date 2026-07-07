@@ -67,13 +67,14 @@ class _PredictionsWarmupWorker(QObject):
     finished = Signal(object, str, str, object)
     progress = Signal(str, int)
 
-    def __init__(self, owner: object, chart: object, render_token: str, job_token: str) -> None:
+    def __init__(self, owner: object, chart: object, render_token: str, job_token: str, sections: set[str] | None = None) -> None:
         super().__init__()
         self._owner = owner
         self._chart = chart
         self._render_token = render_token
         self._job_token = job_token
         self._cancelled = False
+        self._sections = set(sections or {"enneagram", "dnd_statblock", "dnd_alignment"})
 
     @Slot()
     def cancel(self) -> None:
@@ -89,29 +90,33 @@ class _PredictionsWarmupWorker(QObject):
                 _predictions_thread_debug(self._owner, "worker cancelled before Enneagram cache job=%s", self._job_token)
                 self.finished.emit(self._chart, self._render_token, self._job_token, None)
                 return
-            self.progress.emit("Preparing Enneagram predictions…", 15)
-            cache_enneagram = getattr(self._owner, "_cache_enneagram_prediction_metadata", None)
-            _predictions_thread_debug(self._owner, "Enneagram cache stage start job=%s callable=%s", self._job_token, callable(cache_enneagram))
-            if callable(cache_enneagram):
-                cache_enneagram(self._chart)
-            _predictions_thread_debug(self._owner, "Enneagram cache stage complete job=%s", self._job_token)
-            self.progress.emit("Preparing D&D predictions…", 45)
+            if "enneagram" in self._sections:
+                self.progress.emit("Preparing Enneagram predictions…", 15)
+                cache_enneagram = getattr(self._owner, "_cache_enneagram_prediction_metadata", None)
+                _predictions_thread_debug(self._owner, "Enneagram cache stage start job=%s callable=%s", self._job_token, callable(cache_enneagram))
+                if callable(cache_enneagram):
+                    cache_enneagram(self._chart)
+                _predictions_thread_debug(self._owner, "Enneagram cache stage complete job=%s", self._job_token)
+            if self._sections.intersection({"dnd_statblock", "dnd_alignment"}):
+                self.progress.emit("Preparing D&D predictions…", 45)
             if self._cancelled or QThread.currentThread().isInterruptionRequested():
                 _predictions_thread_debug(self._owner, "worker cancelled before D&D cache job=%s", self._job_token)
                 self.finished.emit(self._chart, self._render_token, self._job_token, None)
                 return
             adapter_factory = getattr(self._owner, "_dnd_prediction_adapter", None)
             _predictions_thread_debug(self._owner, "D&D adapter stage start job=%s callable=%s", self._job_token, callable(adapter_factory))
-            if callable(adapter_factory):
+            if callable(adapter_factory) and self._sections.intersection({"dnd_statblock", "dnd_alignment"}):
                 adapter = adapter_factory()
-                cache_dnd = getattr(adapter, "cache_metadata", None)
-                _predictions_thread_debug(self._owner, "D&D cache stage start job=%s callable=%s", self._job_token, callable(cache_dnd))
-                if callable(cache_dnd):
-                    cache_dnd(self._chart)
-                self.progress.emit("Preparing alignment predictions…", 70)
-                cache_alignment = getattr(adapter, "cache_alignment_metadata", None)
-                if callable(cache_alignment):
-                    cache_alignment(self._chart)
+                if "dnd_statblock" in self._sections:
+                    cache_dnd = getattr(adapter, "cache_metadata", None)
+                    _predictions_thread_debug(self._owner, "D&D cache stage start job=%s callable=%s", self._job_token, callable(cache_dnd))
+                    if callable(cache_dnd):
+                        cache_dnd(self._chart)
+                if "dnd_alignment" in self._sections:
+                    self.progress.emit("Preparing alignment predictions…", 70)
+                    cache_alignment = getattr(adapter, "cache_alignment_metadata", None)
+                    if callable(cache_alignment):
+                        cache_alignment(self._chart)
                 _predictions_thread_debug(self._owner, "D&D cache stage complete job=%s", self._job_token)
             self.progress.emit("Finishing Predictions…", 90)
         except Exception as exc:  # pragma: no cover - defensive UI path
@@ -892,7 +897,7 @@ def stop_background_prediction_render(owner: object, wait_msecs: int | None = No
     setattr(owner, "_predictions_background_job_token", None)
 
 
-def _start_background_prediction_render(owner: object, chart: object, render_token: str) -> None:
+def _start_background_prediction_render(owner: object, chart: object, render_token: str, sections: set[str] | None = None) -> None:
     chart_name = _chart_display_name(chart)
     _predictions_thread_debug(owner, "start requested chart=%s render_token=%s", chart_name, render_token)
     _set_predictions_status(owner, f"Loading Predictions for <b>{html.escape(chart_name)}</b> in the background…")
@@ -907,7 +912,7 @@ def _start_background_prediction_render(owner: object, chart: object, render_tok
     setattr(owner, "_predictions_background_progress", progress)
     thread = QThread()
     job_token = uuid.uuid4().hex
-    worker = _PredictionsWarmupWorker(owner, chart, render_token, job_token)
+    worker = _PredictionsWarmupWorker(owner, chart, render_token, job_token, sections=sections)
     receiver = _PredictionsWarmupReceiver(owner, chart, render_token, job_token)
     receiver.set_job(thread, worker)
     worker.moveToThread(thread)

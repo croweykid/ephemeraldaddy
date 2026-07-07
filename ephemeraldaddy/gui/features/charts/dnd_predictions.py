@@ -922,7 +922,7 @@ class DndPredictionPanelAdapter:
         norm_charts_provider: Callable[[], Any] | None = None,
         norm_charts_token_provider: Callable[[], Any] | None = None,
         clear_layout_widgets: Callable[[Any], None] | None = None,
-        calculate_callback: Callable[[Any], None] | None = None,
+        calculate_callback: Callable[[Any, str], None] | None = None,
     ) -> None:
         self.owner = owner
         self.chart_layout = chart_layout
@@ -940,13 +940,12 @@ class DndPredictionPanelAdapter:
         self.clear_layout_widgets = clear_layout_widgets
         self.calculate_callback = calculate_callback
 
-    def _show_calculate_prompt(self, chart: Any | None) -> None:
-        if self.chart_layout is None:
+    def _show_calculate_prompt(self, chart: Any | None, *, layout: Any = None, section: str = "dnd_statblock", summary_text: str | None = None) -> None:
+        target_layout = layout or self.chart_layout
+        if target_layout is None:
             return
         if callable(self.clear_layout_widgets):
-            self.clear_layout_widgets(self.chart_layout)
-        if self.alignment_layout is not None and callable(self.clear_layout_widgets):
-            self.clear_layout_widgets(self.alignment_layout)
+            self.clear_layout_widgets(target_layout)
         panel = QWidget()
         panel_layout = QVBoxLayout()
         panel_layout.setContentsMargins(12, 18, 12, 18)
@@ -959,14 +958,15 @@ class DndPredictionPanelAdapter:
         label.setStyleSheet("color: #f5f5f5; font-weight: 600;")
         button = QPushButton("Calculate!")
         button.setStyleSheet("background-color: #7b4dff; color: white; font-weight: bold; padding: 6px 14px; border-radius: 5px;")
-        button.clicked.connect(lambda _checked=False, chart=chart: self.calculate_callback(chart) if callable(self.calculate_callback) and chart is not None else None)
+        button.clicked.connect(lambda _checked=False, chart=chart, section=section: self.calculate_callback(chart, section) if callable(self.calculate_callback) and chart is not None else None)
         panel_layout.addWidget(label, alignment=Qt.AlignCenter)
         panel_layout.addWidget(button, alignment=Qt.AlignCenter)
-        self.chart_layout.addWidget(panel, alignment=Qt.AlignCenter)
-        summary_label = self._ensure_summary_label()
-        summary_label.setText("<b>Top three:</b> No prior data")
-        if self.chart_layout.indexOf(summary_label) < 0:
-            self.chart_layout.addWidget(summary_label)
+        target_layout.addWidget(panel, alignment=Qt.AlignCenter)
+        if target_layout is self.chart_layout:
+            summary_label = self._ensure_summary_label()
+            summary_label.setText(summary_text or "<b>Top three:</b> No prior data")
+            if self.chart_layout.indexOf(summary_label) < 0:
+                self.chart_layout.addWidget(summary_label)
 
     def _norm_charts(self) -> Any:
         if self.norm_charts_provider is None:
@@ -1152,41 +1152,42 @@ class DndPredictionPanelAdapter:
                 )
                 self._render_alignment_debug_summary(chart)
             return summary_label
-        if not isinstance(getattr(chart, "_dnd_statblock_prediction_cache", None), dict):
-            self._show_calculate_prompt(chart)
-            return summary_label
-        metric_panel_renderer(
-            canvas_attr="dnd_prediction_statblock_canvas",
-            container_layout=self.chart_layout,
-            figsize=(5.5, 2.8),
-            title="D&D Statblock",
-            draw_fn=self.draw,
-            chart=chart,
-        )
-        if self.chart_layout.indexOf(summary_label) < 0:
-            self.chart_layout.addWidget(summary_label)
-        if self.info_panel is not None:
-            configure_dnd_top_three_summary_label(
-                summary_label,
-                chart,
-                info_panel=self.info_panel,
-                before_show=self.before_show,
-            )
-        if self.alignment_layout is not None:
-            if not isinstance(getattr(chart, "_dnd_alignment_score_parts_cache", None), dict):
-                self._show_calculate_prompt(chart)
-                return summary_label
+
+        if isinstance(getattr(chart, "_dnd_statblock_prediction_cache", None), dict):
             metric_panel_renderer(
-                canvas_attr="dnd_prediction_alignment_canvas",
-                container_layout=self.alignment_layout,
-                figsize=(5.5, 3.8),
-                title="D&D Alignment",
-                draw_fn=self.draw_alignment,
+                canvas_attr="dnd_prediction_statblock_canvas",
+                container_layout=self.chart_layout,
+                figsize=(5.5, 2.8),
+                title="D&D Statblock",
+                draw_fn=self.draw,
                 chart=chart,
             )
-            self._render_alignment_debug_summary(chart)
-        return summary_label
+            if self.chart_layout.indexOf(summary_label) < 0:
+                self.chart_layout.addWidget(summary_label)
+            if self.info_panel is not None:
+                configure_dnd_top_three_summary_label(
+                    summary_label,
+                    chart,
+                    info_panel=self.info_panel,
+                    before_show=self.before_show,
+                )
+        else:
+            self._show_calculate_prompt(chart, section="dnd_statblock")
 
+        if self.alignment_layout is not None:
+            if isinstance(getattr(chart, "_dnd_alignment_score_parts_cache", None), dict):
+                metric_panel_renderer(
+                    canvas_attr="dnd_prediction_alignment_canvas",
+                    container_layout=self.alignment_layout,
+                    figsize=(5.5, 3.8),
+                    title="D&D Alignment",
+                    draw_fn=self.draw_alignment,
+                    chart=chart,
+                )
+                self._render_alignment_debug_summary(chart)
+            else:
+                self._show_calculate_prompt(chart, layout=self.alignment_layout, section="dnd_alignment")
+        return summary_label
 
 def connect_dnd_alignment_popout_pick_handler(
     popout_canvas: Any,

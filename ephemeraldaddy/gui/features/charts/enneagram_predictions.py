@@ -895,7 +895,7 @@ class EnneagramPredictionPanelAdapter:
         chart_layout: Any = None,
         debug_math_enabled: bool = False,
         clear_layout_widgets: Callable[[Any], None] | None = None,
-        calculate_callback: Callable[[Any], None] | None = None,
+        calculate_callback: Callable[[Any, str], None] | None = None,
     ) -> None:
         self.enneagram = enneagram
         self.calculate_type_weights = calculate_type_weights
@@ -927,7 +927,7 @@ class EnneagramPredictionPanelAdapter:
         label.setStyleSheet("color: #f5f5f5; font-weight: 600;")
         button = QPushButton("Calculate!")
         button.setStyleSheet("background-color: #7b4dff; color: white; font-weight: bold; padding: 6px 14px; border-radius: 5px;")
-        button.clicked.connect(lambda _checked=False, chart=chart: self.calculate_callback(chart) if callable(self.calculate_callback) and chart is not None else None)
+        button.clicked.connect(lambda _checked=False, chart=chart: self.calculate_callback(chart, "enneagram") if callable(self.calculate_callback) and chart is not None else None)
         panel_layout.addWidget(label, alignment=Qt.AlignCenter)
         panel_layout.addWidget(button, alignment=Qt.AlignCenter)
         layout.addWidget(panel, alignment=Qt.AlignCenter)
