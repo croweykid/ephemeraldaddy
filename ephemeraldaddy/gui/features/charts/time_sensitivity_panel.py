@@ -806,8 +806,17 @@ def _most_likely_weight_tooltip(payload: dict[str, Any]) -> str:
 
 
 def _variability_scale_label(percent_delta_spread: float) -> str:
-    """Return a compact, deliberately calm variability label."""
-    return "medium" if abs(float(percent_delta_spread)) < 35.0 else "high"
+    """Return a compact label for the spread between min and max percent deltas."""
+    spread = abs(float(percent_delta_spread))
+    if spread < 25.0:
+        return "minimal"
+    if spread < 45.0:
+        return "minor"
+    if spread < 75.0:
+        return "medium"
+    if spread < 95.0:
+        return "high"
+    return "extreme"
 
 
 def _variability_percent_spread(payload: dict[str, Any]) -> float:
