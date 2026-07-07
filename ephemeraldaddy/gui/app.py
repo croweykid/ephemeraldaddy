@@ -13830,6 +13830,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.addWidget(build_batch_bio_section(self, add_collapsible_section, SOURCE_OPTIONS, GENDER_OPTIONS, QuadStateSlider))
 
         predictability_section, predictability_section_layout = add_collapsible_section("💭Predictability")
+        self.batch_predictability_section = predictability_section
+        predictability_section.setVisible(self._visibility.get("chart_view.predictability"))
         predictability_row = QHBoxLayout()
         predictability_row.addWidget(QLabel("Chart matches expectations (0-9):"))
         self.batch_matched_expectations_spin = QSpinBox()
@@ -21303,6 +21305,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     )
                 )
                 del blocker
+            predictability_checkbox = getattr(self, "_predictability_module_checkbox", None)
+            if isinstance(predictability_checkbox, QCheckBox):
+                blocker = QSignalBlocker(predictability_checkbox)
+                predictability_checkbox.setChecked(self._visibility.get("chart_view.predictability"))
+                del blocker
             significance_combo = getattr(self, "_settings_significance_correction_combo", None)
             if isinstance(significance_combo, QComboBox):
                 blocker = QSignalBlocker(significance_combo)
@@ -21451,6 +21458,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         visibility_section.addWidget(anagrams_checkbox)
 
+        predictability_checkbox = QCheckBox("Show Predictability")
+        predictability_checkbox.setChecked(self._visibility.get("chart_view.predictability"))
+        predictability_checkbox.toggled.connect(
+            self._set_predictability_visibility_from_settings
+        )
+        self._predictability_module_checkbox = predictability_checkbox
+        visibility_section.addWidget(predictability_checkbox)
 
         visibility_section.addSpacing(8)
         visibility_section.addWidget(self._build_settings_subheader_label("Predictions (popout chart)"))
@@ -22958,6 +22972,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         parent = self._owner_window()
         if isinstance(parent, MainWindow):
             parent._sync_chart_view_sexiness_visibility()
+
+    def _set_predictability_visibility_from_settings(self, checked: bool) -> None:
+        self._visibility.set("chart_view.predictability", checked)
+        batch_section = getattr(self, "batch_predictability_section", None)
+        if batch_section is not None:
+            batch_section.setVisible(bool(checked))
+        parent = self._owner_window()
+        if isinstance(parent, MainWindow):
+            parent._sync_predictability_visibility()
 
     def _set_database_metric_section_visibility_from_settings(self, section_key: str, checked: bool) -> None:
         self._set_database_metrics_section_visible(section_key, checked)
@@ -24494,6 +24517,8 @@ class MainWindow(QMainWindow):
         )
         predictability_content_widget.setVisible(False)
         predictability_box_layout.addWidget(predictability_content_widget)
+        self.predictability_section_box = predictability_box
+        predictability_box.setVisible(self._visibility.get("chart_view.predictability"))
         sentiment_relation_layout.addWidget(predictability_box)
 
         reminds_me_of_box = QFrame()
@@ -25024,6 +25049,13 @@ class MainWindow(QMainWindow):
         sexiness_section = getattr(self, "sexiness_section_box", None)
         if sexiness_section is not None:
             sexiness_section.setVisible(self._visibility.get("chart_view.sexiness"))
+
+    def _sync_predictability_visibility(self) -> None:
+        visible = self._visibility.get("chart_view.predictability")
+        for section_attr in ("batch_predictability_section", "predictability_section_box"):
+            section = getattr(self, section_attr, None)
+            if section is not None:
+                section.setVisible(visible)
 
     def _add_chart_analysis_collapsible_section(
         self,
