@@ -30,6 +30,11 @@ from PySide6.QtWidgets import (
 )
 
 from ephemeraldaddy.core.interpretations import MODE_KEYWORDS
+from ephemeraldaddy.gui.style import (
+    close_app_loading_progress,
+    create_app_loading_progress,
+    update_app_loading_progress,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -60,14 +65,16 @@ class _PredictionsWarmupWorker(QObject):
     """Precompute slow Predictions data away from the GUI thread."""
 
     finished = Signal(object, str, str, object)
+    progress = Signal(str, int)
 
-    def __init__(self, owner: object, chart: object, render_token: str, job_token: str) -> None:
+    def __init__(self, owner: object, chart: object, render_token: str, job_token: str, sections: set[str] | None = None) -> None:
         super().__init__()
         self._owner = owner
         self._chart = chart
         self._render_token = render_token
         self._job_token = job_token
         self._cancelled = False
+        self._sections = set(sections or {"enneagram", "dnd_statblock", "dnd_alignment"})
 
     @Slot()
     def cancel(self) -> None:
@@ -83,24 +90,35 @@ class _PredictionsWarmupWorker(QObject):
                 _predictions_thread_debug(self._owner, "worker cancelled before Enneagram cache job=%s", self._job_token)
                 self.finished.emit(self._chart, self._render_token, self._job_token, None)
                 return
-            cache_enneagram = getattr(self._owner, "_cache_enneagram_prediction_metadata", None)
-            _predictions_thread_debug(self._owner, "Enneagram cache stage start job=%s callable=%s", self._job_token, callable(cache_enneagram))
-            if callable(cache_enneagram):
-                cache_enneagram(self._chart)
-            _predictions_thread_debug(self._owner, "Enneagram cache stage complete job=%s", self._job_token)
+            if "enneagram" in self._sections:
+                self.progress.emit("Preparing Enneagram predictions…", 15)
+                cache_enneagram = getattr(self._owner, "_cache_enneagram_prediction_metadata", None)
+                _predictions_thread_debug(self._owner, "Enneagram cache stage start job=%s callable=%s", self._job_token, callable(cache_enneagram))
+                if callable(cache_enneagram):
+                    cache_enneagram(self._chart)
+                _predictions_thread_debug(self._owner, "Enneagram cache stage complete job=%s", self._job_token)
+            if self._sections.intersection({"dnd_statblock", "dnd_alignment"}):
+                self.progress.emit("Preparing D&D predictions…", 45)
             if self._cancelled or QThread.currentThread().isInterruptionRequested():
                 _predictions_thread_debug(self._owner, "worker cancelled before D&D cache job=%s", self._job_token)
                 self.finished.emit(self._chart, self._render_token, self._job_token, None)
                 return
             adapter_factory = getattr(self._owner, "_dnd_prediction_adapter", None)
             _predictions_thread_debug(self._owner, "D&D adapter stage start job=%s callable=%s", self._job_token, callable(adapter_factory))
-            if callable(adapter_factory):
+            if callable(adapter_factory) and self._sections.intersection({"dnd_statblock", "dnd_alignment"}):
                 adapter = adapter_factory()
-                cache_dnd = getattr(adapter, "cache_metadata", None)
-                _predictions_thread_debug(self._owner, "D&D cache stage start job=%s callable=%s", self._job_token, callable(cache_dnd))
-                if callable(cache_dnd):
-                    cache_dnd(self._chart)
+                if "dnd_statblock" in self._sections:
+                    cache_dnd = getattr(adapter, "cache_metadata", None)
+                    _predictions_thread_debug(self._owner, "D&D cache stage start job=%s callable=%s", self._job_token, callable(cache_dnd))
+                    if callable(cache_dnd):
+                        cache_dnd(self._chart)
+                if "dnd_alignment" in self._sections:
+                    self.progress.emit("Preparing alignment predictions…", 70)
+                    cache_alignment = getattr(adapter, "cache_alignment_metadata", None)
+                    if callable(cache_alignment):
+                        cache_alignment(self._chart)
                 _predictions_thread_debug(self._owner, "D&D cache stage complete job=%s", self._job_token)
+            self.progress.emit("Finishing Predictions…", 90)
         except Exception as exc:  # pragma: no cover - defensive UI path
             logger.warning(
                 "Predictions warmup failed for %s: %s",
@@ -128,6 +146,12 @@ class _PredictionsWarmupReceiver(QObject):
         self._watchdog = QTimer(self)
         self._watchdog.setSingleShot(True)
         self._watchdog.timeout.connect(self._handle_timeout)
+
+    @Slot(str, int)
+    def handle_progress(self, message: str, percent: int) -> None:
+        progress = getattr(self._owner, "_predictions_background_progress", None)
+        update_app_loading_progress(progress, message, percent)
+        _set_predictions_status(self._owner, html.escape(message))
 
     def set_job(self, thread: QThread, worker: QObject) -> None:
         self._thread = thread
@@ -746,6 +770,11 @@ def _finish_background_prediction_render(
     setattr(owner, "_predictions_background_render_token", None)
     setattr(owner, "_predictions_background_job_token", None)
     setattr(owner, "_predictions_background_chart", None)
+    progress = getattr(owner, "_predictions_background_progress", None)
+    if progress is not None:
+        update_app_loading_progress(progress, "Rendering Predictions…", 95)
+        close_app_loading_progress(progress)
+        setattr(owner, "_predictions_background_progress", None)
 
     chart_name = _chart_display_name(chart)
     if error is not None:
@@ -821,6 +850,10 @@ def stop_background_prediction_render(owner: object, wait_msecs: int | None = No
     setattr(owner, "_predictions_background_render_token", None)
     setattr(owner, "_predictions_background_job_token", None)
     setattr(owner, "_predictions_background_chart", None)
+    progress = getattr(owner, "_predictions_background_progress", None)
+    if progress is not None:
+        close_app_loading_progress(progress)
+        setattr(owner, "_predictions_background_progress", None)
     jobs = list(getattr(owner, "_predictions_background_jobs", []) or [])
     active_thread = getattr(owner, "_predictions_background_thread", None)
     active_worker = getattr(owner, "_predictions_background_worker", None)
@@ -864,17 +897,27 @@ def stop_background_prediction_render(owner: object, wait_msecs: int | None = No
     setattr(owner, "_predictions_background_job_token", None)
 
 
-def _start_background_prediction_render(owner: object, chart: object, render_token: str) -> None:
+def _start_background_prediction_render(owner: object, chart: object, render_token: str, sections: set[str] | None = None) -> None:
     chart_name = _chart_display_name(chart)
     _predictions_thread_debug(owner, "start requested chart=%s render_token=%s", chart_name, render_token)
     _set_predictions_status(owner, f"Loading Predictions for <b>{html.escape(chart_name)}</b> in the background…")
+    existing_progress = getattr(owner, "_predictions_background_progress", None)
+    close_app_loading_progress(existing_progress)
+    progress_parent = owner if isinstance(owner, QWidget) else None
+    progress = create_app_loading_progress(
+        parent=progress_parent,
+        title="Loading Predictions",
+        message=f"Preparing Predictions for {chart_name}…",
+    )
+    setattr(owner, "_predictions_background_progress", progress)
     thread = QThread()
     job_token = uuid.uuid4().hex
-    worker = _PredictionsWarmupWorker(owner, chart, render_token, job_token)
+    worker = _PredictionsWarmupWorker(owner, chart, render_token, job_token, sections=sections)
     receiver = _PredictionsWarmupReceiver(owner, chart, render_token, job_token)
     receiver.set_job(thread, worker)
     worker.moveToThread(thread)
     thread.started.connect(worker.run)
+    worker.progress.connect(receiver.handle_progress, Qt.QueuedConnection)
     worker.finished.connect(receiver.handle_finished, Qt.QueuedConnection)
     worker.finished.connect(thread.quit)
     worker.finished.connect(worker.deleteLater)
@@ -948,34 +991,15 @@ def schedule_chart_render_for_active_right_panel(owner: object) -> None:
         render_token = _chart_right_panel_prediction_render_token(owner, chart)
         if state is not None and state.last_render_chart_token == render_token:
             return
-        active_token = getattr(owner, "_predictions_background_render_token", None)
-        active_chart = getattr(owner, "_predictions_background_chart", None)
-        if active_token is not None:
-            if active_token == render_token:
-                _set_predictions_status(
-                    owner,
-                    f"Loading Predictions for <b>{html.escape(_chart_display_name(chart))}</b> in the background…",
-                )
-                return
-            if not _prompt_prediction_render_conflict(owner, chart):
-                if active_chart is not None:
-                    _set_predictions_status(
-                        owner,
-                        f"Still loading Predictions for <b>{html.escape(_chart_display_name(active_chart))}</b>…",
-                    )
-                return
-            thread = getattr(owner, "_predictions_background_thread", None)
-            if isinstance(thread, QThread):
-                thread.requestInterruption()
-                thread.quit()
-                jobs = getattr(owner, "_predictions_background_jobs", None)
-                if not isinstance(jobs, list) or not any(
-                    (job[0] if isinstance(job, tuple) else None) is thread for job in jobs
-                ):
-                    worker = getattr(owner, "_predictions_background_worker", None)
-                    receiver = getattr(owner, "_predictions_background_receiver", None)
-                    _retain_background_prediction_job(owner, thread, worker, receiver)
-        _start_background_prediction_render(owner, chart, render_token)
+        owner._render_enneagram_predictions(chart)
+        owner._render_dndification_predictions(chart)
+        if state is not None:
+            state.last_render_chart_token = render_token
+        _set_predictions_status(
+            owner,
+            f"Showing cached Predictions for <b>{html.escape(_chart_display_name(chart))}</b>. "
+            "Use Calculate/Recalculate only when you want to refresh them.",
+        )
         return
     if active_panel in {"subjective_notes", "abc"} and owner._is_chart_analysis_section_visible("anagrams"):
         owner._schedule_chart_render(chart, sections={"anagrams"})

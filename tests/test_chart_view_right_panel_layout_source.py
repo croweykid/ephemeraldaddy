@@ -265,3 +265,41 @@ def test_dnd_alignment_popout_is_registered_and_configured():
     assert 'def resolve_dnd_official_alignment' in dnd_source
     assert 'Official D&amp;D alignment:' in dnd_source
     assert 'return "True Neutral"' in dnd_source
+
+
+def test_predictions_background_warmup_updates_loading_progress():
+    source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/cv_right_panel_stack.py").read_text()
+
+    assert "progress = Signal(str, int)" in source
+    assert "create_app_loading_progress(" in source
+    assert "worker.progress.connect(receiver.handle_progress, Qt.QueuedConnection)" in source
+    assert "update_app_loading_progress(progress, message, percent)" in source
+    assert "close_app_loading_progress(progress)" in source
+
+
+def test_predictions_sections_show_calculate_prompt_instead_of_auto_calculating():
+    enneagram_source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/enneagram_predictions.py").read_text()
+    dnd_source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/dnd_predictions.py").read_text()
+    stack_source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/cv_right_panel_stack.py").read_text()
+
+    assert "No prior data. Calculate (can take awhile)?" in enneagram_source
+    assert "No prior data. Calculate (can take awhile)?" in dnd_source
+    assert 'QPushButton("Calculate!")' in enneagram_source
+    assert 'QPushButton("Calculate!")' in dnd_source
+    active_branch = stack_source[
+        stack_source.index('    if active_panel == "predictions":') : stack_source.index('    if active_panel in {"subjective_notes", "abc"}')
+    ]
+    assert "_start_background_prediction_render(owner, chart, render_token)" not in active_branch
+    assert "owner._render_enneagram_predictions(chart)" in active_branch
+    assert "owner._render_dndification_predictions(chart)" in active_branch
+    assert "sections: set[str] | None = None" in stack_source
+    assert "self._sections = set(sections or" in stack_source
+    assert "if \"dnd_statblock\" in self._sections" in stack_source
+    assert "if \"dnd_alignment\" in self._sections" in stack_source
+    assert "calculate_callback(chart, \"enneagram\")" in enneagram_source
+    assert "calculate_callback(chart, section)" in dnd_source
+    assert 'reset_canvas_callback("enneagram_prediction_canvas")' in enneagram_source
+    assert "reset_canvas_callback(canvas_attr)" in dnd_source
+    assert "def _dnd_alignment_cache_key" in dnd_source
+    assert 'cached.get("key") == cache_key' in dnd_source
+    assert "_prediction_norms_render_token" in dnd_source
