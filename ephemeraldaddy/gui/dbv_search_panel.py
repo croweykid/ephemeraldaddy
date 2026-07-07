@@ -825,7 +825,11 @@ def build_dbv_search_panel(window) -> "QWidget":
     layout.addLayout(header_layout)
 
     def add_collapsible_section(
-        title: str, *, nested: bool = False
+        title: str,
+        *,
+        nested: bool = False,
+        expanded: bool = False,
+        style_sheet: str = DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
     ) -> tuple[QWidget, QVBoxLayout]:
         section = QWidget()
         section_layout = QVBoxLayout()
@@ -836,8 +840,8 @@ def build_dbv_search_panel(window) -> "QWidget":
         configure_collapsible_header_toggle(
             toggle,
             title=title,
-            expanded=False,
-            style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
+            expanded=expanded,
+            style_sheet=style_sheet,
         )
 
         content = QWidget()
@@ -852,7 +856,7 @@ def build_dbv_search_panel(window) -> "QWidget":
         if DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS:
             content_style = f"{content_style} {DATABASE_ANALYTICS_CONTENT_DEBUG_STYLE}"
         content.setStyleSheet(content_style)
-        content.setVisible(False)
+        content.setVisible(expanded)
 
         def set_toggle_expanded_state(checked: bool) -> None:
             toggle.setArrowType(Qt.NoArrow)
@@ -874,20 +878,17 @@ def build_dbv_search_panel(window) -> "QWidget":
         section_layout.addWidget(content)
         return section, content_layout
 
-    # Search: Chart Type is a permanent static section below the top search controls.
-    chart_type_section = QWidget()
-    chart_type_section_layout = QVBoxLayout()
-    chart_type_section_layout.setContentsMargins(0, 0, 0, 0)
-    chart_type_section.setLayout(chart_type_section_layout)
-    chart_type_header = QLabel()
-    configure_static_collapsible_header_label(chart_type_header, title="Chart Type")
-    chart_type_section_layout.addWidget(chart_type_header)
-    chart_type_content = QWidget()
-    chart_type_group_layout = QVBoxLayout()
-    chart_type_group_layout.setContentsMargins(8, 6, 8, 6)
-    chart_type_content.setLayout(chart_type_group_layout)
-    chart_type_content.setStyleSheet(COLLAPSIBLE_SECTION_CONTENT_STYLE)
-    chart_type_section_layout.addWidget(chart_type_content)
+    # Search: Chart Type remains directly below the top search controls.
+    chart_type_header_style = DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE.replace(
+        "color: #ffffff;",
+        "color: #b56cff;",
+        1,
+    )
+    chart_type_section, chart_type_group_layout = add_collapsible_section(
+        "Chart Type",
+        expanded=True,
+        style_sheet=chart_type_header_style,
+    )
 
     chart_type_layout = QGridLayout()
     chart_type_layout.setContentsMargins(0, 0, 0, 0)
