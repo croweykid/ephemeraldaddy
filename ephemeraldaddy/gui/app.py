@@ -955,6 +955,7 @@ from ephemeraldaddy.gui.features.charts.presentation import (
 from ephemeraldaddy.gui.features.charts.time_sensitivity_panel import (
     build_time_sensitivity_ascendant_sign_info_text as _build_time_sensitivity_ascendant_sign_info_text,
     build_time_sensitivity_sign_info_text as _build_time_sensitivity_sign_info_text,
+    human_design_time_range_text as _human_design_time_range_text,
 )
 from ephemeraldaddy.gui.features.charts.sign_distribution import (
     SIGN_DISTRIBUTION_DROPDOWN_OPTIONS,
@@ -35494,6 +35495,20 @@ class MainWindow(QMainWindow):
             return
         label.setText(_build_distinguishing_factors_html(chart, [], metric_payloads=self._prediction_norm_metric_payloads()))
 
+    def _prepend_chart_info_header(self, text: str) -> None:
+        """Prepend a plain header while preserving existing Chart Info rich text."""
+        header_text = str(text or "").strip()
+        if not header_text:
+            return
+        cursor = self.chart_info_output.textCursor()
+        cursor.movePosition(QTextCursor.Start)
+        header_fmt = QTextCharFormat()
+        header_fmt.setForeground(QColor(CHART_DATA_HIGHLIGHT_COLOR))
+        header_fmt.setFontWeight(QFont.Bold)
+        cursor.insertText(header_text + "\n\n", header_fmt)
+        cursor.movePosition(QTextCursor.Start)
+        self.chart_info_output.setTextCursor(cursor)
+
     def _on_distinguishing_factor_link_activated(self, href: str) -> None:
         """Open a Predictions distinguishing-factor link in the main Chart Info panel."""
         parts = str(href or "").split(":")
@@ -35539,20 +35554,32 @@ class MainWindow(QMainWindow):
         if kind == "element":
             self._show_element_keyword_info(value)
             return
-        if kind == "gate":
+        if kind in {"gate", "ts-gate"}:
             try:
                 gate = int(value)
             except (TypeError, ValueError):
                 return
             self._show_human_design_gate_line_info(gate, None)
+            if kind == "ts-gate":
+                panel = getattr(self, "time_sensitivity_panel", None)
+                result = getattr(panel, "_last_result", None) if panel is not None else None
+                self._prepend_chart_info_header(
+                    _human_design_time_range_text(result, gate)
+                )
             return
-        if kind == "gate-line" and len(parts) >= 4:
+        if kind in {"gate-line", "ts-gate-line"} and len(parts) >= 4:
             try:
                 gate = int(value)
                 line = int(urllib.parse.unquote(parts[3]))
             except (TypeError, ValueError):
                 return
             self._show_human_design_gate_line_info(gate, line)
+            if kind == "ts-gate-line":
+                panel = getattr(self, "time_sensitivity_panel", None)
+                result = getattr(panel, "_last_result", None) if panel is not None else None
+                self._prepend_chart_info_header(
+                    _human_design_time_range_text(result, gate, line)
+                )
             return
         if kind == "hd-channel":
             gate_parts = value.split("-", 1)

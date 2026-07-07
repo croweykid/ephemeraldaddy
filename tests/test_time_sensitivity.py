@@ -103,7 +103,7 @@ def test_aggregate_numeric_reports_delta_from_baseline_not_full_span():
     assert payload["max_decrease_percent"] == -50.0
     assert payload["max_increase_percent"] == 50.0
     assert payload["variability_percent"] == 100.0
-    assert payload["label"] == "extreme"
+    assert payload["label"] == "high"
     assert payload["peak_times"] == ["23:59"]
     assert group_deltas["dominant_planet_weights"] == 50.0
 
@@ -773,11 +773,13 @@ def test_human_design_cache_invalidates_when_rectified_time_changes(monkeypatch)
     calls = []
 
     def fake_calculate_human_design(chart):
-        calls.append((
-            bool(getattr(chart, "retcon_time_used", False)),
-            getattr(chart, "retcon_hour", None),
-            getattr(chart, "retcon_minute", None),
-        ))
+        calls.append(
+            (
+                bool(getattr(chart, "retcon_time_used", False)),
+                getattr(chart, "retcon_hour", None),
+                getattr(chart, "retcon_minute", None),
+            )
+        )
         return HumanDesignResult(
             birth_utc=datetime(2000, 1, 1, tzinfo=timezone.utc),
             design_utc=datetime(1999, 12, 12, tzinfo=timezone.utc),

@@ -523,7 +523,9 @@ def _color_code_text(text: str, *, sign_link_kind: str = "sign") -> str:
     return _COLOR_CODE_PATTERN.sub(replace, escaped_text)
 
 
-def _time_sensitivity_variable_item_html(result: TimeSensitivityResult, item: str) -> str:
+def _time_sensitivity_variable_item_html(
+    result: TimeSensitivityResult, item: str
+) -> str:
     text = str(item)
     if text.startswith(("Ascendant:", "AS:")):
         prefix, values_text = text.split(":", 1)
@@ -581,7 +583,9 @@ def build_time_sensitivity_ascendant_sign_info_text(
         str(item).strip() for item in sign_keywords.get("best", []) if str(item).strip()
     ]
     worst_keywords = [
-        str(item).strip() for item in sign_keywords.get("worst", []) if str(item).strip()
+        str(item).strip()
+        for item in sign_keywords.get("worst", [])
+        if str(item).strip()
     ]
     spans = time_sensitivity_categorical_spans(result, "Ascendant", sign_key)
     if spans:
@@ -616,7 +620,9 @@ def build_time_sensitivity_sign_info_text(
         str(item).strip() for item in sign_keywords.get("best", []) if str(item).strip()
     ]
     worst_keywords = [
-        str(item).strip() for item in sign_keywords.get("worst", []) if str(item).strip()
+        str(item).strip()
+        for item in sign_keywords.get("worst", [])
+        if str(item).strip()
     ]
     placements = []
     possible = []
@@ -627,7 +633,9 @@ def build_time_sensitivity_sign_info_text(
                 placements.append(_display_body_name(body))
         for category, label in (("Sun sign", "Sun"), ("Ascendant", "Ascendant")):
             if time_sensitivity_categorical_spans(result, category, sign_key):
-                display_label = _display_body_name(label) if label != "Ascendant" else label
+                display_label = (
+                    _display_body_name(label) if label != "Ascendant" else label
+                )
                 if display_label not in placements and display_label not in possible:
                     possible.append(display_label)
     placement_line = ", ".join(placements)
@@ -635,7 +643,9 @@ def build_time_sensitivity_sign_info_text(
         placement_line += "."
     if possible:
         possible_line = "Possibly " + ", ".join(possible)
-        placement_line = f"{placement_line} {possible_line}" if placement_line else possible_line
+        placement_line = (
+            f"{placement_line} {possible_line}" if placement_line else possible_line
+        )
     if not placement_line:
         placement_line = f"No chart placements in {sign_key}"
     lines = [sign_key, "", placement_line, ""]
@@ -646,6 +656,7 @@ def build_time_sensitivity_sign_info_text(
             lines.append("")
         lines.extend(["At worst:", *(f"• {keyword}" for keyword in worst_keywords)])
     return "\n".join(lines)
+
 
 def _header_html(label: str) -> str:
     return f"<div style='color:{CHART_DATA_HIGHLIGHT_COLOR}; font-weight:700; margin-top:8px;'>{escape(label)}</div>"
@@ -754,9 +765,7 @@ def _weight_distribution_stats(payload: dict[str, Any]) -> dict[str, str]:
             rounded_value = round(float(value), 6)
             counts[rounded_value] = counts.get(rounded_value, 0) + 1
         max_count = max(counts.values())
-        modes = sorted(
-            weight for weight, count in counts.items() if count == max_count
-        )
+        modes = sorted(weight for weight, count in counts.items() if count == max_count)
         mode_display = ", ".join(f"{weight:.0f}" for weight in modes[:4])
         if len(modes) > 4:
             mode_display += ", …"
@@ -771,7 +780,9 @@ def _weight_distribution_stats(payload: dict[str, Any]) -> dict[str, str]:
 def _most_likely_weight_tooltip(payload: dict[str, Any]) -> str:
     mode_payload = _most_likely_weight_payload(payload)
     if not mode_payload:
-        return "Most likely weight unavailable for saved pre-v8 Time Sensitivity results."
+        return (
+            "Most likely weight unavailable for saved pre-v8 Time Sensitivity results."
+        )
     percent = float(mode_payload.get("percent", 0.0))
     count = int(mode_payload.get("count", 0))
     if not mode_payload.get("available", mode_payload.get("weight") is not None):
@@ -789,21 +800,14 @@ def _most_likely_weight_tooltip(payload: dict[str, Any]) -> str:
     when = "; ".join(str(span) for span in spans[:4]) or _format_time_list(
         times, limit=4
     )
-    return f"Mode of sampled raw weights: {count} samples ({percent:.0f}%). Times: {when}"
+    return (
+        f"Mode of sampled raw weights: {count} samples ({percent:.0f}%). Times: {when}"
+    )
 
 
 def _variability_scale_label(percent_delta_spread: float) -> str:
-    """Return a compact label for the spread between min and max percent deltas."""
-    spread = abs(float(percent_delta_spread))
-    if spread < 5.0:
-        return "minimal"
-    if spread < 15.0:
-        return "minor"
-    if spread < 35.0:
-        return "medium"
-    if spread < 75.0:
-        return "high"
-    return "extreme"
+    """Return a compact, deliberately calm variability label."""
+    return "medium" if abs(float(percent_delta_spread)) < 35.0 else "high"
 
 
 def _variability_percent_spread(payload: dict[str, Any]) -> float:
@@ -898,9 +902,11 @@ def _numeric_group_table_html(result: TimeSensitivityResult, group_key: str) -> 
         min_color = escape(_relative_value_color(minimum, min_values), quote=True)
         max_color = escape(_relative_value_color(maximum, max_values), quote=True)
         likely_color = escape(
-            _relative_value_color(likely, likely_values)
-            if likely is not None
-            else "#bbbbbb",
+            (
+                _relative_value_color(likely, likely_values)
+                if likely is not None
+                else "#bbbbbb"
+            ),
             quote=True,
         )
         decrease_color = escape(
@@ -963,11 +969,9 @@ def _gate_anchor(gate: str) -> str:
     safe_gate = escape(gate_text, quote=True)
     if "." in gate_text:
         gate_number, line_number = gate_text.split(".", 1)
-        href = (
-            f"distinguishing-factor:gate-line:{quote(gate_number)}:{quote(line_number)}"
-        )
+        href = f"distinguishing-factor:ts-gate-line:{quote(gate_number)}:{quote(line_number)}"
     elif "-" not in gate_text:
-        href = f"distinguishing-factor:gate:{quote(gate_text)}"
+        href = f"distinguishing-factor:ts-gate:{quote(gate_text)}"
     else:
         href = f"distinguishing-factor:hd-channel:{quote(gate_text)}"
     return (
@@ -982,6 +986,27 @@ def _hd_property_anchor(property_key: str, value: str) -> str:
         f"distinguishing-factor:hd-property:{quote(property_key)}:{quote(str(value))}"
     )
     return f"<a href='{href}' style='color:#d7b5ff; text-decoration:none;'>{safe_value}</a>"
+
+
+def human_design_time_range_text(
+    result: TimeSensitivityResult | None, gate: int, line: int | None = None
+) -> str:
+    """Return an approximate sampled time-range header for a Time Sensitivity HD gate/link."""
+    hd = getattr(result, "human_design", {}) if result is not None else {}
+    summary_key = "lines" if line is not None else "gates"
+    lookup_key = f"{int(gate)}.{int(line)}" if line is not None else str(int(gate))
+    summary = hd.get(summary_key, {}) if isinstance(hd, dict) else {}
+    spans = (
+        summary.get("presence_spans", {}).get(lookup_key, [])
+        if isinstance(summary, dict)
+        else []
+    )
+    heading = f"Approximate Time Sensitivity range for HD Gate {gate}"
+    if line is not None:
+        heading += f".{line}"
+    if spans:
+        return f"{heading}: {'; '.join(str(span) for span in spans)} (rounded to sampled blocks)"
+    return f"{heading}: not present in the saved sampled range."
 
 
 def format_time_sensitivity_result_html(result: TimeSensitivityResult) -> str:
@@ -1047,6 +1072,17 @@ def _human_design_html(result: TimeSensitivityResult) -> str:
         )
         hd_items.append(f"Definite {escape(key.title())}: {always}")
         hd_items.append(f"Possible {escape(key.title())}: {sometimes}")
+    centers = hd.get("centers", {})
+    definite_centers = (
+        ", ".join(escape(str(item)) for item in centers.get("always", [])[:20])
+        or "none"
+    )
+    possible_centers = (
+        ", ".join(escape(str(item)) for item in centers.get("sometimes", [])[:20])
+        or "none"
+    )
+    hd_items.append(f"Definite Defined Centers: {definite_centers}")
+    hd_items.append(f"Possible Defined Centers: {possible_centers}")
     type_bits = [
         f"{_hd_property_anchor('type', str(k))} ({int(v)})"
         for k, v in hd.get("type_distribution", {}).items()
