@@ -644,6 +644,7 @@ from ephemeraldaddy.core.curse_scoring import (
 from ephemeraldaddy.graphics.wheel_plot import draw_chart_wheel
 from ephemeraldaddy.graphics._chartwheel_generator_impl import draw_chartwheel
 from ephemeraldaddy.core.material_facts import (
+    load_linked_relative_uids_by_uid,
     load_personal_identifiers,
     save_personal_identifiers_by_uid,
 )
@@ -32733,7 +32734,7 @@ class MainWindow(QMainWindow):
             self._set_material_fact_text("material_facts_websites_edit", identifiers.get("websites", ""))
             self._set_material_fact_text("material_facts_phone_numbers_edit", identifiers.get("phone_numbers", ""))
             self._set_material_fact_text("material_facts_unlisted_relatives_edit", identifiers.get("unlisted_relatives", ""))
-            self._set_material_relative_uids(identifiers.get("linked_relative_uids", []))
+            self._set_material_relative_uids(load_linked_relative_uids_by_uid(get_chart_uid(chart_id)))
             refresh_photo_gallery = getattr(self, "_refresh_photo_gallery_for_chart", None)
             if callable(refresh_photo_gallery):
                 refresh_photo_gallery(chart_id)

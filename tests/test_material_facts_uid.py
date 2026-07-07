@@ -53,3 +53,26 @@ def test_personal_identifiers_save_relatives_by_uid(tmp_path, monkeypatch):
 
     assert facts["linked_relative_uids"] == ["REL111", "REL222"]
     assert facts["unlisted_relatives"] == "Cousin Not In DB"
+
+
+def test_linked_relative_uids_include_reciprocal_relationships(tmp_path, monkeypatch):
+    monkeypatch.setattr(material_facts, "DB_PATH", tmp_path / "charts.db")
+
+    material_facts.save_personal_identifiers_by_uid(
+        "sourceuid",
+        {"linked_relative_uids": ["targetuid", "directuid"]},
+    )
+    material_facts.save_personal_identifiers_by_uid(
+        "targetuid",
+        {"linked_relative_uids": ["explicituid"]},
+    )
+    material_facts.save_personal_identifiers_by_uid(
+        "otheruid",
+        {"linked_relative_uids": ["TARGETUID"]},
+    )
+
+    assert material_facts.load_linked_relative_uids_by_uid("targetuid") == [
+        "EXPLICITUID",
+        "OTHERUID",
+        "SOURCEUID",
+    ]
