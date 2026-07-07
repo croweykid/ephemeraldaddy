@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import html
+import logging
 import math
+import sys
 import time
 from datetime import datetime, timezone
 from typing import Any, Callable
@@ -85,6 +87,7 @@ from ephemeraldaddy.gui.style import (
 
 
 DND_STAT_KEYS: tuple[str, ...] = ("STR", "DEX", "CON", "INT", "WIS", "CHA")
+logger = logging.getLogger(__name__)
 
 
 def _style_prediction_bar_chart(ax: Any, *, labels: list[str], max_value: float, apply_standard_bar_axes: Any) -> None:
@@ -420,7 +423,7 @@ def _build_dnd_stat_math_html(
         "<div><b>Math walkthrough</b>"
         f"<ul>{subtotal_rows}</ul>"
         f"<div>Displayed subtotal sum: {' + '.join(_format_signed_delta(value) for _label, value in subtotals) or '+0.00'} = {_format_signed_delta(subtotal_total)}.</div>"
-        f"<div>Scorer-equivalent raw total after criteria weighting: {scorer_raw_total:+.3f}.</div>"
+        f"<div>Scorer-equivalent raw total after category balancing/count weighting: {scorer_raw_total:+.3f}. This is the raw number the scorer actually normalizes.</div>"
         f"<div>{norm_line}</div>"
         f"<div>{formula_line}</div>"
         f"<div><b>Final displayed {html.escape(stat_key)} value: {final_score}</b>.</div>"
@@ -719,19 +722,20 @@ def _dnd_alignment_cache_key(owner: Any, chart: Any) -> tuple[str, str]:
     return (chart_token, norms_token)
 
 
-def _dnd_alignment_score_parts(owner: Any, chart: Any, *, allow_stale: bool = True) -> dict[str, dict[str, float]]:
+def _dnd_alignment_score_parts(owner: Any, chart: Any, *, allow_stale: bool = False) -> dict[str, dict[str, float]]:
     """Return chart, database, and deviation values for each D&D alignment axis."""
     cache_key = _dnd_alignment_cache_key(owner, chart)
     cached = getattr(chart, "_dnd_alignment_score_parts_cache", None)
     owner_cache = _owner_cache_bucket(owner, "_dnd_alignment_prediction_view_cache")
     chart_cache_id = _chart_prediction_cache_identity(chart)
     if not isinstance(cached, dict):
-        restored = owner_cache.get(chart_cache_id)
+        restored = owner_cache.get(chart_cache_id) if chart_cache_id else None
         if not isinstance(restored, dict):
             restored = _load_persisted_dnd_prediction_payload(chart).get("alignment")
         if isinstance(restored, dict):
             cached = restored
-            owner_cache[chart_cache_id] = restored
+            if chart_cache_id:
+                owner_cache[chart_cache_id] = restored
             try:
                 setattr(chart, "_dnd_alignment_score_parts_cache", cached)
             except Exception:
@@ -763,14 +767,15 @@ def _dnd_alignment_score_parts(owner: Any, chart: Any, *, allow_stale: bool = Tr
     try:
         cache_payload = {"key": cache_key, "parts": parts, "cached_at": time.time()}
         setattr(chart, "_dnd_alignment_score_parts_cache", cache_payload)
-        owner_cache[chart_cache_id] = cache_payload
+        if chart_cache_id:
+            owner_cache[chart_cache_id] = cache_payload
         _persist_dnd_prediction_payload(chart, "alignment", cache_payload)
     except Exception:
         pass
     return parts
 
 
-def dnd_alignment_deviations(owner: Any, chart: Any, *, allow_stale: bool = True) -> dict[str, float]:
+def dnd_alignment_deviations(owner: Any, chart: Any, *, allow_stale: bool = False) -> dict[str, float]:
     """Return D&D alignment trait deviation percentages versus database norms."""
     return {
         key: values["deviation"]
@@ -804,7 +809,7 @@ def build_dnd_alignment_description_html(alignment_key: str) -> str:
 
 def build_dnd_alignment_breakdown_html(owner: Any, chart: Any) -> str:
     """Build the default popout Chart Info math breakdown for the alignment grid."""
-    parts = _dnd_alignment_score_parts(owner, chart)
+    parts = _dnd_alignment_score_parts(owner, chart, allow_stale=True)
     if not parts:
         return "<b>D&D Alignment math</b><br>No database-normalized alignment scores are available."
     rows = []
@@ -867,7 +872,7 @@ def resolve_dnd_official_alignment(net_good: float, net_lawful: float) -> str:
 
 def build_dnd_alignment_debug_summary_html(owner: Any, chart: Any) -> str:
     """Return the raw D&D alignment deviation values shown below the grid."""
-    deviations = dnd_alignment_deviations(owner, chart)
+    deviations = dnd_alignment_deviations(owner, chart, allow_stale=True)
     good = float(deviations.get("good", 0.0))
     evil = float(deviations.get("evil", 0.0))
     lawful = float(deviations.get("lawful", 0.0))
@@ -896,7 +901,7 @@ def draw_dnd_alignment_grid(ax: Any, chart: Any, *, owner: Any) -> None:
     import numpy as np
     from matplotlib.colors import LinearSegmentedColormap
 
-    deviations = dnd_alignment_deviations(owner, chart)
+    deviations = dnd_alignment_deviations(owner, chart, allow_stale=True)
     good = float(deviations.get("good", 0.0))
     evil = float(deviations.get("evil", 0.0))
     lawful = float(deviations.get("lawful", 0.0))
@@ -1039,16 +1044,29 @@ def configure_dnd_top_three_summary_label(
 
 
 
+def _chart_name_for_uid_error(chart: Any) -> str:
+    for attr in ("name", "full_name", "display_name"):
+        value = str(getattr(chart, attr, "") or "").strip()
+        if value:
+            return value
+    return "Unnamed chart"
+
+
+def _log_missing_chart_uid(chart: Any, context: str) -> None:
+    message = (
+        f"[D&D predictions UID error] Chart '{_chart_name_for_uid_error(chart)}' has no Chart UID; "
+        f"{context} could not be computed. Fix the chart UID before relying on cached D&D predictions."
+    )
+    logger.error(message)
+    print(message, file=sys.stderr, flush=True)
+
+
 def _chart_prediction_cache_identity(chart: Any) -> str:
-    for attr in ("uid", "UID", "chart_uid", "permanent_uid"):
-        value = str(getattr(chart, attr, "") or "").strip()
-        if value:
-            return f"uid:{value}"
-    for attr in ("id", "chart_id"):
-        value = str(getattr(chart, attr, "") or "").strip()
-        if value:
-            return f"id:{value}"
-    return f"object:{id(chart)}"
+    chart_uid = _chart_prediction_cache_uid(chart)
+    if chart_uid:
+        return f"uid:{chart_uid}"
+    _log_missing_chart_uid(chart, "D&D prediction cache identity")
+    return ""
 
 
 def _owner_cache_bucket(owner: Any, attr_name: str) -> dict[str, Any]:
@@ -1257,17 +1275,15 @@ class DndPredictionPanelAdapter:
         if norm_charts is None:
             return None
         try:
-            return tuple(
-                (
-                    getattr(norm_chart, "uid", None)
-                    or getattr(norm_chart, "UID", None)
-                    or getattr(norm_chart, "chart_uid", None)
-                    or getattr(norm_chart, "id", None)
-                    or getattr(norm_chart, "chart_id", None)
-                    or repr(norm_chart)
-                )
-                for norm_chart in norm_charts
-            )
+            tokens = []
+            for norm_chart in norm_charts:
+                chart_uid = _chart_prediction_cache_uid(norm_chart)
+                if not chart_uid:
+                    _log_missing_chart_uid(norm_chart, "D&D prediction norm cache token")
+                    tokens.append("missing_uid")
+                else:
+                    tokens.append(chart_uid)
+            return tuple(tokens)
         except TypeError:
             return repr(norm_charts)
 
@@ -1281,11 +1297,13 @@ class DndPredictionPanelAdapter:
         cached = getattr(chart, "_dnd_statblock_prediction_cache", None)
         if isinstance(cached, dict) and cached.get("statblock") is not None:
             return cached
-        restored = self._statblock_owner_cache().get(self._chart_cache_identity(chart))
+        chart_cache_id = self._chart_cache_identity(chart)
+        restored = self._statblock_owner_cache().get(chart_cache_id) if chart_cache_id else None
         if not isinstance(restored, dict):
             restored = _restore_statblock_cache_payload(_load_persisted_dnd_prediction_payload(chart).get("statblock"))
         if isinstance(restored, dict) and restored.get("statblock") is not None:
-            self._statblock_owner_cache()[self._chart_cache_identity(chart)] = restored
+            if chart_cache_id:
+                self._statblock_owner_cache()[chart_cache_id] = restored
             try:
                 setattr(chart, "_dnd_statblock_prediction_cache", restored)
             except Exception:
@@ -1335,7 +1353,9 @@ class DndPredictionPanelAdapter:
                 "cached_at": time.time(),
             }
             setattr(chart, "_dnd_statblock_prediction_cache", cache_payload)
-            self._statblock_owner_cache()[self._chart_cache_identity(chart)] = cache_payload
+            chart_cache_id = self._chart_cache_identity(chart)
+            if chart_cache_id:
+                self._statblock_owner_cache()[chart_cache_id] = cache_payload
             _persist_dnd_prediction_payload(chart, "statblock", cache_payload)
         except Exception:
             pass
@@ -1435,16 +1455,23 @@ class DndPredictionPanelAdapter:
     def _show_stale_recalculate_notice(self, layout: Any, chart: Any, section: str) -> None:
         if layout is None:
             return
-        label = QLabel("<i>Cached results shown; chart data or DB norms may have changed. <a href=\"recalculate\">Recalculate</a></i>")
-        label.setTextFormat(Qt.RichText)
-        label.setOpenExternalLinks(False)
+        panel = QWidget()
+        panel_layout = QVBoxLayout()
+        panel_layout.setContentsMargins(0, 0, 0, 6)
+        panel_layout.setSpacing(4)
+        panel.setLayout(panel_layout)
+        label = QLabel("Cached results shown; chart data or DB norms may have changed.")
         label.setWordWrap(True)
-        label.setStyleSheet("color: #d8d8d8; padding: 2px 0 6px 0;")
-        label.linkActivated.connect(lambda _href, chart=chart, section=section: self.calculate_callback(chart, section) if callable(self.calculate_callback) else None)
+        label.setStyleSheet("color: #d8d8d8; font-style: italic; padding: 2px 0 0 0;")
+        button = QPushButton("Recalculate")
+        button.setStyleSheet("background-color: #7b4dff; color: white; font-weight: bold; font-style: italic; padding: 6px 14px; border-radius: 5px;")
+        button.clicked.connect(lambda _checked=False, chart=chart, section=section: self.calculate_callback(chart, section) if callable(self.calculate_callback) else None)
+        panel_layout.addWidget(label, alignment=Qt.AlignCenter)
+        panel_layout.addWidget(button, alignment=Qt.AlignCenter)
         try:
-            layout.insertWidget(0, label)
+            layout.insertWidget(0, panel)
         except Exception:
-            layout.addWidget(label)
+            layout.addWidget(panel)
 
     def render(self, chart: Any | None, metric_panel_renderer: Callable[..., Any]) -> Any:
         if self.chart_layout is None:
