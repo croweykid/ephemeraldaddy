@@ -30411,6 +30411,7 @@ class MainWindow(QMainWindow):
         cursor.movePosition(QTextCursor.Start)
         cursor.insertText(f"{header}\n\n")
         plain_fmt = QTextCharFormat()
+        plain_fmt.setForeground(QColor("#ffffff"))
         plain_fmt.setFontWeight(QFont.Normal)
         plain_fmt.setFontItalic(False)
 
@@ -30528,6 +30529,7 @@ class MainWindow(QMainWindow):
         header_fmt.setForeground(QColor(CHART_DATA_HIGHLIGHT_COLOR))
         header_fmt.setFontWeight(QFont.Bold)
         plain_fmt = QTextCharFormat()
+        plain_fmt.setForeground(QColor("#ffffff"))
         plain_fmt.setFontWeight(QFont.Normal)
         plain_fmt.setFontItalic(False)
 
@@ -30783,6 +30785,7 @@ class MainWindow(QMainWindow):
         header_fmt.setFontWeight(QFont.Bold)
 
         plain_fmt = QTextCharFormat()
+        plain_fmt.setForeground(QColor("#ffffff"))
         plain_fmt.setFontWeight(QFont.Normal)
         plain_fmt.setFontItalic(False)
 
@@ -30851,6 +30854,7 @@ class MainWindow(QMainWindow):
         header_fmt.setFontWeight(QFont.Bold)
 
         plain_fmt = QTextCharFormat()
+        plain_fmt.setForeground(QColor("#ffffff"))
         plain_fmt.setFontWeight(QFont.Normal)
         plain_fmt.setFontItalic(False)
 
@@ -31179,6 +31183,30 @@ class MainWindow(QMainWindow):
             "Human Design Property",
             ["• No details available for this Human Design property."],
         )
+
+    def _show_human_design_center_info(self, center_name: str) -> None:
+        requested = str(center_name or "").strip()
+        center_key = next(
+            (
+                name
+                for name in HD_CENTERS
+                if str(name).casefold() == requested.casefold()
+            ),
+            requested,
+        )
+        center_data = HD_CENTERS.get(center_key, {})
+        if not center_data:
+            self._set_human_design_info_text(
+                f"Center: {requested or 'Unknown'}",
+                ["• No center reference available."],
+            )
+            return
+        lines = [
+            f"• Description: {center_data.get('description', 'No description available.')}",
+            f"• When defined: {center_data.get('defined', 'No defined-center interpretation available.')}",
+            f"• When undefined: {center_data.get('undefined', 'No undefined-center interpretation available.')}",
+        ]
+        self._set_human_design_info_text(f"Center: {center_key}", lines)
 
     def _show_human_design_channel_info(self, gate_a: int, gate_b: int, center: str) -> None:
         sorted_gates = (min(gate_a, gate_b), max(gate_a, gate_b))
@@ -35740,6 +35768,9 @@ class MainWindow(QMainWindow):
             except (TypeError, ValueError):
                 return
             self._show_human_design_channel_info(gate_a, gate_b, "")
+            return
+        if kind == "hd-center":
+            self._show_human_design_center_info(value)
             return
         if kind == "hd-property" and len(parts) >= 4:
             property_key = value

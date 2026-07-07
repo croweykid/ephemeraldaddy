@@ -91,6 +91,7 @@ def render_human_design_info_text_with_accent(
     accent_fmt.setFontWeight(QFont.Bold)
 
     plain_fmt = QTextCharFormat()
+    plain_fmt.setForeground(QColor("#ffffff"))
     plain_fmt.setFontWeight(QFont.Normal)
     plain_fmt.setFontItalic(False)
 

@@ -36,8 +36,9 @@ from ephemeraldaddy.analysis.time_sensitivity import (
     load_time_sensitivity_result_for_chart,
     save_time_sensitivity_result,
 )
-from ephemeraldaddy.analysis.human_design_reference import GATE_COLORS
+from ephemeraldaddy.analysis.human_design_reference import GATE_COLORS, HD_CENTERS
 from ephemeraldaddy.core.interpretations import (
+    DOMINANT_BODY_MEANINGS,
     ELEMENT_COLORS,
     HOUSE_COLORS,
     MODE_COLORS,
@@ -850,6 +851,9 @@ def _time_sensitivity_factor_info_html(
         payload.get("peak_times") or payload.get("peak_spans")
     )
     label_style = f"font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR};"
+    body_lore = ""
+    if group_key == "dominant_planet_weights":
+        body_lore = _dominant_body_lore_html(key, label_style)
     return (
         "<div style='white-space:normal; line-height:1.45;'>"
         f"<div style='font-size:14px; font-weight:700; color:{color}; margin-bottom:6px;'>{escape(display)}</div>"
@@ -859,8 +863,47 @@ def _time_sensitivity_factor_info_html(
         f"<div><span style='{label_style}'>Median:</span> {escape(stats['median'])}</div>"
         f"<div><span style='{label_style}'>Mean:</span> {escape(stats['mean'])}</div>"
         f"<div><span style='{label_style}'>Max Dominance:</span> {escape(f'{maximum:.0f}')} at {escape(peak_time)}</div>"
+        f"{body_lore}"
         "</div>"
     )
+
+
+def _dominant_body_lore_html(body_key: str, label_style: str) -> str:
+    meaning = DOMINANT_BODY_MEANINGS.get(str(body_key), {})
+    if not meaning:
+        return ""
+    divider = f"<hr style='border:0; border-top:1px solid {CHART_DATA_HIGHLIGHT_COLOR}; margin:8px 0;'>"
+    parts = [divider]
+    symbol = str(meaning.get("symbol") or "").strip()
+    title = f"{symbol} {_display_body_name(body_key)}".strip()
+    parts.append(
+        f"<div style='font-weight:700; color:{escape(_factor_color('dominant_planet_weights', body_key), quote=True)};'>{escape(title)} Dominance Lore</div>"
+    )
+    for label, value_key in (
+        ("Core Theme", "core_theme"),
+        ("Summary", "summary"),
+        ("Life Lesson", "life_lesson"),
+        ("Reaction", "reaction"),
+        ("Shorthand", "shorthand"),
+    ):
+        value = meaning.get(value_key)
+        if value:
+            parts.append(
+                f"<div><span style='{label_style}'>{escape(label)}:</span> {escape(str(value))}</div>"
+            )
+    for label, value_key in (
+        ("Typical Traits", "typical_traits"),
+        ("At Best", "at_best"),
+        ("At Worst", "at_worst"),
+    ):
+        values = meaning.get(value_key)
+        if isinstance(values, list) and values:
+            parts.append(
+                f"<div><span style='{label_style}'>{escape(label)}:</span> "
+                + escape(", ".join(str(item) for item in values))
+                + "</div>"
+            )
+    return "".join(parts)
 
 
 def _numeric_group_table_html(result: TimeSensitivityResult, group_key: str) -> str:
@@ -997,6 +1040,15 @@ def _hd_property_anchor(property_key: str, value: str) -> str:
     return f"<a href='{href}' style='color:#d7b5ff; text-decoration:none;'>{safe_value}</a>"
 
 
+def _hd_center_anchor(center_name: str) -> str:
+    center_key = str(center_name or "").strip()
+    center_data = HD_CENTERS.get(center_key, {})
+    color = escape(str(center_data.get("color") or "#d7b5ff"), quote=True)
+    safe_value = escape(center_key, quote=True)
+    href = f"distinguishing-factor:hd-center:{quote(center_key)}"
+    return f"<a href='{href}' style='color:{color}; text-decoration:none;'>{safe_value}</a>"
+
+
 def human_design_time_range_text(
     result: TimeSensitivityResult | None, gate: int, line: int | None = None
 ) -> str:
@@ -1083,11 +1135,11 @@ def _human_design_html(result: TimeSensitivityResult) -> str:
         hd_items.append(f"Possible {escape(key.title())}: {sometimes}")
     centers = hd.get("centers", {})
     definite_centers = (
-        ", ".join(escape(str(item)) for item in centers.get("always", [])[:20])
+        ", ".join(_hd_center_anchor(str(item)) for item in centers.get("always", [])[:20])
         or "none"
     )
     possible_centers = (
-        ", ".join(escape(str(item)) for item in centers.get("sometimes", [])[:20])
+        ", ".join(_hd_center_anchor(str(item)) for item in centers.get("sometimes", [])[:20])
         or "none"
     )
     hd_items.append(f"Definite Defined Centers: {definite_centers}")
@@ -1417,11 +1469,20 @@ class TimeSensitivityPanel(QWidget):
         browser.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         browser.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)
         browser.setHtml(html)
-        browser.document().setTextWidth(max(1, browser.viewport().width()))
-        browser.document().adjustSize()
-        height = int(browser.document().size().height()) + 18
+        min_height = 80 if section_key == "human_design" else 48
         max_height = 16777215 if section_key == "human_design" else 700
-        browser.setFixedHeight(max(48, min(max_height, height)))
+
+        def adjust_browser_height() -> None:
+            browser.document().setTextWidth(max(1, browser.viewport().width()))
+            browser.document().adjustSize()
+            height = int(browser.document().size().height()) + 18
+            browser.setFixedHeight(max(min_height, min(max_height, height)))
+
+        adjust_browser_height()
+        if section_key == "human_design":
+            browser.document().documentLayout().documentSizeChanged.connect(
+                lambda _size: adjust_browser_height()
+            )
         content_layout.addWidget(browser)
         self._charts_layout.addWidget(section)
         self._chart_sections[section_key] = section
