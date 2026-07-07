@@ -955,6 +955,7 @@ from ephemeraldaddy.gui.features.charts.presentation import (
 from ephemeraldaddy.gui.features.charts.time_sensitivity_panel import (
     build_time_sensitivity_ascendant_sign_info_text as _build_time_sensitivity_ascendant_sign_info_text,
     build_time_sensitivity_sign_info_text as _build_time_sensitivity_sign_info_text,
+    human_design_time_range_text as _human_design_time_range_text,
 )
 from ephemeraldaddy.gui.features.charts.sign_distribution import (
     SIGN_DISTRIBUTION_DROPDOWN_OPTIONS,
@@ -35539,20 +35540,34 @@ class MainWindow(QMainWindow):
         if kind == "element":
             self._show_element_keyword_info(value)
             return
-        if kind == "gate":
+        if kind in {"gate", "ts-gate"}:
             try:
                 gate = int(value)
             except (TypeError, ValueError):
                 return
             self._show_human_design_gate_line_info(gate, None)
+            if kind == "ts-gate":
+                panel = getattr(self, "time_sensitivity_panel", None)
+                result = getattr(panel, "_last_result", None) if panel is not None else None
+                existing = self.chart_info_output.toPlainText()
+                self.chart_info_output.setPlainText(
+                    _human_design_time_range_text(result, gate) + "\n\n" + existing
+                )
             return
-        if kind == "gate-line" and len(parts) >= 4:
+        if kind in {"gate-line", "ts-gate-line"} and len(parts) >= 4:
             try:
                 gate = int(value)
                 line = int(urllib.parse.unquote(parts[3]))
             except (TypeError, ValueError):
                 return
             self._show_human_design_gate_line_info(gate, line)
+            if kind == "ts-gate-line":
+                panel = getattr(self, "time_sensitivity_panel", None)
+                result = getattr(panel, "_last_result", None) if panel is not None else None
+                existing = self.chart_info_output.toPlainText()
+                self.chart_info_output.setPlainText(
+                    _human_design_time_range_text(result, gate, line) + "\n\n" + existing
+                )
             return
         if kind == "hd-channel":
             gate_parts = value.split("-", 1)
