@@ -111,6 +111,35 @@ def test_trait_predictions_and_rankings_are_separate_dropdown_modes():
     assert '"manage_charts/traits_distribution_mode"' in dropdown_handler
 
 
+def test_trait_rankings_default_to_database_until_manual_rank_selected():
+    source = _database_analytics_source()
+    create_method = source.split("def _create_traits_database_analytics_section", 1)[1].split(
+        "def _traits_distribution_display_mode", 1
+    )[0]
+    click_method = source.split("def _on_traits_distribution_rank_selected_clicked", 1)[1].split(
+        "def _sync_traits_distribution_rank_combo", 1
+    )[0]
+    render_method = source.split("def _render_traits_distribution_section", 1)[1].split(
+        "def _render_enneagram_section", 1
+    )[0]
+
+    assert 'QPushButton("rank selected")' in create_method
+    assert "_traits_distribution_latest_selected_chart_ids" in click_method
+    assert "_traits_distribution_manual_rank_chart_ids = current_selection" in click_method
+    assert 'rankings_mode = self._traits_distribution_display_mode() == "trait_rankings"' in render_method
+    assert "if rankings_mode and manual_rank_ids:" in render_method
+    assert "selection_analytics = self._collect_traits_distribution_analytics" in render_method.split(
+        "if rankings_mode and manual_rank_ids:", 1
+    )[1]
+    assert "elif rankings_mode:" in render_method
+    assert "selection_analytics = copy.deepcopy(database_analytics)" in render_method.split("elif rankings_mode:", 1)[1]
+    assert "ranking_scope_ids = database_chart_ids" in render_method
+    assert 'ranking_scope_label = "the database"' in render_method
+    assert 'ranking_scope_label = "the manually ranked selection"' in render_method
+    assert "rank_selected_button.setEnabled(has_current_selection or bool(manual_rank_ids))" in render_method
+    assert '"rank selected" if has_current_selection else "show database"' in render_method
+
+
 def test_hiding_current_trait_ranking_members_refreshes_cached_top_ten():
     analytics_source = _database_analytics_source()
     refresh_method = analytics_source.split(
