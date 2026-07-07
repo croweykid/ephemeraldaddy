@@ -760,14 +760,14 @@ def build_dnd_alignment_debug_summary_html(owner: Any, chart: Any) -> str:
         return f"{value:+.2f}%"
 
     return (
-        "<b>Alignment debug deviations from DB norm:</b><br>"
-        f"Evil: {_format_percent(evil)} &nbsp; "
-        f"Good: {_format_percent(good)} &nbsp; "
-        f"Chaotic: {_format_percent(chaotic)} &nbsp; "
-        f"Lawful: {_format_percent(lawful)}<br>"
-        f"Net Good: {_format_percent(net_good_evil)} &nbsp; "
-        f"Net Lawful: {_format_percent(net_lawful_chaotic)}<br>"
-        f"<b>Official D&amp;D alignment:</b> "
+        "<b>Alignment scores:</b><br>"
+        f"<strong>Evil:</strong> {_format_percent(evil)} &nbsp; "
+        f"<strong>Good:</strong> {_format_percent(good)}<br>"
+        f"<strong>Chaotic:</strong> {_format_percent(chaotic)} &nbsp; "
+        f"<strong>Lawful:</strong> {_format_percent(lawful)}<br>"
+        f"<strong>Net Good:</strong> {_format_percent(net_good_evil)} &nbsp; "
+        f"<strong>Net Lawful:</strong> {_format_percent(net_lawful_chaotic)}<br>"
+        f"<strong>Official D&amp;D alignment:</strong> "
         f"{html.escape(resolve_dnd_official_alignment(net_good_evil, net_lawful_chaotic))}"
     )
 
@@ -850,9 +850,9 @@ def draw_dnd_alignment_grid(ax: Any, chart: Any, *, owner: Any) -> None:
     )
     net_point.set_gid("dnd_alignment_math:net")
     net_point.set_picker(True)
-    ax.set_title("D&D Alignment vs DB Norm", color="#f5f5f5", fontsize=10, pad=8)
-    ax.set_xlabel("Chaotic  ←  deviation %  →  Lawful", color="#d8d8d8", fontsize=8)
-    ax.set_ylabel("Evil  ←  deviation %  →  Good", color="#d8d8d8", fontsize=8)
+    ax.set_title("D&D Alignment", color="#f5f5f5", fontsize=10, pad=8) # vs DB Norm
+    ax.set_xlabel("Chaotic  ← →  Lawful", color="#d8d8d8", fontsize=8)
+    ax.set_ylabel("Evil  ← →  Good", color="#d8d8d8", fontsize=8)
     ax.tick_params(colors="#d8d8d8", labelsize=7)
     for spine in ax.spines.values():
         spine.set_color("#666666")
