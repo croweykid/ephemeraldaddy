@@ -1133,6 +1133,8 @@ from ephemeraldaddy.gui.features.charts.perceived_similarity_predictors_panel im
     PerceivedSimilarityPredictorsPanel,
 )
 from ephemeraldaddy.gui.features.charts.similarities_analysis import (
+    build_common_dominant_elements as _build_common_dominant_elements,
+    build_common_dominant_modes as _build_common_dominant_modes,
     build_dissimilarity_export_sections,
     build_similarity_db_baselines,
     calculate_pair_similarity_result,
@@ -8088,49 +8090,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self, chart_ids: list[int]
     ) -> list[tuple[str, int, int]]:
         charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
-        charts = [chart for chart in charts if chart is not None]
-        chart_count = len(charts)
-        if chart_count < 2:
-            return []
-
-        element_counts: dict[str, int] = {}
-        for chart in charts:
-            dominant_weights = getattr(chart, "dominant_element_weights", None)
-            if not dominant_weights:
-                dominant_weights = _calculate_dominant_element_weights(chart)
-                chart.dominant_element_weights = dominant_weights
-            for element in _dominant_element_labels_from_weights(dominant_weights):
-                element_counts[element] = element_counts.get(element, 0) + 1
-
-        ordered_counts = {
-            element: element_counts[element]
-            for element in ("Fire", "Earth", "Air", "Water")
-            if element in element_counts
-        }
-        return self._sorted_similarity_matches(ordered_counts, chart_count)
+        return _build_common_dominant_elements(charts, self._sorted_similarity_matches)
 
     def _build_common_dominant_modes(
         self, chart_ids: list[int]
     ) -> list[tuple[str, int, int]]:
         charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
-        charts = [chart for chart in charts if chart is not None]
-        chart_count = len(charts)
-        if chart_count < 2:
-            return []
-
-        mode_counts: dict[str, int] = {}
-        for chart in charts:
-            dominant_weights = _calculate_mode_weights(chart)
-            for mode in _dominant_mode_labels_from_weights(dominant_weights):
-                label = mode.title()
-                mode_counts[label] = mode_counts.get(label, 0) + 1
-
-        ordered_counts = {
-            mode.title(): mode_counts[mode.title()]
-            for mode in ("cardinal", "fixed", "mutable")
-            if mode.title() in mode_counts
-        }
-        return self._sorted_similarity_matches(ordered_counts, chart_count)
+        return _build_common_dominant_modes(charts, self._sorted_similarity_matches)
 
     def _build_common_dominant_nakshatras(
         self, chart_ids: list[int]

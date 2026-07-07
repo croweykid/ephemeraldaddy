@@ -29,10 +29,14 @@ from ephemeraldaddy.core.aspect_display import ASPECT_DISPLAY_ANGLE_BODIES, aspe
 from ephemeraldaddy.core.chart import Chart
 from ephemeraldaddy.core.interpretations import NATAL_WEIGHT, PLANET_ORDER
 from ephemeraldaddy.gui.features.charts.metrics import (
+    calculate_dominant_element_weights,
+    calculate_mode_weights,
     calculate_dominant_house_weights,
     calculate_dominant_planet_weights,
     calculate_dominant_sign_weights,
     chart_uses_houses,
+    dominant_element_labels_from_weights,
+    dominant_mode_labels_from_weights,
     house_for_longitude,
 )
 from ephemeraldaddy.gui.features.charts.presentation import get_nakshatra, sign_for_longitude
@@ -179,6 +183,64 @@ def resize_similarities_list_to_contents(
     section_list.setMaximumHeight(int(max_expanded_height))
     section_list.updateGeometry()
 
+
+
+def build_common_dominant_elements(
+    charts: list[Any],
+    sort_matches: Callable[[dict[str, int], int], list[tuple[str, int, int]]],
+) -> list[tuple[str, int, int]]:
+    """Return shared elemental dominance labels for Similarities Analysis.
+
+    Kept outside ``app.py`` so the GUI only supplies charts and the common
+    sorting/display policy while the similarities module owns the analysis.
+    """
+
+    charts = [chart for chart in charts if chart is not None]
+    chart_count = len(charts)
+    if chart_count < 2:
+        return []
+
+    element_counts: dict[str, int] = {}
+    for chart in charts:
+        dominant_weights = getattr(chart, "dominant_element_weights", None)
+        if not dominant_weights:
+            dominant_weights = calculate_dominant_element_weights(chart)
+            chart.dominant_element_weights = dominant_weights
+        for element in dominant_element_labels_from_weights(dominant_weights):
+            element_counts[element] = element_counts.get(element, 0) + 1
+
+    ordered_counts = {
+        element: element_counts[element]
+        for element in ("Fire", "Earth", "Air", "Water")
+        if element in element_counts
+    }
+    return sort_matches(ordered_counts, chart_count)
+
+
+def build_common_dominant_modes(
+    charts: list[Any],
+    sort_matches: Callable[[dict[str, int], int], list[tuple[str, int, int]]],
+) -> list[tuple[str, int, int]]:
+    """Return shared modal dominance labels for Similarities Analysis."""
+
+    charts = [chart for chart in charts if chart is not None]
+    chart_count = len(charts)
+    if chart_count < 2:
+        return []
+
+    mode_counts: dict[str, int] = {}
+    for chart in charts:
+        dominant_weights = calculate_mode_weights(chart)
+        for mode in dominant_mode_labels_from_weights(dominant_weights):
+            label = mode.title()
+            mode_counts[label] = mode_counts.get(label, 0) + 1
+
+    ordered_counts = {
+        mode.title(): mode_counts[mode.title()]
+        for mode in ("cardinal", "fixed", "mutable")
+        if mode.title() in mode_counts
+    }
+    return sort_matches(ordered_counts, chart_count)
 
 class SimilaritiesBaselineProvider(Protocol):
     """Minimal app-facing interface needed to build similarities baselines."""
