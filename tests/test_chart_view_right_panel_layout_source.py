@@ -221,3 +221,19 @@ def test_photo_gallery_max_storage_dimensions_are_1920_by_1080():
     assert "image.thumbnail((MAX_PHOTO_WIDTH, MAX_PHOTO_HEIGHT), Image.Resampling.LANCZOS)" in source
     assert "MAX_PHOTO_DIMENSION = 600" not in source
     assert "maximum dimensions of 1920×1080 px" in panel_source
+
+
+def test_dnd_alignment_debug_summary_renders_under_alignment_graph():
+    source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/dnd_predictions.py").read_text()
+
+    assert "def build_dnd_alignment_debug_summary_html" in source
+    assert "Evil: {_format_percent(evil)}" in source
+    assert "Good: {_format_percent(good)}" in source
+    assert "Chaotic: {_format_percent(chaotic)}" in source
+    assert "Lawful: {_format_percent(lawful)}" in source
+    assert "Net evil/good: {_format_percent(net_good_evil)}" in source
+    assert "Net chaotic/lawful: {_format_percent(net_lawful_chaotic)}" in source
+    assert 'getattr(owner, "dnd_prediction_alignment_debug_label", None)' in source
+    assert 'setattr(self.owner, "dnd_prediction_alignment_debug_label", self.alignment_debug_label)' in source
+    assert "self.alignment_layout.addWidget(label)" in source
+    assert "self._render_alignment_debug_summary(chart)" in source
