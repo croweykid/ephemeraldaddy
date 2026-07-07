@@ -4279,6 +4279,7 @@ class DatabaseAnalyticsChartsMixin:
                 rankings,
                 scope_label=str(context.get("scope_label", "the database")),
                 cache_warmed=bool(context.get("cache_warmed", False)),
+                parsed_percent=context.get("parsed_percent"),
             )
         )
 
@@ -4416,6 +4417,7 @@ class DatabaseAnalyticsChartsMixin:
         *,
         scope_label: str,
         cache_warmed: bool,
+        parsed_percent: float | None = None,
     ) -> str:
         if not selected_trait_name:
             return "<span style='color:#9a9a9a;'>No active trait selected for top-chart ranking.</span>"
@@ -4454,6 +4456,11 @@ class DatabaseAnalyticsChartsMixin:
                 f"<td style='padding:1px 0; color:{deviation_color}; text-align:right;'>{deviation:+.1f}</td>"
                 "</tr>"
             )
+        try:
+            parsed_value = max(0.0, min(100.0, float(parsed_percent)))
+        except (TypeError, ValueError):
+            parsed_value = 100.0 if cache_warmed else 0.0
+        parsed_label = f"{parsed_value:.1f}".rstrip("0").rstrip(".")
         return (
             f"<div style='padding-bottom:3px;'>Top 10 <b>{safe_trait}</b> chart matches in {safe_scope}.</div>"
             "<table cellspacing='0' cellpadding='0' style='width:100%;'>"
@@ -4466,7 +4473,7 @@ class DatabaseAnalyticsChartsMixin:
             f"{''.join(rows)}"
             "</table>"
             "<div style='color:#9a9a9a; padding-top:3px;'>"
-            "Ranking reuses warmed trait-score cache so dropdown changes do not launch another full scoring pass."
+            f"Current ranking based on {parsed_label}% of DB parsed."
             "</div>"
         )
 
@@ -4819,9 +4826,11 @@ class DatabaseAnalyticsChartsMixin:
 
         cache_updated = False
         partial = False
+        parsed_chart_count = 0
         chart_likelihoods_for_metadata: dict[int, dict[str, float]] = {}
         uncached_started_at = time.monotonic()
         for chart_id in normalized_chart_ids:
+            parsed_chart_count += 1
             chart = self._get_chart_for_filter(int(chart_id))
             if chart is None or self._is_placeholder_chart(chart):
                 continue
@@ -4845,6 +4854,7 @@ class DatabaseAnalyticsChartsMixin:
                         and cache_updated
                         and (time.monotonic() - uncached_started_at) >= float(time_budget_seconds)
                     ):
+                        parsed_chart_count -= 1
                         partial = True
                         break
                     try:
@@ -4882,6 +4892,12 @@ class DatabaseAnalyticsChartsMixin:
             "colors": colors,
             "partial": partial,
             "requested_chart_count": len(normalized_chart_ids),
+            "parsed_chart_count": parsed_chart_count,
+            "parsed_percent": (
+                (float(parsed_chart_count) / float(len(normalized_chart_ids))) * 100.0
+                if normalized_chart_ids
+                else 100.0
+            ),
         }
         if not partial:
             aggregate_cache[aggregate_cache_key] = copy.deepcopy(result)
@@ -4953,6 +4969,7 @@ class DatabaseAnalyticsChartsMixin:
             "database_values": dict(database_values),
             "scope_label": ranking_scope_label,
             "cache_warmed": database_count > 0 and not bool(database_analytics.get("partial", False)),
+            "parsed_percent": database_analytics.get("parsed_percent"),
         }
         if isinstance(rank_label, QLabel):
             rankings = self._traits_distribution_chart_rankings(
@@ -4968,6 +4985,7 @@ class DatabaseAnalyticsChartsMixin:
                     rankings,
                     scope_label=ranking_scope_label,
                     cache_warmed=database_count > 0 and not bool(database_analytics.get("partial", False)),
+                    parsed_percent=database_analytics.get("parsed_percent"),
                 )
             )
         self._sync_traits_distribution_display_mode()
