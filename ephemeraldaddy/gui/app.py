@@ -24361,6 +24361,19 @@ class MainWindow(QMainWindow):
         self.retcon_time_checkbox = QCheckBox("")
         self.retcon_time_checkbox.toggled.connect(self._on_retcon_time_toggled)
         self.retcon_time_edit.timeChanged.connect(self._on_retcon_time_changed)
+        self.rectification_range_start_edit = SegmentedTimeEdit()
+        self.rectification_range_start_edit.setDisplayFormat(CHART_VIEW_TIME_INPUT_DISPLAY_FORMAT)
+        self.rectification_range_start_edit.setTime(QTime(0, 0))
+        self.rectification_range_start_edit.setFixedWidth(CHART_VIEW_TIME_INPUT_WIDTH)
+        self.rectification_range_end_edit = SegmentedTimeEdit()
+        self.rectification_range_end_edit.setDisplayFormat(CHART_VIEW_TIME_INPUT_DISPLAY_FORMAT)
+        self.rectification_range_end_edit.setTime(QTime(23, 59))
+        self.rectification_range_end_edit.setFixedWidth(CHART_VIEW_TIME_INPUT_WIDTH)
+        self.rectification_range_checkbox = QCheckBox("")
+        self.rectification_range_checkbox.toggled.connect(self._on_rectification_range_toggled)
+        self.rectification_range_start_edit.timeChanged.connect(self._on_rectification_range_changed)
+        self.rectification_range_end_edit.timeChanged.connect(self._on_rectification_range_changed)
+        self.rectification_range_to_label = QLabel("to")
         self.year_first_encountered_edit = QLineEdit()
         self.year_first_encountered_edit.setMaxLength(4)
         self.year_first_encountered_edit.setPlaceholderText("Year 1st Encountered")
@@ -24407,10 +24420,28 @@ class MainWindow(QMainWindow):
         birth_time_row.addWidget(self.time_unknown_checkbox, 0)
         birth_time_row.addWidget(self.time_edit, 0)
         birth_time_row.addSpacing(CHART_VIEW_RECTIFIED_GROUP_LEFT_SPACER)
-        birth_time_row.addWidget(QLabel("Use Rectified Time:"), 0) #used to be called "retcon"
-        birth_time_row.addSpacing(CHART_VIEW_RECTIFIED_LABEL_CHECKBOX_SPACING)
-        birth_time_row.addWidget(self.retcon_time_checkbox, 0)
-        birth_time_row.addWidget(self.retcon_time_edit, 0)
+        rectification_options_layout = QVBoxLayout()
+        rectification_options_layout.setContentsMargins(0, 0, 0, 0)
+        rectification_options_layout.setSpacing(2)
+        rectification_range_row = QHBoxLayout()
+        rectification_range_row.setContentsMargins(0, 0, 0, 0)
+        rectification_range_row.setSpacing(CHART_VIEW_RECTIFIED_LABEL_CHECKBOX_SPACING)
+        rectification_range_row.addWidget(QLabel("Use Rectification Range:"), 0)
+        rectification_range_row.addWidget(self.rectification_range_checkbox, 0)
+        rectification_range_row.addWidget(self.rectification_range_start_edit, 0)
+        rectification_range_row.addWidget(self.rectification_range_to_label, 0)
+        rectification_range_row.addWidget(self.rectification_range_end_edit, 0)
+        rectification_range_row.addStretch(1)
+        rectification_options_layout.addLayout(rectification_range_row)
+        rectified_time_row = QHBoxLayout()
+        rectified_time_row.setContentsMargins(0, 0, 0, 0)
+        rectified_time_row.setSpacing(CHART_VIEW_RECTIFIED_LABEL_CHECKBOX_SPACING)
+        rectified_time_row.addWidget(QLabel("Use Rectified Time:"), 0) #used to be called "retcon"
+        rectified_time_row.addWidget(self.retcon_time_checkbox, 0)
+        rectified_time_row.addWidget(self.retcon_time_edit, 0)
+        rectified_time_row.addStretch(1)
+        rectification_options_layout.addLayout(rectified_time_row)
+        birth_time_row.addLayout(rectification_options_layout, 0)
         birth_time_row.addStretch(1)
         form.addRow("", birth_time_row)
         self.death_row_widget = QWidget()
@@ -33367,6 +33398,9 @@ class MainWindow(QMainWindow):
         self._set_birth_date_fields_from_qdate(QDate(1990, 1, 1))
         self.time_edit.setTime(QTime(12, 0))
         self.time_unknown_checkbox.setChecked(False)
+        self.rectification_range_checkbox.setChecked(False)
+        self.rectification_range_start_edit.setTime(QTime(0, 0))
+        self.rectification_range_end_edit.setTime(QTime(23, 59))
         self.retcon_time_checkbox.setChecked(False)
         self.deceased_checkbox.setChecked(False)
         self.death_month_edit.clear()
@@ -33748,6 +33782,9 @@ class MainWindow(QMainWindow):
             self.retcon_time_edit.setTime(qtime)
         else:
             self.retcon_time_edit.setTime(default_noon)
+        self.rectification_range_checkbox.setChecked(False)
+        self.rectification_range_start_edit.setTime(QTime(0, 0))
+        self.rectification_range_end_edit.setTime(QTime(23, 59))
         self.retcon_time_checkbox.setChecked(chart.retcon_time_used)
         self.deceased_checkbox.setChecked(bool(getattr(chart, "is_deceased", False)))
         self.death_month_edit.setText(str(getattr(chart, "death_month", "") or ""))
@@ -34119,9 +34156,22 @@ class MainWindow(QMainWindow):
                 self._metadata_autosave_requires_recalculation = True
                 self._metadata_autosave_timer.start(2500)
 
+    def _on_rectification_range_toggled(self, _checked: bool) -> None:
+        self._update_time_input_visibility()
+        if not self._suppress_lucygoosey:
+            self._mark_lucygoosey()
+
+    def _on_rectification_range_changed(self, _time: QTime) -> None:
+        if not self._suppress_lucygoosey and self.rectification_range_checkbox.isChecked():
+            self._mark_lucygoosey()
+
     def _update_time_input_visibility(self) -> None:
         self.time_edit.setVisible(not self.time_unknown_checkbox.isChecked())
         self.retcon_time_edit.setVisible(self.retcon_time_checkbox.isChecked())
+        range_enabled = self.rectification_range_checkbox.isChecked()
+        self.rectification_range_start_edit.setVisible(range_enabled)
+        self.rectification_range_to_label.setVisible(range_enabled)
+        self.rectification_range_end_edit.setVisible(range_enabled)
 
     def _update_time_input_text_colors(self) -> None:
         birth_time_color = (
