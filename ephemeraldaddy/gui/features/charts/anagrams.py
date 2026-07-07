@@ -22,9 +22,14 @@ from ephemeraldaddy.gui.features.charts.anagram_engine import (
 )
 from ephemeraldaddy.gui.style import (
     apply_button_cursor,
-    DATABASE_ANALYTICS_DROPDOWN_STYLE,
+    ABC_PANEL_SECTION_CONTENT_MARGINS,
+    ABC_PANEL_SECTION_CONTENT_SPACING,
+    ABC_PANEL_SECTION_FRAME_MARGINS,
+    ABC_PANEL_SECTION_FRAME_SPACING,
+    ABC_PANEL_SECTION_FRAME_STYLE,
     DATABASE_ANALYTICS_SUBHEADER_STYLE,
     DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
+    apply_shared_dropdown_style,
     configure_collapsible_header_toggle,
 )
 
@@ -369,16 +374,10 @@ def build_anagrams_section(
 ) -> AnagramsSectionWidgets:
     """Create the Anagrams collapsible Subjective Notes section."""
     anagrams_box = QFrame()
-    anagrams_box.setStyleSheet(
-        "QFrame {"
-        "background-color: #1c1c1c;"
-        "border: 1px solid #2b2b2b;"
-        "border-radius: 6px;"
-        "}"
-    )
+    anagrams_box.setStyleSheet(ABC_PANEL_SECTION_FRAME_STYLE)
     anagrams_box_layout = QVBoxLayout()
-    anagrams_box_layout.setContentsMargins(8, 4, 8, 8)
-    anagrams_box_layout.setSpacing(0)
+    anagrams_box_layout.setContentsMargins(*ABC_PANEL_SECTION_FRAME_MARGINS)
+    anagrams_box_layout.setSpacing(ABC_PANEL_SECTION_FRAME_SPACING)
     anagrams_box.setLayout(anagrams_box_layout)
     anagrams_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
     
@@ -393,8 +392,8 @@ def build_anagrams_section(
 
     content_widget = QWidget()
     section_layout = QVBoxLayout()
-    section_layout.setContentsMargins(0, 2, 0, 0)
-    section_layout.setSpacing(4)
+    section_layout.setContentsMargins(*ABC_PANEL_SECTION_CONTENT_MARGINS)
+    section_layout.setSpacing(ABC_PANEL_SECTION_CONTENT_SPACING)
     content_widget.setLayout(section_layout)
     content_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
     content_widget.setVisible(False)
@@ -423,7 +422,7 @@ def build_anagrams_section(
     header_layout.setContentsMargins(0, 0, 0, 0)
     header_row.setLayout(header_layout)
     source_dropdown = QComboBox()
-    source_dropdown.setStyleSheet(DATABASE_ANALYTICS_DROPDOWN_STYLE)
+    apply_shared_dropdown_style(source_dropdown)
     source_dropdown.addItem("Chart Name", "name")
     source_dropdown.setMinimumWidth(source_dropdown.sizeHint().width() + 12)
     source_dropdown.currentIndexChanged.connect(

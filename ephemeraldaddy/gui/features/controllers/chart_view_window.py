@@ -67,6 +67,12 @@ from ephemeraldaddy.gui.features.charts.loading_overlay import ChartLoadingOverl
 from ephemeraldaddy.gui.features.charts.time_sensitivity_panel import TimeSensitivityPanel
 from ephemeraldaddy.gui.features.controllers.chart_right_panel import ChartRightPanelController
 from ephemeraldaddy.gui.style import (
+    ABC_PANEL_BODY_LABEL_STYLE,
+    ABC_PANEL_SECTION_CONTENT_MARGINS,
+    ABC_PANEL_SECTION_CONTENT_SPACING,
+    ABC_PANEL_SECTION_FRAME_MARGINS,
+    ABC_PANEL_SECTION_FRAME_SPACING,
+    ABC_PANEL_SECTION_FRAME_STYLE,
     DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
     apply_button_cursor,
     apply_chart_info_link_cursor,
@@ -1386,29 +1392,74 @@ def _build_abc_panel(owner: QWidget) -> tuple[QWidget, QVBoxLayout]:
 
 
 def _build_euphonics_section(owner: QWidget, panel: QWidget, layout: QVBoxLayout) -> None:
-    """Build Euphonics section using the chart name and bundled euphonics meanings."""
-    section_layout = owner._add_chart_analysis_collapsible_section(
-        panel=panel,
-        layout=layout,
+    """Build Euphonics section using the chart name or alias."""
+    euphonics_box = QFrame()
+    euphonics_box.setStyleSheet(ABC_PANEL_SECTION_FRAME_STYLE)
+    euphonics_box_layout = QVBoxLayout()
+    euphonics_box_layout.setContentsMargins(*ABC_PANEL_SECTION_FRAME_MARGINS)
+    euphonics_box_layout.setSpacing(ABC_PANEL_SECTION_FRAME_SPACING)
+    euphonics_box.setLayout(euphonics_box_layout)
+    euphonics_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+
+    toggle = QToolButton()
+    configure_collapsible_header_toggle(
+        toggle,
         title="Euphonics",
         expanded=True,
-        section_key="euphonics",
+        style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
     )
+    toggle.setFocusPolicy(Qt.TabFocus)
+    euphonics_box_layout.addWidget(toggle)
+
+    content_widget = QWidget()
+    section_layout = QVBoxLayout()
+    section_layout.setContentsMargins(*ABC_PANEL_SECTION_CONTENT_MARGINS)
+    section_layout.setSpacing(ABC_PANEL_SECTION_CONTENT_SPACING)
+    content_widget.setLayout(section_layout)
+    content_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+    content_widget.setVisible(True)
+
+    def toggle_content(checked: bool) -> None:
+        content_widget.setVisible(checked)
+        owner._set_chart_analysis_section_expanded("euphonics", checked)
+        euphonics_box.adjustSize()
+        panel.adjustSize()
+        panel.updateGeometry()
+
+    toggle.toggled.connect(toggle_content)
+    euphonics_box_layout.addWidget(content_widget)
+    layout.addWidget(euphonics_box)
+    owner._chart_analysis_section_expanded["euphonics"] = True
+    owner._chart_analysis_section_widgets["euphonics"] = euphonics_box
+
+    owner.euphonics_source_dropdown = QComboBox()
+    apply_shared_dropdown_style(owner.euphonics_source_dropdown)
+    owner.euphonics_source_dropdown.addItem("Name", "name")
+    owner.euphonics_source_dropdown.addItem("Alias", "alias")
+    owner.euphonics_source_dropdown.setMinimumWidth(owner.euphonics_source_dropdown.sizeHint().width() + 12)
+    owner.euphonics_source_dropdown.currentIndexChanged.connect(
+        lambda _index: refresh_euphonics_for_chart(owner, getattr(owner, "_abc_current_chart", None))
+    )
+    section_layout.addWidget(owner.euphonics_source_dropdown, 0, Qt.AlignLeft)
+
     owner.euphonics_label = QLabel("No chart name available for Euphonics.")
     owner.euphonics_label.setTextFormat(Qt.RichText)
     owner.euphonics_label.setWordWrap(True)
     owner.euphonics_label.setTextInteractionFlags(Qt.TextSelectableByMouse | Qt.LinksAccessibleByMouse)
-    owner.euphonics_label.setStyleSheet("color: #f5f5f5; padding: 4px 0 8px 0;")
+    owner.euphonics_label.setStyleSheet(ABC_PANEL_BODY_LABEL_STYLE)
     section_layout.addWidget(owner.euphonics_label)
 
 
 def refresh_euphonics_for_chart(owner: QWidget, chart: Chart | None) -> None:
-    """Refresh the ABC tab's Euphonics list for the active chart name."""
+    """Refresh the ABC tab's Euphonics list for the selected name source."""
+    owner._abc_current_chart = chart
     label = getattr(owner, "euphonics_label", None)
     if label is None:
         return
-    chart_name = getattr(chart, "name", "") if chart is not None else ""
-    label.setText(render_euphonics_html(str(chart_name or "")))
+    source_dropdown = getattr(owner, "euphonics_source_dropdown", None)
+    source = str(source_dropdown.currentData() or "name") if source_dropdown is not None else "name"
+    subject_text = getattr(chart, source, "") if chart is not None else ""
+    label.setText(render_euphonics_html(str(subject_text or "")))
 
 
 def _build_subjective_notes_panel(owner: QWidget) -> tuple[QWidget, QVBoxLayout]:
