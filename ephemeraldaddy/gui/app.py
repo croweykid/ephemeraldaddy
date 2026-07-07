@@ -496,20 +496,24 @@ from ephemeraldaddy.gui.wikipedia_search import (
 from ephemeraldaddy.gui.dev_tools import (
     BATCH_TAGGING_TERMINAL_DEBUG_DEFAULT,
     ENNEAGRAM_PREDICTIONS_DEBUG_DEFAULT,
+    PREDICTIONS_THREAD_DEBUG_DEFAULT,
     SIMILARITY_PERCEIVED_ACCURACY_CONTROLS_DEFAULT,
     SETTINGS_KEY_BATCH_TAGGING_TERMINAL_DEBUG,
     SETTINGS_KEY_ENNEAGRAM_PREDICTIONS_DEBUG,
+    SETTINGS_KEY_PREDICTIONS_THREAD_DEBUG,
     SETTINGS_KEY_SIMILARITY_PERCEIVED_ACCURACY_CONTROLS,
     ManageMetadataLabelsDialog,
     MetadataMigrationPanel,
     SizeCheckerPopup,
     add_batch_tagging_terminal_debug_setting,
     add_enneagram_predictions_debug_setting,
+    add_predictions_thread_debug_setting,
     add_similarity_perceived_accuracy_controls_setting,
     build_similarity_calculator_settings_section,
     build_predictions_settings_section,
     load_batch_tagging_terminal_debug_enabled,
     load_enneagram_predictions_debug_enabled,
+    load_predictions_thread_debug_enabled,
     load_similarity_perceived_accuracy_controls_enabled,
 )
 from ephemeraldaddy.gui.cleanup_metadata import (
@@ -2390,6 +2394,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._settings.setValue(
             SETTINGS_KEY_ENNEAGRAM_PREDICTIONS_DEBUG,
             int(self._enneagram_predictions_debug),
+        )
+        self._predictions_thread_debug = load_predictions_thread_debug_enabled(
+            self._settings,
+            fallback=PREDICTIONS_THREAD_DEBUG_DEFAULT,
+        )
+        self._settings.setValue(
+            SETTINGS_KEY_PREDICTIONS_THREAD_DEBUG,
+            int(self._predictions_thread_debug),
         )
         self._similarity_perceived_accuracy_controls_enabled = (
             load_similarity_perceived_accuracy_controls_enabled(
@@ -21709,6 +21721,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             is_enabled=bool(getattr(self, "_enneagram_predictions_debug", ENNEAGRAM_PREDICTIONS_DEBUG_DEFAULT)),
             on_toggled=self._on_enneagram_predictions_debug_toggled,
         )
+        add_predictions_thread_debug_setting(
+            section_layout=dev_tools_section,
+            is_enabled=bool(getattr(self, "_predictions_thread_debug", PREDICTIONS_THREAD_DEBUG_DEFAULT)),
+            on_toggled=self._on_predictions_thread_debug_toggled,
+        )
 
         self._similarity_perceived_accuracy_controls_checkbox = (
             add_similarity_perceived_accuracy_controls_setting(
@@ -22249,6 +22266,37 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 SETTINGS_KEY_ENNEAGRAM_PREDICTIONS_DEBUG,
                 int(self._enneagram_predictions_debug),
             )
+
+    def _on_predictions_thread_debug_toggled(self, checked: bool) -> None:
+        self._predictions_thread_debug = bool(checked)
+        self._settings.setValue(
+            SETTINGS_KEY_PREDICTIONS_THREAD_DEBUG,
+            int(self._predictions_thread_debug),
+        )
+        parent = self._owner_window()
+        if isinstance(parent, MainWindow):
+            parent._predictions_thread_debug = self._predictions_thread_debug
+            parent._settings.setValue(
+                SETTINGS_KEY_PREDICTIONS_THREAD_DEBUG,
+                int(self._predictions_thread_debug),
+            )
+        if self._predictions_thread_debug:
+            root_logger = logging.getLogger()
+            if not root_logger.handlers:
+                logging.basicConfig(
+                    level=logging.INFO,
+                    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+                )
+        logger.info(
+            "Predictions panel terminal thread debug logging set to %s.",
+            self._predictions_thread_debug,
+        )
+        timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="milliseconds")
+        print(
+            f"[predictions-thread-debug][{timestamp}] debugger_enabled={self._predictions_thread_debug}",
+            file=sys.stderr,
+            flush=True,
+        )
 
     def _sync_perceived_similarity_predictors_visibility(self) -> None:
         enabled = bool(
@@ -23793,6 +23841,14 @@ class MainWindow(QMainWindow):
         self._settings.setValue(
             SETTINGS_KEY_ENNEAGRAM_PREDICTIONS_DEBUG,
             int(self._enneagram_predictions_debug),
+        )
+        self._predictions_thread_debug = load_predictions_thread_debug_enabled(
+            self._settings,
+            fallback=PREDICTIONS_THREAD_DEBUG_DEFAULT,
+        )
+        self._settings.setValue(
+            SETTINGS_KEY_PREDICTIONS_THREAD_DEBUG,
+            int(self._predictions_thread_debug),
         )
         self._similarity_perceived_accuracy_controls_enabled = (
             load_similarity_perceived_accuracy_controls_enabled(
