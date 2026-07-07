@@ -1258,7 +1258,7 @@ validate_transit_window_mode_flags()
 
 from ephemeraldaddy.gui.features.retcon.workers import RetconSearchWorker
 
-from ephemeraldaddy.gui.features.dialogues import FamiliarityCalculatorDialog, RetconEngineDialog
+from ephemeraldaddy.gui.features.dialogues import EventPlannerDialog, FamiliarityCalculatorDialog, RetconEngineDialog
 from ephemeraldaddy.gui.cmd_pallette import CommandPaletteAction, install_command_palette
 
 from ephemeraldaddy.gui import help as help_notes
@@ -23599,6 +23599,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         parent.on_retcon_engine()
 
+    def _on_event_planner(self) -> None:
+        parent = self._owner_window()
+        if parent is None or not hasattr(parent, "on_event_planner"):
+            QMessageBox.warning(
+                self,
+                "Event Planner",
+                "Unable to open Event Planner.",
+            )
+            return
+        parent.on_event_planner()
+
     def _on_item_double_clicked(self, item: QListWidgetItem) -> None:
         self._load_chart_from_item(item)
 
@@ -23926,6 +23937,7 @@ class MainWindow(QMainWindow):
             clear_pending_changed_ids=self._manage_charts_pending_changed_ids.clear,
         )
         self._retcon_dialog_controller = RetconDialogController(self._create_retcon_dialog)
+        self._event_planner_dialog_controller = RetconDialogController(self._create_event_planner_dialog)
         self._ephemeris_prefetch_controller = EphemerisPrefetchController(
             owner=self,
             offline_mode_checker=ephemeris_offline_mode,
@@ -33254,6 +33266,42 @@ class MainWindow(QMainWindow):
             return
         self._reset_new_chart_form()
 
+    def open_chart_from_event_planner_match(
+        self,
+        match: dict,
+        place_label: str,
+        lat: float | None,
+        lon: float | None,
+    ) -> None:
+        if not self._confirm_discard_or_save():
+            return
+
+        self._reset_new_chart_form()
+        match_dt = match.get("datetime")
+        if not isinstance(match_dt, datetime.datetime):
+            QMessageBox.warning(self, "Event Planner", "Selected match has invalid date/time.")
+            return
+
+        self._show_chart_view_maximized()
+        self.place_edit.setText(place_label)
+        if lat is not None and lon is not None:
+            self._loaded_birth_place = place_label
+            self._loaded_lat = lat
+            self._loaded_lon = lon
+
+        if not self.name_edit.text().strip():
+            self.name_edit.setText(f"Planned Event {match_dt.strftime('%Y-%m-%d %H:%M')}")
+
+        self._set_birth_date_fields_from_qdate(QDate(match_dt.year, match_dt.month, match_dt.day))
+        self.time_edit.setTime(QTime(match_dt.hour, match_dt.minute))
+        self.retcon_time_edit.setTime(QTime(match_dt.hour, match_dt.minute))
+        self.time_unknown_checkbox.setChecked(False)
+        self.retcon_time_checkbox.setChecked(False)
+        self._birth_time_user_overridden = True
+        self._retcon_time_user_overridden = False
+        self._update_time_input_text_colors()
+        self.on_generate()
+
     def open_chart_from_retcon_match(
         self,
         match: dict,
@@ -33781,8 +33829,19 @@ class MainWindow(QMainWindow):
         dialog.setWindowModality(Qt.NonModal)
         return dialog
 
+    def _create_event_planner_dialog(self, parent: QWidget) -> EventPlannerDialog:
+        dialog = EventPlannerDialog(parent)
+        dialog.setWindowModality(Qt.NonModal)
+        return dialog
+
     def on_retcon_engine(self) -> None:
         self._retcon_dialog_controller.show(self)
+
+    def on_event_planner(self) -> None:
+        self._event_planner_dialog_controller.show(self)
+
+    def _on_event_planner(self) -> None:
+        self.on_event_planner()
 
     def _on_unknown_time_toggled(self, checked: bool) -> None:
         self._update_time_input_visibility()

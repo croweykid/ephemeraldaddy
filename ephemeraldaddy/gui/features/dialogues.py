@@ -42,7 +42,7 @@ from ephemeraldaddy.core.interpretations import (
 )
 from ephemeraldaddy.core.retcon import RETCON_BODIES
 from ephemeraldaddy.core.timeutils import localize_naive_datetime
-from ephemeraldaddy.gui.features.retcon.workers import RetconSearchWorker
+from ephemeraldaddy.gui.features.retcon.workers import EventPlannerSearchWorker, RetconSearchWorker
 from ephemeraldaddy.io.geocode import LocationLookupError, geocode_location
 from ephemeraldaddy.gui.style import (
     MIDDLE_PANEL_ACCENT_COLOR,
@@ -71,6 +71,15 @@ def _get_share_icon_path() -> str | None:
 
 
 class RetconEngineDialog(QDialog):
+    WINDOW_TITLE = "Ephemeral Daddy: Astro App | Retcon Engine"
+    TOOL_NAME = "Retcon Engine"
+    EXPORT_TITLE = "Retcon Engine Search Export"
+    EXPORT_BASENAME = "retcon-search-results.txt"
+    RESULTS_PLACEHOLDER = "Retcon matches will appear here after you press Submit."
+    CHART_BUTTON_TEXT = "Create Chart from Selected Match"
+    ENABLE_INCLUDE_EXCLUDE_CRITERIA = False
+    WORKER_CLASS = RetconSearchWorker
+
     _DEFINED_POSITION_STYLE = (
         "QComboBox {"
         f"background-color: {MIDDLE_PANEL_ACCENT_COLOR};"
@@ -82,7 +91,7 @@ class RetconEngineDialog(QDialog):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Ephemeral Daddy: Astro App | Retcon Engine")
+        self.setWindowTitle(self.WINDOW_TITLE)
         self.setWindowFlag(Qt.Window, True)
         self.resize(780, 720)
 
@@ -124,7 +133,7 @@ class RetconEngineDialog(QDialog):
             QDate(EPHEMERIS_MIN_DATE.year, EPHEMERIS_MIN_DATE.month, EPHEMERIS_MIN_DATE.day),
             QDate(EPHEMERIS_MAX_DATE.year, EPHEMERIS_MAX_DATE.month, EPHEMERIS_MAX_DATE.day),
         )
-        self.start_date_edit.setDate(QDate(EPHEMERIS_MIN_DATE.year, EPHEMERIS_MIN_DATE.month, EPHEMERIS_MIN_DATE.day))
+        self.start_date_edit.setDate(self._default_start_qdate())
         top_row.addWidget(self.start_date_edit)
         top_row.addWidget(QLabel("to"))
         self.end_date_edit = QDateEdit()
@@ -134,7 +143,7 @@ class RetconEngineDialog(QDialog):
             QDate(EPHEMERIS_MIN_DATE.year, EPHEMERIS_MIN_DATE.month, EPHEMERIS_MIN_DATE.day),
             QDate(EPHEMERIS_MAX_DATE.year, EPHEMERIS_MAX_DATE.month, EPHEMERIS_MAX_DATE.day),
         )
-        self.end_date_edit.setDate(QDate.currentDate())
+        self.end_date_edit.setDate(self._default_end_qdate())
         top_row.addWidget(self.end_date_edit)
         top_row.addStretch(1)
         form.addRow(top_row)
@@ -194,30 +203,9 @@ class RetconEngineDialog(QDialog):
         selectors_layout = QGridLayout()
         selectors_layout.setHorizontalSpacing(10)
         self._body_sign_combos: dict[str, QComboBox] = {}
-        sign_options = ["Any", *ZODIAC_NAMES]
-        half_count = (len(RETCON_BODIES) + 1) // 2
-        for idx, body in enumerate(RETCON_BODIES):
-            label = QLabel(body)
-            label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            label_color = PLANET_COLORS.get(body, "#FFFFFF")
-            label.setStyleSheet(
-                "QLabel { "
-                f"background: transparent; color: {label_color}; padding-right: 6px;"
-                " }"
-            )
-            combo = QComboBox()
-            combo.addItems(sign_options)
-            combo.setCurrentText("Any")
-            combo.currentTextChanged.connect(self._update_defined_position_styles)
-            if idx < half_count:
-                row = idx
-                col = 0
-            else:
-                row = idx - half_count
-                col = 2
-            selectors_layout.addWidget(label, row, col)
-            selectors_layout.addWidget(combo, row, col + 1)
-            self._body_sign_combos[body] = combo
+        self._body_include_combos: dict[str, list[QComboBox]] = {}
+        self._body_exclude_combos: dict[str, list[QComboBox]] = {}
+        self._populate_selector_grid(selectors_layout)
         selectors_group.setLayout(selectors_layout)
 
         selectors_scroll = QScrollArea()
@@ -246,7 +234,7 @@ class RetconEngineDialog(QDialog):
         configure_share_export_icon_button(
             self.export_button,
             share_icon_path=share_icon_path,
-            tooltip="Export Retcon results as TXT or Markdown",
+            tooltip=f"Export {self.TOOL_NAME} results as TXT or Markdown",
         )
         self.export_button.setEnabled(False)
         self.export_button.clicked.connect(self._on_export_results)
@@ -260,7 +248,7 @@ class RetconEngineDialog(QDialog):
         self.results_output = QTextEdit()
         self.results_output.setReadOnly(True)
         self.results_output.setPlaceholderText(
-            "Retcon matches will appear here after you press Submit."
+            self.RESULTS_PLACEHOLDER
         )
         root.addWidget(self.results_output, 1)
 
@@ -269,7 +257,7 @@ class RetconEngineDialog(QDialog):
         root.addWidget(self.results_list, 1)
 
         create_row = QHBoxLayout()
-        self.create_chart_button = QPushButton("Create Chart from Selected Match")
+        self.create_chart_button = QPushButton(self.CHART_BUTTON_TEXT)
         self.create_chart_button.setEnabled(False)
         self.create_chart_button.clicked.connect(self._open_selected_match)
         create_row.addWidget(self.create_chart_button, 0, Qt.AlignLeft)
@@ -278,12 +266,80 @@ class RetconEngineDialog(QDialog):
 
         self._update_defined_position_styles()
 
+    def _default_start_qdate(self) -> QDate:
+        return QDate(EPHEMERIS_MIN_DATE.year, EPHEMERIS_MIN_DATE.month, EPHEMERIS_MIN_DATE.day)
+
+    def _default_end_qdate(self) -> QDate:
+        return QDate.currentDate()
+
+    def _populate_selector_grid(self, selectors_layout: QGridLayout) -> None:
+        sign_options = ["Any", *ZODIAC_NAMES]
+        half_count = (len(RETCON_BODIES) + 1) // 2
+        for idx, body in enumerate(RETCON_BODIES):
+            label = QLabel(body)
+            label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            label_color = PLANET_COLORS.get(body, "#FFFFFF")
+            label.setStyleSheet("QLabel { " f"background: transparent; color: {label_color}; padding-right: 6px;" " }")
+            if idx < half_count:
+                row = idx
+                col = 0
+            else:
+                row = idx - half_count
+                col = 2
+            selectors_layout.addWidget(label, row, col)
+            if self.ENABLE_INCLUDE_EXCLUDE_CRITERIA:
+                cell = QWidget()
+                cell_layout = QVBoxLayout(cell)
+                cell_layout.setContentsMargins(0, 0, 0, 0)
+                include_row = QHBoxLayout()
+                exclude_row = QHBoxLayout()
+                include_row.addWidget(QLabel("Add"))
+                exclude_row.addWidget(QLabel("Exclude"))
+                include_combos: list[QComboBox] = []
+                exclude_combos: list[QComboBox] = []
+                for _ in range(6):
+                    include_combo = QComboBox()
+                    include_combo.addItems(sign_options)
+                    include_combo.currentTextChanged.connect(self._update_defined_position_styles)
+                    include_row.addWidget(include_combo)
+                    include_combos.append(include_combo)
+                    exclude_combo = QComboBox()
+                    exclude_combo.addItems(sign_options)
+                    exclude_combo.currentTextChanged.connect(self._update_defined_position_styles)
+                    exclude_row.addWidget(exclude_combo)
+                    exclude_combos.append(exclude_combo)
+                cell_layout.addLayout(include_row)
+                cell_layout.addLayout(exclude_row)
+                selectors_layout.addWidget(cell, row, col + 1)
+                self._body_include_combos[body] = include_combos
+                self._body_exclude_combos[body] = exclude_combos
+            else:
+                combo = QComboBox()
+                combo.addItems(sign_options)
+                combo.setCurrentText("Any")
+                combo.currentTextChanged.connect(self._update_defined_position_styles)
+                selectors_layout.addWidget(combo, row, col + 1)
+                self._body_sign_combos[body] = combo
+
     def _update_defined_position_styles(self, *_args) -> None:
-        for combo in self._body_sign_combos.values():
+        combos = list(self._body_sign_combos.values())
+        for combo_list in self._body_include_combos.values():
+            combos.extend(combo_list)
+        for combo_list in self._body_exclude_combos.values():
+            combos.extend(combo_list)
+        for combo in combos:
             is_defined = combo.currentText() != "Any"
             combo.setStyleSheet(self._DEFINED_POSITION_STYLE if is_defined else "")
 
-    def _criteria(self) -> dict[str, str]:
+    def _criteria(self) -> dict:
+        if self.ENABLE_INCLUDE_EXCLUDE_CRITERIA:
+            criteria: dict[str, dict[str, list[str]]] = {}
+            for body in RETCON_BODIES:
+                include = sorted({combo.currentText() for combo in self._body_include_combos.get(body, []) if combo.currentText() != "Any"})
+                exclude = sorted({combo.currentText() for combo in self._body_exclude_combos.get(body, []) if combo.currentText() != "Any"})
+                if include or exclude:
+                    criteria[body] = {"include": include, "exclude": exclude}
+            return criteria
         criteria: dict[str, str] = {}
         for body, combo in self._body_sign_combos.items():
             sign = combo.currentText()
@@ -296,8 +352,8 @@ class RetconEngineDialog(QDialog):
         if not criteria:
             QMessageBox.information(
                 self,
-                "Retcon Engine",
-                "Pick at least one body/sign criterion before running search.",
+                self.TOOL_NAME,
+                "Pick at least one body/sign criterion before running search." if not self.ENABLE_INCLUDE_EXCLUDE_CRITERIA else "Pick at least one Add or Exclude sign criterion before running search.",
             )
             return
 
@@ -339,7 +395,7 @@ class RetconEngineDialog(QDialog):
         if end_dt < start_dt:
             QMessageBox.warning(
                 self,
-                "Retcon Engine",
+                self.TOOL_NAME,
                 "End date/time must be on or after start date/time.",
             )
             return
@@ -366,7 +422,7 @@ class RetconEngineDialog(QDialog):
         self.results_output.setHtml(self._build_results_html([], is_final=False))
 
         self._thread = QThread(self)
-        self._worker = RetconSearchWorker(
+        self._worker = self.WORKER_CLASS(
             criteria,
             start_dt,
             end_dt,
@@ -501,7 +557,7 @@ class RetconEngineDialog(QDialog):
         txt_content = "\n".join(lines)
 
         md_lines = [
-            "# Retcon Engine Search Export",
+            f"# {self.EXPORT_TITLE}",
             "",
             f"- **Location:** {location_text}",
             f"- **Date & Time Range:** {range_text}",
@@ -520,14 +576,14 @@ class RetconEngineDialog(QDialog):
         if not self._active_matches:
             QMessageBox.information(
                 self,
-                "Retcon Engine",
+                self.TOOL_NAME,
                 "No completed search results are available to export yet.",
             )
             return
         file_path, selected_filter = QFileDialog.getSaveFileName(
             self,
-            "Export Retcon Search Results",
-            "retcon-search-results.txt",
+            f"Export {self.TOOL_NAME} Search Results",
+            self.EXPORT_BASENAME,
             "Text File (*.txt);;Markdown File (*.md)",
         )
         if not file_path:
@@ -541,7 +597,7 @@ class RetconEngineDialog(QDialog):
         payload = md_content if use_markdown else txt_content
         with open(file_path, "w", encoding="utf-8") as export_file:
             export_file.write(payload)
-        QMessageBox.information(self, "Retcon Engine", f"Exported search results to:\n{file_path}")
+        QMessageBox.information(self, self.TOOL_NAME, f"Exported search results to:\n{file_path}")
 
     def _open_selected_match(self) -> None:
         row = self.results_list.currentRow()
@@ -550,7 +606,7 @@ class RetconEngineDialog(QDialog):
         match = self._active_matches[row]
         parent = self.parent()
         if parent is None or not hasattr(parent, "open_chart_from_retcon_match"):
-            QMessageBox.warning(self, "Retcon Engine", "Unable to open the chart view.")
+            QMessageBox.warning(self, self.TOOL_NAME, "Unable to open the chart view.")
             return
         location_label = self._active_location_label or self.place_edit.text().strip() or "Chicago, IL, USA"
         lat = self._active_lat
@@ -621,3 +677,100 @@ class FamiliarityCalculatorDialog(QDialog):
     def calculated_score(self) -> int:
         max_total = max(1, max_familiarity_score(FAMILIARITY_INDEX))
         return max(1, min(10, round(normalized_familiarity_score(self.selected_total()))))
+
+
+class EventPlannerDialog(RetconEngineDialog):
+    WINDOW_TITLE = "Ephemeral Daddy: Astro App | Event Planner"
+    TOOL_NAME = "Event Planner"
+    EXPORT_TITLE = "Event Planner Search Export"
+    EXPORT_BASENAME = "event-planner-search-results.txt"
+    RESULTS_PLACEHOLDER = "Event Planner matches will appear here after you press Submit."
+    CHART_BUTTON_TEXT = "Create Chart from Selected Event"
+    ENABLE_INCLUDE_EXCLUDE_CRITERIA = True
+    WORKER_CLASS = EventPlannerSearchWorker
+
+    def _default_start_qdate(self) -> QDate:
+        return QDate.currentDate()
+
+    def _default_end_qdate(self) -> QDate:
+        return QDate.currentDate().addYears(1)
+
+    def _build_results_html(self, matches: list[dict], *, is_final: bool) -> str:
+        location_label = self._active_location_label or self.place_edit.text().strip()
+        lat = self._active_lat
+        lon = self._active_lon
+        location_text = f"Location: {location_label} ({lat:.4f}, {lon:.4f})" if lat is not None and lon is not None else f"Location: {location_label}"
+        criteria_parts = []
+        for body, body_criteria in self._active_criteria.items():
+            include = ", ".join(body_criteria.get("include", []))
+            exclude = ", ".join(body_criteria.get("exclude", []))
+            chunks = []
+            if include:
+                chunks.append(f"add {include}")
+            if exclude:
+                chunks.append(f"exclude {exclude}")
+            criteria_parts.append(f"{body}: {'; '.join(chunks)}")
+        lines = [html.escape(location_text), html.escape(f"Criteria: {' | '.join(criteria_parts)}"), html.escape(f"Matches: {len(matches)}")]
+        if is_final and not matches:
+            lines.append(html.escape("No matches found in that range. Try wider dates or fewer constraints."))
+        return "<br>".join(lines)
+
+    def _event_criteria_text(self) -> str:
+        parts = []
+        for body, body_criteria in self._active_criteria.items():
+            include = ", ".join(body_criteria.get("include", []))
+            exclude = ", ".join(body_criteria.get("exclude", []))
+            chunks = []
+            if include:
+                chunks.append(f"Add: {include}")
+            if exclude:
+                chunks.append(f"Exclude: {exclude}")
+            parts.append(f"{body} ({'; '.join(chunks)})")
+        return " | ".join(parts) or "None"
+
+    def _export_payload(self) -> tuple[str, str]:
+        location_label = self._active_location_label or self.place_edit.text().strip() or "Unknown"
+        lat = self._active_lat
+        lon = self._active_lon
+        location_text = f"{location_label} ({lat:.4f}, {lon:.4f})" if lat is not None and lon is not None else location_label
+        if self._active_start_dt is not None and self._active_end_dt is not None:
+            range_text = f"{self._active_start_dt.strftime('%Y-%m-%d %H:%M %Z')} to {self._active_end_dt.strftime('%Y-%m-%d %H:%M %Z')}"
+        else:
+            range_text = "Unknown"
+        criteria_text = self._event_criteria_text()
+        lines = [
+            f"Location: {location_text}",
+            f"Date & Time Range: {range_text}",
+            f"Event Criteria: {criteria_text}",
+            f"Results Returned: {len(self._active_matches)}",
+            "",
+            "Results:",
+        ]
+        for idx, match in enumerate(self._active_matches, 1):
+            lines.append(self._format_match_line(idx, match))
+        md_lines = [
+            f"# {self.EXPORT_TITLE}",
+            "",
+            f"- **Location:** {location_text}",
+            f"- **Date & Time Range:** {range_text}",
+            f"- **Event Criteria:** {criteria_text}",
+            f"- **Results Returned:** {len(self._active_matches)}",
+            "",
+            "## Results",
+            "",
+        ]
+        for idx, match in enumerate(self._active_matches, 1):
+            md_lines.append(f"{idx}. `{self._format_match_line(idx, match)}`")
+        return "\n".join(lines), "\n".join(md_lines)
+
+    def _open_selected_match(self) -> None:
+        row = self.results_list.currentRow()
+        if row < 0 or row >= len(self._active_matches):
+            return
+        match = self._active_matches[row]
+        parent = self.parent()
+        if parent is None or not hasattr(parent, "open_chart_from_event_planner_match"):
+            QMessageBox.warning(self, self.TOOL_NAME, "Unable to open the chart view.")
+            return
+        location_label = self._active_location_label or self.place_edit.text().strip() or "Chicago, IL, USA"
+        parent.open_chart_from_event_planner_match(match, location_label, self._active_lat, self._active_lon)
