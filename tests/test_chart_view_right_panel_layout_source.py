@@ -221,3 +221,20 @@ def test_photo_gallery_max_storage_dimensions_are_1920_by_1080():
     assert "image.thumbnail((MAX_PHOTO_WIDTH, MAX_PHOTO_HEIGHT), Image.Resampling.LANCZOS)" in source
     assert "MAX_PHOTO_DIMENSION = 600" not in source
     assert "maximum dimensions of 1920×1080 px" in panel_source
+
+
+def test_dnd_alignment_popout_is_registered_and_configured():
+    registry_source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/metric_popout_registry.py").read_text()
+    dnd_source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/dnd_predictions.py").read_text()
+    app_source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
+
+    assert 'key="dnd_alignment"' in registry_source
+    assert 'title="D&D Alignment"' in registry_source
+    assert '_draw_dnd_alignment_predictions' in registry_source
+    assert 'connect_dnd_alignment_popout_pick_handler' in registry_source
+    assert 'def _draw_dnd_alignment_predictions' in app_source
+    assert 'def _build_dnd_alignment_popout_info' in app_source
+    assert 'build_dnd_alignment_breakdown_html' in dnd_source
+    assert 'build_dnd_alignment_description_html' in dnd_source
+    assert 'point.set_gid(f"dnd_alignment:{alignment_key}")' in dnd_source
+    assert 'font-style:italic' in dnd_source

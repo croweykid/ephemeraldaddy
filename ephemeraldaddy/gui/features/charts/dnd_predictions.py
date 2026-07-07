@@ -603,8 +603,8 @@ def _dnd_alignment_trait_items() -> list[dict[str, Any]]:
     return items
 
 
-def dnd_alignment_deviations(owner: Any, chart: Any) -> dict[str, float]:
-    """Return D&D alignment trait deviation percentages versus database norms."""
+def _dnd_alignment_score_parts(owner: Any, chart: Any) -> dict[str, dict[str, float]]:
+    """Return chart, database, and deviation values for each D&D alignment axis."""
     trait_items = _dnd_alignment_trait_items()
     if chart is None or not trait_items:
         return {}
@@ -613,14 +613,89 @@ def dnd_alignment_deviations(owner: Any, chart: Any) -> dict[str, float]:
         database_averages = _database_trait_averages(owner, trait_items)
     except Exception:
         database_averages = {}
-    deviations: dict[str, float] = {}
+    parts: dict[str, dict[str, float]] = {}
     for trait in trait_items:
         label = str(trait.get("name", "")).strip()
         key = label.casefold()
         if label not in likelihoods or label not in database_averages:
             continue
-        deviations[key] = float(likelihoods[label]) - float(database_averages[label])
-    return deviations
+        chart_score = float(likelihoods[label])
+        database_score = float(database_averages[label])
+        parts[key] = {
+            "chart": chart_score,
+            "database": database_score,
+            "deviation": chart_score - database_score,
+        }
+    return parts
+
+
+def dnd_alignment_deviations(owner: Any, chart: Any) -> dict[str, float]:
+    """Return D&D alignment trait deviation percentages versus database norms."""
+    return {
+        key: values["deviation"]
+        for key, values in _dnd_alignment_score_parts(owner, chart).items()
+    }
+
+
+def _dnd_alignment_definition(key: str) -> dict[str, Any]:
+    definition = DND_ALIGNMENTS.get(str(key or "").casefold(), {})
+    return definition if isinstance(definition, dict) else {}
+
+
+def _dnd_alignment_display_name(key: str) -> str:
+    definition = _dnd_alignment_definition(key)
+    return str(definition.get("label") or definition.get("name") or str(key).title()).strip()
+
+
+def build_dnd_alignment_description_html(alignment_key: str) -> str:
+    """Build click-through info for one D&D alignment point."""
+    title = _dnd_alignment_display_name(alignment_key)
+    description = str(
+        _dnd_alignment_definition(alignment_key).get("description")
+        or "No description is available for this alignment."
+    ).strip()
+    return (
+        f'<h2 style="color:#f5f5f5; margin-bottom:8px;">{html.escape(title)}</h2>'
+        f'<div style="color:#ffffff; font-style:italic; font-size:12pt; line-height:1.35;">'
+        f'{html.escape(description)}</div>'
+    )
+
+
+def build_dnd_alignment_breakdown_html(owner: Any, chart: Any) -> str:
+    """Build the default popout Chart Info math breakdown for the alignment grid."""
+    parts = _dnd_alignment_score_parts(owner, chart)
+    if not parts:
+        return "<b>D&D Alignment math</b><br>No database-normalized alignment scores are available."
+    rows = []
+    for key in ALIGNMENT_TRAIT_KEYS:
+        values = parts.get(key)
+        if not values:
+            continue
+        rows.append(
+            "<tr>"
+            f"<td><b>{html.escape(_dnd_alignment_display_name(key))}</b></td>"
+            f"<td>{values['chart']:.2f}%</td>"
+            f"<td>{values['database']:.2f}%</td>"
+            f"<td>{values['deviation']:+.2f}%</td>"
+            "</tr>"
+        )
+    good = float(parts.get("good", {}).get("deviation", 0.0))
+    evil = float(parts.get("evil", {}).get("deviation", 0.0))
+    lawful = float(parts.get("lawful", {}).get("deviation", 0.0))
+    chaotic = float(parts.get("chaotic", {}).get("deviation", 0.0))
+    return (
+        '<h2 style="color:#f5f5f5; margin-bottom:8px;">D&D Alignment math</h2>'
+        '<div style="color:#ffffff; font-size:10pt; line-height:1.35;">'
+        'Each axis is scored like a trait prediction, then compared to the database average. '
+        'The plotted point uses net Lawful–Chaotic for X and net Good–Evil for Y.<br><br>'
+        '<table cellspacing="4" cellpadding="3">'
+        '<tr><th align="left">Axis</th><th align="right">Chart</th><th align="right">DB avg</th><th align="right">Deviation</th></tr>'
+        + "".join(rows)
+        + "</table><br>"
+        f"<b>X coordinate:</b> Lawful {lawful:+.2f}% − Chaotic {chaotic:+.2f}% = {lawful - chaotic:+.2f}%<br>"
+        f"<b>Y coordinate:</b> Good {good:+.2f}% − Evil {evil:+.2f}% = {good - evil:+.2f}%"
+        '</div>'
+    )
 
 
 def draw_dnd_alignment_grid(ax: Any, chart: Any, *, owner: Any) -> None:
@@ -660,11 +735,47 @@ def draw_dnd_alignment_grid(ax: Any, chart: Any, *, owner: Any) -> None:
 
     ax.axhline(0, color="#f5f5f5", linewidth=0.8, alpha=0.65, zorder=2)
     ax.axvline(0, color="#f5f5f5", linewidth=0.8, alpha=0.65, zorder=2)
-    trait_points = [(-chaotic, 0.0, "Chaotic"), (lawful, 0.0, "Lawful"), (0.0, good, "Good"), (0.0, -evil, "Evil")]
-    for x_coord, y_coord, label in trait_points:
-        ax.scatter([x_coord], [y_coord], s=42, facecolors="#ffffff", edgecolors="#222222", linewidths=0.8, zorder=4)
-        ax.annotate(label, (x_coord, y_coord), xytext=(4, 4), textcoords="offset points", color="#ffffff", fontsize=7, zorder=5)
-    ax.scatter([net_x], [net_y], marker="*", s=180, facecolors="#ffd700", edgecolors="#fff5a3", linewidths=0.9, zorder=6)
+    trait_points = [
+        (-chaotic, 0.0, "Chaotic", "chaotic"),
+        (lawful, 0.0, "Lawful", "lawful"),
+        (0.0, good, "Good", "good"),
+        (0.0, -evil, "Evil", "evil"),
+    ]
+    for x_coord, y_coord, label, alignment_key in trait_points:
+        point = ax.scatter(
+            [x_coord],
+            [y_coord],
+            s=42,
+            facecolors="#ffffff",
+            edgecolors="#222222",
+            linewidths=0.8,
+            zorder=4,
+        )
+        point.set_gid(f"dnd_alignment:{alignment_key}")
+        point.set_picker(True)
+        annotation = ax.annotate(
+            label,
+            (x_coord, y_coord),
+            xytext=(4, 4),
+            textcoords="offset points",
+            color="#ffffff",
+            fontsize=7,
+            zorder=5,
+        )
+        annotation.set_gid(f"dnd_alignment:{alignment_key}")
+        annotation.set_picker(True)
+    net_point = ax.scatter(
+        [net_x],
+        [net_y],
+        marker="*",
+        s=180,
+        facecolors="#ffd700",
+        edgecolors="#fff5a3",
+        linewidths=0.9,
+        zorder=6,
+    )
+    net_point.set_gid("dnd_alignment_math:net")
+    net_point.set_picker(True)
     ax.set_title("D&D Alignment vs DB Norm", color="#f5f5f5", fontsize=10, pad=8)
     ax.set_xlabel("Chaotic  ←  deviation %  →  Lawful", color="#d8d8d8", fontsize=8)
     ax.set_ylabel("Evil  ←  deviation %  →  Good", color="#d8d8d8", fontsize=8)
@@ -943,6 +1054,31 @@ class DndPredictionPanelAdapter:
                 chart=chart,
             )
         return summary_label
+
+
+def connect_dnd_alignment_popout_pick_handler(
+    popout_canvas: Any,
+    info_panel: Any,
+    *,
+    build_breakdown_html: Any,
+) -> None:
+    """Attach D&D alignment point click behavior to the popout chart canvas."""
+
+    set_chart_info_html(info_panel, build_breakdown_html())
+
+    def _on_pick(event) -> None:
+        artist = getattr(event, "artist", None)
+        artist_gid = artist.get_gid() if artist is not None else None
+        if not isinstance(artist_gid, str):
+            return
+        if artist_gid.startswith("dnd_alignment:"):
+            _prefix, alignment_key = artist_gid.split(":", 1)
+            set_chart_info_html(info_panel, build_dnd_alignment_description_html(alignment_key))
+        elif artist_gid.startswith("dnd_alignment_math:"):
+            set_chart_info_html(info_panel, build_breakdown_html())
+
+    popout_canvas.mpl_connect("pick_event", _on_pick)
+
 
 def connect_dnd_statblock_popout_pick_handler(
     popout_canvas: Any,
