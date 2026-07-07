@@ -32,6 +32,7 @@ from ephemeraldaddy.core.interpretations import MODE_KEYWORDS
 
 logger = logging.getLogger(__name__)
 PREDICTIONS_BACKGROUND_TIMEOUT_MS = 120_000
+PREDICTIONS_BACKGROUND_TIMEOUT_STOP_WAIT_MS = 1_000
 
 
 MODE_POPOUT_COLORS: dict[str, str] = {
@@ -134,8 +135,16 @@ class _PredictionsWarmupReceiver(QObject):
                 pass
         if isinstance(thread, QThread):
             try:
+                setattr(thread, "_ephemeraldaddy_predictions_timed_out", True)
                 thread.requestInterruption()
                 thread.quit()
+                if thread.isRunning() and not thread.wait(PREDICTIONS_BACKGROUND_TIMEOUT_STOP_WAIT_MS):
+                    logger.error(
+                        "Predictions warmup did not stop after timeout; terminating thread for %s",
+                        chart_name,
+                    )
+                    thread.terminate()
+                    thread.wait(PREDICTIONS_BACKGROUND_TIMEOUT_STOP_WAIT_MS)
             except RuntimeError:
                 pass
         _finish_background_prediction_render(
@@ -797,10 +806,19 @@ def stop_background_prediction_render(owner: object, wait_msecs: int | None = No
             if thread.isRunning():
                 thread.requestInterruption()
                 thread.quit()
-                if wait_msecs is None:
+                timed_out = bool(getattr(thread, "_ephemeraldaddy_predictions_timed_out", False))
+                if wait_msecs is None and not timed_out:
                     thread.wait()
                 else:
-                    thread.wait(max(0, int(wait_msecs)))
+                    timeout = (
+                        PREDICTIONS_BACKGROUND_TIMEOUT_STOP_WAIT_MS
+                        if wait_msecs is None
+                        else max(0, int(wait_msecs))
+                    )
+                    if not thread.wait(timeout) and timed_out:
+                        logger.error("Terminating timed-out Predictions warmup thread during cleanup")
+                        thread.terminate()
+                        thread.wait(timeout)
         except RuntimeError:
             continue
     if isinstance(getattr(owner, "_predictions_background_jobs", None), list):
