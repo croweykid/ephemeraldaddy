@@ -46,6 +46,40 @@ APP_CHART_INFO_LINK_CURSOR = Qt.WhatsThisCursor
 APP_POPOUT_CURSOR = Qt.PointingHandCursor
 APP_BUTTON_CURSOR = Qt.PointingHandCursor
 
+APPWIDE_AFFIRMATIVE_BUTTON_TONE = "affirmative"
+APPWIDE_NEGATION_BUTTON_TONE = "negation"
+
+APPWIDE_AFFIRMATIVE_BUTTON_LABELS = frozenset(
+    {
+        "affirmative",
+        "apply",
+        "cool",
+        "done",
+        "go",
+        "got it",
+        "ok",
+        "okay",
+        "save",
+        "yes",
+    }
+)
+APPWIDE_NEGATION_BUTTON_LABELS = frozenset(
+    {
+        "abort",
+        "cancel",
+        "close",
+        "discard",
+        "dismiss",
+        "fix",
+        "nah",
+        "no",
+        "nope",
+        "reject",
+        "remove",
+        "stop",
+    }
+)
+
 
 def apply_chart_info_link_cursor(widget: QWidget) -> None:
     """Use the appwide question cursor for links that open Chart Info details."""
@@ -62,23 +96,50 @@ def apply_button_cursor(button: QAbstractButton) -> None:
     button.setCursor(APP_BUTTON_CURSOR)
 
 
+def _normalized_button_label(button: QAbstractButton) -> str:
+    return re.sub(r"[\s&.?!…:;]+", " ", button.text()).strip().lower()
+
+
+def _appwide_button_tone(button: QAbstractButton) -> str | None:
+    label = _normalized_button_label(button)
+    if label in APPWIDE_AFFIRMATIVE_BUTTON_LABELS:
+        return APPWIDE_AFFIRMATIVE_BUTTON_TONE
+    if label in APPWIDE_NEGATION_BUTTON_LABELS:
+        return APPWIDE_NEGATION_BUTTON_TONE
+    return None
+
+
+def apply_appwide_button_tone(button: QAbstractButton) -> None:
+    """Tag common confirmation/cancellation buttons for global stylesheet colors."""
+    tone = _appwide_button_tone(button)
+    tone_property = tone or ""
+    if button.property("eddButtonTone") == tone_property:
+        return
+    button.setProperty("eddButtonTone", tone_property)
+    button.style().unpolish(button)
+    button.style().polish(button)
+    button.update()
+
+
 class _AppwideCursorDefaultsFilter(QObject):
-    """Apply shared cursor defaults to widgets created after QApplication setup."""
+    """Apply shared button defaults to widgets created after QApplication setup."""
 
     def __init__(self, app: QApplication) -> None:
         super().__init__(app)
         self._app = app
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802 - Qt API
-        if event.type() in (QEvent.ChildAdded, QEvent.Show):
+        if event.type() in (QEvent.ChildAdded, QEvent.Show, QEvent.DynamicPropertyChange):
             self._apply_to_object(watched)
         return super().eventFilter(watched, event)
 
     def _apply_to_object(self, obj: QObject) -> None:
         if isinstance(obj, QAbstractButton):
             apply_button_cursor(obj)
+            apply_appwide_button_tone(obj)
         for child in obj.findChildren(QAbstractButton):
             apply_button_cursor(child)
+            apply_appwide_button_tone(child)
 
 
 def install_appwide_cursor_defaults(app: QApplication) -> None:
@@ -128,6 +189,12 @@ APPWIDE_TEXT_INPUT_BORDER_COLOR = COLOR_BORDER_STRONG
 APPWIDE_BUTTON_BACKGROUND_COLOR = COLOR_BG_ELEVATED
 APPWIDE_BUTTON_HOVER_BACKGROUND_COLOR = "#303442"
 APPWIDE_BUTTON_BORDER_COLOR = COLOR_BORDER_STRONG
+APPWIDE_AFFIRMATIVE_BUTTON_BACKGROUND_COLOR = "#7b2cbf"
+APPWIDE_AFFIRMATIVE_BUTTON_HOVER_BACKGROUND_COLOR = "#9d4edd"
+APPWIDE_AFFIRMATIVE_BUTTON_BORDER_COLOR = "#c77dff"
+APPWIDE_NEGATION_BUTTON_BACKGROUND_COLOR = "#4a4d57"
+APPWIDE_NEGATION_BUTTON_HOVER_BACKGROUND_COLOR = "#5a5e6b"
+APPWIDE_NEGATION_BUTTON_BORDER_COLOR = "#747987"
 APPWIDE_PLAIN_TEXT_INPUT_BACKGROUND_COLOR = COLOR_BG_SURFACE
 
 APPWIDE_DARK_THEME_STYLESHEET = f"""
@@ -151,6 +218,20 @@ QPushButton {{
 }}
 QPushButton:hover {{
     background-color: {APPWIDE_BUTTON_HOVER_BACKGROUND_COLOR};
+}}
+QPushButton[eddButtonTone="{APPWIDE_AFFIRMATIVE_BUTTON_TONE}"] {{
+    background-color: {APPWIDE_AFFIRMATIVE_BUTTON_BACKGROUND_COLOR};
+    border: 1px solid {APPWIDE_AFFIRMATIVE_BUTTON_BORDER_COLOR};
+}}
+QPushButton[eddButtonTone="{APPWIDE_AFFIRMATIVE_BUTTON_TONE}"]:hover {{
+    background-color: {APPWIDE_AFFIRMATIVE_BUTTON_HOVER_BACKGROUND_COLOR};
+}}
+QPushButton[eddButtonTone="{APPWIDE_NEGATION_BUTTON_TONE}"] {{
+    background-color: {APPWIDE_NEGATION_BUTTON_BACKGROUND_COLOR};
+    border: 1px solid {APPWIDE_NEGATION_BUTTON_BORDER_COLOR};
+}}
+QPushButton[eddButtonTone="{APPWIDE_NEGATION_BUTTON_TONE}"]:hover {{
+    background-color: {APPWIDE_NEGATION_BUTTON_HOVER_BACKGROUND_COLOR};
 }}
 QPlainTextEdit {{
     background-color: {APPWIDE_PLAIN_TEXT_INPUT_BACKGROUND_COLOR};
