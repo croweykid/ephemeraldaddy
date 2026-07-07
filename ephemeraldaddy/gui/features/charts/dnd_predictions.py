@@ -717,8 +717,8 @@ def build_dnd_alignment_debug_summary_html(owner: Any, chart: Any) -> str:
         f"Good: {_format_percent(good)} &nbsp; "
         f"Chaotic: {_format_percent(chaotic)} &nbsp; "
         f"Lawful: {_format_percent(lawful)}<br>"
-        f"Net evil/good: {_format_percent(net_good_evil)} &nbsp; "
-        f"Net chaotic/lawful: {_format_percent(net_lawful_chaotic)}"
+        f"Net Good: {_format_percent(net_good_evil)} &nbsp; "
+        f"Net Lawful: {_format_percent(net_lawful_chaotic)}"
     )
 
 
