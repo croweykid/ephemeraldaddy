@@ -69,6 +69,15 @@ def _leading_emoji_icon_payload(text: str) -> tuple[str, str] | None:
 
 def apply_emoji_png_to_button(button: QAbstractButton, *, icon_px: int | None = None) -> None:
     """Replace a leading mapped emoji in a button with the bundled PNG icon."""
+    collapsible_title_label = getattr(button, "_collapsible_header_title_label", None)
+    if isinstance(collapsible_title_label, QLabel):
+        original = button.property(_ORIGINAL_TEXT_PROP)
+        if isinstance(original, str):
+            collapsible_title_label.setProperty(_ORIGINAL_TEXT_PROP, original)
+        apply_emoji_pngs_to_label(collapsible_title_label)
+        button.setText("")
+        return
+
     current = button.text() or ""
     original = button.property(_ORIGINAL_TEXT_PROP)
     if _leading_emoji_icon_payload(current) is not None:

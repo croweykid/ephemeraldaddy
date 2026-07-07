@@ -1225,10 +1225,41 @@ def _extract_qss_color(style_sheet: str, fallback: str = COLOR_TEXT_PRIMARY) -> 
 
 def set_collapsible_header_title(toggle: QToolButton, title: str) -> None:
     """Set the visible left-aligned title for a configured collapsible header."""
-    toggle.setText(title)
+    # The visible title is rendered by the overlay label installed in
+    # ``configure_collapsible_header_toggle``.  Keep the native QToolButton text
+    # empty so Qt style hover painting cannot draw a second, centered copy of
+    # the title over the left-aligned label.
+    toggle.setText("")
+    toggle.setAccessibleName(title)
+    toggle.setProperty("_edd_original_emoji_text", title)
     title_label = getattr(toggle, "_collapsible_header_title_label", None)
     if isinstance(title_label, QLabel):
+        title_label.setProperty("_edd_original_emoji_text", title)
         title_label.setText(title)
+
+
+class _CollapsibleHeaderHoverFilter(QObject):
+    """Keep overlay header labels left-aligned while applying hover highlight."""
+
+    def __init__(self, toggle: QToolButton, label: QLabel, base_color: str) -> None:
+        super().__init__(toggle)
+        self._label = label
+        self._base_color = base_color
+
+    def _set_hovered(self, hovered: bool) -> None:
+        color = CHART_DATA_HIGHLIGHT_COLOR if hovered else self._base_color
+        self._label.setStyleSheet(
+            "background: transparent; "
+            f"color: {color}; "
+            "font-weight: bold; font-size: 12px;"
+        )
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802
+        if event.type() == QEvent.Enter:
+            self._set_hovered(True)
+        elif event.type() in (QEvent.Leave, QEvent.EnabledChange):
+            self._set_hovered(False)
+        return super().eventFilter(watched, event)
 
 
 def configure_collapsible_header_toggle(
@@ -1244,14 +1275,19 @@ def configure_collapsible_header_toggle(
     toggle.setArrowType(Qt.NoArrow)
     toggle.setToolButtonStyle(Qt.ToolButtonTextOnly)
     toggle.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-    toggle.setStyleSheet(f"{style_sheet} QToolButton {{ color: transparent; }}")
+    toggle.setStyleSheet(
+        f"{style_sheet} "
+        "QToolButton { color: transparent; text-align: left; } "
+        "QToolButton:hover { color: transparent; text-align: left; }"
+    )
     toggle.setLayoutDirection(Qt.LeftToRight)
 
     title_label = QLabel(toggle)
     title_label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+    base_title_color = _extract_qss_color(style_sheet)
     title_label.setStyleSheet(
         "background: transparent; "
-        f"color: {_extract_qss_color(style_sheet)}; "
+        f"color: {base_title_color}; "
         "font-weight: bold; font-size: 12px;"
     )
     title_layout = QHBoxLayout(toggle)
@@ -1260,6 +1296,9 @@ def configure_collapsible_header_toggle(
     title_layout.addWidget(title_label, 0, Qt.AlignLeft | Qt.AlignVCenter)
     title_layout.addStretch(1)
     toggle._collapsible_header_title_label = title_label  # type: ignore[attr-defined]
+    hover_filter = _CollapsibleHeaderHoverFilter(toggle, title_label, base_title_color)
+    toggle.installEventFilter(hover_filter)
+    toggle._collapsible_header_hover_filter = hover_filter  # type: ignore[attr-defined]
     set_collapsible_header_title(toggle, title)
     _install_collapsible_header_interactions(toggle, style_sheet)
 
