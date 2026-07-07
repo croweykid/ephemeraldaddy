@@ -28,7 +28,13 @@ def insert_human_design_info_body_line(
     plain_fmt: QTextCharFormat,
 ) -> None:
     """Insert a Human Design info body line with colon labels accented."""
-    line_text = str(line)
+    line_text = (
+        str(line)
+        .replace("<strong>", "")
+        .replace("</strong>", "")
+        .replace("<b>", "")
+        .replace("</b>", "")
+    )
     stripped_line = line_text.strip()
     if not stripped_line:
         cursor.insertText(line_text, plain_fmt)
