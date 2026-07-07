@@ -1076,7 +1076,10 @@ def collapsible_section_header_toggle_style(
         f"background-color: {background_color};"
         "}"
         "QToolButton:hover {"
-        f"color: {CHART_DATA_HIGHLIGHT_COLOR};"
+        "font-weight: bold; font-size: 12px; "
+        f"color: {CHART_DATA_HIGHLIGHT_COLOR}; "
+        "padding: 6px; text-align: left; "
+        f"background-color: {background_color};"
         "}"
     )
 
@@ -1091,9 +1094,7 @@ COLLAPSIBLE_SECTION_STATIC_HEADER_STYLE = (
     f"background-color: {COLLAPSIBLE_HEADER_BACKGROUND};"
     f"{COLLAPSIBLE_STATIC_HEADER_LEFT_ALIGNMENT_STYLE}"
 )
-SETTINGS_COLLAPSIBLE_TOGGLE_STYLE = collapsible_section_header_toggle_style(
-    text_color=DATABASE_VIEW_HEADER_COLOR,
-)
+SETTINGS_COLLAPSIBLE_TOGGLE_STYLE = DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE
 SETTINGS_SECTION_SUBHEADER_STYLE = "font-weight: 700;"
 DATABASE_ANALYTICS_COLLAPSIBLE_TOGGLE_STYLE = DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE
 
@@ -1318,7 +1319,7 @@ def _extract_qss_color(style_sheet: str, fallback: str = COLOR_TEXT_PRIMARY) -> 
 
 
 def set_collapsible_header_title(toggle: QToolButton, title: str) -> None:
-    """Set the visible left-aligned title for a configured collapsible header."""
+    """Set the visible overlay title for a configured collapsible header."""
     # The visible title is rendered by the overlay label installed in
     # ``configure_collapsible_header_toggle``.  Keep the native QToolButton text
     # empty so Qt style hover painting cannot draw a second, centered copy of
@@ -1331,7 +1332,7 @@ def set_collapsible_header_title(toggle: QToolButton, title: str) -> None:
 
 
 class _CollapsibleHeaderHoverFilter(QObject):
-    """Keep overlay header labels left-aligned while applying hover highlight."""
+    """Keep overlay header labels aligned while applying hover highlight."""
 
     def __init__(self, toggle: QToolButton, label: QLabel, base_color: str) -> None:
         super().__init__(toggle)
@@ -1360,6 +1361,7 @@ def configure_collapsible_header_toggle(
     title: str,
     expanded: bool,
     style_sheet: str,
+    title_alignment: Qt.AlignmentFlag | Qt.Alignment = Qt.AlignLeft,
 ) -> None:
     """Apply default shared behavior for collapsible/expandable section headers."""
     toggle.setCheckable(True)
@@ -1367,10 +1369,11 @@ def configure_collapsible_header_toggle(
     toggle.setArrowType(Qt.NoArrow)
     toggle.setToolButtonStyle(Qt.ToolButtonTextOnly)
     toggle.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+    text_align = "center" if title_alignment == Qt.AlignCenter else "left"
     toggle.setStyleSheet(
         f"{style_sheet} "
-        "QToolButton { color: transparent; text-align: left; } "
-        "QToolButton:hover { color: transparent; text-align: left; }"
+        f"QToolButton {{ color: transparent; text-align: {text_align}; }} "
+        f"QToolButton:hover {{ color: transparent; text-align: {text_align}; }}"
     )
     toggle.setLayoutDirection(Qt.LeftToRight)
 
@@ -1385,8 +1388,13 @@ def configure_collapsible_header_toggle(
     title_layout = QHBoxLayout(toggle)
     title_layout.setContentsMargins(6, 0, 6, 0)
     title_layout.setSpacing(0)
-    title_layout.addWidget(title_label, 0, Qt.AlignLeft | Qt.AlignVCenter)
-    title_layout.addStretch(1)
+    if title_alignment == Qt.AlignCenter:
+        title_layout.addStretch(1)
+        title_layout.addWidget(title_label, 0, Qt.AlignCenter | Qt.AlignVCenter)
+        title_layout.addStretch(1)
+    else:
+        title_layout.addWidget(title_label, 0, Qt.AlignLeft | Qt.AlignVCenter)
+        title_layout.addStretch(1)
     toggle._collapsible_header_title_label = title_label  # type: ignore[attr-defined]
     hover_filter = _CollapsibleHeaderHoverFilter(toggle, title_label, base_title_color)
     toggle.installEventFilter(hover_filter)

@@ -46,6 +46,7 @@ EMOJI_TO_PNG: dict[str, str] = {
     "♻": "recycling-symbol-fluentflat-512.png",
     "📝": "memo-blobmoji-512.png",
     "🔮": "crystal-ball-noto-512.png",
+    "🎱": "quiz8.png",
     "🔎": "magnifying-glass-tilted-right-blobmoji-512.png",
     "🫂": "people-holding-hands-twemoji-512.png",
 }

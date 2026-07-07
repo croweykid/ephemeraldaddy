@@ -22912,6 +22912,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             title=title,
             expanded=expanded,
             style_sheet=SETTINGS_COLLAPSIBLE_TOGGLE_STYLE,
+            title_alignment=Qt.AlignCenter,
         )
         toggle.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         container_layout.addWidget(toggle)

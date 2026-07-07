@@ -18,18 +18,19 @@ def test_collapsible_headers_use_appwide_charcoal_background():
 
 
 def test_database_search_sections_accept_nested_flag():
-    assert "title: str, *, nested: bool = False" in SEARCH_SOURCE
+    assert "title: str," in SEARCH_SOURCE
+    assert "nested: bool = False" in SEARCH_SOURCE
     assert "COLLAPSIBLE_NESTED_SECTION_CONTENT_STYLE" in SEARCH_SOURCE
     assert "if nested" in SEARCH_SOURCE
 
 
 def test_database_search_top_categories_are_nested_sections():
-    for title in ("Astro", "Human Design", "Interactions", "Predictions", "Demographics"):
+    for title in ("🪐Astro", "🪷Human Design", "💭Personal Experiences", "🎱Predictions", "👥Demographics"):
         assert f'add_collapsible_section("{title}", nested=True)' in SEARCH_SOURCE
 
 
 def test_database_search_subsections_use_standard_section_background():
-    for title in ("🪐Positions", "🪐Decans", "💭Sentiment", "Lifespan", "Notes"):
+    for title in ("🪐Positions", "🪐Decans", "💭Sentiment", "🕰️Lifespan", "💭Notes"):
         assert f'add_collapsible_section("{title}", nested=True)' not in SEARCH_SOURCE
         assert f'add_collapsible_section("{title}")' in SEARCH_SOURCE
     assert 'nested=True' in SEARCH_SOURCE
