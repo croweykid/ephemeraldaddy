@@ -20,7 +20,7 @@ from ephemeraldaddy.core.interpretations import (
     ZODIAC_NAMES,
 )
 
-TIME_SENSITIVITY_ALGORITHM_VERSION = "time-sensitivity-v9"
+TIME_SENSITIVITY_ALGORITHM_VERSION = "time-sensitivity-v10"
 TIME_SENSITIVITY_DB_PATH = DB_DIR / "time_sensitivity.db"
 NUMERIC_GROUPS = (
     "dominant_planet_weights",
@@ -154,6 +154,7 @@ def _hd_snapshot(chart: Chart) -> dict[str, Any]:
         "channels": sorted(
             f"{min(a, b)}-{max(a, b)}" for a, b, *_ in result.defined_channels
         ),
+        "centers": sorted(str(center) for center in result.defined_centers),
         "type": str(result.hd_type or ""),
         "profile": str(result.profile or ""),
     }
@@ -227,16 +228,8 @@ def _percent_delta(range_delta: float, baseline: float) -> float:
 
 
 def _variability_label(percent_delta: float) -> str:
-    """Return a plain-language label for a percent-delta spread."""
-    if percent_delta < 5.0:
-        return "minimal"
-    if percent_delta < 15.0:
-        return "minor"
-    if percent_delta < 35.0:
-        return "medium"
-    if percent_delta < 50.0:
-        return "high"
-    return "extreme"
+    """Return a calm plain-language label for a percent-delta spread."""
+    return "medium" if abs(float(percent_delta)) < 35.0 else "high"
 
 
 def _span_label(start_time: str, end_time: str) -> str:
@@ -390,8 +383,7 @@ def _aggregate_numeric(
                     present_times[0] if min_value == 0.0 and present_times else None
                 ),
                 "weight_samples": [
-                    {"time": time, "weight": round(value, 6)}
-                    for time, value in values
+                    {"time": time, "weight": round(value, 6)} for time, value in values
                 ],
             }
         ranges[group] = group_ranges
@@ -410,12 +402,23 @@ def _presence_summary(samples: list[dict[str, Any]], key: str) -> dict[str, Any]
         )
         for item in universe
     }
+    spans = {
+        str(item): _matching_spans(
+            [
+                (sample["time"], sample["human_design"].get(key, []))
+                for sample in samples
+            ],
+            lambda values, expected=item: expected in values,
+        )
+        for item in universe
+    }
     return {
         "always": [item for item, count in counts.items() if count == sample_count],
         "sometimes": [
             item for item, count in counts.items() if 0 < count < sample_count
         ],
         "presence_counts": counts,
+        "presence_spans": spans,
         "sample_count": sample_count,
     }
 
@@ -729,6 +732,7 @@ def compute_time_sensitivity(
                 "channels": [],
                 "type": "",
                 "profile": "",
+                "centers": [],
             }
 
         samples.append(
@@ -790,6 +794,7 @@ def compute_time_sensitivity(
         "gates": _presence_summary(samples, "gates"),
         "lines": _presence_summary(samples, "lines"),
         "channels": _presence_summary(samples, "channels"),
+        "centers": _presence_summary(samples, "centers"),
         "type_distribution": _distribution(samples, "type"),
         "profile_distribution": _distribution(samples, "profile"),
     }
