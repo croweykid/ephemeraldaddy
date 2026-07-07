@@ -31,6 +31,7 @@ from PySide6.QtWidgets import (
     QLayout,
     QScrollArea,
     QMessageBox,
+    QPushButton,
     QSizePolicy,
     QTextEdit,
     QToolTip,
@@ -4225,6 +4226,23 @@ class DatabaseAnalyticsChartsMixin:
         self.traits_distribution_rank_label.setWordWrap(True)
         self.traits_distribution_rank_label.setStyleSheet("color: #d8d8d8; padding: 2px 0 6px 0;")
         trait_rank_container_layout.addWidget(self.traits_distribution_rank_label)
+
+        trait_rank_action_row = QWidget()
+        trait_rank_action_layout = QHBoxLayout()
+        trait_rank_action_layout.setContentsMargins(0, 0, 0, 0)
+        trait_rank_action_layout.setSpacing(6)
+        trait_rank_action_row.setLayout(trait_rank_action_layout)
+        trait_rank_action_layout.addStretch(1)
+        self.traits_distribution_rank_selected_button = QPushButton("rank selected")
+        self.traits_distribution_rank_selected_button.setToolTip(
+            "Rank the charts currently selected in Database View. "
+            "Trait Rankings otherwise stays on the database-wide ranking."
+        )
+        self.traits_distribution_rank_selected_button.clicked.connect(
+            self._on_traits_distribution_rank_selected_clicked
+        )
+        trait_rank_action_layout.addWidget(self.traits_distribution_rank_selected_button)
+        trait_rank_container_layout.addWidget(trait_rank_action_row)
         traits_section_layout.addWidget(self.traits_distribution_rank_container)
 
         (
@@ -4311,6 +4329,29 @@ class DatabaseAnalyticsChartsMixin:
                 )
 
         QTimer.singleShot(0, _refresh)
+
+
+    def _on_traits_distribution_rank_selected_clicked(self) -> None:
+        """Manually switch Trait Rankings to the current Database View selection."""
+        current_selection = tuple(
+            sorted(
+                {
+                    int(chart_id)
+                    for chart_id in getattr(self, "_traits_distribution_latest_selected_chart_ids", ())
+                }
+            )
+        )
+        if current_selection:
+            self._traits_distribution_manual_rank_chart_ids = current_selection
+        else:
+            self._traits_distribution_manual_rank_chart_ids = ()
+        update = getattr(self, "_update_sentiment_tally", None)
+        if callable(update):
+            update(
+                update_database_metrics=True,
+                update_similarities=False,
+                sections_to_refresh={"traits_distribution"},
+            )
 
     def _sync_traits_distribution_rank_combo(self, trait_items: list[dict[str, Any]]) -> str | None:
         combo = getattr(self, "traits_distribution_rank_combo", None)
@@ -4936,7 +4977,13 @@ class DatabaseAnalyticsChartsMixin:
             trait_items=trait_items,
             trait_signature=trait_signature,
         )
-        if set(chart_ids) == set(database_chart_ids):
+        rankings_mode = self._traits_distribution_display_mode() == "trait_rankings"
+        self._traits_distribution_latest_selected_chart_ids = tuple(
+            sorted({int(chart_id) for chart_id in chart_ids})
+        ) if loaded_charts > 0 else ()
+        if rankings_mode:
+            selection_analytics = copy.deepcopy(database_analytics)
+        elif set(chart_ids) == set(database_chart_ids):
             selection_analytics = copy.deepcopy(database_analytics)
         else:
             selection_analytics = self._collect_traits_distribution_analytics(
@@ -4959,8 +5006,19 @@ class DatabaseAnalyticsChartsMixin:
             name: (float(database_totals.get(name, 0.0)) / float(database_count) if database_count else 0.0)
             for name in trait_names
         }
-        ranking_scope_ids: list[int] | set[int] = chart_ids if loaded_charts > 0 else database_chart_ids
-        ranking_scope_label = "the current selection" if loaded_charts > 0 else "the database"
+        manual_rank_ids = tuple(
+            int(chart_id)
+            for chart_id in getattr(self, "_traits_distribution_manual_rank_chart_ids", ())
+        )
+        if manual_rank_ids:
+            ranking_scope_ids: list[int] | set[int] = list(manual_rank_ids)
+            ranking_scope_label = "the manually ranked selection"
+        else:
+            ranking_scope_ids = database_chart_ids
+            ranking_scope_label = "the database"
+        rank_selected_button = getattr(self, "traits_distribution_rank_selected_button", None)
+        if isinstance(rank_selected_button, QPushButton):
+            rank_selected_button.setEnabled(bool(getattr(self, "_traits_distribution_latest_selected_chart_ids", ())))
         rank_label = getattr(self, "traits_distribution_rank_label", None)
         self._traits_distribution_rank_context = {
             "chart_ids": tuple(sorted({int(chart_id) for chart_id in ranking_scope_ids})),
