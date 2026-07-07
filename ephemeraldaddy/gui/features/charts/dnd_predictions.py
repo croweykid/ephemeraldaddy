@@ -605,6 +605,9 @@ def _dnd_alignment_trait_items() -> list[dict[str, Any]]:
 
 def _dnd_alignment_score_parts(owner: Any, chart: Any) -> dict[str, dict[str, float]]:
     """Return chart, database, and deviation values for each D&D alignment axis."""
+    cached = getattr(chart, "_dnd_alignment_score_parts_cache", None)
+    if isinstance(cached, dict):
+        return cached
     trait_items = _dnd_alignment_trait_items()
     if chart is None or not trait_items:
         return {}
@@ -626,6 +629,10 @@ def _dnd_alignment_score_parts(owner: Any, chart: Any) -> dict[str, dict[str, fl
             "database": database_score,
             "deviation": chart_score - database_score,
         }
+    try:
+        setattr(chart, "_dnd_alignment_score_parts_cache", parts)
+    except Exception:
+        pass
     return parts
 
 
@@ -1083,6 +1090,9 @@ class DndPredictionPanelAdapter:
         statblock = self._score_statblock(chart, norm_charts)
         return {stat_key: float(statblock.scores.get(stat_key, 0.0)) for stat_key in self.dnd_stat_keys}
 
+    def cache_alignment_metadata(self, chart: Any) -> dict[str, float]:
+        return dnd_alignment_deviations(self.owner or self, chart)
+
     def render(self, chart: Any | None, metric_panel_renderer: Callable[..., Any]) -> Any:
         if self.chart_layout is None:
             return self.summary_label
@@ -1110,6 +1120,7 @@ class DndPredictionPanelAdapter:
                 )
                 self._render_alignment_debug_summary(chart)
             return summary_label
+        self.cache_metadata(chart)
         metric_panel_renderer(
             canvas_attr="dnd_prediction_statblock_canvas",
             container_layout=self.chart_layout,
@@ -1118,7 +1129,6 @@ class DndPredictionPanelAdapter:
             draw_fn=self.draw,
             chart=chart,
         )
-        self.cache_metadata(chart)
         if self.chart_layout.indexOf(summary_label) < 0:
             self.chart_layout.addWidget(summary_label)
         if self.info_panel is not None:
@@ -1129,6 +1139,7 @@ class DndPredictionPanelAdapter:
                 before_show=self.before_show,
             )
         if self.alignment_layout is not None:
+            self.cache_alignment_metadata(chart)
             metric_panel_renderer(
                 canvas_attr="dnd_prediction_alignment_canvas",
                 container_layout=self.alignment_layout,

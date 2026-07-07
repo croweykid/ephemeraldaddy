@@ -253,3 +253,24 @@ def test_dnd_alignment_popout_is_registered_and_configured():
     assert 'def resolve_dnd_official_alignment' in dnd_source
     assert 'Official D&amp;D alignment:' in dnd_source
     assert 'return "True Neutral"' in dnd_source
+
+
+def test_predictions_background_warmup_updates_loading_progress():
+    source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/cv_right_panel_stack.py").read_text()
+
+    assert "progress = Signal(str, int)" in source
+    assert "create_app_loading_progress(" in source
+    assert "worker.progress.connect(receiver.handle_progress, Qt.QueuedConnection)" in source
+    assert "update_app_loading_progress(progress, message, percent)" in source
+    assert "close_app_loading_progress(progress)" in source
+
+
+def test_dnd_alignment_predictions_are_cached_before_gui_render():
+    source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/dnd_predictions.py").read_text()
+
+    assert "_dnd_alignment_score_parts_cache" in source
+    assert "def cache_alignment_metadata" in source
+    render_start = source.index("    def render(self, chart: Any | None")
+    render_method = source[render_start : source.index("def connect_dnd_alignment_popout_pick_handler", render_start)]
+    assert "self.cache_metadata(chart)" in render_method
+    assert "self.cache_alignment_metadata(chart)" in render_method

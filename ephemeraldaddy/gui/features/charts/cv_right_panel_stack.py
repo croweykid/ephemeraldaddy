@@ -30,6 +30,11 @@ from PySide6.QtWidgets import (
 )
 
 from ephemeraldaddy.core.interpretations import MODE_KEYWORDS
+from ephemeraldaddy.gui.style import (
+    close_app_loading_progress,
+    create_app_loading_progress,
+    update_app_loading_progress,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -60,6 +65,7 @@ class _PredictionsWarmupWorker(QObject):
     """Precompute slow Predictions data away from the GUI thread."""
 
     finished = Signal(object, str, str, object)
+    progress = Signal(str, int)
 
     def __init__(self, owner: object, chart: object, render_token: str, job_token: str) -> None:
         super().__init__()
@@ -83,11 +89,13 @@ class _PredictionsWarmupWorker(QObject):
                 _predictions_thread_debug(self._owner, "worker cancelled before Enneagram cache job=%s", self._job_token)
                 self.finished.emit(self._chart, self._render_token, self._job_token, None)
                 return
+            self.progress.emit("Preparing Enneagram predictions…", 15)
             cache_enneagram = getattr(self._owner, "_cache_enneagram_prediction_metadata", None)
             _predictions_thread_debug(self._owner, "Enneagram cache stage start job=%s callable=%s", self._job_token, callable(cache_enneagram))
             if callable(cache_enneagram):
                 cache_enneagram(self._chart)
             _predictions_thread_debug(self._owner, "Enneagram cache stage complete job=%s", self._job_token)
+            self.progress.emit("Preparing D&D predictions…", 45)
             if self._cancelled or QThread.currentThread().isInterruptionRequested():
                 _predictions_thread_debug(self._owner, "worker cancelled before D&D cache job=%s", self._job_token)
                 self.finished.emit(self._chart, self._render_token, self._job_token, None)
@@ -100,7 +108,12 @@ class _PredictionsWarmupWorker(QObject):
                 _predictions_thread_debug(self._owner, "D&D cache stage start job=%s callable=%s", self._job_token, callable(cache_dnd))
                 if callable(cache_dnd):
                     cache_dnd(self._chart)
+                self.progress.emit("Preparing alignment predictions…", 70)
+                cache_alignment = getattr(adapter, "cache_alignment_metadata", None)
+                if callable(cache_alignment):
+                    cache_alignment(self._chart)
                 _predictions_thread_debug(self._owner, "D&D cache stage complete job=%s", self._job_token)
+            self.progress.emit("Finishing Predictions…", 90)
         except Exception as exc:  # pragma: no cover - defensive UI path
             logger.warning(
                 "Predictions warmup failed for %s: %s",
@@ -128,6 +141,12 @@ class _PredictionsWarmupReceiver(QObject):
         self._watchdog = QTimer(self)
         self._watchdog.setSingleShot(True)
         self._watchdog.timeout.connect(self._handle_timeout)
+
+    @Slot(str, int)
+    def handle_progress(self, message: str, percent: int) -> None:
+        progress = getattr(self._owner, "_predictions_background_progress", None)
+        update_app_loading_progress(progress, message, percent)
+        _set_predictions_status(self._owner, html.escape(message))
 
     def set_job(self, thread: QThread, worker: QObject) -> None:
         self._thread = thread
@@ -746,6 +765,11 @@ def _finish_background_prediction_render(
     setattr(owner, "_predictions_background_render_token", None)
     setattr(owner, "_predictions_background_job_token", None)
     setattr(owner, "_predictions_background_chart", None)
+    progress = getattr(owner, "_predictions_background_progress", None)
+    if progress is not None:
+        update_app_loading_progress(progress, "Rendering Predictions…", 95)
+        close_app_loading_progress(progress)
+        setattr(owner, "_predictions_background_progress", None)
 
     chart_name = _chart_display_name(chart)
     if error is not None:
@@ -821,6 +845,10 @@ def stop_background_prediction_render(owner: object, wait_msecs: int | None = No
     setattr(owner, "_predictions_background_render_token", None)
     setattr(owner, "_predictions_background_job_token", None)
     setattr(owner, "_predictions_background_chart", None)
+    progress = getattr(owner, "_predictions_background_progress", None)
+    if progress is not None:
+        close_app_loading_progress(progress)
+        setattr(owner, "_predictions_background_progress", None)
     jobs = list(getattr(owner, "_predictions_background_jobs", []) or [])
     active_thread = getattr(owner, "_predictions_background_thread", None)
     active_worker = getattr(owner, "_predictions_background_worker", None)
@@ -868,6 +896,15 @@ def _start_background_prediction_render(owner: object, chart: object, render_tok
     chart_name = _chart_display_name(chart)
     _predictions_thread_debug(owner, "start requested chart=%s render_token=%s", chart_name, render_token)
     _set_predictions_status(owner, f"Loading Predictions for <b>{html.escape(chart_name)}</b> in the background…")
+    existing_progress = getattr(owner, "_predictions_background_progress", None)
+    close_app_loading_progress(existing_progress)
+    progress_parent = owner if isinstance(owner, QWidget) else None
+    progress = create_app_loading_progress(
+        parent=progress_parent,
+        title="Loading Predictions",
+        message=f"Preparing Predictions for {chart_name}…",
+    )
+    setattr(owner, "_predictions_background_progress", progress)
     thread = QThread()
     job_token = uuid.uuid4().hex
     worker = _PredictionsWarmupWorker(owner, chart, render_token, job_token)
@@ -875,6 +912,7 @@ def _start_background_prediction_render(owner: object, chart: object, render_tok
     receiver.set_job(thread, worker)
     worker.moveToThread(thread)
     thread.started.connect(worker.run)
+    worker.progress.connect(receiver.handle_progress, Qt.QueuedConnection)
     worker.finished.connect(receiver.handle_finished, Qt.QueuedConnection)
     worker.finished.connect(thread.quit)
     worker.finished.connect(worker.deleteLater)
