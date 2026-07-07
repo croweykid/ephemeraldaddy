@@ -716,12 +716,23 @@ def _dnd_alignment_cache_key(owner: Any, chart: Any) -> tuple[str, str]:
     return (chart_token, norms_token)
 
 
-def _dnd_alignment_score_parts(owner: Any, chart: Any) -> dict[str, dict[str, float]]:
+def _dnd_alignment_score_parts(owner: Any, chart: Any, *, allow_stale: bool = True) -> dict[str, dict[str, float]]:
     """Return chart, database, and deviation values for each D&D alignment axis."""
     cache_key = _dnd_alignment_cache_key(owner, chart)
     cached = getattr(chart, "_dnd_alignment_score_parts_cache", None)
-    if isinstance(cached, dict) and cached.get("key") == cache_key and isinstance(cached.get("parts"), dict):
-        return cached["parts"]
+    owner_cache = _owner_cache_bucket(owner, "_dnd_alignment_prediction_view_cache")
+    chart_cache_id = _chart_prediction_cache_identity(chart)
+    if not isinstance(cached, dict):
+        restored = owner_cache.get(chart_cache_id)
+        if isinstance(restored, dict):
+            cached = restored
+            try:
+                setattr(chart, "_dnd_alignment_score_parts_cache", cached)
+            except Exception:
+                pass
+    if isinstance(cached, dict) and isinstance(cached.get("parts"), dict):
+        if cached.get("key") == cache_key or allow_stale:
+            return cached["parts"]
     trait_items = _dnd_alignment_trait_items()
     if chart is None or not trait_items:
         return {}
@@ -744,17 +755,19 @@ def _dnd_alignment_score_parts(owner: Any, chart: Any) -> dict[str, dict[str, fl
             "deviation": chart_score - database_score,
         }
     try:
-        setattr(chart, "_dnd_alignment_score_parts_cache", {"key": cache_key, "parts": parts})
+        cache_payload = {"key": cache_key, "parts": parts, "cached_at": time.time()}
+        setattr(chart, "_dnd_alignment_score_parts_cache", cache_payload)
+        owner_cache[chart_cache_id] = cache_payload
     except Exception:
         pass
     return parts
 
 
-def dnd_alignment_deviations(owner: Any, chart: Any) -> dict[str, float]:
+def dnd_alignment_deviations(owner: Any, chart: Any, *, allow_stale: bool = True) -> dict[str, float]:
     """Return D&D alignment trait deviation percentages versus database norms."""
     return {
         key: values["deviation"]
-        for key, values in _dnd_alignment_score_parts(owner, chart).items()
+        for key, values in _dnd_alignment_score_parts(owner, chart, allow_stale=allow_stale).items()
     }
 
 
@@ -1017,6 +1030,32 @@ def configure_dnd_top_three_summary_label(
     label.setText(build_dnd_top_three_summary_html(chart, linked=True))
 
 
+
+
+def _chart_prediction_cache_identity(chart: Any) -> str:
+    for attr in ("uid", "UID", "chart_uid", "permanent_uid"):
+        value = str(getattr(chart, attr, "") or "").strip()
+        if value:
+            return f"uid:{value}"
+    for attr in ("id", "chart_id"):
+        value = str(getattr(chart, attr, "") or "").strip()
+        if value:
+            return f"id:{value}"
+    return f"object:{id(chart)}"
+
+
+def _owner_cache_bucket(owner: Any, attr_name: str) -> dict[str, Any]:
+    if owner is None:
+        return {}
+    cache = getattr(owner, attr_name, None)
+    if not isinstance(cache, dict):
+        cache = {}
+        try:
+            setattr(owner, attr_name, cache)
+        except Exception:
+            return {}
+    return cache
+
 class DndPredictionPanelAdapter:
     """Own the D&D prediction panel lifecycle for Chart View."""
 
@@ -1147,6 +1186,29 @@ class DndPredictionPanelAdapter:
         except TypeError:
             return repr(norm_charts)
 
+    def _chart_cache_identity(self, chart: Any) -> str:
+        return _chart_prediction_cache_identity(chart)
+
+    def _statblock_owner_cache(self) -> dict[str, Any]:
+        return _owner_cache_bucket(self.owner, "_dnd_statblock_prediction_view_cache")
+
+    def _restore_statblock_cache(self, chart: Any) -> dict[str, Any] | None:
+        cached = getattr(chart, "_dnd_statblock_prediction_cache", None)
+        if isinstance(cached, dict) and cached.get("statblock") is not None:
+            return cached
+        restored = self._statblock_owner_cache().get(self._chart_cache_identity(chart))
+        if isinstance(restored, dict) and restored.get("statblock") is not None:
+            try:
+                setattr(chart, "_dnd_statblock_prediction_cache", restored)
+            except Exception:
+                pass
+            return restored
+        return None
+
+    def _statblock_cache_is_stale(self, chart: Any, norm_charts: Any) -> bool:
+        cached = self._restore_statblock_cache(chart)
+        return isinstance(cached, dict) and cached.get("key") != self._statblock_cache_key(norm_charts)
+
     def _statblock_cache_key(self, norm_charts: Any) -> tuple[Any, ...]:
         try:
             norm_count = len(norm_charts) if norm_charts is not None else 0
@@ -1154,14 +1216,17 @@ class DndPredictionPanelAdapter:
             norm_count = None
         return (self._norm_charts_cache_token(norm_charts), norm_count, tuple(self.dnd_stat_keys))
 
-    def _score_statblock(self, chart: Any, norm_charts: Any = None) -> Any:
+    def _score_statblock(self, chart: Any, norm_charts: Any = None, *, allow_stale: bool = True) -> Any:
         cache_key = self._statblock_cache_key(norm_charts)
-        cached = getattr(chart, "_dnd_statblock_prediction_cache", None)
-        if isinstance(cached, dict) and cached.get("key") == cache_key and cached.get("statblock") is not None:
-            return cached["statblock"]
+        cached = self._restore_statblock_cache(chart)
+        if isinstance(cached, dict) and cached.get("statblock") is not None:
+            if cached.get("key") == cache_key or allow_stale:
+                return cached["statblock"]
         statblock = score_dnd_statblock(chart, norm_charts=norm_charts)
         try:
-            setattr(chart, "_dnd_statblock_prediction_cache", {"key": cache_key, "statblock": statblock, "cached_at": time.time()})
+            cache_payload = {"key": cache_key, "statblock": statblock, "cached_at": time.time()}
+            setattr(chart, "_dnd_statblock_prediction_cache", cache_payload)
+            self._statblock_owner_cache()[self._chart_cache_identity(chart)] = cache_payload
         except Exception:
             pass
         return statblock
@@ -1241,11 +1306,25 @@ class DndPredictionPanelAdapter:
 
     def cache_metadata(self, chart: Any) -> dict[str, float]:
         norm_charts = self._norm_charts()
-        statblock = self._score_statblock(chart, norm_charts)
+        statblock = self._score_statblock(chart, norm_charts, allow_stale=False)
         return {stat_key: float(statblock.scores.get(stat_key, 0.0)) for stat_key in self.dnd_stat_keys}
 
     def cache_alignment_metadata(self, chart: Any) -> dict[str, float]:
-        return dnd_alignment_deviations(self.owner or self, chart)
+        return dnd_alignment_deviations(self.owner or self, chart, allow_stale=False)
+
+    def _show_stale_recalculate_notice(self, layout: Any, chart: Any, section: str) -> None:
+        if layout is None:
+            return
+        label = QLabel("<i>Cached results shown; chart data or DB norms may have changed. <a href=\"recalculate\">Recalculate</a></i>")
+        label.setTextFormat(Qt.RichText)
+        label.setOpenExternalLinks(False)
+        label.setWordWrap(True)
+        label.setStyleSheet("color: #d8d8d8; padding: 2px 0 6px 0;")
+        label.linkActivated.connect(lambda _href, chart=chart, section=section: self.calculate_callback(chart, section) if callable(self.calculate_callback) else None)
+        try:
+            layout.insertWidget(0, label)
+        except Exception:
+            layout.addWidget(label)
 
     def render(self, chart: Any | None, metric_panel_renderer: Callable[..., Any]) -> Any:
         if self.chart_layout is None:
@@ -1275,7 +1354,10 @@ class DndPredictionPanelAdapter:
                 self._render_alignment_debug_summary(chart)
             return summary_label
 
-        if isinstance(getattr(chart, "_dnd_statblock_prediction_cache", None), dict):
+        norm_charts = self._norm_charts()
+        statblock_cache = self._restore_statblock_cache(chart)
+        if isinstance(statblock_cache, dict):
+            statblock_stale = self._statblock_cache_is_stale(chart, norm_charts)
             metric_panel_renderer(
                 canvas_attr="dnd_prediction_statblock_canvas",
                 container_layout=self.chart_layout,
@@ -1284,6 +1366,8 @@ class DndPredictionPanelAdapter:
                 draw_fn=self.draw,
                 chart=chart,
             )
+            if statblock_stale:
+                self._show_stale_recalculate_notice(self.chart_layout, chart, "dnd_statblock")
             if self.chart_layout.indexOf(summary_label) < 0:
                 self.chart_layout.addWidget(summary_label)
             if self.info_panel is not None:
@@ -1297,8 +1381,18 @@ class DndPredictionPanelAdapter:
             self._show_calculate_prompt(chart, section="dnd_statblock")
 
         if self.alignment_layout is not None:
+            alignment_owner_cache = _owner_cache_bucket(self.owner, "_dnd_alignment_prediction_view_cache")
             alignment_cache = getattr(chart, "_dnd_alignment_score_parts_cache", None)
-            if isinstance(alignment_cache, dict) and alignment_cache.get("key") == _dnd_alignment_cache_key(self.owner or self, chart):
+            if not isinstance(alignment_cache, dict):
+                restored_alignment = alignment_owner_cache.get(self._chart_cache_identity(chart))
+                if isinstance(restored_alignment, dict):
+                    alignment_cache = restored_alignment
+                    try:
+                        setattr(chart, "_dnd_alignment_score_parts_cache", alignment_cache)
+                    except Exception:
+                        pass
+            if isinstance(alignment_cache, dict):
+                alignment_stale = alignment_cache.get("key") != _dnd_alignment_cache_key(self.owner or self, chart)
                 metric_panel_renderer(
                     canvas_attr="dnd_prediction_alignment_canvas",
                     container_layout=self.alignment_layout,
@@ -1307,6 +1401,8 @@ class DndPredictionPanelAdapter:
                     draw_fn=self.draw_alignment,
                     chart=chart,
                 )
+                if alignment_stale:
+                    self._show_stale_recalculate_notice(self.alignment_layout, chart, "dnd_alignment")
                 self._render_alignment_debug_summary(chart)
             else:
                 self._show_calculate_prompt(chart, layout=self.alignment_layout, section="dnd_alignment")
