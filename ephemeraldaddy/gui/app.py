@@ -32359,7 +32359,14 @@ class MainWindow(QMainWindow):
             dt_year, dt_month, dt_day = 1990, 1, 1
 
         retcon_qtime = self.retcon_time_edit.time()
-        qtime = retcon_qtime if self.retcon_time_checkbox.isChecked() else QTime(12, 0)
+        range_start_minute, range_end_minute = self._rectification_range_minutes_from_inputs()
+        qtime = (
+            retcon_qtime
+            if self.retcon_time_checkbox.isChecked()
+            else self._rectification_range_midpoint_qtime()
+            if self.rectification_range_checkbox.isChecked()
+            else QTime(12, 0)
+        )
         dt_local = datetime.datetime(dt_year, dt_month, dt_day, qtime.hour(), qtime.minute())
         placeholder = SimpleNamespace()
         placeholder.name = self.name_edit.text().strip() or "Anonymous"
@@ -32374,6 +32381,9 @@ class MainWindow(QMainWindow):
         placeholder.retcon_time_used = self.retcon_time_checkbox.isChecked()
         placeholder.retcon_hour = retcon_qtime.hour()
         placeholder.retcon_minute = retcon_qtime.minute()
+        placeholder.rectification_range_used = self.rectification_range_checkbox.isChecked()
+        placeholder.rectification_range_start_minute = range_start_minute
+        placeholder.rectification_range_end_minute = range_end_minute
         placeholder.birth_place = self.place_edit.text().strip() or ""
         placeholder.sentiments = list(self._selected_sentiments()) if hasattr(self, "_selected_sentiments") else []
         placeholder.relationship_types = list(self._selected_relationship_types()) if hasattr(self, "_selected_relationship_types") else []
@@ -32441,6 +32451,8 @@ class MainWindow(QMainWindow):
             return
         if self.retcon_time_checkbox.isChecked():
             qtime = self.retcon_time_edit.time()
+        elif self.time_unknown_checkbox.isChecked() and self.rectification_range_checkbox.isChecked():
+            qtime = self._rectification_range_midpoint_qtime()
         elif self.time_unknown_checkbox.isChecked():
             qtime = QTime(12, 0)
         else:
@@ -32587,6 +32599,10 @@ class MainWindow(QMainWindow):
         chart.retcon_time_used = self.retcon_time_checkbox.isChecked()
         chart.retcon_hour = self.retcon_time_edit.time().hour()
         chart.retcon_minute = self.retcon_time_edit.time().minute()
+        range_start_minute, range_end_minute = self._rectification_range_minutes_from_inputs()
+        chart.rectification_range_used = self.rectification_range_checkbox.isChecked()
+        chart.rectification_range_start_minute = range_start_minute
+        chart.rectification_range_end_minute = range_end_minute
         apply_time_specific_metadata_policy(chart)
         chart.birth_place = place
         chart.birth_month = qdate.month()
@@ -33155,6 +33171,10 @@ class MainWindow(QMainWindow):
                 chart.retcon_time_used = self.retcon_time_checkbox.isChecked()
                 chart.retcon_hour = self.retcon_time_edit.time().hour()
                 chart.retcon_minute = self.retcon_time_edit.time().minute()
+                range_start_minute, range_end_minute = self._rectification_range_minutes_from_inputs()
+                chart.rectification_range_used = self.rectification_range_checkbox.isChecked()
+                chart.rectification_range_start_minute = range_start_minute
+                chart.rectification_range_end_minute = range_end_minute
                 chart.is_placeholder = self.placeholder_chart_checkbox.isChecked()
                 chart.is_deceased = self.deceased_checkbox.isChecked()
                 chart.death_month = int(self.death_month_edit.text()) if self.death_month_edit.text().isdigit() else None
@@ -33236,6 +33256,9 @@ class MainWindow(QMainWindow):
             retcon_time_used=getattr(chart, "retcon_time_used", False),
             retcon_hour=self.retcon_time_edit.time().hour(),
             retcon_minute=self.retcon_time_edit.time().minute(),
+            rectification_range_used=getattr(chart, "rectification_range_used", False),
+            rectification_range_start_minute=getattr(chart, "rectification_range_start_minute", None),
+            rectification_range_end_minute=getattr(chart, "rectification_range_end_minute", None),
             is_placeholder=is_placeholder,
             is_deceased=getattr(chart, "is_deceased", False),
             birth_month=getattr(chart, "birth_month", None),
@@ -33782,9 +33805,25 @@ class MainWindow(QMainWindow):
             self.retcon_time_edit.setTime(qtime)
         else:
             self.retcon_time_edit.setTime(default_noon)
-        self.rectification_range_checkbox.setChecked(False)
-        self.rectification_range_start_edit.setTime(QTime(0, 0))
-        self.rectification_range_end_edit.setTime(QTime(23, 59))
+        range_start_minute = getattr(chart, "rectification_range_start_minute", None)
+        range_end_minute = getattr(chart, "rectification_range_end_minute", None)
+        if range_start_minute is not None:
+            range_start_minute = max(0, min(1439, int(range_start_minute)))
+            self.rectification_range_start_edit.setTime(
+                QTime(range_start_minute // 60, range_start_minute % 60)
+            )
+        else:
+            self.rectification_range_start_edit.setTime(QTime(0, 0))
+        if range_end_minute is not None:
+            range_end_minute = max(0, min(1439, int(range_end_minute)))
+            self.rectification_range_end_edit.setTime(
+                QTime(range_end_minute // 60, range_end_minute % 60)
+            )
+        else:
+            self.rectification_range_end_edit.setTime(QTime(23, 59))
+        self.rectification_range_checkbox.setChecked(
+            bool(getattr(chart, "rectification_range_used", False))
+        )
         self.retcon_time_checkbox.setChecked(chart.retcon_time_used)
         self.deceased_checkbox.setChecked(bool(getattr(chart, "is_deceased", False)))
         self.death_month_edit.setText(str(getattr(chart, "death_month", "") or ""))
@@ -34160,10 +34199,34 @@ class MainWindow(QMainWindow):
         self._update_time_input_visibility()
         if not self._suppress_lucygoosey:
             self._mark_lucygoosey()
+            self._reset_metric_canvases_for_retcon_timing_update()
+            self._refresh_chart_preview()
+            if self._can_autosave_current_chart():
+                self._metadata_autosave_requires_recalculation = True
+                self._metadata_autosave_timer.start(2500)
 
     def _on_rectification_range_changed(self, _time: QTime) -> None:
         if not self._suppress_lucygoosey and self.rectification_range_checkbox.isChecked():
             self._mark_lucygoosey()
+            self._reset_metric_canvases_for_retcon_timing_update()
+            self._refresh_chart_preview()
+            if self._can_autosave_current_chart():
+                self._metadata_autosave_requires_recalculation = True
+                self._metadata_autosave_timer.start(2500)
+
+    def _rectification_range_minutes_from_inputs(self) -> tuple[int, int]:
+        start_time = self.rectification_range_start_edit.time()
+        end_time = self.rectification_range_end_edit.time()
+        start_minute = start_time.hour() * 60 + start_time.minute()
+        end_minute = end_time.hour() * 60 + end_time.minute()
+        if end_minute < start_minute:
+            start_minute, end_minute = end_minute, start_minute
+        return start_minute, end_minute
+
+    def _rectification_range_midpoint_qtime(self) -> QTime:
+        start_minute, end_minute = self._rectification_range_minutes_from_inputs()
+        midpoint = int(round((start_minute + end_minute) / 2))
+        return QTime(midpoint // 60, midpoint % 60)
 
     def _update_time_input_visibility(self) -> None:
         self.time_edit.setVisible(not self.time_unknown_checkbox.isChecked())
@@ -34548,6 +34611,11 @@ class MainWindow(QMainWindow):
             if retcon_hour is not None and retcon_minute is not None
             else None
         )
+        range_token = (
+            bool(getattr(chart, "rectification_range_used", False)),
+            getattr(chart, "rectification_range_start_minute", None),
+            getattr(chart, "rectification_range_end_minute", None),
+        )
         return (
             dt_token,
             (
@@ -34560,6 +34628,7 @@ class MainWindow(QMainWindow):
             bool(getattr(chart, "birthtime_unknown", False)),
             bool(getattr(chart, "retcon_time_used", False)),
             retcon_time_token,
+            range_token,
             bool(chart_uses_houses(chart)),
         )
 
@@ -34618,10 +34687,14 @@ class MainWindow(QMainWindow):
             if retcon_hour is not None and retcon_minute is not None
             else "none"
         )
+        range_enabled_token = int(bool(getattr(chart, "rectification_range_used", False)))
+        range_start_token = getattr(chart, "rectification_range_start_minute", None)
+        range_end_token = getattr(chart, "rectification_range_end_minute", None)
         chart_uses_houses_token = int(bool(chart_uses_houses(chart)))
         timing_token = (
             f"dt:{dt_token}|birthtime_unknown:{birthtime_unknown_token}|"
             f"retcon_enabled:{retcon_enabled_token}|retcon_time:{retcon_time_token}|"
+            f"range_enabled:{range_enabled_token}|range_start:{range_start_token}|range_end:{range_end_token}|"
             f"chart_uses_houses:{chart_uses_houses_token}"
         )
         place_token = f"lat:{getattr(chart, 'lat', 0.0):.6f}|lon:{getattr(chart, 'lon', 0.0):.6f}"
@@ -35318,6 +35391,9 @@ class MainWindow(QMainWindow):
             bool(getattr(chart, "retcon_time_used", False)),
             getattr(chart, "retcon_hour", None),
             getattr(chart, "retcon_minute", None),
+            bool(getattr(chart, "rectification_range_used", False)),
+            getattr(chart, "rectification_range_start_minute", None),
+            getattr(chart, "rectification_range_end_minute", None),
             bool(_chart_uses_houses(chart)),
         )
 
