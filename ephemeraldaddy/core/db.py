@@ -1919,7 +1919,7 @@ def _normalize_matched_expectations(value: Optional[int]) -> int:
         parsed = int(value)
     except (TypeError, ValueError):
         return 0
-    return max(0, min(9, parsed))
+    return max(-10, min(10, parsed))
 
 
 def calculate_social_score(
