@@ -277,6 +277,8 @@ class SimilaritiesController:
             ("dominant_signs", "Top 3 Dominant Signs in common", 100),
             ("dominant_bodies", "Top 3 Dominant Bodies in common", 100),
             ("dominant_houses", "Top 3 Dominant Houses in common", 100),
+            ("dominant_elements", "Elemental Dominance in common", 100),
+            ("dominant_modes", "Modal Dominance in common", 100),
             ("dominant_nakshatras", "Dominant nakshatras in common", 100),
             ("common_aspects", "Aspects in common", 160),
             ("common_hd_gates", "Gates in common", 120),

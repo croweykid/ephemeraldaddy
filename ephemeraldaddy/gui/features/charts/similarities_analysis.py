@@ -197,6 +197,10 @@ class SimilaritiesBaselineProvider(Protocol):
 
     def _build_common_dominant_houses(self, chart_ids: list[int]) -> list[tuple[str, int, int]]: ...
 
+    def _build_common_dominant_elements(self, chart_ids: list[int]) -> list[tuple[str, int, int]]: ...
+
+    def _build_common_dominant_modes(self, chart_ids: list[int]) -> list[tuple[str, int, int]]: ...
+
     def _build_common_dominant_nakshatras(self, chart_ids: list[int]) -> list[tuple[str, int, int]]: ...
 
     def _build_common_human_design_aggregates(self, chart_ids: list[int]) -> HumanDesignSharedAggregates: ...
@@ -524,6 +528,8 @@ def build_similarity_db_baselines(
         "common_dominant_signs": _match_counts(provider._build_common_dominant_signs(db_chart_ids)),
         "common_dominant_bodies": _match_counts(provider._build_common_dominant_bodies(db_chart_ids)),
         "common_dominant_houses": _match_counts(provider._build_common_dominant_houses(db_chart_ids)),
+        "common_dominant_elements": _match_counts(provider._build_common_dominant_elements(db_chart_ids)),
+        "common_dominant_modes": _match_counts(provider._build_common_dominant_modes(db_chart_ids)),
         "common_dominant_nakshatras": _match_counts(
             provider._build_common_dominant_nakshatras(db_chart_ids)
         ),
