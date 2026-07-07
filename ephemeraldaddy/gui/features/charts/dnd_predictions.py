@@ -6,7 +6,7 @@ import html
 from typing import Any, Callable
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QLabel
+from PySide6.QtWidgets import QLabel, QPushButton, QVBoxLayout, QWidget
 
 from ephemeraldaddy.analysis.dnd.dnd_definitions import (
     DND_ALIGNMENTS,
@@ -921,6 +921,8 @@ class DndPredictionPanelAdapter:
         dnd_stat_keys: tuple[str, ...] = DND_STAT_KEYS,
         norm_charts_provider: Callable[[], Any] | None = None,
         norm_charts_token_provider: Callable[[], Any] | None = None,
+        clear_layout_widgets: Callable[[Any], None] | None = None,
+        calculate_callback: Callable[[Any], None] | None = None,
     ) -> None:
         self.owner = owner
         self.chart_layout = chart_layout
@@ -935,6 +937,36 @@ class DndPredictionPanelAdapter:
         self.norm_charts_provider = norm_charts_provider
         self.norm_charts_token_provider = norm_charts_token_provider
         self.alignment_debug_label = getattr(owner, "dnd_prediction_alignment_debug_label", None)
+        self.clear_layout_widgets = clear_layout_widgets
+        self.calculate_callback = calculate_callback
+
+    def _show_calculate_prompt(self, chart: Any | None) -> None:
+        if self.chart_layout is None:
+            return
+        if callable(self.clear_layout_widgets):
+            self.clear_layout_widgets(self.chart_layout)
+        if self.alignment_layout is not None and callable(self.clear_layout_widgets):
+            self.clear_layout_widgets(self.alignment_layout)
+        panel = QWidget()
+        panel_layout = QVBoxLayout()
+        panel_layout.setContentsMargins(12, 18, 12, 18)
+        panel_layout.setSpacing(10)
+        panel_layout.setAlignment(Qt.AlignCenter)
+        panel.setLayout(panel_layout)
+        label = QLabel("No prior data. Calculate (can take awhile)?")
+        label.setAlignment(Qt.AlignCenter)
+        label.setWordWrap(True)
+        label.setStyleSheet("color: #f5f5f5; font-weight: 600;")
+        button = QPushButton("Calculate!")
+        button.setStyleSheet("background-color: #7b4dff; color: white; font-weight: bold; padding: 6px 14px; border-radius: 5px;")
+        button.clicked.connect(lambda _checked=False, chart=chart: self.calculate_callback(chart) if callable(self.calculate_callback) and chart is not None else None)
+        panel_layout.addWidget(label, alignment=Qt.AlignCenter)
+        panel_layout.addWidget(button, alignment=Qt.AlignCenter)
+        self.chart_layout.addWidget(panel, alignment=Qt.AlignCenter)
+        summary_label = self._ensure_summary_label()
+        summary_label.setText("<b>Top three:</b> No prior data")
+        if self.chart_layout.indexOf(summary_label) < 0:
+            self.chart_layout.addWidget(summary_label)
 
     def _norm_charts(self) -> Any:
         if self.norm_charts_provider is None:
@@ -1120,7 +1152,9 @@ class DndPredictionPanelAdapter:
                 )
                 self._render_alignment_debug_summary(chart)
             return summary_label
-        self.cache_metadata(chart)
+        if not isinstance(getattr(chart, "_dnd_statblock_prediction_cache", None), dict):
+            self._show_calculate_prompt(chart)
+            return summary_label
         metric_panel_renderer(
             canvas_attr="dnd_prediction_statblock_canvas",
             container_layout=self.chart_layout,
@@ -1139,7 +1173,9 @@ class DndPredictionPanelAdapter:
                 before_show=self.before_show,
             )
         if self.alignment_layout is not None:
-            self.cache_alignment_metadata(chart)
+            if not isinstance(getattr(chart, "_dnd_alignment_score_parts_cache", None), dict):
+                self._show_calculate_prompt(chart)
+                return summary_label
             metric_panel_renderer(
                 canvas_attr="dnd_prediction_alignment_canvas",
                 container_layout=self.alignment_layout,

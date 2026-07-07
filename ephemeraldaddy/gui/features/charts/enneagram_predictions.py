@@ -9,6 +9,9 @@ import re
 import statistics
 from typing import Any, Callable
 
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QLabel, QPushButton, QVBoxLayout, QWidget
+
 from ephemeraldaddy.core.interpretations import (
     ASPECT_COLORS,
     ASPECT_SCORE_WEIGHTS,
@@ -891,6 +894,8 @@ class EnneagramPredictionPanelAdapter:
         tritype_label: Any = None,
         chart_layout: Any = None,
         debug_math_enabled: bool = False,
+        clear_layout_widgets: Callable[[Any], None] | None = None,
+        calculate_callback: Callable[[Any], None] | None = None,
     ) -> None:
         self.enneagram = enneagram
         self.calculate_type_weights = calculate_type_weights
@@ -901,6 +906,33 @@ class EnneagramPredictionPanelAdapter:
         self.tritype_label = tritype_label
         self.enneagram_prediction_chart_layout = chart_layout
         self.debug_math_enabled = debug_math_enabled
+        self.clear_layout_widgets = clear_layout_widgets
+        self.calculate_callback = calculate_callback
+
+    def _show_calculate_prompt(self, chart: Any | None) -> None:
+        layout = self.enneagram_prediction_chart_layout
+        if layout is None:
+            return
+        if callable(self.clear_layout_widgets):
+            self.clear_layout_widgets(layout)
+        panel = QWidget()
+        panel_layout = QVBoxLayout()
+        panel_layout.setContentsMargins(12, 18, 12, 18)
+        panel_layout.setSpacing(10)
+        panel_layout.setAlignment(Qt.AlignCenter)
+        panel.setLayout(panel_layout)
+        label = QLabel("No prior data. Calculate (can take awhile)?")
+        label.setAlignment(Qt.AlignCenter)
+        label.setWordWrap(True)
+        label.setStyleSheet("color: #f5f5f5; font-weight: 600;")
+        button = QPushButton("Calculate!")
+        button.setStyleSheet("background-color: #7b4dff; color: white; font-weight: bold; padding: 6px 14px; border-radius: 5px;")
+        button.clicked.connect(lambda _checked=False, chart=chart: self.calculate_callback(chart) if callable(self.calculate_callback) and chart is not None else None)
+        panel_layout.addWidget(label, alignment=Qt.AlignCenter)
+        panel_layout.addWidget(button, alignment=Qt.AlignCenter)
+        layout.addWidget(panel, alignment=Qt.AlignCenter)
+        if self.tritype_label is not None:
+            self.tritype_label.setText("<b>Predicted Tritype:</b> No prior data")
 
     def _draw_no_data(self, ax: Any, _chart: Any | None) -> None:
         ax.clear()
@@ -964,7 +996,10 @@ class EnneagramPredictionPanelAdapter:
                     "<b>Predicted Tritype:</b> —" if chart is None else "<b>Predicted Tritype:</b> No data"
                 )
             return
-        scores = self.cache_metadata(chart)
+        scores = _coerce_complete_enneagram_type_scores(getattr(chart, "enneagram_type_weights", None))
+        if scores is None:
+            self._show_calculate_prompt(chart)
+            return
 
         def _draw_with_cached_scores(ax: Any, draw_chart: Any) -> None:
             draw_enneagram_predictions(

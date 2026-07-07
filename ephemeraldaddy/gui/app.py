@@ -552,6 +552,7 @@ from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import (
     prepare_chart_right_panel_for_loading,
     reveal_chart_right_panel_after_loading,
     schedule_chart_render_for_active_right_panel,
+    _start_background_prediction_render,
     set_chart_right_panel,
     set_chart_right_panel_container_visible,
     stop_background_prediction_render as _stop_background_prediction_render,
@@ -35651,6 +35652,8 @@ class MainWindow(QMainWindow):
             tritype_label=getattr(self, "enneagram_prediction_tritype_label", None),
             chart_layout=self.enneagram_prediction_chart_layout,
             debug_math_enabled=bool(getattr(self, "_enneagram_predictions_debug", False)),
+            clear_layout_widgets=self._clear_layout_widgets,
+            calculate_callback=self._calculate_predictions_on_demand,
         )
 
     def _draw_enneagram_predictions(self, ax, chart: Chart) -> None:
@@ -35668,6 +35671,19 @@ class MainWindow(QMainWindow):
     def _render_traits_predictions(self, chart: Chart | None) -> None:
         _render_traits_predictions(self, chart)
 
+
+    def _calculate_predictions_on_demand(self, chart: Chart | None) -> None:
+        if chart is None or self._is_placeholder_chart(chart):
+            return
+        render_token = self._prediction_norms_render_token() if hasattr(self, "_prediction_norms_render_token") else ""
+        try:
+            from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import _chart_right_panel_prediction_render_token
+
+            render_token = _chart_right_panel_prediction_render_token(self, chart)
+        except Exception:
+            pass
+        _start_background_prediction_render(self, chart, str(render_token))
+
     def _dnd_prediction_adapter(self) -> DndPredictionPanelAdapter:
         return DndPredictionPanelAdapter(
             owner=self,
@@ -35681,6 +35697,8 @@ class MainWindow(QMainWindow):
             is_placeholder_chart=self._is_placeholder_chart,
             norm_charts_provider=self._prediction_norm_charts,
             norm_charts_token_provider=self._prediction_norms_render_token,
+            clear_layout_widgets=self._clear_layout_widgets,
+            calculate_callback=self._calculate_predictions_on_demand,
         )
 
     def _draw_dnd_statblock_predictions(self, ax, chart: Chart) -> None:

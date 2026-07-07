@@ -986,34 +986,15 @@ def schedule_chart_render_for_active_right_panel(owner: object) -> None:
         render_token = _chart_right_panel_prediction_render_token(owner, chart)
         if state is not None and state.last_render_chart_token == render_token:
             return
-        active_token = getattr(owner, "_predictions_background_render_token", None)
-        active_chart = getattr(owner, "_predictions_background_chart", None)
-        if active_token is not None:
-            if active_token == render_token:
-                _set_predictions_status(
-                    owner,
-                    f"Loading Predictions for <b>{html.escape(_chart_display_name(chart))}</b> in the background…",
-                )
-                return
-            if not _prompt_prediction_render_conflict(owner, chart):
-                if active_chart is not None:
-                    _set_predictions_status(
-                        owner,
-                        f"Still loading Predictions for <b>{html.escape(_chart_display_name(active_chart))}</b>…",
-                    )
-                return
-            thread = getattr(owner, "_predictions_background_thread", None)
-            if isinstance(thread, QThread):
-                thread.requestInterruption()
-                thread.quit()
-                jobs = getattr(owner, "_predictions_background_jobs", None)
-                if not isinstance(jobs, list) or not any(
-                    (job[0] if isinstance(job, tuple) else None) is thread for job in jobs
-                ):
-                    worker = getattr(owner, "_predictions_background_worker", None)
-                    receiver = getattr(owner, "_predictions_background_receiver", None)
-                    _retain_background_prediction_job(owner, thread, worker, receiver)
-        _start_background_prediction_render(owner, chart, render_token)
+        owner._render_enneagram_predictions(chart)
+        owner._render_dndification_predictions(chart)
+        if state is not None:
+            state.last_render_chart_token = render_token
+        _set_predictions_status(
+            owner,
+            f"Showing cached Predictions for <b>{html.escape(_chart_display_name(chart))}</b>. "
+            "Use Calculate/Recalculate only when you want to refresh them.",
+        )
         return
     if active_panel in {"subjective_notes", "abc"} and owner._is_chart_analysis_section_visible("anagrams"):
         owner._schedule_chart_render(chart, sections={"anagrams"})

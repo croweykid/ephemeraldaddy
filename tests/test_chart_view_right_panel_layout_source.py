@@ -265,12 +265,18 @@ def test_predictions_background_warmup_updates_loading_progress():
     assert "close_app_loading_progress(progress)" in source
 
 
-def test_dnd_alignment_predictions_are_cached_before_gui_render():
-    source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/dnd_predictions.py").read_text()
+def test_predictions_sections_show_calculate_prompt_instead_of_auto_calculating():
+    enneagram_source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/enneagram_predictions.py").read_text()
+    dnd_source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/dnd_predictions.py").read_text()
+    stack_source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/cv_right_panel_stack.py").read_text()
 
-    assert "_dnd_alignment_score_parts_cache" in source
-    assert "def cache_alignment_metadata" in source
-    render_start = source.index("    def render(self, chart: Any | None")
-    render_method = source[render_start : source.index("def connect_dnd_alignment_popout_pick_handler", render_start)]
-    assert "self.cache_metadata(chart)" in render_method
-    assert "self.cache_alignment_metadata(chart)" in render_method
+    assert "No prior data. Calculate (can take awhile)?" in enneagram_source
+    assert "No prior data. Calculate (can take awhile)?" in dnd_source
+    assert 'QPushButton("Calculate!")' in enneagram_source
+    assert 'QPushButton("Calculate!")' in dnd_source
+    active_branch = stack_source[
+        stack_source.index('    if active_panel == "predictions":') : stack_source.index('    if active_panel in {"subjective_notes", "abc"}')
+    ]
+    assert "_start_background_prediction_render(owner, chart, render_token)" not in active_branch
+    assert "owner._render_enneagram_predictions(chart)" in active_branch
+    assert "owner._render_dndification_predictions(chart)" in active_branch
