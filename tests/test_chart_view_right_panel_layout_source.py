@@ -250,3 +250,6 @@ def test_dnd_alignment_popout_is_registered_and_configured():
     assert 'build_dnd_alignment_description_html' in dnd_source
     assert 'point.set_gid(f"dnd_alignment:{alignment_key}")' in dnd_source
     assert 'font-style:italic' in dnd_source
+    assert 'def resolve_dnd_official_alignment' in dnd_source
+    assert 'Official D&amp;D alignment:' in dnd_source
+    assert 'return "True Neutral"' in dnd_source

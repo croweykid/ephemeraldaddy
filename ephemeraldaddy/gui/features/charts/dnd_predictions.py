@@ -693,9 +693,35 @@ def build_dnd_alignment_breakdown_html(owner: Any, chart: Any) -> str:
         + "".join(rows)
         + "</table><br>"
         f"<b>X coordinate:</b> Lawful {lawful:+.2f}% − Chaotic {chaotic:+.2f}% = {lawful - chaotic:+.2f}%<br>"
-        f"<b>Y coordinate:</b> Good {good:+.2f}% − Evil {evil:+.2f}% = {good - evil:+.2f}%"
+        f"<b>Y coordinate:</b> Good {good:+.2f}% − Evil {evil:+.2f}% = {good - evil:+.2f}%<br>"
+        f"<b>Official D&amp;D alignment:</b> "
+        f"{html.escape(resolve_dnd_official_alignment(good - evil, lawful - chaotic))}"
         '</div>'
     )
+
+
+def resolve_dnd_official_alignment(net_good: float, net_lawful: float) -> str:
+    """Resolve net Good/Evil and Lawful/Chaotic percentages into a D&D alignment."""
+
+    def _law_axis(value: float) -> str:
+        if value > 2.0:
+            return "Lawful"
+        if value < -2.0:
+            return "Chaotic"
+        return "Neutral"
+
+    def _moral_axis(value: float) -> str:
+        if value > 2.0:
+            return "Good"
+        if value < -2.0:
+            return "Evil"
+        return "Neutral"
+
+    law_axis = _law_axis(net_lawful)
+    moral_axis = _moral_axis(net_good)
+    if law_axis == "Neutral" and moral_axis == "Neutral":
+        return "True Neutral"
+    return f"{law_axis} {moral_axis}"
 
 
 def build_dnd_alignment_debug_summary_html(owner: Any, chart: Any) -> str:
@@ -718,7 +744,9 @@ def build_dnd_alignment_debug_summary_html(owner: Any, chart: Any) -> str:
         f"Chaotic: {_format_percent(chaotic)} &nbsp; "
         f"Lawful: {_format_percent(lawful)}<br>"
         f"Net Good: {_format_percent(net_good_evil)} &nbsp; "
-        f"Net Lawful: {_format_percent(net_lawful_chaotic)}"
+        f"Net Lawful: {_format_percent(net_lawful_chaotic)}<br>"
+        f"<b>Official D&amp;D alignment:</b> "
+        f"{html.escape(resolve_dnd_official_alignment(net_good_evil, net_lawful_chaotic))}"
     )
 
 
