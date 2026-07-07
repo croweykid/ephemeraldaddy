@@ -114,6 +114,45 @@ def load_personal_identifiers_by_uid(chart_uid: str | None) -> dict[str, Any]:
     return facts
 
 
+
+def load_linked_relative_uids_by_uid(chart_uid: str | None) -> list[str]:
+    """Return direct and reciprocal database-relative UID links for a chart.
+
+    Relationship links are treated as bidirectional for display: if chart A
+    links chart B, chart B should also show chart A in Chart View's Material
+    Facts Relationships section even when chart B has not explicitly saved the
+    reverse link.
+    """
+    normalized_uid = _clean_chart_uid(chart_uid)
+    if normalized_uid is None:
+        return []
+
+    payload = _load_sidecar(personal_identifiers_path())
+    direct_uids = _normalize_relative_uids(
+        payload.get(normalized_uid, {}).get(RELATIVE_UIDS_FIELD, [])
+    )
+    linked_uids: list[str] = []
+    seen: set[str] = set()
+
+    def add_uid(uid: str | None) -> None:
+        if uid is None or uid == normalized_uid or uid in seen:
+            return
+        linked_uids.append(uid)
+        seen.add(uid)
+
+    for uid in direct_uids:
+        add_uid(uid)
+
+    for source_uid, facts in payload.items():
+        clean_source_uid = _clean_chart_uid(source_uid)
+        if clean_source_uid is None or clean_source_uid == normalized_uid:
+            continue
+        source_relative_uids = _normalize_relative_uids(facts.get(RELATIVE_UIDS_FIELD, []))
+        if normalized_uid in source_relative_uids:
+            add_uid(clean_source_uid)
+
+    return linked_uids
+
 def save_personal_identifiers_by_uid(chart_uid: str | None, facts: dict[str, Any]) -> None:
     normalized_uid = _clean_chart_uid(chart_uid)
     if normalized_uid is None:
