@@ -22,6 +22,7 @@ from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
     DND_CLASSES,
     DND_CLASS_SUBCLASS_EXPLAINERS,
     DnDClassScorer,
+    DnDStatBlock,
     build_class_axis_profile_lines,
     resolve_class_key,
     score_class_axes,
@@ -370,6 +371,7 @@ def _build_dnd_stat_math_html(
     subtotals: list[tuple[str, float]],
     *,
     norm_charts: Any = None,
+    db_norm_averages: Any = None,
     cached_at: Any = None,
     floor: int = 5,
     ceiling: int = 20,
@@ -387,7 +389,7 @@ def _build_dnd_stat_math_html(
     except Exception:
         scorer_raw_total = raw_score
     final_score = int(statblock.scores.get(stat_key, 0))
-    db_norms = _calculate_db_norm_stat_averages(norm_charts)
+    db_norms = dict(db_norm_averages or _calculate_db_norm_stat_averages(norm_charts))
     db_average = float(db_norms.get(stat_key, 0.0)) if db_norms else 0.0
     timestamp = _format_cache_timestamp(cached_at)
     if db_norms and math.isfinite(db_average) and abs(db_average) > 1e-9:
@@ -461,6 +463,7 @@ def build_dnd_statblock_popout_info_html(
             statblock,
             evidence_subtotals,
             norm_charts=norm_charts,
+            db_norm_averages=getattr(statblock, "_db_norm_averages", None),
             cached_at=cached_at,
         )
         explainer_html = (
@@ -724,8 +727,11 @@ def _dnd_alignment_score_parts(owner: Any, chart: Any, *, allow_stale: bool = Tr
     chart_cache_id = _chart_prediction_cache_identity(chart)
     if not isinstance(cached, dict):
         restored = owner_cache.get(chart_cache_id)
+        if not isinstance(restored, dict):
+            restored = _load_persisted_dnd_prediction_payload(chart).get("alignment")
         if isinstance(restored, dict):
             cached = restored
+            owner_cache[chart_cache_id] = restored
             try:
                 setattr(chart, "_dnd_alignment_score_parts_cache", cached)
             except Exception:
@@ -758,6 +764,7 @@ def _dnd_alignment_score_parts(owner: Any, chart: Any, *, allow_stale: bool = Tr
         cache_payload = {"key": cache_key, "parts": parts, "cached_at": time.time()}
         setattr(chart, "_dnd_alignment_score_parts_cache", cache_payload)
         owner_cache[chart_cache_id] = cache_payload
+        _persist_dnd_prediction_payload(chart, "alignment", cache_payload)
     except Exception:
         pass
     return parts
@@ -1056,6 +1063,84 @@ def _owner_cache_bucket(owner: Any, attr_name: str) -> dict[str, Any]:
             return {}
     return cache
 
+
+def _chart_prediction_cache_uid(chart: Any) -> str:
+    for attr in ("uid", "UID", "chart_uid", "permanent_uid"):
+        value = str(getattr(chart, attr, "") or "").strip()
+        if value:
+            return value
+    return ""
+
+
+def _cache_key_fingerprint(cache_key: Any) -> str:
+    return repr(cache_key)
+
+
+def _statblock_to_cache_dict(statblock: Any) -> dict[str, Any]:
+    return {
+        "raw_scores": dict(getattr(statblock, "raw_scores", {}) or {}),
+        "scores": dict(getattr(statblock, "scores", {}) or {}),
+        "modifiers": dict(getattr(statblock, "modifiers", {}) or {}),
+    }
+
+
+def _statblock_from_cache_dict(payload: Any) -> Any | None:
+    if not isinstance(payload, dict):
+        return None
+    try:
+        return DnDStatBlock(
+            raw_scores={str(key): float(value) for key, value in dict(payload.get("raw_scores", {})).items()},
+            scores={str(key): int(value) for key, value in dict(payload.get("scores", {})).items()},
+            modifiers={str(key): int(value) for key, value in dict(payload.get("modifiers", {})).items()},
+        )
+    except Exception:
+        return None
+
+
+def _restore_statblock_cache_payload(payload: Any) -> dict[str, Any] | None:
+    if not isinstance(payload, dict):
+        return None
+    statblock = payload.get("statblock")
+    if isinstance(statblock, dict):
+        statblock = _statblock_from_cache_dict(statblock)
+    if statblock is None:
+        return None
+    restored = dict(payload)
+    restored["statblock"] = statblock
+    return restored
+
+
+def _load_persisted_dnd_prediction_payload(chart: Any) -> dict[str, Any]:
+    chart_uid = _chart_prediction_cache_uid(chart)
+    if not chart_uid:
+        return {}
+    try:
+        from ephemeraldaddy.core import db
+
+        payload = db.get_chart_dnd_prediction_metadata(chart_uid)
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _persist_dnd_prediction_payload(chart: Any, section: str, payload: dict[str, Any]) -> None:
+    chart_uid = _chart_prediction_cache_uid(chart)
+    if not chart_uid or not isinstance(payload, dict):
+        return
+    try:
+        from ephemeraldaddy.core import db
+
+        existing = db.get_chart_dnd_prediction_metadata(chart_uid)
+        existing = existing if isinstance(existing, dict) else {}
+        serializable = dict(payload)
+        if section == "statblock":
+            serializable["statblock"] = _statblock_to_cache_dict(payload.get("statblock"))
+        existing[section] = serializable
+        existing["version"] = 1
+        db.upsert_chart_dnd_prediction_metadata(chart_uid, existing)
+    except Exception:
+        pass
+
 class DndPredictionPanelAdapter:
     """Own the D&D prediction panel lifecycle for Chart View."""
 
@@ -1197,7 +1282,10 @@ class DndPredictionPanelAdapter:
         if isinstance(cached, dict) and cached.get("statblock") is not None:
             return cached
         restored = self._statblock_owner_cache().get(self._chart_cache_identity(chart))
+        if not isinstance(restored, dict):
+            restored = _restore_statblock_cache_payload(_load_persisted_dnd_prediction_payload(chart).get("statblock"))
         if isinstance(restored, dict) and restored.get("statblock") is not None:
+            self._statblock_owner_cache()[self._chart_cache_identity(chart)] = restored
             try:
                 setattr(chart, "_dnd_statblock_prediction_cache", restored)
             except Exception:
@@ -1207,7 +1295,11 @@ class DndPredictionPanelAdapter:
 
     def _statblock_cache_is_stale(self, chart: Any, norm_charts: Any) -> bool:
         cached = self._restore_statblock_cache(chart)
-        return isinstance(cached, dict) and cached.get("key") != self._statblock_cache_key(norm_charts)
+        current_key = self._statblock_cache_key(norm_charts)
+        return isinstance(cached, dict) and (
+            cached.get("key") != current_key
+            and cached.get("key_fingerprint") != _cache_key_fingerprint(current_key)
+        )
 
     def _statblock_cache_key(self, norm_charts: Any) -> tuple[Any, ...]:
         try:
@@ -1220,13 +1312,31 @@ class DndPredictionPanelAdapter:
         cache_key = self._statblock_cache_key(norm_charts)
         cached = self._restore_statblock_cache(chart)
         if isinstance(cached, dict) and cached.get("statblock") is not None:
-            if cached.get("key") == cache_key or allow_stale:
+            if cached.get("key") == cache_key or cached.get("key_fingerprint") == _cache_key_fingerprint(cache_key) or allow_stale:
+                try:
+                    setattr(cached["statblock"], "_db_norm_averages", dict(cached.get("db_norm_averages") or {}))
+                except Exception:
+                    pass
                 return cached["statblock"]
+        db_norm_averages = _calculate_db_norm_stat_averages(norm_charts)
         statblock = score_dnd_statblock(chart, norm_charts=norm_charts)
         try:
-            cache_payload = {"key": cache_key, "statblock": statblock, "cached_at": time.time()}
+            setattr(statblock, "_db_norm_averages", dict(db_norm_averages))
+        except Exception:
+            pass
+        try:
+            cache_payload = {
+                "key": cache_key,
+                "key_fingerprint": _cache_key_fingerprint(cache_key),
+                "norm_token": self._norm_charts_cache_token(norm_charts),
+                "norm_count": len(norm_charts) if norm_charts is not None and hasattr(norm_charts, "__len__") else None,
+                "db_norm_averages": dict(db_norm_averages),
+                "statblock": statblock,
+                "cached_at": time.time(),
+            }
             setattr(chart, "_dnd_statblock_prediction_cache", cache_payload)
             self._statblock_owner_cache()[self._chart_cache_identity(chart)] = cache_payload
+            _persist_dnd_prediction_payload(chart, "statblock", cache_payload)
         except Exception:
             pass
         return statblock
@@ -1280,16 +1390,26 @@ class DndPredictionPanelAdapter:
             return build_dnd_statblock_popout_info_html(chart, target, show_explainers=show_explainers)
         norm_charts = self._norm_charts()
         statblock = self._score_statblock(chart, norm_charts)
+        statblock_cache = getattr(chart, "_dnd_statblock_prediction_cache", None)
+        statblock_key_fingerprint = (
+            statblock_cache.get("key_fingerprint")
+            if isinstance(statblock_cache, dict)
+            else _cache_key_fingerprint(self._statblock_cache_key(norm_charts))
+        )
         cache_key = (
-            *self._statblock_cache_key(norm_charts),
+            statblock_key_fingerprint,
             str(target or "").strip().upper(),
             bool(show_explainers),
         )
         cached = getattr(chart, "_dnd_statblock_popout_info_cache", None)
         if isinstance(cached, dict) and cached.get("key") == cache_key and cached.get("html"):
             return str(cached["html"])
-        statblock_cache = getattr(chart, "_dnd_statblock_prediction_cache", None)
         cached_at = statblock_cache.get("cached_at") if isinstance(statblock_cache, dict) else None
+        if isinstance(statblock_cache, dict):
+            try:
+                setattr(statblock, "_db_norm_averages", dict(statblock_cache.get("db_norm_averages") or {}))
+            except Exception:
+                pass
         info_html = build_dnd_statblock_popout_info_html(
             chart,
             target,
