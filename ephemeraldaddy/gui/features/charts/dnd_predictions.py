@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import html
+import math
+import time
+from datetime import datetime, timezone
 from typing import Any, Callable
 
 from PySide6.QtCore import Qt
@@ -60,6 +63,12 @@ from ephemeraldaddy.analysis.weighted_chart_predictor import (
     _weighted_text_entries,
 )
 from ephemeraldaddy.analysis.traits import calculate_trait_likelihoods
+from ephemeraldaddy.analysis.dnd.dnd_stat_calculator import (
+    _DND_AVERAGE_STAT_ANCHOR,
+    _EVIDENCE_DENOMINATOR_SCALE,
+    _calculate_db_norm_stat_averages,
+    _calculate_stat_evidence_denominators,
+)
 from ephemeraldaddy.core.interpretations import ASPECT_SCORE_WEIGHTS
 from ephemeraldaddy.gui.features.charts.trait_predictions import _database_trait_averages
 from ephemeraldaddy.gui.style import (
@@ -192,6 +201,21 @@ def _format_signed_delta(value: float) -> str:
     return f"{value:+.2f}"
 
 
+def _format_cache_timestamp(value: Any) -> str:
+    if value is None:
+        return "not cached yet"
+    if isinstance(value, datetime):
+        timestamp = value
+    else:
+        try:
+            timestamp = datetime.fromtimestamp(float(value), tz=timezone.utc)
+        except (TypeError, ValueError, OSError):
+            return html.escape(str(value))
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=timezone.utc)
+    return timestamp.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+
 def _evidence_line(label: str, contribution: float, detail: str = "") -> str:
     direction = "supports" if contribution >= 0 else "drags down"
     detail_text = f"; {detail}" if detail else ""
@@ -201,11 +225,11 @@ def _evidence_line(label: str, contribution: float, detail: str = "") -> str:
     )
 
 
-def _build_dnd_stat_evidence_html(chart: Any, stat_key: str, *, max_items_per_category: int = 8) -> str:
+def _build_dnd_stat_evidence_html(chart: Any, stat_key: str, *, max_items_per_category: int = 8) -> tuple[str, list[tuple[str, float]]]:
     """Explain the chart-specific predictor evidence behind one D&D stat score."""
     factors = DND_STAT_PREDICTORS.get(stat_key, {})
     if not isinstance(factors, dict):
-        return ""
+        return "", []
 
     use_houses = default_chart_uses_houses(chart)
     sign_weights = normalize_weight_map_for_dominance_activation(
@@ -317,9 +341,10 @@ def _build_dnd_stat_evidence_html(chart: Any, stat_key: str, *, max_items_per_ca
     add_weight_matches("BaZi sign weights", "bazisigns", "antibazisigns", bazi_weights, weighted_bazi_sign_entries)
 
     if not sections:
-        return "<div>No chart-specific predictor matches were found for this stat; the score is mostly baseline/normalization.</div>"
+        return "<div>No chart-specific predictor matches were found for this stat; the score is mostly baseline/normalization.</div>", []
 
     html_sections: list[str] = []
+    subtotals: list[tuple[str, float]] = []
     for title, rows in sections:
         rows = sorted(rows, key=lambda row: abs(row[0]), reverse=True)
         omitted = max(0, len(rows) - max_items_per_category)
@@ -327,13 +352,69 @@ def _build_dnd_stat_evidence_html(chart: Any, stat_key: str, *, max_items_per_ca
         if omitted:
             rendered_rows.append(f"<li>…{omitted} smaller matched item(s) omitted.</li>")
         subtotal = sum(contribution for contribution, _line in rows)
+        subtotals.append((title, subtotal))
         title_prefix = "✅ " if subtotal > 0 else "❌ " if subtotal < 0 else ""
         html_sections.append(
             f"<div><b>{title_prefix}{html.escape(title)}</b> "
             f"<span style='opacity:0.85;'>(subtotal {_format_signed_delta(subtotal)})</span>"
             f"<ul>{''.join(rendered_rows)}</ul></div>"
         )
-    return "".join(html_sections)
+    return "".join(html_sections), subtotals
+
+
+def _build_dnd_stat_math_html(
+    stat_key: str,
+    statblock: Any,
+    subtotals: list[tuple[str, float]],
+    *,
+    norm_charts: Any = None,
+    cached_at: Any = None,
+    floor: int = 5,
+    ceiling: int = 20,
+) -> str:
+    subtotal_total = sum(value for _label, value in subtotals)
+    subtotal_rows = "".join(
+        f"<li>{html.escape(label)} subtotal: {_format_signed_delta(value)}</li>"
+        for label, value in subtotals
+    ) or "<li>No matched evidence subtotals; total evidence is +0.00.</li>"
+    raw_score = float(statblock.raw_scores.get(stat_key, 0.0))
+    final_score = int(statblock.scores.get(stat_key, 0))
+    db_norms = _calculate_db_norm_stat_averages(norm_charts)
+    db_average = float(db_norms.get(stat_key, 0.0)) if db_norms else 0.0
+    timestamp = _format_cache_timestamp(cached_at)
+    if db_norms and math.isfinite(db_average) and abs(db_average) > 1e-9:
+        ratio = raw_score / db_average
+        unclamped = _DND_AVERAGE_STAT_ANCHOR * ratio
+        rounded = int(math.floor(max(floor, min(ceiling, unclamped)) + 0.5))
+        norm_line = (
+            f"DB norm for {html.escape(stat_key)}: {db_average:.3f} raw evidence "
+            f"(last cached {timestamp})."
+        )
+        formula_line = (
+            f"Formula: chart raw {raw_score:.3f} ÷ DB norm {db_average:.3f} = {ratio:.3f}; "
+            f"{_DND_AVERAGE_STAT_ANCHOR:.0f} × {ratio:.3f} = {unclamped:.3f}; "
+            f"clamp to {floor}-{ceiling}, then round = {rounded}."
+        )
+    else:
+        denominator = max(1e-9, float(_calculate_stat_evidence_denominators(DND_STAT_PREDICTORS).get(stat_key, 1.0)))
+        scaled = subtotal_total / (denominator * _EVIDENCE_DENOMINATOR_SCALE)
+        normalized = max(0.0, min(1.0, 0.5 + (0.5 * math.tanh(scaled))))
+        norm_line = f"DB norm for {html.escape(stat_key)}: unavailable or zero (last checked {timestamp}); using fallback predictor normalization."
+        formula_line = (
+            f"Formula: subtotal total {subtotal_total:+.3f} ÷ criteria scale "
+            f"({denominator:.3f} × {_EVIDENCE_DENOMINATOR_SCALE:.1f}) = {scaled:.3f}; "
+            f"tanh-normalized score = {normalized:.3f}; mapped to {floor}-{ceiling} = {final_score}."
+        )
+    return (
+        "<hr style='border:0;border-top:1px solid rgba(255,255,255,0.35);margin:10px 0;'>"
+        "<div><b>Math walkthrough</b>"
+        f"<ul>{subtotal_rows}</ul>"
+        f"<div>Subtotal sum: {' + '.join(_format_signed_delta(value) for _label, value in subtotals) or '+0.00'} = {_format_signed_delta(subtotal_total)}.</div>"
+        f"<div>{norm_line}</div>"
+        f"<div>{formula_line}</div>"
+        f"<div><b>Final displayed {html.escape(stat_key)} value: {final_score}</b>.</div>"
+        "</div>"
+    )
 
 
 def build_dnd_statblock_popout_info_html(
@@ -343,6 +424,7 @@ def build_dnd_statblock_popout_info_html(
     norm_charts: Any = None,
     statblock: Any = None,
     show_explainers: bool = True,
+    cached_at: Any = None,
 ) -> str:
     if chart is None:
         return "No chart is available for this D&D stat interpretation."
@@ -363,10 +445,17 @@ def build_dnd_statblock_popout_info_html(
     raw_score = float(statblock.raw_scores.get(normalized_stat_key, 0.0))
     modifier = int(statblock.modifiers.get(normalized_stat_key, 0))
     if show_explainers:
-        evidence_html = _build_dnd_stat_evidence_html(chart, normalized_stat_key)
+        evidence_html, evidence_subtotals = _build_dnd_stat_evidence_html(chart, normalized_stat_key)
+        math_html = _build_dnd_stat_math_html(
+            normalized_stat_key,
+            statblock,
+            evidence_subtotals,
+            norm_charts=norm_charts,
+            cached_at=cached_at,
+        )
         explainer_html = (
             f"<div style='height:10px;'></div><br>"
-            f"<p><div style='{header_style}'><b>Why this chart got this score</b>{evidence_html}</div></p>"
+            f"<p><div style='{header_style}'><b>Why this chart got this score</b>{evidence_html}{math_html}</div></p>"
         )
     else:
         explainer_html = (
@@ -376,7 +465,7 @@ def build_dnd_statblock_popout_info_html(
         )
     score_context_html = (
         f"<div style='{header_style}'>Final stat: <b>{stat_value}</b> "
-        f"(modifier {modifier:+d}); normalized predictor score {raw_score:.3f}. "
+        f"(modifier {modifier:+d}); calculation score {raw_score:.3f}. "
         f"{explainer_html}"
     )
 
@@ -1062,7 +1151,7 @@ class DndPredictionPanelAdapter:
             return cached["statblock"]
         statblock = score_dnd_statblock(chart, norm_charts=norm_charts)
         try:
-            setattr(chart, "_dnd_statblock_prediction_cache", {"key": cache_key, "statblock": statblock})
+            setattr(chart, "_dnd_statblock_prediction_cache", {"key": cache_key, "statblock": statblock, "cached_at": time.time()})
         except Exception:
             pass
         return statblock
@@ -1124,12 +1213,15 @@ class DndPredictionPanelAdapter:
         cached = getattr(chart, "_dnd_statblock_popout_info_cache", None)
         if isinstance(cached, dict) and cached.get("key") == cache_key and cached.get("html"):
             return str(cached["html"])
+        statblock_cache = getattr(chart, "_dnd_statblock_prediction_cache", None)
+        cached_at = statblock_cache.get("cached_at") if isinstance(statblock_cache, dict) else None
         info_html = build_dnd_statblock_popout_info_html(
             chart,
             target,
             norm_charts=norm_charts,
             statblock=statblock,
             show_explainers=show_explainers,
+            cached_at=cached_at,
         )
         try:
             setattr(chart, "_dnd_statblock_popout_info_cache", {"key": cache_key, "html": info_html})
