@@ -394,6 +394,94 @@ def test_time_sensitivity_html_color_codes_deltas_and_links_factors():
     assert "underline dotted" not in html
 
 
+def test_time_sensitivity_html_includes_possible_defined_centers_and_calm_variability_labels():
+    import pytest
+
+    panel_module = pytest.importorskip(
+        "ephemeraldaddy.gui.features.charts.time_sensitivity_panel",
+        exc_type=ImportError,
+    )
+
+    result = TimeSensitivityResult(
+        chart_uid="CHARTUID",
+        chart_name="Example",
+        birth_date_key="01-01-2000",
+        algorithm_version="time-sensitivity-v10",
+        computed_at="2026-06-20T00:00:00Z",
+        config=TimeSensitivityConfig().__dict__,
+        sample_count=2,
+        baseline_time="12:00",
+        overall={"stability_percent": 50.0},
+        numeric_ranges={},
+        human_design={
+            "gates": {"always": [], "sometimes": [], "sample_count": 2},
+            "lines": {"always": [], "sometimes": [], "sample_count": 2},
+            "channels": {"always": [], "sometimes": [], "sample_count": 2},
+            "defined_centers": {
+                "always": [],
+                "sometimes": ["Sacral"],
+                "sample_count": 2,
+            },
+            "type_distribution": {},
+            "profile_distribution": {},
+        },
+        stable=[],
+        variable=[],
+        warnings=[],
+    )
+
+    html = panel_module.format_time_sensitivity_result_html(result)
+
+    assert "Possible Defined Centers" in html
+    assert "Sacral" in html
+    assert panel_module._variability_scale_label(100.0) == "high"
+    assert panel_module._variability_scale_label(10.0) == "medium"
+
+
+def test_human_design_time_range_text_reports_gate_and_line_spans():
+    import pytest
+
+    panel_module = pytest.importorskip(
+        "ephemeraldaddy.gui.features.charts.time_sensitivity_panel",
+        exc_type=ImportError,
+    )
+
+    result = TimeSensitivityResult(
+        chart_uid="CHARTUID",
+        chart_name="Example",
+        birth_date_key="01-01-2000",
+        algorithm_version="time-sensitivity-v10",
+        computed_at="2026-06-20T00:00:00Z",
+        config=TimeSensitivityConfig().__dict__,
+        sample_count=3,
+        baseline_time="12:00",
+        overall={},
+        numeric_ranges={},
+        human_design={
+            "gates": {
+                "always": [],
+                "sometimes": [1],
+                "presence_counts": {"1": 2},
+                "presence_spans": {"1": ["00:00–00:30"]},
+                "sample_count": 3,
+            },
+            "lines": {
+                "always": [],
+                "sometimes": ["1.2"],
+                "presence_counts": {"1.2": 1},
+                "presence_spans": {"1.2": ["00:30–00:30"]},
+                "sample_count": 3,
+            },
+        },
+        stable=[],
+        variable=[],
+        warnings=[],
+    )
+
+    assert "00:00–00:30" in panel_module.human_design_time_range_text(result, 1)
+    assert "00:30–00:30" in panel_module.human_design_time_range_text(result, 1, 2)
+
+
 def test_time_sensitivity_html_colors_min_and_max_against_separate_peer_scales():
     import pytest
 
@@ -773,11 +861,13 @@ def test_human_design_cache_invalidates_when_rectified_time_changes(monkeypatch)
     calls = []
 
     def fake_calculate_human_design(chart):
-        calls.append((
-            bool(getattr(chart, "retcon_time_used", False)),
-            getattr(chart, "retcon_hour", None),
-            getattr(chart, "retcon_minute", None),
-        ))
+        calls.append(
+            (
+                bool(getattr(chart, "retcon_time_used", False)),
+                getattr(chart, "retcon_hour", None),
+                getattr(chart, "retcon_minute", None),
+            )
+        )
         return HumanDesignResult(
             birth_utc=datetime(2000, 1, 1, tzinfo=timezone.utc),
             design_utc=datetime(1999, 12, 12, tzinfo=timezone.utc),

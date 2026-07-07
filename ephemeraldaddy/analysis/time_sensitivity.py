@@ -20,7 +20,7 @@ from ephemeraldaddy.core.interpretations import (
     ZODIAC_NAMES,
 )
 
-TIME_SENSITIVITY_ALGORITHM_VERSION = "time-sensitivity-v9"
+TIME_SENSITIVITY_ALGORITHM_VERSION = "time-sensitivity-v10"
 TIME_SENSITIVITY_DB_PATH = DB_DIR / "time_sensitivity.db"
 NUMERIC_GROUPS = (
     "dominant_planet_weights",
@@ -154,6 +154,7 @@ def _hd_snapshot(chart: Chart) -> dict[str, Any]:
         "channels": sorted(
             f"{min(a, b)}-{max(a, b)}" for a, b, *_ in result.defined_channels
         ),
+        "defined_centers": sorted(str(center) for center in result.defined_centers),
         "type": str(result.hd_type or ""),
         "profile": str(result.profile or ""),
     }
@@ -390,8 +391,7 @@ def _aggregate_numeric(
                     present_times[0] if min_value == 0.0 and present_times else None
                 ),
                 "weight_samples": [
-                    {"time": time, "weight": round(value, 6)}
-                    for time, value in values
+                    {"time": time, "weight": round(value, 6)} for time, value in values
                 ],
             }
         ranges[group] = group_ranges
@@ -410,12 +410,23 @@ def _presence_summary(samples: list[dict[str, Any]], key: str) -> dict[str, Any]
         )
         for item in universe
     }
+    spans = {
+        str(item): _matching_spans(
+            [
+                (sample["time"], item in sample["human_design"].get(key, []))
+                for sample in samples
+            ],
+            lambda present: bool(present),
+        )
+        for item in universe
+    }
     return {
         "always": [item for item, count in counts.items() if count == sample_count],
         "sometimes": [
             item for item, count in counts.items() if 0 < count < sample_count
         ],
         "presence_counts": counts,
+        "presence_spans": spans,
         "sample_count": sample_count,
     }
 
@@ -727,6 +738,7 @@ def compute_time_sensitivity(
                 "gates": [],
                 "lines": [],
                 "channels": [],
+                "defined_centers": [],
                 "type": "",
                 "profile": "",
             }
@@ -790,6 +802,7 @@ def compute_time_sensitivity(
         "gates": _presence_summary(samples, "gates"),
         "lines": _presence_summary(samples, "lines"),
         "channels": _presence_summary(samples, "channels"),
+        "defined_centers": _presence_summary(samples, "defined_centers"),
         "type_distribution": _distribution(samples, "type"),
         "profile_distribution": _distribution(samples, "profile"),
     }
