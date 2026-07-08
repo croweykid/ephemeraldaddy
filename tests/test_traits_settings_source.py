@@ -126,6 +126,8 @@ def test_legacy_trait_signature_and_parenthesized_names_are_preserved():
     )
 
     assert "def _trait_signature_payload" in predictions_source
+    assert "def _trait_display_signature_payload" in predictions_source
+    assert "trait_display_signature" in predictions_source
     assert "legacy_trait_signature" in predictions_source
     assert "strip_uids=True" in predictions_source
     assert "item.setData(Qt.UserRole + 5, name)" in settings_source

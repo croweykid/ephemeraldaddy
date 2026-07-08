@@ -317,6 +317,7 @@ def test_traits_predictions_show_manual_calculate_prompt_without_autostarting_wo
     assert "trait-predictions:calculate" in source
     assert "cached_only: bool = False" in source
     assert "trait_metadata_for_chart(owner, chart, cached_only=True)" in source
+    assert '"trait_display_signature": trait_display_signature' in source
     no_cache_branch = source[source.index("owner._traits_prediction_pending_chart = chart"):]
     assert "showing manual calculate prompt" in no_cache_branch
     assert "_start_traits_prediction_refresh_worker(owner, chart, traits" not in no_cache_branch

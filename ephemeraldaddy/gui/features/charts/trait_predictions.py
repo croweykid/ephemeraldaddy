@@ -451,6 +451,21 @@ def _trait_signature_payload(traits: list[dict[str, Any]], *, strip_uids: bool =
     return {"version": TRAIT_DB_NORMS_CACHE_VERSION, "traits": trait_payloads}
 
 
+def _trait_display_signature_payload(traits: list[dict[str, Any]]) -> dict[str, Any]:
+    """Return display-only fields that can make cached Traits HTML stale."""
+    return {
+        "version": TRAIT_DB_NORMS_CACHE_VERSION,
+        "traits": [
+            {
+                "uid": str(trait.get("uid") or trait.get("trait_uid") or "").strip(),
+                "name": str(trait.get("name", "")).strip(),
+                "color": normalize_trait_color(str(trait.get("color", DEFAULT_TRAIT_COLOR))),
+            }
+            for trait in traits
+        ],
+    }
+
+
 def _trait_norm_cache_key(chart_uids: tuple[str, ...], trait: dict[str, Any]) -> str | None:
     name = str(trait.get("name", "")).strip()
     if not name or bool(trait.get("archived", False)):
@@ -810,6 +825,7 @@ def _trait_predictions_cache_key(
     chart_uid = str(getattr(chart, "chart_uid", "") or "").strip().upper()
     chart_scope = f"uid:{chart_uid}" if chart_uid else "draft"
     trait_signature = _stable_json_hash(_trait_signature_payload(traits))
+    trait_display_signature = _stable_json_hash(_trait_display_signature_payload(traits))
     try:
         norm_signature = _database_norm_signature_for_traits(owner, traits)
     except Exception as exc:
@@ -825,6 +841,7 @@ def _trait_predictions_cache_key(
             "chart_scope": chart_scope,
             "chart_signature": _chart_trait_metadata_signature(chart),
             "trait_signature": trait_signature,
+            "trait_display_signature": trait_display_signature,
             "norm_signature": norm_signature,
         }
     )
