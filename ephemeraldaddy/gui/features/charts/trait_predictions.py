@@ -510,6 +510,18 @@ def _trait_uid_for_item(trait: dict[str, Any]) -> str:
     return trait_uid_for_profile(name, trait.get("profile", {}) if isinstance(trait.get("profile"), dict) else {})
 
 
+def _trait_uids_for_names(names: set[str], trait_uids_by_name: dict[str, str]) -> list[str]:
+    return sorted(uid for name in names if (uid := str(trait_uids_by_name.get(name, "")).strip()))
+
+
+def _trait_uid_mapping_for_names(values_by_name: dict[str, float], trait_uids_by_name: dict[str, str]) -> dict[str, float]:
+    return {
+        uid: value
+        for name, value in values_by_name.items()
+        if (uid := str(trait_uids_by_name.get(name, "")).strip())
+    }
+
+
 def _trait_analytical_profile(profile: Any, *, strip_uids: bool = False) -> dict[str, Any]:
     """Return only scoring-relevant trait factors, excluding display-only metadata."""
     return analytical_mapping_signature(profile, strip_uids=strip_uids)
@@ -826,13 +838,15 @@ def trait_metadata_for_chart(owner: Any, chart: Any, *, cached_only: bool = Fals
                 "likelihoods": likelihoods,
                 "database_averages": database_averages,
             }
+            above_uids = _trait_uids_for_names(above, trait_uids_by_name)
+            below_uids = _trait_uids_for_names(below, trait_uids_by_name)
             setattr(chart, "predicted_traits_above_avg", set(above))
             setattr(chart, "predicted_traits_below_avg", set(below))
             setattr(chart, "predicted_trait_deviations", dict(deviations))
-            setattr(chart, "traits", sorted(above))
-            setattr(chart, "traits_above_average", sorted(above))
-            setattr(chart, "traits_below_average", sorted(below))
-            setattr(chart, "trait_likelihoods", dict(likelihoods))
+            setattr(chart, "traits", list(above_uids))
+            setattr(chart, "traits_above_average", list(above_uids))
+            setattr(chart, "traits_below_average", list(below_uids))
+            setattr(chart, "trait_likelihoods", _trait_uid_mapping_for_names(likelihoods, trait_uids_by_name))
             setattr(chart, "_trait_prediction_metadata_cache", {"signature": signature, "metadata": metadata})
             return metadata
 
@@ -866,13 +880,15 @@ def trait_metadata_for_chart(owner: Any, chart: Any, *, cached_only: bool = Fals
         "likelihoods": likelihoods,
         "database_averages": database_averages,
     }
+    above_uids = _trait_uids_for_names(above, trait_uids_by_name)
+    below_uids = _trait_uids_for_names(below, trait_uids_by_name)
     setattr(chart, "predicted_traits_above_avg", set(above))
     setattr(chart, "predicted_traits_below_avg", set(below))
     setattr(chart, "predicted_trait_deviations", dict(deviations))
-    setattr(chart, "traits", sorted(above))
-    setattr(chart, "traits_above_average", sorted(above))
-    setattr(chart, "traits_below_average", sorted(below))
-    setattr(chart, "trait_likelihoods", dict(likelihoods))
+    setattr(chart, "traits", list(above_uids))
+    setattr(chart, "traits_above_average", list(above_uids))
+    setattr(chart, "traits_below_average", list(below_uids))
+    setattr(chart, "trait_likelihoods", _trait_uid_mapping_for_names(likelihoods, trait_uids_by_name))
     setattr(chart, "_trait_prediction_metadata_cache", {"signature": signature, "metadata": metadata})
     if chart_uid is not None:
         try:

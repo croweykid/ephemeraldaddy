@@ -29,3 +29,18 @@ def test_chart_serializes_derived_traits_in_metadata():
     assert '"traits_above_average": list(getattr(self, "traits_above_average", []) or [])' in source
     assert '"traits_below_average": list(getattr(self, "traits_below_average", []) or [])' in source
     assert '"trait_likelihoods": dict(getattr(self, "trait_likelihoods", {}) or {})' in source
+    assert '"predicted_traits_above_avg"' not in source.split('def as_dict', 1)[1]
+
+
+def test_chart_trait_metadata_runtime_fields_use_trait_uids():
+    source = (ROOT / "ephemeraldaddy" / "gui" / "features" / "charts" / "trait_predictions.py").read_text(
+        encoding="utf-8"
+    )
+    assert "def _trait_uids_for_names" in source
+    assert "def _trait_uid_mapping_for_names" in source
+    assert 'setattr(chart, "traits", list(above_uids))' in source
+    assert 'setattr(chart, "traits_above_average", list(above_uids))' in source
+    assert 'setattr(chart, "traits_below_average", list(below_uids))' in source
+    assert 'setattr(chart, "trait_likelihoods", _trait_uid_mapping_for_names(likelihoods, trait_uids_by_name))' in source
+    assert 'setattr(chart, "traits", sorted(above))' not in source
+    assert 'setattr(chart, "trait_likelihoods", dict(likelihoods))' not in source
