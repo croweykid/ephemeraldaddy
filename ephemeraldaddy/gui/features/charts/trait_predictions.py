@@ -166,6 +166,9 @@ def _show_trait_chart_info(owner: Any, trait_name: str) -> None:
 
 
 def _on_trait_prediction_link_activated(owner: Any, target: str) -> None:
+    if str(target or "") == "trait-predictions:calculate":
+        _start_traits_prediction_calculation(owner)
+        return
     parts = str(target or "").split(":", 1)
     if len(parts) != 2 or parts[0] != "trait":
         return
@@ -448,6 +451,21 @@ def _trait_signature_payload(traits: list[dict[str, Any]], *, strip_uids: bool =
     return {"version": TRAIT_DB_NORMS_CACHE_VERSION, "traits": trait_payloads}
 
 
+def _trait_display_signature_payload(traits: list[dict[str, Any]]) -> dict[str, Any]:
+    """Return display-only fields that can make cached Traits HTML stale."""
+    return {
+        "version": TRAIT_DB_NORMS_CACHE_VERSION,
+        "traits": [
+            {
+                "uid": str(trait.get("uid") or trait.get("trait_uid") or "").strip(),
+                "name": str(trait.get("name", "")).strip(),
+                "color": normalize_trait_color(str(trait.get("color", DEFAULT_TRAIT_COLOR))),
+            }
+            for trait in traits
+        ],
+    }
+
+
 def _trait_norm_cache_key(chart_uids: tuple[str, ...], trait: dict[str, Any]) -> str | None:
     name = str(trait.get("name", "")).strip()
     if not name or bool(trait.get("archived", False)):
@@ -592,7 +610,7 @@ def _database_trait_averages(
         cache_key = _trait_norm_cache_key(chart_uids, trait)
         cached = cache_entries.get(cache_key or "")
         cached_state = cached.get("norm_state", {}) if isinstance(cached, dict) else {}
-        if isinstance(cached, dict) and cached.get("trait_name") == name:
+        if isinstance(cached, dict):
             try:
                 cached_is_fresh = _database_norm_state_is_fresh(cached_state, current_norm_state)
                 if not cached_is_fresh:
@@ -656,7 +674,7 @@ def warm_trait_database_norms(owner: Any, trait_names: set[str] | None = None) -
     return _database_trait_averages(owner, traits, force_refresh_stale=True)
 
 
-def trait_metadata_for_chart(owner: Any, chart: Any) -> dict[str, Any]:
+def trait_metadata_for_chart(owner: Any, chart: Any, *, cached_only: bool = False) -> dict[str, Any] | None:
     """Return and attach derived trait metadata for a chart."""
     _predictions_debug(owner, "Trait metadata start chart=%s", getattr(chart, "name", getattr(chart, "chart_uid", "unknown")))
     traits = list_traits(active_only=True)
@@ -733,6 +751,9 @@ def trait_metadata_for_chart(owner: Any, chart: Any) -> dict[str, Any]:
             setattr(chart, "_trait_prediction_metadata_cache", {"signature": signature, "metadata": metadata})
             return metadata
 
+    if cached_only:
+        return None
+
     cached_likelihoods = {name: float(row.get("likelihood", 0.0)) for name, row in cached_rows_by_name.items()}
     cached_database_averages = {name: float(row.get("db_average", 0.0)) for name, row in cached_rows_by_name.items()}
     missing_traits = [trait for name, trait in traits_by_name.items() if name not in cached_rows_by_name]
@@ -804,6 +825,7 @@ def _trait_predictions_cache_key(
     chart_uid = str(getattr(chart, "chart_uid", "") or "").strip().upper()
     chart_scope = f"uid:{chart_uid}" if chart_uid else "draft"
     trait_signature = _stable_json_hash(_trait_signature_payload(traits))
+    trait_display_signature = _stable_json_hash(_trait_display_signature_payload(traits))
     try:
         norm_signature = _database_norm_signature_for_traits(owner, traits)
     except Exception as exc:
@@ -819,6 +841,7 @@ def _trait_predictions_cache_key(
             "chart_scope": chart_scope,
             "chart_signature": _chart_trait_metadata_signature(chart),
             "trait_signature": trait_signature,
+            "trait_display_signature": trait_display_signature,
             "norm_signature": norm_signature,
         }
     )
@@ -832,6 +855,49 @@ def _trait_predictions_refresh_message(updated_at: str | None) -> str:
         "</div>"
     )
 
+
+def _traits_calculate_prompt_html() -> str:
+    return (
+        "<div style='width:100%; min-height:120px; padding:24px 0; text-align:center;'>"
+        "<div style='display:inline-block; max-width:100%; color:#f5f5f5; "
+        "font-weight:600; white-space:normal; line-height:1.35; margin-bottom:12px;'>"
+        "No prior data. Calculate (can take awhile)?"
+        "</div>"
+        "<div style='height:10px;'></div>"
+        "<a href='trait-predictions:calculate' "
+        "style='display:inline-block; background-color:#7b4dff; color:white; "
+        "font-weight:bold; padding:7px 16px; border-radius:5px; text-decoration:none;'>"
+        "Calculate!</a>"
+        "</div>"
+    )
+
+
+def _traits_recalculate_prompt_html(updated_at: str | None) -> str:
+    timestamp = html.escape(updated_at or "unknown")
+    return (
+        "<div style='width:100%; padding:0 0 8px 0; text-align:center; color:#b8b8b8;'>"
+        f"<span style='font-style:italic;'>Cached trait predictions shown. Last calculated: {timestamp}.</span> "
+        "<a href='trait-predictions:calculate' "
+        "style='display:inline-block; margin-left:6px; background-color:#7b4dff; color:white; "
+        "font-weight:bold; padding:4px 10px; border-radius:5px; text-decoration:none;'>"
+        "Recalculate!</a>"
+        "</div>"
+    )
+
+def _start_traits_prediction_calculation(owner: Any) -> None:
+    chart = getattr(owner, "_traits_prediction_pending_chart", None)
+    traits = getattr(owner, "_traits_prediction_pending_traits", None)
+    cache_key = str(getattr(owner, "_traits_prediction_pending_cache_key", "") or "")
+    if chart is None or not isinstance(traits, list) or not traits:
+        return
+    owner._traits_prediction_render_token = object()
+    token = owner._traits_prediction_render_token
+    message = (
+        _trait_predictions_refresh_message(None)
+        + "<div style='color:#d8d8d8; text-align:center;'>Loading trait predictions for this chart…</div>"
+    )
+    _apply_traits_prediction_view(owner, message, message)
+    _start_traits_prediction_refresh_worker(owner, chart, traits, cache_key, token)
 
 def _current_traits_prediction_html(owner: Any) -> str:
     combo = getattr(owner, "traits_prediction_mode_combo", None)
@@ -1067,7 +1133,6 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
         return
     _configure_traits_prediction_label(owner, label)
     owner._traits_prediction_render_token = object()
-    token = owner._traits_prediction_render_token
     traits = list_traits(active_only=True)
     owner._traits_prediction_trait_lookup = {
         str(trait.get("name", "")).strip().casefold(): trait
@@ -1093,19 +1158,28 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
     cache_key = _trait_predictions_cache_key(owner, chart, traits)
     cached = (getattr(owner, "_traits_prediction_view_cache", {}) or {}).get(cache_key or "")
     if isinstance(cached, dict):
+        owner._traits_prediction_pending_chart = chart
+        owner._traits_prediction_pending_traits = traits
+        owner._traits_prediction_pending_cache_key = cache_key or ""
         _predictions_debug(owner, "Trait render view cache hit cache_key=%s", (cache_key or "")[:12])
         _apply_traits_prediction_view(
             owner,
             str(cached.get("above", "")),
             str(cached.get("below", "")),
-            prefix_html=_trait_predictions_refresh_message(str(cached.get("updated_at", "") or "unknown")),
+            prefix_html=_traits_recalculate_prompt_html(str(cached.get("updated_at", "") or "unknown")),
         )
+        return
     else:
-        message = (
-            _trait_predictions_refresh_message(None)
-            + "<div style='color:#d8d8d8;'>Loading trait predictions for this chart…</div>"
-        )
-        _predictions_debug(owner, "Trait render no view cache; deferring metadata work to worker cache_key=%s", (cache_key or "")[:12])
+        cached_metadata = trait_metadata_for_chart(owner, chart, cached_only=True)
+        if isinstance(cached_metadata, dict):
+            above_html, below_html = _trait_predictions_html_from_metadata(traits, cached_metadata)
+            _cache_traits_prediction_view(owner, cache_key or "", above_html, below_html, "cached")
+            _apply_traits_prediction_view(owner, above_html, below_html)
+            return
+        owner._traits_prediction_pending_chart = chart
+        owner._traits_prediction_pending_traits = traits
+        owner._traits_prediction_pending_cache_key = cache_key or ""
+        message = _traits_calculate_prompt_html()
+        _predictions_debug(owner, "Trait render no view cache; showing manual calculate prompt cache_key=%s", (cache_key or "")[:12])
         _apply_traits_prediction_view(owner, message, message)
-
-    _start_traits_prediction_refresh_worker(owner, chart, traits, cache_key or "", token)
+        return

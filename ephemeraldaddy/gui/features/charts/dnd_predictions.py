@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QLabel, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QLabel, QPushButton, QSizePolicy, QVBoxLayout, QWidget
 
 from ephemeraldaddy.analysis.dnd.dnd_definitions import (
     DND_ALIGNMENTS,
@@ -1375,6 +1375,7 @@ class DndPredictionPanelAdapter:
             canvas_attr = "dnd_prediction_alignment_canvas" if section == "dnd_alignment" else "dnd_prediction_statblock_canvas"
             self.reset_canvas_callback(canvas_attr)
         panel = QWidget()
+        panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
         panel_layout = QVBoxLayout()
         panel_layout.setContentsMargins(12, 18, 12, 18)
         panel_layout.setSpacing(10)
@@ -1383,13 +1384,15 @@ class DndPredictionPanelAdapter:
         label = QLabel("No prior data. Calculate (can take awhile)?")
         label.setAlignment(Qt.AlignCenter)
         label.setWordWrap(True)
+        label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
+        label.setMinimumHeight(label.sizeHint().height())
         label.setStyleSheet("color: #f5f5f5; font-weight: 600;")
         button = QPushButton("Calculate!")
         button.setStyleSheet("background-color: #7b4dff; color: white; font-weight: bold; padding: 6px 14px; border-radius: 5px;")
         button.clicked.connect(lambda _checked=False, chart=chart, section=section: self.calculate_callback(chart, section) if callable(self.calculate_callback) and chart is not None else None)
         panel_layout.addWidget(label, alignment=Qt.AlignCenter)
         panel_layout.addWidget(button, alignment=Qt.AlignCenter)
-        target_layout.addWidget(panel, alignment=Qt.AlignCenter)
+        target_layout.addWidget(panel)
         if target_layout is self.chart_layout:
             summary_label = self._ensure_summary_label()
             summary_label.setText(summary_text or "<b>Top three:</b> No prior data")
@@ -1655,6 +1658,7 @@ class DndPredictionPanelAdapter:
         if layout is None:
             return
         panel = QWidget()
+        panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
         panel_layout = QVBoxLayout()
         panel_layout.setContentsMargins(0, 0, 0, 6)
         panel_layout.setSpacing(4)

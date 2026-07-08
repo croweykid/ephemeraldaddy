@@ -400,3 +400,48 @@ def test_traits_distribution_collection_passively_persists_uid_trait_metadata(mo
     assert saved[0][1][0]["direction"] == "above"
     assert saved[0][1][0]["db_average"] == 60.0
     assert saved[1][1][0]["direction"] == "below"
+
+
+def test_trait_norm_cache_average_survives_trait_rename(tmp_path, monkeypatch):
+    cache_path = tmp_path / "trait_db_norms.json"
+    monkeypatch.setattr(trait_predictions, "TRAIT_DB_NORMS_CACHE_PATH", cache_path)
+    original_trait = {"name": "Creative", "color": "#ffffff", "profile": {"signs": {"Leo": 1}}}
+    renamed_trait = {"name": "Expressive", "color": "#ffffff", "profile": {"signs": {"Leo": 1}}}
+    cache_key = trait_predictions._trait_norm_cache_key(("UID1",), original_trait)
+    cache_path.write_text(
+        trait_predictions.json.dumps(
+            {
+                "version": trait_predictions.TRAIT_DB_NORMS_CACHE_VERSION,
+                "entries": {
+                    cache_key: {
+                        "trait_name": "Creative",
+                        "db_average": 72.25,
+                        "chart_count": 1,
+                        "norm_state": {
+                            "version": trait_predictions.TRAIT_DB_NORMS_CACHE_VERSION,
+                            "chart_count": 1,
+                            "chart_tokens": {"UID1": "same"},
+                        },
+                        "norm_signature": "saved-norm-signature",
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    owner = _TraitsCacheOwner(
+        (("uid:one", "row"),),
+        chart_rows=[
+            (1, "One", None, None, "", None, "", 0, 0, 0, None, 0, None, 0, "Natal", 0, 0, None, None, None, None, None, None, "blank", None, None, None, None, None, None, "UID1"),
+        ],
+    )
+
+    def fail_collect(*_args, **_kwargs):
+        raise AssertionError("renamed traits should reuse UID/profile keyed DB norm averages")
+
+    owner._collect_traits_distribution_analytics = fail_collect
+    owner._traits_distribution_signature = lambda traits: tuple(
+        (item["name"], "#ffffff", repr(item.get("profile", {}))) for item in traits
+    )
+
+    assert trait_predictions._database_trait_averages(owner, [renamed_trait]) == {"Expressive": 72.25}

@@ -190,13 +190,15 @@ class _PredictionsWarmupReceiver(QObject):
                 setattr(thread, "_ephemeraldaddy_predictions_timed_out", True)
                 thread.requestInterruption()
                 thread.quit()
-                if thread.isRunning() and not thread.wait(PREDICTIONS_BACKGROUND_TIMEOUT_STOP_WAIT_MS):
+                if thread.isRunning():
                     logger.error(
-                        "Predictions warmup did not stop after timeout; terminating thread for %s",
+                        "Predictions warmup did not stop after timeout; leaving worker in background for %s",
                         chart_name,
                     )
-                    thread.terminate()
-                    thread.wait(PREDICTIONS_BACKGROUND_TIMEOUT_STOP_WAIT_MS)
+                    # Never block or forcibly terminate from the GUI thread.
+                    # Some scorers call Python/Qt/SQLite code that cannot be safely
+                    # killed with QThread.terminate(), and the previous wait +
+                    # terminate path could freeze the whole app after the timeout.
             except RuntimeError:
                 pass
         _finish_background_prediction_render(
@@ -863,9 +865,11 @@ def stop_background_prediction_render(owner: object, wait_msecs: int | None = No
         for job in jobs
     ):
         jobs.append((active_thread, active_worker, active_receiver))
+    retained_jobs: list[tuple[object, object, object]] = []
     for job in jobs:
         thread = job[0] if isinstance(job, tuple) and len(job) >= 1 else None
         worker = job[1] if isinstance(job, tuple) and len(job) >= 2 else None
+        receiver = job[2] if isinstance(job, tuple) and len(job) >= 3 else None
         if not isinstance(thread, QThread):
             continue
         try:
@@ -884,16 +888,24 @@ def stop_background_prediction_render(owner: object, wait_msecs: int | None = No
                         else max(0, int(wait_msecs))
                     )
                     if not thread.wait(timeout) and timed_out:
-                        logger.error("Terminating timed-out Predictions warmup thread during cleanup")
-                        thread.terminate()
-                        thread.wait(timeout)
+                        logger.error(
+                            "Timed-out Predictions warmup thread still running during cleanup; "
+                            "retaining references and not terminating from GUI thread"
+                        )
+                        retained_jobs.append((thread, worker, receiver))
         except RuntimeError:
             continue
     if isinstance(getattr(owner, "_predictions_background_jobs", None), list):
-        owner._predictions_background_jobs.clear()
-    setattr(owner, "_predictions_background_thread", None)
-    setattr(owner, "_predictions_background_worker", None)
-    setattr(owner, "_predictions_background_receiver", None)
+        owner._predictions_background_jobs[:] = retained_jobs
+    if retained_jobs:
+        retained_thread, retained_worker, retained_receiver = retained_jobs[0]
+        setattr(owner, "_predictions_background_thread", retained_thread)
+        setattr(owner, "_predictions_background_worker", retained_worker)
+        setattr(owner, "_predictions_background_receiver", retained_receiver)
+    else:
+        setattr(owner, "_predictions_background_thread", None)
+        setattr(owner, "_predictions_background_worker", None)
+        setattr(owner, "_predictions_background_receiver", None)
     setattr(owner, "_predictions_background_job_token", None)
 
 
