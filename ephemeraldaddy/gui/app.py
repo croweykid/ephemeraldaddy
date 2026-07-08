@@ -18830,8 +18830,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if not row:
             return None
         padded = list(row)
-        if len(padded) < 31:
-            padded.extend([None] * (31 - len(padded)))
+        if len(padded) < 32:
+            padded.extend([None] * (32 - len(padded)))
+        chart_uid = padded[30]
+        weirdness_score = padded[31]
+        if weirdness_score is None and chart_uid is not None:
+            try:
+                weirdness_score = float(chart_uid)
+                chart_uid = None
+            except (TypeError, ValueError):
+                weirdness_score = None
         return (
             int(padded[0]),
             padded[1],
@@ -18867,7 +18875,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             padded[27],
             padded[28],
             padded[29],
-            float(padded[30]) if padded[30] is not None else None,
+            chart_uid,
+            float(weirdness_score) if weirdness_score is not None else None,
         )
 
     def _populate_list(
@@ -18959,8 +18968,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         elif self._sort_mode == "weirdness":
             rows.sort(
                 key=lambda r: (
-                    r[30] is not None,
-                    float(r[30] or 0.0),
+                    len(r) > 31 and r[31] is not None,
+                    float(r[31] if len(r) > 31 and r[31] is not None else 0.0),
                     (r[1] or "").lower(),
                 ),
                 reverse=self._sort_descending,
@@ -35966,8 +35975,16 @@ class MainWindow(QMainWindow):
         if not row:
             return None
         padded = list(row)
-        if len(padded) < 31:
-            padded.extend([None] * (31 - len(padded)))
+        if len(padded) < 32:
+            padded.extend([None] * (32 - len(padded)))
+        chart_uid = padded[30]
+        weirdness_score = padded[31]
+        if weirdness_score is None and chart_uid is not None:
+            try:
+                weirdness_score = float(chart_uid)
+                chart_uid = None
+            except (TypeError, ValueError):
+                weirdness_score = None
         return (
             int(padded[0]),
             padded[1],
@@ -36003,7 +36020,8 @@ class MainWindow(QMainWindow):
             padded[27],
             padded[28],
             padded[29],
-            float(padded[30]) if padded[30] is not None else None,
+            chart_uid,
+            float(weirdness_score) if weirdness_score is not None else None,
         )
 
     def _prediction_norm_rows(self) -> list[Any]:

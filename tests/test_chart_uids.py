@@ -317,3 +317,23 @@ def test_table_column_cache_does_not_leak_to_external_database(tmp_path, monkeyp
         source_conn.close()
 
     assert source_columns == {"id", "external_only"}
+
+
+def test_list_charts_keeps_uid_and_weirdness_columns_distinct(tmp_path, monkeypatch):
+    db_path = tmp_path / "charts.db"
+    monkeypatch.setattr(db, "DB_DIR", tmp_path)
+    monkeypatch.setattr(db, "DB_PATH", db_path)
+
+    conn = db._get_conn()
+    with conn:
+        _insert_minimal_chart(conn, chart_uid="B11C505AABCC49A5", name="Odd Chart")
+        conn.execute(
+            "UPDATE charts SET weirdness_score = ? WHERE chart_uid = ?",
+            (42.5, "B11C505AABCC49A5"),
+        )
+    conn.close()
+
+    row = db.list_charts()[0]
+
+    assert row[30] == "B11C505AABCC49A5"
+    assert row[31] == 42.5
