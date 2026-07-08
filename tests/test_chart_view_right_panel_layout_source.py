@@ -303,3 +303,9 @@ def test_predictions_sections_show_calculate_prompt_instead_of_auto_calculating(
     assert "def _dnd_alignment_cache_key" in dnd_source
     assert 'cached.get("key") == cache_key' in dnd_source
     assert "_prediction_norms_render_token" in dnd_source
+
+
+def test_predictions_timeout_does_not_terminate_qthread_from_gui_thread():
+    source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/cv_right_panel_stack.py").read_text()
+    assert "Predictions warmup did not stop after timeout; leaving worker in background" in source
+    assert "thread.terminate()" not in source

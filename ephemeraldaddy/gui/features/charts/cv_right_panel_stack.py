@@ -190,13 +190,15 @@ class _PredictionsWarmupReceiver(QObject):
                 setattr(thread, "_ephemeraldaddy_predictions_timed_out", True)
                 thread.requestInterruption()
                 thread.quit()
-                if thread.isRunning() and not thread.wait(PREDICTIONS_BACKGROUND_TIMEOUT_STOP_WAIT_MS):
+                if thread.isRunning():
                     logger.error(
-                        "Predictions warmup did not stop after timeout; terminating thread for %s",
+                        "Predictions warmup did not stop after timeout; leaving worker in background for %s",
                         chart_name,
                     )
-                    thread.terminate()
-                    thread.wait(PREDICTIONS_BACKGROUND_TIMEOUT_STOP_WAIT_MS)
+                    # Never block or forcibly terminate from the GUI thread.
+                    # Some scorers call Python/Qt/SQLite code that cannot be safely
+                    # killed with QThread.terminate(), and the previous wait +
+                    # terminate path could freeze the whole app after the timeout.
             except RuntimeError:
                 pass
         _finish_background_prediction_render(
@@ -884,9 +886,10 @@ def stop_background_prediction_render(owner: object, wait_msecs: int | None = No
                         else max(0, int(wait_msecs))
                     )
                     if not thread.wait(timeout) and timed_out:
-                        logger.error("Terminating timed-out Predictions warmup thread during cleanup")
-                        thread.terminate()
-                        thread.wait(timeout)
+                        logger.error(
+                            "Timed-out Predictions warmup thread still running during cleanup; "
+                            "not terminating from GUI thread"
+                        )
         except RuntimeError:
             continue
     if isinstance(getattr(owner, "_predictions_background_jobs", None), list):

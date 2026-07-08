@@ -592,7 +592,7 @@ def _database_trait_averages(
         cache_key = _trait_norm_cache_key(chart_uids, trait)
         cached = cache_entries.get(cache_key or "")
         cached_state = cached.get("norm_state", {}) if isinstance(cached, dict) else {}
-        if isinstance(cached, dict) and cached.get("trait_name") == name:
+        if isinstance(cached, dict):
             try:
                 cached_is_fresh = _database_norm_state_is_fresh(cached_state, current_norm_state)
                 if not cached_is_fresh:
@@ -1100,6 +1100,11 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
             str(cached.get("below", "")),
             prefix_html=_trait_predictions_refresh_message(str(cached.get("updated_at", "") or "unknown")),
         )
+        # Do not immediately recalculate every cached Chart View render.  The
+        # persistent DB-norm cache is intentionally stale-while-revalidate;
+        # forcing a worker here made opening another chart repeat the expensive
+        # all-database Traits pass even when usable norms had just been saved.
+        return
     else:
         message = (
             _trait_predictions_refresh_message(None)
