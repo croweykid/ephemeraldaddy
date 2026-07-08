@@ -15857,10 +15857,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for chart_id in chart_ids:
                 chart = load_chart(chart_id)
                 chart.is_deceased = checked
+                if checked:
+                    chart.deathtime_unknown = True
                 update_chart(
                     chart_id,
                     chart,
                     is_deceased=checked,
+                    deathtime_unknown=getattr(chart, "deathtime_unknown", False),
                     retcon_time_used=getattr(chart, "retcon_time_used", False),
                 )
                 self._chart_cache[chart_id] = chart
@@ -24053,6 +24056,8 @@ class MainWindow(QMainWindow):
         # - Chart Entry Window: current_chart_id is None (blank fields/new chart).
         # - Chart Edit Window: current_chart_id is set (editing existing chart).
         self.current_chart_id = None
+        self._hidden_chart_uids = self._load_hidden_chart_uids_from_settings()
+        self._hidden_chart_ids = set(get_chart_ids_by_uid(self._hidden_chart_uids).values())
         self._loaded_birth_place = None
         self._loaded_lat = None
         self._loaded_lon = None
@@ -25105,6 +25110,10 @@ class MainWindow(QMainWindow):
         self.alternate_chart_widget.setLayout(alternate_chart_layout)
         self.alternate_chart_widget.setVisible(False)
         output_controls.addWidget(self.alternate_chart_widget, 0, Qt.AlignLeft)
+        self.hide_chart_checkbox = QCheckBox("Hide chart")
+        self.hide_chart_checkbox.setToolTip("Hide this chart from Database View lists and analytics that exclude hidden charts.")
+        self.hide_chart_checkbox.toggled.connect(self._on_chart_view_hide_chart_toggled)
+        output_controls.addWidget(self.hide_chart_checkbox, 0, Qt.AlignLeft)
         output_controls.addStretch(1)
         self.aspects_sort_label = QLabel("Aspects")
         self.aspects_sort_label.setStyleSheet("font-weight: bold;")
@@ -32802,6 +32811,83 @@ class MainWindow(QMainWindow):
     def _on_deceased_toggled(self, checked: bool) -> None:
         if hasattr(self, "death_row_widget"):
             self.death_row_widget.setVisible(bool(checked))
+        if checked and hasattr(self, "death_time_unknown_checkbox"):
+            self.death_time_unknown_checkbox.setChecked(True)
+
+    def _set_chart_view_hide_checkbox_checked(self, checked: bool) -> None:
+        checkbox = getattr(self, "hide_chart_checkbox", None)
+        if checkbox is None:
+            return
+        checkbox.blockSignals(True)
+        checkbox.setChecked(bool(checked))
+        checkbox.blockSignals(False)
+
+    def _sync_chart_view_hide_checkbox(self) -> None:
+        chart_id = getattr(self, "current_chart_id", None)
+        is_hidden = chart_id is not None and int(chart_id) in getattr(self, "_hidden_chart_ids", set())
+        self._set_chart_view_hide_checkbox_checked(is_hidden)
+
+    def _on_chart_view_hide_chart_toggled(self, checked: bool) -> None:
+        chart_id = getattr(self, "current_chart_id", None)
+        if chart_id is None:
+            self._set_chart_view_hide_checkbox_checked(False)
+            return
+        normalized_id = int(chart_id)
+        if checked:
+            self._hidden_chart_ids.add(normalized_id)
+            self._hidden_chart_uids.update(self._chart_uids_for_ids([normalized_id]))
+        else:
+            self._hidden_chart_ids.discard(normalized_id)
+            self._hidden_chart_uids.difference_update(self._chart_uids_for_ids([normalized_id]))
+        self._save_hidden_chart_uids_to_settings()
+        self._refresh_database_view_after_chart_hidden_toggle(normalized_id)
+
+    def _load_hidden_chart_uids_from_settings(self) -> set[str]:
+        raw_value = self._settings.value(SETTINGS_KEY_HIDDEN_CHART_UIDS, "[]")
+        if isinstance(raw_value, str):
+            try:
+                raw_uids = json.loads(raw_value)
+            except json.JSONDecodeError:
+                raw_uids = []
+        else:
+            raw_uids = raw_value or []
+        hidden_uids = self._coerce_chart_uids(raw_uids)
+
+        legacy_value = self._settings.value(SETTINGS_KEY_HIDDEN_CHART_IDS, "[]")
+        if isinstance(legacy_value, str):
+            try:
+                legacy_raw_ids = json.loads(legacy_value)
+            except json.JSONDecodeError:
+                legacy_raw_ids = []
+        else:
+            legacy_raw_ids = legacy_value or []
+        legacy_ids = self._coerce_chart_ids(legacy_raw_ids)
+        if legacy_ids:
+            hidden_uids.update(self._chart_uids_for_ids(legacy_ids))
+        return hidden_uids
+
+    def _save_hidden_chart_uids_to_settings(self) -> None:
+        self._settings.setValue(
+            SETTINGS_KEY_HIDDEN_CHART_UIDS,
+            json.dumps(sorted(getattr(self, "_hidden_chart_uids", set()))),
+        )
+        self._settings.remove(SETTINGS_KEY_HIDDEN_CHART_IDS)
+
+    def _refresh_database_view_after_chart_hidden_toggle(self, changed_chart_id: int) -> None:
+        manage_dialog = getattr(self, "_manage_charts_dialog", None)
+        if manage_dialog is None:
+            return
+        manage_dialog._hidden_chart_ids = set(getattr(self, "_hidden_chart_ids", set()))
+        manage_dialog._hidden_chart_uids = set(getattr(self, "_hidden_chart_uids", set()))
+        refresh_rankings = getattr(manage_dialog, "_refresh_traits_distribution_rankings_after_hidden_chart_change", None)
+        if callable(refresh_rankings):
+            refresh_rankings({int(changed_chart_id)})
+        if manage_dialog.isVisible() and getattr(manage_dialog, "_chart_rows", None):
+            selected_ids = set(manage_dialog._selected_chart_ids())
+            if int(changed_chart_id) not in manage_dialog._hidden_chart_ids:
+                selected_ids.add(int(changed_chart_id))
+            manage_dialog._populate_list(selected_ids=selected_ids, refresh_metrics=False)
+            manage_dialog._on_selection_changed(sync_persistent_selection=False)
 
     def _show_death_chart_popout(self) -> None:
         from ephemeraldaddy.gui.features.charts.death_chart_window import show_death_chart_window
@@ -33542,6 +33628,7 @@ class MainWindow(QMainWindow):
         self.death_time_unknown_checkbox.setChecked(False)
         self.death_time_edit.setTime(QTime(12, 0))
         self.death_place_edit.clear()
+        self._sync_chart_view_hide_checkbox()
         self.retcon_time_edit.setTime(QTime(12, 0))
         self._birth_time_user_overridden = False
         self._retcon_time_user_overridden = False
@@ -33962,6 +34049,7 @@ class MainWindow(QMainWindow):
         self.death_time_unknown_checkbox.setChecked(bool(getattr(chart, "deathtime_unknown", False)))
         self.death_time_edit.setTime(QTime(int(getattr(chart, "death_hour", 12) or 12), int(getattr(chart, "death_minute", 0) or 0)))
         self.death_place_edit.setText(str(getattr(chart, "death_place", "") or ""))
+        self._sync_chart_view_hide_checkbox()
         self._birth_time_user_overridden = (
             not chart.birthtime_unknown and qtime != default_noon
         )
