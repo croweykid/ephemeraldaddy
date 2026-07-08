@@ -35,6 +35,7 @@ def test_trait_prediction_rendering_lives_outside_app_py():
     assert "calculate_trait_likelihoods" in predictions_source
     assert "TRAIT_DB_NORMS_CACHE_PATH" in predictions_source
     assert "def warm_trait_database_norms" in predictions_source
+    assert "force_refresh_stale=True" in predictions_source
     assert "def clear_trait_norm_cache" in predictions_source
     assert "_load_trait_norm_cache()" in predictions_source
 
@@ -91,9 +92,9 @@ def test_trait_database_norm_cache_uses_scaled_refresh_threshold():
         ROOT / "ephemeraldaddy" / "gui" / "features" / "charts" / "trait_predictions.py"
     ).read_text(encoding="utf-8")
 
-    assert "TRAIT_DB_NORMS_MAX_STALE_RATIO = 0.10" in predictions_source
+    assert "TRAIT_DB_NORMS_MAX_STALE_RATIO = DATABASE_NORMS_STALE_RATIO" in predictions_source
     assert "def _database_norm_refresh_threshold" in predictions_source
-    assert "return max(1, int(count * TRAIT_DB_NORMS_MAX_STALE_RATIO))" in predictions_source
+    assert "return database_norms_refresh_threshold(chart_count)" in predictions_source
     assert "_database_norm_state_is_fresh(cached_state, current_norm_state)" in predictions_source
     assert "def _database_norm_signature_for_traits" in predictions_source
     assert "fresh_signatures.add(cached_signature)" in predictions_source

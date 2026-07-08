@@ -860,6 +860,11 @@ from ephemeraldaddy.gui.features.charts.database_analytics import (
     snapshot_add_decan,
     snapshot_add_nakshatra,
 )
+from ephemeraldaddy.gui.features.charts.database_norms_cache import (
+    changed_database_norm_uids,
+    database_norms_freshness,
+    database_norms_refresh_threshold,
+)
 from ephemeraldaddy.gui.dbv_batch_bio import (
     build_batch_bio_section,
     clear_batch_from_whence_state,
@@ -3549,6 +3554,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             row_tokens.append((chart_uid, repr(tuple(row[1:]))))
         return tuple(sorted(row_tokens))
 
+    @staticmethod
+    def _database_metrics_token_change_count(
+        saved_rows_token: Any,
+        current_rows_token: tuple[tuple[str, str], ...],
+    ) -> int:
+        return len(changed_database_norm_uids(saved_rows_token, current_rows_token))
+
+    @staticmethod
+    def _database_metrics_refresh_threshold(chart_count: int) -> int:
+        return database_norms_refresh_threshold(chart_count)
+
     def _database_metrics_config_token(self) -> str:
         return json.dumps(
             {
@@ -3645,8 +3661,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if payload.get("config_token") != self._database_metrics_config_token():
             return False
         rows_token = self._decode_database_metrics_cache_value(payload.get("rows_token"))
-        if rows_token != self._database_metrics_rows_token():
-            return False
+        current_rows_token = self._database_metrics_rows_token()
+        freshness = database_norms_freshness(rows_token, current_rows_token)
+        change_count = freshness.changed_uid_count
         cache = self._decode_database_metrics_cache_value(payload.get("cache"))
         snapshots = self._decode_database_metrics_cache_value(payload.get("snapshots"))
         sections = self._decode_database_metrics_cache_value(payload.get("snapshot_sections"))
@@ -3656,6 +3673,35 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_metric_snapshots = snapshots
         self._database_metrics_snapshot_sections = frozenset(sections or ())
         self._database_metrics_lucy_goosey_ids.clear()
+        if rows_token != current_rows_token:
+            threshold = freshness.refresh_threshold
+            changed_uids = changed_database_norm_uids(rows_token, current_rows_token)
+            current_uid_by_id: dict[int, str] = {}
+            current_chart_ids: list[int] = []
+            for row in getattr(self, "_chart_rows", []) or []:
+                try:
+                    chart_id = int(row[0])
+                except Exception:
+                    continue
+                current_chart_ids.append(chart_id)
+            uid_map = get_chart_uid_map(current_chart_ids)
+            for chart_id in current_chart_ids:
+                current_uid_by_id[chart_id] = str(uid_map.get(chart_id) or f"legacy-id:{chart_id}").strip().upper()
+            self._database_metrics_lucy_goosey_ids.update(
+                chart_id
+                for chart_id, uid in current_uid_by_id.items()
+                if uid in changed_uids
+            )
+            self._database_metrics_cache_stale = True
+            self._database_metrics_cache_stale_change_count = change_count
+            self._database_metrics_cache_stale_threshold = threshold
+            self._database_metrics_cache_stale_requires_full_refresh = freshness.requires_full_refresh
+            logger.info(
+                "Loaded stale Database Metrics cache with %s changed chart row(s); threshold is %s. "
+                "Cached values remain usable until background refresh updates them.",
+                change_count,
+                threshold,
+            )
         return True
 
     def _save_database_metrics_persistent_cache(self) -> None:
@@ -10150,6 +10196,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._database_metrics_cache = cache
             self._database_metrics_snapshot_sections = snapshot_sections
             self._database_metrics_lucy_goosey_ids.clear()
+            self._database_metrics_cache_stale = False
+            self._database_metrics_cache_stale_requires_full_refresh = False
             return
         cache = self._database_metrics_cache
         active_ids = {row[0] for row in self._chart_rows}
@@ -10173,6 +10221,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         cache["chart_ids"] = set(active_ids)
         self._database_metrics_snapshot_sections = snapshot_sections
         self._database_metrics_lucy_goosey_ids.clear()
+        self._database_metrics_cache_stale = False
+        self._database_metrics_cache_stale_requires_full_refresh = False
 
     def _iter_database_metric_snapshots(self, chart_ids: list[int] | set[int] | None = None):
         ids = list(chart_ids) if chart_ids is not None else list((self._database_metrics_cache or {}).get("chart_ids", set()))
@@ -12949,25 +12999,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 should_refresh=_should_refresh_database_metric_section,
             )
             if _should_refresh_database_metric_section("traits_distribution"):
-                from ephemeraldaddy.core.loading_messages import LoadingMessageRotator
-                from ephemeraldaddy.gui.style import close_app_loading_progress, create_app_loading_progress, update_app_loading_progress
-                _traits_loading_messages = LoadingMessageRotator(initial_message="Loading trait predictions…")
-                _traits_progress = create_app_loading_progress(
-                    parent=self,
-                    title="Database Analytics Predictions",
-                    message=_traits_loading_messages.next(),
+                self._render_traits_distribution_section(
+                    chart_ids=chart_ids,
+                    database_chart_ids=database_cache["chart_ids"],
+                    loaded_charts=loaded_charts,
+                    should_refresh=_should_refresh_database_metric_section,
                 )
-                try:
-                    update_app_loading_progress(_traits_progress, "Scoring trait predictions…", 35)
-                    self._render_traits_distribution_section(
-                        chart_ids=chart_ids,
-                        database_chart_ids=database_cache["chart_ids"],
-                        loaded_charts=loaded_charts,
-                        should_refresh=_should_refresh_database_metric_section,
-                    )
-                    update_app_loading_progress(_traits_progress, "Trait predictions ready.", 100)
-                finally:
-                    close_app_loading_progress(_traits_progress)
 
         if update_similarities:
             self._update_similarities_analysis(chart_ids)
@@ -16039,6 +16076,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             and not self._deferred_database_metrics_changed_ids
             and not self._deferred_database_metrics_force_full_refresh
             and not self._database_metrics_lucy_goosey_ids
+            and not getattr(self, "_database_metrics_cache_stale", False)
             and expanded_sections.issubset(self._database_metrics_snapshot_sections)
         ):
             self._show_database_analytics_pending_indicator(False)
@@ -16054,7 +16092,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._schedule_database_metrics_background_preload()
             return
         self._show_database_analytics_pending_indicator(True)
-        self._schedule_deferred_database_metrics_refresh()
+        self._schedule_deferred_database_metrics_refresh(
+            force_full_refresh=bool(getattr(self, "_database_metrics_cache_stale_requires_full_refresh", False))
+        )
 
     def _database_metrics_refresh_needed_on_panel_show(self) -> bool:
         expanded_sections = frozenset(self._expanded_database_metric_sections())
@@ -16066,6 +16106,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._deferred_database_metrics_changed_ids
             or self._deferred_database_metrics_force_full_refresh
             or self._database_metrics_lucy_goosey_ids
+            or getattr(self, "_database_metrics_cache_stale", False)
         ):
             return True
         return not expanded_sections.issubset(self._database_metrics_snapshot_sections)

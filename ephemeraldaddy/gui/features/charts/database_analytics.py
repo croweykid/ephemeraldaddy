@@ -12,6 +12,7 @@ import logging
 import math
 import re
 import statistics
+import sys
 import textwrap
 import time
 import warnings
@@ -40,6 +41,7 @@ from PySide6.QtWidgets import (
 )
 
 from ephemeraldaddy.gui.features.charts.dnd_predictions import DND_STAT_KEYS
+from ephemeraldaddy.gui.features.charts.database_norms_cache import analytical_mapping_signature
 
 DATABASE_METRICS_SECTION_ORDER: tuple[str, ...] = (
     "planetary_sign_prevalence",
@@ -274,6 +276,19 @@ from ephemeraldaddy.gui.style import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _predictions_debug_enabled(owner: object) -> bool:
+    return bool(getattr(owner, "_predictions_thread_debug", False))
+
+
+def _predictions_debug(owner: object, message: str, *args: object) -> None:
+    if not _predictions_debug_enabled(owner):
+        return
+    rendered = message % args if args else message
+    timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="milliseconds")
+    logger.info("[predictions-thread-debug][database-analytics] %s", rendered)
+    print(f"[predictions-thread-debug][{timestamp}][database-analytics] {rendered}", file=sys.stderr, flush=True)
 
 
 def _gen_pop_decan_counts(sample_size: int) -> list[int]:
@@ -4525,11 +4540,19 @@ class DatabaseAnalyticsChartsMixin:
             (
                 str(item.get("name", "")).strip(),
                 normalize_trait_color(str(item.get("color", DEFAULT_TRAIT_COLOR))),
-                repr(item.get("profile", {})),
+                DatabaseAnalyticsChartsMixin._traits_distribution_analytical_profile_key(item.get("profile", {})),
             )
             for item in trait_items
             if str(item.get("name", "")).strip() and not bool(item.get("archived", False))
         )
+
+    @staticmethod
+    def _traits_distribution_analytical_profile_key(profile: Any) -> str:
+        scoring_profile = analytical_mapping_signature(profile)
+        try:
+            return json.dumps(scoring_profile, sort_keys=True, default=str, separators=(",", ":"))
+        except TypeError:
+            return repr(scoring_profile)
 
     @staticmethod
     def _stable_traits_metadata_hash(value: Any) -> str:
@@ -4580,9 +4603,8 @@ class DatabaseAnalyticsChartsMixin:
                 "version": 1,
                 "traits": [
                     {
-                        "name": trait.get("name", ""),
-                        "color": normalize_trait_color(str(trait.get("color", DEFAULT_TRAIT_COLOR))),
-                        "profile": trait.get("profile", {}),
+                        "uid": str(trait.get("uid") or trait.get("trait_uid") or "").strip(),
+                        "profile": self._traits_distribution_analytical_profile_key(trait.get("profile", {})),
                     }
                     for trait in trait_items
                     if str(trait.get("name", "")).strip() and not bool(trait.get("archived", False))
@@ -4681,13 +4703,16 @@ class DatabaseAnalyticsChartsMixin:
         return DB_DIR / TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_FILENAME
 
     def _load_traits_distribution_likelihood_cache(self) -> bool:
+        _predictions_debug(self, "Traits distribution likelihood cache load requested")
         if getattr(self, "_traits_distribution_likelihood_cache_loaded", False):
+            _predictions_debug(self, "Traits distribution likelihood cache already loaded")
             return True
         self._traits_distribution_likelihood_cache_loaded = True
         path = self._traits_distribution_likelihood_cache_path()
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
         except FileNotFoundError:
+            _predictions_debug(self, "Traits distribution likelihood cache missing path=%s", path)
             return False
         except Exception:
             logger.exception("Failed to load traits distribution likelihood cache from %s.", path)
@@ -4703,6 +4728,7 @@ class DatabaseAnalyticsChartsMixin:
         chart_tokens = self._traits_distribution_chart_tokens()
         likelihood_cache: dict[tuple[Any, ...], dict[str, float]] = {}
         individual_cache: dict[tuple[tuple[str, str, str], int], float] = {}
+        individual_profile_cache: dict[tuple[str, int], float] = {}
         skipped_entries = 0
         for entry in entries:
             if not isinstance(entry, dict):
@@ -4745,6 +4771,7 @@ class DatabaseAnalyticsChartsMixin:
                 trait_key = trait_keys_by_name.get(str(name))
                 if trait_key is not None:
                     individual_cache[(trait_key, chart_id)] = likelihood
+                    individual_profile_cache[(trait_key[2], chart_id)] = likelihood
             if not normalized_likelihoods:
                 skipped_entries += 1
                 continue
@@ -4759,7 +4786,15 @@ class DatabaseAnalyticsChartsMixin:
             )
         self._traits_distribution_chart_likelihood_cache = likelihood_cache
         self._traits_distribution_individual_likelihood_cache = individual_cache
+        self._traits_distribution_individual_profile_likelihood_cache = individual_profile_cache
         self._traits_distribution_likelihood_cache_dirty = False
+        _predictions_debug(
+            self,
+            "Traits distribution likelihood cache loaded chart_entries=%s individual_entries=%s skipped=%s",
+            len(likelihood_cache),
+            len(individual_cache),
+            skipped_entries,
+        )
         return True
 
     def _save_traits_distribution_likelihood_cache(self) -> None:
@@ -4809,6 +4844,7 @@ class DatabaseAnalyticsChartsMixin:
             temp_path.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
             temp_path.replace(path)
             self._traits_distribution_likelihood_cache_dirty = False
+            _predictions_debug(self, "Traits distribution likelihood cache saved entries=%s path=%s", len(entries), path)
         except Exception:
             logger.exception("Failed to save traits distribution likelihood cache.")
 
@@ -4819,6 +4855,13 @@ class DatabaseAnalyticsChartsMixin:
         trait_signature: tuple[tuple[str, str, str], ...] | None = None,
         time_budget_seconds: float | None = TRAITS_DISTRIBUTION_SCORING_TIME_BUDGET_SECONDS,
     ) -> dict[str, Any]:
+        _predictions_debug(
+            self,
+            "Traits distribution collect start charts=%s traits=%s time_budget=%s",
+            len(chart_ids),
+            len(trait_items or []),
+            time_budget_seconds,
+        )
         trait_items = trait_items if trait_items is not None else list_traits(active_only=True)
         trait_signature = (
             trait_signature
@@ -4834,6 +4877,7 @@ class DatabaseAnalyticsChartsMixin:
         aggregate_cache_key = (cache_revision, trait_signature, normalized_chart_ids)
         cached = aggregate_cache.get(aggregate_cache_key)
         if isinstance(cached, dict):
+            _predictions_debug(self, "Traits distribution aggregate cache hit charts=%s traits=%s", len(normalized_chart_ids), len(trait_signature))
             return copy.deepcopy(cached)
 
         trait_names = [name for name, _color, _profile in trait_signature]
@@ -4856,11 +4900,15 @@ class DatabaseAnalyticsChartsMixin:
         if not isinstance(individual_cache, dict):
             individual_cache = {}
             self._traits_distribution_individual_likelihood_cache = individual_cache
+        individual_profile_cache = getattr(self, "_traits_distribution_individual_profile_likelihood_cache", None)
+        if not isinstance(individual_profile_cache, dict):
+            individual_profile_cache = {}
+            self._traits_distribution_individual_profile_likelihood_cache = individual_profile_cache
         trait_items_by_key = {
             (
                 str(item.get("name", "")).strip(),
                 normalize_trait_color(str(item.get("color", DEFAULT_TRAIT_COLOR))),
-                repr(item.get("profile", {})),
+                self._traits_distribution_analytical_profile_key(item.get("profile", {})),
             ): item
             for item in trait_items
             if str(item.get("name", "")).strip() and not bool(item.get("archived", False))
@@ -4878,17 +4926,29 @@ class DatabaseAnalyticsChartsMixin:
                 continue
             chart_cache_key = (cache_revision, trait_signature, int(chart_id))
             likelihoods = likelihood_cache.get(chart_cache_key)
+            if likelihoods is not None:
+                _predictions_debug(self, "Traits distribution chart cache hit chart_id=%s traits=%s", chart_id, len(likelihoods))
             if likelihoods is None:
                 likelihoods = {}
                 missing_trait_items: list[dict[str, Any]] = []
                 for trait_key in trait_signature:
                     cached_likelihood = individual_cache.get((trait_key, int(chart_id)))
                     if cached_likelihood is None:
+                        cached_likelihood = individual_profile_cache.get((trait_key[2], int(chart_id)))
+                    if cached_likelihood is None:
                         trait_item = trait_items_by_key.get(trait_key)
                         if trait_item is not None:
                             missing_trait_items.append(trait_item)
                         continue
                     likelihoods[trait_key[0]] = float(cached_likelihood)
+                if likelihoods:
+                    _predictions_debug(
+                        self,
+                        "Traits distribution individual cache filled chart_id=%s cached_traits=%s missing_traits=%s",
+                        chart_id,
+                        len(likelihoods),
+                        len(missing_trait_items),
+                    )
                 if missing_trait_items:
                     if (
                         time_budget_seconds is not None
@@ -4898,8 +4958,21 @@ class DatabaseAnalyticsChartsMixin:
                     ):
                         parsed_chart_count -= 1
                         partial = True
+                        _predictions_debug(
+                            self,
+                            "Traits distribution partial stop chart_id=%s parsed=%s requested=%s",
+                            chart_id,
+                            parsed_chart_count,
+                            len(normalized_chart_ids),
+                        )
                         break
                     try:
+                        _predictions_debug(
+                            self,
+                            "Traits distribution scoring chart_id=%s missing_traits=%s",
+                            chart_id,
+                            len(missing_trait_items),
+                        )
                         missing_likelihoods = calculate_trait_likelihoods(
                             chart,
                             missing_trait_items,
@@ -4916,6 +4989,7 @@ class DatabaseAnalyticsChartsMixin:
                         name = trait_key[0]
                         if name in missing_likelihoods:
                             individual_cache[(trait_key, int(chart_id))] = float(missing_likelihoods[name])
+                            individual_profile_cache[(trait_key[2], int(chart_id))] = float(missing_likelihoods[name])
                     cache_updated = True
                 if len(likelihoods) >= len(trait_names):
                     likelihood_cache[chart_cache_key] = dict(likelihoods)
@@ -4943,6 +5017,12 @@ class DatabaseAnalyticsChartsMixin:
         }
         if not partial:
             aggregate_cache[aggregate_cache_key] = copy.deepcopy(result)
+            _predictions_debug(
+                self,
+                "Traits distribution aggregate cached charts=%s traits=%s",
+                chart_count,
+                len(trait_names),
+            )
             if chart_count:
                 self._persist_traits_distribution_metadata(
                     normalized_chart_ids=normalized_chart_ids,
@@ -4957,6 +5037,14 @@ class DatabaseAnalyticsChartsMixin:
         if cache_updated:
             self._traits_distribution_likelihood_cache_dirty = True
             self._save_traits_distribution_likelihood_cache()
+        _predictions_debug(
+            self,
+            "Traits distribution collect complete partial=%s chart_count=%s parsed=%s requested=%s",
+            partial,
+            chart_count,
+            parsed_chart_count,
+            len(normalized_chart_ids),
+        )
         return result
 
     def _render_traits_distribution_section(
