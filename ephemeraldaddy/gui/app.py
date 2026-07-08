@@ -33830,6 +33830,25 @@ class MainWindow(QMainWindow):
             bool(getattr(chart, "rectification_range_used", False))
         )
         self.retcon_time_checkbox.setChecked(chart.retcon_time_used)
+        range_start_minute = getattr(chart, "rectification_range_start_minute", None)
+        range_end_minute = getattr(chart, "rectification_range_end_minute", None)
+        if range_start_minute is not None:
+            range_start_minute = max(0, min(1439, int(range_start_minute)))
+            self.rectification_range_start_edit.setTime(
+                QTime(range_start_minute // 60, range_start_minute % 60)
+            )
+        else:
+            self.rectification_range_start_edit.setTime(QTime(0, 0))
+        if range_end_minute is not None:
+            range_end_minute = max(0, min(1439, int(range_end_minute)))
+            self.rectification_range_end_edit.setTime(
+                QTime(range_end_minute // 60, range_end_minute % 60)
+            )
+        else:
+            self.rectification_range_end_edit.setTime(QTime(23, 59))
+        self.rectification_range_checkbox.setChecked(
+            bool(getattr(chart, "rectification_range_used", False))
+        )
         self.deceased_checkbox.setChecked(bool(getattr(chart, "is_deceased", False)))
         self.death_month_edit.setText(str(getattr(chart, "death_month", "") or ""))
         self.death_day_edit.setText(str(getattr(chart, "death_day", "") or ""))

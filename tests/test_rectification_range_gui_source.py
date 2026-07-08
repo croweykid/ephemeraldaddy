@@ -30,3 +30,14 @@ def test_rectification_range_visibility_clears_unavailable_range():
     assert "not self.retcon_time_checkbox.isChecked()" in method
     assert "self.rectification_range_checkbox.setChecked(False)" in method
     assert "self.rectification_range_checkbox.setEnabled(range_available)" in method
+
+
+def test_load_chart_restores_retcon_checkbox_before_range_checkbox():
+    method = _method_source("load_chart_by_id")
+
+    retcon_restore = "self.retcon_time_checkbox.setChecked(chart.retcon_time_used)"
+    range_restore = "self.rectification_range_checkbox.setChecked("
+
+    assert retcon_restore in method
+    assert range_restore in method
+    assert method.index(retcon_restore) < method.index(range_restore)
