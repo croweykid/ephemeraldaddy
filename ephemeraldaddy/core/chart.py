@@ -152,6 +152,11 @@ def apply_time_specific_metadata_policy(chart) -> None:
         and bool(getattr(chart, "birthtime_unknown", False))
         and not bool(getattr(chart, "retcon_time_used", False))
     ):
+        # Rectification ranges use the midpoint as the chart object's concrete
+        # calculation time. Chart Data Output may still display sign variants
+        # for positions that are not stable across the range; other features
+        # currently consume these midpoint positions directly until range-aware
+        # ambiguity handling is generalized app-wide.
         apply_rectification_range_midpoint(chart)
     use_birth_time_data = sync_use_birth_time_data(chart)
     if use_birth_time_data:

@@ -178,8 +178,11 @@ def _format_time_variant_signs(chart: Chart) -> dict[str, dict[str, object]]:
         midpoint = rectification_range_midpoint_minutes(chart)
         if midpoint is None:
             return {}
+        # This is intentionally a pragmatic consistency check, not a full
+        # ingress search: a body that changes sign between samples and changes
+        # back before the next sample can still evade detection.
         sample_minutes = [("start", start_minute), ("midpoint", midpoint), ("end", end_minute)]
-        sample_icons = {"start": "↤", "midpoint": "◉", "end": "↦"}
+        sample_icons = {"start": "🌅", "midpoint": "", "end": "🌌"}
     else:
         sample_minutes = [("start", 0), ("end", 23 * 60 + 59)]
         sample_icons = {"start": "🌅", "end": "🌌"}
@@ -222,8 +225,9 @@ def _format_time_variant_signs(chart: Chart) -> dict[str, dict[str, object]]:
             continue
 
         collapsed_samples: list[tuple[str, float, str]] = []
-        for sample in samples:
-            if not collapsed_samples or collapsed_samples[-1][2] != sample[2]:
+        for index, sample in enumerate(samples):
+            is_endpoint = index == 0 or index == len(samples) - 1
+            if is_endpoint or not collapsed_samples or collapsed_samples[-1][2] != sample[2]:
                 collapsed_samples.append(sample)
         pieces: list[str] = []
         info: list[dict[str, object]] = []
@@ -231,7 +235,8 @@ def _format_time_variant_signs(chart: Chart) -> dict[str, dict[str, object]]:
         for label, lon, sign in collapsed_samples:
             pretty = format_longitude(lon)
             nakshatra = get_nakshatra(lon)
-            piece = f"{sample_icons.get(label, '')}{pretty} ({nakshatra})ⓘ"
+            icon = sample_icons.get(label, "")
+            piece = f"{icon}{pretty} ({nakshatra})ⓘ"
             pieces.append(piece)
             # The icon index is filled after the whole line is assembled below.
             info.append({"body": body, "sign": sign, "house": None, "_piece": piece})

@@ -103,3 +103,15 @@ def test_rectification_range_chart_output_samples_start_midpoint_and_end():
     assert "if len({sign for _label, _lon, sign in samples}) <= 1:" in method
     assert "continue" in method
     assert '" -> ".join(pieces)' in method
+
+
+def test_rectification_range_chart_output_preserves_endpoints_and_old_icons():
+    source = Path("ephemeraldaddy/gui/features/charts/text_summary.py").read_text()
+    start = source.index("def _format_time_variant_signs")
+    end = source.index("\ndef _aspect_label", start)
+    method = source[start:end]
+
+    assert 'sample_icons = {"start": "🌅", "midpoint": "", "end": "🌌"}' in method
+    assert "is_endpoint = index == 0 or index == len(samples) - 1" in method
+    assert "if is_endpoint or not collapsed_samples" in method
+    assert "not a full" in method
