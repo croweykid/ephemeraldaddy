@@ -228,7 +228,7 @@ def _hd_gate_line_html(gate: int, line: int) -> str:
 
 def _planet_group() -> _MetricGroup:
     labels = tuple(dominant_planet_keys(None))
-    return _MetricGroup("planets", "planet/body weight", calculate_dominant_planet_weights, labels)
+    return _MetricGroup("planets", "planet/body", calculate_dominant_planet_weights, labels) #weight
 
 
 def _house_values(chart: Chart) -> dict[object, float]:
@@ -240,18 +240,18 @@ def _house_values(chart: Chart) -> dict[object, float]:
 def _metric_groups(chart: Chart) -> tuple[_MetricGroup, ...]:
     groups: list[_MetricGroup] = [
         _planet_group(),
-        _MetricGroup("signs", "sign weight", calculate_dominant_sign_weights, tuple(ZODIAC_NAMES)),
-        _MetricGroup("elements", "element weight", calculate_dominant_element_weights, ("Fire", "Earth", "Air", "Water")),
-        _MetricGroup("modes", "mode weight", calculate_mode_weights, ("cardinal", "mutable", "fixed")),
+        _MetricGroup("signs", "sign", calculate_dominant_sign_weights, tuple(ZODIAC_NAMES)), #weight
+        _MetricGroup("elements", "element", calculate_dominant_element_weights, ("Fire", "Earth", "Air", "Water")), #weight
+        _MetricGroup("modes", "mode", calculate_mode_weights, ("cardinal", "mutable", "fixed")), #weight
         _MetricGroup(
             "nakshatras",
-            "nakshatra weight",
+            "nakshatra", #weight
             calculate_dominant_nakshatra_weights,
             tuple(str(name) for name, *_rest in NAKSHATRA_RANGES),
         ),
     ]
     if chart_uses_houses(chart):
-        groups.insert(3, _MetricGroup("houses", "house weight", _house_values, tuple(range(1, 13))))
+        groups.insert(3, _MetricGroup("houses", "house", _house_values, tuple(range(1, 13)))) #weight
     return tuple(groups)
 
 
@@ -605,13 +605,13 @@ def build_distinguishing_factors_html(
     lines: list[str] = []
     if norm_count < MIN_NORM_SAMPLE_SIZE:
         lines.append(
-            html.escape(f"Need at least {MIN_NORM_SAMPLE_SIZE} database charts to calculate norms; found {norm_count}.")
+            html.escape(f"Need at least {MIN_NORM_SAMPLE_SIZE} database charts to calculate norms; found only {norm_count}. Add more charts, then we'll talk.")
         )
     elif factors:
         lines.append(
             html.escape(
-                f"Compared with {norm_count} database charts, these factors are at least "
-                f"{DISTINGUISHING_Z_THRESHOLD:.0f}σ from the current norm:"
+                f"Compared to {norm_count} other standard charts in this database, these factors stand out as at least "
+                f"{DISTINGUISHING_Z_THRESHOLD:.0f}σ from the norm:"
             )
         )
         for factor in factors:
@@ -625,16 +625,16 @@ def build_distinguishing_factors_html(
                     lines.append(
                         "• "
                         f"{factor_name_html}: "
-                        f"raw weight {factor.raw_value:.1f} vs DB mean {factor.raw_mean:.1f} "
+                        f"raw weight {factor.raw_value:.1f} vs DB avg {factor.raw_mean:.1f} "
                         f"({abs(factor.raw_z_score):.1f}σ {html.escape(direction)}); "
-                        f"share {factor.value_pct:.1f}% vs DB mean {factor.mean_pct:.1f}%."
+                        f"share {factor.value_pct:.1f}% vs DB avg {factor.mean_pct:.1f}%."
                     )
                 else:
                     direction = "above" if factor.z_score > 0 else "below"
                     lines.append(
                         "• "
                         f"{factor_name_html}: "
-                        f"{factor.value_pct:.1f}% vs DB mean {factor.mean_pct:.1f}% "
+                        f"{factor.value_pct:.1f}% vs DB avg {factor.mean_pct:.1f}% "
                         f"({abs(factor.z_score):.1f}σ {html.escape(direction)})."
                     )
                 continue
@@ -646,13 +646,13 @@ def build_distinguishing_factors_html(
                 "• "
                 f"{factor_name_html}: "
                 f"<span style='color:{delta_color}; font-weight:700;'>"
-                f"{delta_sign}{delta_pct:.1f}%</span> than DB avg."
+                f"{delta_sign}{delta_pct:.1f}%</span> DB avg."
             )
     else:
         lines.append(
             html.escape(
-                f"Compared with {norm_count} database charts, no weighted factors currently exceed "
-                f"the {DISTINGUISHING_Z_THRESHOLD:.0f}σ distinction threshold."
+                f"Compared to the {norm_count} other standard charts in this database, nothing stands out as exceeding "
+                f"{DISTINGUISHING_Z_THRESHOLD:.0f}σ of the norm. This chart is <i>jarringly</i> normal. Vanilla X-Treme." #As the zoomers say, this chart is 'normiemaxxing'
             )
         )
 

@@ -130,7 +130,8 @@ DEFAULT_TOOLTIP_OVERRIDES: dict[str, str] = {
 EXACT_TEXT_TOOLTIP_OVERRIDES: dict[str, str] = {
     # Requested Chart View tooltips.
     "💀": "deceased?",
-    "Use Rectified Time:": "birthtime is unknown or possibly incorrect; use speculated correct time",
+    "Use Rectified Time:": "birthtime is unknown or possibly incorrect; use speculated time for applicable calculations",
+    "Use Rectified Range:": "exact birth time is unknown; use this speculated range for applicable calculations",
     "?": "birthtime unknown?",
     "Source": "origin of birth/biographical info",
     "Source:": "origin of birth/biographical info",

@@ -570,8 +570,8 @@ def _build_dnd_stat_math_html(
         )
         formula_line = (
             f"Formula: chart raw {raw_score:.3f} ÷ DB norm {db_average:.3f} = {ratio:.3f}; "
-            f"{_DND_AVERAGE_STAT_ANCHOR:.0f} × {ratio:.3f} = {unclamped:.3f}; "
-            f"clamp to {floor}-{ceiling}, then round = {rounded}."
+            f"{_DND_AVERAGE_STAT_ANCHOR:.0f} (aka the gen pop 'avg' stat) × {ratio:.3f} = {unclamped:.3f}; " #the clarifiers as to what each number represents would be better as onhover/onclick tooltips than inserted as parentheticals, cos the parentheticals imply a mathematical meaning as much as a grammatical one, which makes it harder to read/understand. 
+            f"clamp to stat min ({floor})- stat max ({ceiling}), then round = {rounded}."
         )
     else:
         denominator = max(1e-9, float(_calculate_stat_evidence_denominators(DND_STAT_PREDICTORS).get(stat_key, 1.0)))
