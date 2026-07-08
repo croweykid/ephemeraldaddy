@@ -188,6 +188,7 @@ class Chart:
         self.tags = []
         self.reminds_me_of = ""
         self.comments = ""
+        self.quotes = []
         self.rectification_notes = ""
         self.biography = ""
         self.chart_data_source = ""
@@ -290,6 +291,7 @@ class Chart:
             "relationship_types": self.relationship_types,
             "tags": self.tags,
             "comments": self.comments,
+            "quotes": self.quotes,
             "rectification_notes": self.rectification_notes,
             "biography": self.biography,
             "chart_data_source": self.chart_data_source,
