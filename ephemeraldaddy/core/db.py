@@ -3713,7 +3713,8 @@ def list_charts() -> List[
                dominant_sign_weights,
                dominant_planet_weights,
                dominant_mode,
-               chart_uid
+               chart_uid,
+               weirdness_score
         FROM charts
         ORDER BY created_at DESC
         """
@@ -3791,6 +3792,7 @@ def list_charts() -> List[
                 row["dominant_planet_weights"],
                 row["dominant_mode"],
                 row["chart_uid"],
+                _normalize_weirdness_score(row["weirdness_score"]),
             )
         )
     return rows

@@ -2831,6 +2831,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.sort_action_known_duration = self.sort_menu.addAction("Time Known")
         self.sort_action_alignment = self.sort_menu.addAction("Alignment")
         self.sort_action_social_score = self.sort_menu.addAction("Social Score")
+        self.sort_action_weirdness = self.sort_menu.addAction("Weirdness")
         self.sort_action_duplicate_sets = self.sort_menu.addAction("**duplicate sets?**")
         self.sort_action_date.triggered.connect(lambda: self._set_sort_mode("date"))
         self.sort_action_alpha.triggered.connect(lambda: self._set_sort_mode("alpha"))
@@ -2852,6 +2853,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         self.sort_action_social_score.triggered.connect(
             lambda: self._set_sort_mode("social_score")
+        )
+        self.sort_action_weirdness.triggered.connect(
+            lambda: self._set_sort_mode("weirdness")
         )
         self.sort_action_duplicate_sets.triggered.connect(
             lambda: self._set_sort_mode("duplicate_sets")
@@ -4188,6 +4192,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 "known_duration",
                 "alignment",
                 "social_score",
+                "weirdness",
                 "date",
             }
         else:
@@ -4461,6 +4466,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.sort_button.setText(f"Sort: Alignment {direction}")
         elif mode == "social_score":
             self.sort_button.setText(f"Sort: Social Score {direction}")
+        elif mode == "weirdness":
+            self.sort_button.setText(f"Sort: Weirdness {direction}")
         elif mode == "duplicate_sets":
             self.sort_button.setText(f"Sort: Duplicate Sets {direction}")
         else:
@@ -18551,6 +18558,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "familiarity": True,
             "alignment": True,
             "social_score": True,
+            "weirdness": True,
             "known_duration": True,
             "duplicate_sets": False,
         }
@@ -18822,8 +18830,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if not row:
             return None
         padded = list(row)
-        if len(padded) < 30:
-            padded.extend([None] * (30 - len(padded)))
+        if len(padded) < 31:
+            padded.extend([None] * (31 - len(padded)))
         return (
             int(padded[0]),
             padded[1],
@@ -18859,6 +18867,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             padded[27],
             padded[28],
             padded[29],
+            float(padded[30]) if padded[30] is not None else None,
         )
 
     def _populate_list(
@@ -18947,6 +18956,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
         elif self._sort_mode == "social_score":
             rows.sort(key=lambda r: (r[13], (r[1] or "").lower()), reverse=self._sort_descending)
+        elif self._sort_mode == "weirdness":
+            rows.sort(
+                key=lambda r: (
+                    r[30] is not None,
+                    float(r[30] or 0.0),
+                    (r[1] or "").lower(),
+                ),
+                reverse=self._sort_descending,
+            )
         elif self._sort_mode == "duplicate_sets":
             rows.sort(
                 key=lambda r: self._possible_duplicate_sort_keys.get(
@@ -35948,8 +35966,8 @@ class MainWindow(QMainWindow):
         if not row:
             return None
         padded = list(row)
-        if len(padded) < 30:
-            padded.extend([None] * (30 - len(padded)))
+        if len(padded) < 31:
+            padded.extend([None] * (31 - len(padded)))
         return (
             int(padded[0]),
             padded[1],
@@ -35985,6 +36003,7 @@ class MainWindow(QMainWindow):
             padded[27],
             padded[28],
             padded[29],
+            float(padded[30]) if padded[30] is not None else None,
         )
 
     def _prediction_norm_rows(self) -> list[Any]:
