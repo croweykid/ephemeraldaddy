@@ -13358,7 +13358,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 "Cool", QMessageBox.ButtonRole.AcceptRole
             )
             wikipedia_prompt.setDefaultButton(cool_button)
-            wikipedia_prompt.setEscapeButton(cancel_button)
+            # Do not pass the custom Cancel button back into setEscapeButton().
+            # On some PySide6 builds the button wrapper can already be invalidated
+            # after addButton()/setDefaultButton(), which raises a libshiboken
+            # "Internal C++ object already deleted" RuntimeError before the
+            # Wikipedia fallback prompt can open. QMessageBox automatically uses
+            # the lone RejectRole button for Escape/close handling.
             cancel_button.setStyleSheet(
                 "QPushButton { background-color: #5f6368; border-color: #747981; color: #f4f1ea; }"
                 "QPushButton:hover { background-color: #6f747c; }"
