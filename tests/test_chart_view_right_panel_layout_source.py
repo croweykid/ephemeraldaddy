@@ -309,3 +309,30 @@ def test_predictions_timeout_does_not_terminate_qthread_from_gui_thread():
     source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/cv_right_panel_stack.py").read_text()
     assert "Predictions warmup did not stop after timeout; leaving worker in background" in source
     assert "thread.terminate()" not in source
+
+
+def test_traits_predictions_show_manual_calculate_prompt_without_autostarting_worker():
+    source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/trait_predictions.py").read_text()
+    assert "No prior data. Calculate (can take awhile)?" in source
+    assert "trait-predictions:calculate" in source
+    assert "cached_only: bool = False" in source
+    assert "trait_metadata_for_chart(owner, chart, cached_only=True)" in source
+    no_cache_branch = source[source.index("owner._traits_prediction_pending_chart = chart"):]
+    assert "showing manual calculate prompt" in no_cache_branch
+    assert "_start_traits_prediction_refresh_worker(owner, chart, traits" not in no_cache_branch
+
+
+def test_prediction_calculate_prompts_expand_and_center_contents():
+    for relative_path in (
+        "ephemeraldaddy/gui/features/charts/dnd_predictions.py",
+        "ephemeraldaddy/gui/features/charts/enneagram_predictions.py",
+    ):
+        source = (REPO_ROOT / relative_path).read_text()
+        assert "QSizePolicy.Expanding, QSizePolicy.MinimumExpanding" in source
+        assert "label.setMinimumHeight(label.sizeHint().height())" in source
+        assert "panel_layout.setAlignment(Qt.AlignCenter)" in source
+        assert ".addWidget(panel)" in source
+    traits_source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/trait_predictions.py").read_text()
+    assert "min-height:120px" in traits_source
+    assert "text-align:center" in traits_source
+    assert "white-space:normal" in traits_source

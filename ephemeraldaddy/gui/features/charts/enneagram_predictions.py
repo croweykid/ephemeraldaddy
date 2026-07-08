@@ -10,7 +10,7 @@ import statistics
 from typing import Any, Callable
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QLabel, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QLabel, QPushButton, QSizePolicy, QVBoxLayout, QWidget
 
 from ephemeraldaddy.core.interpretations import (
     ASPECT_COLORS,
@@ -920,6 +920,7 @@ class EnneagramPredictionPanelAdapter:
         if callable(self.reset_canvas_callback):
             self.reset_canvas_callback("enneagram_prediction_canvas")
         panel = QWidget()
+        panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
         panel_layout = QVBoxLayout()
         panel_layout.setContentsMargins(12, 18, 12, 18)
         panel_layout.setSpacing(10)
@@ -928,13 +929,15 @@ class EnneagramPredictionPanelAdapter:
         label = QLabel("No prior data. Calculate (can take awhile)?")
         label.setAlignment(Qt.AlignCenter)
         label.setWordWrap(True)
+        label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
+        label.setMinimumHeight(label.sizeHint().height())
         label.setStyleSheet("color: #f5f5f5; font-weight: 600;")
         button = QPushButton("Calculate!")
         button.setStyleSheet("background-color: #7b4dff; color: white; font-weight: bold; padding: 6px 14px; border-radius: 5px;")
         button.clicked.connect(lambda _checked=False, chart=chart: self.calculate_callback(chart, "enneagram") if callable(self.calculate_callback) and chart is not None else None)
         panel_layout.addWidget(label, alignment=Qt.AlignCenter)
         panel_layout.addWidget(button, alignment=Qt.AlignCenter)
-        layout.addWidget(panel, alignment=Qt.AlignCenter)
+        layout.addWidget(panel)
         if self.tritype_label is not None:
             self.tritype_label.setText("<b>Predicted Tritype:</b> No prior data")
 
