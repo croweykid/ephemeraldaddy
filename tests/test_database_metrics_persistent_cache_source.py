@@ -114,13 +114,23 @@ def test_persistent_cache_rows_token_uses_chart_uids_not_legacy_ids():
 
 def test_persistent_cache_loads_stale_rows_and_marks_background_refresh():
     load_method = _method_source(APP_SOURCE, "_load_database_metrics_persistent_cache")
-    assert "change_count = self._database_metrics_token_change_count" in load_method
+    assert "freshness = database_norms_freshness(rows_token, current_rows_token)" in load_method
     assert "rows_token != current_rows_token" in load_method
     assert "self._database_metrics_cache_stale = True" in load_method
-    assert "self._database_metrics_cache_stale_requires_full_refresh = change_count >= threshold" in load_method
+    assert "self._database_metrics_cache_stale_requires_full_refresh = freshness.requires_full_refresh" in load_method
     assert "return False" not in load_method.split("rows_token = self._decode_database_metrics_cache_value", 1)[1].split(
         "cache = self._decode_database_metrics_cache_value", 1
     )[0]
+
+
+def test_traits_distribution_refresh_has_no_modal_loading_bar():
+    update_method = _method_source(APP_SOURCE, "_update_sentiment_tally")
+    traits_branch = update_method.split('if _should_refresh_database_metric_section("traits_distribution"):', 1)[1].split(
+        "if update_similarities:", 1
+    )[0]
+    assert "Loading trait predictions" not in traits_branch
+    assert "create_app_loading_progress" not in traits_branch
+    assert "self._render_traits_distribution_section(" in traits_branch
 
 
 def test_persistent_cache_validates_analytics_configuration():

@@ -860,6 +860,11 @@ from ephemeraldaddy.gui.features.charts.database_analytics import (
     snapshot_add_decan,
     snapshot_add_nakshatra,
 )
+from ephemeraldaddy.gui.features.charts.database_norms_cache import (
+    changed_database_norm_uids,
+    database_norms_freshness,
+    database_norms_refresh_threshold,
+)
 from ephemeraldaddy.gui.dbv_batch_bio import (
     build_batch_bio_section,
     clear_batch_from_whence_state,
@@ -3554,22 +3559,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         saved_rows_token: Any,
         current_rows_token: tuple[tuple[str, str], ...],
     ) -> int:
-        saved_map: dict[str, str] = {}
-        for item in saved_rows_token or ():
-            if not isinstance(item, (list, tuple)) or len(item) != 2:
-                continue
-            uid, token = item
-            saved_map[str(uid)] = str(token)
-        current_map = {str(uid): str(token) for uid, token in current_rows_token}
-        return sum(
-            1
-            for uid in (set(saved_map) | set(current_map))
-            if saved_map.get(uid) != current_map.get(uid)
-        )
+        return len(changed_database_norm_uids(saved_rows_token, current_rows_token))
 
     @staticmethod
     def _database_metrics_refresh_threshold(chart_count: int) -> int:
-        return max(1, int(max(0, int(chart_count)) * 0.10))
+        return database_norms_refresh_threshold(chart_count)
 
     def _database_metrics_config_token(self) -> str:
         return json.dumps(
@@ -3668,7 +3662,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return False
         rows_token = self._decode_database_metrics_cache_value(payload.get("rows_token"))
         current_rows_token = self._database_metrics_rows_token()
-        change_count = self._database_metrics_token_change_count(rows_token, current_rows_token)
+        freshness = database_norms_freshness(rows_token, current_rows_token)
+        change_count = freshness.changed_uid_count
         cache = self._decode_database_metrics_cache_value(payload.get("cache"))
         snapshots = self._decode_database_metrics_cache_value(payload.get("snapshots"))
         sections = self._decode_database_metrics_cache_value(payload.get("snapshot_sections"))
@@ -3679,20 +3674,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_metrics_snapshot_sections = frozenset(sections or ())
         self._database_metrics_lucy_goosey_ids.clear()
         if rows_token != current_rows_token:
-            threshold = self._database_metrics_refresh_threshold(
-                max(len(rows_token or ()), len(current_rows_token))
-            )
-            saved_by_uid: dict[str, str] = {}
-            for item in rows_token or ():
-                if not isinstance(item, (list, tuple)) or len(item) != 2:
-                    continue
-                uid, token = item
-                saved_by_uid[str(uid)] = str(token)
-            changed_uids = {
-                str(uid)
-                for uid, token in current_rows_token
-                if saved_by_uid.get(str(uid)) != str(token)
-            }
+            threshold = freshness.refresh_threshold
+            changed_uids = changed_database_norm_uids(rows_token, current_rows_token)
             current_uid_by_id: dict[int, str] = {}
             current_chart_ids: list[int] = []
             for row in getattr(self, "_chart_rows", []) or []:
@@ -3712,7 +3695,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._database_metrics_cache_stale = True
             self._database_metrics_cache_stale_change_count = change_count
             self._database_metrics_cache_stale_threshold = threshold
-            self._database_metrics_cache_stale_requires_full_refresh = change_count >= threshold
+            self._database_metrics_cache_stale_requires_full_refresh = freshness.requires_full_refresh
             logger.info(
                 "Loaded stale Database Metrics cache with %s changed chart row(s); threshold is %s. "
                 "Cached values remain usable until background refresh updates them.",
@@ -13016,25 +12999,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 should_refresh=_should_refresh_database_metric_section,
             )
             if _should_refresh_database_metric_section("traits_distribution"):
-                from ephemeraldaddy.core.loading_messages import LoadingMessageRotator
-                from ephemeraldaddy.gui.style import close_app_loading_progress, create_app_loading_progress, update_app_loading_progress
-                _traits_loading_messages = LoadingMessageRotator(initial_message="Loading trait predictions…")
-                _traits_progress = create_app_loading_progress(
-                    parent=self,
-                    title="Database Analytics Predictions",
-                    message=_traits_loading_messages.next(),
+                self._render_traits_distribution_section(
+                    chart_ids=chart_ids,
+                    database_chart_ids=database_cache["chart_ids"],
+                    loaded_charts=loaded_charts,
+                    should_refresh=_should_refresh_database_metric_section,
                 )
-                try:
-                    update_app_loading_progress(_traits_progress, "Scoring trait predictions…", 35)
-                    self._render_traits_distribution_section(
-                        chart_ids=chart_ids,
-                        database_chart_ids=database_cache["chart_ids"],
-                        loaded_charts=loaded_charts,
-                        should_refresh=_should_refresh_database_metric_section,
-                    )
-                    update_app_loading_progress(_traits_progress, "Trait predictions ready.", 100)
-                finally:
-                    close_app_loading_progress(_traits_progress)
 
         if update_similarities:
             self._update_similarities_analysis(chart_ids)

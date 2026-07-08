@@ -24,15 +24,20 @@ from ephemeraldaddy.analysis.traits import (
 )
 from ephemeraldaddy.core import db
 from ephemeraldaddy.core.chart import chart_uses_houses
+from ephemeraldaddy.gui.features.charts.database_norms_cache import (
+    DATABASE_NORMS_CACHE_FILENAME,
+    DATABASE_NORMS_STALE_RATIO,
+    analytical_mapping_signature,
+    database_norms_refresh_threshold,
+)
 from ephemeraldaddy.gui.style import apply_chart_info_link_cursor, set_chart_info_html
 
 logger = logging.getLogger(__name__)
 
 TRAIT_DEVIATION_ASSIGNMENT_THRESHOLD = 5.0
 TRAIT_DB_NORMS_CACHE_VERSION = 1
-DATABASE_NORMS_CACHE_FILENAME = ".database_norms_cache.json"
 TRAIT_DB_NORMS_CACHE_PATH = db.DB_DIR / DATABASE_NORMS_CACHE_FILENAME
-TRAIT_DB_NORMS_MAX_STALE_RATIO = 0.10
+TRAIT_DB_NORMS_MAX_STALE_RATIO = DATABASE_NORMS_STALE_RATIO
 
 
 def _predictions_debug_enabled(owner: Any) -> bool:
@@ -274,10 +279,7 @@ def _chart_trait_metadata_signature(chart: Any) -> str:
 
 def _database_norm_refresh_threshold(chart_count: int) -> int:
     """Return how many birth-data cohort changes justify refreshing DB norms."""
-    count = max(0, int(chart_count))
-    if count < 10:
-        return 1
-    return max(1, int(count * TRAIT_DB_NORMS_MAX_STALE_RATIO))
+    return database_norms_refresh_threshold(chart_count)
 
 
 def _database_norm_chart_token_source(owner: Any) -> tuple[tuple[str, str], ...]:
@@ -430,12 +432,7 @@ def _trait_uid_for_item(trait: dict[str, Any]) -> str:
 
 def _trait_analytical_profile(profile: Any, *, strip_uids: bool = False) -> dict[str, Any]:
     """Return only scoring-relevant trait factors, excluding display-only metadata."""
-    if not isinstance(profile, dict):
-        return {}
-    excluded = {"name", "color", "description", "motivation", "quotes", "archived", "samples"}
-    if strip_uids:
-        excluded.update({"uid", "trait_uid"})
-    return {str(key): value for key, value in profile.items() if str(key) not in excluded}
+    return analytical_mapping_signature(profile, strip_uids=strip_uids)
 
 
 def _trait_signature_payload(traits: list[dict[str, Any]], *, strip_uids: bool = False) -> dict[str, Any]:

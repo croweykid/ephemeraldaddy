@@ -41,6 +41,7 @@ from PySide6.QtWidgets import (
 )
 
 from ephemeraldaddy.gui.features.charts.dnd_predictions import DND_STAT_KEYS
+from ephemeraldaddy.gui.features.charts.database_norms_cache import analytical_mapping_signature
 
 DATABASE_METRICS_SECTION_ORDER: tuple[str, ...] = (
     "planetary_sign_prevalence",
@@ -4547,22 +4548,7 @@ class DatabaseAnalyticsChartsMixin:
 
     @staticmethod
     def _traits_distribution_analytical_profile_key(profile: Any) -> str:
-        if not isinstance(profile, dict):
-            return "{}"
-        scoring_profile = {
-            str(key): value
-            for key, value in profile.items()
-            if str(key)
-            not in {
-                "name",
-                "color",
-                "description",
-                "motivation",
-                "quotes",
-                "archived",
-                "samples",
-            }
-        }
+        scoring_profile = analytical_mapping_signature(profile)
         try:
             return json.dumps(scoring_profile, sort_keys=True, default=str, separators=(",", ":"))
         except TypeError:
