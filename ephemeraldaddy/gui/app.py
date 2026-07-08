@@ -32364,7 +32364,7 @@ class MainWindow(QMainWindow):
             retcon_qtime
             if self.retcon_time_checkbox.isChecked()
             else self._rectification_range_midpoint_qtime()
-            if self.rectification_range_checkbox.isChecked()
+            if self._rectification_range_effective_from_inputs()
             else QTime(12, 0)
         )
         dt_local = datetime.datetime(dt_year, dt_month, dt_day, qtime.hour(), qtime.minute())
@@ -32381,7 +32381,7 @@ class MainWindow(QMainWindow):
         placeholder.retcon_time_used = self.retcon_time_checkbox.isChecked()
         placeholder.retcon_hour = retcon_qtime.hour()
         placeholder.retcon_minute = retcon_qtime.minute()
-        placeholder.rectification_range_used = self.rectification_range_checkbox.isChecked()
+        placeholder.rectification_range_used = self._rectification_range_effective_from_inputs()
         placeholder.rectification_range_start_minute = range_start_minute
         placeholder.rectification_range_end_minute = range_end_minute
         placeholder.birth_place = self.place_edit.text().strip() or ""
@@ -32451,7 +32451,7 @@ class MainWindow(QMainWindow):
             return
         if self.retcon_time_checkbox.isChecked():
             qtime = self.retcon_time_edit.time()
-        elif self.time_unknown_checkbox.isChecked() and self.rectification_range_checkbox.isChecked():
+        elif self._rectification_range_effective_from_inputs():
             qtime = self._rectification_range_midpoint_qtime()
         elif self.time_unknown_checkbox.isChecked():
             qtime = QTime(12, 0)
@@ -32600,7 +32600,7 @@ class MainWindow(QMainWindow):
         chart.retcon_hour = self.retcon_time_edit.time().hour()
         chart.retcon_minute = self.retcon_time_edit.time().minute()
         range_start_minute, range_end_minute = self._rectification_range_minutes_from_inputs()
-        chart.rectification_range_used = self.rectification_range_checkbox.isChecked()
+        chart.rectification_range_used = self._rectification_range_effective_from_inputs()
         chart.rectification_range_start_minute = range_start_minute
         chart.rectification_range_end_minute = range_end_minute
         apply_time_specific_metadata_policy(chart)
@@ -33172,7 +33172,7 @@ class MainWindow(QMainWindow):
                 chart.retcon_hour = self.retcon_time_edit.time().hour()
                 chart.retcon_minute = self.retcon_time_edit.time().minute()
                 range_start_minute, range_end_minute = self._rectification_range_minutes_from_inputs()
-                chart.rectification_range_used = self.rectification_range_checkbox.isChecked()
+                chart.rectification_range_used = self._rectification_range_effective_from_inputs()
                 chart.rectification_range_start_minute = range_start_minute
                 chart.rectification_range_end_minute = range_end_minute
                 chart.is_placeholder = self.placeholder_chart_checkbox.isChecked()
@@ -34228,10 +34228,26 @@ class MainWindow(QMainWindow):
         midpoint = int(round((start_minute + end_minute) / 2))
         return QTime(midpoint // 60, midpoint % 60)
 
+    def _rectification_range_effective_from_inputs(self) -> bool:
+        return (
+            self.rectification_range_checkbox.isChecked()
+            and self.time_unknown_checkbox.isChecked()
+            and not self.retcon_time_checkbox.isChecked()
+        )
+
     def _update_time_input_visibility(self) -> None:
         self.time_edit.setVisible(not self.time_unknown_checkbox.isChecked())
         self.retcon_time_edit.setVisible(self.retcon_time_checkbox.isChecked())
-        range_enabled = self.rectification_range_checkbox.isChecked()
+        range_available = (
+            self.time_unknown_checkbox.isChecked()
+            and not self.retcon_time_checkbox.isChecked()
+        )
+        if not range_available and self.rectification_range_checkbox.isChecked():
+            range_blocker = QSignalBlocker(self.rectification_range_checkbox)
+            self.rectification_range_checkbox.setChecked(False)
+            del range_blocker
+        self.rectification_range_checkbox.setEnabled(range_available)
+        range_enabled = range_available and self.rectification_range_checkbox.isChecked()
         self.rectification_range_start_edit.setVisible(range_enabled)
         self.rectification_range_to_label.setVisible(range_enabled)
         self.rectification_range_end_edit.setVisible(range_enabled)
