@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import csv
+import math
 import shutil
 import sqlite3
 import threading
@@ -475,6 +476,7 @@ def _create_charts_table(conn: sqlite3.Connection) -> None:
             familiarity INTEGER,
             alignment_score INTEGER,
             sexiness_score INTEGER NOT NULL DEFAULT 0,
+            weirdness_score REAL,
             matched_expectations INTEGER NOT NULL DEFAULT 0,
             familiarity_factors TEXT,
             age_when_first_met INTEGER NOT NULL DEFAULT 0,
@@ -966,6 +968,13 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
             """
             ALTER TABLE charts
             ADD COLUMN sexiness_score INTEGER NOT NULL DEFAULT 0
+            """
+        )
+    if "weirdness_score" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE charts
+            ADD COLUMN weirdness_score REAL
             """
         )
     if "matched_expectations" not in columns:
@@ -2018,6 +2027,16 @@ def _normalize_sexiness_score(value: Optional[int]) -> int:
     except (TypeError, ValueError):
         return 0
     return max(-10, min(10, parsed))
+
+
+def _normalize_weirdness_score(value: Any) -> Optional[float]:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(parsed):
+        return None
+    return max(0.0, round(parsed, 2))
 
 
 def _normalize_matched_expectations(value: Optional[int]) -> int:
@@ -3102,7 +3121,7 @@ def save_chart(
                  chart_data_source,
                  alternate_chart_uid,
                  positive_sentiment_intensity, negative_sentiment_intensity,
-                 familiarity, alignment_score, sexiness_score, matched_expectations, familiarity_factors, age_when_first_met, year_first_encountered, data_rating, social_score,
+                 familiarity, alignment_score, sexiness_score, weirdness_score, matched_expectations, familiarity_factors, age_when_first_met, year_first_encountered, data_rating, social_score,
                  birthtime_unknown,
                  signs_unknown, unknown_signs,
                  retcon_time_used, retcon_hour, retcon_minute,
@@ -3128,7 +3147,7 @@ def save_chart(
                  death_minute,
                  death_place,
                  created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 chart.name,
@@ -3174,6 +3193,7 @@ def save_chart(
                 _normalize_sexiness_score(
                     getattr(chart, "sexiness_score", None)
                 ),
+                _normalize_weirdness_score(getattr(chart, "weirdness_score", None)),
                 _normalize_matched_expectations(
                     getattr(chart, "matched_expectations", None)
                 ),
@@ -3419,6 +3439,7 @@ def update_chart(
                 familiarity = ?,
                 alignment_score = ?,
                 sexiness_score = ?,
+                weirdness_score = ?,
                 matched_expectations = ?,
                 familiarity_factors = ?,
                 age_when_first_met = ?,
@@ -3517,6 +3538,7 @@ def update_chart(
                 _normalize_sexiness_score(
                     getattr(chart, "sexiness_score", None)
                 ),
+                _normalize_weirdness_score(getattr(chart, "weirdness_score", None)),
                 _normalize_matched_expectations(
                     getattr(chart, "matched_expectations", None)
                 ),
@@ -4366,7 +4388,7 @@ def _chart_row_projection(columns: set[str]) -> str:
                used_utc_fallback, sentiments, relationship_types,
                tags, reminds_me_of, comments, {quotes_projection}, rectification_notes, biography, chart_data_source, alternate_chart_uid,
                positive_sentiment_intensity, negative_sentiment_intensity,
-               familiarity, alignment_score, sexiness_score, matched_expectations, {familiarity_factors_projection}, age_when_first_met, year_first_encountered, data_rating, birthtime_unknown, signs_unknown, unknown_signs,
+               familiarity, alignment_score, sexiness_score, {"weirdness_score" if "weirdness_score" in columns else "NULL AS weirdness_score"}, matched_expectations, {familiarity_factors_projection}, age_when_first_met, year_first_encountered, data_rating, birthtime_unknown, signs_unknown, unknown_signs,
                retcon_time_used, retcon_hour, retcon_minute,
                rectification_range_used, rectification_range_start_minute, rectification_range_end_minute,
                dominant_sign_weights, dominant_planet_weights, dominant_nakshatra_weights, dominant_element_weights, {enneagram_type_weights_projection}, dominant_enneagram_type, top_three_enneagram_types, dominant_mode, modal_distribution, {body_dynamics_roles_projection},
@@ -4410,6 +4432,7 @@ def _chart_from_row(chart_id: int, row):
         familiarity,
         alignment_score,
         sexiness_score,
+        weirdness_score,
         matched_expectations,
         familiarity_factors,
         age_when_first_met,
@@ -4495,6 +4518,7 @@ def _chart_from_row(chart_id: int, row):
         placeholder.familiarity = normalized_familiarity
         placeholder.alignment_score = _normalize_alignment_score(alignment_score)
         placeholder.sexiness_score = _normalize_sexiness_score(sexiness_score)
+        placeholder.weirdness_score = _normalize_weirdness_score(weirdness_score)
         placeholder.matched_expectations = _normalize_matched_expectations(matched_expectations)
         placeholder.sentiment_confidence = (
             normalized_familiarity if normalized_familiarity is not None else 1
@@ -4599,6 +4623,7 @@ def _chart_from_row(chart_id: int, row):
     chart.familiarity = _normalize_optional_sentiment_metric(familiarity)
     chart.alignment_score = _normalize_alignment_score(alignment_score)
     chart.sexiness_score = _normalize_sexiness_score(sexiness_score)
+    chart.weirdness_score = _normalize_weirdness_score(weirdness_score)
     chart.matched_expectations = _normalize_matched_expectations(matched_expectations)
     chart.familiarity_factors = parse_familiarity_factors(
         familiarity_factors
@@ -4814,6 +4839,34 @@ def update_chart_dominant_sign_weights(
             ),
         )
     conn.close()
+
+
+def update_chart_weirdness_score(chart_id: int, weirdness_score: Any) -> bool:
+    """Persist a derived weirdness score if it differs from the stored metadata."""
+    normalized_score = _normalize_weirdness_score(weirdness_score)
+    conn = _get_conn()
+    try:
+        with conn:
+            columns = _table_columns(conn, "charts")
+            if "weirdness_score" not in columns:
+                conn.execute("ALTER TABLE charts ADD COLUMN weirdness_score REAL")
+                _invalidate_table_columns_cache("charts")
+            row = conn.execute(
+                "SELECT weirdness_score FROM charts WHERE id = ?",
+                (int(chart_id),),
+            ).fetchone()
+            if row is None:
+                return False
+            current_score = _normalize_weirdness_score(row[0])
+            if current_score == normalized_score:
+                return False
+            conn.execute(
+                "UPDATE charts SET weirdness_score = ? WHERE id = ?",
+                (normalized_score, int(chart_id)),
+            )
+            return True
+    finally:
+        conn.close()
 
 
 def _clear_dominant_weight_caches(conn: sqlite3.Connection) -> None:

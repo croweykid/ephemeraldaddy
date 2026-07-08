@@ -683,6 +683,7 @@ from ephemeraldaddy.core.db import (
     invalidate_all_dominant_weight_caches,
     update_chart,
     update_chart_dominant_sign_weights,
+    update_chart_weirdness_score,
     set_current_chart,
     parse_relationship_types,
     list_recognized_tags,
@@ -1449,6 +1450,7 @@ from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
 )
 from ephemeraldaddy.gui.features.charts.distinguishing_factors import (
     build_distinguishing_factors_html as _build_distinguishing_factors_html,
+    calculate_weirdness_score_from_metric_payloads as _calculate_weirdness_score_from_metric_payloads,
     chart_essential_astro_signature as _chart_essential_astro_signature,
     distinguishing_metric_payload_for_chart as _distinguishing_metric_payload_for_chart,
     load_distinguishing_metric_cache as _load_distinguishing_metric_cache,
@@ -36137,11 +36139,23 @@ class MainWindow(QMainWindow):
                 + "</span>"
             )
             return
+        metric_payloads = self._prediction_norm_metric_payloads()
+        weirdness_score, _norm_count = _calculate_weirdness_score_from_metric_payloads(
+            chart,
+            metric_payloads,
+        )
+        chart_id = getattr(chart, "id", None)
+        if chart_id is not None and weirdness_score is not None:
+            try:
+                if update_chart_weirdness_score(int(chart_id), weirdness_score):
+                    chart.weirdness_score = weirdness_score
+            except Exception:
+                pass
         label.setText(
             _build_distinguishing_factors_html(
                 chart,
                 [],
-                metric_payloads=self._prediction_norm_metric_payloads(),
+                metric_payloads=metric_payloads,
                 debug_scoring=bool(getattr(self, "_distinguishing_factors_scoring_debug", False)),
             )
         )
