@@ -13358,7 +13358,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 "Cool", QMessageBox.ButtonRole.AcceptRole
             )
             wikipedia_prompt.setDefaultButton(cool_button)
-            wikipedia_prompt.setEscapeButton(cancel_button)
+            # Do not pass the custom Cancel button back into setEscapeButton().
+            # On some PySide6 builds the button wrapper can already be invalidated
+            # after addButton()/setDefaultButton(), which raises a libshiboken
+            # "Internal C++ object already deleted" RuntimeError before the
+            # Wikipedia fallback prompt can open. QMessageBox automatically uses
+            # the lone RejectRole button for Escape/close handling.
             cancel_button.setStyleSheet(
                 "QPushButton { background-color: #5f6368; border-color: #747981; color: #f4f1ea; }"
                 "QPushButton:hover { background-color: #6f747c; }"
@@ -33805,6 +33810,25 @@ class MainWindow(QMainWindow):
             self.retcon_time_edit.setTime(qtime)
         else:
             self.retcon_time_edit.setTime(default_noon)
+        range_start_minute = getattr(chart, "rectification_range_start_minute", None)
+        range_end_minute = getattr(chart, "rectification_range_end_minute", None)
+        if range_start_minute is not None:
+            range_start_minute = max(0, min(1439, int(range_start_minute)))
+            self.rectification_range_start_edit.setTime(
+                QTime(range_start_minute // 60, range_start_minute % 60)
+            )
+        else:
+            self.rectification_range_start_edit.setTime(QTime(0, 0))
+        if range_end_minute is not None:
+            range_end_minute = max(0, min(1439, int(range_end_minute)))
+            self.rectification_range_end_edit.setTime(
+                QTime(range_end_minute // 60, range_end_minute % 60)
+            )
+        else:
+            self.rectification_range_end_edit.setTime(QTime(23, 59))
+        self.rectification_range_checkbox.setChecked(
+            bool(getattr(chart, "rectification_range_used", False))
+        )
         self.retcon_time_checkbox.setChecked(chart.retcon_time_used)
         range_start_minute = getattr(chart, "rectification_range_start_minute", None)
         range_end_minute = getattr(chart, "rectification_range_end_minute", None)

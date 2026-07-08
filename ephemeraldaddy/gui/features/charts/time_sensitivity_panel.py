@@ -877,7 +877,7 @@ def _dominant_body_lore_html(body_key: str, label_style: str) -> str:
     symbol = str(meaning.get("symbol") or "").strip()
     title = f"{symbol} {_display_body_name(body_key)}".strip()
     parts.append(
-        f"<div style='font-weight:700; color:{escape(_factor_color('dominant_planet_weights', body_key), quote=True)};'>{escape(title)} Dominance Lore</div>"
+        f"<div style='font-weight:700; color:{escape(_factor_color('dominant_planet_weights', body_key), quote=True)};'>{escape(title)} Dominance</div>"
     )
     for label, value_key in (
         ("Core Theme", "core_theme"),
@@ -1082,7 +1082,7 @@ def _summary_html(result: TimeSensitivityResult) -> str:
         f"{result.baseline_time} ({overall.get('baseline_source', 'baseline')})"
     )
     html_lines: list[str] = [
-        f"<div><strong>Overall stability:</strong> {float(overall.get('stability_percent', 0)):.0f}%</div>",
+        #f"<div><strong>Overall stability:</strong> {float(overall.get('stability_percent', 0)):.0f}%</div>",
         f"<div><strong>Max possible change from {escape(baseline_label)}:</strong> {float(overall.get('max_total_change_from_baseline_percent', 0)):.0f}%</div>",
         "<div><strong>Most sensitive:</strong> "
         + _color_code_text(", ".join(overall.get("most_sensitive", []) or ["n/a"]))

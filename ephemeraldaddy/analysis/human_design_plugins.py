@@ -172,22 +172,22 @@ def humdes_gate_line_supplement_lines(gate: int, line: int | None = None, fixing
     if not isinstance(gate_data, dict):
         return []
 
-    lines: list[str] = ["Advanced plugin supplement:"]
+    lines: list[str] = ["<strong>Advanced plugin supplement:</strong>"]
     source_name = _clean_text(gate_data.get("app_name")) or _clean_text(gate_data.get("source_name"))
     if source_name:
-        lines.append(f"• Gate: {source_name}")
+        lines.append(f"• <strong>Gate:</strong> {source_name}")
     summary = _clean_text(gate_data.get("app_summary")) or _clean_text(gate_data.get("source_summary"))
     if summary:
-        lines.append(f"• Gate summary: {summary}")
+        lines.append(f"• <strong>Gate summary:</strong> {summary}")
     for key, label in (("center", "Center"), ("circuit", "Circuit"), ("quarter", "Quarter"), ("channel", "Channel"), ("deity", "Deity"), ("physiology", "Physiology")):
         value = _clean_text(gate_data.get(key))
         if value:
-            lines.append(f"• {label}: {value}")
+            lines.append(f"• <strong>{label}:</strong> {value}")
     notes = gate_data.get("additional_notes", [])
     if isinstance(notes, list):
         clean_notes = [_clean_text(note) for note in notes if _clean_text(note)]
         if clean_notes:
-            lines.append(f"• Additional notes: {', '.join(clean_notes)}")
+            lines.append(f"• <strong>Additional notes:</strong> {', '.join(clean_notes)}")
 
     if line is not None:
         line_data = gate_data.get("lines", {}).get(str(int(line)))
@@ -195,5 +195,5 @@ def humdes_gate_line_supplement_lines(gate: int, line: int | None = None, fixing
             raw_line_name = _clean_text(line_data.get("app_name")) or _clean_text(line_data.get("source_name"))
             line_name = _trim_line_fixing_text(raw_line_name, fixing, fixing_body)
             if line_name:
-                lines.extend(["", f"Advanced line {int(line)} supplement:", line_name])
+                lines.extend(["", f"<strong>Advanced line {int(line)} supplement:</strong>", line_name])
     return lines
