@@ -2479,6 +2479,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._subordinate_nakshatra_filters = []
         self._human_design_channel_filters = []
         self._human_design_gate_filters = []
+        self._human_design_gate_line_filters = []
         self._human_design_type_filter_combo = None
         self._human_design_profile_filter_combo = None
         self._human_design_defined_center_filters = []
@@ -10645,9 +10646,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if str(combo.currentData()) != "Any"
         }
         selected_human_design_gates = {
-            int(combo.currentData())
-            for combo in self._human_design_gate_filters
-            if str(combo.currentData()) != "Any"
+            (
+                int(filters["gate"].currentData()) if str(filters["gate"].currentData()) != "Any" else "Any",
+                int(filters["line"].currentData()) if str(filters["line"].currentData()) != "Any" else "Any",
+            )
+            for filters in getattr(self, "_human_design_gate_line_filters", [])
+            if str(filters["gate"].currentData()) != "Any"
+            or str(filters["line"].currentData()) != "Any"
         }
         selected_human_design_type = (
             str(self._human_design_type_filter_combo.currentData())
@@ -17481,6 +17486,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 channel_combo.setCurrentIndex(0)
             for gate_combo in self._human_design_gate_filters:
                 gate_combo.setCurrentIndex(0)
+            for filters in getattr(self, "_human_design_gate_line_filters", []):
+                filters["line"].setCurrentIndex(0)
+                filters["or"].setChecked(False)
+                filters["and"].setChecked(True)
             for center_combo in self._human_design_defined_center_filters:
                 center_combo.setCurrentIndex(0)
             if self._human_design_channel_filter_or is not None:
@@ -19643,6 +19652,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for combo in self._human_design_channel_filters
             if str(combo.currentData()) != "Any"
         }
+        selected_human_design_gate_filters = [
+            filters
+            for filters in getattr(self, "_human_design_gate_line_filters", [])
+            if str(filters["gate"].currentData()) != "Any"
+            or str(filters["line"].currentData()) != "Any"
+        ]
         selected_human_design_gates = {
             int(combo.currentData())
             for combo in self._human_design_gate_filters
@@ -20782,12 +20797,28 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             elif not chart_channels.intersection(selected_human_design_channels):
                 return False
 
-        if selected_human_design_gates:
+        if selected_human_design_gate_filters:
             chart_gates = self._chart_human_design_gates(chart)
-            if self._human_design_gate_filter_and is not None and self._human_design_gate_filter_and.isChecked():
-                if not selected_human_design_gates.issubset(chart_gates):
-                    return False
-            elif not chart_gates.intersection(selected_human_design_gates):
+            chart_gate_lines = self._chart_human_design_gate_lines(chart)
+
+            def gate_line_filter_matches(filters):
+                gate_value = str(filters["gate"].currentData())
+                line_value = str(filters["line"].currentData())
+                selected_gate = int(gate_value) if gate_value != "Any" else None
+                selected_line = int(line_value) if line_value != "Any" else None
+                if selected_gate is not None and selected_line is not None:
+                    return (selected_gate, selected_line) in chart_gate_lines
+                if selected_gate is not None:
+                    return selected_gate in chart_gates
+                if selected_line is not None:
+                    return any(line == selected_line for _, line in chart_gate_lines)
+                return True
+
+            and_filters = [filters for filters in selected_human_design_gate_filters if filters["and"].isChecked()]
+            or_filters = [filters for filters in selected_human_design_gate_filters if filters["or"].isChecked()]
+            if any(not gate_line_filter_matches(filters) for filters in and_filters):
+                return False
+            if or_filters and not any(gate_line_filter_matches(filters) for filters in or_filters):
                 return False
 
         if selected_human_design_type != "Any":
@@ -20978,6 +21009,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if hd_type:
             chart.human_design_type = hd_type
         return set(chart.human_design_gates)
+
+
+    def _chart_human_design_gate_lines(self, chart: Chart) -> set[tuple[int, int]]:
+        hd_result = build_human_design_result(chart)
+        activations = (*hd_result.personality_activations, *hd_result.design_activations)
+        return {(int(activation.gate), int(activation.line)) for activation in activations}
 
     def _chart_human_design_channels(self, chart: Chart) -> set[str]:
         gates, lines, channels, hd_type = derive_human_design_profile(chart)
