@@ -51,6 +51,8 @@ SETTINGS_KEY_ENNEAGRAM_PREDICTIONS_DEBUG = "dev_tools/enneagram_predictions_debu
 ENNEAGRAM_PREDICTIONS_DEBUG_DEFAULT = False
 SETTINGS_KEY_PREDICTIONS_THREAD_DEBUG = "dev_tools/predictions_thread_debug"
 PREDICTIONS_THREAD_DEBUG_DEFAULT = False
+SETTINGS_KEY_DISTINGUISHING_FACTORS_SCORING_DEBUG = "dev_tools/distinguishing_factors_scoring_debug"
+DISTINGUISHING_FACTORS_SCORING_DEBUG_DEFAULT = False
 SETTINGS_KEY_SIMILARITY_PERCEIVED_ACCURACY_CONTROLS = "dev_tools/similarity_perceived_accuracy_controls"
 SIMILARITY_PERCEIVED_ACCURACY_CONTROLS_DEFAULT = False
 
@@ -115,6 +117,38 @@ def add_similarity_perceived_accuracy_controls_setting(
     checkbox.setToolTip(
         "When enabled, the Top/Bottom 25 Similar Charts popout shows temporary beta controls "
         "for logging perceived match accuracy to the Similarities Algorithm log."
+    )
+    checkbox.toggled.connect(on_toggled)
+    section_layout.addWidget(checkbox)
+    return checkbox
+
+
+def load_distinguishing_factors_scoring_debug_enabled(settings, *, fallback: bool = False) -> bool:
+    value = settings.value(SETTINGS_KEY_DISTINGUISHING_FACTORS_SCORING_DEBUG, int(fallback))
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+    if isinstance(value, (int, float)):
+        return bool(value)
+    return bool(fallback)
+
+
+def add_distinguishing_factors_scoring_debug_setting(
+    *,
+    section_layout: QVBoxLayout,
+    is_enabled: bool,
+    on_toggled: Callable[[bool], None],
+) -> QCheckBox:
+    checkbox = QCheckBox("debug Distinguishing Factors scoring")
+    checkbox.setChecked(bool(is_enabled))
+    checkbox.setToolTip(
+        "When enabled, Chart Analytics > Most Distinguishing Astrological Factors shows raw weights, "
+        "database means, z-scores, and share details. When disabled, it shows only the concise DB-average comparison."
     )
     checkbox.toggled.connect(on_toggled)
     section_layout.addWidget(checkbox)

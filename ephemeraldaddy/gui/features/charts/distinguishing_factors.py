@@ -586,7 +586,13 @@ def database_distinction_similarity_score(
         "repeated_hd_gates": repeated_gate_score,
     }
 
-def build_distinguishing_factors_html(chart: Chart | None, norm_charts: Iterable[Chart], metric_payloads: Iterable[dict[str, Any]] | None = None) -> str:
+def build_distinguishing_factors_html(
+    chart: Chart | None,
+    norm_charts: Iterable[Chart],
+    metric_payloads: Iterable[dict[str, Any]] | None = None,
+    *,
+    debug_scoring: bool = False,
+) -> str:
     """Build rich text for the Chart Analytics tab's distinguishing-factors section."""
     if chart is None:
         return "<span style='color:#f5f5f5;'>No chart loaded.</span>"
@@ -609,22 +615,39 @@ def build_distinguishing_factors_html(chart: Chart | None, norm_charts: Iterable
             )
         )
         for factor in factors:
-            if factor.basis == "raw" and factor.raw_z_score is not None:
-                lines.append(
-                    "• "
-                    f"{_factor_label_html(factor.group_key, factor.raw_label, factor.factor_label)} {html.escape(factor.group_label)}: "
-                    f"raw weight {factor.raw_value:.1f} vs DB mean {factor.raw_mean:.1f} "
-                    f"({abs(factor.raw_z_score):.1f}σ above); "
-                    f"share {factor.value_pct:.1f}% vs DB mean {factor.mean_pct:.1f}%."
-                )
-            else:
-                direction = "above" if factor.z_score > 0 else "below"
-                lines.append(
-                    "• "
-                    f"{_factor_label_html(factor.group_key, factor.raw_label, factor.factor_label)} {html.escape(factor.group_label)}: "
-                    f"{factor.value_pct:.1f}% vs DB mean {factor.mean_pct:.1f}% "
-                    f"({abs(factor.z_score):.1f}σ {html.escape(direction)})."
-                )
+            factor_name_html = (
+                f"{_factor_label_html(factor.group_key, factor.raw_label, factor.factor_label)} "
+                f"{html.escape(factor.group_label)}"
+            )
+            if debug_scoring:
+                if factor.basis == "raw" and factor.raw_z_score is not None:
+                    direction = "above" if factor.raw_z_score > 0 else "below"
+                    lines.append(
+                        "• "
+                        f"{factor_name_html}: "
+                        f"raw weight {factor.raw_value:.1f} vs DB mean {factor.raw_mean:.1f} "
+                        f"({abs(factor.raw_z_score):.1f}σ {html.escape(direction)}); "
+                        f"share {factor.value_pct:.1f}% vs DB mean {factor.mean_pct:.1f}%."
+                    )
+                else:
+                    direction = "above" if factor.z_score > 0 else "below"
+                    lines.append(
+                        "• "
+                        f"{factor_name_html}: "
+                        f"{factor.value_pct:.1f}% vs DB mean {factor.mean_pct:.1f}% "
+                        f"({abs(factor.z_score):.1f}σ {html.escape(direction)})."
+                    )
+                continue
+
+            delta_pct = factor.value_pct - factor.mean_pct
+            delta_color = "#6ee27a" if delta_pct >= 0 else "#ff6b6b"
+            delta_sign = "+" if delta_pct >= 0 else ""
+            lines.append(
+                "• "
+                f"{factor_name_html}: "
+                f"<span style='color:{delta_color}; font-weight:700;'>"
+                f"{delta_sign}{delta_pct:.1f}%</span> than DB avg."
+            )
     else:
         lines.append(
             html.escape(

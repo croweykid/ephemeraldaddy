@@ -495,10 +495,12 @@ from ephemeraldaddy.gui.wikipedia_search import (
 )
 from ephemeraldaddy.gui.dev_tools import (
     BATCH_TAGGING_TERMINAL_DEBUG_DEFAULT,
+    DISTINGUISHING_FACTORS_SCORING_DEBUG_DEFAULT,
     ENNEAGRAM_PREDICTIONS_DEBUG_DEFAULT,
     PREDICTIONS_THREAD_DEBUG_DEFAULT,
     SIMILARITY_PERCEIVED_ACCURACY_CONTROLS_DEFAULT,
     SETTINGS_KEY_BATCH_TAGGING_TERMINAL_DEBUG,
+    SETTINGS_KEY_DISTINGUISHING_FACTORS_SCORING_DEBUG,
     SETTINGS_KEY_ENNEAGRAM_PREDICTIONS_DEBUG,
     SETTINGS_KEY_PREDICTIONS_THREAD_DEBUG,
     SETTINGS_KEY_SIMILARITY_PERCEIVED_ACCURACY_CONTROLS,
@@ -506,12 +508,14 @@ from ephemeraldaddy.gui.dev_tools import (
     MetadataMigrationPanel,
     SizeCheckerPopup,
     add_batch_tagging_terminal_debug_setting,
+    add_distinguishing_factors_scoring_debug_setting,
     add_enneagram_predictions_debug_setting,
     add_predictions_thread_debug_setting,
     add_similarity_perceived_accuracy_controls_setting,
     build_similarity_calculator_settings_section,
     build_predictions_settings_section,
     load_batch_tagging_terminal_debug_enabled,
+    load_distinguishing_factors_scoring_debug_enabled,
     load_enneagram_predictions_debug_enabled,
     load_predictions_thread_debug_enabled,
     load_similarity_perceived_accuracy_controls_enabled,
@@ -2411,6 +2415,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._settings.setValue(
             SETTINGS_KEY_PREDICTIONS_THREAD_DEBUG,
             int(self._predictions_thread_debug),
+        )
+        self._distinguishing_factors_scoring_debug = load_distinguishing_factors_scoring_debug_enabled(
+            self._settings,
+            fallback=DISTINGUISHING_FACTORS_SCORING_DEBUG_DEFAULT,
+        )
+        self._settings.setValue(
+            SETTINGS_KEY_DISTINGUISHING_FACTORS_SCORING_DEBUG,
+            int(self._distinguishing_factors_scoring_debug),
         )
         self._similarity_perceived_accuracy_controls_enabled = (
             load_similarity_perceived_accuracy_controls_enabled(
@@ -21898,6 +21910,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             is_enabled=bool(getattr(self, "_predictions_thread_debug", PREDICTIONS_THREAD_DEBUG_DEFAULT)),
             on_toggled=self._on_predictions_thread_debug_toggled,
         )
+        add_distinguishing_factors_scoring_debug_setting(
+            section_layout=dev_tools_section,
+            is_enabled=bool(
+                getattr(
+                    self,
+                    "_distinguishing_factors_scoring_debug",
+                    DISTINGUISHING_FACTORS_SCORING_DEBUG_DEFAULT,
+                )
+            ),
+            on_toggled=self._on_distinguishing_factors_scoring_debug_toggled,
+        )
 
         self._similarity_perceived_accuracy_controls_checkbox = (
             add_similarity_perceived_accuracy_controls_setting(
@@ -22438,6 +22461,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 SETTINGS_KEY_ENNEAGRAM_PREDICTIONS_DEBUG,
                 int(self._enneagram_predictions_debug),
             )
+
+    def _on_distinguishing_factors_scoring_debug_toggled(self, checked: bool) -> None:
+        self._distinguishing_factors_scoring_debug = bool(checked)
+        self._settings.setValue(
+            SETTINGS_KEY_DISTINGUISHING_FACTORS_SCORING_DEBUG,
+            int(self._distinguishing_factors_scoring_debug),
+        )
+        parent = self._owner_window()
+        if isinstance(parent, MainWindow):
+            parent._distinguishing_factors_scoring_debug = self._distinguishing_factors_scoring_debug
+            parent._settings.setValue(
+                SETTINGS_KEY_DISTINGUISHING_FACTORS_SCORING_DEBUG,
+                int(self._distinguishing_factors_scoring_debug),
+            )
+            render_distinguishing = getattr(parent, "_render_distinguishing_factors", None)
+            current_chart = getattr(parent, "current_chart", None)
+            if callable(render_distinguishing) and current_chart is not None:
+                render_distinguishing(current_chart)
 
     def _on_predictions_thread_debug_toggled(self, checked: bool) -> None:
         self._predictions_thread_debug = bool(checked)
@@ -24020,6 +24061,14 @@ class MainWindow(QMainWindow):
         self._settings.setValue(
             SETTINGS_KEY_PREDICTIONS_THREAD_DEBUG,
             int(self._predictions_thread_debug),
+        )
+        self._distinguishing_factors_scoring_debug = load_distinguishing_factors_scoring_debug_enabled(
+            self._settings,
+            fallback=DISTINGUISHING_FACTORS_SCORING_DEBUG_DEFAULT,
+        )
+        self._settings.setValue(
+            SETTINGS_KEY_DISTINGUISHING_FACTORS_SCORING_DEBUG,
+            int(self._distinguishing_factors_scoring_debug),
         )
         self._similarity_perceived_accuracy_controls_enabled = (
             load_similarity_perceived_accuracy_controls_enabled(
@@ -36044,7 +36093,14 @@ class MainWindow(QMainWindow):
                 + "</span>"
             )
             return
-        label.setText(_build_distinguishing_factors_html(chart, [], metric_payloads=self._prediction_norm_metric_payloads()))
+        label.setText(
+            _build_distinguishing_factors_html(
+                chart,
+                [],
+                metric_payloads=self._prediction_norm_metric_payloads(),
+                debug_scoring=bool(getattr(self, "_distinguishing_factors_scoring_debug", False)),
+            )
+        )
 
     def _on_distinguishing_factor_link_activated(self, href: str) -> None:
         """Open a Predictions distinguishing-factor link in the main Chart Info panel."""
