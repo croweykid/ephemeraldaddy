@@ -47,6 +47,7 @@ from ephemeraldaddy.analysis.weighted_chart_predictor import (
     calculate_dominant_planet_weights,
     calculate_dominant_sign_weights,
     calculate_weighted_criteria_scores,
+    coerce_scoring_options,
     criterion_multiplier_for_target,
     default_chart_uses_houses,
     factor_uses_houses,
@@ -69,7 +70,13 @@ from ephemeraldaddy.analysis.weighted_chart_predictor import (
 )
 from ephemeraldaddy.analysis.weighted_chart_predictor import (
     DEFAULT_CATEGORY_WEIGHTS,
+    PREDICTION_SCORE_MODE_BACKGROUND_Z,
+    PREDICTION_SCORE_MODE_OPPORTUNITY,
+    _apply_type_signature_scale,
+    _bucketed_criteria_count_and_abs_weight,
+    _one_bucket,
     _position_match_weight,
+    _singleton_position_bucket,
     _weighted_text_entries,
 )
 from ephemeraldaddy.analysis.traits import calculate_trait_likelihoods
@@ -380,6 +387,9 @@ def _build_dnd_stat_balancing_rows(chart: Any, stat_key: str, subtotals: list[tu
         return "", 0.0
 
     use_houses = default_chart_uses_houses(chart)
+    options = coerce_scoring_options(None)
+    score_mode = options.normalized_score_mode()
+    use_legacy_category_delta = not options.simplify_anti_factor_handling
 
     def count_entries(positive_key: str, negative_key: str, entry_fn: Any) -> int:
         positive = entry_fn(factors.get(positive_key, {}))
@@ -414,16 +424,62 @@ def _build_dnd_stat_balancing_rows(chart: Any, stat_key: str, subtotals: list[tu
 
     rows: list[str] = []
     total = 0.0
+    entries_by_category: dict[str, tuple[dict[Any, float], dict[Any, float]]] = {}
+    for _title, (positive_key, negative_key, entry_fn) in category_by_title.items():
+        positive = entry_fn(factors.get(positive_key, {}))
+        negative = entry_fn(factors.get(negative_key, {}))
+        if not use_houses:
+            if positive_key == "bodies":
+                positive = {key: value for key, value in positive.items() if not factor_uses_houses(key)}
+                negative = {key: value for key, value in negative.items() if not factor_uses_houses(key)}
+            elif positive_key == "positions":
+                positive = {key: value for key, value in positive.items() if not position_spec_uses_houses(key)}
+                negative = {key: value for key, value in negative.items() if not position_spec_uses_houses(key)}
+            elif positive_key == "aspects":
+                positive = {key: value for key, value in positive.items() if not aspect_spec_uses_houses(key)}
+                negative = {key: value for key, value in negative.items() if not aspect_spec_uses_houses(key)}
+        entries_by_category[positive_key] = (dict(positive), dict(negative))
+
+    count_overrides: dict[str, int] = {}
+    abs_weight_overrides: dict[str, float] = {}
+    if options.use_mutual_exclusive_bucket_scoring:
+        for category_key, bucket_for_key in (
+            ("positions", _singleton_position_bucket),
+            ("hdtypes", _one_bucket),
+            ("profiles", _one_bucket),
+            ("authorities", _one_bucket),
+        ):
+            positive, negative = entries_by_category.get(category_key, ({}, {}))
+            bucket_count, bucket_abs_weight = _bucketed_criteria_count_and_abs_weight(
+                positive,
+                negative,
+                bucket_for_key=bucket_for_key,
+            )
+            count_overrides[category_key] = bucket_count
+            abs_weight_overrides[category_key] = bucket_abs_weight
+
+    target_total_abs_weight = 0.0
+    for category_key, (positive, negative) in entries_by_category.items():
+        if options.use_mutual_exclusive_bucket_scoring and category_key in abs_weight_overrides:
+            target_total_abs_weight += abs_weight_overrides[category_key]
+        else:
+            target_total_abs_weight += sum(abs(float(weight)) for weight in positive.values())
+            target_total_abs_weight += sum(abs(float(weight)) for weight in negative.values())
+
     for title, subtotal in subtotals:
         category_info = category_by_title.get(title)
         if category_info is None:
             continue
         positive_key, negative_key, entry_fn = category_info
-        count = count_entries(positive_key, negative_key, entry_fn)
+        count = count_overrides.get(positive_key, count_entries(positive_key, negative_key, entry_fn))
         if count <= 0:
             continue
         category_key = positive_key
-        uses_count_balancing = category_key in {"signs", "bodies", "nakshatras", "houses", "gates", "channels", "positions", "aspects"}
+        raw_category_uses_legacy_count_balancing = category_key in {"signs", "bodies", "nakshatras", "houses", "gates", "channels", "positions", "aspects"}
+        uses_count_balancing = (
+            (use_legacy_category_delta and raw_category_uses_legacy_count_balancing)
+            or (not use_legacy_category_delta and options.average_scores_by_criterion_count)
+        )
         category_delta = (
             normalize_category_delta(
                 subtotal if subtotal > 0 else 0.0,
@@ -444,17 +500,34 @@ def _build_dnd_stat_balancing_rows(chart: Any, stat_key: str, subtotals: list[tu
                 f"× category weight {category_weight:.2f} × multiplier {multiplier:.2f} = {balanced:+.3f}</li>"
             )
         else:
+            balancing_note = (
+                "active scoring options do not divide this category by criterion count"
+                if raw_category_uses_legacy_count_balancing
+                else "metadata category; no count division"
+            )
             rows.append(
                 f"<li>{html.escape(title)}: subtotal {_format_signed_delta(subtotal)} "
-                f"(metadata category; no count division) × category weight {category_weight:.2f} "
+                f"({balancing_note}) × category weight {category_weight:.2f} "
                 f"× multiplier {multiplier:.2f} = {balanced:+.3f}</li>"
             )
     if not rows:
         return "", 0.0
+    scaled_total = total
+    scaling_row = ""
+    if score_mode in {PREDICTION_SCORE_MODE_OPPORTUNITY, PREDICTION_SCORE_MODE_BACKGROUND_Z}:
+        scaled_total = _apply_type_signature_scale(
+            total,
+            target_total_abs_weight,
+            options.normalized_type_signature_scale_mode(),
+        )
+        scaling_row = (
+            f"<li>Type-signature scaling ({html.escape(options.normalized_type_signature_scale_mode())}, "
+            f"total defined abs weight {target_total_abs_weight:.3f}): {total:+.3f} → {scaled_total:+.3f}</li>"
+        )
     return (
         "<div>Conversion from displayed subtotal sum to scorer-equivalent raw total:"
-        f"<ul>{''.join(rows)}</ul></div>",
-        total,
+        f"<ul>{''.join(rows)}{scaling_row}</ul></div>",
+        scaled_total,
     )
 
 
