@@ -4539,11 +4539,34 @@ class DatabaseAnalyticsChartsMixin:
             (
                 str(item.get("name", "")).strip(),
                 normalize_trait_color(str(item.get("color", DEFAULT_TRAIT_COLOR))),
-                repr(item.get("profile", {})),
+                DatabaseAnalyticsChartsMixin._traits_distribution_analytical_profile_key(item.get("profile", {})),
             )
             for item in trait_items
             if str(item.get("name", "")).strip() and not bool(item.get("archived", False))
         )
+
+    @staticmethod
+    def _traits_distribution_analytical_profile_key(profile: Any) -> str:
+        if not isinstance(profile, dict):
+            return "{}"
+        scoring_profile = {
+            str(key): value
+            for key, value in profile.items()
+            if str(key)
+            not in {
+                "name",
+                "color",
+                "description",
+                "motivation",
+                "quotes",
+                "archived",
+                "samples",
+            }
+        }
+        try:
+            return json.dumps(scoring_profile, sort_keys=True, default=str, separators=(",", ":"))
+        except TypeError:
+            return repr(scoring_profile)
 
     @staticmethod
     def _stable_traits_metadata_hash(value: Any) -> str:
@@ -4594,9 +4617,8 @@ class DatabaseAnalyticsChartsMixin:
                 "version": 1,
                 "traits": [
                     {
-                        "name": trait.get("name", ""),
-                        "color": normalize_trait_color(str(trait.get("color", DEFAULT_TRAIT_COLOR))),
-                        "profile": trait.get("profile", {}),
+                        "uid": str(trait.get("uid") or trait.get("trait_uid") or "").strip(),
+                        "profile": self._traits_distribution_analytical_profile_key(trait.get("profile", {})),
                     }
                     for trait in trait_items
                     if str(trait.get("name", "")).strip() and not bool(trait.get("archived", False))
@@ -4720,6 +4742,7 @@ class DatabaseAnalyticsChartsMixin:
         chart_tokens = self._traits_distribution_chart_tokens()
         likelihood_cache: dict[tuple[Any, ...], dict[str, float]] = {}
         individual_cache: dict[tuple[tuple[str, str, str], int], float] = {}
+        individual_profile_cache: dict[tuple[str, int], float] = {}
         skipped_entries = 0
         for entry in entries:
             if not isinstance(entry, dict):
@@ -4762,6 +4785,7 @@ class DatabaseAnalyticsChartsMixin:
                 trait_key = trait_keys_by_name.get(str(name))
                 if trait_key is not None:
                     individual_cache[(trait_key, chart_id)] = likelihood
+                    individual_profile_cache[(trait_key[2], chart_id)] = likelihood
             if not normalized_likelihoods:
                 skipped_entries += 1
                 continue
@@ -4776,6 +4800,7 @@ class DatabaseAnalyticsChartsMixin:
             )
         self._traits_distribution_chart_likelihood_cache = likelihood_cache
         self._traits_distribution_individual_likelihood_cache = individual_cache
+        self._traits_distribution_individual_profile_likelihood_cache = individual_profile_cache
         self._traits_distribution_likelihood_cache_dirty = False
         _predictions_debug(
             self,
@@ -4889,11 +4914,15 @@ class DatabaseAnalyticsChartsMixin:
         if not isinstance(individual_cache, dict):
             individual_cache = {}
             self._traits_distribution_individual_likelihood_cache = individual_cache
+        individual_profile_cache = getattr(self, "_traits_distribution_individual_profile_likelihood_cache", None)
+        if not isinstance(individual_profile_cache, dict):
+            individual_profile_cache = {}
+            self._traits_distribution_individual_profile_likelihood_cache = individual_profile_cache
         trait_items_by_key = {
             (
                 str(item.get("name", "")).strip(),
                 normalize_trait_color(str(item.get("color", DEFAULT_TRAIT_COLOR))),
-                repr(item.get("profile", {})),
+                self._traits_distribution_analytical_profile_key(item.get("profile", {})),
             ): item
             for item in trait_items
             if str(item.get("name", "")).strip() and not bool(item.get("archived", False))
@@ -4918,6 +4947,8 @@ class DatabaseAnalyticsChartsMixin:
                 missing_trait_items: list[dict[str, Any]] = []
                 for trait_key in trait_signature:
                     cached_likelihood = individual_cache.get((trait_key, int(chart_id)))
+                    if cached_likelihood is None:
+                        cached_likelihood = individual_profile_cache.get((trait_key[2], int(chart_id)))
                     if cached_likelihood is None:
                         trait_item = trait_items_by_key.get(trait_key)
                         if trait_item is not None:
@@ -4972,6 +5003,7 @@ class DatabaseAnalyticsChartsMixin:
                         name = trait_key[0]
                         if name in missing_likelihoods:
                             individual_cache[(trait_key, int(chart_id))] = float(missing_likelihoods[name])
+                            individual_profile_cache[(trait_key[2], int(chart_id))] = float(missing_likelihoods[name])
                     cache_updated = True
                 if len(likelihoods) >= len(trait_names):
                     likelihood_cache[chart_cache_key] = dict(likelihoods)

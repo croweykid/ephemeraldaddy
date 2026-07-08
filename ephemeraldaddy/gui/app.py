@@ -3549,6 +3549,28 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             row_tokens.append((chart_uid, repr(tuple(row[1:]))))
         return tuple(sorted(row_tokens))
 
+    @staticmethod
+    def _database_metrics_token_change_count(
+        saved_rows_token: Any,
+        current_rows_token: tuple[tuple[str, str], ...],
+    ) -> int:
+        saved_map: dict[str, str] = {}
+        for item in saved_rows_token or ():
+            if not isinstance(item, (list, tuple)) or len(item) != 2:
+                continue
+            uid, token = item
+            saved_map[str(uid)] = str(token)
+        current_map = {str(uid): str(token) for uid, token in current_rows_token}
+        return sum(
+            1
+            for uid in (set(saved_map) | set(current_map))
+            if saved_map.get(uid) != current_map.get(uid)
+        )
+
+    @staticmethod
+    def _database_metrics_refresh_threshold(chart_count: int) -> int:
+        return max(1, int(max(0, int(chart_count)) * 0.10))
+
     def _database_metrics_config_token(self) -> str:
         return json.dumps(
             {
@@ -3645,8 +3667,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if payload.get("config_token") != self._database_metrics_config_token():
             return False
         rows_token = self._decode_database_metrics_cache_value(payload.get("rows_token"))
-        if rows_token != self._database_metrics_rows_token():
-            return False
+        current_rows_token = self._database_metrics_rows_token()
+        change_count = self._database_metrics_token_change_count(rows_token, current_rows_token)
         cache = self._decode_database_metrics_cache_value(payload.get("cache"))
         snapshots = self._decode_database_metrics_cache_value(payload.get("snapshots"))
         sections = self._decode_database_metrics_cache_value(payload.get("snapshot_sections"))
@@ -3656,6 +3678,47 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_metric_snapshots = snapshots
         self._database_metrics_snapshot_sections = frozenset(sections or ())
         self._database_metrics_lucy_goosey_ids.clear()
+        if rows_token != current_rows_token:
+            threshold = self._database_metrics_refresh_threshold(
+                max(len(rows_token or ()), len(current_rows_token))
+            )
+            saved_by_uid: dict[str, str] = {}
+            for item in rows_token or ():
+                if not isinstance(item, (list, tuple)) or len(item) != 2:
+                    continue
+                uid, token = item
+                saved_by_uid[str(uid)] = str(token)
+            changed_uids = {
+                str(uid)
+                for uid, token in current_rows_token
+                if saved_by_uid.get(str(uid)) != str(token)
+            }
+            current_uid_by_id: dict[int, str] = {}
+            current_chart_ids: list[int] = []
+            for row in getattr(self, "_chart_rows", []) or []:
+                try:
+                    chart_id = int(row[0])
+                except Exception:
+                    continue
+                current_chart_ids.append(chart_id)
+            uid_map = get_chart_uid_map(current_chart_ids)
+            for chart_id in current_chart_ids:
+                current_uid_by_id[chart_id] = str(uid_map.get(chart_id) or f"legacy-id:{chart_id}").strip().upper()
+            self._database_metrics_lucy_goosey_ids.update(
+                chart_id
+                for chart_id, uid in current_uid_by_id.items()
+                if uid in changed_uids
+            )
+            self._database_metrics_cache_stale = True
+            self._database_metrics_cache_stale_change_count = change_count
+            self._database_metrics_cache_stale_threshold = threshold
+            self._database_metrics_cache_stale_requires_full_refresh = change_count >= threshold
+            logger.info(
+                "Loaded stale Database Metrics cache with %s changed chart row(s); threshold is %s. "
+                "Cached values remain usable until background refresh updates them.",
+                change_count,
+                threshold,
+            )
         return True
 
     def _save_database_metrics_persistent_cache(self) -> None:
@@ -10150,6 +10213,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._database_metrics_cache = cache
             self._database_metrics_snapshot_sections = snapshot_sections
             self._database_metrics_lucy_goosey_ids.clear()
+            self._database_metrics_cache_stale = False
+            self._database_metrics_cache_stale_requires_full_refresh = False
             return
         cache = self._database_metrics_cache
         active_ids = {row[0] for row in self._chart_rows}
@@ -10173,6 +10238,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         cache["chart_ids"] = set(active_ids)
         self._database_metrics_snapshot_sections = snapshot_sections
         self._database_metrics_lucy_goosey_ids.clear()
+        self._database_metrics_cache_stale = False
+        self._database_metrics_cache_stale_requires_full_refresh = False
 
     def _iter_database_metric_snapshots(self, chart_ids: list[int] | set[int] | None = None):
         ids = list(chart_ids) if chart_ids is not None else list((self._database_metrics_cache or {}).get("chart_ids", set()))
@@ -16054,7 +16121,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._schedule_database_metrics_background_preload()
             return
         self._show_database_analytics_pending_indicator(True)
-        self._schedule_deferred_database_metrics_refresh()
+        self._schedule_deferred_database_metrics_refresh(
+            force_full_refresh=bool(getattr(self, "_database_metrics_cache_stale_requires_full_refresh", False))
+        )
 
     def _database_metrics_refresh_needed_on_panel_show(self) -> bool:
         expanded_sections = frozenset(self._expanded_database_metric_sections())

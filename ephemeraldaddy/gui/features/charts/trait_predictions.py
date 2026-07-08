@@ -9,7 +9,6 @@ import logging
 import sys
 import urllib.parse
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import QObject, QThread, Qt, Signal, Slot
@@ -31,7 +30,8 @@ logger = logging.getLogger(__name__)
 
 TRAIT_DEVIATION_ASSIGNMENT_THRESHOLD = 5.0
 TRAIT_DB_NORMS_CACHE_VERSION = 1
-TRAIT_DB_NORMS_CACHE_PATH = Path.home() / ".ephemeraldaddy" / "cache" / "trait_db_norms.json"
+DATABASE_NORMS_CACHE_FILENAME = ".database_norms_cache.json"
+TRAIT_DB_NORMS_CACHE_PATH = db.DB_DIR / DATABASE_NORMS_CACHE_FILENAME
 TRAIT_DB_NORMS_MAX_STALE_RATIO = 0.10
 
 
@@ -410,12 +410,7 @@ def _database_norm_signature_for_traits(owner: Any, traits: list[dict[str, Any]]
 
 def _trait_definition_signature(trait: dict[str, Any]) -> str:
     trait_uid = str(trait.get("uid") or trait.get("trait_uid") or "").strip()
-    profile = trait.get("profile", {})
-    scoring_profile = {
-        str(key): value
-        for key, value in (profile.items() if isinstance(profile, dict) else [])
-        if str(key) not in {"name", "color", "description", "archived", "uid", "trait_uid", "samples"}
-    }
+    scoring_profile = _trait_analytical_profile(trait.get("profile", {}), strip_uids=True)
     return _stable_json_hash(
         {
             "version": TRAIT_DB_NORMS_CACHE_VERSION,
@@ -433,16 +428,23 @@ def _trait_uid_for_item(trait: dict[str, Any]) -> str:
     return trait_uid_for_profile(name, trait.get("profile", {}) if isinstance(trait.get("profile"), dict) else {})
 
 
+def _trait_analytical_profile(profile: Any, *, strip_uids: bool = False) -> dict[str, Any]:
+    """Return only scoring-relevant trait factors, excluding display-only metadata."""
+    if not isinstance(profile, dict):
+        return {}
+    excluded = {"name", "color", "description", "motivation", "quotes", "archived", "samples"}
+    if strip_uids:
+        excluded.update({"uid", "trait_uid"})
+    return {str(key): value for key, value in profile.items() if str(key) not in excluded}
+
+
 def _trait_signature_payload(traits: list[dict[str, Any]], *, strip_uids: bool = False) -> dict[str, Any]:
     trait_payloads: list[dict[str, Any]] = []
     for trait in traits:
-        profile = trait.get("profile", {})
-        if strip_uids and isinstance(profile, dict):
-            profile = {key: value for key, value in profile.items() if str(key) not in {"uid", "trait_uid"}}
+        profile = _trait_analytical_profile(trait.get("profile", {}), strip_uids=strip_uids)
         trait_payloads.append(
             {
-                "name": trait.get("name", ""),
-                "color": normalize_trait_color(str(trait.get("color", DEFAULT_TRAIT_COLOR))),
+                "uid": "" if strip_uids else str(trait.get("uid") or trait.get("trait_uid") or "").strip(),
                 "profile": profile,
             }
         )
@@ -455,10 +457,11 @@ def _trait_norm_cache_key(chart_uids: tuple[str, ...], trait: dict[str, Any]) ->
         return None
     payload = {
         "version": TRAIT_DB_NORMS_CACHE_VERSION,
-        "trait_norm_scope": "database_statistics_threshold",
-        "trait_name": name,
-        "trait_color": normalize_trait_color(str(trait.get("color", DEFAULT_TRAIT_COLOR))),
-        "trait_profile": trait.get("profile", {}),
+        "cache_scope": "appwide_database_norms",
+        "refresh_policy": "database_statistics_threshold",
+        "norm_kind": "trait_database_average",
+        "trait_uid": str(trait.get("uid") or trait.get("trait_uid") or "").strip(),
+        "analytical_profile": _trait_analytical_profile(trait.get("profile", {})),
     }
     return _stable_json_hash(payload)
 

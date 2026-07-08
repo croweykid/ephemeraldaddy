@@ -39,6 +39,8 @@ def test_stale_trait_norm_cache_remains_usable_until_background_refresh(tmp_path
     monkeypatch.setattr(trait_predictions, "TRAIT_DB_NORMS_CACHE_PATH", cache_path)
     trait = {"name": "Creative", "color": "#ffffff", "profile": {"signs": {"Leo": 1}}}
     cache_key = trait_predictions._trait_norm_cache_key(("UID1", "UID2"), trait)
+    renamed_trait = {"name": "Renamed", "color": "#123456", "profile": {"signs": {"Leo": 1}}}
+    assert trait_predictions._trait_norm_cache_key(("UID1", "UID2"), renamed_trait) == cache_key
     cache_path.write_text(
         trait_predictions.json.dumps(
             {
@@ -278,6 +280,40 @@ def test_traits_distribution_collection_scores_only_new_trait_when_existing_trai
         "Creative": 80.0,
         "Analytical": 65.0,
     }
+
+
+def test_traits_distribution_collection_reuses_cache_after_trait_rename(monkeypatch):
+    owner = _TraitsCacheOwner((("uid:one", "row"),))
+    old_signature = (("Old Name", "#ffffff", '{"signs":{"Leo":1}}'),)
+    new_signature = (("New Name", "#123456", '{"signs":{"Leo":1}}'),)
+    owner._traits_distribution_chart_likelihood_cache = {}
+    owner._traits_distribution_individual_likelihood_cache = {
+        (old_signature[0], 1): 82.0,
+    }
+    owner._traits_distribution_individual_profile_likelihood_cache = {
+        ('{"signs":{"Leo":1}}', 1): 82.0,
+    }
+    owner._get_chart_for_filter = lambda chart_id: {"id": chart_id}
+    owner._is_placeholder_chart = lambda _chart: False
+
+    def fail_likelihoods(*_args, **_kwargs):
+        raise AssertionError("display-only trait edits should not force rescoring")
+
+    monkeypatch.setattr(
+        "ephemeraldaddy.gui.features.charts.database_analytics.calculate_trait_likelihoods",
+        fail_likelihoods,
+    )
+
+    result = owner._collect_traits_distribution_analytics(
+        [1],
+        trait_items=[{"name": "New Name", "color": "#123456", "profile": {"signs": {"Leo": 1}}}],
+        trait_signature=new_signature,
+        time_budget_seconds=None,
+    )
+
+    assert result["partial"] is False
+    assert result["totals"] == {"New Name": 0.82}
+    assert owner._traits_distribution_chart_likelihood_cache[(0, new_signature, 1)] == {"New Name": 82.0}
 
 
 def test_traits_distribution_collection_passively_persists_uid_trait_metadata(monkeypatch):

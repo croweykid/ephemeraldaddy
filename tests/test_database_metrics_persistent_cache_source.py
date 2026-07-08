@@ -49,7 +49,7 @@ def test_database_metrics_panel_open_and_section_expand_defer_heavy_refresh():
     assert "if not self._database_metrics_refresh_needed_on_panel_show():" in panel_show_method
     assert "self._show_database_analytics_pending_indicator(False)" in panel_show_method
     assert "self._schedule_database_metrics_background_preload()" in panel_show_method
-    assert "self._schedule_deferred_database_metrics_refresh()" in panel_show_method
+    assert "self._schedule_deferred_database_metrics_refresh(" in panel_show_method
     assert refresh_needed_method.index("expanded_sections =") < refresh_needed_method.index("self._database_metrics_cache is None")
     assert "if not expanded_sections:" in refresh_needed_method
     assert "self._database_metrics_lucy_goosey_ids" in refresh_needed_method
@@ -110,6 +110,17 @@ def test_persistent_cache_rows_token_uses_chart_uids_not_legacy_ids():
     assert "get_chart_uid_map(row_ids)" in token_method
     assert "legacy-id:" in token_method
     assert "repr(tuple(row[1:]))" in token_method
+
+
+def test_persistent_cache_loads_stale_rows_and_marks_background_refresh():
+    load_method = _method_source(APP_SOURCE, "_load_database_metrics_persistent_cache")
+    assert "change_count = self._database_metrics_token_change_count" in load_method
+    assert "rows_token != current_rows_token" in load_method
+    assert "self._database_metrics_cache_stale = True" in load_method
+    assert "self._database_metrics_cache_stale_requires_full_refresh = change_count >= threshold" in load_method
+    assert "return False" not in load_method.split("rows_token = self._decode_database_metrics_cache_value", 1)[1].split(
+        "cache = self._decode_database_metrics_cache_value", 1
+    )[0]
 
 
 def test_persistent_cache_validates_analytics_configuration():
