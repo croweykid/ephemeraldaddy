@@ -419,6 +419,28 @@ def find_distinguishing_factors_from_metric_payloads(chart: Chart, metric_payloa
     return factors, norm_count
 
 
+def calculate_weirdness_score_from_metric_payloads(
+    chart: Chart,
+    metric_payloads: Iterable[dict[str, Any]],
+) -> tuple[float | None, int]:
+    """Return summed absolute percentage-point deviations from database norms."""
+    norm_count, baselines = _norm_baselines_from_metric_payloads(chart, metric_payloads)
+    if norm_count < MIN_NORM_SAMPLE_SIZE:
+        return None, norm_count
+    total_deviation = 0.0
+    for group in _metric_groups(chart):
+        chart_values = _safe_chart_values(group, chart)
+        if chart_values is None:
+            continue
+        chart_shares = _normalized_shares(chart_values, group.labels)
+        for label in group.labels:
+            share_baseline = baselines.get(("share", group.key, label))
+            if share_baseline is None:
+                continue
+            total_deviation += abs((float(chart_shares.get(label, 0.0)) - share_baseline.mean) * 100.0)
+    return round(total_deviation, 2), norm_count
+
+
 def find_distinguishing_factors(chart: Chart, norm_charts: Iterable[Chart]) -> tuple[list[DistinguishingFactor], int]:
     """Return factors whose normalized share is at least two standard deviations from DB norms."""
     usable_norm_charts = [norm_chart for norm_chart in norm_charts if norm_chart is not None]
@@ -598,19 +620,30 @@ def build_distinguishing_factors_html(
         return "<span style='color:#f5f5f5;'>No chart loaded.</span>"
 
     if metric_payloads is not None:
-        factors, norm_count = find_distinguishing_factors_from_metric_payloads(chart, metric_payloads)
+        metric_payload_list = list(metric_payloads)
+        factors, norm_count = find_distinguishing_factors_from_metric_payloads(chart, metric_payload_list)
+        weirdness_score, _weirdness_norm_count = calculate_weirdness_score_from_metric_payloads(
+            chart,
+            metric_payload_list,
+        )
     else:
         norm_chart_list = list(norm_charts)
         factors, norm_count = find_distinguishing_factors(chart, norm_chart_list)
+        weirdness_score = None
     lines: list[str] = []
     if norm_count < MIN_NORM_SAMPLE_SIZE:
         lines.append(
             html.escape(f"Need at least {MIN_NORM_SAMPLE_SIZE} database charts to calculate norms; found only {norm_count}. Add more charts, then we'll talk.")
         )
     elif factors:
+        weirdness_prefix = (
+            f"Weirdness score: {weirdness_score:.2f}. "
+            if weirdness_score is not None
+            else ""
+        )
         lines.append(
             html.escape(
-                f"Compared to {norm_count} other standard charts in this database, these factors stand out as at least "
+                f"{weirdness_prefix}Compared to {norm_count} other standard charts in this database, these factors stand out as at least "
                 f"{DISTINGUISHING_Z_THRESHOLD:.0f}σ from the norm:"
             )
         )
@@ -649,9 +682,14 @@ def build_distinguishing_factors_html(
                 f"{delta_sign}{delta_pct:.1f}%</span> DB avg."
             )
     else:
+        weirdness_prefix = (
+            f"Weirdness score: {weirdness_score:.2f}. "
+            if weirdness_score is not None
+            else ""
+        )
         lines.append(
             html.escape(
-                f"Compared to the {norm_count} other standard charts in this database, nothing stands out as exceeding "
+                f"{weirdness_prefix}Compared to the {norm_count} other standard charts in this database, nothing stands out as exceeding "
                 f"{DISTINGUISHING_Z_THRESHOLD:.0f}σ of the norm. This chart is <i>jarringly</i> normal. Vanilla X-Treme." #As the zoomers say, this chart is 'normiemaxxing'
             )
         )

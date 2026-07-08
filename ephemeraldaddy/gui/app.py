@@ -683,6 +683,7 @@ from ephemeraldaddy.core.db import (
     invalidate_all_dominant_weight_caches,
     update_chart,
     update_chart_dominant_sign_weights,
+    update_chart_weirdness_score,
     set_current_chart,
     parse_relationship_types,
     list_recognized_tags,
@@ -1449,6 +1450,7 @@ from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
 )
 from ephemeraldaddy.gui.features.charts.distinguishing_factors import (
     build_distinguishing_factors_html as _build_distinguishing_factors_html,
+    calculate_weirdness_score_from_metric_payloads as _calculate_weirdness_score_from_metric_payloads,
     chart_essential_astro_signature as _chart_essential_astro_signature,
     distinguishing_metric_payload_for_chart as _distinguishing_metric_payload_for_chart,
     load_distinguishing_metric_cache as _load_distinguishing_metric_cache,
@@ -2829,6 +2831,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.sort_action_known_duration = self.sort_menu.addAction("Time Known")
         self.sort_action_alignment = self.sort_menu.addAction("Alignment")
         self.sort_action_social_score = self.sort_menu.addAction("Social Score")
+        self.sort_action_weirdness = self.sort_menu.addAction("Weirdness")
         self.sort_action_duplicate_sets = self.sort_menu.addAction("**duplicate sets?**")
         self.sort_action_date.triggered.connect(lambda: self._set_sort_mode("date"))
         self.sort_action_alpha.triggered.connect(lambda: self._set_sort_mode("alpha"))
@@ -2850,6 +2853,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         self.sort_action_social_score.triggered.connect(
             lambda: self._set_sort_mode("social_score")
+        )
+        self.sort_action_weirdness.triggered.connect(
+            lambda: self._set_sort_mode("weirdness")
         )
         self.sort_action_duplicate_sets.triggered.connect(
             lambda: self._set_sort_mode("duplicate_sets")
@@ -4186,6 +4192,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 "known_duration",
                 "alignment",
                 "social_score",
+                "weirdness",
                 "date",
             }
         else:
@@ -4459,6 +4466,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.sort_button.setText(f"Sort: Alignment {direction}")
         elif mode == "social_score":
             self.sort_button.setText(f"Sort: Social Score {direction}")
+        elif mode == "weirdness":
+            self.sort_button.setText(f"Sort: Weirdness {direction}")
         elif mode == "duplicate_sets":
             self.sort_button.setText(f"Sort: Duplicate Sets {direction}")
         else:
@@ -18549,6 +18558,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "familiarity": True,
             "alignment": True,
             "social_score": True,
+            "weirdness": True,
             "known_duration": True,
             "duplicate_sets": False,
         }
@@ -18820,8 +18830,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if not row:
             return None
         padded = list(row)
-        if len(padded) < 30:
-            padded.extend([None] * (30 - len(padded)))
+        if len(padded) < 31:
+            padded.extend([None] * (31 - len(padded)))
         return (
             int(padded[0]),
             padded[1],
@@ -18857,6 +18867,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             padded[27],
             padded[28],
             padded[29],
+            float(padded[30]) if padded[30] is not None else None,
         )
 
     def _populate_list(
@@ -18945,6 +18956,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
         elif self._sort_mode == "social_score":
             rows.sort(key=lambda r: (r[13], (r[1] or "").lower()), reverse=self._sort_descending)
+        elif self._sort_mode == "weirdness":
+            rows.sort(
+                key=lambda r: (
+                    r[30] is not None,
+                    float(r[30] or 0.0),
+                    (r[1] or "").lower(),
+                ),
+                reverse=self._sort_descending,
+            )
         elif self._sort_mode == "duplicate_sets":
             rows.sort(
                 key=lambda r: self._possible_duplicate_sort_keys.get(
@@ -35946,8 +35966,8 @@ class MainWindow(QMainWindow):
         if not row:
             return None
         padded = list(row)
-        if len(padded) < 30:
-            padded.extend([None] * (30 - len(padded)))
+        if len(padded) < 31:
+            padded.extend([None] * (31 - len(padded)))
         return (
             int(padded[0]),
             padded[1],
@@ -35983,6 +36003,7 @@ class MainWindow(QMainWindow):
             padded[27],
             padded[28],
             padded[29],
+            float(padded[30]) if padded[30] is not None else None,
         )
 
     def _prediction_norm_rows(self) -> list[Any]:
@@ -36137,11 +36158,23 @@ class MainWindow(QMainWindow):
                 + "</span>"
             )
             return
+        metric_payloads = self._prediction_norm_metric_payloads()
+        weirdness_score, _norm_count = _calculate_weirdness_score_from_metric_payloads(
+            chart,
+            metric_payloads,
+        )
+        chart_id = getattr(chart, "id", None)
+        if chart_id is not None and weirdness_score is not None:
+            try:
+                if update_chart_weirdness_score(int(chart_id), weirdness_score):
+                    chart.weirdness_score = weirdness_score
+            except Exception:
+                pass
         label.setText(
             _build_distinguishing_factors_html(
                 chart,
                 [],
-                metric_payloads=self._prediction_norm_metric_payloads(),
+                metric_payloads=metric_payloads,
                 debug_scoring=bool(getattr(self, "_distinguishing_factors_scoring_debug", False)),
             )
         )
