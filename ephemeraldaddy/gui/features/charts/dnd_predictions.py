@@ -1198,31 +1198,76 @@ class DndPredictionPanelAdapter:
         self.calculate_callback = calculate_callback
         self.reset_canvas_callback = reset_canvas_callback
 
-    def _show_calculate_prompt(self, chart: Any | None, *, layout: Any = None, section: str = "dnd_statblock", summary_text: str | None = None) -> None:
+    def _show_calculate_prompt(
+            self,
+            chart: Any | None,
+            *,
+            layout: Any = None,
+            section: str = "dnd_statblock",
+            summary_text: str | None = None,
+    ) -> None:
         target_layout = layout or self.chart_layout
         if target_layout is None:
             return
+
         if callable(self.clear_layout_widgets):
             self.clear_layout_widgets(target_layout)
+
         if callable(self.reset_canvas_callback):
-            canvas_attr = "dnd_prediction_alignment_canvas" if section == "dnd_alignment" else "dnd_prediction_statblock_canvas"
+            canvas_attr = (
+                "dnd_prediction_alignment_canvas"
+                if section == "dnd_alignment"
+                else "dnd_prediction_statblock_canvas"
+            )
             self.reset_canvas_callback(canvas_attr)
+
         panel = QWidget()
-        panel_layout = QVBoxLayout()
+
+        panel_layout = QVBoxLayout(panel)
         panel_layout.setContentsMargins(12, 18, 12, 18)
         panel_layout.setSpacing(10)
         panel_layout.setAlignment(Qt.AlignCenter)
-        panel.setLayout(panel_layout)
-        label = QLabel("No prior data. Calculate (can take awhile)?")
+
+        # Important: make the container size itself to its contents.
+        panel_layout.setSizeConstraint(QLayout.SetMinimumSize)
+
+        label_text = "No prior data. Calculate (can take awhile)?"
+        label = QLabel(label_text)
         label.setAlignment(Qt.AlignCenter)
-        label.setWordWrap(True)
+        label.setWordWrap(False)
         label.setStyleSheet("color: #f5f5f5; font-weight: 600;")
+
+        # Important: prevent QLabel from being given a too-small width.
+        text_width = label.fontMetrics().horizontalAdvance(label_text)
+        label.setMinimumWidth(text_width + 16)
+        label.setMinimumHeight(label.sizeHint().height())
+
+        label.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Preferred)
+
         button = QPushButton("Calculate!")
-        button.setStyleSheet("background-color: #7b4dff; color: white; font-weight: bold; padding: 6px 14px; border-radius: 5px;")
-        button.clicked.connect(lambda _checked=False, chart=chart, section=section: self.calculate_callback(chart, section) if callable(self.calculate_callback) and chart is not None else None)
+        button.setStyleSheet(
+            "background-color: #7b4dff; "
+            "color: white; "
+            "font-weight: bold; "
+            "padding: 6px 14px; "
+            "border-radius: 5px;"
+        )
+
+        button.clicked.connect(
+            lambda _checked=False, chart=chart, section=section:
+            self.calculate_callback(chart, section)
+            if callable(self.calculate_callback) and chart is not None
+            else None
+        )
+
         panel_layout.addWidget(label, alignment=Qt.AlignCenter)
         panel_layout.addWidget(button, alignment=Qt.AlignCenter)
+
+        panel.setMinimumSize(panel.sizeHint())
+        panel.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Minimum)
+
         target_layout.addWidget(panel, alignment=Qt.AlignCenter)
+
         if target_layout is self.chart_layout:
             summary_label = self._ensure_summary_label()
             summary_label.setText(summary_text or "<b>Top three:</b> No prior data")
