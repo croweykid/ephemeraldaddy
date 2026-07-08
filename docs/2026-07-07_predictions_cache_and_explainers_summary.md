@@ -1,4 +1,4 @@
-# D&D Predictions Cache and Explainers Summary v1 | last updated 7.7.2026
+# Predictions Cache and Explainers Summary v1 | last updated 7.7.2026
 
 ## Scope
 
