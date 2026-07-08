@@ -53,6 +53,7 @@ def test_database_metrics_panel_open_and_section_expand_defer_heavy_refresh():
     assert refresh_needed_method.index("expanded_sections =") < refresh_needed_method.index("self._database_metrics_cache is None")
     assert "if not expanded_sections:" in refresh_needed_method
     assert "self._database_metrics_lucy_goosey_ids" in refresh_needed_method
+    assert 'getattr(self, "_database_metrics_cache_stale", False)' in refresh_needed_method
     assert "expanded_sections.issubset(self._database_metrics_snapshot_sections)" in refresh_needed_method
     assert "QTimer.singleShot(" in expand_method
     assert "self._refresh_expanded_database_metric_section(key)" in expand_method

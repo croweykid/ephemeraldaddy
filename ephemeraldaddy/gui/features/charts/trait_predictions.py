@@ -568,7 +568,12 @@ def _calculate_database_trait_averages_direct(
     return {name: total / float(chart_count) for name, total in totals.items()}
 
 
-def _database_trait_averages(owner: Any, traits: list[dict[str, Any]]) -> dict[str, float]:
+def _database_trait_averages(
+    owner: Any,
+    traits: list[dict[str, Any]],
+    *,
+    force_refresh_stale: bool = False,
+) -> dict[str, float]:
     _predictions_debug(owner, "Trait DB averages requested traits=%s", len(traits))
     chart_ids = _database_chart_ids(owner)
     chart_uids = _database_chart_uids(owner)
@@ -589,8 +594,8 @@ def _database_trait_averages(owner: Any, traits: list[dict[str, Any]]) -> dict[s
         cached_state = cached.get("norm_state", {}) if isinstance(cached, dict) else {}
         if isinstance(cached, dict) and cached.get("trait_name") == name:
             try:
-                averages[name] = float(cached["db_average"])
-                if not _database_norm_state_is_fresh(cached_state, current_norm_state):
+                cached_is_fresh = _database_norm_state_is_fresh(cached_state, current_norm_state)
+                if not cached_is_fresh:
                     _predictions_debug(
                         owner,
                         "Trait DB average using stale persistent norm trait=%s cached_chart_count=%s current_chart_count=%s",
@@ -598,6 +603,10 @@ def _database_trait_averages(owner: Any, traits: list[dict[str, Any]]) -> dict[s
                         cached.get("chart_count"),
                         current_norm_state.get("chart_count"),
                     )
+                    if force_refresh_stale:
+                        missing_traits.append(trait)
+                        continue
+                averages[name] = float(cached["db_average"])
                 continue
             except (KeyError, TypeError, ValueError):
                 pass
@@ -644,7 +653,7 @@ def warm_trait_database_norms(owner: Any, trait_names: set[str] | None = None) -
     if trait_names is not None:
         normalized_names = {name.casefold() for name in trait_names}
         traits = [trait for trait in traits if str(trait.get("name", "")).casefold() in normalized_names]
-    return _database_trait_averages(owner, traits)
+    return _database_trait_averages(owner, traits, force_refresh_stale=True)
 
 
 def trait_metadata_for_chart(owner: Any, chart: Any) -> dict[str, Any]:

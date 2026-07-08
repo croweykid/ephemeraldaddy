@@ -35,6 +35,7 @@ def test_trait_prediction_rendering_lives_outside_app_py():
     assert "calculate_trait_likelihoods" in predictions_source
     assert "TRAIT_DB_NORMS_CACHE_PATH" in predictions_source
     assert "def warm_trait_database_norms" in predictions_source
+    assert "force_refresh_stale=True" in predictions_source
     assert "def clear_trait_norm_cache" in predictions_source
     assert "_load_trait_norm_cache()" in predictions_source
 

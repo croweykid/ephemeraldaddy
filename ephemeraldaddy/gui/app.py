@@ -16076,6 +16076,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             and not self._deferred_database_metrics_changed_ids
             and not self._deferred_database_metrics_force_full_refresh
             and not self._database_metrics_lucy_goosey_ids
+            and not getattr(self, "_database_metrics_cache_stale", False)
             and expanded_sections.issubset(self._database_metrics_snapshot_sections)
         ):
             self._show_database_analytics_pending_indicator(False)
@@ -16105,6 +16106,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._deferred_database_metrics_changed_ids
             or self._deferred_database_metrics_force_full_refresh
             or self._database_metrics_lucy_goosey_ids
+            or getattr(self, "_database_metrics_cache_stale", False)
         ):
             return True
         return not expanded_sections.issubset(self._database_metrics_snapshot_sections)

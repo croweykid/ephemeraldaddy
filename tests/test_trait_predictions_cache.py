@@ -83,6 +83,52 @@ def test_stale_trait_norm_cache_remains_usable_until_background_refresh(tmp_path
     assert trait_predictions._database_norm_signature_for_traits(owner, [trait]) == "old-norm-signature"
 
 
+def test_forced_trait_norm_refresh_recomputes_stale_cache(tmp_path, monkeypatch):
+    cache_path = tmp_path / "trait_db_norms.json"
+    monkeypatch.setattr(trait_predictions, "TRAIT_DB_NORMS_CACHE_PATH", cache_path)
+    trait = {"name": "Creative", "color": "#ffffff", "profile": {"signs": {"Leo": 1}}}
+    cache_key = trait_predictions._trait_norm_cache_key(("UID1", "UID2"), trait)
+    cache_path.write_text(
+        trait_predictions.json.dumps(
+            {
+                "version": trait_predictions.TRAIT_DB_NORMS_CACHE_VERSION,
+                "entries": {
+                    cache_key: {
+                        "trait_name": "Creative",
+                        "db_average": 63.5,
+                        "chart_count": 1,
+                        "norm_state": {
+                            "version": trait_predictions.TRAIT_DB_NORMS_CACHE_VERSION,
+                            "chart_count": 1,
+                            "chart_tokens": {"UID1": "old"},
+                        },
+                        "norm_signature": "old-norm-signature",
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    owner = _TraitsCacheOwner(
+        (("uid:one", "row"),),
+        chart_rows=[
+            (1, "One", None, None, "", None, "", 0, 0, 0, None, 0, None, 0, "Natal", 0, 0, None, None, None, None, None, None, "blank", None, None, None, None, None, None, "UID1"),
+            (2, "Two", None, None, "", None, "", 0, 0, 0, None, 0, None, 0, "Natal", 0, 0, None, None, None, None, None, None, "blank", None, None, None, None, None, None, "UID2"),
+        ],
+    )
+    owner._traits_distribution_signature = lambda traits: tuple(
+        (item["name"], "#ffffff", repr(item.get("profile", {}))) for item in traits
+    )
+
+    def collect(_chart_ids, *, trait_items, trait_signature):
+        assert [item["name"] for item in trait_items] == ["Creative"]
+        return {"trait_names": ["Creative"], "totals": {"Creative": 1.7}, "chart_count": 2}
+
+    owner._collect_traits_distribution_analytics = collect
+
+    assert trait_predictions._database_trait_averages(owner, [trait], force_refresh_stale=True) == {"Creative": 85.0}
+
+
 def test_database_chart_uids_reads_appended_list_charts_uid_slot(monkeypatch):
     owner = _TraitsCacheOwner(
         (("uid:one", "row"),),
