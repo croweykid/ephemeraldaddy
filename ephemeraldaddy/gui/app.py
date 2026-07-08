@@ -19030,6 +19030,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 _dominant_sign_weights,
                 _dominant_planet_weights,
                 _dominant_mode,
+                _chart_uid,
+                _weirdness_score,
             ) in rows:
                 try:
                     matches_filters = self._chart_matches_filters(cid)
@@ -19068,6 +19070,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     _dominant_sign_weights,
                     _dominant_planet_weights,
                     _dominant_mode,
+                    _chart_uid,
+                    _weirdness_score,
                 )
                 display_name = name or "Unnamed"
                 chart = self._get_chart_for_filter(cid) if row_info_visibility.get("sign_glyphs", True) else None
@@ -33902,6 +33906,7 @@ class MainWindow(QMainWindow):
             _birth_year,
             _retcon_hour,
             _retcon_minute,
+            *_extra_chart_row_fields,
         ) in rows:
             name = name or "Unnamed"
             dt_iso = dt_iso or "?"
