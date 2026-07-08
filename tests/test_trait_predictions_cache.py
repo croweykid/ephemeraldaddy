@@ -191,8 +191,8 @@ def test_traits_distribution_likelihood_cache_persists_across_matching_sessions(
 
     next_session = _TraitsCacheOwner((("uid:one", "row"),))
     assert next_session._load_traits_distribution_likelihood_cache() is True
-    assert next_session._traits_distribution_chart_likelihood_cache == {
-        (0, trait_signature, 101): {"Creative": 87.5}
+    assert next_session._traits_distribution_individual_profile_likelihood_cache == {
+        ("{}", 101): 87.5
     }
 
 
@@ -217,11 +217,10 @@ def test_traits_distribution_likelihood_cache_rejects_changed_chart_rows_only(tm
     )
 
     assert next_session._load_traits_distribution_likelihood_cache() is True
-    assert next_session._traits_distribution_chart_likelihood_cache == {
-        (0, trait_signature, 202): {"Creative": 42.0}
-    }
-    assert next_session._traits_distribution_individual_likelihood_cache == {
-        (("Creative", "#ffffff", "{}"), 202): 42.0
+    assert next_session._traits_distribution_chart_likelihood_cache == {}
+    assert next_session._traits_distribution_individual_likelihood_cache == {}
+    assert next_session._traits_distribution_individual_profile_likelihood_cache == {
+        ("{}", 202): 42.0
     }
 
 
