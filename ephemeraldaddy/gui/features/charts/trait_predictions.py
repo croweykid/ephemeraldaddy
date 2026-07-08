@@ -1048,10 +1048,21 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
             prefix_html=_trait_predictions_refresh_message(str(cached.get("updated_at", "") or "unknown")),
         )
     else:
-        message = (
-            _trait_predictions_refresh_message(None)
-            + "<div style='color:#d8d8d8;'>Loading trait predictions for this chart…</div>"
-        )
-        _apply_traits_prediction_view(owner, message, message)
+        try:
+            metadata = trait_metadata_for_chart(owner, chart)
+            above_html, below_html = _trait_predictions_html_from_metadata(traits, metadata)
+            _apply_traits_prediction_view(
+                owner,
+                above_html,
+                below_html,
+                prefix_html=_trait_predictions_refresh_message("metadata cache"),
+            )
+        except Exception as exc:
+            logger.warning("Traits panel could not render cached metadata before refresh: %s", exc, exc_info=True)
+            message = (
+                _trait_predictions_refresh_message(None)
+                + "<div style='color:#d8d8d8;'>Loading trait predictions for this chart…</div>"
+            )
+            _apply_traits_prediction_view(owner, message, message)
 
     _start_traits_prediction_refresh_worker(owner, chart, traits, cache_key or "", token)
