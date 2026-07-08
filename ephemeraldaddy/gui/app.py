@@ -2498,6 +2498,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._notes_comments_filter_input = None
         self._notes_bio_filter_checkbox = None
         self._notes_bio_filter_input = None
+        self._notes_quotes_filter_checkbox = None
+        self._notes_quotes_filter_input = None
         self._notes_rectification_filter_checkbox = None
         self._notes_rectification_filter_input = None
         self._notes_source_filter_checkbox = None
@@ -10580,6 +10582,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if self._notes_bio_filter_input is not None
             else ""
         )
+        notes_quotes_mode = (
+            self._notes_quotes_filter_checkbox.mode()
+            if self._notes_quotes_filter_checkbox is not None
+            else QuadStateSlider.MODE_EMPTY
+        )
+        notes_quotes_text = (
+            self._notes_quotes_filter_input.text().strip()
+            if self._notes_quotes_filter_input is not None
+            else ""
+        )
         notes_rectification_mode = (
             self._notes_rectification_filter_checkbox.mode()
             if self._notes_rectification_filter_checkbox is not None
@@ -10605,6 +10617,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         notes_bio_active = (
             notes_bio_mode != QuadStateSlider.MODE_EMPTY and bool(notes_bio_text)
+        )
+        notes_quotes_active = (
+            notes_quotes_mode != QuadStateSlider.MODE_EMPTY and bool(notes_quotes_text)
         )
         notes_rectification_active = (
             notes_rectification_mode != QuadStateSlider.MODE_EMPTY and bool(notes_rectification_text)
@@ -10730,6 +10745,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             and not notes_comments_active
             and not notes_bio_active
+            and not notes_quotes_active
             and not notes_rectification_active
             and not notes_source_active
             and not selected_human_design_channels
@@ -17419,6 +17435,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self._notes_bio_filter_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             if self._notes_bio_filter_input is not None:
                 self._notes_bio_filter_input.setText("")
+            if self._notes_quotes_filter_checkbox is not None:
+                self._notes_quotes_filter_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
+            if self._notes_quotes_filter_input is not None:
+                self._notes_quotes_filter_input.setText("")
             if self._notes_rectification_filter_checkbox is not None:
                 self._notes_rectification_filter_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             if self._notes_rectification_filter_input is not None:
@@ -19795,6 +19815,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if self._notes_bio_filter_input is not None
             else ""
         )
+        notes_quotes_mode = (
+            self._notes_quotes_filter_checkbox.mode()
+            if self._notes_quotes_filter_checkbox is not None
+            else QuadStateSlider.MODE_EMPTY
+        )
+        notes_quotes_text = (
+            self._notes_quotes_filter_input.text().strip()
+            if self._notes_quotes_filter_input is not None
+            else ""
+        )
         notes_rectification_mode = (
             self._notes_rectification_filter_checkbox.mode()
             if self._notes_rectification_filter_checkbox is not None
@@ -20090,6 +20120,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if notes_bio_mode == QuadStateSlider.MODE_TRUE and not bio_match:
                 return False
             if notes_bio_mode == QuadStateSlider.MODE_FALSE and bio_match:
+                return False
+
+        quotes_filter_active = (
+            notes_quotes_mode != QuadStateSlider.MODE_EMPTY and bool(notes_quotes_text)
+        )
+        if quotes_filter_active:
+            chart_quotes_text = "\n".join(
+                str(quote) for quote in (getattr(chart, "quotes", []) or [])
+            )
+            quotes_match = notes_quotes_text.casefold() in chart_quotes_text.casefold()
+            if notes_quotes_mode == QuadStateSlider.MODE_TRUE and not quotes_match:
+                return False
+            if notes_quotes_mode == QuadStateSlider.MODE_FALSE and quotes_match:
                 return False
 
         rectification_filter_active = (
