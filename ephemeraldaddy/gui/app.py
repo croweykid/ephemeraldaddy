@@ -24010,6 +24010,8 @@ class MainWindow(QMainWindow):
         # - Chart Entry Window: current_chart_id is None (blank fields/new chart).
         # - Chart Edit Window: current_chart_id is set (editing existing chart).
         self.current_chart_id = None
+        self._hidden_chart_uids = self._load_hidden_chart_uids_from_settings()
+        self._hidden_chart_ids = set(get_chart_ids_by_uid(self._hidden_chart_uids).values())
         self._loaded_birth_place = None
         self._loaded_lat = None
         self._loaded_lon = None
@@ -32776,10 +32778,54 @@ class MainWindow(QMainWindow):
             self._hidden_chart_ids.discard(normalized_id)
             self._hidden_chart_uids.difference_update(self._chart_uids_for_ids([normalized_id]))
         self._save_hidden_chart_uids_to_settings()
-        refresh_rankings = getattr(self, "_refresh_traits_distribution_rankings_after_hidden_chart_change", None)
+        self._refresh_database_view_after_chart_hidden_toggle(normalized_id)
+
+    def _load_hidden_chart_uids_from_settings(self) -> set[str]:
+        raw_value = self._settings.value(SETTINGS_KEY_HIDDEN_CHART_UIDS, "[]")
+        if isinstance(raw_value, str):
+            try:
+                raw_uids = json.loads(raw_value)
+            except json.JSONDecodeError:
+                raw_uids = []
+        else:
+            raw_uids = raw_value or []
+        hidden_uids = self._coerce_chart_uids(raw_uids)
+
+        legacy_value = self._settings.value(SETTINGS_KEY_HIDDEN_CHART_IDS, "[]")
+        if isinstance(legacy_value, str):
+            try:
+                legacy_raw_ids = json.loads(legacy_value)
+            except json.JSONDecodeError:
+                legacy_raw_ids = []
+        else:
+            legacy_raw_ids = legacy_value or []
+        legacy_ids = self._coerce_chart_ids(legacy_raw_ids)
+        if legacy_ids:
+            hidden_uids.update(self._chart_uids_for_ids(legacy_ids))
+        return hidden_uids
+
+    def _save_hidden_chart_uids_to_settings(self) -> None:
+        self._settings.setValue(
+            SETTINGS_KEY_HIDDEN_CHART_UIDS,
+            json.dumps(sorted(getattr(self, "_hidden_chart_uids", set()))),
+        )
+        self._settings.remove(SETTINGS_KEY_HIDDEN_CHART_IDS)
+
+    def _refresh_database_view_after_chart_hidden_toggle(self, changed_chart_id: int) -> None:
+        manage_dialog = getattr(self, "_manage_charts_dialog", None)
+        if manage_dialog is None:
+            return
+        manage_dialog._hidden_chart_ids = set(getattr(self, "_hidden_chart_ids", set()))
+        manage_dialog._hidden_chart_uids = set(getattr(self, "_hidden_chart_uids", set()))
+        refresh_rankings = getattr(manage_dialog, "_refresh_traits_distribution_rankings_after_hidden_chart_change", None)
         if callable(refresh_rankings):
-            refresh_rankings(set(getattr(self, "_hidden_chart_ids", set())))
-        self.update_database_view()
+            refresh_rankings({int(changed_chart_id)})
+        if manage_dialog.isVisible() and getattr(manage_dialog, "_chart_rows", None):
+            selected_ids = set(manage_dialog._selected_chart_ids())
+            if int(changed_chart_id) not in manage_dialog._hidden_chart_ids:
+                selected_ids.add(int(changed_chart_id))
+            manage_dialog._populate_list(selected_ids=selected_ids, refresh_metrics=False)
+            manage_dialog._on_selection_changed(sync_persistent_selection=False)
 
     def _show_death_chart_popout(self) -> None:
         from ephemeraldaddy.gui.features.charts.death_chart_window import show_death_chart_window
