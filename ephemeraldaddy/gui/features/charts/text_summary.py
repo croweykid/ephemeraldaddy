@@ -22,7 +22,12 @@ from ephemeraldaddy.core.aspect_display import (
     iter_displayable_aspects,
 )
 from ephemeraldaddy.core.aspects import ASPECT_DEFS
-from ephemeraldaddy.core.chart import Chart, apply_unknown_sign_metadata
+from ephemeraldaddy.core.chart import (
+    Chart,
+    apply_unknown_sign_metadata,
+    rectification_range_midpoint_minutes,
+    rectification_range_minutes,
+)
 from ephemeraldaddy.core.curse_scoring import AspectRecord, MOST_CURSED_SCORE, chart_cursedness
 from ephemeraldaddy.core.ephemeris import (
     get_lilith_display_name,
@@ -164,69 +169,87 @@ def _format_time_variant_signs(chart: Chart) -> dict[str, dict[str, object]]:
     tzinfo = chart.dt.tzinfo
     if tzinfo is None:
         return {}
+
+    range_minutes = rectification_range_minutes(chart)
+    sample_minutes: list[tuple[str, int]]
+    sample_icons: dict[str, str]
+    if range_minutes is not None:
+        start_minute, end_minute = range_minutes
+        midpoint = rectification_range_midpoint_minutes(chart)
+        if midpoint is None:
+            return {}
+        # This is intentionally a pragmatic consistency check, not a full
+        # ingress search: a body that changes sign between samples and changes
+        # back before the next sample can still evade detection.
+        sample_minutes = [("start", start_minute), ("midpoint", midpoint), ("end", end_minute)]
+        sample_icons = {"start": "🌅", "midpoint": "", "end": "🌌"}
+    else:
+        sample_minutes = [("start", 0), ("end", 23 * 60 + 59)]
+        sample_icons = {"start": "🌅", "end": "🌌"}
+
     base_date = chart.dt.date()
-    midnight = datetime.datetime(
-        base_date.year,
-        base_date.month,
-        base_date.day,
-        0,
-        0,
-        tzinfo=tzinfo,
-    )
-    pre_midnight = datetime.datetime(
-        base_date.year,
-        base_date.month,
-        base_date.day,
-        23,
-        59,
-        tzinfo=tzinfo,
-    )
-    positions_midnight = planetary_positions(midnight, chart.lat, chart.lon)
-    positions_pre_noon = planetary_positions(pre_midnight, chart.lat, chart.lon)
-    ordered_names = [body for body in PLANET_ORDER if body in positions_midnight]
+    sampled_positions: list[tuple[str, dict[str, float]]] = []
+    for label, minute in sample_minutes:
+        sample_dt = datetime.datetime(
+            base_date.year,
+            base_date.month,
+            base_date.day,
+            minute // 60,
+            minute % 60,
+            tzinfo=tzinfo,
+        )
+        sampled_positions.append((label, planetary_positions(sample_dt, chart.lat, chart.lon)))
+
+    if not sampled_positions:
+        return {}
+    ordered_names = [
+        body
+        for body in PLANET_ORDER
+        if all(body in positions for _label, positions in sampled_positions)
+    ]
     extras = sorted(
-        set(positions_midnight)
-        .intersection(positions_pre_noon)
-        .difference(ordered_names)
+        set.intersection(*(set(positions) for _label, positions in sampled_positions)).difference(
+            ordered_names
+        )
     )
     ordered_names.extend(extras)
     lines: dict[str, dict[str, object]] = {}
     for body in ordered_names:
         if body not in set(getattr(chart, "unknown_signs", []) or []):
             continue
-        sign_midnight = sign_for_longitude(positions_midnight[body])
-        sign_pre_noon = sign_for_longitude(positions_pre_noon[body])
-        if sign_midnight != sign_pre_noon:
-            dawn_lon = positions_midnight[body]
-            dusk_lon = positions_pre_noon[body]
-            dawn_pretty = format_longitude(dawn_lon)
-            dusk_pretty = format_longitude(dusk_lon)
-            dawn_nakshatra = get_nakshatra(dawn_lon)
-            dusk_nakshatra = get_nakshatra(dusk_lon)
-            text = (
-                f"{_display_body_with_glyph(body):<11} 🌅{dawn_pretty} ({dawn_nakshatra})ⓘ -> "
-                f"🌌{dusk_pretty} ({dusk_nakshatra})ⓘ"
-            )
-            lines[body] = {
-                "text": text,
-                "info": [
-                    {
-                        "body": body,
-                        "sign": sign_midnight,
-                        "house": None,
-                        "icon_index": text.find("ⓘ"),
-                    },
-                    {
-                        "body": body,
-                        "sign": sign_pre_noon,
-                        "house": None,
-                        "icon_index": text.rfind("ⓘ"),
-                    },
-                ],
-            }
+        samples = [
+            (label, positions[body], sign_for_longitude(positions[body]))
+            for label, positions in sampled_positions
+        ]
+        if len({sign for _label, _lon, sign in samples}) <= 1:
+            continue
+
+        collapsed_samples: list[tuple[str, float, str]] = []
+        for index, sample in enumerate(samples):
+            is_endpoint = index == 0 or index == len(samples) - 1
+            if is_endpoint or not collapsed_samples or collapsed_samples[-1][2] != sample[2]:
+                collapsed_samples.append(sample)
+        pieces: list[str] = []
+        info: list[dict[str, object]] = []
+        search_start = 0
+        for label, lon, sign in collapsed_samples:
+            pretty = format_longitude(lon)
+            nakshatra = get_nakshatra(lon)
+            icon = sample_icons.get(label, "")
+            piece = f"{icon}{pretty} ({nakshatra})ⓘ"
+            pieces.append(piece)
+            # The icon index is filled after the whole line is assembled below.
+            info.append({"body": body, "sign": sign, "house": None, "_piece": piece})
+        text = f"{_display_body_with_glyph(body):<11} " + " -> ".join(pieces)
+        for entry in info:
+            piece = str(entry.pop("_piece"))
+            piece_start = text.find(piece, search_start)
+            icon_at = text.find("ⓘ", piece_start if piece_start != -1 else search_start)
+            entry["icon_index"] = icon_at
+            if piece_start != -1:
+                search_start = piece_start + len(piece)
+        lines[body] = {"text": text, "info": info}
     return lines
-
-
 
 
 

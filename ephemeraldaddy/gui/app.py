@@ -32614,6 +32614,8 @@ class MainWindow(QMainWindow):
                     f"Come on. Birth date must be a real calendar date in MM. DD. YYYY format, and the year must be between {NATAL_CHART_MIN_YEAR} and {NATAL_CHART_MAX_YEAR}. Don't make up silly stuff.",
                 )
             return
+        if not self._validate_rectification_range_inputs(show_feedback=show_feedback):
+            return
         if self.retcon_time_checkbox.isChecked():
             qtime = self.retcon_time_edit.time()
         elif self._rectification_range_effective_from_inputs():
@@ -33363,6 +33365,8 @@ class MainWindow(QMainWindow):
                     return
                 else:
                     return
+        if not self._validate_rectification_range_inputs(show_feedback=show_dialog):
+            return
         if not recalculate_chart and chart_id is not None:
             try:
                 chart = load_chart(chart_id)
@@ -34052,25 +34056,6 @@ class MainWindow(QMainWindow):
             self.retcon_time_edit.setTime(qtime)
         else:
             self.retcon_time_edit.setTime(default_noon)
-        range_start_minute = getattr(chart, "rectification_range_start_minute", None)
-        range_end_minute = getattr(chart, "rectification_range_end_minute", None)
-        if range_start_minute is not None:
-            range_start_minute = max(0, min(1439, int(range_start_minute)))
-            self.rectification_range_start_edit.setTime(
-                QTime(range_start_minute // 60, range_start_minute % 60)
-            )
-        else:
-            self.rectification_range_start_edit.setTime(QTime(0, 0))
-        if range_end_minute is not None:
-            range_end_minute = max(0, min(1439, int(range_end_minute)))
-            self.rectification_range_end_edit.setTime(
-                QTime(range_end_minute // 60, range_end_minute % 60)
-            )
-        else:
-            self.rectification_range_end_edit.setTime(QTime(23, 59))
-        self.rectification_range_checkbox.setChecked(
-            bool(getattr(chart, "rectification_range_used", False))
-        )
         self.retcon_time_checkbox.setChecked(chart.retcon_time_used)
         range_start_minute = getattr(chart, "rectification_range_start_minute", None)
         range_end_minute = getattr(chart, "rectification_range_end_minute", None)
@@ -34486,9 +34471,32 @@ class MainWindow(QMainWindow):
         end_time = self.rectification_range_end_edit.time()
         start_minute = start_time.hour() * 60 + start_time.minute()
         end_minute = end_time.hour() * 60 + end_time.minute()
-        if end_minute < start_minute:
-            start_minute, end_minute = end_minute, start_minute
         return start_minute, end_minute
+
+    def _rectification_range_inputs_are_ordered(self) -> bool:
+        start_minute, end_minute = self._rectification_range_minutes_from_inputs()
+        return start_minute < end_minute
+
+    def _rectification_range_selected_from_inputs(self) -> bool:
+        return (
+            self.rectification_range_checkbox.isChecked()
+            and self.time_unknown_checkbox.isChecked()
+            and not self.retcon_time_checkbox.isChecked()
+        )
+
+    def _validate_rectification_range_inputs(self, *, show_feedback: bool = True) -> bool:
+        if not self._rectification_range_selected_from_inputs():
+            return True
+        if self._rectification_range_inputs_are_ordered():
+            return True
+        if show_feedback:
+            QMessageBox.warning(
+                self,
+                "Invalid rectification range",
+                "Start time must preceed end time, please check range times",
+            )
+        self.rectification_range_start_edit.setFocus()
+        return False
 
     def _rectification_range_midpoint_qtime(self) -> QTime:
         start_minute, end_minute = self._rectification_range_minutes_from_inputs()
@@ -34497,9 +34505,8 @@ class MainWindow(QMainWindow):
 
     def _rectification_range_effective_from_inputs(self) -> bool:
         return (
-            self.rectification_range_checkbox.isChecked()
-            and self.time_unknown_checkbox.isChecked()
-            and not self.retcon_time_checkbox.isChecked()
+            self._rectification_range_selected_from_inputs()
+            and self._rectification_range_inputs_are_ordered()
         )
 
     def _update_time_input_visibility(self) -> None:

@@ -41,3 +41,16 @@ def test_load_chart_restores_retcon_checkbox_before_range_checkbox():
     assert retcon_restore in method
     assert range_restore in method
     assert method.index(retcon_restore) < method.index(range_restore)
+
+
+def test_rectification_range_rejects_reversed_or_equal_times():
+    source = APP_SOURCE.read_text()
+    minutes_method = _method_source("_rectification_range_minutes_from_inputs")
+    validate_method = _method_source("_validate_rectification_range_inputs")
+    effective_method = _method_source("_rectification_range_effective_from_inputs")
+
+    assert "if end_minute < start_minute" not in minutes_method
+    assert "return start_minute < end_minute" in source
+    assert "Start time must preceed end time, please check range times" in validate_method
+    assert "QMessageBox.warning" in validate_method
+    assert "self._rectification_range_inputs_are_ordered()" in effective_method
