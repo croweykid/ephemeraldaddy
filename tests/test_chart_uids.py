@@ -337,3 +337,23 @@ def test_list_charts_keeps_uid_and_weirdness_columns_distinct(tmp_path, monkeypa
 
     assert row[30] == "B11C505AABCC49A5"
     assert row[31] == 42.5
+
+
+def test_list_charts_preserves_numeric_chart_uid_when_weirdness_is_null(tmp_path, monkeypatch):
+    db_path = tmp_path / "charts.db"
+    monkeypatch.setattr(db, "DB_DIR", tmp_path)
+    monkeypatch.setattr(db, "DB_PATH", db_path)
+
+    conn = db._get_conn()
+    with conn:
+        _insert_minimal_chart(conn, chart_uid="1234567890123456", name="Numeric UID")
+        conn.execute(
+            "UPDATE charts SET weirdness_score = NULL WHERE chart_uid = ?",
+            ("1234567890123456",),
+        )
+    conn.close()
+
+    row = db.list_charts()[0]
+
+    assert row[30] == "1234567890123456"
+    assert row[31] is None

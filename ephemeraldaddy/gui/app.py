@@ -18829,12 +18829,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     ] | None:
         if not row:
             return None
+        original_row_length = len(row)
         padded = list(row)
         if len(padded) < 32:
             padded.extend([None] * (32 - len(padded)))
         chart_uid = padded[30]
         weirdness_score = padded[31]
-        if weirdness_score is None and chart_uid is not None:
+        if original_row_length <= 31 and weirdness_score is None and chart_uid is not None:
             try:
                 weirdness_score = float(chart_uid)
                 chart_uid = None
@@ -35974,12 +35975,13 @@ class MainWindow(QMainWindow):
         """Normalize a saved-chart database row into the padded shape used by chart views."""
         if not row:
             return None
+        original_row_length = len(row)
         padded = list(row)
         if len(padded) < 32:
             padded.extend([None] * (32 - len(padded)))
         chart_uid = padded[30]
         weirdness_score = padded[31]
-        if weirdness_score is None and chart_uid is not None:
+        if original_row_length <= 31 and weirdness_score is None and chart_uid is not None:
             try:
                 weirdness_score = float(chart_uid)
                 chart_uid = None
