@@ -1,4 +1,7 @@
+from pathlib import Path
 from types import SimpleNamespace
+
+ROOT = Path(__file__).resolve().parents[1]
 
 from ephemeraldaddy.gui.features.charts import trait_predictions
 from ephemeraldaddy.gui.features.charts.database_analytics import DatabaseAnalyticsChartsMixin
@@ -444,3 +447,17 @@ def test_trait_norm_cache_average_survives_trait_rename(tmp_path, monkeypatch):
     )
 
     assert trait_predictions._database_trait_averages(owner, [renamed_trait]) == {"Expressive": 72.25}
+
+
+def test_chart_view_and_dnd_trait_likelihoods_use_shared_distribution_cache_source():
+    trait_source = (ROOT / "ephemeraldaddy" / "gui" / "features" / "charts" / "trait_predictions.py").read_text(
+        encoding="utf-8"
+    )
+    dnd_source = (ROOT / "ephemeraldaddy" / "gui" / "features" / "charts" / "dnd_predictions.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert "def trait_likelihoods_with_distribution_cache" in trait_source
+    assert "_collect_traits_distribution_analytics" in trait_source
+    assert "trait_likelihoods_with_distribution_cache(owner, chart, missing_traits)" in trait_source
+    assert "trait_likelihoods_with_distribution_cache(owner, chart, trait_items)" in dnd_source
