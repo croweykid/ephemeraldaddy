@@ -9,6 +9,59 @@ import datetime
 ANGLE_BODIES = frozenset({"AS", "MC", "DS", "IC"})
 
 
+def _coerce_minute_of_day(value) -> int | None:
+    try:
+        minute = int(value)
+    except (TypeError, ValueError):
+        return None
+    if 0 <= minute <= 1439:
+        return minute
+    return None
+
+
+def rectification_range_minutes(chart) -> tuple[int, int] | None:
+    if not bool(getattr(chart, "rectification_range_used", False)):
+        return None
+    start = _coerce_minute_of_day(
+        getattr(chart, "rectification_range_start_minute", None)
+    )
+    end = _coerce_minute_of_day(
+        getattr(chart, "rectification_range_end_minute", None)
+    )
+    if start is None or end is None:
+        return None
+    if end < start:
+        start, end = end, start
+    return start, end
+
+
+def rectification_range_midpoint_minutes(chart) -> int | None:
+    minutes = rectification_range_minutes(chart)
+    if minutes is None:
+        return None
+    start, end = minutes
+    return int(round((start + end) / 2))
+
+
+def apply_rectification_range_midpoint(chart) -> bool:
+    midpoint = rectification_range_midpoint_minutes(chart)
+    dt = getattr(chart, "dt", None)
+    if midpoint is None or not isinstance(dt, datetime.datetime):
+        return False
+    try:
+        chart.dt = dt.replace(
+            hour=midpoint // 60,
+            minute=midpoint % 60,
+            second=0,
+            microsecond=0,
+        )
+    except Exception:
+        return False
+    chart.positions = planetary_positions(chart.dt, chart.lat, chart.lon)
+    chart.retrogrades = planetary_retrogrades(chart.dt)
+    return True
+
+
 def resolve_use_birth_time_data(chart) -> bool:
     return not bool(getattr(chart, "birthtime_unknown", False)) or bool(
         getattr(chart, "retcon_time_used", False)
@@ -94,6 +147,12 @@ def recompute_time_specific_metadata(chart) -> None:
 
 
 def apply_time_specific_metadata_policy(chart) -> None:
+    if (
+        not chart_uses_houses(chart)
+        and bool(getattr(chart, "birthtime_unknown", False))
+        and not bool(getattr(chart, "retcon_time_used", False))
+    ):
+        apply_rectification_range_midpoint(chart)
     use_birth_time_data = sync_use_birth_time_data(chart)
     if use_birth_time_data:
         recompute_time_specific_metadata(chart)
@@ -173,6 +232,9 @@ class Chart:
         self.retcon_time_used = False
         self.retcon_hour = None
         self.retcon_minute = None
+        self.rectification_range_used = False
+        self.rectification_range_start_minute = None
+        self.rectification_range_end_minute = None
         self.use_birth_time_data = True
         self.is_deceased = False
         self.death_month = None
