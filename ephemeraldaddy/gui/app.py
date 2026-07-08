@@ -1188,7 +1188,10 @@ from ephemeraldaddy.gui.features.controllers.chart_view_window import (
     refresh_euphonics_for_chart,
     render_chart_view_tag_selection,
     set_chart_view_tag_state,
+    setup_chart_view_quotes_section,
     setup_chart_view_tags_section,
+    get_chart_view_quotes,
+    set_chart_view_quote_state,
     style_delete_this_chart_button,
 )
 from ephemeraldaddy.gui.visibility import (
@@ -24795,6 +24798,19 @@ class MainWindow(QMainWindow):
         self.comments_edit.setMinimumHeight(140)
         self.chart_info_content_stack.addWidget(self.comments_edit)
 
+        self.chart_quotes_panel_widget = QWidget()
+        chart_quotes_panel_layout = QVBoxLayout()
+        chart_quotes_panel_layout.setContentsMargins(0, 0, 0, 0)
+        chart_quotes_panel_layout.setSpacing(6)
+        self.chart_quotes_panel_widget.setLayout(chart_quotes_panel_layout)
+        self.chart_quotes_input = QLineEdit()
+        setup_chart_view_quotes_section(
+            owner=self,
+            quotes_content_layout=chart_quotes_panel_layout,
+        )
+        self.chart_quotes_panel_widget.setMinimumHeight(140)
+        self.chart_info_content_stack.addWidget(self.chart_quotes_panel_widget)
+
         self.chart_tags_panel_widget = QWidget()
         chart_tags_panel_layout = QVBoxLayout()
         chart_tags_panel_layout.setContentsMargins(0, 0, 0, 0)
@@ -29809,17 +29825,18 @@ class MainWindow(QMainWindow):
         )
 
     def _set_chart_info_panel_mode(self, mode: str) -> None:
-        if mode not in {"chart_info", "comments", "tags", "rectification", "biography", "source"}:
+        if mode not in {"chart_info", "comments", "quotes", "tags", "rectification", "biography", "source"}:
             return
         self._chart_info_panel_mode = mode
         if hasattr(self, "chart_info_content_stack"):
             mode_to_index = {
                 "chart_info": 0,
                 "comments": 1,
-                "tags": 2,
-                "rectification": 3,
-                "biography": 4,
-                "source": 5,
+                "quotes": 2,
+                "tags": 3,
+                "rectification": 4,
+                "biography": 5,
+                "source": 6,
             }
             self.chart_info_content_stack.setCurrentIndex(mode_to_index[mode])
         self._refresh_chart_info_panel_toggle_buttons()
@@ -32438,6 +32455,7 @@ class MainWindow(QMainWindow):
             getattr(self, "_reminds_me_of_current", [])
         )
         placeholder.comments = self.comments_edit.toPlainText().strip()
+        placeholder.quotes = get_chart_view_quotes(self)
         placeholder.rectification_notes = self.rectification_edit.toPlainText().strip()
         placeholder.biography = self.biography_edit.toPlainText().strip()
         placeholder.chart_data_source = self.source_edit.toPlainText().strip()
@@ -32595,6 +32613,7 @@ class MainWindow(QMainWindow):
                 chart.relationship_types = []
         if hasattr(chart, "comments"):
             chart.comments = self.comments_edit.toPlainText().strip()
+        chart.quotes = get_chart_view_quotes(self)
         if hasattr(chart, "rectification_notes"):
             chart.rectification_notes = self.rectification_edit.toPlainText().strip()
         if hasattr(chart, "biography"):
@@ -33184,6 +33203,7 @@ class MainWindow(QMainWindow):
                 chart.relationship_types = [] if is_event_chart else list(self._selected_relationship_types())
                 chart.tags = get_chart_view_tags(self)
                 chart.comments = self.comments_edit.toPlainText().strip()
+                chart.quotes = get_chart_view_quotes(self)
                 chart.rectification_notes = self.rectification_edit.toPlainText().strip()
                 chart.biography = self.biography_edit.toPlainText().strip()
                 chart.chart_data_source = self.source_edit.toPlainText().strip()
@@ -33460,6 +33480,7 @@ class MainWindow(QMainWindow):
         self._set_chart_tags_state([])
         self._set_reminds_me_of_state([])
         self.comments_edit.clear()
+        set_chart_view_quote_state(self, [])
         self.rectification_edit.clear()
         self._clear_material_facts_fields()
         self.biography_edit.clear()
@@ -33781,6 +33802,7 @@ class MainWindow(QMainWindow):
         self._update_alternate_chart_completer()
         self._set_alternate_chart_state(getattr(chart, "alternate_chart_uid", ""))
         self.comments_edit.setPlainText(getattr(chart, "comments", "") or "")
+        set_chart_view_quote_state(self, getattr(chart, "quotes", []) or [])
         self.rectification_edit.setPlainText(getattr(chart, "rectification_notes", "") or "")
         self.biography_edit.setPlainText(getattr(chart, "biography", "") or "")
         self.source_edit.setPlainText(getattr(chart, "chart_data_source", "") or "")

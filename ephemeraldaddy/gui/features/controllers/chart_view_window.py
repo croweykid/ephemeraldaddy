@@ -92,6 +92,7 @@ from ephemeraldaddy.gui.dbv_search_panel import refresh_tag_catalog_for_added_ta
 CHART_INFO_PANEL_BUTTON_ATTRS: dict[str, str] = {
     "chart_info": "chart_info_toggle_button",
     "comments": "chart_comments_toggle_button",
+    "quotes": "chart_quotes_toggle_button",
     "tags": "chart_tags_toggle_button",
     "rectification": "chart_rectification_toggle_button",
     "biography": "chart_bio_toggle_button",
@@ -101,6 +102,7 @@ CHART_INFO_PANEL_BUTTON_ATTRS: dict[str, str] = {
 CHART_INFO_PANEL_CONTENT_ATTRS: dict[str, str] = {
     "chart_info": "chart_info_output",
     "comments": "comments_edit",
+    "quotes": "chart_quotes_panel_widget",
     "tags": "chart_tags_panel_widget",
     "rectification": "rectification_edit",
     "biography": "biography_edit",
@@ -967,6 +969,14 @@ def build_chart_view_left_panel(
         lambda: owner._set_chart_info_panel_mode("comments")
     )
 
+    owner.chart_quotes_toggle_button = QPushButton("💬") #Quotes
+    owner.chart_quotes_toggle_button.setCheckable(True)
+    apply_button_cursor(owner.chart_quotes_toggle_button)
+    owner.chart_quotes_toggle_button.setMinimumHeight(24)
+    owner.chart_quotes_toggle_button.clicked.connect(
+        lambda: owner._set_chart_info_panel_mode("quotes")
+    )
+
     owner.chart_tags_toggle_button = QPushButton("🏷️") #Tags
     owner.chart_tags_toggle_button.setCheckable(True)
     apply_button_cursor(owner.chart_tags_toggle_button)
@@ -994,6 +1004,7 @@ def build_chart_view_left_panel(
     chart_info_header_layout.addWidget(owner.chart_info_toggle_button, 0)
     chart_info_header_layout.addWidget(owner.chart_bio_toggle_button, 0)
     chart_info_header_layout.addWidget(owner.chart_comments_toggle_button, 0)
+    chart_info_header_layout.addWidget(owner.chart_quotes_toggle_button, 0)
     chart_info_header_layout.addWidget(owner.chart_tags_toggle_button, 0)
     chart_info_header_layout.addWidget(owner.chart_rectification_toggle_button, 0)
     chart_info_header_layout.addWidget(owner.chart_source_toggle_button, 0)
@@ -1958,6 +1969,91 @@ def build_chart_view_right_panel(
         state.active_tab = "subjective_notes"
     owner._chart_right_panel_controller.set_active_panel("subjective_notes")
 
+
+
+def _build_chart_quote_editor(owner: QWidget, quote: str) -> QTextEdit:
+    """Create one editable quote block for Chart View quote metadata."""
+    editor = QTextEdit()
+    editor.setAcceptRichText(False)
+    editor.setPlaceholderText("Edit this quote…")
+    editor.setMinimumHeight(56)
+    editor.setPlainText(str(quote or ""))
+    editor.textChanged.connect(owner._mark_lucygoosey)
+    return editor
+
+
+def render_chart_view_quotes(owner: QWidget) -> None:
+    """Render the current quote list as individually editable quote blocks."""
+    layout = getattr(owner, "chart_quotes_list_layout", None)
+    if layout is None:
+        return
+    while layout.count():
+        item = layout.takeAt(0)
+        widget = item.widget()
+        if widget is not None:
+            widget.deleteLater()
+    owner._chart_quote_editors = []
+    quotes = [str(value).strip() for value in getattr(owner, "_chart_quotes_current", []) if str(value).strip()]
+    if not quotes:
+        empty_label = QLabel("No quotes yet.")
+        empty_label.setStyleSheet("color:#8d8d8d;")
+        layout.addWidget(empty_label)
+        return
+    for quote in quotes:
+        editor = _build_chart_quote_editor(owner, quote)
+        owner._chart_quote_editors.append(editor)
+        layout.addWidget(editor)
+
+
+def get_chart_view_quotes(owner: QWidget) -> list[str]:
+    """Return quote metadata from the editable quote blocks."""
+    editors = getattr(owner, "_chart_quote_editors", [])
+    if editors:
+        return [editor.toPlainText().strip() for editor in editors if editor.toPlainText().strip()]
+    return [str(value).strip() for value in getattr(owner, "_chart_quotes_current", []) if str(value).strip()]
+
+
+def set_chart_view_quote_state(owner: QWidget, quotes: list[str]) -> None:
+    owner._chart_quotes_current = [str(value).strip() for value in quotes if str(value).strip()]
+    if hasattr(owner, "chart_quotes_input"):
+        owner.chart_quotes_input.blockSignals(True)
+        owner.chart_quotes_input.setText("")
+        owner.chart_quotes_input.blockSignals(False)
+    render_chart_view_quotes(owner)
+
+
+def on_chart_view_quote_add(owner: QWidget) -> None:
+    quote = owner.chart_quotes_input.text().strip()
+    if not quote:
+        return
+    owner._chart_quotes_current = [*get_chart_view_quotes(owner), quote]
+    owner.chart_quotes_input.setText("")
+    render_chart_view_quotes(owner)
+    owner._mark_lucygoosey()
+
+
+def setup_chart_view_quotes_section(*, owner: QWidget, quotes_content_layout: QVBoxLayout) -> None:
+    """Build Chart View quote input and editable quote-list UI."""
+    owner.chart_quotes_input.setPlaceholderText("add a quote")
+    owner.chart_quotes_input.returnPressed.connect(lambda: on_chart_view_quote_add(owner))
+    quote_row = QHBoxLayout()
+    quote_row.setContentsMargins(0, 0, 0, 0)
+    quote_row.setSpacing(6)
+    quote_row.addWidget(owner.chart_quotes_input, 1)
+    owner.chart_quotes_add_button = QPushButton("✅")
+    owner.chart_quotes_add_button.clicked.connect(lambda: on_chart_view_quote_add(owner))
+    quote_row.addWidget(owner.chart_quotes_add_button, 0)
+    quotes_content_layout.addLayout(quote_row)
+
+    owner.chart_quotes_list_widget = QWidget()
+    owner.chart_quotes_list_layout = QVBoxLayout()
+    owner.chart_quotes_list_layout.setContentsMargins(0, 0, 0, 0)
+    owner.chart_quotes_list_layout.setSpacing(6)
+    owner.chart_quotes_list_widget.setLayout(owner.chart_quotes_list_layout)
+    quotes_content_layout.addWidget(owner.chart_quotes_list_widget, 1)
+    owner._chart_quote_editors = []
+    owner._chart_quotes_current = []
+    render_chart_view_quotes(owner)
 
 def setup_chart_view_tags_section(*, owner: QWidget, tags_content_layout: QVBoxLayout) -> None:
     """Build Chart View Subjective Notes tag input + current-tag chips UI."""
