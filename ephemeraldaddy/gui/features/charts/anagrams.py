@@ -34,6 +34,40 @@ from ephemeraldaddy.gui.style import (
 )
 
 
+def split_identity_values(value: object) -> list[str]:
+    """Split comma-delimited chart names or aliases into individual display values."""
+    parts = [part.strip() for part in str(value or "").split(",")]
+    return [part for part in parts if part]
+
+
+def chart_identity_options(chart: object | None) -> list[tuple[str, str, str]]:
+    """Return dropdown options as (label, source key, text) for chart name and aliases."""
+    if chart is None:
+        return [("Chart Name", "name:0", "")]
+    options: list[tuple[str, str, str]] = []
+    seen: set[str] = set()
+    for field_name, fallback_label in (("name", "Chart Name"), ("alias", "Chart Alias")):
+        values = split_identity_values(getattr(chart, field_name, ""))
+        for index, value in enumerate(values):
+            dedupe_key = f"{field_name}:{value.casefold()}"
+            if dedupe_key in seen:
+                continue
+            seen.add(dedupe_key)
+            label = value if value else fallback_label
+            options.append((label, f"{field_name}:{index}", value))
+    return options or [("Chart Name", "name:0", "")]
+
+
+def chart_identity_text_for_source(chart: object | None, source_key: str) -> tuple[str, str]:
+    """Return (subject label, text) for an ABC identity dropdown source key."""
+    options = chart_identity_options(chart)
+    for label, key, text in options:
+        if key == source_key:
+            return label, text
+    label, _key, text = options[0]
+    return label, text
+
+
 ANAGRAM_SOURCE_OPTIONS: list[tuple[str, str]] = [
     ("Chart Name", "name"),
     ("Chart Alias", "alias"),
@@ -65,7 +99,7 @@ class AnagramsSectionWidgets:
 class AnagramsViewState:
     """Mutable display state for Chart View's anagrams panel."""
 
-    selected_source: str = "name"
+    selected_source: str = "name:0"
     current_words: list[str] | None = None
     clicked_definitions: dict[str, str] | None = None
     current_chart_text: str = ""
@@ -98,7 +132,7 @@ class AnagramsPresenter:
 
     @staticmethod
     def chart_has_alias(chart: object | None) -> bool:
-        return bool(str(getattr(chart, "alias", "") or "").strip())
+        return bool(split_identity_values(getattr(chart, "alias", "") if chart is not None else ""))
 
     def _clear_definition_detail(self) -> None:
         self.widgets.definition_label.clear()
@@ -122,16 +156,16 @@ class AnagramsPresenter:
         *,
         reset_to_chart_name: bool = False,
     ) -> None:
-        alias_available = self.chart_has_alias(chart)
-        if reset_to_chart_name or not alias_available:
-            self.state.selected_source = "name"
+        options = chart_identity_options(chart)
+        option_keys = {key for _label, key, _text in options}
+        if reset_to_chart_name or self.state.selected_source not in option_keys:
+            self.state.selected_source = options[0][1]
 
         dropdown = self.widgets.source_dropdown
         blocker = QSignalBlocker(dropdown)
         dropdown.clear()
-        dropdown.addItem("Chart Name", "name")
-        if alias_available:
-            dropdown.addItem("Chart Alias", "alias")
+        for label, source_key, _text in options:
+            dropdown.addItem(label, source_key)
         selected_index = dropdown.findData(self.state.selected_source)
         dropdown.setCurrentIndex(max(0, selected_index))
         dropdown.setMinimumWidth(dropdown.sizeHint().width() + 12)
@@ -145,7 +179,7 @@ class AnagramsPresenter:
     ) -> None:
         self.sync_source_options(chart, reset_to_chart_name=reset_to_chart_name)
         if chart is None:
-            source_label = ANAGRAM_SOURCE_LABELS.get(self.state.selected_source, "Chart name")
+            source_label, _text = chart_identity_text_for_source(chart, self.state.selected_source)
             self.widgets.list_label.setText(
                 f"Generate or load a chart to scan {source_label.lower()} letters."
             )
@@ -153,23 +187,13 @@ class AnagramsPresenter:
             self.state.current_words = []
             self.state.clicked_definitions.clear()
             self.state.current_chart_text = ""
-            self.state.current_subject_label = ANAGRAM_SOURCE_LABELS.get(
-                self.state.selected_source,
-                "Chart name",
-            )
+            self.state.current_subject_label = source_label
             return
         self.render(chart)
 
     def render(self, chart: object) -> None:
         self.sync_source_options(chart)
-        source = self.state.selected_source if self.state.selected_source in {"name", "alias"} else "name"
-        if source == "alias" and not self.chart_has_alias(chart):
-            source = "name"
-            self.state.selected_source = "name"
-            self.sync_source_options(chart)
-
-        subject_label = ANAGRAM_SOURCE_LABELS.get(source, "Chart name")
-        chart_text = str(getattr(chart, source, "") or "")
+        subject_label, chart_text = chart_identity_text_for_source(chart, self.state.selected_source)
         self.state.current_chart_text = chart_text.strip()
         self.state.current_subject_label = subject_label
         if not self.state.current_chart_text:
@@ -199,9 +223,8 @@ class AnagramsPresenter:
         self._render_word_list()
 
     def source_changed(self, source_value: str, chart: object | None) -> None:
-        requested_source = source_value if source_value in {"name", "alias"} else "name"
-        if requested_source == "alias" and not self.chart_has_alias(chart):
-            requested_source = "name"
+        option_keys = {key for _label, key, _text in chart_identity_options(chart)}
+        requested_source = source_value if source_value in option_keys else "name:0"
         self.state.selected_source = requested_source
         self.refresh_for_chart(chart)
 

@@ -57,10 +57,23 @@ def _install_style_stub():
     style.DATABASE_ANALYTICS_DROPDOWN_STYLE = ""
     style.DATABASE_ANALYTICS_SUBHEADER_STYLE = ""
     style.DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE = ""
+    style.ABC_PANEL_SECTION_CONTENT_MARGINS = (0, 0, 0, 0)
+    style.ABC_PANEL_SECTION_CONTENT_SPACING = 0
+    style.ABC_PANEL_SECTION_FRAME_MARGINS = (0, 0, 0, 0)
+    style.ABC_PANEL_SECTION_FRAME_SPACING = 0
+    style.ABC_PANEL_SECTION_FRAME_STYLE = ""
+
+    def apply_button_cursor(*_args, **_kwargs):
+        pass
+
+    def apply_shared_dropdown_style(*_args, **_kwargs):
+        pass
 
     def configure_collapsible_header_toggle(*_args, **_kwargs):
         pass
 
+    style.apply_button_cursor = apply_button_cursor
+    style.apply_shared_dropdown_style = apply_shared_dropdown_style
     style.configure_collapsible_header_toggle = configure_collapsible_header_toggle
     sys.modules.setdefault("ephemeraldaddy.gui.style", style)
 
@@ -99,17 +112,24 @@ class FakeLabel(FakeWidget):
 
 
 class FakeDropdown:
+    def __init__(self):
+        self.items = []
+        self.current_index = -1
+
     def clear(self):
-        pass
+        self.items.clear()
 
-    def addItem(self, *_args):
-        pass
+    def addItem(self, label, data):
+        self.items.append((label, data))
 
-    def findData(self, _data):
-        return 0
+    def findData(self, data):
+        for index, (_label, item_data) in enumerate(self.items):
+            if item_data == data:
+                return index
+        return -1
 
-    def setCurrentIndex(self, _index):
-        pass
+    def setCurrentIndex(self, index):
+        self.current_index = index
 
     def setMinimumWidth(self, _width):
         pass
@@ -136,6 +156,40 @@ def test_render_anagrams_html_can_show_multiple_inline_definitions():
     assert "to hear attentively" in rendered
     assert "silent</a><span" in rendered
     assert "making no sound" in rendered
+
+
+def test_chart_identity_options_split_comma_delimited_name_and_alias():
+    chart = SimpleNamespace(name="First Name, Second Name", alias="Alias One, Alias Two")
+
+    assert anagrams.chart_identity_options(chart) == [
+        ("First Name", "name:0", "First Name"),
+        ("Second Name", "name:1", "Second Name"),
+        ("Alias One", "alias:0", "Alias One"),
+        ("Alias Two", "alias:1", "Alias Two"),
+    ]
+
+
+def test_presenter_dropdown_uses_actual_name_and_alias_values():
+    dropdown = FakeDropdown()
+    widgets = anagrams.AnagramsSectionWidgets(
+        summary_label=FakeLabel(),
+        list_label=FakeLabel(),
+        definition_label=FakeLabel(),
+        export_button=object(),
+        source_dropdown=dropdown,
+        container=FakeWidget(),
+    )
+    presenter = anagrams.AnagramsPresenter(widgets)
+    chart = SimpleNamespace(name="Name A, Name B", alias="Alias A, Alias B")
+
+    presenter.sync_source_options(chart)
+
+    assert dropdown.items == [
+        ("Name A", "name:0"),
+        ("Name B", "name:1"),
+        ("Alias A", "alias:0"),
+        ("Alias B", "alias:1"),
+    ]
 
 
 def test_definition_clicked_toggles_inline_detail_and_rerenders_word_list(monkeypatch):

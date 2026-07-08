@@ -9,6 +9,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+
 _EUPHONICS_PATH = Path(__file__).resolve().parents[3] / "analysis" / "euphonics.json"
 _TRAILING_COMMA_RE = re.compile(r",(?=\s*[}\]])")
 
@@ -55,17 +56,59 @@ def _entry_tokens(entry: dict[str, Any]) -> set[str]:
     return tokens
 
 
-def euphonics_matches_for_name(name: str) -> list[dict[str, str]]:
-    """Match euphonics letter, letter-pair, and sound entries present in a chart name."""
+def _token_positions(normalized_name: str, token: str) -> list[int]:
+    """Return overlapping occurrence positions for a euphonics token."""
+    if not token:
+        return []
+    return [
+        match.start()
+        for match in re.finditer(f"(?={re.escape(token)})", normalized_name)
+    ]
+
+
+def _sound_color(sound_id: str) -> str:
+    """Assign a stable high-contrast color to each euphonics sound."""
+    palette = (
+        "#ff8fa3",
+        "#ffd166",
+        "#8ee6a8",
+        "#72ddf7",
+        "#a78bfa",
+        "#f0a6ff",
+        "#ffb86c",
+        "#7dd3fc",
+        "#c4f1be",
+        "#fca5a5",
+        "#b5e48c",
+        "#f9a8d4",
+    )
+    index = sum(ord(character) for character in str(sound_id or "")) % len(palette)
+    return palette[index]
+
+
+def euphonics_matches_for_name(name: str) -> list[dict[str, str | int]]:
+    """Match euphonics entries present in a chart name, sorted by frequency then appearance."""
     normalized_name = re.sub(r"[^a-z]", "", str(name or "").lower())
     if not normalized_name:
         return []
-    matches: list[dict[str, str]] = []
+    matches: list[dict[str, str | int]] = []
     seen: set[str] = set()
     for entry in euphonics_entries():
-        matched_token = next((token for token in entry["_tokens"] if token and token in normalized_name), "")
-        if not matched_token:
+        token_positions = [
+            (token, positions)
+            for token in entry["_tokens"]
+            if token and (positions := _token_positions(normalized_name, token))
+        ]
+        if not token_positions:
             continue
+        matched_token, positions = max(
+            token_positions,
+            key=lambda token_and_positions: (
+                len(token_and_positions[1]),
+                -token_and_positions[1][0],
+                len(token_and_positions[0]),
+            ),
+        )
         entry_id = str(entry.get("id") or entry.get("letterGroup") or matched_token).strip()
         if entry_id in seen:
             continue
@@ -76,8 +119,12 @@ def euphonics_matches_for_name(name: str) -> list[dict[str, str]]:
                 "title": str(entry.get("title") or entry_id).strip(),
                 "summary": str(entry.get("summary") or "No summary available.").strip(),
                 "matched_token": matched_token.upper(),
+                "occurrences": len(positions),
+                "first_index": positions[0],
+                "color": _sound_color(entry_id),
             }
         )
+    matches.sort(key=lambda match: (-int(match["occurrences"]), int(match["first_index"])))
     return matches
 
 
@@ -91,9 +138,17 @@ def render_euphonics_html(name: str) -> str:
         return f"No Euphonics meanings found for <b>{html.escape(display_name)}</b>."
     items = []
     for match in matches:
-        label = html.escape(match["id"])
-        token = html.escape(match["matched_token"])
-        title = html.escape(match["title"])
-        summary = html.escape(match["summary"])
-        items.append(f"<li><b>{label}</b> <span style='color:#9bd3ff;'>(found: {token})</span>: {title}<br>{summary}</li>")
+        label = html.escape(str(match["id"]))
+        token = html.escape(str(match["matched_token"]))
+        title = html.escape(str(match["title"]))
+        summary = html.escape(str(match["summary"]))
+        occurrences = int(match["occurrences"])
+        color = html.escape(str(match["color"]))
+        items.append(
+            "<li>"
+            f"<span style='color:{color};'><b>{label}</b></span> "
+            f"<span style='color:#9bd3ff;'>(found: {token} x {occurrences})</span>: "
+            f"<span style='color:{color};'>{title}<br>{summary}</span>"
+            "</li>"
+        )
     return f"<div>Euphonics for <b>{html.escape(display_name)}</b>:</div><ul>{''.join(items)}</ul>"
