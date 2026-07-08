@@ -66,7 +66,7 @@ DATABASE_METRICS_SECTION_ORDER: tuple[str, ...] = (
     "human_design",
     "bazi",
 )
-TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_VERSION = 2
+TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_VERSION = 3
 TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_FILENAME = ".traits_distribution_likelihood_cache.json"
 TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_MAX_ENTRIES = 100_000
 TRAITS_DISTRIBUTION_SCORING_TIME_BUDGET_SECONDS = 8.0
@@ -4719,10 +4719,8 @@ class DatabaseAnalyticsChartsMixin:
             return False
         if not isinstance(payload, dict):
             return False
-        if payload.get("version") != TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_VERSION:
-            return False
-        entries = payload.get("entries", [])
-        if not isinstance(entries, list):
+        payload_version = payload.get("version")
+        if payload_version not in {2, TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_VERSION}:
             return False
         cache_revision = int(getattr(self, "_database_metrics_cache_revision", 0))
         chart_tokens = self._traits_distribution_chart_tokens()
@@ -4730,53 +4728,88 @@ class DatabaseAnalyticsChartsMixin:
         individual_cache: dict[tuple[tuple[str, str, str], int], float] = {}
         individual_profile_cache: dict[tuple[str, int], float] = {}
         skipped_entries = 0
-        for entry in entries:
-            if not isinstance(entry, dict):
-                skipped_entries += 1
-                continue
-            try:
-                chart_id = int(entry.get("chart_id"))
-            except (TypeError, ValueError):
-                skipped_entries += 1
-                continue
-            saved_chart_token = str(entry.get("chart_token", "") or "")
+
+        def chart_is_current(chart_id: int, saved_chart_token: str) -> bool:
             current_chart_token = chart_tokens.get(chart_id)
-            if current_chart_token and saved_chart_token and saved_chart_token != current_chart_token:
-                skipped_entries += 1
-                continue
-            signature = entry.get("trait_signature")
-            likelihoods = entry.get("likelihoods")
-            if not isinstance(signature, list) or not isinstance(likelihoods, dict):
-                skipped_entries += 1
-                continue
-            trait_signature = tuple(
-                (str(item[0]), str(item[1]), str(item[2]))
-                for item in signature
-                if isinstance(item, (list, tuple)) and len(item) == 3
-            )
-            if not trait_signature:
-                skipped_entries += 1
-                continue
-            normalized_likelihoods: dict[str, float] = {}
-            trait_keys_by_name = {name: (name, color, profile) for name, color, profile in trait_signature}
-            for name, value in likelihoods.items():
-                if not isinstance(name, str):
+            return not (current_chart_token and saved_chart_token and saved_chart_token != current_chart_token)
+
+        # Version 3 stores each analytical profile once and then stores per-chart
+        # likelihood rows by compact profile index.  This avoids rewriting whole
+        # trait signatures/profiles for every chart and makes the cache reusable
+        # across trait renames/recolors while still preserving row-level staleness.
+        if payload_version == TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_VERSION:
+            raw_profiles = payload.get("profiles", [])
+            profile_keys = [str(item) for item in raw_profiles] if isinstance(raw_profiles, list) else []
+            profile_entries = payload.get("profile_entries", [])
+            if not isinstance(profile_entries, list):
+                return False
+            for entry in profile_entries:
+                if not isinstance(entry, dict):
+                    skipped_entries += 1
                     continue
                 try:
-                    likelihood = float(value)
+                    chart_id = int(entry.get("chart_id"))
+                    profile_index = int(entry.get("profile"))
+                    likelihood = float(entry.get("likelihood"))
                 except (TypeError, ValueError):
                     skipped_entries += 1
                     continue
-                normalized_likelihoods[str(name)] = likelihood
-                trait_key = trait_keys_by_name.get(str(name))
-                if trait_key is not None:
-                    individual_cache[(trait_key, chart_id)] = likelihood
-                    individual_profile_cache[(trait_key[2], chart_id)] = likelihood
-            if not normalized_likelihoods:
-                skipped_entries += 1
-                continue
-            likelihood_cache[(cache_revision, trait_signature, chart_id)] = normalized_likelihoods
-        if not likelihood_cache and not individual_cache:
+                if profile_index < 0 or profile_index >= len(profile_keys):
+                    skipped_entries += 1
+                    continue
+                if not chart_is_current(chart_id, str(entry.get("chart_token", "") or "")):
+                    skipped_entries += 1
+                    continue
+                individual_profile_cache[(profile_keys[profile_index], chart_id)] = likelihood
+        else:
+            entries = payload.get("entries", [])
+            if not isinstance(entries, list):
+                return False
+            for entry in entries:
+                if not isinstance(entry, dict):
+                    skipped_entries += 1
+                    continue
+                try:
+                    chart_id = int(entry.get("chart_id"))
+                except (TypeError, ValueError):
+                    skipped_entries += 1
+                    continue
+                if not chart_is_current(chart_id, str(entry.get("chart_token", "") or "")):
+                    skipped_entries += 1
+                    continue
+                signature = entry.get("trait_signature")
+                likelihoods = entry.get("likelihoods")
+                if not isinstance(signature, list) or not isinstance(likelihoods, dict):
+                    skipped_entries += 1
+                    continue
+                trait_signature = tuple(
+                    (str(item[0]), str(item[1]), str(item[2]))
+                    for item in signature
+                    if isinstance(item, (list, tuple)) and len(item) == 3
+                )
+                if not trait_signature:
+                    skipped_entries += 1
+                    continue
+                normalized_likelihoods: dict[str, float] = {}
+                trait_keys_by_name = {name: (name, color, profile) for name, color, profile in trait_signature}
+                for name, value in likelihoods.items():
+                    if not isinstance(name, str):
+                        continue
+                    try:
+                        likelihood = float(value)
+                    except (TypeError, ValueError):
+                        skipped_entries += 1
+                        continue
+                    normalized_likelihoods[str(name)] = likelihood
+                    trait_key = trait_keys_by_name.get(str(name))
+                    if trait_key is not None:
+                        individual_cache[(trait_key, chart_id)] = likelihood
+                        individual_profile_cache[(trait_key[2], chart_id)] = likelihood
+                if normalized_likelihoods:
+                    likelihood_cache[(cache_revision, trait_signature, chart_id)] = normalized_likelihoods
+                else:
+                    skipped_entries += 1
+        if not likelihood_cache and not individual_cache and not individual_profile_cache:
             return False
         if skipped_entries:
             logger.info(
@@ -4790,40 +4823,69 @@ class DatabaseAnalyticsChartsMixin:
         self._traits_distribution_likelihood_cache_dirty = False
         _predictions_debug(
             self,
-            "Traits distribution likelihood cache loaded chart_entries=%s individual_entries=%s skipped=%s",
+            "Traits distribution likelihood cache loaded chart_entries=%s individual_entries=%s profile_entries=%s skipped=%s",
             len(likelihood_cache),
             len(individual_cache),
+            len(individual_profile_cache),
             skipped_entries,
         )
         return True
 
     def _save_traits_distribution_likelihood_cache(self) -> None:
+        individual_profile_cache = getattr(self, "_traits_distribution_individual_profile_likelihood_cache", None)
         likelihood_cache = getattr(self, "_traits_distribution_chart_likelihood_cache", None)
-        if not isinstance(likelihood_cache, dict) or not likelihood_cache:
+        if not isinstance(individual_profile_cache, dict):
+            individual_profile_cache = {}
+        if not individual_profile_cache and isinstance(likelihood_cache, dict):
+            for cache_key, likelihoods in likelihood_cache.items():
+                if (
+                    not isinstance(cache_key, tuple)
+                    or len(cache_key) != 3
+                    or not isinstance(cache_key[1], tuple)
+                    or not isinstance(likelihoods, dict)
+                ):
+                    continue
+                try:
+                    chart_id = int(cache_key[2])
+                except (TypeError, ValueError):
+                    continue
+                trait_keys_by_name = {name: (name, color, profile) for name, color, profile in cache_key[1]}
+                for name, value in likelihoods.items():
+                    trait_key = trait_keys_by_name.get(str(name))
+                    if trait_key is None:
+                        continue
+                    try:
+                        individual_profile_cache[(trait_key[2], chart_id)] = float(value)
+                    except (TypeError, ValueError):
+                        continue
+        if not individual_profile_cache:
             return
+        profiles: list[str] = []
+        profile_indexes: dict[str, int] = {}
         entries: list[dict[str, Any]] = []
-        current_revision = int(getattr(self, "_database_metrics_cache_revision", 0))
         chart_tokens = self._traits_distribution_chart_tokens()
-        for cache_key, likelihoods in likelihood_cache.items():
-            if (
-                not isinstance(cache_key, tuple)
-                or len(cache_key) != 3
-                or cache_key[0] != current_revision
-                or not isinstance(cache_key[1], tuple)
-                or not isinstance(likelihoods, dict)
-            ):
+        for cache_key, likelihood in individual_profile_cache.items():
+            if not isinstance(cache_key, tuple) or len(cache_key) != 2:
+                continue
+            profile_key = str(cache_key[0])
+            if not profile_key:
                 continue
             try:
-                chart_id = int(cache_key[2])
-                normalized_likelihoods = {str(name): float(value) for name, value in likelihoods.items()}
+                chart_id = int(cache_key[1])
+                normalized_likelihood = float(likelihood)
             except (TypeError, ValueError):
                 continue
+            profile_index = profile_indexes.get(profile_key)
+            if profile_index is None:
+                profile_index = len(profiles)
+                profile_indexes[profile_key] = profile_index
+                profiles.append(profile_key)
             entries.append(
                 {
-                    "trait_signature": [list(item) for item in cache_key[1]],
+                    "profile": profile_index,
                     "chart_id": chart_id,
                     "chart_token": chart_tokens.get(chart_id, ""),
-                    "likelihoods": normalized_likelihoods,
+                    "likelihood": normalized_likelihood,
                 }
             )
             if len(entries) >= TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_MAX_ENTRIES:
@@ -4835,16 +4897,18 @@ class DatabaseAnalyticsChartsMixin:
             path.parent.mkdir(parents=True, exist_ok=True)
             payload: dict[str, Any] = {
                 "version": TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_VERSION,
-                "entries": entries,
+                "format": "profile_likelihoods_v1",
+                "profiles": profiles,
+                "profile_entries": entries,
             }
-            if len(likelihood_cache) > len(entries):
+            if len(individual_profile_cache) > len(entries):
                 payload["truncated"] = True
                 payload["max_entries"] = TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_MAX_ENTRIES
             temp_path = path.with_suffix(f"{path.suffix}.tmp")
             temp_path.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
             temp_path.replace(path)
             self._traits_distribution_likelihood_cache_dirty = False
-            _predictions_debug(self, "Traits distribution likelihood cache saved entries=%s path=%s", len(entries), path)
+            _predictions_debug(self, "Traits distribution likelihood cache saved profile_entries=%s path=%s", len(entries), path)
         except Exception:
             logger.exception("Failed to save traits distribution likelihood cache.")
 

@@ -79,7 +79,6 @@ from ephemeraldaddy.analysis.weighted_chart_predictor import (
     _singleton_position_bucket,
     _weighted_text_entries,
 )
-from ephemeraldaddy.analysis.traits import calculate_trait_likelihoods
 from ephemeraldaddy.analysis.dnd.dnd_stat_calculator import (
     _DND_AVERAGE_STAT_ANCHOR,
     _EVIDENCE_DENOMINATOR_SCALE,
@@ -87,7 +86,10 @@ from ephemeraldaddy.analysis.dnd.dnd_stat_calculator import (
     _calculate_stat_evidence_denominators,
 )
 from ephemeraldaddy.core.interpretations import ASPECT_SCORE_WEIGHTS
-from ephemeraldaddy.gui.features.charts.trait_predictions import _database_trait_averages
+from ephemeraldaddy.gui.features.charts.trait_predictions import (
+    _database_trait_averages,
+    trait_likelihoods_with_distribution_cache,
+)
 from ephemeraldaddy.gui.style import (
     CHART_DATA_HIGHLIGHT_COLOR,
     DND_STAT_EARTHTONE_COLORS,
@@ -913,7 +915,7 @@ def _dnd_alignment_score_parts(owner: Any, chart: Any, *, allow_stale: bool = Fa
     trait_items = _dnd_alignment_trait_items()
     if chart is None or not trait_items:
         return {}
-    likelihoods = calculate_trait_likelihoods(chart, trait_items)
+    likelihoods = trait_likelihoods_with_distribution_cache(owner, chart, trait_items)
     try:
         database_averages = _database_trait_averages(owner, trait_items)
     except Exception:

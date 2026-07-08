@@ -255,6 +255,78 @@ def _chart_uid_for_trait_metadata(chart: Any) -> str | None:
     return chart_uid or None
 
 
+def _database_chart_id_for_chart(owner: Any, chart: Any) -> int | None:
+    """Resolve a chart object back to its Database View chart id when it is persisted."""
+    explicit_id = getattr(chart, "chart_id", None) or getattr(chart, "id", None)
+    try:
+        if explicit_id is not None:
+            return int(explicit_id)
+    except (TypeError, ValueError):
+        pass
+    chart_uid = str(getattr(chart, "chart_uid", "") or "").strip().upper()
+    if not chart_uid:
+        return None
+    normalize_row = getattr(owner, "_normalize_chart_row", None)
+    for row in _database_chart_rows(owner):
+        normalized = normalize_row(row) if callable(normalize_row) else row
+        if normalized is None:
+            continue
+        try:
+            chart_id = int(normalized[0])
+        except (TypeError, ValueError, IndexError):
+            continue
+        row_uid = ""
+        if isinstance(normalized, (list, tuple)) and len(normalized) > 30:
+            row_uid = str(normalized[30] or "").strip().upper()
+        if row_uid == chart_uid:
+            return chart_id
+    return None
+
+
+def trait_likelihoods_with_distribution_cache(
+    owner: Any,
+    chart: Any,
+    traits: list[dict[str, Any]],
+) -> dict[str, float]:
+    """Score traits through the shared Database Analytics likelihood cache when possible.
+
+    Database Analytics, Chart View Traits, and D&D alignment traits all use this
+    wrapper so persisted database charts are scored once per analytical profile.
+    Draft/unsaved charts still fall back to direct scoring because they do not
+    have stable database row tokens for the persisted cache.
+    """
+    if chart is None or not traits:
+        return {}
+    collect = getattr(owner, "_collect_traits_distribution_analytics", None)
+    signature_builder = getattr(owner, "_traits_distribution_signature", None)
+    chart_id = _database_chart_id_for_chart(owner, chart)
+    if not callable(collect) or not callable(signature_builder) or chart_id is None:
+        return calculate_trait_likelihoods(chart, traits)
+    try:
+        signature = signature_builder(traits)
+        analytics = collect(
+            [chart_id],
+            trait_items=traits,
+            trait_signature=signature,
+            time_budget_seconds=None,
+        )
+        chart_count = int(analytics.get("chart_count", 0) or 0)
+        totals = analytics.get("totals", {})
+        if chart_count > 0 and isinstance(totals, dict):
+            return {
+                str(name): round((float(totals.get(name, 0.0)) / float(chart_count)) * 100.0, 1)
+                for name in analytics.get("trait_names", [])
+            }
+    except Exception as exc:
+        logger.warning(
+            "Trait likelihoods could not use shared distribution cache for chart %s: %s",
+            getattr(chart, "chart_uid", getattr(chart, "name", "unknown")),
+            exc,
+            exc_info=True,
+        )
+    return calculate_trait_likelihoods(chart, traits)
+
+
 def _chart_trait_metadata_signature(chart: Any) -> str:
     try:
         uses_houses = bool(chart_uses_houses(chart))
@@ -760,7 +832,7 @@ def trait_metadata_for_chart(owner: Any, chart: Any, *, cached_only: bool = Fals
     likelihoods = dict(cached_likelihoods)
     if missing_traits:
         _predictions_debug(owner, "Trait metadata scoring missing chart traits=%s", len(missing_traits))
-        likelihoods.update(calculate_trait_likelihoods(chart, missing_traits))
+        likelihoods.update(trait_likelihoods_with_distribution_cache(owner, chart, missing_traits))
     database_averages = dict(cached_database_averages)
     missing_average_traits = [trait for name, trait in traits_by_name.items() if name not in database_averages]
     if missing_average_traits:
