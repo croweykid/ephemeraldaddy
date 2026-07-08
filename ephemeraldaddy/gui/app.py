@@ -24472,7 +24472,7 @@ class MainWindow(QMainWindow):
         rectification_range_row = QHBoxLayout()
         rectification_range_row.setContentsMargins(0, 0, 0, 0)
         rectification_range_row.setSpacing(CHART_VIEW_RECTIFIED_LABEL_CHECKBOX_SPACING)
-        rectification_range_row.addWidget(QLabel("Use Rectification Range:"), 0)
+        rectification_range_row.addWidget(QLabel("Use Rectified Range:"), 0)
         rectification_range_row.addWidget(self.rectification_range_checkbox, 0)
         rectification_range_row.addWidget(self.rectification_range_start_edit, 0)
         rectification_range_row.addWidget(self.rectification_range_to_label, 0)

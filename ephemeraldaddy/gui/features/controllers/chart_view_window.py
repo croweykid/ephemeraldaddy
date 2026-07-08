@@ -975,7 +975,7 @@ def build_chart_view_left_panel(
         lambda: owner._set_chart_info_panel_mode("tags")
     )
 
-    owner.chart_rectification_toggle_button = QPushButton("⏳💬") #Rectification Notes
+    owner.chart_rectification_toggle_button = QPushButton("🤔") #Rectification Notes
     owner.chart_rectification_toggle_button.setCheckable(True)
     apply_button_cursor(owner.chart_rectification_toggle_button)
     owner.chart_rectification_toggle_button.setMinimumHeight(24)

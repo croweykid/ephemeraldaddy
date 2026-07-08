@@ -49,6 +49,7 @@ EMOJI_TO_PNG: dict[str, str] = {
     "🎱": "quiz11.png", #used by the Chart Predictor Quiz
     "🔎": "magnifying-glass-tilted-right-blobmoji-512.png",
     "🫂": "people-holding-hands-twemoji-512.png",
+    "🤔": "rectification.png",
 }
 
 # Compatibility aliases for variants currently used in some UI strings.

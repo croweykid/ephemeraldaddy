@@ -192,7 +192,7 @@ EXACT_PLACEHOLDER_TOOLTIP_OVERRIDES: dict[str, str] = {
     "💭": "your own notes or impressions about this chart",
     "👤" : "biographical description: who/what is this??",
     "🛈" : "click the 🛈s around the chart/app & its details will appear here",
-    "⏳💬": "if birth data/time is unknown, any notes about what dates/time(s) it might be & why can go here",
+    "🤔": "if birth data/time is unknown, any notes about what dates/time(s) it might be & why can go here",
     "Year 1st Encountered": "The year you first knowingly encountered this entity",
 }
 
