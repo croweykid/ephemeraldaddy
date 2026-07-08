@@ -6,6 +6,7 @@ import hashlib
 import html
 import json
 import logging
+import sys
 import urllib.parse
 from datetime import datetime
 from pathlib import Path
@@ -32,6 +33,20 @@ TRAIT_DEVIATION_ASSIGNMENT_THRESHOLD = 5.0
 TRAIT_DB_NORMS_CACHE_VERSION = 1
 TRAIT_DB_NORMS_CACHE_PATH = Path.home() / ".ephemeraldaddy" / "cache" / "trait_db_norms.json"
 TRAIT_DB_NORMS_MAX_STALE_RATIO = 0.10
+
+
+def _predictions_debug_enabled(owner: Any) -> bool:
+    return bool(getattr(owner, "_predictions_thread_debug", False))
+
+
+def _predictions_debug(owner: Any, message: str, *args: object) -> None:
+    """Emit terminal Predictions step logs when Settings > Dev Tools enables them."""
+    if not _predictions_debug_enabled(owner):
+        return
+    rendered = message % args if args else message
+    timestamp = datetime.now().isoformat(timespec="milliseconds")
+    logger.info("[predictions-thread-debug][traits] %s", rendered)
+    print(f"[predictions-thread-debug][{timestamp}][traits] {rendered}", file=sys.stderr, flush=True)
 
 
 def _format_signed_percentage(value: float | None) -> str:
@@ -368,16 +383,28 @@ def _database_norm_signature_for_traits(owner: Any, traits: list[dict[str, Any]]
     current_norm_state = _database_norm_state(owner)
     cache_entries = _load_trait_norm_cache()
     fresh_signatures: set[str] = set()
+    stale_signatures: set[str] = set()
     chart_uids = _database_chart_uids(owner)
     for trait in traits:
         cache_key = _trait_norm_cache_key(chart_uids, trait)
         cached = cache_entries.get(cache_key or "")
         cached_state = cached.get("norm_state", {}) if isinstance(cached, dict) else {}
         cached_signature = str(cached.get("norm_signature", "")).strip() if isinstance(cached, dict) else ""
-        if cached_signature and _database_norm_state_is_fresh(cached_state, current_norm_state):
+        if not cached_signature:
+            continue
+        if _database_norm_state_is_fresh(cached_state, current_norm_state):
             fresh_signatures.add(cached_signature)
+        else:
+            stale_signatures.add(cached_signature)
     if fresh_signatures:
         return sorted(fresh_signatures)[0]
+    if stale_signatures:
+        _predictions_debug(
+            owner,
+            "Trait DB norm signature using stale persistent cache while background refresh can update it signatures=%s",
+            sorted(stale_signatures),
+        )
+        return sorted(stale_signatures)[0]
     return _database_norm_signature_from_state(current_norm_state)
 
 
@@ -542,6 +569,7 @@ def _calculate_database_trait_averages_direct(
 
 
 def _database_trait_averages(owner: Any, traits: list[dict[str, Any]]) -> dict[str, float]:
+    _predictions_debug(owner, "Trait DB averages requested traits=%s", len(traits))
     chart_ids = _database_chart_ids(owner)
     chart_uids = _database_chart_uids(owner)
     current_norm_state = _database_norm_state(owner)
@@ -559,21 +587,27 @@ def _database_trait_averages(owner: Any, traits: list[dict[str, Any]]) -> dict[s
         cache_key = _trait_norm_cache_key(chart_uids, trait)
         cached = cache_entries.get(cache_key or "")
         cached_state = cached.get("norm_state", {}) if isinstance(cached, dict) else {}
-        if (
-            isinstance(cached, dict)
-            and cached.get("trait_name") == name
-            and _database_norm_state_is_fresh(cached_state, current_norm_state)
-        ):
+        if isinstance(cached, dict) and cached.get("trait_name") == name:
             try:
                 averages[name] = float(cached["db_average"])
+                if not _database_norm_state_is_fresh(cached_state, current_norm_state):
+                    _predictions_debug(
+                        owner,
+                        "Trait DB average using stale persistent norm trait=%s cached_chart_count=%s current_chart_count=%s",
+                        name,
+                        cached.get("chart_count"),
+                        current_norm_state.get("chart_count"),
+                    )
                 continue
             except (KeyError, TypeError, ValueError):
                 pass
         missing_traits.append(trait)
     if not missing_traits:
+        _predictions_debug(owner, "Trait DB averages served entirely from persistent cache traits=%s", len(averages))
         return averages
 
     try:
+        _predictions_debug(owner, "Trait DB averages collecting missing traits=%s chart_ids=%s", len(missing_traits), len(chart_ids))
         analytics = collect(chart_ids, trait_items=missing_traits, trait_signature=signature_builder(missing_traits))
     except Exception as exc:
         logger.warning("Traits panel could not collect Database Analytics trait averages: %s", exc, exc_info=True)
@@ -615,6 +649,7 @@ def warm_trait_database_norms(owner: Any, trait_names: set[str] | None = None) -
 
 def trait_metadata_for_chart(owner: Any, chart: Any) -> dict[str, Any]:
     """Return and attach derived trait metadata for a chart."""
+    _predictions_debug(owner, "Trait metadata start chart=%s", getattr(chart, "name", getattr(chart, "chart_uid", "unknown")))
     traits = list_traits(active_only=True)
     if chart is None or getattr(owner, "_is_placeholder_chart", lambda _chart: False)(chart) or not traits:
         metadata = {"above": set(), "below": set(), "deviations": {}, "likelihoods": {}}
@@ -630,6 +665,7 @@ def trait_metadata_for_chart(owner: Any, chart: Any) -> dict[str, Any]:
     signature = (TRAIT_DB_NORMS_CACHE_VERSION, trait_signature, norm_signature, chart_signature)
     cached = getattr(chart, "_trait_prediction_metadata_cache", None)
     if isinstance(cached, dict) and cached.get("signature") == signature:
+        _predictions_debug(owner, "Trait metadata memory cache hit chart=%s", getattr(chart, "name", getattr(chart, "chart_uid", "unknown")))
         return dict(cached.get("metadata", {}))
 
     chart_uid = _chart_uid_for_trait_metadata(chart)
@@ -669,6 +705,7 @@ def trait_metadata_for_chart(owner: Any, chart: Any) -> dict[str, Any]:
             ):
                 cached_rows_by_name[name] = row
         if active_trait_names and set(cached_rows_by_name) == active_trait_names:
+            _predictions_debug(owner, "Trait metadata DB row cache hit chart_uid=%s traits=%s", chart_uid, len(active_trait_names))
             above = {name for name, row in cached_rows_by_name.items() if row.get("direction") == "above"}
             below = {name for name, row in cached_rows_by_name.items() if row.get("direction") == "below"}
             deviations = {name: float(row.get("deviation", 0.0)) for name, row in cached_rows_by_name.items()}
@@ -692,10 +729,12 @@ def trait_metadata_for_chart(owner: Any, chart: Any) -> dict[str, Any]:
     missing_traits = [trait for name, trait in traits_by_name.items() if name not in cached_rows_by_name]
     likelihoods = dict(cached_likelihoods)
     if missing_traits:
+        _predictions_debug(owner, "Trait metadata scoring missing chart traits=%s", len(missing_traits))
         likelihoods.update(calculate_trait_likelihoods(chart, missing_traits))
     database_averages = dict(cached_database_averages)
     missing_average_traits = [trait for name, trait in traits_by_name.items() if name not in database_averages]
     if missing_average_traits:
+        _predictions_debug(owner, "Trait metadata resolving DB averages missing_traits=%s", len(missing_average_traits))
         database_averages.update(_database_trait_averages(owner, missing_average_traits))
     deviations = {
         name: float(pct) - float(database_averages[name])
@@ -858,12 +897,14 @@ class _TraitPredictionsRefreshWorker(QObject):
     @Slot()
     def run(self) -> None:
         try:
+            _predictions_debug(self._owner, "Trait refresh worker start token=%s", id(self._token))
             metadata = trait_metadata_for_chart(self._owner, self._chart)
             above_html, below_html = _trait_predictions_html_from_metadata(self._traits, metadata)
         except Exception as exc:
             logger.warning("Traits panel background refresh failed: %s", exc, exc_info=True)
             self.failed.emit(self._token, str(exc))
             return
+        _predictions_debug(self._owner, "Trait refresh worker finished token=%s", id(self._token))
         self.finished.emit(self._token, above_html, below_html)
 
 
@@ -984,6 +1025,7 @@ def _start_traits_prediction_refresh_worker(
     if not isinstance(label, QLabel):
         return
 
+    _predictions_debug(owner, "Trait refresh worker scheduling token=%s cache_key=%s", id(token), cache_key[:12])
     thread_parent = owner if isinstance(owner, QWidget) else None
     thread = QThread(thread_parent)
     worker = _TraitPredictionsRefreshWorker(owner, chart, traits, token)
@@ -1010,6 +1052,7 @@ def _start_traits_prediction_refresh_worker(
 
 def render_traits_predictions(owner: Any, chart: Any | None) -> None:
     """Render uploaded custom trait scores into Chart View's Predictions panel without showing stale chart data."""
+    _predictions_debug(owner, "Trait render requested chart=%s", getattr(chart, "name", getattr(chart, "chart_uid", "none")))
     label = getattr(owner, "traits_prediction_label", None)
     if not isinstance(label, QLabel):
         return
@@ -1041,6 +1084,7 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
     cache_key = _trait_predictions_cache_key(owner, chart, traits)
     cached = (getattr(owner, "_traits_prediction_view_cache", {}) or {}).get(cache_key or "")
     if isinstance(cached, dict):
+        _predictions_debug(owner, "Trait render view cache hit cache_key=%s", (cache_key or "")[:12])
         _apply_traits_prediction_view(
             owner,
             str(cached.get("above", "")),
@@ -1048,21 +1092,11 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
             prefix_html=_trait_predictions_refresh_message(str(cached.get("updated_at", "") or "unknown")),
         )
     else:
-        try:
-            metadata = trait_metadata_for_chart(owner, chart)
-            above_html, below_html = _trait_predictions_html_from_metadata(traits, metadata)
-            _apply_traits_prediction_view(
-                owner,
-                above_html,
-                below_html,
-                prefix_html=_trait_predictions_refresh_message("metadata cache"),
-            )
-        except Exception as exc:
-            logger.warning("Traits panel could not render cached metadata before refresh: %s", exc, exc_info=True)
-            message = (
-                _trait_predictions_refresh_message(None)
-                + "<div style='color:#d8d8d8;'>Loading trait predictions for this chart…</div>"
-            )
-            _apply_traits_prediction_view(owner, message, message)
+        message = (
+            _trait_predictions_refresh_message(None)
+            + "<div style='color:#d8d8d8;'>Loading trait predictions for this chart…</div>"
+        )
+        _predictions_debug(owner, "Trait render no view cache; deferring metadata work to worker cache_key=%s", (cache_key or "")[:12])
+        _apply_traits_prediction_view(owner, message, message)
 
     _start_traits_prediction_refresh_worker(owner, chart, traits, cache_key or "", token)

@@ -142,10 +142,11 @@ def add_predictions_thread_debug_setting(
     is_enabled: bool,
     on_toggled: Callable[[bool], None],
 ) -> QCheckBox:
-    checkbox = QCheckBox("Predictions panel: terminal thread debug logging")
+    checkbox = QCheckBox("Predictions panel: terminal step debug logging")
     checkbox.setChecked(bool(is_enabled))
     checkbox.setToolTip(
-        "When enabled, Chart View Predictions background-thread lifecycle events are printed to the terminal."
+        "When enabled, Chart View Predictions section steps, cache decisions, and background-thread lifecycle "
+        "events are printed to the terminal."
     )
     checkbox.toggled.connect(on_toggled)
     section_layout.addWidget(checkbox)
