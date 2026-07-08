@@ -61,7 +61,12 @@ from ephemeraldaddy.core.interpretations import (
     ZODIAC_SIGNS,
 )
 
-from ephemeraldaddy.gui.features.charts.anagrams import AnagramsPresenter, build_anagrams_section
+from ephemeraldaddy.gui.features.charts.anagrams import (
+    AnagramsPresenter,
+    build_anagrams_section,
+    chart_identity_options,
+    chart_identity_text_for_source,
+)
 from ephemeraldaddy.gui.features.charts.euphonics import render_euphonics_html
 from ephemeraldaddy.gui.features.charts.loading_overlay import ChartLoadingOverlay
 from ephemeraldaddy.gui.features.charts.time_sensitivity_panel import TimeSensitivityPanel
@@ -1445,8 +1450,7 @@ def _build_euphonics_section(owner: QWidget, panel: QWidget, layout: QVBoxLayout
 
     owner.euphonics_source_dropdown = QComboBox()
     apply_shared_dropdown_style(owner.euphonics_source_dropdown)
-    owner.euphonics_source_dropdown.addItem("Name", "name")
-    owner.euphonics_source_dropdown.addItem("Alias", "alias")
+    owner.euphonics_source_dropdown.addItem("Chart Name", "name:0")
     owner.euphonics_source_dropdown.setMinimumWidth(owner.euphonics_source_dropdown.sizeHint().width() + 12)
     owner.euphonics_source_dropdown.currentIndexChanged.connect(
         lambda _index: refresh_euphonics_for_chart(owner, getattr(owner, "_abc_current_chart", None))
@@ -1468,8 +1472,21 @@ def refresh_euphonics_for_chart(owner: QWidget, chart: Chart | None) -> None:
     if label is None:
         return
     source_dropdown = getattr(owner, "euphonics_source_dropdown", None)
-    source = str(source_dropdown.currentData() or "name") if source_dropdown is not None else "name"
-    subject_text = getattr(chart, source, "") if chart is not None else ""
+    selected_source = str(source_dropdown.currentData() or "name:0") if source_dropdown is not None else "name:0"
+    if source_dropdown is not None:
+        current_options = chart_identity_options(chart)
+        current_keys = {source_key for _option_label, source_key, _text in current_options}
+        if selected_source not in current_keys:
+            selected_source = current_options[0][1]
+        previous_block_state = source_dropdown.blockSignals(True)
+        source_dropdown.clear()
+        for option_label, source_key, _text in current_options:
+            source_dropdown.addItem(option_label, source_key)
+        selected_index = source_dropdown.findData(selected_source)
+        source_dropdown.setCurrentIndex(max(0, selected_index))
+        source_dropdown.setMinimumWidth(source_dropdown.sizeHint().width() + 12)
+        source_dropdown.blockSignals(previous_block_state)
+    _subject_label, subject_text = chart_identity_text_for_source(chart, selected_source)
     label.setText(render_euphonics_html(str(subject_text or "")))
 
 
