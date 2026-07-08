@@ -308,6 +308,8 @@ def test_predictions_sections_show_calculate_prompt_instead_of_auto_calculating(
 def test_predictions_timeout_does_not_terminate_qthread_from_gui_thread():
     source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/cv_right_panel_stack.py").read_text()
     assert "Predictions warmup did not stop after timeout; leaving worker in background" in source
+    assert "retaining references and not terminating from GUI thread" in source
+    assert "owner._predictions_background_jobs[:] = retained_jobs" in source
     assert "thread.terminate()" not in source
 
 
@@ -318,6 +320,9 @@ def test_traits_predictions_show_manual_calculate_prompt_without_autostarting_wo
     assert "cached_only: bool = False" in source
     assert "trait_metadata_for_chart(owner, chart, cached_only=True)" in source
     assert '"trait_display_signature": trait_display_signature' in source
+    assert "_traits_recalculate_prompt_html" in source
+    assert "Cached trait predictions shown" in source
+    assert "_trait_predictions_refresh_message(str(cached.get" not in source
     no_cache_branch = source[source.index("owner._traits_prediction_pending_chart = chart"):]
     assert "showing manual calculate prompt" in no_cache_branch
     assert "_start_traits_prediction_refresh_worker(owner, chart, traits" not in no_cache_branch

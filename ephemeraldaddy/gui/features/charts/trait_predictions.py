@@ -872,6 +872,18 @@ def _traits_calculate_prompt_html() -> str:
     )
 
 
+def _traits_recalculate_prompt_html(updated_at: str | None) -> str:
+    timestamp = html.escape(updated_at or "unknown")
+    return (
+        "<div style='width:100%; padding:0 0 8px 0; text-align:center; color:#b8b8b8;'>"
+        f"<span style='font-style:italic;'>Cached trait predictions shown. Last calculated: {timestamp}.</span> "
+        "<a href='trait-predictions:calculate' "
+        "style='display:inline-block; margin-left:6px; background-color:#7b4dff; color:white; "
+        "font-weight:bold; padding:4px 10px; border-radius:5px; text-decoration:none;'>"
+        "Recalculate!</a>"
+        "</div>"
+    )
+
 def _start_traits_prediction_calculation(owner: Any) -> None:
     chart = getattr(owner, "_traits_prediction_pending_chart", None)
     traits = getattr(owner, "_traits_prediction_pending_traits", None)
@@ -1146,17 +1158,16 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
     cache_key = _trait_predictions_cache_key(owner, chart, traits)
     cached = (getattr(owner, "_traits_prediction_view_cache", {}) or {}).get(cache_key or "")
     if isinstance(cached, dict):
+        owner._traits_prediction_pending_chart = chart
+        owner._traits_prediction_pending_traits = traits
+        owner._traits_prediction_pending_cache_key = cache_key or ""
         _predictions_debug(owner, "Trait render view cache hit cache_key=%s", (cache_key or "")[:12])
         _apply_traits_prediction_view(
             owner,
             str(cached.get("above", "")),
             str(cached.get("below", "")),
-            prefix_html=_trait_predictions_refresh_message(str(cached.get("updated_at", "") or "unknown")),
+            prefix_html=_traits_recalculate_prompt_html(str(cached.get("updated_at", "") or "unknown")),
         )
-        # Do not immediately recalculate every cached Chart View render.  The
-        # persistent DB-norm cache is intentionally stale-while-revalidate;
-        # forcing a worker here made opening another chart repeat the expensive
-        # all-database Traits pass even when usable norms had just been saved.
         return
     else:
         cached_metadata = trait_metadata_for_chart(owner, chart, cached_only=True)

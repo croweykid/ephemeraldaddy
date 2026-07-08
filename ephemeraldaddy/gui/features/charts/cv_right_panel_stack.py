@@ -865,9 +865,11 @@ def stop_background_prediction_render(owner: object, wait_msecs: int | None = No
         for job in jobs
     ):
         jobs.append((active_thread, active_worker, active_receiver))
+    retained_jobs: list[tuple[object, object, object]] = []
     for job in jobs:
         thread = job[0] if isinstance(job, tuple) and len(job) >= 1 else None
         worker = job[1] if isinstance(job, tuple) and len(job) >= 2 else None
+        receiver = job[2] if isinstance(job, tuple) and len(job) >= 3 else None
         if not isinstance(thread, QThread):
             continue
         try:
@@ -888,15 +890,22 @@ def stop_background_prediction_render(owner: object, wait_msecs: int | None = No
                     if not thread.wait(timeout) and timed_out:
                         logger.error(
                             "Timed-out Predictions warmup thread still running during cleanup; "
-                            "not terminating from GUI thread"
+                            "retaining references and not terminating from GUI thread"
                         )
+                        retained_jobs.append((thread, worker, receiver))
         except RuntimeError:
             continue
     if isinstance(getattr(owner, "_predictions_background_jobs", None), list):
-        owner._predictions_background_jobs.clear()
-    setattr(owner, "_predictions_background_thread", None)
-    setattr(owner, "_predictions_background_worker", None)
-    setattr(owner, "_predictions_background_receiver", None)
+        owner._predictions_background_jobs[:] = retained_jobs
+    if retained_jobs:
+        retained_thread, retained_worker, retained_receiver = retained_jobs[0]
+        setattr(owner, "_predictions_background_thread", retained_thread)
+        setattr(owner, "_predictions_background_worker", retained_worker)
+        setattr(owner, "_predictions_background_receiver", retained_receiver)
+    else:
+        setattr(owner, "_predictions_background_thread", None)
+        setattr(owner, "_predictions_background_worker", None)
+        setattr(owner, "_predictions_background_receiver", None)
     setattr(owner, "_predictions_background_job_token", None)
 
 
