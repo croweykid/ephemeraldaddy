@@ -886,7 +886,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     )
     chart_type_section, chart_type_group_layout = add_collapsible_section(
         "Chart Type",
-        expanded=True,
+        expanded=False,
         style_sheet=chart_type_header_style,
     )
 
@@ -2137,6 +2137,16 @@ def build_dbv_search_panel(window) -> "QWidget":
     window._notes_bio_filter_input.textChanged.connect(window._on_filter_changed)
     bio_row.addWidget(window._notes_bio_filter_input, 1)
     notes_group_layout.addLayout(bio_row)
+
+    quotes_row = QHBoxLayout()
+    window._notes_quotes_filter_checkbox = QuadStateSlider("Quotes")
+    window._notes_quotes_filter_checkbox.modeChanged.connect(window._on_filter_changed)
+    quotes_row.addWidget(window._notes_quotes_filter_checkbox)
+    window._notes_quotes_filter_input = QLineEdit()
+    window._notes_quotes_filter_input.setPlaceholderText("contains text")
+    window._notes_quotes_filter_input.textChanged.connect(window._on_filter_changed)
+    quotes_row.addWidget(window._notes_quotes_filter_input, 1)
+    notes_group_layout.addLayout(quotes_row)
 
     rectification_row = QHBoxLayout()
     window._notes_rectification_filter_checkbox = QuadStateSlider("Rectification")
