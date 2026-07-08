@@ -26,6 +26,15 @@ from ephemeraldaddy.core.interpretations import (
     normalize_body_name,
 )
 
+
+def _privacy_safe_chart_label(chart: Any) -> str:
+    """Return a debug-safe chart identifier without names or birth metadata."""
+    chart_uid = str(getattr(chart, "chart_uid", "") or "").strip()
+    if chart_uid:
+        return f"chart_uid={chart_uid}"
+    return "chart_uid=unavailable"
+
+
 BODY_ALIASES = {
     "fortune": "Part of Fortune",
     "part of fortune": "Part of Fortune",
@@ -984,7 +993,7 @@ def calculate_weighted_criteria_scores(
     body_weights = normalize_weight_map_for_dominance_activation(body_weights_raw, dominance_normalization_mode)
     house_weights = normalize_weight_map_for_dominance_activation(house_weights_raw, dominance_normalization_mode) if use_houses else {}
     nakshatra_weights = normalize_weight_map_for_dominance_activation(nakshatra_weights_raw, dominance_normalization_mode)
-    chart_name = str(getattr(chart, "name", "Unnamed Chart"))
+    chart_debug_label = _privacy_safe_chart_label(chart)
 
     body_house_lookup: dict[str, int] = {}
     if use_houses:
@@ -1133,7 +1142,7 @@ def calculate_weighted_criteria_scores(
                 positions_positive += bonus * criterion_weight
                 if debug is not None:
                     debug(
-                        f"{debug_prefix} {chart_name}: {target_label(target)} position TRUE -> "
+                        f"{debug_prefix} {chart_debug_label}: {target_label(target)} position TRUE -> "
                         f"'{raw_position}' (+{bonus:.2f})"
                     )
         for raw_position, criterion_weight in antipositions.items():
@@ -1145,7 +1154,7 @@ def calculate_weighted_criteria_scores(
             chart,
             aspects,
             body_weights,
-            chart_name,
+            chart_debug_label,
             target,
             debug,
             debug_prefix=debug_prefix,
@@ -1158,7 +1167,7 @@ def calculate_weighted_criteria_scores(
             chart,
             antiaspects,
             body_weights,
-            chart_name,
+            chart_debug_label,
             target,
             debug,
             debug_prefix=debug_prefix,
@@ -1334,7 +1343,7 @@ def _score_aspect_specs(
     chart: Any,
     aspect_specs: Mapping[str, float],
     body_weights: Mapping[str, float],
-    chart_name: str,
+    chart_debug_label: str,
     target: Any,
     debug: Callable[[str], None] | None,
     *,
@@ -1348,7 +1357,8 @@ def _score_aspect_specs(
     for raw_aspect, criterion_weight in aspect_specs.items():
         parsed = parse_aspect_spec(raw_aspect)
         if parsed is None:
-            print(f"{parse_error_prefix} {chart_name}: could not parse aspect spec '{raw_aspect}'")
+            if debug is not None:
+                debug(f"{parse_error_prefix} {chart_debug_label}: could not parse aspect spec '{raw_aspect}'")
             continue
         left_body, aspect_type, right_body = parsed
         for aspect in getattr(chart, "aspects", []) or []:
@@ -1367,7 +1377,7 @@ def _score_aspect_specs(
             total += value * float(criterion_weight)
             if debug is not None and not anti:
                 debug(
-                    f"{debug_prefix} {chart_name}: {target_label(target)} aspect TRUE -> "
+                    f"{debug_prefix} {chart_debug_label}: {target_label(target)} aspect TRUE -> "
                     f"'{raw_aspect}' (+{value:.2f})"
                 )
             break

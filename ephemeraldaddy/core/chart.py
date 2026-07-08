@@ -209,6 +209,13 @@ class Chart:
         self.dominant_nakshatra_weights = {}
         self.dominant_element_weights = {}
         self.dominant_mode = None
+        self.traits = []
+        self.traits_above_average = []
+        self.traits_below_average = []
+        self.trait_likelihoods = {}
+        self.predicted_traits_above_avg = set()
+        self.predicted_traits_below_avg = set()
+        self.predicted_trait_deviations = {}
         self.human_design_gates = []
         self.human_design_lines = []
         self.human_design_channels = []
@@ -326,6 +333,10 @@ class Chart:
             "dominant_nakshatra_weights": self.dominant_nakshatra_weights,
             "dominant_element_weights": self.dominant_element_weights,
             "dominant_mode": self.dominant_mode,
+            "traits": list(getattr(self, "traits", []) or []),
+            "traits_above_average": list(getattr(self, "traits_above_average", []) or []),
+            "traits_below_average": list(getattr(self, "traits_below_average", []) or []),
+            "trait_likelihoods": dict(getattr(self, "trait_likelihoods", {}) or {}),
             "age_when_first_met": self.age_when_first_met,
             "year_first_encountered": self.year_first_encountered,
             "data_rating": self.data_rating,
