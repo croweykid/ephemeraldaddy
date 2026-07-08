@@ -13351,24 +13351,29 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             wikipedia_prompt.setText(
                 f"{raw_query} cannot be found on Astrotheme - trying Wikipedia..."
             )
-            cancel_button = wikipedia_prompt.addButton(
-                "Cancel", QMessageBox.ButtonRole.RejectRole
+            wikipedia_prompt.setStandardButtons(
+                QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel
             )
-            cool_button = wikipedia_prompt.addButton(
-                "Cool", QMessageBox.ButtonRole.AcceptRole
-            )
-            wikipedia_prompt.setDefaultButton(cool_button)
-            wikipedia_prompt.setEscapeButton(cancel_button)
-            cancel_button.setStyleSheet(
-                "QPushButton { background-color: #5f6368; border-color: #747981; color: #f4f1ea; }"
-                "QPushButton:hover { background-color: #6f747c; }"
-            )
-            cool_button.setStyleSheet(
-                "QPushButton { background-color: #7b2cbf; border-color: #9d4edd; color: #ffffff; }"
-                "QPushButton:hover { background-color: #8f3fd1; }"
-            )
+            cool_button = wikipedia_prompt.button(QMessageBox.StandardButton.Ok)
+            cancel_button = wikipedia_prompt.button(QMessageBox.StandardButton.Cancel)
+            if cool_button is not None:
+                cool_button.setText("Cool")
+                wikipedia_prompt.setDefaultButton(cool_button)
+                cool_button.setStyleSheet(
+                    "QPushButton { background-color: #7b2cbf; border-color: #9d4edd; color: #ffffff; }"
+                    "QPushButton:hover { background-color: #8f3fd1; }"
+                )
+            if cancel_button is not None:
+                wikipedia_prompt.setEscapeButton(cancel_button)
+                cancel_button.setStyleSheet(
+                    "QPushButton { background-color: #5f6368; border-color: #747981; color: #f4f1ea; }"
+                    "QPushButton:hover { background-color: #6f747c; }"
+                )
             wikipedia_prompt.exec()
-            if wikipedia_prompt.clickedButton() is cancel_button:
+            clicked_standard_button = wikipedia_prompt.standardButton(
+                wikipedia_prompt.clickedButton()
+            )
+            if clicked_standard_button == QMessageBox.StandardButton.Cancel:
                 logger.info(
                     "Astrotheme import canceled before Wikipedia backup (id=%s query=%r).",
                     debug_id,
