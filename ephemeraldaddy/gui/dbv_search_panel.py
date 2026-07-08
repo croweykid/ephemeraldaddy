@@ -1602,9 +1602,9 @@ def build_dbv_search_panel(window) -> "QWidget":
     hd_channels_row.addWidget(window._human_design_channel_filter_or)
     human_design_group_layout.addLayout(hd_channels_row)
 
-    hd_gates_row = QHBoxLayout()
-    hd_gates_row.addWidget(QLabel("Gates"))
-    for _ in range(3):
+    for row_index in range(3):
+        hd_gates_row = QHBoxLayout()
+        hd_gates_row.addWidget(QLabel("Gates" if row_index == 0 else ""))
         gate_combo = QComboBox()
         apply_default_dropdown_style(gate_combo)
         gate_combo.addItem("Any", "Any")
@@ -1615,17 +1615,36 @@ def build_dbv_search_panel(window) -> "QWidget":
         gate_combo.currentIndexChanged.connect(window._on_filter_changed)
         window._human_design_gate_filters.append(gate_combo)
         hd_gates_row.addWidget(gate_combo)
-    window._human_design_gate_filter_and = QRadioButton("&&")
-    window._human_design_gate_filter_or = QRadioButton("OR")
-    hd_gate_group = QButtonGroup(window)
-    hd_gate_group.setExclusive(True)
-    hd_gate_group.addButton(window._human_design_gate_filter_and)
-    hd_gate_group.addButton(window._human_design_gate_filter_or)
-    window._human_design_gate_filter_and.setChecked(True)
-    hd_gate_group.buttonClicked.connect(window._on_filter_changed)
-    hd_gates_row.addWidget(window._human_design_gate_filter_and)
-    hd_gates_row.addWidget(window._human_design_gate_filter_or)
-    human_design_group_layout.addLayout(hd_gates_row)
+
+        hd_gates_row.addWidget(QLabel("Line"))
+        line_combo = QComboBox()
+        apply_default_dropdown_style(line_combo)
+        line_combo.addItem("Any", "Any")
+        for line_value in range(1, 7):
+            line_combo.addItem(str(line_value), line_value)
+        center_dropdown_items(line_combo)
+        set_dropdown_width_chars(line_combo, 4)
+        line_combo.currentIndexChanged.connect(window._on_filter_changed)
+        hd_gates_row.addWidget(line_combo)
+
+        gate_filter_and = QRadioButton("&&")
+        gate_filter_or = QRadioButton("OR")
+        hd_gate_group = QButtonGroup(window)
+        hd_gate_group.setExclusive(True)
+        hd_gate_group.addButton(gate_filter_and)
+        hd_gate_group.addButton(gate_filter_or)
+        gate_filter_and.setChecked(True)
+        hd_gate_group.buttonClicked.connect(window._on_filter_changed)
+        hd_gates_row.addWidget(gate_filter_and)
+        hd_gates_row.addWidget(gate_filter_or)
+        human_design_group_layout.addLayout(hd_gates_row)
+
+        window._human_design_gate_line_filters.append(
+            {"gate": gate_combo, "line": line_combo, "and": gate_filter_and, "or": gate_filter_or}
+        )
+        if row_index == 0:
+            window._human_design_gate_filter_and = gate_filter_and
+            window._human_design_gate_filter_or = gate_filter_or
 
     hd_type_row = QHBoxLayout()
     hd_type_row.addWidget(QLabel("Type"))
