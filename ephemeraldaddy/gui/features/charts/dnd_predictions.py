@@ -1263,6 +1263,13 @@ def _cache_key_fingerprint(cache_key: Any) -> str:
     return repr(cache_key)
 
 
+def _cache_key_chart_token(cache_key: Any) -> Any:
+    """Return chart-state token from tuple keys or JSON-restored list keys."""
+    if isinstance(cache_key, (tuple, list)) and cache_key:
+        return cache_key[0]
+    return None
+
+
 def _statblock_to_cache_dict(statblock: Any) -> dict[str, Any]:
     return {
         "raw_scores": dict(getattr(statblock, "raw_scores", {}) or {}),
@@ -1486,10 +1493,40 @@ class DndPredictionPanelAdapter:
     def _statblock_cache_is_stale(self, chart: Any, norm_charts: Any) -> bool:
         cached = self._restore_statblock_cache(chart)
         current_key = self._statblock_cache_key(norm_charts, chart)
-        return isinstance(cached, dict) and (
-            cached.get("key") != current_key
-            and cached.get("key_fingerprint") != _cache_key_fingerprint(current_key)
-        )
+        if not isinstance(cached, dict):
+            return False
+        cached_key = cached.get("key")
+        if cached_key == current_key or cached.get("key_fingerprint") == _cache_key_fingerprint(current_key):
+            return False
+        # The first key element is the chart-state token.  A changed chart should
+        # always request a refresh; DB norm churn should only nag when it is
+        # large enough to matter.  Older persisted cache payloads did not store
+        # enough norm detail to measure that safely, so keep showing them rather
+        # than replacing the results with a false-positive warning.
+        cached_chart_token = _cache_key_chart_token(cached_key)
+        current_chart_token = _cache_key_chart_token(current_key)
+        if cached_chart_token is not None and cached_chart_token != current_chart_token:
+            return True
+        cached_uids = set(cached.get("norm_chart_uids") or [])
+        current_uids = set(self._norm_chart_uids(norm_charts))
+        if not cached_uids or not current_uids:
+            return False
+        changed = len(cached_uids.symmetric_difference(current_uids))
+        baseline = max(len(cached_uids), len(current_uids), 1)
+        return (changed / baseline) > 0.10
+
+    def _norm_chart_uids(self, norm_charts: Any) -> tuple[str, ...]:
+        if norm_charts is None:
+            return ()
+        uids: list[str] = []
+        try:
+            for norm_chart in norm_charts:
+                chart_uid = _chart_prediction_cache_uid(norm_chart)
+                if chart_uid:
+                    uids.append(chart_uid)
+        except TypeError:
+            return ()
+        return tuple(sorted(uids))
 
     def _chart_state_cache_token(self, chart: Any) -> str:
         chart_token_fn = getattr(self.owner, "_chart_analytics_cache_token", None)
@@ -1552,6 +1589,7 @@ class DndPredictionPanelAdapter:
                 "key_fingerprint": _cache_key_fingerprint(cache_key),
                 "norm_token": self._norm_charts_cache_token(norm_charts),
                 "norm_count": len(norm_charts) if norm_charts is not None and hasattr(norm_charts, "__len__") else None,
+                "norm_chart_uids": self._norm_chart_uids(norm_charts),
                 "db_norm_averages": dict(db_norm_averages),
                 "statblock": statblock,
                 "cached_at": time.time(),
@@ -1656,10 +1694,23 @@ class DndPredictionPanelAdapter:
     def cache_alignment_metadata(self, chart: Any) -> dict[str, float]:
         return dnd_alignment_deviations(self.owner or self, chart, allow_stale=False)
 
+    def _remove_stale_recalculate_notices(self, layout: Any) -> None:
+        if layout is None:
+            return
+        for index in reversed(range(layout.count())):
+            item = layout.itemAt(index)
+            widget = item.widget() if item is not None else None
+            if widget is not None and bool(widget.property("dnd_stale_recalculate_notice")):
+                layout.takeAt(index)
+                widget.setParent(None)
+                widget.deleteLater()
+
     def _show_stale_recalculate_notice(self, layout: Any, chart: Any, section: str) -> None:
         if layout is None:
             return
+        self._remove_stale_recalculate_notices(layout)
         panel = QWidget()
+        panel.setProperty("dnd_stale_recalculate_notice", True)
         panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
         panel_layout = QVBoxLayout()
         panel_layout.setContentsMargins(0, 0, 0, 6)
@@ -1681,6 +1732,8 @@ class DndPredictionPanelAdapter:
     def render(self, chart: Any | None, metric_panel_renderer: Callable[..., Any]) -> Any:
         if self.chart_layout is None:
             return self.summary_label
+        self._remove_stale_recalculate_notices(self.chart_layout)
+        self._remove_stale_recalculate_notices(self.alignment_layout)
         summary_label = self._ensure_summary_label()
         if chart is None or self.is_placeholder_chart(chart):
             metric_panel_renderer(
@@ -1744,7 +1797,14 @@ class DndPredictionPanelAdapter:
                     except Exception:
                         pass
             if isinstance(alignment_cache, dict):
-                alignment_stale = alignment_cache.get("key") != _dnd_alignment_cache_key(self.owner or self, chart)
+                current_alignment_key = _dnd_alignment_cache_key(self.owner or self, chart)
+                cached_alignment_key = alignment_cache.get("key")
+                cached_alignment_chart_token = _cache_key_chart_token(cached_alignment_key)
+                current_alignment_chart_token = _cache_key_chart_token(current_alignment_key)
+                alignment_stale = (
+                    cached_alignment_chart_token is not None
+                    and cached_alignment_chart_token != current_alignment_chart_token
+                )
                 metric_panel_renderer(
                     canvas_attr="dnd_prediction_alignment_canvas",
                     container_layout=self.alignment_layout,
