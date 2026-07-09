@@ -461,3 +461,25 @@ def test_chart_view_and_dnd_trait_likelihoods_use_shared_distribution_cache_sour
     assert "_collect_traits_distribution_analytics" in trait_source
     assert "trait_likelihoods_with_distribution_cache(owner, chart, missing_traits)" in trait_source
     assert "trait_likelihoods_with_distribution_cache(owner, chart, trait_items)" in dnd_source
+
+
+def test_traits_prediction_view_cache_persists_across_sessions(tmp_path, monkeypatch):
+    cache_path = tmp_path / "trait_predictions_view_cache.json"
+    monkeypatch.setattr(trait_predictions, "TRAIT_PREDICTIONS_VIEW_CACHE_PATH", cache_path)
+
+    first_owner = type("Owner", (), {})()
+    trait_predictions._cache_traits_prediction_view(first_owner, "cache-key", "above", "below", "2026-07-09T00:00:00")
+
+    next_owner = type("Owner", (), {})()
+    assert trait_predictions._load_traits_prediction_view_cache(next_owner) == {
+        "cache-key": {"above": "above", "below": "below", "updated_at": "2026-07-09T00:00:00"}
+    }
+
+
+def test_dnd_statblock_reuses_precomputed_db_norm_averages_source():
+    source = (ROOT / "ephemeraldaddy" / "gui" / "features" / "charts" / "dnd_predictions.py").read_text(
+        encoding="utf-8"
+    )
+    method = source.split("    def _score_statblock", 1)[1].split("    def _render_statblock", 1)[0]
+    assert "db_norm_averages = _calculate_db_norm_stat_averages(norm_charts)" in method
+    assert "score_dnd_statblock(chart, norm_charts=norm_charts, db_norm_averages=db_norm_averages)" in method

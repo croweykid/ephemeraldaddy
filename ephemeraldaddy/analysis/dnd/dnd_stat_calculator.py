@@ -248,6 +248,7 @@ def score_dnd_statblock(
     stat_floor: int = 5,
     stat_ceiling: int = 20,
     norm_charts: Iterable[Any] | None = None,
+    db_norm_averages: Mapping[str, float] | None = None,
 ) -> DnDStatBlock:
     """Score D&D stats using direct DB-relative stat ratios when norms exist."""
     raw_weighted_scores = calculate_weighted_criteria_scores(
@@ -255,7 +256,7 @@ def score_dnd_statblock(
         predictors=DND_STAT_PREDICTORS,
     )
     chart_raw_scores = {key: float(raw_weighted_scores.get(key, 0.0)) for key in _DND_STAT_COMPONENT_ORDER}
-    db_norm_averages = _calculate_db_norm_stat_averages(norm_charts)
+    db_norm_averages = dict(db_norm_averages or _calculate_db_norm_stat_averages(norm_charts))
     if db_norm_averages:
         raw_scores = chart_raw_scores
         scores = {
