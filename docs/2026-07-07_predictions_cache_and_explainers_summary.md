@@ -1,8 +1,8 @@
-# Predictions Cache and Explainers Summary v1 | last updated 7.7.2026
+# Predictions Cache and Explainers Summary v2 | last updated 2026-07-09
 
 ## Scope
 
-This document summarizes the requested Chart View Predictions-panel changes discussed in this conversation, especially the D&D-ification Statblock/Alignment behavior, statblock popout math explainers, persisted prediction caches, stale-cache UI, UID-only cache identity, and the related Traits-panel cached-rendering behavior.
+This document summarizes the requested Chart View Predictions-panel changes discussed in this conversation, especially the D&D-ification Statblock/Alignment behavior, statblock popout math explainers, persisted prediction caches, stale-cache UI, UID-only cache identity, and the related Traits-panel cached-rendering behavior. It also records the current architectural core shared by Database View > Database Analytics > Predictions/Traits distribution and Chart View > Predictions: durable calculation data should live in UID-backed metadata and shared calculation caches, while rendered HTML should remain downstream presentation rather than a durable cache.
 
 ## Original user goals
 
@@ -37,7 +37,7 @@ This document summarizes the requested Chart View Predictions-panel changes disc
 
 7. **Apply the cache-first principle beyond D&D Statblock.**
    - D&D Alignment should also restore and display cached results.
-   - Traits should render available cached metadata/results immediately while refreshing in the background.
+   - Traits should render available persisted metadata/results immediately and should not depend on a rendered-HTML cache as a source of truth.
    - Fast sections should not be unnecessarily bottlenecked by a manual Calculate/Recalculate flow.
 
 ## Programmatic changes made
@@ -293,22 +293,91 @@ Important implementation locations:
 - `draw_dnd_alignment_grid()` in `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
 - `DndPredictionPanelAdapter.cache_alignment_metadata()` in `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
 
-### 12. Render cached Traits metadata before background refresh
+### 12. Render Chart View Traits from persisted chart trait metadata first
 
 File: `ephemeraldaddy/gui/features/charts/trait_predictions.py`
 
-The broader Predictions-panel concern included Traits.
+The broader Predictions-panel concern included Traits. The current design is intentionally metadata-first rather than rendered-HTML-cache-first.
 
-To improve Traits behavior:
+Current behavior:
 
-- `render_traits_predictions()` now tries to render metadata-derived trait predictions immediately with `trait_metadata_for_chart(owner, chart)`.
-- If successful, those results are displayed before the background refresh starts.
-- If that immediate metadata render fails, the existing loading message is shown and the failure is logged.
-- The background refresh still runs afterward.
+- `render_traits_predictions()` calls `trait_metadata_for_chart(owner, chart, cached_only=True)` before showing the manual Calculate prompt.
+- If persisted `chart_trait_metadata` exists and is fresh, the Traits section renders it immediately.
+- If persisted `chart_trait_metadata` exists but is stale, the Traits section still renders it immediately and prepends the stale/Recalculate notice.
+- If no persisted metadata exists, the Traits section shows the manual `Calculate!` prompt.
+- The rendered-HTML in-memory view cache path was removed so the panel does not silently display a phantom secondary cache when materialized metadata is missing.
+- When the user calculates/recalculates, `trait_metadata_for_chart(owner, chart)` performs the calculation and persists rows back to `chart_trait_metadata` by chart UID and trait UID.
 
-Important implementation location:
+Important implementation locations:
 
 - `render_traits_predictions()` in `ephemeraldaddy/gui/features/charts/trait_predictions.py`
+- `trait_metadata_for_chart()` in `ephemeraldaddy/gui/features/charts/trait_predictions.py`
+- `db.get_chart_trait_metadata()` in `ephemeraldaddy/core/db.py`
+- `db.upsert_chart_trait_metadata()` in `ephemeraldaddy/core/db.py`
+
+### 13. Shared Traits/Predictions cache architecture
+
+Files:
+
+- `ephemeraldaddy/gui/features/charts/database_analytics.py`
+- `ephemeraldaddy/gui/features/charts/trait_predictions.py`
+- `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
+
+The current Predictions architecture has three related but distinct trait-data layers:
+
+1. **`.traits_distribution_likelihood_cache`**
+   - Owned by Database Analytics.
+   - Stores reusable per-chart/per-analytical-profile trait likelihoods.
+   - Uses chart tokens and compact profile entries so small chart/trait edits can update incrementally instead of forcing a full database recalculation.
+   - Shared by Database Analytics, Chart View Traits, and D&D Alignment via `_collect_traits_distribution_analytics()` / `trait_likelihoods_with_distribution_cache()`.
+
+2. **`.database_norms_cache`**
+   - Stores DB-level trait averages and norm signatures.
+   - Used by `_database_trait_averages()` and `_database_norm_signature_for_traits()`.
+   - Should be keyed by analytical trait profile/UID rather than display-only fields so renames/recolors do not force rescoring.
+
+3. **`chart_trait_metadata`**
+   - Stores materialized per-chart/per-trait results by chart UID and trait UID.
+   - This is the first-read source for Chart View Traits.
+   - Rows include likelihood, DB average, deviation, direction, trait signature, norm signature, and chart signature.
+   - Fresh rows render immediately; stale rows render with a Recalculate notice; absent rows show Calculate.
+
+Rendered HTML is not a durable Predictions cache. If rendered output exists but `chart_trait_metadata` does not, that is a consistency problem to repair or expose, not a reason to maintain a second fallback architecture.
+
+Important implementation locations:
+
+- `_collect_traits_distribution_analytics()` in `ephemeraldaddy/gui/features/charts/database_analytics.py`
+- `_load_traits_distribution_likelihood_cache()` in `ephemeraldaddy/gui/features/charts/database_analytics.py`
+- `_save_traits_distribution_likelihood_cache()` in `ephemeraldaddy/gui/features/charts/database_analytics.py`
+- `trait_likelihoods_with_distribution_cache()` in `ephemeraldaddy/gui/features/charts/trait_predictions.py`
+- `_database_trait_averages()` in `ephemeraldaddy/gui/features/charts/trait_predictions.py`
+- `_database_norm_signature_for_traits()` in `ephemeraldaddy/gui/features/charts/trait_predictions.py`
+- `trait_metadata_for_chart()` in `ephemeraldaddy/gui/features/charts/trait_predictions.py`
+- `_dnd_alignment_score_parts()` in `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
+
+### 14. D&D Statblock DB norm reuse is separate from trait likelihood caching
+
+Files:
+
+- `ephemeraldaddy/analysis/dnd/dnd_stat_calculator.py`
+- `ephemeraldaddy/analysis/dnd/dnd_class_axes_v2.py`
+- `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
+
+D&D Statblock scoring is not trait-profile likelihood scoring. It uses D&D stat predictors and DB-relative stat norm averages. Therefore, Statblock should not be forced into `.traits_distribution_likelihood_cache` unless the statblock system is redesigned around trait-like analytical profiles.
+
+Current behavior:
+
+- The GUI resolves DB norm stat averages once for the norm cohort.
+- `score_dnd_statblock()` accepts precomputed `db_norm_averages` and uses them rather than recalculating the same norm cohort again.
+- Cached statblock payloads store the DB norm averages that produced the displayed statblock.
+- Popout explainers use the stored DB norm averages so stale statblocks are explained against the same norm snapshot that produced them.
+
+Important implementation locations:
+
+- `score_dnd_statblock()` in `ephemeraldaddy/analysis/dnd/dnd_stat_calculator.py`
+- `score_dnd_statblock()` wrapper in `ephemeraldaddy/analysis/dnd/dnd_class_axes_v2.py`
+- `DndPredictionPanelAdapter._score_statblock()` in `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
+- `build_dnd_statblock_popout_info_html()` in `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
 
 ## Known testing notes from the implementation cycle
 
@@ -353,4 +422,7 @@ Those failures were not introduced by the D&D cache/explainer work, but they rem
    - Now that ID fallback is removed, test coverage should verify the loud terminal message and absence of silent fallback behavior.
 
 4. **Traits persistence/display behavior may need deeper UX testing.**
-   - Traits now render metadata-derived results immediately when possible, but the best long-term solution may be a more explicit persisted view cache, similar to the D&D prediction payload cache.
+   - Traits now render materialized `chart_trait_metadata` immediately when possible. The long-term solution should continue strengthening that metadata/cache flow, not adding a durable rendered-HTML cache.
+
+5. **Cache invalidation workflows should be audited around trait/profile edits.**
+   - Display-only trait edits should not force rescoring. Analytical profile edits should invalidate affected profile likelihoods and downstream chart metadata for that trait.
