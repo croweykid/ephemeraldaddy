@@ -857,7 +857,11 @@ def trait_metadata_for_chart(owner: Any, chart: Any, *, cached_only: bool = Fals
                 and str(row.get("chart_signature", "")) == chart_signature
             ):
                 cached_rows_by_name[name] = row
-            elif valid_trait_signature and str(row.get("norm_signature", "")) == norm_signature:
+            elif valid_trait_signature:
+                # cached_only callers are trying to paint *something* immediately.
+                # If either chart birth data or DB norms changed, the row is stale,
+                # but it is still a better cached result than a misleading "no data"
+                # placeholder while the explicit recalculation path remains available.
                 stale_rows_by_name[name] = row
         if active_trait_names and set(cached_rows_by_name) == active_trait_names:
             _predictions_debug(owner, "Trait metadata DB row cache hit chart_uid=%s traits=%s", chart_uid, len(active_trait_names))
@@ -1085,6 +1089,8 @@ def _set_traits_prediction_label_for_mode(owner: Any) -> None:
     label = getattr(owner, "traits_prediction_label", None)
     if isinstance(label, QLabel):
         label.setText(_current_traits_prediction_html(owner) or "Trait predictions unavailable for this chart.")
+        label.adjustSize()
+        label.setMinimumHeight(label.sizeHint().height())
 
 
 def _trait_predictions_html_from_metadata(

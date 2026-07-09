@@ -27,7 +27,6 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
-    QScrollArea,
     QToolButton,
     QSlider,
     QStackedWidget,
@@ -1587,18 +1586,12 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     owner.traits_prediction_label.setWordWrap(True)
     owner.traits_prediction_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
     owner.traits_prediction_label.setStyleSheet("color: #f5f5f5; padding: 4px 0 8px 0;")
-    owner.traits_prediction_scroll_area = QScrollArea()
-    owner.traits_prediction_scroll_area.setWidgetResizable(True)
-    owner.traits_prediction_scroll_area.setFrameShape(QFrame.NoFrame)
-    owner.traits_prediction_scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-    owner.traits_prediction_scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-    owner.traits_prediction_scroll_area.setMinimumHeight(240)
-    owner.traits_prediction_scroll_area.setMaximumHeight(260)
-    owner.traits_prediction_scroll_area.setStyleSheet("QScrollArea { background: transparent; border: 0; }")
-    owner.traits_prediction_scroll_area.setWidget(owner.traits_prediction_label)
-    traits_section_layout.addWidget(owner.traits_prediction_scroll_area)
-    owner.traits_prediction_mode_combo.currentIndexChanged.connect(
-        lambda _index: owner.traits_prediction_label.setText(
+    owner.traits_prediction_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
+    owner.traits_prediction_label.setMinimumHeight(owner.traits_prediction_label.sizeHint().height())
+    traits_section_layout.addWidget(owner.traits_prediction_label)
+
+    def _show_selected_traits_prediction_mode(_index: int = 0) -> None:
+        owner.traits_prediction_label.setText(
             getattr(
                 owner,
                 "_traits_prediction_below_avg_html"
@@ -1607,7 +1600,10 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
                 owner.traits_prediction_label.text(),
             )
         )
-    )
+        owner.traits_prediction_label.adjustSize()
+        owner.traits_prediction_label.setMinimumHeight(owner.traits_prediction_label.sizeHint().height())
+
+    owner.traits_prediction_mode_combo.currentIndexChanged.connect(_show_selected_traits_prediction_mode)
 
     enneagram_section_layout = owner._add_chart_analysis_collapsible_section(
         panel=panel,
