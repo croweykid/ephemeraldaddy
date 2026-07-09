@@ -18733,6 +18733,44 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         except (TypeError, ValueError):
             return 0
 
+
+    def _hydrate_missing_weirdness_scores_for_sort(self, rows: list[tuple[Any, ...]]) -> list[tuple[Any, ...]]:
+        """Return rows with missing weirdness scores calculated before Weirdness sorting."""
+        if not rows:
+            return rows
+        missing_rows = [row for row in rows if len(row) > 31 and row[31] is None]
+        if not missing_rows:
+            return rows
+        metric_payloads = self._prediction_norm_metric_payloads()
+        hydrated_rows: list[tuple[Any, ...]] = []
+        for row in rows:
+            if len(row) <= 31 or row[31] is not None:
+                hydrated_rows.append(row)
+                continue
+            chart_id = int(row[0])
+            try:
+                chart = self._get_chart_for_filter(chart_id) or load_chart(chart_id)
+            except Exception:
+                chart = None
+            if chart is None or self._is_placeholder_chart(chart):
+                hydrated_rows.append(row)
+                continue
+            weirdness_score, _norm_count = _calculate_weirdness_score_from_metric_payloads(
+                chart,
+                metric_payloads,
+            )
+            if weirdness_score is None:
+                hydrated_rows.append(row)
+                continue
+            try:
+                update_chart_weirdness_score(chart_id, weirdness_score)
+                chart.weirdness_score = weirdness_score
+            except Exception:
+                pass
+            mutable_row = list(row)
+            mutable_row[31] = float(weirdness_score)
+            hydrated_rows.append(tuple(mutable_row))
+        return hydrated_rows
     def _refresh_charts(
         self,
         selected_ids: set[int] | None = None,
@@ -18967,6 +19005,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         elif self._sort_mode == "social_score":
             rows.sort(key=lambda r: (r[13], (r[1] or "").lower()), reverse=self._sort_descending)
         elif self._sort_mode == "weirdness":
+            rows = self._hydrate_missing_weirdness_scores_for_sort(rows)
             rows.sort(
                 key=lambda r: (
                     len(r) > 31 and r[31] is not None,
