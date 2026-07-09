@@ -1623,10 +1623,10 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     owner.enneagram_prediction_tritype_label.setStyleSheet("color: #f5f5f5; padding-top: 6px;")
     enneagram_section_layout.addWidget(owner.enneagram_prediction_tritype_label)
 
-    dnd_section_layout = owner._add_chart_analysis_collapsible_section(
+    dnd_statblock_section_layout = owner._add_chart_analysis_collapsible_section(
         panel=panel,
         layout=layout,
-        title="D&D-ification",
+        title="D&D Statblock",
         expanded=True,
     )
     owner.dnd_predictions_chart_panel = QWidget()
@@ -1635,14 +1635,49 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     owner.dnd_predictions_chart_layout.setSpacing(6)
     owner.dnd_predictions_chart_layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
     owner.dnd_predictions_chart_panel.setLayout(owner.dnd_predictions_chart_layout)
-    dnd_section_layout.addWidget(owner.dnd_predictions_chart_panel)
+    dnd_statblock_section_layout.addWidget(owner.dnd_predictions_chart_panel)
+
+    dnd_species_section_layout = owner._add_chart_analysis_collapsible_section(
+        panel=panel,
+        layout=layout,
+        title="D&D Species",
+        expanded=True,
+    )
+    owner.dnd_prediction_species_label = QLabel("<b>Top 3 Species/Subspecies</b><br>—")
+    owner.dnd_prediction_species_label.setTextFormat(Qt.RichText)
+    owner.dnd_prediction_species_label.setWordWrap(True)
+    owner.dnd_prediction_species_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+    owner.dnd_prediction_species_label.setStyleSheet("color: #f5f5f5; padding: 4px 0 8px 0;")
+    owner.dnd_prediction_species_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
+    dnd_species_section_layout.addWidget(owner.dnd_prediction_species_label)
+
+    dnd_class_section_layout = owner._add_chart_analysis_collapsible_section(
+        panel=panel,
+        layout=layout,
+        title="D&D Class",
+        expanded=True,
+    )
+    owner.dnd_prediction_class_label = QLabel("<b>Top 3 Classes</b><br>—")
+    owner.dnd_prediction_class_label.setTextFormat(Qt.RichText)
+    owner.dnd_prediction_class_label.setWordWrap(True)
+    owner.dnd_prediction_class_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+    owner.dnd_prediction_class_label.setStyleSheet("color: #f5f5f5; padding: 4px 0 8px 0;")
+    owner.dnd_prediction_class_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
+    dnd_class_section_layout.addWidget(owner.dnd_prediction_class_label)
+
+    dnd_alignment_section_layout = owner._add_chart_analysis_collapsible_section(
+        panel=panel,
+        layout=layout,
+        title="D&D Alignment",
+        expanded=True,
+    )
     owner.dnd_alignment_chart_panel = QWidget()
     owner.dnd_alignment_chart_layout = QVBoxLayout()
     owner.dnd_alignment_chart_layout.setContentsMargins(0, 0, 0, 0)
     owner.dnd_alignment_chart_layout.setSpacing(6)
     owner.dnd_alignment_chart_layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
     owner.dnd_alignment_chart_panel.setLayout(owner.dnd_alignment_chart_layout)
-    dnd_section_layout.addWidget(owner.dnd_alignment_chart_panel)
+    dnd_alignment_section_layout.addWidget(owner.dnd_alignment_chart_panel)
     layout.addStretch(1)
     return panel
 
