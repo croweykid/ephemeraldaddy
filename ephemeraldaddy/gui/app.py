@@ -35301,6 +35301,10 @@ class MainWindow(QMainWindow):
         self.dnd_prediction_statblock_canvas = None
         self.dnd_prediction_alignment_canvas = None
         self.dnd_prediction_top_three_label = None
+        if getattr(self, "dnd_prediction_species_label", None) is not None:
+            self.dnd_prediction_species_label.setText("<b>Top 3 Species/Subspecies</b><br>—")
+        if getattr(self, "dnd_prediction_class_label", None) is not None:
+            self.dnd_prediction_class_label.setText("<b>Top 3 Classes</b><br>—")
         self.dnd_prediction_alignment_debug_label = None
         if getattr(self, "distinguishing_factors_label", None) is not None:
             self.distinguishing_factors_label.setText("Database distinction scan: —")
