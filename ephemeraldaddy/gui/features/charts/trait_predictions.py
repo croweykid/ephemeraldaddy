@@ -260,17 +260,29 @@ def _debug_chart_uid(chart: Any) -> str:
     return chart_uid or "unavailable"
 
 
-def _database_chart_id_for_chart(owner: Any, chart: Any) -> int | None:
-    """Resolve a chart object back to its Database View chart id when it is persisted."""
-    explicit_id = getattr(chart, "chart_id", None) or getattr(chart, "id", None)
-    try:
-        if explicit_id is not None:
-            return int(explicit_id)
-    except (TypeError, ValueError):
-        pass
+def _database_chart_uid_and_id_for_chart(owner: Any, chart: Any) -> tuple[str, int | None] | None:
+    """Resolve a chart object back to its persisted Database View UID and row id."""
     chart_uid = str(getattr(chart, "chart_uid", "") or "").strip().upper()
-    if not chart_uid:
+    explicit_id = getattr(chart, "chart_id", None) or getattr(chart, "id", None)
+    if chart_uid:
+        try:
+            return chart_uid, int(explicit_id) if explicit_id is not None else db.get_chart_id_by_uid(chart_uid)
+        except (TypeError, ValueError):
+            return chart_uid, db.get_chart_id_by_uid(chart_uid)
+        except Exception:
+            return chart_uid, None
+    try:
+        persisted_id = int(explicit_id) if explicit_id is not None else None
+    except (TypeError, ValueError):
+        persisted_id = None
+    if persisted_id is None:
         return None
+    try:
+        chart_uid = str(db.get_chart_uid(persisted_id) or "").strip().upper()
+    except Exception:
+        chart_uid = ""
+    if chart_uid:
+        return chart_uid, persisted_id
     normalize_row = getattr(owner, "_normalize_chart_row", None)
     for row in _database_chart_rows(owner):
         normalized = normalize_row(row) if callable(normalize_row) else row
@@ -283,9 +295,21 @@ def _database_chart_id_for_chart(owner: Any, chart: Any) -> int | None:
         row_uid = ""
         if isinstance(normalized, (list, tuple)) and len(normalized) > 30:
             row_uid = str(normalized[30] or "").strip().upper()
-        if row_uid == chart_uid:
-            return chart_id
+        if chart_id == persisted_id and row_uid:
+            return row_uid, persisted_id
     return None
+
+
+def _persisted_chart_signature_matches_current(chart_uid: str, chart: Any) -> bool:
+    """Return whether the saved row for ``chart_uid`` has the same scoring signature as ``chart``."""
+    try:
+        persisted_chart = db.load_chart_by_uid(chart_uid)
+    except Exception as exc:
+        logger.warning("Traits panel could not load chart UID %s for cache freshness check: %s", chart_uid, exc, exc_info=True)
+        return False
+    if persisted_chart is None:
+        return False
+    return _chart_trait_metadata_signature(persisted_chart) == _chart_trait_metadata_signature(chart)
 
 
 def trait_likelihoods_with_distribution_cache(
@@ -304,8 +328,16 @@ def trait_likelihoods_with_distribution_cache(
         return {}
     collect = getattr(owner, "_collect_traits_distribution_analytics", None)
     signature_builder = getattr(owner, "_traits_distribution_signature", None)
-    chart_id = _database_chart_id_for_chart(owner, chart)
-    if not callable(collect) or not callable(signature_builder) or chart_id is None:
+    chart_identity = _database_chart_uid_and_id_for_chart(owner, chart)
+    chart_uid = chart_identity[0] if chart_identity is not None else ""
+    chart_id = chart_identity[1] if chart_identity is not None else None
+    if (
+        not callable(collect)
+        or not callable(signature_builder)
+        or chart_id is None
+        or not chart_uid
+        or not _persisted_chart_signature_matches_current(chart_uid, chart)
+    ):
         return calculate_trait_likelihoods(chart, traits)
     try:
         signature = signature_builder(traits)
@@ -795,6 +827,7 @@ def trait_metadata_for_chart(owner: Any, chart: Any, *, cached_only: bool = Fals
     names_by_uid = {uid: name for name, uid in trait_uids_by_name.items() if uid}
     active_trait_names = set(traits_by_name)
     cached_rows_by_name: dict[str, dict[str, Any]] = {}
+    stale_rows_by_name: dict[str, dict[str, Any]] = {}
     if chart_uid is not None:
         try:
             rows = db.get_chart_trait_metadata(chart_uid)
@@ -824,6 +857,8 @@ def trait_metadata_for_chart(owner: Any, chart: Any, *, cached_only: bool = Fals
                 and str(row.get("chart_signature", "")) == chart_signature
             ):
                 cached_rows_by_name[name] = row
+            elif valid_trait_signature and str(row.get("norm_signature", "")) == norm_signature:
+                stale_rows_by_name[name] = row
         if active_trait_names and set(cached_rows_by_name) == active_trait_names:
             _predictions_debug(owner, "Trait metadata DB row cache hit chart_uid=%s traits=%s", chart_uid, len(active_trait_names))
             above = {name for name, row in cached_rows_by_name.items() if row.get("direction") == "above"}
@@ -849,6 +884,23 @@ def trait_metadata_for_chart(owner: Any, chart: Any, *, cached_only: bool = Fals
             setattr(chart, "trait_likelihoods", _trait_uid_mapping_for_names(likelihoods, trait_uids_by_name))
             setattr(chart, "_trait_prediction_metadata_cache", {"signature": signature, "metadata": metadata})
             return metadata
+        if cached_only and active_trait_names and set(stale_rows_by_name) == active_trait_names:
+            _predictions_debug(owner, "Trait metadata stale DB row cache hit chart_uid=%s traits=%s", chart_uid, len(active_trait_names))
+            above = {name for name, row in stale_rows_by_name.items() if row.get("direction") == "above"}
+            below = {name for name, row in stale_rows_by_name.items() if row.get("direction") == "below"}
+            latest_updated_at = max(
+                (str(row.get("updated_at", "") or "") for row in stale_rows_by_name.values()),
+                default="",
+            )
+            return {
+                "above": above,
+                "below": below,
+                "deviations": {name: float(row.get("deviation", 0.0)) for name, row in stale_rows_by_name.items()},
+                "likelihoods": {name: float(row.get("likelihood", 0.0)) for name, row in stale_rows_by_name.items()},
+                "database_averages": {name: float(row.get("db_average", 0.0)) for name, row in stale_rows_by_name.items()},
+                "stale": True,
+                "updated_at": latest_updated_at,
+            }
 
     if cached_only:
         return None
@@ -988,6 +1040,21 @@ def _traits_recalculate_prompt_html(updated_at: str | None) -> str:
         "Recalculate!</a>"
         "</div>"
     )
+
+
+def _traits_stale_recalculate_prompt_html(updated_at: str | None) -> str:
+    timestamp = html.escape(updated_at or "unknown")
+    return (
+        "<div style='width:100%; padding:0 0 8px 0; text-align:center; color:#ffdf8a;'>"
+        "<span style='font-style:italic;'>Cached trait predictions shown, but the chart's birth data "
+        f"has changed since they were calculated ({timestamp}).</span> "
+        "<a href='trait-predictions:calculate' "
+        "style='display:inline-block; margin-left:6px; background-color:#7b4dff; color:white; "
+        "font-weight:bold; padding:4px 10px; border-radius:5px; text-decoration:none;'>"
+        "Recalculate!</a>"
+        "</div>"
+    )
+
 
 def _start_traits_prediction_calculation(owner: Any) -> None:
     chart = getattr(owner, "_traits_prediction_pending_chart", None)
@@ -1278,8 +1345,19 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
         cached_metadata = trait_metadata_for_chart(owner, chart, cached_only=True)
         if isinstance(cached_metadata, dict):
             above_html, below_html = _trait_predictions_html_from_metadata(traits, cached_metadata)
-            _cache_traits_prediction_view(owner, cache_key or "", above_html, below_html, "cached")
-            _apply_traits_prediction_view(owner, above_html, below_html)
+            if bool(cached_metadata.get("stale")):
+                owner._traits_prediction_pending_chart = chart
+                owner._traits_prediction_pending_traits = traits
+                owner._traits_prediction_pending_cache_key = cache_key or ""
+                _apply_traits_prediction_view(
+                    owner,
+                    above_html,
+                    below_html,
+                    prefix_html=_traits_stale_recalculate_prompt_html(str(cached_metadata.get("updated_at", "") or "unknown")),
+                )
+            else:
+                _cache_traits_prediction_view(owner, cache_key or "", above_html, below_html, "cached")
+                _apply_traits_prediction_view(owner, above_html, below_html)
             return
         owner._traits_prediction_pending_chart = chart
         owner._traits_prediction_pending_traits = traits

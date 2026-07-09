@@ -4652,24 +4652,50 @@ class DatabaseAnalyticsChartsMixin:
 
     def _clear_traits_distribution_analytics_cache(self, changed_chart_ids: set[int] | None = None) -> None:
         self._traits_distribution_analytics_cache = {}
+        self._traits_distribution_chart_token_cache = None
         if changed_chart_ids is None:
             self._traits_distribution_chart_likelihood_cache = {}
+            self._traits_distribution_individual_likelihood_cache = {}
+            self._traits_distribution_individual_profile_likelihood_cache = {}
             return
 
         likelihood_cache = getattr(self, "_traits_distribution_chart_likelihood_cache", None)
-        if not isinstance(likelihood_cache, dict):
-            self._traits_distribution_chart_likelihood_cache = {}
-            return
-
         changed_ids = {int(chart_id) for chart_id in changed_chart_ids}
-        for cache_key in list(likelihood_cache):
-            if (
-                isinstance(cache_key, tuple)
-                and len(cache_key) >= 3
-                and isinstance(cache_key[2], int)
-                and cache_key[2] in changed_ids
-            ):
-                likelihood_cache.pop(cache_key, None)
+        if isinstance(likelihood_cache, dict):
+            for cache_key in list(likelihood_cache):
+                if (
+                    isinstance(cache_key, tuple)
+                    and len(cache_key) >= 3
+                    and isinstance(cache_key[2], int)
+                    and cache_key[2] in changed_ids
+                ):
+                    likelihood_cache.pop(cache_key, None)
+        else:
+            self._traits_distribution_chart_likelihood_cache = {}
+
+        individual_cache = getattr(self, "_traits_distribution_individual_likelihood_cache", None)
+        if isinstance(individual_cache, dict):
+            for cache_key in list(individual_cache):
+                if isinstance(cache_key, tuple) and len(cache_key) == 2:
+                    try:
+                        if int(cache_key[1]) in changed_ids:
+                            individual_cache.pop(cache_key, None)
+                    except (TypeError, ValueError):
+                        individual_cache.pop(cache_key, None)
+        else:
+            self._traits_distribution_individual_likelihood_cache = {}
+
+        individual_profile_cache = getattr(self, "_traits_distribution_individual_profile_likelihood_cache", None)
+        if isinstance(individual_profile_cache, dict):
+            for cache_key in list(individual_profile_cache):
+                if isinstance(cache_key, tuple) and len(cache_key) == 2:
+                    try:
+                        if int(cache_key[1]) in changed_ids:
+                            individual_profile_cache.pop(cache_key, None)
+                    except (TypeError, ValueError):
+                        individual_profile_cache.pop(cache_key, None)
+        else:
+            self._traits_distribution_individual_profile_likelihood_cache = {}
 
 
     def _traits_distribution_chart_tokens(self) -> dict[int, str]:
@@ -4875,6 +4901,9 @@ class DatabaseAnalyticsChartsMixin:
                 normalized_likelihood = float(likelihood)
             except (TypeError, ValueError):
                 continue
+            current_chart_token = chart_tokens.get(chart_id)
+            if not current_chart_token:
+                continue
             profile_index = profile_indexes.get(profile_key)
             if profile_index is None:
                 profile_index = len(profiles)
@@ -4884,7 +4913,7 @@ class DatabaseAnalyticsChartsMixin:
                 {
                     "profile": profile_index,
                     "chart_id": chart_id,
-                    "chart_token": chart_tokens.get(chart_id, ""),
+                    "chart_token": current_chart_token,
                     "likelihood": normalized_likelihood,
                 }
             )
