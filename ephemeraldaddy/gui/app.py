@@ -27921,7 +27921,23 @@ class MainWindow(QMainWindow):
         if viewport_width is None:
             return None
 
+        # Prediction recalculations replace prompt widgets with canvases while
+        # the stacked right-panel scroll area is still processing size hints. In
+        # that short window Qt can report a viewport width from the previous
+        # layout pass, leaving the new Matplotlib canvas fixed too wide and
+        # visually cropped until the user manually resizes the app. Clamp the
+        # target width to the narrowest live ancestor width as well as the scroll
+        # viewport so redraws cannot right-justify against stale geometry.
         available_width = viewport_width
+        ancestor = parent
+        while ancestor is not None:
+            ancestor_width = ancestor.width()
+            if ancestor_width > 0:
+                available_width = min(available_width, ancestor_width)
+            if isinstance(ancestor, QScrollArea):
+                break
+            ancestor = ancestor.parentWidget()
+
         if parent is not None:
             parent_layout = parent.layout()
             if parent_layout is not None:
