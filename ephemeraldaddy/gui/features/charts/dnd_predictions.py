@@ -608,6 +608,7 @@ def build_dnd_statblock_popout_info_html(
     statblock: Any = None,
     show_explainers: bool = True,
     cached_at: Any = None,
+    db_norm_averages: Any = None,
 ) -> str:
     if chart is None:
         return "No chart is available for this D&D stat interpretation."
@@ -616,7 +617,7 @@ def build_dnd_statblock_popout_info_html(
         return f"No D&D stat interpretation data available for {html.escape(str(stat_key))}."
 
     if statblock is None:
-        statblock = score_dnd_statblock(chart, norm_charts=norm_charts)
+        statblock = score_dnd_statblock(chart, norm_charts=norm_charts, db_norm_averages=db_norm_averages)
     normalized_stat_key = str(stat_key or "").strip().upper()
     stat_value = int(statblock.scores.get(normalized_stat_key, 0))
     chart_name = str(getattr(chart, "name", "Chart") or "Chart").strip() or "Chart"
@@ -635,7 +636,7 @@ def build_dnd_statblock_popout_info_html(
             statblock,
             evidence_subtotals,
             norm_charts=norm_charts,
-            db_norm_averages=getattr(statblock, "_db_norm_averages", None),
+            db_norm_averages=getattr(statblock, "_db_norm_averages", None) or db_norm_averages,
             cached_at=cached_at,
         )
         explainer_html = (
@@ -1623,7 +1624,7 @@ class DndPredictionPanelAdapter:
                     pass
                 return cached["statblock"]
         db_norm_averages = _calculate_db_norm_stat_averages(norm_charts)
-        statblock = score_dnd_statblock(chart, norm_charts=norm_charts)
+        statblock = score_dnd_statblock(chart, norm_charts=norm_charts, db_norm_averages=db_norm_averages)
         try:
             setattr(statblock, "_db_norm_averages", dict(db_norm_averages))
         except Exception:
