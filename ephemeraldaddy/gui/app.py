@@ -7048,6 +7048,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return owner
         return self.parent()
 
+    def __getattr__(self, name: str):
+        if name == "_prediction_norm_metric_payloads":
+            owner = self._owner_window()
+            metric_payloads = getattr(owner, name, None)
+            if callable(metric_payloads):
+                return metric_payloads
+        raise AttributeError(name)
+
     def _build_similarities_analysis_panel(self) -> QWidget:
         return self.similarities_controller.build_panel()
 
