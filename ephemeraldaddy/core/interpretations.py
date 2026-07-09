@@ -6468,6 +6468,25 @@ TAROT_NUMBERS = { #swords & wands are intrinsically a harsh burden that age poor
     },
 }
 
+WEIRDNESS_SCALE = {
+    "literal alien":{
+        "max":1000,
+        "min":400,
+    },
+    "stranger in a strange land":{
+        "max":400,
+        "min":350,
+    },
+    "standard levels of weirdness":{
+        "max":350,
+        "min":100
+    },
+    "suspiciously average":{
+        "max":100,
+        "min":0,
+    }
+}
+
 HD_CATEGORY_COLORS = {
     "HD Profile":"#6699ff", #basic blue
     "HD Type":"#6699ff", #basic blue
