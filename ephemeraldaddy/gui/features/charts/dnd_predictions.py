@@ -820,10 +820,8 @@ def _collect_top_three_species_payloads(chart: Any) -> list[dict[str, Any]]:
     return payloads
 
 
-def build_dnd_top_three_summary_html(chart: Any, *, linked: bool = False) -> str:
+def build_dnd_species_summary_html(chart: Any, *, linked: bool = False) -> str:
     species_payloads = _collect_top_three_species_payloads(chart)
-    _axis_scores, class_payloads = _collect_top_three_class_payloads(chart)
-
     species_lines: list[str] = []
     for rank, payload in enumerate(species_payloads, start=1):
         label = str(payload["label"])
@@ -833,7 +831,13 @@ def build_dnd_top_three_summary_html(chart: Any, *, linked: bool = False) -> str
             else html.escape(label)
         )
         species_lines.append(f"{rank}) {rendered_label}")
+    if not species_lines:
+        species_lines.append("No species prediction available.")
+    return "<b>Top 3 Species/Subspecies</b><br>" + "<br>".join(species_lines)
 
+
+def build_dnd_class_summary_html(chart: Any, *, linked: bool = False) -> str:
+    _axis_scores, class_payloads = _collect_top_three_class_payloads(chart)
     class_lines: list[str] = []
     for rank, payload in enumerate(class_payloads, start=1):
         label = str(payload["name"])
@@ -843,17 +847,16 @@ def build_dnd_top_three_summary_html(chart: Any, *, linked: bool = False) -> str
             else html.escape(label)
         )
         class_lines.append(f"{rank}) {rendered_label}")
-
-    if not species_lines:
-        species_lines.append("No species prediction available.")
     if not class_lines:
         class_lines.append("No class prediction available.")
+    return "<b>Top 3 Classes</b><br>" + "<br>".join(class_lines)
 
+
+def build_dnd_top_three_summary_html(chart: Any, *, linked: bool = False) -> str:
     return (
-        "<b>Top 3 Species/Subspecies</b><br>"
-        + "<br>".join(species_lines)
-        + "<br><br><b>Top 3 Classes</b><br>"
-        + "<br>".join(class_lines)
+        build_dnd_species_summary_html(chart, linked=linked)
+        + "<br><br>"
+        + build_dnd_class_summary_html(chart, linked=linked)
     )
 
 
@@ -1158,6 +1161,7 @@ def configure_dnd_top_three_summary_label(
     *,
     info_panel: Any,
     before_show: Callable[[], None] | None = None,
+    section: str = "both",
 ) -> None:
     """Render clickable top-three D&D species/classes into a Predictions label."""
 
@@ -1208,7 +1212,12 @@ def configure_dnd_top_three_summary_label(
     label.setTextInteractionFlags(Qt.LinksAccessibleByMouse | Qt.TextSelectableByMouse)
     label.setOpenExternalLinks(False)
     apply_chart_info_link_cursor(label)
-    label.setText(build_dnd_top_three_summary_html(chart, linked=True))
+    if section == "species":
+        label.setText(build_dnd_species_summary_html(chart, linked=True))
+    elif section == "class":
+        label.setText(build_dnd_class_summary_html(chart, linked=True))
+    else:
+        label.setText(build_dnd_top_three_summary_html(chart, linked=True))
 
 
 
@@ -1345,6 +1354,8 @@ class DndPredictionPanelAdapter:
         chart_layout: Any,
         alignment_layout: Any = None,
         summary_label: Any = None,
+        species_label: Any = None,
+        class_label: Any = None,
         info_panel: Any = None,
         before_show: Callable[[], None] | None = None,
         chart_theme_colors: dict[str, str],
@@ -1361,6 +1372,8 @@ class DndPredictionPanelAdapter:
         self.chart_layout = chart_layout
         self.alignment_layout = alignment_layout
         self.summary_label = summary_label
+        self.species_label = species_label
+        self.class_label = class_label
         self.info_panel = info_panel
         self.before_show = before_show
         self.chart_theme_colors = chart_theme_colors
@@ -1402,11 +1415,6 @@ class DndPredictionPanelAdapter:
         panel_layout.addWidget(label, alignment=Qt.AlignCenter)
         panel_layout.addWidget(button, alignment=Qt.AlignCenter)
         target_layout.addWidget(panel)
-        if target_layout is self.chart_layout:
-            summary_label = self._ensure_summary_label()
-            summary_label.setText(summary_text or "<b>Top three:</b> No prior data")
-            if self.chart_layout.indexOf(summary_label) < 0:
-                self.chart_layout.addWidget(summary_label)
 
     def _norm_charts(self) -> Any:
         if self.norm_charts_provider is None:
@@ -1428,6 +1436,43 @@ class DndPredictionPanelAdapter:
             self.summary_label.setWordWrap(True)
             self.summary_label.setTextFormat(Qt.RichText)
         return self.summary_label
+
+    def _ensure_text_label(self, attr_name: str) -> Any:
+        label = getattr(self, attr_name, None)
+        label_is_usable = False
+        if label is not None:
+            try:
+                label_is_usable = label.parent() is not None
+            except RuntimeError:
+                label_is_usable = False
+        if not label_is_usable:
+            label = QLabel()
+            label.setWordWrap(True)
+            label.setTextFormat(Qt.RichText)
+            label.setStyleSheet("color: #f5f5f5; padding: 4px 0 8px 0;")
+            setattr(self, attr_name, label)
+        return label
+
+    def _render_species_and_class_summaries(self, chart: Any | None) -> None:
+        label_sections = (("species_label", "species"), ("class_label", "class"))
+        for attr_name, section in label_sections:
+            label = self._ensure_text_label(attr_name)
+            if chart is None or self.is_placeholder_chart(chart):
+                label.setText("<b>Top 3 Species/Subspecies</b><br>—" if section == "species" else "<b>Top 3 Classes</b><br>—")
+            elif self.info_panel is not None:
+                configure_dnd_top_three_summary_label(
+                    label,
+                    chart,
+                    info_panel=self.info_panel,
+                    before_show=self.before_show,
+                    section=section,
+                )
+            else:
+                label.setText(
+                    build_dnd_species_summary_html(chart)
+                    if section == "species"
+                    else build_dnd_class_summary_html(chart)
+                )
 
     def _draw_no_data(self, ax: Any, _chart: Any | None) -> None:
         ax.clear()
@@ -1735,6 +1780,7 @@ class DndPredictionPanelAdapter:
         self._remove_stale_recalculate_notices(self.chart_layout)
         self._remove_stale_recalculate_notices(self.alignment_layout)
         summary_label = self._ensure_summary_label()
+        self._render_species_and_class_summaries(chart)
         if chart is None or self.is_placeholder_chart(chart):
             metric_panel_renderer(
                 canvas_attr="dnd_prediction_statblock_canvas",
@@ -1744,9 +1790,6 @@ class DndPredictionPanelAdapter:
                 draw_fn=self._draw_no_data,
                 chart=chart,
             )
-            if self.chart_layout.indexOf(summary_label) < 0:
-                self.chart_layout.addWidget(summary_label)
-            summary_label.setText("<b>Top three:</b> —" if chart is None else "<b>Top three:</b> No data")
             if self.alignment_layout is not None:
                 metric_panel_renderer(
                     canvas_attr="dnd_prediction_alignment_canvas",
@@ -1773,15 +1816,6 @@ class DndPredictionPanelAdapter:
             )
             if statblock_stale:
                 self._show_stale_recalculate_notice(self.chart_layout, chart, "dnd_statblock")
-            if self.chart_layout.indexOf(summary_label) < 0:
-                self.chart_layout.addWidget(summary_label)
-            if self.info_panel is not None:
-                configure_dnd_top_three_summary_label(
-                    summary_label,
-                    chart,
-                    info_panel=self.info_panel,
-                    before_show=self.before_show,
-                )
         else:
             self._show_calculate_prompt(chart, section="dnd_statblock")
 

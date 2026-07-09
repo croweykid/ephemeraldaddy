@@ -35301,6 +35301,10 @@ class MainWindow(QMainWindow):
         self.dnd_prediction_statblock_canvas = None
         self.dnd_prediction_alignment_canvas = None
         self.dnd_prediction_top_three_label = None
+        if getattr(self, "dnd_prediction_species_label", None) is not None:
+            self.dnd_prediction_species_label.setText("<b>Top 3 Species/Subspecies</b><br>—")
+        if getattr(self, "dnd_prediction_class_label", None) is not None:
+            self.dnd_prediction_class_label.setText("<b>Top 3 Classes</b><br>—")
         self.dnd_prediction_alignment_debug_label = None
         if getattr(self, "distinguishing_factors_label", None) is not None:
             self.distinguishing_factors_label.setText("Database distinction scan: —")
@@ -36347,6 +36351,8 @@ class MainWindow(QMainWindow):
             chart_layout=getattr(self, "dnd_predictions_chart_layout", None),
             alignment_layout=getattr(self, "dnd_alignment_chart_layout", None),
             summary_label=getattr(self, "dnd_prediction_top_three_label", None),
+            species_label=getattr(self, "dnd_prediction_species_label", None),
+            class_label=getattr(self, "dnd_prediction_class_label", None),
             info_panel=self.chart_info_output,
             before_show=lambda: self._set_chart_info_panel_mode("chart_info"),
             chart_theme_colors=CHART_THEME_COLORS,
