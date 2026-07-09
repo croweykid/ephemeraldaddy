@@ -6470,20 +6470,46 @@ TAROT_NUMBERS = { #swords & wands are intrinsically a harsh burden that age poor
 
 WEIRDNESS_SCALE = {
     "literal alien":{
+        "display_name":"Lv 5/5: ᏝᎥᏖᏋᏒᏗᏝ ᏗᏝᎥᏋᏁ",
         "max":1000,
         "min":400,
+        "font":"",
+        "color":"",
+    },
+     "deeply esoteric":{
+        "display_name":"Lv 4/5: ᗪ乇乇卩ㄥㄚ 乇丂ㄖㄒ乇尺丨匚", #pǝǝdןʎ ǝsoʇǝɹıɔ
+        "max":400,
+        "min":370,
+        "font":"",
+        "color":"",
     },
     "stranger in a strange land":{
-        "max":400,
+        "display_name":"Lv 3/5: 𝖘𝖙𝖗𝖆𝖓𝖌𝖊𝖗 𝖎𝖓 𝖆 𝖘𝖙𝖗𝖆𝖓𝖌𝖊 𝖑𝖆𝖓𝖉", #ˢᵗʳᵃⁿᵍᵉʳ ⁱⁿ ᵃ ˢᵗʳᵃⁿᵍᵉ ˡᵃⁿᵈ
+        "max":370,
         "min":350,
+        "font":"",
+        "color":"",
+    },
+    "lil funky":{
+        "display_name":"Lv 2/5: 𝓁𝒾𝓁 𝒻𝓊𝓃𝓀𝓎",
+        "max":350,
+        "min":300,
+        "font":"",
+        "color":"",
     },
     "standard levels of weirdness":{
-        "max":350,
-        "min":100
+        "display_name":"Lv 1/5: standard weirdness",
+        "max":300,
+        "min":100,
+        "font":"",
+        "color":"",
     },
     "suspiciously average":{
+        "display_name":"Lv 0/5: 𝚜𝚞𝚜𝚙𝚒𝚌𝚒𝚘𝚞𝚜𝚕𝚢 𝚊𝚟𝚎𝚛𝚊𝚐𝚎",
         "max":100,
         "min":0,
+        "font":"", #courier? or arial?
+        "color":"",
     }
 }
 
