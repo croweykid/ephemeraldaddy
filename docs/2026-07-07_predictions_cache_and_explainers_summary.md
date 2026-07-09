@@ -1,356 +1,282 @@
-# Predictions Cache and Explainers Summary v1 | last updated 7.7.2026
+# Predictions Cache and Explainers Summary v2 | last updated 2026-07-09
 
 ## Scope
 
-This document summarizes the requested Chart View Predictions-panel changes discussed in this conversation, especially the D&D-ification Statblock/Alignment behavior, statblock popout math explainers, persisted prediction caches, stale-cache UI, UID-only cache identity, and the related Traits-panel cached-rendering behavior.
+This document describes the current architectural goals and cache responsibilities for the Predictions feature in both:
 
-## Original user goals
+- **Database View > Database Analytics > Predictions / Traits distribution**, and
+- **Chart View > Predictions**, including Traits and D&D-ification sections.
 
-1. **Make the D&D Statblock popout math auditable.**
-   - The Statblock popout already listed evidence subtotals.
-   - The requested behavior was to add a divider and then show:
-     - each subtotal again,
-     - the subtotals added together,
-     - the actual DB norm comparison,
-     - when the DB norm/cache value was cached,
-     - and the remaining math leading to the final displayed D&D stat.
+The core design goal is that Predictions should use durable, UID-backed calculation data wherever possible. Rendered HTML is not a primary cache. In-memory objects are allowed only as transient conveniences inside one app session and must not become a second source of truth.
 
-2. **Never block previously loaded Predictions results behind a Calculate prompt.**
-   - If any Predictions section has prior data for a chart, that data should display by default.
-   - Even stale data should display first.
-   - If stale, the UI should show a recalculation option at the top while keeping old results visible.
+## Architectural principles
 
-3. **Make D&D prediction caches survive app restarts.**
-   - In-memory owner/chart-object caches were not enough.
-   - D&D Statblock and Alignment payloads needed UID-backed persistence in app metadata/storage.
+1. **UIDs are the durable identity boundary.**
+   - Persisted prediction data should be associated with permanent chart UIDs, not legacy transient row IDs.
+   - Row IDs may still be used internally by Database Analytics while traversing currently loaded rows, but persisted chart-facing prediction metadata should resolve back to UIDs.
 
-4. **Use UIDs only.**
-   - Legacy chart ID fallbacks should be removed.
-   - Charts missing UIDs should fail loudly in Terminal with the chart name and a clear message.
+2. **Persist calculations, not rendered views.**
+   - The reusable assets are trait likelihoods, trait DB averages, norm signatures, chart signatures, D&D statblock payloads, and D&D alignment parts.
+   - Chart View can render HTML from those assets on demand.
+   - A rendered-HTML cache is intentionally not part of the durable Predictions architecture because it can drift from the actual metadata/cache state.
 
-5. **Make stale-cache correctness explicit.**
-   - Stale cached values may be acceptable for display, but fresh recalculation paths must not silently reuse stale data.
-   - Statblock cache validation must include chart state, not just norm state, so edited charts are not treated as fresh when database norms have not changed.
+3. **Cached stale data should display, but stale status must be explicit.**
+   - If prior data exists for a chart, Chart View should show it rather than forcing a manual Calculate first.
+   - If chart birth data, trait definitions, or DB norms have changed enough to invalidate freshness, the old data may still be displayed with a Recalculate notice.
+   - Fresh recalculation paths must not silently treat stale payloads as fresh.
 
-6. **Use a visually consistent Recalculate control.**
-   - The stale notice should use a button styled like the Predictions-panel `Calculate!` button, not a random rich-text link.
+4. **Database Analytics is the shared trait scoring engine.**
+   - Traits in Chart View, Traits in Database Analytics, and D&D Alignment trait scoring should share the same trait likelihood/distribution cache path.
+   - The shared path is `_collect_traits_distribution_analytics()` accessed from Chart View through `trait_likelihoods_with_distribution_cache()`.
 
-7. **Apply the cache-first principle beyond D&D Statblock.**
-   - D&D Alignment should also restore and display cached results.
-   - Traits should render available cached metadata/results immediately while refreshing in the background.
-   - Fast sections should not be unnecessarily bottlenecked by a manual Calculate/Recalculate flow.
+5. **DB-level norms are separate from per-chart likelihoods.**
+   - `.traits_distribution_likelihood_cache` stores reusable per-chart/per-analytical-profile trait likelihoods.
+   - `.database_norms_cache` stores DB-level trait averages and norm signatures.
+   - `chart_trait_metadata` stores per-chart/per-trait materialized assignments/deviations for immediate Chart View display.
 
-## Programmatic changes made
+## Cache and persistence layers
 
-### 1. D&D statblock evidence subtotals and math walkthrough
+### 1. `.traits_distribution_likelihood_cache`
 
-File: `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
+**Owner:** Database Analytics trait distribution code.
 
-- `_build_dnd_stat_evidence_html()` was changed to return both rendered evidence HTML and a list of `(section_name, subtotal)` pairs.
-- `_build_dnd_stat_math_html()` was added to render the math block below a divider.
-- The math block now shows:
-  - per-section subtotals,
-  - displayed subtotal sum,
-  - scorer-equivalent raw total after category balancing/count weighting,
-  - DB norm raw average when available,
-  - ratio math against the D&D average anchor,
-  - clamp/round behavior,
-  - fallback tanh normalization when DB norms are unavailable or zero,
-  - and the final displayed stat value.
-- `build_dnd_statblock_popout_info_html()` wires the evidence subtotal output into the math walkthrough.
+**Purpose:** Avoid rescoring every chart/trait combination when only a small number of charts or traits changed.
 
-Important implementation locations:
+**Current structure:**
 
-- `_build_dnd_stat_evidence_html()` in `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
-- `_build_dnd_stat_math_html()` in `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
-- `build_dnd_statblock_popout_info_html()` in `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
+- Uses a compact profile-indexed format.
+- Stores analytical profile keys once.
+- Stores per-chart likelihood rows keyed by profile index and chart token.
+- Preserves row-level staleness checks by chart token.
+- Reuses profile likelihoods across trait renames/recolors when the analytical profile is unchanged.
 
-### 2. Use scorer-equivalent raw evidence for fallback math
+**Primary code paths:**
 
-File: `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
+- `_load_traits_distribution_likelihood_cache()`
+- `_save_traits_distribution_likelihood_cache()`
+- `_collect_traits_distribution_analytics()`
 
-A review concern identified that displayed evidence subtotals are not the same raw quantity normalized by `score_dnd_statblock()`.
+### 2. `.database_norms_cache`
 
-To address that:
+**Owner:** Chart trait prediction helpers.
 
-- `_build_dnd_stat_math_html()` calls `calculate_weighted_criteria_scores()` for the selected stat.
-- Fallback normalization uses this scorer-equivalent raw total rather than the visible subtotal sum.
-- The UI still shows the visible subtotal sum, but explains that the category-balanced scorer raw total is the value that is actually normalized.
+**Purpose:** Persist database-level trait averages and norm signatures so Chart View and Database Analytics do not need to recalculate the whole database norm baseline for every chart render.
 
-Important implementation location:
+**Design notes:**
 
-- `_build_dnd_stat_math_html()` in `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
+- Cache keys are based on trait UID/analytical profile, not display-only fields.
+- Display-only trait changes should not force DB norm rescoring.
+- Norm freshness is based on the database norm state and the configured refresh threshold.
+- Stale norm data can remain displayable until a forced/background refresh recomputes it.
 
-### 3. Store original DB norm averages with statblock cache payloads
+**Primary code paths:**
 
-File: `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
+- `_load_trait_norm_cache()`
+- `_save_trait_norm_cache()`
+- `_database_trait_averages()`
+- `_database_norm_signature_for_traits()`
 
-A stale popout correctness concern was identified: stale statblock values could be explained against current DB norms.
+### 3. `chart_trait_metadata`
 
-To fix that:
+**Owner:** Core DB plus trait prediction helpers.
 
-- Statblock cache payloads now store:
-  - `norm_token`,
-  - `norm_count`,
-  - `db_norm_averages`,
-  - `key_fingerprint`,
-  - `cached_at`,
-  - and the statblock payload itself.
-- Restored statblocks are given their original `_db_norm_averages`.
-- `build_dnd_statblock_popout_info_html()` passes those stored norm averages into `_build_dnd_stat_math_html()`.
-- The popout math therefore describes the same norm snapshot that produced the displayed statblock.
+**Purpose:** Materialize per-chart/per-trait results for fast Chart View display.
 
-Important implementation locations:
+**Stored concepts:**
 
-- `DndPredictionPanelAdapter._score_statblock()` in `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
-- `DndPredictionPanelAdapter.build_popout_info()` in `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
-- `_build_dnd_stat_math_html()` in `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
+- chart UID,
+- trait UID,
+- trait display name,
+- direction (`above`, `below`, `neutral`),
+- likelihood,
+- DB average,
+- deviation,
+- trait signature,
+- norm signature,
+- chart signature,
+- update timestamp.
 
-### 4. Fix stale statblock popout HTML cache keys
+**Design role:**
 
-File: `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
+This is the first place Chart View Traits should look. If data exists, it should render immediately. If the signatures indicate the result is stale, it should still render with a Recalculate notice.
 
-A review concern identified that popout HTML was keyed against the current norm token, even when the statblock being displayed was stale.
+**Primary code paths:**
 
-To fix that:
+- `db.get_chart_trait_metadata(chart_uid)`
+- `db.upsert_chart_trait_metadata(chart_uid, rows, ...)`
+- `trait_metadata_for_chart(owner, chart, cached_only=True)`
+- `trait_metadata_for_chart(owner, chart, cached_only=False)`
 
-- Statblock cache payloads include a `key_fingerprint` describing the payload that produced the displayed statblock.
-- Statblock popout HTML cache keys now include that statblock payload fingerprint.
-- This prevents stale popout HTML from being stored or reused as if it belonged to fresh/current norm data.
+### 4. D&D prediction metadata
 
-Important implementation location:
+**Owner:** Core DB plus D&D prediction helpers.
 
-- `DndPredictionPanelAdapter.build_popout_info()` in `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
+**Purpose:** Persist D&D Statblock and Alignment data across app sessions.
 
-### 5. Persist D&D prediction metadata across app sessions
+**Stored concepts:**
 
-File: `ephemeraldaddy/core/db.py`
+- D&D statblock payloads,
+- statblock cache fingerprints,
+- norm token/count,
+- norm chart UIDs,
+- DB norm averages used for the statblock,
+- cached timestamp,
+- D&D alignment parts.
 
-A major concern was that owner-level caches only lasted for the current app session.
-
-To address this, a new persistent SQLite table was added:
+**Primary code paths:**
 
 - `chart_dnd_prediction_metadata`
-  - `chart_uid TEXT PRIMARY KEY`
-  - `payload TEXT NOT NULL DEFAULT '{}'`
-  - `updated_at TEXT NOT NULL DEFAULT ''`
-
-New DB helpers were added:
-
-- `_create_dnd_prediction_metadata_table()`
-- `upsert_chart_dnd_prediction_metadata(chart_uid, payload)`
-- `get_chart_dnd_prediction_metadata(chart_uid)`
-
-Schema initialization now calls `_create_dnd_prediction_metadata_table()` from `_ensure_schema()`.
-
-Important implementation locations:
-
-- `_create_dnd_prediction_metadata_table()` in `ephemeraldaddy/core/db.py`
-- `upsert_chart_dnd_prediction_metadata()` in `ephemeraldaddy/core/db.py`
-- `get_chart_dnd_prediction_metadata()` in `ephemeraldaddy/core/db.py`
-- `_ensure_schema()` in `ephemeraldaddy/core/db.py`
-
-### 6. Serialize and restore D&D statblock payloads safely
-
-File: `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
-
-Because `DnDStatBlock` objects cannot be directly persisted as JSON, statblock serialization helpers were added:
-
-- `_statblock_to_cache_dict()`
-- `_statblock_from_cache_dict()`
-- `_restore_statblock_cache_payload()`
-
-These helpers convert statblock raw scores, displayed scores, and modifiers to/from JSON-safe dictionaries and restore a `DnDStatBlock` object when loading persisted metadata.
-
-Important implementation locations:
-
-- `_statblock_to_cache_dict()` in `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
-- `_statblock_from_cache_dict()` in `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
-- `_restore_statblock_cache_payload()` in `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
-
-### 7. Persist and restore D&D Statblock and Alignment caches
-
-File: `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
-
-D&D cache persistence/restoration helpers were added:
-
+- `db.get_chart_dnd_prediction_metadata(chart_uid)`
+- `db.upsert_chart_dnd_prediction_metadata(chart_uid, payload)`
 - `_load_persisted_dnd_prediction_payload(chart)`
 - `_persist_dnd_prediction_payload(chart, section, payload)`
-- `_owner_cache_bucket(owner, attr_name)`
 
-Statblock behavior:
+## Chart View Traits order of operations
 
-- `_restore_statblock_cache()` checks chart-local cache first, then owner cache, then persisted DB metadata.
-- `_score_statblock()` persists freshly computed statblock payloads.
+The intended Chart View Traits flow is:
 
-Alignment behavior:
+1. Resolve the current chart and active trait set.
+2. Call `trait_metadata_for_chart(owner, chart, cached_only=True)`.
+3. If persisted metadata exists and is fresh, render it immediately.
+4. If persisted metadata exists but is stale, render it immediately with a Recalculate notice.
+5. If no persisted metadata exists, show the manual Calculate prompt.
+6. When the user calculates/recalculates, call `trait_metadata_for_chart(owner, chart)`.
+7. During calculation, use `trait_likelihoods_with_distribution_cache()` for missing chart/trait likelihoods.
+8. Use `_database_trait_averages()` / `.database_norms_cache` for missing DB-level trait averages.
+9. Persist the resulting rows to `chart_trait_metadata` using chart UID and trait UIDs.
+10. Render the calculated results.
 
-- `_dnd_alignment_score_parts()` checks chart-local cache, then owner cache, then persisted DB metadata.
-- Freshly computed alignment parts are persisted.
+There should be no hidden rendered-HTML fallback that displays results when `chart_trait_metadata` is absent. If rendered results exist without materialized metadata, that indicates a consistency problem; the architecture should repair or expose that problem rather than mask it with a phantom cache.
 
-Important implementation locations:
+## Database View > Database Analytics Traits/Predictions flow
 
-- `_load_persisted_dnd_prediction_payload()` in `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
-- `_persist_dnd_prediction_payload()` in `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
-- `DndPredictionPanelAdapter._restore_statblock_cache()` in `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
-- `DndPredictionPanelAdapter._score_statblock()` in `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
-- `_dnd_alignment_score_parts()` in `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
+Database Analytics is responsible for bulk trait distribution work and for warming the shared trait likelihood cache.
 
-### 8. Remove legacy chart ID cache fallback and fail loudly on missing UIDs
+The intended Database Analytics flow is:
 
-File: `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
+1. Build the active trait signature from active trait analytical profiles.
+2. Build the selected/database chart ID set for the current analytics view.
+3. Load `.traits_distribution_likelihood_cache` if not already loaded.
+4. For each chart/trait profile:
+   - reuse chart-level aggregate likelihoods if available,
+   - otherwise reuse individual trait/profile likelihoods if chart tokens match,
+   - otherwise score only the missing chart/trait profile combinations.
+5. Save newly scored individual/profile likelihoods back to `.traits_distribution_likelihood_cache` as progress is made.
+6. Persist complete per-chart trait metadata rows to `chart_trait_metadata` when a non-partial aggregate completes.
+7. Use `.database_norms_cache` for DB-level averages and norm signatures where appropriate.
 
-The UID migration concern was addressed by removing chart ID fallbacks from D&D prediction cache identity.
+The key efficiency goal is incremental recomputation: adding/updating one chart or changing one trait profile should not force a full database-wide recalculation when existing profile/chart-token entries remain valid.
 
-Current behavior:
+## D&D Alignment flow
 
-- `_chart_prediction_cache_uid()` checks UID-style attributes only:
-  - `uid`
-  - `UID`
-  - `chart_uid`
-  - `permanent_uid`
-- `_chart_prediction_cache_identity()` returns `uid:<uid>` only when a UID exists.
-- Missing UIDs trigger `_log_missing_chart_uid()`.
-- `_log_missing_chart_uid()` logs through the module logger and prints to stderr with the chart name and failed context.
+D&D Alignment is trait-based, so it should share the trait cache architecture.
 
-Important implementation locations:
+The intended D&D Alignment flow is:
 
-- `_chart_prediction_cache_uid()` in `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
-- `_chart_prediction_cache_identity()` in `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
-- `_log_missing_chart_uid()` in `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
-- `DndPredictionPanelAdapter._norm_charts_cache_token()` in `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
+1. Build D&D alignment trait items.
+2. Compute chart likelihoods through `trait_likelihoods_with_distribution_cache()`.
+3. Resolve DB averages through `_database_trait_averages()`.
+4. Store/restore D&D alignment parts through D&D prediction metadata for display across sessions.
+5. Allow stale display payloads when explicitly rendering cached/stale UI, but force fresh recomputation when recalculating metadata.
 
-### 9. Include chart state in statblock cache validation
+## D&D Statblock flow
 
-File: `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
+D&D Statblock is not trait-profile likelihood scoring. It uses D&D stat predictors and DB-relative stat norm averages, so it should not be forced into `.traits_distribution_likelihood_cache` unless the statblock system is redesigned around trait-like analytical profiles.
 
-A review concern identified that statblock cache keys initially included norm/stat-key data but not chart birth/place/house state.
+The intended D&D Statblock flow is:
 
-To fix that:
+1. Build chart raw D&D stat predictor scores.
+2. Resolve DB norm stat averages once for the norm cohort.
+3. Pass those precomputed DB norm averages into `score_dnd_statblock()`.
+4. Attach/store the DB norm averages with the statblock payload.
+5. Use the same stored averages when explaining the displayed statblock in popouts.
+6. Persist the statblock payload in D&D prediction metadata by chart UID.
+7. Display stale statblocks when requested by UI display paths, but force fresh recomputation when recalculating.
 
-- `_chart_state_cache_token(chart)` was added.
-- It uses `owner._chart_analytics_cache_token(chart)` when available.
-- If that app-level token is unavailable, it builds a UID-based chart-state payload including:
-  - UID,
-  - chart name,
-  - local datetime,
-  - birth place,
-  - latitude,
-  - longitude,
-  - `birthtime_unknown`,
-  - `retcon_time_used`,
-  - `retcon_hour`,
-  - `retcon_minute`,
-  - and `chart_uses_houses`.
-- `_statblock_cache_key(norm_charts, chart)` now includes this chart-state token.
-- Recalculate with `allow_stale=False` therefore recomputes when the chart changes, even if the database norm token does not.
+## Explainers and math auditability
 
-Important implementation locations:
+### D&D Statblock popouts
 
-- `DndPredictionPanelAdapter._chart_state_cache_token()` in `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
-- `DndPredictionPanelAdapter._statblock_cache_key()` in `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
-- `DndPredictionPanelAdapter._statblock_cache_is_stale()` in `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
-- `DndPredictionPanelAdapter._score_statblock()` in `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
+The Statblock popout should explain the actual displayed value, including:
 
-### 10. Display cached/stale D&D results by default and show a Recalculate button
+- evidence subtotals,
+- scorer-equivalent raw evidence,
+- DB norm raw average,
+- ratio against the D&D average anchor,
+- clamp/round behavior,
+- fallback normalization when DB norms are unavailable,
+- cache timestamp / norm snapshot context where available.
 
-File: `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
+If the displayed statblock came from a stale cache payload, the popout should explain the stale payload against the same stored DB norm averages that produced it, not against newly computed current norms.
 
-D&D rendering was updated so cached results display by default when available.
+### Traits
 
-Behavior:
+Trait explainers should distinguish:
 
-- If statblock cache exists, the statblock chart renders.
-- If that cache is stale, a stale notice is inserted at the top of the section.
-- If alignment cache exists, the alignment chart renders.
-- If alignment cache is stale, a stale notice is inserted at the top of that subsection.
-- Only sections with no prior cache show the `No prior data. Calculate (can take awhile)?` prompt.
+- chart likelihood,
+- DB average,
+- deviation from DB average,
+- above/below/neutral assignment,
+- trait UID/profile identity,
+- stale vs fresh metadata state.
 
-The stale notice now uses a real `QPushButton("Recalculate")` styled consistently with the existing `Calculate!` button.
+## Freshness and invalidation model
 
-Important implementation locations:
+### Chart changes
 
-- `DndPredictionPanelAdapter._show_stale_recalculate_notice()` in `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
-- `DndPredictionPanelAdapter.render()` in `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
+Trait and D&D caches that depend on birth data should consider the chart state/signature, including salient birth fields and `chart_uses_houses`. Rectified times should only influence calculations where the chart is explicitly configured to use them.
 
-### 11. Make alignment stale-cache behavior explicit
+### Trait changes
 
-File: `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
+Display-only trait changes such as renames or colors should not force rescoring analytical profiles.
 
-A concern was raised that alignment breakdown/debug paths might silently reuse stale values.
+Analytical trait profile changes should invalidate affected trait/profile calculations and downstream chart metadata for that trait.
 
-The final behavior makes this intentional and explicit:
+### Database norm changes
 
-- Display paths pass `allow_stale=True`.
-- Fresh metadata refreshes pass `allow_stale=False`.
+Small database edits should not force a full norm rebuild unless they cross the configured database-norm refresh threshold. Stale norms may remain displayable, but recalculation paths should be explicit about whether they are using stale or fresh norms.
 
-Important implementation locations:
+## Current design non-goals
 
-- `_dnd_alignment_score_parts(..., allow_stale=...)` in `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
-- `dnd_alignment_deviations(..., allow_stale=...)` in `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
-- `build_dnd_alignment_breakdown_html()` in `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
-- `build_dnd_alignment_debug_summary_html()` in `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
-- `draw_dnd_alignment_grid()` in `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
-- `DndPredictionPanelAdapter.cache_alignment_metadata()` in `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
+1. **No durable rendered-HTML cache for Chart View Traits.**
+   - Rendered HTML is downstream presentation, not source data.
+   - Persisting it risks hiding metadata/cache inconsistencies.
 
-### 12. Render cached Traits metadata before background refresh
+2. **No silent fallback to a second Predictions architecture.**
+   - If `chart_trait_metadata` should exist but does not, the UI should show Calculate or the code should repair/write metadata through the primary flow.
 
-File: `ephemeraldaddy/gui/features/charts/trait_predictions.py`
+3. **No legacy chart-ID identity for persisted prediction records.**
+   - Persisted prediction records should be UID-backed.
 
-The broader Predictions-panel concern included Traits.
+4. **No full-database recalculation for every minor edit.**
+   - The cache architecture should preserve per-chart/per-profile work whenever chart tokens and analytical profiles still match.
 
-To improve Traits behavior:
+## Verification checklist for future work
 
-- `render_traits_predictions()` now tries to render metadata-derived trait predictions immediately with `trait_metadata_for_chart(owner, chart)`.
-- If successful, those results are displayed before the background refresh starts.
-- If that immediate metadata render fails, the existing loading message is shown and the failure is logged.
-- The background refresh still runs afterward.
+When changing Predictions code, confirm the following:
 
-Important implementation location:
+- Chart View Traits checks `chart_trait_metadata` before showing Calculate.
+- Chart View Traits does not use a rendered-HTML cache as a source of truth.
+- Recalculate routes through `trait_metadata_for_chart(owner, chart)`.
+- Missing trait likelihoods route through `trait_likelihoods_with_distribution_cache()`.
+- DB trait averages route through `.database_norms_cache` / `_database_trait_averages()`.
+- New trait calculations write `trait_uid` rows to `chart_trait_metadata` for the chart UID.
+- Database Analytics persists partial likelihood progress to `.traits_distribution_likelihood_cache` as it scores missing profile rows.
+- Database Analytics writes materialized chart trait metadata after complete non-partial aggregate passes.
+- D&D Alignment uses the shared trait likelihood/norm architecture.
+- D&D Statblock reuses precomputed DB norm averages and stores the norm snapshot with the displayed payload.
+- Stale UI states display old data with a Recalculate control rather than blocking the panel behind Calculate.
 
-- `render_traits_predictions()` in `ephemeraldaddy/gui/features/charts/trait_predictions.py`
+## Testing notes
 
-## Known testing notes from the implementation cycle
-
-The focused D&D stat normalization tests passed during development:
-
-```bash
-PYTHONPATH=/workspace/ephemeraldaddy pytest tests/test_dnd_stat_normalization.py -q
-```
-
-Python compilation checks were run on the modified files:
+Focused checks that are useful for this area:
 
 ```bash
-python3 -m py_compile ephemeraldaddy/core/db.py ephemeraldaddy/gui/features/charts/dnd_predictions.py ephemeraldaddy/gui/features/charts/trait_predictions.py
+python3 -m py_compile ephemeraldaddy/gui/features/charts/trait_predictions.py ephemeraldaddy/gui/features/charts/dnd_predictions.py ephemeraldaddy/analysis/dnd/dnd_stat_calculator.py ephemeraldaddy/analysis/dnd/dnd_class_axes_v2.py
 ```
-
-`git diff --check` also passed.
-
-A broader source-layout test command continued to fail on existing unrelated source-layout assertions:
 
 ```bash
-PYTHONPATH=/workspace/ephemeraldaddy pytest tests/test_chart_view_right_panel_layout_source.py tests/test_dnd_stat_normalization.py -q
+PYTHONPATH=/workspace/ephemeraldaddy pytest -q tests/test_trait_predictions_cache.py tests/test_dnd_stat_normalization.py
 ```
 
-The failing assertions referenced existing source expectations in:
-
-- `tests/test_chart_view_right_panel_layout_source.py`
-- `ephemeraldaddy/gui/app.py`
-- `ephemeraldaddy/gui/features/charts/cv_right_panel_stack.py`
-- `ephemeraldaddy/gui/features/controllers/chart_view_window.py`
-
-Those failures were not introduced by the D&D cache/explainer work, but they remained present during the focused verification runs.
-
-## Remaining caveats / follow-up ideas
-
-1. **Automated tests for DB persistence should be added.**
-   - The new `chart_dnd_prediction_metadata` table and statblock JSON round-trip helpers should have direct unit tests.
-
-2. **GUI stale-notice behavior should be integration-tested.**
-   - Especially the “cached results render first, Recalculate appears at top” behavior.
-
-3. **UID-missing cases should be intentionally exercised.**
-   - Now that ID fallback is removed, test coverage should verify the loud terminal message and absence of silent fallback behavior.
-
-4. **Traits persistence/display behavior may need deeper UX testing.**
-   - Traits now render metadata-derived results immediately when possible, but the best long-term solution may be a more explicit persisted view cache, similar to the D&D prediction payload cache.
+In minimal containers, the pytest command may be blocked by missing GUI system libraries required by PySide6, such as `libGL.so.1`. In that case, source-level checks and `py_compile` still provide partial verification, but full regression coverage requires a GUI-capable test environment.
