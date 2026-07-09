@@ -1263,6 +1263,13 @@ def _cache_key_fingerprint(cache_key: Any) -> str:
     return repr(cache_key)
 
 
+def _cache_key_chart_token(cache_key: Any) -> Any:
+    """Return chart-state token from tuple keys or JSON-restored list keys."""
+    if isinstance(cache_key, (tuple, list)) and cache_key:
+        return cache_key[0]
+    return None
+
+
 def _statblock_to_cache_dict(statblock: Any) -> dict[str, Any]:
     return {
         "raw_scores": dict(getattr(statblock, "raw_scores", {}) or {}),
@@ -1496,7 +1503,9 @@ class DndPredictionPanelAdapter:
         # large enough to matter.  Older persisted cache payloads did not store
         # enough norm detail to measure that safely, so keep showing them rather
         # than replacing the results with a false-positive warning.
-        if isinstance(cached_key, tuple) and cached_key and cached_key[0] != current_key[0]:
+        cached_chart_token = _cache_key_chart_token(cached_key)
+        current_chart_token = _cache_key_chart_token(current_key)
+        if cached_chart_token is not None and cached_chart_token != current_chart_token:
             return True
         cached_uids = set(cached.get("norm_chart_uids") or [])
         current_uids = set(self._norm_chart_uids(norm_charts))
@@ -1790,10 +1799,11 @@ class DndPredictionPanelAdapter:
             if isinstance(alignment_cache, dict):
                 current_alignment_key = _dnd_alignment_cache_key(self.owner or self, chart)
                 cached_alignment_key = alignment_cache.get("key")
+                cached_alignment_chart_token = _cache_key_chart_token(cached_alignment_key)
+                current_alignment_chart_token = _cache_key_chart_token(current_alignment_key)
                 alignment_stale = (
-                    isinstance(cached_alignment_key, tuple)
-                    and cached_alignment_key
-                    and cached_alignment_key[0] != current_alignment_key[0]
+                    cached_alignment_chart_token is not None
+                    and cached_alignment_chart_token != current_alignment_chart_token
                 )
                 metric_panel_renderer(
                     canvas_attr="dnd_prediction_alignment_canvas",
