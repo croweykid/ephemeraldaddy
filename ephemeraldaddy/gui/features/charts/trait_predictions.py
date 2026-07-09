@@ -38,71 +38,6 @@ TRAIT_DEVIATION_ASSIGNMENT_THRESHOLD = 5.0
 TRAIT_DB_NORMS_CACHE_VERSION = 1
 TRAIT_DB_NORMS_CACHE_PATH = db.DB_DIR / DATABASE_NORMS_CACHE_FILENAME
 TRAIT_DB_NORMS_MAX_STALE_RATIO = DATABASE_NORMS_STALE_RATIO
-TRAIT_PREDICTIONS_VIEW_CACHE_VERSION = 1
-TRAIT_PREDICTIONS_VIEW_CACHE_PATH = db.DB_DIR / ".trait_predictions_view_cache.json"
-TRAIT_PREDICTIONS_VIEW_CACHE_MAX_ENTRIES = 5000
-
-
-def _load_traits_prediction_view_cache(owner: Any) -> dict[str, dict[str, str]]:
-    if getattr(owner, "_traits_prediction_view_cache_loaded", False):
-        cache = getattr(owner, "_traits_prediction_view_cache", None)
-        return cache if isinstance(cache, dict) else {}
-    owner._traits_prediction_view_cache_loaded = True
-    try:
-        payload = json.loads(TRAIT_PREDICTIONS_VIEW_CACHE_PATH.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        owner._traits_prediction_view_cache = {}
-        return {}
-    except Exception as exc:
-        logger.warning("Traits panel skipped corrupt view cache %s: %s", TRAIT_PREDICTIONS_VIEW_CACHE_PATH, exc, exc_info=True)
-        owner._traits_prediction_view_cache = {}
-        return {}
-    if not isinstance(payload, dict):
-        owner._traits_prediction_view_cache = {}
-        return {}
-    entries = payload.get("entries", {})
-    if payload.get("version") != TRAIT_PREDICTIONS_VIEW_CACHE_VERSION or not isinstance(entries, dict):
-        owner._traits_prediction_view_cache = {}
-        return {}
-    cache = {
-        str(key): {
-            "above": str(value.get("above", "")),
-            "below": str(value.get("below", "")),
-            "updated_at": str(value.get("updated_at", "")),
-        }
-        for key, value in entries.items()
-        if isinstance(value, dict)
-    }
-    owner._traits_prediction_view_cache = cache
-    return cache
-
-
-def _save_traits_prediction_view_cache(owner: Any) -> None:
-    cache = getattr(owner, "_traits_prediction_view_cache", None)
-    if not isinstance(cache, dict) or not cache:
-        return
-    try:
-        entries = dict(
-            sorted(
-                cache.items(),
-                key=lambda item: str(item[1].get("updated_at", "")) if isinstance(item[1], dict) else "",
-                reverse=True,
-            )[:TRAIT_PREDICTIONS_VIEW_CACHE_MAX_ENTRIES]
-        )
-        TRAIT_PREDICTIONS_VIEW_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        temp_path = TRAIT_PREDICTIONS_VIEW_CACHE_PATH.with_suffix(f"{TRAIT_PREDICTIONS_VIEW_CACHE_PATH.suffix}.tmp")
-        temp_path.write_text(
-            json.dumps(
-                {"version": TRAIT_PREDICTIONS_VIEW_CACHE_VERSION, "entries": entries},
-                ensure_ascii=False,
-                separators=(",", ":"),
-            ),
-            encoding="utf-8",
-        )
-        temp_path.replace(TRAIT_PREDICTIONS_VIEW_CACHE_PATH)
-    except Exception as exc:
-        logger.warning("Traits panel could not save view cache %s: %s", TRAIT_PREDICTIONS_VIEW_CACHE_PATH, exc, exc_info=True)
-
 def _predictions_debug_enabled(owner: Any) -> bool:
     return bool(getattr(owner, "_predictions_thread_debug", False))
 
@@ -1279,9 +1214,11 @@ def _cache_traits_prediction_view(
     below_html: str,
     updated_at: str,
 ) -> None:
-    cache = _load_traits_prediction_view_cache(owner)
+    cache = getattr(owner, "_traits_prediction_view_cache", None)
+    if not isinstance(cache, dict):
+        cache = {}
+        owner._traits_prediction_view_cache = cache
     cache[cache_key] = {"above": above_html, "below": below_html, "updated_at": updated_at}
-    _save_traits_prediction_view_cache(owner)
 
 
 def _apply_traits_prediction_view(owner: Any, above_html: str, below_html: str, *, prefix_html: str = "") -> None:
@@ -1395,7 +1332,7 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
         return
 
     cache_key = _trait_predictions_cache_key(owner, chart, traits)
-    cached = (_load_traits_prediction_view_cache(owner) or {}).get(cache_key or "")
+    cached = (getattr(owner, "_traits_prediction_view_cache", {}) or {}).get(cache_key or "")
     if isinstance(cached, dict):
         owner._traits_prediction_pending_chart = chart
         owner._traits_prediction_pending_traits = traits
