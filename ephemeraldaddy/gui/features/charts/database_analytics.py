@@ -4686,22 +4686,12 @@ class DatabaseAnalyticsChartsMixin:
         else:
             self._traits_distribution_individual_likelihood_cache = {}
 
-        individual_profile_cache = getattr(self, "_traits_distribution_individual_profile_likelihood_cache", None)
-        individual_profile_token_cache = getattr(self, "_traits_distribution_individual_profile_token_cache", None)
-        if isinstance(individual_profile_cache, dict):
-            for cache_key in list(individual_profile_cache):
-                if isinstance(cache_key, tuple) and len(cache_key) == 2:
-                    try:
-                        if int(cache_key[1]) in changed_ids:
-                            individual_profile_cache.pop(cache_key, None)
-                            if isinstance(individual_profile_token_cache, dict):
-                                individual_profile_token_cache.pop(cache_key, None)
-                    except (TypeError, ValueError):
-                        individual_profile_cache.pop(cache_key, None)
-                        if isinstance(individual_profile_token_cache, dict):
-                            individual_profile_token_cache.pop(cache_key, None)
-        else:
+        # Keep profile-keyed likelihoods for changed charts.  They may be stale,
+        # but the Predictions panel should still be able to show cached/stale
+        # data with an explicit Recalculate option until the user replaces it.
+        if not isinstance(getattr(self, "_traits_distribution_individual_profile_likelihood_cache", None), dict):
             self._traits_distribution_individual_profile_likelihood_cache = {}
+        if not isinstance(getattr(self, "_traits_distribution_individual_profile_token_cache", None), dict):
             self._traits_distribution_individual_profile_token_cache = {}
 
 
@@ -4791,9 +4781,6 @@ class DatabaseAnalyticsChartsMixin:
                 if profile_index < 0 or profile_index >= len(profile_keys):
                     skipped_entries += 1
                     continue
-                if not chart_is_current(chart_id, str(entry.get("chart_token", "") or "")):
-                    skipped_entries += 1
-                    continue
                 profile_cache_key = (profile_keys[profile_index], chart_id)
                 individual_profile_cache[profile_cache_key] = likelihood
                 individual_profile_token_cache[profile_cache_key] = str(entry.get("chart_token", "") or "")
@@ -4810,9 +4797,7 @@ class DatabaseAnalyticsChartsMixin:
                 except (TypeError, ValueError):
                     skipped_entries += 1
                     continue
-                if not chart_is_current(chart_id, str(entry.get("chart_token", "") or "")):
-                    skipped_entries += 1
-                    continue
+                entry_is_current = chart_is_current(chart_id, str(entry.get("chart_token", "") or ""))
                 signature = entry.get("trait_signature")
                 likelihoods = entry.get("likelihoods")
                 if not isinstance(signature, list) or not isinstance(likelihoods, dict):
@@ -4839,13 +4824,14 @@ class DatabaseAnalyticsChartsMixin:
                     normalized_likelihoods[str(name)] = likelihood
                     trait_key = trait_keys_by_name.get(str(name))
                     if trait_key is not None:
-                        individual_cache[(trait_key, chart_id)] = likelihood
+                        if entry_is_current:
+                            individual_cache[(trait_key, chart_id)] = likelihood
                         profile_cache_key = (trait_key[2], chart_id)
                         individual_profile_cache[profile_cache_key] = likelihood
                         individual_profile_token_cache[profile_cache_key] = str(entry.get("chart_token", "") or "")
-                if normalized_likelihoods:
+                if normalized_likelihoods and entry_is_current:
                     likelihood_cache[(cache_revision, trait_signature, chart_id)] = normalized_likelihoods
-                else:
+                elif not normalized_likelihoods:
                     skipped_entries += 1
         if not likelihood_cache and not individual_cache and not individual_profile_cache:
             return False
@@ -4922,10 +4908,9 @@ class DatabaseAnalyticsChartsMixin:
             except (TypeError, ValueError):
                 continue
             current_chart_token = chart_tokens.get(chart_id)
-            if not current_chart_token:
-                continue
             cached_chart_token = str(individual_profile_token_cache.get(cache_key, "") or "")
-            if cached_chart_token != current_chart_token:
+            entry_chart_token = cached_chart_token or str(current_chart_token or "")
+            if not entry_chart_token:
                 continue
             profile_index = profile_indexes.get(profile_key)
             if profile_index is None:
@@ -4936,7 +4921,7 @@ class DatabaseAnalyticsChartsMixin:
                 {
                     "profile": profile_index,
                     "chart_id": chart_id,
-                    "chart_token": current_chart_token,
+                    "chart_token": entry_chart_token,
                     "likelihood": normalized_likelihood,
                 }
             )
@@ -5060,9 +5045,6 @@ class DatabaseAnalyticsChartsMixin:
                         current_chart_token = chart_tokens.get(int(chart_id))
                         if profile_chart_token and profile_chart_token == current_chart_token:
                             cached_likelihood = individual_profile_cache.get(profile_cache_key)
-                        elif profile_cache_key in individual_profile_cache:
-                            individual_profile_cache.pop(profile_cache_key, None)
-                            individual_profile_token_cache.pop(profile_cache_key, None)
                     if cached_likelihood is None:
                         trait_item = trait_items_by_key.get(trait_key)
                         if trait_item is not None:
