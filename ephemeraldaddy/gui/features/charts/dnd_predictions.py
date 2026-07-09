@@ -608,6 +608,7 @@ def build_dnd_statblock_popout_info_html(
     statblock: Any = None,
     show_explainers: bool = True,
     cached_at: Any = None,
+    db_norm_averages: Any = None,
 ) -> str:
     if chart is None:
         return "No chart is available for this D&D stat interpretation."
@@ -635,7 +636,7 @@ def build_dnd_statblock_popout_info_html(
             statblock,
             evidence_subtotals,
             norm_charts=norm_charts,
-            db_norm_averages=getattr(statblock, "_db_norm_averages", None),
+            db_norm_averages=getattr(statblock, "_db_norm_averages", None) or db_norm_averages,
             cached_at=cached_at,
         )
         explainer_html = (

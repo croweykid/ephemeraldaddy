@@ -481,3 +481,13 @@ def test_chart_view_traits_render_uses_persisted_metadata_before_calculate_promp
     assert "_traits_prediction_view_cache" not in render_method
     assert render_method.index("trait_metadata_for_chart(owner, chart, cached_only=True)") < render_method.index("_traits_calculate_prompt_html()")
     assert "_traits_stale_recalculate_prompt_html" in render_method
+
+
+def test_dnd_statblock_popout_defines_db_norm_averages_parameter_source():
+    source = (ROOT / "ephemeraldaddy" / "gui" / "features" / "charts" / "dnd_predictions.py").read_text(
+        encoding="utf-8"
+    )
+    function = source.split("def build_dnd_statblock_popout_info_html", 1)[1].split("def _stat_value_color", 1)[0]
+    assert "db_norm_averages: Any = None" in function
+    assert "score_dnd_statblock(chart, norm_charts=norm_charts, db_norm_averages=db_norm_averages)" in function
+    assert 'getattr(statblock, "_db_norm_averages", None) or db_norm_averages' in function
