@@ -470,3 +470,14 @@ def test_dnd_statblock_reuses_precomputed_db_norm_averages_source():
     method = source.split("    def _score_statblock", 1)[1].split("    def _render_statblock", 1)[0]
     assert "db_norm_averages = _calculate_db_norm_stat_averages(norm_charts)" in method
     assert "score_dnd_statblock(chart, norm_charts=norm_charts, db_norm_averages=db_norm_averages)" in method
+
+
+def test_chart_view_traits_render_uses_persisted_metadata_before_calculate_prompt_source():
+    source = (ROOT / "ephemeraldaddy" / "gui" / "features" / "charts" / "trait_predictions.py").read_text(
+        encoding="utf-8"
+    )
+    render_method = source.split("def render_traits_predictions", 1)[1]
+    assert "trait_metadata_for_chart(owner, chart, cached_only=True)" in render_method
+    assert "_traits_prediction_view_cache" not in render_method
+    assert render_method.index("trait_metadata_for_chart(owner, chart, cached_only=True)") < render_method.index("_traits_calculate_prompt_html()")
+    assert "_traits_stale_recalculate_prompt_html" in render_method

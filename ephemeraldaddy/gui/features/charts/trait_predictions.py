@@ -1181,14 +1181,6 @@ class _TraitPredictionsRefreshReceiver(QObject):
             return
         if getattr(self._owner, "_traits_prediction_render_token", None) is not finished_token:
             return
-        updated_at = datetime.now().isoformat(timespec="seconds")
-        _cache_traits_prediction_view(
-            self._owner,
-            self._cache_key,
-            str(above_html),
-            str(below_html),
-            updated_at,
-        )
         _apply_traits_prediction_view(self._owner, str(above_html), str(below_html))
 
     @Slot(object, str)
@@ -1205,20 +1197,6 @@ class _TraitPredictionsRefreshReceiver(QObject):
         if self._thread is not None and self._worker is not None:
             _forget_traits_prediction_worker_job(self._owner, self._thread, self._worker, self)
         self.deleteLater()
-
-
-def _cache_traits_prediction_view(
-    owner: Any,
-    cache_key: str,
-    above_html: str,
-    below_html: str,
-    updated_at: str,
-) -> None:
-    cache = getattr(owner, "_traits_prediction_view_cache", None)
-    if not isinstance(cache, dict):
-        cache = {}
-        owner._traits_prediction_view_cache = cache
-    cache[cache_key] = {"above": above_html, "below": below_html, "updated_at": updated_at}
 
 
 def _apply_traits_prediction_view(owner: Any, above_html: str, below_html: str, *, prefix_html: str = "") -> None:
@@ -1332,41 +1310,27 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
         return
 
     cache_key = _trait_predictions_cache_key(owner, chart, traits)
-    cached = (getattr(owner, "_traits_prediction_view_cache", {}) or {}).get(cache_key or "")
-    if isinstance(cached, dict):
+    cached_metadata = trait_metadata_for_chart(owner, chart, cached_only=True)
+    if isinstance(cached_metadata, dict):
+        above_html, below_html = _trait_predictions_html_from_metadata(traits, cached_metadata)
         owner._traits_prediction_pending_chart = chart
         owner._traits_prediction_pending_traits = traits
         owner._traits_prediction_pending_cache_key = cache_key or ""
-        _predictions_debug(owner, "Trait render view cache hit cache_key=%s", (cache_key or "")[:12])
-        _apply_traits_prediction_view(
-            owner,
-            str(cached.get("above", "")),
-            str(cached.get("below", "")),
-            prefix_html=_traits_recalculate_prompt_html(str(cached.get("updated_at", "") or "unknown")),
-        )
+        if bool(cached_metadata.get("stale")):
+            _apply_traits_prediction_view(
+                owner,
+                above_html,
+                below_html,
+                prefix_html=_traits_stale_recalculate_prompt_html(str(cached_metadata.get("updated_at", "") or "unknown")),
+            )
+        else:
+            _apply_traits_prediction_view(owner, above_html, below_html)
         return
-    else:
-        cached_metadata = trait_metadata_for_chart(owner, chart, cached_only=True)
-        if isinstance(cached_metadata, dict):
-            above_html, below_html = _trait_predictions_html_from_metadata(traits, cached_metadata)
-            if bool(cached_metadata.get("stale")):
-                owner._traits_prediction_pending_chart = chart
-                owner._traits_prediction_pending_traits = traits
-                owner._traits_prediction_pending_cache_key = cache_key or ""
-                _apply_traits_prediction_view(
-                    owner,
-                    above_html,
-                    below_html,
-                    prefix_html=_traits_stale_recalculate_prompt_html(str(cached_metadata.get("updated_at", "") or "unknown")),
-                )
-            else:
-                _cache_traits_prediction_view(owner, cache_key or "", above_html, below_html, "cached")
-                _apply_traits_prediction_view(owner, above_html, below_html)
-            return
-        owner._traits_prediction_pending_chart = chart
-        owner._traits_prediction_pending_traits = traits
-        owner._traits_prediction_pending_cache_key = cache_key or ""
-        message = _traits_calculate_prompt_html()
-        _predictions_debug(owner, "Trait render no view cache; showing manual calculate prompt cache_key=%s", (cache_key or "")[:12])
-        _apply_traits_prediction_view(owner, message, message)
-        return
+
+    owner._traits_prediction_pending_chart = chart
+    owner._traits_prediction_pending_traits = traits
+    owner._traits_prediction_pending_cache_key = cache_key or ""
+    message = _traits_calculate_prompt_html()
+    _predictions_debug(owner, "Trait render found no persisted trait metadata; showing manual calculate prompt cache_key=%s", (cache_key or "")[:12])
+    _apply_traits_prediction_view(owner, message, message)
+    return
