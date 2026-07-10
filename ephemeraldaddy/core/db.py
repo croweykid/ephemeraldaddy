@@ -477,8 +477,6 @@ def _create_charts_table(conn: sqlite3.Connection) -> None:
             alignment_score INTEGER,
             sexiness_score INTEGER NOT NULL DEFAULT 0,
             weirdness_score REAL,
-            weirdness_formula_version INTEGER,
-            weirdness_norm_signature TEXT,
             matched_expectations INTEGER NOT NULL DEFAULT 0,
             familiarity_factors TEXT,
             age_when_first_met INTEGER NOT NULL DEFAULT 0,
@@ -977,20 +975,6 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
             """
             ALTER TABLE charts
             ADD COLUMN weirdness_score REAL
-            """
-        )
-    if "weirdness_formula_version" not in columns:
-        conn.execute(
-            """
-            ALTER TABLE charts
-            ADD COLUMN weirdness_formula_version INTEGER
-            """
-        )
-    if "weirdness_norm_signature" not in columns:
-        conn.execute(
-            """
-            ALTER TABLE charts
-            ADD COLUMN weirdness_norm_signature TEXT
             """
         )
     if "matched_expectations" not in columns:
@@ -3730,9 +3714,7 @@ def list_charts() -> List[
                dominant_planet_weights,
                dominant_mode,
                chart_uid,
-               weirdness_score,
-               weirdness_formula_version,
-               weirdness_norm_signature
+               weirdness_score
         FROM charts
         ORDER BY created_at DESC
         """
@@ -3811,8 +3793,6 @@ def list_charts() -> List[
                 row["dominant_mode"],
                 row["chart_uid"],
                 _normalize_weirdness_score(row["weirdness_score"]),
-                int(row["weirdness_formula_version"]) if row["weirdness_formula_version"] is not None else None,
-                str(row["weirdness_norm_signature"] or ""),
             )
         )
     return rows
@@ -4863,17 +4843,9 @@ def update_chart_dominant_sign_weights(
     conn.close()
 
 
-def update_chart_weirdness_score(
-    chart_id: int,
-    weirdness_score: Any,
-    *,
-    formula_version: int | None = None,
-    norm_signature: str | None = None,
-) -> bool:
-    """Persist a derived weirdness score and its cache-validity metadata."""
+def update_chart_weirdness_score(chart_id: int, weirdness_score: Any) -> bool:
+    """Persist a derived weirdness score if it differs from the stored metadata."""
     normalized_score = _normalize_weirdness_score(weirdness_score)
-    normalized_formula_version = int(formula_version) if formula_version is not None else None
-    normalized_norm_signature = str(norm_signature or "")
     conn = _get_conn()
     try:
         with conn:
@@ -4881,42 +4853,18 @@ def update_chart_weirdness_score(
             if "weirdness_score" not in columns:
                 conn.execute("ALTER TABLE charts ADD COLUMN weirdness_score REAL")
                 _invalidate_table_columns_cache("charts")
-                columns = _table_columns(conn, "charts")
-            if "weirdness_formula_version" not in columns:
-                conn.execute("ALTER TABLE charts ADD COLUMN weirdness_formula_version INTEGER")
-                _invalidate_table_columns_cache("charts")
-                columns = _table_columns(conn, "charts")
-            if "weirdness_norm_signature" not in columns:
-                conn.execute("ALTER TABLE charts ADD COLUMN weirdness_norm_signature TEXT")
-                _invalidate_table_columns_cache("charts")
             row = conn.execute(
-                """
-                SELECT weirdness_score, weirdness_formula_version, weirdness_norm_signature
-                FROM charts
-                WHERE id = ?
-                """,
+                "SELECT weirdness_score FROM charts WHERE id = ?",
                 (int(chart_id),),
             ).fetchone()
             if row is None:
                 return False
             current_score = _normalize_weirdness_score(row[0])
-            current_formula_version = int(row[1]) if row[1] is not None else None
-            current_norm_signature = str(row[2] or "")
-            if (
-                current_score == normalized_score
-                and current_formula_version == normalized_formula_version
-                and current_norm_signature == normalized_norm_signature
-            ):
+            if current_score == normalized_score:
                 return False
             conn.execute(
-                """
-                UPDATE charts
-                SET weirdness_score = ?,
-                    weirdness_formula_version = ?,
-                    weirdness_norm_signature = ?
-                WHERE id = ?
-                """,
-                (normalized_score, normalized_formula_version, normalized_norm_signature, int(chart_id)),
+                "UPDATE charts SET weirdness_score = ? WHERE id = ?",
+                (normalized_score, int(chart_id)),
             )
             return True
     finally:

@@ -17,8 +17,5 @@ def test_weirdness_sort_hydrates_missing_scores_before_sorting():
     assert "rows = self._hydrate_missing_weirdness_scores_for_sort(rows)" in populate_method
     assert "self._prediction_norm_metric_payloads()" in hydrate_method
     assert "_calculate_weirdness_score_from_metric_payloads" in hydrate_method
-    assert "formula_version=_DISTINGUISHING_FORMULA_VERSION" in hydrate_method
-    assert "norm_signature=norm_signature" in hydrate_method
+    assert "update_chart_weirdness_score(chart_id, weirdness_score)" in hydrate_method
     assert "mutable_row[31] = float(weirdness_score)" in hydrate_method
-    assert "mutable_row[32] = _DISTINGUISHING_FORMULA_VERSION" in hydrate_method
-    assert "mutable_row[33] = norm_signature" in hydrate_method
