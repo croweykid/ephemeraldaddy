@@ -657,6 +657,75 @@ def _resolve_chart_right_panel_key(owner: object, panel_key: str) -> str:
         return "subjective_notes"
     return normalized
 
+
+def _clear_layout_for_prediction_placeholder(owner: object, layout_attr: str, canvas_attr: str | None, message: str) -> None:
+    """Replace a Predictions section body with a cheap loading placeholder."""
+    layout = getattr(owner, layout_attr, None)
+    if layout is None:
+        return
+    clear_layout = getattr(owner, "_clear_layout_widgets", None)
+    if callable(clear_layout):
+        clear_layout(layout)
+    if canvas_attr:
+        try:
+            setattr(owner, canvas_attr, None)
+        except Exception:
+            pass
+    label = QLabel(message)
+    label.setWordWrap(True)
+    label.setAlignment(Qt.AlignCenter)
+    label.setStyleSheet("color: #d8d8d8; font-style: italic; padding: 18px 8px;")
+    label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
+    layout.addWidget(label)
+
+
+def _show_predictions_panel_pending_placeholders(owner: object, chart: object | None) -> None:
+    """Paint lightweight section placeholders before any cached prediction lookup runs."""
+    chart_name = html.escape(_chart_display_name(chart))
+    _set_predictions_status(owner, f"Opening Predictions for <b>{chart_name}</b>…")
+    traits_label = getattr(owner, "traits_prediction_label", None)
+    if isinstance(traits_label, QLabel):
+        loading_html = (
+            "<div style='color:#d8d8d8; font-style:italic; padding:18px 8px; text-align:center;'>"
+            "Loading cached trait predictions…"
+            "</div>"
+        )
+        try:
+            owner._traits_prediction_above_avg_html = loading_html
+            owner._traits_prediction_below_avg_html = loading_html
+        except Exception:
+            pass
+        traits_label.setText(loading_html)
+        traits_label.adjustSize()
+        traits_label.setMinimumHeight(traits_label.sizeHint().height())
+    _clear_layout_for_prediction_placeholder(
+        owner,
+        "enneagram_prediction_chart_layout",
+        "enneagram_prediction_canvas",
+        "Loading cached Enneagram predictions…",
+    )
+    tritype_label = getattr(owner, "enneagram_prediction_tritype_label", None)
+    if isinstance(tritype_label, QLabel):
+        tritype_label.setText("<b>Predicted Tritype:</b> Loading cached predictions…")
+    _clear_layout_for_prediction_placeholder(
+        owner,
+        "dnd_predictions_chart_layout",
+        "dnd_prediction_statblock_canvas",
+        "Loading cached D&D statblock predictions…",
+    )
+    summary_label = getattr(owner, "dnd_prediction_top_three_label", None)
+    if isinstance(summary_label, QLabel):
+        summary_label.setText("<b>D&D Statblock:</b> Loading cached predictions…")
+    _clear_layout_for_prediction_placeholder(
+        owner,
+        "dnd_alignment_chart_layout",
+        "dnd_prediction_alignment_canvas",
+        "Loading cached D&D alignment predictions…",
+    )
+    alignment_debug_label = getattr(owner, "dnd_prediction_alignment_debug_label", None)
+    if isinstance(alignment_debug_label, QLabel):
+        alignment_debug_label.setText("<b>Alignment debug deviations from DB norm:</b> Loading cached predictions…")
+
 def set_chart_right_panel(owner: object, panel_key: str) -> None:
     """Activate a Chart View right-panel tab and synchronize toggle state."""
     _install_expand_autoscroll(owner)
@@ -705,7 +774,11 @@ def set_chart_right_panel(owner: object, panel_key: str) -> None:
 
     schedule = getattr(owner, "_schedule_chart_render_for_active_right_panel", None)
     if callable(schedule):
-        schedule()
+        if panel_key == "predictions":
+            _show_predictions_panel_pending_placeholders(owner, getattr(owner, "_latest_chart", None))
+            QTimer.singleShot(0, schedule)
+        else:
+            schedule()
 
 
 def _chart_right_panel_prediction_render_token(owner: object, chart: object) -> str:
