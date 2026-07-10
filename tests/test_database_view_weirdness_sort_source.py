@@ -22,3 +22,12 @@ def test_weirdness_sort_hydrates_missing_scores_before_sorting():
     assert "mutable_row[31] = float(weirdness_score)" in hydrate_method
     assert "mutable_row[32] = _DISTINGUISHING_FORMULA_VERSION" in hydrate_method
     assert "mutable_row[33] = norm_signature" in hydrate_method
+
+
+def test_database_row_numbers_are_based_on_rendered_filter_matches():
+    populate_method = _method_source("_populate_list")
+
+    assert "display_position = rendered_row_count + 1" in populate_method
+    assert 'visible_label_parts = [f"{row_prefix}#{display_position}"]' in populate_method
+    assert '"position": display_position' in populate_method
+    assert "chart_positions =" not in populate_method

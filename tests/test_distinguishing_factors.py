@@ -172,3 +172,5 @@ def test_weirdness_scale_label_uses_interpretation_scale():
 
     assert "standard weirdness" in distinguishing_factors.weirdness_scale_label(250.0)
     assert "𝓁𝒾𝓁" in distinguishing_factors.weirdness_scale_label(325.0)
+    assert "ᏝᎥᏖᏋᏒᏗᏝ" in distinguishing_factors.weirdness_scale_label(1000.0)
+    assert "ᏝᎥᏖᏋᏒᏗᏝ" in distinguishing_factors.weirdness_scale_label(1250.0)
