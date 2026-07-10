@@ -2527,6 +2527,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._matched_expectations_min_input = None
         self._matched_expectations_max_input = None
         self._matched_expectations_blank_checkbox = None
+        self.search_predictability_section = None
+        self.enneagram_type_filter_checkboxes: dict[int, QuadStateSlider] = {}
         self._dnd_stat_filter_min_inputs: dict[str, QLineEdit] = {}
         self._dnd_stat_filter_max_inputs: dict[str, QLineEdit] = {}
         self._notes_comments_filter_checkbox = None
@@ -10496,6 +10498,22 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             else ""
         )
         selected_search_tags, optional_search_tags, excluded_search_tags = collect_search_tag_filter_sets(self)
+        (
+            required_present_search_traits,
+            excluded_present_search_traits,
+            required_absent_search_traits,
+            excluded_absent_search_traits,
+        ) = collect_search_trait_filter_sets(self)
+        selected_enneagram_types = {
+            int(enneagram_type)
+            for enneagram_type, checkbox in getattr(self, "enneagram_type_filter_checkboxes", {}).items()
+            if checkbox.mode() == QuadStateSlider.MODE_TRUE
+        }
+        excluded_enneagram_types = {
+            int(enneagram_type)
+            for enneagram_type, checkbox in getattr(self, "enneagram_type_filter_checkboxes", {}).items()
+            if checkbox.mode() == QuadStateSlider.MODE_FALSE
+        }
         search_untagged_mode = (
             self.search_untagged_checkbox.mode()
             if hasattr(self, "search_untagged_checkbox")
@@ -10868,7 +10886,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 or search_untagged_mode == QuadStateSlider.MODE_EMPTY
             )
             and not selected_search_tags
+            and not optional_search_tags
             and not excluded_search_tags
+            and not required_present_search_traits
+            and not excluded_present_search_traits
+            and not required_absent_search_traits
+            and not excluded_absent_search_traits
+            and not selected_enneagram_types
+            and not excluded_enneagram_types
         )
 
     def _update_sentiment_tally(
@@ -14592,6 +14617,34 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         return max(1, min(10, value))
 
     @staticmethod
+    def _dominant_enneagram_types_for_search(chart: Chart | None) -> set[int]:
+        if chart is None:
+            return set()
+        weights = getattr(chart, "enneagram_type_weights", None)
+        numeric_weights: dict[int, float] = {}
+        if isinstance(weights, dict):
+            for raw_type, raw_weight in weights.items():
+                try:
+                    enneagram_type = int(raw_type)
+                    weight = float(raw_weight)
+                except (TypeError, ValueError):
+                    continue
+                if 1 <= enneagram_type <= 9:
+                    numeric_weights[enneagram_type] = weight
+        if numeric_weights:
+            max_weight = max(numeric_weights.values())
+            return {
+                enneagram_type
+                for enneagram_type, weight in numeric_weights.items()
+                if weight == max_weight
+            }
+        try:
+            dominant_type = int(getattr(chart, "dominant_enneagram_type", 0) or 0)
+        except (TypeError, ValueError):
+            return set()
+        return {dominant_type} if 1 <= dominant_type <= 9 else set()
+
+    @staticmethod
     def _matched_expectations_value_for_chart(chart: Chart | None) -> int:
         if chart is None:
             return 0
@@ -17482,8 +17535,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self._search_location_state_input.setText("")
             if hasattr(self, "search_tags_input") and self.search_tags_input is not None:
                 self.search_tags_input.setText("")
-            if hasattr(self, "search_traits_input") and self.search_traits_input is not None:
-                self.search_traits_input.setText("")
+            for trait_input_name in (
+                "search_traits_present_input",
+                "search_traits_absent_input",
+                "search_traits_input",
+            ):
+                trait_input = getattr(self, trait_input_name, None)
+                if trait_input is not None:
+                    trait_input.setText("")
             if hasattr(self, "search_traits_direction_combo") and self.search_traits_direction_combo is not None:
                 self.search_traits_direction_combo.setCurrentIndex(0)
             if (
@@ -17493,7 +17552,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self.search_untagged_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             for checkbox in getattr(self, "search_tag_filter_checkboxes", {}).values():
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
-            for checkbox in getattr(self, "search_trait_filter_checkboxes", {}).values():
+            for checkbox_group_name in (
+                "search_trait_present_filter_checkboxes",
+                "search_trait_absent_filter_checkboxes",
+                "search_trait_filter_checkboxes",
+            ):
+                for checkbox in getattr(self, checkbox_group_name, {}).values():
+                    checkbox.setMode(QuadStateSlider.MODE_EMPTY)
+            for checkbox in getattr(self, "enneagram_type_filter_checkboxes", {}).values():
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             for checkbox in getattr(self, "search_tag_category_checkboxes", {}).values():
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
@@ -19754,7 +19820,22 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.search_tags_input.text() if hasattr(self, "search_tags_input") else ""
         )
         selected_search_tags, optional_search_tags, excluded_search_tags = collect_search_tag_filter_sets(self)
-        trait_filter_direction, required_search_traits, excluded_search_traits = collect_search_trait_filter_sets(self)
+        (
+            required_present_search_traits,
+            excluded_present_search_traits,
+            required_absent_search_traits,
+            excluded_absent_search_traits,
+        ) = collect_search_trait_filter_sets(self)
+        selected_enneagram_types = {
+            int(enneagram_type)
+            for enneagram_type, checkbox in getattr(self, "enneagram_type_filter_checkboxes", {}).items()
+            if checkbox.mode() == QuadStateSlider.MODE_TRUE
+        }
+        excluded_enneagram_types = {
+            int(enneagram_type)
+            for enneagram_type, checkbox in getattr(self, "enneagram_type_filter_checkboxes", {}).items()
+            if checkbox.mode() == QuadStateSlider.MODE_FALSE
+        }
         selected_chart_types = {
             source
             for source, checkbox in self.chart_type_filter_checkboxes.items()
@@ -20458,14 +20539,27 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         ):
             return False
 
-        if (required_search_traits or excluded_search_traits) and not chart_matches_trait_filters(
+        if (
+            required_present_search_traits
+            or excluded_present_search_traits
+            or required_absent_search_traits
+            or excluded_absent_search_traits
+        ) and not chart_matches_trait_filters(
             self,
             chart,
-            direction=trait_filter_direction,
-            required_traits=required_search_traits,
-            excluded_traits=excluded_search_traits,
+            required_present_traits=required_present_search_traits,
+            excluded_present_traits=excluded_present_search_traits,
+            required_absent_traits=required_absent_search_traits,
+            excluded_absent_traits=excluded_absent_search_traits,
         ):
             return False
+
+        if selected_enneagram_types or excluded_enneagram_types:
+            dominant_enneagram_types = self._dominant_enneagram_types_for_search(chart)
+            if selected_enneagram_types and dominant_enneagram_types.isdisjoint(selected_enneagram_types):
+                return False
+            if excluded_enneagram_types and not dominant_enneagram_types.isdisjoint(excluded_enneagram_types):
+                return False
 
         chart_year_first_encountered = getattr(chart, "year_first_encountered", None)
         if not isinstance(chart_year_first_encountered, int):
@@ -23540,12 +23634,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _set_predictability_visibility_from_settings(self, checked: bool) -> None:
         self._visibility.set("chart_view.predictability", checked)
-        batch_section = getattr(self, "batch_predictability_section", None)
-        if batch_section is not None:
-            batch_section.setVisible(bool(checked))
+        for section_attr in ("batch_predictability_section", "search_predictability_section"):
+            section = getattr(self, section_attr, None)
+            if section is not None:
+                section.setVisible(bool(checked))
         parent = self._owner_window()
-        if isinstance(parent, MainWindow):
-            parent._sync_predictability_visibility()
+        sync_predictability = getattr(parent, "_sync_predictability_visibility", None)
+        if callable(sync_predictability):
+            sync_predictability()
 
     def _set_database_metric_section_visibility_from_settings(self, section_key: str, checked: bool) -> None:
         self._set_database_metrics_section_visible(section_key, checked)
@@ -25703,7 +25799,7 @@ class MainWindow(QMainWindow):
 
     def _sync_predictability_visibility(self) -> None:
         visible = self._visibility.get("chart_view.predictability")
-        for section_attr in ("batch_predictability_section", "predictability_section_box"):
+        for section_attr in ("batch_predictability_section", "predictability_section_box", "search_predictability_section"):
             section = getattr(self, section_attr, None)
             if section is not None:
                 section.setVisible(visible)
@@ -34262,6 +34358,34 @@ class MainWindow(QMainWindow):
         except (TypeError, ValueError):
             return default
         return max(1, min(10, parsed_value))
+
+    @staticmethod
+    def _dominant_enneagram_types_for_search(chart: Chart | None) -> set[int]:
+        if chart is None:
+            return set()
+        weights = getattr(chart, "enneagram_type_weights", None)
+        numeric_weights: dict[int, float] = {}
+        if isinstance(weights, dict):
+            for raw_type, raw_weight in weights.items():
+                try:
+                    enneagram_type = int(raw_type)
+                    weight = float(raw_weight)
+                except (TypeError, ValueError):
+                    continue
+                if 1 <= enneagram_type <= 9:
+                    numeric_weights[enneagram_type] = weight
+        if numeric_weights:
+            max_weight = max(numeric_weights.values())
+            return {
+                enneagram_type
+                for enneagram_type, weight in numeric_weights.items()
+                if weight == max_weight
+            }
+        try:
+            dominant_type = int(getattr(chart, "dominant_enneagram_type", 0) or 0)
+        except (TypeError, ValueError):
+            return set()
+        return {dominant_type} if 1 <= dominant_type <= 9 else set()
 
     @staticmethod
     def _matched_expectations_value_for_chart(chart: Chart | None) -> int:
