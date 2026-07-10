@@ -473,66 +473,121 @@ def collect_search_tag_filter_sets(window) -> tuple[set[str], set[str], set[str]
     return required_tags, optional_tags, excluded_tags
 
 
-def collect_search_trait_filter_sets(window) -> tuple[str, set[str], set[str]]:
-    """Return (direction, required, excluded) trait filters from the search UI."""
+def collect_search_trait_filter_sets(window) -> tuple[set[str], set[str], set[str], set[str]]:
+    """Return trait filters from the search UI.
+
+    The result is ``(required_present, excluded_present, required_absent,
+    excluded_absent)``. "Present" traits are chart traits above the database
+    norm; "absent" traits are chart traits below the database norm.
+    """
     from ephemeraldaddy.gui import app as app_module
 
     QuadStateSlider = app_module.QuadStateSlider
-    direction_combo = getattr(window, "search_traits_direction_combo", None)
-    direction = str(direction_combo.currentData() if direction_combo is not None else "above")
-    required_traits = {
-        value.strip()
-        for value in str(getattr(getattr(window, "search_traits_input", None), "text", lambda: "")() or "").split(",")
-        if value.strip()
-    }
-    excluded_traits: set[str] = set()
-    for name, checkbox in getattr(window, "search_trait_filter_checkboxes", {}).items():
+
+    def text_traits(attribute_name: str) -> set[str]:
+        widget = getattr(window, attribute_name, None)
+        text_getter = getattr(widget, "text", lambda: "")
+        return {value.strip() for value in str(text_getter() or "").split(",") if value.strip()}
+
+    required_present = text_traits("search_traits_present_input")
+    required_absent = text_traits("search_traits_absent_input")
+
+    # Backward-compatible fallback for panels built before the split widgets existed.
+    legacy_input = getattr(window, "search_traits_input", None)
+    if legacy_input is not None and not required_present and not required_absent:
+        legacy_traits = text_traits("search_traits_input")
+        direction_combo = getattr(window, "search_traits_direction_combo", None)
+        direction = str(direction_combo.currentData() if direction_combo is not None else "above")
+        if direction == "below":
+            required_absent.update(legacy_traits)
+        else:
+            required_present.update(legacy_traits)
+
+    excluded_present: set[str] = set()
+    for name, checkbox in getattr(window, "search_trait_present_filter_checkboxes", {}).items():
         if checkbox.mode() == QuadStateSlider.MODE_TRUE:
-            required_traits.add(name)
+            required_present.add(name)
         elif checkbox.mode() == QuadStateSlider.MODE_FALSE:
-            excluded_traits.add(name)
-    return direction, required_traits, excluded_traits
+            excluded_present.add(name)
+
+    excluded_absent: set[str] = set()
+    for name, checkbox in getattr(window, "search_trait_absent_filter_checkboxes", {}).items():
+        if checkbox.mode() == QuadStateSlider.MODE_TRUE:
+            required_absent.add(name)
+        elif checkbox.mode() == QuadStateSlider.MODE_FALSE:
+            excluded_absent.add(name)
+
+    # Backward-compatible fallback for the former single trait checkbox tree.
+    for name, checkbox in getattr(window, "search_trait_filter_checkboxes", {}).items():
+        direction_combo = getattr(window, "search_traits_direction_combo", None)
+        direction = str(direction_combo.currentData() if direction_combo is not None else "above")
+        if checkbox.mode() == QuadStateSlider.MODE_TRUE:
+            (required_absent if direction == "below" else required_present).add(name)
+        elif checkbox.mode() == QuadStateSlider.MODE_FALSE:
+            (excluded_absent if direction == "below" else excluded_present).add(name)
+
+    return required_present, excluded_present, required_absent, excluded_absent
 
 
 def chart_matches_trait_filters(
     window,
     chart,
     *,
-    direction: str,
-    required_traits: set[str],
-    excluded_traits: set[str],
+    required_present_traits: set[str],
+    excluded_present_traits: set[str],
+    required_absent_traits: set[str],
+    excluded_absent_traits: set[str],
 ) -> bool:
     """Apply active derived-trait metadata filters to a chart."""
-    if not required_traits and not excluded_traits:
+    if not (
+        required_present_traits
+        or excluded_present_traits
+        or required_absent_traits
+        or excluded_absent_traits
+    ):
         return True
     from ephemeraldaddy.gui.features.charts.trait_predictions import trait_metadata_for_chart
 
     metadata = trait_metadata_for_chart(window, chart)
-    trait_names = metadata.get("below" if direction == "below" else "above", set())
-    normalized_chart_traits = {str(name).casefold() for name in trait_names}
-    if any(trait.casefold() not in normalized_chart_traits for trait in required_traits):
+    present_traits = {str(name).casefold() for name in metadata.get("above", set())}
+    absent_traits = {str(name).casefold() for name in metadata.get("below", set())}
+
+    if any(trait.casefold() not in present_traits for trait in required_present_traits):
         return False
-    if any(trait.casefold() in normalized_chart_traits for trait in excluded_traits):
+    if any(trait.casefold() in present_traits for trait in excluded_present_traits):
+        return False
+    if any(trait.casefold() not in absent_traits for trait in required_absent_traits):
+        return False
+    if any(trait.casefold() in absent_traits for trait in excluded_absent_traits):
         return False
     return True
 
+def refresh_search_traits_list(window, kind: str = "present") -> None:
+    """Refresh a Database View trait-filter tree for ``window``.
 
-def refresh_search_traits_list(window) -> None:
-    """Refresh the Database View trait-filter tree for ``window``."""
+    ``kind`` is ``"present"`` for above-norm traits or ``"absent"`` for
+    below-norm traits.
+    """
     from ephemeraldaddy.analysis.traits import list_traits
     from ephemeraldaddy.gui import app as app_module
     from PySide6.QtWidgets import QTreeWidgetItem
 
     QuadStateSlider = app_module.QuadStateSlider
-    tree = getattr(window, "search_traits_list_widget", None)
+    kind = "absent" if kind == "absent" else "present"
+    tree_attr = f"search_traits_{kind}_list_widget"
+    checkboxes_attr = f"search_trait_{kind}_filter_checkboxes"
+    tree = getattr(window, tree_attr, None)
+    if tree is None and kind == "present":
+        tree = getattr(window, "search_traits_list_widget", None)
+        checkboxes_attr = "search_trait_filter_checkboxes"
     if tree is None:
         return
     existing_modes = {
         trait_name: checkbox.mode()
-        for trait_name, checkbox in getattr(window, "search_trait_filter_checkboxes", {}).items()
+        for trait_name, checkbox in getattr(window, checkboxes_attr, {}).items()
     }
     tree.clear()
-    window.search_trait_filter_checkboxes = {}
+    setattr(window, checkboxes_attr, {})
     for trait in list_traits(active_only=True):
         trait_name = str(trait.get("name", "")).strip()
         if not trait_name:
@@ -549,7 +604,7 @@ def refresh_search_traits_list(window) -> None:
         row_layout.addStretch(1)
         tree.addTopLevelItem(item)
         tree.setItemWidget(item, 0, row)
-        window.search_trait_filter_checkboxes[trait_name] = checkbox
+        getattr(window, checkboxes_attr)[trait_name] = checkbox
 
 
 if TYPE_CHECKING:
@@ -731,43 +786,59 @@ def build_dbv_search_panel(window) -> "QWidget":
     )
     layout.addWidget(divider)
 
-    traits_search_row = QVBoxLayout()
-    traits_search_row.setContentsMargins(0, 0, 0, 0)
-    traits_search_row.setSpacing(4)
-    window.search_traits_input = QLineEdit()
-    window.search_traits_input.setPlaceholderText("Search by trait")
-    window.search_traits_input.textChanged.connect(window._on_filter_changed)
-    window.search_traits_input.returnPressed.connect(window._on_filter_changed)
-    traits_search_row.addWidget(window.search_traits_input)
+    def build_trait_search_layout(kind: str, title: str, placeholder: str) -> QVBoxLayout:
+        trait_layout = QVBoxLayout()
+        trait_layout.setContentsMargins(0, 0, 0, 0)
+        trait_layout.setSpacing(4)
 
-    window.search_traits_direction_combo = QComboBox()
-    window.search_traits_direction_combo.addItem("Above avg traits", "above")
-    window.search_traits_direction_combo.addItem("Below avg traits", "below")
-    window.search_traits_direction_combo.currentIndexChanged.connect(window._on_filter_changed)
-    apply_default_dropdown_style(window.search_traits_direction_combo)
-    traits_search_row.addWidget(window.search_traits_direction_combo)
+        input_attr = f"search_traits_{kind}_input"
+        toggle_attr = f"search_traits_{kind}_toggle"
+        list_attr = f"search_traits_{kind}_list_widget"
+        checkboxes_attr = f"search_trait_{kind}_filter_checkboxes"
 
-    window.search_traits_toggle = QToolButton()
-    configure_collapsible_header_toggle(
-        window.search_traits_toggle,
-        title="Include/Exclude These Traits",
-        expanded=False,
-        style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
+        trait_input = QLineEdit()
+        trait_input.setPlaceholderText(placeholder)
+        trait_input.textChanged.connect(window._on_filter_changed)
+        trait_input.returnPressed.connect(window._on_filter_changed)
+        setattr(window, input_attr, trait_input)
+        trait_layout.addWidget(trait_input)
+
+        toggle = QToolButton()
+        configure_collapsible_header_toggle(
+            toggle,
+            title=title,
+            expanded=False,
+            style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
+        )
+        setattr(window, toggle_attr, toggle)
+        trait_layout.addWidget(toggle)
+
+        list_widget = QTreeWidget()
+        list_widget.setHeaderHidden(True)
+        list_widget.setSelectionMode(QListWidget.NoSelection)
+        list_widget.setIndentation(12)
+        list_widget.setMaximumHeight(220)
+        list_widget.setVisible(False)
+        setattr(window, list_attr, list_widget)
+        setattr(window, checkboxes_attr, {})
+        toggle.toggled.connect(list_widget.setVisible)
+        toggle.toggled.connect(
+            lambda expanded, trait_kind=kind: refresh_search_traits_list(window, trait_kind) if expanded else None
+        )
+        trait_layout.addWidget(list_widget)
+        return trait_layout
+
+    traits_present_search_row = build_trait_search_layout(
+        "present",
+        "Traits Present (above DB norm)",
+        "Search by present trait",
     )
-    traits_search_row.addWidget(window.search_traits_toggle)
-
-    window.search_traits_list_widget = QTreeWidget()
-    window.search_traits_list_widget.setHeaderHidden(True)
-    window.search_traits_list_widget.setSelectionMode(QListWidget.NoSelection)
-    window.search_traits_list_widget.setIndentation(12)
-    window.search_traits_list_widget.setMaximumHeight(220)
-    window.search_traits_list_widget.setVisible(False)
+    traits_absent_search_row = build_trait_search_layout(
+        "absent",
+        "Traits Absent (below DB norm)",
+        "Search by absent trait",
+    )
     window.search_trait_filter_checkboxes = {}
-    window.search_traits_toggle.toggled.connect(window.search_traits_list_widget.setVisible)
-    window.search_traits_toggle.toggled.connect(
-        lambda expanded: refresh_search_traits_list(window) if expanded else None
-    )
-    traits_search_row.addWidget(window.search_traits_list_widget)
 
     settings = getattr(window, "_settings", None)
 
@@ -914,10 +985,6 @@ def build_dbv_search_panel(window) -> "QWidget":
 
     layout.addWidget(chart_type_section)
 
-    traits_section, traits_group_layout = add_collapsible_section("🧬Traits")
-    traits_group_layout.addLayout(traits_search_row)
-    layout.addWidget(traits_section)
-
     astro_category_section, astro_category_layout = add_collapsible_section("🪐Astro", nested=True)
     layout.addWidget(astro_category_section)
     human_design_category_section, human_design_category_layout = add_collapsible_section("🪷Human Design", nested=True)
@@ -928,6 +995,14 @@ def build_dbv_search_panel(window) -> "QWidget":
     layout.addWidget(predictions_category_section)
     demographics_category_section, demographics_category_layout = add_collapsible_section("👥Demographics", nested=True)
     layout.addWidget(demographics_category_section)
+
+    traits_present_section, traits_present_group_layout = add_collapsible_section("Traits Present", nested=True)
+    traits_present_group_layout.addLayout(traits_present_search_row)
+    predictions_category_layout.addWidget(traits_present_section)
+
+    traits_absent_section, traits_absent_group_layout = add_collapsible_section("Traits Absent", nested=True)
+    traits_absent_group_layout.addLayout(traits_absent_search_row)
+    predictions_category_layout.addWidget(traits_absent_section)
 
     #Search: data completeness & accuracy
     birth_info_status_section, birth_info_status_layout = add_collapsible_section(
@@ -2132,7 +2207,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     window._matched_expectations_blank_checkbox = QCheckBox("include blank")
     window._matched_expectations_blank_checkbox.toggled.connect(window._on_filter_changed)
     predictability_group_layout.addWidget(window._matched_expectations_blank_checkbox)
-    predictions_category_layout.addWidget(predictability_section)
+    interactions_category_layout.addWidget(predictability_section)
 
     #Search: Notes section
     notes_section, notes_group_layout = add_collapsible_section("💭Notes")

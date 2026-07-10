@@ -17480,8 +17480,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self._search_location_state_input.setText("")
             if hasattr(self, "search_tags_input") and self.search_tags_input is not None:
                 self.search_tags_input.setText("")
-            if hasattr(self, "search_traits_input") and self.search_traits_input is not None:
-                self.search_traits_input.setText("")
+            for trait_input_name in (
+                "search_traits_present_input",
+                "search_traits_absent_input",
+                "search_traits_input",
+            ):
+                trait_input = getattr(self, trait_input_name, None)
+                if trait_input is not None:
+                    trait_input.setText("")
             if hasattr(self, "search_traits_direction_combo") and self.search_traits_direction_combo is not None:
                 self.search_traits_direction_combo.setCurrentIndex(0)
             if (
@@ -17491,8 +17497,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self.search_untagged_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             for checkbox in getattr(self, "search_tag_filter_checkboxes", {}).values():
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
-            for checkbox in getattr(self, "search_trait_filter_checkboxes", {}).values():
-                checkbox.setMode(QuadStateSlider.MODE_EMPTY)
+            for checkbox_group_name in (
+                "search_trait_present_filter_checkboxes",
+                "search_trait_absent_filter_checkboxes",
+                "search_trait_filter_checkboxes",
+            ):
+                for checkbox in getattr(self, checkbox_group_name, {}).values():
+                    checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             for checkbox in getattr(self, "search_tag_category_checkboxes", {}).values():
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             for checkbox in self.sentiment_filter_checkboxes.values():
@@ -19752,7 +19763,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.search_tags_input.text() if hasattr(self, "search_tags_input") else ""
         )
         selected_search_tags, optional_search_tags, excluded_search_tags = collect_search_tag_filter_sets(self)
-        trait_filter_direction, required_search_traits, excluded_search_traits = collect_search_trait_filter_sets(self)
+        (
+            required_present_search_traits,
+            excluded_present_search_traits,
+            required_absent_search_traits,
+            excluded_absent_search_traits,
+        ) = collect_search_trait_filter_sets(self)
         selected_chart_types = {
             source
             for source, checkbox in self.chart_type_filter_checkboxes.items()
@@ -20456,12 +20472,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         ):
             return False
 
-        if (required_search_traits or excluded_search_traits) and not chart_matches_trait_filters(
+        if (
+            required_present_search_traits
+            or excluded_present_search_traits
+            or required_absent_search_traits
+            or excluded_absent_search_traits
+        ) and not chart_matches_trait_filters(
             self,
             chart,
-            direction=trait_filter_direction,
-            required_traits=required_search_traits,
-            excluded_traits=excluded_search_traits,
+            required_present_traits=required_present_search_traits,
+            excluded_present_traits=excluded_present_search_traits,
+            required_absent_traits=required_absent_search_traits,
+            excluded_absent_traits=excluded_absent_search_traits,
         ):
             return False
 
