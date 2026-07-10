@@ -10924,18 +10924,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             similarities_scroll_value = similarities_scrollbar.value()
 
         chart_ids = self._selected_chart_ids()
-        if (
-            update_database_metrics
-            and self._database_metrics_refresh_is_trait_rank_selection_only(
-                sections_to_refresh=sections_to_refresh,
-                force_full_refresh=force_full_refresh,
-                changed_ids=changed_ids,
-            )
-        ):
-            self._sync_trait_rank_selection_controls_for_selection_change(chart_ids)
-            update_database_metrics = False
-            left_panel_scrollbar = None
-            left_panel_scroll_value = None
 
         labels = list(SENTIMENT_OPTIONS)
         negative_start = (
@@ -17727,16 +17715,31 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if not refresh_metrics:
             self._update_selection_header()
             return
+        update_database_metrics = (
+            self._left_panel_visible
+            and self._active_left_panel in {"database_metrics", "gen_pop_norms"}
+        )
+        update_similarities = (
+            self._left_panel_visible
+            and self._active_left_panel == "similarities"
+        )
+        if (
+            update_database_metrics
+            and self._database_metrics_refresh_is_trait_rank_selection_only(
+                sections_to_refresh=None,
+                force_full_refresh=False,
+                changed_ids=None,
+            )
+        ):
+            self._update_selection_header()
+            self._sync_trait_rank_selection_controls_for_selection_change(
+                self._selected_chart_ids()
+            )
+            return
         try:
             self._update_sentiment_tally(
-                update_database_metrics=(
-                    self._left_panel_visible
-                    and self._active_left_panel in {"database_metrics", "gen_pop_norms"}
-                ),
-                update_similarities=(
-                    self._left_panel_visible
-                    and self._active_left_panel == "similarities"
-                ),
+                update_database_metrics=update_database_metrics,
+                update_similarities=update_similarities,
             )
         finally:
             if active_left_scrollbar is not None and active_left_scroll_value is not None:
