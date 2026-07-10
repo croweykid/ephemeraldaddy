@@ -23,6 +23,7 @@ from ephemeraldaddy.core.interpretations import (
     NAKSHATRA_RANGES,
     PLANET_COLORS,
     SIGN_COLORS,
+    WEIRDNESS_SCALE,
     ZODIAC_NAMES,
 )
 from ephemeraldaddy.gui.features.charts.metrics import (
@@ -42,7 +43,9 @@ MODE_SHARE_THRESHOLD = 0.65
 MIN_NORM_SAMPLE_SIZE = 5
 
 DISTINGUISHING_METRICS_SCHEMA_VERSION = 2
-DISTINGUISHING_FORMULA_VERSION = 2
+DISTINGUISHING_FORMULA_VERSION = 3
+WEIRDNESS_FACTOR_COUNT_WEIGHT = 0.08
+
 
 
 def chart_essential_astro_signature(chart: Chart) -> str:
@@ -423,11 +426,19 @@ def calculate_weirdness_score_from_metric_payloads(
     chart: Chart,
     metric_payloads: Iterable[dict[str, Any]],
 ) -> tuple[float | None, int]:
-    """Return summed absolute percentage-point deviations from database norms."""
+    """Return a database-weirdness score adjusted for the number of true outlier factors.
+
+    The base remains the summed absolute percentage-point deviation from database norms,
+    but charts with more factors past the distinguishing threshold receive a gentle
+    multiplier. This keeps one huge spike from being treated the same as a broad pattern
+    of several independently unusual chart features without letting factor count swamp
+    the actual deviation size.
+    """
     norm_count, baselines = _norm_baselines_from_metric_payloads(chart, metric_payloads)
     if norm_count < MIN_NORM_SAMPLE_SIZE:
         return None, norm_count
     total_deviation = 0.0
+    distinguishing_factor_count = 0
     for group in _metric_groups(chart):
         chart_values = _safe_chart_values(group, chart)
         if chart_values is None:
@@ -437,8 +448,29 @@ def calculate_weirdness_score_from_metric_payloads(
             share_baseline = baselines.get(("share", group.key, label))
             if share_baseline is None:
                 continue
-            total_deviation += abs((float(chart_shares.get(label, 0.0)) - share_baseline.mean) * 100.0)
-    return round(total_deviation, 2), norm_count
+            share = float(chart_shares.get(label, 0.0))
+            deviation = abs((share - share_baseline.mean) * 100.0)
+            total_deviation += deviation
+            z_score = (share - share_baseline.mean) / share_baseline.stdev
+            if abs(z_score) >= DISTINGUISHING_Z_THRESHOLD:
+                distinguishing_factor_count += 1
+    count_multiplier = 1.0 + (distinguishing_factor_count * WEIRDNESS_FACTOR_COUNT_WEIGHT)
+    return round(total_deviation * count_multiplier, 2), norm_count
+
+
+def weirdness_scale_label(score: float | None) -> str:
+    """Return the configured display label for a weirdness score."""
+    if score is None:
+        return ""
+    for scale_entry in WEIRDNESS_SCALE.values():
+        try:
+            minimum = float(scale_entry.get("min", 0.0))
+            maximum = float(scale_entry.get("max", 0.0))
+        except (TypeError, ValueError, AttributeError):
+            continue
+        if minimum <= score < maximum or (score == maximum and maximum == 1000):
+            return str(scale_entry.get("display_name") or "")
+    return ""
 
 
 def find_distinguishing_factors(chart: Chart, norm_charts: Iterable[Chart]) -> tuple[list[DistinguishingFactor], int]:
@@ -636,9 +668,10 @@ def build_distinguishing_factors_html(
             html.escape(f"Need at least {MIN_NORM_SAMPLE_SIZE} database charts to calculate norms; found only {norm_count}. Add more charts, then we'll talk.")
         )
     elif factors:
+        weirdness_label = weirdness_scale_label(weirdness_score)
         weirdness_prefix = (
-            f"Weirdness score: {weirdness_score:.2f}. "
-            if weirdness_score is not None
+            f"Weirdness: {weirdness_label}. "
+            if weirdness_label
             else ""
         )
         lines.append(
@@ -682,9 +715,10 @@ def build_distinguishing_factors_html(
                 f"{delta_sign}{delta_pct:.1f}%</span> DB avg."
             )
     else:
+        weirdness_label = weirdness_scale_label(weirdness_score)
         weirdness_prefix = (
-            f"Weirdness score: {weirdness_score:.2f}. "
-            if weirdness_score is not None
+            f"Weirdness: {weirdness_label}. "
+            if weirdness_label
             else ""
         )
         lines.append(
