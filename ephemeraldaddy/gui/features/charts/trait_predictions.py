@@ -588,6 +588,72 @@ def _trait_uid_mapping_for_names(values_by_name: dict[str, float], trait_uids_by
     }
 
 
+def _direction_for_deviation(deviation: float) -> str:
+    threshold = TRAIT_DEVIATION_ASSIGNMENT_THRESHOLD
+    if deviation >= threshold:
+        return "above"
+    if deviation <= -threshold:
+        return "below"
+    return "neutral"
+
+
+def _metadata_from_vectors(
+    *,
+    likelihoods: dict[str, float],
+    database_averages: dict[str, float],
+    stale_chart_vector: bool = False,
+    stale_trait_definition: bool = False,
+    stale_db_baseline: bool = False,
+    updated_at: str = "",
+) -> dict[str, Any]:
+    deviations = {
+        name: float(pct) - float(database_averages[name])
+        for name, pct in likelihoods.items()
+        if name in database_averages
+    }
+    above = {name for name, deviation in deviations.items() if deviation >= TRAIT_DEVIATION_ASSIGNMENT_THRESHOLD}
+    below = {name for name, deviation in deviations.items() if deviation <= -TRAIT_DEVIATION_ASSIGNMENT_THRESHOLD}
+    stale = bool(stale_chart_vector or stale_trait_definition or stale_db_baseline)
+    metadata: dict[str, Any] = {
+        "above": above,
+        "below": below,
+        "deviations": deviations,
+        "likelihoods": likelihoods,
+        "database_averages": database_averages,
+        "stale_chart_vector": bool(stale_chart_vector),
+        "stale_trait_definition": bool(stale_trait_definition),
+        "stale_db_baseline": bool(stale_db_baseline),
+    }
+    if stale:
+        metadata["stale"] = True
+    if updated_at:
+        metadata["updated_at"] = updated_at
+    return metadata
+
+
+def _apply_trait_metadata_to_chart(
+    chart: Any,
+    metadata: dict[str, Any],
+    trait_uids_by_name: dict[str, str],
+    signature: tuple[Any, ...],
+) -> None:
+    above = set(metadata.get("above", set()) or set())
+    below = set(metadata.get("below", set()) or set())
+    deviations = dict(metadata.get("deviations", {}) or {})
+    likelihoods = dict(metadata.get("likelihoods", {}) or {})
+    above_uids = _trait_uids_for_names(above, trait_uids_by_name)
+    below_uids = _trait_uids_for_names(below, trait_uids_by_name)
+    setattr(chart, "predicted_traits_above_avg", set(above))
+    setattr(chart, "predicted_traits_below_avg", set(below))
+    setattr(chart, "predicted_trait_deviations", dict(deviations))
+    setattr(chart, "traits", list(above_uids))
+    setattr(chart, "traits_above_average", list(above_uids))
+    setattr(chart, "traits_below_average", list(below_uids))
+    setattr(chart, "trait_likelihoods", _trait_uid_mapping_for_names(likelihoods, trait_uids_by_name))
+    if not bool(metadata.get("stale")):
+        setattr(chart, "_trait_prediction_metadata_cache", {"signature": signature, "metadata": metadata})
+
+
 def _trait_analytical_profile(profile: Any, *, strip_uids: bool = False) -> dict[str, Any]:
     """Return only scoring-relevant trait factors, excluding display-only metadata."""
     return analytical_mapping_signature(profile, strip_uids=strip_uids)
@@ -786,6 +852,28 @@ def _database_trait_averages(
         missing_traits.append(trait)
     if not missing_traits:
         _predictions_debug(owner, "Trait DB averages served entirely from persistent cache traits=%s", len(averages))
+        try:
+            trait_uids_by_name = {
+                str(trait.get("name", "")).strip(): _trait_uid_for_item(trait)
+                for trait in traits
+                if str(trait.get("name", "")).strip()
+            }
+            db.upsert_trait_baseline_snapshot(
+                norm_signature=_database_norm_signature_from_state(current_norm_state),
+                trait_signature=_stable_json_hash(_trait_signature_payload(traits)),
+                rows=[
+                    {
+                        "trait_name": name,
+                        "trait_uid": trait_uids_by_name.get(name, ""),
+                        "db_average": average,
+                    }
+                    for name, average in averages.items()
+                ],
+                chart_count=int(current_norm_state.get("chart_count", 0) or 0),
+                norm_state=current_norm_state,
+            )
+        except Exception as exc:
+            logger.warning("Traits panel could not persist DB baseline snapshot: %s", exc, exc_info=True)
         return averages
 
     try:
@@ -817,6 +905,28 @@ def _database_trait_averages(
                 "norm_signature": _database_norm_signature_from_state(current_norm_state),
             }
     _save_trait_norm_cache(cache_entries)
+    try:
+        trait_uids_by_name = {
+            str(trait.get("name", "")).strip(): _trait_uid_for_item(trait)
+            for trait in traits
+            if str(trait.get("name", "")).strip()
+        }
+        db.upsert_trait_baseline_snapshot(
+            norm_signature=_database_norm_signature_from_state(current_norm_state),
+            trait_signature=_stable_json_hash(_trait_signature_payload(traits)),
+            rows=[
+                {
+                    "trait_name": name,
+                    "trait_uid": trait_uids_by_name.get(name, ""),
+                    "db_average": average,
+                }
+                for name, average in averages.items()
+            ],
+            chart_count=chart_count,
+            norm_state=current_norm_state,
+        )
+    except Exception as exc:
+        logger.warning("Traits panel could not persist DB baseline snapshot: %s", exc, exc_info=True)
     return averages
 
 
@@ -870,9 +980,84 @@ def trait_metadata_for_chart(
     traits_by_uid = {uid: trait for name, trait in traits_by_name.items() if (uid := trait_uids_by_name.get(name))}
     names_by_uid = {uid: name for name, uid in trait_uids_by_name.items() if uid}
     active_trait_names = set(traits_by_name)
+    baseline_rows_by_name: dict[str, dict[str, Any]] = {}
+    try:
+        baseline_rows = db.get_trait_baseline_snapshot(
+            norm_signature=norm_signature,
+            trait_signature=trait_signature,
+        )
+    except Exception as exc:
+        logger.warning("Traits panel skipped cached DB baseline snapshot: %s", exc, exc_info=True)
+        baseline_rows = []
+    for row in baseline_rows:
+        row_uid = str(row.get("trait_uid", "") or "").strip()
+        name = names_by_uid.get(row_uid) if row_uid else str(row.get("trait_name", "")).strip()
+        if name in traits_by_name:
+            baseline_rows_by_name[name] = row
+    snapshot_database_averages = {
+        name: float(row.get("db_average", 0.0))
+        for name, row in baseline_rows_by_name.items()
+    }
+    baseline_is_complete = bool(active_trait_names) and set(snapshot_database_averages) == active_trait_names
     cached_rows_by_name: dict[str, dict[str, Any]] = {}
     stale_rows_by_name: dict[str, dict[str, Any]] = {}
+    cached_likelihood_rows_by_name: dict[str, dict[str, Any]] = {}
+    stale_likelihood_rows_by_name: dict[str, dict[str, Any]] = {}
     if chart_uid is not None:
+        try:
+            likelihood_rows = db.get_chart_trait_likelihoods(chart_uid)
+        except Exception as exc:
+            logger.warning(
+                "Traits panel skipped cached chart-local trait likelihoods for chart UID %s: %s",
+                chart_uid,
+                exc,
+                exc_info=True,
+            )
+            likelihood_rows = []
+        for row in likelihood_rows:
+            row_uid = str(row.get("trait_uid", "") or "").strip()
+            name = names_by_uid.get(row_uid) if row_uid else str(row.get("trait_name", "")).strip()
+            trait = traits_by_uid.get(row_uid) if row_uid else traits_by_name.get(name)
+            if trait is None:
+                continue
+            row_trait_signature = str(row.get("trait_signature", ""))
+            valid_trait_signature = row_trait_signature in {
+                trait_signature,
+                legacy_trait_signature,
+                _trait_definition_signature(trait),
+            }
+            if valid_trait_signature and str(row.get("chart_signature", "")) == chart_signature:
+                cached_likelihood_rows_by_name[name] = row
+            elif valid_trait_signature:
+                stale_likelihood_rows_by_name[name] = row
+        if active_trait_names and set(cached_likelihood_rows_by_name) == active_trait_names and baseline_is_complete:
+            latest_updated_at = max(
+                (str(row.get("updated_at", "") or "") for row in [*cached_likelihood_rows_by_name.values(), *baseline_rows_by_name.values()]),
+                default="",
+            )
+            metadata = _metadata_from_vectors(
+                likelihoods={name: float(row.get("likelihood", 0.0)) for name, row in cached_likelihood_rows_by_name.items()},
+                database_averages=snapshot_database_averages,
+                updated_at=latest_updated_at,
+            )
+            _apply_trait_metadata_to_chart(chart, metadata, trait_uids_by_name, signature)
+            return metadata
+        if (
+            cached_only
+            and active_trait_names
+            and set(stale_likelihood_rows_by_name) == active_trait_names
+            and baseline_is_complete
+        ):
+            latest_updated_at = max(
+                (str(row.get("updated_at", "") or "") for row in [*stale_likelihood_rows_by_name.values(), *baseline_rows_by_name.values()]),
+                default="",
+            )
+            return _metadata_from_vectors(
+                likelihoods={name: float(row.get("likelihood", 0.0)) for name, row in stale_likelihood_rows_by_name.items()},
+                database_averages=snapshot_database_averages,
+                stale_chart_vector=True,
+                updated_at=latest_updated_at,
+            )
         try:
             rows = db.get_chart_trait_metadata(chart_uid)
         except Exception as exc:
@@ -953,9 +1138,18 @@ def trait_metadata_for_chart(
     if cached_only:
         return None
 
-    cached_likelihoods = {name: float(row.get("likelihood", 0.0)) for name, row in cached_rows_by_name.items()}
-    cached_database_averages = {name: float(row.get("db_average", 0.0)) for name, row in cached_rows_by_name.items()}
-    missing_traits = [trait for name, trait in traits_by_name.items() if name not in cached_rows_by_name]
+    cached_likelihoods = {
+        name: float(row.get("likelihood", 0.0))
+        for name, row in cached_likelihood_rows_by_name.items()
+    }
+    cached_likelihoods.update(
+        {name: float(row.get("likelihood", 0.0)) for name, row in cached_rows_by_name.items()}
+    )
+    cached_database_averages = dict(snapshot_database_averages)
+    cached_database_averages.update(
+        {name: float(row.get("db_average", 0.0)) for name, row in cached_rows_by_name.items()}
+    )
+    missing_traits = [trait for name, trait in traits_by_name.items() if name not in cached_likelihoods]
     likelihoods = dict(cached_likelihoods)
     if missing_traits:
         _predictions_debug(owner, "Trait metadata scoring missing chart traits=%s", len(missing_traits))
@@ -965,47 +1159,41 @@ def trait_metadata_for_chart(
     if missing_average_traits:
         _predictions_debug(owner, "Trait metadata resolving DB averages missing_traits=%s", len(missing_average_traits))
         database_averages.update(_database_trait_averages(owner, missing_average_traits))
-    deviations = {
-        name: float(pct) - float(database_averages[name])
-        for name, pct in likelihoods.items()
-        if name in database_averages
-    }
-    threshold = TRAIT_DEVIATION_ASSIGNMENT_THRESHOLD
-    above = {name for name, deviation in deviations.items() if deviation >= threshold}
-    below = {name for name, deviation in deviations.items() if deviation <= -threshold}
-    metadata = {
-        "above": above,
-        "below": below,
-        "deviations": deviations,
-        "likelihoods": likelihoods,
-        "database_averages": database_averages,
-    }
-    above_uids = _trait_uids_for_names(above, trait_uids_by_name)
-    below_uids = _trait_uids_for_names(below, trait_uids_by_name)
-    setattr(chart, "predicted_traits_above_avg", set(above))
-    setattr(chart, "predicted_traits_below_avg", set(below))
-    setattr(chart, "predicted_trait_deviations", dict(deviations))
-    setattr(chart, "traits", list(above_uids))
-    setattr(chart, "traits_above_average", list(above_uids))
-    setattr(chart, "traits_below_average", list(below_uids))
-    setattr(chart, "trait_likelihoods", _trait_uid_mapping_for_names(likelihoods, trait_uids_by_name))
-    setattr(chart, "_trait_prediction_metadata_cache", {"signature": signature, "metadata": metadata})
+    metadata = _metadata_from_vectors(
+        likelihoods=likelihoods,
+        database_averages=database_averages,
+    )
+    _apply_trait_metadata_to_chart(chart, metadata, trait_uids_by_name, signature)
     if chart_uid is not None:
+        rows_for_persistence = [
+            {
+                "trait_name": name,
+                "trait_uid": trait_uids_by_name.get(name, ""),
+                "trait_signature": _trait_definition_signature(traits_by_name[name]),
+                "direction": _direction_for_deviation(float(metadata.get("deviations", {}).get(name, 0.0))),
+                "likelihood": likelihoods.get(name, 0.0),
+                "db_average": database_averages.get(name, 0.0),
+                "deviation": metadata.get("deviations", {}).get(name, 0.0),
+            }
+            for name in active_trait_names
+        ]
+        try:
+            db.upsert_chart_trait_likelihoods(
+                chart_uid,
+                rows_for_persistence,
+                chart_signature=chart_signature,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Traits panel could not update chart-local trait likelihoods for chart UID %s: %s",
+                chart_uid,
+                exc,
+                exc_info=True,
+            )
         try:
             db.upsert_chart_trait_metadata(
                 chart_uid,
-                [
-                    {
-                        "trait_name": name,
-                        "trait_uid": trait_uids_by_name.get(name, ""),
-                        "trait_signature": _trait_definition_signature(traits_by_name[name]),
-                        "direction": "above" if name in above else "below" if name in below else "neutral",
-                        "likelihood": likelihoods.get(name, 0.0),
-                        "db_average": database_averages.get(name, 0.0),
-                        "deviation": deviations.get(name, 0.0),
-                    }
-                    for name in active_trait_names
-                ],
+                rows_for_persistence,
                 trait_signature=trait_signature,
                 norm_signature=norm_signature,
                 chart_signature=chart_signature,
