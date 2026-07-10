@@ -1003,6 +1003,7 @@ def trait_metadata_for_chart(
     stale_rows_by_name: dict[str, dict[str, Any]] = {}
     cached_likelihood_rows_by_name: dict[str, dict[str, Any]] = {}
     stale_likelihood_rows_by_name: dict[str, dict[str, Any]] = {}
+    stale_trait_definition_rows_by_name: dict[str, dict[str, Any]] = {}
     if chart_uid is not None:
         try:
             likelihood_rows = db.get_chart_trait_likelihoods(chart_uid)
@@ -1030,6 +1031,8 @@ def trait_metadata_for_chart(
                 cached_likelihood_rows_by_name[name] = row
             elif valid_trait_signature:
                 stale_likelihood_rows_by_name[name] = row
+            else:
+                stale_trait_definition_rows_by_name[name] = row
         if active_trait_names and set(cached_likelihood_rows_by_name) == active_trait_names and baseline_is_complete:
             latest_updated_at = max(
                 (str(row.get("updated_at", "") or "") for row in [*cached_likelihood_rows_by_name.values(), *baseline_rows_by_name.values()]),
@@ -1056,6 +1059,22 @@ def trait_metadata_for_chart(
                 likelihoods={name: float(row.get("likelihood", 0.0)) for name, row in stale_likelihood_rows_by_name.items()},
                 database_averages=snapshot_database_averages,
                 stale_chart_vector=True,
+                updated_at=latest_updated_at,
+            )
+        if (
+            cached_only
+            and active_trait_names
+            and set(stale_trait_definition_rows_by_name) == active_trait_names
+            and baseline_is_complete
+        ):
+            latest_updated_at = max(
+                (str(row.get("updated_at", "") or "") for row in [*stale_trait_definition_rows_by_name.values(), *baseline_rows_by_name.values()]),
+                default="",
+            )
+            return _metadata_from_vectors(
+                likelihoods={name: float(row.get("likelihood", 0.0)) for name, row in stale_trait_definition_rows_by_name.items()},
+                database_averages=snapshot_database_averages,
+                stale_trait_definition=True,
                 updated_at=latest_updated_at,
             )
         try:
@@ -1159,6 +1178,24 @@ def trait_metadata_for_chart(
     if missing_average_traits:
         _predictions_debug(owner, "Trait metadata resolving DB averages missing_traits=%s", len(missing_average_traits))
         database_averages.update(_database_trait_averages(owner, missing_average_traits))
+    if set(database_averages) >= active_trait_names:
+        try:
+            db.upsert_trait_baseline_snapshot(
+                norm_signature=norm_signature,
+                trait_signature=trait_signature,
+                rows=[
+                    {
+                        "trait_name": name,
+                        "trait_uid": trait_uids_by_name.get(name, ""),
+                        "db_average": database_averages.get(name, 0.0),
+                    }
+                    for name in active_trait_names
+                ],
+                chart_count=int(_database_norm_state(owner).get("chart_count", 0) or 0),
+                norm_state=_database_norm_state(owner),
+            )
+        except Exception as exc:
+            logger.warning("Traits panel could not persist full DB baseline snapshot: %s", exc, exc_info=True)
     metadata = _metadata_from_vectors(
         likelihoods=likelihoods,
         database_averages=database_averages,
