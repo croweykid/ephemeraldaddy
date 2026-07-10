@@ -3468,44 +3468,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
         ]
 
-    def _database_metrics_refresh_is_trait_rank_selection_only(
-        self,
-        *,
-        sections_to_refresh: set[str] | frozenset[str] | None,
-        force_full_refresh: bool,
-        changed_ids: set[int] | None,
-    ) -> bool:
-        """Return whether a selection change only needs Trait Rankings button sync."""
-        if sections_to_refresh is not None or force_full_refresh or changed_ids:
-            return False
-        if self._traits_distribution_display_mode() != "trait_rankings":
-            return False
-        return self._expanded_database_metric_sections() == ["traits_distribution"]
-
-    def _sync_trait_rank_selection_controls_for_selection_change(
-        self,
-        chart_ids: Iterable[int],
-    ) -> None:
-        """Keep Trait Rankings' cheap selection-dependent controls current."""
-        current_selection = tuple(sorted({int(chart_id) for chart_id in chart_ids}))
-        self._traits_distribution_latest_selected_chart_ids = current_selection
-        manual_rank_ids = tuple(
-            int(chart_id)
-            for chart_id in getattr(self, "_traits_distribution_manual_rank_chart_ids", ())
-        )
-        rank_selected_button = getattr(
-            self,
-            "traits_distribution_rank_selected_button",
-            None,
-        )
-        if isinstance(rank_selected_button, QPushButton):
-            has_current_selection = bool(current_selection)
-            rank_selected_button.setEnabled(has_current_selection or bool(manual_rank_ids))
-            rank_selected_button.setText(
-                "rank selected" if has_current_selection else "show database"
-            )
-        self._sync_traits_distribution_display_mode()
-
     def _should_use_incremental_metrics_refresh(self) -> bool:
         expanded_sections = self._expanded_database_metric_sections()
         return len(expanded_sections) >= 4
@@ -17741,7 +17703,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         *,
         refresh_metrics: bool = True,
         sync_persistent_selection: bool = True,
-        allow_trait_rank_selection_shortcut: bool = True,
     ) -> None:
         self._cancel_inline_chart_rename()
         active_left_scrollbar = None
@@ -17782,32 +17743,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if not refresh_metrics:
             self._update_selection_header()
             return
-        update_database_metrics = (
-            self._left_panel_visible
-            and self._active_left_panel in {"database_metrics", "gen_pop_norms"}
-        )
-        update_similarities = (
-            self._left_panel_visible
-            and self._active_left_panel == "similarities"
-        )
-        if (
-            allow_trait_rank_selection_shortcut
-            and update_database_metrics
-            and self._database_metrics_refresh_is_trait_rank_selection_only(
-                sections_to_refresh=None,
-                force_full_refresh=False,
-                changed_ids=None,
-            )
-        ):
-            self._update_selection_header()
-            self._sync_trait_rank_selection_controls_for_selection_change(
-                self._selected_chart_ids()
-            )
-            return
         try:
             self._update_sentiment_tally(
-                update_database_metrics=update_database_metrics,
-                update_similarities=update_similarities,
+                update_database_metrics=(
+                    self._left_panel_visible
+                    and self._active_left_panel in {"database_metrics", "gen_pop_norms"}
+                ),
+                update_similarities=(
+                    self._left_panel_visible
+                    and self._active_left_panel == "similarities"
+                ),
             )
         finally:
             if active_left_scrollbar is not None and active_left_scroll_value is not None:
@@ -19638,10 +19583,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             selected_ids=set(self._selected_chart_ids()),
             refresh_metrics=False,
         )
-        self._on_selection_changed(
-            sync_persistent_selection=False,
-            allow_trait_rank_selection_shortcut=False,
-        )
+        self._on_selection_changed(sync_persistent_selection=False)
 
     def _on_show_hidden_charts_toggled(self, checked: bool) -> None:
         self._show_hidden_charts = bool(checked)
@@ -19655,10 +19597,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             selected_ids=set(self._selected_chart_ids()),
             refresh_metrics=False,
         )
-        self._on_selection_changed(
-            sync_persistent_selection=False,
-            allow_trait_rank_selection_shortcut=False,
-        )
+        self._on_selection_changed(sync_persistent_selection=False)
 
     def _load_hidden_chart_uids_from_settings(self) -> set[str]:
         raw_value = self._settings.value(SETTINGS_KEY_HIDDEN_CHART_UIDS, "[]")
@@ -19766,28 +19705,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             refresh_rankings(normalized_ids)
         remaining_selection = set(self._selected_chart_ids()) - normalized_ids
         self._populate_list(selected_ids=remaining_selection, refresh_metrics=False)
-        self._on_selection_changed(
-            sync_persistent_selection=False,
-            allow_trait_rank_selection_shortcut=False,
-        )
+        self._on_selection_changed(sync_persistent_selection=False)
 
     def _unhide_selected_charts(self, chart_ids: list[int]) -> None:
         normalized_ids = {int(chart_id) for chart_id in chart_ids}
         if not normalized_ids:
             return
         self._hidden_chart_ids.difference_update(normalized_ids)
-        self._hidden_chart_uids.difference_update(
-            self._chart_uids_for_ids(normalized_ids)
-        )
+        self._hidden_chart_uids.difference_update(self._chart_uids_for_ids(normalized_ids))
         self._save_hidden_chart_uids_to_settings()
-        self._populate_list(
-            selected_ids=set(self._selected_chart_ids()) | normalized_ids,
-            refresh_metrics=False,
-        )
-        self._on_selection_changed(
-            sync_persistent_selection=False,
-            allow_trait_rank_selection_shortcut=False,
-        )
+        self._populate_list(selected_ids=set(self._selected_chart_ids()) | normalized_ids, refresh_metrics=False)
+        self._on_selection_changed(sync_persistent_selection=False)
 
     def _chart_matches_filters(self, chart_id: int) -> bool:
         incomplete_birthdate_state = self.incomplete_birthdate_checkbox.mode()
@@ -33395,10 +33323,7 @@ class MainWindow(QMainWindow):
             if int(changed_chart_id) not in manage_dialog._hidden_chart_ids:
                 selected_ids.add(int(changed_chart_id))
             manage_dialog._populate_list(selected_ids=selected_ids, refresh_metrics=False)
-            manage_dialog._on_selection_changed(
-                sync_persistent_selection=False,
-                allow_trait_rank_selection_shortcut=False,
-            )
+            manage_dialog._on_selection_changed(sync_persistent_selection=False)
 
     def _show_death_chart_popout(self) -> None:
         from ephemeraldaddy.gui.features.charts.death_chart_window import show_death_chart_window
