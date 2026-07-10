@@ -462,14 +462,21 @@ def weirdness_scale_label(score: float | None) -> str:
     """Return the configured display label for a weirdness score."""
     if score is None:
         return ""
+    highest_entry: dict[str, object] | None = None
+    highest_minimum: float | None = None
     for scale_entry in WEIRDNESS_SCALE.values():
         try:
             minimum = float(scale_entry.get("min", 0.0))
             maximum = float(scale_entry.get("max", 0.0))
         except (TypeError, ValueError, AttributeError):
             continue
-        if minimum <= score < maximum or (score == maximum and maximum == 1000):
+        if highest_minimum is None or minimum > highest_minimum:
+            highest_minimum = minimum
+            highest_entry = scale_entry
+        if minimum <= score < maximum:
             return str(scale_entry.get("display_name") or "")
+    if highest_entry is not None and highest_minimum is not None and score >= highest_minimum:
+        return str(highest_entry.get("display_name") or "")
     return ""
 
 

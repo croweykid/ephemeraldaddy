@@ -513,7 +513,6 @@ from ephemeraldaddy.gui.dev_tools import (
     SETTINGS_KEY_ENNEAGRAM_PREDICTIONS_DEBUG,
     SETTINGS_KEY_PREDICTIONS_THREAD_DEBUG,
     SETTINGS_KEY_SIMILARITY_PERCEIVED_ACCURACY_CONTROLS,
-    FileSystemInfographicDialog,
     ManageMetadataLabelsDialog,
     MetadataMigrationPanel,
     SizeCheckerPopup,
@@ -2673,7 +2672,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_weight_norms: dict[str, Any] = {}
         self._size_checker_popup: SizeCheckerPopup | None = None
         self._metadata_migration_panel: MetadataMigrationPanel | None = None
-        self._file_system_infographic_dialog: FileSystemInfographicDialog | None = None
         self._metadata_migration_threads: list[QThread] = []
         self._dev_user_age_label: QLabel | None = None
         self._dev_age_distribution_canvas: FigureCanvas | None = None
@@ -18856,10 +18854,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self._weirdness_cache_metadata_by_id = metadata
             metadata[chart_id] = (_DISTINGUISHING_FORMULA_VERSION, norm_signature)
             mutable_row = list(row)
-            if len(mutable_row) < 32:
-                mutable_row.extend([None] * (32 - len(mutable_row)))
+            if len(mutable_row) < 34:
+                mutable_row.extend([None] * (34 - len(mutable_row)))
             mutable_row[31] = float(weirdness_score)
-            hydrated_rows.append(tuple(mutable_row[:32]))
+            mutable_row[32] = _DISTINGUISHING_FORMULA_VERSION
+            mutable_row[33] = norm_signature
+            hydrated_rows.append(tuple(mutable_row[:34]))
         return hydrated_rows
     def _refresh_charts(
         self,
@@ -19127,9 +19127,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         else:
             rows.sort(key=lambda r: r[6], reverse=self._sort_descending)
 
-        chart_positions = {
-            row[0]: index for index, row in enumerate(rows, start=1)
-        }
         row_info_visibility = getattr(
             self,
             "_database_view_row_info_visibility",
@@ -19214,6 +19211,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     _chart_uid,
                     _weirdness_score,
                 )
+                display_position = rendered_row_count + 1
                 display_name = name or "Unnamed"
                 chart = self._get_chart_for_filter(cid) if row_info_visibility.get("sign_glyphs", True) else None
                 from_whence_text = ((from_whence or "")).strip()
@@ -19281,7 +19279,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     for segment in chart_info_segments
                 ).strip()
                 row_prefix = "💀  " if bool(is_deceased) else ""
-                visible_label_parts = [f"{row_prefix}#{chart_positions.get(cid, '?')}"]
+                visible_label_parts = [f"{row_prefix}#{display_position}"]
                 if row_info_visibility.get("name", True):
                     visible_label_parts.append(display_name)
                 if row_info_visibility.get("alias", True) and alias_label:
@@ -19386,7 +19384,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 item.setData(
                     Qt.UserRole + 1,
                     {
-                        "position": chart_positions.get(cid, "?"),
+                        "position": display_position,
                         "name": display_name if row_info_visibility.get("name", True) else "",
                         "raw_name": name or "Unnamed",
                         "alias": alias_text if row_info_visibility.get("alias", True) else "",
@@ -22056,13 +22054,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         metadata_migration_button.clicked.connect(self._toggle_metadata_migration_panel)
         dev_tools_section.addWidget(metadata_migration_button)
 
-        file_system_infographic_button = QPushButton("Open File-System Infographic")
-        file_system_infographic_button.setToolTip(
-            "Open an animated, interactive dark-theme map explaining what the app folders and files do."
-        )
-        file_system_infographic_button.clicked.connect(self._open_file_system_infographic)
-        dev_tools_section.addWidget(file_system_infographic_button)
-
         recalculate_all_weights_button = QPushButton("Recalculate All Weights in DB")
         recalculate_all_weights_button.setToolTip(
             "Recompute stored dominant sign/planet weights for all non-placeholder charts."
@@ -22813,7 +22804,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "Astro Twin cache",
             (
                 "Cleared cached Astro Twins rankings. "
-                "The next Similar Charts popout will recalculate on demand."
+                "The next Astro Twins popout will recalculate on demand."
                 if cleared_count
                 else "Astro Twin cache was already empty."
             ),
@@ -23545,25 +23536,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         main_window = self._owner_window()
         if isinstance(main_window, MainWindow):
             main_window._size_checker_popup = popup
-
-    def _open_file_system_infographic(self) -> None:
-        dialog = self._file_system_infographic_dialog
-        if dialog is not None:
-            try:
-                if dialog.isVisible():
-                    dialog.raise_()
-                    dialog.activateWindow()
-                    return
-            except RuntimeError:
-                dialog = None
-                self._file_system_infographic_dialog = None
-
-        if dialog is None:
-            dialog = FileSystemInfographicDialog(self)
-        dialog.show()
-        dialog.raise_()
-        dialog.activateWindow()
-        self._file_system_infographic_dialog = dialog
 
     def _toggle_metadata_migration_panel(self) -> None:
         panel = self._metadata_migration_panel
@@ -36309,27 +36281,50 @@ class MainWindow(QMainWindow):
         except Exception:
             return []
 
+    @staticmethod
+    def _prediction_norm_row_token_payload(row: Any) -> dict[str, Any]:
+        """Return only prediction-scoring row fields for right-panel norm tokens."""
+        values = tuple(row) if isinstance(row, (list, tuple)) else ()
+
+        def _get(index: int, default: Any = None) -> Any:
+            return values[index] if index < len(values) else default
+
+        return {
+            "chart_uid": str(_get(30, "") or "").strip().upper(),
+            "datetime_iso": str(_get(4, "") or ""),
+            "birth_place": str(_get(5, "") or ""),
+            "birthtime_unknown": int(_get(8, 0) or 0),
+            "retcon_time_used": int(_get(9, 0) or 0),
+            "birth_month": _get(17),
+            "birth_day": _get(18),
+            "birth_year": _get(19),
+            "retcon_hour": _get(20),
+            "retcon_minute": _get(21),
+        }
+
     def _prediction_norms_render_token(self) -> str:
         row_tokens: list[tuple[int, str]] = []
+        visible_chart_ids: set[int] = set()
         for row in self._prediction_norm_rows():
             try:
                 chart_id = int(row[0])
             except Exception:
                 continue
-            row_tokens.append((chart_id, repr(row)))
+            visible_chart_ids.add(chart_id)
+            payload = self._prediction_norm_row_token_payload(row)
+            row_tokens.append((chart_id, self._stable_traits_metadata_hash(payload)))
         pending_ids = sorted(
             int(chart_id)
             for chart_id in (getattr(self, "_manage_charts_pending_changed_ids", set()) or set())
+            if int(chart_id) not in visible_chart_ids
         )
         dirty_ids = sorted(
             int(chart_id)
             for chart_id in (getattr(self, "_database_metrics_lucy_goosey_ids", set()) or set())
+            if int(chart_id) not in visible_chart_ids
         )
-        manage_dialog = getattr(self, "_manage_charts_dialog", None)
-        dialog_revision = int(getattr(manage_dialog, "_prediction_norms_revision", 0) or 0) if manage_dialog is not None else 0
-        revision = int(getattr(self, "_prediction_norms_revision", 0) or 0)
         return (
-            f"prediction_norms:{revision}:{dialog_revision}:"
+            "prediction_norms:"
             f"{tuple(sorted(row_tokens))}:{tuple(pending_ids)}:{tuple(dirty_ids)}"
         )
 
