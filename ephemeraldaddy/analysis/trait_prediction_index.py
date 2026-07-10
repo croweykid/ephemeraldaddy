@@ -14,8 +14,9 @@ import json
 import logging
 import queue
 import threading
+from collections import OrderedDict
 from dataclasses import dataclass, field
-from typing import Any, Callable, Iterable, Mapping
+from typing import Any, Callable, Hashable, Iterable, Mapping
 
 from ephemeraldaddy.analysis.traits import calculate_trait_likelihoods, trait_possible_score
 from ephemeraldaddy.core import db
@@ -24,6 +25,9 @@ from ephemeraldaddy.core.chart import chart_uses_houses
 logger = logging.getLogger(__name__)
 
 TRAIT_INDEX_VERSION = 1
+TRAIT_INDEX_MAX_COMPILED_SIGNATURES = 128
+TRAIT_INDEX_MAX_CHART_VECTORS = 10_000
+TRAIT_INDEX_MAX_LIKELIHOOD_VECTORS = 25_000
 
 
 def stable_json_hash(value: Any) -> str:
@@ -61,7 +65,7 @@ class ChartFeatureVector:
 
     chart_signature: str
     uses_houses: bool
-    chart: Any = field(compare=False, hash=False, repr=False)
+    feature_signature: str
 
 
 @dataclass(frozen=True)
@@ -117,12 +121,15 @@ class TraitPredictionIndex:
     """In-process trait prediction index and background queue."""
 
     def __init__(self) -> None:
-        self._compiled_traits: dict[str, tuple[CompiledTraitProfile, ...]] = {}
-        self._chart_vectors: dict[str, ChartFeatureVector] = {}
-        self._likelihood_vectors: dict[tuple[str, str], dict[str, float]] = {}
+        self._compiled_traits: OrderedDict[str, tuple[CompiledTraitProfile, ...]] = OrderedDict()
+        self._chart_vectors: OrderedDict[str, ChartFeatureVector] = OrderedDict()
+        self._likelihood_vectors: OrderedDict[tuple[str, str], dict[str, float]] = OrderedDict()
         self._baseline_accumulators: dict[tuple[str, str], BaselineAccumulator] = {}
         self._lock = threading.RLock()
-        self._queue: queue.Queue[tuple[Callable[..., Any], tuple[Any, ...], dict[str, Any]]] = queue.Queue()
+        self._queue: queue.Queue[
+            tuple[Hashable | None, Callable[..., Any], tuple[Any, ...], dict[str, Any]]
+        ] = queue.Queue()
+        self._queued_keys: set[Hashable] = set()
         self._worker: threading.Thread | None = None
         self._stop_event = threading.Event()
 
@@ -130,6 +137,7 @@ class TraitPredictionIndex:
         with self._lock:
             cached = self._compiled_traits.get(trait_signature)
             if cached is not None:
+                self._compiled_traits.move_to_end(trait_signature)
                 return cached
         compiled: list[CompiledTraitProfile] = []
         for trait in traits:
@@ -150,20 +158,31 @@ class TraitPredictionIndex:
         result = tuple(compiled)
         with self._lock:
             self._compiled_traits[trait_signature] = result
+            self._compiled_traits.move_to_end(trait_signature)
+            while len(self._compiled_traits) > TRAIT_INDEX_MAX_COMPILED_SIGNATURES:
+                self._compiled_traits.popitem(last=False)
         return result
 
     def chart_features(self, chart: Any, chart_signature: str) -> ChartFeatureVector:
         with self._lock:
             cached = self._chart_vectors.get(chart_signature)
             if cached is not None:
+                self._chart_vectors.move_to_end(chart_signature)
                 return cached
         try:
             uses_houses = bool(chart_uses_houses(chart))
         except Exception:
             uses_houses = bool(getattr(chart, "use_birth_time_data", False))
-        vector = ChartFeatureVector(chart_signature=chart_signature, uses_houses=uses_houses, chart=chart)
+        vector = ChartFeatureVector(
+            chart_signature=chart_signature,
+            uses_houses=uses_houses,
+            feature_signature=stable_json_hash({"chart_signature": chart_signature, "uses_houses": uses_houses}),
+        )
         with self._lock:
             self._chart_vectors[chart_signature] = vector
+            self._chart_vectors.move_to_end(chart_signature)
+            while len(self._chart_vectors) > TRAIT_INDEX_MAX_CHART_VECTORS:
+                self._chart_vectors.popitem(last=False)
         return vector
 
     def chart_likelihoods(
@@ -178,6 +197,7 @@ class TraitPredictionIndex:
         with self._lock:
             cached = self._likelihood_vectors.get(cache_key)
             if cached is not None:
+                self._likelihood_vectors.move_to_end(cache_key)
                 return dict(cached)
         compiled = self.compile_traits(traits, trait_signature)
         features = self.chart_features(chart, chart_signature)
@@ -188,6 +208,9 @@ class TraitPredictionIndex:
         likelihoods = calculate_trait_likelihoods(chart, traits, possible_scores=possible_scores)
         with self._lock:
             self._likelihood_vectors[cache_key] = dict(likelihoods)
+            self._likelihood_vectors.move_to_end(cache_key)
+            while len(self._likelihood_vectors) > TRAIT_INDEX_MAX_LIKELIHOOD_VECTORS:
+                self._likelihood_vectors.popitem(last=False)
         return likelihoods
 
     def update_baseline_accumulator(
@@ -205,9 +228,37 @@ class TraitPredictionIndex:
             self._baseline_accumulators[key] = accumulator
         return accumulator
 
-    def enqueue(self, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
-        self._queue.put((fn, args, kwargs))
+    def enqueue(
+        self,
+        fn: Callable[..., Any],
+        *args: Any,
+        key: Hashable | None = None,
+        **kwargs: Any,
+    ) -> None:
+        with self._lock:
+            if key is not None and key in self._queued_keys:
+                return
+            if key is not None:
+                self._queued_keys.add(key)
+            self._queue.put((key, fn, args, kwargs))
         self.start_worker()
+
+    def warm_chart_likelihoods_async(
+        self,
+        chart: Any,
+        traits: list[dict[str, Any]],
+        *,
+        chart_signature: str,
+        trait_signature: str,
+    ) -> None:
+        self.enqueue(
+            self.chart_likelihoods,
+            chart,
+            traits,
+            key=("chart_likelihoods", chart_signature, trait_signature),
+            chart_signature=chart_signature,
+            trait_signature=trait_signature,
+        )
 
     def start_worker(self) -> None:
         with self._lock:
@@ -223,7 +274,7 @@ class TraitPredictionIndex:
     def _run_queue(self) -> None:
         while not self._stop_event.is_set():
             try:
-                fn, args, kwargs = self._queue.get(timeout=0.25)
+                key, fn, args, kwargs = self._queue.get(timeout=0.25)
             except queue.Empty:
                 return
             try:
@@ -231,10 +282,16 @@ class TraitPredictionIndex:
             except Exception:
                 logger.exception("Trait prediction index worker job failed.")
             finally:
+                if key is not None:
+                    with self._lock:
+                        self._queued_keys.discard(key)
                 self._queue.task_done()
 
     def read_cached(self, query: TraitPredictionQuery, traits: list[dict[str, Any]]) -> TraitPredictionResult | None:
-        return read_cached_trait_prediction(query, traits)
+        with self._lock:
+            accumulator = self._baseline_accumulators.get((query.norm_signature, query.trait_signature))
+            accumulator_averages = accumulator.averages() if accumulator is not None else None
+        return read_cached_trait_prediction(query, traits, baseline_averages=accumulator_averages)
 
 
 _INDEX = TraitPredictionIndex()
@@ -247,6 +304,8 @@ def global_trait_prediction_index() -> TraitPredictionIndex:
 def read_cached_trait_prediction(
     query: TraitPredictionQuery,
     traits: list[dict[str, Any]],
+    *,
+    baseline_averages: Mapping[str, float] | None = None,
 ) -> TraitPredictionResult | None:
     """Fast read API that combines persisted chart vectors and baseline vectors."""
     traits_by_name = {str(trait.get("name", "")).strip(): trait for trait in traits if str(trait.get("name", "")).strip()}
@@ -257,10 +316,16 @@ def read_cached_trait_prediction(
     active_names = set(traits_by_name)
 
     chart_rows = db.get_chart_trait_likelihoods(query.chart_uid)
-    baseline_rows = db.get_trait_baseline_snapshot(
-        norm_signature=query.norm_signature,
-        trait_signature=query.trait_signature,
-    )
+    if baseline_averages is None:
+        baseline_rows = db.get_trait_baseline_snapshot(
+            norm_signature=query.norm_signature,
+            trait_signature=query.trait_signature,
+        )
+    else:
+        baseline_rows = [
+            {"trait_name": name, "trait_uid": trait_uids_by_name.get(name, ""), "db_average": average}
+            for name, average in baseline_averages.items()
+        ]
 
     fresh_chart: dict[str, float] = {}
     stale_chart: dict[str, float] = {}
