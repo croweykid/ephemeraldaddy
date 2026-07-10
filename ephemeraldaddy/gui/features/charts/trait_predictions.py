@@ -1454,7 +1454,7 @@ def trait_metadata_for_chart(
             {
                 "trait_name": name,
                 "trait_uid": trait_uids_by_name.get(name, ""),
-                "trait_signature": _trait_definition_signature(traits_by_name[name]),
+                "trait_signature": trait_signature,
                 "direction": _direction_for_deviation(float(metadata.get("deviations", {}).get(name, 0.0))),
                 "likelihood": likelihoods.get(name, 0.0),
                 "db_average": database_averages.get(name, 0.0),

@@ -4660,6 +4660,7 @@ class DatabaseAnalyticsChartsMixin:
                     {
                         "trait_name": name,
                         "trait_uid": trait_uids_by_name.get(name, ""),
+                        "trait_signature": trait_signature_hash,
                         "direction": "above" if deviation >= threshold else "below" if deviation <= -threshold else "neutral",
                         "likelihood": likelihood,
                         "db_average": db_average,

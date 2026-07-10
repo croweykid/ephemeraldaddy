@@ -659,7 +659,7 @@ def upsert_chart_dnd_prediction_metadata(chart_uid: str, payload: Mapping[str, A
     normalized_uid = _normalize_chart_uid(chart_uid)
     if normalized_uid is None:
         raise ValueError(f"Invalid chart UID {chart_uid!r}")
-    now = datetime.utcnow().isoformat(timespec="seconds")
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
     conn = _get_conn()
     try:
         with conn:
@@ -4289,7 +4289,7 @@ def upsert_chart_trait_likelihoods(
     normalized_uid = _normalize_chart_uid(chart_uid)
     if normalized_uid is None:
         raise ValueError(f"Invalid chart UID {chart_uid!r}")
-    now = datetime.utcnow().isoformat(timespec="seconds")
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
     prepared: list[tuple[Any, ...]] = []
     for row in rows:
         trait_name = str(row.get("trait_name", "")).strip()
@@ -4310,8 +4310,21 @@ def upsert_chart_trait_likelihoods(
     try:
         with conn:
             _create_chart_trait_metadata_table(conn)
-            conn.execute("DELETE FROM chart_trait_likelihoods WHERE chart_uid = ?", (normalized_uid,))
             if prepared:
+                for _chart_uid, trait_uid, trait_name, *_rest in prepared:
+                    if str(trait_uid or "").strip():
+                        conn.execute(
+                            "DELETE FROM chart_trait_likelihoods WHERE chart_uid = ? AND trait_uid = ?",
+                            (normalized_uid, str(trait_uid)),
+                        )
+                    else:
+                        conn.execute(
+                            """
+                            DELETE FROM chart_trait_likelihoods
+                            WHERE chart_uid = ? AND COALESCE(trait_uid, '') = '' AND trait_name = ?
+                            """,
+                            (normalized_uid, str(trait_name)),
+                        )
                 conn.executemany(
                     """
                     INSERT INTO chart_trait_likelihoods (
@@ -4367,7 +4380,7 @@ def upsert_trait_baseline_snapshot(
     normalized_trait_signature = str(trait_signature or "").strip()
     if not normalized_norm_signature or not normalized_trait_signature:
         return
-    now = datetime.utcnow().isoformat(timespec="seconds")
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
     try:
         norm_state_text = json.dumps(norm_state or {}, sort_keys=True, default=str, separators=(",", ":"))
     except TypeError:
@@ -4451,7 +4464,7 @@ def upsert_chart_trait_metadata(
     normalized_uid = _normalize_chart_uid(chart_uid)
     if normalized_uid is None:
         raise ValueError(f"Invalid chart UID {chart_uid!r}")
-    now = datetime.utcnow().isoformat(timespec="seconds")
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
     prepared: list[tuple[Any, ...]] = []
     for row in rows:
         trait_name = str(row.get("trait_name", "")).strip()
