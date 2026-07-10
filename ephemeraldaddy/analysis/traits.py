@@ -319,7 +319,9 @@ logger = logging.getLogger(__name__)
 _TRAIT_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 _TRAIT_UID_RE = re.compile(r"[^a-zA-Z0-9_.:-]+")
 _TRAIT_POSSIBLE_SCORE_CACHE: dict[tuple[str, bool], dict[str, float]] = {}
-_TRAIT_POSSIBLE_SCORE_CACHE_MAX_ENTRIES = 64
+_TRAIT_POSSIBLE_SCORE_CACHE_MAX_ENTRIES = 256
+_DEFAULT_TRAITS_SOURCE_MONITOR_ENABLED = True
+_DEFAULT_TRAITS_SOURCE_TOKEN: tuple[int, int] | None = None
 
 
 def normalize_trait_samples(
@@ -750,6 +752,7 @@ def _trait_item_from_profile(name: str, profile: Mapping[str, Any], path: Path, 
 
 
 def _default_trait_items(*, skip_corrupt: bool) -> list[dict[str, Any]]:
+    _maybe_clear_possible_score_cache_for_default_source_change()
     if not DEFAULT_TRAITS_PATH.exists():
         return []
     try:
@@ -929,6 +932,45 @@ def _trait_possible_score(profile: Mapping[str, Any], *, include_houses: bool = 
 def trait_possible_score(profile: Mapping[str, Any], *, include_houses: bool = True) -> float:
     """Return the maximum absolute evidence score available for a trait profile."""
     return _trait_possible_score(profile, include_houses=include_houses)
+
+
+def clear_trait_possible_score_cache() -> None:
+    """Clear memoized possible-score denominators after trait definitions change."""
+    _TRAIT_POSSIBLE_SCORE_CACHE.clear()
+
+
+def set_default_traits_source_monitor_enabled(enabled: bool) -> None:
+    """Toggle development-time clearing when bundled default traits change on disk."""
+    global _DEFAULT_TRAITS_SOURCE_MONITOR_ENABLED
+    _DEFAULT_TRAITS_SOURCE_MONITOR_ENABLED = bool(enabled)
+
+
+def default_traits_source_monitor_enabled() -> bool:
+    return bool(_DEFAULT_TRAITS_SOURCE_MONITOR_ENABLED)
+
+
+def _default_traits_source_token() -> tuple[int, int] | None:
+    try:
+        stat = DEFAULT_TRAITS_PATH.stat()
+    except OSError:
+        return None
+    return (int(stat.st_mtime_ns), int(stat.st_size))
+
+
+def _maybe_clear_possible_score_cache_for_default_source_change() -> None:
+    """Development scaffold: clear denominator cache when bundled traits are edited."""
+    global _DEFAULT_TRAITS_SOURCE_TOKEN
+    if not _DEFAULT_TRAITS_SOURCE_MONITOR_ENABLED:
+        return
+    token = _default_traits_source_token()
+    if token is None:
+        return
+    if _DEFAULT_TRAITS_SOURCE_TOKEN is None:
+        _DEFAULT_TRAITS_SOURCE_TOKEN = token
+        return
+    if token != _DEFAULT_TRAITS_SOURCE_TOKEN:
+        clear_trait_possible_score_cache()
+        _DEFAULT_TRAITS_SOURCE_TOKEN = token
 
 
 def _trait_possible_score_signature(trait_items: list[dict[str, Any]]) -> str:
