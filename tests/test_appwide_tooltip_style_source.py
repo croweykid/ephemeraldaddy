@@ -36,3 +36,16 @@ def test_database_view_right_panel_buttons_have_default_tooltip_overrides():
     assert '"manage_toggle_batch_edit_panel_button": "Batch Edit Panel"' in TOOLTIPS_SOURCE
     assert '"manage_database_manager_button": "Database Manager"' in TOOLTIPS_SOURCE
     assert '"manage_toggle_collections_panel_button": "Collections"' in TOOLTIPS_SOURCE
+
+
+def test_tooltips_wrap_after_42_characters():
+    assert "APP_TOOLTIP_WRAP_COLUMN = 42" in TOOLTIPS_SOURCE
+    assert "_wrap_plain_tooltip_text" in TOOLTIPS_SOURCE
+    assert "width=APP_TOOLTIP_WRAP_COLUMN" in TOOLTIPS_SOURCE
+    assert "replace(chr(10), '<br>')" in TOOLTIPS_SOURCE
+
+
+def test_qwidget_settooltip_is_wrapped_appwide():
+    assert "_install_wrapping_set_tooltip()" in TOOLTIPS_SOURCE
+    assert "QWidget.setToolTip = set_wrapped_tooltip" in TOOLTIPS_SOURCE
+    assert '_wrap_tooltip_text(str(tooltip or ""))' in TOOLTIPS_SOURCE
