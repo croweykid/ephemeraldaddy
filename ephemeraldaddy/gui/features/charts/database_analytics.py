@@ -236,6 +236,7 @@ from ephemeraldaddy.gui.features.charts.statistical_significance import (
 )
 from ephemeraldaddy.gui.features.charts.provenance import chart_is_non_aggregable
 from ephemeraldaddy.gui.features.charts.tagging import normalize_tag_list
+from ephemeraldaddy.analysis.trait_prediction_index import global_trait_prediction_index
 from ephemeraldaddy.analysis.traits import (
     DEFAULT_TRAIT_COLOR,
     calculate_trait_likelihoods,
@@ -4615,6 +4616,33 @@ class DatabaseAnalyticsChartsMixin:
         norm_signature = self._stable_traits_metadata_hash(
             tuple(sorted(str(uid).strip().upper() for uid in uid_by_id.values() if str(uid or "").strip()))
         )
+        trait_uids_by_name = {
+            str(trait.get("name", "")).strip(): str(trait.get("uid") or trait.get("trait_uid") or "").strip()
+            for trait in trait_items
+            if str(trait.get("name", "")).strip()
+        }
+        try:
+            global_trait_prediction_index().update_baseline_accumulator(
+                norm_signature=norm_signature,
+                trait_signature=trait_signature_hash,
+                chart_likelihoods=chart_likelihoods.values(),
+            )
+            db.upsert_trait_baseline_snapshot(
+                norm_signature=norm_signature,
+                trait_signature=trait_signature_hash,
+                rows=[
+                    {
+                        "trait_name": name,
+                        "trait_uid": trait_uids_by_name.get(name, ""),
+                        "db_average": average,
+                    }
+                    for name, average in database_averages_pct.items()
+                ],
+                chart_count=len(normalized_chart_ids),
+                norm_state={"chart_ids": list(normalized_chart_ids)},
+            )
+        except Exception:
+            logger.exception("Failed to persist trait baseline snapshot.")
         threshold = TRAIT_DEVIATION_ASSIGNMENT_THRESHOLD
         for chart_id, likelihoods in chart_likelihoods.items():
             chart = self._get_chart_for_filter(int(chart_id))
@@ -4631,6 +4659,8 @@ class DatabaseAnalyticsChartsMixin:
                 rows.append(
                     {
                         "trait_name": name,
+                        "trait_uid": trait_uids_by_name.get(name, ""),
+                        "trait_signature": trait_signature_hash,
                         "direction": "above" if deviation >= threshold else "below" if deviation <= -threshold else "neutral",
                         "likelihood": likelihood,
                         "db_average": db_average,
@@ -4640,6 +4670,11 @@ class DatabaseAnalyticsChartsMixin:
             if not rows:
                 continue
             try:
+                db.upsert_chart_trait_likelihoods(
+                    chart_uid,
+                    rows,
+                    chart_signature=self._chart_trait_metadata_signature(chart),
+                )
                 db.upsert_chart_trait_metadata(
                     chart_uid,
                     rows,

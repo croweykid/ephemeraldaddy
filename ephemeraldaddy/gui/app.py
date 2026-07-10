@@ -48,6 +48,7 @@ SETTINGS_KEY_PREDICTIONS_ALIGNMENT_DEFAULT_ZERO = (
 )
 SETTINGS_KEY_WIKIPEDIA_BACKUP_SEARCH = "astrotheme/wikipedia_backup_search_enabled"
 SETTINGS_KEY_CHART_DATA_SHOW_CHART_UID = "developer_tools/chart_data_show_chart_uid"
+SETTINGS_KEY_DEFAULT_TRAITS_SOURCE_MONITOR = "developer_tools/default_traits_source_monitor"
 
 SETTINGS_KEY_DATABASE_VIEW_ROW_INFO = "manage_charts/database_view_row_info"
 SETTINGS_KEY_HIDE_HYPOTHETICAL_CHARTS = "manage_charts/hide_hypothetical_charts"
@@ -109,6 +110,13 @@ def _save_database_view_row_info_visibility(settings, visibility: dict[str, bool
 def _load_chart_data_show_chart_uid(settings, *, fallback: bool = False) -> bool:
     return _settings_bool(
         settings.value(SETTINGS_KEY_CHART_DATA_SHOW_CHART_UID, int(fallback)),
+        fallback,
+    )
+
+
+def _load_default_traits_source_monitor(settings, *, fallback: bool = True) -> bool:
+    return _settings_bool(
+        settings.value(SETTINGS_KEY_DEFAULT_TRAITS_SOURCE_MONITOR, int(fallback)),
         fallback,
     )
 
@@ -493,6 +501,7 @@ from ephemeraldaddy.gui.wikipedia_search import (
     parse_wikipedia_birth_data,
     resolve_wikipedia_page_options,
 )
+from ephemeraldaddy.analysis.traits import set_default_traits_source_monitor_enabled
 from ephemeraldaddy.gui.dev_tools import (
     BATCH_TAGGING_TERMINAL_DEBUG_DEFAULT,
     DISTINGUISHING_FACTORS_SCORING_DEBUG_DEFAULT,
@@ -2389,6 +2398,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             SETTINGS_KEY_CHART_DATA_SHOW_CHART_UID,
             int(self._chart_data_show_chart_uid),
         )
+        self._default_traits_source_monitor_enabled = _load_default_traits_source_monitor(
+            self._settings,
+            fallback=True,
+        )
+        self._settings.setValue(
+            SETTINGS_KEY_DEFAULT_TRAITS_SOURCE_MONITOR,
+            int(self._default_traits_source_monitor_enabled),
+        )
+        set_default_traits_source_monitor_enabled(self._default_traits_source_monitor_enabled)
         self._database_view_row_info_visibility = _load_database_view_row_info_visibility(
             self._settings
         )
@@ -22096,6 +22114,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         chart_data_uid_checkbox.toggled.connect(self._on_chart_data_show_chart_uid_toggled)
         dev_tools_section.addWidget(chart_data_uid_checkbox)
 
+        default_traits_monitor_checkbox = QCheckBox("Traits: watch bundled default file edits")
+        default_traits_monitor_checkbox.setChecked(
+            bool(getattr(self, "_default_traits_source_monitor_enabled", True))
+        )
+        default_traits_monitor_checkbox.setToolTip(
+            "Development scaffold: when enabled, editing bundled default_traits.json clears trait score denominator caches."
+        )
+        default_traits_monitor_checkbox.toggled.connect(self._on_default_traits_source_monitor_toggled)
+        dev_tools_section.addWidget(default_traits_monitor_checkbox)
+
         add_batch_tagging_terminal_debug_setting(
             section_layout=dev_tools_section,
             is_enabled=bool(getattr(self, "_batch_tagging_terminal_debug", BATCH_TAGGING_TERMINAL_DEBUG_DEFAULT)),
@@ -22611,6 +22639,22 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 int(self._chart_data_show_chart_uid),
             )
             parent._refresh_chart_summary()
+
+    def _on_default_traits_source_monitor_toggled(self, checked: bool) -> None:
+        self._default_traits_source_monitor_enabled = bool(checked)
+        self._settings.setValue(
+            SETTINGS_KEY_DEFAULT_TRAITS_SOURCE_MONITOR,
+            int(self._default_traits_source_monitor_enabled),
+        )
+        set_default_traits_source_monitor_enabled(self._default_traits_source_monitor_enabled)
+        parent = self._owner_window()
+        if isinstance(parent, MainWindow):
+            parent._default_traits_source_monitor_enabled = self._default_traits_source_monitor_enabled
+            parent._settings.setValue(
+                SETTINGS_KEY_DEFAULT_TRAITS_SOURCE_MONITOR,
+                int(self._default_traits_source_monitor_enabled),
+            )
+            set_default_traits_source_monitor_enabled(parent._default_traits_source_monitor_enabled)
 
     def _on_batch_tagging_terminal_debug_toggled(self, checked: bool) -> None:
         self._batch_tagging_terminal_debug = bool(checked)
@@ -24266,6 +24310,15 @@ class MainWindow(QMainWindow):
             SETTINGS_KEY_CHART_DATA_SHOW_CHART_UID,
             int(self._chart_data_show_chart_uid),
         )
+        self._default_traits_source_monitor_enabled = _load_default_traits_source_monitor(
+            self._settings,
+            fallback=True,
+        )
+        self._settings.setValue(
+            SETTINGS_KEY_DEFAULT_TRAITS_SOURCE_MONITOR,
+            int(self._default_traits_source_monitor_enabled),
+        )
+        set_default_traits_source_monitor_enabled(self._default_traits_source_monitor_enabled)
         self._enneagram_predictions_debug = load_enneagram_predictions_debug_enabled(
             self._settings,
             fallback=ENNEAGRAM_PREDICTIONS_DEBUG_DEFAULT,

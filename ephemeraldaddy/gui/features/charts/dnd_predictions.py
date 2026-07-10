@@ -1803,9 +1803,9 @@ class DndPredictionPanelAdapter:
                 self._render_alignment_debug_summary(chart)
             return summary_label
 
-        norm_charts = self._norm_charts()
         statblock_cache = self._restore_statblock_cache(chart)
         if isinstance(statblock_cache, dict):
+            norm_charts = self._norm_charts()
             statblock_stale = self._statblock_cache_is_stale(chart, norm_charts)
             metric_panel_renderer(
                 canvas_attr="dnd_prediction_statblock_canvas",

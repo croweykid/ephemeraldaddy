@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
 
 from ephemeraldaddy.analysis.traits import (
     DEFAULT_TRAIT_COLOR,
+    clear_trait_possible_score_cache,
     delete_trait,
     install_trait_file,
     list_traits,
@@ -38,6 +39,9 @@ from ephemeraldaddy.analysis.traits import (
     set_trait_color,
     set_trait_description,
 )
+
+
+TRAIT_RECOMMENDED_WORKING_SET_LIMIT = 100
 
 
 def _settings_dialog_for(owner: Any) -> QWidget:
@@ -177,7 +181,9 @@ def refresh_traits_settings_list(owner: Any) -> None:
         status_label.setText(
             f"{count} trait{'s' if count != 1 else ''} available "
             f"({bundled_count} bundled default, {custom_count} custom); "
-            f"{archived_count} archived and excluded from Predictions."
+            f"{archived_count} archived and excluded from Predictions. "
+            f"{count} of {TRAIT_RECOMMENDED_WORKING_SET_LIMIT} traits currently defined "
+            "(recommended working set)."
         )
     _sync_trait_action_buttons(owner)
 
@@ -199,6 +205,7 @@ def _mark_trait_definitions_changed(
     from ephemeraldaddy.gui.features.charts.trait_predictions import clear_trait_norm_cache
 
     clear_trait_norm_cache(trait_names)
+    clear_trait_possible_score_cache()
     if clear_likelihoods:
         clear_traits_cache = getattr(owner, "_clear_traits_distribution_analytics_cache", None)
         if callable(clear_traits_cache):
