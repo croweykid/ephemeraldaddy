@@ -16,6 +16,7 @@ from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import (
     set_chart_right_panel,
     set_chart_right_panel_container_visible,
     sync_chart_right_panel_placeholder_state,
+    _predictions_panel_has_rendered_content,
 )
 
 RightPanelSection = Literal[
@@ -176,7 +177,11 @@ class ChartRightPanelController:
             return
         if active_panel == "predictions":
             render_token = self._prediction_render_token(chart)
-            if state is not None and state.last_render_chart_token == render_token:
+            if (
+                state is not None
+                and state.last_render_chart_token == render_token
+                and _predictions_panel_has_rendered_content(self._owner)
+            ):
                 return
             render_traits = getattr(self._owner, "_render_traits_predictions", None)
             if callable(render_traits):

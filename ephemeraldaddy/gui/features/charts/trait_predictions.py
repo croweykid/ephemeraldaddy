@@ -607,6 +607,25 @@ def _chart_trait_metadata_signature(chart: Any) -> str:
         uses_houses = bool(chart_uses_houses(chart))
     except Exception:
         uses_houses = bool(getattr(chart, "use_birth_time_data", False))
+    scoring_payload = {
+        "positions": getattr(chart, "positions", None),
+        "aspects": getattr(chart, "aspects", None),
+        "human_design_gates": getattr(chart, "human_design_gates", None),
+        "human_design_channels": getattr(chart, "human_design_channels", None),
+        "human_design_type": getattr(chart, "human_design_type", None),
+        "human_design_profile": getattr(chart, "human_design_profile", None),
+        "human_design_defined_centers": getattr(chart, "human_design_defined_centers", None),
+        "human_design_authority": getattr(chart, "human_design_authority", None),
+        "bazi_year_pillar": getattr(chart, "bazi_year_pillar", None),
+        "bazi_month_pillar": getattr(chart, "bazi_month_pillar", None),
+        "bazi_day_pillar": getattr(chart, "bazi_day_pillar", None),
+        "bazi_hour_pillar": getattr(chart, "bazi_hour_pillar", None),
+        "bazi_sign_weights": getattr(chart, "bazi_sign_weights", None),
+        "bazi_branch_weights": getattr(chart, "bazi_branch_weights", None),
+        "dominant_bazi_sign_weights": getattr(chart, "dominant_bazi_sign_weights", None),
+    }
+    if uses_houses:
+        scoring_payload["houses"] = getattr(chart, "houses", None)
     return _stable_json_hash(
         {
             "birth_date": getattr(chart, "birth_date", None),
@@ -622,7 +641,11 @@ def _chart_trait_metadata_signature(chart: Any) -> str:
             "retcon_time_used": bool(getattr(chart, "retcon_time_used", False)),
             "retcon_hour": getattr(chart, "retcon_hour", None),
             "retcon_minute": getattr(chart, "retcon_minute", None),
+            "rectification_range_used": bool(getattr(chart, "rectification_range_used", False)),
+            "rectification_range_start_minute": getattr(chart, "rectification_range_start_minute", None),
+            "rectification_range_end_minute": getattr(chart, "rectification_range_end_minute", None),
             "chart_uses_houses": uses_houses,
+            "scoring_payload": scoring_payload,
         }
     )
 
@@ -2080,12 +2103,7 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
     owner._traits_prediction_pending_traits = traits
     owner._traits_prediction_pending_cache_key = cache_key or ""
     owner._traits_prediction_pending_signatures = signatures
-    message = (
-        "<div style='color:#d8d8d8; font-style:italic; padding:18px 8px; text-align:center;'>"
-        "Calculating trait predictions from the bundled/default traits…"
-        "</div>"
-    )
-    _predictions_debug(owner, "Trait render found no persisted trait metadata; starting refresh worker cache_key=%s", (cache_key or "")[:12])
+    message = _traits_calculate_prompt_html()
+    _predictions_debug(owner, "Trait render found no persisted trait metadata; showing manual calculate prompt cache_key=%s", (cache_key or "")[:12])
     _apply_traits_prediction_view(owner, message, message)
-    _start_traits_prediction_refresh_worker(owner, chart, traits, cache_key or "", owner._traits_prediction_render_token, signatures)
     return

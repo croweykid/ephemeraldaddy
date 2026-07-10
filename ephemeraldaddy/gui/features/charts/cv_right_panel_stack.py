@@ -795,6 +795,8 @@ def set_chart_right_panel(owner: object, panel_key: str) -> None:
 def _predictions_panel_render_is_current(owner: object, chart: object | None) -> bool:
     if chart is None:
         return False
+    if not _predictions_panel_has_rendered_content(owner):
+        return False
     state = getattr(owner, "_chart_right_panel_state", None)
     if state is None:
         return False
@@ -803,6 +805,52 @@ def _predictions_panel_render_is_current(owner: object, chart: object | None) ->
     except Exception:
         return False
     return state.last_render_chart_token == render_token
+
+
+def _predictions_panel_has_rendered_content(owner: object) -> bool:
+    """Return whether Predictions widgets have been rendered beyond constructor defaults.
+
+    The render token can be marked current by background/cache bookkeeping before
+    the user ever opens the Predictions tab.  In that case the section labels
+    still contain constructor placeholders such as "No traits uploaded" and the
+    graph canvases have never been installed, so opening the tab must perform a
+    real render even if the chart/norm token matches.
+    """
+    traits_label = getattr(owner, "traits_prediction_label", None)
+    traits_text = traits_label.text() if isinstance(traits_label, QLabel) else ""
+    traits_has_default_placeholder = "No traits uploaded. Add traits in Settings > Traits." in traits_text
+
+    tritype_label = getattr(owner, "enneagram_prediction_tritype_label", None)
+    tritype_text = tritype_label.text() if isinstance(tritype_label, QLabel) else ""
+    tritype_has_default_placeholder = tritype_text.strip() in {
+        "Predicted Tritype: —",
+        "<b>Predicted Tritype:</b> —",
+    }
+
+    species_label = getattr(owner, "dnd_prediction_species_label", None)
+    species_text = species_label.text() if isinstance(species_label, QLabel) else ""
+    class_label = getattr(owner, "dnd_prediction_class_label", None)
+    class_text = class_label.text() if isinstance(class_label, QLabel) else ""
+    dnd_has_default_placeholders = (
+        "Top 3 Species/Subspecies" in species_text
+        and species_text.rstrip().endswith("—")
+        and "Top 3 Classes" in class_text
+        and class_text.rstrip().endswith("—")
+    )
+
+    has_prediction_canvas = any(
+        getattr(owner, attr, None) is not None
+        for attr in (
+            "enneagram_prediction_canvas",
+            "dnd_prediction_statblock_canvas",
+            "dnd_prediction_alignment_canvas",
+        )
+    )
+    return has_prediction_canvas or not (
+        traits_has_default_placeholder
+        and tritype_has_default_placeholder
+        and dnd_has_default_placeholders
+    )
 
 
 def _chart_right_panel_prediction_render_token(owner: object, chart: object) -> str:
@@ -1101,8 +1149,15 @@ def schedule_chart_render_for_active_right_panel(owner: object) -> None:
         return
     if active_panel == "predictions":
         render_token = _chart_right_panel_prediction_render_token(owner, chart)
-        if state is not None and state.last_render_chart_token == render_token:
+        if (
+            state is not None
+            and state.last_render_chart_token == render_token
+            and _predictions_panel_has_rendered_content(owner)
+        ):
             return
+        render_traits = getattr(owner, "_render_traits_predictions", None)
+        if callable(render_traits):
+            render_traits(chart)
         owner._render_enneagram_predictions(chart)
         owner._render_dndification_predictions(chart)
         if state is not None:

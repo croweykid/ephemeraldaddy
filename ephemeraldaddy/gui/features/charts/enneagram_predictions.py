@@ -1005,7 +1005,8 @@ class EnneagramPredictionPanelAdapter:
             return
         scores = _coerce_complete_enneagram_type_scores(getattr(chart, "enneagram_type_weights", None))
         if scores is None:
-            scores = self.cache_metadata(chart)
+            self._show_calculate_prompt(chart)
+            return
 
         def _draw_with_cached_scores(ax: Any, draw_chart: Any) -> None:
             draw_enneagram_predictions(
