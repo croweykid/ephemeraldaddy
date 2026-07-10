@@ -782,10 +782,27 @@ def set_chart_right_panel(owner: object, panel_key: str) -> None:
     schedule = getattr(owner, "_schedule_chart_render_for_active_right_panel", None)
     if callable(schedule):
         if panel_key == "predictions":
-            _show_predictions_panel_pending_placeholders(owner, getattr(owner, "_latest_chart", None))
-            QTimer.singleShot(0, schedule)
+            latest_chart = getattr(owner, "_latest_chart", None)
+            if _predictions_panel_render_is_current(owner, latest_chart):
+                schedule()
+            else:
+                _show_predictions_panel_pending_placeholders(owner, latest_chart)
+                QTimer.singleShot(0, schedule)
         else:
             schedule()
+
+
+def _predictions_panel_render_is_current(owner: object, chart: object | None) -> bool:
+    if chart is None:
+        return False
+    state = getattr(owner, "_chart_right_panel_state", None)
+    if state is None:
+        return False
+    try:
+        render_token = _chart_right_panel_prediction_render_token(owner, chart)
+    except Exception:
+        return False
+    return state.last_render_chart_token == render_token
 
 
 def _chart_right_panel_prediction_render_token(owner: object, chart: object) -> str:
