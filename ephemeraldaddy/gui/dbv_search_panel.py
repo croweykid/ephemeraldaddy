@@ -1004,6 +1004,18 @@ def build_dbv_search_panel(window) -> "QWidget":
     traits_absent_group_layout.addLayout(traits_absent_search_row)
     predictions_category_layout.addWidget(traits_absent_section)
 
+    enneagram_section, enneagram_group_layout = add_collapsible_section("Enneagram", nested=True)
+    enneagram_layout = QGridLayout()
+    enneagram_layout.setContentsMargins(0, 0, 0, 0)
+    window.enneagram_type_filter_checkboxes = {}
+    for idx, enneagram_type in enumerate(range(1, 10)):
+        checkbox = QuadStateSlider(f"Type {enneagram_type}")
+        checkbox.modeChanged.connect(window._on_filter_changed)
+        window.enneagram_type_filter_checkboxes[enneagram_type] = checkbox
+        enneagram_layout.addWidget(checkbox, idx // 3, idx % 3)
+    enneagram_group_layout.addLayout(enneagram_layout)
+    predictions_category_layout.addWidget(enneagram_section)
+
     #Search: data completeness & accuracy
     birth_info_status_section, birth_info_status_layout = add_collapsible_section(
         "🐣Data Quality", #data icon contenders: 🧮 🗄️ 🪪 𖦏 🔢 🧩 ℹ️
@@ -2189,6 +2201,10 @@ def build_dbv_search_panel(window) -> "QWidget":
     predictability_section, predictability_group_layout = add_collapsible_section(
         "💭Predictability",
     )
+    window.search_predictability_section = predictability_section
+    visibility_store = getattr(window, "_visibility", None)
+    if visibility_store is not None and hasattr(visibility_store, "get"):
+        predictability_section.setVisible(visibility_store.get("chart_view.predictability"))
     predictability_range_layout = QGridLayout()
     predictability_range_layout.setContentsMargins(0, 0, 0, 0)
     predictability_range_layout.addWidget(QLabel("Min"), 0, 0)
