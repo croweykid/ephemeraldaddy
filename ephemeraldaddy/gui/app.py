@@ -18856,10 +18856,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self._weirdness_cache_metadata_by_id = metadata
             metadata[chart_id] = (_DISTINGUISHING_FORMULA_VERSION, norm_signature)
             mutable_row = list(row)
-            if len(mutable_row) < 32:
-                mutable_row.extend([None] * (32 - len(mutable_row)))
+            if len(mutable_row) < 34:
+                mutable_row.extend([None] * (34 - len(mutable_row)))
             mutable_row[31] = float(weirdness_score)
-            hydrated_rows.append(tuple(mutable_row[:32]))
+            mutable_row[32] = _DISTINGUISHING_FORMULA_VERSION
+            mutable_row[33] = norm_signature
+            hydrated_rows.append(tuple(mutable_row[:34]))
         return hydrated_rows
     def _refresh_charts(
         self,
@@ -19127,9 +19129,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         else:
             rows.sort(key=lambda r: r[6], reverse=self._sort_descending)
 
-        chart_positions = {
-            row[0]: index for index, row in enumerate(rows, start=1)
-        }
         row_info_visibility = getattr(
             self,
             "_database_view_row_info_visibility",
@@ -19214,6 +19213,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     _chart_uid,
                     _weirdness_score,
                 )
+                display_position = rendered_row_count + 1
                 display_name = name or "Unnamed"
                 chart = self._get_chart_for_filter(cid) if row_info_visibility.get("sign_glyphs", True) else None
                 from_whence_text = ((from_whence or "")).strip()
@@ -19281,7 +19281,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     for segment in chart_info_segments
                 ).strip()
                 row_prefix = "💀  " if bool(is_deceased) else ""
-                visible_label_parts = [f"{row_prefix}#{chart_positions.get(cid, '?')}"]
+                visible_label_parts = [f"{row_prefix}#{display_position}"]
                 if row_info_visibility.get("name", True):
                     visible_label_parts.append(display_name)
                 if row_info_visibility.get("alias", True) and alias_label:
@@ -19386,7 +19386,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 item.setData(
                     Qt.UserRole + 1,
                     {
-                        "position": chart_positions.get(cid, "?"),
+                        "position": display_position,
                         "name": display_name if row_info_visibility.get("name", True) else "",
                         "raw_name": name or "Unnamed",
                         "alias": alias_text if row_info_visibility.get("alias", True) else "",
