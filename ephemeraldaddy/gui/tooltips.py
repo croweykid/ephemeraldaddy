@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from html import escape
-from typing import Mapping
+from textwrap import wrap
+from typing import Callable, Mapping, cast
 
 from PySide6.QtCore import QEvent, QPoint
 from PySide6.QtWidgets import (
@@ -24,6 +25,8 @@ from ephemeraldaddy.gui.style import (
 
 APP_TOOLTIP_BACKGROUND_COLOR = "#252525"
 APP_TOOLTIP_TEXT_COLOR = "#f5f5f5"
+APP_TOOLTIP_WRAP_COLUMN = 42
+
 APP_TOOLTIP_STYLE = (
     "QToolTip {"
     f"background-color: {APP_TOOLTIP_BACKGROUND_COLOR};"
@@ -33,13 +36,31 @@ APP_TOOLTIP_STYLE = (
     "}"
 )
 
+_ORIGINAL_SET_TOOLTIP: Callable[[QWidget, str], None] | None = None
+
 
 def install_app_tooltip_style(app: QApplication) -> None:
-    """Install the single appwide QToolTip stylesheet on the QApplication."""
+    """Install the appwide QToolTip stylesheet and automatic text wrapping."""
+    _install_wrapping_set_tooltip()
     existing_style = app.styleSheet() or ""
     if APP_TOOLTIP_STYLE in existing_style:
         return
     app.setStyleSheet((existing_style + "\n" + APP_TOOLTIP_STYLE).strip())
+
+
+def _install_wrapping_set_tooltip() -> None:
+    """Wrap plain-text QWidget tooltips appwide before Qt displays them."""
+    global _ORIGINAL_SET_TOOLTIP
+    if _ORIGINAL_SET_TOOLTIP is not None:
+        return
+
+    _ORIGINAL_SET_TOOLTIP = cast(Callable[[QWidget, str], None], QWidget.setToolTip)
+
+    def set_wrapped_tooltip(widget: QWidget, tooltip: str) -> None:
+        assert _ORIGINAL_SET_TOOLTIP is not None
+        _ORIGINAL_SET_TOOLTIP(widget, _wrap_tooltip_text(str(tooltip or "")))
+
+    QWidget.setToolTip = set_wrapped_tooltip  # type: ignore[method-assign]
 
 
 def apply_tooltip_signifier(widget: QWidget) -> None:
@@ -198,11 +219,38 @@ EXACT_PLACEHOLDER_TOOLTIP_OVERRIDES: dict[str, str] = {
 }
 
 
+def _wrap_plain_tooltip_line(line: str) -> str:
+    """Wrap one plain tooltip line at the appwide character limit."""
+    if len(line) <= APP_TOOLTIP_WRAP_COLUMN:
+        return line
+    return "\n".join(
+        wrap(
+            line,
+            width=APP_TOOLTIP_WRAP_COLUMN,
+            break_long_words=True,
+            break_on_hyphens=False,
+        )
+    )
+
+
+def _wrap_plain_tooltip_text(text: str) -> str:
+    """Wrap plain tooltip text while preserving existing manual line breaks."""
+    return "\n".join(_wrap_plain_tooltip_line(line) for line in text.splitlines())
+
+
+def _wrap_tooltip_text(text: str) -> str:
+    """Wrap plain or internally-formatted tooltip text to the appwide limit."""
+    if not text or "<" in text:
+        return text
+    return _wrap_plain_tooltip_text(text)
+
+
 def _format_tooltip_text(text: str) -> str:
-    """Return high-contrast HTML tooltip text for reliable readability."""
+    """Return wrapped, high-contrast HTML tooltip text for readability."""
+    wrapped_text = _wrap_plain_tooltip_text(str(text or ""))
     return (
-        f'<span style="color: {APP_TOOLTIP_TEXT_COLOR}; background-color: transparent; font-family: Sans-Serif;">'
-        f"{escape(text)}"
+        f'<span style="color: {APP_TOOLTIP_TEXT_COLOR}; background-color: transparent; font-family: Sans-Serif; white-space: pre-line;">'
+        f"{escape(wrapped_text).replace(chr(10), '<br>')}"
         '</span>'
     )
 
