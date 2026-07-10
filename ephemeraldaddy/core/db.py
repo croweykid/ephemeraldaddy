@@ -659,7 +659,7 @@ def upsert_chart_dnd_prediction_metadata(chart_uid: str, payload: Mapping[str, A
     normalized_uid = _normalize_chart_uid(chart_uid)
     if normalized_uid is None:
         raise ValueError(f"Invalid chart UID {chart_uid!r}")
-    now = datetime.utcnow().isoformat(timespec="seconds")
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
     conn = _get_conn()
     try:
         with conn:
@@ -785,6 +785,47 @@ def _create_chart_trait_metadata_table(conn: sqlite3.Connection) -> None:
         """
         CREATE INDEX IF NOT EXISTS idx_chart_trait_metadata_uid_lookup
         ON chart_trait_metadata(trait_uid, direction, chart_uid)
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS chart_trait_likelihoods (
+            chart_uid       TEXT NOT NULL,
+            trait_uid       TEXT NOT NULL DEFAULT '',
+            trait_name      TEXT NOT NULL,
+            likelihood      REAL NOT NULL,
+            trait_signature TEXT NOT NULL,
+            chart_signature TEXT NOT NULL,
+            updated_at      TEXT NOT NULL,
+            PRIMARY KEY (chart_uid, trait_uid, trait_name)
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_chart_trait_likelihoods_chart
+        ON chart_trait_likelihoods(chart_uid, chart_signature)
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS trait_baseline_snapshots (
+            norm_signature  TEXT NOT NULL,
+            trait_signature TEXT NOT NULL,
+            trait_uid       TEXT NOT NULL DEFAULT '',
+            trait_name      TEXT NOT NULL,
+            db_average      REAL NOT NULL,
+            chart_count     INTEGER NOT NULL DEFAULT 0,
+            norm_state      TEXT NOT NULL DEFAULT '',
+            updated_at      TEXT NOT NULL,
+            PRIMARY KEY (norm_signature, trait_uid, trait_name)
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_trait_baseline_snapshots_lookup
+        ON trait_baseline_snapshots(norm_signature, trait_signature)
         """
     )
 
@@ -4238,6 +4279,179 @@ def set_alternate_chart_uid(chart_id: int, alternate_chart_uid: str | None) -> N
         conn.close()
 
 
+def upsert_chart_trait_likelihoods(
+    chart_uid: str,
+    rows: Iterable[Mapping[str, Any]],
+    *,
+    chart_signature: str,
+) -> None:
+    """Persist chart-local trait likelihoods without DB baseline/deviation data."""
+    normalized_uid = _normalize_chart_uid(chart_uid)
+    if normalized_uid is None:
+        raise ValueError(f"Invalid chart UID {chart_uid!r}")
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    prepared: list[tuple[Any, ...]] = []
+    for row in rows:
+        trait_name = str(row.get("trait_name", "")).strip()
+        if not trait_name:
+            continue
+        prepared.append(
+            (
+                normalized_uid,
+                str(row.get("trait_uid", "") or ""),
+                trait_name,
+                float(row.get("likelihood", 0.0)),
+                str(row.get("trait_signature", "")),
+                str(chart_signature),
+                now,
+            )
+        )
+    conn = _get_conn()
+    try:
+        with conn:
+            _create_chart_trait_metadata_table(conn)
+            if prepared:
+                for _chart_uid, trait_uid, trait_name, *_rest in prepared:
+                    if str(trait_uid or "").strip():
+                        conn.execute(
+                            "DELETE FROM chart_trait_likelihoods WHERE chart_uid = ? AND trait_uid = ?",
+                            (normalized_uid, str(trait_uid)),
+                        )
+                    else:
+                        conn.execute(
+                            """
+                            DELETE FROM chart_trait_likelihoods
+                            WHERE chart_uid = ? AND COALESCE(trait_uid, '') = '' AND trait_name = ?
+                            """,
+                            (normalized_uid, str(trait_name)),
+                        )
+                conn.executemany(
+                    """
+                    INSERT INTO chart_trait_likelihoods (
+                        chart_uid, trait_uid, trait_name, likelihood,
+                        trait_signature, chart_signature, updated_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(chart_uid, trait_uid, trait_name) DO UPDATE SET
+                        likelihood = excluded.likelihood,
+                        trait_signature = excluded.trait_signature,
+                        chart_signature = excluded.chart_signature,
+                        updated_at = excluded.updated_at
+                    """,
+                    prepared,
+                )
+    finally:
+        conn.close()
+
+
+def get_chart_trait_likelihoods(chart_uid: str) -> list[dict[str, Any]]:
+    """Return chart-local trait likelihood rows for a chart UID."""
+    normalized_uid = _normalize_chart_uid(chart_uid)
+    if normalized_uid is None:
+        return []
+    conn = _get_conn()
+    conn.row_factory = sqlite3.Row
+    try:
+        _create_chart_trait_metadata_table(conn)
+        rows = conn.execute(
+            """
+            SELECT trait_uid, trait_name, likelihood, trait_signature, chart_signature, updated_at
+            FROM chart_trait_likelihoods
+            WHERE chart_uid = ?
+            ORDER BY trait_name COLLATE NOCASE
+            """,
+            (normalized_uid,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
+
+def upsert_trait_baseline_snapshot(
+    *,
+    norm_signature: str,
+    trait_signature: str,
+    rows: Iterable[Mapping[str, Any]],
+    chart_count: int = 0,
+    norm_state: Mapping[str, Any] | None = None,
+) -> None:
+    """Persist DB baseline averages independently from per-chart likelihoods."""
+    normalized_norm_signature = str(norm_signature or "").strip()
+    normalized_trait_signature = str(trait_signature or "").strip()
+    if not normalized_norm_signature or not normalized_trait_signature:
+        return
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    try:
+        norm_state_text = json.dumps(norm_state or {}, sort_keys=True, default=str, separators=(",", ":"))
+    except TypeError:
+        norm_state_text = repr(norm_state or {})
+    prepared: list[tuple[Any, ...]] = []
+    for row in rows:
+        trait_name = str(row.get("trait_name", "")).strip()
+        if not trait_name:
+            continue
+        prepared.append(
+            (
+                normalized_norm_signature,
+                normalized_trait_signature,
+                str(row.get("trait_uid", "") or ""),
+                trait_name,
+                float(row.get("db_average", 0.0)),
+                int(chart_count or 0),
+                norm_state_text,
+                now,
+            )
+        )
+    if not prepared:
+        return
+    conn = _get_conn()
+    try:
+        with conn:
+            _create_chart_trait_metadata_table(conn)
+            conn.executemany(
+                """
+                INSERT INTO trait_baseline_snapshots (
+                    norm_signature, trait_signature, trait_uid, trait_name,
+                    db_average, chart_count, norm_state, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(norm_signature, trait_uid, trait_name) DO UPDATE SET
+                    trait_signature = excluded.trait_signature,
+                    db_average = excluded.db_average,
+                    chart_count = excluded.chart_count,
+                    norm_state = excluded.norm_state,
+                    updated_at = excluded.updated_at
+                """,
+                prepared,
+            )
+    finally:
+        conn.close()
+
+
+def get_trait_baseline_snapshot(*, norm_signature: str, trait_signature: str) -> list[dict[str, Any]]:
+    """Return DB baseline snapshot rows for a norm and active trait-set signature."""
+    normalized_norm_signature = str(norm_signature or "").strip()
+    normalized_trait_signature = str(trait_signature or "").strip()
+    if not normalized_norm_signature or not normalized_trait_signature:
+        return []
+    conn = _get_conn()
+    conn.row_factory = sqlite3.Row
+    try:
+        _create_chart_trait_metadata_table(conn)
+        rows = conn.execute(
+            """
+            SELECT trait_uid, trait_name, db_average, chart_count, norm_state, updated_at
+            FROM trait_baseline_snapshots
+            WHERE norm_signature = ? AND trait_signature = ?
+            ORDER BY trait_name COLLATE NOCASE
+            """,
+            (normalized_norm_signature, normalized_trait_signature),
+        ).fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
+
 def upsert_chart_trait_metadata(
     chart_uid: str,
     rows: Iterable[Mapping[str, Any]],
@@ -4250,7 +4464,7 @@ def upsert_chart_trait_metadata(
     normalized_uid = _normalize_chart_uid(chart_uid)
     if normalized_uid is None:
         raise ValueError(f"Invalid chart UID {chart_uid!r}")
-    now = datetime.utcnow().isoformat(timespec="seconds")
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
     prepared: list[tuple[Any, ...]] = []
     for row in rows:
         trait_name = str(row.get("trait_name", "")).strip()

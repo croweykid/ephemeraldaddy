@@ -172,3 +172,70 @@ def test_purge_chart_trait_metadata_for_deleted_trait_removes_uid_and_legacy_nam
     rows = db.get_chart_trait_metadata(chart_uid)
     assert [row["trait_name"] for row in rows] == ["Keep Me"]
     assert rows[0]["trait_uid"] == "keep_me"
+
+
+def test_chart_trait_likelihood_partial_upsert_preserves_unrelated_rows(tmp_path, monkeypatch):
+    monkeypatch.setattr(db, "DB_DIR", tmp_path)
+    monkeypatch.setattr(db, "DB_PATH", tmp_path / "charts.db")
+
+    conn = db._get_conn()
+    with conn:
+        _chart_id, chart_uid = _insert_chart(conn)
+    conn.close()
+
+    db.upsert_chart_trait_likelihoods(
+        chart_uid,
+        [
+            {"trait_uid": "trait_a", "trait_name": "Trait A", "likelihood": 80.0, "trait_signature": "set-v1"},
+            {"trait_uid": "trait_b", "trait_name": "Trait B", "likelihood": 20.0, "trait_signature": "set-v1"},
+        ],
+        chart_signature="chart-v1",
+    )
+    db.upsert_chart_trait_likelihoods(
+        chart_uid,
+        [
+            {"trait_uid": "trait_a", "trait_name": "Trait A", "likelihood": 82.0, "trait_signature": "set-v2"},
+        ],
+        chart_signature="chart-v2",
+    )
+
+    rows = {row["trait_uid"]: row for row in db.get_chart_trait_likelihoods(chart_uid)}
+
+    assert set(rows) == {"trait_a", "trait_b"}
+    assert rows["trait_a"]["likelihood"] == 82.0
+    assert rows["trait_a"]["trait_signature"] == "set-v2"
+    assert rows["trait_b"]["likelihood"] == 20.0
+    assert rows["trait_b"]["trait_signature"] == "set-v1"
+
+
+def test_chart_trait_likelihood_upsert_replaces_same_uid_rename_without_touching_others(tmp_path, monkeypatch):
+    monkeypatch.setattr(db, "DB_DIR", tmp_path)
+    monkeypatch.setattr(db, "DB_PATH", tmp_path / "charts.db")
+
+    conn = db._get_conn()
+    with conn:
+        _chart_id, chart_uid = _insert_chart(conn)
+    conn.close()
+
+    db.upsert_chart_trait_likelihoods(
+        chart_uid,
+        [
+            {"trait_uid": "trait_a", "trait_name": "Old Name", "likelihood": 80.0, "trait_signature": "set-v1"},
+            {"trait_uid": "trait_b", "trait_name": "Trait B", "likelihood": 20.0, "trait_signature": "set-v1"},
+        ],
+        chart_signature="chart-v1",
+    )
+    db.upsert_chart_trait_likelihoods(
+        chart_uid,
+        [
+            {"trait_uid": "trait_a", "trait_name": "New Name", "likelihood": 81.0, "trait_signature": "set-v2"},
+        ],
+        chart_signature="chart-v2",
+    )
+
+    rows = db.get_chart_trait_likelihoods(chart_uid)
+
+    assert {(row["trait_uid"], row["trait_name"]) for row in rows} == {
+        ("trait_a", "New Name"),
+        ("trait_b", "Trait B"),
+    }

@@ -290,6 +290,7 @@ TRAITS = {
 }
 # Local user-uploaded trait storage and scoring helpers.
 import ast
+import hashlib
 import io
 import json
 import logging
@@ -317,6 +318,10 @@ DEFAULT_TRAIT_COLOR = "#cc99ff"
 logger = logging.getLogger(__name__)
 _TRAIT_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 _TRAIT_UID_RE = re.compile(r"[^a-zA-Z0-9_.:-]+")
+_TRAIT_POSSIBLE_SCORE_CACHE: dict[tuple[str, bool], dict[str, float]] = {}
+_TRAIT_POSSIBLE_SCORE_CACHE_MAX_ENTRIES = 256
+_DEFAULT_TRAITS_SOURCE_MONITOR_ENABLED = True
+_DEFAULT_TRAITS_SOURCE_TOKEN: tuple[int, int] | None = None
 
 
 def normalize_trait_samples(
@@ -747,6 +752,7 @@ def _trait_item_from_profile(name: str, profile: Mapping[str, Any], path: Path, 
 
 
 def _default_trait_items(*, skip_corrupt: bool) -> list[dict[str, Any]]:
+    _maybe_clear_possible_score_cache_for_default_source_change()
     if not DEFAULT_TRAITS_PATH.exists():
         return []
     try:
@@ -928,6 +934,86 @@ def trait_possible_score(profile: Mapping[str, Any], *, include_houses: bool = T
     return _trait_possible_score(profile, include_houses=include_houses)
 
 
+def clear_trait_possible_score_cache() -> None:
+    """Clear memoized possible-score denominators after trait definitions change."""
+    _TRAIT_POSSIBLE_SCORE_CACHE.clear()
+
+
+def set_default_traits_source_monitor_enabled(enabled: bool) -> None:
+    """Toggle development-time clearing when bundled default traits change on disk."""
+    global _DEFAULT_TRAITS_SOURCE_MONITOR_ENABLED
+    _DEFAULT_TRAITS_SOURCE_MONITOR_ENABLED = bool(enabled)
+
+
+def default_traits_source_monitor_enabled() -> bool:
+    return bool(_DEFAULT_TRAITS_SOURCE_MONITOR_ENABLED)
+
+
+def _default_traits_source_token() -> tuple[int, int] | None:
+    try:
+        stat = DEFAULT_TRAITS_PATH.stat()
+    except OSError:
+        return None
+    return (int(stat.st_mtime_ns), int(stat.st_size))
+
+
+def _maybe_clear_possible_score_cache_for_default_source_change() -> None:
+    """Development scaffold: clear denominator cache when bundled traits are edited."""
+    global _DEFAULT_TRAITS_SOURCE_TOKEN
+    if not _DEFAULT_TRAITS_SOURCE_MONITOR_ENABLED:
+        return
+    token = _default_traits_source_token()
+    if token is None:
+        return
+    if _DEFAULT_TRAITS_SOURCE_TOKEN is None:
+        _DEFAULT_TRAITS_SOURCE_TOKEN = token
+        return
+    if token != _DEFAULT_TRAITS_SOURCE_TOKEN:
+        clear_trait_possible_score_cache()
+        _DEFAULT_TRAITS_SOURCE_TOKEN = token
+
+
+def _trait_possible_score_signature(trait_items: list[dict[str, Any]]) -> str:
+    payload = [
+        {
+            "name": str(item.get("name", "")),
+            "uid": str(item.get("uid") or item.get("trait_uid") or ""),
+            "profile": item.get("profile", {}),
+        }
+        for item in trait_items
+        if str(item.get("name", "")).strip() and not bool(item.get("archived", False))
+    ]
+    try:
+        serialized = json.dumps(payload, sort_keys=True, default=str, separators=(",", ":"))
+    except TypeError:
+        serialized = repr(payload)
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def _trait_possible_scores_for_items(
+    trait_items: list[dict[str, Any]],
+    *,
+    include_houses: bool,
+) -> dict[str, float]:
+    signature = _trait_possible_score_signature(trait_items)
+    cache_key = (signature, bool(include_houses))
+    cached = _TRAIT_POSSIBLE_SCORE_CACHE.get(cache_key)
+    if isinstance(cached, dict):
+        return cached
+    possible_scores = {
+        str(item.get("name", "")): _trait_possible_score(
+            item.get("profile", {}),
+            include_houses=include_houses,
+        )
+        for item in trait_items
+        if str(item.get("name", "")).strip() and not bool(item.get("archived", False))
+    }
+    if len(_TRAIT_POSSIBLE_SCORE_CACHE) >= _TRAIT_POSSIBLE_SCORE_CACHE_MAX_ENTRIES:
+        _TRAIT_POSSIBLE_SCORE_CACHE.pop(next(iter(_TRAIT_POSSIBLE_SCORE_CACHE)), None)
+    _TRAIT_POSSIBLE_SCORE_CACHE[cache_key] = possible_scores
+    return possible_scores
+
+
 def calculate_trait_likelihoods(
     chart: Any,
     traits: list[dict[str, Any]] | None = None,
@@ -947,6 +1033,11 @@ def calculate_trait_likelihoods(
     trait_items = [item for item in trait_items if not bool(item.get("archived", False))]
     raw_scores = calculate_trait_scores(chart, trait_items)
     include_houses = chart_uses_houses(chart)
+    cached_possible_scores = (
+        None
+        if possible_scores is not None
+        else _trait_possible_scores_for_items(trait_items, include_houses=include_houses)
+    )
     likelihoods: dict[str, float] = {}
     for item in trait_items:
         name = str(item.get("name", ""))
@@ -954,6 +1045,8 @@ def calculate_trait_likelihoods(
             continue
         if include_houses and possible_scores is not None and name in possible_scores:
             possible = max(float(possible_scores.get(name, 1.0)), 1.0)
+        elif cached_possible_scores is not None and name in cached_possible_scores:
+            possible = max(float(cached_possible_scores.get(name, 1.0)), 1.0)
         else:
             possible = _trait_possible_score(item.get("profile", {}), include_houses=include_houses)
         normalized = max(-1.0, min(1.0, float(raw_scores.get(name, 0.0)) / possible))

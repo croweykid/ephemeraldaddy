@@ -48,6 +48,7 @@ SETTINGS_KEY_PREDICTIONS_ALIGNMENT_DEFAULT_ZERO = (
 )
 SETTINGS_KEY_WIKIPEDIA_BACKUP_SEARCH = "astrotheme/wikipedia_backup_search_enabled"
 SETTINGS_KEY_CHART_DATA_SHOW_CHART_UID = "developer_tools/chart_data_show_chart_uid"
+SETTINGS_KEY_DEFAULT_TRAITS_SOURCE_MONITOR = "developer_tools/default_traits_source_monitor"
 
 SETTINGS_KEY_DATABASE_VIEW_ROW_INFO = "manage_charts/database_view_row_info"
 SETTINGS_KEY_HIDE_HYPOTHETICAL_CHARTS = "manage_charts/hide_hypothetical_charts"
@@ -109,6 +110,13 @@ def _save_database_view_row_info_visibility(settings, visibility: dict[str, bool
 def _load_chart_data_show_chart_uid(settings, *, fallback: bool = False) -> bool:
     return _settings_bool(
         settings.value(SETTINGS_KEY_CHART_DATA_SHOW_CHART_UID, int(fallback)),
+        fallback,
+    )
+
+
+def _load_default_traits_source_monitor(settings, *, fallback: bool = True) -> bool:
+    return _settings_bool(
+        settings.value(SETTINGS_KEY_DEFAULT_TRAITS_SOURCE_MONITOR, int(fallback)),
         fallback,
     )
 
@@ -493,6 +501,7 @@ from ephemeraldaddy.gui.wikipedia_search import (
     parse_wikipedia_birth_data,
     resolve_wikipedia_page_options,
 )
+from ephemeraldaddy.analysis.traits import set_default_traits_source_monitor_enabled
 from ephemeraldaddy.gui.dev_tools import (
     BATCH_TAGGING_TERMINAL_DEBUG_DEFAULT,
     DISTINGUISHING_FACTORS_SCORING_DEBUG_DEFAULT,
@@ -504,6 +513,7 @@ from ephemeraldaddy.gui.dev_tools import (
     SETTINGS_KEY_ENNEAGRAM_PREDICTIONS_DEBUG,
     SETTINGS_KEY_PREDICTIONS_THREAD_DEBUG,
     SETTINGS_KEY_SIMILARITY_PERCEIVED_ACCURACY_CONTROLS,
+    FileSystemInfographicDialog,
     ManageMetadataLabelsDialog,
     MetadataMigrationPanel,
     SizeCheckerPopup,
@@ -2388,6 +2398,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             SETTINGS_KEY_CHART_DATA_SHOW_CHART_UID,
             int(self._chart_data_show_chart_uid),
         )
+        self._default_traits_source_monitor_enabled = _load_default_traits_source_monitor(
+            self._settings,
+            fallback=True,
+        )
+        self._settings.setValue(
+            SETTINGS_KEY_DEFAULT_TRAITS_SOURCE_MONITOR,
+            int(self._default_traits_source_monitor_enabled),
+        )
+        set_default_traits_source_monitor_enabled(self._default_traits_source_monitor_enabled)
         self._database_view_row_info_visibility = _load_database_view_row_info_visibility(
             self._settings
         )
@@ -2654,6 +2673,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_weight_norms: dict[str, Any] = {}
         self._size_checker_popup: SizeCheckerPopup | None = None
         self._metadata_migration_panel: MetadataMigrationPanel | None = None
+        self._file_system_infographic_dialog: FileSystemInfographicDialog | None = None
         self._metadata_migration_threads: list[QThread] = []
         self._dev_user_age_label: QLabel | None = None
         self._dev_age_distribution_canvas: FigureCanvas | None = None
@@ -22036,6 +22056,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         metadata_migration_button.clicked.connect(self._toggle_metadata_migration_panel)
         dev_tools_section.addWidget(metadata_migration_button)
 
+        file_system_infographic_button = QPushButton("Open File-System Infographic")
+        file_system_infographic_button.setToolTip(
+            "Open an animated, interactive dark-theme map explaining what the app folders and files do."
+        )
+        file_system_infographic_button.clicked.connect(self._open_file_system_infographic)
+        dev_tools_section.addWidget(file_system_infographic_button)
+
         recalculate_all_weights_button = QPushButton("Recalculate All Weights in DB")
         recalculate_all_weights_button.setToolTip(
             "Recompute stored dominant sign/planet weights for all non-placeholder charts."
@@ -22086,6 +22113,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         chart_data_uid_checkbox.toggled.connect(self._on_chart_data_show_chart_uid_toggled)
         dev_tools_section.addWidget(chart_data_uid_checkbox)
+
+        default_traits_monitor_checkbox = QCheckBox("Traits: watch bundled default file edits")
+        default_traits_monitor_checkbox.setChecked(
+            bool(getattr(self, "_default_traits_source_monitor_enabled", True))
+        )
+        default_traits_monitor_checkbox.setToolTip(
+            "Development scaffold: when enabled, editing bundled default_traits.json clears trait score denominator caches."
+        )
+        default_traits_monitor_checkbox.toggled.connect(self._on_default_traits_source_monitor_toggled)
+        dev_tools_section.addWidget(default_traits_monitor_checkbox)
 
         add_batch_tagging_terminal_debug_setting(
             section_layout=dev_tools_section,
@@ -22603,6 +22640,22 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             parent._refresh_chart_summary()
 
+    def _on_default_traits_source_monitor_toggled(self, checked: bool) -> None:
+        self._default_traits_source_monitor_enabled = bool(checked)
+        self._settings.setValue(
+            SETTINGS_KEY_DEFAULT_TRAITS_SOURCE_MONITOR,
+            int(self._default_traits_source_monitor_enabled),
+        )
+        set_default_traits_source_monitor_enabled(self._default_traits_source_monitor_enabled)
+        parent = self._owner_window()
+        if isinstance(parent, MainWindow):
+            parent._default_traits_source_monitor_enabled = self._default_traits_source_monitor_enabled
+            parent._settings.setValue(
+                SETTINGS_KEY_DEFAULT_TRAITS_SOURCE_MONITOR,
+                int(self._default_traits_source_monitor_enabled),
+            )
+            set_default_traits_source_monitor_enabled(parent._default_traits_source_monitor_enabled)
+
     def _on_batch_tagging_terminal_debug_toggled(self, checked: bool) -> None:
         self._batch_tagging_terminal_debug = bool(checked)
         self._settings.setValue(
@@ -22760,7 +22813,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "Astro Twin cache",
             (
                 "Cleared cached Astro Twins rankings. "
-                "The next Astro Twins popout will recalculate on demand."
+                "The next Similar Charts popout will recalculate on demand."
                 if cleared_count
                 else "Astro Twin cache was already empty."
             ),
@@ -23492,6 +23545,25 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         main_window = self._owner_window()
         if isinstance(main_window, MainWindow):
             main_window._size_checker_popup = popup
+
+    def _open_file_system_infographic(self) -> None:
+        dialog = self._file_system_infographic_dialog
+        if dialog is not None:
+            try:
+                if dialog.isVisible():
+                    dialog.raise_()
+                    dialog.activateWindow()
+                    return
+            except RuntimeError:
+                dialog = None
+                self._file_system_infographic_dialog = None
+
+        if dialog is None:
+            dialog = FileSystemInfographicDialog(self)
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
+        self._file_system_infographic_dialog = dialog
 
     def _toggle_metadata_migration_panel(self) -> None:
         panel = self._metadata_migration_panel
@@ -24238,6 +24310,15 @@ class MainWindow(QMainWindow):
             SETTINGS_KEY_CHART_DATA_SHOW_CHART_UID,
             int(self._chart_data_show_chart_uid),
         )
+        self._default_traits_source_monitor_enabled = _load_default_traits_source_monitor(
+            self._settings,
+            fallback=True,
+        )
+        self._settings.setValue(
+            SETTINGS_KEY_DEFAULT_TRAITS_SOURCE_MONITOR,
+            int(self._default_traits_source_monitor_enabled),
+        )
+        set_default_traits_source_monitor_enabled(self._default_traits_source_monitor_enabled)
         self._enneagram_predictions_debug = load_enneagram_predictions_debug_enabled(
             self._settings,
             fallback=ENNEAGRAM_PREDICTIONS_DEBUG_DEFAULT,
