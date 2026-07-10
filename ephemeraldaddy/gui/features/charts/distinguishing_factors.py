@@ -724,7 +724,7 @@ def build_distinguishing_factors_html(
         lines.append(
             html.escape(
                 f"{weirdness_prefix}Compared to the {norm_count} other standard charts in this database, nothing stands out as exceeding "
-                f"{DISTINGUISHING_Z_THRESHOLD:.0f}σ of the norm. This chart is <i>jarringly</i> normal. Vanilla X-Treme." #As the zoomers say, this chart is 'normiemaxxing'
+                f"{DISTINGUISHING_Z_THRESHOLD:.0f}σ of the norm. This chart is jarringly normal. Vanilla X-Treme." #As the zoomers say, this chart is 'normiemaxxing'
             )
         )
 

@@ -6471,7 +6471,7 @@ TAROT_NUMBERS = { #swords & wands are intrinsically a harsh burden that age poor
 WEIRDNESS_SCALE = {
     "literal alien":{
         "display_name":"Lv 5/5: ᏝᎥᏖᏋᏒᏗᏝ ᏗᏝᎥᏋᏁ",
-        "max":1000,
+        #"max":1000,
         "min":400,
         "font":"",
         "color":"",
