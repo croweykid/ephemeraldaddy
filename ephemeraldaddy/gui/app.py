@@ -36309,27 +36309,50 @@ class MainWindow(QMainWindow):
         except Exception:
             return []
 
+    @staticmethod
+    def _prediction_norm_row_token_payload(row: Any) -> dict[str, Any]:
+        """Return only prediction-scoring row fields for right-panel norm tokens."""
+        values = tuple(row) if isinstance(row, (list, tuple)) else ()
+
+        def _get(index: int, default: Any = None) -> Any:
+            return values[index] if index < len(values) else default
+
+        return {
+            "chart_uid": str(_get(30, "") or "").strip().upper(),
+            "datetime_iso": str(_get(4, "") or ""),
+            "birth_place": str(_get(5, "") or ""),
+            "birthtime_unknown": int(_get(8, 0) or 0),
+            "retcon_time_used": int(_get(9, 0) or 0),
+            "birth_month": _get(17),
+            "birth_day": _get(18),
+            "birth_year": _get(19),
+            "retcon_hour": _get(20),
+            "retcon_minute": _get(21),
+        }
+
     def _prediction_norms_render_token(self) -> str:
         row_tokens: list[tuple[int, str]] = []
+        visible_chart_ids: set[int] = set()
         for row in self._prediction_norm_rows():
             try:
                 chart_id = int(row[0])
             except Exception:
                 continue
-            row_tokens.append((chart_id, repr(row)))
+            visible_chart_ids.add(chart_id)
+            payload = self._prediction_norm_row_token_payload(row)
+            row_tokens.append((chart_id, self._stable_traits_metadata_hash(payload)))
         pending_ids = sorted(
             int(chart_id)
             for chart_id in (getattr(self, "_manage_charts_pending_changed_ids", set()) or set())
+            if int(chart_id) not in visible_chart_ids
         )
         dirty_ids = sorted(
             int(chart_id)
             for chart_id in (getattr(self, "_database_metrics_lucy_goosey_ids", set()) or set())
+            if int(chart_id) not in visible_chart_ids
         )
-        manage_dialog = getattr(self, "_manage_charts_dialog", None)
-        dialog_revision = int(getattr(manage_dialog, "_prediction_norms_revision", 0) or 0) if manage_dialog is not None else 0
-        revision = int(getattr(self, "_prediction_norms_revision", 0) or 0)
         return (
-            f"prediction_norms:{revision}:{dialog_revision}:"
+            "prediction_norms:"
             f"{tuple(sorted(row_tokens))}:{tuple(pending_ids)}:{tuple(dirty_ids)}"
         )
 

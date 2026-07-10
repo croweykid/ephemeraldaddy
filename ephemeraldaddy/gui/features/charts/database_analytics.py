@@ -4730,13 +4730,33 @@ class DatabaseAnalyticsChartsMixin:
             self._traits_distribution_individual_profile_token_cache = {}
 
 
+    @staticmethod
+    def _traits_distribution_chart_token_payload(row: Any) -> dict[str, Any]:
+        """Return only trait-scoring row fields for Distribution likelihood cache tokens."""
+        values = tuple(row) if isinstance(row, (list, tuple)) else ()
+
+        def _get(index: int, default: Any = None) -> Any:
+            return values[index] if index < len(values) else default
+
+        return {
+            "chart_uid": str(_get(30, "") or "").strip().upper(),
+            "datetime_iso": str(_get(4, "") or ""),
+            "birth_place": str(_get(5, "") or ""),
+            "birthtime_unknown": int(_get(8, 0) or 0),
+            "retcon_time_used": int(_get(9, 0) or 0),
+            "birth_month": _get(17),
+            "birth_day": _get(18),
+            "birth_year": _get(19),
+            "retcon_hour": _get(20),
+            "retcon_minute": _get(21),
+        }
+
     def _traits_distribution_chart_tokens(self) -> dict[int, str]:
-        """Return stable per-chart row fingerprints for persisted trait-score reuse."""
+        """Return stable per-chart birth-data fingerprints for persisted trait-score reuse."""
         cached_tokens = getattr(self, "_traits_distribution_chart_token_cache", None)
         if isinstance(cached_tokens, dict):
             return dict(cached_tokens)
         normalize_row = getattr(self, "_normalize_chart_row", None)
-        encode_value = getattr(self, "_encode_database_metrics_cache_value", None)
         tokens: dict[int, str] = {}
         for row in getattr(self, "_chart_rows", []) or []:
             normalized = normalize_row(row) if callable(normalize_row) else row
@@ -4746,12 +4766,8 @@ class DatabaseAnalyticsChartsMixin:
                 chart_id = int(normalized[0])
             except (TypeError, ValueError, IndexError):
                 continue
-            encoded = encode_value(normalized) if callable(encode_value) else normalized
-            try:
-                payload = json.dumps(encoded, sort_keys=True, default=str, separators=(",", ":"))
-            except TypeError:
-                payload = repr(encoded)
-            tokens[chart_id] = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+            payload = self._traits_distribution_chart_token_payload(normalized)
+            tokens[chart_id] = self._stable_traits_metadata_hash(payload)
         self._traits_distribution_chart_token_cache = dict(tokens)
         return tokens
 

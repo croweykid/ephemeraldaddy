@@ -666,11 +666,7 @@ def _database_norm_chart_token_source(owner: Any) -> tuple[tuple[str, str], ...]
         if not uid:
             missing_uid_ids.append(chart_id)
             continue
-        token_payload = {
-            "uid": uid,
-            "row": repr(normalized),
-        }
-        tokens.append((uid, _stable_json_hash(token_payload)))
+        tokens.append((uid, _stable_json_hash(_database_norm_chart_token_payload(normalized, uid))))
 
     if missing_uid_ids:
         try:
@@ -682,13 +678,35 @@ def _database_norm_chart_token_source(owner: Any) -> tuple[tuple[str, str], ...]
             uid = str(uid_map.get(chart_id, "")).strip().upper()
             if not uid:
                 continue
-            token_payload = {
-                "uid": uid,
-                "row": repr(normalized),
-            }
-            tokens.append((uid, _stable_json_hash(token_payload)))
+            tokens.append((uid, _stable_json_hash(_database_norm_chart_token_payload(normalized, uid))))
     return tuple(sorted(tokens))
 
+
+def _database_norm_chart_token_payload(row: Any, uid: str) -> dict[str, Any]:
+    """Return only scoring-relevant chart fields for Traits DB norm invalidation.
+
+    Trait likelihoods are derived from birth metadata and whether the chart can
+    use houses.  User notes, tags, biography/source imports, subjective scores,
+    and display-only cached analytics must not invalidate database norms or an
+    import/save can trigger a full Predictions refresh for unrelated text edits.
+    """
+    values = tuple(row) if isinstance(row, (list, tuple)) else ()
+
+    def _get(index: int, default: Any = None) -> Any:
+        return values[index] if index < len(values) else default
+
+    return {
+        "uid": str(uid or "").strip().upper(),
+        "datetime_iso": str(_get(4, "") or ""),
+        "birth_place": str(_get(5, "") or ""),
+        "birthtime_unknown": int(_get(8, 0) or 0),
+        "retcon_time_used": int(_get(9, 0) or 0),
+        "birth_month": _get(17),
+        "birth_day": _get(18),
+        "birth_year": _get(19),
+        "retcon_hour": _get(20),
+        "retcon_minute": _get(21),
+    }
 
 def _database_norm_state(owner: Any) -> dict[str, Any]:
     def _build() -> dict[str, Any]:
