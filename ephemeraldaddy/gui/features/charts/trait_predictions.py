@@ -2080,7 +2080,12 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
     owner._traits_prediction_pending_traits = traits
     owner._traits_prediction_pending_cache_key = cache_key or ""
     owner._traits_prediction_pending_signatures = signatures
-    message = _traits_calculate_prompt_html()
-    _predictions_debug(owner, "Trait render found no persisted trait metadata; showing manual calculate prompt cache_key=%s", (cache_key or "")[:12])
+    message = (
+        "<div style='color:#d8d8d8; font-style:italic; padding:18px 8px; text-align:center;'>"
+        "Calculating trait predictions from the bundled/default traits…"
+        "</div>"
+    )
+    _predictions_debug(owner, "Trait render found no persisted trait metadata; starting refresh worker cache_key=%s", (cache_key or "")[:12])
     _apply_traits_prediction_view(owner, message, message)
+    _start_traits_prediction_refresh_worker(owner, chart, traits, cache_key or "", owner._traits_prediction_render_token, signatures)
     return

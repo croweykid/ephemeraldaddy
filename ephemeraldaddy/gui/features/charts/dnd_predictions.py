@@ -1803,9 +1803,12 @@ class DndPredictionPanelAdapter:
                 self._render_alignment_debug_summary(chart)
             return summary_label
 
+        norm_charts = self._norm_charts()
         statblock_cache = self._restore_statblock_cache(chart)
+        if not isinstance(statblock_cache, dict):
+            self._score_statblock(chart, norm_charts, allow_stale=False)
+            statblock_cache = self._restore_statblock_cache(chart)
         if isinstance(statblock_cache, dict):
-            norm_charts = self._norm_charts()
             statblock_stale = self._statblock_cache_is_stale(chart, norm_charts)
             metric_panel_renderer(
                 canvas_attr="dnd_prediction_statblock_canvas",
@@ -1831,6 +1834,12 @@ class DndPredictionPanelAdapter:
                         setattr(chart, "_dnd_alignment_score_parts_cache", alignment_cache)
                     except Exception:
                         pass
+            if not isinstance(alignment_cache, dict):
+                try:
+                    _dnd_alignment_score_parts(self.owner or self, chart)
+                except Exception:
+                    logger.warning("D&D alignment auto-calculation failed while opening Predictions.", exc_info=True)
+                alignment_cache = getattr(chart, "_dnd_alignment_score_parts_cache", None)
             if isinstance(alignment_cache, dict):
                 current_alignment_key = _dnd_alignment_cache_key(self.owner or self, chart)
                 cached_alignment_key = alignment_cache.get("key")
