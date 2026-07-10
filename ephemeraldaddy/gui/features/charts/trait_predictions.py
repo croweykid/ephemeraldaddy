@@ -1148,6 +1148,14 @@ def _start_traits_prediction_calculation(owner: Any) -> None:
     signatures = getattr(owner, "_traits_prediction_pending_signatures", None)
     if chart is None or not isinstance(traits, list) or not traits:
         return
+    active_jobs = getattr(owner, "_traits_prediction_worker_jobs", None)
+    if (
+        isinstance(active_jobs, list)
+        and active_jobs
+        and str(getattr(owner, "_traits_prediction_active_cache_key", "") or "") == cache_key
+    ):
+        _predictions_debug(owner, "Trait refresh already active for cache_key=%s; coalescing request", cache_key[:12])
+        return
     owner._traits_prediction_render_token = object()
     token = owner._traits_prediction_render_token
     message = (
@@ -1340,6 +1348,8 @@ def _forget_traits_prediction_worker_job(
             jobs.remove((thread, worker, receiver))
         except ValueError:
             pass
+        if not jobs:
+            setattr(owner, "_traits_prediction_active_cache_key", "")
     thread.deleteLater()
 
 
@@ -1402,6 +1412,7 @@ def _start_traits_prediction_refresh_worker(
 
     _predictions_debug(owner, "Trait refresh worker scheduling token=%s cache_key=%s", id(token), cache_key[:12])
     _cancel_traits_prediction_worker_jobs(owner, wait_msecs=0)
+    owner._traits_prediction_active_cache_key = cache_key
     thread_parent = owner if isinstance(owner, QWidget) else None
     thread = QThread(thread_parent)
     worker = _TraitPredictionsRefreshWorker(owner, chart, traits, token, signatures)

@@ -319,6 +319,7 @@ logger = logging.getLogger(__name__)
 _TRAIT_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 _TRAIT_UID_RE = re.compile(r"[^a-zA-Z0-9_.:-]+")
 _TRAIT_POSSIBLE_SCORE_CACHE: dict[tuple[str, bool], dict[str, float]] = {}
+_TRAIT_POSSIBLE_SCORE_CACHE_MAX_ENTRIES = 64
 
 
 def normalize_trait_samples(
@@ -965,6 +966,8 @@ def _trait_possible_scores_for_items(
         for item in trait_items
         if str(item.get("name", "")).strip() and not bool(item.get("archived", False))
     }
+    if len(_TRAIT_POSSIBLE_SCORE_CACHE) >= _TRAIT_POSSIBLE_SCORE_CACHE_MAX_ENTRIES:
+        _TRAIT_POSSIBLE_SCORE_CACHE.pop(next(iter(_TRAIT_POSSIBLE_SCORE_CACHE)), None)
     _TRAIT_POSSIBLE_SCORE_CACHE[cache_key] = possible_scores
     return possible_scores
 
