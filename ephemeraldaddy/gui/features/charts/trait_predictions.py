@@ -190,6 +190,27 @@ def _stable_json_hash(value: Any) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+def _database_cache_revision(owner: Any) -> tuple[int, int]:
+    """Return the owner revision tokens that invalidate DB-wide trait helpers."""
+    return (
+        int(getattr(owner, "_database_metrics_cache_revision", 0) or 0),
+        int(getattr(owner, "_prediction_norms_revision", 0) or 0),
+    )
+
+
+def _owner_memoized(owner: Any, attr_name: str, builder: Any) -> Any:
+    revision = _database_cache_revision(owner)
+    cached = getattr(owner, attr_name, None)
+    if isinstance(cached, dict) and cached.get("revision") == revision:
+        return cached.get("value")
+    value = builder()
+    try:
+        setattr(owner, attr_name, {"revision": revision, "value": value})
+    except Exception:
+        pass
+    return value
+
+
 def _database_chart_rows(owner: Any) -> list[Any]:
     chart_rows = list(getattr(owner, "_chart_rows", []) or [])
     if chart_rows:
@@ -202,50 +223,56 @@ def _database_chart_rows(owner: Any) -> list[Any]:
 
 
 def _database_chart_ids(owner: Any) -> tuple[int, ...]:
-    chart_rows = _database_chart_rows(owner)
-    normalize_row = getattr(owner, "_normalize_chart_row", None)
-    chart_ids: set[int] = set()
-    for row in chart_rows:
-        normalized = normalize_row(row) if callable(normalize_row) else row
-        if normalized is None:
-            continue
-        try:
-            chart_ids.add(int(normalized[0]))
-        except (TypeError, ValueError, IndexError):
-            continue
-    return tuple(sorted(chart_ids))
+    def _build() -> tuple[int, ...]:
+        chart_rows = _database_chart_rows(owner)
+        normalize_row = getattr(owner, "_normalize_chart_row", None)
+        chart_ids: set[int] = set()
+        for row in chart_rows:
+            normalized = normalize_row(row) if callable(normalize_row) else row
+            if normalized is None:
+                continue
+            try:
+                chart_ids.add(int(normalized[0]))
+            except (TypeError, ValueError, IndexError):
+                continue
+        return tuple(sorted(chart_ids))
+
+    return _owner_memoized(owner, "_traits_prediction_database_chart_ids_cache", _build)
 
 
 def _database_chart_uids(owner: Any) -> tuple[str, ...]:
-    chart_rows = _database_chart_rows(owner)
-    chart_uids: set[str] = set()
-    missing_uid_ids: set[int] = set()
-    for row in chart_rows:
-        try:
-            chart_id = int(row[0])
-        except (TypeError, ValueError, IndexError):
-            continue
-        raw_uid = None
-        try:
-            if len(row) > 30:
-                raw_uid = row[30]
-        except TypeError:
+    def _build() -> tuple[str, ...]:
+        chart_rows = _database_chart_rows(owner)
+        chart_uids: set[str] = set()
+        missing_uid_ids: set[int] = set()
+        for row in chart_rows:
+            try:
+                chart_id = int(row[0])
+            except (TypeError, ValueError, IndexError):
+                continue
             raw_uid = None
-        chart_uid = str(raw_uid or "").strip().upper()
-        if chart_uid:
-            chart_uids.add(chart_uid)
-        else:
-            missing_uid_ids.add(chart_id)
-    if missing_uid_ids:
-        try:
-            chart_uids.update(
-                str(uid).strip().upper()
-                for uid in db.get_chart_uid_map(missing_uid_ids).values()
-                if str(uid or "").strip()
-            )
-        except Exception as exc:
-            logger.warning("Traits panel could not resolve chart UIDs for norm signature: %s", exc, exc_info=True)
-    return tuple(sorted(chart_uids))
+            try:
+                if len(row) > 30:
+                    raw_uid = row[30]
+            except TypeError:
+                raw_uid = None
+            chart_uid = str(raw_uid or "").strip().upper()
+            if chart_uid:
+                chart_uids.add(chart_uid)
+            else:
+                missing_uid_ids.add(chart_id)
+        if missing_uid_ids:
+            try:
+                chart_uids.update(
+                    str(uid).strip().upper()
+                    for uid in db.get_chart_uid_map(missing_uid_ids).values()
+                    if str(uid or "").strip()
+                )
+            except Exception as exc:
+                logger.warning("Traits panel could not resolve chart UIDs for norm signature: %s", exc, exc_info=True)
+        return tuple(sorted(chart_uids))
+
+    return _owner_memoized(owner, "_traits_prediction_database_chart_uids_cache", _build)
 
 
 def _chart_uid_for_trait_metadata(chart: Any) -> str | None:
@@ -451,12 +478,15 @@ def _database_norm_chart_token_source(owner: Any) -> tuple[tuple[str, str], ...]
 
 
 def _database_norm_state(owner: Any) -> dict[str, Any]:
-    tokens = _database_norm_chart_token_source(owner)
-    return {
-        "version": TRAIT_DB_NORMS_CACHE_VERSION,
-        "chart_count": len(tokens),
-        "chart_tokens": {uid: token for uid, token in tokens},
-    }
+    def _build() -> dict[str, Any]:
+        tokens = _database_norm_chart_token_source(owner)
+        return {
+            "version": TRAIT_DB_NORMS_CACHE_VERSION,
+            "chart_count": len(tokens),
+            "chart_tokens": {uid: token for uid, token in tokens},
+        }
+
+    return _owner_memoized(owner, "_traits_prediction_database_norm_state_cache", _build)
 
 
 def _database_norm_state_change_count(saved_state: dict[str, Any], current_state: dict[str, Any]) -> int:
@@ -490,13 +520,19 @@ def _database_norm_signature_from_state(state: dict[str, Any]) -> str:
     )
 
 
-def _database_norm_signature_for_traits(owner: Any, traits: list[dict[str, Any]]) -> str:
+def _database_norm_signature_for_traits(
+    owner: Any,
+    traits: list[dict[str, Any]],
+    *,
+    current_norm_state: dict[str, Any] | None = None,
+    chart_uids: tuple[str, ...] | None = None,
+) -> str:
     """Return the active DB norm signature, preserving it until the refresh threshold is crossed."""
-    current_norm_state = _database_norm_state(owner)
+    current_norm_state = current_norm_state if current_norm_state is not None else _database_norm_state(owner)
     cache_entries = _load_trait_norm_cache()
     fresh_signatures: set[str] = set()
     stale_signatures: set[str] = set()
-    chart_uids = _database_chart_uids(owner)
+    chart_uids = chart_uids if chart_uids is not None else _database_chart_uids(owner)
     for trait in traits:
         cache_key = _trait_norm_cache_key(chart_uids, trait)
         cached = cache_entries.get(cache_key or "")
@@ -793,10 +829,20 @@ def warm_trait_database_norms(owner: Any, trait_names: set[str] | None = None) -
     return _database_trait_averages(owner, traits, force_refresh_stale=True)
 
 
-def trait_metadata_for_chart(owner: Any, chart: Any, *, cached_only: bool = False) -> dict[str, Any] | None:
+def trait_metadata_for_chart(
+    owner: Any,
+    chart: Any,
+    *,
+    cached_only: bool = False,
+    traits: list[dict[str, Any]] | None = None,
+    trait_signature: str | None = None,
+    legacy_trait_signature: str | None = None,
+    norm_signature: str | None = None,
+    chart_signature: str | None = None,
+) -> dict[str, Any] | None:
     """Return and attach derived trait metadata for a chart."""
     _predictions_debug(owner, "Trait metadata start chart_uid=%s", _debug_chart_uid(chart))
-    traits = list_traits(active_only=True)
+    traits = traits if traits is not None else list_traits(active_only=True)
     if chart is None or getattr(owner, "_is_placeholder_chart", lambda _chart: False)(chart) or not traits:
         metadata = {"above": set(), "below": set(), "deviations": {}, "likelihoods": {}}
         setattr(chart, "predicted_traits_above_avg", set())
@@ -808,10 +854,10 @@ def trait_metadata_for_chart(owner: Any, chart: Any, *, cached_only: bool = Fals
         setattr(chart, "trait_likelihoods", {})
         return metadata
 
-    trait_signature = _stable_json_hash(_trait_signature_payload(traits))
-    legacy_trait_signature = _stable_json_hash(_trait_signature_payload(traits, strip_uids=True))
-    norm_signature = _database_norm_signature_for_traits(owner, traits)
-    chart_signature = _chart_trait_metadata_signature(chart)
+    trait_signature = trait_signature or _stable_json_hash(_trait_signature_payload(traits))
+    legacy_trait_signature = legacy_trait_signature or _stable_json_hash(_trait_signature_payload(traits, strip_uids=True))
+    norm_signature = norm_signature or _database_norm_signature_for_traits(owner, traits)
+    chart_signature = chart_signature or _chart_trait_metadata_signature(chart)
     signature = (TRAIT_DB_NORMS_CACHE_VERSION, trait_signature, norm_signature, chart_signature)
     cached = getattr(chart, "_trait_prediction_metadata_cache", None)
     if isinstance(cached, dict) and cached.get("signature") == signature:
@@ -978,27 +1024,34 @@ def _trait_predictions_cache_key(
     owner: Any,
     chart: Any | None,
     traits: list[dict[str, Any]],
+    *,
+    trait_signature: str | None = None,
+    trait_display_signature: str | None = None,
+    norm_signature: str | None = None,
+    chart_signature: str | None = None,
 ) -> str | None:
     if chart is None:
         return None
     chart_uid = str(getattr(chart, "chart_uid", "") or "").strip().upper()
     chart_scope = f"uid:{chart_uid}" if chart_uid else "draft"
-    trait_signature = _stable_json_hash(_trait_signature_payload(traits))
-    trait_display_signature = _stable_json_hash(_trait_display_signature_payload(traits))
-    try:
-        norm_signature = _database_norm_signature_for_traits(owner, traits)
-    except Exception as exc:
-        logger.warning(
-            "Traits panel could not build DB norm signature for view cache: %s",
-            exc,
-            exc_info=True,
-        )
-        norm_signature = "norm:unavailable"
+    trait_signature = trait_signature or _stable_json_hash(_trait_signature_payload(traits))
+    trait_display_signature = trait_display_signature or _stable_json_hash(_trait_display_signature_payload(traits))
+    if norm_signature is None:
+        try:
+            norm_signature = _database_norm_signature_for_traits(owner, traits)
+        except Exception as exc:
+            logger.warning(
+                "Traits panel could not build DB norm signature for view cache: %s",
+                exc,
+                exc_info=True,
+            )
+            norm_signature = "norm:unavailable"
+    chart_signature = chart_signature or _chart_trait_metadata_signature(chart)
     return _stable_json_hash(
         {
             "version": TRAIT_DB_NORMS_CACHE_VERSION,
             "chart_scope": chart_scope,
-            "chart_signature": _chart_trait_metadata_signature(chart),
+            "chart_signature": chart_signature,
             "trait_signature": trait_signature,
             "trait_display_signature": trait_display_signature,
             "norm_signature": norm_signature,
@@ -1058,10 +1111,41 @@ def _traits_stale_recalculate_prompt_html(updated_at: str | None) -> str:
     )
 
 
+def _trait_render_signatures(owner: Any, chart: Any, traits: list[dict[str, Any]]) -> dict[str, str]:
+    """Precompute all signatures used by one Traits render pass exactly once."""
+    trait_signature = _stable_json_hash(_trait_signature_payload(traits))
+    legacy_trait_signature = _stable_json_hash(_trait_signature_payload(traits, strip_uids=True))
+    trait_display_signature = _stable_json_hash(_trait_display_signature_payload(traits))
+    current_norm_state = _database_norm_state(owner)
+    chart_uids = _database_chart_uids(owner)
+    try:
+        norm_signature = _database_norm_signature_for_traits(
+            owner,
+            traits,
+            current_norm_state=current_norm_state,
+            chart_uids=chart_uids,
+        )
+    except Exception as exc:
+        logger.warning(
+            "Traits panel could not build DB norm signature for render pass: %s",
+            exc,
+            exc_info=True,
+        )
+        norm_signature = "norm:unavailable"
+    return {
+        "trait_signature": trait_signature,
+        "legacy_trait_signature": legacy_trait_signature,
+        "trait_display_signature": trait_display_signature,
+        "norm_signature": norm_signature,
+        "chart_signature": _chart_trait_metadata_signature(chart),
+    }
+
+
 def _start_traits_prediction_calculation(owner: Any) -> None:
     chart = getattr(owner, "_traits_prediction_pending_chart", None)
     traits = getattr(owner, "_traits_prediction_pending_traits", None)
     cache_key = str(getattr(owner, "_traits_prediction_pending_cache_key", "") or "")
+    signatures = getattr(owner, "_traits_prediction_pending_signatures", None)
     if chart is None or not isinstance(traits, list) or not traits:
         return
     owner._traits_prediction_render_token = object()
@@ -1071,7 +1155,14 @@ def _start_traits_prediction_calculation(owner: Any) -> None:
         + "<div style='color:#d8d8d8; text-align:center;'>Loading trait predictions for this chart…</div>"
     )
     _apply_traits_prediction_view(owner, message, message)
-    _start_traits_prediction_refresh_worker(owner, chart, traits, cache_key, token)
+    _start_traits_prediction_refresh_worker(
+        owner,
+        chart,
+        traits,
+        cache_key,
+        token,
+        signatures if isinstance(signatures, dict) else None,
+    )
 
 def _current_traits_prediction_html(owner: Any) -> str:
     combo = getattr(owner, "traits_prediction_mode_combo", None)
@@ -1138,18 +1229,50 @@ class _TraitPredictionsRefreshWorker(QObject):
     finished = Signal(object, object, object)
     failed = Signal(object, str)
 
-    def __init__(self, owner: Any, chart: Any, traits: list[dict[str, Any]], token: object) -> None:
+    def __init__(
+        self,
+        owner: Any,
+        chart: Any,
+        traits: list[dict[str, Any]],
+        token: object,
+        signatures: dict[str, str] | None = None,
+    ) -> None:
         super().__init__()
         self._owner = owner
         self._chart = chart
         self._traits = traits
         self._token = token
+        self._signatures = signatures or {}
+        self._cancelled = False
+
+    @Slot()
+    def cancel(self) -> None:
+        self._cancelled = True
+
+    def _is_cancelled(self) -> bool:
+        return self._cancelled or QThread.currentThread().isInterruptionRequested()
 
     @Slot()
     def run(self) -> None:
         try:
             _predictions_debug(self._owner, "Trait refresh worker start token=%s", id(self._token))
-            metadata = trait_metadata_for_chart(self._owner, self._chart)
+            if self._is_cancelled():
+                _predictions_debug(self._owner, "Trait refresh worker cancelled before metadata token=%s", id(self._token))
+                self.failed.emit(self._token, "cancelled")
+                return
+            metadata = trait_metadata_for_chart(
+                self._owner,
+                self._chart,
+                traits=self._traits,
+                trait_signature=self._signatures.get("trait_signature"),
+                legacy_trait_signature=self._signatures.get("legacy_trait_signature"),
+                norm_signature=self._signatures.get("norm_signature"),
+                chart_signature=self._signatures.get("chart_signature"),
+            )
+            if self._is_cancelled():
+                _predictions_debug(self._owner, "Trait refresh worker cancelled after metadata token=%s", id(self._token))
+                self.failed.emit(self._token, "cancelled")
+                return
             above_html, below_html = _trait_predictions_html_from_metadata(self._traits, metadata)
         except Exception as exc:
             logger.warning("Traits panel background refresh failed: %s", exc, exc_info=True)
@@ -1220,9 +1343,33 @@ def _forget_traits_prediction_worker_job(
     thread.deleteLater()
 
 
+def _cancel_traits_prediction_worker_jobs(owner: Any, *, wait_msecs: int | None = None) -> None:
+    """Request cancellation for active Traits workers without starting duplicate jobs."""
+    jobs = getattr(owner, "_traits_prediction_worker_jobs", None)
+    if not isinstance(jobs, list) or not jobs:
+        return
+    for thread, worker, _receiver in list(jobs):
+        if hasattr(worker, "cancel"):
+            try:
+                worker.cancel()
+            except RuntimeError:
+                pass
+        if not isinstance(thread, QThread):
+            continue
+        try:
+            if thread.isRunning():
+                thread.requestInterruption()
+                thread.quit()
+                if wait_msecs is not None:
+                    thread.wait(max(0, int(wait_msecs)))
+        except RuntimeError:
+            continue
+
+
 def stop_traits_prediction_refresh_workers(owner: Any, wait_msecs: int | None = None) -> None:
     """Stop Chart View trait prediction refresh threads before their owner is destroyed."""
     owner._traits_prediction_render_token = object()
+    _cancel_traits_prediction_worker_jobs(owner, wait_msecs=wait_msecs)
     jobs = getattr(owner, "_traits_prediction_worker_jobs", None)
     if not isinstance(jobs, list) or not jobs:
         return
@@ -1232,8 +1379,6 @@ def stop_traits_prediction_refresh_workers(owner: Any, wait_msecs: int | None = 
             continue
         try:
             if thread.isRunning():
-                thread.requestInterruption()
-                thread.quit()
                 if wait_msecs is None:
                     thread.wait()
                 else:
@@ -1249,15 +1394,17 @@ def _start_traits_prediction_refresh_worker(
     traits: list[dict[str, Any]],
     cache_key: str,
     token: object,
+    signatures: dict[str, str] | None = None,
 ) -> None:
     label = getattr(owner, "traits_prediction_label", None)
     if not isinstance(label, QLabel):
         return
 
     _predictions_debug(owner, "Trait refresh worker scheduling token=%s cache_key=%s", id(token), cache_key[:12])
+    _cancel_traits_prediction_worker_jobs(owner, wait_msecs=0)
     thread_parent = owner if isinstance(owner, QWidget) else None
     thread = QThread(thread_parent)
-    worker = _TraitPredictionsRefreshWorker(owner, chart, traits, token)
+    worker = _TraitPredictionsRefreshWorker(owner, chart, traits, token, signatures)
     receiver = _TraitPredictionsRefreshReceiver(owner, cache_key, token)
     receiver.set_job(thread, worker)
     worker.moveToThread(thread)
@@ -1309,13 +1456,32 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
         )
         return
 
-    cache_key = _trait_predictions_cache_key(owner, chart, traits)
-    cached_metadata = trait_metadata_for_chart(owner, chart, cached_only=True)
+    signatures = _trait_render_signatures(owner, chart, traits)
+    cache_key = _trait_predictions_cache_key(
+        owner,
+        chart,
+        traits,
+        trait_signature=signatures.get("trait_signature"),
+        trait_display_signature=signatures.get("trait_display_signature"),
+        norm_signature=signatures.get("norm_signature"),
+        chart_signature=signatures.get("chart_signature"),
+    )
+    cached_metadata = trait_metadata_for_chart(
+        owner,
+        chart,
+        cached_only=True,
+        traits=traits,
+        trait_signature=signatures.get("trait_signature"),
+        legacy_trait_signature=signatures.get("legacy_trait_signature"),
+        norm_signature=signatures.get("norm_signature"),
+        chart_signature=signatures.get("chart_signature"),
+    )
     if isinstance(cached_metadata, dict):
         above_html, below_html = _trait_predictions_html_from_metadata(traits, cached_metadata)
         owner._traits_prediction_pending_chart = chart
         owner._traits_prediction_pending_traits = traits
         owner._traits_prediction_pending_cache_key = cache_key or ""
+        owner._traits_prediction_pending_signatures = signatures
         if bool(cached_metadata.get("stale")):
             _apply_traits_prediction_view(
                 owner,
@@ -1330,6 +1496,7 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
     owner._traits_prediction_pending_chart = chart
     owner._traits_prediction_pending_traits = traits
     owner._traits_prediction_pending_cache_key = cache_key or ""
+    owner._traits_prediction_pending_signatures = signatures
     message = _traits_calculate_prompt_html()
     _predictions_debug(owner, "Trait render found no persisted trait metadata; showing manual calculate prompt cache_key=%s", (cache_key or "")[:12])
     _apply_traits_prediction_view(owner, message, message)

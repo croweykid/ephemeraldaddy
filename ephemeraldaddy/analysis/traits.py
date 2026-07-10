@@ -290,6 +290,7 @@ TRAITS = {
 }
 # Local user-uploaded trait storage and scoring helpers.
 import ast
+import hashlib
 import io
 import json
 import logging
@@ -317,6 +318,7 @@ DEFAULT_TRAIT_COLOR = "#cc99ff"
 logger = logging.getLogger(__name__)
 _TRAIT_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 _TRAIT_UID_RE = re.compile(r"[^a-zA-Z0-9_.:-]+")
+_TRAIT_POSSIBLE_SCORE_CACHE: dict[tuple[str, bool], dict[str, float]] = {}
 
 
 def normalize_trait_samples(
@@ -928,6 +930,45 @@ def trait_possible_score(profile: Mapping[str, Any], *, include_houses: bool = T
     return _trait_possible_score(profile, include_houses=include_houses)
 
 
+def _trait_possible_score_signature(trait_items: list[dict[str, Any]]) -> str:
+    payload = [
+        {
+            "name": str(item.get("name", "")),
+            "uid": str(item.get("uid") or item.get("trait_uid") or ""),
+            "profile": item.get("profile", {}),
+        }
+        for item in trait_items
+        if str(item.get("name", "")).strip() and not bool(item.get("archived", False))
+    ]
+    try:
+        serialized = json.dumps(payload, sort_keys=True, default=str, separators=(",", ":"))
+    except TypeError:
+        serialized = repr(payload)
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def _trait_possible_scores_for_items(
+    trait_items: list[dict[str, Any]],
+    *,
+    include_houses: bool,
+) -> dict[str, float]:
+    signature = _trait_possible_score_signature(trait_items)
+    cache_key = (signature, bool(include_houses))
+    cached = _TRAIT_POSSIBLE_SCORE_CACHE.get(cache_key)
+    if isinstance(cached, dict):
+        return cached
+    possible_scores = {
+        str(item.get("name", "")): _trait_possible_score(
+            item.get("profile", {}),
+            include_houses=include_houses,
+        )
+        for item in trait_items
+        if str(item.get("name", "")).strip() and not bool(item.get("archived", False))
+    }
+    _TRAIT_POSSIBLE_SCORE_CACHE[cache_key] = possible_scores
+    return possible_scores
+
+
 def calculate_trait_likelihoods(
     chart: Any,
     traits: list[dict[str, Any]] | None = None,
@@ -947,6 +988,11 @@ def calculate_trait_likelihoods(
     trait_items = [item for item in trait_items if not bool(item.get("archived", False))]
     raw_scores = calculate_trait_scores(chart, trait_items)
     include_houses = chart_uses_houses(chart)
+    cached_possible_scores = (
+        None
+        if possible_scores is not None
+        else _trait_possible_scores_for_items(trait_items, include_houses=include_houses)
+    )
     likelihoods: dict[str, float] = {}
     for item in trait_items:
         name = str(item.get("name", ""))
@@ -954,6 +1000,8 @@ def calculate_trait_likelihoods(
             continue
         if include_houses and possible_scores is not None and name in possible_scores:
             possible = max(float(possible_scores.get(name, 1.0)), 1.0)
+        elif cached_possible_scores is not None and name in cached_possible_scores:
+            possible = max(float(cached_possible_scores.get(name, 1.0)), 1.0)
         else:
             possible = _trait_possible_score(item.get("profile", {}), include_houses=include_houses)
         normalized = max(-1.0, min(1.0, float(raw_scores.get(name, 0.0)) / possible))
