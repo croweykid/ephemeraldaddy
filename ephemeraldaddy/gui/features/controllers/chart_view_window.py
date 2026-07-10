@@ -35,6 +35,7 @@ from PySide6.QtWidgets import (
     QStyle,
     QStyleOptionSlider,
     QTextEdit,
+    QTableView,
     QVBoxLayout,
     QWidget,
 )
@@ -69,6 +70,7 @@ from ephemeraldaddy.gui.features.charts.anagrams import (
 from ephemeraldaddy.gui.features.charts.euphonics import render_euphonics_html
 from ephemeraldaddy.gui.features.charts.loading_overlay import ChartLoadingOverlay
 from ephemeraldaddy.gui.features.charts.time_sensitivity_panel import TimeSensitivityPanel
+from ephemeraldaddy.gui.features.charts.trait_predictions import configure_traits_prediction_table
 from ephemeraldaddy.gui.features.controllers.chart_right_panel import ChartRightPanelController
 from ephemeraldaddy.gui.style import (
     ABC_PANEL_BODY_LABEL_STYLE,
@@ -1590,20 +1592,12 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     owner.traits_prediction_label.setMinimumHeight(owner.traits_prediction_label.sizeHint().height())
     traits_section_layout.addWidget(owner.traits_prediction_label)
 
-    def _show_selected_traits_prediction_mode(_index: int = 0) -> None:
-        owner.traits_prediction_label.setText(
-            getattr(
-                owner,
-                "_traits_prediction_below_avg_html"
-                if owner.traits_prediction_mode_combo.currentData() == "below"
-                else "_traits_prediction_above_avg_html",
-                owner.traits_prediction_label.text(),
-            )
-        )
-        owner.traits_prediction_label.adjustSize()
-        owner.traits_prediction_label.setMinimumHeight(owner.traits_prediction_label.sizeHint().height())
-
-    owner.traits_prediction_mode_combo.currentIndexChanged.connect(_show_selected_traits_prediction_mode)
+    owner.traits_prediction_table = QTableView()
+    owner.traits_prediction_table.setVisible(False)
+    owner.traits_prediction_table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
+    owner.traits_prediction_table.setMinimumHeight(160)
+    configure_traits_prediction_table(owner, owner.traits_prediction_table)
+    traits_section_layout.addWidget(owner.traits_prediction_table)
 
     enneagram_section_layout = owner._add_chart_analysis_collapsible_section(
         panel=panel,

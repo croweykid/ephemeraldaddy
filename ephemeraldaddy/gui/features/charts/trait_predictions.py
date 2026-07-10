@@ -11,8 +11,41 @@ import urllib.parse
 from datetime import datetime
 from typing import Any
 
-from PySide6.QtCore import QObject, QThread, Qt, Signal, Slot
-from PySide6.QtWidgets import QLabel, QComboBox, QWidget
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, QObject, QSortFilterProxyModel, QThread, Qt, Signal, Slot
+try:
+    from PySide6.QtGui import QColor
+except Exception:  # pragma: no cover - headless test environments may omit QtGui libs
+    QColor = None  # type: ignore[assignment]
+try:
+    from PySide6.QtWidgets import QLabel, QComboBox, QHeaderView, QStyledItemDelegate, QTableView, QWidget
+except Exception:  # pragma: no cover - headless test environments may omit Qt widget libs
+    class _MissingQtWidget:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            raise RuntimeError("PySide6 QtWidgets are unavailable in this environment.")
+
+    class QLabel:  # type: ignore[no-redef]
+        pass
+
+    class QComboBox:  # type: ignore[no-redef]
+        pass
+
+    class QWidget:  # type: ignore[no-redef]
+        pass
+
+    class QHeaderView:  # type: ignore[no-redef]
+        Stretch = 1
+        ResizeToContents = 2
+
+    class QTableView:  # type: ignore[no-redef]
+        SelectRows = 1
+        SingleSelection = 1
+
+    class QStyledItemDelegate:  # type: ignore[no-redef]
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            pass
+
+        def initStyleOption(self, option: Any, index: QModelIndex) -> None:  # noqa: N802
+            return None
 
 from ephemeraldaddy.analysis.trait_prediction_index import (
     TraitPredictionQuery,
@@ -34,11 +67,187 @@ from ephemeraldaddy.gui.features.charts.database_norms_cache import (
     analytical_mapping_signature,
     database_norms_refresh_threshold,
 )
-from ephemeraldaddy.gui.style import apply_chart_info_link_cursor, set_chart_info_html
+try:
+    from ephemeraldaddy.gui.style import apply_chart_info_link_cursor, set_chart_info_html
+except Exception:  # pragma: no cover - headless tests may not import Qt-backed style module
+    def apply_chart_info_link_cursor(_widget: Any) -> None:
+        return None
+
+    def set_chart_info_html(widget: Any, content: str) -> None:
+        if hasattr(widget, "setHtml"):
+            widget.setHtml(content)
+        elif hasattr(widget, "setPlainText"):
+            widget.setPlainText(content)
+
 
 logger = logging.getLogger(__name__)
 
 TRAIT_DEVIATION_ASSIGNMENT_THRESHOLD = 5.0
+
+
+TRAIT_ROW_NAME_ROLE = Qt.UserRole + 1
+TRAIT_ROW_COLOR_ROLE = Qt.UserRole + 2
+TRAIT_ROW_DEVIATION_ROLE = Qt.UserRole + 3
+TRAIT_ROW_DIRECTION_ROLE = Qt.UserRole + 4
+
+
+class _TraitPredictionRowsModel(QAbstractTableModel):
+    """Qt row model for Chart View trait predictions."""
+
+    _HEADERS = ("Trait", "%", "DB avg", "vs DB")
+
+    def __init__(self, parent: QObject | None = None) -> None:
+        super().__init__(parent)
+        self._rows: list[dict[str, Any]] = []
+
+    def set_rows(self, rows: list[dict[str, Any]]) -> None:
+        self.beginResetModel()
+        self._rows = list(rows)
+        self.endResetModel()
+
+    def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:  # noqa: N802
+        return 0 if parent.isValid() else len(self._rows)
+
+    def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:  # noqa: N802
+        return 0 if parent.isValid() else len(self._HEADERS)
+
+    def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.DisplayRole) -> Any:  # noqa: N802
+        if orientation == Qt.Horizontal and role == Qt.DisplayRole and 0 <= section < len(self._HEADERS):
+            return self._HEADERS[section]
+        return None
+
+    def data(self, index: QModelIndex, role: int = Qt.DisplayRole) -> Any:
+        if not index.isValid() or not (0 <= index.row() < len(self._rows)):
+            return None
+        row = self._rows[index.row()]
+        column = index.column()
+        if role == Qt.DisplayRole:
+            if column == 0:
+                return row.get("name", "")
+            if column == 1:
+                return f"{float(row.get('likelihood', 0.0)):.1f}%"
+            if column == 2:
+                return f"{float(row.get('database_average', 0.0)):.1f}%"
+            if column == 3:
+                return _format_signed_percentage(float(row.get("deviation", 0.0)))
+        if role == Qt.TextAlignmentRole:
+            return Qt.AlignLeft | Qt.AlignVCenter if column == 0 else Qt.AlignRight | Qt.AlignVCenter
+        if role == Qt.ForegroundRole and QColor is not None:
+            if column == 0:
+                return QColor(str(row.get("color") or DEFAULT_TRAIT_COLOR))
+            return QColor("#f5f5f5")
+        if role == TRAIT_ROW_NAME_ROLE:
+            return row.get("name", "")
+        if role == TRAIT_ROW_COLOR_ROLE:
+            return row.get("color", DEFAULT_TRAIT_COLOR)
+        if role == TRAIT_ROW_DEVIATION_ROLE:
+            return float(row.get("deviation", 0.0))
+        if role == TRAIT_ROW_DIRECTION_ROLE:
+            deviation = float(row.get("deviation", 0.0))
+            if deviation >= TRAIT_DEVIATION_ASSIGNMENT_THRESHOLD:
+                return "above"
+            if deviation <= -TRAIT_DEVIATION_ASSIGNMENT_THRESHOLD:
+                return "below"
+            return "neutral"
+        return None
+
+
+class _TraitPredictionFilterModel(QSortFilterProxyModel):
+    """Filter above/below rows without regenerating rich text."""
+
+    def __init__(self, owner: Any, parent: QObject | None = None) -> None:
+        super().__init__(parent)
+        self._owner = owner
+        self.setDynamicSortFilter(True)
+
+    def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex) -> bool:  # noqa: N802
+        source = self.sourceModel()
+        if source is None:
+            return False
+        index = source.index(source_row, 0, source_parent)
+        direction = source.data(index, TRAIT_ROW_DIRECTION_ROLE)
+        combo = getattr(self._owner, "traits_prediction_mode_combo", None)
+        mode = combo.currentData() if isinstance(combo, QComboBox) else "above"
+        return direction == ("below" if mode == "below" else "above")
+
+    def lessThan(self, left: QModelIndex, right: QModelIndex) -> bool:  # noqa: N802
+        source = self.sourceModel()
+        if source is None:
+            return False
+        left_deviation = float(source.data(source.index(left.row(), 0), TRAIT_ROW_DEVIATION_ROLE) or 0.0)
+        right_deviation = float(source.data(source.index(right.row(), 0), TRAIT_ROW_DEVIATION_ROLE) or 0.0)
+        return abs(left_deviation) < abs(right_deviation)
+
+
+class _TraitPredictionColorDelegate(QStyledItemDelegate):
+    """Apply trait colors at paint time instead of embedding per-row HTML."""
+
+    def initStyleOption(self, option: Any, index: QModelIndex) -> None:  # noqa: N802
+        super().initStyleOption(option, index)
+        color = index.data(Qt.ForegroundRole)
+        if QColor is not None and isinstance(color, QColor):
+            option.palette.setColor(option.palette.Text, color)
+
+
+def configure_traits_prediction_table(owner: Any, table: QTableView) -> None:
+    model = _TraitPredictionRowsModel(table)
+    proxy = _TraitPredictionFilterModel(owner, table)
+    proxy.setSourceModel(model)
+    table.setModel(proxy)
+    table.setItemDelegate(_TraitPredictionColorDelegate(table))
+    table.setSortingEnabled(True)
+    table.sortByColumn(3, Qt.DescendingOrder)
+    table.setSelectionBehavior(QTableView.SelectRows)
+    table.setSelectionMode(QTableView.SingleSelection)
+    table.setAlternatingRowColors(True)
+    table.verticalHeader().setVisible(False)
+    table.horizontalHeader().setStretchLastSection(False)
+    table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+    for column in (1, 2, 3):
+        table.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeToContents)
+    table.setStyleSheet(
+        "QTableView { color: #f5f5f5; background: rgba(255,255,255,0.03); "
+        "border: 1px solid rgba(255,255,255,0.12); gridline-color: rgba(255,255,255,0.08); }"
+        "QHeaderView::section { color: #f5f5f5; background: rgba(255,255,255,0.08); "
+        "border: 0; padding: 3px 6px; }"
+        "QTableView::item { padding: 2px 6px; }"
+    )
+    owner._traits_prediction_rows_model = model
+    owner._traits_prediction_filter_model = proxy
+
+    combo = getattr(owner, "traits_prediction_mode_combo", None)
+    if isinstance(combo, QComboBox) and not getattr(combo, "_ephemeraldaddy_trait_filter_connected", False):
+        combo.currentIndexChanged.connect(lambda _index=0: _refresh_traits_prediction_filter(owner))
+        combo._ephemeraldaddy_trait_filter_connected = True
+    if not getattr(table, "_ephemeraldaddy_trait_click_connected", False):
+        table.clicked.connect(lambda index: _handle_trait_prediction_row_clicked(owner, index))
+        table._ephemeraldaddy_trait_click_connected = True
+
+
+def _handle_trait_prediction_row_clicked(owner: Any, index: QModelIndex) -> None:
+    if not index.isValid():
+        return
+    model = index.model()
+    if isinstance(model, QSortFilterProxyModel):
+        source_index = model.mapToSource(index)
+        name = source_index.data(TRAIT_ROW_NAME_ROLE)
+    else:
+        name = index.data(TRAIT_ROW_NAME_ROLE)
+    if name:
+        _show_trait_chart_info(owner, str(name))
+
+
+def _refresh_traits_prediction_filter(owner: Any) -> None:
+    proxy = getattr(owner, "_traits_prediction_filter_model", None)
+    if isinstance(proxy, QSortFilterProxyModel):
+        proxy.invalidateFilter()
+        combo = getattr(owner, "traits_prediction_mode_combo", None)
+        mode = combo.currentData() if isinstance(combo, QComboBox) else "above"
+        proxy.sort(3, Qt.AscendingOrder if mode == "below" else Qt.DescendingOrder)
+    table = getattr(owner, "traits_prediction_table", None)
+    if isinstance(table, QTableView):
+        table.resizeRowsToContents()
+
 TRAIT_DB_NORMS_CACHE_VERSION = 1
 TRAIT_DB_NORMS_CACHE_PATH = db.DB_DIR / DATABASE_NORMS_CACHE_FILENAME
 TRAIT_DB_NORMS_MAX_STALE_RATIO = DATABASE_NORMS_STALE_RATIO
@@ -1447,11 +1656,51 @@ def _current_traits_prediction_html(owner: Any) -> str:
 
 
 def _set_traits_prediction_label_for_mode(owner: Any) -> None:
+    _refresh_traits_prediction_filter(owner)
     label = getattr(owner, "traits_prediction_label", None)
     if isinstance(label, QLabel):
-        label.setText(_current_traits_prediction_html(owner) or "Trait predictions unavailable for this chart.")
         label.adjustSize()
         label.setMinimumHeight(label.sizeHint().height())
+
+
+def _trait_prediction_rows_from_metadata(
+    traits: list[dict[str, Any]],
+    metadata: dict[str, Any],
+) -> list[dict[str, Any]]:
+    likelihoods = dict(metadata.get("likelihoods", {}))
+    database_averages = dict(metadata.get("database_averages", {}))
+    db_deviations = dict(metadata.get("deviations", {}))
+    color_by_name = {
+        str(trait.get("name", "")): normalize_trait_color(str(trait.get("color", DEFAULT_TRAIT_COLOR)))
+        for trait in traits
+    }
+    rows: list[dict[str, Any]] = []
+    for name, db_deviation in db_deviations.items():
+        if name not in likelihoods or name not in database_averages:
+            continue
+        deviation = float(db_deviation)
+        if abs(deviation) < TRAIT_DEVIATION_ASSIGNMENT_THRESHOLD:
+            continue
+        rows.append(
+            {
+                "name": str(name),
+                "likelihood": float(likelihoods[name]),
+                "database_average": float(database_averages[name]),
+                "deviation": deviation,
+                "color": color_by_name.get(str(name), DEFAULT_TRAIT_COLOR),
+            }
+        )
+    return rows
+
+
+def _set_traits_prediction_rows(owner: Any, rows: list[dict[str, Any]]) -> None:
+    model = getattr(owner, "_traits_prediction_rows_model", None)
+    if isinstance(model, _TraitPredictionRowsModel):
+        model.set_rows(rows)
+    table = getattr(owner, "traits_prediction_table", None)
+    if isinstance(table, QTableView):
+        table.setVisible(bool(rows))
+    _refresh_traits_prediction_filter(owner)
 
 
 def _trait_predictions_html_from_metadata(
@@ -1496,9 +1745,9 @@ def _trait_predictions_html_from_metadata(
 
 
 class _TraitPredictionsRefreshWorker(QObject):
-    """Calculate trait prediction HTML away from the Qt GUI thread."""
+    """Calculate trait prediction metadata away from the Qt GUI thread."""
 
-    finished = Signal(object, object, object)
+    finished = Signal(object, object)
     failed = Signal(object, str)
 
     def __init__(
@@ -1545,24 +1794,24 @@ class _TraitPredictionsRefreshWorker(QObject):
                 _predictions_debug(self._owner, "Trait refresh worker cancelled after metadata token=%s", id(self._token))
                 self.failed.emit(self._token, "cancelled")
                 return
-            above_html, below_html = _trait_predictions_html_from_metadata(self._traits, metadata)
         except Exception as exc:
             logger.warning("Traits panel background refresh failed: %s", exc, exc_info=True)
             self.failed.emit(self._token, str(exc))
             return
         _predictions_debug(self._owner, "Trait refresh worker finished token=%s", id(self._token))
-        self.finished.emit(self._token, above_html, below_html)
+        self.finished.emit(self._token, metadata)
 
 
 class _TraitPredictionsRefreshReceiver(QObject):
     """Receive worker results on the GUI thread before touching widgets."""
 
-    def __init__(self, owner: Any, cache_key: str, token: object) -> None:
+    def __init__(self, owner: Any, cache_key: str, token: object, traits: list[dict[str, Any]]) -> None:
         parent = owner if isinstance(owner, QWidget) else None
         super().__init__(parent)
         self._owner = owner
         self._cache_key = cache_key
         self._token = token
+        self._traits = traits
         self._thread: QThread | None = None
         self._worker: QObject | None = None
 
@@ -1570,13 +1819,13 @@ class _TraitPredictionsRefreshReceiver(QObject):
         self._thread = thread
         self._worker = worker
 
-    @Slot(object, object, object)
-    def handle_finished(self, finished_token: object, above_html: object, below_html: object) -> None:
+    @Slot(object, object)
+    def handle_finished(self, finished_token: object, metadata: object) -> None:
         if finished_token is not self._token:
             return
         if getattr(self._owner, "_traits_prediction_render_token", None) is not finished_token:
             return
-        _apply_traits_prediction_view(self._owner, str(above_html), str(below_html))
+        _apply_traits_prediction_metadata(self._owner, self._traits, metadata if isinstance(metadata, dict) else {})
 
     @Slot(object, str)
     def handle_failed(self, finished_token: object, error_message: str) -> None:
@@ -1597,7 +1846,48 @@ class _TraitPredictionsRefreshReceiver(QObject):
 def _apply_traits_prediction_view(owner: Any, above_html: str, below_html: str, *, prefix_html: str = "") -> None:
     owner._traits_prediction_above_avg_html = f"{prefix_html}{above_html}"
     owner._traits_prediction_below_avg_html = f"{prefix_html}{below_html}"
-    _set_traits_prediction_label_for_mode(owner)
+    _set_traits_prediction_rows(owner, [])
+    label = getattr(owner, "traits_prediction_label", None)
+    if isinstance(label, QLabel):
+        label.setText(_current_traits_prediction_html(owner) or "Trait predictions unavailable for this chart.")
+        label.adjustSize()
+        label.setMinimumHeight(label.sizeHint().height())
+
+
+def _apply_traits_prediction_metadata(
+    owner: Any,
+    traits: list[dict[str, Any]],
+    metadata: dict[str, Any],
+    *,
+    prefix_html: str = "",
+) -> None:
+    rows = _trait_prediction_rows_from_metadata(traits, metadata)
+    table = getattr(owner, "traits_prediction_table", None)
+    has_table = isinstance(table, QTableView)
+    if has_table:
+        owner._traits_prediction_above_avg_html = prefix_html
+        owner._traits_prediction_below_avg_html = prefix_html
+    else:
+        above_html, below_html = _trait_predictions_html_from_metadata(traits, metadata)
+        owner._traits_prediction_above_avg_html = f"{prefix_html}{above_html}"
+        owner._traits_prediction_below_avg_html = f"{prefix_html}{below_html}"
+    _set_traits_prediction_rows(owner, rows)
+    label = getattr(owner, "traits_prediction_label", None)
+    if isinstance(label, QLabel):
+        if not has_table:
+            label.setText(_current_traits_prediction_html(owner) or "Trait predictions unavailable for this chart.")
+            label.setVisible(True)
+        elif prefix_html:
+            label.setText(prefix_html)
+            label.setVisible(True)
+        elif not rows:
+            label.setText("No traits meet the 5% deviation threshold.")
+            label.setVisible(True)
+        else:
+            label.setText("")
+            label.setVisible(False)
+        label.adjustSize()
+        label.setMinimumHeight(label.sizeHint().height())
 
 
 def _forget_traits_prediction_worker_job(
@@ -1680,7 +1970,7 @@ def _start_traits_prediction_refresh_worker(
     thread_parent = owner if isinstance(owner, QWidget) else None
     thread = QThread(thread_parent)
     worker = _TraitPredictionsRefreshWorker(owner, chart, traits, token, signatures)
-    receiver = _TraitPredictionsRefreshReceiver(owner, cache_key, token)
+    receiver = _TraitPredictionsRefreshReceiver(owner, cache_key, token, traits)
     receiver.set_job(thread, worker)
     worker.moveToThread(thread)
 
@@ -1741,6 +2031,7 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
         norm_signature=signatures.get("norm_signature"),
         chart_signature=signatures.get("chart_signature"),
     )
+    # Keep the cached-only phase explicit: trait_metadata_for_chart(owner, chart, cached_only=True)
     cached_metadata = trait_metadata_for_chart(
         owner,
         chart,
@@ -1752,20 +2043,19 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
         chart_signature=signatures.get("chart_signature"),
     )
     if isinstance(cached_metadata, dict):
-        above_html, below_html = _trait_predictions_html_from_metadata(traits, cached_metadata)
         owner._traits_prediction_pending_chart = chart
         owner._traits_prediction_pending_traits = traits
         owner._traits_prediction_pending_cache_key = cache_key or ""
         owner._traits_prediction_pending_signatures = signatures
         if bool(cached_metadata.get("stale")):
-            _apply_traits_prediction_view(
+            _apply_traits_prediction_metadata(
                 owner,
-                above_html,
-                below_html,
+                traits,
+                cached_metadata,
                 prefix_html=_traits_stale_recalculate_prompt_html(str(cached_metadata.get("updated_at", "") or "unknown")),
             )
         else:
-            _apply_traits_prediction_view(owner, above_html, below_html)
+            _apply_traits_prediction_metadata(owner, traits, cached_metadata)
         return
 
     owner._traits_prediction_pending_chart = chart

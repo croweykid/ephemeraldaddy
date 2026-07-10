@@ -696,8 +696,15 @@ def _show_predictions_panel_pending_placeholders(owner: object, chart: object | 
         except Exception:
             pass
         traits_label.setText(loading_html)
+        traits_label.setVisible(True)
         traits_label.adjustSize()
         traits_label.setMinimumHeight(traits_label.sizeHint().height())
+        rows_model = getattr(owner, "_traits_prediction_rows_model", None)
+        if hasattr(rows_model, "set_rows"):
+            rows_model.set_rows([])
+        traits_table = getattr(owner, "traits_prediction_table", None)
+        if hasattr(traits_table, "setVisible"):
+            traits_table.setVisible(False)
     _clear_layout_for_prediction_placeholder(
         owner,
         "enneagram_prediction_chart_layout",
