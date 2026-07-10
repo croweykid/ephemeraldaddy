@@ -21809,9 +21809,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         visibility_section.addWidget(planet_dynamics_checkbox)
 
         visibility_section.addSpacing(8)
-        visibility_section.addWidget(self._build_settings_subheader_label("Subjective Notes Panel (Chart View)"))
+        visibility_section.addWidget(self._build_settings_subheader_label("Chart View"))
 
-        sexiness_checkbox = QCheckBox("Show Sexiness (Subjective Notes)")
+        sexiness_checkbox = QCheckBox("Show Sexiness (Observations)")
         sexiness_checkbox.setChecked(self._visibility.get("chart_view.sexiness"))
         sexiness_checkbox.toggled.connect(
             self._set_chart_view_sexiness_visibility_from_settings
@@ -21819,7 +21819,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         visibility_section.addWidget(sexiness_checkbox)
 
         visibility_section.addSpacing(8)
-        anagrams_checkbox = QCheckBox("Show Anagrams (Subjective Notes)")
+        anagrams_checkbox = QCheckBox("Show Anagrams (ABC)")
         anagrams_checkbox.setChecked(
             isinstance(parent, MainWindow)
             and parent._is_chart_analysis_section_visible("anagrams")
@@ -21832,7 +21832,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         visibility_section.addWidget(anagrams_checkbox)
 
-        predictability_checkbox = QCheckBox("Show Predictability")
+        predictability_checkbox = QCheckBox("Show Predictability (Observations)")
         predictability_checkbox.setChecked(self._visibility.get("chart_view.predictability"))
         predictability_checkbox.toggled.connect(
             self._set_predictability_visibility_from_settings

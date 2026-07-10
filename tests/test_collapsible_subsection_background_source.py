@@ -25,7 +25,7 @@ def test_database_search_sections_accept_nested_flag():
 
 
 def test_database_search_top_categories_are_nested_sections():
-    for title in ("🪐Astro", "🪷Human Design", "💭Personal Experiences", "🎱Predictions", "👥Demographics"):
+    for title in ("🪐Astro", "🪷Human Design", "💭Observations", "🎱Predictions", "👥Demographics"):
         assert f'add_collapsible_section("{title}", nested=True)' in SEARCH_SOURCE
 
 

@@ -922,7 +922,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     layout.addWidget(astro_category_section)
     human_design_category_section, human_design_category_layout = add_collapsible_section("🪷Human Design", nested=True)
     layout.addWidget(human_design_category_section)
-    interactions_category_section, interactions_category_layout = add_collapsible_section("💭Personal Experiences", nested=True)
+    interactions_category_section, interactions_category_layout = add_collapsible_section("💭Observations", nested=True)
     layout.addWidget(interactions_category_section)
     predictions_category_section, predictions_category_layout = add_collapsible_section("🔮Predictions", nested=True)
     layout.addWidget(predictions_category_section)

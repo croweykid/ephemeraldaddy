@@ -37,7 +37,7 @@ def test_sexiness_module_is_hidden_by_default_and_configurable():
     app_source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
 
     assert "\"chart_view.sexiness\": False" in visibility_source
-    assert "Show Sexiness (Subjective Notes)" in app_source
+    assert "Show Sexiness (Observations)" in app_source
     assert "def _sync_chart_view_sexiness_visibility" in app_source
 
 

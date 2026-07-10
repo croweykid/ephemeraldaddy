@@ -549,7 +549,7 @@ class DatabaseAnalyticsChartsMixin:
     DATABASE_ANALYTICS_CATEGORY_TITLES: tuple[tuple[str, str], ...] = (
         ("astro", "🪐Astro"),
         ("esoteric", "🪷Esoteric Alternatives"),
-        ("subjective_notes", "💭Subjective Notes"),
+        ("subjective_notes", "💭Observations"),
         ("predictions", "🔮Predictions"),
         ("demographics", "👥Demographics"),
     )

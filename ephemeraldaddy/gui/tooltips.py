@@ -118,7 +118,7 @@ DEFAULT_TOOLTIP_OVERRIDES: dict[str, str] = {
     "manage_button": "Back to Database View",
     "database_view_button": "Close Chart View and return to Database View",
     "help_overlay_toggle": "Help",
-    "chart_view_toggle_subjective_notes_panel_button": "Subjective Notes panel",
+    "chart_view_toggle_subjective_notes_panel_button": "Observations panel",
     "chart_view_toggle_abc_panel_button": "ABC panel",
     "chart_view_toggle_analytics_panel_button": "Chart Analysis panel",
     "chart_view_toggle_predictions_panel_button": "Predictions panel",
