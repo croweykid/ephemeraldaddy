@@ -5195,6 +5195,10 @@ class DatabaseAnalyticsChartsMixin:
                 "parsed_percent": None,
             }
             self._traits_distribution_current_ranked_chart_ids = set()
+            chart_layout = getattr(self, "traits_distribution_chart_layout", None)
+            if chart_layout is not None:
+                self._clear_layout(chart_layout)
+            self._analysis_chart_export_rows["traits_distribution"] = []
             rank_selected_button = getattr(self, "traits_distribution_rank_selected_button", None)
             if isinstance(rank_selected_button, QPushButton):
                 has_current_selection = bool(getattr(self, "_traits_distribution_latest_selected_chart_ids", ()))

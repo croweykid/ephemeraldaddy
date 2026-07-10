@@ -22,6 +22,8 @@ def test_trait_rankings_prompt_skips_database_warm_until_trait_selected():
     ]
 
     assert '"selected_trait_name": ""' in inert_branch
+    assert 'self._clear_layout(chart_layout)' in inert_branch
+    assert 'self._analysis_chart_export_rows["traits_distribution"] = []' in inert_branch
     assert "_render_traits_distribution_rankings_html(" in inert_branch
     assert "return" in inert_branch
     assert "_collect_traits_distribution_analytics" not in inert_branch
