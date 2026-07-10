@@ -14,6 +14,10 @@ from typing import Any
 from PySide6.QtCore import QObject, QThread, Qt, Signal, Slot
 from PySide6.QtWidgets import QLabel, QComboBox, QWidget
 
+from ephemeraldaddy.analysis.trait_prediction_index import (
+    TraitPredictionQuery,
+    global_trait_prediction_index,
+)
 from ephemeraldaddy.analysis.traits import (
     DEFAULT_TRAIT_COLOR,
     calculate_trait_likelihoods,
@@ -980,6 +984,31 @@ def trait_metadata_for_chart(
     traits_by_uid = {uid: trait for name, trait in traits_by_name.items() if (uid := trait_uids_by_name.get(name))}
     names_by_uid = {uid: name for name, uid in trait_uids_by_name.items() if uid}
     active_trait_names = set(traits_by_name)
+    if chart_uid:
+        try:
+            indexed_result = global_trait_prediction_index().read_cached(
+                TraitPredictionQuery(
+                    chart_uid=chart_uid,
+                    chart_signature=chart_signature,
+                    trait_signature=trait_signature,
+                    norm_signature=norm_signature,
+                ),
+                traits,
+            )
+        except Exception as exc:
+            logger.warning("Traits panel could not read from trait prediction index: %s", exc, exc_info=True)
+            indexed_result = None
+        if indexed_result is not None and not indexed_result.stale_db_baseline:
+            metadata = _metadata_from_vectors(
+                likelihoods=indexed_result.likelihoods,
+                database_averages=indexed_result.database_averages,
+                stale_chart_vector=indexed_result.stale_chart_vector,
+                stale_trait_definition=indexed_result.stale_trait_definition,
+                stale_db_baseline=indexed_result.stale_db_baseline,
+                updated_at=indexed_result.updated_at,
+            )
+            _apply_trait_metadata_to_chart(chart, metadata, trait_uids_by_name, signature)
+            return metadata
     baseline_rows_by_name: dict[str, dict[str, Any]] = {}
     try:
         baseline_rows = db.get_trait_baseline_snapshot(
@@ -1172,7 +1201,17 @@ def trait_metadata_for_chart(
     likelihoods = dict(cached_likelihoods)
     if missing_traits:
         _predictions_debug(owner, "Trait metadata scoring missing chart traits=%s", len(missing_traits))
-        likelihoods.update(trait_likelihoods_with_distribution_cache(owner, chart, missing_traits))
+        if len(missing_traits) == len(traits_by_name):
+            likelihoods.update(
+                global_trait_prediction_index().chart_likelihoods(
+                    chart,
+                    traits,
+                    chart_signature=chart_signature,
+                    trait_signature=trait_signature,
+                )
+            )
+        else:
+            likelihoods.update(trait_likelihoods_with_distribution_cache(owner, chart, missing_traits))
     database_averages = dict(cached_database_averages)
     missing_average_traits = [trait for name, trait in traits_by_name.items() if name not in database_averages]
     if missing_average_traits:

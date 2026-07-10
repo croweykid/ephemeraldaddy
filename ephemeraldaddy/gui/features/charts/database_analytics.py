@@ -236,6 +236,7 @@ from ephemeraldaddy.gui.features.charts.statistical_significance import (
 )
 from ephemeraldaddy.gui.features.charts.provenance import chart_is_non_aggregable
 from ephemeraldaddy.gui.features.charts.tagging import normalize_tag_list
+from ephemeraldaddy.analysis.trait_prediction_index import global_trait_prediction_index
 from ephemeraldaddy.analysis.traits import (
     DEFAULT_TRAIT_COLOR,
     calculate_trait_likelihoods,
@@ -4621,6 +4622,11 @@ class DatabaseAnalyticsChartsMixin:
             if str(trait.get("name", "")).strip()
         }
         try:
+            global_trait_prediction_index().update_baseline_accumulator(
+                norm_signature=norm_signature,
+                trait_signature=trait_signature_hash,
+                chart_likelihoods=chart_likelihoods.values(),
+            )
             db.upsert_trait_baseline_snapshot(
                 norm_signature=norm_signature,
                 trait_signature=trait_signature_hash,
