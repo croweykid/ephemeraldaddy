@@ -3466,6 +3466,44 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
         ]
 
+    def _database_metrics_refresh_is_trait_rank_selection_only(
+        self,
+        *,
+        sections_to_refresh: set[str] | frozenset[str] | None,
+        force_full_refresh: bool,
+        changed_ids: set[int] | None,
+    ) -> bool:
+        """Return whether a selection change only needs Trait Rankings button sync."""
+        if sections_to_refresh is not None or force_full_refresh or changed_ids:
+            return False
+        if self._traits_distribution_display_mode() != "trait_rankings":
+            return False
+        return self._expanded_database_metric_sections() == ["traits_distribution"]
+
+    def _sync_trait_rank_selection_controls_for_selection_change(
+        self,
+        chart_ids: Iterable[int],
+    ) -> None:
+        """Keep Trait Rankings' cheap selection-dependent controls current."""
+        current_selection = tuple(sorted({int(chart_id) for chart_id in chart_ids}))
+        self._traits_distribution_latest_selected_chart_ids = current_selection
+        manual_rank_ids = tuple(
+            int(chart_id)
+            for chart_id in getattr(self, "_traits_distribution_manual_rank_chart_ids", ())
+        )
+        rank_selected_button = getattr(
+            self,
+            "traits_distribution_rank_selected_button",
+            None,
+        )
+        if isinstance(rank_selected_button, QPushButton):
+            has_current_selection = bool(current_selection)
+            rank_selected_button.setEnabled(has_current_selection or bool(manual_rank_ids))
+            rank_selected_button.setText(
+                "rank selected" if has_current_selection else "show database"
+            )
+        self._sync_traits_distribution_display_mode()
+
     def _should_use_incremental_metrics_refresh(self) -> bool:
         expanded_sections = self._expanded_database_metric_sections()
         return len(expanded_sections) >= 4
@@ -10886,6 +10924,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             similarities_scroll_value = similarities_scrollbar.value()
 
         chart_ids = self._selected_chart_ids()
+        if (
+            update_database_metrics
+            and self._database_metrics_refresh_is_trait_rank_selection_only(
+                sections_to_refresh=sections_to_refresh,
+                force_full_refresh=force_full_refresh,
+                changed_ids=changed_ids,
+            )
+        ):
+            self._sync_trait_rank_selection_controls_for_selection_change(chart_ids)
+            update_database_metrics = False
+            left_panel_scrollbar = None
+            left_panel_scroll_value = None
 
         labels = list(SENTIMENT_OPTIONS)
         negative_start = (
