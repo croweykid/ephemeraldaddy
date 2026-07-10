@@ -251,6 +251,12 @@ class StartupLoadingWidget(QWidget):
         self.setLayout(root_layout)
 
         foreground = QWidget(self)
+        foreground.setObjectName("startupLoadingForeground")
+        foreground.setAttribute(Qt.WA_TranslucentBackground, True)
+        foreground.setStyleSheet(
+            "QWidget#startupLoadingForeground { background: transparent; }"
+            "QWidget#startupLoadingForeground QLabel { background: transparent; }"
+        )
         layout = QVBoxLayout()
         layout.setContentsMargins(18, 16, 18, 16)
         layout.setSpacing(6)
