@@ -493,6 +493,7 @@ from ephemeraldaddy.gui.wikipedia_search import (
     parse_wikipedia_birth_data,
     resolve_wikipedia_page_options,
 )
+from ephemeraldaddy.gui.file_system_infographic import FileSystemInfographicDialog
 from ephemeraldaddy.gui.dev_tools import (
     BATCH_TAGGING_TERMINAL_DEBUG_DEFAULT,
     DISTINGUISHING_FACTORS_SCORING_DEBUG_DEFAULT,
@@ -2654,6 +2655,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_weight_norms: dict[str, Any] = {}
         self._size_checker_popup: SizeCheckerPopup | None = None
         self._metadata_migration_panel: MetadataMigrationPanel | None = None
+        self._file_system_infographic_dialog: FileSystemInfographicDialog | None = None
         self._metadata_migration_threads: list[QThread] = []
         self._dev_user_age_label: QLabel | None = None
         self._dev_age_distribution_canvas: FigureCanvas | None = None
@@ -22028,6 +22030,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         dev_tools_section = self._add_settings_collapsible_section(content_layout, "Developer Tools")
         dev_tools_section.addWidget(QLabel("Developer and maintenance utilities"))
 
+        file_system_infographic_button = QPushButton("Open File-System Infographic")
+        file_system_infographic_button.setToolTip(
+            "Open an animated, interactive dark-theme map explaining what the app folders and files do."
+        )
+        file_system_infographic_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        apply_button_cursor(file_system_infographic_button)
+        file_system_infographic_button.clicked.connect(self._open_file_system_infographic)
+        dev_tools_section.addWidget(file_system_infographic_button)
+
         size_checker_button = QPushButton("Toggle Size Checker")
         size_checker_button.clicked.connect(self._toggle_size_checker)
         dev_tools_section.addWidget(size_checker_button)
@@ -22760,7 +22771,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "Astro Twin cache",
             (
                 "Cleared cached Astro Twins rankings. "
-                "The next Astro Twins popout will recalculate on demand."
+                "The next Similar Charts popout will recalculate on demand."
                 if cleared_count
                 else "Astro Twin cache was already empty."
             ),
@@ -23492,6 +23503,25 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         main_window = self._owner_window()
         if isinstance(main_window, MainWindow):
             main_window._size_checker_popup = popup
+
+    def _open_file_system_infographic(self) -> None:
+        dialog = self._file_system_infographic_dialog
+        if dialog is not None:
+            try:
+                if dialog.isVisible():
+                    dialog.raise_()
+                    dialog.activateWindow()
+                    return
+            except RuntimeError:
+                dialog = None
+                self._file_system_infographic_dialog = None
+
+        if dialog is None:
+            dialog = FileSystemInfographicDialog(self)
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
+        self._file_system_infographic_dialog = dialog
 
     def _toggle_metadata_migration_panel(self) -> None:
         panel = self._metadata_migration_panel
