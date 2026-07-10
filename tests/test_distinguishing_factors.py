@@ -138,3 +138,37 @@ def test_distinguishing_metric_payload_persists_raw_weights(monkeypatch):
 
     assert payload["groups"]["demo"]["alpha"]["share"] == 0.25
     assert payload["groups"]["demo"]["alpha"]["raw"] == 25.0
+
+
+def test_weirdness_score_uses_distinguishing_factor_count_multiplier(monkeypatch):
+    from types import SimpleNamespace
+
+    from ephemeraldaddy.gui.features.charts import distinguishing_factors
+
+    metric_group = distinguishing_factors._MetricGroup(
+        "demo",
+        "demo share",
+        lambda chart: chart.values,
+        ("alpha", "beta"),
+    )
+    monkeypatch.setattr(distinguishing_factors, "_metric_groups", lambda _chart: (metric_group,))
+    monkeypatch.setattr(distinguishing_factors, "MIN_NORM_SAMPLE_SIZE", 5)
+    monkeypatch.setattr(distinguishing_factors, "WEIRDNESS_FACTOR_COUNT_WEIGHT", 0.10)
+
+    target = SimpleNamespace(values={"alpha": 80.0, "beta": 20.0})
+    payloads = [
+        {"groups": {"demo": {"alpha": {"share": share}, "beta": {"share": 1.0 - share}}}}
+        for share in (0.40, 0.41, 0.42, 0.43, 0.44)
+    ]
+
+    score, norm_count = distinguishing_factors.calculate_weirdness_score_from_metric_payloads(target, payloads)
+
+    assert norm_count == 5
+    assert score == 91.2
+
+
+def test_weirdness_scale_label_uses_interpretation_scale():
+    from ephemeraldaddy.gui.features.charts import distinguishing_factors
+
+    assert "standard weirdness" in distinguishing_factors.weirdness_scale_label(250.0)
+    assert "𝓁𝒾𝓁" in distinguishing_factors.weirdness_scale_label(325.0)

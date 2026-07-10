@@ -72,6 +72,35 @@ DATABASE_VIEW_ROW_INFO_DEFAULTS: dict[str, bool] = {
 }
 
 
+
+def _weirdness_norm_signature_for_rows(rows: list[tuple[Any, ...]]) -> str:
+    """Return a cheap validity token for weirdness scores derived from DB norms."""
+    norm_rows = [row for row in rows if len(row) <= 15 or not bool(row[15])]
+    payload = [
+        (
+            int(row[0]),
+            str(row[4] if len(row) > 4 else ""),
+            str(row[5] if len(row) > 5 else ""),
+            int(row[8] if len(row) > 8 and row[8] is not None else 0),
+            int(row[9] if len(row) > 9 and row[9] is not None else 0),
+            row[17] if len(row) > 17 else None,
+            row[18] if len(row) > 18 else None,
+            row[19] if len(row) > 19 else None,
+            row[20] if len(row) > 20 else None,
+            row[21] if len(row) > 21 else None,
+        )
+        for row in norm_rows
+    ]
+    return json.dumps(
+        {
+            "formula_version": _DISTINGUISHING_FORMULA_VERSION,
+            "norm_rows": sorted(payload),
+        },
+        default=str,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+
 def _settings_bool(value: object, fallback: bool) -> bool:
     if isinstance(value, bool):
         return value
@@ -1449,6 +1478,7 @@ from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
     set_enneagram_scoring_options as _set_enneagram_scoring_options,
 )
 from ephemeraldaddy.gui.features.charts.distinguishing_factors import (
+    DISTINGUISHING_FORMULA_VERSION as _DISTINGUISHING_FORMULA_VERSION,
     build_distinguishing_factors_html as _build_distinguishing_factors_html,
     calculate_weirdness_score_from_metric_payloads as _calculate_weirdness_score_from_metric_payloads,
     chart_essential_astro_signature as _chart_essential_astro_signature,
@@ -18743,16 +18773,34 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
 
     def _hydrate_missing_weirdness_scores_for_sort(self, rows: list[tuple[Any, ...]]) -> list[tuple[Any, ...]]:
-        """Return rows with missing weirdness scores calculated before Weirdness sorting."""
+        """Return rows with missing/stale weirdness metadata calculated before sorting.
+
+        Weirdness is expensive because it is a database-relative score: each chart's
+        score depends on the current norm set, not just that one chart. Store the
+        score with the formula version and a norm-set signature so repeat sorts use
+        metadata unless the database baseline actually changed.
+        """
         if not rows:
             return rows
-        missing_rows = [row for row in rows if len(row) > 31 and row[31] is None]
-        if not missing_rows:
+        norm_signature = _weirdness_norm_signature_for_rows(rows)
+
+        def row_needs_weirdness_refresh(row: tuple[Any, ...]) -> bool:
+            score = row[31] if len(row) > 31 else None
+            metadata = getattr(self, "_weirdness_sort_cache_metadata_by_id", {}).get(int(row[0]), {})
+            formula_version = metadata.get("formula_version")
+            stored_norm_signature = metadata.get("norm_signature", "")
+            return (
+                score is None
+                or formula_version != _DISTINGUISHING_FORMULA_VERSION
+                or str(stored_norm_signature or "") != norm_signature
+            )
+
+        if not any(row_needs_weirdness_refresh(row) for row in rows):
             return rows
         metric_payloads = self._prediction_norm_metric_payloads()
         hydrated_rows: list[tuple[Any, ...]] = []
         for row in rows:
-            if len(row) <= 31 or row[31] is not None:
+            if not row_needs_weirdness_refresh(row):
                 hydrated_rows.append(row)
                 continue
             chart_id = int(row[0])
@@ -18771,12 +18819,21 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 hydrated_rows.append(row)
                 continue
             try:
-                update_chart_weirdness_score(chart_id, weirdness_score)
+                update_chart_weirdness_score(
+                    chart_id,
+                    weirdness_score,
+                    formula_version=_DISTINGUISHING_FORMULA_VERSION,
+                    norm_signature=norm_signature,
+                )
                 chart.weirdness_score = weirdness_score
             except Exception:
                 pass
             mutable_row = list(row)
             mutable_row[31] = float(weirdness_score)
+            self._weirdness_sort_cache_metadata_by_id[chart_id] = {
+                "formula_version": _DISTINGUISHING_FORMULA_VERSION,
+                "norm_signature": norm_signature,
+            }
             hydrated_rows.append(tuple(mutable_row))
         return hydrated_rows
     def _refresh_charts(
@@ -18949,6 +19006,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.list_widget.clear()
         visible_chart_ids: set[int] = set()
 
+        self._weirdness_sort_cache_metadata_by_id = {
+            int(row[0]): {
+                "formula_version": int(row[32]) if len(row) > 32 and row[32] is not None else None,
+                "norm_signature": str(row[33] or "") if len(row) > 33 else "",
+            }
+            for row in self._chart_rows
+            if row and len(row) > 0
+        }
         rows = [
             normalized
             for row in self._chart_rows
@@ -36258,7 +36323,13 @@ class MainWindow(QMainWindow):
         chart_id = getattr(chart, "id", None)
         if chart_id is not None and weirdness_score is not None:
             try:
-                if update_chart_weirdness_score(int(chart_id), weirdness_score):
+                norm_signature = _weirdness_norm_signature_for_rows(self._prediction_norm_rows())
+                if update_chart_weirdness_score(
+                    int(chart_id),
+                    weirdness_score,
+                    formula_version=_DISTINGUISHING_FORMULA_VERSION,
+                    norm_signature=norm_signature,
+                ):
                     chart.weirdness_score = weirdness_score
             except Exception:
                 pass
