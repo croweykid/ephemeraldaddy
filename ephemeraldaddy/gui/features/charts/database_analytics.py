@@ -4387,10 +4387,11 @@ class DatabaseAnalyticsChartsMixin:
                 self._traits_distribution_rank_trait_name = ""
                 return None
             combo.setEnabled(True)
+            combo.addItem("select a trait!", "")
             for trait in active_traits:
                 name = str(trait.get("name", "")).strip()
                 combo.addItem(name, name)
-            selected_index = combo.findData(current_name)
+            selected_index = combo.findData(current_name) if current_name else 0
             if selected_index < 0:
                 selected_index = 0
             combo.setCurrentIndex(selected_index)
@@ -4398,6 +4399,7 @@ class DatabaseAnalyticsChartsMixin:
             if isinstance(selected_name, str) and selected_name:
                 self._traits_distribution_rank_trait_name = selected_name
                 return selected_name
+            self._traits_distribution_rank_trait_name = ""
             return None
         finally:
             combo.blockSignals(False)
@@ -4477,7 +4479,10 @@ class DatabaseAnalyticsChartsMixin:
         parsed_percent: float | None = None,
     ) -> str:
         if not selected_trait_name:
-            return "<span style='color:#9a9a9a;'>No active trait selected for top-chart ranking.</span>"
+            return (
+                "<span style='color:#9a9a9a;'>Select a trait from the dropdown above "
+                "to rank matching charts.</span>"
+            )
         safe_trait = html.escape(selected_trait_name)
         safe_scope = html.escape(scope_label)
         if not rankings:
@@ -5175,12 +5180,43 @@ class DatabaseAnalyticsChartsMixin:
         trait_items = list_traits(active_only=True)
         trait_signature = self._traits_distribution_signature(trait_items)
         selected_trait_name = self._sync_traits_distribution_rank_combo(trait_items)
+        rankings_mode = self._traits_distribution_display_mode() == "trait_rankings"
+        if rankings_mode and not selected_trait_name:
+            self._traits_distribution_latest_selected_chart_ids = tuple(
+                sorted({int(chart_id) for chart_id in chart_ids})
+            ) if loaded_charts > 0 else ()
+            self._traits_distribution_rank_context = {
+                "chart_ids": (),
+                "trait_signature": trait_signature,
+                "selected_trait_name": "",
+                "database_values": {},
+                "scope_label": "the database",
+                "cache_warmed": False,
+                "parsed_percent": None,
+            }
+            self._traits_distribution_current_ranked_chart_ids = set()
+            rank_selected_button = getattr(self, "traits_distribution_rank_selected_button", None)
+            if isinstance(rank_selected_button, QPushButton):
+                has_current_selection = bool(getattr(self, "_traits_distribution_latest_selected_chart_ids", ()))
+                rank_selected_button.setEnabled(has_current_selection)
+                rank_selected_button.setText("rank selected" if has_current_selection else "show database")
+            rank_label = getattr(self, "traits_distribution_rank_label", None)
+            if isinstance(rank_label, QLabel):
+                rank_label.setText(
+                    self._render_traits_distribution_rankings_html(
+                        None,
+                        [],
+                        scope_label="the database",
+                        cache_warmed=False,
+                    )
+                )
+            self._sync_traits_distribution_display_mode()
+            return
         database_analytics = self._collect_traits_distribution_analytics(
             database_chart_ids,
             trait_items=trait_items,
             trait_signature=trait_signature,
         )
-        rankings_mode = self._traits_distribution_display_mode() == "trait_rankings"
         self._traits_distribution_latest_selected_chart_ids = tuple(
             sorted({int(chart_id) for chart_id in chart_ids})
         ) if loaded_charts > 0 else ()
