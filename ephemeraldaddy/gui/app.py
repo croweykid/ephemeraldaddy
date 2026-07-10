@@ -17675,6 +17675,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         *,
         refresh_metrics: bool = True,
         sync_persistent_selection: bool = True,
+        allow_trait_rank_selection_shortcut: bool = True,
     ) -> None:
         self._cancel_inline_chart_rename()
         active_left_scrollbar = None
@@ -17724,7 +17725,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             and self._active_left_panel == "similarities"
         )
         if (
-            update_database_metrics
+            allow_trait_rank_selection_shortcut
+            and update_database_metrics
             and self._database_metrics_refresh_is_trait_rank_selection_only(
                 sections_to_refresh=None,
                 force_full_refresh=False,
@@ -19570,7 +19572,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             selected_ids=set(self._selected_chart_ids()),
             refresh_metrics=False,
         )
-        self._on_selection_changed(sync_persistent_selection=False)
+        self._on_selection_changed(
+            sync_persistent_selection=False,
+            allow_trait_rank_selection_shortcut=False,
+        )
 
     def _on_show_hidden_charts_toggled(self, checked: bool) -> None:
         self._show_hidden_charts = bool(checked)
@@ -19584,7 +19589,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             selected_ids=set(self._selected_chart_ids()),
             refresh_metrics=False,
         )
-        self._on_selection_changed(sync_persistent_selection=False)
+        self._on_selection_changed(
+            sync_persistent_selection=False,
+            allow_trait_rank_selection_shortcut=False,
+        )
 
     def _load_hidden_chart_uids_from_settings(self) -> set[str]:
         raw_value = self._settings.value(SETTINGS_KEY_HIDDEN_CHART_UIDS, "[]")
@@ -19692,17 +19700,28 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             refresh_rankings(normalized_ids)
         remaining_selection = set(self._selected_chart_ids()) - normalized_ids
         self._populate_list(selected_ids=remaining_selection, refresh_metrics=False)
-        self._on_selection_changed(sync_persistent_selection=False)
+        self._on_selection_changed(
+            sync_persistent_selection=False,
+            allow_trait_rank_selection_shortcut=False,
+        )
 
     def _unhide_selected_charts(self, chart_ids: list[int]) -> None:
         normalized_ids = {int(chart_id) for chart_id in chart_ids}
         if not normalized_ids:
             return
         self._hidden_chart_ids.difference_update(normalized_ids)
-        self._hidden_chart_uids.difference_update(self._chart_uids_for_ids(normalized_ids))
+        self._hidden_chart_uids.difference_update(
+            self._chart_uids_for_ids(normalized_ids)
+        )
         self._save_hidden_chart_uids_to_settings()
-        self._populate_list(selected_ids=set(self._selected_chart_ids()) | normalized_ids, refresh_metrics=False)
-        self._on_selection_changed(sync_persistent_selection=False)
+        self._populate_list(
+            selected_ids=set(self._selected_chart_ids()) | normalized_ids,
+            refresh_metrics=False,
+        )
+        self._on_selection_changed(
+            sync_persistent_selection=False,
+            allow_trait_rank_selection_shortcut=False,
+        )
 
     def _chart_matches_filters(self, chart_id: int) -> bool:
         incomplete_birthdate_state = self.incomplete_birthdate_checkbox.mode()
@@ -33280,7 +33299,10 @@ class MainWindow(QMainWindow):
             if int(changed_chart_id) not in manage_dialog._hidden_chart_ids:
                 selected_ids.add(int(changed_chart_id))
             manage_dialog._populate_list(selected_ids=selected_ids, refresh_metrics=False)
-            manage_dialog._on_selection_changed(sync_persistent_selection=False)
+            manage_dialog._on_selection_changed(
+                sync_persistent_selection=False,
+                allow_trait_rank_selection_shortcut=False,
+            )
 
     def _show_death_chart_popout(self) -> None:
         from ephemeraldaddy.gui.features.charts.death_chart_window import show_death_chart_window
