@@ -18786,8 +18786,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         def row_needs_weirdness_refresh(row: tuple[Any, ...]) -> bool:
             score = row[31] if len(row) > 31 else None
-            formula_version = row[32] if len(row) > 32 else None
-            stored_norm_signature = row[33] if len(row) > 33 else ""
+            try:
+                metadata = getattr(self, "_weirdness_cache_metadata_by_id", {}) or {}
+                formula_version, stored_norm_signature = metadata.get(int(row[0]), (None, ""))
+            except Exception:
+                formula_version, stored_norm_signature = (None, "")
             return (
                 score is None
                 or formula_version != _DISTINGUISHING_FORMULA_VERSION
@@ -18827,13 +18830,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 chart.weirdness_score = weirdness_score
             except Exception:
                 pass
+            metadata = getattr(self, "_weirdness_cache_metadata_by_id", None)
+            if metadata is None:
+                metadata = {}
+                self._weirdness_cache_metadata_by_id = metadata
+            metadata[chart_id] = (_DISTINGUISHING_FORMULA_VERSION, norm_signature)
             mutable_row = list(row)
-            if len(mutable_row) < 34:
-                mutable_row.extend([None] * (34 - len(mutable_row)))
+            if len(mutable_row) < 32:
+                mutable_row.extend([None] * (32 - len(mutable_row)))
             mutable_row[31] = float(weirdness_score)
-            mutable_row[32] = _DISTINGUISHING_FORMULA_VERSION
-            mutable_row[33] = norm_signature
-            hydrated_rows.append(tuple(mutable_row))
+            hydrated_rows.append(tuple(mutable_row[:32]))
         return hydrated_rows
     def _refresh_charts(
         self,
@@ -18902,8 +18908,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             defer_metrics_refresh=defer_metrics_refresh,
         )
 
-    @staticmethod
     def _normalize_chart_row(
+        self,
         row: tuple | list | None,
     ) -> tuple[
         int,
@@ -18943,6 +18949,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 chart_uid = None
             except (TypeError, ValueError):
                 weirdness_score = None
+        try:
+            chart_id_for_metadata = int(padded[0])
+            metadata = getattr(self, "_weirdness_cache_metadata_by_id", None)
+            if metadata is None:
+                metadata = {}
+                self._weirdness_cache_metadata_by_id = metadata
+            metadata[chart_id_for_metadata] = (
+                int(padded[32]) if padded[32] is not None else None,
+                str(padded[33] or ""),
+            )
+        except Exception:
+            pass
         return (
             int(padded[0]),
             padded[1],
@@ -18980,8 +18998,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             padded[29],
             chart_uid,
             float(weirdness_score) if weirdness_score is not None else None,
-            int(padded[32]) if padded[32] is not None else None,
-            str(padded[33] or ""),
         )
 
     def _populate_list(
@@ -36156,6 +36172,35 @@ class MainWindow(QMainWindow):
             float(weirdness_score) if weirdness_score is not None else None,
             int(padded[32]) if padded[32] is not None else None,
             str(padded[33] or ""),
+        )
+
+    @staticmethod
+    def _weirdness_norm_signature(rows: list[tuple[Any, ...]]) -> str:
+        """Return a cheap validity token for weirdness scores derived from DB norms."""
+        norm_rows = [row for row in rows if len(row) <= 15 or not bool(row[15])]
+        payload = [
+            (
+                int(row[0]),
+                str(row[4] if len(row) > 4 else ""),
+                str(row[5] if len(row) > 5 else ""),
+                int(row[8] if len(row) > 8 and row[8] is not None else 0),
+                int(row[9] if len(row) > 9 and row[9] is not None else 0),
+                row[17] if len(row) > 17 else None,
+                row[18] if len(row) > 18 else None,
+                row[19] if len(row) > 19 else None,
+                row[20] if len(row) > 20 else None,
+                row[21] if len(row) > 21 else None,
+            )
+            for row in norm_rows
+        ]
+        return json.dumps(
+            {
+                "formula_version": _DISTINGUISHING_FORMULA_VERSION,
+                "norm_rows": sorted(payload),
+            },
+            default=str,
+            sort_keys=True,
+            separators=(",", ":"),
         )
 
     def _prediction_norm_rows(self) -> list[Any]:
