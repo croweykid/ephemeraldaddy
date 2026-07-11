@@ -282,6 +282,7 @@ def test_predictions_sections_show_calculate_prompt_instead_of_auto_calculating(
     dnd_source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/dnd_predictions.py").read_text()
     stack_source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/cv_right_panel_stack.py").read_text()
     controller_source = (REPO_ROOT / "ephemeraldaddy/gui/features/controllers/chart_right_panel.py").read_text()
+    app_source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
 
     assert "No prior data. Calculate (can take awhile)?" in enneagram_source
     assert "No prior data. Calculate (can take awhile)?" in dnd_source
@@ -309,6 +310,8 @@ def test_predictions_sections_show_calculate_prompt_instead_of_auto_calculating(
     assert "def _dnd_alignment_cache_key" in dnd_source
     assert 'cached.get("key") == cache_key' in dnd_source
     assert "_prediction_norms_render_token" in dnd_source
+    assert "def _stable_traits_metadata_hash" in app_source
+    assert "self._stable_traits_metadata_hash(payload)" in app_source
 
 
 def test_predictions_timeout_does_not_terminate_qthread_from_gui_thread():

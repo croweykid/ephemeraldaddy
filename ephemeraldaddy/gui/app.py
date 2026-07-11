@@ -36405,6 +36405,14 @@ class MainWindow(QMainWindow):
             "retcon_minute": _get(21),
         }
 
+    @staticmethod
+    def _stable_traits_metadata_hash(value: Any) -> str:
+        try:
+            payload = json.dumps(value, sort_keys=True, default=str, separators=(",", ":"))
+        except TypeError:
+            payload = repr(value)
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
     def _prediction_norms_render_token(self) -> str:
         row_tokens: list[tuple[int, str]] = []
         visible_chart_ids: set[int] = set()
