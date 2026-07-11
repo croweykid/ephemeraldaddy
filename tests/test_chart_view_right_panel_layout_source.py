@@ -281,6 +281,8 @@ def test_predictions_sections_show_calculate_prompt_instead_of_auto_calculating(
     enneagram_source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/enneagram_predictions.py").read_text()
     dnd_source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/dnd_predictions.py").read_text()
     stack_source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/cv_right_panel_stack.py").read_text()
+    controller_source = (REPO_ROOT / "ephemeraldaddy/gui/features/controllers/chart_right_panel.py").read_text()
+    app_source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
 
     assert "No prior data. Calculate (can take awhile)?" in enneagram_source
     assert "No prior data. Calculate (can take awhile)?" in dnd_source
@@ -292,6 +294,11 @@ def test_predictions_sections_show_calculate_prompt_instead_of_auto_calculating(
     assert "_start_background_prediction_render(owner, chart, render_token)" not in active_branch
     assert "owner._render_enneagram_predictions(chart)" in active_branch
     assert "owner._render_dndification_predictions(chart)" in active_branch
+    assert "def _predictions_panel_has_rendered_content" in stack_source
+    assert "No traits uploaded. Add traits in Settings > Traits." in stack_source
+    assert "and _predictions_panel_has_rendered_content(owner)" in stack_source
+    assert "and _predictions_panel_has_rendered_content(self._owner)" in controller_source
+    assert "render_traits(chart)" in stack_source
     assert "sections: set[str] | None = None" in stack_source
     assert "self._sections = set(sections or" in stack_source
     assert "if \"dnd_statblock\" in self._sections" in stack_source
@@ -303,6 +310,8 @@ def test_predictions_sections_show_calculate_prompt_instead_of_auto_calculating(
     assert "def _dnd_alignment_cache_key" in dnd_source
     assert 'cached.get("key") == cache_key' in dnd_source
     assert "_prediction_norms_render_token" in dnd_source
+    assert "def _stable_traits_metadata_hash" in app_source
+    assert "self._stable_traits_metadata_hash(payload)" in app_source
 
 
 def test_predictions_timeout_does_not_terminate_qthread_from_gui_thread():
@@ -326,6 +335,11 @@ def test_traits_predictions_show_manual_calculate_prompt_without_autostarting_wo
     no_cache_branch = source[source.index("owner._traits_prediction_pending_chart = chart"):]
     assert "showing manual calculate prompt" in no_cache_branch
     assert "_start_traits_prediction_refresh_worker(owner, chart, traits" not in no_cache_branch
+    assert '"positions": getattr(chart, "positions", None)' in source
+    assert '"aspects": getattr(chart, "aspects", None)' in source
+    assert 'if uses_houses:' in source
+    assert 'scoring_payload["houses"] = getattr(chart, "houses", None)' in source
+    assert '"rectification_range_used": bool(getattr(chart, "rectification_range_used", False))' in source
 
 
 def test_prediction_calculate_prompts_expand_and_center_contents():
