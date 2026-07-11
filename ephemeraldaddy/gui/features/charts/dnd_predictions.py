@@ -8,7 +8,7 @@ import math
 import sys
 import time
 from datetime import datetime, timezone
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLabel, QPushButton, QSizePolicy, QVBoxLayout, QWidget
@@ -914,7 +914,9 @@ def _dnd_alignment_score_parts(owner: Any, chart: Any, *, allow_stale: bool = Fa
             except Exception:
                 pass
     if isinstance(cached, dict) and isinstance(cached.get("parts"), dict):
-        if cached.get("key") == cache_key or allow_stale:
+        cached_key = cached.get("key")
+        same_chart_token = _cache_key_chart_token(cached_key) == _cache_key_chart_token(cache_key)
+        if cached_key == cache_key or (allow_stale and same_chart_token):
             return cached["parts"]
     trait_items = _dnd_alignment_trait_items()
     if chart is None or not trait_items:
@@ -1365,6 +1367,7 @@ class DndPredictionPanelAdapter:
         dnd_stat_keys: tuple[str, ...] = DND_STAT_KEYS,
         norm_charts_provider: Callable[[], Any] | None = None,
         norm_charts_token_provider: Callable[[], Any] | None = None,
+        db_norm_averages_provider: Callable[[], Mapping[str, float]] | None = None,
         clear_layout_widgets: Callable[[Any], None] | None = None,
         calculate_callback: Callable[[Any, str], None] | None = None,
         reset_canvas_callback: Callable[[str], None] | None = None,
@@ -1383,6 +1386,7 @@ class DndPredictionPanelAdapter:
         self.dnd_stat_keys = dnd_stat_keys
         self.norm_charts_provider = norm_charts_provider
         self.norm_charts_token_provider = norm_charts_token_provider
+        self.db_norm_averages_provider = db_norm_averages_provider
         self.alignment_debug_label = getattr(owner, "dnd_prediction_alignment_debug_label", None)
         self.clear_layout_widgets = clear_layout_widgets
         self.calculate_callback = calculate_callback
@@ -1617,13 +1621,29 @@ class DndPredictionPanelAdapter:
         cache_key = self._statblock_cache_key(norm_charts, chart)
         cached = self._restore_statblock_cache(chart)
         if isinstance(cached, dict) and cached.get("statblock") is not None:
-            if cached.get("key") == cache_key or cached.get("key_fingerprint") == _cache_key_fingerprint(cache_key) or allow_stale:
+            cached_key = cached.get("key")
+            same_chart_token = _cache_key_chart_token(cached_key) == _cache_key_chart_token(cache_key)
+            if (
+                cached_key == cache_key
+                or cached.get("key_fingerprint") == _cache_key_fingerprint(cache_key)
+                or (allow_stale and same_chart_token)
+            ):
                 try:
                     setattr(cached["statblock"], "_db_norm_averages", dict(cached.get("db_norm_averages") or {}))
                 except Exception:
                     pass
                 return cached["statblock"]
-        db_norm_averages = _calculate_db_norm_stat_averages(norm_charts)
+        db_norm_averages: dict[str, float] = {}
+        if callable(self.db_norm_averages_provider):
+            try:
+                db_norm_averages = {
+                    str(key): float(value)
+                    for key, value in dict(self.db_norm_averages_provider() or {}).items()
+                }
+            except Exception:
+                db_norm_averages = {}
+        if not db_norm_averages:
+            db_norm_averages = _calculate_db_norm_stat_averages(norm_charts)
         statblock = score_dnd_statblock(chart, norm_charts=norm_charts, db_norm_averages=db_norm_averages)
         try:
             setattr(statblock, "_db_norm_averages", dict(db_norm_averages))

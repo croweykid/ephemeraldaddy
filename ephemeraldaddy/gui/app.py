@@ -572,6 +572,13 @@ from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import (
     stop_background_prediction_render as _stop_background_prediction_render,
     sync_chart_right_panel_placeholder_state,
 )
+from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import (
+    dnd_stat_snapshot_averages,
+    load_prediction_norms_snapshot,
+    prediction_norms_snapshot_token,
+    refresh_prediction_norms_snapshot,
+    trait_snapshot_averages,
+)
 from ephemeraldaddy.gui.features.charts.right_panel_state import ChartRightPanelState
 from ephemeraldaddy.gui.features.charts.personal_transit_popout import (
     PersonalTransitLocationError,
@@ -36463,6 +36470,9 @@ class MainWindow(QMainWindow):
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
     def _prediction_norms_render_token(self) -> str:
+        snapshot_token = prediction_norms_snapshot_token(self)
+        if snapshot_token != "prediction_norm_snapshot:missing":
+            return f"prediction_norms:snapshot:{snapshot_token}"
         row_tokens: list[tuple[int, str]] = []
         visible_chart_ids: set[int] = set()
         for row in self._prediction_norm_rows():
@@ -36487,6 +36497,28 @@ class MainWindow(QMainWindow):
             "prediction_norms:"
             f"{tuple(sorted(row_tokens))}:{tuple(pending_ids)}:{tuple(dirty_ids)}"
         )
+
+    def _prediction_norm_snapshot(self) -> dict[str, Any]:
+        cached = getattr(self, "_prediction_norms_snapshot_cache", None)
+        if isinstance(cached, dict) and cached.get("version"):
+            return cached
+        snapshot = load_prediction_norms_snapshot()
+        self._prediction_norms_snapshot_cache = snapshot
+        return snapshot
+
+    def _prediction_norm_snapshot_trait_averages(self, traits: list[dict[str, Any]]) -> dict[str, float]:
+        return trait_snapshot_averages(traits, self._prediction_norm_snapshot())
+
+    def _prediction_norm_snapshot_dnd_stat_averages(self) -> dict[str, float]:
+        return dnd_stat_snapshot_averages(self._prediction_norm_snapshot())
+
+    def _prediction_norm_snapshot_token(self) -> str:
+        return prediction_norms_snapshot_token(self)
+
+    def _refresh_prediction_norms_snapshot(self) -> dict[str, Any]:
+        snapshot = refresh_prediction_norms_snapshot(self)
+        self._prediction_norms_snapshot_cache = snapshot
+        return snapshot
 
     def _prediction_norm_charts(self) -> list[Chart]:
         cache_token = self._prediction_norms_render_token()
@@ -36768,8 +36800,9 @@ class MainWindow(QMainWindow):
             chart_theme_colors=CHART_THEME_COLORS,
             apply_standard_bar_axes=self._apply_standard_ncv_bar_chart_axes,
             is_placeholder_chart=self._is_placeholder_chart,
-            norm_charts_provider=self._prediction_norm_charts,
+            norm_charts_provider=lambda: [] if self._prediction_norm_snapshot_dnd_stat_averages() else self._prediction_norm_charts(),
             norm_charts_token_provider=self._prediction_norms_render_token,
+            db_norm_averages_provider=self._prediction_norm_snapshot_dnd_stat_averages,
             clear_layout_widgets=self._clear_layout_widgets,
             calculate_callback=self._calculate_predictions_on_demand,
             reset_canvas_callback=lambda attr: setattr(self, attr, None),

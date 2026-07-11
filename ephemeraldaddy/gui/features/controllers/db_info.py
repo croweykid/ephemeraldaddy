@@ -33,6 +33,10 @@ from ephemeraldaddy.gui.style import (
     apply_shared_dropdown_style,
     similarity_gradient_rgb_for_range,
 )
+from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import (
+    prediction_norms_snapshot_path,
+    refresh_prediction_norms_snapshot,
+)
 
 _DB_INFO_CACHE_KEY = "settings/database_info/cache_v3"
 _DB_INFO_EXPORT_EXTENSION_KEY = "settings/database_info/export_extension"
@@ -281,6 +285,34 @@ def _export_database_info(owner: Any) -> None:
         handle.write(output_text)
 
 
+def _refresh_prediction_norms(owner: Any) -> None:
+    status_label = getattr(owner, "_settings_prediction_norms_label", None)
+    button = getattr(owner, "_settings_refresh_prediction_norms_button", None)
+    if button is not None:
+        button.setEnabled(False)
+    if status_label is not None:
+        status_label.setText("Refreshing Predictions norms… this can take a while for large databases.")
+    try:
+        snapshot = refresh_prediction_norms_snapshot(owner)
+        if hasattr(owner, "_prediction_norms_snapshot_cache"):
+            owner._prediction_norms_snapshot_cache = snapshot
+        chart_count = int(snapshot.get("chart_count", 0) or 0)
+        trait_count = len(snapshot.get("trait_baselines", {}) or {})
+        status = (
+            f"Predictions norms refreshed for {chart_count} charts and {trait_count} traits. "
+            f"Saved to {html.escape(str(prediction_norms_snapshot_path()))}."
+        )
+        if status_label is not None:
+            status_label.setText(status)
+    except Exception as exc:
+        if status_label is not None:
+            status_label.setText(f"Predictions norms refresh failed: {html.escape(str(exc))}")
+        raise
+    finally:
+        if button is not None:
+            button.setEnabled(True)
+
+
 def refresh_database_info(owner: Any, *, force_recompute: bool = False) -> None:
     output_label = getattr(owner, "_settings_db_info_label", None)
     if output_label is None:
@@ -507,6 +539,12 @@ def add_database_info_settings_section(owner: Any, content_layout) -> None:
     )
     refresh_button.clicked.connect(lambda _checked=False: refresh_database_info(owner, force_recompute=True))
     controls_row.addWidget(refresh_button, 0, Qt.AlignLeft)
+    norms_button = QPushButton("Refresh Predictions Norms")
+    norms_button.setToolTip(
+        "Rebuild the shared static Predictions norm snapshot used by Chart View Traits, D&D Alignment, and D&D Statblocks."
+    )
+    norms_button.clicked.connect(lambda _checked=False: _refresh_prediction_norms(owner))
+    controls_row.addWidget(norms_button, 0, Qt.AlignLeft)
     controls_row.addStretch(1)
     section_layout.addLayout(controls_row)
 
@@ -517,6 +555,12 @@ def add_database_info_settings_section(owner: Any, content_layout) -> None:
 
     owner._settings_db_info_collection_combo = collection_combo
     owner._settings_db_info_export_button = export_button
+    owner._settings_refresh_prediction_norms_button = norms_button
+    owner._settings_prediction_norms_label = QLabel(
+        f"Predictions norms snapshot: {html.escape(str(prediction_norms_snapshot_path()))}"
+    )
+    owner._settings_prediction_norms_label.setWordWrap(True)
+    section_layout.addWidget(owner._settings_prediction_norms_label)
     owner._settings_db_info_label = QLabel("No database info computed yet.")
     owner._settings_db_info_label.setWordWrap(True)
     owner._settings_db_info_label.setTextFormat(Qt.RichText)
