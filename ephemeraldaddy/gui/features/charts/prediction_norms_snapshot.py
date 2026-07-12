@@ -125,11 +125,13 @@ def dnd_stat_snapshot_averages(snapshot: Mapping[str, Any] | None = None) -> dic
         return {}
     averages: dict[str, float] = {}
     for key in DND_STAT_KEYS:
+        if key not in rows:
+            return {}
         try:
-            averages[key] = float(rows.get(key, 0.0))
+            averages[key] = float(rows[key])
         except (TypeError, ValueError):
-            continue
-    return averages
+            return {}
+    return averages if len(averages) == len(DND_STAT_KEYS) else {}
 
 
 def _owner_chart_ids(owner: Any) -> list[int]:

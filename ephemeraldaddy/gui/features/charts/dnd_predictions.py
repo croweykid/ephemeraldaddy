@@ -915,8 +915,7 @@ def _dnd_alignment_score_parts(owner: Any, chart: Any, *, allow_stale: bool = Fa
                 pass
     if isinstance(cached, dict) and isinstance(cached.get("parts"), dict):
         cached_key = cached.get("key")
-        same_chart_token = _cache_key_chart_token(cached_key) == _cache_key_chart_token(cache_key)
-        if cached_key == cache_key or (allow_stale and same_chart_token):
+        if cached_key == cache_key:
             return cached["parts"]
     trait_items = _dnd_alignment_trait_items()
     if chart is None or not trait_items:
@@ -1622,11 +1621,9 @@ class DndPredictionPanelAdapter:
         cached = self._restore_statblock_cache(chart)
         if isinstance(cached, dict) and cached.get("statblock") is not None:
             cached_key = cached.get("key")
-            same_chart_token = _cache_key_chart_token(cached_key) == _cache_key_chart_token(cache_key)
             if (
                 cached_key == cache_key
                 or cached.get("key_fingerprint") == _cache_key_fingerprint(cache_key)
-                or (allow_stale and same_chart_token)
             ):
                 try:
                     setattr(cached["statblock"], "_db_norm_averages", dict(cached.get("db_norm_averages") or {}))

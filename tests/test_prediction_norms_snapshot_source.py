@@ -1,5 +1,9 @@
 from pathlib import Path
 
+from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import (
+    dnd_stat_snapshot_averages,
+)
+
 ROOT = Path(__file__).resolve().parents[1]
 APP_SOURCE = (ROOT / "ephemeraldaddy" / "gui" / "app.py").read_text(encoding="utf-8")
 DND_SOURCE = (ROOT / "ephemeraldaddy" / "gui" / "features" / "charts" / "dnd_predictions.py").read_text(encoding="utf-8")
@@ -27,7 +31,36 @@ def test_dnd_statblock_uses_shared_snapshot_averages_before_norm_charts():
     score_method = DND_SOURCE.split("def _score_statblock", 1)[1].split("def draw", 1)[0]
     assert "self.db_norm_averages_provider" in score_method
     assert score_method.index("self.db_norm_averages_provider") < score_method.index("_calculate_db_norm_stat_averages(norm_charts)")
-    assert "or (allow_stale and same_chart_token)" in score_method
+    assert "or (allow_stale and same_chart_token)" not in score_method
+
+
+def test_empty_dnd_stat_snapshot_does_not_fabricate_zero_norms():
+    assert dnd_stat_snapshot_averages({"version": 1, "dnd_stat_raw_averages": {}}) == {}
+    assert dnd_stat_snapshot_averages({"version": 1}) == {}
+
+
+def test_partial_dnd_stat_snapshot_is_not_treated_as_complete_norms():
+    assert dnd_stat_snapshot_averages({"version": 1, "dnd_stat_raw_averages": {"STR": 1.0}}) == {}
+    assert dnd_stat_snapshot_averages(
+        {
+            "version": 1,
+            "dnd_stat_raw_averages": {
+                "STR": 1.0,
+                "DEX": 2.0,
+                "CON": 3.0,
+                "INT": 4.0,
+                "WIS": 5.0,
+                "CHA": 6.0,
+            },
+        }
+    ) == {
+        "STR": 1.0,
+        "DEX": 2.0,
+        "CON": 3.0,
+        "INT": 4.0,
+        "WIS": 5.0,
+        "CHA": 6.0,
+    }
 
 
 def test_app_adapter_avoids_loading_norm_charts_when_snapshot_has_dnd_stat_averages():
