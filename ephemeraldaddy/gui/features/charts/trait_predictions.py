@@ -1068,6 +1068,27 @@ def _database_trait_averages(
     force_refresh_stale: bool = False,
 ) -> dict[str, float]:
     _predictions_debug(owner, "Trait DB averages requested traits=%s", len(traits))
+    if not force_refresh_stale:
+        snapshot_provider = getattr(owner, "_prediction_norm_snapshot_trait_averages", None)
+        if callable(snapshot_provider):
+            try:
+                snapshot_averages = snapshot_provider(traits)
+            except Exception as exc:
+                logger.warning("Traits panel could not read shared Predictions norms snapshot: %s", exc, exc_info=True)
+                snapshot_averages = {}
+            if isinstance(snapshot_averages, dict):
+                requested_names = {
+                    str(trait.get("name", "") or "").strip()
+                    for trait in traits
+                    if str(trait.get("name", "") or "").strip()
+                }
+                if requested_names and requested_names.issubset(set(snapshot_averages)):
+                    _predictions_debug(
+                        owner,
+                        "Trait DB averages served from shared Predictions snapshot traits=%s",
+                        len(requested_names),
+                    )
+                    return {name: float(snapshot_averages[name]) for name in requested_names}
     chart_ids = _database_chart_ids(owner)
     chart_uids = _database_chart_uids(owner)
     current_norm_state = _database_norm_state(owner)
