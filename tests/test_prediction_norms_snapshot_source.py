@@ -19,6 +19,14 @@ def test_predictions_norm_snapshot_module_defines_shared_static_payload():
     assert '"dnd_stat_raw_averages"' in SNAPSHOT_SOURCE
 
 
+def test_predictions_norm_snapshot_refresh_includes_dnd_alignment_traits():
+    refresh_method = SNAPSHOT_SOURCE.split("def refresh_prediction_norms_snapshot", 1)[1]
+    assert "_dnd_alignment_trait_items" in refresh_method
+    assert '("dnd_alignment", dnd_alignment_traits)' in refresh_method
+    assert '"source": source' in refresh_method
+    assert '"dnd_alignment_trait_keys": [str(trait.get("name", "") or "") for trait in dnd_alignment_traits]' in refresh_method
+
+
 def test_chart_view_traits_prefer_shared_prediction_norm_snapshot():
     method = TRAIT_SOURCE.split("def _database_trait_averages", 1)[1].split("chart_ids = _database_chart_ids", 1)[0]
     assert '_prediction_norm_snapshot_trait_averages' in method

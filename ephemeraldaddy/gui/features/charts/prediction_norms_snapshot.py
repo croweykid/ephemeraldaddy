@@ -172,19 +172,33 @@ def refresh_prediction_norms_snapshot(owner: Any) -> dict[str, Any]:
     """Rebuild the complete shared Predictions norm snapshot on explicit request."""
     charts = _load_norm_charts(owner)
     traits = list_traits(active_only=True)
+    try:
+        from ephemeraldaddy.gui.features.charts.dnd_predictions import _dnd_alignment_trait_items
+
+        dnd_alignment_traits = _dnd_alignment_trait_items()
+    except Exception:
+        logger.exception("Could not include D&D alignment traits in Predictions norms snapshot.")
+        dnd_alignment_traits = []
 
     trait_baselines: dict[str, dict[str, Any]] = {}
-    if traits:
+    trait_groups = (
+        ("custom_trait", traits),
+        ("dnd_alignment", dnd_alignment_traits),
+    )
+    for source, group_traits in trait_groups:
+        if not group_traits:
+            continue
         from ephemeraldaddy.gui.features.charts.trait_predictions import _database_trait_averages
 
-        averages = _database_trait_averages(owner, traits, force_refresh_stale=True)
-        for trait in traits:
+        averages = _database_trait_averages(owner, group_traits, force_refresh_stale=True)
+        for trait in group_traits:
             name = str(trait.get("name", "") or "").strip()
             if not name or name not in averages:
                 continue
             payload = _trait_payload(trait)
             trait_baselines[payload["key"]] = {
                 **payload,
+                "source": source,
                 "db_average": float(averages[name]),
             }
 
@@ -215,7 +229,7 @@ def refresh_prediction_norms_snapshot(owner: Any) -> dict[str, Any]:
         "chart_count": len(charts),
         "norm_signature": norm_signature,
         "trait_baselines": trait_baselines,
-        "dnd_alignment_trait_keys": ["Good", "Evil", "Lawful", "Chaotic"],
+        "dnd_alignment_trait_keys": [str(trait.get("name", "") or "") for trait in dnd_alignment_traits],
         "dnd_stat_raw_averages": dnd_stat_raw_averages,
     }
     save_prediction_norms_snapshot(snapshot)
