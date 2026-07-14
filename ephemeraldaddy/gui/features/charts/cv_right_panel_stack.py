@@ -881,14 +881,33 @@ def _predictions_panel_has_rendered_content(owner: object) -> bool:
     )
 
 
+def _prediction_chart_uid(chart: object) -> str:
+    for attr in ("chart_uid", "permanent_uid", "uid", "UID"):
+        value = str(getattr(chart, attr, "") or "").strip()
+        if value:
+            return value.upper()
+    return ""
+
+
 def _chart_right_panel_prediction_render_token(owner: object, chart: object) -> str:
-    """Return a stable token for prediction renders in the right-panel tab."""
-    cache_token = getattr(owner, "_chart_analytics_cache_token", None)
-    if callable(cache_token):
-        chart_token = str(cache_token(chart))
-    else:
-        chart_id = getattr(owner, "current_chart_id", None)
-        chart_token = f"id:{chart_id}" if chart_id is not None else f"object:{id(chart)}"
+    """Return a UID-scoped token for prediction renders in the right-panel tab."""
+    chart_uid = _prediction_chart_uid(chart)
+    chart_scope = f"uid:{chart_uid}" if chart_uid else f"object:{id(chart)}"
+    dt_value = getattr(chart, "dt", None)
+    dt_token = dt_value.isoformat() if dt_value is not None else "nodt"
+    chart_token = repr({
+        "scope": chart_scope,
+        "dt": dt_token,
+        "dt_local": str(getattr(chart, "dt_local", "") or ""),
+        "lat": str(getattr(chart, "lat", "") or ""),
+        "lon": str(getattr(chart, "lon", "") or ""),
+        "birth_place": str(getattr(chart, "birth_place", "") or ""),
+        "birthtime_unknown": bool(getattr(chart, "birthtime_unknown", False)),
+        "retcon_time_used": bool(getattr(chart, "retcon_time_used", False)),
+        "retcon_hour": getattr(chart, "retcon_hour", None),
+        "retcon_minute": getattr(chart, "retcon_minute", None),
+        "chart_uses_houses": bool(chart_uses_houses(chart)),
+    })
 
     norms_token_fn = getattr(owner, "_prediction_norms_render_token", None)
     norms_token = str(norms_token_fn()) if callable(norms_token_fn) else "prediction_norms:unavailable"

@@ -202,12 +202,8 @@ def _enneagram_definition_signature() -> str:
 
 
 def _enneagram_chart_state_token(owner: Any, chart: Any) -> str:
-    chart_token_fn = getattr(owner, "_chart_analytics_cache_token", None)
-    if callable(chart_token_fn):
-        try:
-            return str(chart_token_fn(chart))
-        except Exception:
-            pass
+    # Predictions caches must be scoped to the chart's permanent UID, not the
+    # mutable/legacy current_chart_id used by some Analytics render tokens.
     return repr({
         "uid": _chart_prediction_cache_uid(chart),
         "dt_local": str(getattr(chart, "dt_local", "") or ""),

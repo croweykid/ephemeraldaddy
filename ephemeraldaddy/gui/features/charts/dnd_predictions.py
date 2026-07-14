@@ -882,11 +882,19 @@ def _dnd_alignment_trait_items() -> list[dict[str, Any]]:
 
 
 def _dnd_alignment_cache_key(owner: Any, chart: Any) -> tuple[str, str]:
-    chart_token_fn = getattr(owner, "_chart_analytics_cache_token", None)
-    try:
-        chart_token = str(chart_token_fn(chart)) if callable(chart_token_fn) else f"object:{id(chart)}"
-    except Exception:
-        chart_token = f"object:{id(chart)}"
+    chart_uid = _chart_prediction_cache_uid(chart)
+    chart_token = _cache_key_fingerprint({
+        "scope": f"uid:{chart_uid}" if chart_uid else f"object:{id(chart)}",
+        "dt_local": str(getattr(chart, "dt_local", "") or ""),
+        "birth_place": str(getattr(chart, "birth_place", "") or ""),
+        "lat": str(getattr(chart, "lat", "") or ""),
+        "lon": str(getattr(chart, "lon", "") or ""),
+        "birthtime_unknown": bool(getattr(chart, "birthtime_unknown", False)),
+        "retcon_time_used": bool(getattr(chart, "retcon_time_used", False)),
+        "retcon_hour": getattr(chart, "retcon_hour", None),
+        "retcon_minute": getattr(chart, "retcon_minute", None),
+        "chart_uses_houses": bool(default_chart_uses_houses(chart)),
+    })
     norms_token_fn = getattr(owner, "_prediction_norms_render_token", None)
     try:
         norms_token = str(norms_token_fn()) if callable(norms_token_fn) else "prediction_norms:unavailable"
@@ -1578,17 +1586,8 @@ class DndPredictionPanelAdapter:
         return tuple(sorted(uids))
 
     def _chart_state_cache_token(self, chart: Any) -> str:
-        chart_token_fn = getattr(self.owner, "_chart_analytics_cache_token", None)
-        if callable(chart_token_fn):
-            try:
-                return str(chart_token_fn(chart))
-            except Exception as exc:
-                logger.error(
-                    "D&D statblock cache could not build chart state token for chart '%s': %s",
-                    _chart_name_for_uid_error(chart),
-                    exc,
-                    exc_info=True,
-                )
+        # Use the chart's permanent UID directly.  The shared Analytics token can
+        # include mutable legacy row IDs and is not safe for Predictions caches.
         chart_uid = _chart_prediction_cache_uid(chart)
         if not chart_uid:
             _log_missing_chart_uid(chart, "D&D statblock chart state token")
