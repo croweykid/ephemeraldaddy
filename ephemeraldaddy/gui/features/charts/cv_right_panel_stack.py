@@ -658,6 +658,34 @@ def _resolve_chart_right_panel_key(owner: object, panel_key: str) -> str:
     return normalized
 
 
+def _start_prediction_loading_blink(label: QLabel) -> None:
+    """Make a Predictions loading label pulse purple while fresh section data loads."""
+    states = ("#c77dff", "#7b4dff")
+    label._ephemeraldaddy_loading_blink_state = 0
+
+    def _tick() -> None:
+        state = int(getattr(label, "_ephemeraldaddy_loading_blink_state", 0) or 0)
+        color = states[state % len(states)]
+        label.setStyleSheet(f"color: {color}; font-style: italic; font-weight: 700; padding: 18px 8px;")
+        label._ephemeraldaddy_loading_blink_state = state + 1
+
+    timer = QTimer(label)
+    timer.timeout.connect(_tick)
+    label._ephemeraldaddy_loading_blink_timer = timer
+    _tick()
+    timer.start(450)
+
+
+def _prediction_loading_html(message: str) -> str:
+    escaped = html.escape(message)
+    return (
+        "<div style='color:#c77dff; font-style:italic; font-weight:700; "
+        "padding:18px 8px; text-align:center;'>"
+        f"●&nbsp;{escaped}&nbsp;●"
+        "</div>"
+    )
+
+
 def _clear_layout_for_prediction_placeholder(owner: object, layout_attr: str, canvas_attr: str | None, message: str) -> None:
     """Replace a Predictions section body with a cheap loading placeholder."""
     layout = getattr(owner, layout_attr, None)
@@ -671,10 +699,10 @@ def _clear_layout_for_prediction_placeholder(owner: object, layout_attr: str, ca
             setattr(owner, canvas_attr, None)
         except Exception:
             pass
-    label = QLabel(message)
+    label = QLabel(f"●  {message}  ●")
     label.setWordWrap(True)
     label.setAlignment(Qt.AlignCenter)
-    label.setStyleSheet("color: #d8d8d8; font-style: italic; padding: 18px 8px;")
+    _start_prediction_loading_blink(label)
     label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
     layout.addWidget(label)
 
@@ -685,11 +713,7 @@ def _show_predictions_panel_pending_placeholders(owner: object, chart: object | 
     _set_predictions_status(owner, f"Opening Predictions for <b>{chart_name}</b>…")
     traits_label = getattr(owner, "traits_prediction_label", None)
     if isinstance(traits_label, QLabel):
-        loading_html = (
-            "<div style='color:#d8d8d8; font-style:italic; padding:18px 8px; text-align:center;'>"
-            "Loading cached trait predictions…"
-            "</div>"
-        )
+        loading_html = _prediction_loading_html("Loading trait predictions for this UID…")
         try:
             owner._traits_prediction_above_avg_html = loading_html
             owner._traits_prediction_below_avg_html = loading_html
@@ -713,7 +737,7 @@ def _show_predictions_panel_pending_placeholders(owner: object, chart: object | 
     )
     tritype_label = getattr(owner, "enneagram_prediction_tritype_label", None)
     if isinstance(tritype_label, QLabel):
-        tritype_label.setText("<b>Predicted Tritype:</b> Loading cached predictions…")
+        tritype_label.setText("<b>Predicted Tritype:</b> <span style='color:#c77dff;'>● Loading predictions for this UID… ●</span>")
     _clear_layout_for_prediction_placeholder(
         owner,
         "dnd_predictions_chart_layout",
@@ -722,7 +746,7 @@ def _show_predictions_panel_pending_placeholders(owner: object, chart: object | 
     )
     summary_label = getattr(owner, "dnd_prediction_top_three_label", None)
     if isinstance(summary_label, QLabel):
-        summary_label.setText("<b>D&D Statblock:</b> Loading cached predictions…")
+        summary_label.setText("<b>D&D Statblock:</b> <span style='color:#c77dff;'>● Loading predictions for this UID… ●</span>")
     _clear_layout_for_prediction_placeholder(
         owner,
         "dnd_alignment_chart_layout",
@@ -731,7 +755,7 @@ def _show_predictions_panel_pending_placeholders(owner: object, chart: object | 
     )
     alignment_debug_label = getattr(owner, "dnd_prediction_alignment_debug_label", None)
     if isinstance(alignment_debug_label, QLabel):
-        alignment_debug_label.setText("<b>Alignment debug deviations from DB norm:</b> Loading cached predictions…")
+        alignment_debug_label.setText("<b>Alignment debug deviations from DB norm:</b> <span style='color:#c77dff;'>● Loading predictions for this UID… ●</span>")
 
 def set_chart_right_panel(owner: object, panel_key: str) -> None:
     """Activate a Chart View right-panel tab and synchronize toggle state."""
@@ -857,14 +881,33 @@ def _predictions_panel_has_rendered_content(owner: object) -> bool:
     )
 
 
+def _prediction_chart_uid(chart: object) -> str:
+    for attr in ("chart_uid", "permanent_uid", "uid", "UID"):
+        value = str(getattr(chart, attr, "") or "").strip()
+        if value:
+            return value.upper()
+    return ""
+
+
 def _chart_right_panel_prediction_render_token(owner: object, chart: object) -> str:
-    """Return a stable token for prediction renders in the right-panel tab."""
-    cache_token = getattr(owner, "_chart_analytics_cache_token", None)
-    if callable(cache_token):
-        chart_token = str(cache_token(chart))
-    else:
-        chart_id = getattr(owner, "current_chart_id", None)
-        chart_token = f"id:{chart_id}" if chart_id is not None else f"object:{id(chart)}"
+    """Return a UID-scoped token for prediction renders in the right-panel tab."""
+    chart_uid = _prediction_chart_uid(chart)
+    chart_scope = f"uid:{chart_uid}" if chart_uid else f"object:{id(chart)}"
+    dt_value = getattr(chart, "dt", None)
+    dt_token = dt_value.isoformat() if dt_value is not None else "nodt"
+    chart_token = repr({
+        "scope": chart_scope,
+        "dt": dt_token,
+        "dt_local": str(getattr(chart, "dt_local", "") or ""),
+        "lat": str(getattr(chart, "lat", "") or ""),
+        "lon": str(getattr(chart, "lon", "") or ""),
+        "birth_place": str(getattr(chart, "birth_place", "") or ""),
+        "birthtime_unknown": bool(getattr(chart, "birthtime_unknown", False)),
+        "retcon_time_used": bool(getattr(chart, "retcon_time_used", False)),
+        "retcon_hour": getattr(chart, "retcon_hour", None),
+        "retcon_minute": getattr(chart, "retcon_minute", None),
+        "chart_uses_houses": bool(chart_uses_houses(chart)),
+    })
 
     norms_token_fn = getattr(owner, "_prediction_norms_render_token", None)
     norms_token = str(norms_token_fn()) if callable(norms_token_fn) else "prediction_norms:unavailable"
