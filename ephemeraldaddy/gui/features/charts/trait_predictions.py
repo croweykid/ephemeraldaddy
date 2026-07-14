@@ -13,9 +13,10 @@ from typing import Any
 
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, QObject, QSortFilterProxyModel, QThread, Qt, Signal, Slot
 try:
-    from PySide6.QtGui import QColor
+    from PySide6.QtGui import QColor, QPalette
 except Exception:  # pragma: no cover - headless test environments may omit QtGui libs
     QColor = None  # type: ignore[assignment]
+    QPalette = None  # type: ignore[assignment]
 try:
     from PySide6.QtWidgets import QLabel, QComboBox, QHeaderView, QStyledItemDelegate, QTableView, QWidget
 except Exception:  # pragma: no cover - headless test environments may omit Qt widget libs
@@ -185,8 +186,8 @@ class _TraitPredictionColorDelegate(QStyledItemDelegate):
     def initStyleOption(self, option: Any, index: QModelIndex) -> None:  # noqa: N802
         super().initStyleOption(option, index)
         color = index.data(Qt.ForegroundRole)
-        if QColor is not None and isinstance(color, QColor):
-            option.palette.setColor(option.palette.Text, color)
+        if QColor is not None and QPalette is not None and isinstance(color, QColor):
+            option.palette.setColor(QPalette.ColorRole.Text, color)
 
 
 def configure_traits_prediction_table(owner: Any, table: QTableView) -> None:
