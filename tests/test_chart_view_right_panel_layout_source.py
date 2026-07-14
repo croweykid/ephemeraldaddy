@@ -282,6 +282,8 @@ def test_predictions_sections_show_calculate_prompt_instead_of_auto_calculating(
     dnd_source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/dnd_predictions.py").read_text()
     stack_source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/cv_right_panel_stack.py").read_text()
     controller_source = (REPO_ROOT / "ephemeraldaddy/gui/features/controllers/chart_right_panel.py").read_text()
+    view_source = (REPO_ROOT / "ephemeraldaddy/gui/features/controllers/chart_view_window.py").read_text()
+    loading_source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/prediction_loading_labels.py").read_text()
     app_source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
 
     assert "No prior data. Calculate (can take awhile)?" in enneagram_source
@@ -295,7 +297,8 @@ def test_predictions_sections_show_calculate_prompt_instead_of_auto_calculating(
     assert "owner._render_enneagram_predictions(chart)" in active_branch
     assert "owner._render_dndification_predictions(chart)" in active_branch
     assert "def _predictions_panel_has_rendered_content" in stack_source
-    assert "No traits uploaded. Add traits in Settings > Traits." in stack_source
+    assert "Loading trait predictions for this UID" in stack_source
+    assert "No traits uploaded. Add traits in Settings > Traits." not in stack_source
     assert "and _predictions_panel_has_rendered_content(owner)" in stack_source
     assert "and _predictions_panel_has_rendered_content(self._owner)" in controller_source
     assert "render_traits(chart)" in stack_source
@@ -312,6 +315,11 @@ def test_predictions_sections_show_calculate_prompt_instead_of_auto_calculating(
     assert "_prediction_norms_render_token" in dnd_source
     assert "def _stable_traits_metadata_hash" in app_source
     assert "self._stable_traits_metadata_hash(payload)" in app_source
+    assert "start_prediction_loading_blink(label)" in view_source
+    assert "def stop_prediction_loading_blink" in loading_source
+    assert "if \"Loading\" not in label_text:" in loading_source
+    assert "stop_prediction_loading_blink(self.tritype_label)" in enneagram_source
+    assert "stop_prediction_loading_blink(label)" in dnd_source
 
 
 def test_predictions_timeout_does_not_terminate_qthread_from_gui_thread():
@@ -322,7 +330,7 @@ def test_predictions_timeout_does_not_terminate_qthread_from_gui_thread():
     assert "thread.terminate()" not in source
 
 
-def test_traits_predictions_show_manual_calculate_prompt_without_autostarting_worker():
+def test_traits_predictions_auto_load_uncached_metadata_with_loading_state():
     source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/trait_predictions.py").read_text()
     assert "No prior data. Calculate (can take awhile)?" in source
     assert "trait-predictions:calculate" in source
@@ -333,7 +341,9 @@ def test_traits_predictions_show_manual_calculate_prompt_without_autostarting_wo
     assert "Cached trait predictions shown" in source
     assert "_trait_predictions_refresh_message(str(cached.get" not in source
     no_cache_branch = source[source.index("owner._traits_prediction_pending_chart = chart"):]
-    assert "showing manual calculate prompt" in no_cache_branch
+    assert "Loading fresh trait predictions for this UID" in no_cache_branch
+    assert "start_prediction_loading_blink(label)" in no_cache_branch
+    assert "QTimer.singleShot(0, lambda owner=owner: _start_traits_prediction_calculation(owner))" in no_cache_branch
     assert "_start_traits_prediction_refresh_worker(owner, chart, traits" not in no_cache_branch
     assert '"positions": getattr(chart, "positions", None)' in source
     assert '"aspects": getattr(chart, "aspects", None)' in source

@@ -68,6 +68,10 @@ from ephemeraldaddy.gui.features.charts.database_norms_cache import (
     analytical_mapping_signature,
     database_norms_refresh_threshold,
 )
+from ephemeraldaddy.gui.features.charts.prediction_loading_labels import (
+    start_prediction_loading_blink,
+    stop_prediction_loading_blink,
+)
 try:
     from ephemeraldaddy.gui.style import (
         apply_chart_info_link_cursor,
@@ -1934,6 +1938,7 @@ def _apply_traits_prediction_view(owner: Any, above_html: str, below_html: str, 
     _set_traits_prediction_rows(owner, [])
     label = getattr(owner, "traits_prediction_label", None)
     if isinstance(label, QLabel):
+        stop_prediction_loading_blink(label)
         label.setText(_current_traits_prediction_html(owner) or "Trait predictions unavailable for this chart.")
         label.adjustSize()
         label.setMinimumHeight(label.sizeHint().height())
@@ -1959,6 +1964,7 @@ def _apply_traits_prediction_metadata(
     _set_traits_prediction_rows(owner, rows)
     label = getattr(owner, "traits_prediction_label", None)
     if isinstance(label, QLabel):
+        stop_prediction_loading_blink(label)
         if not has_table:
             label.setText(_current_traits_prediction_html(owner) or "Trait predictions unavailable for this chart.")
             label.setVisible(True)
@@ -2094,7 +2100,7 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
         message = (
             "No active traits. Reactivate traits in Settings > Traits to include them in Predictions."
             if list_traits()
-            else "No traits uploaded. Add traits in Settings > Traits."
+            else "Traits are unavailable. Check Settings > Traits before using Predictions."
         )
         _apply_traits_prediction_view(owner, message, message)
         return
@@ -2147,13 +2153,9 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
     owner._traits_prediction_pending_traits = traits
     owner._traits_prediction_pending_cache_key = cache_key or ""
     owner._traits_prediction_pending_signatures = signatures
-    message = (
-        "<div style='color:#c77dff; font-style:italic; font-weight:700; "
-        "padding:24px 8px; text-align:center;'>"
-        "● Loading fresh trait predictions for this UID… ●"
-        "</div>"
-    )
+    message = "● Loading fresh trait predictions for this UID… ●"
     _predictions_debug(owner, "Trait render found no persisted trait metadata; auto-loading fresh traits cache_key=%s", (cache_key or "")[:12])
     _apply_traits_prediction_view(owner, message, message)
+    start_prediction_loading_blink(label)
     QTimer.singleShot(0, lambda owner=owner: _start_traits_prediction_calculation(owner))
     return
