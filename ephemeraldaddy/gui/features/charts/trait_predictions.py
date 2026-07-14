@@ -11,7 +11,7 @@ import urllib.parse
 from datetime import datetime
 from typing import Any
 
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, QObject, QSortFilterProxyModel, QThread, Qt, Signal, Slot
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, QObject, QSortFilterProxyModel, QThread, QTimer, Qt, Signal, Slot
 try:
     from PySide6.QtGui import QColor, QPalette
 except Exception:  # pragma: no cover - headless test environments may omit QtGui libs
@@ -1265,13 +1265,13 @@ def trait_metadata_for_chart(
     legacy_trait_signature = legacy_trait_signature or _stable_json_hash(_trait_signature_payload(traits, strip_uids=True))
     norm_signature = norm_signature or _database_norm_signature_for_traits(owner, traits)
     chart_signature = chart_signature or _chart_trait_metadata_signature(chart)
-    signature = (TRAIT_DB_NORMS_CACHE_VERSION, trait_signature, norm_signature, chart_signature)
+    chart_uid = _chart_uid_for_trait_metadata(chart)
+    signature = (TRAIT_DB_NORMS_CACHE_VERSION, chart_uid, trait_signature, norm_signature, chart_signature)
     cached = getattr(chart, "_trait_prediction_metadata_cache", None)
     if isinstance(cached, dict) and cached.get("signature") == signature:
         _predictions_debug(owner, "Trait metadata memory cache hit chart_uid=%s", _debug_chart_uid(chart))
         return dict(cached.get("metadata", {}))
 
-    chart_uid = _chart_uid_for_trait_metadata(chart)
     traits_by_name = {str(trait.get("name", "")).strip(): trait for trait in traits if str(trait.get("name", "")).strip()}
     trait_uids_by_name = {name: _trait_uid_for_item(trait) for name, trait in traits_by_name.items()}
     traits_by_uid = {uid: trait for name, trait in traits_by_name.items() if (uid := trait_uids_by_name.get(name))}
@@ -1717,7 +1717,8 @@ def _start_traits_prediction_calculation(owner: Any) -> None:
     token = owner._traits_prediction_render_token
     message = (
         _trait_predictions_refresh_message(None)
-        + "<div style='color:#d8d8d8; text-align:center;'>Loading trait predictions for this chart…</div>"
+        + "<div style='color:#c77dff; font-weight:700; text-align:center;'>"
+        "● Loading trait predictions for this UID… ●</div>"
     )
     _apply_traits_prediction_view(owner, message, message)
     _start_traits_prediction_refresh_worker(
@@ -2146,7 +2147,13 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
     owner._traits_prediction_pending_traits = traits
     owner._traits_prediction_pending_cache_key = cache_key or ""
     owner._traits_prediction_pending_signatures = signatures
-    message = _traits_calculate_prompt_html()
-    _predictions_debug(owner, "Trait render found no persisted trait metadata; showing manual calculate prompt cache_key=%s", (cache_key or "")[:12])
+    message = (
+        "<div style='color:#c77dff; font-style:italic; font-weight:700; "
+        "padding:24px 8px; text-align:center;'>"
+        "● Loading fresh trait predictions for this UID… ●"
+        "</div>"
+    )
+    _predictions_debug(owner, "Trait render found no persisted trait metadata; auto-loading fresh traits cache_key=%s", (cache_key or "")[:12])
     _apply_traits_prediction_view(owner, message, message)
+    QTimer.singleShot(0, lambda owner=owner: _start_traits_prediction_calculation(owner))
     return

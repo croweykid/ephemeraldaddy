@@ -190,7 +190,7 @@ def _coerce_complete_enneagram_type_scores(cached_scores: Any) -> dict[int, floa
 
 
 def _chart_prediction_cache_uid(chart: Any) -> str:
-    for attr in ("uid", "UID", "chart_uid", "permanent_uid"):
+    for attr in ("chart_uid", "permanent_uid", "uid", "UID"):
         value = str(getattr(chart, attr, "") or "").strip()
         if value:
             return value
