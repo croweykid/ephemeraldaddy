@@ -1209,7 +1209,8 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                         self._time_variant_dusk_format,
                     )
         leading_token = text.split()[0] if text.split() else ""
-        if leading_token in self._planet_formats:
+        current_section = self._current_chart_data_section()
+        if leading_token in self._planet_formats and current_section != "ASPECTS":
             self.setFormat(0, self._qt_len(text), self._planet_formats[leading_token])
         else:
             for body, fmt in self._planet_formats.items():
