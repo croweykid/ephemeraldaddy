@@ -1450,12 +1450,6 @@ class TimeSensitivityPanel(QWidget):
         content_layout.setSpacing(DATABASE_ANALYTICS_CONTENT_SPACING)
         content.setStyleSheet(COLLAPSIBLE_SECTION_CONTENT_STYLE)
         content.setVisible(expanded)
-        toggle.toggled.connect(
-            lambda checked, body=content, button=toggle: (
-                body.setVisible(checked),
-                button.setArrowType(Qt.DownArrow if checked else Qt.RightArrow),
-            )
-        )
         section_layout.addWidget(toggle)
         section_layout.addWidget(content)
         browser = QTextBrowser(content)
@@ -1472,12 +1466,31 @@ class TimeSensitivityPanel(QWidget):
         min_height = 80 if section_key == "human_design" else 48
         max_height = 16777215 if section_key == "human_design" else 700
 
-        def adjust_browser_height() -> None:
-            browser.document().setTextWidth(max(1, browser.viewport().width()))
-            browser.document().adjustSize()
-            height = int(browser.document().size().height()) + 18
-            browser.setFixedHeight(max(min_height, min(max_height, height)))
+        adjusting_browser_height = False
 
+        def adjust_browser_height() -> None:
+            nonlocal adjusting_browser_height
+            if adjusting_browser_height:
+                return
+            adjusting_browser_height = True
+            document = browser.document()
+            text_width = max(1, browser.viewport().width())
+            if int(document.textWidth()) != text_width:
+                document.setTextWidth(text_width)
+            document.adjustSize()
+            height = int(document.size().height()) + 18
+            fixed_height = max(min_height, min(max_height, height))
+            if browser.height() != fixed_height:
+                browser.setFixedHeight(fixed_height)
+            adjusting_browser_height = False
+
+        def toggle_section(checked: bool) -> None:
+            content.setVisible(checked)
+            toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
+            if checked:
+                adjust_browser_height()
+
+        toggle.toggled.connect(toggle_section)
         adjust_browser_height()
         if section_key == "human_design":
             browser.document().documentLayout().documentSizeChanged.connect(
