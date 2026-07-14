@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ephemeraldaddy.core.chart import chart_uses_houses
 from ephemeraldaddy.core.interpretations import MODE_KEYWORDS
 from ephemeraldaddy.gui.style import (
     close_app_loading_progress,
@@ -876,10 +877,7 @@ def _predictions_panel_has_rendered_content(owner: object) -> bool:
     """
     traits_label = getattr(owner, "traits_prediction_label", None)
     traits_text = traits_label.text() if isinstance(traits_label, QLabel) else ""
-    traits_has_default_placeholder = (
-        "No traits uploaded. Add traits in Settings > Traits." in traits_text
-        or "Loading trait predictions for this UID" in traits_text
-    )
+    traits_has_default_placeholder = "Loading trait predictions for this UID" in traits_text
 
     tritype_label = getattr(owner, "enneagram_prediction_tritype_label", None)
     tritype_text = tritype_label.text() if isinstance(tritype_label, QLabel) else ""

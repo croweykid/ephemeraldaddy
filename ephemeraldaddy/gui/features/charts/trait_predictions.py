@@ -2111,7 +2111,7 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
         message = (
             "No active traits. Reactivate traits in Settings > Traits to include them in Predictions."
             if list_traits()
-            else "No traits uploaded. Add traits in Settings > Traits."
+            else "Traits are unavailable. Check Settings > Traits before using Predictions."
         )
         _apply_traits_prediction_view(owner, message, message)
         return
