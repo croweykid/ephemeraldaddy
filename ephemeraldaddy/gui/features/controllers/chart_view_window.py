@@ -9,7 +9,7 @@ from collections import Counter
 from types import MethodType
 from typing import Callable
 
-from PySide6.QtCore import QEvent, QRect, QSize, Qt, Signal
+from PySide6.QtCore import QEvent, QRect, QSize, Qt, Signal, QTimer
 from PySide6.QtGui import QColor, QDragEnterEvent, QDropEvent, QFont, QIcon, QKeySequence, QLinearGradient, QPainter, QPixmap, QShortcut
 from PySide6.QtWidgets import (
     QAbstractButton,
@@ -94,6 +94,28 @@ from ephemeraldaddy.gui.features.charts.tagging import (
     render_tag_chip_preview,
 )
 from ephemeraldaddy.gui.dbv_search_panel import refresh_tag_catalog_for_added_tags
+
+
+def _make_predictions_loading_label(message: str, *, alignment: Qt.AlignmentFlag | Qt.Alignment = Qt.AlignCenter) -> QLabel:
+    """Return a visible purple loading placeholder for not-yet-rendered Predictions sections."""
+    label = QLabel(f"●  {message}  ●")
+    label.setWordWrap(True)
+    label.setAlignment(alignment)
+    label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
+    label._ephemeraldaddy_loading_blink_state = 0
+
+    def _tick() -> None:
+        state = int(getattr(label, "_ephemeraldaddy_loading_blink_state", 0) or 0)
+        color = ("#c77dff", "#7b4dff")[state % 2]
+        label.setStyleSheet(f"color: {color}; font-style: italic; font-weight: 700; padding: 18px 8px;")
+        label._ephemeraldaddy_loading_blink_state = state + 1
+
+    timer = QTimer(label)
+    timer.timeout.connect(_tick)
+    label._ephemeraldaddy_loading_blink_timer = timer
+    _tick()
+    timer.start(450)
+    return label
 
 CHART_INFO_PANEL_BUTTON_ATTRS: dict[str, str] = {
     "chart_info": "chart_info_toggle_button",
@@ -1583,11 +1605,13 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     traits_header_layout.addWidget(owner.traits_prediction_mode_combo, alignment=Qt.AlignRight)
     traits_section_layout.addWidget(traits_header_row)
 
-    owner.traits_prediction_label = QLabel("No traits uploaded. Add traits in Settings > Traits.")
+    owner.traits_prediction_label = _make_predictions_loading_label(
+        "Loading trait predictions for this UID…",
+        alignment=Qt.AlignLeft | Qt.AlignTop,
+    )
     owner.traits_prediction_label.setTextFormat(Qt.RichText)
     owner.traits_prediction_label.setWordWrap(True)
     owner.traits_prediction_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
-    owner.traits_prediction_label.setStyleSheet("color: #f5f5f5; padding: 4px 0 8px 0;")
     owner.traits_prediction_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
     owner.traits_prediction_label.setMinimumHeight(owner.traits_prediction_label.sizeHint().height())
     traits_section_layout.addWidget(owner.traits_prediction_label)
@@ -1611,10 +1635,12 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     owner.enneagram_prediction_chart_layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
     owner.enneagram_prediction_chart_panel.setLayout(owner.enneagram_prediction_chart_layout)
     enneagram_section_layout.addWidget(owner.enneagram_prediction_chart_panel)
-    owner.enneagram_prediction_tritype_label = QLabel("Predicted Tritype: —")
+    owner.enneagram_prediction_tritype_label = _make_predictions_loading_label(
+        "Loading Enneagram predictions for this UID…",
+        alignment=Qt.AlignLeft | Qt.AlignTop,
+    )
     owner.enneagram_prediction_tritype_label.setTextFormat(Qt.RichText)
     owner.enneagram_prediction_tritype_label.setWordWrap(True)
-    owner.enneagram_prediction_tritype_label.setStyleSheet("color: #f5f5f5; padding-top: 6px;")
     enneagram_section_layout.addWidget(owner.enneagram_prediction_tritype_label)
 
     dnd_statblock_section_layout = owner._add_chart_analysis_collapsible_section(
@@ -1630,6 +1656,9 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     owner.dnd_predictions_chart_layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
     owner.dnd_predictions_chart_panel.setLayout(owner.dnd_predictions_chart_layout)
     dnd_statblock_section_layout.addWidget(owner.dnd_predictions_chart_panel)
+    owner.dnd_predictions_chart_layout.addWidget(
+        _make_predictions_loading_label("Loading cached D&D statblock predictions…")
+    )
 
     dnd_species_section_layout = owner._add_chart_analysis_collapsible_section(
         panel=panel,
@@ -1637,11 +1666,13 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         title="D&D Species",
         expanded=True,
     )
-    owner.dnd_prediction_species_label = QLabel("<b>Top 3 Species/Subspecies</b><br>—")
+    owner.dnd_prediction_species_label = _make_predictions_loading_label(
+        "Loading D&D species predictions for this UID…",
+        alignment=Qt.AlignLeft | Qt.AlignTop,
+    )
     owner.dnd_prediction_species_label.setTextFormat(Qt.RichText)
     owner.dnd_prediction_species_label.setWordWrap(True)
     owner.dnd_prediction_species_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
-    owner.dnd_prediction_species_label.setStyleSheet("color: #f5f5f5; padding: 4px 0 8px 0;")
     owner.dnd_prediction_species_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
     dnd_species_section_layout.addWidget(owner.dnd_prediction_species_label)
 
@@ -1651,11 +1682,13 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         title="D&D Class",
         expanded=True,
     )
-    owner.dnd_prediction_class_label = QLabel("<b>Top 3 Classes</b><br>—")
+    owner.dnd_prediction_class_label = _make_predictions_loading_label(
+        "Loading D&D class predictions for this UID…",
+        alignment=Qt.AlignLeft | Qt.AlignTop,
+    )
     owner.dnd_prediction_class_label.setTextFormat(Qt.RichText)
     owner.dnd_prediction_class_label.setWordWrap(True)
     owner.dnd_prediction_class_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
-    owner.dnd_prediction_class_label.setStyleSheet("color: #f5f5f5; padding: 4px 0 8px 0;")
     owner.dnd_prediction_class_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
     dnd_class_section_layout.addWidget(owner.dnd_prediction_class_label)
 
@@ -1672,6 +1705,9 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     owner.dnd_alignment_chart_layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
     owner.dnd_alignment_chart_panel.setLayout(owner.dnd_alignment_chart_layout)
     dnd_alignment_section_layout.addWidget(owner.dnd_alignment_chart_panel)
+    owner.dnd_alignment_chart_layout.addWidget(
+        _make_predictions_loading_label("Loading cached D&D alignment predictions…")
+    )
     layout.addStretch(1)
     return panel
 

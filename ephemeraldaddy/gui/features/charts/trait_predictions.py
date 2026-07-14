@@ -417,6 +417,23 @@ def _configure_traits_prediction_label(owner: Any, label: QLabel) -> None:
     label._ephemeraldaddy_trait_links_connected = True
 
 
+def _start_traits_prediction_loading_blink(label: QLabel) -> None:
+    """Pulse a not-yet-loaded Traits prediction label so it cannot read as empty/final."""
+    label._ephemeraldaddy_loading_blink_state = 0
+
+    def _tick() -> None:
+        state = int(getattr(label, "_ephemeraldaddy_loading_blink_state", 0) or 0)
+        color = ("#c77dff", "#7b4dff")[state % 2]
+        label.setStyleSheet(f"color: {color}; font-style: italic; font-weight: 700; padding: 18px 8px;")
+        label._ephemeraldaddy_loading_blink_state = state + 1
+
+    timer = QTimer(label)
+    timer.timeout.connect(_tick)
+    label._ephemeraldaddy_loading_blink_timer = timer
+    _tick()
+    timer.start(450)
+
+
 def _stable_json_hash(value: Any) -> str:
     try:
         payload = json.dumps(value, sort_keys=True, default=str, separators=(",", ":"))
@@ -2147,13 +2164,9 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
     owner._traits_prediction_pending_traits = traits
     owner._traits_prediction_pending_cache_key = cache_key or ""
     owner._traits_prediction_pending_signatures = signatures
-    message = (
-        "<div style='color:#c77dff; font-style:italic; font-weight:700; "
-        "padding:24px 8px; text-align:center;'>"
-        "● Loading fresh trait predictions for this UID… ●"
-        "</div>"
-    )
+    message = "● Loading fresh trait predictions for this UID… ●"
     _predictions_debug(owner, "Trait render found no persisted trait metadata; auto-loading fresh traits cache_key=%s", (cache_key or "")[:12])
     _apply_traits_prediction_view(owner, message, message)
+    _start_traits_prediction_loading_blink(label)
     QTimer.singleShot(0, lambda owner=owner: _start_traits_prediction_calculation(owner))
     return

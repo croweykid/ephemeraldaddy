@@ -686,6 +686,14 @@ def _prediction_loading_html(message: str) -> str:
     )
 
 
+def _set_prediction_label_loading(label: QLabel, message: str, *, alignment: Qt.AlignmentFlag | Qt.Alignment | None = None) -> None:
+    """Put a section QLabel into the same blinking purple loading state as graph placeholders."""
+    label.setText(f"●  {message}  ●")
+    if alignment is not None:
+        label.setAlignment(alignment)
+    _start_prediction_loading_blink(label)
+
+
 def _clear_layout_for_prediction_placeholder(owner: object, layout_attr: str, canvas_attr: str | None, message: str) -> None:
     """Replace a Predictions section body with a cheap loading placeholder."""
     layout = getattr(owner, layout_attr, None)
@@ -713,13 +721,17 @@ def _show_predictions_panel_pending_placeholders(owner: object, chart: object | 
     _set_predictions_status(owner, f"Opening Predictions for <b>{chart_name}</b>…")
     traits_label = getattr(owner, "traits_prediction_label", None)
     if isinstance(traits_label, QLabel):
-        loading_html = _prediction_loading_html("Loading trait predictions for this UID…")
+        loading_html = "●  Loading trait predictions for this UID…  ●"
         try:
             owner._traits_prediction_above_avg_html = loading_html
             owner._traits_prediction_below_avg_html = loading_html
         except Exception:
             pass
-        traits_label.setText(loading_html)
+        _set_prediction_label_loading(
+            traits_label,
+            "Loading trait predictions for this UID…",
+            alignment=Qt.AlignLeft | Qt.AlignTop,
+        )
         traits_label.setVisible(True)
         traits_label.adjustSize()
         traits_label.setMinimumHeight(traits_label.sizeHint().height())
@@ -737,7 +749,11 @@ def _show_predictions_panel_pending_placeholders(owner: object, chart: object | 
     )
     tritype_label = getattr(owner, "enneagram_prediction_tritype_label", None)
     if isinstance(tritype_label, QLabel):
-        tritype_label.setText("<b>Predicted Tritype:</b> <span style='color:#c77dff;'>● Loading predictions for this UID… ●</span>")
+        _set_prediction_label_loading(
+            tritype_label,
+            "Loading Enneagram predictions for this UID…",
+            alignment=Qt.AlignLeft | Qt.AlignTop,
+        )
     _clear_layout_for_prediction_placeholder(
         owner,
         "dnd_predictions_chart_layout",
@@ -747,6 +763,20 @@ def _show_predictions_panel_pending_placeholders(owner: object, chart: object | 
     summary_label = getattr(owner, "dnd_prediction_top_three_label", None)
     if isinstance(summary_label, QLabel):
         summary_label.setText("<b>D&D Statblock:</b> <span style='color:#c77dff;'>● Loading predictions for this UID… ●</span>")
+    species_label = getattr(owner, "dnd_prediction_species_label", None)
+    if isinstance(species_label, QLabel):
+        _set_prediction_label_loading(
+            species_label,
+            "Loading D&D species predictions for this UID…",
+            alignment=Qt.AlignLeft | Qt.AlignTop,
+        )
+    class_label = getattr(owner, "dnd_prediction_class_label", None)
+    if isinstance(class_label, QLabel):
+        _set_prediction_label_loading(
+            class_label,
+            "Loading D&D class predictions for this UID…",
+            alignment=Qt.AlignLeft | Qt.AlignTop,
+        )
     _clear_layout_for_prediction_placeholder(
         owner,
         "dnd_alignment_chart_layout",
@@ -840,13 +870,16 @@ def _predictions_panel_has_rendered_content(owner: object) -> bool:
 
     The render token can be marked current by background/cache bookkeeping before
     the user ever opens the Predictions tab.  In that case the section labels
-    still contain constructor placeholders such as "No traits uploaded" and the
-    graph canvases have never been installed, so opening the tab must perform a
-    real render even if the chart/norm token matches.
+    still contain constructor/loading placeholders and the graph canvases have
+    never been installed, so opening the tab must perform a real render even if
+    the chart/norm token matches.
     """
     traits_label = getattr(owner, "traits_prediction_label", None)
     traits_text = traits_label.text() if isinstance(traits_label, QLabel) else ""
-    traits_has_default_placeholder = "No traits uploaded. Add traits in Settings > Traits." in traits_text
+    traits_has_default_placeholder = (
+        "No traits uploaded. Add traits in Settings > Traits." in traits_text
+        or "Loading trait predictions for this UID" in traits_text
+    )
 
     tritype_label = getattr(owner, "enneagram_prediction_tritype_label", None)
     tritype_text = tritype_label.text() if isinstance(tritype_label, QLabel) else ""
@@ -854,16 +887,26 @@ def _predictions_panel_has_rendered_content(owner: object) -> bool:
         "Predicted Tritype: —",
         "<b>Predicted Tritype:</b> —",
     }
+    tritype_has_default_placeholder = (
+        tritype_has_default_placeholder
+        or "Loading Enneagram predictions for this UID" in tritype_text
+    )
 
     species_label = getattr(owner, "dnd_prediction_species_label", None)
     species_text = species_label.text() if isinstance(species_label, QLabel) else ""
     class_label = getattr(owner, "dnd_prediction_class_label", None)
     class_text = class_label.text() if isinstance(class_label, QLabel) else ""
     dnd_has_default_placeholders = (
-        "Top 3 Species/Subspecies" in species_text
-        and species_text.rstrip().endswith("—")
-        and "Top 3 Classes" in class_text
-        and class_text.rstrip().endswith("—")
+        (
+            "Top 3 Species/Subspecies" in species_text
+            and species_text.rstrip().endswith("—")
+            and "Top 3 Classes" in class_text
+            and class_text.rstrip().endswith("—")
+        )
+        or (
+            "Loading D&D species predictions for this UID" in species_text
+            and "Loading D&D class predictions for this UID" in class_text
+        )
     )
 
     has_prediction_canvas = any(
