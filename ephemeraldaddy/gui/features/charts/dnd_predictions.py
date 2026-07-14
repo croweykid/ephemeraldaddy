@@ -1621,10 +1621,11 @@ class DndPredictionPanelAdapter:
         cached = self._restore_statblock_cache(chart)
         if isinstance(cached, dict) and cached.get("statblock") is not None:
             cached_key = cached.get("key")
-            if (
+            cache_matches = (
                 cached_key == cache_key
                 or cached.get("key_fingerprint") == _cache_key_fingerprint(cache_key)
-            ):
+            )
+            if cache_matches or allow_stale:
                 try:
                     setattr(cached["statblock"], "_db_norm_averages", dict(cached.get("db_norm_averages") or {}))
                 except Exception:
@@ -1842,6 +1843,8 @@ class DndPredictionPanelAdapter:
             alignment_cache = getattr(chart, "_dnd_alignment_score_parts_cache", None)
             if not isinstance(alignment_cache, dict):
                 restored_alignment = alignment_owner_cache.get(self._chart_cache_identity(chart))
+                if not isinstance(restored_alignment, dict):
+                    restored_alignment = _load_persisted_dnd_prediction_payload(chart).get("alignment")
                 if isinstance(restored_alignment, dict):
                     alignment_cache = restored_alignment
                     try:

@@ -706,6 +706,70 @@ def get_chart_dnd_prediction_metadata(chart_uid: str) -> dict[str, Any]:
         conn.close()
 
 
+
+def _create_enneagram_prediction_metadata_table(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS chart_enneagram_prediction_metadata (
+            chart_uid TEXT PRIMARY KEY,
+            payload TEXT NOT NULL DEFAULT '{}',
+            updated_at TEXT NOT NULL DEFAULT ''
+        )
+        """
+    )
+
+
+def upsert_chart_enneagram_prediction_metadata(chart_uid: str, payload: Mapping[str, Any]) -> None:
+    """Persist cached Enneagram prediction metadata for a chart UID."""
+    normalized_uid = _normalize_chart_uid(chart_uid)
+    if normalized_uid is None:
+        raise ValueError(f"Invalid chart UID {chart_uid!r}")
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    conn = _get_conn()
+    try:
+        with conn:
+            _create_enneagram_prediction_metadata_table(conn)
+            conn.execute(
+                """
+                INSERT INTO chart_enneagram_prediction_metadata (chart_uid, payload, updated_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(chart_uid) DO UPDATE SET
+                    payload = excluded.payload,
+                    updated_at = excluded.updated_at
+                """,
+                (normalized_uid, json.dumps(dict(payload), separators=(",", ":")), now),
+            )
+    finally:
+        conn.close()
+
+
+def get_chart_enneagram_prediction_metadata(chart_uid: str) -> dict[str, Any]:
+    """Return persisted cached Enneagram prediction metadata for a chart UID."""
+    normalized_uid = _normalize_chart_uid(chart_uid)
+    if normalized_uid is None:
+        return {}
+    conn = _get_conn()
+    conn.row_factory = sqlite3.Row
+    try:
+        _create_enneagram_prediction_metadata_table(conn)
+        row = conn.execute(
+            """
+            SELECT payload
+            FROM chart_enneagram_prediction_metadata
+            WHERE chart_uid = ?
+            """,
+            (normalized_uid,),
+        ).fetchone()
+        if row is None:
+            return {}
+        try:
+            payload = json.loads(str(row["payload"] or "{}"))
+        except json.JSONDecodeError:
+            return {}
+        return payload if isinstance(payload, dict) else {}
+    finally:
+        conn.close()
+
 def _create_chart_trait_metadata_table(conn: sqlite3.Connection) -> None:
     if _charts_table_exists(conn):
         _ensure_chart_uids(conn)
@@ -1508,6 +1572,7 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
     _create_duplicate_exclusions_table(conn)
     _create_chart_trait_metadata_table(conn)
     _create_dnd_prediction_metadata_table(conn)
+    _create_enneagram_prediction_metadata_table(conn)
     if _charts_table_exists(conn):
         _prune_duplicate_exclusions(conn)
 
