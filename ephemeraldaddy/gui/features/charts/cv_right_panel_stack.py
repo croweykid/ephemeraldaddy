@@ -31,6 +31,7 @@ from PySide6.QtWidgets import (
 
 from ephemeraldaddy.core.chart import chart_uses_houses
 from ephemeraldaddy.core.interpretations import MODE_KEYWORDS
+from ephemeraldaddy.gui.features.charts.prediction_loading_labels import start_prediction_loading_blink
 from ephemeraldaddy.gui.style import (
     close_app_loading_progress,
     create_app_loading_progress,
@@ -661,20 +662,7 @@ def _resolve_chart_right_panel_key(owner: object, panel_key: str) -> str:
 
 def _start_prediction_loading_blink(label: QLabel) -> None:
     """Make a Predictions loading label pulse purple while fresh section data loads."""
-    states = ("#c77dff", "#7b4dff")
-    label._ephemeraldaddy_loading_blink_state = 0
-
-    def _tick() -> None:
-        state = int(getattr(label, "_ephemeraldaddy_loading_blink_state", 0) or 0)
-        color = states[state % len(states)]
-        label.setStyleSheet(f"color: {color}; font-style: italic; font-weight: 700; padding: 18px 8px;")
-        label._ephemeraldaddy_loading_blink_state = state + 1
-
-    timer = QTimer(label)
-    timer.timeout.connect(_tick)
-    label._ephemeraldaddy_loading_blink_timer = timer
-    _tick()
-    timer.start(450)
+    start_prediction_loading_blink(label)
 
 
 def _prediction_loading_html(message: str) -> str:

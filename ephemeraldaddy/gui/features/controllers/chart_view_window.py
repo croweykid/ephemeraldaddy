@@ -9,7 +9,7 @@ from collections import Counter
 from types import MethodType
 from typing import Callable
 
-from PySide6.QtCore import QEvent, QRect, QSize, Qt, Signal, QTimer
+from PySide6.QtCore import QEvent, QRect, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QDragEnterEvent, QDropEvent, QFont, QIcon, QKeySequence, QLinearGradient, QPainter, QPixmap, QShortcut
 from PySide6.QtWidgets import (
     QAbstractButton,
@@ -69,6 +69,7 @@ from ephemeraldaddy.gui.features.charts.anagrams import (
 )
 from ephemeraldaddy.gui.features.charts.euphonics import render_euphonics_html
 from ephemeraldaddy.gui.features.charts.loading_overlay import ChartLoadingOverlay
+from ephemeraldaddy.gui.features.charts.prediction_loading_labels import start_prediction_loading_blink
 from ephemeraldaddy.gui.features.charts.time_sensitivity_panel import TimeSensitivityPanel
 from ephemeraldaddy.gui.features.charts.trait_predictions import configure_traits_prediction_table
 from ephemeraldaddy.gui.features.controllers.chart_right_panel import ChartRightPanelController
@@ -102,19 +103,7 @@ def _make_predictions_loading_label(message: str, *, alignment: Qt.AlignmentFlag
     label.setWordWrap(True)
     label.setAlignment(alignment)
     label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
-    label._ephemeraldaddy_loading_blink_state = 0
-
-    def _tick() -> None:
-        state = int(getattr(label, "_ephemeraldaddy_loading_blink_state", 0) or 0)
-        color = ("#c77dff", "#7b4dff")[state % 2]
-        label.setStyleSheet(f"color: {color}; font-style: italic; font-weight: 700; padding: 18px 8px;")
-        label._ephemeraldaddy_loading_blink_state = state + 1
-
-    timer = QTimer(label)
-    timer.timeout.connect(_tick)
-    label._ephemeraldaddy_loading_blink_timer = timer
-    _tick()
-    timer.start(450)
+    start_prediction_loading_blink(label)
     return label
 
 CHART_INFO_PANEL_BUTTON_ATTRS: dict[str, str] = {

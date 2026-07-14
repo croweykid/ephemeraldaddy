@@ -32,6 +32,7 @@ from ephemeraldaddy.gui.features.charts.metrics import (
     calculate_dominant_sign_weights,
     house_for_longitude,
 )
+from ephemeraldaddy.gui.features.charts.prediction_loading_labels import stop_prediction_loading_blink
 from ephemeraldaddy.gui.features.charts.presentation import sign_for_longitude
 from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR
 from ephemeraldaddy.analysis.human_design import derive_human_design_profile
@@ -994,6 +995,7 @@ class EnneagramPredictionPanelAdapter:
         panel_layout.addWidget(button, alignment=Qt.AlignCenter)
         layout.addWidget(panel)
         if self.tritype_label is not None:
+            stop_prediction_loading_blink(self.tritype_label)
             self.tritype_label.setText("<b>Predicted Tritype:</b> No prior data")
 
     def _draw_no_data(self, ax: Any, _chart: Any | None) -> None:
@@ -1106,6 +1108,7 @@ class EnneagramPredictionPanelAdapter:
                 chart=chart,
             )
             if self.tritype_label is not None:
+                stop_prediction_loading_blink(self.tritype_label)
                 self.tritype_label.setText(
                     "<b>Predicted Tritype:</b> —" if chart is None else "<b>Predicted Tritype:</b> No data"
                 )
@@ -1143,6 +1146,7 @@ class EnneagramPredictionPanelAdapter:
         if cache_stale:
             self._show_stale_recalculate_notice(chart)
         if self.tritype_label is not None:
+            stop_prediction_loading_blink(self.tritype_label)
             self.tritype_label.setText(
                 f"<b>Predicted Tritype:</b> {tritype_text_for_scores(scores)}"
                 f"<br>{enneagram_realm_summary_html(scores)}"

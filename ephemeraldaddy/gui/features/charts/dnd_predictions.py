@@ -68,6 +68,7 @@ from ephemeraldaddy.analysis.weighted_chart_predictor import (
     weighted_position_entries,
     weighted_string_entries,
 )
+from ephemeraldaddy.gui.features.charts.prediction_loading_labels import stop_prediction_loading_blink
 from ephemeraldaddy.analysis.weighted_chart_predictor import (
     DEFAULT_CATEGORY_WEIGHTS,
     PREDICTION_SCORE_MODE_BACKGROUND_Z,
@@ -1222,6 +1223,7 @@ def configure_dnd_top_three_summary_label(
     label.setTextInteractionFlags(Qt.LinksAccessibleByMouse | Qt.TextSelectableByMouse)
     label.setOpenExternalLinks(False)
     apply_chart_info_link_cursor(label)
+    stop_prediction_loading_blink(label)
     if section == "species":
         label.setText(build_dnd_species_summary_html(chart, linked=True))
     elif section == "class":
@@ -1469,6 +1471,7 @@ class DndPredictionPanelAdapter:
         label_sections = (("species_label", "species"), ("class_label", "class"))
         for attr_name, section in label_sections:
             label = self._ensure_text_label(attr_name)
+            stop_prediction_loading_blink(label)
             if chart is None or self.is_placeholder_chart(chart):
                 label.setText("<b>Top 3 Species/Subspecies</b><br>—" if section == "species" else "<b>Top 3 Classes</b><br>—")
             elif self.info_panel is not None:

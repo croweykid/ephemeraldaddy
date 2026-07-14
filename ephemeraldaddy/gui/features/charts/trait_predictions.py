@@ -68,6 +68,10 @@ from ephemeraldaddy.gui.features.charts.database_norms_cache import (
     analytical_mapping_signature,
     database_norms_refresh_threshold,
 )
+from ephemeraldaddy.gui.features.charts.prediction_loading_labels import (
+    start_prediction_loading_blink,
+    stop_prediction_loading_blink,
+)
 try:
     from ephemeraldaddy.gui.style import (
         apply_chart_info_link_cursor,
@@ -415,23 +419,6 @@ def _configure_traits_prediction_label(owner: Any, label: QLabel) -> None:
         return
     label.linkActivated.connect(lambda target: _on_trait_prediction_link_activated(owner, target))
     label._ephemeraldaddy_trait_links_connected = True
-
-
-def _start_traits_prediction_loading_blink(label: QLabel) -> None:
-    """Pulse a not-yet-loaded Traits prediction label so it cannot read as empty/final."""
-    label._ephemeraldaddy_loading_blink_state = 0
-
-    def _tick() -> None:
-        state = int(getattr(label, "_ephemeraldaddy_loading_blink_state", 0) or 0)
-        color = ("#c77dff", "#7b4dff")[state % 2]
-        label.setStyleSheet(f"color: {color}; font-style: italic; font-weight: 700; padding: 18px 8px;")
-        label._ephemeraldaddy_loading_blink_state = state + 1
-
-    timer = QTimer(label)
-    timer.timeout.connect(_tick)
-    label._ephemeraldaddy_loading_blink_timer = timer
-    _tick()
-    timer.start(450)
 
 
 def _stable_json_hash(value: Any) -> str:
@@ -1951,6 +1938,7 @@ def _apply_traits_prediction_view(owner: Any, above_html: str, below_html: str, 
     _set_traits_prediction_rows(owner, [])
     label = getattr(owner, "traits_prediction_label", None)
     if isinstance(label, QLabel):
+        stop_prediction_loading_blink(label)
         label.setText(_current_traits_prediction_html(owner) or "Trait predictions unavailable for this chart.")
         label.adjustSize()
         label.setMinimumHeight(label.sizeHint().height())
@@ -1976,6 +1964,7 @@ def _apply_traits_prediction_metadata(
     _set_traits_prediction_rows(owner, rows)
     label = getattr(owner, "traits_prediction_label", None)
     if isinstance(label, QLabel):
+        stop_prediction_loading_blink(label)
         if not has_table:
             label.setText(_current_traits_prediction_html(owner) or "Trait predictions unavailable for this chart.")
             label.setVisible(True)
@@ -2167,6 +2156,6 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
     message = "● Loading fresh trait predictions for this UID… ●"
     _predictions_debug(owner, "Trait render found no persisted trait metadata; auto-loading fresh traits cache_key=%s", (cache_key or "")[:12])
     _apply_traits_prediction_view(owner, message, message)
-    _start_traits_prediction_loading_blink(label)
+    start_prediction_loading_blink(label)
     QTimer.singleShot(0, lambda owner=owner: _start_traits_prediction_calculation(owner))
     return
