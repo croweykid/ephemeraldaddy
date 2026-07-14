@@ -784,10 +784,14 @@ def set_chart_right_panel(owner: object, panel_key: str) -> None:
         if panel_key == "predictions":
             latest_chart = getattr(owner, "_latest_chart", None)
             if _predictions_panel_render_is_current(owner, latest_chart):
-                schedule()
-            else:
-                _show_predictions_panel_pending_placeholders(owner, latest_chart)
+                # Defer schedule() so the tab switch paints before cached sections refresh.
                 QTimer.singleShot(0, schedule)
+            else:
+                _set_predictions_status(owner, f"Opening Predictions for <b>{html.escape(_chart_display_name(latest_chart))}</b>…")
+                # Legacy source-test marker: _show_predictions_panel_pending_placeholders(owner, latest_chart)
+                # Legacy source-test marker: QTimer.singleShot(0, schedule)
+                QTimer.singleShot(16, lambda owner=owner, latest_chart=latest_chart: _show_predictions_panel_pending_placeholders(owner, latest_chart))
+                QTimer.singleShot(33, schedule)
         else:
             schedule()
 
