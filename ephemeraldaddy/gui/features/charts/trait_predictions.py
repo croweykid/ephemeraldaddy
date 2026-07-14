@@ -69,7 +69,11 @@ from ephemeraldaddy.gui.features.charts.database_norms_cache import (
     database_norms_refresh_threshold,
 )
 try:
-    from ephemeraldaddy.gui.style import apply_chart_info_link_cursor, set_chart_info_html
+    from ephemeraldaddy.gui.style import (
+        apply_chart_info_link_cursor,
+        set_chart_info_html,
+        similarity_gradient_rgb_for_range,
+    )
 except Exception:  # pragma: no cover - headless tests may not import Qt-backed style module
     def apply_chart_info_link_cursor(_widget: Any) -> None:
         return None
@@ -79,6 +83,14 @@ except Exception:  # pragma: no cover - headless tests may not import Qt-backed 
             widget.setHtml(content)
         elif hasattr(widget, "setPlainText"):
             widget.setPlainText(content)
+
+    def similarity_gradient_rgb_for_range(value: float, minimum: float, maximum: float) -> tuple[int, int, int]:
+        if maximum > minimum:
+            ratio = (float(value) - float(minimum)) / (float(maximum) - float(minimum))
+        else:
+            ratio = 0.0
+        clamped = max(0.0, min(1.0, ratio))
+        return (int(round(140 * (1.0 - clamped))), int(round(255 * clamped)), 0)
 
 
 logger = logging.getLogger(__name__)
@@ -95,7 +107,7 @@ TRAIT_ROW_DIRECTION_ROLE = Qt.UserRole + 4
 class _TraitPredictionRowsModel(QAbstractTableModel):
     """Qt row model for Chart View trait predictions."""
 
-    _HEADERS = ("Trait", "%", "DB avg", "vs DB")
+    _HEADERS = ("Trait", "%", "vs DB")
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -128,15 +140,21 @@ class _TraitPredictionRowsModel(QAbstractTableModel):
             if column == 1:
                 return f"{float(row.get('likelihood', 0.0)):.1f}%"
             if column == 2:
-                return f"{float(row.get('database_average', 0.0)):.1f}%"
-            if column == 3:
                 return _format_signed_percentage(float(row.get("deviation", 0.0)))
         if role == Qt.TextAlignmentRole:
             return Qt.AlignLeft | Qt.AlignVCenter if column == 0 else Qt.AlignRight | Qt.AlignVCenter
         if role == Qt.ForegroundRole and QColor is not None:
             if column == 0:
                 return QColor(str(row.get("color") or DEFAULT_TRAIT_COLOR))
+            if column == 1:
+                red, green, blue = similarity_gradient_rgb_for_range(float(row.get("likelihood", 0.0)), 0.0, 100.0)
+                return QColor(red, green, blue)
+            if column == 2:
+                red, green, blue = similarity_gradient_rgb_for_range(float(row.get("deviation", 0.0)), -100.0, 100.0)
+                return QColor(red, green, blue)
             return QColor("#f5f5f5")
+        if role == Qt.ToolTipRole and column == 0:
+            return str(row.get("name", ""))
         if role == TRAIT_ROW_NAME_ROLE:
             return row.get("name", "")
         if role == TRAIT_ROW_COLOR_ROLE:
@@ -197,14 +215,15 @@ def configure_traits_prediction_table(owner: Any, table: QTableView) -> None:
     table.setModel(proxy)
     table.setItemDelegate(_TraitPredictionColorDelegate(table))
     table.setSortingEnabled(True)
-    table.sortByColumn(3, Qt.DescendingOrder)
+    table.sortByColumn(2, Qt.DescendingOrder)
     table.setSelectionBehavior(QTableView.SelectRows)
     table.setSelectionMode(QTableView.SingleSelection)
     table.setAlternatingRowColors(True)
     table.verticalHeader().setVisible(False)
     table.horizontalHeader().setStretchLastSection(False)
     table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-    for column in (1, 2, 3):
+    table.setColumnWidth(0, 220)
+    for column in (1, 2):
         table.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeToContents)
     table.setStyleSheet(
         "QTableView { color: #f5f5f5; background: rgba(255,255,255,0.03); "
@@ -244,7 +263,7 @@ def _refresh_traits_prediction_filter(owner: Any) -> None:
         proxy.invalidateFilter()
         combo = getattr(owner, "traits_prediction_mode_combo", None)
         mode = combo.currentData() if isinstance(combo, QComboBox) else "above"
-        proxy.sort(3, Qt.AscendingOrder if mode == "below" else Qt.DescendingOrder)
+        proxy.sort(2, Qt.AscendingOrder if mode == "below" else Qt.DescendingOrder)
     table = getattr(owner, "traits_prediction_table", None)
     if isinstance(table, QTableView):
         table.resizeRowsToContents()
@@ -266,6 +285,11 @@ def _predictions_debug(owner: Any, message: str, *args: object) -> None:
     print(f"[predictions-thread-debug][{timestamp}][traits] {rendered}", file=sys.stderr, flush=True)
 
 
+def _percentage_color(value: float, minimum: float, maximum: float) -> str:
+    red, green, blue = similarity_gradient_rgb_for_range(value, minimum, maximum)
+    return f"#{red:02x}{green:02x}{blue:02x}"
+
+
 def _format_signed_percentage(value: float | None) -> str:
     if value is None:
         return "—"
@@ -277,7 +301,7 @@ def _traits_table_header() -> str:
         "<tr>"
         "<th style='padding:1px 8px 2px 0; text-align:left; color:#f5f5f5;'>trait</th>"
         "<th style='padding:1px 8px 2px 0; text-align:right; color:#f5f5f5;'>%</th>"
-        "<th style='padding:1px 0 2px 0; text-align:right; color:#f5f5f5;'>vs DB avg</th>"
+        "<th style='padding:1px 0 2px 0; text-align:right; color:#f5f5f5;'>vs DB</th>"
         "</tr>"
     )
 
@@ -295,18 +319,15 @@ def _trait_rank_row(
     safe_color = html.escape(normalize_trait_color(color))
     safe_href = html.escape(f"trait:{urllib.parse.quote(name, safe='')}", quote=True)
     difference_text = html.escape(_format_signed_percentage(db_deviation))
-    difference_color = "#d8d8d8"
-    if db_deviation > 0:
-        difference_color = "#90ee90"
-    elif db_deviation < 0:
-        difference_color = "#ffb3b3"
+    percentage_color = _percentage_color(pct, 0.0, 100.0)
+    difference_color = _percentage_color(db_deviation, -100.0, 100.0)
     safe_title = html.escape(f"DB average: {max(0.0, min(100.0, db_average)):.1f}%")
     return (
         "<tr>"
         f"<td style='padding:1px 8px 1px 0; white-space:nowrap; color:{safe_color};' title='{safe_title}'>"
         f"<a href='{safe_href}' style='color:{safe_color}; text-decoration:none;'>{safe_name}</a>"
         "</td>"
-        f"<td style='padding:1px 8px 1px 0; text-align:right; color:#d8d8d8;'>{pct:.1f}%</td>"
+        f"<td style='padding:1px 8px 1px 0; text-align:right; color:{percentage_color};'>{pct:.1f}%</td>"
         f"<td style='padding:1px 0; text-align:right; color:{difference_color};'>{difference_text}</td>"
         "</tr>"
     )
