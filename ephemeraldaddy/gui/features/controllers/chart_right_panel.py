@@ -132,7 +132,10 @@ class ChartRightPanelController:
             self.set_section_visible("similar_charts", False)
         if panel_key in {"subjective_notes", "abc"}:
             self._scroll_panel_to_top(active_scroll)
-        self.schedule_render(panel_key)
+        if panel_key == "predictions":
+            QTimer.singleShot(0, lambda panel_key=panel_key: self.schedule_render(panel_key))
+        else:
+            self.schedule_render(panel_key)
 
     def set_section_visible(self, section: RightPanelSection, visible: bool) -> None:
         """Update tracked right-panel section visibility without scattering checks."""
@@ -183,10 +186,7 @@ class ChartRightPanelController:
                 and _predictions_panel_has_rendered_content(self._owner)
             ):
                 return
-            render_traits = getattr(self._owner, "_render_traits_predictions", None)
-            if callable(render_traits):
-                render_traits(chart)
-            schedule_chart_render_for_active_right_panel(self._owner)
+            QTimer.singleShot(0, lambda: schedule_chart_render_for_active_right_panel(self._owner))
             return
         if active_panel in {"abc", "anagrams"} and self._is_analysis_section_visible("anagrams"):
             schedule_chart_render = getattr(self._owner, "_schedule_chart_render", None)

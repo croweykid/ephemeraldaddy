@@ -7,6 +7,7 @@ import math
 import random
 import re
 import statistics
+import time
 from typing import Any, Callable
 
 from PySide6.QtCore import Qt
@@ -186,6 +187,64 @@ def _coerce_complete_enneagram_type_scores(cached_scores: Any) -> dict[int, floa
         coerced[enneagram_type] = score
     return coerced
 
+
+
+def _chart_prediction_cache_uid(chart: Any) -> str:
+    for attr in ("uid", "UID", "chart_uid", "permanent_uid"):
+        value = str(getattr(chart, attr, "") or "").strip()
+        if value:
+            return value
+    return ""
+
+
+def _enneagram_definition_signature() -> str:
+    return repr((ENNEAGRAM_REALMS, ENNEAGRAM_CATEGORY_WEIGHTS, enneagram_scoring_options_to_payload(ENNEAGRAM_SCORING_OPTIONS)))
+
+
+def _enneagram_chart_state_token(owner: Any, chart: Any) -> str:
+    chart_token_fn = getattr(owner, "_chart_analytics_cache_token", None)
+    if callable(chart_token_fn):
+        try:
+            return str(chart_token_fn(chart))
+        except Exception:
+            pass
+    return repr({
+        "uid": _chart_prediction_cache_uid(chart),
+        "dt_local": str(getattr(chart, "dt_local", "") or ""),
+        "birth_place": str(getattr(chart, "birth_place", "") or ""),
+        "lat": str(getattr(chart, "lat", "") or ""),
+        "lon": str(getattr(chart, "lon", "") or ""),
+        "birthtime_unknown": bool(getattr(chart, "birthtime_unknown", False)),
+        "retcon_time_used": bool(getattr(chart, "retcon_time_used", False)),
+        "retcon_hour": getattr(chart, "retcon_hour", None),
+        "retcon_minute": getattr(chart, "retcon_minute", None),
+        "chart_uses_houses": bool(chart_uses_houses(chart)),
+    })
+
+
+def _load_persisted_enneagram_prediction_payload(chart: Any) -> dict[str, Any]:
+    chart_uid = _chart_prediction_cache_uid(chart)
+    if not chart_uid:
+        return {}
+    try:
+        from ephemeraldaddy.core import db
+
+        payload = db.get_chart_enneagram_prediction_metadata(chart_uid)
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _persist_enneagram_prediction_payload(chart: Any, payload: dict[str, Any]) -> None:
+    chart_uid = _chart_prediction_cache_uid(chart)
+    if not chart_uid or not isinstance(payload, dict):
+        return
+    try:
+        from ephemeraldaddy.core import db
+
+        db.upsert_chart_enneagram_prediction_metadata(chart_uid, payload)
+    except Exception:
+        pass
 
 def cache_enneagram_prediction_metadata(chart: Any, scores: dict[int, float]) -> dict[int, float]:
     """Write ranked Enneagram prediction metadata back onto a chart object."""
@@ -979,14 +1038,66 @@ class EnneagramPredictionPanelAdapter:
             calculate_type_weights=self.calculate_type_weights,
         )
 
+    def _cache_key(self, chart: Any) -> tuple[str, str]:
+        return (_enneagram_chart_state_token(self, chart), _enneagram_definition_signature())
+
+    def _restore_cache(self, chart: Any) -> dict[str, Any] | None:
+        cached = getattr(chart, "_enneagram_prediction_cache", None)
+        if not isinstance(cached, dict):
+            cached = _load_persisted_enneagram_prediction_payload(chart)
+        scores = _coerce_complete_enneagram_type_scores(cached.get("scores") if isinstance(cached, dict) else None)
+        if scores is None:
+            legacy_scores = _coerce_complete_enneagram_type_scores(getattr(chart, "enneagram_type_weights", None))
+            if legacy_scores is None:
+                return None
+            cached = {"key": self._cache_key(chart), "scores": legacy_scores, "cached_at": time.time(), "legacy": True}
+        else:
+            cached = dict(cached)
+            cached["scores"] = scores
+        try:
+            setattr(chart, "_enneagram_prediction_cache", cached)
+            cache_enneagram_prediction_metadata(chart, scores)
+        except Exception:
+            pass
+        return cached
+
+    def _cache_is_stale(self, chart: Any, cached: dict[str, Any]) -> bool:
+        return cached.get("key") != self._cache_key(chart) and cached.get("key_fingerprint") != repr(self._cache_key(chart))
+
     def cache_metadata(self, chart: Any) -> dict[int, float]:
-        cached_scores = _coerce_complete_enneagram_type_scores(
-            getattr(chart, "enneagram_type_weights", None)
-        )
-        if cached_scores is not None:
-            return cached_scores
+        cached_scores = _coerce_complete_enneagram_type_scores(getattr(chart, "enneagram_type_weights", None))
         scores = self.calculate_type_weights(chart)
-        return cache_enneagram_prediction_metadata(chart, scores)
+        scores = cache_enneagram_prediction_metadata(chart, scores)
+        payload = {"version": 1, "key": self._cache_key(chart), "key_fingerprint": repr(self._cache_key(chart)), "scores": scores, "cached_at": time.time()}
+        try:
+            setattr(chart, "_enneagram_prediction_cache", payload)
+        except Exception:
+            pass
+        _persist_enneagram_prediction_payload(chart, payload)
+        return scores
+
+    def _show_stale_recalculate_notice(self, chart: Any) -> None:
+        layout = self.enneagram_prediction_chart_layout
+        if layout is None:
+            return
+        panel = QWidget()
+        panel.setProperty("enneagram_stale_recalculate_notice", True)
+        panel_layout = QVBoxLayout()
+        panel_layout.setContentsMargins(0, 0, 0, 6)
+        panel_layout.setSpacing(4)
+        panel.setLayout(panel_layout)
+        label = QLabel("Cached results shown; chart data or prediction definitions may have changed.")
+        label.setWordWrap(True)
+        label.setStyleSheet("color: #d8d8d8; font-style: italic; padding: 2px 0 0 0;")
+        button = QPushButton("Recalculate")
+        button.setStyleSheet("background-color: #7b4dff; color: white; font-weight: bold; font-style: italic; padding: 6px 14px; border-radius: 5px;")
+        button.clicked.connect(lambda _checked=False, chart=chart: self.calculate_callback(chart, "enneagram") if callable(self.calculate_callback) else None)
+        panel_layout.addWidget(label, alignment=Qt.AlignCenter)
+        panel_layout.addWidget(button, alignment=Qt.AlignCenter)
+        try:
+            layout.insertWidget(0, panel)
+        except Exception:
+            layout.addWidget(panel)
 
     def render(self, chart: Any | None, metric_panel_renderer: Callable[..., Any]) -> None:
         if chart is None or self.is_placeholder_chart(chart):
@@ -1003,10 +1114,16 @@ class EnneagramPredictionPanelAdapter:
                     "<b>Predicted Tritype:</b> —" if chart is None else "<b>Predicted Tritype:</b> No data"
                 )
             return
-        scores = _coerce_complete_enneagram_type_scores(getattr(chart, "enneagram_type_weights", None))
+        # Cached-only render intentionally avoids this warmup path: scores = self.cache_metadata(chart)
+        cached = self._restore_cache(chart)
+        if not isinstance(cached, dict):
+            self._show_calculate_prompt(chart)
+            return
+        scores = _coerce_complete_enneagram_type_scores(cached.get("scores"))
         if scores is None:
             self._show_calculate_prompt(chart)
             return
+        cache_stale = self._cache_is_stale(chart, cached)
 
         def _draw_with_cached_scores(ax: Any, draw_chart: Any) -> None:
             draw_enneagram_predictions(
@@ -1027,6 +1144,8 @@ class EnneagramPredictionPanelAdapter:
             draw_fn=_draw_with_cached_scores,
             chart=chart,
         )
+        if cache_stale:
+            self._show_stale_recalculate_notice(chart)
         if self.tritype_label is not None:
             self.tritype_label.setText(
                 f"<b>Predicted Tritype:</b> {tritype_text_for_scores(scores)}"
