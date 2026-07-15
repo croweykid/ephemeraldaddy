@@ -34165,14 +34165,29 @@ class MainWindow(QMainWindow):
             return False
 
         range_start_minute, range_end_minute = self._rectification_range_minutes_from_inputs()
+        place_text = self.place_edit.text().strip() or "Chicago, IL, USA"
+        saved_place = getattr(chart, "birth_place", None) or ""
+        if place_text != saved_place:
+            return False
+        if (
+            getattr(self, "_searched_birth_place", None) == place_text
+            and getattr(self, "_searched_lat", None) is not None
+            and getattr(self, "_searched_lon", None) is not None
+        ):
+            searched_lat = round(float(self._searched_lat), 6)
+            searched_lon = round(float(self._searched_lon), 6)
+            saved_lat = round(float(getattr(chart, "lat", 0.0) or 0.0), 6)
+            saved_lon = round(float(getattr(chart, "lon", 0.0) or 0.0), 6)
+            if (searched_lat, searched_lon) != (saved_lat, saved_lon):
+                return False
+
         retcon_time = self.retcon_time_edit.time()
         stored_retcon_hour = getattr(chart, "retcon_hour", None)
         stored_retcon_minute = getattr(chart, "retcon_minute", None)
         stored_range_start = getattr(chart, "rectification_range_start_minute", None)
         stored_range_end = getattr(chart, "rectification_range_end_minute", None)
         return (
-            (self.place_edit.text().strip() or "Chicago, IL, USA") == (getattr(chart, "birth_place", None) or "")
-            and self.time_unknown_checkbox.isChecked() == bool(getattr(chart, "birthtime_unknown", False))
+            self.time_unknown_checkbox.isChecked() == bool(getattr(chart, "birthtime_unknown", False))
             and self.retcon_time_checkbox.isChecked() == bool(getattr(chart, "retcon_time_used", False))
             and retcon_time.hour() == int(stored_retcon_hour if stored_retcon_hour is not None else retcon_time.hour())
             and retcon_time.minute() == int(stored_retcon_minute if stored_retcon_minute is not None else retcon_time.minute())

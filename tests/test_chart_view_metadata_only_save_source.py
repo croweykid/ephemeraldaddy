@@ -21,6 +21,9 @@ def test_metadata_only_guard_tracks_birth_calculation_inputs():
         "_rectification_range_effective_from_inputs",
         "time_unknown_checkbox",
         "place_edit",
+        "_searched_birth_place",
+        "_searched_lat",
+        "_searched_lon",
         "birthtime_unknown",
         "retcon_time_used",
         "rectification_range_start_minute",
@@ -47,3 +50,15 @@ def test_placeholder_charts_do_not_short_circuit_birth_input_comparison():
     helper_source = APP_SOURCE[helper_start:helper_end]
     assert "if self.placeholder_chart_checkbox.isChecked():\n            return True" not in helper_source
     assert "placeholder_checked or self.time_unknown_checkbox.isChecked()" in helper_source
+
+
+def test_coordinate_search_selection_for_same_place_label_forces_recalculation():
+    helper_start = APP_SOURCE.index("def _saved_chart_birth_inputs_match_form")
+    helper_end = APP_SOURCE.index("def on_update_chart", helper_start)
+    helper_source = APP_SOURCE[helper_start:helper_end]
+    assert "_searched_birth_place" in helper_source
+    assert "_searched_lat" in helper_source
+    assert "_searched_lon" in helper_source
+    assert "saved_lat" in helper_source
+    assert "saved_lon" in helper_source
+    assert "return False" in helper_source[helper_source.index("searched_lat"):helper_source.rindex("retcon_time")]
