@@ -31111,13 +31111,7 @@ class MainWindow(QMainWindow):
                 getattr(self, "reminds_me_of_input", None),
             )
         ):
-            # These completers are session-sensitive: Database View can add
-            # tags/charts while Chart View remains open, and unsaved Chart View
-            # tags should stay available before the current chart is stored.
-            self._update_tag_completers(
-                refresh_location_completers=False,
-                refresh_tag_lists=False,
-            )
+            self._refresh_chart_view_session_completers()
         if obj is self.output_text.viewport():
             if event.type() == QEvent.Resize:
                 self._position_output_share_button()
@@ -31174,6 +31168,14 @@ class MainWindow(QMainWindow):
                 self.on_popout_chart()
                 return True
         return super().eventFilter(obj, event)
+
+
+    def _refresh_chart_view_session_completers(self) -> None:
+        """Refresh completers whose choices can change while Chart View stays open."""
+        self._update_tag_completers(
+            refresh_location_completers=False,
+            refresh_tag_lists=False,
+        )
 
     def _show_position_info(self, body: str, sign: str, house_num: int | None) -> None:
         sign_key = sign.title()

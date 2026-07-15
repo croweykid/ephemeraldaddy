@@ -18,6 +18,8 @@ def test_chart_view_completers_refresh_when_session_sensitive_fields_gain_focus(
     assert "self.chart_tags_input.installEventFilter(self)" in APP_SOURCE
     assert "self.reminds_me_of_input.installEventFilter(self)" in APP_SOURCE
     assert "event.type() == QEvent.FocusIn" in APP_SOURCE
+    assert "def _refresh_chart_view_session_completers" in APP_SOURCE
+    assert "self._refresh_chart_view_session_completers()" in APP_SOURCE
     assert 'getattr(self, "chart_tags_input", None)' in APP_SOURCE
     assert 'getattr(self, "reminds_me_of_input", None)' in APP_SOURCE
     assert "refresh_location_completers=False" in APP_SOURCE
