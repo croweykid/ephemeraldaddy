@@ -378,3 +378,29 @@ def test_prediction_calculate_prompts_expand_and_center_contents():
     assert "min-height:120px" in traits_source
     assert "text-align:center" in traits_source
     assert "white-space:normal" in traits_source
+
+
+def test_predictions_status_box_lives_inside_traits_section_and_starts_hidden():
+    source = (REPO_ROOT / "ephemeraldaddy/gui/features/controllers/chart_view_window.py").read_text()
+    function = source[
+        source.index("def _build_predictions_panel") : source.index("    enneagram_section_layout =", source.index("def _build_predictions_panel"))
+    ]
+
+    traits_section_index = function.index('title="Traits"')
+    status_index = function.index('owner.predictions_background_status_label = QLabel("Traits render on demand in the background.")')
+    header_index = function.index("traits_header_row = QWidget()")
+
+    assert traits_section_index < status_index < header_index
+    assert 'owner.predictions_background_status_label.setObjectName("traits_prediction_status_label")' in function
+    assert "owner.predictions_background_status_label.setVisible(False)" in function
+    assert "traits_section_layout.addWidget(owner.predictions_background_status_label)" in function
+    assert "\n    layout.addWidget(owner.predictions_background_status_label)" not in function
+
+
+def test_non_trait_prediction_progress_does_not_populate_traits_status_box():
+    source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/cv_right_panel_stack.py").read_text()
+
+    assert 'self.progress.emit("Finishing non-trait Predictions…", 90)' in source
+    assert 'self.progress.emit("Finishing Predictions…", 90)' not in source
+    assert '_set_predictions_status(self._owner, "", visible=False)' in source
+    assert '_set_predictions_status(owner, "Loading trait predictions for this UID…")' in source

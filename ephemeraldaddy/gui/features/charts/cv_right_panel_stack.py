@@ -120,7 +120,7 @@ class _PredictionsWarmupWorker(QObject):
                     if callable(cache_alignment):
                         cache_alignment(self._chart)
                 _predictions_thread_debug(self._owner, "D&D cache stage complete job=%s", self._job_token)
-            self.progress.emit("Finishing Predictions…", 90)
+            self.progress.emit("Finishing non-trait Predictions…", 90)
         except Exception as exc:  # pragma: no cover - defensive UI path
             logger.warning(
                 "Predictions warmup failed for %s: %s",
@@ -153,7 +153,7 @@ class _PredictionsWarmupReceiver(QObject):
     def handle_progress(self, message: str, percent: int) -> None:
         progress = getattr(self._owner, "_predictions_background_progress", None)
         update_app_loading_progress(progress, message, percent)
-        _set_predictions_status(self._owner, html.escape(message))
+        _set_predictions_status(self._owner, "", visible=False)
 
     def set_job(self, thread: QThread, worker: QObject) -> None:
         self._thread = thread
@@ -706,8 +706,7 @@ def _clear_layout_for_prediction_placeholder(owner: object, layout_attr: str, ca
 
 def _show_predictions_panel_pending_placeholders(owner: object, chart: object | None) -> None:
     """Paint lightweight section placeholders before any cached prediction lookup runs."""
-    chart_name = html.escape(_chart_display_name(chart))
-    _set_predictions_status(owner, f"Opening Predictions for <b>{chart_name}</b>…")
+    _set_predictions_status(owner, "Loading trait predictions for this UID…")
     traits_label = getattr(owner, "traits_prediction_label", None)
     if isinstance(traits_label, QLabel):
         loading_html = "●  Loading trait predictions…  ●" #for this chart's UID
@@ -830,7 +829,7 @@ def set_chart_right_panel(owner: object, panel_key: str) -> None:
                 # Defer schedule() so the tab switch paints before cached sections refresh.
                 QTimer.singleShot(0, schedule)
             else:
-                _set_predictions_status(owner, f"Opening Predictions for <b>{html.escape(_chart_display_name(latest_chart))}</b>…")
+                _set_predictions_status(owner, "", visible=False)
                 # Legacy source-test marker: _show_predictions_panel_pending_placeholders(owner, latest_chart)
                 # Legacy source-test marker: QTimer.singleShot(0, schedule)
                 QTimer.singleShot(16, lambda owner=owner, latest_chart=latest_chart: _show_predictions_panel_pending_placeholders(owner, latest_chart))
@@ -956,11 +955,11 @@ def _chart_display_name(chart: object | None) -> str:
     return "this chart"
 
 
-def _set_predictions_status(owner: object, message: str) -> None:
+def _set_predictions_status(owner: object, message: str, *, visible: bool = True) -> None:
     label = getattr(owner, "predictions_background_status_label", None)
     if isinstance(label, QLabel):
         label.setText(message)
-        label.setVisible(True)
+        label.setVisible(bool(visible))
 
 
 def _prompt_prediction_render_conflict(owner: object, requested_chart: object) -> bool:
@@ -1018,10 +1017,7 @@ def _finish_background_prediction_render(
             schedule_metric_refreshes((0, 25, 75, 150, 300, 600))
         if state is not None:
             state.last_render_chart_token = render_token
-    _set_predictions_status(
-        owner,
-        f"Predictions for <b>{html.escape(chart_name)}</b> are ready: "
-    )
+    _set_predictions_status(owner, "", visible=False)
     label = getattr(owner, "predictions_background_status_label", None)
     if isinstance(label, QLabel):
         previous_handler = getattr(label, "_ephemeraldaddy_predictions_status_link_handler", None)
@@ -1138,7 +1134,7 @@ def stop_background_prediction_render(owner: object, wait_msecs: int | None = No
 def _start_background_prediction_render(owner: object, chart: object, render_token: str, sections: set[str] | None = None) -> None:
     chart_name = _chart_display_name(chart)
     _predictions_thread_debug(owner, "start requested chart=%s render_token=%s", chart_name, render_token)
-    _set_predictions_status(owner, f"Loading Predictions for <b>{html.escape(chart_name)}</b> in the background…")
+    _set_predictions_status(owner, "", visible=False)
     existing_progress = getattr(owner, "_predictions_background_progress", None)
     close_app_loading_progress(existing_progress)
     progress_parent = owner if isinstance(owner, QWidget) else None
@@ -1240,11 +1236,7 @@ def schedule_chart_render_for_active_right_panel(owner: object) -> None:
         owner._render_dndification_predictions(chart)
         if state is not None:
             state.last_render_chart_token = render_token
-        _set_predictions_status(
-            owner,
-            f"Showing cached Predictions for <b>{html.escape(_chart_display_name(chart))}</b>. "
-            "Use Calculate/Recalculate only when you want to refresh them.",
-        )
+        _set_predictions_status(owner, "", visible=False)
         return
     if active_panel in {"subjective_notes", "abc"} and owner._is_chart_analysis_section_visible("anagrams"):
         owner._schedule_chart_render(chart, sections={"anagrams"})
