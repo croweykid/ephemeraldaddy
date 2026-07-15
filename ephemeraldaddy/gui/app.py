@@ -1351,6 +1351,9 @@ from ephemeraldaddy.gui.style import (
     DATABASE_VIEW_TOOLBAR_SUCCESS_BUTTON_STYLE,
     SETTINGS_COLLAPSIBLE_TOGGLE_STYLE,
     SETTINGS_SECTION_SUBHEADER_STYLE,
+    SETTINGS_TAB_BUTTON_CHECKED_STYLE,
+    SETTINGS_TAB_HEADER_STYLE,
+    SETTINGS_TAB_PANEL_STYLE,
     DEFAULT_DROPDOWN_STYLE,
     WINDOW_CHROME_MENU_STYLE,
     apply_button_cursor,
@@ -21851,48 +21854,57 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         dialog.setWindowTitle("Settings & Preferences")
         dialog.setWindowFlag(Qt.Window, True)
         dialog.setModal(False)
-        dialog.setMinimumSize(520, 520)
+        dialog.setMinimumSize(700, 560)
         dialog.setStyleSheet(
-            "QDialog { background-color: #111111; color: #ececec; }"
-            "QLabel { color: #ececec; }"
-            "QToolButton {"
-            "background-color: #262626;"
-            "border: 1px solid #555555;"
-            "padding: 6px 10px;"
-            "font-weight: 600;"
-            "color: #ececec;"
-            "}"
-            "QPushButton {"
-            "background-color: #2f2f2f;"
-            "border: 1px solid #666666;"
-            "padding: 6px 10px;"
-            "color: #f0f0f0;"
-            "}"
-            "QPushButton:hover { background-color: #3a3a3a; }"
-            "QFrame#settings_section_content {"
-            "background-color: #111111;"
-            "border: 1px solid #4f4f4f;"
-            "}"
-            "QScrollArea { background-color: #111111; }"
-            "QScrollArea::viewport { background-color: #111111; }"
+            APPWIDE_DARK_THEME_STYLESHEET
+            + "QDialog { background-color: #0f1014; color: #f4f1ea; }"
+            + "QLabel { color: #f4f1ea; }"
+            + "QFrame#settings_tab_header {"
+            + SETTINGS_TAB_HEADER_STYLE
+            + "}"
+            + "QPushButton#settings_tab_button {"
+            + "border-radius: 8px;"
+            + "font-weight: 700;"
+            + "padding: 8px 12px;"
+            + "}"
+            + "QPushButton#settings_tab_button:checked {"
+            + SETTINGS_TAB_BUTTON_CHECKED_STYLE
+            + "}"
+            + "QFrame#settings_section_content {"
+            + SETTINGS_TAB_PANEL_STYLE
+            + "}"
+            + "QScrollArea { background-color: #0f1014; border: 0; }"
+            + "QScrollArea::viewport { background-color: #0f1014; }"
         )
 
         root_layout = QVBoxLayout(dialog)
-        root_layout.setContentsMargins(12, 12, 12, 12)
+        root_layout.setContentsMargins(14, 14, 14, 14)
         root_layout.setSpacing(12)
 
-        scroll = QScrollArea(dialog)
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.NoFrame)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        root_layout.addWidget(scroll)
+        tab_header_scroll = QScrollArea(dialog)
+        tab_header_scroll.setWidgetResizable(True)
+        tab_header_scroll.setFrameShape(QFrame.NoFrame)
+        tab_header_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        tab_header_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        tab_header_scroll.setFixedHeight(58)
+        tab_header_frame = QFrame()
+        tab_header_frame.setObjectName("settings_tab_header")
+        tab_header_layout = QHBoxLayout(tab_header_frame)
+        tab_header_layout.setContentsMargins(8, 8, 8, 8)
+        tab_header_layout.setSpacing(8)
+        tab_header_scroll.setWidget(tab_header_frame)
+        root_layout.addWidget(tab_header_scroll)
 
-        content = QWidget()
-        scroll.setWidget(content)
+        settings_tab_stack = QStackedWidget(dialog)
+        settings_tab_stack.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        root_layout.addWidget(settings_tab_stack, 1)
 
-        content_layout = QVBoxLayout(content)
-        content_layout.setContentsMargins(0, 0, 0, 0)
-        content_layout.setSpacing(10)
+        content = settings_tab_stack
+        content_layout = QVBoxLayout()
+        self._settings_tab_stack = settings_tab_stack
+        self._settings_tab_header_layout = tab_header_layout
+        self._settings_tab_button_group = QButtonGroup(dialog)
+        self._settings_tab_button_group.setExclusive(True)
 
         visibility_section = self._add_settings_collapsible_section(
             content_layout,
@@ -22438,6 +22450,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "Custom DB Export",
             self._on_custom_db_export,
         )
+        tab_header_layout.addStretch(1)
         content_layout.addStretch(1)
 
         self._configure_settings_section_text_wrap(content)
@@ -23497,6 +23510,49 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         parent_layout: QVBoxLayout,
         title: str,
     ) -> QVBoxLayout:
+        tab_stack = getattr(self, "_settings_tab_stack", None)
+        tab_header_layout = getattr(self, "_settings_tab_header_layout", None)
+        tab_button_group = getattr(self, "_settings_tab_button_group", None)
+        if isinstance(tab_stack, QStackedWidget) and isinstance(tab_header_layout, QHBoxLayout):
+            page_scroll = QScrollArea()
+            page_scroll.setWidgetResizable(True)
+            page_scroll.setFrameShape(QFrame.NoFrame)
+            page_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+
+            page = QWidget()
+            page_layout = QVBoxLayout(page)
+            page_layout.setContentsMargins(0, 0, 0, 0)
+            page_layout.setSpacing(0)
+            page_scroll.setWidget(page)
+
+            section_content = QFrame()
+            section_content.setObjectName("settings_section_content")
+            section_content.setMinimumHeight(0)
+            section_content.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            section_content_layout = QVBoxLayout(section_content)
+            section_content_layout.setSizeConstraint(QLayout.SetDefaultConstraint)
+            section_content_layout.setContentsMargins(18, 16, 18, 16)
+            section_content_layout.setSpacing(10)
+            page_layout.addWidget(section_content)
+
+            tab_index = tab_stack.addWidget(page_scroll)
+            tab_button = QPushButton(title)
+            tab_button.setObjectName("settings_tab_button")
+            tab_button.setCheckable(True)
+            tab_button.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+            apply_button_cursor(tab_button)
+            tab_button.clicked.connect(lambda _checked=False, index=tab_index: tab_stack.setCurrentIndex(index))
+            tab_header_layout.addWidget(tab_button)
+            if isinstance(tab_button_group, QButtonGroup):
+                tab_button_group.addButton(tab_button, tab_index)
+            if tab_index == 0:
+                tab_button.setChecked(True)
+                tab_stack.setCurrentIndex(0)
+            tab_stack.currentChanged.connect(
+                lambda index, button=tab_button, own_index=tab_index: button.setChecked(index == own_index)
+            )
+            return section_content_layout
+
         expanded = self._settings_section_expanded_session.get(title, False)
         container = QWidget()
         container_layout = QVBoxLayout(container)
@@ -23552,6 +23608,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         *,
         top_spacing: int = 0,
     ) -> None:
+        tab_stack = getattr(self, "_settings_tab_stack", None)
+        if isinstance(tab_stack, QStackedWidget):
+            section_layout = self._add_settings_collapsible_section(parent_layout, title)
+            section_layout.addWidget(QLabel(f"Open {title}."))
+            button = QPushButton(title)
+            apply_button_cursor(button)
+            button.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+            button.clicked.connect(callback)
+            section_layout.addWidget(button, alignment=Qt.AlignLeft)
+            section_layout.addStretch(1)
+            return
+
         if top_spacing > 0:
             parent_layout.addSpacing(top_spacing)
 
@@ -23646,13 +23714,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _resize_and_center_settings_dialog(self, dialog: QDialog) -> None:
         screen = self.windowHandle().screen() if self.windowHandle() else QApplication.primaryScreen()
         if screen is None:
-            dialog.resize(520, 520)
+            dialog.resize(700, 560)
             return
         geometry = screen.availableGeometry()
-        width = min(560, geometry.width() - 40)
+        width = max(700, min(760, geometry.width() - 40))
         height = min(680, geometry.height() - 40)
-        x = geometry.x() + ((geometry.width() - width) // 2)
-        y = geometry.y() + ((geometry.height() - height) // 2)
+        x = geometry.x() + max(0, (geometry.width() - width) // 2)
+        y = geometry.y() + max(0, (geometry.height() - height) // 2)
         dialog.setGeometry(x, y, width, height)
 
     def _toggle_size_checker(self) -> None:
