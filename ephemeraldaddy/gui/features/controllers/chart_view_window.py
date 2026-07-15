@@ -1595,7 +1595,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     traits_section_layout.addWidget(traits_header_row)
 
     owner.traits_prediction_label = _make_predictions_loading_label(
-        "Loading trait predictions for this UID…",
+        "Loading trait predictions…",  #for this UID
         alignment=Qt.AlignLeft | Qt.AlignTop,
     )
     owner.traits_prediction_label.setTextFormat(Qt.RichText)
@@ -1625,7 +1625,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     owner.enneagram_prediction_chart_panel.setLayout(owner.enneagram_prediction_chart_layout)
     enneagram_section_layout.addWidget(owner.enneagram_prediction_chart_panel)
     owner.enneagram_prediction_tritype_label = _make_predictions_loading_label(
-        "Loading Enneagram predictions for this UID…",
+        "Loading Enneagram predictions…",  #for this UID
         alignment=Qt.AlignLeft | Qt.AlignTop,
     )
     owner.enneagram_prediction_tritype_label.setTextFormat(Qt.RichText)
@@ -1656,7 +1656,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         expanded=True,
     )
     owner.dnd_prediction_species_label = _make_predictions_loading_label(
-        "Loading D&D species predictions for this UID…",
+        "Loading D&D species predictions…",  #for this UID
         alignment=Qt.AlignLeft | Qt.AlignTop,
     )
     owner.dnd_prediction_species_label.setTextFormat(Qt.RichText)
@@ -1672,7 +1672,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         expanded=True,
     )
     owner.dnd_prediction_class_label = _make_predictions_loading_label(
-        "Loading D&D class predictions for this UID…",
+        "Loading D&D class predictions…",  #for this UID
         alignment=Qt.AlignLeft | Qt.AlignTop,
     )
     owner.dnd_prediction_class_label.setTextFormat(Qt.RichText)

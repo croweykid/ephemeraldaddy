@@ -1719,7 +1719,7 @@ def _start_traits_prediction_calculation(owner: Any) -> None:
     message = (
         _trait_predictions_refresh_message(None)
         + "<div style='color:#c77dff; font-weight:700; text-align:center;'>"
-        "● Loading trait predictions for this UID… ●</div>"
+        "● Loading trait predictions… ●</div>"  #for this UID
     )
     _apply_traits_prediction_view(owner, message, message)
     _start_traits_prediction_refresh_worker(

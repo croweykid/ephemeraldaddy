@@ -308,7 +308,7 @@ def test_predictions_sections_show_calculate_prompt_instead_of_auto_calculating(
     assert "owner._render_enneagram_predictions(chart)" in active_branch
     assert "owner._render_dndification_predictions(chart)" in active_branch
     assert "def _predictions_panel_has_rendered_content" in stack_source
-    assert "Loading trait predictions for this UID" in stack_source
+    assert "Loading trait predictions" in stack_source  #for this UID
     assert "No traits uploaded. Add traits in Settings > Traits." not in stack_source
     assert "and _predictions_panel_has_rendered_content(owner)" in stack_source
     assert "and _predictions_panel_has_rendered_content(self._owner)" in controller_source
@@ -354,7 +354,7 @@ def test_traits_predictions_default_to_manual_recalculation_with_cached_stale_di
     no_cache_branch = source[source.index("owner._traits_prediction_pending_chart = chart"):]
     assert "if _predictions_manual_recalculation_only(owner):" in no_cache_branch
     assert "_traits_calculate_prompt_html()" in no_cache_branch
-    assert "Loading fresh trait predictions for this UID" in no_cache_branch
+    assert "Loading fresh trait predictions" in no_cache_branch  #for this UID
     assert "start_prediction_loading_blink(label)" in no_cache_branch
     assert "QTimer.singleShot(0, lambda owner=owner: _start_traits_prediction_calculation(owner))" in no_cache_branch
     assert "_start_traits_prediction_refresh_worker(owner, chart, traits" not in no_cache_branch

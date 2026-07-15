@@ -740,7 +740,7 @@ def _show_predictions_panel_pending_placeholders(owner: object, chart: object | 
     if isinstance(tritype_label, QLabel):
         _set_prediction_label_loading(
             tritype_label,
-            "Loading Enneagram predictions for this UID…",
+            "Loading Enneagram predictions…", #for this chart's UID
             alignment=Qt.AlignLeft | Qt.AlignTop,
         )
     _clear_layout_for_prediction_placeholder(
@@ -751,19 +751,19 @@ def _show_predictions_panel_pending_placeholders(owner: object, chart: object | 
     )
     summary_label = getattr(owner, "dnd_prediction_top_three_label", None)
     if isinstance(summary_label, QLabel):
-        summary_label.setText("<b>D&D Statblock:</b> <span style='color:#c77dff;'>● Loading predictions for this UID… ●</span>")
+        summary_label.setText("<b>D&D Statblock:</b> <span style='color:#c77dff;'>● Loading predictions… ●</span>")  #for this UID
     species_label = getattr(owner, "dnd_prediction_species_label", None)
     if isinstance(species_label, QLabel):
         _set_prediction_label_loading(
             species_label,
-            "Loading D&D species predictions for this UID…",
+            "Loading D&D species predictions…", #for this UID
             alignment=Qt.AlignLeft | Qt.AlignTop,
         )
     class_label = getattr(owner, "dnd_prediction_class_label", None)
     if isinstance(class_label, QLabel):
         _set_prediction_label_loading(
             class_label,
-            "Loading D&D class predictions for this UID…",
+            "Loading D&D class predictions…", #for this UID
             alignment=Qt.AlignLeft | Qt.AlignTop,
         )
     _clear_layout_for_prediction_placeholder(
@@ -774,7 +774,7 @@ def _show_predictions_panel_pending_placeholders(owner: object, chart: object | 
     )
     alignment_debug_label = getattr(owner, "dnd_prediction_alignment_debug_label", None)
     if isinstance(alignment_debug_label, QLabel):
-        alignment_debug_label.setText("<b>Alignment debug deviations from DB norm:</b> <span style='color:#c77dff;'>● Loading predictions for this UID… ●</span>")
+        alignment_debug_label.setText("<b>Alignment debug deviations from DB norm:</b> <span style='color:#c77dff;'>● Loading predictions… ●</span>") #for this UID
 
 def set_chart_right_panel(owner: object, panel_key: str) -> None:
     """Activate a Chart View right-panel tab and synchronize toggle state."""
@@ -865,7 +865,7 @@ def _predictions_panel_has_rendered_content(owner: object) -> bool:
     """
     traits_label = getattr(owner, "traits_prediction_label", None)
     traits_text = traits_label.text() if isinstance(traits_label, QLabel) else ""
-    traits_has_default_placeholder = "Loading trait predictions for this UID" in traits_text
+    traits_has_default_placeholder = "Loading trait predictions" in traits_text  #for this UID
 
     tritype_label = getattr(owner, "enneagram_prediction_tritype_label", None)
     tritype_text = tritype_label.text() if isinstance(tritype_label, QLabel) else ""
@@ -875,7 +875,7 @@ def _predictions_panel_has_rendered_content(owner: object) -> bool:
     }
     tritype_has_default_placeholder = (
         tritype_has_default_placeholder
-        or "Loading Enneagram predictions for this UID" in tritype_text
+        or "Loading Enneagram predictions" in tritype_text  #for this UID
     )
 
     species_label = getattr(owner, "dnd_prediction_species_label", None)
@@ -890,8 +890,8 @@ def _predictions_panel_has_rendered_content(owner: object) -> bool:
             and class_text.rstrip().endswith("—")
         )
         or (
-            "Loading D&D species predictions for this UID" in species_text
-            and "Loading D&D class predictions for this UID" in class_text
+            "Loading D&D species predictions" in species_text  #for this UID
+            and "Loading D&D class predictions" in class_text  #for this UID
         )
     )
 
