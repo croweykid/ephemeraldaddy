@@ -34,6 +34,12 @@ class _TextMatch:
     length: int = 0
 
 
+@dataclass
+class _LabelHighlightState:
+    original_html: str
+    highlighted_html: str
+
+
 class AppTextSearchBar(QWidget):
     """Small Ctrl/Cmd+F search bar that highlights text inside a root widget."""
 
@@ -42,7 +48,7 @@ class AppTextSearchBar(QWidget):
         self._root = root
         self._matches: list[_TextMatch] = []
         self._current_index = -1
-        self._label_originals: dict[QLabel, str] = {}
+        self._label_highlights: dict[QLabel, _LabelHighlightState] = {}
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(4, 4, 4, 4)
@@ -104,8 +110,12 @@ class AppTextSearchBar(QWidget):
                 plain = _TAG_RE.sub("", widget.text())
                 found = list(pattern.finditer(plain))
                 if found:
-                    self._label_originals.setdefault(widget, text)
-                    widget.setText(self._highlight_label_html(text, pattern, current_plain_index=None))
+                    highlighted_html = self._highlight_label_html(text, pattern, current_plain_index=None)
+                    self._label_highlights[widget] = _LabelHighlightState(
+                        original_html=text,
+                        highlighted_html=highlighted_html,
+                    )
+                    widget.setText(highlighted_html)
                     self._matches.extend(_TextMatch(widget) for _ in found)
             elif isinstance(widget, QTextEdit):
                 plain = widget.toPlainText()
@@ -140,9 +150,10 @@ class AppTextSearchBar(QWidget):
                 continue
 
     def _clear_highlights(self) -> None:
-        for label, original in list(self._label_originals.items()):
-            label.setText(original)
-        self._label_originals.clear()
+        for label, state in list(self._label_highlights.items()):
+            if label.text() == state.highlighted_html:
+                label.setText(state.original_html)
+        self._label_highlights.clear()
         for text_edit in self._root.findChildren(QTextEdit):
             text_edit.setExtraSelections([])
 
@@ -193,14 +204,14 @@ class AppTextSearchBar(QWidget):
                     if index == self._current_index:
                         current_label_index[match.widget] = local_index
                     label_seen[match.widget] = local_index + 1
-            for label, original in self._label_originals.items():
-                label.setText(
-                    self._highlight_label_html(
-                        original,
-                        pattern,
-                        current_plain_index=current_label_index.get(label),
-                    )
+            for label, state in self._label_highlights.items():
+                highlighted_html = self._highlight_label_html(
+                    state.original_html,
+                    pattern,
+                    current_plain_index=current_label_index.get(label),
                 )
+                state.highlighted_html = highlighted_html
+                label.setText(highlighted_html)
         if 0 <= self._current_index < len(self._matches):
             match = self._matches[self._current_index]
             if isinstance(match.widget, QTextEdit):
