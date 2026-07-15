@@ -202,9 +202,17 @@ class ChartRightPanelController:
         is_placeholder = self._is_placeholder_chart(current_chart)
         is_saved_chart = bool(current_chart is not None and getattr(self._owner, "current_chart_id", None) is not None)
         analytics_available = bool(is_saved_chart and not is_placeholder)
+        demo_mode_enabled = self._demo_mode_enabled()
         self.set_section_visible("analytics", analytics_available)
         self.set_section_visible("predictions", analytics_available)
         self.set_section_visible("time_sensitivity", is_saved_chart)
+        self.set_section_visible("subjective_notes", not demo_mode_enabled)
+        if demo_mode_enabled:
+            self.set_container_visible(analytics_available)
+            if analytics_available:
+                self.set_active_panel("analytics")
+            return
+        self.set_container_visible(True)
         if not analytics_available:
             self.set_active_panel("subjective_notes")
 
@@ -216,9 +224,14 @@ class ChartRightPanelController:
 
     def _resolve_panel_key(self, panel_key: str) -> str:
         normalized = panel_key if panel_key in self._PANEL_ATTRS else "analytics"
+        if normalized == "subjective_notes" and self._demo_mode_enabled():
+            normalized = "analytics"
         if normalized == "analytics" and not self._section_visible.get("analytics", True):
-            return "subjective_notes"
+            return "analytics" if self._demo_mode_enabled() else "subjective_notes"
         return normalized
+
+    def _demo_mode_enabled(self) -> bool:
+        return bool(getattr(self._owner, "_demo_mode_enabled", False))
 
     def _is_placeholder_chart(self, chart: object | None) -> bool:
         if chart is None:

@@ -22912,7 +22912,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             parent._batch_tagging_terminal_debug = self._batch_tagging_terminal_debug
             parent._settings.setValue(
                 SETTINGS_KEY_BATCH_TAGGING_TERMINAL_DEBUG,
-    SETTINGS_KEY_DEMO_MODE,
                 int(self._batch_tagging_terminal_debug),
             )
         if self._batch_tagging_terminal_debug:

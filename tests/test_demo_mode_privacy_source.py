@@ -38,3 +38,18 @@ def test_demo_mode_new_chart_paths_do_not_reopen_private_right_panel():
     assert 'if not bool(getattr(self, "_demo_mode_enabled", DEMO_MODE_DEFAULT)):\n            self._set_chart_right_panel("subjective_notes")' in app
     assert 'sync_placeholder = getattr(self, "_sync_chart_right_panel_placeholder_state", None)' in app
     assert 'if callable(sync_placeholder):\n            sync_placeholder(current_chart)' in app
+
+
+def test_demo_mode_controller_path_does_not_fallback_to_observations():
+    controller = (REPO_ROOT / "ephemeraldaddy/gui/features/controllers/chart_right_panel.py").read_text()
+    app = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
+
+    assert 'demo_mode_enabled = self._demo_mode_enabled()' in controller
+    assert 'self.set_section_visible("subjective_notes", not demo_mode_enabled)' in controller
+    assert 'self.set_container_visible(analytics_available)' in controller
+    assert 'return "analytics" if self._demo_mode_enabled() else "subjective_notes"' in controller
+    assert 'def _demo_mode_enabled(self) -> bool:' in controller
+    assert 'SETTINGS_KEY_BATCH_TAGGING_TERMINAL_DEBUG,\n                int(self._batch_tagging_terminal_debug),' in app
+    batch_toggle_start = app.index('    def _on_batch_tagging_terminal_debug_toggled')
+    batch_toggle = app[batch_toggle_start : app.index('    def _batch_tagging_debug_log', batch_toggle_start)]
+    assert 'SETTINGS_KEY_DEMO_MODE' not in batch_toggle
