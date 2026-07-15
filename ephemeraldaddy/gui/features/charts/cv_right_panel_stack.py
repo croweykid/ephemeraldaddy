@@ -92,12 +92,17 @@ class _PredictionsWarmupWorker(QObject):
                 _predictions_thread_debug(self._owner, "worker cancelled before Enneagram cache job=%s", self._job_token)
                 self.finished.emit(self._chart, self._render_token, self._job_token, None)
                 return
+            section_errors: list[str] = []
             if "enneagram" in self._sections:
                 self.progress.emit("Preparing Enneagram predictions…", 15)
                 cache_enneagram = getattr(self._owner, "_cache_enneagram_prediction_metadata", None)
                 _predictions_thread_debug(self._owner, "Enneagram cache stage start job=%s callable=%s", self._job_token, callable(cache_enneagram))
-                if callable(cache_enneagram):
-                    cache_enneagram(self._chart)
+                try:
+                    if callable(cache_enneagram):
+                        cache_enneagram(self._chart)
+                except Exception as exc:  # pragma: no cover - defensive UI path
+                    logger.warning("Enneagram prediction cache failed for %s: %s", _chart_display_name(self._chart), exc, exc_info=True)
+                    section_errors.append(f"Enneagram: {exc}")
                 _predictions_thread_debug(self._owner, "Enneagram cache stage complete job=%s", self._job_token)
             if self._sections.intersection({"dnd_statblock", "dnd_alignment"}):
                 self.progress.emit("Preparing D&D predictions…", 45)
@@ -111,15 +116,25 @@ class _PredictionsWarmupWorker(QObject):
                 adapter = adapter_factory()
                 if "dnd_statblock" in self._sections:
                     cache_dnd = getattr(adapter, "cache_metadata", None)
-                    _predictions_thread_debug(self._owner, "D&D cache stage start job=%s callable=%s", self._job_token, callable(cache_dnd))
-                    if callable(cache_dnd):
-                        cache_dnd(self._chart)
+                    _predictions_thread_debug(self._owner, "D&D statblock cache stage start job=%s callable=%s", self._job_token, callable(cache_dnd))
+                    try:
+                        if callable(cache_dnd):
+                            cache_dnd(self._chart)
+                    except Exception as exc:  # pragma: no cover - defensive UI path
+                        logger.warning("D&D statblock prediction cache failed for %s: %s", _chart_display_name(self._chart), exc, exc_info=True)
+                        section_errors.append(f"D&D statblock: {exc}")
                 if "dnd_alignment" in self._sections:
                     self.progress.emit("Preparing alignment predictions…", 70)
                     cache_alignment = getattr(adapter, "cache_alignment_metadata", None)
-                    if callable(cache_alignment):
-                        cache_alignment(self._chart)
-                _predictions_thread_debug(self._owner, "D&D cache stage complete job=%s", self._job_token)
+                    try:
+                        if callable(cache_alignment):
+                            cache_alignment(self._chart)
+                    except Exception as exc:  # pragma: no cover - defensive UI path
+                        logger.warning("D&D alignment prediction cache failed for %s: %s", _chart_display_name(self._chart), exc, exc_info=True)
+                        section_errors.append(f"D&D alignment: {exc}")
+                _predictions_thread_debug(self._owner, "D&D cache stage complete job=%s errors=%s", self._job_token, len(section_errors))
+            if section_errors:
+                self.progress.emit("Some Predictions sections failed; showing available cached sections…", 88)
             self.progress.emit("Finishing Predictions…", 90)
         except Exception as exc:  # pragma: no cover - defensive UI path
             logger.warning(
@@ -653,10 +668,12 @@ def _resolve_chart_right_panel_key(owner: object, panel_key: str) -> str:
     """Normalize + gate requested right-panel tab key."""
     definitions = _chart_right_panel_definitions(owner)
     normalized = panel_key if panel_key in definitions else "analytics"
+    if normalized in {"subjective_notes", "material_facts", "photo_gallery"} and bool(getattr(owner, "_demo_mode_enabled", False)):
+        normalized = "analytics"
     analytics_button = getattr(owner, "chart_analytics_panel_button", None)
     analytics_enabled = bool(analytics_button and analytics_button.isEnabled())
     if normalized == "analytics" and not analytics_enabled:
-        return "subjective_notes"
+        return "analytics" if bool(getattr(owner, "_demo_mode_enabled", False)) else "subjective_notes"
     return normalized
 
 
@@ -854,6 +871,24 @@ def _predictions_panel_render_is_current(owner: object, chart: object | None) ->
     return state.last_render_chart_token == render_token
 
 
+def _traits_predictions_have_rendered_content(owner: object) -> bool:
+    """Return whether the Traits section is showing a real result or an action prompt."""
+    traits_table = getattr(owner, "traits_prediction_table", None)
+    if hasattr(traits_table, "isVisible") and traits_table.isVisible():
+        return True
+    traits_label = getattr(owner, "traits_prediction_label", None)
+    traits_text = traits_label.text() if isinstance(traits_label, QLabel) else ""
+    clean_text = traits_text.strip()
+    if not clean_text:
+        return False
+    loading_fragments = (
+        "Loading trait predictions",
+        "Loading fresh trait predictions",
+        "●  Loading trait predictions",
+    )
+    return not any(fragment in clean_text for fragment in loading_fragments)
+
+
 def _predictions_panel_has_rendered_content(owner: object) -> bool:
     """Return whether Predictions widgets have been rendered beyond constructor defaults.
 
@@ -865,7 +900,7 @@ def _predictions_panel_has_rendered_content(owner: object) -> bool:
     """
     traits_label = getattr(owner, "traits_prediction_label", None)
     traits_text = traits_label.text() if isinstance(traits_label, QLabel) else ""
-    traits_has_default_placeholder = "Loading trait predictions" in traits_text  #for this UID
+    traits_has_default_placeholder = not _traits_predictions_have_rendered_content(owner)
 
     tritype_label = getattr(owner, "enneagram_prediction_tritype_label", None)
     tritype_text = tritype_label.text() if isinstance(tritype_label, QLabel) else ""
@@ -1227,14 +1262,16 @@ def schedule_chart_render_for_active_right_panel(owner: object) -> None:
         return
     if active_panel == "predictions":
         render_token = _chart_right_panel_prediction_render_token(owner, chart)
+        traits_ready = _traits_predictions_have_rendered_content(owner)
         if (
             state is not None
             and state.last_render_chart_token == render_token
             and _predictions_panel_has_rendered_content(owner)
+            and traits_ready
         ):
             return
         render_traits = getattr(owner, "_render_traits_predictions", None)
-        if callable(render_traits):
+        if callable(render_traits) and not traits_ready:
             render_traits(chart)
         owner._render_enneagram_predictions(chart)
         owner._render_dndification_predictions(chart)
@@ -1267,5 +1304,22 @@ def sync_chart_right_panel_placeholder_state(owner: object, chart: object | None
     if time_sensitivity_button is not None:
         time_sensitivity_button.setVisible(is_saved_chart)
         time_sensitivity_button.setEnabled(is_saved_chart)
+    if bool(getattr(owner, "_demo_mode_enabled", False)):
+        for attr in (
+            "subjective_notes_panel_button",
+            "subjective_notes_panel_scroll",
+            "material_facts_panel_button",
+            "material_facts_panel_scroll",
+            "photo_gallery_panel_button",
+            "photo_gallery_panel_scroll",
+        ):
+            widget = getattr(owner, attr, None)
+            if widget is not None:
+                widget.setVisible(False)
+        set_chart_right_panel_container_visible(owner, analytics_available)
+        if analytics_available:
+            set_chart_right_panel(owner, "analytics")
+        return
+    set_chart_right_panel_container_visible(owner, True)
     if not analytics_available:
         set_chart_right_panel(owner, "subjective_notes")

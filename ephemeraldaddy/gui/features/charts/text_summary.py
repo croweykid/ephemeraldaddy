@@ -685,7 +685,8 @@ def format_chart_text(
             gl_text = personality_gate_lines.get(body, "")
             house_label = f"H{house_num}" if house_num is not None else "-"
             sign_display = f"{_sign_dignity_prefix(body, sign_label)}{sign_label}"
-            house_display = f"{_joy_house_prefix(body, house_num, include_joys=use_houses or use_rectified_time)}{house_label}"
+            joy_house_prefix = _joy_house_prefix(body, house_num, include_joys=use_houses or use_rectified_time)
+            house_display = f"{joy_house_prefix}{house_label}"
             body_column = _pad_display_column(display_body, body_width)
             sign_column = _pad_display_column(sign_display, sign_width)
             degree_column = _pad_display_column(degree_text, degree_width)
@@ -739,6 +740,7 @@ def format_chart_text(
                     {
                         "kind": "house_keyword",
                         "house": house_num,
+                        "joy_body": body if joy_house_prefix else "",
                         "column": 4,
                         "span_start": column_offsets[4],
                         "span_end": column_offsets[4] + len(house_display),
