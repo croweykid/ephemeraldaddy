@@ -17,6 +17,7 @@ def test_metric_canvas_sizing_uses_expanding_width_not_ignored_zero_width():
     assert "canvas.setMinimumWidth(1)" in source
     assert "available_width = MainWindow._metric_canvas_available_layout_width(canvas)" in source
     assert "CHART_RIGHT_PANEL_GRAPH_HEIGHT_PX = 240" in source
+    assert "canvas.draw_idle()" in source
     assert "canvas.setMinimumWidth(available_width)" in source
     assert "canvas.setMaximumWidth(available_width)" in source
     assert "canvas.resize(available_width, current_height)" in source
@@ -31,6 +32,16 @@ def test_metric_canvas_width_subtracts_scroll_content_margins():
     assert "viewport_width = MainWindow._metric_canvas_scroll_viewport_width(canvas)" in source
     assert "margins = parent_layout.contentsMargins()" in source
     assert "available_width -= margins.left() + margins.right()" in source
+
+
+def test_prediction_graph_sections_use_extra_axis_label_height():
+    enneagram_source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/enneagram_predictions.py").read_text()
+    dnd_source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/dnd_predictions.py").read_text()
+
+    assert "ENNEAGRAM_PREDICTION_GRAPH_HEIGHT_PX = ENNEAGRAM_PREDICTION_GRAPH_BASE_HEIGHT_PX + 10" in enneagram_source
+    assert "display_height=ENNEAGRAM_PREDICTION_GRAPH_HEIGHT_PX" in enneagram_source
+    assert "DND_ALIGNMENT_GRAPH_HEIGHT_PX = DND_ALIGNMENT_GRAPH_BASE_HEIGHT_PX + 6" in dnd_source
+    assert "display_height=DND_ALIGNMENT_GRAPH_HEIGHT_PX" in dnd_source
 
 
 def test_dnd_prediction_summary_is_added_after_metric_panel_render_clears_layout():
