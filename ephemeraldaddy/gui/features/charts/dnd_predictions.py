@@ -936,7 +936,7 @@ def _dnd_alignment_score_parts(owner: Any, chart: Any, *, allow_stale: bool = Fa
                 pass
     if isinstance(cached, dict) and isinstance(cached.get("parts"), dict):
         cached_key = cached.get("key")
-        if cached_key == cache_key:
+        if cached_key == cache_key or allow_stale:
             return cached["parts"]
     trait_items = _dnd_alignment_trait_items()
     if chart is None or not trait_items:
@@ -1893,10 +1893,16 @@ class DndPredictionPanelAdapter:
         if self.alignment_layout is not None:
             alignment_owner_cache = _owner_cache_bucket(self.owner, "_dnd_alignment_prediction_view_cache")
             alignment_cache = getattr(chart, "_dnd_alignment_score_parts_cache", None)
+            if not _cache_payload_chart_uid_matches(chart, alignment_cache, require_uid=True):
+                alignment_cache = None
             if not isinstance(alignment_cache, dict):
                 restored_alignment = alignment_owner_cache.get(self._chart_cache_identity(chart))
+                if not _cache_payload_chart_uid_matches(chart, restored_alignment, require_uid=True):
+                    restored_alignment = None
                 if not isinstance(restored_alignment, dict):
                     restored_alignment = _load_persisted_dnd_prediction_payload(chart).get("alignment")
+                    if isinstance(restored_alignment, dict) and "chart_uid" not in restored_alignment:
+                        restored_alignment["chart_uid"] = _chart_prediction_cache_uid(chart)
                 if isinstance(restored_alignment, dict):
                     alignment_cache = restored_alignment
                     try:

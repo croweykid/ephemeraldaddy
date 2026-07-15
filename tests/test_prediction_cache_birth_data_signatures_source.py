@@ -111,3 +111,17 @@ def test_predictions_cached_payloads_are_guarded_by_current_chart_uid():
     assert '"chart_uid": _chart_prediction_cache_uid(chart)' in ENNEAGRAM_SOURCE
     assert 'serializable["chart_uid"] = chart_uid' in ENNEAGRAM_SOURCE
     assert '_cache_payload_chart_uid_matches(chart, cached, require_uid=True)' in enneagram_restore
+
+
+def test_dnd_alignment_draw_respects_stale_cache_without_recomputing_in_manual_mode():
+    dnd_alignment_parts = DND_SOURCE.split("def _dnd_alignment_score_parts", 1)[1].split(
+        "def dnd_alignment_deviations", 1
+    )[0]
+    dnd_render = DND_SOURCE.split("def render(self, chart", 1)[1].split(
+        "def connect_dnd_alignment_popout_pick_handler", 1
+    )[0]
+
+    assert "if cached_key == cache_key or allow_stale:" in dnd_alignment_parts
+    assert "_cache_payload_chart_uid_matches(chart, alignment_cache, require_uid=True)" in dnd_render
+    assert "_cache_payload_chart_uid_matches(chart, restored_alignment, require_uid=True)" in dnd_render
+    assert 'restored_alignment["chart_uid"] = _chart_prediction_cache_uid(chart)' in dnd_render
