@@ -886,7 +886,10 @@ def _dnd_alignment_cache_key(owner: Any, chart: Any) -> tuple[str, str]:
     chart_uid = _chart_prediction_cache_uid(chart)
     chart_token = _cache_key_fingerprint({
         "scope": f"uid:{chart_uid}" if chart_uid else f"object:{id(chart)}",
+        "birth_date": str(getattr(chart, "birth_date", "") or ""),
+        "birth_time": str(getattr(chart, "birth_time", "") or ""),
         "dt_local": str(getattr(chart, "dt_local", "") or ""),
+        "datetime_iso": str(getattr(chart, "datetime_iso", "") or ""),
         "birth_place": str(getattr(chart, "birth_place", "") or ""),
         "lat": str(getattr(chart, "lat", "") or ""),
         "lon": str(getattr(chart, "lon", "") or ""),
@@ -894,6 +897,9 @@ def _dnd_alignment_cache_key(owner: Any, chart: Any) -> tuple[str, str]:
         "retcon_time_used": bool(getattr(chart, "retcon_time_used", False)),
         "retcon_hour": getattr(chart, "retcon_hour", None),
         "retcon_minute": getattr(chart, "retcon_minute", None),
+        "rectification_range_used": bool(getattr(chart, "rectification_range_used", False)),
+        "rectification_range_start_minute": getattr(chart, "rectification_range_start_minute", None),
+        "rectification_range_end_minute": getattr(chart, "rectification_range_end_minute", None),
         "chart_uses_houses": bool(default_chart_uses_houses(chart)),
     })
     norms_token_fn = getattr(owner, "_prediction_norms_render_token", None)
@@ -1597,8 +1603,10 @@ class DndPredictionPanelAdapter:
             return "missing_uid"
         state_payload = {
             "uid": chart_uid,
-            "name": str(getattr(chart, "name", "") or ""),
+            "birth_date": str(getattr(chart, "birth_date", "") or ""),
+            "birth_time": str(getattr(chart, "birth_time", "") or ""),
             "dt_local": str(getattr(chart, "dt_local", "") or ""),
+            "datetime_iso": str(getattr(chart, "datetime_iso", "") or ""),
             "birth_place": str(getattr(chart, "birth_place", "") or ""),
             "lat": str(getattr(chart, "lat", "") or ""),
             "lon": str(getattr(chart, "lon", "") or ""),
@@ -1606,6 +1614,9 @@ class DndPredictionPanelAdapter:
             "retcon_time_used": bool(getattr(chart, "retcon_time_used", False)),
             "retcon_hour": getattr(chart, "retcon_hour", None),
             "retcon_minute": getattr(chart, "retcon_minute", None),
+            "rectification_range_used": bool(getattr(chart, "rectification_range_used", False)),
+            "rectification_range_start_minute": getattr(chart, "rectification_range_start_minute", None),
+            "rectification_range_end_minute": getattr(chart, "rectification_range_end_minute", None),
             "chart_uses_houses": bool(default_chart_uses_houses(chart)),
         }
         return f"chart_state:{_cache_key_fingerprint(state_payload)}"

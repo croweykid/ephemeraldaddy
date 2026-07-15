@@ -207,7 +207,10 @@ def _enneagram_chart_state_token(owner: Any, chart: Any) -> str:
     # mutable/legacy current_chart_id used by some Analytics render tokens.
     return repr({
         "uid": _chart_prediction_cache_uid(chart),
+        "birth_date": str(getattr(chart, "birth_date", "") or ""),
+        "birth_time": str(getattr(chart, "birth_time", "") or ""),
         "dt_local": str(getattr(chart, "dt_local", "") or ""),
+        "datetime_iso": str(getattr(chart, "datetime_iso", "") or ""),
         "birth_place": str(getattr(chart, "birth_place", "") or ""),
         "lat": str(getattr(chart, "lat", "") or ""),
         "lon": str(getattr(chart, "lon", "") or ""),
@@ -215,6 +218,9 @@ def _enneagram_chart_state_token(owner: Any, chart: Any) -> str:
         "retcon_time_used": bool(getattr(chart, "retcon_time_used", False)),
         "retcon_hour": getattr(chart, "retcon_hour", None),
         "retcon_minute": getattr(chart, "retcon_minute", None),
+        "rectification_range_used": bool(getattr(chart, "rectification_range_used", False)),
+        "rectification_range_start_minute": getattr(chart, "rectification_range_start_minute", None),
+        "rectification_range_end_minute": getattr(chart, "rectification_range_end_minute", None),
         "chart_uses_houses": bool(chart_uses_houses(chart)),
     })
 
