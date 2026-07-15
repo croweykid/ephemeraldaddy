@@ -34221,6 +34221,7 @@ class MainWindow(QMainWindow):
         if not self._validate_rectification_range_inputs(show_feedback=show_dialog):
             return
         if recalculate_chart and chart_id is not None:
+            saved_chart = None
             try:
                 saved_chart = load_chart(chart_id)
             except ValueError:
@@ -34247,6 +34248,11 @@ class MainWindow(QMainWindow):
                 chart.sentiments = [] if is_event_chart else list(self._selected_sentiments())
                 chart.relationship_types = [] if is_event_chart else list(self._selected_relationship_types())
                 chart.tags = get_chart_view_tags(self)
+                chart.reminds_me_of = (
+                    ""
+                    if is_event_chart
+                    else serialize_reminds_me_of_uids(getattr(self, "_reminds_me_of_current", []))
+                )
                 chart.comments = self.comments_edit.toPlainText().strip()
                 chart.quotes = get_chart_view_quotes(self)
                 chart.rectification_notes = self.rectification_edit.toPlainText().strip()
@@ -34462,19 +34468,23 @@ class MainWindow(QMainWindow):
             self._set_chart_right_panel_container_visible(True)
             self._clear_chart_displays(reset_anagrams=False)
         else:
-            self._prepare_chart_right_panel_for_loading()
             self._set_chart_right_panel_container_visible(True)
-            self._schedule_chart_render(chart, sections={
-                "summary",
-                "signs",
-                "planets",
-                "houses",
-                "elements",
-                "nakshatra",
-                "modal",
-                "gender",
-                "similar_charts",
-            })
+            if chart_recalculated:
+                self._prepare_chart_right_panel_for_loading()
+                self._schedule_chart_render(chart, sections={
+                    "summary",
+                    "signs",
+                    "planets",
+                    "houses",
+                    "elements",
+                    "nakshatra",
+                    "modal",
+                    "gender",
+                    "similar_charts",
+                })
+            else:
+                self._reveal_chart_right_panel_after_loading()
+                self._hide_chart_loading_overlay()
 
         if show_dialog:
             if is_new_chart:
@@ -34487,7 +34497,7 @@ class MainWindow(QMainWindow):
                 extra_lines.insert(1, "Timezone inference failed; UTC was used.")
             QMessageBox.information(self, dialog_title, "\n".join(extra_lines))
 
-        if not is_placeholder:
+        if not is_placeholder and chart_recalculated:
             self._schedule_chart_render(chart, sections={"wheel"})
 
     def _reset_new_chart_form(self) -> None:
