@@ -34142,10 +34142,9 @@ class MainWindow(QMainWindow):
         birth date/time/place, rectified-time state, rectification range,
         placeholder state, or the derived house-availability inputs change.
         """
-        if bool(getattr(chart, "is_placeholder", False)) != self.placeholder_chart_checkbox.isChecked():
+        placeholder_checked = self.placeholder_chart_checkbox.isChecked()
+        if bool(getattr(chart, "is_placeholder", False)) != placeholder_checked:
             return False
-        if self.placeholder_chart_checkbox.isChecked():
-            return True
 
         qdate = self._birth_date_from_fields()
         dt_value = getattr(chart, "dt", None)
@@ -34158,7 +34157,7 @@ class MainWindow(QMainWindow):
             qtime = self.retcon_time_edit.time()
         elif self._rectification_range_effective_from_inputs():
             qtime = self._rectification_range_midpoint_qtime()
-        elif self.time_unknown_checkbox.isChecked():
+        elif placeholder_checked or self.time_unknown_checkbox.isChecked():
             qtime = QTime(12, 0)
         else:
             qtime = self.time_edit.time()
@@ -34483,6 +34482,8 @@ class MainWindow(QMainWindow):
                     "similar_charts",
                 })
             else:
+                update_main_window_title(self)
+                self._refresh_chart_summary(chart)
                 self._reveal_chart_right_panel_after_loading()
                 self._hide_chart_loading_overlay()
 

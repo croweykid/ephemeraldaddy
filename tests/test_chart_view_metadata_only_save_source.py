@@ -15,7 +15,7 @@ def test_metadata_only_guard_tracks_birth_calculation_inputs():
     helper_end = APP_SOURCE.index("def on_update_chart", helper_start)
     helper_source = APP_SOURCE[helper_start:helper_end]
     for token in (
-        "placeholder_chart_checkbox",
+        "placeholder_checked = self.placeholder_chart_checkbox.isChecked()",
         "_birth_date_from_fields",
         "retcon_time_checkbox",
         "_rectification_range_effective_from_inputs",
@@ -37,4 +37,13 @@ def test_metadata_only_branch_persists_reminds_me_of_and_avoids_render_spinner()
     assert "chart.reminds_me_of = (" in update_source
     assert "serialize_reminds_me_of_uids" in update_source
     assert "if not is_placeholder and chart_recalculated:" in update_source
+    assert "self._refresh_chart_summary(chart)" in update_source
     assert "self._hide_chart_loading_overlay()" in update_source
+
+
+def test_placeholder_charts_do_not_short_circuit_birth_input_comparison():
+    helper_start = APP_SOURCE.index("def _saved_chart_birth_inputs_match_form")
+    helper_end = APP_SOURCE.index("def on_update_chart", helper_start)
+    helper_source = APP_SOURCE[helper_start:helper_end]
+    assert "if self.placeholder_chart_checkbox.isChecked():\n            return True" not in helper_source
+    assert "placeholder_checked or self.time_unknown_checkbox.isChecked()" in helper_source
