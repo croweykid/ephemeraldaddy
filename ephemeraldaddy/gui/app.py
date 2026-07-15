@@ -31112,7 +31112,7 @@ class MainWindow(QMainWindow):
             self.chart_info_output = original_chart_info_output
 
     def eventFilter(self, obj, event) -> bool:
-        popout_context = self._popout_summary_contexts.get(obj)
+        popout_context = getattr(self, "_popout_summary_contexts", {}).get(obj)
         output_text = getattr(self, "output_text", None)
         chart_canvas = getattr(self, "chart_canvas", None)
         if popout_context is not None:
@@ -31152,10 +31152,9 @@ class MainWindow(QMainWindow):
             )
         ):
             self._refresh_chart_view_session_completers()
-        if obj is self.output_text.viewport():
+        if output_text is not None and obj is output_text.viewport():
             if event.type() == QEvent.Resize:
                 self._position_output_share_button()
-        if output_text is not None and obj is output_text.viewport():
             if event.type() == QEvent.Enter:
                 obj.setMouseTracking(True)
             if event.type() == QEvent.MouseMove:
@@ -31163,40 +31162,45 @@ class MainWindow(QMainWindow):
                     output_text,
                     obj,
                     event.position(),
-                    self._position_info_map,
-                    self._aspect_info_map,
-                    self._species_info_map,
+                    getattr(self, "_position_info_map", {}),
+                    getattr(self, "_aspect_info_map", {}),
+                    getattr(self, "_species_info_map", {}),
                 )
             if event.type() == QEvent.Leave:
                 obj.unsetCursor()
             if event.type() == QEvent.MouseButtonRelease and event.button() == Qt.LeftButton:
+                chart_info_output = getattr(self, "chart_info_output", None)
+                if chart_info_output is None:
+                    return False
                 cursor = output_text.cursorForPosition(event.position().toPoint())
                 return self._handle_summary_info_click(
                     output_text,
                     cursor,
-                    self._position_info_map,
-                    self._aspect_info_map,
-                    self._species_info_map,
-                    self.chart_info_output,
+                    getattr(self, "_position_info_map", {}),
+                    getattr(self, "_aspect_info_map", {}),
+                    getattr(self, "_species_info_map", {}),
+                    chart_info_output,
                 )
-        if obj in self._metric_scroll_widgets:
+        if obj in getattr(self, "_metric_scroll_widgets", set()):
             if event.type() in (QEvent.Enter, QEvent.MouseButtonPress):
-                if self.metrics_scroll is not None:
-                    self.metrics_scroll.setFocus(Qt.MouseFocusReason)
+                metrics_scroll = getattr(self, "metrics_scroll", None)
+                if metrics_scroll is not None:
+                    metrics_scroll.setFocus(Qt.MouseFocusReason)
             if event.type() == QEvent.Wheel:
                 return self._handle_metrics_wheel(event)
             if event.type() == QEvent.KeyPress:
                 return self._handle_metrics_keypress(event)
             if event.type() == QEvent.Resize:
                 self._schedule_visible_metric_canvas_layout_refreshes()
-        if obj in self._metric_chart_titles:
+        metric_chart_titles = getattr(self, "_metric_chart_titles", {})
+        if obj in metric_chart_titles:
             if event.type() == QEvent.Resize:
                 self._schedule_metric_canvas_layout_refresh(obj)
             if (
                 event.type() == QEvent.MouseButtonRelease
                 and event.button() == Qt.LeftButton
             ):
-                self._show_metric_canvas_popout(obj, self._metric_chart_titles[obj])
+                self._show_metric_canvas_popout(obj, metric_chart_titles[obj])
                 return True
         if chart_canvas is not None and obj is chart_canvas:
             if event.type() == QEvent.Enter:
