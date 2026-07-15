@@ -3,6 +3,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 APP_SOURCE = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
 DEV_TOOLS_SOURCE = (REPO_ROOT / "ephemeraldaddy/gui/dev_tools.py").read_text()
+RIGHT_PANEL_STACK_SOURCE = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/cv_right_panel_stack.py").read_text()
 
 
 def test_predictions_settings_section_uses_module_wide_language():
@@ -34,3 +35,18 @@ def test_predictions_settings_apply_shared_weighted_predictor_options():
     assert "set_default_scoring_options as _set_prediction_scoring_options" in APP_SOURCE
     assert "_set_prediction_scoring_options(self._enneagram_scoring_options)" in APP_SOURCE
     assert "_set_prediction_scoring_options(options)" in APP_SOURCE
+
+
+def test_predictions_traits_placeholder_prevents_whole_panel_skip():
+    assert "def _traits_predictions_have_rendered_content" in RIGHT_PANEL_STACK_SOURCE
+    assert "traits_has_default_placeholder = not _traits_predictions_have_rendered_content(owner)" in RIGHT_PANEL_STACK_SOURCE
+    assert "and traits_ready" in RIGHT_PANEL_STACK_SOURCE
+    assert "if callable(render_traits) and not traits_ready" in RIGHT_PANEL_STACK_SOURCE
+
+
+def test_predictions_warmup_sections_fail_independently():
+    assert "section_errors: list[str] = []" in RIGHT_PANEL_STACK_SOURCE
+    assert "Enneagram prediction cache failed" in RIGHT_PANEL_STACK_SOURCE
+    assert "D&D statblock prediction cache failed" in RIGHT_PANEL_STACK_SOURCE
+    assert "D&D alignment prediction cache failed" in RIGHT_PANEL_STACK_SOURCE
+    assert "Some Predictions sections failed; showing available cached sections" in RIGHT_PANEL_STACK_SOURCE
