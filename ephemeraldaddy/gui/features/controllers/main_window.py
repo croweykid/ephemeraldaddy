@@ -478,17 +478,6 @@ class ChartAnalysisSectionsController:
             chart_layout_attr="chart_type_container_layout",
             expanded=False,
         )
-        self.add_section(
-            panel=panel,
-            section_key="gender_guesser",
-            section_title="Gender Guesser",
-            header_title="Gender Guesser",
-            subtitle_text="For the hell of it, just curious.",
-            default_filename="ephemeraldaddy_chart_gender_guesser",
-            chart_container_attr="gender_guesser_container",
-            chart_layout_attr="gender_guesser_container_layout",
-            expanded=False,
-        )
 
 
 class RetconDialogController:
