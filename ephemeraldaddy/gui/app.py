@@ -1242,6 +1242,7 @@ from ephemeraldaddy.gui.features.import_export.builders import (
     build_import_chart as _build_import_chart,
 )
 from ephemeraldaddy.gui.features.import_export.custom_db_export import (
+    build_custom_db_export_widget,
     open_custom_db_export_dialog,
 )
 
@@ -1306,6 +1307,7 @@ from ephemeraldaddy.gui.cmd_pallette import CommandPaletteAction, install_comman
 
 from ephemeraldaddy.gui import help as help_notes
 from ephemeraldaddy.gui.settings_widgets import (
+    SettingsHeaderFlowLayout,
     SettingsHelpLabel,
     configure_settings_help_label,
 )
@@ -18454,6 +18456,26 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             f"Backup saved to:\n{file_path}",
         )
 
+    def _populate_settings_custom_db_export_section(self, section_layout: QVBoxLayout) -> None:
+        export_widget = build_custom_db_export_widget(
+            self._settings_dialog or self,
+            show_empty_message=False,
+        )
+        if export_widget is None:
+            section_layout.addWidget(QLabel("No chart properties are currently available for export."))
+            return
+        section_layout.addWidget(export_widget)
+
+    def _populate_settings_property_manager_section(self, section_layout: QVBoxLayout) -> None:
+        coordinator = getattr(self, "_property_manager_coordinator", None)
+        if coordinator is None:
+            coordinator = PropertyManagerCoordinator(self)
+            self._property_manager_coordinator = coordinator
+        manager_widget = coordinator.create_widget(parent=self._settings_dialog or self)
+        manager_widget.finished.connect(lambda _result: coordinator.refresh_after_close())
+        manager_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        section_layout.addWidget(manager_widget)
+
     def _on_custom_db_export(self) -> None:
         open_custom_db_export_dialog(self)
 
@@ -21884,14 +21906,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         tab_header_scroll = QScrollArea(dialog)
         tab_header_scroll.setWidgetResizable(True)
         tab_header_scroll.setFrameShape(QFrame.NoFrame)
-        tab_header_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        tab_header_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        tab_header_scroll.setFixedHeight(58)
+        tab_header_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        tab_header_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        tab_header_scroll.setMinimumHeight(58)
+        tab_header_scroll.setMaximumHeight(150)
         tab_header_frame = QFrame()
         tab_header_frame.setObjectName("settings_tab_header")
-        tab_header_layout = QHBoxLayout(tab_header_frame)
-        tab_header_layout.setContentsMargins(8, 8, 8, 8)
-        tab_header_layout.setSpacing(8)
+        tab_header_layout = SettingsHeaderFlowLayout(tab_header_frame, margin=8, spacing=8)
         tab_header_scroll.setWidget(tab_header_frame)
         root_layout.addWidget(tab_header_scroll)
 
@@ -22439,18 +22460,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         reset_interface_button.clicked.connect(self._reset_interface_to_defaults)
         reset_section.addWidget(reset_interface_button)
 
-        self._add_settings_action_section(
+        property_manager_section = self._add_settings_collapsible_section(
             content_layout,
             "Property Managers",
-            self._launch_property_manager_dialog,
-            top_spacing=18,
         )
-        self._add_settings_action_section(
+        self._populate_settings_property_manager_section(property_manager_section)
+
+        custom_db_export_section = self._add_settings_collapsible_section(
             content_layout,
             "Custom DB Export",
-            self._on_custom_db_export,
         )
-        tab_header_layout.addStretch(1)
+        self._populate_settings_custom_db_export_section(custom_db_export_section)
         content_layout.addStretch(1)
 
         self._configure_settings_section_text_wrap(content)
@@ -23513,7 +23533,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         tab_stack = getattr(self, "_settings_tab_stack", None)
         tab_header_layout = getattr(self, "_settings_tab_header_layout", None)
         tab_button_group = getattr(self, "_settings_tab_button_group", None)
-        if isinstance(tab_stack, QStackedWidget) and isinstance(tab_header_layout, QHBoxLayout):
+        if isinstance(tab_stack, QStackedWidget) and isinstance(tab_header_layout, QLayout):
             page_scroll = QScrollArea()
             page_scroll.setWidgetResizable(True)
             page_scroll.setFrameShape(QFrame.NoFrame)

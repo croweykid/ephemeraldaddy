@@ -23,12 +23,14 @@ class PropertyManagerCoordinator:
     def __init__(self, host: Any) -> None:
         self._host = host
 
-    def launch(
+    def create_widget(
         self,
+        *,
+        parent: Any | None = None,
         initial_field: str = ManageMetadataLabelsDialog.FIELD_TAGS,
-    ) -> None:
+    ) -> ManageMetadataLabelsDialog:
         dialog = ManageMetadataLabelsDialog(
-            parent=self._host,
+            parent=parent or self._host,
             load_usage=self.load_usage,
             apply_change=apply_metadata_label_change,
             label_limit=32767,
@@ -55,7 +57,17 @@ class PropertyManagerCoordinator:
             lock_field=False,
             window_title="Property Manager",
         )
+        return dialog
+
+    def launch(
+        self,
+        initial_field: str = ManageMetadataLabelsDialog.FIELD_TAGS,
+    ) -> None:
+        dialog = self.create_widget(initial_field=initial_field)
         dialog.exec()
+        self.refresh_after_close()
+
+    def refresh_after_close(self) -> None:
         self._host._update_tag_completers()
         self._host._refresh_charts(refresh_metrics=True, force_full_analysis_refresh=True)
 
