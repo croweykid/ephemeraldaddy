@@ -14812,13 +14812,26 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._update_tag_completers()
         self._tag_completer_revision_token = revision_token
 
+    def _tag_completer_tags_for_session(self) -> list[str]:
+        tags_by_key: dict[str, str] = {
+            tag.casefold(): tag
+            for tag in list_recognized_tags()
+        }
+        for tag in getattr(self, "_known_chart_tags", []) or []:
+            normalized = str(tag or "").strip()
+            if normalized:
+                tags_by_key.setdefault(normalized.casefold(), normalized)
+        for tag in normalize_tag_list(getattr(self, "_chart_tags_current", []) or []):
+            tags_by_key.setdefault(tag.casefold(), tag)
+        return sorted(tags_by_key.values(), key=lambda value: value.casefold())
+
     def _update_tag_completers(
         self,
         *,
         refresh_location_completers: bool = True,
         refresh_tag_lists: bool = True,
     ) -> None:
-        known_tags = list_recognized_tags()
+        known_tags = self._tag_completer_tags_for_session()
         self._known_chart_tags = known_tags
         chart_input = getattr(self, "chart_tags_input", None)
         search_input = getattr(self, "search_tags_input", None)
@@ -25544,6 +25557,7 @@ class MainWindow(QMainWindow):
             "EphemeralDaddy stores each added chart's stable ID so later renames still work."
         )
         self._update_reminds_me_of_completer()
+        self.reminds_me_of_input.installEventFilter(self)
         self.reminds_me_of_input.returnPressed.connect(self._on_reminds_me_of_add)
         reminds_me_of_row = QHBoxLayout()
         reminds_me_of_row.setContentsMargins(0, 0, 0, 0)
@@ -25621,6 +25635,7 @@ class MainWindow(QMainWindow):
             owner=self,
             tags_content_layout=chart_tags_panel_layout,
         )
+        self.chart_tags_input.installEventFilter(self)
         self.chart_tags_panel_widget.setMinimumHeight(140)
         self.chart_info_content_stack.addWidget(self.chart_tags_panel_widget)
         self._update_tag_completers()
@@ -31129,6 +31144,14 @@ class MainWindow(QMainWindow):
                     popout_context.get("hd_placement_contexts"),
                 )
             return False
+        if (
+            event.type() == QEvent.FocusIn
+            and obj in (
+                getattr(self, "chart_tags_input", None),
+                getattr(self, "reminds_me_of_input", None),
+            )
+        ):
+            self._refresh_chart_view_session_completers()
         if obj is self.output_text.viewport():
             if event.type() == QEvent.Resize:
                 self._position_output_share_button()
@@ -31185,6 +31208,14 @@ class MainWindow(QMainWindow):
                 self.on_popout_chart()
                 return True
         return super().eventFilter(obj, event)
+
+
+    def _refresh_chart_view_session_completers(self) -> None:
+        """Refresh completers whose choices can change while Chart View stays open."""
+        self._update_tag_completers(
+            refresh_location_completers=False,
+            refresh_tag_lists=False,
+        )
 
     def _show_position_info(self, body: str, sign: str, house_num: int | None) -> None:
         sign_key = sign.title()
@@ -33923,13 +33954,26 @@ class MainWindow(QMainWindow):
         self._update_tag_completers()
         self._tag_completer_revision_token = revision_token
 
+    def _tag_completer_tags_for_session(self) -> list[str]:
+        tags_by_key: dict[str, str] = {
+            tag.casefold(): tag
+            for tag in list_recognized_tags()
+        }
+        for tag in getattr(self, "_known_chart_tags", []) or []:
+            normalized = str(tag or "").strip()
+            if normalized:
+                tags_by_key.setdefault(normalized.casefold(), normalized)
+        for tag in normalize_tag_list(getattr(self, "_chart_tags_current", []) or []):
+            tags_by_key.setdefault(tag.casefold(), tag)
+        return sorted(tags_by_key.values(), key=lambda value: value.casefold())
+
     def _update_tag_completers(
         self,
         *,
         refresh_location_completers: bool = True,
         refresh_tag_lists: bool = True,
     ) -> None:
-        sorted_tags = list_recognized_tags()
+        sorted_tags = self._tag_completer_tags_for_session()
         self._known_chart_tags = sorted_tags
         if hasattr(self, "chart_tags_input"):
             apply_tag_completer(self.chart_tags_input, sorted_tags)
@@ -34129,6 +34173,70 @@ class MainWindow(QMainWindow):
         )
 
 
+    def _saved_chart_birth_inputs_match_form(self, chart: Chart) -> bool:
+        """Return True when Chart View birth/calculation inputs are unchanged.
+
+        The formal Save/Update button should not rebuild a chart or dirty heavy
+        analytics when the user only changed descriptive metadata such as alias,
+        notes, tags, or subjective scores.  Recalculation is only required when
+        birth date/time/place, rectified-time state, rectification range,
+        placeholder state, or the derived house-availability inputs change.
+        """
+        placeholder_checked = self.placeholder_chart_checkbox.isChecked()
+        if bool(getattr(chart, "is_placeholder", False)) != placeholder_checked:
+            return False
+
+        qdate = self._birth_date_from_fields()
+        dt_value = getattr(chart, "dt", None)
+        if qdate is None or dt_value is None:
+            return False
+        if (qdate.year(), qdate.month(), qdate.day()) != (dt_value.year, dt_value.month, dt_value.day):
+            return False
+
+        if self.retcon_time_checkbox.isChecked():
+            qtime = self.retcon_time_edit.time()
+        elif self._rectification_range_effective_from_inputs():
+            qtime = self._rectification_range_midpoint_qtime()
+        elif placeholder_checked or self.time_unknown_checkbox.isChecked():
+            qtime = QTime(12, 0)
+        else:
+            qtime = self.time_edit.time()
+        if (qtime.hour(), qtime.minute()) != (dt_value.hour, dt_value.minute):
+            return False
+
+        range_start_minute, range_end_minute = self._rectification_range_minutes_from_inputs()
+        place_text = self.place_edit.text().strip() or "Chicago, IL, USA"
+        saved_place = getattr(chart, "birth_place", None) or ""
+        if place_text != saved_place:
+            return False
+        if (
+            getattr(self, "_searched_birth_place", None) == place_text
+            and getattr(self, "_searched_lat", None) is not None
+            and getattr(self, "_searched_lon", None) is not None
+        ):
+            searched_lat = round(float(self._searched_lat), 6)
+            searched_lon = round(float(self._searched_lon), 6)
+            saved_lat = round(float(getattr(chart, "lat", 0.0) or 0.0), 6)
+            saved_lon = round(float(getattr(chart, "lon", 0.0) or 0.0), 6)
+            if (searched_lat, searched_lon) != (saved_lat, saved_lon):
+                return False
+
+        retcon_time = self.retcon_time_edit.time()
+        stored_retcon_hour = getattr(chart, "retcon_hour", None)
+        stored_retcon_minute = getattr(chart, "retcon_minute", None)
+        stored_range_start = getattr(chart, "rectification_range_start_minute", None)
+        stored_range_end = getattr(chart, "rectification_range_end_minute", None)
+        return (
+            self.time_unknown_checkbox.isChecked() == bool(getattr(chart, "birthtime_unknown", False))
+            and self.retcon_time_checkbox.isChecked() == bool(getattr(chart, "retcon_time_used", False))
+            and retcon_time.hour() == int(stored_retcon_hour if stored_retcon_hour is not None else retcon_time.hour())
+            and retcon_time.minute() == int(stored_retcon_minute if stored_retcon_minute is not None else retcon_time.minute())
+            and self._rectification_range_effective_from_inputs() == bool(getattr(chart, "rectification_range_used", False))
+            and range_start_minute == int(stored_range_start if stored_range_start is not None else range_start_minute)
+            and range_end_minute == int(stored_range_end if stored_range_end is not None else range_end_minute)
+        )
+
+
     def on_update_chart(self, show_dialog: bool = True, recalculate_chart: bool = True):
         chart_id = self.current_chart_id
         is_placeholder = self.placeholder_chart_checkbox.isChecked()
@@ -34166,6 +34274,17 @@ class MainWindow(QMainWindow):
                     return
         if not self._validate_rectification_range_inputs(show_feedback=show_dialog):
             return
+        if recalculate_chart and chart_id is not None:
+            saved_chart = None
+            try:
+                saved_chart = load_chart(chart_id)
+            except ValueError:
+                chart_id = None
+                self._orphan_current_chart_reference()
+            except Exception:
+                saved_chart = None
+            if saved_chart is not None and self._saved_chart_birth_inputs_match_form(saved_chart):
+                recalculate_chart = False
         if not recalculate_chart and chart_id is not None:
             try:
                 chart = load_chart(chart_id)
@@ -34183,6 +34302,11 @@ class MainWindow(QMainWindow):
                 chart.sentiments = [] if is_event_chart else list(self._selected_sentiments())
                 chart.relationship_types = [] if is_event_chart else list(self._selected_relationship_types())
                 chart.tags = get_chart_view_tags(self)
+                chart.reminds_me_of = (
+                    ""
+                    if is_event_chart
+                    else serialize_reminds_me_of_uids(getattr(self, "_reminds_me_of_current", []))
+                )
                 chart.comments = self.comments_edit.toPlainText().strip()
                 chart.quotes = get_chart_view_quotes(self)
                 chart.rectification_notes = self.rectification_edit.toPlainText().strip()
@@ -34398,19 +34522,25 @@ class MainWindow(QMainWindow):
             self._set_chart_right_panel_container_visible(True)
             self._clear_chart_displays(reset_anagrams=False)
         else:
-            self._prepare_chart_right_panel_for_loading()
             self._set_chart_right_panel_container_visible(True)
-            self._schedule_chart_render(chart, sections={
-                "summary",
-                "signs",
-                "planets",
-                "houses",
-                "elements",
-                "nakshatra",
-                "modal",
-                "gender",
-                "similar_charts",
-            })
+            if chart_recalculated:
+                self._prepare_chart_right_panel_for_loading()
+                self._schedule_chart_render(chart, sections={
+                    "summary",
+                    "signs",
+                    "planets",
+                    "houses",
+                    "elements",
+                    "nakshatra",
+                    "modal",
+                    "gender",
+                    "similar_charts",
+                })
+            else:
+                update_main_window_title(self)
+                self._refresh_chart_summary(chart)
+                self._reveal_chart_right_panel_after_loading()
+                self._hide_chart_loading_overlay()
 
         if show_dialog:
             if is_new_chart:
@@ -34423,7 +34553,7 @@ class MainWindow(QMainWindow):
                 extra_lines.insert(1, "Timezone inference failed; UTC was used.")
             QMessageBox.information(self, dialog_title, "\n".join(extra_lines))
 
-        if not is_placeholder:
+        if not is_placeholder and chart_recalculated:
             self._schedule_chart_render(chart, sections={"wheel"})
 
     def _reset_new_chart_form(self) -> None:
