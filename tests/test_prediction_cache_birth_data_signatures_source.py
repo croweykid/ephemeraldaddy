@@ -4,6 +4,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 TRAIT_SOURCE = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/trait_predictions.py").read_text(encoding="utf-8")
 DND_SOURCE = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/dnd_predictions.py").read_text(encoding="utf-8")
 ENNEAGRAM_SOURCE = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/enneagram_predictions.py").read_text(encoding="utf-8")
+RIGHT_PANEL_STACK_SOURCE = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/cv_right_panel_stack.py").read_text(encoding="utf-8")
 
 
 def test_trait_chart_signature_uses_only_essential_birth_data_not_derived_payloads():
@@ -54,6 +55,16 @@ def test_enneagram_cache_token_includes_rectification_range_birth_data():
     assert '"birth_date"' in helper
     assert '"birth_time"' in helper
     assert '"datetime_iso"' in helper
+    assert '"rectification_range_used"' in helper
+    assert '"rectification_range_start_minute"' in helper
+    assert '"rectification_range_end_minute"' in helper
+
+
+def test_predictions_right_panel_render_token_includes_rectification_range_birth_data():
+    helper = RIGHT_PANEL_STACK_SOURCE.split("def _chart_right_panel_prediction_render_token", 1)[1].split(
+        "def schedule_chart_render_for_active_right_panel", 1
+    )[0]
+
     assert '"rectification_range_used"' in helper
     assert '"rectification_range_start_minute"' in helper
     assert '"rectification_range_end_minute"' in helper
