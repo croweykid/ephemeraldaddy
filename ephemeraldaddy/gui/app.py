@@ -22903,12 +22903,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 widget.setVisible(not enabled)
         self._sync_demo_mode_sort_visibility(enabled)
         if not enabled:
-            sync_predictability = getattr(self, "_sync_predictability_visibility", None)
-            if callable(sync_predictability):
-                sync_predictability()
+            self._restore_demo_mode_configured_visibility()
         if enabled:
             active_tab = getattr(getattr(self, "_chart_right_panel_state", None), "active_tab", None)
-            if active_tab == "subjective_notes":
+            if active_tab in {"subjective_notes", "material_facts", "photo_gallery"}:
                 try:
                     self._set_chart_right_panel("analytics")
                 except Exception:
@@ -22918,6 +22916,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 set_info_mode = getattr(self, "_set_chart_info_panel_mode", None)
                 if callable(set_info_mode):
                     set_info_mode("chart_info")
+
+    def _restore_demo_mode_configured_visibility(self) -> None:
+        sync_predictability = getattr(self, "_sync_predictability_visibility", None)
+        if callable(sync_predictability):
+            sync_predictability()
 
     def _on_default_traits_source_monitor_toggled(self, checked: bool) -> None:
         self._default_traits_source_monitor_enabled = bool(checked)
@@ -32772,22 +32775,25 @@ class MainWindow(QMainWindow):
                 widget.setVisible(not enabled)
         self._sync_demo_mode_sort_visibility(enabled)
         if not enabled:
-            sync_predictability = getattr(self, "_sync_predictability_visibility", None)
-            if callable(sync_predictability):
-                sync_predictability()
+            self._restore_demo_mode_configured_visibility()
         sync_placeholder = getattr(self, "_sync_chart_right_panel_placeholder_state", None)
         current_chart = getattr(self, "_latest_chart", None)
         if callable(sync_placeholder):
             sync_placeholder(current_chart)
         if enabled:
             active_tab = getattr(getattr(self, "_chart_right_panel_state", None), "active_tab", None)
-            if active_tab == "subjective_notes":
+            if active_tab in {"subjective_notes", "material_facts", "photo_gallery"}:
                 self._set_chart_right_panel("analytics")
             active_info_mode = getattr(self, "_chart_info_panel_mode", None)
             if active_info_mode == "comments":
                 set_info_mode = getattr(self, "_set_chart_info_panel_mode", None)
                 if callable(set_info_mode):
                     set_info_mode("chart_info")
+
+    def _restore_demo_mode_configured_visibility(self) -> None:
+        sync_predictability = getattr(self, "_sync_predictability_visibility", None)
+        if callable(sync_predictability):
+            sync_predictability()
 
     def _set_chart_right_panel_container_visible(self, visible: bool) -> None:
         """Show/hide Chart View's entire right-hand panel container."""
