@@ -23714,13 +23714,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _resize_and_center_settings_dialog(self, dialog: QDialog) -> None:
         screen = self.windowHandle().screen() if self.windowHandle() else QApplication.primaryScreen()
         if screen is None:
-            dialog.resize(520, 520)
+            dialog.resize(700, 560)
             return
         geometry = screen.availableGeometry()
-        width = min(560, geometry.width() - 40)
+        width = max(700, min(760, geometry.width() - 40))
         height = min(680, geometry.height() - 40)
-        x = geometry.x() + ((geometry.width() - width) // 2)
-        y = geometry.y() + ((geometry.height() - height) // 2)
+        x = geometry.x() + max(0, (geometry.width() - width) // 2)
+        y = geometry.y() + max(0, (geometry.height() - height) // 2)
         dialog.setGeometry(x, y, width, height)
 
     def _toggle_size_checker(self) -> None:
