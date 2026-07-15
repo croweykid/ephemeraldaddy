@@ -1242,6 +1242,7 @@ from ephemeraldaddy.gui.features.import_export.builders import (
     build_import_chart as _build_import_chart,
 )
 from ephemeraldaddy.gui.features.import_export.custom_db_export import (
+    build_custom_db_export_widget,
     open_custom_db_export_dialog,
 )
 
@@ -1306,6 +1307,7 @@ from ephemeraldaddy.gui.cmd_pallette import CommandPaletteAction, install_comman
 
 from ephemeraldaddy.gui import help as help_notes
 from ephemeraldaddy.gui.settings_widgets import (
+    SettingsHeaderFlowLayout,
     SettingsHelpLabel,
     configure_settings_help_label,
 )
@@ -18454,6 +18456,26 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             f"Backup saved to:\n{file_path}",
         )
 
+    def _populate_settings_custom_db_export_section(self, section_layout: QVBoxLayout) -> None:
+        export_widget = build_custom_db_export_widget(
+            self._settings_dialog or self,
+            show_empty_message=False,
+        )
+        if export_widget is None:
+            section_layout.addWidget(QLabel("No chart properties are currently available for export."))
+            return
+        section_layout.addWidget(export_widget)
+
+    def _populate_settings_property_manager_section(self, section_layout: QVBoxLayout) -> None:
+        coordinator = getattr(self, "_property_manager_coordinator", None)
+        if coordinator is None:
+            coordinator = PropertyManagerCoordinator(self)
+            self._property_manager_coordinator = coordinator
+        manager_widget = coordinator.create_widget(parent=self._settings_dialog or self, embedded=True)
+        manager_widget.finished.connect(lambda _result: coordinator.refresh_after_close())
+        manager_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        section_layout.addWidget(manager_widget)
+
     def _on_custom_db_export(self) -> None:
         open_custom_db_export_dialog(self)
 
@@ -21884,14 +21906,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         tab_header_scroll = QScrollArea(dialog)
         tab_header_scroll.setWidgetResizable(True)
         tab_header_scroll.setFrameShape(QFrame.NoFrame)
-        tab_header_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        tab_header_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        tab_header_scroll.setFixedHeight(58)
+        tab_header_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        tab_header_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        tab_header_scroll.setMinimumHeight(58)
+        tab_header_scroll.setMaximumHeight(150)
         tab_header_frame = QFrame()
         tab_header_frame.setObjectName("settings_tab_header")
-        tab_header_layout = QHBoxLayout(tab_header_frame)
-        tab_header_layout.setContentsMargins(8, 8, 8, 8)
-        tab_header_layout.setSpacing(8)
+        tab_header_layout = SettingsHeaderFlowLayout(tab_header_frame, margin=8, spacing=8)
         tab_header_scroll.setWidget(tab_header_frame)
         root_layout.addWidget(tab_header_scroll)
 
@@ -21899,12 +21920,37 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         settings_tab_stack.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         root_layout.addWidget(settings_tab_stack, 1)
 
+        footer_frame = QFrame(dialog)
+        footer_frame.setObjectName("settings_footer_panel")
+        footer_frame.setStyleSheet(
+            "QFrame#settings_footer_panel {"
+            "background-color: #151820;"
+            "border: 1px solid rgba(214, 194, 141, 0.24);"
+            "border-radius: 8px;"
+            "}"
+        )
+        footer_layout = QVBoxLayout(footer_frame)
+        footer_layout.setContentsMargins(12, 8, 12, 8)
+        footer_layout.setSpacing(0)
+        footer_label = QLabel("")
+        footer_label.setTextFormat(Qt.RichText)
+        footer_label.setWordWrap(True)
+        footer_label.setStyleSheet("color: #9a9a9a; font-style: italic; font-size: 7pt;")
+        footer_layout.addWidget(footer_label)
+        footer_frame.hide()
+        root_layout.addWidget(footer_frame)
+
         content = settings_tab_stack
         content_layout = QVBoxLayout()
         self._settings_tab_stack = settings_tab_stack
         self._settings_tab_header_layout = tab_header_layout
         self._settings_tab_button_group = QButtonGroup(dialog)
         self._settings_tab_button_group.setExclusive(True)
+        self._settings_section_title_to_index = {}
+        self._settings_footer_notes_by_index = {}
+        self._settings_footer_frame = footer_frame
+        self._settings_footer_label = footer_label
+        settings_tab_stack.currentChanged.connect(self._refresh_settings_footer_note)
 
         visibility_section = self._add_settings_collapsible_section(
             content_layout,
@@ -22397,7 +22443,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         plugins_section.addWidget(self._plugins_installed_label)
         self._plugins_status_label = QLabel("")
         self._plugins_status_label.setWordWrap(True)
-        plugins_section.addWidget(self._plugins_status_label)
+        self._plugins_status_label.setStyleSheet("color: #9a9a9a; font-style: italic; font-size: 7pt;")
+        self._plugins_status_label.hide()
         self._refresh_plugins_status_labels()
 
         age_tools_section = self._add_settings_collapsible_section(content_layout, "User Profile")
@@ -22439,18 +22486,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         reset_interface_button.clicked.connect(self._reset_interface_to_defaults)
         reset_section.addWidget(reset_interface_button)
 
-        self._add_settings_action_section(
+        property_manager_section = self._add_settings_collapsible_section(
             content_layout,
             "Property Managers",
-            self._launch_property_manager_dialog,
-            top_spacing=18,
         )
-        self._add_settings_action_section(
+        self._populate_settings_property_manager_section(property_manager_section)
+
+        custom_db_export_section = self._add_settings_collapsible_section(
             content_layout,
             "Custom DB Export",
-            self._on_custom_db_export,
         )
-        tab_header_layout.addStretch(1)
+        self._populate_settings_custom_db_export_section(custom_db_export_section)
         content_layout.addStretch(1)
 
         self._configure_settings_section_text_wrap(content)
@@ -22479,14 +22525,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 installed_label.hide()
 
         status_label = getattr(self, "_plugins_status_label", None)
-        if isinstance(status_label, QLabel):
-            if not available_plugins and installed_plugins:
-                status_label.setText("all currently available plugins are installed")
-            elif installed_plugins:
-                status_label.setText("Plugins still available: " + ", ".join(available_plugins))
-            else:
-                status_label.setText("Currently recognized plugins: " + ", ".join(recognized_plugins))
-            status_label.setStyleSheet("color: #9a9a9a; font-style: italic; font-size: 7pt;")
+        if not available_plugins and installed_plugins:
+            status_text = "All currently available plugins are installed."
+        elif installed_plugins:
+            status_text = "Plugins still available: " + ", ".join(available_plugins)
+        else:
+            status_text = "Currently recognized plugins: " + ", ".join(recognized_plugins)
+        footer_writer = getattr(self, "_set_settings_section_footer_note", None)
+        if callable(footer_writer):
+            footer_writer("Plugins", status_text)
+            if isinstance(status_label, QLabel):
+                status_label.hide()
+        elif isinstance(status_label, QLabel):
+            status_label.setText(status_text)
+            status_label.show()
 
     def _on_plugin_upload_clicked(self) -> None:
         file_path, _selected_filter = QFileDialog.getOpenFileName(
@@ -23505,6 +23557,33 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         root.adjustSize()
         root.updateGeometry()
 
+    def _set_settings_section_footer_note(self, section_title: str, text: str) -> None:
+        title_to_index = getattr(self, "_settings_section_title_to_index", {})
+        if not isinstance(title_to_index, dict):
+            return
+        tab_index = title_to_index.get(section_title)
+        if tab_index is None:
+            return
+        footer_notes = getattr(self, "_settings_footer_notes_by_index", None)
+        if not isinstance(footer_notes, dict):
+            return
+        footer_notes[tab_index] = text
+        tab_stack = getattr(self, "_settings_tab_stack", None)
+        if isinstance(tab_stack, QStackedWidget) and tab_stack.currentIndex() == tab_index:
+            self._refresh_settings_footer_note(tab_index)
+
+    def _refresh_settings_footer_note(self, tab_index: int) -> None:
+        footer_frame = getattr(self, "_settings_footer_frame", None)
+        footer_label = getattr(self, "_settings_footer_label", None)
+        footer_notes = getattr(self, "_settings_footer_notes_by_index", {})
+        if not isinstance(footer_frame, QFrame) or not isinstance(footer_label, QLabel):
+            return
+        note = ""
+        if isinstance(footer_notes, dict):
+            note = str(footer_notes.get(tab_index, "") or "").strip()
+        footer_label.setText(note)
+        footer_frame.setVisible(bool(note))
+
     def _add_settings_collapsible_section(
         self,
         parent_layout: QVBoxLayout,
@@ -23513,7 +23592,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         tab_stack = getattr(self, "_settings_tab_stack", None)
         tab_header_layout = getattr(self, "_settings_tab_header_layout", None)
         tab_button_group = getattr(self, "_settings_tab_button_group", None)
-        if isinstance(tab_stack, QStackedWidget) and isinstance(tab_header_layout, QHBoxLayout):
+        if isinstance(tab_stack, QStackedWidget) and isinstance(tab_header_layout, QLayout):
             page_scroll = QScrollArea()
             page_scroll.setWidgetResizable(True)
             page_scroll.setFrameShape(QFrame.NoFrame)
@@ -23528,7 +23607,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             section_content = QFrame()
             section_content.setObjectName("settings_section_content")
             section_content.setMinimumHeight(0)
-            section_content.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            section_content.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
             section_content_layout = QVBoxLayout(section_content)
             section_content_layout.setSizeConstraint(QLayout.SetDefaultConstraint)
             section_content_layout.setContentsMargins(18, 16, 18, 16)
@@ -23536,6 +23615,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             page_layout.addWidget(section_content)
 
             tab_index = tab_stack.addWidget(page_scroll)
+            title_to_index = getattr(self, "_settings_section_title_to_index", None)
+            if isinstance(title_to_index, dict):
+                title_to_index[title] = tab_index
+            page_layout.addStretch(1)
             tab_button = QPushButton(title)
             tab_button.setObjectName("settings_tab_button")
             tab_button.setCheckable(True)
