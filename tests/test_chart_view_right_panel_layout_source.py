@@ -404,3 +404,30 @@ def test_non_trait_prediction_progress_does_not_populate_traits_status_box():
     assert 'self.progress.emit("Finishing Predictions…", 90)' not in source
     assert '_set_predictions_status(self._owner, "", visible=False)' in source
     assert '_set_predictions_status(owner, "Loading trait predictions for this UID…")' in source
+
+
+def test_prediction_panel_is_not_current_while_traits_are_still_loading_even_if_graphs_exist():
+    source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/cv_right_panel_stack.py").read_text()
+    function = source[
+        source.index("def _predictions_panel_has_rendered_content") : source.index("def _prediction_chart_uid", source.index("def _predictions_panel_has_rendered_content"))
+    ]
+
+    assert "traits_is_still_loading" in function
+    assert "if traits_is_still_loading:" in function
+    assert "return False" in function[function.index("if traits_is_still_loading:") : function.index("tritype_label =", function.index("if traits_is_still_loading:"))]
+    assert "has_prediction_canvas or not" in function
+
+
+def test_background_prediction_finish_refreshes_traits_before_marking_render_token_current():
+    source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/cv_right_panel_stack.py").read_text()
+    function = source[
+        source.index("def _finish_background_prediction_render") : source.index("def _retain_background_prediction_job", source.index("def _finish_background_prediction_render"))
+    ]
+
+    render_traits_index = function.index('render_traits = getattr(owner, "_render_traits_predictions", None)')
+    enneagram_index = function.index("owner._render_enneagram_predictions(chart)")
+    token_index = function.index("state.last_render_chart_token = render_token")
+
+    assert render_traits_index < enneagram_index < token_index
+    assert "if callable(render_traits):" in function
+    assert "render_traits(chart)" in function

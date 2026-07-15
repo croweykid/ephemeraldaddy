@@ -864,7 +864,19 @@ def _predictions_panel_has_rendered_content(owner: object) -> bool:
     """
     traits_label = getattr(owner, "traits_prediction_label", None)
     traits_text = traits_label.text() if isinstance(traits_label, QLabel) else ""
+    traits_table = getattr(owner, "traits_prediction_table", None)
+    traits_table_visible = bool(getattr(traits_table, "isVisible", lambda: False)())
     traits_has_default_placeholder = "Loading trait predictions for this UID" in traits_text
+    traits_is_still_loading = any(
+        marker in traits_text
+        for marker in (
+            "Loading trait predictions",
+            "Loading fresh trait predictions",
+            "Loading predictions for this UID",
+        )
+    ) and not traits_table_visible
+    if traits_is_still_loading:
+        return False
 
     tritype_label = getattr(owner, "enneagram_prediction_tritype_label", None)
     tritype_text = tritype_label.text() if isinstance(tritype_label, QLabel) else ""
@@ -1010,6 +1022,9 @@ def _finish_background_prediction_render(
     _predictions_thread_debug(owner, "finish applying GUI render job=%s chart=%s", job_token, chart_name)
     state = getattr(owner, "_chart_right_panel_state", None)
     if getattr(owner, "_latest_chart", None) is chart:
+        render_traits = getattr(owner, "_render_traits_predictions", None)
+        if callable(render_traits):
+            render_traits(chart)
         owner._render_enneagram_predictions(chart)
         owner._render_dndification_predictions(chart)
         schedule_metric_refreshes = getattr(owner, "_schedule_deferred_visible_metric_canvas_layout_refreshes", None)
