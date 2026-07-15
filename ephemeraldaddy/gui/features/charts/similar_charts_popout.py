@@ -72,6 +72,7 @@ from ephemeraldaddy.core.interpretations import (
     aspect_pair_weight,
     aspect_score,
 )
+from ephemeraldaddy.gui.app_text_search import install_app_text_search
 from ephemeraldaddy.gui.features.charts.presentation import get_nakshatra, sign_for_longitude
 from ephemeraldaddy.gui.features.charts.provenance import chart_row_is_non_aggregable
 from ephemeraldaddy.gui.features.charts.progress_cancel import (
@@ -3301,6 +3302,7 @@ def build_similar_charts_popout_dialog(
     dialog.setModal(False)
     dialog.resize(860, 700)
     layout = QVBoxLayout(dialog)
+    dialog._app_text_search_bar = install_app_text_search(dialog, layout)
 
     top_row = QHBoxLayout()
     top_row.setContentsMargins(0, 0, 0, 0)

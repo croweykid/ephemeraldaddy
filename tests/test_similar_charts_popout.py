@@ -43,9 +43,15 @@ def _install_pyside_stubs():
     qt_core.QSize = getattr(qt_core, "QSize", _Widget)
     qt_core.QTimer = getattr(qt_core, "QTimer", _Widget)
     qt_core.Qt = getattr(qt_core, "Qt", _Qt)
+    qt_gui.QColor = getattr(qt_gui, "QColor", _Widget)
     qt_gui.QIcon = getattr(qt_gui, "QIcon", _Widget)
     qt_gui.QIntValidator = getattr(qt_gui, "QIntValidator", _Widget)
+    qt_gui.QKeySequence = getattr(qt_gui, "QKeySequence", _Widget)
+    qt_gui.QShortcut = getattr(qt_gui, "QShortcut", _Widget)
+    qt_gui.QTextCharFormat = getattr(qt_gui, "QTextCharFormat", _Widget)
+    qt_gui.QTextCursor = getattr(qt_gui, "QTextCursor", _Widget)
     for name in (
+        "QAbstractButton",
         "QApplication",
         "QCheckBox",
         "QComboBox",
@@ -89,7 +95,14 @@ def _install_style_stub():
         style.format_chart_header = format_chart_header
     if not hasattr(style, "blend_hex_colors"):
         style.blend_hex_colors = blend_hex_colors
-    for helper_name in ("apply_button_cursor", "apply_chart_info_link_cursor", "apply_popout_cursor"):
+    for helper_name in (
+        "apply_button_cursor",
+        "apply_chart_info_link_cursor",
+        "apply_popout_cursor",
+        "close_app_loading_progress",
+        "create_app_loading_progress",
+        "update_app_loading_progress",
+    ):
         if not hasattr(style, helper_name):
             setattr(style, helper_name, lambda *_args, **_kwargs: None)
 
