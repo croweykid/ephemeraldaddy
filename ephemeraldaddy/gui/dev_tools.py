@@ -57,10 +57,44 @@ SETTINGS_KEY_DISTINGUISHING_FACTORS_SCORING_DEBUG = "dev_tools/distinguishing_fa
 DISTINGUISHING_FACTORS_SCORING_DEBUG_DEFAULT = False
 SETTINGS_KEY_SIMILARITY_PERCEIVED_ACCURACY_CONTROLS = "dev_tools/similarity_perceived_accuracy_controls"
 SIMILARITY_PERCEIVED_ACCURACY_CONTROLS_DEFAULT = False
+SETTINGS_KEY_DEMO_MODE = "dev_tools/demo_mode"
+DEMO_MODE_DEFAULT = False
 
 
 def _build_settings_help_label(text: str) -> QLabel:
     return SettingsHelpLabel(text)
+
+def load_demo_mode_enabled(settings, *, fallback: bool = False) -> bool:
+    value = settings.value(SETTINGS_KEY_DEMO_MODE, int(fallback))
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+    if isinstance(value, (int, float)):
+        return bool(value)
+    return bool(fallback)
+
+
+def add_demo_mode_setting(
+    *,
+    section_layout: QVBoxLayout,
+    is_enabled: bool,
+    on_toggled: Callable[[bool], None],
+) -> QCheckBox:
+    checkbox = QCheckBox("Demo mode: hide subjective/private notes")
+    checkbox.setChecked(bool(is_enabled))
+    checkbox.setToolTip(
+        "When enabled, hides Chart View Observations, Chart Info Notes, and subjective "
+        "ratings in Search and Batch Editor so the app can be shown without private notes."
+    )
+    checkbox.toggled.connect(on_toggled)
+    section_layout.addWidget(checkbox)
+    return checkbox
+
 
 def load_batch_tagging_terminal_debug_enabled(settings, *, fallback: bool = False) -> bool:
     value = settings.value(SETTINGS_KEY_BATCH_TAGGING_TERMINAL_DEBUG, int(fallback))
