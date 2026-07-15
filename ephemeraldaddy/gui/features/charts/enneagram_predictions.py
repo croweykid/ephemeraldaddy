@@ -959,6 +959,7 @@ class EnneagramPredictionPanelAdapter:
         clear_layout_widgets: Callable[[Any], None] | None = None,
         calculate_callback: Callable[[Any, str], None] | None = None,
         reset_canvas_callback: Callable[[str], None] | None = None,
+        manual_recalculation_provider: Callable[[], bool] | None = None,
     ) -> None:
         self.enneagram = enneagram
         self.calculate_type_weights = calculate_type_weights
@@ -972,6 +973,15 @@ class EnneagramPredictionPanelAdapter:
         self.clear_layout_widgets = clear_layout_widgets
         self.calculate_callback = calculate_callback
         self.reset_canvas_callback = reset_canvas_callback
+        self.manual_recalculation_provider = manual_recalculation_provider
+
+    def _manual_recalculation_only(self) -> bool:
+        if callable(self.manual_recalculation_provider):
+            try:
+                return bool(self.manual_recalculation_provider())
+            except Exception:
+                return True
+        return True
 
     def _show_calculate_prompt(self, chart: Any | None) -> None:
         layout = self.enneagram_prediction_chart_layout
@@ -1080,7 +1090,7 @@ class EnneagramPredictionPanelAdapter:
         _persist_enneagram_prediction_payload(chart, payload)
         return scores
 
-    def _show_stale_recalculate_notice(self, chart: Any) -> None:
+    def _show_stale_recalculate_notice(self, chart: Any, *, refreshing: bool = False) -> None:
         layout = self.enneagram_prediction_chart_layout
         if layout is None:
             return
@@ -1090,7 +1100,12 @@ class EnneagramPredictionPanelAdapter:
         panel_layout.setContentsMargins(0, 0, 0, 6)
         panel_layout.setSpacing(4)
         panel.setLayout(panel_layout)
-        label = QLabel("Cached results shown; chart data or prediction definitions may have changed.")
+        label_text = (
+            "Cached results shown; automatic refresh is running in the background."
+            if refreshing
+            else "Cached results shown; chart data or prediction definitions may have changed."
+        )
+        label = QLabel(label_text)
         label.setWordWrap(True)
         label.setStyleSheet("color: #d8d8d8; font-style: italic; padding: 2px 0 0 0;")
         button = QPushButton("Recalculate")
@@ -1150,7 +1165,10 @@ class EnneagramPredictionPanelAdapter:
             chart=chart,
         )
         if cache_stale:
-            self._show_stale_recalculate_notice(chart)
+            manual_only = self._manual_recalculation_only()
+            self._show_stale_recalculate_notice(chart, refreshing=not manual_only)
+            if not manual_only and callable(self.calculate_callback):
+                self.calculate_callback(chart, "enneagram")
         if self.tritype_label is not None:
             stop_prediction_loading_blink(self.tritype_label)
             self.tritype_label.setText(

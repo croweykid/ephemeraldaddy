@@ -1661,6 +1661,10 @@ def _traits_stale_recalculate_prompt_html(updated_at: str | None) -> str:
     )
 
 
+def _predictions_manual_recalculation_only(owner: Any) -> bool:
+    return bool(getattr(owner, "_predictions_manual_recalculation_only", True))
+
+
 def _trait_render_signatures(owner: Any, chart: Any, traits: list[dict[str, Any]]) -> dict[str, str]:
     """Precompute all signatures used by one Traits render pass exactly once."""
     trait_signature = _stable_json_hash(_trait_signature_payload(traits))
@@ -2128,12 +2132,21 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
         owner._traits_prediction_pending_cache_key = cache_key or ""
         owner._traits_prediction_pending_signatures = signatures
         if bool(cached_metadata.get("stale")):
-            _apply_traits_prediction_metadata(
-                owner,
-                traits,
-                cached_metadata,
-                prefix_html=_traits_stale_recalculate_prompt_html(str(cached_metadata.get("updated_at", "") or "unknown")),
-            )
+            if _predictions_manual_recalculation_only(owner):
+                _apply_traits_prediction_metadata(
+                    owner,
+                    traits,
+                    cached_metadata,
+                    prefix_html=_traits_stale_recalculate_prompt_html(str(cached_metadata.get("updated_at", "") or "unknown")),
+                )
+            else:
+                _apply_traits_prediction_metadata(
+                    owner,
+                    traits,
+                    cached_metadata,
+                    prefix_html=_trait_predictions_refresh_message(str(cached_metadata.get("updated_at", "") or "unknown")),
+                )
+                QTimer.singleShot(0, lambda owner=owner: _start_traits_prediction_calculation(owner))
         else:
             _apply_traits_prediction_metadata(owner, traits, cached_metadata)
         return
@@ -2142,9 +2155,13 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
     owner._traits_prediction_pending_traits = traits
     owner._traits_prediction_pending_cache_key = cache_key or ""
     owner._traits_prediction_pending_signatures = signatures
-    message = "● Loading fresh trait predictions for this UID… ●"
-    _predictions_debug(owner, "Trait render found no persisted trait metadata; auto-loading fresh traits cache_key=%s", (cache_key or "")[:12])
-    _apply_traits_prediction_view(owner, message, message)
-    start_prediction_loading_blink(label)
-    QTimer.singleShot(0, lambda owner=owner: _start_traits_prediction_calculation(owner))
+    if _predictions_manual_recalculation_only(owner):
+        _predictions_debug(owner, "Trait render found no persisted trait metadata; waiting for manual calculate cache_key=%s", (cache_key or "")[:12])
+        _apply_traits_prediction_view(owner, _traits_calculate_prompt_html(), "No prior data. Calculate (can take awhile)?")
+    else:
+        message = "● Loading fresh trait predictions for this UID… ●"
+        _predictions_debug(owner, "Trait render found no persisted trait metadata; auto-loading fresh traits cache_key=%s", (cache_key or "")[:12])
+        _apply_traits_prediction_view(owner, message, message)
+        start_prediction_loading_blink(label)
+        QTimer.singleShot(0, lambda owner=owner: _start_traits_prediction_calculation(owner))
     return

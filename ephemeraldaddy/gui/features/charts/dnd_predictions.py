@@ -1782,7 +1782,10 @@ class DndPredictionPanelAdapter:
                 widget.setParent(None)
                 widget.deleteLater()
 
-    def _show_stale_recalculate_notice(self, layout: Any, chart: Any, section: str) -> None:
+    def _manual_recalculation_only(self) -> bool:
+        return bool(getattr(self.owner, "_predictions_manual_recalculation_only", True))
+
+    def _show_stale_recalculate_notice(self, layout: Any, chart: Any, section: str, *, refreshing: bool = False) -> None:
         if layout is None:
             return
         self._remove_stale_recalculate_notices(layout)
@@ -1793,7 +1796,12 @@ class DndPredictionPanelAdapter:
         panel_layout.setContentsMargins(0, 0, 0, 6)
         panel_layout.setSpacing(4)
         panel.setLayout(panel_layout)
-        label = QLabel("Cached results shown; chart data or DB norms may have changed.")
+        label_text = (
+            "Cached results shown; automatic refresh is running in the background."
+            if refreshing
+            else "Cached results shown; chart data or DB norms may have changed."
+        )
+        label = QLabel(label_text)
         label.setWordWrap(True)
         label.setStyleSheet("color: #d8d8d8; font-style: italic; padding: 2px 0 0 0;")
         button = QPushButton("Recalculate")
@@ -1835,6 +1843,7 @@ class DndPredictionPanelAdapter:
             return summary_label
 
         statblock_cache = self._restore_statblock_cache(chart)
+        auto_refresh_started = False
         if isinstance(statblock_cache, dict):
             norm_charts = self._norm_charts()
             statblock_stale = self._statblock_cache_is_stale(chart, norm_charts)
@@ -1847,7 +1856,11 @@ class DndPredictionPanelAdapter:
                 chart=chart,
             )
             if statblock_stale:
-                self._show_stale_recalculate_notice(self.chart_layout, chart, "dnd_statblock")
+                manual_only = self._manual_recalculation_only()
+                self._show_stale_recalculate_notice(self.chart_layout, chart, "dnd_statblock", refreshing=not manual_only)
+                if not manual_only and callable(self.calculate_callback):
+                    auto_refresh_started = True
+                    self.calculate_callback(chart, None)
         else:
             self._show_calculate_prompt(chart, section="dnd_statblock")
 
@@ -1882,7 +1895,10 @@ class DndPredictionPanelAdapter:
                     chart=chart,
                 )
                 if alignment_stale:
-                    self._show_stale_recalculate_notice(self.alignment_layout, chart, "dnd_alignment")
+                    manual_only = self._manual_recalculation_only()
+                    self._show_stale_recalculate_notice(self.alignment_layout, chart, "dnd_alignment", refreshing=not manual_only)
+                    if not manual_only and not auto_refresh_started and callable(self.calculate_callback):
+                        self.calculate_callback(chart, None)
                 self._render_alignment_debug_summary(chart)
             else:
                 self._show_calculate_prompt(chart, layout=self.alignment_layout, section="dnd_alignment")

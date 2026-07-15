@@ -42,6 +42,7 @@ SETTINGS_KEY_SIMILAR_CALCULATOR = "similar_charts/similarities_calculator"
 SETTINGS_KEY_ENNEAGRAM_PREDICTOR_MODE = "enneagram_predictor/mode"
 SETTINGS_KEY_ENNEAGRAM_CATEGORY_WEIGHTS = "enneagram_predictor/category_weights"
 SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS = "enneagram_predictor/scoring_options"
+SETTINGS_KEY_PREDICTIONS_MANUAL_RECALCULATION_ONLY = "predictions/manual_recalculation_only"
 SETTINGS_KEY_ASTROTWIN_GRANULAR_EXPLANATION = "similar_charts/astrotwin_granular_explanation"
 SETTINGS_KEY_PREDICTIONS_ALIGNMENT_DEFAULT_ZERO = (
     "similar_charts/predictions_alignment_default_zero_when_unassigned"
@@ -68,6 +69,13 @@ DATABASE_VIEW_ROW_INFO_OPTIONS: tuple[tuple[str, str], ...] = (
     ("sign_glyphs", "Sun/Moon/Rising sign glyphs"),
     ("gender", "Gender glyph"),
 )
+
+
+def _load_predictions_manual_recalculation_only(settings: QSettings, *, fallback: bool = True) -> bool:
+    value = settings.value(SETTINGS_KEY_PREDICTIONS_MANUAL_RECALCULATION_ONLY, int(fallback))
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on", "checked"}
+    return bool(value)
 DATABASE_VIEW_ROW_INFO_DEFAULTS: dict[str, bool] = {
     key: True for key, _label in DATABASE_VIEW_ROW_INFO_OPTIONS
 }
@@ -2444,6 +2452,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._settings.setValue(
             SETTINGS_KEY_PREDICTIONS_THREAD_DEBUG,
             int(self._predictions_thread_debug),
+        )
+        self._predictions_manual_recalculation_only = _load_predictions_manual_recalculation_only(
+            self._settings,
+            fallback=True,
+        )
+        self._settings.setValue(
+            SETTINGS_KEY_PREDICTIONS_MANUAL_RECALCULATION_ONLY,
+            int(self._predictions_manual_recalculation_only),
         )
         self._distinguishing_factors_scoring_debug = load_distinguishing_factors_scoring_debug_enabled(
             self._settings,
@@ -22339,8 +22355,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             on_score_mode_changed=self._on_prediction_score_mode_changed,
             on_scale_mode_changed=self._on_enneagram_type_signature_scale_changed,
             on_dominance_normalization_mode_changed=self._on_prediction_dominance_normalization_changed,
+            on_manual_recalculation_toggled=self._on_predictions_manual_recalculation_toggled,
         )
         self._enneagram_predictor_checkboxes = enneagram_controls["checkboxes"]
+        self._predictions_manual_recalculation_checkbox = enneagram_controls["manual_recalculation_checkbox"]
         self._prediction_score_mode_combo = enneagram_controls["score_mode_combo"]
         self._enneagram_predictor_scale_combo = enneagram_controls["scale_combo"]
         self._prediction_dominance_normalization_combo = enneagram_controls["dominance_combo"]
@@ -23135,6 +23153,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             blocker = QSignalBlocker(checkbox)
             checkbox.setChecked(bool(getattr(options, key, False)))
             del blocker
+        manual_checkbox = getattr(self, "_predictions_manual_recalculation_checkbox", None)
+        if manual_checkbox is not None:
+            manual_value = _load_predictions_manual_recalculation_only(self._settings, fallback=True)
+            self._predictions_manual_recalculation_only = manual_value
+            blocker = QSignalBlocker(manual_checkbox)
+            manual_checkbox.setChecked(bool(manual_value))
+            del blocker
         score_mode_combo = getattr(self, "_prediction_score_mode_combo", None)
         if score_mode_combo is not None:
             target_mode = options.normalized_score_mode()
@@ -23158,6 +23183,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             del blocker
         self._update_enneagram_predictor_total_label()
         self._apply_enneagram_predictor_weights()
+
+    def _on_predictions_manual_recalculation_toggled(self, value: bool) -> None:
+        self._predictions_manual_recalculation_only = bool(value)
+        self._settings.setValue(
+            SETTINGS_KEY_PREDICTIONS_MANUAL_RECALCULATION_ONLY,
+            int(self._predictions_manual_recalculation_only),
+        )
+        parent = self._owner_window()
+        if isinstance(parent, MainWindow):
+            parent._predictions_manual_recalculation_only = self._predictions_manual_recalculation_only
+            parent._settings.setValue(
+                SETTINGS_KEY_PREDICTIONS_MANUAL_RECALCULATION_ONLY,
+                int(self._predictions_manual_recalculation_only),
+            )
 
     def _update_enneagram_predictor_total_label(self) -> None:
         label = getattr(self, "_enneagram_predictor_total_label", None)
@@ -24437,6 +24476,14 @@ class MainWindow(QMainWindow):
         self._settings.setValue(
             SETTINGS_KEY_PREDICTIONS_THREAD_DEBUG,
             int(self._predictions_thread_debug),
+        )
+        self._predictions_manual_recalculation_only = _load_predictions_manual_recalculation_only(
+            self._settings,
+            fallback=True,
+        )
+        self._settings.setValue(
+            SETTINGS_KEY_PREDICTIONS_MANUAL_RECALCULATION_ONLY,
+            int(self._predictions_manual_recalculation_only),
         )
         self._distinguishing_factors_scoring_debug = load_distinguishing_factors_scoring_debug_enabled(
             self._settings,
@@ -36229,6 +36276,15 @@ class MainWindow(QMainWindow):
             blocker = QSignalBlocker(checkbox)
             checkbox.setChecked(bool(getattr(self._enneagram_scoring_options, key, False)))
             del blocker
+        manual_checkbox = getattr(self, "_predictions_manual_recalculation_checkbox", None)
+        if manual_checkbox is not None:
+            self._predictions_manual_recalculation_only = _load_predictions_manual_recalculation_only(
+                self._settings,
+                fallback=True,
+            )
+            blocker = QSignalBlocker(manual_checkbox)
+            manual_checkbox.setChecked(bool(self._predictions_manual_recalculation_only))
+            del blocker
         score_mode_combo = getattr(self, "_prediction_score_mode_combo", None)
         if score_mode_combo is not None:
             index = score_mode_combo.findData(self._enneagram_scoring_options.normalized_score_mode())
@@ -36249,6 +36305,13 @@ class MainWindow(QMainWindow):
             del blocker
         self._update_enneagram_predictor_total_label()
         self._apply_enneagram_predictor_weights()
+
+    def _on_predictions_manual_recalculation_toggled(self, value: bool) -> None:
+        self._predictions_manual_recalculation_only = bool(value)
+        self._settings.setValue(
+            SETTINGS_KEY_PREDICTIONS_MANUAL_RECALCULATION_ONLY,
+            int(self._predictions_manual_recalculation_only),
+        )
 
     def _update_enneagram_predictor_total_label(self) -> None:
         label = getattr(self, "_enneagram_predictor_total_label", None)
@@ -36756,6 +36819,7 @@ class MainWindow(QMainWindow):
             clear_layout_widgets=self._clear_layout_widgets,
             calculate_callback=self._calculate_predictions_on_demand,
             reset_canvas_callback=lambda attr: setattr(self, attr, None),
+            manual_recalculation_provider=lambda: bool(getattr(self, "_predictions_manual_recalculation_only", True)),
         )
 
     def _draw_enneagram_predictions(self, ax, chart: Chart) -> None:

@@ -57,3 +57,33 @@ def test_enneagram_cache_token_includes_rectification_range_birth_data():
     assert '"rectification_range_used"' in helper
     assert '"rectification_range_start_minute"' in helper
     assert '"rectification_range_end_minute"' in helper
+
+
+def test_predictions_manual_recalculation_setting_defaults_to_manual_and_blocks_trait_auto_load():
+    app_source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text(encoding="utf-8")
+    dev_tools_source = (REPO_ROOT / "ephemeraldaddy/gui/dev_tools.py").read_text(encoding="utf-8")
+    trait_render = TRAIT_SOURCE.split("def render_traits_predictions", 1)[1]
+
+    assert 'SETTINGS_KEY_PREDICTIONS_MANUAL_RECALCULATION_ONLY = "predictions/manual_recalculation_only"' in app_source
+    assert 'fallback: bool = True' in app_source.split('def _load_predictions_manual_recalculation_only', 1)[1].split('\n\n', 1)[0]
+    assert 'manual recalculation/refresh only (vs automatic)' in dev_tools_source
+    assert 'manual_checkbox.setChecked(bool(manual_value))' in app_source
+    assert 'if _predictions_manual_recalculation_only(owner):' in trait_render
+    assert '_traits_calculate_prompt_html()' in trait_render
+
+
+def test_stale_predictions_show_cached_data_before_optional_auto_refresh():
+    dnd_render = DND_SOURCE.split("def render(self, chart", 1)[1]
+    enneagram_render = ENNEAGRAM_SOURCE.split("def render(self, chart", 1)[1]
+    trait_render = TRAIT_SOURCE.split("def render_traits_predictions", 1)[1]
+
+    assert '_trait_predictions_refresh_message' in trait_render
+    assert '_apply_traits_prediction_metadata(' in trait_render
+    assert '_start_traits_prediction_calculation(owner)' in trait_render
+    assert 'automatic refresh is running in the background' in DND_SOURCE
+    assert 'self._show_stale_recalculate_notice(self.chart_layout, chart, "dnd_statblock", refreshing=not manual_only)' in dnd_render
+    assert 'self._show_stale_recalculate_notice(self.alignment_layout, chart, "dnd_alignment", refreshing=not manual_only)' in dnd_render
+    assert 'auto_refresh_started = True' in dnd_render
+    assert 'self.calculate_callback(chart, None)' in dnd_render
+    assert 'self._show_stale_recalculate_notice(chart, refreshing=not manual_only)' in enneagram_render
+    assert 'self.calculate_callback(chart, "enneagram")' in enneagram_render
