@@ -84,3 +84,20 @@ def test_demo_mode_uses_latest_chart_and_hides_social_score_sort():
     assert 'if enabled and getattr(self, "_sort_mode", None) == "social_score":' in app
     assert 'self._set_sort_mode("alpha")' in app
     assert 'if mode == "social_score" and bool(getattr(self, "_demo_mode_enabled", DEMO_MODE_DEFAULT)):' in app
+
+
+def test_demo_mode_restores_saved_predictability_visibility_instead_of_forcing_visible():
+    app = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
+
+    assert 'def _restore_demo_mode_configured_visibility(self) -> None:' in app
+    assert 'self._restore_demo_mode_configured_visibility()' in app
+    assert 'visible = self._visibility.get("chart_view.predictability")' in app
+    assert 'for section_attr in ("batch_predictability_section", "predictability_section_box", "search_predictability_section")' in app
+    assert 'section.setVisible(visible)' in app
+
+
+def test_demo_mode_switches_away_from_all_private_chart_right_tabs_before_hiding():
+    app = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
+
+    assert 'active_tab in {"subjective_notes", "material_facts", "photo_gallery"}' in app
+    assert 'self._set_chart_right_panel("analytics")' in app
