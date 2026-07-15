@@ -14809,13 +14809,26 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._update_tag_completers()
         self._tag_completer_revision_token = revision_token
 
+    def _tag_completer_tags_for_session(self) -> list[str]:
+        tags_by_key: dict[str, str] = {
+            tag.casefold(): tag
+            for tag in list_recognized_tags()
+        }
+        for tag in getattr(self, "_known_chart_tags", []) or []:
+            normalized = str(tag or "").strip()
+            if normalized:
+                tags_by_key.setdefault(normalized.casefold(), normalized)
+        for tag in normalize_tag_list(getattr(self, "_chart_tags_current", []) or []):
+            tags_by_key.setdefault(tag.casefold(), tag)
+        return sorted(tags_by_key.values(), key=lambda value: value.casefold())
+
     def _update_tag_completers(
         self,
         *,
         refresh_location_completers: bool = True,
         refresh_tag_lists: bool = True,
     ) -> None:
-        known_tags = list_recognized_tags()
+        known_tags = self._tag_completer_tags_for_session()
         self._known_chart_tags = known_tags
         chart_input = getattr(self, "chart_tags_input", None)
         search_input = getattr(self, "search_tags_input", None)
@@ -25521,6 +25534,7 @@ class MainWindow(QMainWindow):
             "EphemeralDaddy stores each added chart's stable ID so later renames still work."
         )
         self._update_reminds_me_of_completer()
+        self.reminds_me_of_input.installEventFilter(self)
         self.reminds_me_of_input.returnPressed.connect(self._on_reminds_me_of_add)
         reminds_me_of_row = QHBoxLayout()
         reminds_me_of_row.setContentsMargins(0, 0, 0, 0)
@@ -25598,6 +25612,7 @@ class MainWindow(QMainWindow):
             owner=self,
             tags_content_layout=chart_tags_panel_layout,
         )
+        self.chart_tags_input.installEventFilter(self)
         self.chart_tags_panel_widget.setMinimumHeight(140)
         self.chart_info_content_stack.addWidget(self.chart_tags_panel_widget)
         self._update_tag_completers()
@@ -31089,6 +31104,20 @@ class MainWindow(QMainWindow):
                     popout_context.get("hd_placement_contexts"),
                 )
             return False
+        if (
+            event.type() == QEvent.FocusIn
+            and obj in (
+                getattr(self, "chart_tags_input", None),
+                getattr(self, "reminds_me_of_input", None),
+            )
+        ):
+            # These completers are session-sensitive: Database View can add
+            # tags/charts while Chart View remains open, and unsaved Chart View
+            # tags should stay available before the current chart is stored.
+            self._update_tag_completers(
+                refresh_location_completers=False,
+                refresh_tag_lists=False,
+            )
         if obj is self.output_text.viewport():
             if event.type() == QEvent.Resize:
                 self._position_output_share_button()
@@ -33883,13 +33912,26 @@ class MainWindow(QMainWindow):
         self._update_tag_completers()
         self._tag_completer_revision_token = revision_token
 
+    def _tag_completer_tags_for_session(self) -> list[str]:
+        tags_by_key: dict[str, str] = {
+            tag.casefold(): tag
+            for tag in list_recognized_tags()
+        }
+        for tag in getattr(self, "_known_chart_tags", []) or []:
+            normalized = str(tag or "").strip()
+            if normalized:
+                tags_by_key.setdefault(normalized.casefold(), normalized)
+        for tag in normalize_tag_list(getattr(self, "_chart_tags_current", []) or []):
+            tags_by_key.setdefault(tag.casefold(), tag)
+        return sorted(tags_by_key.values(), key=lambda value: value.casefold())
+
     def _update_tag_completers(
         self,
         *,
         refresh_location_completers: bool = True,
         refresh_tag_lists: bool = True,
     ) -> None:
-        sorted_tags = list_recognized_tags()
+        sorted_tags = self._tag_completer_tags_for_session()
         self._known_chart_tags = sorted_tags
         if hasattr(self, "chart_tags_input"):
             apply_tag_completer(self.chart_tags_input, sorted_tags)
