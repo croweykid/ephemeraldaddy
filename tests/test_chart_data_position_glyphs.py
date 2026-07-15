@@ -8,6 +8,7 @@ if style_stub is None:
     sys.modules["ephemeraldaddy.gui.style"] = style_stub
 style_stub.CHART_DATA_HIGHLIGHT_COLOR = "#ffffff"
 style_stub.CHART_DATA_DIVIDER = "---------"
+style_stub.ARROW_STYLES = {"classic": "→"}
 style_stub.format_chart_header = lambda _key, *, birth_place, lat, lon: f"Place: {birth_place} | {lat:.4f}, {lon:.4f}"
 style_stub.blend_hex_colors = lambda first, second, ratio=0.5: first
 
@@ -53,11 +54,33 @@ def test_chart_data_positions_prefix_signs_with_dignity_and_debility_glyphs():
 def test_chart_data_positions_prefix_joy_house_when_houses_are_available():
     summary, _position_info, _aspect_info, _species_info = format_chart_text(_chart())
 
-    assert "💞H5" in _position_line(summary, "Venus")
+    assert "♥H5" in _position_line(summary, "Venus")
 
 
 def test_chart_data_positions_do_not_show_joy_house_without_houses_or_rectified_time():
     summary, _position_info, _aspect_info, _species_info = format_chart_text(_chart(birthtime_unknown=True))
 
-    assert "💞H5" not in summary
+    assert "♥H5" not in summary
     assert "↑↑Leo" in _position_line(summary, "Sun")
+
+
+def test_chart_data_joy_house_click_target_records_responsible_body():
+    _summary, position_info, _aspect_info, _species_info = format_chart_text(_chart())
+
+    joy_house_entries = [
+        entry
+        for entries in position_info.values()
+        for entry in entries
+        if entry.get("kind") == "house_keyword" and entry.get("joy_body")
+    ]
+
+    assert joy_house_entries == [
+        {
+            "kind": "house_keyword",
+            "house": 5,
+            "joy_body": "Venus",
+            "column": 4,
+            "span_start": joy_house_entries[0]["span_start"],
+            "span_end": joy_house_entries[0]["span_end"],
+        }
+    ]

@@ -30919,7 +30919,10 @@ class MainWindow(QMainWindow):
                                 house_num = int(entry.get("house", 0))
                             except (TypeError, ValueError):
                                 continue
-                            self._show_house_keyword_info(house_num)
+                            self._show_house_keyword_info(
+                                house_num,
+                                joy_body=str(entry.get("joy_body", "") or ""),
+                            )
                             return True
                         if entry.get("kind") == "nakshatra":
                             self._show_nakshatra_info(str(entry.get("nakshatra", "")))
@@ -31573,13 +31576,22 @@ class MainWindow(QMainWindow):
         reset_cursor.movePosition(QTextCursor.Start)
         self.chart_info_output.setTextCursor(reset_cursor)
 
-    def _show_house_keyword_info(self, house_num: int) -> None:
+    @staticmethod
+    def _ordinal_house_header(house_num: int) -> str:
+        suffix = "th" if 10 <= house_num % 100 <= 20 else {1: "st", 2: "nd", 3: "rd"}.get(house_num % 10, "th")
+        return f"{house_num}-{suffix} House"
+
+    def _show_house_keyword_info(self, house_num: int, *, joy_body: str = "") -> None:
         house_keywords = HOUSE_DEFINITIONS.get(house_num, {}).get("core_domains", [])
         clean_keywords = [str(item).strip() for item in house_keywords if str(item).strip()]
+        header = self._ordinal_house_header(house_num)
+        clean_joy_body = str(joy_body or "").strip()
+        if clean_joy_body:
+            header = f"{header} (planetary joy in {clean_joy_body})"
         if not clean_keywords:
-            self.chart_info_output.setPlainText(f"H{house_num}\n\nNo house keywords available.")
+            self.chart_info_output.setPlainText(f"{header}\n\nNo house keywords available.")
             return
-        lines = [f"H{house_num}", "", *(f"• {keyword}" for keyword in clean_keywords)]
+        lines = [header, "", *(f"• {keyword}" for keyword in clean_keywords)]
         self.chart_info_output.setPlainText("\n".join(lines))
 
 
