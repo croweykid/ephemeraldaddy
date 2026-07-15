@@ -2225,6 +2225,7 @@ def build_predictions_settings_section(
     on_score_mode_changed: Callable[[str], None],
     on_scale_mode_changed: Callable[[str], None],
     on_dominance_normalization_mode_changed: Callable[[str], None],
+    on_manual_recalculation_toggled: Callable[[bool], None] | None = None,
 ) -> dict[str, object]:
     label = QLabel("Predictions")
     label.setStyleSheet(subheader_style)
@@ -2279,6 +2280,17 @@ def build_predictions_settings_section(
         checkbox.toggled.connect(lambda checked, option_key=key: on_option_toggled(option_key, bool(checked)))
         section_layout.addWidget(checkbox)
         checkboxes[key] = checkbox
+
+    manual_recalculation_checkbox = QCheckBox("manual recalculation/refresh only (vs automatic)")
+    manual_recalculation_checkbox.setToolTip(
+        "When enabled, Chart View Predictions always show the most recent saved results for the chart UID "
+        "and only refresh after you click Calculate/Recalculate."
+    )
+    if on_manual_recalculation_toggled is not None:
+        manual_recalculation_checkbox.toggled.connect(
+            lambda checked: on_manual_recalculation_toggled(bool(checked))
+        )
+    section_layout.addWidget(manual_recalculation_checkbox)
 
     advanced_label = QLabel("Advanced")
     advanced_label.setStyleSheet(subheader_style)
@@ -2339,6 +2351,7 @@ def build_predictions_settings_section(
 
     return {
         "checkboxes": checkboxes,
+        "manual_recalculation_checkbox": manual_recalculation_checkbox,
         "score_mode_combo": score_mode_combo,
         "scale_combo": scale_combo,
         "dominance_combo": dominance_combo,

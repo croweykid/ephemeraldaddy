@@ -629,29 +629,19 @@ def trait_likelihoods_with_distribution_cache(
 
 
 def _chart_trait_metadata_signature(chart: Any) -> str:
+    """Fingerprint only the birth-data inputs that should invalidate predictions.
+
+    Trait/D&D/Enneagram Predictions are persisted per permanent chart UID and
+    should remain instantly reusable across Chart View opens.  Derived astrology
+    payloads (positions, aspects, HD/BaZi weights, etc.) are intentionally not
+    part of this signature: those values are recalculated from the essential
+    birth data elsewhere, and including them here makes harmless serialization or
+    lazy-loading differences look like a changed chart.
+    """
     try:
         uses_houses = bool(chart_uses_houses(chart))
     except Exception:
         uses_houses = bool(getattr(chart, "use_birth_time_data", False))
-    scoring_payload = {
-        "positions": getattr(chart, "positions", None),
-        "aspects": getattr(chart, "aspects", None),
-        "human_design_gates": getattr(chart, "human_design_gates", None),
-        "human_design_channels": getattr(chart, "human_design_channels", None),
-        "human_design_type": getattr(chart, "human_design_type", None),
-        "human_design_profile": getattr(chart, "human_design_profile", None),
-        "human_design_defined_centers": getattr(chart, "human_design_defined_centers", None),
-        "human_design_authority": getattr(chart, "human_design_authority", None),
-        "bazi_year_pillar": getattr(chart, "bazi_year_pillar", None),
-        "bazi_month_pillar": getattr(chart, "bazi_month_pillar", None),
-        "bazi_day_pillar": getattr(chart, "bazi_day_pillar", None),
-        "bazi_hour_pillar": getattr(chart, "bazi_hour_pillar", None),
-        "bazi_sign_weights": getattr(chart, "bazi_sign_weights", None),
-        "bazi_branch_weights": getattr(chart, "bazi_branch_weights", None),
-        "dominant_bazi_sign_weights": getattr(chart, "dominant_bazi_sign_weights", None),
-    }
-    if uses_houses:
-        scoring_payload["houses"] = getattr(chart, "houses", None)
     return _stable_json_hash(
         {
             "birth_date": getattr(chart, "birth_date", None),
@@ -671,7 +661,6 @@ def _chart_trait_metadata_signature(chart: Any) -> str:
             "rectification_range_start_minute": getattr(chart, "rectification_range_start_minute", None),
             "rectification_range_end_minute": getattr(chart, "rectification_range_end_minute", None),
             "chart_uses_houses": uses_houses,
-            "scoring_payload": scoring_payload,
         }
     )
 
@@ -1672,6 +1661,14 @@ def _traits_stale_recalculate_prompt_html(updated_at: str | None) -> str:
     )
 
 
+def _predictions_manual_recalculation_only(owner: Any) -> bool:
+    # Predictions panel contract for future maintainers/agents:
+    # default manual mode means "show the current chart UID's latest saved
+    # metadata, flag stale data, and wait for the user's Recalculate click."
+    # Do not silently refresh stale cached sections from render/draw paths.
+    return bool(getattr(owner, "_predictions_manual_recalculation_only", True))
+
+
 def _trait_render_signatures(owner: Any, chart: Any, traits: list[dict[str, Any]]) -> dict[str, str]:
     """Precompute all signatures used by one Traits render pass exactly once."""
     trait_signature = _stable_json_hash(_trait_signature_payload(traits))
@@ -2139,12 +2136,21 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
         owner._traits_prediction_pending_cache_key = cache_key or ""
         owner._traits_prediction_pending_signatures = signatures
         if bool(cached_metadata.get("stale")):
-            _apply_traits_prediction_metadata(
-                owner,
-                traits,
-                cached_metadata,
-                prefix_html=_traits_stale_recalculate_prompt_html(str(cached_metadata.get("updated_at", "") or "unknown")),
-            )
+            if _predictions_manual_recalculation_only(owner):
+                _apply_traits_prediction_metadata(
+                    owner,
+                    traits,
+                    cached_metadata,
+                    prefix_html=_traits_stale_recalculate_prompt_html(str(cached_metadata.get("updated_at", "") or "unknown")),
+                )
+            else:
+                _apply_traits_prediction_metadata(
+                    owner,
+                    traits,
+                    cached_metadata,
+                    prefix_html=_trait_predictions_refresh_message(str(cached_metadata.get("updated_at", "") or "unknown")),
+                )
+                QTimer.singleShot(0, lambda owner=owner: _start_traits_prediction_calculation(owner))
         else:
             _apply_traits_prediction_metadata(owner, traits, cached_metadata)
         return
@@ -2153,9 +2159,13 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
     owner._traits_prediction_pending_traits = traits
     owner._traits_prediction_pending_cache_key = cache_key or ""
     owner._traits_prediction_pending_signatures = signatures
-    message = "● Loading fresh trait predictions for this UID… ●"
-    _predictions_debug(owner, "Trait render found no persisted trait metadata; auto-loading fresh traits cache_key=%s", (cache_key or "")[:12])
-    _apply_traits_prediction_view(owner, message, message)
-    start_prediction_loading_blink(label)
-    QTimer.singleShot(0, lambda owner=owner: _start_traits_prediction_calculation(owner))
+    if _predictions_manual_recalculation_only(owner):
+        _predictions_debug(owner, "Trait render found no persisted trait metadata; waiting for manual calculate cache_key=%s", (cache_key or "")[:12])
+        _apply_traits_prediction_view(owner, _traits_calculate_prompt_html(), "No prior data. Calculate (can take awhile)?")
+    else:
+        message = "● Loading fresh trait predictions for this UID… ●"
+        _predictions_debug(owner, "Trait render found no persisted trait metadata; auto-loading fresh traits cache_key=%s", (cache_key or "")[:12])
+        _apply_traits_prediction_view(owner, message, message)
+        start_prediction_loading_blink(label)
+        QTimer.singleShot(0, lambda owner=owner: _start_traits_prediction_calculation(owner))
     return

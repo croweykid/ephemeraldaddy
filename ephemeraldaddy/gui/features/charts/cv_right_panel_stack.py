@@ -935,6 +935,9 @@ def _chart_right_panel_prediction_render_token(owner: object, chart: object) -> 
         "retcon_time_used": bool(getattr(chart, "retcon_time_used", False)),
         "retcon_hour": getattr(chart, "retcon_hour", None),
         "retcon_minute": getattr(chart, "retcon_minute", None),
+        "rectification_range_used": bool(getattr(chart, "rectification_range_used", False)),
+        "rectification_range_start_minute": getattr(chart, "rectification_range_start_minute", None),
+        "rectification_range_end_minute": getattr(chart, "rectification_range_end_minute", None),
         "chart_uses_houses": bool(chart_uses_houses(chart)),
     })
 

@@ -330,7 +330,7 @@ def test_predictions_timeout_does_not_terminate_qthread_from_gui_thread():
     assert "thread.terminate()" not in source
 
 
-def test_traits_predictions_auto_load_uncached_metadata_with_loading_state():
+def test_traits_predictions_default_to_manual_recalculation_with_cached_stale_display():
     source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/trait_predictions.py").read_text()
     assert "No prior data. Calculate (can take awhile)?" in source
     assert "trait-predictions:calculate" in source
@@ -341,14 +341,15 @@ def test_traits_predictions_auto_load_uncached_metadata_with_loading_state():
     assert "Cached trait predictions shown" in source
     assert "_trait_predictions_refresh_message(str(cached.get" not in source
     no_cache_branch = source[source.index("owner._traits_prediction_pending_chart = chart"):]
+    assert "if _predictions_manual_recalculation_only(owner):" in no_cache_branch
+    assert "_traits_calculate_prompt_html()" in no_cache_branch
     assert "Loading fresh trait predictions for this UID" in no_cache_branch
     assert "start_prediction_loading_blink(label)" in no_cache_branch
     assert "QTimer.singleShot(0, lambda owner=owner: _start_traits_prediction_calculation(owner))" in no_cache_branch
     assert "_start_traits_prediction_refresh_worker(owner, chart, traits" not in no_cache_branch
-    assert '"positions": getattr(chart, "positions", None)' in source
-    assert '"aspects": getattr(chart, "aspects", None)' in source
-    assert 'if uses_houses:' in source
-    assert 'scoring_payload["houses"] = getattr(chart, "houses", None)' in source
+    assert '"positions": getattr(chart, "positions", None)' not in source
+    assert '"aspects": getattr(chart, "aspects", None)' not in source
+    assert 'scoring_payload["houses"] = getattr(chart, "houses", None)' not in source
     assert '"rectification_range_used": bool(getattr(chart, "rectification_range_used", False))' in source
 
 
