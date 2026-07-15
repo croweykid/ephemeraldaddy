@@ -12,6 +12,15 @@ def test_enneagram_predictions_score_against_database_norms_source():
     assert 'scores = {enneagram_type: values["deviation"] for enneagram_type, values in parts.items()}' in ENNEAGRAM_SOURCE
     assert '"parts": parts' in ENNEAGRAM_SOURCE
     assert '"db_norm_averages": db_norm_averages' in ENNEAGRAM_SOURCE
+    assert '"score_semantics": ENNEAGRAM_PREDICTION_SCORE_SEMANTICS' in ENNEAGRAM_SOURCE
+
+
+def test_legacy_raw_enneagram_cache_fallbacks_are_stale_source():
+    restore = ENNEAGRAM_SOURCE.split("def _restore_cache", 1)[1].split("def _cache_is_stale", 1)[0]
+    stale = ENNEAGRAM_SOURCE.split("def _cache_is_stale", 1)[1].split("def cache_metadata", 1)[0]
+    assert '"key": ("legacy_raw_enneagram_type_weights", _enneagram_chart_state_token(self, chart))' in restore
+    assert '"score_semantics": "legacy_raw"' in restore
+    assert 'cached.get("score_semantics") != ENNEAGRAM_PREDICTION_SCORE_SEMANTICS' in stale
 
 
 def test_enneagram_adapter_uses_chart_view_prediction_norm_scope_source():

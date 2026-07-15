@@ -73,6 +73,9 @@ ENNEAGRAM_REALM_WEIGHT_LOW_COLOR = (127, 0, 0)
 ENNEAGRAM_REALM_WEIGHT_MID_COLOR = (255, 235, 59)
 ENNEAGRAM_REALM_WEIGHT_HIGH_COLOR = (0, 255, 102)
 
+ENNEAGRAM_PREDICTION_SCORE_SEMANTICS = "database_deviation"
+ENNEAGRAM_PREDICTION_PAYLOAD_VERSION = 2
+
 ENNEAGRAM_CATEGORY_WEIGHT_KEYS = (
     "signs",
     "bodies",
@@ -1181,7 +1184,15 @@ class EnneagramPredictionPanelAdapter:
             legacy_scores = _coerce_complete_enneagram_type_scores(getattr(chart, "enneagram_type_weights", None))
             if legacy_scores is None:
                 return None
-            cached = {"chart_uid": _chart_prediction_cache_uid(chart), "key": self._cache_key(chart), "scores": legacy_scores, "cached_at": time.time(), "legacy": True}
+            cached = {
+                "chart_uid": _chart_prediction_cache_uid(chart),
+                "key": ("legacy_raw_enneagram_type_weights", _enneagram_chart_state_token(self, chart)),
+                "key_fingerprint": "legacy_raw_enneagram_type_weights",
+                "scores": legacy_scores,
+                "score_semantics": "legacy_raw",
+                "cached_at": time.time(),
+                "legacy": True,
+            }
         else:
             cached = dict(cached)
             cached["scores"] = scores
@@ -1193,6 +1204,8 @@ class EnneagramPredictionPanelAdapter:
         return cached
 
     def _cache_is_stale(self, chart: Any, cached: dict[str, Any]) -> bool:
+        if cached.get("score_semantics") != ENNEAGRAM_PREDICTION_SCORE_SEMANTICS:
+            return True
         return cached.get("key") != self._cache_key(chart) and cached.get("key_fingerprint") != repr(self._cache_key(chart))
 
     def cache_metadata(self, chart: Any) -> dict[int, float]:
@@ -1205,7 +1218,7 @@ class EnneagramPredictionPanelAdapter:
             for enneagram_type, values in parts.items()
             if "database" in values
         }
-        payload = {"version": 1, "chart_uid": _chart_prediction_cache_uid(chart), "key": self._cache_key(chart), "key_fingerprint": repr(self._cache_key(chart)), "scores": scores, "parts": parts, "db_norm_averages": db_norm_averages, "cached_at": time.time()}
+        payload = {"version": ENNEAGRAM_PREDICTION_PAYLOAD_VERSION, "chart_uid": _chart_prediction_cache_uid(chart), "key": self._cache_key(chart), "key_fingerprint": repr(self._cache_key(chart)), "score_semantics": ENNEAGRAM_PREDICTION_SCORE_SEMANTICS, "scores": scores, "parts": parts, "db_norm_averages": db_norm_averages, "cached_at": time.time()}
         try:
             setattr(chart, "_enneagram_prediction_cache", payload)
         except Exception:
