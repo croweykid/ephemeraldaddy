@@ -35860,12 +35860,16 @@ class MainWindow(QMainWindow):
         if not self.metrics_panel.isVisible():
             return False
         active_panel = self._chart_right_panel_state.active_tab
-        expected_panel = "abc" if render_key == "anagrams" else "analytics"
+        expected_panel_by_render_key = {
+            "anagrams": "abc",
+            "gender": "predictions",
+        }
+        expected_panel = expected_panel_by_render_key.get(render_key, "analytics")
         if active_panel != expected_panel:
             return False
         if not allow_collapsed and not self._chart_analysis_section_expanded.get(section_key, True):
             return False
-        if section_key in {"planet_dynamics", "anagrams"} and not self._is_chart_analysis_section_visible(section_key):
+        if section_key in {"planet_dynamics", "anagrams", "gender_guesser"} and not self._is_chart_analysis_section_visible(section_key):
             return False
         return True
 

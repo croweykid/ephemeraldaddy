@@ -50,3 +50,9 @@ def test_predictions_warmup_sections_fail_independently():
     assert "D&D statblock prediction cache failed" in RIGHT_PANEL_STACK_SOURCE
     assert "D&D alignment prediction cache failed" in RIGHT_PANEL_STACK_SOURCE
     assert "Some Predictions sections failed; showing available cached sections" in RIGHT_PANEL_STACK_SOURCE
+
+
+def test_gender_guesser_render_routes_through_predictions_panel():
+    assert '"gender": "predictions"' in APP_SOURCE
+    assert '"gender_guesser"} and not self._is_chart_analysis_section_visible(section_key)' in APP_SOURCE
+    assert 'parent_layout=layout' in (REPO_ROOT / "ephemeraldaddy/gui/features/controllers/chart_view_window.py").read_text()
