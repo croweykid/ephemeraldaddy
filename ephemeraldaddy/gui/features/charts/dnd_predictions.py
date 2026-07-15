@@ -822,8 +822,13 @@ def _collect_top_three_species_payloads(chart: Any) -> list[dict[str, Any]]:
     return payloads
 
 
-def build_dnd_species_summary_html(chart: Any, *, linked: bool = False) -> str:
-    species_payloads = _collect_top_three_species_payloads(chart)
+def build_dnd_species_summary_html(
+    chart: Any,
+    *,
+    linked: bool = False,
+    species_payloads: list[dict[str, Any]] | None = None,
+) -> str:
+    species_payloads = species_payloads if species_payloads is not None else _collect_top_three_species_payloads(chart)
     species_lines: list[str] = []
     for rank, payload in enumerate(species_payloads, start=1):
         label = str(payload["label"])
@@ -838,8 +843,14 @@ def build_dnd_species_summary_html(chart: Any, *, linked: bool = False) -> str:
     return "<b>Top 3 Species/Subspecies</b><br>" + "<br>".join(species_lines)
 
 
-def build_dnd_class_summary_html(chart: Any, *, linked: bool = False) -> str:
-    _axis_scores, class_payloads = _collect_top_three_class_payloads(chart)
+def build_dnd_class_summary_html(
+    chart: Any,
+    *,
+    linked: bool = False,
+    class_payloads: list[dict[str, Any]] | None = None,
+) -> str:
+    if class_payloads is None:
+        _axis_scores, class_payloads = _collect_top_three_class_payloads(chart)
     class_lines: list[str] = []
     for rank, payload in enumerate(class_payloads, start=1):
         label = str(payload["name"])
@@ -854,11 +865,17 @@ def build_dnd_class_summary_html(chart: Any, *, linked: bool = False) -> str:
     return "<b>Top 3 Classes</b><br>" + "<br>".join(class_lines)
 
 
-def build_dnd_top_three_summary_html(chart: Any, *, linked: bool = False) -> str:
+def build_dnd_top_three_summary_html(
+    chart: Any,
+    *,
+    linked: bool = False,
+    species_payloads: list[dict[str, Any]] | None = None,
+    class_payloads: list[dict[str, Any]] | None = None,
+) -> str:
     return (
-        build_dnd_species_summary_html(chart, linked=linked)
+        build_dnd_species_summary_html(chart, linked=linked, species_payloads=species_payloads)
         + "<br><br>"
-        + build_dnd_class_summary_html(chart, linked=linked)
+        + build_dnd_class_summary_html(chart, linked=linked, class_payloads=class_payloads)
     )
 
 
@@ -886,7 +903,10 @@ def _dnd_alignment_cache_key(owner: Any, chart: Any) -> tuple[str, str]:
     chart_uid = _chart_prediction_cache_uid(chart)
     chart_token = _cache_key_fingerprint({
         "scope": f"uid:{chart_uid}" if chart_uid else f"object:{id(chart)}",
+        "birth_date": str(getattr(chart, "birth_date", "") or ""),
+        "birth_time": str(getattr(chart, "birth_time", "") or ""),
         "dt_local": str(getattr(chart, "dt_local", "") or ""),
+        "datetime_iso": str(getattr(chart, "datetime_iso", "") or ""),
         "birth_place": str(getattr(chart, "birth_place", "") or ""),
         "lat": str(getattr(chart, "lat", "") or ""),
         "lon": str(getattr(chart, "lon", "") or ""),
@@ -894,6 +914,9 @@ def _dnd_alignment_cache_key(owner: Any, chart: Any) -> tuple[str, str]:
         "retcon_time_used": bool(getattr(chart, "retcon_time_used", False)),
         "retcon_hour": getattr(chart, "retcon_hour", None),
         "retcon_minute": getattr(chart, "retcon_minute", None),
+        "rectification_range_used": bool(getattr(chart, "rectification_range_used", False)),
+        "rectification_range_start_minute": getattr(chart, "rectification_range_start_minute", None),
+        "rectification_range_end_minute": getattr(chart, "rectification_range_end_minute", None),
         "chart_uses_houses": bool(default_chart_uses_houses(chart)),
     })
     norms_token_fn = getattr(owner, "_prediction_norms_render_token", None)
@@ -908,12 +931,18 @@ def _dnd_alignment_score_parts(owner: Any, chart: Any, *, allow_stale: bool = Fa
     """Return chart, database, and deviation values for each D&D alignment axis."""
     cache_key = _dnd_alignment_cache_key(owner, chart)
     cached = getattr(chart, "_dnd_alignment_score_parts_cache", None)
+    if not _cache_payload_chart_uid_matches(chart, cached, require_uid=True):
+        cached = None
     owner_cache = _owner_cache_bucket(owner, "_dnd_alignment_prediction_view_cache")
     chart_cache_id = _chart_prediction_cache_identity(chart)
     if not isinstance(cached, dict):
         restored = owner_cache.get(chart_cache_id) if chart_cache_id else None
+        if not _cache_payload_chart_uid_matches(chart, restored, require_uid=True):
+            restored = None
         if not isinstance(restored, dict):
             restored = _load_persisted_dnd_prediction_payload(chart).get("alignment")
+            if isinstance(restored, dict) and "chart_uid" not in restored:
+                restored["chart_uid"] = _chart_prediction_cache_uid(chart)
         if isinstance(restored, dict):
             cached = restored
             if chart_cache_id:
@@ -924,7 +953,7 @@ def _dnd_alignment_score_parts(owner: Any, chart: Any, *, allow_stale: bool = Fa
                 pass
     if isinstance(cached, dict) and isinstance(cached.get("parts"), dict):
         cached_key = cached.get("key")
-        if cached_key == cache_key:
+        if cached_key == cache_key or allow_stale:
             return cached["parts"]
     trait_items = _dnd_alignment_trait_items()
     if chart is None or not trait_items:
@@ -948,7 +977,7 @@ def _dnd_alignment_score_parts(owner: Any, chart: Any, *, allow_stale: bool = Fa
             "deviation": chart_score - database_score,
         }
     try:
-        cache_payload = {"key": cache_key, "parts": parts, "cached_at": time.time()}
+        cache_payload = {"chart_uid": _chart_prediction_cache_uid(chart), "key": cache_key, "parts": parts, "cached_at": time.time()}
         setattr(chart, "_dnd_alignment_score_parts_cache", cache_payload)
         if chart_cache_id:
             owner_cache[chart_cache_id] = cache_payload
@@ -1173,11 +1202,14 @@ def configure_dnd_top_three_summary_label(
     info_panel: Any,
     before_show: Callable[[], None] | None = None,
     section: str = "both",
+    species_payloads: list[dict[str, Any]] | None = None,
+    class_payloads: list[dict[str, Any]] | None = None,
 ) -> None:
     """Render clickable top-three D&D species/classes into a Predictions label."""
 
-    species_payloads = _collect_top_three_species_payloads(chart)
-    _axis_scores, class_payloads = _collect_top_three_class_payloads(chart)
+    species_payloads = species_payloads if species_payloads is not None else _collect_top_three_species_payloads(chart)
+    if class_payloads is None:
+        _axis_scores, class_payloads = _collect_top_three_class_payloads(chart)
 
     previous_handler = getattr(label, "_dnd_top_three_link_handler", None)
     if previous_handler is not None:
@@ -1225,11 +1257,11 @@ def configure_dnd_top_three_summary_label(
     apply_chart_info_link_cursor(label)
     stop_prediction_loading_blink(label)
     if section == "species":
-        label.setText(build_dnd_species_summary_html(chart, linked=True))
+        label.setText(build_dnd_species_summary_html(chart, linked=True, species_payloads=species_payloads))
     elif section == "class":
-        label.setText(build_dnd_class_summary_html(chart, linked=True))
+        label.setText(build_dnd_class_summary_html(chart, linked=True, class_payloads=class_payloads))
     else:
-        label.setText(build_dnd_top_three_summary_html(chart, linked=True))
+        label.setText(build_dnd_top_three_summary_html(chart, linked=True, species_payloads=species_payloads, class_payloads=class_payloads))
 
 
 
@@ -1291,6 +1323,16 @@ def _cache_key_chart_token(cache_key: Any) -> Any:
     return None
 
 
+def _cache_payload_chart_uid_matches(chart: Any, payload: Any, *, require_uid: bool = False) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    current_uid = _chart_prediction_cache_uid(chart)
+    payload_uid = str(payload.get("chart_uid", "") or "").strip()
+    if not payload_uid:
+        return not require_uid
+    return bool(current_uid and payload_uid == current_uid)
+
+
 def _statblock_to_cache_dict(statblock: Any) -> dict[str, Any]:
     return {
         "raw_scores": dict(getattr(statblock, "raw_scores", {}) or {}),
@@ -1348,6 +1390,7 @@ def _persist_dnd_prediction_payload(chart: Any, section: str, payload: dict[str,
         existing = db.get_chart_dnd_prediction_metadata(chart_uid)
         existing = existing if isinstance(existing, dict) else {}
         serializable = dict(payload)
+        serializable["chart_uid"] = chart_uid
         if section == "statblock":
             serializable["statblock"] = _statblock_to_cache_dict(payload.get("statblock"))
         existing[section] = serializable
@@ -1357,7 +1400,13 @@ def _persist_dnd_prediction_payload(chart: Any, section: str, payload: dict[str,
         pass
 
 class DndPredictionPanelAdapter:
-    """Own the D&D prediction panel lifecycle for Chart View."""
+    """Own the D&D prediction panel lifecycle for Chart View.
+
+    Predictions cache contract: Chart View must display only metadata belonging
+    to the currently open chart UID.  When manual recalculation is enabled, stale
+    metadata is still displayed and must not be recomputed from a render/draw
+    call; recalculation happens only via an explicit Calculate/Recalculate action.
+    """
 
     def __init__(
         self,
@@ -1468,6 +1517,24 @@ class DndPredictionPanelAdapter:
         return label
 
     def _render_species_and_class_summaries(self, chart: Any | None) -> None:
+        species_class_cache = None
+        if chart is not None and not self.is_placeholder_chart(chart):
+            species_class_cache = self._restore_species_class_cache(chart)
+            if not isinstance(species_class_cache, dict):
+                # Species/class are first-run generated factors.  Once generated
+                # they are persisted by chart UID; subsequent renders use saved
+                # metadata and stale D&D recalculation remains user-controlled.
+                species_class_cache = self._cache_species_class_metadata(chart)
+        species_payloads = (
+            list(species_class_cache.get("species", []))
+            if isinstance(species_class_cache, dict)
+            else None
+        )
+        class_payloads = (
+            list(species_class_cache.get("classes", []))
+            if isinstance(species_class_cache, dict)
+            else None
+        )
         label_sections = (("species_label", "species"), ("class_label", "class"))
         for attr_name, section in label_sections:
             label = self._ensure_text_label(attr_name)
@@ -1481,12 +1548,14 @@ class DndPredictionPanelAdapter:
                     info_panel=self.info_panel,
                     before_show=self.before_show,
                     section=section,
+                    species_payloads=species_payloads,
+                    class_payloads=class_payloads,
                 )
             else:
                 label.setText(
-                    build_dnd_species_summary_html(chart)
+                    build_dnd_species_summary_html(chart, species_payloads=species_payloads)
                     if section == "species"
-                    else build_dnd_class_summary_html(chart)
+                    else build_dnd_class_summary_html(chart, class_payloads=class_payloads)
                 )
 
     def _draw_no_data(self, ax: Any, _chart: Any | None) -> None:
@@ -1532,14 +1601,76 @@ class DndPredictionPanelAdapter:
     def _statblock_owner_cache(self) -> dict[str, Any]:
         return _owner_cache_bucket(self.owner, "_dnd_statblock_prediction_view_cache")
 
+    def _species_class_owner_cache(self) -> dict[str, Any]:
+        return _owner_cache_bucket(self.owner, "_dnd_species_class_prediction_view_cache")
+
+    def _restore_species_class_cache(self, chart: Any) -> dict[str, Any] | None:
+        cached = getattr(chart, "_dnd_species_class_prediction_cache", None)
+        if (
+            isinstance(cached, dict)
+            and _cache_payload_chart_uid_matches(chart, cached, require_uid=True)
+            and isinstance(cached.get("species"), list)
+            and isinstance(cached.get("classes"), list)
+        ):
+            return cached
+        chart_cache_id = self._chart_cache_identity(chart)
+        restored = self._species_class_owner_cache().get(chart_cache_id) if chart_cache_id else None
+        if not _cache_payload_chart_uid_matches(chart, restored, require_uid=True):
+            restored = None
+        if not isinstance(restored, dict):
+            restored = _load_persisted_dnd_prediction_payload(chart).get("species_class")
+            if isinstance(restored, dict) and "chart_uid" not in restored:
+                restored["chart_uid"] = _chart_prediction_cache_uid(chart)
+        if (
+            isinstance(restored, dict)
+            and isinstance(restored.get("species"), list)
+            and isinstance(restored.get("classes"), list)
+        ):
+            if chart_cache_id:
+                self._species_class_owner_cache()[chart_cache_id] = restored
+            try:
+                setattr(chart, "_dnd_species_class_prediction_cache", restored)
+            except Exception:
+                pass
+            return restored
+        return None
+
+    def _cache_species_class_metadata(self, chart: Any) -> dict[str, Any]:
+        axis_scores, class_payloads = _collect_top_three_class_payloads(chart)
+        cache_payload = {
+            "chart_uid": _chart_prediction_cache_uid(chart),
+            "key": self._chart_state_cache_token(chart),
+            "species": _collect_top_three_species_payloads(chart),
+            "classes": class_payloads,
+            "class_axis_scores": axis_scores,
+            "cached_at": time.time(),
+        }
+        try:
+            setattr(chart, "_dnd_species_class_prediction_cache", cache_payload)
+            chart_cache_id = self._chart_cache_identity(chart)
+            if chart_cache_id:
+                self._species_class_owner_cache()[chart_cache_id] = cache_payload
+            _persist_dnd_prediction_payload(chart, "species_class", cache_payload)
+        except Exception:
+            pass
+        return cache_payload
+
     def _restore_statblock_cache(self, chart: Any) -> dict[str, Any] | None:
         cached = getattr(chart, "_dnd_statblock_prediction_cache", None)
-        if isinstance(cached, dict) and cached.get("statblock") is not None:
+        if (
+            isinstance(cached, dict)
+            and cached.get("statblock") is not None
+            and _cache_payload_chart_uid_matches(chart, cached, require_uid=True)
+        ):
             return cached
         chart_cache_id = self._chart_cache_identity(chart)
         restored = self._statblock_owner_cache().get(chart_cache_id) if chart_cache_id else None
+        if not _cache_payload_chart_uid_matches(chart, restored, require_uid=True):
+            restored = None
         if not isinstance(restored, dict):
             restored = _restore_statblock_cache_payload(_load_persisted_dnd_prediction_payload(chart).get("statblock"))
+            if isinstance(restored, dict) and "chart_uid" not in restored:
+                restored["chart_uid"] = _chart_prediction_cache_uid(chart)
         if isinstance(restored, dict) and restored.get("statblock") is not None:
             if chart_cache_id:
                 self._statblock_owner_cache()[chart_cache_id] = restored
@@ -1597,8 +1728,10 @@ class DndPredictionPanelAdapter:
             return "missing_uid"
         state_payload = {
             "uid": chart_uid,
-            "name": str(getattr(chart, "name", "") or ""),
+            "birth_date": str(getattr(chart, "birth_date", "") or ""),
+            "birth_time": str(getattr(chart, "birth_time", "") or ""),
             "dt_local": str(getattr(chart, "dt_local", "") or ""),
+            "datetime_iso": str(getattr(chart, "datetime_iso", "") or ""),
             "birth_place": str(getattr(chart, "birth_place", "") or ""),
             "lat": str(getattr(chart, "lat", "") or ""),
             "lon": str(getattr(chart, "lon", "") or ""),
@@ -1606,6 +1739,9 @@ class DndPredictionPanelAdapter:
             "retcon_time_used": bool(getattr(chart, "retcon_time_used", False)),
             "retcon_hour": getattr(chart, "retcon_hour", None),
             "retcon_minute": getattr(chart, "retcon_minute", None),
+            "rectification_range_used": bool(getattr(chart, "rectification_range_used", False)),
+            "rectification_range_start_minute": getattr(chart, "rectification_range_start_minute", None),
+            "rectification_range_end_minute": getattr(chart, "rectification_range_end_minute", None),
             "chart_uses_houses": bool(default_chart_uses_houses(chart)),
         }
         return f"chart_state:{_cache_key_fingerprint(state_payload)}"
@@ -1651,6 +1787,7 @@ class DndPredictionPanelAdapter:
             pass
         try:
             cache_payload = {
+                "chart_uid": _chart_prediction_cache_uid(chart),
                 "key": cache_key,
                 "key_fingerprint": _cache_key_fingerprint(cache_key),
                 "norm_token": self._norm_charts_cache_token(norm_charts),
@@ -1755,6 +1892,7 @@ class DndPredictionPanelAdapter:
     def cache_metadata(self, chart: Any) -> dict[str, float]:
         norm_charts = self._norm_charts()
         statblock = self._score_statblock(chart, norm_charts, allow_stale=False)
+        self._cache_species_class_metadata(chart)
         return {stat_key: float(statblock.scores.get(stat_key, 0.0)) for stat_key in self.dnd_stat_keys}
 
     def cache_alignment_metadata(self, chart: Any) -> dict[str, float]:
@@ -1771,7 +1909,10 @@ class DndPredictionPanelAdapter:
                 widget.setParent(None)
                 widget.deleteLater()
 
-    def _show_stale_recalculate_notice(self, layout: Any, chart: Any, section: str) -> None:
+    def _manual_recalculation_only(self) -> bool:
+        return bool(getattr(self.owner, "_predictions_manual_recalculation_only", True))
+
+    def _show_stale_recalculate_notice(self, layout: Any, chart: Any, section: str, *, refreshing: bool = False) -> None:
         if layout is None:
             return
         self._remove_stale_recalculate_notices(layout)
@@ -1782,7 +1923,12 @@ class DndPredictionPanelAdapter:
         panel_layout.setContentsMargins(0, 0, 0, 6)
         panel_layout.setSpacing(4)
         panel.setLayout(panel_layout)
-        label = QLabel("Cached results shown; chart data or DB norms may have changed.")
+        label_text = (
+            "Cached results shown; automatic refresh is running in the background."
+            if refreshing
+            else "Cached results shown; chart data or DB norms may have changed."
+        )
+        label = QLabel(label_text)
         label.setWordWrap(True)
         label.setStyleSheet("color: #d8d8d8; font-style: italic; padding: 2px 0 0 0;")
         button = QPushButton("Recalculate")
@@ -1824,6 +1970,7 @@ class DndPredictionPanelAdapter:
             return summary_label
 
         statblock_cache = self._restore_statblock_cache(chart)
+        auto_refresh_started = False
         if isinstance(statblock_cache, dict):
             norm_charts = self._norm_charts()
             statblock_stale = self._statblock_cache_is_stale(chart, norm_charts)
@@ -1836,17 +1983,27 @@ class DndPredictionPanelAdapter:
                 chart=chart,
             )
             if statblock_stale:
-                self._show_stale_recalculate_notice(self.chart_layout, chart, "dnd_statblock")
+                manual_only = self._manual_recalculation_only()
+                self._show_stale_recalculate_notice(self.chart_layout, chart, "dnd_statblock", refreshing=not manual_only)
+                if not manual_only and callable(self.calculate_callback):
+                    auto_refresh_started = True
+                    self.calculate_callback(chart, None)
         else:
             self._show_calculate_prompt(chart, section="dnd_statblock")
 
         if self.alignment_layout is not None:
             alignment_owner_cache = _owner_cache_bucket(self.owner, "_dnd_alignment_prediction_view_cache")
             alignment_cache = getattr(chart, "_dnd_alignment_score_parts_cache", None)
+            if not _cache_payload_chart_uid_matches(chart, alignment_cache, require_uid=True):
+                alignment_cache = None
             if not isinstance(alignment_cache, dict):
                 restored_alignment = alignment_owner_cache.get(self._chart_cache_identity(chart))
+                if not _cache_payload_chart_uid_matches(chart, restored_alignment, require_uid=True):
+                    restored_alignment = None
                 if not isinstance(restored_alignment, dict):
                     restored_alignment = _load_persisted_dnd_prediction_payload(chart).get("alignment")
+                    if isinstance(restored_alignment, dict) and "chart_uid" not in restored_alignment:
+                        restored_alignment["chart_uid"] = _chart_prediction_cache_uid(chart)
                 if isinstance(restored_alignment, dict):
                     alignment_cache = restored_alignment
                     try:
@@ -1871,7 +2028,10 @@ class DndPredictionPanelAdapter:
                     chart=chart,
                 )
                 if alignment_stale:
-                    self._show_stale_recalculate_notice(self.alignment_layout, chart, "dnd_alignment")
+                    manual_only = self._manual_recalculation_only()
+                    self._show_stale_recalculate_notice(self.alignment_layout, chart, "dnd_alignment", refreshing=not manual_only)
+                    if not manual_only and not auto_refresh_started and callable(self.calculate_callback):
+                        self.calculate_callback(chart, None)
                 self._render_alignment_debug_summary(chart)
             else:
                 self._show_calculate_prompt(chart, layout=self.alignment_layout, section="dnd_alignment")

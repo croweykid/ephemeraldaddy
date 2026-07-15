@@ -207,7 +207,10 @@ def _enneagram_chart_state_token(owner: Any, chart: Any) -> str:
     # mutable/legacy current_chart_id used by some Analytics render tokens.
     return repr({
         "uid": _chart_prediction_cache_uid(chart),
+        "birth_date": str(getattr(chart, "birth_date", "") or ""),
+        "birth_time": str(getattr(chart, "birth_time", "") or ""),
         "dt_local": str(getattr(chart, "dt_local", "") or ""),
+        "datetime_iso": str(getattr(chart, "datetime_iso", "") or ""),
         "birth_place": str(getattr(chart, "birth_place", "") or ""),
         "lat": str(getattr(chart, "lat", "") or ""),
         "lon": str(getattr(chart, "lon", "") or ""),
@@ -215,6 +218,9 @@ def _enneagram_chart_state_token(owner: Any, chart: Any) -> str:
         "retcon_time_used": bool(getattr(chart, "retcon_time_used", False)),
         "retcon_hour": getattr(chart, "retcon_hour", None),
         "retcon_minute": getattr(chart, "retcon_minute", None),
+        "rectification_range_used": bool(getattr(chart, "rectification_range_used", False)),
+        "rectification_range_start_minute": getattr(chart, "rectification_range_start_minute", None),
+        "rectification_range_end_minute": getattr(chart, "rectification_range_end_minute", None),
         "chart_uses_houses": bool(chart_uses_houses(chart)),
     })
 
@@ -239,9 +245,21 @@ def _persist_enneagram_prediction_payload(chart: Any, payload: dict[str, Any]) -
     try:
         from ephemeraldaddy.core import db
 
-        db.upsert_chart_enneagram_prediction_metadata(chart_uid, payload)
+        serializable = dict(payload)
+        serializable["chart_uid"] = chart_uid
+        db.upsert_chart_enneagram_prediction_metadata(chart_uid, serializable)
     except Exception:
         pass
+
+
+def _cache_payload_chart_uid_matches(chart: Any, payload: Any, *, require_uid: bool = False) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    current_uid = _chart_prediction_cache_uid(chart)
+    payload_uid = str(payload.get("chart_uid", "") or "").strip()
+    if not payload_uid:
+        return not require_uid
+    return bool(current_uid and payload_uid == current_uid)
 
 def cache_enneagram_prediction_metadata(chart: Any, scores: dict[int, float]) -> dict[int, float]:
     """Write ranked Enneagram prediction metadata back onto a chart object."""
@@ -953,6 +971,7 @@ class EnneagramPredictionPanelAdapter:
         clear_layout_widgets: Callable[[Any], None] | None = None,
         calculate_callback: Callable[[Any, str], None] | None = None,
         reset_canvas_callback: Callable[[str], None] | None = None,
+        manual_recalculation_provider: Callable[[], bool] | None = None,
     ) -> None:
         self.enneagram = enneagram
         self.calculate_type_weights = calculate_type_weights
@@ -966,6 +985,15 @@ class EnneagramPredictionPanelAdapter:
         self.clear_layout_widgets = clear_layout_widgets
         self.calculate_callback = calculate_callback
         self.reset_canvas_callback = reset_canvas_callback
+        self.manual_recalculation_provider = manual_recalculation_provider
+
+    def _manual_recalculation_only(self) -> bool:
+        if callable(self.manual_recalculation_provider):
+            try:
+                return bool(self.manual_recalculation_provider())
+            except Exception:
+                return True
+        return True
 
     def _show_calculate_prompt(self, chart: Any | None) -> None:
         layout = self.enneagram_prediction_chart_layout
@@ -1041,14 +1069,18 @@ class EnneagramPredictionPanelAdapter:
 
     def _restore_cache(self, chart: Any) -> dict[str, Any] | None:
         cached = getattr(chart, "_enneagram_prediction_cache", None)
+        if not _cache_payload_chart_uid_matches(chart, cached, require_uid=True):
+            cached = None
         if not isinstance(cached, dict):
             cached = _load_persisted_enneagram_prediction_payload(chart)
+            if isinstance(cached, dict) and "chart_uid" not in cached:
+                cached["chart_uid"] = _chart_prediction_cache_uid(chart)
         scores = _coerce_complete_enneagram_type_scores(cached.get("scores") if isinstance(cached, dict) else None)
         if scores is None:
             legacy_scores = _coerce_complete_enneagram_type_scores(getattr(chart, "enneagram_type_weights", None))
             if legacy_scores is None:
                 return None
-            cached = {"key": self._cache_key(chart), "scores": legacy_scores, "cached_at": time.time(), "legacy": True}
+            cached = {"chart_uid": _chart_prediction_cache_uid(chart), "key": self._cache_key(chart), "scores": legacy_scores, "cached_at": time.time(), "legacy": True}
         else:
             cached = dict(cached)
             cached["scores"] = scores
@@ -1066,7 +1098,7 @@ class EnneagramPredictionPanelAdapter:
         cached_scores = _coerce_complete_enneagram_type_scores(getattr(chart, "enneagram_type_weights", None))
         scores = self.calculate_type_weights(chart)
         scores = cache_enneagram_prediction_metadata(chart, scores)
-        payload = {"version": 1, "key": self._cache_key(chart), "key_fingerprint": repr(self._cache_key(chart)), "scores": scores, "cached_at": time.time()}
+        payload = {"version": 1, "chart_uid": _chart_prediction_cache_uid(chart), "key": self._cache_key(chart), "key_fingerprint": repr(self._cache_key(chart)), "scores": scores, "cached_at": time.time()}
         try:
             setattr(chart, "_enneagram_prediction_cache", payload)
         except Exception:
@@ -1074,7 +1106,7 @@ class EnneagramPredictionPanelAdapter:
         _persist_enneagram_prediction_payload(chart, payload)
         return scores
 
-    def _show_stale_recalculate_notice(self, chart: Any) -> None:
+    def _show_stale_recalculate_notice(self, chart: Any, *, refreshing: bool = False) -> None:
         layout = self.enneagram_prediction_chart_layout
         if layout is None:
             return
@@ -1084,7 +1116,12 @@ class EnneagramPredictionPanelAdapter:
         panel_layout.setContentsMargins(0, 0, 0, 6)
         panel_layout.setSpacing(4)
         panel.setLayout(panel_layout)
-        label = QLabel("Cached results shown; chart data or prediction definitions may have changed.")
+        label_text = (
+            "Cached results shown; automatic refresh is running in the background."
+            if refreshing
+            else "Cached results shown; chart data or prediction definitions may have changed."
+        )
+        label = QLabel(label_text)
         label.setWordWrap(True)
         label.setStyleSheet("color: #d8d8d8; font-style: italic; padding: 2px 0 0 0;")
         button = QPushButton("Recalculate")
@@ -1144,7 +1181,10 @@ class EnneagramPredictionPanelAdapter:
             chart=chart,
         )
         if cache_stale:
-            self._show_stale_recalculate_notice(chart)
+            manual_only = self._manual_recalculation_only()
+            self._show_stale_recalculate_notice(chart, refreshing=not manual_only)
+            if not manual_only and callable(self.calculate_callback):
+                self.calculate_callback(chart, "enneagram")
         if self.tritype_label is not None:
             stop_prediction_loading_blink(self.tritype_label)
             self.tritype_label.setText(
