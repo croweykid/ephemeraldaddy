@@ -40,6 +40,7 @@ from ephemeraldaddy.gui.settings_widgets import SettingsHelpLabel
 from ephemeraldaddy.gui.tooltips import TooltipHelpLabel
 from ephemeraldaddy.gui.style import (
     DEFAULT_DROPDOWN_STYLE,
+    apply_shared_dropdown_style,
     DATABASE_VIEW_HEADER_COLOR,
     CHART_DATA_HIGHLIGHT_COLOR,
     INACTIVE_ACTION_BUTTON_STYLE,
@@ -578,6 +579,7 @@ def build_similarity_calculator_settings_section(
             str(all_or_nothing_criterion_combo.currentData() or "inner_planet_placement")
         )
     )
+    apply_shared_dropdown_style(all_or_nothing_criterion_combo)
     all_or_nothing_fields_layout.addWidget(all_or_nothing_criterion_combo)
     section_layout.addWidget(all_or_nothing_fields_frame)
     section_layout.addWidget(big_3_radio)
@@ -665,6 +667,7 @@ def build_similarity_calculator_settings_section(
             str(weighting_mode_combo.currentData() or "chart_defined")
         )
     )
+    apply_shared_dropdown_style(weighting_mode_combo)
     weighting_mode_row.addWidget(weighting_mode_label)
     weighting_mode_row.addWidget(weighting_mode_combo)
     weighting_mode_row.addStretch(1)
@@ -1048,12 +1051,14 @@ class _MergeLabelsDialog(QDialog):
         self._consolidate_combo = QComboBox(self)
         for label, count in choices:
             self._consolidate_combo.addItem(f"{label} ({count})", label)
+        apply_shared_dropdown_style(self._consolidate_combo)
         layout.addWidget(self._consolidate_combo)
 
         layout.addWidget(QLabel("Into tag:"))
         self._into_combo = QComboBox(self)
         for label, count in choices:
             self._into_combo.addItem(f"{label} ({count})", label)
+        apply_shared_dropdown_style(self._into_combo)
         layout.addWidget(self._into_combo)
 
         if default_consolidate:
@@ -1363,6 +1368,7 @@ class ManageMetadataLabelsDialog(QDialog):
             self._field_selector.setItemData(index, Qt.AlignCenter, Qt.TextAlignmentRole)
         self._field_selector.currentIndexChanged.connect(self._refresh_list)
         self._field_selector.setVisible(not lock_field)
+        apply_shared_dropdown_style(self._field_selector)
         self._field_selector.setStyleSheet(
             DEFAULT_DROPDOWN_STYLE
             + """
@@ -1396,7 +1402,7 @@ QComboBox QAbstractItemView {
         self._sort_selector = QComboBox(self)
         self._sort_selector.addItem("Frequency", self.SORT_FREQUENCY)
         self._sort_selector.addItem("Alphabetical", self.SORT_ALPHABETICAL)
-        self._sort_selector.setStyleSheet(DEFAULT_DROPDOWN_STYLE)
+        apply_shared_dropdown_style(self._sort_selector)
         self._sort_selector.currentIndexChanged.connect(self._refresh_list)
         sort_row.addWidget(self._sort_selector)
         layout.addLayout(sort_row)
@@ -2312,6 +2318,7 @@ def build_predictions_settings_section(
     score_mode_combo.currentIndexChanged.connect(
         lambda _idx: on_score_mode_changed(str(score_mode_combo.currentData() or "opportunity"))
     )
+    apply_shared_dropdown_style(score_mode_combo)
     score_mode_row.addWidget(score_mode_combo)
     score_mode_row.addStretch(1)
     section_layout.addLayout(score_mode_row)
@@ -2327,6 +2334,7 @@ def build_predictions_settings_section(
     ):
         scale_combo.addItem(title, value)
     scale_combo.currentIndexChanged.connect(lambda _idx: on_scale_mode_changed(str(scale_combo.currentData() or "none")))
+    apply_shared_dropdown_style(scale_combo)
     scale_row.addWidget(scale_combo)
     scale_row.addStretch(1)
     section_layout.addLayout(scale_row)
@@ -2345,6 +2353,7 @@ def build_predictions_settings_section(
     dominance_combo.currentIndexChanged.connect(
         lambda _idx: on_dominance_normalization_mode_changed(str(dominance_combo.currentData() or "range"))
     )
+    apply_shared_dropdown_style(dominance_combo)
     dominance_row.addWidget(dominance_combo)
     dominance_row.addStretch(1)
     section_layout.addLayout(dominance_row)
