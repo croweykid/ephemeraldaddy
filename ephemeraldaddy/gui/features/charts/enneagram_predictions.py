@@ -245,9 +245,21 @@ def _persist_enneagram_prediction_payload(chart: Any, payload: dict[str, Any]) -
     try:
         from ephemeraldaddy.core import db
 
-        db.upsert_chart_enneagram_prediction_metadata(chart_uid, payload)
+        serializable = dict(payload)
+        serializable["chart_uid"] = chart_uid
+        db.upsert_chart_enneagram_prediction_metadata(chart_uid, serializable)
     except Exception:
         pass
+
+
+def _cache_payload_chart_uid_matches(chart: Any, payload: Any, *, require_uid: bool = False) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    current_uid = _chart_prediction_cache_uid(chart)
+    payload_uid = str(payload.get("chart_uid", "") or "").strip()
+    if not payload_uid:
+        return not require_uid
+    return bool(current_uid and payload_uid == current_uid)
 
 def cache_enneagram_prediction_metadata(chart: Any, scores: dict[int, float]) -> dict[int, float]:
     """Write ranked Enneagram prediction metadata back onto a chart object."""
@@ -1057,14 +1069,18 @@ class EnneagramPredictionPanelAdapter:
 
     def _restore_cache(self, chart: Any) -> dict[str, Any] | None:
         cached = getattr(chart, "_enneagram_prediction_cache", None)
+        if not _cache_payload_chart_uid_matches(chart, cached, require_uid=True):
+            cached = None
         if not isinstance(cached, dict):
             cached = _load_persisted_enneagram_prediction_payload(chart)
+            if isinstance(cached, dict) and "chart_uid" not in cached:
+                cached["chart_uid"] = _chart_prediction_cache_uid(chart)
         scores = _coerce_complete_enneagram_type_scores(cached.get("scores") if isinstance(cached, dict) else None)
         if scores is None:
             legacy_scores = _coerce_complete_enneagram_type_scores(getattr(chart, "enneagram_type_weights", None))
             if legacy_scores is None:
                 return None
-            cached = {"key": self._cache_key(chart), "scores": legacy_scores, "cached_at": time.time(), "legacy": True}
+            cached = {"chart_uid": _chart_prediction_cache_uid(chart), "key": self._cache_key(chart), "scores": legacy_scores, "cached_at": time.time(), "legacy": True}
         else:
             cached = dict(cached)
             cached["scores"] = scores
@@ -1082,7 +1098,7 @@ class EnneagramPredictionPanelAdapter:
         cached_scores = _coerce_complete_enneagram_type_scores(getattr(chart, "enneagram_type_weights", None))
         scores = self.calculate_type_weights(chart)
         scores = cache_enneagram_prediction_metadata(chart, scores)
-        payload = {"version": 1, "key": self._cache_key(chart), "key_fingerprint": repr(self._cache_key(chart)), "scores": scores, "cached_at": time.time()}
+        payload = {"version": 1, "chart_uid": _chart_prediction_cache_uid(chart), "key": self._cache_key(chart), "key_fingerprint": repr(self._cache_key(chart)), "scores": scores, "cached_at": time.time()}
         try:
             setattr(chart, "_enneagram_prediction_cache", payload)
         except Exception:

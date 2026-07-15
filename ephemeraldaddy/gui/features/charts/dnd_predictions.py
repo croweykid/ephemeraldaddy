@@ -914,12 +914,18 @@ def _dnd_alignment_score_parts(owner: Any, chart: Any, *, allow_stale: bool = Fa
     """Return chart, database, and deviation values for each D&D alignment axis."""
     cache_key = _dnd_alignment_cache_key(owner, chart)
     cached = getattr(chart, "_dnd_alignment_score_parts_cache", None)
+    if not _cache_payload_chart_uid_matches(chart, cached, require_uid=True):
+        cached = None
     owner_cache = _owner_cache_bucket(owner, "_dnd_alignment_prediction_view_cache")
     chart_cache_id = _chart_prediction_cache_identity(chart)
     if not isinstance(cached, dict):
         restored = owner_cache.get(chart_cache_id) if chart_cache_id else None
+        if not _cache_payload_chart_uid_matches(chart, restored, require_uid=True):
+            restored = None
         if not isinstance(restored, dict):
             restored = _load_persisted_dnd_prediction_payload(chart).get("alignment")
+            if isinstance(restored, dict) and "chart_uid" not in restored:
+                restored["chart_uid"] = _chart_prediction_cache_uid(chart)
         if isinstance(restored, dict):
             cached = restored
             if chart_cache_id:
@@ -954,7 +960,7 @@ def _dnd_alignment_score_parts(owner: Any, chart: Any, *, allow_stale: bool = Fa
             "deviation": chart_score - database_score,
         }
     try:
-        cache_payload = {"key": cache_key, "parts": parts, "cached_at": time.time()}
+        cache_payload = {"chart_uid": _chart_prediction_cache_uid(chart), "key": cache_key, "parts": parts, "cached_at": time.time()}
         setattr(chart, "_dnd_alignment_score_parts_cache", cache_payload)
         if chart_cache_id:
             owner_cache[chart_cache_id] = cache_payload
@@ -1297,6 +1303,16 @@ def _cache_key_chart_token(cache_key: Any) -> Any:
     return None
 
 
+def _cache_payload_chart_uid_matches(chart: Any, payload: Any, *, require_uid: bool = False) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    current_uid = _chart_prediction_cache_uid(chart)
+    payload_uid = str(payload.get("chart_uid", "") or "").strip()
+    if not payload_uid:
+        return not require_uid
+    return bool(current_uid and payload_uid == current_uid)
+
+
 def _statblock_to_cache_dict(statblock: Any) -> dict[str, Any]:
     return {
         "raw_scores": dict(getattr(statblock, "raw_scores", {}) or {}),
@@ -1354,6 +1370,7 @@ def _persist_dnd_prediction_payload(chart: Any, section: str, payload: dict[str,
         existing = db.get_chart_dnd_prediction_metadata(chart_uid)
         existing = existing if isinstance(existing, dict) else {}
         serializable = dict(payload)
+        serializable["chart_uid"] = chart_uid
         if section == "statblock":
             serializable["statblock"] = _statblock_to_cache_dict(payload.get("statblock"))
         existing[section] = serializable
@@ -1540,12 +1557,20 @@ class DndPredictionPanelAdapter:
 
     def _restore_statblock_cache(self, chart: Any) -> dict[str, Any] | None:
         cached = getattr(chart, "_dnd_statblock_prediction_cache", None)
-        if isinstance(cached, dict) and cached.get("statblock") is not None:
+        if (
+            isinstance(cached, dict)
+            and cached.get("statblock") is not None
+            and _cache_payload_chart_uid_matches(chart, cached, require_uid=True)
+        ):
             return cached
         chart_cache_id = self._chart_cache_identity(chart)
         restored = self._statblock_owner_cache().get(chart_cache_id) if chart_cache_id else None
+        if not _cache_payload_chart_uid_matches(chart, restored, require_uid=True):
+            restored = None
         if not isinstance(restored, dict):
             restored = _restore_statblock_cache_payload(_load_persisted_dnd_prediction_payload(chart).get("statblock"))
+            if isinstance(restored, dict) and "chart_uid" not in restored:
+                restored["chart_uid"] = _chart_prediction_cache_uid(chart)
         if isinstance(restored, dict) and restored.get("statblock") is not None:
             if chart_cache_id:
                 self._statblock_owner_cache()[chart_cache_id] = restored
@@ -1662,6 +1687,7 @@ class DndPredictionPanelAdapter:
             pass
         try:
             cache_payload = {
+                "chart_uid": _chart_prediction_cache_uid(chart),
                 "key": cache_key,
                 "key_fingerprint": _cache_key_fingerprint(cache_key),
                 "norm_token": self._norm_charts_cache_token(norm_charts),

@@ -87,3 +87,27 @@ def test_stale_predictions_show_cached_data_before_optional_auto_refresh():
     assert 'self.calculate_callback(chart, None)' in dnd_render
     assert 'self._show_stale_recalculate_notice(chart, refreshing=not manual_only)' in enneagram_render
     assert 'self.calculate_callback(chart, "enneagram")' in enneagram_render
+
+
+def test_predictions_cached_payloads_are_guarded_by_current_chart_uid():
+    dnd_stat_restore = DND_SOURCE.split("def _restore_statblock_cache", 1)[1].split(
+        "def _statblock_cache_is_stale", 1
+    )[0]
+    dnd_alignment = DND_SOURCE.split("def _dnd_alignment_score_parts", 1)[1].split(
+        "def dnd_alignment_deviations", 1
+    )[0]
+    enneagram_restore = ENNEAGRAM_SOURCE.split("def _restore_cache", 1)[1].split(
+        "def _cache_is_stale", 1
+    )[0]
+
+    assert "def _cache_payload_chart_uid_matches" in DND_SOURCE
+    assert "def _cache_payload_chart_uid_matches" in ENNEAGRAM_SOURCE
+    assert '"chart_uid": _chart_prediction_cache_uid(chart)' in DND_SOURCE
+    assert 'serializable["chart_uid"] = chart_uid' in DND_SOURCE
+    assert '_cache_payload_chart_uid_matches(chart, cached, require_uid=True)' in dnd_stat_restore
+    assert '_cache_payload_chart_uid_matches(chart, restored, require_uid=True)' in dnd_stat_restore
+    assert '_cache_payload_chart_uid_matches(chart, cached, require_uid=True)' in dnd_alignment
+    assert '_cache_payload_chart_uid_matches(chart, restored, require_uid=True)' in dnd_alignment
+    assert '"chart_uid": _chart_prediction_cache_uid(chart)' in ENNEAGRAM_SOURCE
+    assert 'serializable["chart_uid"] = chart_uid' in ENNEAGRAM_SOURCE
+    assert '_cache_payload_chart_uid_matches(chart, cached, require_uid=True)' in enneagram_restore
