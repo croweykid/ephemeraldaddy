@@ -117,7 +117,6 @@ def add_traits_settings_section(owner: Any, content_layout: Any) -> None:
     owner._traits_status_label = QLabel("")
     owner._traits_status_label.setWordWrap(True)
     owner._traits_status_label.setStyleSheet("color: #9a9a9a; font-style: italic; font-size: 7pt;")
-    traits_section.addWidget(owner._traits_status_label)
     refresh_traits_settings_list(owner)
 
 
@@ -172,19 +171,23 @@ def refresh_traits_settings_list(owner: Any) -> None:
             if str(trait["path"]) == current_path:
                 item.setSelected(True)
     status_label = getattr(owner, "_traits_status_label", None)
-    if isinstance(status_label, QLabel):
-        traits = list_traits()
-        count = len(traits)
-        archived_count = sum(1 for trait in traits if bool(trait.get("archived", False)))
-        bundled_count = sum(1 for trait in traits if bool(trait.get("bundled", False)))
-        custom_count = count - bundled_count
-        status_label.setText(
-            f"{count} trait{'s' if count != 1 else ''} available "
-            f"({bundled_count} bundled default, {custom_count} custom); "
-            f"{archived_count} archived and excluded from Predictions. "
-            f"{count} of {TRAIT_RECOMMENDED_WORKING_SET_LIMIT} traits currently defined "
-            "(recommended working set)."
-        )
+    traits = list_traits()
+    count = len(traits)
+    archived_count = sum(1 for trait in traits if bool(trait.get("archived", False)))
+    bundled_count = sum(1 for trait in traits if bool(trait.get("bundled", False)))
+    custom_count = count - bundled_count
+    status_text = (
+        f"{count} trait{'s' if count != 1 else ''} available "
+        f"({bundled_count} bundled default, {custom_count} custom); "
+        f"{archived_count} archived and excluded from Predictions. "
+        f"{count} of {TRAIT_RECOMMENDED_WORKING_SET_LIMIT} traits currently defined "
+        "(recommended working set)."
+    )
+    footer_writer = getattr(owner, "_set_settings_section_footer_note", None)
+    if callable(footer_writer):
+        footer_writer("Traits", status_text)
+    elif isinstance(status_label, QLabel):
+        status_label.setText(status_text)
     _sync_trait_action_buttons(owner)
 
 

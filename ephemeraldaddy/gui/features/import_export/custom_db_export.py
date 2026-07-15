@@ -41,18 +41,23 @@ from ephemeraldaddy.gui.features.charts.collections import (
 )
 
 
-def open_custom_db_export_dialog(parent: QWidget) -> None:
+def build_custom_db_export_widget(
+    parent: QWidget,
+    *,
+    close_callback=None,
+    show_empty_message: bool = True,
+) -> QWidget | None:
     properties = list_chart_export_properties()
     if not properties:
-        QMessageBox.information(
-            parent,
-            "No chart properties",
-            "No chart properties are currently available for export.",
-        )
-        return
+        if show_empty_message:
+            QMessageBox.information(
+                parent,
+                "No chart properties",
+                "No chart properties are currently available for export.",
+            )
+        return None
 
-    dialog = QDialog(parent)
-    dialog.setWindowTitle("Custom DB Export")
+    dialog = QWidget(parent)
     dialog.setMinimumSize(520, 600)
     layout = QVBoxLayout(dialog)
     layout.setContentsMargins(12, 12, 12, 12)
@@ -402,7 +407,24 @@ def open_custom_db_export_dialog(parent: QWidget) -> None:
     csv_radio.toggled.connect(_refresh_lock_state)
     select_all_button.clicked.connect(_select_all_properties)
     select_minimum_button.clicked.connect(_select_minimum_properties)
-    cancel_button.clicked.connect(dialog.reject)
+    if close_callback is None:
+        cancel_button.hide()
+    else:
+        cancel_button.clicked.connect(close_callback)
     export_button.clicked.connect(_run_custom_export)
     _refresh_lock_state()
+    return dialog
+
+
+def open_custom_db_export_dialog(parent: QWidget) -> None:
+    dialog = QDialog(parent)
+    dialog.setWindowTitle("Custom DB Export")
+    dialog.setMinimumSize(520, 600)
+    layout = QVBoxLayout(dialog)
+    layout.setContentsMargins(0, 0, 0, 0)
+    content = build_custom_db_export_widget(parent, close_callback=dialog.reject)
+    if content is None:
+        return
+    content.setParent(dialog)
+    layout.addWidget(content)
     dialog.exec()
