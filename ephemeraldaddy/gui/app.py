@@ -34089,6 +34089,56 @@ class MainWindow(QMainWindow):
         )
 
 
+    def _saved_chart_birth_inputs_match_form(self, chart: Chart) -> bool:
+        """Return True when Chart View birth/calculation inputs are unchanged.
+
+        The formal Save/Update button should not rebuild a chart or dirty heavy
+        analytics when the user only changed descriptive metadata such as alias,
+        notes, tags, or subjective scores.  Recalculation is only required when
+        birth date/time/place, rectified-time state, rectification range,
+        placeholder state, or the derived house-availability inputs change.
+        """
+        if bool(getattr(chart, "is_placeholder", False)) != self.placeholder_chart_checkbox.isChecked():
+            return False
+        if self.placeholder_chart_checkbox.isChecked():
+            return True
+
+        qdate = self._birth_date_from_fields()
+        dt_value = getattr(chart, "dt", None)
+        if qdate is None or dt_value is None:
+            return False
+        if (qdate.year(), qdate.month(), qdate.day()) != (dt_value.year, dt_value.month, dt_value.day):
+            return False
+
+        if self.retcon_time_checkbox.isChecked():
+            qtime = self.retcon_time_edit.time()
+        elif self._rectification_range_effective_from_inputs():
+            qtime = self._rectification_range_midpoint_qtime()
+        elif self.time_unknown_checkbox.isChecked():
+            qtime = QTime(12, 0)
+        else:
+            qtime = self.time_edit.time()
+        if (qtime.hour(), qtime.minute()) != (dt_value.hour, dt_value.minute):
+            return False
+
+        range_start_minute, range_end_minute = self._rectification_range_minutes_from_inputs()
+        retcon_time = self.retcon_time_edit.time()
+        stored_retcon_hour = getattr(chart, "retcon_hour", None)
+        stored_retcon_minute = getattr(chart, "retcon_minute", None)
+        stored_range_start = getattr(chart, "rectification_range_start_minute", None)
+        stored_range_end = getattr(chart, "rectification_range_end_minute", None)
+        return (
+            (self.place_edit.text().strip() or "Chicago, IL, USA") == (getattr(chart, "birth_place", None) or "")
+            and self.time_unknown_checkbox.isChecked() == bool(getattr(chart, "birthtime_unknown", False))
+            and self.retcon_time_checkbox.isChecked() == bool(getattr(chart, "retcon_time_used", False))
+            and retcon_time.hour() == int(stored_retcon_hour if stored_retcon_hour is not None else retcon_time.hour())
+            and retcon_time.minute() == int(stored_retcon_minute if stored_retcon_minute is not None else retcon_time.minute())
+            and self._rectification_range_effective_from_inputs() == bool(getattr(chart, "rectification_range_used", False))
+            and range_start_minute == int(stored_range_start if stored_range_start is not None else range_start_minute)
+            and range_end_minute == int(stored_range_end if stored_range_end is not None else range_end_minute)
+        )
+
+
     def on_update_chart(self, show_dialog: bool = True, recalculate_chart: bool = True):
         chart_id = self.current_chart_id
         is_placeholder = self.placeholder_chart_checkbox.isChecked()
@@ -34126,6 +34176,16 @@ class MainWindow(QMainWindow):
                     return
         if not self._validate_rectification_range_inputs(show_feedback=show_dialog):
             return
+        if recalculate_chart and chart_id is not None:
+            try:
+                saved_chart = load_chart(chart_id)
+            except ValueError:
+                chart_id = None
+                self._orphan_current_chart_reference()
+            except Exception:
+                saved_chart = None
+            if saved_chart is not None and self._saved_chart_birth_inputs_match_form(saved_chart):
+                recalculate_chart = False
         if not recalculate_chart and chart_id is not None:
             try:
                 chart = load_chart(chart_id)
