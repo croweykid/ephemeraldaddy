@@ -1914,6 +1914,7 @@ def build_dbv_search_panel(window) -> "QWidget":
 
     #Search: Alignment section
     alignment_section, alignment_group_layout = add_collapsible_section("💭Alignment")
+    window.search_alignment_section = alignment_section
     alignment_range_row = QHBoxLayout()
     alignment_range_row.addWidget(QLabel("💭Alignment"))
     window._alignment_score_min_input = QLineEdit()
@@ -1943,6 +1944,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     relationship_section, relationship_group_layout = add_collapsible_section(
         "💭Relationships",
     )
+    window.search_relationship_section = relationship_section
     relationship_mode_layout = QHBoxLayout()
     relationship_mode_layout.addWidget(QLabel("Relationship type"))
     relationship_mode_layout.addStretch(1)
@@ -2228,6 +2230,7 @@ def build_dbv_search_panel(window) -> "QWidget":
 
     #Search: Notes section
     notes_section, notes_group_layout = add_collapsible_section("💭Notes")
+    window.search_notes_section = notes_section
 
     comments_row = QHBoxLayout()
     window._notes_comments_filter_checkbox = QuadStateSlider("Comments")

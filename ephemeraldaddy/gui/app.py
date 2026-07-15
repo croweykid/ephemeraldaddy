@@ -2568,6 +2568,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._matched_expectations_max_input = None
         self._matched_expectations_blank_checkbox = None
         self.search_predictability_section = None
+        self.search_alignment_section = None
+        self.search_relationship_section = None
+        self.search_notes_section = None
         self.enneagram_type_filter_checkboxes: dict[int, QuadStateSlider] = {}
         self._dnd_stat_filter_min_inputs: dict[str, QLineEdit] = {}
         self._dnd_stat_filter_max_inputs: dict[str, QLineEdit] = {}
@@ -13999,6 +14002,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.addWidget(sentiment_section)
 
         relationship_section, relationship_section_layout = add_collapsible_section("💭Relationships") #user relationships
+        self.batch_relationship_section = relationship_section
 
         self.batch_relationship_type_checkboxes = {}
         relationship_widget = QWidget()
@@ -14022,6 +14026,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.addWidget(relationship_section)
 
         alignment_section, alignment_section_layout = add_collapsible_section("💭Perceived Alignment")
+        self.batch_alignment_section = alignment_section
 
         self.batch_alignment_slider = AlignmentEmojiSlider()
         self.batch_alignment_slider.valueChanged.connect(self._on_batch_alignment_changed)
@@ -18705,6 +18710,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._clear_similar_charts_popout_cache()
         self._refresh_charts(force_full_analysis_refresh=True)
     def _set_sort_mode(self, mode: str) -> None:
+        if mode == "social_score" and bool(getattr(self, "_demo_mode_enabled", DEMO_MODE_DEFAULT)):
+            mode = "alpha"
         selected_ids = set(self._selected_chart_ids())
         default_descending_by_mode = {
             "alpha": False,
@@ -22844,6 +22851,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             parent._refresh_chart_summary()
 
+    def _sync_demo_mode_sort_visibility(self, enabled: bool) -> None:
+        action = getattr(self, "sort_action_social_score", None)
+        if action is not None:
+            action.setVisible(not enabled)
+        if enabled and getattr(self, "_sort_mode", None) == "social_score":
+            self._set_sort_mode("alpha")
+
     def _on_demo_mode_toggled(self, checked: bool) -> None:
         self._demo_mode_enabled = bool(checked)
         self._settings.setValue(
@@ -22871,11 +22885,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "photo_gallery_panel_button",
             "photo_gallery_panel_scroll",
             "search_sentiment_section",
+            "search_alignment_section",
+            "search_relationship_section",
+            "search_predictability_section",
+            "search_notes_section",
             "batch_sentiment_section",
+            "batch_relationship_section",
+            "batch_alignment_section",
+            "batch_predictability_section",
         ):
             widget = getattr(self, attr, None)
             if widget is not None and hasattr(widget, "setVisible"):
                 widget.setVisible(not enabled)
+        self._sync_demo_mode_sort_visibility(enabled)
+        if not enabled:
+            sync_predictability = getattr(self, "_sync_predictability_visibility", None)
+            if callable(sync_predictability):
+                sync_predictability()
         if enabled:
             active_tab = getattr(getattr(self, "_chart_right_panel_state", None), "active_tab", None)
             if active_tab == "subjective_notes":
@@ -32710,6 +32736,13 @@ class MainWindow(QMainWindow):
         )
         self._configure_main_splitter()
 
+    def _sync_demo_mode_sort_visibility(self, enabled: bool) -> None:
+        action = getattr(self, "sort_action_social_score", None)
+        if action is not None:
+            action.setVisible(not enabled)
+        if enabled and getattr(self, "_sort_mode", None) == "social_score":
+            self._set_sort_mode("alpha")
+
     def _sync_demo_mode_visibility(self) -> None:
         enabled = bool(getattr(self, "_demo_mode_enabled", DEMO_MODE_DEFAULT))
         for attr in (
@@ -32721,13 +32754,25 @@ class MainWindow(QMainWindow):
             "photo_gallery_panel_button",
             "photo_gallery_panel_scroll",
             "search_sentiment_section",
+            "search_alignment_section",
+            "search_relationship_section",
+            "search_predictability_section",
+            "search_notes_section",
             "batch_sentiment_section",
+            "batch_relationship_section",
+            "batch_alignment_section",
+            "batch_predictability_section",
         ):
             widget = getattr(self, attr, None)
             if widget is not None and hasattr(widget, "setVisible"):
                 widget.setVisible(not enabled)
+        self._sync_demo_mode_sort_visibility(enabled)
+        if not enabled:
+            sync_predictability = getattr(self, "_sync_predictability_visibility", None)
+            if callable(sync_predictability):
+                sync_predictability()
         sync_placeholder = getattr(self, "_sync_chart_right_panel_placeholder_state", None)
-        current_chart = getattr(self, "current_chart", None)
+        current_chart = getattr(self, "_latest_chart", None)
         if callable(sync_placeholder):
             sync_placeholder(current_chart)
         if enabled:

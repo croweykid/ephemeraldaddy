@@ -22,9 +22,21 @@ def test_demo_mode_setting_and_private_widget_targets_are_wired():
     assert '"photo_gallery_panel_button"' in app
     assert '"photo_gallery_panel_scroll"' in app
     assert '"search_sentiment_section"' in app
+    assert '"search_alignment_section"' in app
+    assert '"search_relationship_section"' in app
+    assert '"search_predictability_section"' in app
+    assert '"search_notes_section"' in app
     assert '"batch_sentiment_section"' in app
+    assert '"batch_relationship_section"' in app
+    assert '"batch_alignment_section"' in app
+    assert '"batch_predictability_section"' in app
     assert 'window.search_sentiment_section = sentiment_section' in search
+    assert 'window.search_alignment_section = alignment_section' in search
+    assert 'window.search_relationship_section = relationship_section' in search
+    assert 'window.search_notes_section = notes_section' in search
     assert 'self.batch_sentiment_section = sentiment_section' in app
+    assert 'self.batch_relationship_section = relationship_section' in app
+    assert 'self.batch_alignment_section = alignment_section' in app
 
 
 def test_demo_mode_uses_analytics_or_hidden_right_panel_instead_of_observations():
@@ -60,3 +72,15 @@ def test_demo_mode_controller_path_does_not_fallback_to_observations():
     batch_toggle_start = app.index('    def _on_batch_tagging_terminal_debug_toggled')
     batch_toggle = app[batch_toggle_start : app.index('    def _batch_tagging_debug_log', batch_toggle_start)]
     assert 'SETTINGS_KEY_DEMO_MODE' not in batch_toggle
+
+
+def test_demo_mode_uses_latest_chart_and_hides_social_score_sort():
+    app = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
+
+    assert 'current_chart = getattr(self, "_latest_chart", None)' in app
+    assert 'def _sync_demo_mode_sort_visibility(self, enabled: bool) -> None:' in app
+    assert 'action = getattr(self, "sort_action_social_score", None)' in app
+    assert 'action.setVisible(not enabled)' in app
+    assert 'if enabled and getattr(self, "_sort_mode", None) == "social_score":' in app
+    assert 'self._set_sort_mode("alpha")' in app
+    assert 'if mode == "social_score" and bool(getattr(self, "_demo_mode_enabled", DEMO_MODE_DEFAULT)):' in app
