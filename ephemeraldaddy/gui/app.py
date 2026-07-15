@@ -28266,50 +28266,48 @@ class MainWindow(QMainWindow):
         return selected_mode if isinstance(selected_mode, str) else fallback
 
     @staticmethod
-    def _metric_canvas_scroll_viewport_width(canvas: FigureCanvas) -> int | None:
+    def _metric_canvas_scroll_area(canvas: FigureCanvas) -> QScrollArea | None:
+        """Return the owning scroll area for a right-panel metric canvas."""
         parent = canvas.parentWidget()
         while parent is not None:
             scroll_area = parent.parentWidget()
             while scroll_area is not None and not isinstance(scroll_area, QScrollArea):
                 scroll_area = scroll_area.parentWidget()
             if isinstance(scroll_area, QScrollArea) and scroll_area.widget() is parent:
-                # During rectified-time preview rebuilds, Qt can briefly report a
-                # stale viewport width for the scroll content while the right-panel
-                # stack is still settling.  Clamping to the live scroll-area width
-                # mirrors the manual window-resize correction and prevents canvases
-                # from being fixed wider than the visible panel.
-                viewport_width = scroll_area.viewport().width()
-                scroll_area_width = scroll_area.width()
-                if scroll_area_width > 0:
-                    viewport_width = min(viewport_width, scroll_area_width)
-                return viewport_width if viewport_width > 0 else None
+                return scroll_area
             parent = parent.parentWidget()
         return None
+
+    @staticmethod
+    def _metric_canvas_scroll_viewport_width(canvas: FigureCanvas) -> int | None:
+        scroll_area = MainWindow._metric_canvas_scroll_area(canvas)
+        if scroll_area is None:
+            return None
+
+        # During prediction recalculations/rectified-time preview rebuilds, the
+        # scroll content can inherit a stale width from the canvas that is being
+        # replaced.  Measure from the scroll area and its visible container chain,
+        # not from the content widget, so a too-wide canvas cannot keep proving
+        # its own stale geometry correct until the user manually resizes.
+        candidate_widths = [scroll_area.viewport().width(), scroll_area.width()]
+        ancestor = scroll_area.parentWidget()
+        while ancestor is not None:
+            ancestor_width = ancestor.width()
+            if ancestor_width > 0:
+                candidate_widths.append(ancestor_width)
+            ancestor = ancestor.parentWidget()
+        positive_widths = [width for width in candidate_widths if width > 0]
+        if not positive_widths:
+            return None
+        return min(positive_widths)
 
     @staticmethod
     def _metric_canvas_available_layout_width(canvas: FigureCanvas) -> int | None:
         """Return the width a metric canvas may occupy inside its scroll panel."""
         parent = canvas.parentWidget()
-        viewport_width = MainWindow._metric_canvas_scroll_viewport_width(canvas)
-        if viewport_width is None:
+        available_width = MainWindow._metric_canvas_scroll_viewport_width(canvas)
+        if available_width is None:
             return None
-
-        # Prediction recalculations replace prompt widgets with canvases while
-        # the stacked right-panel scroll area is still processing size hints. In
-        # that short window Qt can report a viewport width from the previous
-        # layout pass, leaving the new Matplotlib canvas fixed too wide and
-        # visually cropped until the user manually resizes the app. Clamp the
-        # target width to the narrowest live ancestor width as well as the scroll
-        # viewport so redraws cannot right-justify against stale geometry.
-        available_width = viewport_width
-        ancestor = parent
-        while ancestor is not None:
-            ancestor_width = ancestor.width()
-            if ancestor_width > 0:
-                available_width = min(available_width, ancestor_width)
-            if isinstance(ancestor, QScrollArea):
-                break
-            ancestor = ancestor.parentWidget()
 
         if parent is not None:
             parent_layout = parent.layout()
