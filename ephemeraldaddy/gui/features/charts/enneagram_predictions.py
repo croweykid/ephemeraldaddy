@@ -204,6 +204,14 @@ def _enneagram_definition_signature() -> str:
     return repr((ENNEAGRAM_REALMS, ENNEAGRAM_CATEGORY_WEIGHTS, enneagram_scoring_options_to_payload(ENNEAGRAM_SCORING_OPTIONS)))
 
 
+def _enneagram_norms_token(owner: Any) -> str:
+    norms_token_fn = getattr(owner, "_prediction_norms_render_token", None)
+    try:
+        return str(norms_token_fn()) if callable(norms_token_fn) else "prediction_norms:unavailable"
+    except Exception:
+        return "prediction_norms:unavailable"
+
+
 def _enneagram_chart_state_token(owner: Any, chart: Any) -> str:
     # Predictions caches must be scoped to the chart's permanent UID, not the
     # mutable/legacy current_chart_id used by some Analytics render tokens.
@@ -522,6 +530,61 @@ def calculate_enneagram_type_weights(
     )
     return {enneagram_type: float(weighted_scores.get(enneagram_type, 0.0)) for enneagram_type in range(1, 10)}
 
+
+def calculate_database_enneagram_type_averages(
+    norm_charts: Any,
+    *,
+    calculate_type_weights: Callable[[Any], dict[int, float]],
+) -> dict[int, float]:
+    """Return per-type Enneagram score averages across database norm charts."""
+    totals = {enneagram_type: 0.0 for enneagram_type in range(1, 10)}
+    counts = {enneagram_type: 0 for enneagram_type in range(1, 10)}
+    for norm_chart in norm_charts or []:
+        try:
+            scores = calculate_type_weights(norm_chart)
+        except Exception:
+            continue
+        for enneagram_type in range(1, 10):
+            try:
+                score = float(scores.get(enneagram_type, 0.0))
+            except (AttributeError, TypeError, ValueError):
+                continue
+            if math.isfinite(score):
+                totals[enneagram_type] += score
+                counts[enneagram_type] += 1
+    return {
+        enneagram_type: (totals[enneagram_type] / counts[enneagram_type])
+        for enneagram_type in range(1, 10)
+        if counts[enneagram_type] > 0
+    }
+
+
+def enneagram_score_parts(
+    chart: Any,
+    *,
+    calculate_type_weights: Callable[[Any], dict[int, float]],
+    norm_charts: Any = None,
+    db_norm_averages: dict[int, float] | None = None,
+) -> dict[int, dict[str, float]]:
+    """Return chart, database, and deviation scores for Enneagram predictions."""
+    chart_scores = calculate_type_weights(chart)
+    database_averages = dict(db_norm_averages or {})
+    if not database_averages:
+        database_averages = calculate_database_enneagram_type_averages(
+            norm_charts,
+            calculate_type_weights=calculate_type_weights,
+        )
+    parts: dict[int, dict[str, float]] = {}
+    for enneagram_type in range(1, 10):
+        chart_score = float(chart_scores.get(enneagram_type, 0.0))
+        database_score = float(database_averages.get(enneagram_type, 0.0)) if database_averages else 0.0
+        parts[enneagram_type] = {
+            "chart": chart_score,
+            "database": database_score,
+            "deviation": chart_score - database_score,
+        }
+    return parts
+
 def draw_enneagram_predictions(
     ax: Any,
     *,
@@ -552,6 +615,8 @@ def draw_enneagram_predictions(
         type_scores = calculate_type_weights(chart)
     values = [float(type_scores.get(num, 0.0)) for num in range(1, 10)]
     max_value = max(values) if values else 0.0
+    min_value = min(values) if values else 0.0
+    value_span = max(1.0, max_value - min_value)
     avg_value = (sum(values) / len(values)) if values else 0.0
     median_value = float(statistics.median(values)) if values else 0.0
 
@@ -564,7 +629,7 @@ def draw_enneagram_predictions(
     for index, tick_label in enumerate(ax.get_xticklabels(), start=1):
         tick_label.set_picker(True)
         tick_label.set_gid(f"enneagram_label:{index}")
-    ax.set_ylim(0, max(1.0, max_value + 1.0))
+    ax.set_ylim(min(0.0, min_value - (value_span * 0.12)), max(1.0, max_value + (value_span * 0.12)))
     ax.set_anchor("W")
     ax.axhline(
         avg_value,
@@ -974,6 +1039,8 @@ class EnneagramPredictionPanelAdapter:
         calculate_callback: Callable[[Any, str], None] | None = None,
         reset_canvas_callback: Callable[[str], None] | None = None,
         manual_recalculation_provider: Callable[[], bool] | None = None,
+        norm_charts_provider: Callable[[], Any] | None = None,
+        norm_charts_token_provider: Callable[[], str] | None = None,
     ) -> None:
         self.enneagram = enneagram
         self.calculate_type_weights = calculate_type_weights
@@ -988,6 +1055,8 @@ class EnneagramPredictionPanelAdapter:
         self.calculate_callback = calculate_callback
         self.reset_canvas_callback = reset_canvas_callback
         self.manual_recalculation_provider = manual_recalculation_provider
+        self.norm_charts_provider = norm_charts_provider
+        self.norm_charts_token_provider = norm_charts_token_provider
 
     def _manual_recalculation_only(self) -> bool:
         if callable(self.manual_recalculation_provider):
@@ -1066,8 +1135,38 @@ class EnneagramPredictionPanelAdapter:
             calculate_type_weights=self.calculate_type_weights,
         )
 
-    def _cache_key(self, chart: Any) -> tuple[str, str]:
-        return (_enneagram_chart_state_token(self, chart), _enneagram_definition_signature())
+    def _norm_charts(self) -> Any:
+        if callable(self.norm_charts_provider):
+            try:
+                return self.norm_charts_provider()
+            except Exception:
+                return []
+        return []
+
+    def _norms_token(self) -> str:
+        if callable(self.norm_charts_token_provider):
+            try:
+                return str(self.norm_charts_token_provider())
+            except Exception:
+                return "prediction_norms:unavailable"
+        return _enneagram_norms_token(self)
+
+    def _database_norm_averages(self, norm_charts: Any) -> dict[int, float]:
+        return calculate_database_enneagram_type_averages(
+            norm_charts,
+            calculate_type_weights=self.calculate_type_weights,
+        )
+
+    def _score_parts(self, chart: Any, norm_charts: Any | None = None) -> dict[int, dict[str, float]]:
+        return enneagram_score_parts(
+            chart,
+            calculate_type_weights=self.calculate_type_weights,
+            norm_charts=norm_charts,
+            db_norm_averages=self._database_norm_averages(norm_charts),
+        )
+
+    def _cache_key(self, chart: Any) -> tuple[str, str, str]:
+        return (_enneagram_chart_state_token(self, chart), self._norms_token(), _enneagram_definition_signature())
 
     def _restore_cache(self, chart: Any) -> dict[str, Any] | None:
         cached = getattr(chart, "_enneagram_prediction_cache", None)
@@ -1097,10 +1196,16 @@ class EnneagramPredictionPanelAdapter:
         return cached.get("key") != self._cache_key(chart) and cached.get("key_fingerprint") != repr(self._cache_key(chart))
 
     def cache_metadata(self, chart: Any) -> dict[int, float]:
-        cached_scores = _coerce_complete_enneagram_type_scores(getattr(chart, "enneagram_type_weights", None))
-        scores = self.calculate_type_weights(chart)
+        norm_charts = self._norm_charts()
+        parts = self._score_parts(chart, norm_charts)
+        scores = {enneagram_type: values["deviation"] for enneagram_type, values in parts.items()}
         scores = cache_enneagram_prediction_metadata(chart, scores)
-        payload = {"version": 1, "chart_uid": _chart_prediction_cache_uid(chart), "key": self._cache_key(chart), "key_fingerprint": repr(self._cache_key(chart)), "scores": scores, "cached_at": time.time()}
+        db_norm_averages = {
+            enneagram_type: values["database"]
+            for enneagram_type, values in parts.items()
+            if "database" in values
+        }
+        payload = {"version": 1, "chart_uid": _chart_prediction_cache_uid(chart), "key": self._cache_key(chart), "key_fingerprint": repr(self._cache_key(chart)), "scores": scores, "parts": parts, "db_norm_averages": db_norm_averages, "cached_at": time.time()}
         try:
             setattr(chart, "_enneagram_prediction_cache", payload)
         except Exception:

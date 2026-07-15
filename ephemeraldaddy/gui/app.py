@@ -37130,6 +37130,8 @@ class MainWindow(QMainWindow):
             calculate_callback=self._calculate_predictions_on_demand,
             reset_canvas_callback=lambda attr: setattr(self, attr, None),
             manual_recalculation_provider=lambda: bool(getattr(self, "_predictions_manual_recalculation_only", True)),
+            norm_charts_provider=self._prediction_norm_charts,
+            norm_charts_token_provider=self._prediction_norms_render_token,
         )
 
     def _draw_enneagram_predictions(self, ax, chart: Chart) -> None:
