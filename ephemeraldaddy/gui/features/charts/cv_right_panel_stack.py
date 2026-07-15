@@ -710,7 +710,7 @@ def _show_predictions_panel_pending_placeholders(owner: object, chart: object | 
     _set_predictions_status(owner, f"Opening Predictions for <b>{chart_name}</b>…")
     traits_label = getattr(owner, "traits_prediction_label", None)
     if isinstance(traits_label, QLabel):
-        loading_html = "●  Loading trait predictions for this UID…  ●"
+        loading_html = "●  Loading trait predictions…  ●" #for this chart's UID
         try:
             owner._traits_prediction_above_avg_html = loading_html
             owner._traits_prediction_below_avg_html = loading_html
@@ -718,7 +718,7 @@ def _show_predictions_panel_pending_placeholders(owner: object, chart: object | 
             pass
         _set_prediction_label_loading(
             traits_label,
-            "Loading trait predictions for this UID…",
+            "Loading trait predictions…", #for this chart's UID
             alignment=Qt.AlignLeft | Qt.AlignTop,
         )
         traits_label.setVisible(True)
@@ -1017,8 +1017,7 @@ def _finish_background_prediction_render(
             state.last_render_chart_token = render_token
     _set_predictions_status(
         owner,
-        f"Predictions for <b>{html.escape(chart_name)}</b> are ready. "
-        "<a href='show-predictions'>Open Predictions</a>",
+        f"Predictions for <b>{html.escape(chart_name)}</b> are ready: "
     )
     label = getattr(owner, "predictions_background_status_label", None)
     if isinstance(label, QLabel):
