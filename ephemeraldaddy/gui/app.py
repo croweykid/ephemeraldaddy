@@ -512,11 +512,13 @@ from ephemeraldaddy.gui.wikipedia_search import (
 from ephemeraldaddy.analysis.traits import set_default_traits_source_monitor_enabled
 from ephemeraldaddy.gui.dev_tools import (
     BATCH_TAGGING_TERMINAL_DEBUG_DEFAULT,
+    DEMO_MODE_DEFAULT,
     DISTINGUISHING_FACTORS_SCORING_DEBUG_DEFAULT,
     ENNEAGRAM_PREDICTIONS_DEBUG_DEFAULT,
     PREDICTIONS_THREAD_DEBUG_DEFAULT,
     SIMILARITY_PERCEIVED_ACCURACY_CONTROLS_DEFAULT,
     SETTINGS_KEY_BATCH_TAGGING_TERMINAL_DEBUG,
+    SETTINGS_KEY_DEMO_MODE,
     SETTINGS_KEY_DISTINGUISHING_FACTORS_SCORING_DEBUG,
     SETTINGS_KEY_ENNEAGRAM_PREDICTIONS_DEBUG,
     SETTINGS_KEY_PREDICTIONS_THREAD_DEBUG,
@@ -526,6 +528,7 @@ from ephemeraldaddy.gui.dev_tools import (
     MetadataMigrationPanel,
     SizeCheckerPopup,
     add_batch_tagging_terminal_debug_setting,
+    add_demo_mode_setting,
     add_distinguishing_factors_scoring_debug_setting,
     add_enneagram_predictions_debug_setting,
     add_predictions_thread_debug_setting,
@@ -533,6 +536,7 @@ from ephemeraldaddy.gui.dev_tools import (
     build_similarity_calculator_settings_section,
     build_predictions_settings_section,
     load_batch_tagging_terminal_debug_enabled,
+    load_demo_mode_enabled,
     load_distinguishing_factors_scoring_debug_enabled,
     load_enneagram_predictions_debug_enabled,
     load_predictions_thread_debug_enabled,
@@ -2418,6 +2422,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             SETTINGS_KEY_CHART_DATA_SHOW_CHART_UID,
             int(self._chart_data_show_chart_uid),
         )
+        self._demo_mode_enabled = load_demo_mode_enabled(
+            self._settings,
+            fallback=DEMO_MODE_DEFAULT,
+        )
+        self._settings.setValue(
+            SETTINGS_KEY_DEMO_MODE,
+            int(self._demo_mode_enabled),
+        )
         self._default_traits_source_monitor_enabled = _load_default_traits_source_monitor(
             self._settings,
             fallback=True,
@@ -2967,6 +2979,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         for widget in self._left_panel_widgets.values():
             self.left_panel_stack.addWidget(widget)
         self._sync_perceived_similarity_predictors_visibility()
+        self._sync_demo_mode_visibility()
         self._left_panel_visible = True
         self._active_left_panel = "todays_transits"
         self._left_panel_sizes = None
@@ -13961,6 +13974,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
 
         sentiment_section, sentiment_section_layout = add_collapsible_section("💭Sentiment") #user sentiment
+        self.batch_sentiment_section = sentiment_section
 
         self.batch_sentiment_checkboxes = {}
         sentiment_widget = QWidget()
@@ -22289,6 +22303,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         chart_data_uid_checkbox.toggled.connect(self._on_chart_data_show_chart_uid_toggled)
         dev_tools_section.addWidget(chart_data_uid_checkbox)
 
+        add_demo_mode_setting(
+            section_layout=dev_tools_section,
+            is_enabled=bool(getattr(self, "_demo_mode_enabled", DEMO_MODE_DEFAULT)),
+            on_toggled=self._on_demo_mode_toggled,
+        )
+
         default_traits_monitor_checkbox = QCheckBox("Traits: watch bundled default file edits")
         default_traits_monitor_checkbox.setChecked(
             bool(getattr(self, "_default_traits_source_monitor_enabled", True))
@@ -22824,6 +22844,47 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             parent._refresh_chart_summary()
 
+    def _on_demo_mode_toggled(self, checked: bool) -> None:
+        self._demo_mode_enabled = bool(checked)
+        self._settings.setValue(
+            SETTINGS_KEY_DEMO_MODE,
+            int(self._demo_mode_enabled),
+        )
+        self._sync_demo_mode_visibility()
+        parent = self._owner_window()
+        if isinstance(parent, MainWindow):
+            parent._demo_mode_enabled = self._demo_mode_enabled
+            parent._settings.setValue(
+                SETTINGS_KEY_DEMO_MODE,
+                int(self._demo_mode_enabled),
+            )
+            parent._sync_demo_mode_visibility()
+
+    def _sync_demo_mode_visibility(self) -> None:
+        enabled = bool(getattr(self, "_demo_mode_enabled", DEMO_MODE_DEFAULT))
+        for attr in (
+            "chart_comments_toggle_button",
+            "subjective_notes_panel_button",
+            "subjective_notes_panel_scroll",
+            "search_sentiment_section",
+            "batch_sentiment_section",
+        ):
+            widget = getattr(self, attr, None)
+            if widget is not None and hasattr(widget, "setVisible"):
+                widget.setVisible(not enabled)
+        if enabled:
+            active_tab = getattr(getattr(self, "_chart_right_panel_state", None), "active_tab", None)
+            if active_tab == "subjective_notes":
+                try:
+                    self._set_chart_right_panel("analytics")
+                except Exception:
+                    pass
+            active_info_mode = getattr(self, "_chart_info_panel_mode", None)
+            if active_info_mode == "comments":
+                set_info_mode = getattr(self, "_set_chart_info_panel_mode", None)
+                if callable(set_info_mode):
+                    set_info_mode("chart_info")
+
     def _on_default_traits_source_monitor_toggled(self, checked: bool) -> None:
         self._default_traits_source_monitor_enabled = bool(checked)
         self._settings.setValue(
@@ -22851,6 +22912,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             parent._batch_tagging_terminal_debug = self._batch_tagging_terminal_debug
             parent._settings.setValue(
                 SETTINGS_KEY_BATCH_TAGGING_TERMINAL_DEBUG,
+    SETTINGS_KEY_DEMO_MODE,
                 int(self._batch_tagging_terminal_debug),
             )
         if self._batch_tagging_terminal_debug:
@@ -24603,6 +24665,14 @@ class MainWindow(QMainWindow):
             SETTINGS_KEY_CHART_DATA_SHOW_CHART_UID,
             int(self._chart_data_show_chart_uid),
         )
+        self._demo_mode_enabled = load_demo_mode_enabled(
+            self._settings,
+            fallback=DEMO_MODE_DEFAULT,
+        )
+        self._settings.setValue(
+            SETTINGS_KEY_DEMO_MODE,
+            int(self._demo_mode_enabled),
+        )
         self._default_traits_source_monitor_enabled = _load_default_traits_source_monitor(
             self._settings,
             fallback=True,
@@ -25812,6 +25882,7 @@ class MainWindow(QMainWindow):
             scrollbar_style=RIGHT_PANEL_SCROLLBAR_STYLE,
             get_share_icon_path=_get_share_icon_path,
         )
+        self._sync_demo_mode_visibility()
 
         # Shortcuts
         self._shortcut_quit = QShortcut(QKeySequence("Ctrl+Q"), self)
@@ -32635,6 +32706,28 @@ class MainWindow(QMainWindow):
             (self.windowState() & ~Qt.WindowFullScreen) | Qt.WindowMaximized
         )
         self._configure_main_splitter()
+
+    def _sync_demo_mode_visibility(self) -> None:
+        enabled = bool(getattr(self, "_demo_mode_enabled", DEMO_MODE_DEFAULT))
+        for attr in (
+            "chart_comments_toggle_button",
+            "subjective_notes_panel_button",
+            "subjective_notes_panel_scroll",
+            "search_sentiment_section",
+            "batch_sentiment_section",
+        ):
+            widget = getattr(self, attr, None)
+            if widget is not None and hasattr(widget, "setVisible"):
+                widget.setVisible(not enabled)
+        if enabled:
+            active_tab = getattr(getattr(self, "_chart_right_panel_state", None), "active_tab", None)
+            if active_tab == "subjective_notes":
+                self._set_chart_right_panel("analytics")
+            active_info_mode = getattr(self, "_chart_info_panel_mode", None)
+            if active_info_mode == "comments":
+                set_info_mode = getattr(self, "_set_chart_info_panel_mode", None)
+                if callable(set_info_mode):
+                    set_info_mode("chart_info")
 
     def _set_chart_right_panel_container_visible(self, visible: bool) -> None:
         """Show/hide Chart View's entire right-hand panel container."""

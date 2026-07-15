@@ -653,10 +653,12 @@ def _resolve_chart_right_panel_key(owner: object, panel_key: str) -> str:
     """Normalize + gate requested right-panel tab key."""
     definitions = _chart_right_panel_definitions(owner)
     normalized = panel_key if panel_key in definitions else "analytics"
+    if normalized == "subjective_notes" and bool(getattr(owner, "_demo_mode_enabled", False)):
+        normalized = "analytics"
     analytics_button = getattr(owner, "chart_analytics_panel_button", None)
     analytics_enabled = bool(analytics_button and analytics_button.isEnabled())
     if normalized == "analytics" and not analytics_enabled:
-        return "subjective_notes"
+        return "analytics" if bool(getattr(owner, "_demo_mode_enabled", False)) else "subjective_notes"
     return normalized
 
 
@@ -1267,5 +1269,17 @@ def sync_chart_right_panel_placeholder_state(owner: object, chart: object | None
     if time_sensitivity_button is not None:
         time_sensitivity_button.setVisible(is_saved_chart)
         time_sensitivity_button.setEnabled(is_saved_chart)
+    if bool(getattr(owner, "_demo_mode_enabled", False)):
+        subjective_button = getattr(owner, "subjective_notes_panel_button", None)
+        subjective_scroll = getattr(owner, "subjective_notes_panel_scroll", None)
+        if subjective_button is not None:
+            subjective_button.setVisible(False)
+        if subjective_scroll is not None:
+            subjective_scroll.setVisible(False)
+        set_chart_right_panel_container_visible(owner, analytics_available)
+        if analytics_available:
+            set_chart_right_panel(owner, "analytics")
+        return
+    set_chart_right_panel_container_visible(owner, True)
     if not analytics_available:
         set_chart_right_panel(owner, "subjective_notes")

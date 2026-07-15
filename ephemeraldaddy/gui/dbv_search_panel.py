@@ -1821,6 +1821,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     interactions_category_layout.addWidget(year_first_encountered_section)
 
     sentiment_section, sentiment_group_layout = add_collapsible_section("💭Sentiment")
+    window.search_sentiment_section = sentiment_section
 
     #Search: Sentiments section
     sentiment_mode_layout = QHBoxLayout()
