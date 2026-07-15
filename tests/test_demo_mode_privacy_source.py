@@ -30,3 +30,11 @@ def test_demo_mode_uses_analytics_or_hidden_right_panel_instead_of_observations(
     assert 'getattr(owner, "_demo_mode_enabled", False)' in right_panel
     assert 'set_chart_right_panel_container_visible(owner, analytics_available)' in right_panel
     assert 'set_chart_right_panel(owner, "analytics")' in right_panel
+
+
+def test_demo_mode_new_chart_paths_do_not_reopen_private_right_panel():
+    app = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
+
+    assert 'if not bool(getattr(self, "_demo_mode_enabled", DEMO_MODE_DEFAULT)):\n            self._set_chart_right_panel("subjective_notes")' in app
+    assert 'sync_placeholder = getattr(self, "_sync_chart_right_panel_placeholder_state", None)' in app
+    assert 'if callable(sync_placeholder):\n            sync_placeholder(current_chart)' in app

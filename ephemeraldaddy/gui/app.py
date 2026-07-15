@@ -32719,6 +32719,10 @@ class MainWindow(QMainWindow):
             widget = getattr(self, attr, None)
             if widget is not None and hasattr(widget, "setVisible"):
                 widget.setVisible(not enabled)
+        sync_placeholder = getattr(self, "_sync_chart_right_panel_placeholder_state", None)
+        current_chart = getattr(self, "current_chart", None)
+        if callable(sync_placeholder):
+            sync_placeholder(current_chart)
         if enabled:
             active_tab = getattr(getattr(self, "_chart_right_panel_state", None), "active_tab", None)
             if active_tab == "subjective_notes":
@@ -34383,8 +34387,9 @@ class MainWindow(QMainWindow):
         self.output_text.clear()
         self._clear_chart_displays()
         self._sync_chart_right_panel_placeholder_state(None)
-        self._set_chart_right_panel("subjective_notes")
-        self._set_chart_right_panel_container_visible(True)
+        if not bool(getattr(self, "_demo_mode_enabled", DEMO_MODE_DEFAULT)):
+            self._set_chart_right_panel("subjective_notes")
+            self._set_chart_right_panel_container_visible(True)
 
     def _on_delete_this_chart(self) -> None:
         chart_id = self.current_chart_id
@@ -34817,8 +34822,9 @@ class MainWindow(QMainWindow):
         self._cache_chart_view_navigation_entry(chart_id, chart)
         self._sync_chart_right_panel_placeholder_state(chart)
         if getattr(chart, "is_placeholder", False):
-            self._set_chart_right_panel("subjective_notes")
-            self._set_chart_right_panel_container_visible(True)
+            if not bool(getattr(self, "_demo_mode_enabled", DEMO_MODE_DEFAULT)):
+                self._set_chart_right_panel("subjective_notes")
+                self._set_chart_right_panel_container_visible(True)
             self._clear_chart_displays(reset_anagrams=False)
             self._reveal_chart_right_panel_after_loading()
             self._hide_chart_loading_overlay()
