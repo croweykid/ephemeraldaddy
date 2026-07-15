@@ -241,10 +241,11 @@ class ChartAnalysisSectionsController:
         subtitle_by_mode: dict[str, str] | None = None,
         footer_text: str | None = None,
         expanded: bool = True,
+        parent_layout: QVBoxLayout | None = None,
     ) -> None:
         section_layout = self.add_collapsible_section(
             panel=panel,
-            layout=self._owner.metrics_layout,
+            layout=parent_layout or self._owner.metrics_layout,
             title=section_title,
             expanded=expanded,
             on_toggled=lambda checked, key=section_key: (
@@ -476,17 +477,6 @@ class ChartAnalysisSectionsController:
             default_filename="ephemeraldaddy_chart_type",
             chart_container_attr="chart_type_container",
             chart_layout_attr="chart_type_container_layout",
-            expanded=False,
-        )
-        self.add_section(
-            panel=panel,
-            section_key="gender_guesser",
-            section_title="Gender Guesser",
-            header_title="Gender Guesser",
-            subtitle_text="For the hell of it, just curious.",
-            default_filename="ephemeraldaddy_chart_gender_guesser",
-            chart_container_attr="gender_guesser_container",
-            chart_layout_attr="gender_guesser_container_layout",
             expanded=False,
         )
 

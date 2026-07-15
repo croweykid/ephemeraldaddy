@@ -4511,6 +4511,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_metrics_section_visible["enneagram"] = self._visibility.get(
             "database_metrics_visibility.enneagram"
         )
+        self._database_metrics_section_visible["gender"] = self._visibility.get(
+            "database_metrics_visibility.gender"
+        )
 
     def _update_sort_button_label(self) -> None:
         mode = self._sort_mode
@@ -22034,6 +22037,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         visibility_section.addWidget(sexiness_checkbox)
 
+        gender_guesser_checkbox = QCheckBox("Show Gender Guesser")
+        gender_guesser_checkbox.setChecked(self._visibility.get("chart_view.gender_guesser"))
+        gender_guesser_checkbox.toggled.connect(
+            self._set_gender_guesser_visibility_from_settings
+        )
+        visibility_section.addWidget(gender_guesser_checkbox)
+
         visibility_section.addSpacing(8)
         anagrams_checkbox = QCheckBox("Show Anagrams (ABC)")
         anagrams_checkbox.setChecked(
@@ -23865,6 +23875,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         sync_predictability = getattr(parent, "_sync_predictability_visibility", None)
         if callable(sync_predictability):
             sync_predictability()
+
+    def _set_gender_guesser_visibility_from_settings(self, checked: bool) -> None:
+        checked = bool(checked)
+        self._visibility.set("chart_view.gender_guesser", checked)
+        self._visibility.set("database_metrics_visibility.gender", checked)
+        self._database_metrics_section_visible["gender"] = checked
+        self._sync_database_metrics_section_visibility()
+        parent = self._owner_window()
+        if isinstance(parent, MainWindow):
+            parent._visibility.set("chart_view.gender_guesser", checked)
+            parent._visibility.set("database_metrics_visibility.gender", checked)
+            parent._sync_gender_guesser_visibility()
+        self._refresh_charts(refresh_metrics=True)
 
     def _set_database_metric_section_visibility_from_settings(self, section_key: str, checked: bool) -> None:
         self._set_database_metrics_section_visible(section_key, checked)
@@ -25913,6 +25936,9 @@ class MainWindow(QMainWindow):
         self._chart_analysis_section_visible["anagrams"] = self._visibility.get(
             "chart_analytics.anagrams"
         )
+        self._chart_analysis_section_visible["gender_guesser"] = self._visibility.get(
+            "chart_view.gender_guesser"
+        )
         build_chart_view_right_panel(
             self,
             scrollbar_style=RIGHT_PANEL_SCROLLBAR_STYLE,
@@ -26044,6 +26070,18 @@ class MainWindow(QMainWindow):
             if section is not None:
                 section.setVisible(visible)
 
+    def _sync_gender_guesser_visibility(self) -> None:
+        visible = self._visibility.get("chart_view.gender_guesser")
+        self._chart_analysis_section_visible["gender_guesser"] = visible
+        self._visibility.set("database_metrics_visibility.gender", visible)
+        self._sync_chart_analysis_section_visibility()
+        database_metrics_visible = getattr(self, "_database_metrics_section_visible", None)
+        if isinstance(database_metrics_visible, dict):
+            database_metrics_visible["gender"] = visible
+            sync_database_metrics = getattr(self, "_sync_database_metrics_section_visibility", None)
+            if callable(sync_database_metrics):
+                sync_database_metrics()
+
     def _add_chart_analysis_collapsible_section(
         self,
         panel: QWidget,
@@ -26077,6 +26115,7 @@ class MainWindow(QMainWindow):
         dropdown_options: list[tuple[str, str]] | None = None,
         subtitle_by_mode: dict[str, str] | None = None,
         expanded: bool = True,
+        parent_layout: QVBoxLayout | None = None,
     ) -> None:
         self._chart_analysis_sections_controller.add_section(
             panel=panel,
@@ -26090,6 +26129,7 @@ class MainWindow(QMainWindow):
             dropdown_options=dropdown_options,
             subtitle_by_mode=subtitle_by_mode,
             expanded=expanded,
+            parent_layout=parent_layout,
         )
 
     def _create_chart_analysis_sections(self, panel: QWidget) -> None:
@@ -35820,12 +35860,16 @@ class MainWindow(QMainWindow):
         if not self.metrics_panel.isVisible():
             return False
         active_panel = self._chart_right_panel_state.active_tab
-        expected_panel = "abc" if render_key == "anagrams" else "analytics"
+        expected_panel_by_render_key = {
+            "anagrams": "abc",
+            "gender": "predictions",
+        }
+        expected_panel = expected_panel_by_render_key.get(render_key, "analytics")
         if active_panel != expected_panel:
             return False
         if not allow_collapsed and not self._chart_analysis_section_expanded.get(section_key, True):
             return False
-        if section_key in {"planet_dynamics", "anagrams"} and not self._is_chart_analysis_section_visible(section_key):
+        if section_key in {"planet_dynamics", "anagrams", "gender_guesser"} and not self._is_chart_analysis_section_visible(section_key):
             return False
         return True
 

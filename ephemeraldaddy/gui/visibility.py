@@ -17,6 +17,7 @@ CHART_DATA_KEYS: dict[str, bool] = {
     "chart_analytics.anagrams": False,
     "chart_view.sexiness": False,
     "chart_view.predictability": False,
+    "chart_view.gender_guesser": False,
     "charts.standard_deviation_indicators": True,
     "analytics.dnd_statblock_explainers": False,
 }
@@ -25,6 +26,7 @@ DATABASE_ANALYTICS_VISIBILITY_KEYS: dict[str, bool] = {
     "database_metrics_visibility.species_distribution": True,
     "database_metrics_visibility.bazi": True,
     "database_metrics_visibility.enneagram": True,
+    "database_metrics_visibility.gender": False,
 }
 
 DATABASE_ANALYTICS_SECTION_KEYS: dict[str, bool] = {

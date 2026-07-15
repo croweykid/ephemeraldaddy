@@ -1697,6 +1697,19 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     owner.dnd_alignment_chart_layout.addWidget(
         _make_predictions_loading_label("Loading cached D&D alignment predictions…")
     )
+
+    owner._add_chart_analysis_section(
+        panel=panel,
+        section_key="gender_guesser",
+        section_title="Gender Guesser",
+        header_title="Gender Guesser",
+        subtitle_text="For the hell of it, just curious.",
+        default_filename="ephemeraldaddy_chart_gender_guesser",
+        chart_container_attr="gender_guesser_container",
+        chart_layout_attr="gender_guesser_container_layout",
+        expanded=False,
+        parent_layout=layout,
+    )
     layout.addStretch(1)
     return panel
 
