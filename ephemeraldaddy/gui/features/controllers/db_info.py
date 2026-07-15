@@ -560,7 +560,15 @@ def add_database_info_settings_section(owner: Any, content_layout) -> None:
         f"Predictions norms snapshot: {html.escape(str(prediction_norms_snapshot_path()))}"
     )
     owner._settings_prediction_norms_label.setWordWrap(True)
-    section_layout.addWidget(owner._settings_prediction_norms_label)
+    owner._settings_prediction_norms_label.setStyleSheet("color: #9a9a9a; font-style: italic; font-size: 7pt;")
+    footer_writer = getattr(owner, "_set_settings_section_footer_note", None)
+    if callable(footer_writer):
+        footer_writer(
+            "Database Statistics",
+            f"Predictions norms snapshot: {html.escape(str(prediction_norms_snapshot_path()))}",
+        )
+    else:
+        section_layout.addWidget(owner._settings_prediction_norms_label)
     owner._settings_db_info_label = QLabel("No database info computed yet.")
     owner._settings_db_info_label.setWordWrap(True)
     owner._settings_db_info_label.setTextFormat(Qt.RichText)
