@@ -22866,6 +22866,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "chart_comments_toggle_button",
             "subjective_notes_panel_button",
             "subjective_notes_panel_scroll",
+            "material_facts_panel_button",
+            "material_facts_panel_scroll",
+            "photo_gallery_panel_button",
+            "photo_gallery_panel_scroll",
             "search_sentiment_section",
             "batch_sentiment_section",
         ):
@@ -32712,6 +32716,10 @@ class MainWindow(QMainWindow):
             "chart_comments_toggle_button",
             "subjective_notes_panel_button",
             "subjective_notes_panel_scroll",
+            "material_facts_panel_button",
+            "material_facts_panel_scroll",
+            "photo_gallery_panel_button",
+            "photo_gallery_panel_scroll",
             "search_sentiment_section",
             "batch_sentiment_section",
         ):

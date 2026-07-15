@@ -207,6 +207,8 @@ class ChartRightPanelController:
         self.set_section_visible("predictions", analytics_available)
         self.set_section_visible("time_sensitivity", is_saved_chart)
         self.set_section_visible("subjective_notes", not demo_mode_enabled)
+        self.set_section_visible("material_facts", not demo_mode_enabled)
+        self.set_section_visible("photo_gallery", not demo_mode_enabled)
         if demo_mode_enabled:
             self.set_container_visible(analytics_available)
             if analytics_available:
@@ -224,7 +226,7 @@ class ChartRightPanelController:
 
     def _resolve_panel_key(self, panel_key: str) -> str:
         normalized = panel_key if panel_key in self._PANEL_ATTRS else "analytics"
-        if normalized == "subjective_notes" and self._demo_mode_enabled():
+        if normalized in {"subjective_notes", "material_facts", "photo_gallery"} and self._demo_mode_enabled():
             normalized = "analytics"
         if normalized == "analytics" and not self._section_visible.get("analytics", True):
             return "analytics" if self._demo_mode_enabled() else "subjective_notes"

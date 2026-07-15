@@ -17,6 +17,10 @@ def test_demo_mode_setting_and_private_widget_targets_are_wired():
     assert '"chart_comments_toggle_button"' in app
     assert '"subjective_notes_panel_button"' in app
     assert '"subjective_notes_panel_scroll"' in app
+    assert '"material_facts_panel_button"' in app
+    assert '"material_facts_panel_scroll"' in app
+    assert '"photo_gallery_panel_button"' in app
+    assert '"photo_gallery_panel_scroll"' in app
     assert '"search_sentiment_section"' in app
     assert '"batch_sentiment_section"' in app
     assert 'window.search_sentiment_section = sentiment_section' in search
@@ -26,7 +30,7 @@ def test_demo_mode_setting_and_private_widget_targets_are_wired():
 def test_demo_mode_uses_analytics_or_hidden_right_panel_instead_of_observations():
     right_panel = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/cv_right_panel_stack.py").read_text()
 
-    assert 'normalized == "subjective_notes"' in right_panel
+    assert 'normalized in {"subjective_notes", "material_facts", "photo_gallery"}' in right_panel
     assert 'getattr(owner, "_demo_mode_enabled", False)' in right_panel
     assert 'set_chart_right_panel_container_visible(owner, analytics_available)' in right_panel
     assert 'set_chart_right_panel(owner, "analytics")' in right_panel
@@ -46,7 +50,10 @@ def test_demo_mode_controller_path_does_not_fallback_to_observations():
 
     assert 'demo_mode_enabled = self._demo_mode_enabled()' in controller
     assert 'self.set_section_visible("subjective_notes", not demo_mode_enabled)' in controller
+    assert 'self.set_section_visible("material_facts", not demo_mode_enabled)' in controller
+    assert 'self.set_section_visible("photo_gallery", not demo_mode_enabled)' in controller
     assert 'self.set_container_visible(analytics_available)' in controller
+    assert 'normalized in {"subjective_notes", "material_facts", "photo_gallery"}' in controller
     assert 'return "analytics" if self._demo_mode_enabled() else "subjective_notes"' in controller
     assert 'def _demo_mode_enabled(self) -> bool:' in controller
     assert 'SETTINGS_KEY_BATCH_TAGGING_TERMINAL_DEBUG,\n                int(self._batch_tagging_terminal_debug),' in app
