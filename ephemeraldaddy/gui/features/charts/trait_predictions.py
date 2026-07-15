@@ -1662,6 +1662,10 @@ def _traits_stale_recalculate_prompt_html(updated_at: str | None) -> str:
 
 
 def _predictions_manual_recalculation_only(owner: Any) -> bool:
+    # Predictions panel contract for future maintainers/agents:
+    # default manual mode means "show the current chart UID's latest saved
+    # metadata, flag stale data, and wait for the user's Recalculate click."
+    # Do not silently refresh stale cached sections from render/draw paths.
     return bool(getattr(owner, "_predictions_manual_recalculation_only", True))
 
 

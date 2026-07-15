@@ -125,3 +125,22 @@ def test_dnd_alignment_draw_respects_stale_cache_without_recomputing_in_manual_m
     assert "_cache_payload_chart_uid_matches(chart, alignment_cache, require_uid=True)" in dnd_render
     assert "_cache_payload_chart_uid_matches(chart, restored_alignment, require_uid=True)" in dnd_render
     assert 'restored_alignment["chart_uid"] = _chart_prediction_cache_uid(chart)' in dnd_render
+
+
+def test_dnd_species_and_class_predictions_are_persisted_by_chart_uid():
+    dnd_render_species = DND_SOURCE.split("def _render_species_and_class_summaries", 1)[1].split(
+        "label_sections =", 1
+    )[0]
+
+    assert "Predictions cache contract" in DND_SOURCE
+    assert "Do not silently refresh stale cached sections from render/draw paths." in TRAIT_SOURCE
+    assert "def _restore_species_class_cache" in DND_SOURCE
+    assert "def _cache_species_class_metadata" in DND_SOURCE
+    assert '_persist_dnd_prediction_payload(chart, "species_class", cache_payload)' in DND_SOURCE
+    assert '"species": _collect_top_three_species_payloads(chart)' in DND_SOURCE
+    assert '"classes": class_payloads' in DND_SOURCE
+    assert "self._cache_species_class_metadata(chart)" in DND_SOURCE
+    assert "species_class_cache = self._restore_species_class_cache(chart)" in dnd_render_species
+    assert "species_class_cache = self._cache_species_class_metadata(chart)" in dnd_render_species
+    assert "species_payloads=species_payloads" in DND_SOURCE
+    assert "class_payloads=class_payloads" in DND_SOURCE
