@@ -51,6 +51,8 @@ from ephemeraldaddy.analysis.weighted_chart_predictor import (
 )
 
 
+ENNEAGRAM_PREDICTION_GRAPH_BASE_HEIGHT_PX = 240
+ENNEAGRAM_PREDICTION_GRAPH_HEIGHT_PX = ENNEAGRAM_PREDICTION_GRAPH_BASE_HEIGHT_PX + 10
 ENNEAGRAM_DEBUG_LOGGING = False
 ENNEAGRAM_ANTI_FACTOR = 1.0
 ENNEAGRAM_CATEGORY_WEIGHTS: dict[str, float] = dict(WEIGHTED_PREDICTOR_DEFAULT_CATEGORY_WEIGHTS)
@@ -1143,6 +1145,7 @@ class EnneagramPredictionPanelAdapter:
                 title="Enneagram",
                 draw_fn=self._draw_no_data,
                 chart=chart,
+                display_height=ENNEAGRAM_PREDICTION_GRAPH_HEIGHT_PX,
             )
             if self.tritype_label is not None:
                 stop_prediction_loading_blink(self.tritype_label)
@@ -1179,6 +1182,7 @@ class EnneagramPredictionPanelAdapter:
             title="Enneagram",
             draw_fn=_draw_with_cached_scores,
             chart=chart,
+            display_height=ENNEAGRAM_PREDICTION_GRAPH_HEIGHT_PX,
         )
         if cache_stale:
             manual_only = self._manual_recalculation_only()

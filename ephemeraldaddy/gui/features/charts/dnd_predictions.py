@@ -13,6 +13,9 @@ from typing import Any, Callable, Mapping
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLabel, QPushButton, QSizePolicy, QVBoxLayout, QWidget
 
+DND_ALIGNMENT_GRAPH_BASE_HEIGHT_PX = 240
+DND_ALIGNMENT_GRAPH_HEIGHT_PX = DND_ALIGNMENT_GRAPH_BASE_HEIGHT_PX + 6
+
 from ephemeraldaddy.analysis.dnd.dnd_definitions import (
     DND_ALIGNMENTS,
     DND_CLASS_SUBCLASS_STATS,
@@ -1965,6 +1968,7 @@ class DndPredictionPanelAdapter:
                     title="D&D Alignment",
                     draw_fn=self._draw_no_data,
                     chart=chart,
+                    display_height=DND_ALIGNMENT_GRAPH_HEIGHT_PX,
                 )
                 self._render_alignment_debug_summary(chart)
             return summary_label
@@ -2026,6 +2030,7 @@ class DndPredictionPanelAdapter:
                     title="D&D Alignment",
                     draw_fn=self.draw_alignment,
                     chart=chart,
+                    display_height=DND_ALIGNMENT_GRAPH_HEIGHT_PX,
                 )
                 if alignment_stale:
                     manual_only = self._manual_recalculation_only()

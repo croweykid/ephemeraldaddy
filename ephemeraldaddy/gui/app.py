@@ -35637,6 +35637,7 @@ class MainWindow(QMainWindow):
         title: str,
         draw_fn: Callable[[Any, Chart], None],
         chart: Chart,
+        display_height: int | None = None,
     ) -> None:
         canvas = getattr(self, canvas_attr)
         if canvas is None:
@@ -35658,8 +35659,9 @@ class MainWindow(QMainWindow):
             figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
             ax.set_facecolor(CHART_THEME_COLORS["background"])
 
-        display_height = CHART_RIGHT_PANEL_GRAPH_HEIGHT_PX
-        canvas.setProperty("metric_display_height", display_height)
+        if display_height is None:
+            display_height = CHART_RIGHT_PANEL_GRAPH_HEIGHT_PX
+        canvas.setProperty("metric_display_height", int(display_height))
         self._apply_metric_chart_sizing(canvas)
         draw_fn(ax, chart)
         # try:
@@ -35672,6 +35674,10 @@ class MainWindow(QMainWindow):
         # refresh corrects it, which makes the panel graphs appear to wiggle.
         # Chart updates can continue changing the stacked scroll-panel width
         # after the first zero-timeout callback, so keep re-clamping briefly.
+        # Queue one paint immediately after the axes are populated too; otherwise
+        # a newly replaced Predictions placeholder can remain visually blank until
+        # a later layout timer or user-driven resize happens to flush the canvas.
+        canvas.draw_idle()
         self._schedule_deferred_metric_canvas_layout_refresh(canvas)
 
     def _render_chart(self, chart: Chart) -> None:
