@@ -149,6 +149,12 @@ DEFAULT_TOOLTIP_OVERRIDES: dict[str, str] = {
 # IMPORTANT: these are intentionally exact-string mappings so tooltip behavior
 # disappears automatically if visible labels are renamed.
 EXACT_TEXT_TOOLTIP_OVERRIDES: dict[str, str] = {
+    # Search filter logic radio buttons.
+    "&&": "must include [associated factor]",
+    "&": "must include [associated factor]",
+    "OR": "could alternately include [associated factor]",
+    "🚫": "exclude [associated factor]",
+
     # Requested Chart View tooltips.
     "💀": "deceased?",
     "Use Rectified Time:": "birthtime is unknown or possibly incorrect; use speculated time for applicable calculations",
