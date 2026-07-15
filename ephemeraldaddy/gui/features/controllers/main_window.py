@@ -241,10 +241,11 @@ class ChartAnalysisSectionsController:
         subtitle_by_mode: dict[str, str] | None = None,
         footer_text: str | None = None,
         expanded: bool = True,
+        parent_layout: QVBoxLayout | None = None,
     ) -> None:
         section_layout = self.add_collapsible_section(
             panel=panel,
-            layout=self._owner.metrics_layout,
+            layout=parent_layout or self._owner.metrics_layout,
             title=section_title,
             expanded=expanded,
             on_toggled=lambda checked, key=section_key: (

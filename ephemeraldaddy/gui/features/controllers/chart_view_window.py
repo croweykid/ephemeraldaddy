@@ -1708,6 +1708,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         chart_container_attr="gender_guesser_container",
         chart_layout_attr="gender_guesser_container_layout",
         expanded=False,
+        parent_layout=layout,
     )
     layout.addStretch(1)
     return panel

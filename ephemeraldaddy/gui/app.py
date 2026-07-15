@@ -26073,10 +26073,14 @@ class MainWindow(QMainWindow):
     def _sync_gender_guesser_visibility(self) -> None:
         visible = self._visibility.get("chart_view.gender_guesser")
         self._chart_analysis_section_visible["gender_guesser"] = visible
-        self._database_metrics_section_visible["gender"] = visible
         self._visibility.set("database_metrics_visibility.gender", visible)
         self._sync_chart_analysis_section_visibility()
-        self._sync_database_metrics_section_visibility()
+        database_metrics_visible = getattr(self, "_database_metrics_section_visible", None)
+        if isinstance(database_metrics_visible, dict):
+            database_metrics_visible["gender"] = visible
+            sync_database_metrics = getattr(self, "_sync_database_metrics_section_visibility", None)
+            if callable(sync_database_metrics):
+                sync_database_metrics()
 
     def _add_chart_analysis_collapsible_section(
         self,
@@ -26111,6 +26115,7 @@ class MainWindow(QMainWindow):
         dropdown_options: list[tuple[str, str]] | None = None,
         subtitle_by_mode: dict[str, str] | None = None,
         expanded: bool = True,
+        parent_layout: QVBoxLayout | None = None,
     ) -> None:
         self._chart_analysis_sections_controller.add_section(
             panel=panel,
@@ -26124,6 +26129,7 @@ class MainWindow(QMainWindow):
             dropdown_options=dropdown_options,
             subtitle_by_mode=subtitle_by_mode,
             expanded=expanded,
+            parent_layout=parent_layout,
         )
 
     def _create_chart_analysis_sections(self, panel: QWidget) -> None:
