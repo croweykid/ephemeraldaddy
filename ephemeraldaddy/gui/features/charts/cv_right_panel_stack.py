@@ -1271,7 +1271,7 @@ def schedule_chart_render_for_active_right_panel(owner: object) -> None:
         ):
             return
         render_traits = getattr(owner, "_render_traits_predictions", None)
-        if callable(render_traits) and not traits_ready:
+        if callable(render_traits):
             render_traits(chart)
         owner._render_enneagram_predictions(chart)
         owner._render_dndification_predictions(chart)
