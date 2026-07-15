@@ -18471,7 +18471,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if coordinator is None:
             coordinator = PropertyManagerCoordinator(self)
             self._property_manager_coordinator = coordinator
-        manager_widget = coordinator.create_widget(parent=self._settings_dialog or self)
+        manager_widget = coordinator.create_widget(parent=self._settings_dialog or self, embedded=True)
         manager_widget.finished.connect(lambda _result: coordinator.refresh_after_close())
         manager_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         section_layout.addWidget(manager_widget)

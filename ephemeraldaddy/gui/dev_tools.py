@@ -1469,8 +1469,8 @@ QComboBox QAbstractItemView {
         self._remove_selected_button.clicked.connect(self._remove_selected_from_collection)
         # refresh_button = QPushButton("Refresh")
         # refresh_button.clicked.connect(self._reload_usage)
-        close_button = QPushButton("Close")
-        close_button.clicked.connect(self.accept)
+        self._close_button = QPushButton("Close")
+        self._close_button.clicked.connect(self.accept)
 
         button_row.addWidget(self._rename_button)
         button_row.addWidget(self._delete_button)
@@ -1480,7 +1480,7 @@ QComboBox QAbstractItemView {
         button_row.addWidget(self._remove_selected_button)
         button_row.addStretch(1)
         #button_row.addWidget(refresh_button)
-        button_row.addWidget(close_button)
+        button_row.addWidget(self._close_button)
         layout.addLayout(button_row)
 
         # Defer loading so the dialog can render immediately before DB work runs.

@@ -28,6 +28,7 @@ class PropertyManagerCoordinator:
         *,
         parent: Any | None = None,
         initial_field: str = ManageMetadataLabelsDialog.FIELD_TAGS,
+        embedded: bool = False,
     ) -> ManageMetadataLabelsDialog:
         dialog = ManageMetadataLabelsDialog(
             parent=parent or self._host,
@@ -57,6 +58,9 @@ class PropertyManagerCoordinator:
             lock_field=False,
             window_title="Property Manager",
         )
+        close_button = getattr(dialog, "_close_button", None)
+        if embedded and close_button is not None:
+            close_button.hide()
         return dialog
 
     def launch(

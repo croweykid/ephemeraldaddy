@@ -285,13 +285,23 @@ def _export_database_info(owner: Any) -> None:
         handle.write(output_text)
 
 
-def _refresh_prediction_norms(owner: Any) -> None:
+def _set_prediction_norms_status(owner: Any, text: str) -> None:
     status_label = getattr(owner, "_settings_prediction_norms_label", None)
+    if status_label is not None:
+        status_label.setText(text)
+    footer_writer = getattr(owner, "_set_settings_section_footer_note", None)
+    if callable(footer_writer):
+        footer_writer("Database Statistics", text)
+
+
+def _refresh_prediction_norms(owner: Any) -> None:
     button = getattr(owner, "_settings_refresh_prediction_norms_button", None)
     if button is not None:
         button.setEnabled(False)
-    if status_label is not None:
-        status_label.setText("Refreshing Predictions norms… this can take a while for large databases.")
+    _set_prediction_norms_status(
+        owner,
+        "Refreshing Predictions norms… this can take a while for large databases.",
+    )
     try:
         snapshot = refresh_prediction_norms_snapshot(owner)
         if hasattr(owner, "_prediction_norms_snapshot_cache"):
@@ -302,11 +312,12 @@ def _refresh_prediction_norms(owner: Any) -> None:
             f"Predictions norms refreshed for {chart_count} charts and {trait_count} traits. "
             f"Saved to {html.escape(str(prediction_norms_snapshot_path()))}."
         )
-        if status_label is not None:
-            status_label.setText(status)
+        _set_prediction_norms_status(owner, status)
     except Exception as exc:
-        if status_label is not None:
-            status_label.setText(f"Predictions norms refresh failed: {html.escape(str(exc))}")
+        _set_prediction_norms_status(
+            owner,
+            f"Predictions norms refresh failed: {html.escape(str(exc))}",
+        )
         raise
     finally:
         if button is not None:
@@ -563,8 +574,8 @@ def add_database_info_settings_section(owner: Any, content_layout) -> None:
     owner._settings_prediction_norms_label.setStyleSheet("color: #9a9a9a; font-style: italic; font-size: 7pt;")
     footer_writer = getattr(owner, "_set_settings_section_footer_note", None)
     if callable(footer_writer):
-        footer_writer(
-            "Database Statistics",
+        _set_prediction_norms_status(
+            owner,
             f"Predictions norms snapshot: {html.escape(str(prediction_norms_snapshot_path()))}",
         )
     else:
