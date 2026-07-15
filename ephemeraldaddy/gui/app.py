@@ -21908,7 +21908,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         tab_header_scroll.setFrameShape(QFrame.NoFrame)
         tab_header_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         tab_header_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        tab_header_scroll.setMinimumHeight(58)
+        tab_header_scroll.setMinimumHeight(64)
         tab_header_scroll.setMaximumHeight(150)
         tab_header_frame = QFrame()
         tab_header_frame.setObjectName("settings_tab_header")
@@ -22498,6 +22498,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         self._populate_settings_custom_db_export_section(custom_db_export_section)
         content_layout.addStretch(1)
+
+        for stray_radio_button in tab_header_frame.findChildren(QRadioButton):
+            stray_radio_button.hide()
+            stray_radio_button.setParent(None)
 
         self._configure_settings_section_text_wrap(content)
         self._settings_dialog = dialog
