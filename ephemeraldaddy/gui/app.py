@@ -34514,13 +34514,6 @@ class MainWindow(QMainWindow):
             chart,
             birth_place=place,
         )
-        if subjective_notes_autosave and changed_fields is not None:
-            changed_fields &= {
-                "sentiments",
-                "relationship_types",
-                "alignment",
-                "matched_expectations",
-            }
         self._update_sentiment_tally(
             changed_ids={chart_id},
             changed_fields=changed_fields,

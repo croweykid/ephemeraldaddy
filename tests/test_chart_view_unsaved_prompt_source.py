@@ -120,6 +120,17 @@ def test_retcon_controls_do_not_have_duplicate_dirty_signal_connections():
     assert "self.retcon_time_edit.timeChanged.connect(self._on_retcon_time_changed)" in APP_SOURCE
 
 
+def test_subjective_autosave_preserves_mixed_changed_fields_for_refresh():
+    method = _method_source("on_update_chart")
+    changed_fields_index = method.index("changed_fields = self._chart_metadata_changed_fields(")
+    update_index = method.index("self._update_sentiment_tally(", changed_fields_index)
+    refresh_block = method[changed_fields_index:update_index]
+    assert "changed_fields &= " not in refresh_block
+    update_call = method[update_index:method.index("self._manage_charts_pending_changed_ids.add", update_index)]
+    assert "update_similarities=bool(" in update_call
+    assert '"birth_data" in changed_fields' in update_call
+
+
 def test_subjective_autosave_defers_to_pending_recalculation_autosave():
     method = _method_source("_flush_pending_sentiment_metrics_save")
     recalc_guard = method.index("if self._metadata_autosave_requires_recalculation:")
