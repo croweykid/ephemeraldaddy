@@ -12,11 +12,10 @@ def _method_source(name: str) -> str:
 
 def test_unsaved_prompt_has_deterministic_leave_buttons_without_changing_save_path():
     method = _method_source("_confirm_discard_or_save")
-    assert 'save_button = dialog.addButton("Save", QMessageBox.AcceptRole)' in method
-    assert 'discard_button = dialog.addButton("Discard", QMessageBox.DestructiveRole)' in method
-    assert 'cancel_button = dialog.addButton("Cancel", QMessageBox.RejectRole)' in method
-    assert "dialog.setDefaultButton(save_button)" in method
-    assert "dialog.setEscapeButton(cancel_button)" in method
+    assert "dialog.setStandardButtons(" in method
+    assert "QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel" in method
+    assert "dialog.setDefaultButton(QMessageBox.Save)" in method
+    assert "dialog.setEscapeButton(QMessageBox.Cancel)" in method
     assert "self.on_update_chart(show_dialog=True)" in method
     assert "return self.on_update_chart" not in method
     assert "self._set_lucygoosey(False)" in method
@@ -36,9 +35,9 @@ def test_unsaved_prompt_marks_modal_state_only_while_prompt_is_open():
 def test_timed_autosaves_keep_existing_save_and_dirty_state_defaults():
     autosave_method = _method_source("_autosave_checkbox_state")
     metric_method = _method_source("_flush_pending_sentiment_metrics_save")
-    assert "self.on_update_chart(show_dialog=False, recalculate_chart=False)" in autosave_method
+    assert "self.on_update_chart(show_dialog=False, recalculate_chart=recalculate_chart)" in autosave_method
     assert "self._set_lucygoosey(False)" in autosave_method
-    assert "self.on_update_chart(show_dialog=False, recalculate_chart=False)" in metric_method
+    assert "subjective_notes_autosave=True" in metric_method
     assert "self._set_lucygoosey(False)" in metric_method
     assert "if self.on_update_chart(show_dialog=False, recalculate_chart=False):" not in autosave_method
     assert "if self.on_update_chart(show_dialog=False, recalculate_chart=False):" not in metric_method
@@ -48,7 +47,7 @@ def test_prompt_open_defers_but_does_not_disable_timed_autosaves():
     autosave_method = _method_source("_autosave_checkbox_state")
     metric_method = _method_source("_flush_pending_sentiment_metrics_save")
     assert "if self._leaving_chart_view_prompt_open:" in autosave_method
-    assert "self._metadata_autosave_timer.start(2000)" in autosave_method
+    assert "self._metadata_autosave_timer.start(delay_ms)" in autosave_method
     assert "if self._leaving_chart_view_prompt_open:" in metric_method
     assert "self._sentiment_metrics_autosave_timer.start(2000)" in metric_method
 
@@ -59,7 +58,7 @@ def test_metric_flush_does_not_save_after_discard_clears_dirty_flag():
     assert "self._sentiment_metrics_autosave_timer.stop()" in metric_method
     assert "if not self._lucygoosey:" in metric_method
     assert "if not had_pending_metric_save and not self._lucygoosey:" not in metric_method
-    assert metric_method.index("if not self._lucygoosey:") < metric_method.index("self.on_update_chart(show_dialog=False, recalculate_chart=False)")
+    assert metric_method.index("if not self._lucygoosey:") < metric_method.index("subjective_notes_autosave=True")
 
 
 def test_lucygoosey_timed_autosaves_are_update_only_for_saved_charts():
@@ -83,15 +82,26 @@ def test_chart_save_signature_remains_void_for_existing_callers():
 def test_retcon_toggle_marks_dirty_before_deferred_autosave():
     method = _method_source("_on_retcon_time_toggled")
     assert "self._mark_lucygoosey()" in method
-    assert "self._metadata_autosave_timer.start(2000)" in method
+    assert "self._metadata_autosave_timer.start(2500)" in method
     assert "self._autosave_checkbox_state()" not in method
-    assert method.index("self._mark_lucygoosey()") < method.index("self._metadata_autosave_timer.start(2000)")
+    assert method.index("self._mark_lucygoosey()") < method.index("self._metadata_autosave_timer.start(2500)")
+
+
+def test_subjective_checkbox_autosaves_use_batched_subjective_timer():
+    sentiment_method = _method_source("_on_sentiment_toggled")
+    relationship_method = _method_source("_on_relationship_type_toggled")
+    queue_method = _method_source("_queue_subjective_notes_autosave")
+    assert "self._metadata_autosave_timer.start(2000)" not in sentiment_method
+    assert "self._metadata_autosave_timer.start(2000)" not in relationship_method
+    assert "self._queue_subjective_notes_autosave()" in sentiment_method
+    assert "self._queue_subjective_notes_autosave()" in relationship_method
+    assert "self._sentiment_metrics_autosave_timer.start(2000)" in queue_method
 
 
 def test_retcon_time_edits_defer_autosave_so_leave_prompt_can_win():
     method = _method_source("_on_retcon_time_changed")
     assert "self._mark_lucygoosey()" in method
-    assert "self._metadata_autosave_timer.start(2000)" in method
+    assert "self._metadata_autosave_timer.start(2500)" in method
     assert "self._autosave_checkbox_state()" not in method
 
 

@@ -638,8 +638,10 @@ def _install_expand_autoscroll(owner: object) -> None:
         content_widget = scroll_area.widget()
         if content_widget is None:
             continue
-        for toggle in content_widget.findChildren(QAbstractButton):
+        for toggle in content_widget.findChildren(QToolButton):
             if not toggle.isCheckable():
+                continue
+            if not bool(toggle.property("collapsible_header_autoscroll_installed")):
                 continue
             toggle.toggled.connect(
                 lambda checked, current_toggle=toggle: (
@@ -1286,7 +1288,7 @@ def schedule_chart_render_for_active_right_panel(owner: object) -> None:
             "Use Calculate/Recalculate only when you want to refresh them.",
         )
         return
-    if active_panel in {"subjective_notes", "abc"} and owner._is_chart_analysis_section_visible("anagrams"):
+    if active_panel == "abc" and owner._is_chart_analysis_section_visible("anagrams"):
         owner._schedule_chart_render(chart, sections={"anagrams"})
 
 
