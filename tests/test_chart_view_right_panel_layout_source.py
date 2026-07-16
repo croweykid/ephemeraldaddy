@@ -364,6 +364,21 @@ def test_traits_predictions_default_to_manual_recalculation_with_cached_stale_di
     assert '"rectification_range_used": bool(getattr(chart, "rectification_range_used", False))' in source
 
 
+def test_predictions_panel_rerenders_traits_for_each_chart_even_when_content_exists():
+    source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/cv_right_panel_stack.py").read_text()
+    predictions_branch = source.split('if active_panel == "predictions":', 1)[1].split('if active_panel in {"subjective_notes", "abc"}', 1)[0]
+
+    assert 'traits_render_token = str(getattr(owner, "_traits_prediction_last_render_chart_token", "") or "")' in predictions_branch
+    assert 'traits_ready_for_chart = traits_ready and traits_render_token == render_token' in predictions_branch
+    assert 'and traits_ready_for_chart' in predictions_branch
+    assert 'and traits_ready\n' not in predictions_branch
+    assert 'render_traits = getattr(owner, "_render_traits_predictions", None)' in predictions_branch
+    assert 'if callable(render_traits):\n            render_traits(chart)' in predictions_branch
+    assert 'setattr(owner, "_traits_prediction_last_render_chart_token", render_token)' in predictions_branch
+    assert 'if callable(render_traits) and not traits_ready' not in predictions_branch
+    assert predictions_branch.index('render_traits(chart)') < predictions_branch.index('owner._render_enneagram_predictions(chart)')
+
+
 def test_prediction_calculate_prompts_expand_and_center_contents():
     for relative_path in (
         "ephemeraldaddy/gui/features/charts/dnd_predictions.py",

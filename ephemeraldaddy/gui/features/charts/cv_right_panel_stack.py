@@ -1263,16 +1263,19 @@ def schedule_chart_render_for_active_right_panel(owner: object) -> None:
     if active_panel == "predictions":
         render_token = _chart_right_panel_prediction_render_token(owner, chart)
         traits_ready = _traits_predictions_have_rendered_content(owner)
+        traits_render_token = str(getattr(owner, "_traits_prediction_last_render_chart_token", "") or "")
+        traits_ready_for_chart = traits_ready and traits_render_token == render_token
         if (
             state is not None
             and state.last_render_chart_token == render_token
             and _predictions_panel_has_rendered_content(owner)
-            and traits_ready
+            and traits_ready_for_chart
         ):
             return
         render_traits = getattr(owner, "_render_traits_predictions", None)
-        if callable(render_traits) and not traits_ready:
+        if callable(render_traits):
             render_traits(chart)
+            setattr(owner, "_traits_prediction_last_render_chart_token", render_token)
         owner._render_enneagram_predictions(chart)
         owner._render_dndification_predictions(chart)
         if state is not None:
