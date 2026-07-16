@@ -43,7 +43,7 @@ def test_retcon_time_change_marks_lucygoosey_before_autosave():
     method = _method_source("_on_retcon_time_changed", end="_update_time_input_visibility")
 
     mark_index = method.index("self._mark_lucygoosey()")
-    autosave_index = method.index("self._autosave_checkbox_state()")
+    autosave_index = method.index("self._metadata_autosave_timer.start(2500)")
     assert mark_index < autosave_index
     assert "should_refresh_retcon_preview" in method
     assert "self.retcon_time_checkbox.isChecked()" in method

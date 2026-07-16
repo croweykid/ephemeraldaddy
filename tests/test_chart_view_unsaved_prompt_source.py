@@ -120,6 +120,25 @@ def test_retcon_controls_do_not_have_duplicate_dirty_signal_connections():
     assert "self.retcon_time_edit.timeChanged.connect(self._on_retcon_time_changed)" in APP_SOURCE
 
 
+def test_subjective_autosave_defers_to_pending_recalculation_autosave():
+    method = _method_source("_flush_pending_sentiment_metrics_save")
+    recalc_guard = method.index("if self._metadata_autosave_requires_recalculation:")
+    subjective_save = method.index("subjective_notes_autosave=True")
+    assert recalc_guard < subjective_save
+    recalc_branch = method[recalc_guard:subjective_save]
+    assert "self._metadata_autosave_timer.isActive()" in recalc_branch
+    assert "self._metadata_autosave_timer.start(2500)" in recalc_branch
+    assert "return" in recalc_branch
+    assert "self._set_lucygoosey(False)" not in recalc_branch
+
+
+def test_subjective_autosave_still_saves_material_facts_sidecar():
+    method = _method_source("on_update_chart")
+    subjective_guard = method.index("if not subjective_notes_autosave:")
+    material_save = method.index("self._save_material_facts_for_chart(chart_id)")
+    previous_token = method.index("previous_recalculation_token =", material_save)
+    assert subjective_guard < material_save < previous_token
+
 def test_material_facts_load_preserves_outer_lucygoosey_suppression():
     method = _method_source("_load_material_facts_for_chart")
     assert "previous_suppress_lucygoosey = self._suppress_lucygoosey" in method

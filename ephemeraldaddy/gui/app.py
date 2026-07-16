@@ -32655,6 +32655,10 @@ class MainWindow(QMainWindow):
         if self._leaving_chart_view_prompt_open:
             self._sentiment_metrics_autosave_timer.start(2000)
             return
+        if self._metadata_autosave_requires_recalculation:
+            if not self._metadata_autosave_timer.isActive():
+                self._metadata_autosave_timer.start(2500)
+            return
         self.on_update_chart(
             show_dialog=False,
             recalculate_chart=False,
@@ -34486,7 +34490,7 @@ class MainWindow(QMainWindow):
                         migrated_count,
                         chart_id,
                     )
-            self._save_material_facts_for_chart(chart_id)
+        self._save_material_facts_for_chart(chart_id)
         previous_recalculation_token = (
             self._chart_analytics_cache_token(self._latest_chart)
             if (
