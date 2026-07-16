@@ -32558,19 +32558,22 @@ class MainWindow(QMainWindow):
         self.on_update_chart(show_dialog=False, recalculate_chart=recalculate_chart)
         self._set_lucygoosey(False)
 
+    def _queue_subjective_notes_autosave(self) -> None:
+        """Debounce Subjective Notes writes through one lightweight save timer."""
+        if self._should_auto_update_sentiments():
+            self._sentiment_metrics_autosave_timer.start(2000)
+
     def _on_sentiment_toggled(self, checked: bool) -> None:
         if self._suppress_lucygoosey:
             return
         self._set_lucygoosey(True)
-        if self._should_auto_update_sentiments():
-            self._metadata_autosave_timer.start(2000)
+        self._queue_subjective_notes_autosave()
 
     def _on_relationship_type_toggled(self, checked: bool) -> None:
         if self._suppress_lucygoosey:
             return
         self._set_lucygoosey(True)
-        if self._should_auto_update_sentiments():
-            self._metadata_autosave_timer.start(2000)
+        self._queue_subjective_notes_autosave()
 
     def _flush_pending_metadata_save(self) -> None:
         had_pending_metadata_save = self._metadata_autosave_timer.isActive()
@@ -32600,9 +32603,7 @@ class MainWindow(QMainWindow):
         if self._suppress_lucygoosey:
             return
         self._set_lucygoosey(True)
-        if not self._should_auto_update_sentiments():
-            return
-        self._sentiment_metrics_autosave_timer.start(2000)
+        self._queue_subjective_notes_autosave()
 
     def _update_alignment_score_label(self, value: int) -> None:
         if getattr(self, "_alignment_score_assigned", False):
@@ -32654,7 +32655,15 @@ class MainWindow(QMainWindow):
         if self._leaving_chart_view_prompt_open:
             self._sentiment_metrics_autosave_timer.start(2000)
             return
-        self.on_update_chart(show_dialog=False, recalculate_chart=False)
+        if self._metadata_autosave_requires_recalculation:
+            if not self._metadata_autosave_timer.isActive():
+                self._metadata_autosave_timer.start(2500)
+            return
+        self.on_update_chart(
+            show_dialog=False,
+            recalculate_chart=False,
+            subjective_notes_autosave=True,
+        )
         self._set_lucygoosey(False)
 
     def _clear_event_metadata_fields(self) -> None:
@@ -34241,7 +34250,13 @@ class MainWindow(QMainWindow):
         )
 
 
-    def on_update_chart(self, show_dialog: bool = True, recalculate_chart: bool = True):
+    def on_update_chart(
+        self,
+        show_dialog: bool = True,
+        recalculate_chart: bool = True,
+        *,
+        subjective_notes_autosave: bool = False,
+    ):
         chart_id = self.current_chart_id
         is_placeholder = self.placeholder_chart_checkbox.isChecked()
         chart = None
@@ -34408,7 +34423,7 @@ class MainWindow(QMainWindow):
                 chart.relationship_types = relationship_types
                 self._set_relationship_type_selection(relationship_types)
 
-        if not is_placeholder:
+        if not is_placeholder and not subjective_notes_autosave:
             try:
                 self._cache_enneagram_prediction_metadata(chart)
             except Exception:
@@ -34459,21 +34474,22 @@ class MainWindow(QMainWindow):
             self._invalidate_chart_view_navigation_cache({chart_id})
 
         self.current_chart_id = chart_id
-        old_alternate_uid = get_alternate_chart_uid(chart_id)
-        new_alternate_uid = self._current_alternate_chart_uid_for_save(getattr(chart, "chart_type", None))
-        set_alternate_chart_uid(chart_id, new_alternate_uid)
-        chart.alternate_chart_uid = new_alternate_uid
-        if new_alternate_uid and new_alternate_uid != old_alternate_uid:
-            migrated_count = migrate_perceived_similarity_scores_to_alternate_chart(
-                source_chart_uid=new_alternate_uid,
-                hypothetical_chart_uid=getattr(chart, "chart_uid", None) or get_chart_uid_map([chart_id]).get(chart_id),
-            )
-            if migrated_count:
-                logger.info(
-                    "Migrated %s perceived similarity relationships to hypothetical chart %s.",
-                    migrated_count,
-                    chart_id,
+        if not subjective_notes_autosave:
+            old_alternate_uid = get_alternate_chart_uid(chart_id)
+            new_alternate_uid = self._current_alternate_chart_uid_for_save(getattr(chart, "chart_type", None))
+            set_alternate_chart_uid(chart_id, new_alternate_uid)
+            chart.alternate_chart_uid = new_alternate_uid
+            if new_alternate_uid and new_alternate_uid != old_alternate_uid:
+                migrated_count = migrate_perceived_similarity_scores_to_alternate_chart(
+                    source_chart_uid=new_alternate_uid,
+                    hypothetical_chart_uid=getattr(chart, "chart_uid", None) or get_chart_uid_map([chart_id]).get(chart_id),
                 )
+                if migrated_count:
+                    logger.info(
+                        "Migrated %s perceived similarity relationships to hypothetical chart %s.",
+                        migrated_count,
+                        chart_id,
+                    )
         self._save_material_facts_for_chart(chart_id)
         previous_recalculation_token = (
             self._chart_analytics_cache_token(self._latest_chart)
@@ -36038,10 +36054,8 @@ class MainWindow(QMainWindow):
             return
         active_panel = self._chart_right_panel_state.active_tab
         if active_panel == "subjective_notes":
-            if not self._is_chart_analysis_section_visible("anagrams"):
-                return
-            passive_sections = {"anagrams"}
-        elif active_panel == "analytics":
+            return
+        if active_panel == "analytics":
             passive_sections = {
                 "signs",
                 "planets",

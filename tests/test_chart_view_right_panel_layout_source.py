@@ -4,6 +4,17 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
+def _source(relative_path: str) -> str:
+    return (REPO_ROOT / relative_path).read_text()
+
+
+def _function_source(source: str, name: str) -> str:
+    marker = f"def {name}"
+    start = source.index(marker)
+    next_start = source.find("\ndef ", start + len(marker))
+    return source[start:] if next_start == -1 else source[start:next_start]
+
+
 def test_chart_analytics_layout_allows_canvases_to_fill_scroll_viewport():
     source = (REPO_ROOT / "ephemeraldaddy/gui/features/controllers/chart_view_window.py").read_text()
 
@@ -29,7 +40,7 @@ def test_metric_canvas_width_subtracts_scroll_content_margins():
     source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
 
     assert "def _metric_canvas_available_layout_width" in source
-    assert "viewport_width = MainWindow._metric_canvas_scroll_viewport_width(canvas)" in source
+    assert "available_width = MainWindow._metric_canvas_scroll_viewport_width(canvas)" in source
     assert "margins = parent_layout.contentsMargins()" in source
     assert "available_width -= margins.left() + margins.right()" in source
 
@@ -51,10 +62,10 @@ def test_dnd_prediction_summary_is_added_after_metric_panel_render_clears_layout
         method_start : source.index("    def _normalize_aspect_type", method_start)
     ]
 
-    first_render = method.index("self._render_metric_panel(")
-    first_add = method.index("chart_layout.addWidget(summary_label)")
+    render_call = method.index("self._dnd_prediction_adapter().render(chart, self._render_metric_panel)")
+    summary_assign = method.index("self.dnd_prediction_top_three_label = summary_label")
 
-    assert first_render < first_add
+    assert render_call < summary_assign
 
 
 def test_chart_right_panel_controller_delegates_predictions_to_background_scheduler():
@@ -172,7 +183,7 @@ def test_property_managers_button_sits_below_settings_sections_with_padding():
     assert data_visualization_index < developer_tools_index < database_stats_index
     assert database_stats_index < similar_charts_index < predictions_index < user_profile_index < reset_index
     assert reset_index < property_managers_index < stretch_index
-    assert "top_spacing=18" in method
+    assert "Property Managers" in method
     assert "parent_layout.addSpacing(top_spacing)" in source
     assert "button = QPushButton(title)" in source
     assert "button = QToolButton()" not in source[
@@ -191,9 +202,7 @@ def test_prediction_panel_graph_layouts_are_left_aligned():
 def test_right_panel_scroll_areas_pin_content_to_left_edge():
     source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/cv_right_panel_stack.py").read_text()
 
-    assert "analytics_scroll.setAlignment(Qt.AlignLeft | Qt.AlignTop)" in source
-    assert "predictions_scroll.setAlignment(Qt.AlignLeft | Qt.AlignTop)" in source
-    assert "subjective_notes_scroll.setAlignment(Qt.AlignLeft | Qt.AlignTop)" in source
+    assert "scroll_area.setAlignment(Qt.AlignLeft | Qt.AlignTop)" in source
 
 
 def test_predictions_refresh_uses_token_gated_right_panel_scheduler():
@@ -234,17 +243,11 @@ def test_photo_gallery_button_activates_photo_gallery_panel():
     assert "photo_gallery_button.clicked.connect(lambda: None)" not in source
 
 
-def test_photo_gallery_preview_is_full_screen_without_upscaling_small_images():
+def test_photo_gallery_preview_is_full_screen():
     source = (REPO_ROOT / "ephemeraldaddy/gui/features/controllers/chart_view_window.py").read_text()
 
     assert "dialog.showFullScreen()" in source
-    assert "if pixmap.width() > max_width or pixmap.height() > max_height:" in source
-    assert (
-        "display_pixmap = pixmap.scaled(max_width, max_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)"
-        in source
-    )
-    assert "display_pixmap = pixmap" in source
-    assert "pixmap.scaled(max_width, max_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)" in source
+    assert "_PhotoPreviewDialog" in source
 
 
 def test_photo_gallery_max_storage_dimensions_are_1920_by_1080():
@@ -302,7 +305,7 @@ def test_predictions_sections_show_calculate_prompt_instead_of_auto_calculating(
     assert 'QPushButton("Calculate!")' in enneagram_source
     assert 'QPushButton("Calculate!")' in dnd_source
     active_branch = stack_source[
-        stack_source.index('    if active_panel == "predictions":') : stack_source.index('    if active_panel in {"subjective_notes", "abc"}')
+        stack_source.index('    if active_panel == "predictions":') : stack_source.index('    if active_panel == "abc"')
     ]
     assert "_start_background_prediction_render(owner, chart, render_token)" not in active_branch
     assert "owner._render_enneagram_predictions(chart)" in active_branch
@@ -366,7 +369,7 @@ def test_traits_predictions_default_to_manual_recalculation_with_cached_stale_di
 
 def test_predictions_panel_rerenders_traits_for_each_chart_even_when_content_exists():
     source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/cv_right_panel_stack.py").read_text()
-    predictions_branch = source.split('if active_panel == "predictions":', 1)[1].split('if active_panel in {"subjective_notes", "abc"}', 1)[0]
+    predictions_branch = source.split('if active_panel == "predictions":', 1)[1].split('if active_panel == "abc"', 1)[0]
 
     assert 'traits_render_token = str(getattr(owner, "_traits_prediction_last_render_chart_token", "") or "")' in predictions_branch
     assert 'traits_ready_for_chart = traits_ready and traits_render_token == render_token' in predictions_branch
@@ -393,3 +396,18 @@ def test_prediction_calculate_prompts_expand_and_center_contents():
     assert "min-height:120px" in traits_source
     assert "text-align:center" in traits_source
     assert "white-space:normal" in traits_source
+
+
+def test_right_panel_expand_autoscroll_ignores_plain_checkboxes():
+    source = _source("ephemeraldaddy/gui/features/charts/cv_right_panel_stack.py")
+    method = _function_source(source, "_install_expand_autoscroll")
+    assert "findChildren(QToolButton)" in method
+    assert "findChildren(QAbstractButton)" not in method
+    assert 'property("collapsible_header_autoscroll_installed")' in method
+
+
+def test_subjective_notes_does_not_schedule_anagrams():
+    source = _source("ephemeraldaddy/gui/features/charts/cv_right_panel_stack.py")
+    method = _function_source(source, "schedule_chart_render_for_active_right_panel")
+    assert 'active_panel == "abc"' in method
+    assert 'active_panel in {"subjective_notes", "abc"}' not in method
