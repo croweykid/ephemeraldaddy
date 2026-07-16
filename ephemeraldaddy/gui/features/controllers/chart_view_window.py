@@ -1607,8 +1607,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
 
     owner.traits_prediction_table = QTableView()
     owner.traits_prediction_table.setVisible(False)
-    owner.traits_prediction_table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
-    owner.traits_prediction_table.setMinimumHeight(160)
+    owner.traits_prediction_table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
     configure_traits_prediction_table(owner, owner.traits_prediction_table)
     traits_section_layout.addWidget(owner.traits_prediction_table)
 

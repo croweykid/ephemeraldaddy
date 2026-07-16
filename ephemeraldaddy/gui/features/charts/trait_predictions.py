@@ -223,6 +223,8 @@ def configure_traits_prediction_table(owner: Any, table: QTableView) -> None:
     table.setSelectionBehavior(QTableView.SelectRows)
     table.setSelectionMode(QTableView.SingleSelection)
     table.setAlternatingRowColors(True)
+    table.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+    table.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
     table.verticalHeader().setVisible(False)
     table.horizontalHeader().setStretchLastSection(False)
     table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
@@ -270,7 +272,21 @@ def _refresh_traits_prediction_filter(owner: Any) -> None:
         proxy.sort(2, Qt.AscendingOrder if mode == "below" else Qt.DescendingOrder)
     table = getattr(owner, "traits_prediction_table", None)
     if isinstance(table, QTableView):
-        table.resizeRowsToContents()
+        _resize_traits_prediction_table_to_contents(table)
+
+
+def _resize_traits_prediction_table_to_contents(table: QTableView) -> None:
+    """Resize the Traits table to its generated row height so it never scrolls internally."""
+    table.resizeRowsToContents()
+    model = table.model()
+    row_count = model.rowCount() if model is not None else 0
+    header_height = table.horizontalHeader().height() if table.horizontalHeader() is not None else 0
+    rows_height = sum(table.rowHeight(row) for row in range(row_count))
+    frame_height = table.frameWidth() * 2
+    content_height = header_height + rows_height + frame_height + 2
+    table.setMinimumHeight(content_height)
+    table.setMaximumHeight(content_height)
+    table.updateGeometry()
 
 TRAIT_DB_NORMS_CACHE_VERSION = 1
 TRAIT_DB_NORMS_CACHE_PATH = db.DB_DIR / DATABASE_NORMS_CACHE_FILENAME
@@ -1786,6 +1802,7 @@ def _set_traits_prediction_rows(owner: Any, rows: list[dict[str, Any]]) -> None:
     table = getattr(owner, "traits_prediction_table", None)
     if isinstance(table, QTableView):
         table.setVisible(bool(rows))
+        _resize_traits_prediction_table_to_contents(table)
     _refresh_traits_prediction_filter(owner)
 
 
