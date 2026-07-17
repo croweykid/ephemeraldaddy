@@ -988,9 +988,9 @@ def _dnd_alignment_norms_token(owner: Any) -> str:
         except Exception:
             snapshot_averages = {}
         requested_names = [
-            str(trait.get("name", "") or "").strip()
+            trait_name
             for trait in trait_items
-            if str(trait.get("name", "") or "").strip()
+            if (trait_name := _dnd_alignment_trait_name(trait))
         ]
         if requested_names and isinstance(snapshot_averages, dict) and all(name in snapshot_averages for name in requested_names):
             return "dnd_alignment_norms:snapshot:" + _cache_key_fingerprint(
@@ -1701,6 +1701,15 @@ class DndPredictionPanelAdapter:
             and isinstance(payload.get("classes"), list)
         )
 
+    def _species_class_cache_is_stale(self, chart: Any) -> bool:
+        """Return whether cached D&D Species/Class summaries need recalculation."""
+        cached = self._restore_species_class_cache(chart)
+        if not isinstance(cached, dict):
+            return False
+        current_key = self._chart_state_cache_token(chart)
+        cached_key = cached.get("key")
+        return bool(cached_key and cached_key != current_key)
+
     def _restore_species_class_cache(self, chart: Any) -> dict[str, Any] | None:
         cached = getattr(chart, "_dnd_species_class_prediction_cache", None)
         if self._is_current_species_class_cache(chart, cached):
@@ -1989,6 +1998,27 @@ class DndPredictionPanelAdapter:
     def cache_alignment_metadata(self, chart: Any) -> dict[str, float]:
         return dnd_alignment_deviations(self.owner or self, chart, allow_stale=False)
 
+    def caches_are_stale(self, chart: Any) -> bool:
+        """Return whether any persisted D&D Predictions cache is stale."""
+        norm_charts = self._norm_charts()
+        if self._species_class_cache_is_stale(chart):
+            return True
+        if self._statblock_cache_is_stale(chart, norm_charts):
+            return True
+        alignment_cache = getattr(chart, "_dnd_alignment_score_parts_cache", None)
+        if not _cache_payload_chart_uid_matches(chart, alignment_cache, require_uid=True):
+            alignment_cache = _load_persisted_dnd_prediction_payload(chart).get("alignment")
+        if isinstance(alignment_cache, dict):
+            cached_alignment_chart_token = _cache_key_chart_token(alignment_cache.get("key"))
+            current_alignment_chart_token = _cache_key_chart_token(
+                _dnd_alignment_cache_key(self.owner or self, chart)
+            )
+            return bool(
+                cached_alignment_chart_token is not None
+                and cached_alignment_chart_token != current_alignment_chart_token
+            )
+        return False
+
     def _remove_stale_recalculate_notices(self, layout: Any) -> None:
         if layout is None:
             return
@@ -1999,6 +2029,13 @@ class DndPredictionPanelAdapter:
                 layout.takeAt(index)
                 widget.setParent(None)
                 widget.deleteLater()
+
+    def _remove_species_class_recalculate_notices(self) -> None:
+        for layout_attr in (
+            "dnd_prediction_species_section_layout",
+            "dnd_prediction_class_section_layout",
+        ):
+            self._remove_stale_recalculate_notices(getattr(self.owner, layout_attr, None))
 
     def _manual_recalculation_only(self) -> bool:
         return bool(getattr(self.owner, "_predictions_manual_recalculation_only", True))
@@ -2032,11 +2069,26 @@ class DndPredictionPanelAdapter:
         except Exception:
             layout.addWidget(panel)
 
+    def _show_species_class_stale_recalculate_notices(self, chart: Any, *, refreshing: bool = False) -> None:
+        """Show explicit recalc controls for stale D&D Species and Class summaries."""
+        targets = (
+            ("dnd_prediction_species_section_layout", "dnd_species"),
+            ("dnd_prediction_class_section_layout", "dnd_class"),
+        )
+        for layout_attr, section in targets:
+            self._show_stale_recalculate_notice(
+                getattr(self.owner, layout_attr, None),
+                chart,
+                section,
+                refreshing=refreshing,
+            )
+
     def render(self, chart: Any | None, metric_panel_renderer: Callable[..., Any]) -> Any:
         if self.chart_layout is None:
             return self.summary_label
         self._remove_stale_recalculate_notices(self.chart_layout)
         self._remove_stale_recalculate_notices(self.alignment_layout)
+        self._remove_species_class_recalculate_notices()
         summary_label = self._ensure_summary_label()
         self._render_species_and_class_summaries(chart)
         if chart is None or self.is_placeholder_chart(chart):
@@ -2063,6 +2115,13 @@ class DndPredictionPanelAdapter:
 
         statblock_cache = self._restore_statblock_cache(chart)
         auto_refresh_started = False
+        species_class_stale = self._species_class_cache_is_stale(chart)
+        if species_class_stale:
+            manual_only = self._manual_recalculation_only()
+            self._show_species_class_stale_recalculate_notices(chart, refreshing=not manual_only)
+            if not manual_only and callable(self.calculate_callback):
+                auto_refresh_started = True
+                self.calculate_callback(chart, "dnd_species_class")
         if isinstance(statblock_cache, dict):
             norm_charts = self._norm_charts()
             statblock_stale = self._statblock_cache_is_stale(chart, norm_charts)

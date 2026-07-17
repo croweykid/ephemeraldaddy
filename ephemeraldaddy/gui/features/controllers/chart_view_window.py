@@ -1697,6 +1697,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     owner.dnd_prediction_species_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
     owner.dnd_prediction_species_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
     dnd_species_section_layout.addWidget(owner.dnd_prediction_species_label)
+    owner.dnd_prediction_species_section_layout = dnd_species_section_layout
 
     dnd_class_section_layout = owner._add_chart_analysis_collapsible_section(
         panel=panel,
@@ -1713,6 +1714,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     owner.dnd_prediction_class_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
     owner.dnd_prediction_class_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
     dnd_class_section_layout.addWidget(owner.dnd_prediction_class_label)
+    owner.dnd_prediction_class_section_layout = dnd_class_section_layout
 
     dnd_alignment_section_layout = owner._add_chart_analysis_collapsible_section(
         panel=panel,
