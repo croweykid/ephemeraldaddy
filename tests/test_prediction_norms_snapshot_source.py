@@ -96,11 +96,12 @@ def test_rankings_panel_traits_prefer_shared_prediction_norm_snapshot():
     )[0]
     assert "trait_snapshot_averages(trait_items)" in method
     assert "requested_trait_names.issubset(set(snapshot_averages))" in method
+    assert "_rankings_trait_likelihood_cache_complete" in method
     assert method.index("trait_snapshot_averages(trait_items)") < method.index("_collect_traits_distribution_analytics")
-    snapshot_branch = method.split(
+    snapshot_fast_path = method.split(
         "if requested_trait_names and requested_trait_names.issubset(set(snapshot_averages)):", 1
-    )[1].split("else:", 1)[0]
-    assert "_collect_traits_distribution_analytics" not in snapshot_branch
+    )[1].split("if not database_values:", 1)[0]
+    assert "_collect_traits_distribution_analytics" not in snapshot_fast_path
 
 
 def test_restore_window_settings_refreshes_open_rankings_panel_after_widgets_exist():
@@ -109,3 +110,18 @@ def test_restore_window_settings_refreshes_open_rankings_panel_after_widgets_exi
     )[0]
     assert 'if self._left_panel_visible and self._active_left_panel == "rankings":' in restore_method
     assert "QTimer.singleShot(0, self._refresh_rankings_panel)" in restore_method
+
+
+def test_rankings_panel_falls_back_when_trait_likelihood_cache_is_incomplete():
+    ranking_panel_source = (ROOT / "ephemeraldaddy" / "gui" / "ranking_panel.py").read_text(encoding="utf-8")
+    helper = ranking_panel_source.split("def _rankings_trait_likelihood_cache_complete", 1)[1].split(
+        "def _refresh_rankings_panel", 1
+    )[0]
+    refresh_method = ranking_panel_source.split("def _refresh_rankings_panel", 1)[1].split(
+        "def _refresh_sign_dominance_rankings", 1
+    )[0]
+    assert "return False" in helper
+    assert "profile_cache_key in profile_cache" in helper
+    assert "if not self._rankings_trait_likelihood_cache_complete" in refresh_method
+    assert "database_values = {}" in refresh_method
+    assert "if not database_values:" in refresh_method

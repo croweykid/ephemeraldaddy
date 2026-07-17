@@ -191,6 +191,67 @@ class RankingsPanelMixin:
         finally:
             combo.blockSignals(False)
 
+    def _rankings_trait_likelihood_cache_complete(
+        self,
+        *,
+        chart_ids: set[int],
+        trait_signature: tuple[tuple[str, str, str], ...],
+        selected_trait_name: str,
+    ) -> bool:
+        """Return whether cached per-chart trait scores can rank the selected trait."""
+        if not selected_trait_name:
+            return False
+        selected_trait_key = next(
+            (trait_key for trait_key in trait_signature if trait_key[0] == selected_trait_name),
+            None,
+        )
+        if selected_trait_key is None:
+            return False
+
+        cache_revision = int(getattr(self, "_database_metrics_cache_revision", 0))
+        likelihood_cache = getattr(self, "_traits_distribution_chart_likelihood_cache", None)
+        individual_cache = getattr(self, "_traits_distribution_individual_likelihood_cache", None)
+        profile_cache = getattr(self, "_traits_distribution_individual_profile_likelihood_cache", None)
+        profile_token_cache = getattr(self, "_traits_distribution_individual_profile_token_cache", None)
+        if not (
+            isinstance(likelihood_cache, dict)
+            or isinstance(individual_cache, dict)
+            or isinstance(profile_cache, dict)
+        ):
+            return False
+
+        hidden_chart_ids = {int(chart_id) for chart_id in getattr(self, "_hidden_chart_ids", set())}
+        chart_tokens = self._traits_distribution_chart_tokens()
+        for chart_id in sorted({int(chart_id) for chart_id in chart_ids}):
+            if chart_id in hidden_chart_ids:
+                continue
+            chart = self._get_chart_for_filter(chart_id)
+            if chart is None or self._is_placeholder_chart(chart):
+                continue
+
+            chart_cache_key = (cache_revision, trait_signature, chart_id)
+            if isinstance(likelihood_cache, dict):
+                likelihoods = likelihood_cache.get(chart_cache_key)
+                if isinstance(likelihoods, dict) and selected_trait_name in likelihoods:
+                    continue
+
+            if isinstance(individual_cache, dict) and (selected_trait_key, chart_id) in individual_cache:
+                continue
+
+            if isinstance(profile_cache, dict) and isinstance(profile_token_cache, dict):
+                profile_cache_key = (selected_trait_key[2], chart_id)
+                cached_chart_token = str(profile_token_cache.get(profile_cache_key, "") or "")
+                current_chart_token = chart_tokens.get(chart_id)
+                if (
+                    cached_chart_token
+                    and cached_chart_token == current_chart_token
+                    and profile_cache_key in profile_cache
+                ):
+                    continue
+
+            return False
+        return True
+
     def _refresh_rankings_panel(self) -> None:
         if not hasattr(self, "rankings_traits_label"):
             return
@@ -217,7 +278,14 @@ class RankingsPanelMixin:
                 parsed_percent = 100.0
                 if not isinstance(getattr(self, "_traits_distribution_chart_likelihood_cache", None), dict):
                     self._load_traits_distribution_likelihood_cache()
-            else:
+                if not self._rankings_trait_likelihood_cache_complete(
+                    chart_ids=database_chart_ids,
+                    trait_signature=trait_signature,
+                    selected_trait_name=selected_trait_name,
+                ):
+                    database_values = {}
+                    cache_warmed = False
+            if not database_values:
                 database_analytics = self._collect_traits_distribution_analytics(
                     database_chart_ids,
                     trait_items=trait_items,
