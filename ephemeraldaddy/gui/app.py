@@ -27431,9 +27431,11 @@ class MainWindow(QMainWindow):
                 f"{rank}."
                 "</span>"
             )
+            chart_uid = str(getattr(match, "chart_uid", "") or "").strip() or str(get_chart_uid(int(match.chart_id)) or "").strip()
+            chart_identity_label = chart_uid or "UID unavailable"
             match_blocks.append(
                 (
-                    f'{rank_label} #{match.chart_id} — <a href="{match.chart_id}">{display_name}</a> '
+                    f'{rank_label} {chart_identity_label} — <a href="{match.chart_id}">{display_name}</a> '
                     f'<a href="{make_similar_info_target(info_link_prefix="sim-info:panel", chart_id=int(match.chart_id))}">ⓘ</a>'
                     f'{display_note}<br>'
                     f'Similarity <span style="color: {band_color}; font-weight: 600;">'
@@ -27445,7 +27447,8 @@ class MainWindow(QMainWindow):
             self._similar_charts_export_rows.append(
                 {
                     "rank": rank,
-                    "chart_id": match.chart_id,
+                    "chart_id": match.chart_id,  # LEGACY export resolver only; Chart View exports display chart_uid.
+                    "chart_uid": chart_uid,
                     "chart_name": match.chart_name,
                     "similarity_percent": round(similarity_percent, 1),
                     "similarity_band": band_label,

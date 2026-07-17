@@ -831,7 +831,7 @@ def build_similar_charts_export_lines(
             z_score = row.get("similarity_z_score")
             z_score_text = "" if z_score is None else f"{float(z_score):+.3f}"
             lines.append(
-                f"| {row['rank']} | {row.get('chart_uid') or row['chart_id']} | {row['chart_name']} | "
+                f"| {row['rank']} | {row.get('chart_uid', '')} | {row['chart_name']} | "
                 f"{row['similarity_percent']:.1f}% | {row.get('similarity_band', '')} | "
                 f"{z_score_text} | {row.get('component_summary', '')} |"
             )
@@ -843,7 +843,7 @@ def build_similar_charts_export_lines(
         z_score = row.get("similarity_z_score")
         z_score_text = "" if z_score is None else f"; z={float(z_score):+.3f}"
         lines.append(
-            f"{row['rank']}. {row.get('chart_uid') or row['chart_id']} — {row['chart_name']}: "
+            f"{row['rank']}. {row.get('chart_uid', '')} — {row['chart_name']}: "
             f"Similarity {row['similarity_percent']:.1f}% "
             f"[{row.get('similarity_band', 'unclassified')}{z_score_text}] "
             f"({row.get('component_summary', 'no enabled criteria')})"
