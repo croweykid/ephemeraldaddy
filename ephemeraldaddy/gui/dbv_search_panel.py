@@ -611,6 +611,73 @@ if TYPE_CHECKING:
     from PyQt5.QtWidgets import QWidget
 
 
+def build_dbv_search_bar_row(window) -> "QWidget":
+    """Build the always-visible Database View search bars for the middle panel."""
+    from ephemeraldaddy.gui import app as app_module
+
+    QWidget = app_module.QWidget
+    QHBoxLayout = app_module.QHBoxLayout
+    QVBoxLayout = app_module.QVBoxLayout
+    QLineEdit = app_module.QLineEdit
+    QPushButton = app_module.QPushButton
+    QLabel = app_module.QLabel
+    Qt = app_module.Qt
+    QuadStateSlider = app_module.QuadStateSlider
+
+    row_widget = QWidget()
+    row_layout = QHBoxLayout()
+    row_layout.setContentsMargins(0, 0, 0, 0)
+    row_layout.setSpacing(8)
+    row_widget.setLayout(row_layout)
+
+    window.search_text_input = QLineEdit()
+    window.search_text_input.setPlaceholderText("Search names or birthplaces")
+    window.search_text_input.textChanged.connect(window._on_filter_changed)
+    window.search_text_input.returnPressed.connect(window._on_filter_changed)
+    window.search_text_input.installEventFilter(window)
+    row_layout.addWidget(window.search_text_input, 2)
+
+    astrotheme_cell = QWidget()
+    astrotheme_row = QHBoxLayout()
+    astrotheme_row.setContentsMargins(0, 0, 0, 0)
+    astrotheme_row.setSpacing(4)
+    astrotheme_cell.setLayout(astrotheme_row)
+    window.astrotheme_search_input = QLineEdit()
+    window.astrotheme_search_input.setPlaceholderText("Search Astrotheme.com/Wikipedia")
+    window.astrotheme_search_input.returnPressed.connect(
+        window._on_import_astrotheme_from_search_panel
+    )
+    window.astrotheme_search_input.installEventFilter(window)
+    astrotheme_row.addWidget(window.astrotheme_search_input, 1)
+    astrotheme_import_button = QPushButton("Import")
+    astrotheme_import_button.clicked.connect(
+        window._on_import_astrotheme_from_search_panel
+    )
+    astrotheme_row.addWidget(astrotheme_import_button)
+    row_layout.addWidget(astrotheme_cell, 2)
+
+    tag_cell = QWidget()
+    tag_layout = QVBoxLayout()
+    tag_layout.setContentsMargins(0, 0, 0, 0)
+    tag_layout.setSpacing(2)
+    tag_cell.setLayout(tag_layout)
+    window.search_tags_input = QLineEdit()
+    window.search_tags_input.setPlaceholderText("Search by tag")
+    window.search_tags_input.textChanged.connect(window._on_search_tags_changed)
+    window.search_tags_input.returnPressed.connect(window._on_filter_changed)
+    tag_layout.addWidget(window.search_tags_input)
+    window.search_tags_preview_label = QLabel()
+    window.search_tags_preview_label.setWordWrap(True)
+    window.search_tags_preview_label.setTextFormat(Qt.RichText)
+    tag_layout.addWidget(window.search_tags_preview_label)
+    row_layout.addWidget(tag_cell, 2)
+
+    window.search_untagged_checkbox = QuadStateSlider("untagged")
+    window.search_untagged_checkbox.modeChanged.connect(window._on_filter_changed)
+
+    return row_widget
+
+
 def build_dbv_search_panel(window) -> "QWidget":
     """Build the Database View search panel while mutating ``window`` state."""
     from ephemeraldaddy.gui import app as app_module
@@ -702,52 +769,9 @@ def build_dbv_search_panel(window) -> "QWidget":
     def compact_nakshatra_label(label: str) -> str:
         return abbreviate_nakshatra_label(str(label))
 
-    search_title = QLabel("Database search")
+    search_title = QLabel("Search filters")
     search_title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
     layout.addWidget(search_title)
-
-    window.search_text_input = QLineEdit()
-    window.search_text_input.setPlaceholderText(
-        "Search names or birthplaces"
-    )
-    window.search_text_input.textChanged.connect(window._on_filter_changed)
-    window.search_text_input.returnPressed.connect(window._on_filter_changed)
-    window.search_text_input.installEventFilter(window)
-    layout.addWidget(window.search_text_input)
-
-    astrotheme_row = QHBoxLayout()
-    window.astrotheme_search_input = QLineEdit()
-    window.astrotheme_search_input.setPlaceholderText(
-        "Search Astrotheme.com's public 📚"
-    )
-    window.astrotheme_search_input.returnPressed.connect(
-        window._on_import_astrotheme_from_search_panel
-    )
-    window.astrotheme_search_input.installEventFilter(window)
-    astrotheme_row.addWidget(window.astrotheme_search_input, 1)
-    astrotheme_import_button = QPushButton("Import")
-    astrotheme_import_button.clicked.connect(
-        window._on_import_astrotheme_from_search_panel
-    )
-    astrotheme_row.addWidget(astrotheme_import_button)
-    layout.addLayout(astrotheme_row)
-
-    tags_search_row = QVBoxLayout()
-    tags_search_row.setContentsMargins(0, 0, 0, 0)
-    tags_search_row.setSpacing(4)
-    window.search_tags_input = QLineEdit()
-    window.search_tags_input.setPlaceholderText(
-        "Search by tag"
-    )
-    window.search_tags_input.textChanged.connect(window._on_search_tags_changed)
-    window.search_tags_input.returnPressed.connect(window._on_filter_changed)
-    tags_search_row.addWidget(window.search_tags_input)
-    window.search_tags_preview_label = QLabel()
-    window.search_tags_preview_label.setWordWrap(True)
-    window.search_tags_preview_label.setTextFormat(Qt.RichText)
-    tags_search_row.addWidget(window.search_tags_preview_label)
-    window.search_untagged_checkbox = QuadStateSlider("untagged")
-    window.search_untagged_checkbox.modeChanged.connect(window._on_filter_changed)
 
     window.search_tags_toggle = QToolButton()
     configure_collapsible_header_toggle(
@@ -756,7 +780,7 @@ def build_dbv_search_panel(window) -> "QWidget":
         expanded=False,
         style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
     )
-    tags_search_row.addWidget(window.search_tags_toggle)
+    layout.addWidget(window.search_tags_toggle)
 
     window.search_tags_list_widget = QTreeWidget()
     window.search_tags_list_widget.setHeaderHidden(True)
@@ -774,8 +798,7 @@ def build_dbv_search_panel(window) -> "QWidget":
             getattr(window, "_known_chart_tags", [])
         ) if expanded else None
     )
-    tags_search_row.addWidget(window.search_tags_list_widget)
-    layout.addLayout(tags_search_row)
+    layout.addWidget(window.search_tags_list_widget)
 
     divider = QFrame()
     divider.setFixedHeight(4)
