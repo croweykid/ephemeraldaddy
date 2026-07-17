@@ -13,7 +13,7 @@ from typing import Any
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
-from ephemeraldaddy.core.interpretations import ZODIAC_NAMES
+from ephemeraldaddy.core.interpretations import SIGN_COLORS, ZODIAC_NAMES, ZODIAC_SIGNS
 from ephemeraldaddy.core.db import get_chart_ids_by_uid, get_chart_uid_map, load_dominant_sign_weights
 from ephemeraldaddy.gui.features.settings.traits import list_traits
 from ephemeraldaddy.gui.features.charts.metrics import (
@@ -338,6 +338,7 @@ class RankingsPanelMixin:
         stored_weights = load_dominant_sign_weights(list(normalized_chart_ids))
         chart_uids_by_id = get_chart_uid_map(normalized_chart_ids)
         rows: list[dict[str, Any]] = []
+        sign_top_20_memberships: dict[str, list[str]] = {}
         hidden_chart_uids = {
             self._normalize_rankings_chart_uid(chart_uid)
             for chart_uid in getattr(self, "_hidden_chart_uids", set())
@@ -373,22 +374,59 @@ class RankingsPanelMixin:
                     "chart_uid": chart_uid,
                     "name": str(getattr(chart, "name", "") or f"Chart {chart_uid or chart_id}"),
                     "value": value,
+                    "weights": weights,
                 }
             )
         if not db_average and db_count:
             db_average = sum(float(row["value"]) for row in rows) / float(db_count)
         rows.sort(key=lambda row: (-float(row["value"]), str(row["name"]).casefold()))
+        sign_glyphs = dict(zip(ZODIAC_NAMES, ZODIAC_SIGNS, strict=False))
+        for sign in ZODIAC_NAMES:
+            sign_ranked_rows = sorted(
+                rows,
+                key=lambda row, sign=sign: (
+                    -float((row.get("weights") or {}).get(sign, 0.0) or 0.0),
+                    str(row["name"]).casefold(),
+                ),
+            )
+            for row in sign_ranked_rows[:20]:
+                chart_key = str(row.get("chart_uid") or row.get("name") or "").strip()
+                if chart_key:
+                    sign_top_20_memberships.setdefault(chart_key, []).append(sign)
+
+        selected_top_20_keys = [
+            str(row.get("chart_uid") or row.get("name") or "").strip()
+            for row in rows[:20]
+        ]
+        shared_top_20_ranks = [
+            rank
+            for rank, chart_key in enumerate(selected_top_20_keys, start=1)
+            if len(sign_top_20_memberships.get(chart_key, ())) >= 2
+        ]
+        shared_top_20_count = len(shared_top_20_ranks)
+        deepest_shared_rank = max(shared_top_20_ranks, default=0)
+        display_limit = min(20, max(10 + shared_top_20_count, deepest_shared_rank))
+
         table_rows = []
-        for rank, row in enumerate(rows[:10], start=1):
+        for rank, row in enumerate(rows[:display_limit], start=1):
             chart_uid = html.escape(str(row.get("chart_uid", "") or ""))
+            chart_key = str(row.get("chart_uid") or row.get("name") or "").strip()
             name = html.escape(str(row["name"]))
+            glyph_html = ""
+            shared_signs = sign_top_20_memberships.get(chart_key, [])
+            if len(shared_signs) >= 2:
+                glyph_html = " " + "".join(
+                    f"<span style='color:{html.escape(str(SIGN_COLORS.get(sign, '#d8d8d8')))};'>{html.escape(sign_glyphs.get(sign, ''))}</span>"
+                    for sign in shared_signs
+                    if sign_glyphs.get(sign)
+                )
             value = float(row["value"]) * 100.0
             deviation = value - (db_average * 100.0)
             deviation_color = "#90ee90" if deviation >= 0 else "#ffb3b3"
             table_rows.append(
                 "<tr>"
                 f"<td style='padding:1px 8px 1px 0; color:#9a9a9a; text-align:right;'>{rank}</td>"
-                f"<td style='padding:1px 8px 1px 0;'><a href='chart:{chart_uid}' style='color:#f0f0f0; text-decoration:none;'>{name}</a></td>"
+                f"<td style='padding:1px 8px 1px 0;'><a href='chart:{chart_uid}' style='color:#f0f0f0; text-decoration:none;'>{name}{glyph_html}</a></td>"
                 f"<td style='padding:1px 8px 1px 0; color:#d8d8d8; text-align:right;'>{value:.1f}%</td>"
                 f"<td style='padding:1px 0; color:{deviation_color}; text-align:right;'>{deviation:+.1f}</td>"
                 "</tr>"
@@ -400,7 +438,7 @@ class RankingsPanelMixin:
             )
             return
         label.setText(
-            f"<div style='padding-bottom:3px;'>Top 10 charts by <b>{safe_sign}</b> dominance in the database.</div>"
+            f"<div style='padding-bottom:3px;'>Top {display_limit} charts by <b>{safe_sign}</b> dominance in the database.</div>"
             "<table cellspacing='0' cellpadding='0' style='width:100%;'>"
             "<tr><th style='padding:1px 8px 2px 0; color:#f5f5f5; text-align:right;'>#</th>"
             "<th style='padding:1px 8px 2px 0; color:#f5f5f5; text-align:left;'>chart</th>"
