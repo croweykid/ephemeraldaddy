@@ -630,12 +630,34 @@ def build_dbv_search_bar_row(window) -> "QWidget":
     row_layout.setSpacing(8)
     row_widget.setLayout(row_layout)
 
+    def _apply_search_input_style(
+        line_edit,
+        *,
+        background_color: str,
+        placeholder_color: str,
+        text_color: str | None = None,
+    ) -> None:
+        text_color_rule = f" color: {text_color};" if text_color else ""
+        line_edit.setStyleSheet(
+            f"QLineEdit {{ background-color: {background_color};{text_color_rule} }}"
+            f"QLineEdit::placeholder {{ color: {placeholder_color}; }}"
+        )
+
+    database_cell = QWidget()
+    database_row = QHBoxLayout()
+    database_row.setContentsMargins(0, 0, 0, 0)
+    database_row.setSpacing(4)
+    database_cell.setLayout(database_row)
     window.search_text_input = QLineEdit()
     window.search_text_input.setPlaceholderText("Search names or birthplaces")
     window.search_text_input.textChanged.connect(window._on_filter_changed)
     window.search_text_input.returnPressed.connect(window._on_filter_changed)
     window.search_text_input.installEventFilter(window)
-    row_layout.addWidget(window.search_text_input, 2, Qt.AlignTop)
+    database_row.addWidget(window.search_text_input, 1)
+    database_search_button = QPushButton("🔍")
+    database_search_button.clicked.connect(window._on_filter_changed)
+    database_row.addWidget(database_search_button)
+    row_layout.addWidget(database_cell, 2, Qt.AlignTop)
 
     astrotheme_cell = QWidget()
     astrotheme_row = QHBoxLayout()
@@ -644,12 +666,17 @@ def build_dbv_search_bar_row(window) -> "QWidget":
     astrotheme_cell.setLayout(astrotheme_row)
     window.astrotheme_search_input = QLineEdit()
     window.astrotheme_search_input.setPlaceholderText("Search Astrotheme.com/Wikipedia")
+    _apply_search_input_style(
+        window.astrotheme_search_input,
+        background_color="#5900b3",
+        placeholder_color="#8000ff",
+    )
     window.astrotheme_search_input.returnPressed.connect(
         window._on_import_astrotheme_from_search_panel
     )
     window.astrotheme_search_input.installEventFilter(window)
     astrotheme_row.addWidget(window.astrotheme_search_input, 1)
-    astrotheme_import_button = QPushButton("Import")
+    astrotheme_import_button = QPushButton("⬇️")
     astrotheme_import_button.clicked.connect(
         window._on_import_astrotheme_from_search_panel
     )
@@ -661,11 +688,24 @@ def build_dbv_search_bar_row(window) -> "QWidget":
     tag_layout.setContentsMargins(0, 0, 0, 0)
     tag_layout.setSpacing(2)
     tag_cell.setLayout(tag_layout)
+    tag_search_row = QHBoxLayout()
+    tag_search_row.setContentsMargins(0, 0, 0, 0)
+    tag_search_row.setSpacing(4)
     window.search_tags_input = QLineEdit()
     window.search_tags_input.setPlaceholderText("Search by tag")
+    _apply_search_input_style(
+        window.search_tags_input,
+        background_color="#e6b800",
+        placeholder_color="#b38f00",
+        text_color="#1f1f1f",
+    )
     window.search_tags_input.textChanged.connect(window._on_search_tags_changed)
     window.search_tags_input.returnPressed.connect(window._on_filter_changed)
-    tag_layout.addWidget(window.search_tags_input)
+    tag_search_row.addWidget(window.search_tags_input, 1)
+    tag_search_button = QPushButton("🔍")
+    tag_search_button.clicked.connect(window._on_filter_changed)
+    tag_search_row.addWidget(tag_search_button)
+    tag_layout.addLayout(tag_search_row)
     window.search_tags_preview_label = QLabel()
     window.search_tags_preview_label.setWordWrap(True)
     window.search_tags_preview_label.setTextFormat(Qt.RichText)
