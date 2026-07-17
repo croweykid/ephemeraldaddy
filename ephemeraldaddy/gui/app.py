@@ -28603,6 +28603,21 @@ class MainWindow(QMainWindow):
         if available_width is None:
             return None
 
+        # Clamp to the narrowest live ancestor width, including hidden stacked
+        # tabs whose scroll areas may temporarily report stale geometry during
+        # prediction redraws.  A canvas must never use its own cached width as
+        # proof that the right-hand panel is wider than the app frame.
+        ancestor = parent
+        while ancestor is not None:
+            ancestor_width = ancestor.width()
+            if ancestor_width > 0:
+                available_width = min(available_width, ancestor_width)
+            if isinstance(ancestor, QScrollArea):
+                viewport_width = ancestor.viewport().width()
+                if viewport_width > 0:
+                    available_width = min(available_width, viewport_width)
+            ancestor = ancestor.parentWidget()
+
         if parent is not None:
             parent_layout = parent.layout()
             if parent_layout is not None:
@@ -28713,6 +28728,16 @@ class MainWindow(QMainWindow):
                 lambda metric_canvas=canvas: self._schedule_metric_canvas_layout_refresh(metric_canvas),
             )
 
+    def _schedule_all_metric_canvas_layout_refreshes(self) -> None:
+        """Resize every registered right-panel metric canvas after layout churn."""
+        for canvas in list(self._metric_chart_titles):
+            try:
+                canvas.parentWidget()
+            except RuntimeError:
+                self._unregister_metric_chart(canvas)
+                continue
+            self._schedule_metric_canvas_layout_refresh(canvas)
+
     def _schedule_visible_metric_canvas_layout_refreshes(self) -> None:
         """Resize visible metric canvases without recalculating right-panel sections."""
         for canvas in list(self._metric_chart_titles):
@@ -28723,6 +28748,17 @@ class MainWindow(QMainWindow):
                 continue
             if is_visible:
                 self._schedule_metric_canvas_layout_refresh(canvas)
+
+    def _schedule_deferred_all_metric_canvas_layout_refreshes(
+        self,
+        delays_ms: tuple[int, ...] = (0, 50, 150, 300),
+    ) -> None:
+        """Re-check all metric canvas sizing after stacked-panel redraw churn."""
+        for delay_ms in delays_ms:
+            QTimer.singleShot(
+                max(0, int(delay_ms)),
+                self._schedule_all_metric_canvas_layout_refreshes,
+            )
 
     def _schedule_deferred_visible_metric_canvas_layout_refreshes(
         self,
@@ -31242,7 +31278,7 @@ class MainWindow(QMainWindow):
             if event.type() == QEvent.KeyPress:
                 return self._handle_metrics_keypress(event)
             if event.type() == QEvent.Resize:
-                self._schedule_visible_metric_canvas_layout_refreshes()
+                self._schedule_all_metric_canvas_layout_refreshes()
         metric_chart_titles = getattr(self, "_metric_chart_titles", {})
         if obj in metric_chart_titles:
             if event.type() == QEvent.Resize:

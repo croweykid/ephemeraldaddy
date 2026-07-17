@@ -15,9 +15,16 @@ def test_metric_canvas_width_clamps_to_live_ancestor_geometry():
     assert "if isinstance(ancestor, QScrollArea):" in method
 
 
-def test_prediction_finish_reschedules_visible_metric_canvas_refreshes():
+def test_prediction_finish_reschedules_all_metric_canvas_refreshes():
     method_start = RIGHT_PANEL_SOURCE.index("def _finish_background_prediction_render")
     method = RIGHT_PANEL_SOURCE[method_start : RIGHT_PANEL_SOURCE.index("def _retain_background_prediction_job", method_start)]
 
+    assert "_schedule_deferred_all_metric_canvas_layout_refreshes" in method
     assert "_schedule_deferred_visible_metric_canvas_layout_refreshes" in method
     assert "schedule_metric_refreshes((0, 25, 75, 150, 300, 600))" in method
+
+
+def test_metric_canvas_refresh_can_target_hidden_stacked_tabs():
+    assert "def _schedule_all_metric_canvas_layout_refreshes" in APP_SOURCE
+    assert "Resize every registered right-panel metric canvas" in APP_SOURCE
+    assert "self._schedule_all_metric_canvas_layout_refreshes()" in APP_SOURCE
