@@ -91,7 +91,10 @@ from ephemeraldaddy.analysis.dnd.dnd_stat_calculator import (
 )
 from ephemeraldaddy.core.interpretations import ASPECT_SCORE_WEIGHTS
 from ephemeraldaddy.gui.features.charts.trait_predictions import (
+    _database_norm_signature_from_state,
+    _database_norm_state,
     _database_trait_averages,
+    _trait_signature_payload,
     trait_likelihoods_with_distribution_cache,
 )
 from ephemeraldaddy.gui.style import (
@@ -940,6 +943,11 @@ def _dnd_alignment_trait_items() -> list[dict[str, Any]]:
     return items
 
 
+def _dnd_alignment_trait_name(trait: Mapping[str, Any]) -> str:
+    """Return a normalized D&D alignment trait label outside cache-key helpers."""
+    return str(trait.get("name", "")).strip()
+
+
 def _dnd_alignment_cache_key(owner: Any, chart: Any) -> tuple[str, str]:
     chart_uid = _chart_prediction_cache_uid(chart)
     chart_token = _cache_key_fingerprint({
@@ -960,12 +968,45 @@ def _dnd_alignment_cache_key(owner: Any, chart: Any) -> tuple[str, str]:
         "rectification_range_end_minute": getattr(chart, "rectification_range_end_minute", None),
         "chart_uses_houses": bool(default_chart_uses_houses(chart)),
     })
-    norms_token_fn = getattr(owner, "_prediction_norms_render_token", None)
+    return (chart_token, _dnd_alignment_norms_token(owner))
+
+
+def _dnd_alignment_norms_token(owner: Any) -> str:
+    """Return a cache token for only the D&D alignment baselines.
+
+    The generic Predictions norms token (``_prediction_norms_render_token``) also
+    includes user-created custom Trait baselines.  Using it here makes Alignment
+    caches go stale when the user adds
+    or edits unrelated Traits, even though Alignment only depends on the four
+    fixed D&D axes.
+    """
+    trait_items = _dnd_alignment_trait_items()
+    snapshot_provider = getattr(owner, "_prediction_norm_snapshot_trait_averages", None)
+    if callable(snapshot_provider):
+        try:
+            snapshot_averages = snapshot_provider(trait_items)
+        except Exception:
+            snapshot_averages = {}
+        requested_names = [
+            str(trait.get("name", "") or "").strip()
+            for trait in trait_items
+            if str(trait.get("name", "") or "").strip()
+        ]
+        if requested_names and isinstance(snapshot_averages, dict) and all(name in snapshot_averages for name in requested_names):
+            return "dnd_alignment_norms:snapshot:" + _cache_key_fingerprint(
+                {name: float(snapshot_averages[name]) for name in requested_names}
+            )
+
     try:
-        norms_token = str(norms_token_fn()) if callable(norms_token_fn) else "prediction_norms:unavailable"
+        live_norm_signature = _database_norm_signature_from_state(_database_norm_state(owner))
     except Exception:
-        norms_token = "prediction_norms:unavailable"
-    return (chart_token, norms_token)
+        live_norm_signature = "unavailable"
+    return "dnd_alignment_norms:live:" + _cache_key_fingerprint(
+        {
+            "norm_signature": live_norm_signature,
+            "alignment_trait_signature": _trait_signature_payload(trait_items, strip_uids=True),
+        }
+    )
 
 
 def _dnd_alignment_score_parts(owner: Any, chart: Any, *, allow_stale: bool = False) -> dict[str, dict[str, float]]:
@@ -1006,7 +1047,7 @@ def _dnd_alignment_score_parts(owner: Any, chart: Any, *, allow_stale: bool = Fa
         database_averages = {}
     parts: dict[str, dict[str, float]] = {}
     for trait in trait_items:
-        label = str(trait.get("name", "")).strip()
+        label = _dnd_alignment_trait_name(trait)
         key = label.casefold()
         if label not in likelihoods or label not in database_averages:
             continue
