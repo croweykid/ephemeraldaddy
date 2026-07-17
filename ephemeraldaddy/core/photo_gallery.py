@@ -63,8 +63,17 @@ def _resize_image(raw: bytes) -> tuple[bytes, str, int, int]:
         return output.getvalue(), "image/jpeg", int(image.width), int(image.height)
 
 
+def _profile_photo_exists(chart_uid: str, profile_pic: str | int | None) -> bool:
+    try:
+        photo_id = int(profile_pic) if profile_pic else None
+    except (TypeError, ValueError):
+        return False
+    return photo_id is not None and get_photo_data(photo_id, chart_uid) is not None
+
+
 def _insert_photo(chart_uid: str, raw: bytes, *, source: str, filename: str) -> int:
     existing_profile_pic = get_chart_profile_pic(chart_uid)
+    has_profile_pic = _profile_photo_exists(chart_uid, existing_profile_pic)
     data, mime_type, width, height = _resize_image(raw)
     with _connect() as conn:
         cursor = conn.execute(
@@ -76,7 +85,7 @@ def _insert_photo(chart_uid: str, raw: bytes, *, source: str, filename: str) -> 
         )
         conn.commit()
         photo_id = int(cursor.lastrowid)
-    if not existing_profile_pic:
+    if not has_profile_pic:
         set_chart_profile_pic(chart_uid, photo_id)
     return photo_id
 
@@ -135,9 +144,15 @@ def set_profile_photo(chart_uid: str | None, photo_id: int) -> bool:
 def get_profile_photo_id(chart_uid: str | None) -> int | None:
     value = get_chart_profile_pic(chart_uid)
     try:
-        return int(value) if value else None
+        photo_id = int(value) if value else None
     except (TypeError, ValueError):
         return None
+    if photo_id is None or not chart_uid:
+        return None
+    if get_photo_data(photo_id, chart_uid) is None:
+        set_chart_profile_pic(chart_uid, "")
+        return None
+    return photo_id
 
 
 def delete_photo(photo_id: int, chart_uid: str | None = None) -> bool:

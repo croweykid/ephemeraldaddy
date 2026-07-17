@@ -11,7 +11,8 @@ def test_photo_gallery_persists_profile_pic_metadata_and_defaults_first_upload()
     assert "def get_chart_profile_pic" in db_source
     assert "def set_chart_profile_pic" in db_source
     assert "existing_profile_pic = get_chart_profile_pic(chart_uid)" in gallery_source
-    assert "if not existing_profile_pic:" in gallery_source
+    assert "has_profile_pic = _profile_photo_exists(chart_uid, existing_profile_pic)" in gallery_source
+    assert "if not has_profile_pic:" in gallery_source
     assert "set_chart_profile_pic(chart_uid, photo_id)" in gallery_source
 
 

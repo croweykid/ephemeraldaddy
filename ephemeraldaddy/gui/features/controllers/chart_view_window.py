@@ -1771,6 +1771,13 @@ def _photo_gallery_grid_cell_size(owner: QWidget) -> int:
     return max(64, int((width - spacing - margins) / 3))
 
 
+
+def _sync_current_chart_profile_pic(owner: QWidget, chart_uid: str | None) -> None:
+    profile_photo_id = get_profile_photo_id(chart_uid)
+    current_chart = getattr(owner, "_latest_chart", None) or getattr(owner, "current_chart", None)
+    if current_chart is not None:
+        setattr(current_chart, "profile_pic", str(profile_photo_id or ""))
+
 def _refresh_photo_gallery_for_chart(owner: QWidget, chart_id: int | None = None) -> None:
     grid_layout = getattr(owner, "photo_gallery_grid_layout", None)
     empty_label = getattr(owner, "photo_gallery_empty_label", None)
@@ -1784,6 +1791,7 @@ def _refresh_photo_gallery_for_chart(owner: QWidget, chart_id: int | None = None
     chart_uid = chart_uid_for_chart_id(getattr(owner, "current_chart_id", None) if chart_id is None else chart_id)
     photos = list_photos(chart_uid)
     profile_photo_id = get_profile_photo_id(chart_uid)
+    _sync_current_chart_profile_pic(owner, chart_uid)
     if empty_label is not None:
         empty_label.setVisible(not photos)
     if not photos:
@@ -1881,9 +1889,6 @@ def _set_photo_gallery_profile_pic(owner: QWidget, photo_id: int) -> None:
     if not set_profile_photo(chart_uid, photo_id):
         QMessageBox.warning(owner, "Profile pic unavailable", "Could not assign that photo as this chart’s profile pic.")
         return
-    current_chart = getattr(owner, "_latest_chart", None) or getattr(owner, "current_chart", None)
-    if current_chart is not None:
-        setattr(current_chart, "profile_pic", str(photo_id))
     _refresh_photo_gallery_for_chart(owner)
 
 
