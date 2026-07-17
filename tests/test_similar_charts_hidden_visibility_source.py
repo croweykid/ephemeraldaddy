@@ -221,3 +221,17 @@ def test_hiding_current_trait_ranking_members_refreshes_cached_top_ten():
     assert "_refresh_rankings_after_hidden_chart_change" in hide_method
     assert 'getattr(self, "_active_left_panel", None) != "rankings"' in rankings_refresh_method
     assert "self._refresh_rankings_panel()" in rankings_refresh_method
+
+
+def test_sign_dominance_rankings_expand_for_cross_sign_top_20_memberships():
+    ranking_panel_source = _ranking_panel_source()
+    sign_method = ranking_panel_source.split("def _refresh_sign_dominance_rankings", 1)[1]
+
+    assert "SIGN_COLORS" in ranking_panel_source
+    assert "ZODIAC_SIGNS" in ranking_panel_source
+    assert "sign_top_20_memberships" in sign_method
+    assert "for row in sign_ranked_rows[:20]:" in sign_method
+    assert "rows[:20]" in sign_method
+    assert "display_limit = min(20, 10 + shared_top_20_count)" in sign_method
+    assert "rows[:display_limit]" in sign_method
+    assert "glyph_html" in sign_method
