@@ -2421,8 +2421,13 @@ def list_recognized_tags() -> list[str]:
                 deduped[key] = tag
     return sorted(deduped.values(), key=lambda value: value.casefold())
 
-def add_tag_to_charts(chart_ids: Iterable[int], tag_value: str) -> set[int]:
-    """Add one tag to many charts and return ids that actually changed."""
+def add_tag_to_charts(chart_ids: Iterable[int], tag_value: str) -> set[str]:
+    """Add one tag to many charts and return UIDs that actually changed.
+
+    ``chart_ids`` remains a legacy compatibility input while Database View
+    selection is still backed by local row ids.  Callers should treat the
+    returned stable chart UIDs as the durable identity for downstream work.
+    """
     normalized_tag = str(tag_value or "").strip()
     if not normalized_tag:
         return set()
@@ -2431,7 +2436,7 @@ def add_tag_to_charts(chart_ids: Iterable[int], tag_value: str) -> set[int]:
     if not normalized_ids:
         return set()
 
-    changed_ids: set[int] = set()
+    changed_uids: set[str] = set()
     normalized_key = normalized_tag.casefold()
 
     def _apply_for_ids(conn: sqlite3.Connection, target_ids: list[int]) -> None:
@@ -2439,29 +2444,33 @@ def add_tag_to_charts(chart_ids: Iterable[int], tag_value: str) -> set[int]:
             return
         placeholders = ", ".join("?" for _ in target_ids)
         rows = conn.execute(
-            f"SELECT id, tags FROM charts WHERE id IN ({placeholders})",
+            f"SELECT chart_uid, tags FROM charts WHERE id IN ({placeholders})",
             tuple(target_ids),
         ).fetchall()
-        for row_id, raw_tags in rows:
+        for chart_uid, raw_tags in rows:
+            normalized_uid = _normalize_chart_uid(chart_uid)
+            if normalized_uid is None:
+                continue
             existing_tags = parse_tags(raw_tags)
             if any(tag.casefold() == normalized_key for tag in existing_tags):
                 continue
             existing_tags.append(normalized_tag)
             conn.execute(
-                "UPDATE charts SET tags = ? WHERE id = ?",
-                (_serialize_tags(existing_tags), int(row_id)),
+                "UPDATE charts SET tags = ? WHERE chart_uid = ?",
+                (_serialize_tags(existing_tags), normalized_uid),
             )
-            changed_ids.add(int(row_id))
+            changed_uids.add(normalized_uid)
 
     sqlite_variable_limit = 900
     with _get_conn() as conn:
+        _ensure_chart_uids(conn)
         if len(normalized_ids) <= sqlite_variable_limit:
             _apply_for_ids(conn, normalized_ids)
-            return changed_ids
+            return changed_uids
 
         for start in range(0, len(normalized_ids), sqlite_variable_limit):
             _apply_for_ids(conn, normalized_ids[start:start + sqlite_variable_limit])
-    return changed_ids
+    return changed_uids
 
 def get_metadata_label_usage() -> dict[str, list[dict[str, int | str]]]:
     """Return sentiment, relationship, and tag labels with usage counts.
@@ -4519,7 +4528,12 @@ def get_chart_id_by_uid(chart_uid: str | None) -> int | None:
 
 
 def get_chart_ids_by_uid(chart_uids: Iterable[str | None]) -> dict[str, int]:
-    """Return local integer row ids keyed by normalized stable chart UID."""
+    """Return local integer row ids keyed by normalized stable chart UID.
+
+    UID lookups may be driven by large batch operations, so chunk the IN-query
+    parameters below SQLite's common bind-variable cap instead of issuing one
+    unbounded ``WHERE chart_uid IN (...)`` statement.
+    """
     normalized_uids = list(
         dict.fromkeys(
             normalized_uid
@@ -4529,16 +4543,24 @@ def get_chart_ids_by_uid(chart_uids: Iterable[str | None]) -> dict[str, int]:
     )
     if not normalized_uids:
         return {}
-    placeholders = ", ".join("?" for _ in normalized_uids)
+
+    sqlite_variable_limit = 900
+    resolved: dict[str, int] = {}
     conn = _get_conn()
     try:
         with conn:
             _ensure_chart_uids(conn)
-        rows = conn.execute(
-            f"SELECT chart_uid, id FROM charts WHERE chart_uid IN ({placeholders})",
-            tuple(normalized_uids),
-        ).fetchall()
-        return {str(chart_uid): int(chart_id) for chart_uid, chart_id in rows if chart_uid}
+        for start in range(0, len(normalized_uids), sqlite_variable_limit):
+            batch_uids = normalized_uids[start:start + sqlite_variable_limit]
+            placeholders = ", ".join("?" for _ in batch_uids)
+            rows = conn.execute(
+                f"SELECT chart_uid, id FROM charts WHERE chart_uid IN ({placeholders})",
+                tuple(batch_uids),
+            ).fetchall()
+            resolved.update(
+                {str(chart_uid): int(chart_id) for chart_uid, chart_id in rows if chart_uid}
+            )
+        return resolved
     finally:
         conn.close()
 

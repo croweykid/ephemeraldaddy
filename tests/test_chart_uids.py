@@ -536,3 +536,24 @@ def test_load_chart_rejects_derived_cache_when_lilith_mode_changes(tmp_path, mon
         assert stored_signature == true_signature
     finally:
         ephemeris.set_lilith_calculation_mode(previous_lilith_mode)
+
+
+def test_get_chart_ids_by_uid_chunks_large_uid_batches(tmp_path, monkeypatch):
+    db_path = tmp_path / "charts.db"
+    monkeypatch.setattr(db, "DB_DIR", tmp_path)
+    monkeypatch.setattr(db, "DB_PATH", db_path)
+
+    conn = db._get_conn()
+    expected: dict[str, int] = {}
+    with conn:
+        for index in range(905):
+            uid = f"CHUNKUID{index:08d}"
+            expected[uid] = _insert_minimal_chart(
+                conn,
+                chart_uid=uid,
+                name=f"Chunk UID {index}",
+                is_placeholder=True,
+            )
+    conn.close()
+
+    assert db.get_chart_ids_by_uid(reversed(expected.keys())) == expected
