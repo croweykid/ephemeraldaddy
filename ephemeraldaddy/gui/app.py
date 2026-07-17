@@ -28579,17 +28579,21 @@ class MainWindow(QMainWindow):
             return None
 
         # During prediction recalculations/rectified-time preview rebuilds, the
-        # scroll content can inherit a stale width from the canvas that is being
-        # replaced.  Measure from the scroll area and its visible container chain,
-        # not from the content widget, so a too-wide canvas cannot keep proving
-        # its own stale geometry correct until the user manually resizes.
-        candidate_widths = [scroll_area.viewport().width(), scroll_area.width()]
+        # scroll content can inherit stale width from the canvas that is being
+        # replaced. Measure visible pages from the scroll viewport, and always
+        # include ancestors outside the scroll area; hidden stacked pages use the
+        # live outer container chain instead of their stale scroll/content widths.
+        candidate_widths = []
+        if scroll_area.isVisible():
+            candidate_widths.extend([scroll_area.viewport().width(), scroll_area.width()])
         ancestor = scroll_area.parentWidget()
         while ancestor is not None:
             ancestor_width = ancestor.width()
             if ancestor_width > 0:
                 candidate_widths.append(ancestor_width)
             ancestor = ancestor.parentWidget()
+        if not candidate_widths:
+            candidate_widths.extend([scroll_area.viewport().width(), scroll_area.width()])
         positive_widths = [width for width in candidate_widths if width > 0]
         if not positive_widths:
             return None
@@ -28603,21 +28607,12 @@ class MainWindow(QMainWindow):
         if available_width is None:
             return None
 
-        # Clamp to the narrowest live ancestor width, including hidden stacked
-        # tabs whose scroll areas may temporarily report stale geometry during
-        # prediction redraws.  A canvas must never use its own cached width as
-        # proof that the right-hand panel is wider than the app frame.
-        ancestor = parent
-        while ancestor is not None:
-            ancestor_width = ancestor.width()
-            if ancestor_width > 0:
-                available_width = min(available_width, ancestor_width)
-            if isinstance(ancestor, QScrollArea):
-                viewport_width = ancestor.viewport().width()
-                if viewport_width > 0:
-                    available_width = min(available_width, viewport_width)
-            ancestor = ancestor.parentWidget()
-
+        # Middle ground for hidden stacked tabs: size from the live scroll
+        # viewport/container chain gathered above, but do not clamp against the
+        # scroll-content child widgets here.  Hidden pages can retain stale child
+        # widths from a previous layout; using those widths would pin the canvas
+        # too narrowly until another manual resize.  Only subtract the content
+        # layout margins, which are stable style data rather than geometry.
         if parent is not None:
             parent_layout = parent.layout()
             if parent_layout is not None:

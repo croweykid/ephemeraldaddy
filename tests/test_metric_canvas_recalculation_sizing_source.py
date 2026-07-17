@@ -5,14 +5,20 @@ APP_SOURCE = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
 RIGHT_PANEL_SOURCE = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/cv_right_panel_stack.py").read_text()
 
 
-def test_metric_canvas_width_clamps_to_live_ancestor_geometry():
-    method_start = APP_SOURCE.index("    def _metric_canvas_available_layout_width")
-    method = APP_SOURCE[method_start : APP_SOURCE.index("    @staticmethod", method_start + 1)]
+def test_metric_canvas_width_uses_scroll_container_not_child_geometry():
+    viewport_method_start = APP_SOURCE.index("    def _metric_canvas_scroll_viewport_width")
+    viewport_method = APP_SOURCE[viewport_method_start : APP_SOURCE.index("    @staticmethod", viewport_method_start + 1)]
+    available_method_start = APP_SOURCE.index("    def _metric_canvas_available_layout_width")
+    available_method = APP_SOURCE[available_method_start : APP_SOURCE.index("    @staticmethod", available_method_start + 1)]
 
-    assert "narrowest live ancestor width" in method
-    assert "ancestor_width = ancestor.width()" in method
-    assert "available_width = min(available_width, ancestor_width)" in method
-    assert "if isinstance(ancestor, QScrollArea):" in method
+    assert "ancestors outside the" in viewport_method
+    assert "if scroll_area.isVisible():" in viewport_method
+    assert "candidate_widths.extend([scroll_area.viewport().width(), scroll_area.width()])" in viewport_method
+    assert "ancestor = scroll_area.parentWidget()" in viewport_method
+    assert "candidate_widths.append(ancestor_width)" in viewport_method
+    assert "do not clamp against" in available_method
+    assert "scroll-content child widgets" in available_method
+    assert "ancestor = parent" not in available_method
 
 
 def test_prediction_finish_reschedules_all_metric_canvas_refreshes():
