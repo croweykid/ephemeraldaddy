@@ -187,10 +187,12 @@ from ephemeraldaddy.data.genpop import (
 from ephemeraldaddy.analysis.country_lookup import normalize_country, resolve_country
 from ephemeraldaddy.analysis.city_lookup import normalize_city
 from ephemeraldaddy.analysis.us_state_lookup import normalize_us_state
+
+from ephemeraldaddy.analysis.enneagram import ENNEAGRAM
 from ephemeraldaddy.core.interpretations import (
     AGE_BRACKETS,
     BAZI_ZODIAC,
-    ENNEAGRAM,
+    #ENNEAGRAM,
     ELEMENT_COLORS,
     MODE_COLORS,
     HOUSE_COLORS,

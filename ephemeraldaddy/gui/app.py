@@ -835,10 +835,10 @@ from ephemeraldaddy.core.interpretations import (
     ASPECT_FRICTION,
     ASPECT_SCORE_WEIGHTS,
     ASPECT_TYPES,
-    ENNEAGRAM,
+    #ENNEAGRAM,
 )
 from ephemeraldaddy.core.decans import ZODIAC_DECANS
-from ephemeraldaddy.analysis.enneagram import ENNEAGRAMS
+from ephemeraldaddy.analysis.enneagram import ENNEAGRAM
 
 from ephemeraldaddy.gui.features.charts.delegates import CHART_ROW_PLACE_COLOR, ChartRowDelegate
 from ephemeraldaddy.gui.features.charts.provenance import (

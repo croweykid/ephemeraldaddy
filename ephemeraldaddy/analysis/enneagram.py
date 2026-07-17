@@ -2,7 +2,7 @@
 #this file isn't currently in use
 
 #enneagram (approximated). One problem with this system is something get double counted by 'dominant' and also fulfilling the positions of certain criteria.
-ENNEAGRAMS = { #each criteria evidently really needs a multiplier weight attached to it for relevance, because not all predictors are equally important...
+ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached to it for relevance, because not all predictors are equally important...
 #if sign, house, body, or nakshatra exists in this constant, add its weight within the chart to the sum of the enneagram type number.
 # Optional per-type criterion multipliers can be supplied via: "criterion_multipliers": {"houses":1.25,"signs":1.0,...}.
 # Omitted multipliers default to 1.0.
