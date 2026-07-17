@@ -13793,7 +13793,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             return
         set_current_chart(chart_id)
         parent._set_current_chart_identity(chart_id, chart)
-        parent._manage_charts_pending_changed_ids.add(chart_id)
+        parent._record_manage_charts_pending_change(chart_id, refresh_metrics=True)
         parent._loaded_birth_place = place
         parent._loaded_lat = chart.lat
         parent._loaded_lon = chart.lon
@@ -25010,13 +25010,14 @@ class MainWindow(QMainWindow):
         self._help_marker_buttons: list[QToolButton] = []
         self._size_checker_popup: SizeCheckerPopup | None = None
         self._manage_charts_pending_changed_ids: set[int] = set()
+        self._manage_charts_pending_changed_uids: dict[str, bool] = {}
         self._prediction_norms_revision = 0
         self._charts_controller = ChartsController(
             confirm_discard_or_save=self._confirm_discard_or_save,
             get_or_create_manage_dialog=self._get_or_create_manage_charts_dialog,
             raise_manage_dialog=self._raise_manage_charts_dialog,
-            get_pending_changed_ids=lambda: self._manage_charts_pending_changed_ids,
-            clear_pending_changed_ids=self._manage_charts_pending_changed_ids.clear,
+            get_pending_changed_refreshes=self._pending_manage_chart_refreshes,
+            clear_pending_changed_refreshes=self._clear_pending_manage_chart_refreshes,
         )
         self._retcon_dialog_controller = RetconDialogController(self._create_retcon_dialog)
         self._ephemeris_prefetch_controller = EphemerisPrefetchController(
@@ -34428,7 +34429,7 @@ class MainWindow(QMainWindow):
                             )
                             return
                         self._on_charts_deleted({chart_id}, chart_uids=chart_uids)
-                        self._manage_charts_pending_changed_ids.add(chart_id)
+                        self._record_manage_charts_pending_change(chart_id, refresh_metrics=True)
                     else:
                         self._reset_new_chart_form()
                     self.on_manage_charts()
@@ -34683,7 +34684,7 @@ class MainWindow(QMainWindow):
                 ),
             )
         else:
-            self._manage_charts_pending_changed_ids.add(chart_id)
+            self._record_manage_charts_pending_change(chart_id, refresh_metrics=False)
         self._refresh_manage_charts_in_background(
             {chart_id},
             refresh_metrics=refresh_database_metrics,
@@ -34853,7 +34854,7 @@ class MainWindow(QMainWindow):
             return
 
         self._on_charts_deleted({chart_id}, chart_uids=chart_uids)
-        self._manage_charts_pending_changed_ids.add(chart_id)
+        self._record_manage_charts_pending_change(chart_id, refresh_metrics=True)
         self.on_manage_charts()
 
 
@@ -35409,6 +35410,43 @@ class MainWindow(QMainWindow):
             return
         self.on_manage_charts()
 
+
+    def _record_manage_charts_pending_change(self, chart_id: int | None, *, refresh_metrics: bool) -> None:
+        """Track pending Database View refreshes by chart UID whenever possible."""
+        if chart_id is None:
+            return
+        chart_uid = self._normalized_chart_uid_key(get_chart_uid(int(chart_id)))
+        if chart_uid:
+            previous_requires_metrics = bool(self._manage_charts_pending_changed_uids.get(chart_uid, False))
+            self._manage_charts_pending_changed_uids[chart_uid] = previous_requires_metrics or bool(refresh_metrics)
+        if refresh_metrics:
+            self._manage_charts_pending_changed_ids.add(int(chart_id))
+
+    def _pending_manage_chart_refreshes(self) -> tuple[set[int], set[int]]:
+        """Return pending Database View refresh IDs split by metrics requirements.
+
+        Pending state is stored by UID because Chart UIDs are the stable source
+        of truth.  The existing Database View refresh API still accepts row IDs,
+        so this method resolves UIDs at the boundary and separates lightweight
+        row-only refreshes from analytics/metrics refreshes.
+        """
+        metric_ids: set[int] = set(self._manage_charts_pending_changed_ids)
+        lightweight_ids: set[int] = set()
+        for chart_uid, requires_metrics in list(self._manage_charts_pending_changed_uids.items()):
+            chart_id = get_chart_id_by_uid(chart_uid)
+            if chart_id is None:
+                continue
+            if requires_metrics:
+                metric_ids.add(int(chart_id))
+            else:
+                lightweight_ids.add(int(chart_id))
+        lightweight_ids.difference_update(metric_ids)
+        return metric_ids, lightweight_ids
+
+    def _clear_pending_manage_chart_refreshes(self) -> None:
+        self._manage_charts_pending_changed_ids.clear()
+        self._manage_charts_pending_changed_uids.clear()
+
     def _get_or_create_manage_charts_dialog(self) -> ManageChartsDialog:
         if self._manage_charts_dialog is None:
             self._manage_charts_dialog = ManageChartsDialog(self)
@@ -35428,7 +35466,8 @@ class MainWindow(QMainWindow):
     ) -> None:
         """Refresh Database View analytics from Chart View without requiring dialog state."""
         if changed_ids:
-            self._manage_charts_pending_changed_ids.update(changed_ids)
+            for changed_id in changed_ids:
+                self._record_manage_charts_pending_change(changed_id, refresh_metrics=True)
 
         manage_dialog = getattr(self, "_manage_charts_dialog", None)
         if manage_dialog is None or not manage_dialog.isVisible():
@@ -35447,6 +35486,10 @@ class MainWindow(QMainWindow):
         )
         if changed_ids:
             self._manage_charts_pending_changed_ids.difference_update(changed_ids)
+            for changed_id in changed_ids:
+                chart_uid = self._normalized_chart_uid_key(get_chart_uid(int(changed_id)))
+                if chart_uid:
+                    self._manage_charts_pending_changed_uids.pop(chart_uid, None)
 
 
     @staticmethod
@@ -35496,6 +35539,10 @@ class MainWindow(QMainWindow):
         if refresh_metrics:
             self._prediction_norms_revision = int(getattr(self, "_prediction_norms_revision", 0) or 0) + 1
         self._manage_charts_pending_changed_ids.difference_update(changed_ids)
+        for changed_id in changed_ids:
+            chart_uid = self._normalized_chart_uid_key(get_chart_uid(int(changed_id)))
+            if chart_uid:
+                self._manage_charts_pending_changed_uids.pop(chart_uid, None)
 
     def _flush_stale_predictions_before_chart_exit(self) -> None:
         """Refresh stale Predictions caches only when closing/leaving the current chart."""
