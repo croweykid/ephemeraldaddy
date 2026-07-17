@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime
 import html
 import statistics
+import logging
 import urllib.parse
 from pathlib import Path
 from collections import Counter
@@ -98,6 +99,8 @@ from ephemeraldaddy.gui.features.charts.tagging import (
     render_tag_chip_preview,
 )
 from ephemeraldaddy.gui.dbv_search_panel import refresh_tag_catalog_for_added_tags
+
+logger = logging.getLogger(__name__)
 
 
 def _make_predictions_loading_label(message: str, *, alignment: Qt.AlignmentFlag | Qt.Alignment = Qt.AlignCenter) -> QLabel:
@@ -2252,10 +2255,20 @@ def set_chart_view_tag_state(owner: QWidget, tags: list[str]) -> None:
 
 
 def on_chart_view_tag_add(owner: QWidget) -> None:
-    parsed_tags = parse_tag_text(owner.chart_tags_input.text())
+    current_tags = list(getattr(owner, "_chart_tags_current", []) or [])
+    input_text = owner.chart_tags_input.text()
+    logger.debug(
+        "Chart View tag add requested (input=%r current_count=%s known_count=%s).",
+        input_text,
+        len(current_tags),
+        len(getattr(owner, "_known_chart_tags", []) or []),
+    )
+    parsed_tags = parse_tag_text(input_text)
     if not parsed_tags:
+        logger.debug("Chart View tag add ignored because input did not parse to tags.")
         return
     if len(parsed_tags) > 1:
+        logger.debug("Chart View tag add rejected because multiple tags were entered: %r.", parsed_tags)
         QMessageBox.information(
             owner,
             "One tag at a time",
@@ -2264,6 +2277,7 @@ def on_chart_view_tag_add(owner: QWidget) -> None:
         return
     tag_to_add = parsed_tags[0]
     if any(tag.casefold() == tag_to_add.casefold() for tag in owner._chart_tags_current):
+        logger.debug("Chart View tag add skipped duplicate tag %r.", tag_to_add)
         owner.chart_tags_input.setText("")
         render_tag_chip_preview(owner.chart_tags_preview_label, [])
         return
@@ -2271,7 +2285,9 @@ def on_chart_view_tag_add(owner: QWidget) -> None:
     owner.chart_tags_input.setText("")
     render_tag_chip_preview(owner.chart_tags_preview_label, [])
     render_chart_view_tag_selection(owner)
+    logger.debug("Chart View tag %r added locally; refreshing tag catalog.", tag_to_add)
     refresh_tag_catalog_for_added_tags(owner, [tag_to_add])
+    logger.debug("Chart View tag %r catalog refresh finished; marking chart dirty.", tag_to_add)
     owner._mark_lucygoosey()
 
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Iterable
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QStringListModel, Qt
 from PySide6.QtWidgets import QCompleter, QLabel, QLineEdit
 
 from ephemeraldaddy.gui.style import build_tag_chip_html, configure_tag_chip_label
@@ -56,7 +56,16 @@ def apply_tag_completer(
     line_edit: QLineEdit,
     known_tags: list[str],
 ) -> None:
-    completer = QCompleter(known_tags, line_edit)
+    existing_completer = getattr(line_edit, "_tags_completer", None)
+    if isinstance(existing_completer, QCompleter):
+        existing_model = existing_completer.model()
+        if isinstance(existing_model, QStringListModel):
+            existing_model.setStringList(list(known_tags))
+        else:
+            existing_completer.setModel(QStringListModel(list(known_tags), existing_completer))
+        return
+
+    completer = QCompleter(QStringListModel(list(known_tags), line_edit), line_edit)
     completer.setCaseSensitivity(Qt.CaseInsensitive)
     completer.setFilterMode(Qt.MatchContains)
     # Keep typing focus anchored in the tag editor.  The completer popup is
