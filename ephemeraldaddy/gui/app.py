@@ -908,6 +908,7 @@ from ephemeraldaddy.gui.features.charts.search_text import (
     database_search_text_matches,
 )
 
+from ephemeraldaddy.gui.ranking_panel import RankingsPanelMixin
 from ephemeraldaddy.gui.features.charts.database_analytics import (
     DATABASE_METRICS_SECTION_ORDER,
     DatabaseAnalyticsChartsMixin,
@@ -2383,7 +2384,7 @@ class ChartListWidget(QListWidget):
         return _handle_list_letter_jump(self, event)
 
 # Database View / Manage Charts Window
-class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
+class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDialog):
     _DATABASE_VIEW_PANEL_WIDTH_RATIOS: tuple[float, float, float] = (0.276, 0.447, 0.277)
     _DATABASE_VIEW_FALLBACK_SPLITTER_SIZES: tuple[int, int, int] = (387, 627, 388)
 
@@ -2788,6 +2789,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._toggle_gen_pop_norms_panel
         )
 
+        self.rankings_panel_button = QPushButton("🏆")
+        self.rankings_panel_button.setObjectName("manage_toggle_rankings_panel_button")
+        self.rankings_panel_button.setToolTip("Show database-wide chart rankings")
+        self.rankings_panel_button.clicked.connect(self._toggle_rankings_panel)
+
         self.similarities_panel_button = QPushButton("👥") #Similarities Analysis panel
         self.similarities_panel_button.setObjectName("manage_toggle_similarities_panel_button")
         self.similarities_panel_button.clicked.connect(
@@ -2894,6 +2900,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.todays_transits_panel_button,
             self.database_metrics_panel_button,
             self.gen_pop_norms_panel_button,
+            self.rankings_panel_button,
             self.similarities_panel_button,
             self.perceived_similarity_predictors_panel_button,
             self.batch_new_chart_button,
@@ -2998,6 +3005,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.todays_transits_panel_scroll = self._wrap_left_panel(
             self.todays_transits_panel
         )
+        self.rankings_panel = self._build_rankings_panel()
+        self.rankings_panel_scroll = self._wrap_left_panel(self.rankings_panel)
         self.similarities_analysis_panel = self.similarities_controller.build_panel()
         self.similarities_analysis_panel_scroll = self._wrap_left_panel(
             self.similarities_analysis_panel
@@ -3015,6 +3024,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "todays_transits": self.todays_transits_panel_scroll,
             "database_metrics": self.selection_sentiment_panel_scroll,
             "gen_pop_norms": self.selection_sentiment_panel_scroll,
+            "rankings": self.rankings_panel_scroll,
             "similarities": self.similarities_analysis_panel_scroll,
             "perceived_similarity_predictors": self.perceived_similarity_predictors_panel_scroll,
         }
@@ -3061,6 +3071,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         left_controls_layout.addWidget(self.todays_transits_panel_button)
         left_controls_layout.addWidget(self.database_metrics_panel_button)
         left_controls_layout.addWidget(self.gen_pop_norms_panel_button)
+        left_controls_layout.addWidget(self.rankings_panel_button)
         left_controls_layout.addWidget(self.similarities_panel_button)
         left_controls_layout.addWidget(self.perceived_similarity_predictors_panel_button)
 
@@ -16245,6 +16256,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         self._apply_content_splitter_layout(self._default_content_splitter_sizes())
 
+
     def _show_left_panel(self, panel_name: str) -> None:
         try:
             widget = self._left_panel_widgets[panel_name]
@@ -16285,6 +16297,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._refresh_database_metrics_panel_on_show(
                 baseline_changed=previous_database_metrics_baseline_mode != self._database_metrics_baseline_mode,
             )
+        elif panel_name == "rankings":
+            self._refresh_rankings_panel()
         elif panel_name == "similarities":
             self._update_sentiment_tally(
                 update_database_metrics=False,
@@ -16377,6 +16391,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         self._refresh_todays_transits_panel()
         self._show_left_panel("todays_transits")
+
+    def _toggle_rankings_panel(self) -> None:
+        if (
+            self._left_panel_visible
+            and self._active_left_panel == "rankings"
+            and not self._is_left_panel_collapsed()
+        ):
+            self._set_left_panel_visible(False)
+            return
+        self._show_left_panel("rankings")
 
     def _toggle_similarities_panel(self) -> None:
         if (
@@ -19825,12 +19849,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         normalized_ids = {int(chart_id) for chart_id in chart_ids}
         if not normalized_ids:
             return
+        changed_chart_uids = self._chart_uids_for_ids(normalized_ids)
         self._hidden_chart_ids.update(normalized_ids)
-        self._hidden_chart_uids.update(self._chart_uids_for_ids(normalized_ids))
+        self._hidden_chart_uids.update(changed_chart_uids)
         self._save_hidden_chart_uids_to_settings()
         refresh_rankings = getattr(self, "_refresh_traits_distribution_rankings_after_hidden_chart_change", None)
         if callable(refresh_rankings):
             refresh_rankings(normalized_ids)
+        refresh_rankings_panel = getattr(self, "_refresh_rankings_after_hidden_chart_change", None)
+        if callable(refresh_rankings_panel):
+            refresh_rankings_panel(changed_chart_uids)
         remaining_selection = set(self._selected_chart_ids()) - normalized_ids
         self._populate_list(selected_ids=remaining_selection, refresh_metrics=False)
         self._on_selection_changed(sync_persistent_selection=False)
@@ -19839,9 +19867,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         normalized_ids = {int(chart_id) for chart_id in chart_ids}
         if not normalized_ids:
             return
+        changed_chart_uids = self._chart_uids_for_ids(normalized_ids)
         self._hidden_chart_ids.difference_update(normalized_ids)
-        self._hidden_chart_uids.difference_update(self._chart_uids_for_ids(normalized_ids))
+        self._hidden_chart_uids.difference_update(changed_chart_uids)
         self._save_hidden_chart_uids_to_settings()
+        refresh_rankings_panel = getattr(self, "_refresh_rankings_after_hidden_chart_change", None)
+        if callable(refresh_rankings_panel):
+            refresh_rankings_panel(changed_chart_uids)
         self._populate_list(selected_ids=set(self._selected_chart_ids()) | normalized_ids, refresh_metrics=False)
         self._on_selection_changed(sync_persistent_selection=False)
 
@@ -26635,8 +26667,9 @@ class MainWindow(QMainWindow):
         try:
             chart_id = int(normalized_target)
         except (TypeError, ValueError):
-            return
-        target_chart_uid = get_chart_uid(chart_id)
+            target_chart_uid = self._normalized_chart_uid_key(normalized_target)
+        else:
+            target_chart_uid = get_chart_uid(chart_id)
         if not target_chart_uid:
             return
         target_chart_uid = self._normalized_chart_uid_key(target_chart_uid)
@@ -33886,6 +33919,9 @@ class MainWindow(QMainWindow):
         refresh_rankings = getattr(manage_dialog, "_refresh_traits_distribution_rankings_after_hidden_chart_change", None)
         if callable(refresh_rankings):
             refresh_rankings({int(changed_chart_id)})
+        refresh_rankings_panel = getattr(manage_dialog, "_refresh_rankings_after_hidden_chart_change", None)
+        if callable(refresh_rankings_panel):
+            refresh_rankings_panel(self._chart_uids_for_ids([int(changed_chart_id)]))
         if manage_dialog.isVisible() and getattr(manage_dialog, "_chart_rows", None):
             selected_ids = set(manage_dialog._selected_chart_ids())
             if int(changed_chart_id) not in manage_dialog._hidden_chart_ids:
