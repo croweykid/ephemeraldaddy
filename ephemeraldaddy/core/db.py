@@ -4527,7 +4527,12 @@ def get_chart_id_by_uid(chart_uid: str | None) -> int | None:
 
 
 def get_chart_ids_by_uid(chart_uids: Iterable[str | None]) -> dict[str, int]:
-    """Return local integer row ids keyed by normalized stable chart UID."""
+    """Return local integer row ids keyed by normalized stable chart UID.
+
+    UID lookups may be driven by large batch operations, so chunk the IN-query
+    parameters below SQLite's common bind-variable cap instead of issuing one
+    unbounded ``WHERE chart_uid IN (...)`` statement.
+    """
     normalized_uids = list(
         dict.fromkeys(
             normalized_uid
@@ -4537,16 +4542,24 @@ def get_chart_ids_by_uid(chart_uids: Iterable[str | None]) -> dict[str, int]:
     )
     if not normalized_uids:
         return {}
-    placeholders = ", ".join("?" for _ in normalized_uids)
+
+    sqlite_variable_limit = 900
+    resolved: dict[str, int] = {}
     conn = _get_conn()
     try:
         with conn:
             _ensure_chart_uids(conn)
-        rows = conn.execute(
-            f"SELECT chart_uid, id FROM charts WHERE chart_uid IN ({placeholders})",
-            tuple(normalized_uids),
-        ).fetchall()
-        return {str(chart_uid): int(chart_id) for chart_uid, chart_id in rows if chart_uid}
+        for start in range(0, len(normalized_uids), sqlite_variable_limit):
+            batch_uids = normalized_uids[start:start + sqlite_variable_limit]
+            placeholders = ", ".join("?" for _ in batch_uids)
+            rows = conn.execute(
+                f"SELECT chart_uid, id FROM charts WHERE chart_uid IN ({placeholders})",
+                tuple(batch_uids),
+            ).fetchall()
+            resolved.update(
+                {str(chart_uid): int(chart_id) for chart_uid, chart_id in rows if chart_uid}
+            )
+        return resolved
     finally:
         conn.close()
 
