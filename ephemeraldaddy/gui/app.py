@@ -13481,8 +13481,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         popout_context.get("summary_block_offset", 0),
                     )
             return False
+        search_text_input = getattr(self, "search_text_input", None)
         if (
-            obj is self.search_text_input
+            search_text_input is not None
+            and obj is search_text_input
             and event.type() == QEvent.KeyPress
             and event.key() in (Qt.Key_Return, Qt.Key_Enter)
         ):
