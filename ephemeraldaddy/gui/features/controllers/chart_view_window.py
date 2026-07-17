@@ -1610,6 +1610,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         layout=layout,
         title="Traits",
         expanded=True,
+        section_key="predictions.traits",
     )
     traits_header_row = QWidget()
     traits_header_layout = QHBoxLayout()
@@ -1652,6 +1653,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         layout=layout,
         title="Enneagram",
         expanded=True,
+        section_key="predictions.enneagram",
     )
     owner.enneagram_prediction_chart_panel = QWidget()
     owner.enneagram_prediction_chart_layout = QVBoxLayout()
@@ -1672,6 +1674,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         layout=layout,
         title="D&D Statblock",
         expanded=True,
+        section_key="predictions.dnd_statblock",
     )
     owner.dnd_predictions_chart_panel = QWidget()
     owner.dnd_predictions_chart_layout = QVBoxLayout()
@@ -1689,6 +1692,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         layout=layout,
         title="D&D Species",
         expanded=True,
+        section_key="predictions.dnd_species",
     )
     owner.dnd_prediction_species_label = _make_predictions_loading_label(
         "Loading D&D species predictions…",  #for this UID
@@ -1706,6 +1710,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         layout=layout,
         title="D&D Class",
         expanded=True,
+        section_key="predictions.dnd_class",
     )
     owner.dnd_prediction_class_label = _make_predictions_loading_label(
         "Loading D&D class predictions…",  #for this UID
@@ -1723,6 +1728,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         layout=layout,
         title="D&D Alignment",
         expanded=True,
+        section_key="predictions.dnd_alignment",
     )
     owner.dnd_alignment_chart_panel = QWidget()
     owner.dnd_alignment_chart_layout = QVBoxLayout()
