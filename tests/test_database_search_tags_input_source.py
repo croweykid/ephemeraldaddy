@@ -72,6 +72,18 @@ def test_middle_panel_search_bar_row_top_aligns_all_search_cells():
     row_builder = SEARCH_PANEL_SOURCE.split("def build_dbv_search_bar_row", 1)[1].split(
         "def build_dbv_search_panel", 1
     )[0]
-    assert "row_layout.addWidget(window.search_text_input, 2, Qt.AlignTop)" in row_builder
+    assert "row_layout.addWidget(database_cell, 2, Qt.AlignTop)" in row_builder
     assert "row_layout.addWidget(astrotheme_cell, 2, Qt.AlignTop)" in row_builder
     assert "row_layout.addWidget(tag_cell, 2, Qt.AlignTop)" in row_builder
+
+
+def test_middle_panel_search_bar_row_applies_custom_search_controls():
+    row_builder = SEARCH_PANEL_SOURCE.split("def build_dbv_search_bar_row", 1)[1].split(
+        "def build_dbv_search_panel", 1
+    )[0]
+    assert 'QPushButton("🔍")' in row_builder
+    assert 'QPushButton("⬇️")' in row_builder
+    assert 'background_color="#e6b800"' in row_builder
+    assert 'placeholder_color="#b38f00"' in row_builder
+    assert 'background_color="#5900b3"' in row_builder
+    assert 'placeholder_color="#8000ff"' in row_builder
