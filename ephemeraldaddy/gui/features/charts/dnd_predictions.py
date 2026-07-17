@@ -91,7 +91,10 @@ from ephemeraldaddy.analysis.dnd.dnd_stat_calculator import (
 )
 from ephemeraldaddy.core.interpretations import ASPECT_SCORE_WEIGHTS
 from ephemeraldaddy.gui.features.charts.trait_predictions import (
+    _database_norm_signature_from_state,
+    _database_norm_state,
     _database_trait_averages,
+    _trait_signature_payload,
     trait_likelihoods_with_distribution_cache,
 )
 from ephemeraldaddy.gui.style import (
@@ -989,10 +992,16 @@ def _dnd_alignment_norms_token(owner: Any) -> str:
                 {name: float(snapshot_averages[name]) for name in requested_names}
             )
 
-    # If no snapshot is available, preserve the historical live-cache behavior
-    # without coupling this key to custom Trait definitions.  Live recalculation
-    # still refreshes and persists Alignment parts when explicitly requested.
-    return "dnd_alignment_norms:live"
+    try:
+        live_norm_signature = _database_norm_signature_from_state(_database_norm_state(owner))
+    except Exception:
+        live_norm_signature = "unavailable"
+    return "dnd_alignment_norms:live:" + _cache_key_fingerprint(
+        {
+            "norm_signature": live_norm_signature,
+            "alignment_trait_signature": _trait_signature_payload(trait_items, strip_uids=True),
+        }
+    )
 
 
 def _dnd_alignment_score_parts(owner: Any, chart: Any, *, allow_stale: bool = False) -> dict[str, dict[str, float]]:
