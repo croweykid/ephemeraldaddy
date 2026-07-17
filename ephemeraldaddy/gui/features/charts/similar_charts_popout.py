@@ -1,3 +1,4 @@
+# LEGACY CHART ID WARNING: any chart_id reference in this file is transitional compatibility only; new code must use chart_uid/Chart UID and must not introduce new chart ID reliance.
 """Helpers for Similar Charts list rendering and popout UI."""
 
 from __future__ import annotations
@@ -791,7 +792,8 @@ def build_similar_charts_export_rows_from_matches(
         rows.append(
             {
                 "rank": rank,
-                "chart_id": int(getattr(match, "chart_id", 0) or 0),
+                "chart_id": int(getattr(match, "chart_id", 0) or 0),  # LEGACY export fallback only; prefer chart_uid.
+                "chart_uid": str(getattr(match, "chart_uid", "") or ""),
                 "chart_name": str(getattr(match, "chart_name", "") or ""),
                 "similarity_percent": round(similarity_percent, 1),
                 "similarity_band": band_label,
@@ -822,14 +824,14 @@ def build_similar_charts_export_lines(
         lines.append(f"# {subject_name}'s Astro Twins") #aka Similar Charts
         lines.append("")
         lines.append(
-            "| Rank | Chart ID | Chart | Similarity | Band | Z-score | Components |"
+            "| Rank | Chart UID | Chart | Similarity | Band | Z-score | Components |"
         )
         lines.append("|---:|---:|---|---:|---|---:|---|")
         for row in rows:
             z_score = row.get("similarity_z_score")
             z_score_text = "" if z_score is None else f"{float(z_score):+.3f}"
             lines.append(
-                f"| {row['rank']} | {row['chart_id']} | {row['chart_name']} | "
+                f"| {row['rank']} | {row.get('chart_uid') or row['chart_id']} | {row['chart_name']} | "
                 f"{row['similarity_percent']:.1f}% | {row.get('similarity_band', '')} | "
                 f"{z_score_text} | {row.get('component_summary', '')} |"
             )
@@ -841,7 +843,7 @@ def build_similar_charts_export_lines(
         z_score = row.get("similarity_z_score")
         z_score_text = "" if z_score is None else f"; z={float(z_score):+.3f}"
         lines.append(
-            f"{row['rank']}. #{row['chart_id']} — {row['chart_name']}: "
+            f"{row['rank']}. {row.get('chart_uid') or row['chart_id']} — {row['chart_name']}: "
             f"Similarity {row['similarity_percent']:.1f}% "
             f"[{row.get('similarity_band', 'unclassified')}{z_score_text}] "
             f"({row.get('component_summary', 'no enabled criteria')})"

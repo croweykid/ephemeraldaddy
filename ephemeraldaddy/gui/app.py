@@ -1,3 +1,4 @@
+# LEGACY CHART ID WARNING: any chart_id reference in this file is transitional compatibility only; new code must use chart_uid/Chart UID and must not introduce new chart ID reliance.
 # ephemeraldaddy/gui/app.py
 from __future__ import annotations
 
@@ -25639,9 +25640,9 @@ class MainWindow(QMainWindow):
         reminds_me_of_content_layout.setSpacing(4)
         reminds_me_of_content_widget.setLayout(reminds_me_of_content_layout)
         self.reminds_me_of_input = QLineEdit()
-        self.reminds_me_of_input.setPlaceholderText("Existing chart name, alias, or ID")
+        self.reminds_me_of_input.setPlaceholderText("Existing chart name, alias, or UID")
         self.reminds_me_of_input.setToolTip(
-            "Enter an existing chart name, alias, or Chart ID. "
+            "Enter an existing chart name, alias, or Chart UID. "
             "EphemeralDaddy stores each added chart's stable ID so later renames still work."
         )
         self._update_reminds_me_of_completer()
@@ -25956,7 +25957,7 @@ class MainWindow(QMainWindow):
         alternate_chart_layout.setSpacing(6)
         alternate_chart_layout.addWidget(QLabel("Alternate chart of"))
         self.alternate_chart_input = QLineEdit()
-        self.alternate_chart_input.setPlaceholderText("Existing chart name, alias, or ID")
+        self.alternate_chart_input.setPlaceholderText("Existing chart name, alias, or UID")
         self.alternate_chart_input.setToolTip(
             "For Hypothetical charts only: link this chart as an alternate rectification of one existing chart."
         )
@@ -32901,7 +32902,7 @@ class MainWindow(QMainWindow):
             QMessageBox.information(
                 self,
                 "Chart not found",
-                "Choose one existing non-hypothetical chart name, alias, or Chart ID from autocomplete.",
+                "Choose one existing non-hypothetical chart name, alias, or Chart UID from autocomplete.",
             )
             return
         self._set_alternate_chart_state(chart_uid)
@@ -34071,7 +34072,7 @@ class MainWindow(QMainWindow):
                 QMessageBox.information(
                     self,
                     "Chart not found",
-                    "Choose an existing chart name, alias, or Chart ID from autocomplete before adding it.",
+                    "Choose an existing chart name, alias, or Chart UID from autocomplete before adding it.",
                 )
             return
         current_uids = parse_reminds_me_of_uids(getattr(self, "_reminds_me_of_current", []))
