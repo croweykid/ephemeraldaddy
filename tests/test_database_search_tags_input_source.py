@@ -66,3 +66,12 @@ def test_middle_panel_search_bar_row_preserves_search_wiring():
     assert "window._on_import_astrotheme_from_search_panel" in row_builder
     assert "window.search_tags_input.textChanged.connect(window._on_search_tags_changed)" in row_builder
     assert "window.search_untagged_checkbox.modeChanged.connect(window._on_filter_changed)" in row_builder
+
+
+def test_middle_panel_search_bar_row_top_aligns_all_search_cells():
+    row_builder = SEARCH_PANEL_SOURCE.split("def build_dbv_search_bar_row", 1)[1].split(
+        "def build_dbv_search_panel", 1
+    )[0]
+    assert "row_layout.addWidget(window.search_text_input, 2, Qt.AlignTop)" in row_builder
+    assert "row_layout.addWidget(astrotheme_cell, 2, Qt.AlignTop)" in row_builder
+    assert "row_layout.addWidget(tag_cell, 2, Qt.AlignTop)" in row_builder

@@ -635,7 +635,7 @@ def build_dbv_search_bar_row(window) -> "QWidget":
     window.search_text_input.textChanged.connect(window._on_filter_changed)
     window.search_text_input.returnPressed.connect(window._on_filter_changed)
     window.search_text_input.installEventFilter(window)
-    row_layout.addWidget(window.search_text_input, 2)
+    row_layout.addWidget(window.search_text_input, 2, Qt.AlignTop)
 
     astrotheme_cell = QWidget()
     astrotheme_row = QHBoxLayout()
@@ -654,7 +654,7 @@ def build_dbv_search_bar_row(window) -> "QWidget":
         window._on_import_astrotheme_from_search_panel
     )
     astrotheme_row.addWidget(astrotheme_import_button)
-    row_layout.addWidget(astrotheme_cell, 2)
+    row_layout.addWidget(astrotheme_cell, 2, Qt.AlignTop)
 
     tag_cell = QWidget()
     tag_layout = QVBoxLayout()
@@ -670,7 +670,7 @@ def build_dbv_search_bar_row(window) -> "QWidget":
     window.search_tags_preview_label.setWordWrap(True)
     window.search_tags_preview_label.setTextFormat(Qt.RichText)
     tag_layout.addWidget(window.search_tags_preview_label)
-    row_layout.addWidget(tag_cell, 2)
+    row_layout.addWidget(tag_cell, 2, Qt.AlignTop)
 
     window.search_untagged_checkbox = QuadStateSlider("untagged")
     window.search_untagged_checkbox.modeChanged.connect(window._on_filter_changed)
