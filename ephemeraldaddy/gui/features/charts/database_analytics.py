@@ -4205,7 +4205,7 @@ class DatabaseAnalyticsChartsMixin:
             "🧬Traits",
             "traits_distribution",
             "traits_distribution",
-            dropdown_options=[("Trait Predictions", "trait_predictions"), ("Trait Rankings", "trait_rankings")],
+            dropdown_options=[("Trait Predictions", "trait_predictions")],
             show_title=False,
         )
         self.traits_distribution_subheader_label = self._build_database_subheader_label(
@@ -4278,10 +4278,10 @@ class DatabaseAnalyticsChartsMixin:
         dropdown = getattr(self, "_analysis_chart_dropdowns", {}).get("traits_distribution")
         if dropdown is not None:
             selected_mode = dropdown.currentData()
-            if isinstance(selected_mode, str) and selected_mode in {"trait_predictions", "trait_rankings"}:
+            if isinstance(selected_mode, str) and selected_mode in {"trait_predictions"}:
                 return selected_mode
         selected_mode = str(getattr(self, "_traits_distribution_mode", "trait_predictions") or "trait_predictions")
-        return selected_mode if selected_mode in {"trait_predictions", "trait_rankings"} else "trait_predictions"
+        return selected_mode if selected_mode in {"trait_predictions"} else "trait_predictions"
 
     def _sync_traits_distribution_display_mode(self) -> None:
         show_rankings = self._traits_distribution_display_mode() == "trait_rankings"

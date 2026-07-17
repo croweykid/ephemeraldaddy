@@ -94,21 +94,24 @@ def test_trait_prediction_rankings_skip_hidden_charts_but_keep_aggregate_cache_s
     assert "_hidden_chart_ids" not in collect_method
 
 
-def test_trait_predictions_and_rankings_are_separate_dropdown_modes():
-    source = _database_analytics_source()
-    create_method = source.split("def _create_traits_database_analytics_section", 1)[1].split(
+def test_trait_rankings_are_moved_to_rankings_panel():
+    database_source = _database_analytics_source()
+    app_source = _app_source()
+    create_method = database_source.split("def _create_traits_database_analytics_section", 1)[1].split(
         "def _traits_distribution_display_mode", 1
     )[0]
-    dropdown_handler = _app_source().split("def _on_analysis_chart_dropdown_changed", 1)[1].split(
-        "if chart_key == \"human_design\":", 1
+    rankings_panel = app_source.split("def _build_rankings_panel", 1)[1].split(
+        "def _rankings_database_chart_ids", 1
     )[0]
 
     assert '("Trait Predictions", "trait_predictions")' in create_method
-    assert '("Trait Rankings", "trait_rankings")' in create_method
-    assert "self.traits_distribution_rank_container = QWidget()" in create_method
-    assert "self._sync_traits_distribution_display_mode()" in create_method
-    assert 'if chart_key == "traits_distribution":' in dropdown_handler
-    assert '"manage_charts/traits_distribution_mode"' in dropdown_handler
+    assert '("Trait Rankings", "trait_rankings")' not in create_method
+    assert 'self.rankings_panel_button = QPushButton("🏆")' in app_source
+    assert '"rankings": self.rankings_panel_scroll' in app_source
+    assert '"🧬Traits"' in rankings_panel
+    assert '"♏ Sign Dominance"' in rankings_panel
+    assert 'self.rankings_trait_combo' in rankings_panel
+    assert 'self.rankings_sign_combo.addItems(list(ZODIAC_NAMES))' in rankings_panel
 
 
 def test_trait_rankings_default_to_database_until_manual_rank_selected():
