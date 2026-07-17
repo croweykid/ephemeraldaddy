@@ -21,6 +21,7 @@ from ephemeraldaddy.core.chart import (
     chart_uses_houses,
     compute_unknown_sign_positions,
 )
+from ephemeraldaddy.core.ephemeris import get_lilith_calculation_mode
 from ephemeraldaddy.core.interpretations import JONES_PLANETS, RELATION_TYPE, SENTIMENT_OPTIONS
 from ephemeraldaddy.analysis import body_dynamics_reworked
 from ephemeraldaddy.analysis.bazi_getter import UNKNOWN_BAZI_VALUE, build_bazi_chart_data
@@ -1862,6 +1863,7 @@ def _chart_birth_data_signature_from_values(
     rectification_range_start_minute: int | None,
     rectification_range_end_minute: int | None,
     chart_uses_houses_value: bool,
+    lilith_calculation_mode: str | None = None,
 ) -> str:
     """Stable cache signature for saved-chart derived astrological payloads."""
     retcon_time_token = (
@@ -1874,6 +1876,7 @@ def _chart_birth_data_signature_from_values(
         "birth_place": birth_place or "",
         "lat": round(float(lat or 0.0), 6),
         "lon": round(float(lon or 0.0), 6),
+        "lilith_calculation_mode": str(lilith_calculation_mode or get_lilith_calculation_mode()),
         "birthtime_unknown": bool(birthtime_unknown),
         "retcon_time_used": bool(retcon_time_used),
         "retcon_time": retcon_time_token,
