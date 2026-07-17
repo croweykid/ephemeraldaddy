@@ -621,6 +621,8 @@ def build_dbv_search_bar_row(window) -> "QWidget":
     QLineEdit = app_module.QLineEdit
     QPushButton = app_module.QPushButton
     QLabel = app_module.QLabel
+    QKeySequence = app_module.QKeySequence
+    QShortcut = app_module.QShortcut
     Qt = app_module.Qt
     QuadStateSlider = app_module.QuadStateSlider
 
@@ -671,14 +673,21 @@ def build_dbv_search_bar_row(window) -> "QWidget":
         background_color="#5900b3",
         placeholder_color="#8000ff",
     )
-    window.astrotheme_search_input.returnPressed.connect(
-        window._on_import_astrotheme_from_search_panel
-    )
-    window.astrotheme_search_input.installEventFilter(window)
     astrotheme_row.addWidget(window.astrotheme_search_input, 1)
     astrotheme_import_button = QPushButton("⬇️")
     astrotheme_import_button.clicked.connect(
         window._on_import_astrotheme_from_search_panel
+    )
+    window.astrotheme_import_button = astrotheme_import_button
+    window.astrotheme_search_input.returnPressed.connect(astrotheme_import_button.click)
+    window.astrotheme_search_input.installEventFilter(window)
+    astrotheme_return_shortcut = QShortcut(QKeySequence("Return"), window.astrotheme_search_input)
+    astrotheme_return_shortcut.activated.connect(astrotheme_import_button.click)
+    astrotheme_enter_shortcut = QShortcut(QKeySequence("Enter"), window.astrotheme_search_input)
+    astrotheme_enter_shortcut.activated.connect(astrotheme_import_button.click)
+    window._astrotheme_search_enter_shortcuts = (
+        astrotheme_return_shortcut,
+        astrotheme_enter_shortcut,
     )
     astrotheme_row.addWidget(astrotheme_import_button)
     row_layout.addWidget(astrotheme_cell, 2, Qt.AlignTop)
