@@ -10,7 +10,7 @@ from types import MethodType
 from typing import Callable
 
 from PySide6.QtCore import QEvent, QRect, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QDragEnterEvent, QDropEvent, QFont, QIcon, QKeySequence, QLinearGradient, QPainter, QPixmap, QShortcut
+from PySide6.QtGui import QAction, QColor, QDragEnterEvent, QDropEvent, QFont, QIcon, QKeySequence, QLinearGradient, QPainter, QPixmap, QShortcut
 from PySide6.QtWidgets import (
     QAbstractButton,
     QApplication,
@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
     #QLayout,
     QLineEdit,
     QMessageBox,
+    QMenu,
     QPlainTextEdit,
     QPushButton,
     QToolButton,
@@ -48,7 +49,9 @@ from ephemeraldaddy.core.photo_gallery import (
     chart_uid_for_chart_id,
     delete_photo,
     get_photo_data,
+    get_profile_photo_id,
     list_photos,
+    set_profile_photo,
 )
 from ephemeraldaddy.gui.features.charts.presentation import sign_for_longitude
 from ephemeraldaddy.core.ephemeris import planetary_positions
@@ -168,13 +171,14 @@ class _PhotoThumbnail(QFrame):
         self._owner = owner
         self._photo = photo
         self._pixmap = QPixmap()
+        self._is_profile_pic = bool(photo.get("is_profile_pic"))
         self.setObjectName("photo_gallery_thumbnail")
         self.setFrameShape(QFrame.NoFrame)
         self.setCursor(Qt.PointingHandCursor)
         self.setStyleSheet(
             "#photo_gallery_thumbnail { background: #1f1f1f; border: 1px solid #555; }"
             "QPushButton { background: #8b1a1a; color: white; border: 1px solid #ffb3b3;"
-            "border-radius: 8px; font-weight: 700; }"
+            "border-radius: 8px; font-size: 16px; font-weight: 900; padding: 0px; }"
         )
         self.image_label = QLabel(self)
         self.image_label.setAlignment(Qt.AlignCenter)
@@ -183,6 +187,10 @@ class _PhotoThumbnail(QFrame):
         self.delete_button.setFixedSize(20, 20)
         self.delete_button.setToolTip("Delete photo")
         self.delete_button.clicked.connect(self._delete_photo)
+        self.profile_star_label = QLabel("⭐️", self)
+        self.profile_star_label.setToolTip("Profile pic")
+        self.profile_star_label.setStyleSheet("background: rgba(0, 0, 0, 120); border-radius: 8px; padding: 1px;")
+        self.profile_star_label.setVisible(self._is_profile_pic)
         image_data = photo.get("image_data")
         if isinstance(image_data, bytes):
             self._pixmap.loadFromData(image_data)
@@ -195,9 +203,14 @@ class _PhotoThumbnail(QFrame):
         super().resizeEvent(event)
         self.image_label.setGeometry(0, 0, self.width(), self.height())
         self.delete_button.move(max(6, self.width() - self.delete_button.width() - 6), 6)
+        self.profile_star_label.adjustSize()
+        self.profile_star_label.move(6, max(6, self.height() - self.profile_star_label.height() - 6))
         self._update_pixmap()
 
     def mousePressEvent(self, event: QEvent) -> None:
+        if event.button() == Qt.RightButton:
+            self._show_context_menu(event.globalPosition().toPoint())
+            return
         if self.delete_button.geometry().contains(event.position().toPoint()):
             super().mousePressEvent(event)
             return
@@ -213,6 +226,24 @@ class _PhotoThumbnail(QFrame):
             Qt.SmoothTransformation,
         )
         self.image_label.setPixmap(scaled)
+
+    def _show_context_menu(self, position) -> None:
+        menu = QMenu(self)
+        profile_action = QAction("Set as profile pic", menu)
+        if self._is_profile_pic:
+            profile_action.setText("Set as profile pic (current profile pic)")
+            profile_action.setEnabled(False)
+        else:
+            profile_action.triggered.connect(self._set_profile_pic)
+        delete_action = QAction("Delete", menu)
+        delete_action.triggered.connect(self._delete_photo)
+        menu.addAction(profile_action)
+        menu.addSeparator()
+        menu.addAction(delete_action)
+        menu.exec(position)
+
+    def _set_profile_pic(self) -> None:
+        self._owner._set_photo_gallery_profile_pic(int(self._photo["id"]))
 
     def _delete_photo(self) -> None:
         self._owner._delete_photo_gallery_photo(int(self._photo["id"]))
@@ -1752,6 +1783,7 @@ def _refresh_photo_gallery_for_chart(owner: QWidget, chart_id: int | None = None
             widget.deleteLater()
     chart_uid = chart_uid_for_chart_id(getattr(owner, "current_chart_id", None) if chart_id is None else chart_id)
     photos = list_photos(chart_uid)
+    profile_photo_id = get_profile_photo_id(chart_uid)
     if empty_label is not None:
         empty_label.setVisible(not photos)
     if not photos:
@@ -1761,6 +1793,7 @@ def _refresh_photo_gallery_for_chart(owner: QWidget, chart_id: int | None = None
         photo_data = get_photo_data(int(photo["id"]), chart_uid)
         if photo_data is None:
             continue
+        photo_data["is_profile_pic"] = int(photo_data["id"]) == profile_photo_id
         thumbnail = _PhotoThumbnail(owner, photo_data)
         thumbnail.setFixedSize(cell_size, cell_size)
         grid_layout.addWidget(thumbnail, index // 3, index % 3)
@@ -1843,6 +1876,17 @@ def _show_photo_gallery_preview(owner: QWidget, photo_id: int) -> None:
     owner._photo_gallery_preview_dialog = dialog
 
 
+def _set_photo_gallery_profile_pic(owner: QWidget, photo_id: int) -> None:
+    chart_uid = chart_uid_for_chart_id(getattr(owner, "current_chart_id", None))
+    if not set_profile_photo(chart_uid, photo_id):
+        QMessageBox.warning(owner, "Profile pic unavailable", "Could not assign that photo as this chart’s profile pic.")
+        return
+    current_chart = getattr(owner, "_latest_chart", None) or getattr(owner, "current_chart", None)
+    if current_chart is not None:
+        setattr(current_chart, "profile_pic", str(photo_id))
+    _refresh_photo_gallery_for_chart(owner)
+
+
 def _delete_photo_gallery_photo(owner: QWidget, photo_id: int) -> None:
     selected_count = 1
     label = "image" if selected_count == 1 else "images"
@@ -1868,6 +1912,7 @@ def _bind_photo_gallery_handlers(owner: QWidget) -> None:
     owner._choose_photo_gallery_files = MethodType(_choose_photo_gallery_files, owner)
     owner._add_photo_gallery_url = MethodType(_add_photo_gallery_url, owner)
     owner._show_photo_gallery_preview = MethodType(_show_photo_gallery_preview, owner)
+    owner._set_photo_gallery_profile_pic = MethodType(_set_photo_gallery_profile_pic, owner)
     owner._delete_photo_gallery_photo = MethodType(_delete_photo_gallery_photo, owner)
 
 
