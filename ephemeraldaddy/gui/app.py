@@ -32613,9 +32613,9 @@ class MainWindow(QMainWindow):
         try:
             choice = dialog.exec()
             if choice == QMessageBox.Save:
-                recalculate_chart = bool(getattr(self, "_metadata_autosave_requires_recalculation", False))
-                self._metadata_autosave_requires_recalculation = False
-                self.on_update_chart(show_dialog=True, recalculate_chart=recalculate_chart)
+                self.on_update_chart(show_dialog=True)
+                if not self._lucygoosey:
+                    self._metadata_autosave_requires_recalculation = False
             elif choice == QMessageBox.Discard:
                 self._set_lucygoosey(False)
             return not self._lucygoosey

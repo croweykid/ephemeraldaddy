@@ -16,9 +16,10 @@ def test_unsaved_prompt_has_deterministic_leave_buttons_without_changing_save_pa
     assert "QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel" in method
     assert "dialog.setDefaultButton(QMessageBox.Save)" in method
     assert "dialog.setEscapeButton(QMessageBox.Cancel)" in method
-    assert 'recalculate_chart = bool(getattr(self, "_metadata_autosave_requires_recalculation", False))' in method
+    assert "self.on_update_chart(show_dialog=True)" in method
+    assert 'if not self._lucygoosey:' in method
     assert 'self._metadata_autosave_requires_recalculation = False' in method
-    assert "self.on_update_chart(show_dialog=True, recalculate_chart=recalculate_chart)" in method
+    assert "recalculate_chart=recalculate_chart" not in method
     assert "return self.on_update_chart" not in method
     assert "self._set_lucygoosey(False)" in method
     assert "return not self._lucygoosey" in method
