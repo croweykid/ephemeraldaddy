@@ -23,6 +23,7 @@ import subprocess
 import shutil
 import sys
 import traceback
+import time
 import uuid
 import urllib.parse
 import platform
@@ -538,12 +539,14 @@ from ephemeraldaddy.gui.wikipedia_search import (
 from ephemeraldaddy.analysis.traits import set_default_traits_source_monitor_enabled
 from ephemeraldaddy.gui.dev_tools import (
     BATCH_TAGGING_TERMINAL_DEBUG_DEFAULT,
+    CHART_LOAD_TERMINAL_DEBUG_DEFAULT,
     DEMO_MODE_DEFAULT,
     DISTINGUISHING_FACTORS_SCORING_DEBUG_DEFAULT,
     ENNEAGRAM_PREDICTIONS_DEBUG_DEFAULT,
     PREDICTIONS_THREAD_DEBUG_DEFAULT,
     SIMILARITY_PERCEIVED_ACCURACY_CONTROLS_DEFAULT,
     SETTINGS_KEY_BATCH_TAGGING_TERMINAL_DEBUG,
+    SETTINGS_KEY_CHART_LOAD_TERMINAL_DEBUG,
     SETTINGS_KEY_DEMO_MODE,
     SETTINGS_KEY_DISTINGUISHING_FACTORS_SCORING_DEBUG,
     SETTINGS_KEY_ENNEAGRAM_PREDICTIONS_DEBUG,
@@ -554,6 +557,7 @@ from ephemeraldaddy.gui.dev_tools import (
     MetadataMigrationPanel,
     SizeCheckerPopup,
     add_batch_tagging_terminal_debug_setting,
+    add_chart_load_terminal_debug_setting,
     add_demo_mode_setting,
     add_distinguishing_factors_scoring_debug_setting,
     add_enneagram_predictions_debug_setting,
@@ -562,6 +566,7 @@ from ephemeraldaddy.gui.dev_tools import (
     build_similarity_calculator_settings_section,
     build_predictions_settings_section,
     load_batch_tagging_terminal_debug_enabled,
+    load_chart_load_terminal_debug_enabled,
     load_demo_mode_enabled,
     load_distinguishing_factors_scoring_debug_enabled,
     load_enneagram_predictions_debug_enabled,
@@ -2487,6 +2492,14 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         _save_database_view_row_info_visibility(
             self._settings,
             self._database_view_row_info_visibility,
+        )
+        self._chart_load_terminal_debug = load_chart_load_terminal_debug_enabled(
+            self._settings,
+            fallback=CHART_LOAD_TERMINAL_DEBUG_DEFAULT,
+        )
+        self._settings.setValue(
+            SETTINGS_KEY_CHART_LOAD_TERMINAL_DEBUG,
+            int(self._chart_load_terminal_debug),
         )
         self._batch_tagging_terminal_debug = load_batch_tagging_terminal_debug_enabled(
             self._settings,
@@ -22438,6 +22451,11 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         default_traits_monitor_checkbox.toggled.connect(self._on_default_traits_source_monitor_toggled)
         dev_tools_section.addWidget(default_traits_monitor_checkbox)
 
+        add_chart_load_terminal_debug_setting(
+            section_layout=dev_tools_section,
+            is_enabled=bool(getattr(self, "_chart_load_terminal_debug", CHART_LOAD_TERMINAL_DEBUG_DEFAULT)),
+            on_toggled=self._on_chart_load_terminal_debug_toggled,
+        )
         add_batch_tagging_terminal_debug_setting(
             section_layout=dev_tools_section,
             is_enabled=bool(getattr(self, "_batch_tagging_terminal_debug", BATCH_TAGGING_TERMINAL_DEBUG_DEFAULT)),
@@ -23049,6 +23067,36 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                 int(self._default_traits_source_monitor_enabled),
             )
             set_default_traits_source_monitor_enabled(parent._default_traits_source_monitor_enabled)
+
+    def _on_chart_load_terminal_debug_toggled(self, checked: bool) -> None:
+        self._chart_load_terminal_debug = bool(checked)
+        self._settings.setValue(
+            SETTINGS_KEY_CHART_LOAD_TERMINAL_DEBUG,
+            int(self._chart_load_terminal_debug),
+        )
+        parent = self._owner_window()
+        if isinstance(parent, MainWindow):
+            parent._chart_load_terminal_debug = self._chart_load_terminal_debug
+            parent._settings.setValue(
+                SETTINGS_KEY_CHART_LOAD_TERMINAL_DEBUG,
+                int(self._chart_load_terminal_debug),
+            )
+        if self._chart_load_terminal_debug:
+            root_logger = logging.getLogger()
+            if not root_logger.handlers:
+                logging.basicConfig(
+                    level=logging.INFO,
+                    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+                )
+        self._chart_load_debug_log("debugger_enabled=%s", self._chart_load_terminal_debug)
+
+    def _chart_load_debug_log(self, message: str, *args: object) -> None:
+        if not bool(getattr(self, "_chart_load_terminal_debug", False)):
+            return
+        rendered_message = message % args if args else message
+        logger.info("[chart-load-debug] %s", rendered_message)
+        timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="milliseconds")
+        print(f"[chart-load-debug][{timestamp}] {rendered_message}", file=sys.stderr, flush=True)
 
     def _on_batch_tagging_terminal_debug_toggled(self, checked: bool) -> None:
         self._batch_tagging_terminal_debug = bool(checked)
@@ -32868,6 +32916,9 @@ class MainWindow(QMainWindow):
         current_chart_id = getattr(self, "current_chart_id", None)
         current_chart_id = int(current_chart_id) if current_chart_id is not None else None
         chart_rows = list_charts()
+        cache_key = (current_chart_id, len(chart_rows), max((int(row[0]) for row in chart_rows), default=0))
+        if getattr(line_edit, "_alternate_chart_completer_cache_key", None) == cache_key:
+            return
         chart_uids = get_chart_uid_map(row[0] for row in chart_rows)
         display_names = get_chart_display_name_map(row[0] for row in chart_rows)
         choices: list[str] = []
@@ -32894,6 +32945,7 @@ class MainWindow(QMainWindow):
         completer.popup().setFocusPolicy(Qt.NoFocus)
         line_edit.setCompleter(completer)
         line_edit._alternate_chart_completer = completer
+        line_edit._alternate_chart_completer_cache_key = cache_key
 
     def _set_alternate_chart_state(self, chart_uid: str | None) -> None:
         line_edit = getattr(self, "alternate_chart_input", None)
@@ -34011,6 +34063,9 @@ class MainWindow(QMainWindow):
         current_chart_id = getattr(self, "current_chart_id", None)
         current_chart_id = int(current_chart_id) if current_chart_id is not None else None
         chart_rows = list_charts()
+        cache_key = (current_chart_id, len(chart_rows), max((int(row[0]) for row in chart_rows), default=0))
+        if getattr(line_edit, "_reminds_me_of_completer_cache_key", None) == cache_key:
+            return
         chart_uids = get_chart_uid_map(row[0] for row in chart_rows)
         display_names = get_chart_display_name_map(row[0] for row in chart_rows)
 
@@ -34041,6 +34096,7 @@ class MainWindow(QMainWindow):
         completer.popup().setFocusPolicy(Qt.NoFocus)
         line_edit.setCompleter(completer)
         line_edit._reminds_me_of_completer = completer
+        line_edit._reminds_me_of_completer_cache_key = cache_key
 
     def _render_reminds_me_of_selection(self) -> None:
         label = getattr(self, "reminds_me_of_selection_label", None)
@@ -35149,19 +35205,49 @@ class MainWindow(QMainWindow):
         Chart View navigation is UID-first; integer IDs are resolved at this
         boundary only so older callers can keep working while they migrate.
         """
+        started_at = time.perf_counter()
+        self._chart_load_debug_log("start legacy_chart_id=%s", chart_id)
+        progress = None
+        if not from_chart_link:
+            progress = QProgressDialog("Resolving chart UID…", None, 0, 6, self)
+            progress.setWindowTitle("Loading chart")
+            progress.setCancelButton(None)
+            progress.setMinimumDuration(0)
+            progress.setAutoClose(False)
+            progress.setAutoReset(False)
+            progress.setValue(0)
+            progress.show()
+            QApplication.processEvents()
+        def _step(value: int, message: str) -> None:
+            self._chart_load_debug_log("progress step=%s message=%s elapsed=%.3fs", value, message, time.perf_counter() - started_at)
+            if progress is not None:
+                progress.setLabelText(message)
+                progress.setValue(value)
+                QApplication.processEvents()
+        _step(1, "Resolving chart UID…")
         chart_uid = get_chart_uid(chart_id)
         if not chart_uid:
+            if progress is not None:
+                progress.close()
             QMessageBox.critical(
                 self,
                 "Load error",
                 f"Could not resolve chart UID for legacy chart id #{chart_id}.",
             )
             return False
-        return self.load_chart_by_uid(
+        _step(2, "Checking unsaved Chart View edits…")
+        _step(3, "Loading saved chart data…")
+        result = self.load_chart_by_uid(
             chart_uid,
             from_chart_link=from_chart_link,
             skip_unsaved_confirmation=skip_unsaved_confirmation,
+            progress_callback=_step,
         )
+        _step(6, "Chart loaded." if result else "Chart load stopped.")
+        if progress is not None:
+            progress.close()
+        self._chart_load_debug_log("finish chart_uid=%s success=%s total=%.3fs", chart_uid, result, time.perf_counter() - started_at)
+        return result
 
     def load_chart_by_uid(
         self,
@@ -35169,11 +35255,14 @@ class MainWindow(QMainWindow):
         *,
         from_chart_link: bool = False,
         skip_unsaved_confirmation: bool = False,
+        progress_callback: Callable[[int, str], None] | None = None,
     ) -> bool:
         normalized_chart_uid = self._normalized_chart_uid_key(chart_uid)
         if not normalized_chart_uid:
             QMessageBox.critical(self, "Load error", "Could not load chart without a UID.")
             return False
+        if progress_callback is not None:
+            progress_callback(2, "Checking unsaved Chart View edits…")
         if not skip_unsaved_confirmation and not self._confirm_discard_or_save():
             return False
         current_chart_uid = self._current_chart_uid_for_navigation()
@@ -35203,6 +35292,8 @@ class MainWindow(QMainWindow):
             self._sync_chart_right_panel_placeholder_state(None)
             self._show_chart_loading_overlay()
             QApplication.processEvents()
+        if progress_callback is not None:
+            progress_callback(3, "Hydrating chart object and derived placements…")
         if cached_chart is not None:
             chart = cached_chart
             self._chart_view_navigation_cache.move_to_end(normalized_chart_uid)
@@ -35247,6 +35338,8 @@ class MainWindow(QMainWindow):
         # Chart Edit Window: an existing chart is identified by stable chart UID.
         self._set_current_chart_identity(chart_id, chart, normalized_chart_uid)
 
+        if progress_callback is not None:
+            progress_callback(4, "Filling Chart View metadata fields…")
         # Update input fields from loaded chart
         self._suppress_lucygoosey = True
         self.name_edit.setText(chart.name or "")
@@ -35391,6 +35484,8 @@ class MainWindow(QMainWindow):
         self._update_unknown_positions_summary(chart)
         self._cache_chart_view_navigation_entry(normalized_chart_uid, chart)
         self._sync_chart_right_panel_placeholder_state(chart)
+        if progress_callback is not None:
+            progress_callback(5, "Queueing visible Chart View panels…")
         if getattr(chart, "is_placeholder", False):
             if not bool(getattr(self, "_demo_mode_enabled", DEMO_MODE_DEFAULT)):
                 self._set_chart_right_panel("subjective_notes")
