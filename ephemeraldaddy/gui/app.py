@@ -7423,7 +7423,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         if tool_key == "chart_predictor_quiz":
             parent._latest_chart = chart
-            parent.current_chart_id = chart_id
+            parent._set_current_chart_identity(chart_id, chart)
             parent.on_open_chart_predictor_quiz()
             return
 
@@ -7431,7 +7431,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             parent._open_bazi_window(chart)
         elif tool_key == "human_design":
             parent._latest_chart = chart
-            parent.current_chart_id = chart_id
+            parent._set_current_chart_identity(chart_id, chart)
             parent.on_get_human_design_info()
         elif tool_key == "personal_transit":
             parent._generate_current_transits_for_chart(chart, chart_id)
@@ -13778,7 +13778,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             return
         set_current_chart(chart_id)
-        parent.current_chart_id = chart_id
+        parent._set_current_chart_identity(chart_id, chart)
         parent._manage_charts_pending_changed_ids.add(chart_id)
         parent._loaded_birth_place = place
         parent._loaded_lat = chart.lat
@@ -19104,7 +19104,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for chart_id in changed_ids:
                 self._chart_cache.pop(chart_id, None)
             owner = self._owner_window()
-            if owner is not None and hasattr(owner, "_invalidate_chart_view_navigation_cache"):
+            if owner is not None and hasattr(owner, "_invalidate_chart_view_navigation_cache_for_ids"):
                 owner._invalidate_chart_view_navigation_cache_for_ids(changed_ids)
         chart_ids_for_cache = []
         for row in self._chart_rows:
@@ -32592,8 +32592,7 @@ class MainWindow(QMainWindow):
         return True
 
     def _orphan_current_chart_reference(self) -> None:
-        self.current_chart_id = None
-        self.current_chart_uid = None
+        self._set_current_chart_identity(None)
         set_current_chart(None)
         self.update_button.setText("Save Chart")
         self._set_lucygoosey(False)
@@ -34529,8 +34528,7 @@ class MainWindow(QMainWindow):
             set_current_chart(chart_id)
             self._invalidate_chart_view_navigation_cache_for_ids({chart_id})
 
-        self.current_chart_id = chart_id
-        self.current_chart_uid = self._normalized_chart_uid_key(getattr(chart, "chart_uid", None) or get_chart_uid(chart_id))
+        self._set_current_chart_identity(chart_id, chart)
         if not subjective_notes_autosave:
             old_alternate_uid = get_alternate_chart_uid(chart_id)
             new_alternate_uid = self._current_alternate_chart_uid_for_save(getattr(chart, "chart_type", None))
@@ -34636,8 +34634,7 @@ class MainWindow(QMainWindow):
     def _reset_new_chart_form(self) -> None:
         self._chart_view_history.clear()
         self._chart_view_history_index = -1
-        self.current_chart_id = None
-        self.current_chart_uid = None
+        self._set_current_chart_identity(None)
         set_current_chart(None)
         self._loaded_birth_place = None
         self._loaded_lat = None
@@ -34879,6 +34876,20 @@ class MainWindow(QMainWindow):
         normalized_uid = str(chart_uid or "").strip().upper()
         return normalized_uid or None
 
+    def _set_current_chart_identity(
+        self,
+        chart_id: int | None,
+        chart: Chart | None = None,
+        chart_uid: str | None = None,
+    ) -> None:
+        self.current_chart_id = int(chart_id) if chart_id is not None else None
+        if self.current_chart_id is None:
+            self.current_chart_uid = None
+            return
+        self.current_chart_uid = self._normalized_chart_uid_key(
+            chart_uid or getattr(chart, "chart_uid", None) or get_chart_uid(self.current_chart_id)
+        )
+
     def _current_chart_uid_for_navigation(self) -> str | None:
         chart_uid = self._normalized_chart_uid_key(getattr(self, "current_chart_uid", None))
         if chart_uid:
@@ -35084,8 +35095,7 @@ class MainWindow(QMainWindow):
         self._species_info_map = {}
 
         # Chart Edit Window: an existing chart is identified by stable chart UID.
-        self.current_chart_id = chart_id
-        self.current_chart_uid = normalized_chart_uid
+        self._set_current_chart_identity(chart_id, chart, normalized_chart_uid)
 
         # Update input fields from loaded chart
         self._suppress_lucygoosey = True
