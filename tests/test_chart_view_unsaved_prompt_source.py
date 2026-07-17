@@ -105,8 +105,42 @@ def test_retcon_time_edits_defer_autosave_so_leave_prompt_can_win():
     assert "self._autosave_checkbox_state()" not in method
 
 
+def test_save_update_caches_chart_view_entry_by_uid_not_row_id():
+    method = _method_source("on_update_chart")
+    assert "self._set_current_chart_identity(chart_id, chart)" in method
+    assert "self._cache_chart_view_navigation_entry(self.current_chart_uid, chart)" in method
+    assert "self._cache_chart_view_navigation_entry(chart_id, chart)" not in method
+
+
+def test_current_chart_uid_for_navigation_repairs_stale_uid_state():
+    method = _method_source("_current_chart_uid_for_navigation")
+    assert "latest_chart_uid" in method
+    assert "current_chart_id is not None" in method
+    assert "latest_chart_id == current_chart_id" in method
+    assert "current_chart_id is None" not in method
+    assert "stored_chart_uid != latest_chart_uid" in method
+    assert "self.current_chart_uid = latest_chart_uid" in method
+    assert "resolved_chart_uid = self._normalized_chart_uid_key(get_chart_uid(current_chart_id))" in method
+    assert "return stored_chart_uid" in method
+
+
+def test_delete_flow_invalidates_navigation_cache_with_predelete_uids():
+    delete_start = APP_SOURCE.index("    def _on_delete(self) -> None:")
+    delete_end = APP_SOURCE.find("\n    def ", delete_start + 1)
+    delete_method = APP_SOURCE[delete_start:delete_end]
+    deleted_callback = _method_source("_on_charts_deleted")
+    id_adapter = _method_source("_invalidate_chart_view_navigation_cache_for_ids")
+
+    assert "deleted_chart_uids = set(get_chart_uid_map(chart_ids).values())" in delete_method
+    assert "parent._on_charts_deleted(set(chart_ids), chart_uids=deleted_chart_uids)" in delete_method
+    assert "chart_uids: set[str] | None = None" in deleted_callback
+    assert "self._invalidate_chart_view_navigation_cache(normalized_chart_uids)" in deleted_callback
+    assert "self._invalidate_chart_view_navigation_cache_for_ids(chart_ids)" in deleted_callback
+    assert 'getattr(cached_chart, "id", 0)' not in id_adapter
+
+
 def test_loaded_rectified_time_is_restored_before_checkbox_enabled():
-    method = _method_source("load_chart_by_id")
+    method = _method_source("load_chart_by_uid")
     stored_hour_index = method.index('stored_retcon_hour = getattr(chart, "retcon_hour", None)')
     set_time_index = method.index("self.retcon_time_edit.setTime", stored_hour_index)
     checkbox_index = method.index("self.retcon_time_checkbox.setChecked(chart.retcon_time_used)")
