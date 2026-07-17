@@ -2201,7 +2201,8 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
     owner._traits_prediction_pending_signatures = signatures
     if _predictions_manual_recalculation_only(owner):
         _predictions_debug(owner, "Trait render found no persisted trait metadata; waiting for manual calculate cache_key=%s", (cache_key or "")[:12])
-        _apply_traits_prediction_view(owner, _traits_calculate_prompt_html(), "No prior data. Calculate (can take awhile)?")
+        prompt_html = _traits_calculate_prompt_html()
+        _apply_traits_prediction_view(owner, prompt_html, prompt_html)
     else:
         message = "● Loading fresh trait predictions for this UID… ●"
         _predictions_debug(owner, "Trait render found no persisted trait metadata; auto-loading fresh traits cache_key=%s", (cache_key or "")[:12])
