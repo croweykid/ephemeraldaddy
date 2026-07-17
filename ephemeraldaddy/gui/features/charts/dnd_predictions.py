@@ -106,6 +106,7 @@ from ephemeraldaddy.gui.style import (
 
 
 DND_STAT_KEYS: tuple[str, ...] = ("STR", "DEX", "CON", "INT", "WIS", "CHA")
+DND_SPECIES_CLASS_CACHE_VERSION = 2
 logger = logging.getLogger(__name__)
 
 
@@ -1650,28 +1651,30 @@ class DndPredictionPanelAdapter:
     def _species_class_owner_cache(self) -> dict[str, Any]:
         return _owner_cache_bucket(self.owner, "_dnd_species_class_prediction_view_cache")
 
+    def _is_current_species_class_cache(self, chart: Any, payload: Any) -> bool:
+        return (
+            isinstance(payload, dict)
+            and payload.get("version") == DND_SPECIES_CLASS_CACHE_VERSION
+            and _cache_payload_chart_uid_matches(chart, payload, require_uid=True)
+            and isinstance(payload.get("species"), list)
+            and isinstance(payload.get("classes"), list)
+        )
+
     def _restore_species_class_cache(self, chart: Any) -> dict[str, Any] | None:
         cached = getattr(chart, "_dnd_species_class_prediction_cache", None)
-        if (
-            isinstance(cached, dict)
-            and _cache_payload_chart_uid_matches(chart, cached, require_uid=True)
-            and isinstance(cached.get("species"), list)
-            and isinstance(cached.get("classes"), list)
-        ):
+        if self._is_current_species_class_cache(chart, cached):
             return cached
         chart_cache_id = self._chart_cache_identity(chart)
         restored = self._species_class_owner_cache().get(chart_cache_id) if chart_cache_id else None
-        if not _cache_payload_chart_uid_matches(chart, restored, require_uid=True):
+        if not self._is_current_species_class_cache(chart, restored):
             restored = None
         if not isinstance(restored, dict):
             restored = _load_persisted_dnd_prediction_payload(chart).get("species_class")
             if isinstance(restored, dict) and "chart_uid" not in restored:
                 restored["chart_uid"] = _chart_prediction_cache_uid(chart)
-        if (
-            isinstance(restored, dict)
-            and isinstance(restored.get("species"), list)
-            and isinstance(restored.get("classes"), list)
-        ):
+            if not self._is_current_species_class_cache(chart, restored):
+                restored = None
+        if isinstance(restored, dict):
             if chart_cache_id:
                 self._species_class_owner_cache()[chart_cache_id] = restored
             try:
@@ -1685,6 +1688,7 @@ class DndPredictionPanelAdapter:
         axis_scores, class_payloads = _collect_ranked_class_payloads(chart)
         cache_payload = {
             "chart_uid": _chart_prediction_cache_uid(chart),
+            "version": DND_SPECIES_CLASS_CACHE_VERSION,
             "key": self._chart_state_cache_token(chart),
             "species": _collect_ranked_species_payloads(chart),
             "classes": class_payloads,

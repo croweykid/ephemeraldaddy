@@ -146,8 +146,11 @@ def test_dnd_species_and_class_predictions_are_persisted_by_chart_uid():
     assert "Predictions cache contract" in DND_SOURCE
     assert "Do not silently refresh stale cached sections from render/draw paths." in TRAIT_SOURCE
     assert "def _restore_species_class_cache" in DND_SOURCE
+    assert "def _is_current_species_class_cache" in DND_SOURCE
+    assert 'payload.get("version") == DND_SPECIES_CLASS_CACHE_VERSION' in DND_SOURCE
     assert "def _cache_species_class_metadata" in DND_SOURCE
     assert '_persist_dnd_prediction_payload(chart, "species_class", cache_payload)' in DND_SOURCE
+    assert '"version": DND_SPECIES_CLASS_CACHE_VERSION' in DND_SOURCE
     assert '"species": _collect_ranked_species_payloads(chart)' in DND_SOURCE
     assert '"classes": class_payloads' in DND_SOURCE
     assert "self._cache_species_class_metadata(chart)" in DND_SOURCE
