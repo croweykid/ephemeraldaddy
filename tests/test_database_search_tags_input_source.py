@@ -85,5 +85,6 @@ def test_middle_panel_search_bar_row_applies_custom_search_controls():
     assert 'QPushButton("⬇️")' in row_builder
     assert 'background_color="#e6b800"' in row_builder
     assert 'placeholder_color="#b38f00"' in row_builder
+    assert 'text_color="#1f1f1f"' in row_builder
     assert 'background_color="#5900b3"' in row_builder
     assert 'placeholder_color="#8000ff"' in row_builder

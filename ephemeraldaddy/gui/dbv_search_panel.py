@@ -631,10 +631,15 @@ def build_dbv_search_bar_row(window) -> "QWidget":
     row_widget.setLayout(row_layout)
 
     def _apply_search_input_style(
-        line_edit, *, background_color: str, placeholder_color: str
+        line_edit,
+        *,
+        background_color: str,
+        placeholder_color: str,
+        text_color: str | None = None,
     ) -> None:
+        text_color_rule = f" color: {text_color};" if text_color else ""
         line_edit.setStyleSheet(
-            f"QLineEdit {{ background-color: {background_color}; }}"
+            f"QLineEdit {{ background-color: {background_color};{text_color_rule} }}"
             f"QLineEdit::placeholder {{ color: {placeholder_color}; }}"
         )
 
@@ -692,6 +697,7 @@ def build_dbv_search_bar_row(window) -> "QWidget":
         window.search_tags_input,
         background_color="#e6b800",
         placeholder_color="#b38f00",
+        text_color="#1f1f1f",
     )
     window.search_tags_input.textChanged.connect(window._on_search_tags_changed)
     window.search_tags_input.returnPressed.connect(window._on_filter_changed)
