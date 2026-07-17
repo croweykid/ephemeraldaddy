@@ -951,6 +951,7 @@ from ephemeraldaddy.gui.dbv_search_panel import (
     on_search_tag_category_mode_changed,
     on_search_tag_logic_changed,
     on_search_tag_mode_changed,
+    refresh_tag_catalog_for_added_tags,
     refresh_search_tags_list,
     sync_search_tags_list_selection,
     reset_body_dynamics_filters,
@@ -15003,7 +15004,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                 continue
             cached_chart.tags = existing_tags + [tag_value]
             self._chart_cache[chart_id] = cached_chart
-        self._finalize_batch_tag_updates(changed_ids)
+        self._finalize_batch_tag_updates(changed_ids, added_tags=[tag_value])
 
     @staticmethod
     def _parse_integer_filter_text(raw_value: str | None) -> int | None:
@@ -15158,15 +15159,24 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         changed_ids = set(chart_ids)
         self._finalize_batch_tag_updates(changed_ids)
 
-    def _finalize_batch_tag_updates(self, changed_ids: set[int]) -> None:
+    def _finalize_batch_tag_updates(
+        self,
+        changed_ids: set[int],
+        *,
+        added_tags: list[str] | None = None,
+    ) -> None:
         self._batch_tagging_debug_log(
             "phase1_saved changed_ids=%s selection_count=%s",
             sorted(changed_ids),
             len(self._selected_chart_ids()),
         )
         try:
-            self._update_tag_completers(refresh_location_completers=False)
-            self._batch_tagging_debug_log("phase2a_tag_completers_updated")
+            if added_tags:
+                refresh_tag_catalog_for_added_tags(self, added_tags)
+                self._batch_tagging_debug_log("phase2a_tag_catalog_incrementally_updated")
+            else:
+                self._update_tag_completers(refresh_location_completers=False)
+                self._batch_tagging_debug_log("phase2a_tag_completers_updated")
             self._update_batch_tag_state()
             self._batch_tagging_debug_log("phase2b_batch_tag_state_updated")
             self._refresh_tag_distribution_after_batch_tag_update(changed_ids)
@@ -15743,7 +15753,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                 continue
             cached_chart.tags = existing_tags + [tag_to_add]
             self._chart_cache[chart_id] = cached_chart
-        self._finalize_batch_tag_updates(changed_ids)
+        self._finalize_batch_tag_updates(changed_ids, added_tags=[tag_to_add])
 
     def _update_batch_alignment_score_label(self, value: int) -> None:
         self.batch_alignment_score_label.setText(f"Alignment score: {int(value)}")
