@@ -129,7 +129,35 @@ def test_rankings_panel_uses_chart_rows_fallback_and_sequence_weight_loading():
     assert 'getattr(self, "chart_data", [])' not in ids_method
     assert 'normalized_chart_ids = tuple(sorted({int(chart_id) for chart_id in database_chart_ids}))' in sign_method
     assert 'load_dominant_sign_weights(list(normalized_chart_ids))' in sign_method
+    assert 'chart_uids_by_id = get_chart_uid_map(normalized_chart_ids)' in sign_method
+    assert '"chart_uid": chart_uid' in sign_method
+    assert "href='chart:{chart_uid}'" in sign_method
     assert 'for chart_id in normalized_chart_ids:' in sign_method
+
+
+def test_rankings_links_use_chart_uids_for_navigation_targets():
+    app_source = _app_source()
+    ranking_panel_source = _ranking_panel_source()
+    database_source = _database_analytics_source()
+    app_link_method = app_source.split("def _on_similar_chart_link_activated", 1)[1].split(
+        "def _on_similar_chart_popout_link_activated", 1
+    )[0]
+    rankings_refresh = ranking_panel_source.split("def _refresh_rankings_panel", 1)[1].split(
+        "def _refresh_sign_dominance_rankings", 1
+    )[0]
+    renderer = database_source.split("def _render_traits_distribution_rankings_html", 1)[1].split(
+        "def _collect_traits_distribution_analytics", 1
+    )[0]
+    link_handler = database_source.split("def _on_traits_distribution_rank_chart_link_activated", 1)[1].split(
+        "@staticmethod", 1
+    )[0]
+
+    assert 'target_chart_uid = self._normalized_chart_uid_key(normalized_target)' in app_link_method
+    assert 'trait_uid_map = get_chart_uid_map(row.get("chart_id") for row in trait_rankings)' in rankings_refresh
+    assert 'row["chart_uid"] = chart_uid' in rankings_refresh
+    assert 'chart_uid = str(row.get("chart_uid", "") or "").strip()' in renderer
+    assert 'chart_target = chart_uid or (str(chart_id) if chart_id else "")' in renderer
+    assert 'open_link(normalized_target, transition_to_chart_view=True)' in link_handler
 
 
 def test_trait_rankings_default_to_database_until_manual_rank_selected():

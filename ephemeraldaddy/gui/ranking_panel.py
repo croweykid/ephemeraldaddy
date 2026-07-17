@@ -13,7 +13,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from ephemeraldaddy.core.interpretations import ZODIAC_NAMES
-from ephemeraldaddy.core.db import load_dominant_sign_weights
+from ephemeraldaddy.core.db import get_chart_uid_map, load_dominant_sign_weights
 from ephemeraldaddy.gui.features.settings.traits import list_traits
 from ephemeraldaddy.gui.features.charts.metrics import (
     calculate_dominant_sign_weights as _calculate_dominant_sign_weights,
@@ -185,6 +185,14 @@ class RankingsPanelMixin:
             selected_trait_name=selected_trait_name or "",
             database_values=database_values,
         )
+        trait_uid_map = get_chart_uid_map(row.get("chart_id") for row in trait_rankings)
+        for row in trait_rankings:
+            try:
+                chart_uid = trait_uid_map.get(int(row.get("chart_id")))
+            except (TypeError, ValueError):
+                chart_uid = None
+            if chart_uid:
+                row["chart_uid"] = chart_uid
         self.rankings_traits_label.setText(
             self._render_traits_distribution_rankings_html(
                 selected_trait_name,
@@ -207,6 +215,7 @@ class RankingsPanelMixin:
             return
         normalized_chart_ids = tuple(sorted({int(chart_id) for chart_id in database_chart_ids}))
         stored_weights = load_dominant_sign_weights(list(normalized_chart_ids))
+        chart_uids_by_id = get_chart_uid_map(normalized_chart_ids)
         rows: list[dict[str, Any]] = []
         hidden_chart_ids = {int(chart_id) for chart_id in getattr(self, "_hidden_chart_ids", set())}
         db_average = 0.0
@@ -232,10 +241,11 @@ class RankingsPanelMixin:
             except (TypeError, ValueError):
                 continue
             db_count += 1
+            chart_uid = chart_uids_by_id.get(int(chart_id)) or str(getattr(chart, "chart_uid", "") or "")
             rows.append(
                 {
-                    "chart_id": int(chart_id),
-                    "name": str(getattr(chart, "name", "") or f"Chart {chart_id}"),
+                    "chart_uid": chart_uid,
+                    "name": str(getattr(chart, "name", "") or f"Chart {chart_uid or chart_id}"),
                     "value": value,
                 }
             )
@@ -244,7 +254,7 @@ class RankingsPanelMixin:
         rows.sort(key=lambda row: (-float(row["value"]), str(row["name"]).casefold()))
         table_rows = []
         for rank, row in enumerate(rows[:10], start=1):
-            chart_id = int(row["chart_id"])
+            chart_uid = html.escape(str(row.get("chart_uid", "") or ""))
             name = html.escape(str(row["name"]))
             value = float(row["value"]) * 100.0
             deviation = value - (db_average * 100.0)
@@ -252,7 +262,7 @@ class RankingsPanelMixin:
             table_rows.append(
                 "<tr>"
                 f"<td style='padding:1px 8px 1px 0; color:#9a9a9a; text-align:right;'>{rank}</td>"
-                f"<td style='padding:1px 8px 1px 0;'><a href='chart:{chart_id}' style='color:#f0f0f0; text-decoration:none;'>{name}</a></td>"
+                f"<td style='padding:1px 8px 1px 0;'><a href='chart:{chart_uid}' style='color:#f0f0f0; text-decoration:none;'>{name}</a></td>"
                 f"<td style='padding:1px 8px 1px 0; color:#d8d8d8; text-align:right;'>{value:.1f}%</td>"
                 f"<td style='padding:1px 0; color:{deviation_color}; text-align:right;'>{deviation:+.1f}</td>"
                 "</tr>"

@@ -26656,8 +26656,9 @@ class MainWindow(QMainWindow):
         try:
             chart_id = int(normalized_target)
         except (TypeError, ValueError):
-            return
-        target_chart_uid = get_chart_uid(chart_id)
+            target_chart_uid = self._normalized_chart_uid_key(normalized_target)
+        else:
+            target_chart_uid = get_chart_uid(chart_id)
         if not target_chart_uid:
             return
         target_chart_uid = self._normalized_chart_uid_key(target_chart_uid)

@@ -4485,14 +4485,17 @@ class DatabaseAnalyticsChartsMixin:
         normalized_target = str(target or "").strip()
         if normalized_target.startswith("chart:"):
             normalized_target = normalized_target.split(":", 1)[1].strip()
-        try:
-            chart_id = int(normalized_target)
-        except (TypeError, ValueError):
-            return
         owner = self._owner_window() if hasattr(self, "_owner_window") else getattr(self, "_app_owner", None)
         open_link = getattr(owner, "_on_similar_chart_link_activated", None)
         if callable(open_link):
-            open_link(str(chart_id), transition_to_chart_view=True)
+            open_link(normalized_target, transition_to_chart_view=True)
+            return
+        try:
+            chart_id = int(normalized_target)
+        except (TypeError, ValueError):
+            load_chart_by_uid = getattr(owner, "load_chart_by_uid", None)
+            if callable(load_chart_by_uid):
+                load_chart_by_uid(normalized_target, from_chart_link=True)
             return
         load_chart_by_id = getattr(owner, "load_chart_by_id", None)
         if callable(load_chart_by_id):
@@ -4527,13 +4530,15 @@ class DatabaseAnalyticsChartsMixin:
         rows = []
         for rank, row in enumerate(rankings, start=1):
             name = html.escape(str(row.get("name", "")))
+            chart_uid = str(row.get("chart_uid", "") or "").strip()
             try:
                 chart_id = int(row.get("chart_id"))
             except (TypeError, ValueError):
                 chart_id = 0
+            chart_target = chart_uid or (str(chart_id) if chart_id else "")
             chart_link = (
-                f"<a href='chart:{chart_id}' style='color:#f0f0f0; text-decoration:none;'>{name}</a>"
-                if chart_id
+                f"<a href='chart:{html.escape(chart_target)}' style='color:#f0f0f0; text-decoration:none;'>{name}</a>"
+                if chart_target
                 else name
             )
             likelihood = float(row.get("likelihood", 0.0))
