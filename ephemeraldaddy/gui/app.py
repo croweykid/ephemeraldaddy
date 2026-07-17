@@ -24868,6 +24868,12 @@ class MainWindow(QMainWindow):
         self._metadata_autosave_timer.setSingleShot(True)
         self._metadata_autosave_timer.timeout.connect(self._flush_pending_metadata_save)
         self._metadata_autosave_requires_recalculation = False
+        self._timing_preview_update_timer = QTimer(self)
+        self._timing_preview_update_timer.setSingleShot(True)
+        self._timing_preview_update_timer.timeout.connect(
+            self._flush_timing_preview_update
+        )
+        self._time_input_text_colors: dict[str, str] = {}
         # Suppress startup widget signal noise while we populate default values.
         self._suppress_lucygoosey = True
         self._latest_chart = None
@@ -35314,9 +35320,9 @@ class MainWindow(QMainWindow):
     def _on_unknown_time_toggled(self, checked: bool) -> None:
         self._update_time_input_visibility()
         self._update_time_input_text_colors()
-        self._refresh_chart_preview()
-        self._update_unknown_positions_summary(self._latest_chart)
-        self._autosave_checkbox_state()
+        if not self._suppress_lucygoosey:
+            self._mark_lucygoosey()
+            self._queue_timing_preview_update()
 
     def _update_unknown_positions_summary(self, chart: Chart | None = None) -> None:
         label = getattr(self, "unknown_positions_summary_label", None)
@@ -35419,14 +35425,8 @@ class MainWindow(QMainWindow):
         self._update_time_input_text_colors()
         if not self._suppress_lucygoosey:
             self._mark_lucygoosey()
-            self._reset_metric_canvases_for_retcon_timing_update()
-            self._refresh_chart_preview()
-            # Rectified-time edits are lucygoosey until autosave fires, but they
-            # affect calculated positions and therefore must use the full chart
-            # recalculation save path instead of metadata-only autosave.
-            if self._can_autosave_current_chart():
-                self._metadata_autosave_requires_recalculation = True
-                self._metadata_autosave_timer.start(2500)
+            # _queue_timing_preview_update defers self._metadata_autosave_timer.start(2500).
+            self._queue_timing_preview_update()
 
     def _on_birth_time_changed(self, _time: QTime) -> None:
         if (
@@ -35434,6 +35434,7 @@ class MainWindow(QMainWindow):
             and not self.time_unknown_checkbox.isChecked()
         ):
             self._birth_time_user_overridden = True
+            self._queue_timing_preview_update()
         self._update_time_input_text_colors()
 
     def _on_retcon_time_changed(self, _time: QTime) -> None:
@@ -35446,33 +35447,19 @@ class MainWindow(QMainWindow):
             self._mark_lucygoosey()
         self._update_time_input_text_colors()
         if should_refresh_retcon_preview:
-            self._reset_metric_canvases_for_retcon_timing_update()
-            self._refresh_chart_preview()
-            # Restart the full recalculation autosave on every change so the
-            # currently selected rectified time is saved only after the user
-            # pauses adjustment.
-            if self._can_autosave_current_chart():
-                self._metadata_autosave_requires_recalculation = True
-                self._metadata_autosave_timer.start(2500)
+            # _queue_timing_preview_update defers self._metadata_autosave_timer.start(2500).
+            self._queue_timing_preview_update()
 
     def _on_rectification_range_toggled(self, _checked: bool) -> None:
         self._update_time_input_visibility()
         if not self._suppress_lucygoosey:
             self._mark_lucygoosey()
-            self._reset_metric_canvases_for_retcon_timing_update()
-            self._refresh_chart_preview()
-            if self._can_autosave_current_chart():
-                self._metadata_autosave_requires_recalculation = True
-                self._metadata_autosave_timer.start(2500)
+            self._queue_timing_preview_update()
 
     def _on_rectification_range_changed(self, _time: QTime) -> None:
         if not self._suppress_lucygoosey and self.rectification_range_checkbox.isChecked():
             self._mark_lucygoosey()
-            self._reset_metric_canvases_for_retcon_timing_update()
-            self._refresh_chart_preview()
-            if self._can_autosave_current_chart():
-                self._metadata_autosave_requires_recalculation = True
-                self._metadata_autosave_timer.start(2500)
+            self._queue_timing_preview_update()
 
     def _rectification_range_minutes_from_inputs(self) -> tuple[int, int]:
         start_time = self.rectification_range_start_edit.time()
@@ -35546,8 +35533,30 @@ class MainWindow(QMainWindow):
         retcon_time_color = (
             "#f5f5f5" if self._retcon_time_user_overridden else "#8a8a8a"  #white-ish or midgray
         )
-        self.time_edit.setStyleSheet(f"color: {birth_time_color};")
-        self.retcon_time_edit.setStyleSheet(f"color: {retcon_time_color};")
+        if self._time_input_text_colors.get("birth") != birth_time_color:
+            self.time_edit.setStyleSheet(f"color: {birth_time_color};")
+            self._time_input_text_colors["birth"] = birth_time_color
+        if self._time_input_text_colors.get("retcon") != retcon_time_color:
+            self.retcon_time_edit.setStyleSheet(f"color: {retcon_time_color};")
+            self._time_input_text_colors["retcon"] = retcon_time_color
+
+    def _queue_timing_preview_update(self) -> None:
+        """Debounce expensive chart recalculation while time fields are edited."""
+        if self._suppress_lucygoosey:
+            return
+        # Rectified-time, rectified-range, and known birthtime edits change core
+        # calculated chart data. Rebuild once after typing pauses instead of on
+        # each digit/checkbox signal, which keeps the GUI responsive.
+        self._timing_preview_update_timer.start(450)
+        if self._can_autosave_current_chart():
+            self._metadata_autosave_requires_recalculation = True
+            self._metadata_autosave_timer.start(2500)
+
+    def _flush_timing_preview_update(self) -> None:
+        if self._suppress_lucygoosey:
+            return
+        self._reset_metric_canvases_for_retcon_timing_update()
+        self._refresh_chart_preview()
 
     def _reset_metric_canvases_for_retcon_timing_update(self) -> None:
         """Reset only Chart View metric canvases affected by retcon timing edits."""
