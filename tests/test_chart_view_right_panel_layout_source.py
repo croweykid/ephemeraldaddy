@@ -177,13 +177,13 @@ def test_property_managers_button_sits_below_settings_sections_with_padding():
     predictions_index = method.index('"Predictions"')
     user_profile_index = method.index('"User Profile"')
     reset_index = method.index('"Reset All to Defaults"')
-    property_managers_index = method.index('"Property Managers"')
+    property_manager_index = method.index('"Property Manager"')
     stretch_index = method.index("content_layout.addStretch(1)")
 
     assert data_visualization_index < developer_tools_index < database_stats_index
     assert database_stats_index < similar_charts_index < predictions_index < user_profile_index < reset_index
-    assert reset_index < property_managers_index < stretch_index
-    assert "Property Managers" in method
+    assert reset_index < property_manager_index < stretch_index
+    assert "Property Manager" in method
     assert "parent_layout.addSpacing(top_spacing)" in source
     assert "button = QPushButton(title)" in source
     assert "button = QToolButton()" not in source[
