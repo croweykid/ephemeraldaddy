@@ -6,6 +6,7 @@ import calendar
 import copy
 import ctypes
 import datetime
+import faulthandler
 from dataclasses import asdict
 import html
 import hashlib
@@ -2214,11 +2215,14 @@ def _configure_debug_logging() -> None:
             level=logging.DEBUG,
             format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
         )
+    if not faulthandler.is_enabled():
+        faulthandler.enable(all_threads=True)
     logger.debug(
-        "Debug logging enabled (pid=%s platform=%s argv=%s).",
+        "Debug logging enabled (pid=%s platform=%s argv=%s faulthandler=%s).",
         os.getpid(),
         sys.platform,
         sys.argv,
+        faulthandler.is_enabled(),
     )
 
 
