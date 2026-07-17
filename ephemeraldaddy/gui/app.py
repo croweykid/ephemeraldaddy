@@ -26071,6 +26071,46 @@ class MainWindow(QMainWindow):
     def _update_chart_analysis_subtitle(self, chart_key: str) -> None:
         self._chart_analysis_sections_controller.update_subtitle(chart_key)
 
+    def _scroll_chart_analysis_section_bottom_into_view(self, section_key: str) -> None:
+        section = self._chart_analysis_section_widgets.get(section_key)
+        if section is None or not section.isVisible():
+            return
+
+        parent = section.parentWidget()
+        scroll_area = None
+        while parent is not None:
+            if isinstance(parent, QScrollArea):
+                scroll_area = parent
+                break
+            parent = parent.parentWidget()
+        if scroll_area is None:
+            return
+
+        scroll_widget = scroll_area.widget()
+        viewport = scroll_area.viewport()
+        scrollbar = scroll_area.verticalScrollBar()
+        if scroll_widget is None or viewport is None or scrollbar is None:
+            return
+
+        section_bottom_y = section.mapTo(scroll_widget, QPoint(0, section.height())).y()
+        target_value = section_bottom_y - viewport.height()
+        scrollbar.setValue(
+            max(
+                scrollbar.minimum(),
+                min(target_value, scrollbar.maximum()),
+            )
+        )
+
+    def _schedule_chart_analysis_section_bottom_autoscroll(self, section_key: str) -> None:
+        # Some sections (notably Gender Guesser in Predictions) render lazily only
+        # after expansion.  Re-scroll after both immediate content reveal and the
+        # delayed Matplotlib/layout refreshes so the finished graph stays visible.
+        for delay_ms in (0, 50, 150, 300, 450):
+            QTimer.singleShot(
+                delay_ms,
+                lambda key=section_key: self._scroll_chart_analysis_section_bottom_into_view(key),
+            )
+
     def _set_chart_analysis_section_expanded(self, section_key: str, expanded: bool) -> None:
         self._chart_analysis_sections_controller.set_section_expanded(section_key, expanded)
         if not expanded or self._latest_chart is None:
@@ -26083,6 +26123,8 @@ class MainWindow(QMainWindow):
             sections={render_key},
             queue_priority="interactive",
         )
+        if section_key == "gender_guesser":
+            self._schedule_chart_analysis_section_bottom_autoscroll(section_key)
 
     def _is_chart_analysis_section_visible(self, section_key: str) -> bool:
         return self._chart_analysis_section_visible.get(section_key, True)
@@ -29824,7 +29866,9 @@ class MainWindow(QMainWindow):
             spine.set_visible(False)
         ax.grid(False)
         ax.figure.tight_layout()
-        ax.figure.subplots_adjust(left=0.09, bottom=0.28, top=0.82, right=0.97)
+        # Leave extra right padding for the feminine endpoint label/marker so the
+        # gauge reads left-to-right without clipping against the right panel edge.
+        ax.figure.subplots_adjust(left=0.09, bottom=0.28, top=0.82, right=0.91)
 
     def _draw_planet_dynamics(self, ax, chart: Chart) -> None:
         self._precompute_planet_dynamics_if_needed(chart)
@@ -36675,6 +36719,7 @@ class MainWindow(QMainWindow):
             title="Gender Guesser",
             draw_fn=self._draw_gender_guesser,
             chart=chart,
+            display_height=190,
         )
 
 
