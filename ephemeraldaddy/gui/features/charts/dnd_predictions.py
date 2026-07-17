@@ -943,6 +943,11 @@ def _dnd_alignment_trait_items() -> list[dict[str, Any]]:
     return items
 
 
+def _dnd_alignment_trait_name(trait: Mapping[str, Any]) -> str:
+    """Return a normalized D&D alignment trait label outside cache-key helpers."""
+    return str(trait.get("name", "")).strip()
+
+
 def _dnd_alignment_cache_key(owner: Any, chart: Any) -> tuple[str, str]:
     chart_uid = _chart_prediction_cache_uid(chart)
     chart_token = _cache_key_fingerprint({
@@ -1042,7 +1047,7 @@ def _dnd_alignment_score_parts(owner: Any, chart: Any, *, allow_stale: bool = Fa
         database_averages = {}
     parts: dict[str, dict[str, float]] = {}
     for trait in trait_items:
-        label = str(trait.get("name", "")).strip()
+        label = _dnd_alignment_trait_name(trait)
         key = label.casefold()
         if label not in likelihoods or label not in database_averages:
             continue
