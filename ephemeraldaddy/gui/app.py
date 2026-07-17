@@ -448,9 +448,33 @@ from PySide6.QtCore import (
     QSignalBlocker,
     QThread,
     Signal,
+    Slot,
     QRegularExpression,
     QItemSelectionModel,
 )
+
+
+class _PlanetDynamicsWorker(QObject):
+    """Compute body-dynamics scores away from the GUI thread."""
+
+    finished = Signal(str, tuple, object)
+    failed = Signal(str, tuple, str)
+
+    def __init__(self, request_id: str, signature: tuple[object, ...], chart: Chart) -> None:
+        super().__init__()
+        self._request_id = request_id
+        self._signature = signature
+        self._chart = chart
+
+    @Slot()
+    def run(self) -> None:
+        try:
+            if QThread.currentThread().isInterruptionRequested():
+                return
+            scores = _calculate_planet_dynamics_scores(self._chart)
+            self.finished.emit(self._request_id, self._signature, scores)
+        except Exception as exc:  # pragma: no cover - defensive GUI worker path
+            self.failed.emit(self._request_id, self._signature, str(exc))
 
 
 class _GlobalCloseShortcutFilter(QObject):
@@ -24909,6 +24933,8 @@ class MainWindow(QMainWindow):
         self._similar_charts_popout_cache: OrderedDict[tuple[str, str, str, str], dict[str, Any]] = OrderedDict()
         self._similar_charts_request_id: str | None = None
         self._similar_charts_worker_jobs: list[tuple[QThread, SimilarChartsWorker]] = []
+        self._planet_dynamics_worker_jobs: dict[str, tuple[QThread, _PlanetDynamicsWorker]] = {}
+        self._planet_dynamics_pending_signatures: set[tuple[object, ...]] = set()
         self._anagrams_summary_label: QLabel | None = None
         self._anagrams_list_label: QLabel | None = None
         self._anagrams_export_button: QToolButton | None = None
@@ -36686,12 +36712,74 @@ class MainWindow(QMainWindow):
             and getattr(chart, "planet_dynamics_scores", None)
         ):
             return
-        chart.planet_dynamics_scores = _calculate_planet_dynamics_scores(chart)
+        if signature in getattr(self, "_planet_dynamics_pending_signatures", set()):
+            return
+        request_id = uuid.uuid4().hex
+        thread = QThread(self)
+        worker = _PlanetDynamicsWorker(request_id, signature, copy.deepcopy(chart))
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.finished.connect(
+            lambda completed_request_id, completed_signature, scores, chart_ref=chart: self._on_planet_dynamics_worker_finished(
+                completed_request_id,
+                completed_signature,
+                scores,
+                chart_ref,
+            )
+        )
+        worker.failed.connect(
+            lambda completed_request_id, completed_signature, message: self._on_planet_dynamics_worker_failed(
+                completed_request_id,
+                completed_signature,
+                message,
+            )
+        )
+        worker.finished.connect(thread.quit)
+        worker.failed.connect(thread.quit)
+        worker.finished.connect(worker.deleteLater)
+        worker.failed.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+        thread.finished.connect(lambda rid=request_id: self._forget_planet_dynamics_worker_job(rid))
+        self._planet_dynamics_pending_signatures.add(signature)
+        self._planet_dynamics_worker_jobs[request_id] = (thread, worker)
+        thread.start()
+
+    def _forget_planet_dynamics_worker_job(self, request_id: str) -> None:
+        self._planet_dynamics_worker_jobs.pop(request_id, None)
+
+    def _on_planet_dynamics_worker_finished(
+        self,
+        request_id: str,
+        signature: tuple[object, ...],
+        scores: object,
+        chart: Chart,
+    ) -> None:
+        self._planet_dynamics_pending_signatures.discard(signature)
+        if getattr(self, "_latest_chart", None) is not chart:
+            return
+        if self._planet_dynamics_cache_signature(chart) != signature:
+            return
+        chart.planet_dynamics_scores = scores if isinstance(scores, dict) else {}
         chart._planet_dynamics_scores_signature = signature
+        self._schedule_chart_render(chart, sections={"planet_dynamics"})
+
+    def _on_planet_dynamics_worker_failed(
+        self,
+        request_id: str,
+        signature: tuple[object, ...],
+        message: str,
+    ) -> None:
+        self._planet_dynamics_pending_signatures.discard(signature)
+        logger.warning("Body Dynamics worker %s failed: %s", request_id, message)
 
     def _render_planet_dynamics(self, chart: Chart) -> None:
         dropdown = self._chart_analysis_chart_dropdowns.get("planet_dynamics")
         self._precompute_planet_dynamics_if_needed(chart)
+        if self._planet_dynamics_cache_signature(chart) in getattr(self, "_planet_dynamics_pending_signatures", set()):
+            summary_label = getattr(self, "planet_dynamics_summary_label", None)
+            if summary_label is not None:
+                summary_label.setText("Calculating Body Dynamics in the background…")
+            return
         scores = getattr(chart, "planet_dynamics_scores", None) or {}
         dynamics_bodies = [
             body
