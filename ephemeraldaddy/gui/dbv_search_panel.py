@@ -16,11 +16,20 @@ BODY_DYNAMICS_ROLE_OPTIONS: tuple[tuple[str, str], ...] = (
     ("Escalator", "escalator"),
 )
 
+# The Isolated Factors filter used to require 3x the next-highest weight.
+# Lowering that requirement by 15% keeps the filter selective while allowing
+# near-isolated dominance profiles to surface in Database View searches.
+ISOLATED_DOMINANCE_NEXT_HIGHEST_MULTIPLIER = 3.0 * 0.85
+
 def weight_is_at_least_triple_next_highest(
     weights: dict[str, float] | None,
     selected_key: str,
 ) -> bool:
-    """Return whether a selected weight is at least 3x the next-highest peer.
+    """Return whether a selected weight clears the isolated dominance bar.
+
+    The historical threshold was 3x the next-highest peer. Database View
+    searches now use a 15% looser threshold (2.55x) so the Isolated Factors
+    filter can return near-isolated dominance profiles without becoming broad.
 
     ``selected_key == "Any"`` means any weighted key may satisfy the isolated
     dominance test. This is the active Isolated Factors wildcard behavior.
@@ -49,7 +58,9 @@ def weight_is_at_least_triple_next_highest(
             if other_weight is None:
                 return False
             next_highest_weight = max(next_highest_weight, other_weight)
-        return selected_weight >= (next_highest_weight * 3.0)
+        return selected_weight >= (
+            next_highest_weight * ISOLATED_DOMINANCE_NEXT_HIGHEST_MULTIPLIER
+        )
 
     if selected_key == "Any":
         return any(key_is_isolated(str(weight_key)) for weight_key in weights)
