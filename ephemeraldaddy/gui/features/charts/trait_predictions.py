@@ -1469,23 +1469,40 @@ def trait_metadata_for_chart(
             setattr(chart, "trait_likelihoods", _trait_uid_mapping_for_names(likelihoods, trait_uids_by_name))
             setattr(chart, "_trait_prediction_metadata_cache", {"signature": signature, "metadata": metadata})
             return metadata
-        if cached_only and active_trait_names and set(stale_rows_by_name) == active_trait_names:
-            _predictions_debug(owner, "Trait metadata stale DB row cache hit chart_uid=%s traits=%s", chart_uid, len(active_trait_names))
-            above = {name for name, row in stale_rows_by_name.items() if row.get("direction") == "above"}
-            below = {name for name, row in stale_rows_by_name.items() if row.get("direction") == "below"}
+        if cached_only and (cached_rows_by_name or stale_rows_by_name):
+            # Chart View must never revoke UID-owned trait metadata just because
+            # one of the cache signatures drifted or because the active trait
+            # working set changed after the chart was last calculated.  Any
+            # rows previously persisted for this chart UID remain displayable;
+            # stale/incomplete rows merely earn a Recalculate prompt above the
+            # still-rendered table.
+            display_rows_by_name = dict(stale_rows_by_name)
+            display_rows_by_name.update(cached_rows_by_name)
+            display_is_stale = bool(stale_rows_by_name) or set(display_rows_by_name) != active_trait_names
+            _predictions_debug(
+                owner,
+                "Trait metadata displayable DB row cache hit chart_uid=%s traits=%s stale=%s",
+                chart_uid,
+                len(display_rows_by_name),
+                display_is_stale,
+            )
+            above = {name for name, row in display_rows_by_name.items() if row.get("direction") == "above"}
+            below = {name for name, row in display_rows_by_name.items() if row.get("direction") == "below"}
             latest_updated_at = max(
-                (str(row.get("updated_at", "") or "") for row in stale_rows_by_name.values()),
+                (str(row.get("updated_at", "") or "") for row in display_rows_by_name.values()),
                 default="",
             )
-            return {
+            metadata = {
                 "above": above,
                 "below": below,
-                "deviations": {name: float(row.get("deviation", 0.0)) for name, row in stale_rows_by_name.items()},
-                "likelihoods": {name: float(row.get("likelihood", 0.0)) for name, row in stale_rows_by_name.items()},
-                "database_averages": {name: float(row.get("db_average", 0.0)) for name, row in stale_rows_by_name.items()},
-                "stale": True,
+                "deviations": {name: float(row.get("deviation", 0.0)) for name, row in display_rows_by_name.items()},
+                "likelihoods": {name: float(row.get("likelihood", 0.0)) for name, row in display_rows_by_name.items()},
+                "database_averages": {name: float(row.get("db_average", 0.0)) for name, row in display_rows_by_name.items()},
                 "updated_at": latest_updated_at,
             }
+            if display_is_stale:
+                metadata["stale"] = True
+            return metadata
 
     if cached_only:
         return None
