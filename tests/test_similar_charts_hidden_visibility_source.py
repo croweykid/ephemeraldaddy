@@ -118,6 +118,20 @@ def test_trait_rankings_are_moved_to_rankings_panel():
     assert 'self.rankings_sign_combo.addItems(list(ZODIAC_NAMES))' in ranking_panel_source
 
 
+def test_rankings_panel_uses_chart_rows_fallback_and_sequence_weight_loading():
+    ranking_panel_source = _ranking_panel_source()
+    ids_method = ranking_panel_source.split("def _rankings_database_chart_ids", 1)[1].split(
+        "def _sync_rankings_trait_combo", 1
+    )[0]
+    sign_method = ranking_panel_source.split("def _refresh_sign_dominance_rankings", 1)[1]
+
+    assert 'getattr(self, "_chart_rows", [])' in ids_method
+    assert 'getattr(self, "chart_data", [])' not in ids_method
+    assert 'normalized_chart_ids = tuple(sorted({int(chart_id) for chart_id in database_chart_ids}))' in sign_method
+    assert 'load_dominant_sign_weights(list(normalized_chart_ids))' in sign_method
+    assert 'for chart_id in normalized_chart_ids:' in sign_method
+
+
 def test_trait_rankings_default_to_database_until_manual_rank_selected():
     source = _database_analytics_source()
     create_method = source.split("def _create_traits_database_analytics_section", 1)[1].split(

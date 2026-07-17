@@ -105,11 +105,18 @@ class RankingsPanelMixin:
         if isinstance(cache, dict) and cache.get("chart_ids"):
             return {int(chart_id) for chart_id in cache.get("chart_ids", set())}
         ids: set[int] = set()
-        for row in getattr(self, "chart_data", []) or []:
-            try:
-                chart_id = int(row.get("id") if isinstance(row, dict) else getattr(row, "id"))
-            except (TypeError, ValueError, AttributeError):
-                continue
+        normalize_chart_row = getattr(self, "_normalize_chart_row", None)
+        for row in getattr(self, "_chart_rows", []) or []:
+            chart_id: int | None = None
+            if callable(normalize_chart_row):
+                normalized = normalize_chart_row(row)
+                if normalized is not None:
+                    chart_id = int(normalized[0])
+            if chart_id is None:
+                try:
+                    chart_id = int(row[0])
+                except (TypeError, ValueError, IndexError):
+                    continue
             chart = self._get_chart_for_filter(chart_id)
             if chart is not None and not self._is_placeholder_chart(chart):
                 ids.add(chart_id)
@@ -198,7 +205,8 @@ class RankingsPanelMixin:
         if selected_sign not in ZODIAC_NAMES:
             label.setText("<span style='color:#9a9a9a;'>Select a sign to rank chart dominance.</span>")
             return
-        stored_weights = load_dominant_sign_weights(database_chart_ids)
+        normalized_chart_ids = tuple(sorted({int(chart_id) for chart_id in database_chart_ids}))
+        stored_weights = load_dominant_sign_weights(list(normalized_chart_ids))
         rows: list[dict[str, Any]] = []
         hidden_chart_ids = {int(chart_id) for chart_id in getattr(self, "_hidden_chart_ids", set())}
         db_average = 0.0
@@ -209,7 +217,7 @@ class RankingsPanelMixin:
             totals = cache.get("dominant_sign_totals", {})
             if total_weight:
                 db_average = float(totals.get(selected_sign, 0.0)) / total_weight
-        for chart_id in sorted(database_chart_ids):
+        for chart_id in normalized_chart_ids:
             if int(chart_id) in hidden_chart_ids:
                 continue
             chart = self._get_chart_for_filter(int(chart_id))
