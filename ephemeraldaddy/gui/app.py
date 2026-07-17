@@ -34950,6 +34950,13 @@ class MainWindow(QMainWindow):
     ) -> bool:
         if not skip_unsaved_confirmation and not self._confirm_discard_or_save():
             return False
+        replacing_current_chart = (
+            not skip_unsaved_confirmation
+            and self.current_chart_id is not None
+            and int(self.current_chart_id) != int(chart_id)
+        )
+        if replacing_current_chart:
+            self._flush_stale_predictions_before_chart_exit()
         self._prepare_chart_right_panel_for_loading()
         is_same_chart_request = self.current_chart_id == chart_id
         if not from_chart_link and not is_same_chart_request:
@@ -38323,6 +38330,7 @@ class MainWindow(QMainWindow):
         if not self._confirm_discard_or_save():
             event.ignore()
             return
+        self._flush_stale_predictions_before_chart_exit()
         _stop_background_prediction_render(self)
         _stop_traits_prediction_refresh_workers(self)
         if self._size_checker_popup is not None:
