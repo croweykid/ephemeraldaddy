@@ -398,12 +398,14 @@ class RankingsPanelMixin:
             str(row.get("chart_uid") or row.get("name") or "").strip()
             for row in rows[:20]
         ]
-        shared_top_20_count = sum(
-            1
-            for chart_key in selected_top_20_keys
+        shared_top_20_ranks = [
+            rank
+            for rank, chart_key in enumerate(selected_top_20_keys, start=1)
             if len(sign_top_20_memberships.get(chart_key, ())) >= 2
-        )
-        display_limit = min(20, 10 + shared_top_20_count)
+        ]
+        shared_top_20_count = len(shared_top_20_ranks)
+        deepest_shared_rank = max(shared_top_20_ranks, default=0)
+        display_limit = min(20, max(10 + shared_top_20_count, deepest_shared_rank))
 
         table_rows = []
         for rank, row in enumerate(rows[:display_limit], start=1):

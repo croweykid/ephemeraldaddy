@@ -232,6 +232,8 @@ def test_sign_dominance_rankings_expand_for_cross_sign_top_20_memberships():
     assert "sign_top_20_memberships" in sign_method
     assert "for row in sign_ranked_rows[:20]:" in sign_method
     assert "rows[:20]" in sign_method
-    assert "display_limit = min(20, 10 + shared_top_20_count)" in sign_method
+    assert "shared_top_20_ranks" in sign_method
+    assert "deepest_shared_rank = max(shared_top_20_ranks, default=0)" in sign_method
+    assert "display_limit = min(20, max(10 + shared_top_20_count, deepest_shared_rank))" in sign_method
     assert "rows[:display_limit]" in sign_method
     assert "glyph_html" in sign_method
