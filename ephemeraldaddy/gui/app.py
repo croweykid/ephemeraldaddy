@@ -35513,6 +35513,8 @@ class MainWindow(QMainWindow):
             "gender",
             "alignment",
             "matched_expectations",
+            "chart_type",
+            "aggregation_scope",
         }
         return bool(set(changed_fields) & metric_fields)
 
@@ -36388,6 +36390,17 @@ class MainWindow(QMainWindow):
             != MainWindow._chart_birth_data_recalculation_token(chart, birth_place)
         ):
             changed_fields.add("birth_data")
+        previous_chart_type = _normalize_gui_source(
+            getattr(previous_chart, "chart_type", None) or getattr(previous_chart, "source", None)
+        )
+        current_chart_type = _normalize_gui_source(
+            getattr(chart, "chart_type", None) or getattr(chart, "source", None)
+        )
+        if previous_chart_type != current_chart_type:
+            changed_fields.add("chart_type")
+        if _chart_is_non_aggregable(previous_chart) != _chart_is_non_aggregable(chart):
+            changed_fields.add("aggregation_scope")
+
         comparisons = {
             "sentiments": lambda value: tuple(
                 sorted(
