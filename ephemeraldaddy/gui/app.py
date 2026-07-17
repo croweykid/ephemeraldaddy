@@ -35765,6 +35765,7 @@ class MainWindow(QMainWindow):
                 self._hide_chart_loading_overlay()
             return
 
+        section_rendered_cleanly = True
         if section == "summary":
             self._refresh_chart_summary(chart)
         elif section == "signs":
@@ -35784,7 +35785,7 @@ class MainWindow(QMainWindow):
         elif section == "planet_dynamics_prepare":
             self._precompute_planet_dynamics_if_needed(chart)
         elif section == "planet_dynamics":
-            self._render_planet_dynamics(chart)
+            section_rendered_cleanly = self._render_planet_dynamics(chart)
         elif section == "chart_type":
             self._render_chart_type(chart)
         elif section == "wheel":
@@ -35809,7 +35810,8 @@ class MainWindow(QMainWindow):
             return
 
         self._chart_render_queue_state.mark_complete(section)
-        self._mark_chart_analytics_sections_clean({section}, chart)
+        if section_rendered_cleanly:
+            self._mark_chart_analytics_sections_clean({section}, chart)
 
         if self._chart_render_queue_state.has_queued_work():
             self._render_flush_timer.start(0)
@@ -36772,14 +36774,14 @@ class MainWindow(QMainWindow):
         self._planet_dynamics_pending_signatures.discard(signature)
         logger.warning("Body Dynamics worker %s failed: %s", request_id, message)
 
-    def _render_planet_dynamics(self, chart: Chart) -> None:
+    def _render_planet_dynamics(self, chart: Chart) -> bool:
         dropdown = self._chart_analysis_chart_dropdowns.get("planet_dynamics")
         self._precompute_planet_dynamics_if_needed(chart)
         if self._planet_dynamics_cache_signature(chart) in getattr(self, "_planet_dynamics_pending_signatures", set()):
             summary_label = getattr(self, "planet_dynamics_summary_label", None)
             if summary_label is not None:
                 summary_label.setText("Calculating Body Dynamics in the background…")
-            return
+            return False
         scores = getattr(chart, "planet_dynamics_scores", None) or {}
         dynamics_bodies = [
             body
@@ -36825,6 +36827,7 @@ class MainWindow(QMainWindow):
                 fallback_text_color=CHART_THEME_COLORS["text"],
             )
         )
+        return True
 
     def _render_chart_type(self, chart: Chart) -> None:
         self._clear_layout_widgets(self.chart_type_container_layout)

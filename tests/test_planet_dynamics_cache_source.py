@@ -48,3 +48,21 @@ def test_planet_dynamics_worker_result_schedules_gui_render_only_after_payload()
         "def _render_chart_type", 1
     )[0]
     assert "Calculating Body Dynamics in the background" in render_source
+
+
+def test_pending_planet_dynamics_render_does_not_mark_section_clean():
+    source = Path("ephemeraldaddy/gui/app.py").read_text()
+    flush_source = source.split("def _flush_scheduled_chart_render", 1)[1].split(
+        "def _chart_analysis_render_key_for_section", 1
+    )[0]
+    assert "section_rendered_cleanly = True" in flush_source
+    assert "section_rendered_cleanly = self._render_planet_dynamics(chart)" in flush_source
+    assert "if section_rendered_cleanly:" in flush_source
+    assert "self._mark_chart_analytics_sections_clean({section}, chart)" in flush_source
+
+    render_source = source.split("def _render_planet_dynamics", 1)[1].split(
+        "def _render_chart_type", 1
+    )[0]
+    assert "-> bool" in render_source.splitlines()[0]
+    assert "return False" in render_source
+    assert "return True" in render_source
