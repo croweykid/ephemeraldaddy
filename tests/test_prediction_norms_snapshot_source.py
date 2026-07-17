@@ -80,3 +80,10 @@ def test_app_adapter_avoids_loading_norm_charts_when_snapshot_has_dnd_stat_avera
 def test_database_statistics_exposes_manual_refresh_norms_button():
     assert 'QPushButton("Refresh Predictions Norms")' in DB_INFO_SOURCE
     assert "refresh_prediction_norms_snapshot(owner)" in DB_INFO_SOURCE
+
+
+def test_chart_view_traits_keep_uid_metadata_visible_when_cache_is_stale_or_incomplete():
+    cached_only_method = TRAIT_SOURCE.split("def trait_metadata_for_chart", 1)[1].split("if cached_only:\n        return None", 1)[0]
+    assert "if cached_only and (cached_rows_by_name or stale_rows_by_name):" in cached_only_method
+    assert "rows previously persisted for this chart UID remain displayable" in cached_only_method
+    assert "metadata[\"stale\"] = True" in cached_only_method

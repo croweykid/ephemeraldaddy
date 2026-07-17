@@ -42,6 +42,7 @@ from PySide6.QtWidgets import (
 
 from ephemeraldaddy.gui.features.charts.dnd_predictions import DND_STAT_KEYS
 from ephemeraldaddy.gui.features.charts.database_norms_cache import analytical_mapping_signature
+from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import trait_snapshot_averages
 
 DATABASE_METRICS_SECTION_ORDER: tuple[str, ...] = (
     "planetary_sign_prevalence",
@@ -4434,14 +4435,39 @@ class DatabaseAnalyticsChartsMixin:
                 continue
             chart_cache_key = (cache_revision, trait_signature, int(chart_id))
             likelihoods = likelihood_cache.get(chart_cache_key)
-            if likelihoods is None:
-                # The aggregate collector should have warmed this cache already.
-                # Skip instead of doing surprise UI-thread work during dropdown use.
-                continue
-            try:
-                likelihood = float(likelihoods.get(selected_trait_name, 0.0))
-            except (TypeError, ValueError):
-                continue
+            if likelihoods is not None:
+                try:
+                    likelihood = float(likelihoods.get(selected_trait_name, 0.0))
+                except (TypeError, ValueError):
+                    continue
+            else:
+                selected_trait_key = next(
+                    (trait_key for trait_key in trait_signature if trait_key[0] == selected_trait_name),
+                    None,
+                )
+                if selected_trait_key is None:
+                    continue
+                cached_likelihood = None
+                individual_cache = getattr(self, "_traits_distribution_individual_likelihood_cache", None)
+                if isinstance(individual_cache, dict):
+                    cached_likelihood = individual_cache.get((selected_trait_key, int(chart_id)))
+                if cached_likelihood is None:
+                    profile_cache = getattr(self, "_traits_distribution_individual_profile_likelihood_cache", None)
+                    profile_token_cache = getattr(self, "_traits_distribution_individual_profile_token_cache", None)
+                    if isinstance(profile_cache, dict) and isinstance(profile_token_cache, dict):
+                        profile_cache_key = (selected_trait_key[2], int(chart_id))
+                        cached_chart_token = str(profile_token_cache.get(profile_cache_key, "") or "")
+                        current_chart_token = self._traits_distribution_chart_tokens().get(int(chart_id))
+                        if cached_chart_token and cached_chart_token == current_chart_token:
+                            cached_likelihood = profile_cache.get(profile_cache_key)
+                if cached_likelihood is None:
+                    # The aggregate collector or persisted per-profile cache should have warmed this already.
+                    # Skip instead of doing surprise UI-thread work during dropdown use.
+                    continue
+                try:
+                    likelihood = float(cached_likelihood)
+                except (TypeError, ValueError):
+                    continue
             chart_name = str(getattr(chart, "name", "") or f"Chart {chart_id}").strip()
             rows.append(
                 {
@@ -5269,11 +5295,40 @@ class DatabaseAnalyticsChartsMixin:
                 )
             self._sync_traits_distribution_display_mode()
             return
-        database_analytics = self._collect_traits_distribution_analytics(
-            database_chart_ids,
-            trait_items=trait_items,
-            trait_signature=trait_signature,
-        )
+        snapshot_database_values: dict[str, float] = {}
+        requested_snapshot_trait_names = {name for name, _color, _profile in trait_signature}
+        if rankings_mode and requested_snapshot_trait_names:
+            try:
+                snapshot_averages = trait_snapshot_averages(trait_items)
+            except Exception:
+                logger.exception("Failed to load shared Predictions trait norm snapshot for Trait Rankings.")
+                snapshot_averages = {}
+            if requested_snapshot_trait_names.issubset(set(snapshot_averages)):
+                snapshot_database_values = {
+                    name: float(snapshot_averages[name]) / 100.0
+                    for name in requested_snapshot_trait_names
+                }
+        if rankings_mode and snapshot_database_values:
+            snapshot_chart_count = max(1, len(database_chart_ids))
+            database_analytics = {
+                "trait_names": [name for name, _color, _profile in trait_signature],
+                "totals": {name: value * float(snapshot_chart_count) for name, value in snapshot_database_values.items()},
+                "chart_count": snapshot_chart_count,
+                "colors": {name: color for name, color, _profile in trait_signature},
+                "partial": False,
+                "requested_chart_count": len(database_chart_ids),
+                "parsed_chart_count": len(database_chart_ids),
+                "parsed_percent": 100.0,
+                "from_prediction_norm_snapshot": True,
+            }
+            if not isinstance(getattr(self, "_traits_distribution_chart_likelihood_cache", None), dict):
+                self._load_traits_distribution_likelihood_cache()
+        else:
+            database_analytics = self._collect_traits_distribution_analytics(
+                database_chart_ids,
+                trait_items=trait_items,
+                trait_signature=trait_signature,
+            )
         self._traits_distribution_latest_selected_chart_ids = tuple(
             sorted({int(chart_id) for chart_id in chart_ids})
         ) if loaded_charts > 0 else ()
