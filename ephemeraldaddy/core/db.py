@@ -3915,6 +3915,114 @@ def update_chart(
     _persist_chart_derived_cache(int(chart_id), chart)
 
 
+def update_chart_lightweight_metadata(chart_id: int, chart) -> None:
+    """Update non-derived Chart View metadata without recalculating astrology payloads.
+
+    This path is intentionally limited to fields that do not affect positions,
+    houses, Human Design, BaZi, body dynamics, or prediction cache signatures.
+    It keeps lucygoosey alias/from/notes-style saves from paying the full
+    ``update_chart`` cost.
+    """
+    resolved_chart_type = _normalize_chart_type(
+        getattr(chart, "chart_type", None) or getattr(chart, "source", None)
+    )
+    conn = _get_conn()
+    with conn:
+        _ensure_chart_uids(conn)
+        existing_uid_row = conn.execute(
+            "SELECT chart_uid FROM charts WHERE id = ?",
+            (int(chart_id),),
+        ).fetchone()
+        if existing_uid_row and existing_uid_row[0]:
+            setattr(chart, "chart_uid", str(existing_uid_row[0]))
+        conn.execute(
+            """
+            UPDATE charts
+            SET name = ?,
+                alias = ?,
+                from_whence = ?,
+                gender = ?,
+                sentiments = ?,
+                relationship_types = ?,
+                tags = ?,
+                reminds_me_of = ?,
+                comments = ?,
+                quotes = ?,
+                rectification_notes = ?,
+                biography = ?,
+                chart_data_source = ?,
+                alternate_chart_uid = ?,
+                positive_sentiment_intensity = ?,
+                negative_sentiment_intensity = ?,
+                familiarity = ?,
+                alignment_score = ?,
+                sexiness_score = ?,
+                weirdness_score = ?,
+                matched_expectations = ?,
+                familiarity_factors = ?,
+                age_when_first_met = ?,
+                year_first_encountered = ?,
+                data_rating = ?,
+                social_score = ?,
+                chart_type = ?,
+                source = ?,
+                is_deceased = ?,
+                death_month = ?,
+                death_day = ?,
+                death_year = ?,
+                deathtime_unknown = ?,
+                death_hour = ?,
+                death_minute = ?,
+                death_place = ?
+            WHERE id = ?
+            """,
+            (
+                chart.name,
+                getattr(chart, "alias", None),
+                getattr(chart, "from_whence", None),
+                getattr(chart, "gender", None),
+                _serialize_sentiments(getattr(chart, "sentiments", [])),
+                _serialize_relationship_types(getattr(chart, "relationship_types", [])),
+                _serialize_tags(getattr(chart, "tags", [])),
+                getattr(chart, "reminds_me_of", None),
+                getattr(chart, "comments", None),
+                _serialize_quotes(getattr(chart, "quotes", [])),
+                getattr(chart, "rectification_notes", None),
+                getattr(chart, "biography", None),
+                getattr(chart, "chart_data_source", None),
+                getattr(chart, "alternate_chart_uid", None),
+                _normalize_optional_sentiment_metric(getattr(chart, "positive_sentiment_intensity", None)),
+                _normalize_optional_sentiment_metric(getattr(chart, "negative_sentiment_intensity", None)),
+                _normalize_optional_sentiment_metric(getattr(chart, "familiarity", None)),
+                _normalize_alignment_score(getattr(chart, "alignment_score", None)),
+                _normalize_sexiness_score(getattr(chart, "sexiness_score", None)),
+                _normalize_weirdness_score(getattr(chart, "weirdness_score", None)),
+                _normalize_matched_expectations(getattr(chart, "matched_expectations", None)),
+                _serialize_familiarity_factors(getattr(chart, "familiarity_factors", [])),
+                max(0, int(getattr(chart, "age_when_first_met", 0) or 0)),
+                _normalize_year_first_encountered(getattr(chart, "year_first_encountered", None)),
+                str(getattr(chart, "data_rating", "blank") or "blank"),
+                calculate_social_score(
+                    getattr(chart, "positive_sentiment_intensity", None),
+                    getattr(chart, "negative_sentiment_intensity", None),
+                    getattr(chart, "familiarity", None),
+                ),
+                resolved_chart_type,
+                resolved_chart_type,
+                int(bool(getattr(chart, "is_deceased", False))),
+                getattr(chart, "death_month", None),
+                getattr(chart, "death_day", None),
+                getattr(chart, "death_year", None),
+                int(bool(getattr(chart, "deathtime_unknown", False))),
+                getattr(chart, "death_hour", None),
+                getattr(chart, "death_minute", None),
+                getattr(chart, "death_place", None),
+                int(chart_id),
+            ),
+        )
+    conn.close()
+
+
 def update_chart_by_uid(chart_uid: str | None, chart, **kwargs: Any) -> None:
     """Update a saved chart by stable chart UID."""
     chart_id = get_chart_id_by_uid(chart_uid)

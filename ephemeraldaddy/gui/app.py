@@ -738,6 +738,7 @@ from ephemeraldaddy.core.db import (
     delete_charts,
     invalidate_all_dominant_weight_caches,
     update_chart,
+    update_chart_lightweight_metadata,
     update_chart_dominant_sign_weights,
     update_chart_weirdness_score,
     set_current_chart,
@@ -34585,7 +34586,10 @@ class MainWindow(QMainWindow):
             chart_id = save_chart(chart, **save_kwargs)
             set_current_chart(chart_id)
         else:
-            update_chart(chart_id, chart, **save_kwargs)
+            if recalculate_chart:
+                update_chart(chart_id, chart, **save_kwargs)
+            else:
+                update_chart_lightweight_metadata(chart_id, chart)
             set_current_chart(chart_id)
             self._invalidate_chart_view_navigation_cache_for_ids({chart_id})
 
