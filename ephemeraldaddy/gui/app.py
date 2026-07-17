@@ -1312,6 +1312,7 @@ GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS: frozenset[str] = frozenset(
 )
 SIMILAR_CHARTS_EXPORT_FORMAT_KEY = "exports/similar_charts_format"
 CHART_VIEW_NAV_CACHE_LIMIT = 24
+CHART_VIEW_TIMING_PREVIEW_DEBOUNCE_MS = 4000
 
 DATABASE_METRICS_PERSISTENT_CACHE_VERSION = 1
 DATABASE_METRICS_PERSISTENT_CACHE_FILENAME = ".database_metrics_cache.json"
@@ -35545,9 +35546,10 @@ class MainWindow(QMainWindow):
         if self._suppress_lucygoosey:
             return
         # Rectified-time, rectified-range, and known birthtime edits change core
-        # calculated chart data. Rebuild once after typing pauses instead of on
-        # each digit/checkbox signal, which keeps the GUI responsive.
-        self._timing_preview_update_timer.start(450)
+        # calculated chart data. Rebuild once after a real editing pause instead
+        # of on each digit/checkbox signal, which keeps the GUI responsive while
+        # still updating Chart Data Output automatically.
+        self._timing_preview_update_timer.start(CHART_VIEW_TIMING_PREVIEW_DEBOUNCE_MS)
         if self._can_autosave_current_chart():
             self._metadata_autosave_requires_recalculation = True
             self._metadata_autosave_timer.start(2500)
