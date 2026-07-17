@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+# LEGACY CHART ID WARNING: any chart_id reference in this file is transitional compatibility only; new code must use chart_uid/Chart UID and must not introduce new chart ID reliance.
+
 from dataclasses import dataclass
 import heapq
 from math import sqrt
@@ -385,7 +387,9 @@ def build_body_dominance_explanation_bullets(
 
 @dataclass(slots=True)
 class AstroTwinMatch:
+    # LEGACY: chart_id is retained only for transitional DB/API compatibility; use chart_uid for durable identity.
     chart_id: int
+    chart_uid: str
     chart_name: str
     score: float
     placement_score: float
@@ -1953,7 +1957,8 @@ def find_astro_twins(
         else:
             dominance_score = _combined_dominance_similarity(query_chart, candidate)
         match = AstroTwinMatch(
-            chart_id=int(chart_id),
+            chart_id=int(chart_id),  # LEGACY: never expose/store this as durable identity; prefer chart_uid.
+            chart_uid=str(getattr(candidate, "chart_uid", "") or ""),
             chart_name=str(getattr(candidate, "name", "") or "Unnamed"),
             score=final_score,
             placement_score=placement_score,

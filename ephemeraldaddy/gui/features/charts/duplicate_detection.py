@@ -1,3 +1,4 @@
+# LEGACY CHART ID WARNING: any chart_id reference in this file is transitional compatibility only; new code must use chart_uid/Chart UID and must not introduce new chart ID reliance.
 """Helpers for detecting and tiering possible duplicate charts in Database View."""
 
 from __future__ import annotations

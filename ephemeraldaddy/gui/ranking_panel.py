@@ -1,3 +1,4 @@
+# LEGACY CHART ID WARNING: any chart_id reference in this file is transitional compatibility only; new code must use chart_uid/Chart UID and must not introduce new chart ID reliance.
 """Database View Rankings panel helpers.
 
 This module keeps the Rankings left-panel UI and ranking refresh logic outside

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+# LEGACY CHART ID WARNING: any chart_id reference in this file is transitional compatibility only; new code must use chart_uid/Chart UID and must not introduce new chart ID reliance.
+
 from dataclasses import dataclass
 
 
@@ -25,6 +27,8 @@ def build_chart_lookup(rows: list[tuple]) -> tuple[dict[str, int], list[str]]:
     labels: list[str] = []
     for row in rows:
         chart_id, name, alias, *_rest = row
+        # LEGACY: chart_id is only the resolver payload for older call sites; option labels expose chart_uid.
+        chart_uid = str(row[30] or "").strip() if len(row) > 30 else ""
         display_name = (
             name.strip()
             if isinstance(name, str) and name.strip()
@@ -32,7 +36,8 @@ def build_chart_lookup(rows: list[tuple]) -> tuple[dict[str, int], list[str]]:
         )
         if alias:
             display_name = f"{display_name} ({alias})"
-        label = f"{display_name}  [#{chart_id}]"
+        label_identity = chart_uid or f"legacy-id:{chart_id}"
+        label = f"{display_name}  [UID: {label_identity}]"
         lookup[label] = int(chart_id)
         labels.append(label)
     return lookup, labels

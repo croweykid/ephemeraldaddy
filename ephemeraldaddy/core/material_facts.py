@@ -1,3 +1,4 @@
+# LEGACY CHART ID WARNING: any chart_id reference in this file is transitional compatibility only; new code must use chart_uid/Chart UID and must not introduce new chart ID reliance.
 """Hidden sidecar storage for Chart View material facts.
 
 These helpers intentionally keep personally identifying material facts outside

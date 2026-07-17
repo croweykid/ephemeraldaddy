@@ -38,7 +38,7 @@ def _chart(uid: str = "UID123ABC") -> SimpleNamespace:
 def test_chart_uid_is_hidden_from_chart_data_output_by_default():
     summary, _position_info, _aspect_info, _species_info = format_chart_text(_chart())
 
-    assert "Chart ID:" not in summary
+    assert "Chart UID:" not in summary
 
 
 def test_chart_uid_displays_between_place_and_positions_when_enabled():
@@ -49,7 +49,7 @@ def test_chart_uid_displays_between_place_and_positions_when_enabled():
     lines = summary.splitlines()
 
     place_index = next(index for index, line in enumerate(lines) if line.startswith("Place:"))
-    chart_id_index = lines.index("Chart ID: ABCDEF123456")
+    chart_id_index = lines.index("Chart UID: ABCDEF123456")
     positions_index = lines.index("POSITIONS")
 
     assert place_index < chart_id_index < positions_index
@@ -67,8 +67,8 @@ def test_linked_chart_uid_displays_for_hypothetical_alternative_chart_when_enabl
     )
     lines = summary.splitlines()
 
-    chart_id_index = lines.index("Chart ID: HYPO123ABC")
-    linked_id_index = lines.index("Linked Chart ID: REAL456DEF")
+    chart_id_index = lines.index("Chart UID: HYPO123ABC")
+    linked_id_index = lines.index("Linked Chart UID: REAL456DEF")
     positions_index = lines.index("POSITIONS")
 
     assert chart_id_index < linked_id_index < positions_index
@@ -83,5 +83,5 @@ def test_linked_chart_uid_stays_hidden_for_standard_chart_when_enabled():
         show_chart_uid=True,
     )
 
-    assert "Chart ID: STANDARD123" in summary
-    assert "Linked Chart ID:" not in summary
+    assert "Chart UID: STANDARD123" in summary
+    assert "Linked Chart UID:" not in summary

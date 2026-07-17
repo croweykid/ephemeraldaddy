@@ -1,3 +1,4 @@
+# LEGACY CHART ID WARNING: any chart_id reference in this file is transitional compatibility only; new code must use chart_uid/Chart UID and must not introduce new chart ID reliance.
 """Controller for the Manage Charts Similarities Analysis feature.
 
 The controller is the authoritative owner for Similarities Analysis panel state:

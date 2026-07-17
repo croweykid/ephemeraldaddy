@@ -1,3 +1,4 @@
+# LEGACY CHART ID WARNING: any chart_id reference in this file is transitional compatibility only; new code must use chart_uid/Chart UID and must not introduce new chart ID reliance.
 """Shared static norm snapshots for Chart View Predictions.
 
 The snapshot is the fast path for Predictions panels: expensive database-wide

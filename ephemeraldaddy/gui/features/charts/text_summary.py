@@ -458,10 +458,10 @@ def format_chart_text(
     )
     if show_chart_uid:
         chart_uid = str(getattr(chart, "chart_uid", "") or "").strip() or "Unavailable"
-        lines.append(f"Chart ID: {chart_uid}")
+        lines.append(f"Chart UID: {chart_uid}")
         linked_chart_uid = str(getattr(chart, "alternate_chart_uid", "") or "").strip()
         if linked_chart_uid and chart_is_hypothetical(chart):
-            lines.append(f"Linked Chart ID: {linked_chart_uid}")
+            lines.append(f"Linked Chart UID: {linked_chart_uid}")
     houses = getattr(chart, "houses", None) if use_houses else None
     aspects = getattr(chart, "aspects", None)
     filtered_aspects: list[dict] = []
