@@ -36757,13 +36757,14 @@ class MainWindow(QMainWindow):
         chart: Chart,
     ) -> None:
         self._planet_dynamics_pending_signatures.discard(signature)
-        if getattr(self, "_latest_chart", None) is not chart:
+        current_chart = getattr(self, "_latest_chart", None)
+        if current_chart is None:
             return
-        if self._planet_dynamics_cache_signature(chart) != signature:
+        if self._planet_dynamics_cache_signature(current_chart) != signature:
             return
-        chart.planet_dynamics_scores = scores if isinstance(scores, dict) else {}
-        chart._planet_dynamics_scores_signature = signature
-        self._schedule_chart_render(chart, sections={"planet_dynamics"})
+        current_chart.planet_dynamics_scores = scores if isinstance(scores, dict) else {}
+        current_chart._planet_dynamics_scores_signature = signature
+        self._schedule_chart_render(current_chart, sections={"planet_dynamics"})
 
     def _on_planet_dynamics_worker_failed(
         self,

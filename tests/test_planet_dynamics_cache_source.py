@@ -42,8 +42,9 @@ def test_planet_dynamics_worker_result_schedules_gui_render_only_after_payload()
     finished_source = source.split("def _on_planet_dynamics_worker_finished", 1)[1].split(
         "def _on_planet_dynamics_worker_failed", 1
     )[0]
-    assert "chart.planet_dynamics_scores = scores" in finished_source
-    assert 'self._schedule_chart_render(chart, sections={"planet_dynamics"})' in finished_source
+    assert 'current_chart = getattr(self, "_latest_chart", None)' in finished_source
+    assert "current_chart.planet_dynamics_scores = scores" in finished_source
+    assert 'self._schedule_chart_render(current_chart, sections={"planet_dynamics"})' in finished_source
     render_source = source.split("def _render_planet_dynamics", 1)[1].split(
         "def _render_chart_type", 1
     )[0]
@@ -66,3 +67,14 @@ def test_pending_planet_dynamics_render_does_not_mark_section_clean():
     assert "-> bool" in render_source.splitlines()[0]
     assert "return False" in render_source
     assert "return True" in render_source
+
+
+def test_planet_dynamics_worker_result_reuses_matching_current_chart_signature():
+    source = Path("ephemeraldaddy/gui/app.py").read_text()
+    finished_source = source.split("def _on_planet_dynamics_worker_finished", 1)[1].split(
+        "def _on_planet_dynamics_worker_failed", 1
+    )[0]
+    assert " is not chart" not in finished_source
+    assert 'current_chart = getattr(self, "_latest_chart", None)' in finished_source
+    assert "self._planet_dynamics_cache_signature(current_chart) != signature" in finished_source
+    assert "current_chart._planet_dynamics_scores_signature = signature" in finished_source
