@@ -1273,8 +1273,11 @@ def _scroll_collapsible_section_bottom_into_view(toggle: QToolButton) -> None:
     scroll_widget = scroll_area.widget()
     viewport = scroll_area.viewport()
     scrollbar = scroll_area.verticalScrollBar()
+    horizontal_scrollbar = scroll_area.horizontalScrollBar()
     if scroll_widget is None or viewport is None or scrollbar is None:
         return
+    if horizontal_scrollbar is not None:
+        horizontal_scrollbar.setValue(horizontal_scrollbar.minimum())
 
     section_bottom_y = section.mapTo(scroll_widget, QPoint(0, section.height())).y()
     current_value = scrollbar.value()
@@ -1290,11 +1293,12 @@ def _scroll_collapsible_section_bottom_into_view(toggle: QToolButton) -> None:
 
 def _schedule_collapsible_section_autoscroll(toggle: QToolButton) -> None:
     """Defer autoscroll until expansion layouts and lazy content refreshes settle."""
-    # Three one-shot callbacks are cheap and bounded: immediate reveal, one
-    # post-layout pass, and one delayed pass for lazy graph/content insertion.
-    # This avoids a long retry chain while still catching sections whose body
-    # height changes after the first Qt layout cycle.
-    for delay_ms in (0, 80, 220):
+    # These one-shot callbacks are cheap and bounded: immediate reveal,
+    # post-layout passes, and delayed passes for lazy graph/content insertion.
+    # Matplotlib canvases in the chart panels can change section height well
+    # after the first Qt layout cycle, so keep this appwide behavior reusable
+    # instead of adding panel-specific autoscroll code in app.py.
+    for delay_ms in (0, 50, 120, 220, 420, 700, 950):
         QTimer.singleShot(
             delay_ms,
             lambda header_toggle=toggle: _scroll_collapsible_section_bottom_into_view(
