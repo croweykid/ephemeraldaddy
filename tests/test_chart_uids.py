@@ -357,3 +357,182 @@ def test_list_charts_preserves_numeric_chart_uid_when_weirdness_is_null(tmp_path
 
     assert row[30] == "1234567890123456"
     assert row[31] is None
+
+
+def test_load_chart_hydrates_matching_persisted_derived_payload_without_recomputing(tmp_path, monkeypatch):
+    db_path = tmp_path / "charts.db"
+    monkeypatch.setattr(db, "DB_DIR", tmp_path)
+    monkeypatch.setattr(db, "DB_PATH", db_path)
+    conn = db._get_conn()
+    db._ensure_schema(conn)
+    dt_iso = "2000-01-01T12:00:00+00:00"
+    signature = db._chart_birth_data_signature_from_values(
+        datetime_iso=dt_iso,
+        birth_place="New York, USA",
+        lat=40.7128,
+        lon=-74.0060,
+        birthtime_unknown=False,
+        retcon_time_used=False,
+        retcon_hour=None,
+        retcon_minute=None,
+        rectification_range_used=False,
+        rectification_range_start_minute=None,
+        rectification_range_end_minute=None,
+        chart_uses_houses_value=True,
+    )
+    with conn:
+        chart_id = _insert_minimal_chart(conn, chart_uid="HYDRATEUID000001", name="Hydrate Me")
+        conn.execute(
+            """
+            UPDATE charts
+            SET derived_birth_data_signature = ?,
+                derived_positions = ?,
+                derived_retrogrades = ?,
+                derived_houses = ?,
+                derived_houses_po = ?,
+                derived_aspects = ?
+            WHERE id = ?
+            """,
+            (
+                signature,
+                '{"Sun":10.5,"Moon":20.25}',
+                '{"Mercury":true}',
+                '[0,30,60,90,120,150,180,210,240,270,300,330]',
+                '[1,31,61,91,121,151,181,211,241,271,301,331]',
+                '[{"p1":"Sun","p2":"Moon","type":"conjunction","delta":1.0}]',
+                chart_id,
+            ),
+        )
+    conn.close()
+
+    def fail_init(*_args, **_kwargs):
+        raise AssertionError("Chart.__init__ should not run when derived cache matches")
+
+    monkeypatch.setattr(db.Chart, "__init__", fail_init)
+
+    chart = db.load_chart(chart_id)
+
+    assert chart.chart_uid == "HYDRATEUID000001"
+    assert chart.positions == {"Sun": 10.5, "Moon": 20.25}
+    assert chart.retrogrades == {"Mercury": True}
+    assert chart.houses[1] == 30
+    assert chart.aspects == [{"p1": "Sun", "p2": "Moon", "type": "conjunction", "delta": 1.0}]
+
+
+def test_load_chart_recomputes_and_refreshes_stale_derived_signature(tmp_path, monkeypatch):
+    db_path = tmp_path / "charts.db"
+    monkeypatch.setattr(db, "DB_DIR", tmp_path)
+    monkeypatch.setattr(db, "DB_PATH", db_path)
+    conn = db._get_conn()
+    db._ensure_schema(conn)
+    with conn:
+        chart_id = _insert_minimal_chart(conn, chart_uid="STALEUID0000001", name="Refresh Me")
+        conn.execute(
+            """
+            UPDATE charts
+            SET derived_birth_data_signature = ?,
+                derived_positions = ?,
+                derived_retrogrades = ?,
+                derived_houses = ?,
+                derived_houses_po = ?,
+                derived_aspects = ?
+            WHERE id = ?
+            """,
+            ("stale", '{"Sun":999}', "{}", "[]", "[]", "[]", chart_id),
+        )
+    conn.close()
+
+    chart = db.load_chart(chart_id)
+
+    conn = sqlite3.connect(db_path)
+    stored_signature, stored_positions = conn.execute(
+        "SELECT derived_birth_data_signature, derived_positions FROM charts WHERE id = ?",
+        (chart_id,),
+    ).fetchone()
+    conn.close()
+
+    assert stored_signature == db._chart_birth_data_signature(chart, birth_place=chart.birth_place)
+    assert '"Sun":999' not in stored_positions
+
+
+def test_load_chart_rejects_derived_cache_when_lilith_mode_changes(tmp_path, monkeypatch):
+    from ephemeraldaddy.core import ephemeris
+
+    db_path = tmp_path / "charts.db"
+    monkeypatch.setattr(db, "DB_DIR", tmp_path)
+    monkeypatch.setattr(db, "DB_PATH", db_path)
+    previous_lilith_mode = ephemeris.get_lilith_calculation_mode()
+    monkeypatch.setattr(db, "get_lilith_calculation_mode", ephemeris.get_lilith_calculation_mode)
+    try:
+        ephemeris.set_lilith_calculation_mode(ephemeris.LILITH_CALCULATION_MEAN)
+        conn = db._get_conn()
+        db._ensure_schema(conn)
+        dt_iso = "2000-01-01T12:00:00+00:00"
+        mean_signature = db._chart_birth_data_signature_from_values(
+            datetime_iso=dt_iso,
+            birth_place="New York, USA",
+            lat=40.7128,
+            lon=-74.0060,
+            birthtime_unknown=False,
+            retcon_time_used=False,
+            retcon_hour=None,
+            retcon_minute=None,
+            rectification_range_used=False,
+            rectification_range_start_minute=None,
+            rectification_range_end_minute=None,
+            chart_uses_houses_value=True,
+        )
+        with conn:
+            chart_id = _insert_minimal_chart(conn, chart_uid="LILITHMODE000001", name="Lilith Mode")
+            conn.execute(
+                """
+                UPDATE charts
+                SET derived_birth_data_signature = ?,
+                    derived_positions = ?,
+                    derived_retrogrades = ?,
+                    derived_houses = ?,
+                    derived_houses_po = ?,
+                    derived_aspects = ?
+                WHERE id = ?
+                """,
+                (
+                    mean_signature,
+                    '{"Lilith":123.0}',
+                    "{}",
+                    "[]",
+                    "[]",
+                    "[]",
+                    chart_id,
+                ),
+            )
+        conn.close()
+
+        ephemeris.set_lilith_calculation_mode(ephemeris.LILITH_CALCULATION_TRUE)
+        true_signature = db._chart_birth_data_signature_from_values(
+            datetime_iso=dt_iso,
+            birth_place="New York, USA",
+            lat=40.7128,
+            lon=-74.0060,
+            birthtime_unknown=False,
+            retcon_time_used=False,
+            retcon_hour=None,
+            retcon_minute=None,
+            rectification_range_used=False,
+            rectification_range_start_minute=None,
+            rectification_range_end_minute=None,
+            chart_uses_houses_value=True,
+        )
+        assert true_signature != mean_signature
+
+        chart = db.load_chart(chart_id)
+
+        assert chart.positions.get("Lilith") != 123.0
+        conn = sqlite3.connect(db_path)
+        stored_signature = conn.execute(
+            "SELECT derived_birth_data_signature FROM charts WHERE id = ?",
+            (chart_id,),
+        ).fetchone()[0]
+        conn.close()
+        assert stored_signature == true_signature
+    finally:
+        ephemeris.set_lilith_calculation_mode(previous_lilith_mode)
