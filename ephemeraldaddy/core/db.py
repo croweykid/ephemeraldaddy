@@ -124,6 +124,12 @@ CHART_EXPORT_DEFAULTS: dict[str, Any] = {
     "rectification_range_used": 0,
     "rectification_range_start_minute": None,
     "rectification_range_end_minute": None,
+    "derived_birth_data_signature": "",
+    "derived_positions": "",
+    "derived_retrogrades": "",
+    "derived_houses": "",
+    "derived_houses_po": "",
+    "derived_aspects": "",
     "dominant_sign_weights": "",
     "dominant_planet_weights": "",
     "dominant_nakshatra_weights": "",
@@ -494,6 +500,12 @@ def _create_charts_table(conn: sqlite3.Connection) -> None:
             rectification_range_used INTEGER NOT NULL DEFAULT 0,
             rectification_range_start_minute INTEGER,
             rectification_range_end_minute INTEGER,
+            derived_birth_data_signature TEXT,
+            derived_positions TEXT,
+            derived_retrogrades TEXT,
+            derived_houses TEXT,
+            derived_houses_po TEXT,
+            derived_aspects TEXT,
             dominant_sign_weights TEXT,
             dominant_planet_weights TEXT,
             dominant_nakshatra_weights TEXT,
@@ -1227,6 +1239,17 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
             """
         )
 
+    for derived_column in (
+        "derived_birth_data_signature",
+        "derived_positions",
+        "derived_retrogrades",
+        "derived_houses",
+        "derived_houses_po",
+        "derived_aspects",
+    ):
+        if derived_column not in columns:
+            conn.execute(f"ALTER TABLE charts ADD COLUMN {derived_column} TEXT")
+
     if "dominant_sign_weights" not in columns:
         conn.execute(
             """
@@ -1819,6 +1842,133 @@ def _serialize_familiarity_factors(
     if not familiarity_factors:
         return None
     return ", ".join(value.strip() for value in familiarity_factors if value.strip())
+
+
+def _json_dumps_stable(value: Any) -> str:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"))
+
+
+def _chart_birth_data_signature_from_values(
+    *,
+    datetime_iso: str | None,
+    birth_place: str | None,
+    lat: float | None,
+    lon: float | None,
+    birthtime_unknown: bool,
+    retcon_time_used: bool,
+    retcon_hour: int | None,
+    retcon_minute: int | None,
+    rectification_range_used: bool,
+    rectification_range_start_minute: int | None,
+    rectification_range_end_minute: int | None,
+    chart_uses_houses_value: bool,
+) -> str:
+    """Stable cache signature for saved-chart derived astrological payloads."""
+    retcon_time_token = (
+        [int(retcon_hour), int(retcon_minute)]
+        if retcon_hour is not None and retcon_minute is not None
+        else None
+    )
+    payload = {
+        "datetime": datetime_iso or "",
+        "birth_place": birth_place or "",
+        "lat": round(float(lat or 0.0), 6),
+        "lon": round(float(lon or 0.0), 6),
+        "birthtime_unknown": bool(birthtime_unknown),
+        "retcon_time_used": bool(retcon_time_used),
+        "retcon_time": retcon_time_token,
+        "rectification_range": [
+            bool(rectification_range_used),
+            rectification_range_start_minute,
+            rectification_range_end_minute,
+        ],
+        "chart_uses_houses": bool(chart_uses_houses_value),
+    }
+    return _json_dumps_stable(payload)
+
+
+def _chart_birth_data_signature(chart: Any, *, birth_place: str | None = None) -> str:
+    dt_value = getattr(chart, "dt", None)
+    datetime_iso = dt_value.isoformat() if dt_value is not None else None
+    return _chart_birth_data_signature_from_values(
+        datetime_iso=datetime_iso,
+        birth_place=birth_place if birth_place is not None else getattr(chart, "birth_place", None),
+        lat=getattr(chart, "lat", None),
+        lon=getattr(chart, "lon", None),
+        birthtime_unknown=bool(getattr(chart, "birthtime_unknown", False)),
+        retcon_time_used=bool(getattr(chart, "retcon_time_used", False)),
+        retcon_hour=getattr(chart, "retcon_hour", None),
+        retcon_minute=getattr(chart, "retcon_minute", None),
+        rectification_range_used=bool(getattr(chart, "rectification_range_used", False)),
+        rectification_range_start_minute=getattr(chart, "rectification_range_start_minute", None),
+        rectification_range_end_minute=getattr(chart, "rectification_range_end_minute", None),
+        chart_uses_houses_value=bool(chart_uses_houses(chart)),
+    )
+
+
+def _serialize_derived_payload(value: Any) -> str:
+    return _json_dumps_stable(value if value is not None else {})
+
+
+def _parse_derived_mapping(value: str | None) -> dict[str, Any]:
+    if not value:
+        return {}
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _parse_derived_list(value: str | None) -> list[Any]:
+    if not value:
+        return []
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError:
+        return []
+    return parsed if isinstance(parsed, list) else []
+
+
+def _persist_chart_derived_cache(chart_id: int, chart: Any) -> None:
+    """Persist recalculated derived data so later Chart View loads can hydrate quickly."""
+    conn = _get_conn()
+    try:
+        columns = _table_columns(conn, "charts")
+        required = {
+            "derived_birth_data_signature",
+            "derived_positions",
+            "derived_retrogrades",
+            "derived_houses",
+            "derived_houses_po",
+            "derived_aspects",
+        }
+        if not required.issubset(columns):
+            return
+        with conn:
+            conn.execute(
+                """
+                UPDATE charts
+                SET derived_birth_data_signature = ?,
+                    derived_positions = ?,
+                    derived_retrogrades = ?,
+                    derived_houses = ?,
+                    derived_houses_po = ?,
+                    derived_aspects = ?
+                WHERE id = ?
+                """,
+                (
+                    _chart_birth_data_signature(chart, birth_place=getattr(chart, "birth_place", None)),
+                    _serialize_derived_payload(getattr(chart, "positions", {})),
+                    _serialize_derived_payload(getattr(chart, "retrogrades", {})),
+                    _serialize_derived_payload(getattr(chart, "houses", [])),
+                    _serialize_derived_payload(getattr(chart, "housesPo", [])),
+                    _serialize_derived_payload(getattr(chart, "aspects", [])),
+                    int(chart_id),
+                ),
+            )
+    finally:
+        conn.close()
 
 def _serialize_weight_map(weights: Optional[dict[str, float]]) -> Optional[str]:
     if weights is None:
@@ -3414,7 +3564,10 @@ def save_chart(
             (chart_uid, int(chart_id)),
         )
         setattr(chart, "chart_uid", chart_uid)
+    if birth_place is not None:
+        setattr(chart, "birth_place", birth_place)
     conn.close()
+    _persist_chart_derived_cache(int(chart_id), chart)
     return chart_id
 
 
@@ -3744,7 +3897,10 @@ def update_chart(
                 chart_id,
             ),
         )
+    if resolved_birth_place is not None:
+        setattr(chart, "birth_place", resolved_birth_place)
     conn.close()
+    _persist_chart_derived_cache(int(chart_id), chart)
 
 
 def update_chart_by_uid(chart_uid: str | None, chart, **kwargs: Any) -> None:
@@ -4667,6 +4823,99 @@ def get_alternate_chart_uid_groups() -> dict[str, list[str]]:
         conn.close()
 
 
+
+def _new_chart_shell(
+    *,
+    name: str,
+    dt: datetime,
+    lat: float,
+    lon: float,
+    alias: str | None,
+    from_whence: str | None,
+) -> Chart:
+    """Create a Chart instance without ephemeris recomputation for valid DB caches."""
+    chart = Chart.__new__(Chart)
+    chart.birth_place = None
+    chart.sentiments = []
+    chart.relationship_types = []
+    chart.tags = []
+    chart.reminds_me_of = ""
+    chart.comments = ""
+    chart.quotes = []
+    chart.rectification_notes = ""
+    chart.biography = ""
+    chart.chart_data_source = ""
+    chart.positive_sentiment_intensity = 1
+    chart.negative_sentiment_intensity = 1
+    chart.familiarity = 1
+    chart.alignment_score = None
+    chart.sexiness_score = 0
+    chart.matched_expectations = 0
+    chart.familiarity_factors = []
+    chart.dominant_sign_weights = {}
+    chart.dominant_planet_weights = {}
+    chart.dominant_nakshatra_weights = {}
+    chart.dominant_element_weights = {}
+    chart.dominant_mode = None
+    chart.traits = []
+    chart.traits_above_average = []
+    chart.traits_below_average = []
+    chart.trait_likelihoods = {}
+    chart.predicted_traits_above_avg = set()
+    chart.predicted_traits_below_avg = set()
+    chart.predicted_trait_deviations = {}
+    chart.human_design_gates = []
+    chart.human_design_lines = []
+    chart.human_design_channels = []
+    chart.human_design_defined_centers = []
+    chart.bazi_year_pillar = ""
+    chart.bazi_month_pillar = ""
+    chart.bazi_day_pillar = ""
+    chart.bazi_hour_pillar = ""
+    chart.bazi_year_element = ""
+    chart.bazi_month_element = ""
+    chart.bazi_day_element = ""
+    chart.bazi_hour_element = ""
+    chart.age_when_first_met = 0
+    chart.year_first_encountered = None
+    chart.data_rating = "blank"
+    chart.chart_type = "personal"
+    chart.name = name
+    chart.alias = alias
+    chart.from_whence = from_whence
+    chart.gender = None
+    chart.lat = lat
+    chart.lon = lon
+    chart.birthtime_unknown = False
+    chart.signs_unknown = False
+    chart.unknown_signs = []
+    chart.dt_local = dt
+    chart.retcon_time_used = False
+    chart.retcon_hour = None
+    chart.retcon_minute = None
+    chart.rectification_range_used = False
+    chart.rectification_range_start_minute = None
+    chart.rectification_range_end_minute = None
+    chart.use_birth_time_data = True
+    chart.is_deceased = False
+    chart.death_month = None
+    chart.death_day = None
+    chart.death_year = None
+    chart.deathtime_unknown = False
+    chart.death_hour = None
+    chart.death_minute = None
+    chart.death_place = ""
+    chart._explicit_tz = dt.tzinfo
+    chart.used_utc_fallback = False
+    chart.dt = dt
+    chart.positions = {}
+    chart.retrogrades = {}
+    chart.housesPo = []
+    chart.houses = []
+    chart.aspects = []
+    chart.modal_distribution = {}
+    return chart
+
 def _chart_row_projection(columns: set[str]) -> str:
     familiarity_factors_projection = (
         "familiarity_factors"
@@ -4683,6 +4932,26 @@ def _chart_row_projection(columns: set[str]) -> str:
         if "body_dynamics_roles" in columns
         else "NULL AS body_dynamics_roles"
     )
+    derived_birth_data_signature_projection = (
+        "derived_birth_data_signature"
+        if "derived_birth_data_signature" in columns
+        else "NULL AS derived_birth_data_signature"
+    )
+    derived_positions_projection = (
+        "derived_positions" if "derived_positions" in columns else "NULL AS derived_positions"
+    )
+    derived_retrogrades_projection = (
+        "derived_retrogrades" if "derived_retrogrades" in columns else "NULL AS derived_retrogrades"
+    )
+    derived_houses_projection = (
+        "derived_houses" if "derived_houses" in columns else "NULL AS derived_houses"
+    )
+    derived_houses_po_projection = (
+        "derived_houses_po" if "derived_houses_po" in columns else "NULL AS derived_houses_po"
+    )
+    derived_aspects_projection = (
+        "derived_aspects" if "derived_aspects" in columns else "NULL AS derived_aspects"
+    )
     quotes_projection = "quotes" if "quotes" in columns else "NULL AS quotes"
     return f"""
         chart_uid, name, alias, from_whence, gender, birth_place, datetime_iso, tz_name, lat, lon,
@@ -4692,6 +4961,8 @@ def _chart_row_projection(columns: set[str]) -> str:
                familiarity, alignment_score, sexiness_score, {"weirdness_score" if "weirdness_score" in columns else "NULL AS weirdness_score"}, matched_expectations, {familiarity_factors_projection}, age_when_first_met, year_first_encountered, data_rating, birthtime_unknown, signs_unknown, unknown_signs,
                retcon_time_used, retcon_hour, retcon_minute,
                rectification_range_used, rectification_range_start_minute, rectification_range_end_minute,
+               {derived_birth_data_signature_projection}, {derived_positions_projection}, {derived_retrogrades_projection},
+               {derived_houses_projection}, {derived_houses_po_projection}, {derived_aspects_projection},
                dominant_sign_weights, dominant_planet_weights, dominant_nakshatra_weights, dominant_element_weights, {enneagram_type_weights_projection}, dominant_enneagram_type, top_three_enneagram_types, dominant_mode, modal_distribution, {body_dynamics_roles_projection},
                human_design_gates, human_design_lines, human_design_channels,
                human_design_type, human_design_authority,
@@ -4748,6 +5019,12 @@ def _chart_from_row(chart_id: int, row):
         rectification_range_used,
         rectification_range_start_minute,
         rectification_range_end_minute,
+        derived_birth_data_signature,
+        derived_positions,
+        derived_retrogrades,
+        derived_houses,
+        derived_houses_po,
+        derived_aspects,
         dominant_sign_weights,
         dominant_planet_weights,
         dominant_nakshatra_weights,
@@ -4899,7 +5176,45 @@ def _chart_from_row(chart_id: int, row):
     if tz_name and dt.tzinfo is None:
         dt = dt.replace(tzinfo=ZoneInfo(tz_name))
 
-    chart = Chart(name, dt, lat, lon, tz=None, alias=alias, from_whence=from_whence)
+    expected_signature = _chart_birth_data_signature_from_values(
+        datetime_iso=dt.isoformat(),
+        birth_place=birth_place,
+        lat=lat,
+        lon=lon,
+        birthtime_unknown=bool(birthtime_unknown),
+        retcon_time_used=bool(retcon_time_used),
+        retcon_hour=int(retcon_hour) if retcon_hour is not None else None,
+        retcon_minute=int(retcon_minute) if retcon_minute is not None else None,
+        rectification_range_used=bool(rectification_range_used),
+        rectification_range_start_minute=(
+            int(rectification_range_start_minute)
+            if rectification_range_start_minute is not None
+            else None
+        ),
+        rectification_range_end_minute=(
+            int(rectification_range_end_minute)
+            if rectification_range_end_minute is not None
+            else None
+        ),
+        chart_uses_houses_value=(not bool(birthtime_unknown) or bool(retcon_time_used)),
+    )
+    can_hydrate_derived = bool(
+        derived_birth_data_signature
+        and str(derived_birth_data_signature) == expected_signature
+        and derived_positions
+        and derived_retrogrades
+    )
+    if can_hydrate_derived:
+        chart = _new_chart_shell(
+            name=name,
+            dt=dt,
+            lat=lat,
+            lon=lon,
+            alias=alias,
+            from_whence=from_whence,
+        )
+    else:
+        chart = Chart(name, dt, lat, lon, tz=None, alias=alias, from_whence=from_whence)
     chart.id = int(chart_id)
     chart.chart_uid = str(chart_uid or "")
     chart.gender = gender
@@ -4987,8 +5302,22 @@ def _chart_from_row(chart_id: int, row):
     chart.death_hour = death_hour
     chart.death_minute = death_minute
     chart.death_place = death_place or ""
-    apply_time_specific_metadata_policy(chart)
-    chart.use_birth_time_data = chart_uses_houses(chart)
+    if can_hydrate_derived:
+        chart.positions = _parse_derived_mapping(derived_positions)
+        chart.retrogrades = _parse_derived_mapping(derived_retrogrades)
+        chart.houses = _parse_derived_list(derived_houses)
+        chart.housesPo = _parse_derived_list(derived_houses_po)
+        chart.aspects = _parse_derived_list(derived_aspects)
+        chart.use_birth_time_data = chart_uses_houses(chart)
+        if not chart.use_birth_time_data:
+            # Keep unknown-time charts accurate: cached payloads may include only
+            # sign-safe positions, but never house/angle data when houses are off.
+            chart.houses = []
+            chart.housesPo = []
+    else:
+        apply_time_specific_metadata_policy(chart)
+        chart.use_birth_time_data = chart_uses_houses(chart)
+        _persist_chart_derived_cache(int(chart_id), chart)
     return chart
 
 
