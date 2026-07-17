@@ -1290,18 +1290,13 @@ def _scroll_collapsible_section_bottom_into_view(toggle: QToolButton) -> None:
 
 def _schedule_collapsible_section_autoscroll(toggle: QToolButton) -> None:
     """Defer autoscroll until expansion layouts and lazy content refreshes settle."""
-    QTimer.singleShot(
-        0,
-        lambda header_toggle=toggle: _scroll_collapsible_section_bottom_into_view(
-            header_toggle
-        ),
-    )
-    QTimer.singleShot(
-        50,
-        lambda header_toggle=toggle: _scroll_collapsible_section_bottom_into_view(
-            header_toggle
-        ),
-    )
+    for delay_ms in (0, 50, 150, 300, 450):
+        QTimer.singleShot(
+            delay_ms,
+            lambda header_toggle=toggle: _scroll_collapsible_section_bottom_into_view(
+                header_toggle
+            ),
+        )
 
 
 def configure_share_export_icon_button(
