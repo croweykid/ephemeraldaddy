@@ -3396,55 +3396,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     ) -> None:
         self._database_metrics_section_expanded[section_key] = expanded
         self._visibility.set(f"database_metrics.{section_key}", expanded)
-        if expanded:
-            self._schedule_database_metrics_section_bottom_autoscroll(section_key)
-        else:
+        if not expanded:
             # Keep the rendered chart widgets alive when a section collapses.
             # Rebuilding matplotlib canvases on every re-expand made cached
             # Database Analytics sections feel like a cold load.
             self._schedule_database_metrics_background_preload()
             return
-
-    def _schedule_database_metrics_section_bottom_autoscroll(self, section_key: str) -> None:
-        section = self._database_metrics_section_widgets.get(section_key)
-        scroll_area = getattr(self, "selection_sentiment_panel_scroll", None)
-        if section is None or scroll_area is None:
-            return
-
-        # Expansion can reveal already-rendered charts immediately, or it can be
-        # followed by a lazy canvas rebuild/redraw that changes the section
-        # height after the shared collapsible-header autoscroll has fired.  A
-        # short bounded sequence keeps the section bottom visible in both paths.
-        for delay_ms in (0, 80, 220, 420, 700):
-            QTimer.singleShot(
-                delay_ms,
-                lambda target_section=section, target_scroll=scroll_area: self._scroll_database_metrics_section_bottom_into_view(
-                    target_section,
-                    target_scroll,
-                ),
-            )
-
-    @staticmethod
-    def _scroll_database_metrics_section_bottom_into_view(section: QWidget, scroll_area: QScrollArea) -> None:
-        if not section.isVisible():
-            return
-        scroll_widget = scroll_area.widget()
-        viewport = scroll_area.viewport()
-        scrollbar = scroll_area.verticalScrollBar()
-        horizontal_scrollbar = scroll_area.horizontalScrollBar()
-        if scroll_widget is None or viewport is None or scrollbar is None:
-            return
-
-        # Database Analytics charts should begin at the left edge after expansion;
-        # stale horizontal offsets make wide Matplotlib canvases appear
-        # right-aligned and clip their trailing labels/bars.
-        if horizontal_scrollbar is not None:
-            horizontal_scrollbar.setValue(horizontal_scrollbar.minimum())
-
-        section_bottom_y = section.mapTo(scroll_widget, QPoint(0, section.height())).y()
-        target_value = section_bottom_y - viewport.height()
-        bounded_value = max(scrollbar.minimum(), min(target_value, scrollbar.maximum()))
-        scrollbar.setValue(max(scrollbar.value(), bounded_value))
         if (
             section_key in self._database_metrics_preloaded_sections
             and self._database_metric_section_has_rendered_content(section_key)
@@ -12846,8 +12803,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     loaded_charts=loaded_charts,
                 )
                 self._clear_layout(self.gender_chart_layout)
-                self.gender_chart_layout.addWidget(gender_canvas, 0, Qt.AlignLeft)
-                self._schedule_database_metrics_section_bottom_autoscroll("gender")
+                self.gender_chart_layout.addWidget(gender_canvas, 0)
             self._analysis_chart_export_rows["gender"] = self._build_analysis_export_rows(
                 labels=gender_labels,
                 selection_values=[selection_gender_distribution[label] for label in gender_labels],
