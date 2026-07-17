@@ -34941,8 +34941,14 @@ class MainWindow(QMainWindow):
             parsed_value = 0
         return max(-10, min(10, parsed_value))
 
-    def load_chart_by_id(self, chart_id: int, *, from_chart_link: bool = False) -> bool:
-        if not self._confirm_discard_or_save():
+    def load_chart_by_id(
+        self,
+        chart_id: int,
+        *,
+        from_chart_link: bool = False,
+        skip_unsaved_confirmation: bool = False,
+    ) -> bool:
+        if not skip_unsaved_confirmation and not self._confirm_discard_or_save():
             return False
         self._prepare_chart_right_panel_for_loading()
         is_same_chart_request = self.current_chart_id == chart_id
@@ -35158,10 +35164,16 @@ class MainWindow(QMainWindow):
         if self._chart_view_history_index <= 0:
             self.on_manage_charts()
             return
-        self._flush_stale_predictions_before_chart_exit()
         previous_index = self._chart_view_history_index - 1
         previous_chart_id = self._chart_view_history[previous_index]
-        if self.load_chart_by_id(previous_chart_id, from_chart_link=True):
+        if not self._confirm_discard_or_save():
+            return
+        self._flush_stale_predictions_before_chart_exit()
+        if self.load_chart_by_id(
+            previous_chart_id,
+            from_chart_link=True,
+            skip_unsaved_confirmation=True,
+        ):
             self._chart_view_history_index = previous_index
             return
         self.on_manage_charts()

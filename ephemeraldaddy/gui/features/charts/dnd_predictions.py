@@ -2136,7 +2136,7 @@ class DndPredictionPanelAdapter:
             if statblock_stale:
                 manual_only = self._manual_recalculation_only()
                 self._show_stale_recalculate_notice(self.chart_layout, chart, "dnd_statblock", refreshing=not manual_only)
-                if not manual_only and callable(self.calculate_callback):
+                if not manual_only and not auto_refresh_started and callable(self.calculate_callback):
                     auto_refresh_started = True
                     self.calculate_callback(chart, None)
         else:
