@@ -105,6 +105,13 @@ def test_retcon_time_edits_defer_autosave_so_leave_prompt_can_win():
     assert "self._autosave_checkbox_state()" not in method
 
 
+def test_save_update_caches_chart_view_entry_by_uid_not_row_id():
+    method = _method_source("on_update_chart")
+    assert "self._set_current_chart_identity(chart_id, chart)" in method
+    assert "self._cache_chart_view_navigation_entry(self.current_chart_uid, chart)" in method
+    assert "self._cache_chart_view_navigation_entry(chart_id, chart)" not in method
+
+
 def test_current_chart_uid_for_navigation_repairs_stale_uid_state():
     method = _method_source("_current_chart_uid_for_navigation")
     assert "latest_chart_uid" in method

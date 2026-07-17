@@ -34554,7 +34554,7 @@ class MainWindow(QMainWindow):
             )
             else None
         )
-        self._cache_chart_view_navigation_entry(chart_id, chart)
+        self._cache_chart_view_navigation_entry(self.current_chart_uid, chart)
         new_recalculation_token = self._chart_analytics_cache_token(chart)
         chart_recalculated = bool(
             is_new_chart or previous_recalculation_token != new_recalculation_token
