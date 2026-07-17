@@ -937,6 +937,7 @@ from ephemeraldaddy.gui.dbv_batch_similarity import (
 from ephemeraldaddy.gui.dbv_search_panel import (
     active_body_dynamics_filters as get_active_body_dynamics_filters,
     body_dynamics_filters_are_active,
+    build_dbv_search_bar_row,
     build_dbv_search_panel,
     chart_matches_body_dynamics_filters,
     collect_search_tag_filter_sets,
@@ -3119,6 +3120,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         list_header_layout.setContentsMargins(0, 0, 0, 0)
         list_header_layout.setSpacing(8)
         list_header_row.setLayout(list_header_layout)
+
+        list_layout.addWidget(build_dbv_search_bar_row(self))
 
         self.collection_combo = QComboBox()
         apply_shared_dropdown_style(self.collection_combo)
