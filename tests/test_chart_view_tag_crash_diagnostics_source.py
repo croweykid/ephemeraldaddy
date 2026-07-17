@@ -29,5 +29,8 @@ def test_startup_debug_enables_faulthandler_for_native_crashes():
     debug_config = APP_SOURCE.split("def _configure_debug_logging", 1)[1].split(
         "def _should_run_startup_dependency_check", 1
     )[0]
-    assert "faulthandler.enable(all_threads=True)" in debug_config
+    assert "sys.stderr is not None" in debug_config
+    assert "faulthandler.enable(file=sys.stderr, all_threads=True)" in debug_config
+    assert "except RuntimeError" in debug_config
+    assert "Faulthandler skipped because sys.stderr is unavailable" in debug_config
     assert "faulthandler.is_enabled()" in debug_config
