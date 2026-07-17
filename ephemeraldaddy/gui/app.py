@@ -29824,7 +29824,9 @@ class MainWindow(QMainWindow):
             spine.set_visible(False)
         ax.grid(False)
         ax.figure.tight_layout()
-        ax.figure.subplots_adjust(left=0.09, bottom=0.28, top=0.82, right=0.97)
+        # Leave extra right padding for the feminine endpoint label/marker so the
+        # gauge reads left-to-right without clipping against the right panel edge.
+        ax.figure.subplots_adjust(left=0.09, bottom=0.28, top=0.82, right=0.91)
 
     def _draw_planet_dynamics(self, ax, chart: Chart) -> None:
         self._precompute_planet_dynamics_if_needed(chart)
@@ -36675,6 +36677,7 @@ class MainWindow(QMainWindow):
             title="Gender Guesser",
             draw_fn=self._draw_gender_guesser,
             chart=chart,
+            display_height=190,
         )
 
 
