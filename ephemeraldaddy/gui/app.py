@@ -19848,12 +19848,16 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         normalized_ids = {int(chart_id) for chart_id in chart_ids}
         if not normalized_ids:
             return
+        changed_chart_uids = self._chart_uids_for_ids(normalized_ids)
         self._hidden_chart_ids.update(normalized_ids)
-        self._hidden_chart_uids.update(self._chart_uids_for_ids(normalized_ids))
+        self._hidden_chart_uids.update(changed_chart_uids)
         self._save_hidden_chart_uids_to_settings()
         refresh_rankings = getattr(self, "_refresh_traits_distribution_rankings_after_hidden_chart_change", None)
         if callable(refresh_rankings):
             refresh_rankings(normalized_ids)
+        refresh_rankings_panel = getattr(self, "_refresh_rankings_after_hidden_chart_change", None)
+        if callable(refresh_rankings_panel):
+            refresh_rankings_panel(changed_chart_uids)
         remaining_selection = set(self._selected_chart_ids()) - normalized_ids
         self._populate_list(selected_ids=remaining_selection, refresh_metrics=False)
         self._on_selection_changed(sync_persistent_selection=False)
@@ -19862,9 +19866,13 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         normalized_ids = {int(chart_id) for chart_id in chart_ids}
         if not normalized_ids:
             return
+        changed_chart_uids = self._chart_uids_for_ids(normalized_ids)
         self._hidden_chart_ids.difference_update(normalized_ids)
-        self._hidden_chart_uids.difference_update(self._chart_uids_for_ids(normalized_ids))
+        self._hidden_chart_uids.difference_update(changed_chart_uids)
         self._save_hidden_chart_uids_to_settings()
+        refresh_rankings_panel = getattr(self, "_refresh_rankings_after_hidden_chart_change", None)
+        if callable(refresh_rankings_panel):
+            refresh_rankings_panel(changed_chart_uids)
         self._populate_list(selected_ids=set(self._selected_chart_ids()) | normalized_ids, refresh_metrics=False)
         self._on_selection_changed(sync_persistent_selection=False)
 
@@ -33906,6 +33914,9 @@ class MainWindow(QMainWindow):
         refresh_rankings = getattr(manage_dialog, "_refresh_traits_distribution_rankings_after_hidden_chart_change", None)
         if callable(refresh_rankings):
             refresh_rankings({int(changed_chart_id)})
+        refresh_rankings_panel = getattr(manage_dialog, "_refresh_rankings_after_hidden_chart_change", None)
+        if callable(refresh_rankings_panel):
+            refresh_rankings_panel(self._chart_uids_for_ids([int(changed_chart_id)]))
         if manage_dialog.isVisible() and getattr(manage_dialog, "_chart_rows", None):
             selected_ids = set(manage_dialog._selected_chart_ids())
             if int(changed_chart_id) not in manage_dialog._hidden_chart_ids:

@@ -118,18 +118,25 @@ def test_trait_rankings_are_moved_to_rankings_panel():
     assert 'self.rankings_sign_combo.addItems(list(ZODIAC_NAMES))' in ranking_panel_source
 
 
-def test_rankings_panel_uses_chart_rows_fallback_and_sequence_weight_loading():
+def test_rankings_panel_uses_current_chart_uids_and_sequence_weight_loading():
     ranking_panel_source = _ranking_panel_source()
-    ids_method = ranking_panel_source.split("def _rankings_database_chart_ids", 1)[1].split(
-        "def _sync_rankings_trait_combo", 1
+    uids_method = ranking_panel_source.split("def _rankings_database_chart_uids", 1)[1].split(
+        "def _rankings_database_legacy_chart_ids", 1
+    )[0]
+    legacy_method = ranking_panel_source.split("def _rankings_database_legacy_chart_ids", 1)[1].split(
+        "def _refresh_rankings_after_hidden_chart_change", 1
     )[0]
     sign_method = ranking_panel_source.split("def _refresh_sign_dominance_rankings", 1)[1]
 
-    assert 'getattr(self, "_chart_rows", [])' in ids_method
-    assert 'getattr(self, "chart_data", [])' not in ids_method
+    assert 'getattr(self, "_chart_rows", [])' in uids_method
+    assert 'getattr(self, "chart_data", [])' not in uids_method
+    assert 'getattr(self, "_database_metrics_cache", None)' not in uids_method
+    assert 'chart_uids.add(chart_uid)' in uids_method
+    assert 'get_chart_ids_by_uid(chart_uids)' in legacy_method
     assert 'normalized_chart_ids = tuple(sorted({int(chart_id) for chart_id in database_chart_ids}))' in sign_method
     assert 'load_dominant_sign_weights(list(normalized_chart_ids))' in sign_method
     assert 'chart_uids_by_id = get_chart_uid_map(normalized_chart_ids)' in sign_method
+    assert 'hidden_chart_uids = {' in sign_method
     assert '"chart_uid": chart_uid' in sign_method
     assert "href='chart:{chart_uid}'" in sign_method
     assert 'for chart_id in normalized_chart_ids:' in sign_method
@@ -202,7 +209,15 @@ def test_hiding_current_trait_ranking_members_refreshes_cached_top_ten():
 
     assert "_traits_distribution_current_ranked_chart_ids" in refresh_method
     assert "set(hidden_chart_ids) & set(current_ranked_ids)" in refresh_method
+    rankings_panel_source = _ranking_panel_source()
+    rankings_refresh_method = rankings_panel_source.split(
+        "def _refresh_rankings_after_hidden_chart_change", 1
+    )[1].split("def _sync_rankings_trait_combo", 1)[0]
+
     assert "self._refresh_traits_distribution_rankings_from_cached_context()" in refresh_method
     assert "self._traits_distribution_rank_context =" in render_method
     assert "self._traits_distribution_current_ranked_chart_ids" in render_method
     assert "_refresh_traits_distribution_rankings_after_hidden_chart_change" in hide_method
+    assert "_refresh_rankings_after_hidden_chart_change" in hide_method
+    assert 'getattr(self, "_active_left_panel", None) != "rankings"' in rankings_refresh_method
+    assert "self._refresh_rankings_panel()" in rankings_refresh_method

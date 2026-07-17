@@ -13,7 +13,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from ephemeraldaddy.core.interpretations import ZODIAC_NAMES
-from ephemeraldaddy.core.db import get_chart_uid_map, load_dominant_sign_weights
+from ephemeraldaddy.core.db import get_chart_ids_by_uid, get_chart_uid_map, load_dominant_sign_weights
 from ephemeraldaddy.gui.features.settings.traits import list_traits
 from ephemeraldaddy.gui.features.charts.metrics import (
     calculate_dominant_sign_weights as _calculate_dominant_sign_weights,
@@ -100,27 +100,62 @@ class RankingsPanelMixin:
         layout.addStretch(1)
         return panel
 
-    def _rankings_database_chart_ids(self) -> set[int]:
-        cache = getattr(self, "_database_metrics_cache", None)
-        if isinstance(cache, dict) and cache.get("chart_ids"):
-            return {int(chart_id) for chart_id in cache.get("chart_ids", set())}
-        ids: set[int] = set()
+    @staticmethod
+    def _normalize_rankings_chart_uid(raw_uid: object) -> str:
+        return str(raw_uid or "").strip().upper()
+
+    def _rankings_database_chart_uids(self) -> set[str]:
+        """Return current database chart UIDs from live dialog rows, not stale metrics cache."""
+        chart_uids: set[str] = set()
         normalize_chart_row = getattr(self, "_normalize_chart_row", None)
+        pending_legacy_ids: list[int] = []
         for row in getattr(self, "_chart_rows", []) or []:
             chart_id: int | None = None
+            chart_uid = ""
             if callable(normalize_chart_row):
                 normalized = normalize_chart_row(row)
                 if normalized is not None:
                     chart_id = int(normalized[0])
+                    chart_uid = self._normalize_rankings_chart_uid(
+                        normalized[30] if len(normalized) > 30 else ""
+                    )
             if chart_id is None:
                 try:
                     chart_id = int(row[0])
                 except (TypeError, ValueError, IndexError):
                     continue
+                try:
+                    chart_uid = self._normalize_rankings_chart_uid(row[30])
+                except (TypeError, IndexError):
+                    chart_uid = ""
             chart = self._get_chart_for_filter(chart_id)
-            if chart is not None and not self._is_placeholder_chart(chart):
-                ids.add(chart_id)
-        return ids
+            if chart is None or self._is_placeholder_chart(chart):
+                continue
+            if not chart_uid:
+                chart_uid = self._normalize_rankings_chart_uid(getattr(chart, "chart_uid", ""))
+            if chart_uid:
+                chart_uids.add(chart_uid)
+            else:
+                pending_legacy_ids.append(chart_id)
+        if pending_legacy_ids:
+            chart_uids.update(
+                self._normalize_rankings_chart_uid(uid)
+                for uid in get_chart_uid_map(pending_legacy_ids).values()
+                if uid
+            )
+        return chart_uids
+
+    def _rankings_database_legacy_chart_ids(self, chart_uids: set[str]) -> set[int]:
+        """Resolve current Rankings chart UIDs to legacy IDs for existing scoring APIs."""
+        return {int(chart_id) for chart_id in get_chart_ids_by_uid(chart_uids).values()}
+
+    def _refresh_rankings_after_hidden_chart_change(self, changed_chart_uids: set[str] | None = None) -> None:
+        """Refresh the visible Rankings panel after chart hide/unhide changes."""
+        if getattr(self, "_active_left_panel", None) != "rankings":
+            return
+        if not getattr(self, "_left_panel_visible", False):
+            return
+        self._refresh_rankings_panel()
 
     def _sync_rankings_trait_combo(self) -> str | None:
         combo = getattr(self, "rankings_trait_combo", None)
@@ -157,7 +192,8 @@ class RankingsPanelMixin:
     def _refresh_rankings_panel(self) -> None:
         if not hasattr(self, "rankings_traits_label"):
             return
-        database_chart_ids = self._rankings_database_chart_ids()
+        database_chart_uids = self._rankings_database_chart_uids()
+        database_chart_ids = self._rankings_database_legacy_chart_ids(database_chart_uids)
         selected_trait_name = self._sync_rankings_trait_combo()
         trait_items = list_traits(active_only=True)
         trait_signature = self._traits_distribution_signature(trait_items)
@@ -217,7 +253,10 @@ class RankingsPanelMixin:
         stored_weights = load_dominant_sign_weights(list(normalized_chart_ids))
         chart_uids_by_id = get_chart_uid_map(normalized_chart_ids)
         rows: list[dict[str, Any]] = []
-        hidden_chart_ids = {int(chart_id) for chart_id in getattr(self, "_hidden_chart_ids", set())}
+        hidden_chart_uids = {
+            self._normalize_rankings_chart_uid(chart_uid)
+            for chart_uid in getattr(self, "_hidden_chart_uids", set())
+        }
         db_average = 0.0
         db_count = 0
         cache = getattr(self, "_database_metrics_cache", None)
@@ -227,7 +266,9 @@ class RankingsPanelMixin:
             if total_weight:
                 db_average = float(totals.get(selected_sign, 0.0)) / total_weight
         for chart_id in normalized_chart_ids:
-            if int(chart_id) in hidden_chart_ids:
+            chart_uid = chart_uids_by_id.get(int(chart_id), "")
+            normalized_chart_uid = self._normalize_rankings_chart_uid(chart_uid)
+            if normalized_chart_uid in hidden_chart_uids:
                 continue
             chart = self._get_chart_for_filter(int(chart_id))
             if chart is None or self._is_placeholder_chart(chart):
@@ -241,7 +282,7 @@ class RankingsPanelMixin:
             except (TypeError, ValueError):
                 continue
             db_count += 1
-            chart_uid = chart_uids_by_id.get(int(chart_id)) or str(getattr(chart, "chart_uid", "") or "")
+            chart_uid = normalized_chart_uid or self._normalize_rankings_chart_uid(getattr(chart, "chart_uid", ""))
             rows.append(
                 {
                     "chart_uid": chart_uid,
