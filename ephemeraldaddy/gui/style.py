@@ -1290,7 +1290,11 @@ def _scroll_collapsible_section_bottom_into_view(toggle: QToolButton) -> None:
 
 def _schedule_collapsible_section_autoscroll(toggle: QToolButton) -> None:
     """Defer autoscroll until expansion layouts and lazy content refreshes settle."""
-    for delay_ms in (0, 50, 150, 300, 450):
+    # Three one-shot callbacks are cheap and bounded: immediate reveal, one
+    # post-layout pass, and one delayed pass for lazy graph/content insertion.
+    # This avoids a long retry chain while still catching sections whose body
+    # height changes after the first Qt layout cycle.
+    for delay_ms in (0, 80, 220):
         QTimer.singleShot(
             delay_ms,
             lambda header_toggle=toggle: _scroll_collapsible_section_bottom_into_view(
