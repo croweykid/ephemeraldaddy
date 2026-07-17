@@ -26103,50 +26103,6 @@ class MainWindow(QMainWindow):
             sections={render_key},
             queue_priority="interactive",
         )
-        if section_key == "gender_guesser":
-            self._schedule_chart_analysis_section_bottom_autoscroll(section_key)
-
-    def _schedule_chart_analysis_section_bottom_autoscroll(self, section_key: str) -> None:
-        section = self._chart_analysis_section_widgets.get(section_key)
-        scroll_area = getattr(self, "predictions_panel_scroll", None)
-        if section is None or not isinstance(scroll_area, QScrollArea):
-            return
-
-        # Expansion and queued matplotlib rendering settle across several Qt
-        # event-loop turns.  Keep this bounded retry series long enough for the
-        # Gender Guesser graph to be inserted/redrawn, then make the bottom of
-        # the expanded section visible without requiring manual scrolling.
-        for delay_ms in (0, 80, 220, 420, 700, 950):
-            QTimer.singleShot(
-                delay_ms,
-                lambda target_section=section, target_scroll=scroll_area: (
-                    self._scroll_chart_analysis_section_bottom_into_view(
-                        target_section,
-                        target_scroll,
-                    )
-                ),
-            )
-
-    @staticmethod
-    def _scroll_chart_analysis_section_bottom_into_view(
-        section: QWidget,
-        scroll_area: QScrollArea,
-    ) -> None:
-        if not section.isVisible():
-            return
-        scroll_widget = scroll_area.widget()
-        viewport = scroll_area.viewport()
-        scrollbar = scroll_area.verticalScrollBar()
-        horizontal_scrollbar = scroll_area.horizontalScrollBar()
-        if scroll_widget is None or viewport is None or scrollbar is None:
-            return
-        if horizontal_scrollbar is not None:
-            horizontal_scrollbar.setValue(horizontal_scrollbar.minimum())
-
-        section_bottom_y = section.mapTo(scroll_widget, QPoint(0, section.height())).y()
-        target_value = section_bottom_y - viewport.height()
-        bounded_value = max(scrollbar.minimum(), min(target_value, scrollbar.maximum()))
-        scrollbar.setValue(max(scrollbar.value(), bounded_value))
 
     def _is_chart_analysis_section_visible(self, section_key: str) -> bool:
         return self._chart_analysis_section_visible.get(section_key, True)
@@ -36751,7 +36707,6 @@ class MainWindow(QMainWindow):
             chart=chart,
             display_height=190,
         )
-        self._schedule_chart_analysis_section_bottom_autoscroll("gender_guesser")
 
 
     def _planet_dynamics_cache_signature(self, chart: Chart) -> tuple[object, ...]:
