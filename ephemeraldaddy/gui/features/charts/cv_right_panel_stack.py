@@ -1050,7 +1050,9 @@ def _finish_background_prediction_render(
     if getattr(owner, "_latest_chart", None) is chart:
         owner._render_enneagram_predictions(chart)
         owner._render_dndification_predictions(chart)
-        schedule_metric_refreshes = getattr(owner, "_schedule_deferred_visible_metric_canvas_layout_refreshes", None)
+        schedule_metric_refreshes = getattr(owner, "_schedule_deferred_all_metric_canvas_layout_refreshes", None)
+        if not callable(schedule_metric_refreshes):
+            schedule_metric_refreshes = getattr(owner, "_schedule_deferred_visible_metric_canvas_layout_refreshes", None)
         if callable(schedule_metric_refreshes):
             schedule_metric_refreshes((0, 25, 75, 150, 300, 600))
         if state is not None:

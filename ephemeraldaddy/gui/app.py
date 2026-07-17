@@ -28587,17 +28587,21 @@ class MainWindow(QMainWindow):
             return None
 
         # During prediction recalculations/rectified-time preview rebuilds, the
-        # scroll content can inherit a stale width from the canvas that is being
-        # replaced.  Measure from the scroll area and its visible container chain,
-        # not from the content widget, so a too-wide canvas cannot keep proving
-        # its own stale geometry correct until the user manually resizes.
-        candidate_widths = [scroll_area.viewport().width(), scroll_area.width()]
+        # scroll content can inherit stale width from the canvas that is being
+        # replaced. Measure visible pages from the scroll viewport, and always
+        # include ancestors outside the scroll area; hidden stacked pages use the
+        # live outer container chain instead of their stale scroll/content widths.
+        candidate_widths = []
+        if scroll_area.isVisible():
+            candidate_widths.extend([scroll_area.viewport().width(), scroll_area.width()])
         ancestor = scroll_area.parentWidget()
         while ancestor is not None:
             ancestor_width = ancestor.width()
             if ancestor_width > 0:
                 candidate_widths.append(ancestor_width)
             ancestor = ancestor.parentWidget()
+        if not candidate_widths:
+            candidate_widths.extend([scroll_area.viewport().width(), scroll_area.width()])
         positive_widths = [width for width in candidate_widths if width > 0]
         if not positive_widths:
             return None
@@ -28611,6 +28615,12 @@ class MainWindow(QMainWindow):
         if available_width is None:
             return None
 
+        # Middle ground for hidden stacked tabs: size from the live scroll
+        # viewport/container chain gathered above, but do not clamp against the
+        # scroll-content child widgets here.  Hidden pages can retain stale child
+        # widths from a previous layout; using those widths would pin the canvas
+        # too narrowly until another manual resize.  Only subtract the content
+        # layout margins, which are stable style data rather than geometry.
         if parent is not None:
             parent_layout = parent.layout()
             if parent_layout is not None:
@@ -28669,10 +28679,22 @@ class MainWindow(QMainWindow):
         self._metric_scroll_widgets.discard(canvas)
         self._pending_metric_canvas_layout_refreshes.discard(canvas)
 
+    def _register_metric_chart_scroll_area(self, canvas: FigureCanvas) -> None:
+        """Track the owning scroll area/viewport for panel-wide metric resizes."""
+        try:
+            scroll_area = self._metric_canvas_scroll_area(canvas)
+        except RuntimeError:
+            self._unregister_metric_chart(canvas)
+            return
+        if scroll_area is not None:
+            self._register_metric_scroll_widget(scroll_area)
+
     def _register_metric_chart(self, canvas: FigureCanvas, title: str) -> None:
         self._metric_chart_titles[canvas] = title
         apply_popout_cursor(canvas)
         self._register_metric_scroll_widget(canvas)
+        self._register_metric_chart_scroll_area(canvas)
+        QTimer.singleShot(0, lambda metric_canvas=canvas: self._register_metric_chart_scroll_area(metric_canvas))
 
     def _metric_canvas_is_alive(self, canvas: FigureCanvas) -> bool:
         """Return False when a PySide wrapper points at a deleted C++ canvas."""
@@ -28721,6 +28743,16 @@ class MainWindow(QMainWindow):
                 lambda metric_canvas=canvas: self._schedule_metric_canvas_layout_refresh(metric_canvas),
             )
 
+    def _schedule_all_metric_canvas_layout_refreshes(self) -> None:
+        """Resize every registered right-panel metric canvas after layout churn."""
+        for canvas in list(self._metric_chart_titles):
+            try:
+                canvas.parentWidget()
+            except RuntimeError:
+                self._unregister_metric_chart(canvas)
+                continue
+            self._schedule_metric_canvas_layout_refresh(canvas)
+
     def _schedule_visible_metric_canvas_layout_refreshes(self) -> None:
         """Resize visible metric canvases without recalculating right-panel sections."""
         for canvas in list(self._metric_chart_titles):
@@ -28731,6 +28763,17 @@ class MainWindow(QMainWindow):
                 continue
             if is_visible:
                 self._schedule_metric_canvas_layout_refresh(canvas)
+
+    def _schedule_deferred_all_metric_canvas_layout_refreshes(
+        self,
+        delays_ms: tuple[int, ...] = (0, 50, 150, 300),
+    ) -> None:
+        """Re-check all metric canvas sizing after stacked-panel redraw churn."""
+        for delay_ms in delays_ms:
+            QTimer.singleShot(
+                max(0, int(delay_ms)),
+                self._schedule_all_metric_canvas_layout_refreshes,
+            )
 
     def _schedule_deferred_visible_metric_canvas_layout_refreshes(
         self,
@@ -31243,6 +31286,7 @@ class MainWindow(QMainWindow):
                     getattr(self, "_species_info_map", {}),
                     chart_info_output,
                 )
+        metric_chart_titles = getattr(self, "_metric_chart_titles", {})
         if obj in getattr(self, "_metric_scroll_widgets", set()):
             if event.type() in (QEvent.Enter, QEvent.MouseButtonPress):
                 metrics_scroll = getattr(self, "metrics_scroll", None)
@@ -31252,9 +31296,8 @@ class MainWindow(QMainWindow):
                 return self._handle_metrics_wheel(event)
             if event.type() == QEvent.KeyPress:
                 return self._handle_metrics_keypress(event)
-            if event.type() == QEvent.Resize:
-                self._schedule_visible_metric_canvas_layout_refreshes()
-        metric_chart_titles = getattr(self, "_metric_chart_titles", {})
+            if event.type() == QEvent.Resize and obj not in metric_chart_titles:
+                self._schedule_all_metric_canvas_layout_refreshes()
         if obj in metric_chart_titles:
             if event.type() == QEvent.Resize:
                 self._schedule_metric_canvas_layout_refresh(obj)
