@@ -1954,6 +1954,10 @@ def _apply_traits_prediction_view(owner: Any, above_html: str, below_html: str, 
     if isinstance(label, QLabel):
         stop_prediction_loading_blink(label)
         label.setText(_current_traits_prediction_html(owner) or "Trait predictions unavailable for this chart.")
+        # Cached trait rows hide the label while the table carries the content.
+        # A later chart may have no cached metadata yet and must reveal this
+        # label again so the manual Calculate/Recalculate prompt is visible.
+        label.setVisible(True)
         label.adjustSize()
         label.setMinimumHeight(label.sizeHint().height())
 

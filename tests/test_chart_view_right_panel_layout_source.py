@@ -367,6 +367,15 @@ def test_traits_predictions_default_to_manual_recalculation_with_cached_stale_di
     assert '"rectification_range_used": bool(getattr(chart, "rectification_range_used", False))' in source
 
 
+
+
+def test_traits_prediction_prompt_label_is_reshown_after_table_results():
+    source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/trait_predictions.py").read_text()
+    apply_view = source.split("def _apply_traits_prediction_view", 1)[1].split("def _apply_traits_prediction_metadata", 1)[0]
+
+    assert "label.setVisible(True)" in apply_view
+    assert "A later chart may have no cached metadata yet" in apply_view
+
 def test_predictions_panel_rerenders_traits_for_each_chart_even_when_content_exists():
     source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/cv_right_panel_stack.py").read_text()
     predictions_branch = source.split('if active_panel == "predictions":', 1)[1].split('if active_panel == "abc"', 1)[0]
