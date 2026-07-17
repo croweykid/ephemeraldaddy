@@ -29992,7 +29992,10 @@ class MainWindow(QMainWindow):
         self._species_info_map = species_info_map
         state = getattr(self, "_chart_right_panel_state", None)
         if getattr(state, "active_tab", None) == "predictions":
-            self._schedule_chart_render_for_active_right_panel()
+            if bool(getattr(self, "_suppress_right_panel_refresh_for_timing_preview", False)):
+                self._suppress_right_panel_refresh_for_timing_preview = False
+            else:
+                self._schedule_chart_render_for_active_right_panel()
 
     def _build_chart_export_markdown(self, chart: Chart) -> str:
         date_label = chart.dt.strftime("%Y-%m-%d") if chart.dt else "Unknown"
@@ -35639,7 +35642,6 @@ class MainWindow(QMainWindow):
     def _flush_timing_preview_update(self) -> None:
         if self._suppress_lucygoosey:
             return
-        self._reset_metric_canvases_for_retcon_timing_update()
         self._refresh_chart_preview()
 
     def _reset_metric_canvases_for_retcon_timing_update(self) -> None:
@@ -35701,6 +35703,7 @@ class MainWindow(QMainWindow):
         # analytics as stale so visible sections recalculate on an explicit save
         # or tab/section refresh instead of during time entry.
         self._mark_chart_analytics_sections_lucy_goosey()
+        self._suppress_right_panel_refresh_for_timing_preview = True
         self._schedule_chart_render(
             chart,
             sections={"summary", "wheel"},
@@ -35930,6 +35933,7 @@ class MainWindow(QMainWindow):
             self._render_flush_timer.start(0)
             return
 
+        self._suppress_right_panel_refresh_for_timing_preview = False
         self._pending_render_chart = None
         # draw() is synchronous for chart/metric canvases, so overlay shutdown can
         # be tied to actual completion of the final render pass here.
