@@ -721,6 +721,7 @@ from ephemeraldaddy.core.db import (
     save_chart,
     list_charts,
     load_chart,
+    load_chart_by_uid,
     load_charts,
     load_dominant_sign_weights,
     get_chart_uid,
@@ -19104,7 +19105,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self._chart_cache.pop(chart_id, None)
             owner = self._owner_window()
             if owner is not None and hasattr(owner, "_invalidate_chart_view_navigation_cache"):
-                owner._invalidate_chart_view_navigation_cache(changed_ids)
+                owner._invalidate_chart_view_navigation_cache_for_ids(changed_ids)
         chart_ids_for_cache = []
         for row in self._chart_rows:
             normalized = self._normalize_chart_row(row)
@@ -24860,6 +24861,7 @@ class MainWindow(QMainWindow):
         # - Chart Entry Window: current_chart_id is None (blank fields/new chart).
         # - Chart Edit Window: current_chart_id is set (editing existing chart).
         self.current_chart_id = None
+        self.current_chart_uid: str | None = None
         self._hidden_chart_uids = self._load_hidden_chart_uids_from_settings()
         self._hidden_chart_ids = set(get_chart_ids_by_uid(self._hidden_chart_uids).values())
         self._loaded_birth_place = None
@@ -24961,9 +24963,9 @@ class MainWindow(QMainWindow):
         self._anagrams_export_button: QToolButton | None = None
         self._anagrams_source_dropdown: QComboBox | None = None
         self._anagrams_presenter: AnagramsPresenter | None = None
-        self._chart_view_history: list[int] = []
+        self._chart_view_history: list[str] = []
         self._chart_view_history_index: int = -1
-        self._chart_view_navigation_cache: OrderedDict[int, Chart] = OrderedDict()
+        self._chart_view_navigation_cache: OrderedDict[str, Chart] = OrderedDict()
         self._popout_summary_contexts: dict[QWidget, dict[str, object]] = {}
         self._help_overlay_active = False
         self._help_marker_buttons: list[QToolButton] = []
@@ -26627,28 +26629,32 @@ class MainWindow(QMainWindow):
             chart_id = int(normalized_target)
         except (TypeError, ValueError):
             return
-        current_chart_id = self.current_chart_id
+        target_chart_uid = get_chart_uid(chart_id)
+        if not target_chart_uid:
+            return
+        target_chart_uid = self._normalized_chart_uid_key(target_chart_uid)
+        current_chart_uid = self._current_chart_uid_for_navigation()
         database_transition_dialog = (
             self._database_view_dialog_for_chart_link_transition()
             if transition_to_chart_view
             else None
         )
-        if current_chart_id == chart_id:
+        if current_chart_uid == target_chart_uid:
             if database_transition_dialog is not None:
                 self._transition_database_view_chart_link_to_chart_view(source_dialog=source_dialog)
             return
 
         previous_history = list(self._chart_view_history)
         previous_index = self._chart_view_history_index
-        if current_chart_id is not None:
+        if current_chart_uid is not None:
             if not self._chart_view_history:
-                self._chart_view_history = [current_chart_id]
+                self._chart_view_history = [current_chart_uid]
                 self._chart_view_history_index = 0
             else:
                 self._chart_view_history = self._chart_view_history[: self._chart_view_history_index + 1]
-            self._chart_view_history.append(chart_id)
+            self._chart_view_history.append(target_chart_uid)
             self._chart_view_history_index = len(self._chart_view_history) - 1
-        loaded = self.load_chart_by_id(chart_id, from_chart_link=True)
+        loaded = self.load_chart_by_uid(target_chart_uid, from_chart_link=True)
         if not loaded:
             self._chart_view_history = previous_history
             self._chart_view_history_index = previous_index
@@ -32587,6 +32593,7 @@ class MainWindow(QMainWindow):
 
     def _orphan_current_chart_reference(self) -> None:
         self.current_chart_id = None
+        self.current_chart_uid = None
         set_current_chart(None)
         self.update_button.setText("Save Chart")
         self._set_lucygoosey(False)
@@ -34176,11 +34183,7 @@ class MainWindow(QMainWindow):
         self._mark_lucygoosey()
 
     def _open_material_relative_chart(self, chart_uid: str) -> None:
-        chart_id = get_chart_id_by_uid(chart_uid)
-        if chart_id is None:
-            QMessageBox.warning(self, "Open relative", "Unable to find this relative chart.")
-            return
-        if self.load_chart_by_id(chart_id, from_chart_link=True):
+        if self.load_chart_by_uid(chart_uid, from_chart_link=True):
             self._show_chart_view_maximized(maximize=self.isMaximized())
 
     def _clear_material_facts_fields(self) -> None:
@@ -34524,9 +34527,10 @@ class MainWindow(QMainWindow):
         else:
             update_chart(chart_id, chart, **save_kwargs)
             set_current_chart(chart_id)
-            self._invalidate_chart_view_navigation_cache({chart_id})
+            self._invalidate_chart_view_navigation_cache_for_ids({chart_id})
 
         self.current_chart_id = chart_id
+        self.current_chart_uid = self._normalized_chart_uid_key(getattr(chart, "chart_uid", None) or get_chart_uid(chart_id))
         if not subjective_notes_autosave:
             old_alternate_uid = get_alternate_chart_uid(chart_id)
             new_alternate_uid = self._current_alternate_chart_uid_for_save(getattr(chart, "chart_type", None))
@@ -34633,6 +34637,7 @@ class MainWindow(QMainWindow):
         self._chart_view_history.clear()
         self._chart_view_history_index = -1
         self.current_chart_id = None
+        self.current_chart_uid = None
         set_current_chart(None)
         self._loaded_birth_place = None
         self._loaded_lat = None
@@ -34869,24 +34874,54 @@ class MainWindow(QMainWindow):
             return
         self.load_chart_by_id(chart_id)
 
-    def _cache_chart_view_navigation_entry(self, chart_id: int, chart: Chart | None) -> None:
+    @staticmethod
+    def _normalized_chart_uid_key(chart_uid: str | None) -> str | None:
+        normalized_uid = str(chart_uid or "").strip().upper()
+        return normalized_uid or None
+
+    def _current_chart_uid_for_navigation(self) -> str | None:
+        chart_uid = self._normalized_chart_uid_key(getattr(self, "current_chart_uid", None))
+        if chart_uid:
+            return chart_uid
+        chart_uid = self._normalized_chart_uid_key(getattr(self._latest_chart, "chart_uid", None))
+        if chart_uid:
+            return chart_uid
+        if self.current_chart_id is not None:
+            return self._normalized_chart_uid_key(get_chart_uid(int(self.current_chart_id)))
+        return None
+
+    def _cache_chart_view_navigation_entry(self, chart_uid: str | None, chart: Chart | None) -> None:
         if chart is None:
             return
-        normalized_chart_id = int(chart_id)
-        self._chart_view_navigation_cache[normalized_chart_id] = chart
-        self._chart_view_navigation_cache.move_to_end(normalized_chart_id)
+        normalized_chart_uid = self._normalized_chart_uid_key(chart_uid or getattr(chart, "chart_uid", None))
+        if not normalized_chart_uid:
+            return
+        self._chart_view_navigation_cache[normalized_chart_uid] = chart
+        self._chart_view_navigation_cache.move_to_end(normalized_chart_uid)
         while len(self._chart_view_navigation_cache) > CHART_VIEW_NAV_CACHE_LIMIT:
             self._chart_view_navigation_cache.popitem(last=False)
 
     def _invalidate_chart_view_navigation_cache(
         self,
+        chart_uids: set[str] | list[str] | tuple[str, ...] | None = None,
+    ) -> None:
+        if not chart_uids:
+            self._chart_view_navigation_cache.clear()
+            return
+        for chart_uid in chart_uids:
+            normalized_chart_uid = self._normalized_chart_uid_key(chart_uid)
+            if normalized_chart_uid:
+                self._chart_view_navigation_cache.pop(normalized_chart_uid, None)
+
+    def _invalidate_chart_view_navigation_cache_for_ids(
+        self,
         chart_ids: set[int] | list[int] | tuple[int, ...] | None = None,
     ) -> None:
         if not chart_ids:
-            self._chart_view_navigation_cache.clear()
+            self._invalidate_chart_view_navigation_cache()
             return
-        for chart_id in chart_ids:
-            self._chart_view_navigation_cache.pop(int(chart_id), None)
+        chart_uid_map = get_chart_uid_map(chart_ids)
+        self._invalidate_chart_view_navigation_cache(set(chart_uid_map.values()))
 
     @staticmethod
     def _normalized_batch_sentiment_metric_value(raw_value: Any, default: int = 1) -> int:
@@ -34948,21 +34983,52 @@ class MainWindow(QMainWindow):
         from_chart_link: bool = False,
         skip_unsaved_confirmation: bool = False,
     ) -> bool:
+        """Compatibility adapter for legacy integer row IDs.
+
+        Chart View navigation is UID-first; integer IDs are resolved at this
+        boundary only so older callers can keep working while they migrate.
+        """
+        chart_uid = get_chart_uid(chart_id)
+        if not chart_uid:
+            QMessageBox.critical(
+                self,
+                "Load error",
+                f"Could not resolve chart UID for legacy chart id #{chart_id}.",
+            )
+            return False
+        return self.load_chart_by_uid(
+            chart_uid,
+            from_chart_link=from_chart_link,
+            skip_unsaved_confirmation=skip_unsaved_confirmation,
+        )
+
+    def load_chart_by_uid(
+        self,
+        chart_uid: str,
+        *,
+        from_chart_link: bool = False,
+        skip_unsaved_confirmation: bool = False,
+    ) -> bool:
+        normalized_chart_uid = self._normalized_chart_uid_key(chart_uid)
+        if not normalized_chart_uid:
+            QMessageBox.critical(self, "Load error", "Could not load chart without a UID.")
+            return False
         if not skip_unsaved_confirmation and not self._confirm_discard_or_save():
             return False
+        current_chart_uid = self._current_chart_uid_for_navigation()
         replacing_current_chart = (
             not skip_unsaved_confirmation
-            and self.current_chart_id is not None
-            and int(self.current_chart_id) != int(chart_id)
+            and current_chart_uid is not None
+            and current_chart_uid != normalized_chart_uid
         )
         if replacing_current_chart:
             self._flush_stale_predictions_before_chart_exit()
         self._prepare_chart_right_panel_for_loading()
-        is_same_chart_request = self.current_chart_id == chart_id
+        is_same_chart_request = current_chart_uid == normalized_chart_uid
         if not from_chart_link and not is_same_chart_request:
             self._chart_view_history.clear()
             self._chart_view_history_index = -1
-        cached_chart = self._chart_view_navigation_cache.get(int(chart_id))
+        cached_chart = self._chart_view_navigation_cache.get(normalized_chart_uid)
         should_fade_right_panel = cached_chart is None
         if should_fade_right_panel:
             self._prepare_chart_right_panel_for_loading()
@@ -34978,20 +35044,33 @@ class MainWindow(QMainWindow):
             QApplication.processEvents()
         if cached_chart is not None:
             chart = cached_chart
-            self._chart_view_navigation_cache.move_to_end(int(chart_id))
+            self._chart_view_navigation_cache.move_to_end(normalized_chart_uid)
         else:
             try:
-                chart = load_chart(chart_id)
+                chart = load_chart_by_uid(normalized_chart_uid)
             except Exception as e:
                 self._reveal_chart_right_panel_after_loading()
                 self._hide_chart_loading_overlay()
                 QMessageBox.critical(
                     self,
                     "Load error",
-                    f"Could not load chart #{chart_id}:\n{e}",
+                    f"Could not load chart UID {normalized_chart_uid}:\n{e}",
                 )
                 return False
-            self._cache_chart_view_navigation_entry(chart_id, chart)
+            self._cache_chart_view_navigation_entry(normalized_chart_uid, chart)
+
+        chart_id = int(getattr(chart, "id", 0) or 0)
+        if chart_id <= 0:
+            chart_id = get_chart_id_by_uid(normalized_chart_uid) or 0
+        if chart_id <= 0:
+            self._reveal_chart_right_panel_after_loading()
+            self._hide_chart_loading_overlay()
+            QMessageBox.critical(
+                self,
+                "Load error",
+                f"Could not resolve local row for chart UID {normalized_chart_uid}.",
+            )
+            return False
 
         set_current_chart(chart_id)
         self._pending_render_chart = None
@@ -35004,8 +35083,9 @@ class MainWindow(QMainWindow):
         self._aspect_info_map = {}
         self._species_info_map = {}
 
-        # Chart Edit Window: an "existing chart" is a saved DB entry with a chart_id.
+        # Chart Edit Window: an existing chart is identified by stable chart UID.
         self.current_chart_id = chart_id
+        self.current_chart_uid = normalized_chart_uid
 
         # Update input fields from loaded chart
         self._suppress_lucygoosey = True
@@ -35149,7 +35229,7 @@ class MainWindow(QMainWindow):
         elif self._anagrams_presenter is not None:
             self._anagrams_presenter.sync_source_options(chart)
         self._update_unknown_positions_summary(chart)
-        self._cache_chart_view_navigation_entry(chart_id, chart)
+        self._cache_chart_view_navigation_entry(normalized_chart_uid, chart)
         self._sync_chart_right_panel_placeholder_state(chart)
         if getattr(chart, "is_placeholder", False):
             if not bool(getattr(self, "_demo_mode_enabled", DEMO_MODE_DEFAULT)):
@@ -35172,12 +35252,12 @@ class MainWindow(QMainWindow):
             self.on_manage_charts()
             return
         previous_index = self._chart_view_history_index - 1
-        previous_chart_id = self._chart_view_history[previous_index]
+        previous_chart_uid = self._chart_view_history[previous_index]
         if not self._confirm_discard_or_save():
             return
         self._flush_stale_predictions_before_chart_exit()
-        if self.load_chart_by_id(
-            previous_chart_id,
+        if self.load_chart_by_uid(
+            previous_chart_uid,
             from_chart_link=True,
             skip_unsaved_confirmation=True,
         ):
@@ -35375,7 +35455,7 @@ class MainWindow(QMainWindow):
         manage_dialog._size_checker_popup = self._size_checker_popup
 
     def _on_charts_deleted(self, chart_ids: set[int]) -> None:
-        self._invalidate_chart_view_navigation_cache(chart_ids)
+        self._invalidate_chart_view_navigation_cache_for_ids(chart_ids)
         if self.current_chart_id is None or self.current_chart_id not in chart_ids:
             return
         self._orphan_current_chart_reference()
@@ -35708,8 +35788,9 @@ class MainWindow(QMainWindow):
         set_lilith_calculation_mode(normalized)
         if invalidate_db_cache:
             invalidate_all_dominant_weight_caches()
-        if self.current_chart_id is not None:
-            self.load_chart_by_id(self.current_chart_id)
+        current_chart_uid = self._current_chart_uid_for_navigation()
+        if current_chart_uid is not None:
+            self.load_chart_by_uid(current_chart_uid)
             return
         self._refresh_chart_preview()
 

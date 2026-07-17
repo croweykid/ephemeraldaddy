@@ -106,7 +106,7 @@ def test_retcon_time_edits_defer_autosave_so_leave_prompt_can_win():
 
 
 def test_loaded_rectified_time_is_restored_before_checkbox_enabled():
-    method = _method_source("load_chart_by_id")
+    method = _method_source("load_chart_by_uid")
     stored_hour_index = method.index('stored_retcon_hour = getattr(chart, "retcon_hour", None)')
     set_time_index = method.index("self.retcon_time_edit.setTime", stored_hour_index)
     checkbox_index = method.index("self.retcon_time_checkbox.setChecked(chart.retcon_time_used)")
