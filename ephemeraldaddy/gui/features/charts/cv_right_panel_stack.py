@@ -76,7 +76,7 @@ class _PredictionsWarmupWorker(QObject):
         self._render_token = render_token
         self._job_token = job_token
         self._cancelled = False
-        self._sections = set(sections or {"enneagram", "dnd_statblock", "dnd_alignment"})
+        self._sections = set(sections or {"enneagram", "dnd_statblock", "dnd_alignment", "dnd_species_class"})
 
     @Slot()
     def cancel(self) -> None:
@@ -104,7 +104,7 @@ class _PredictionsWarmupWorker(QObject):
                     logger.warning("Enneagram prediction cache failed for %s: %s", _chart_display_name(self._chart), exc, exc_info=True)
                     section_errors.append(f"Enneagram: {exc}")
                 _predictions_thread_debug(self._owner, "Enneagram cache stage complete job=%s", self._job_token)
-            if self._sections.intersection({"dnd_statblock", "dnd_alignment"}):
+            if self._sections.intersection({"dnd_statblock", "dnd_alignment", "dnd_species_class"}):
                 self.progress.emit("Preparing D&D predictions…", 45)
             if self._cancelled or QThread.currentThread().isInterruptionRequested():
                 _predictions_thread_debug(self._owner, "worker cancelled before D&D cache job=%s", self._job_token)
@@ -112,9 +112,9 @@ class _PredictionsWarmupWorker(QObject):
                 return
             adapter_factory = getattr(self._owner, "_dnd_prediction_adapter", None)
             _predictions_thread_debug(self._owner, "D&D adapter stage start job=%s callable=%s", self._job_token, callable(adapter_factory))
-            if callable(adapter_factory) and self._sections.intersection({"dnd_statblock", "dnd_alignment"}):
+            if callable(adapter_factory) and self._sections.intersection({"dnd_statblock", "dnd_alignment", "dnd_species_class"}):
                 adapter = adapter_factory()
-                if "dnd_statblock" in self._sections:
+                if "dnd_statblock" in self._sections or "dnd_species_class" in self._sections:
                     cache_dnd = getattr(adapter, "cache_metadata", None)
                     _predictions_thread_debug(self._owner, "D&D statblock cache stage start job=%s callable=%s", self._job_token, callable(cache_dnd))
                     try:

@@ -599,6 +599,7 @@ from ephemeraldaddy.gui.features.transits import TransitPanelController
 from ephemeraldaddy.gui.features.transits.export import build_transit_chart_export_text
 from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import (
     apply_mode_pick_metadata,
+    _chart_right_panel_prediction_render_token,
     format_mode_popout_info_html,
     prepare_chart_right_panel_for_loading,
     reveal_chart_right_panel_after_loading,
@@ -34940,9 +34941,22 @@ class MainWindow(QMainWindow):
             parsed_value = 0
         return max(-10, min(10, parsed_value))
 
-    def load_chart_by_id(self, chart_id: int, *, from_chart_link: bool = False) -> bool:
-        if not self._confirm_discard_or_save():
+    def load_chart_by_id(
+        self,
+        chart_id: int,
+        *,
+        from_chart_link: bool = False,
+        skip_unsaved_confirmation: bool = False,
+    ) -> bool:
+        if not skip_unsaved_confirmation and not self._confirm_discard_or_save():
             return False
+        replacing_current_chart = (
+            not skip_unsaved_confirmation
+            and self.current_chart_id is not None
+            and int(self.current_chart_id) != int(chart_id)
+        )
+        if replacing_current_chart:
+            self._flush_stale_predictions_before_chart_exit()
         self._prepare_chart_right_panel_for_loading()
         is_same_chart_request = self.current_chart_id == chart_id
         if not from_chart_link and not is_same_chart_request:
@@ -35159,7 +35173,14 @@ class MainWindow(QMainWindow):
             return
         previous_index = self._chart_view_history_index - 1
         previous_chart_id = self._chart_view_history[previous_index]
-        if self.load_chart_by_id(previous_chart_id, from_chart_link=True):
+        if not self._confirm_discard_or_save():
+            return
+        self._flush_stale_predictions_before_chart_exit()
+        if self.load_chart_by_id(
+            previous_chart_id,
+            from_chart_link=True,
+            skip_unsaved_confirmation=True,
+        ):
             self._chart_view_history_index = previous_index
             return
         self.on_manage_charts()
@@ -35220,6 +35241,47 @@ class MainWindow(QMainWindow):
         self._prediction_norms_revision = int(getattr(self, "_prediction_norms_revision", 0) or 0) + 1
         self._manage_charts_pending_changed_ids.difference_update(changed_ids)
 
+    def _flush_stale_predictions_before_chart_exit(self) -> None:
+        """Refresh stale Predictions caches only when closing/leaving the current chart."""
+        chart = getattr(self, "_latest_chart", None)
+        if chart is None or self._is_placeholder_chart(chart):
+            return
+        try:
+            render_token = _chart_right_panel_prediction_render_token(self, chart)
+        except Exception:
+            render_token = ""
+        state = getattr(self, "_chart_right_panel_state", None)
+        dnd_adapter = None
+        dnd_stale = True
+        try:
+            dnd_adapter = self._dnd_prediction_adapter()
+            dnd_stale = bool(dnd_adapter.caches_are_stale(chart))
+        except Exception:
+            logger.warning("Failed to inspect D&D Predictions freshness before leaving Chart View.", exc_info=True)
+        if (
+            state is not None
+            and render_token
+            and state.last_render_chart_token == render_token
+            and not dnd_stale
+        ):
+            return
+        predictions_token_mismatch = not (
+            state is not None
+            and render_token
+            and state.last_render_chart_token == render_token
+        )
+        try:
+            self._cache_enneagram_prediction_metadata(chart)
+        except Exception:
+            logger.warning("Failed to flush Enneagram Predictions before leaving Chart View.", exc_info=True)
+        try:
+            adapter = dnd_adapter or self._dnd_prediction_adapter()
+            if dnd_stale or predictions_token_mismatch:
+                adapter.cache_metadata(chart)
+                adapter.cache_alignment_metadata(chart)
+        except Exception:
+            logger.warning("Failed to flush D&D Predictions before leaving Chart View.", exc_info=True)
+
     def on_manage_charts(
         self,
         startup_progress: Callable[[str, int], None] | None = None,
@@ -35231,6 +35293,7 @@ class MainWindow(QMainWindow):
         )
         if startup_progress is None and not self._confirm_discard_or_save():
             return False
+        self._flush_stale_predictions_before_chart_exit()
         self._chart_view_history.clear()
         self._chart_view_history_index = -1
         self._flush_pending_sentiment_metrics_save()
@@ -37488,12 +37551,14 @@ class MainWindow(QMainWindow):
             return
         render_token = self._prediction_norms_render_token() if hasattr(self, "_prediction_norms_render_token") else ""
         try:
-            from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import _chart_right_panel_prediction_render_token
-
             render_token = _chart_right_panel_prediction_render_token(self, chart)
         except Exception:
             pass
-        sections = {section} if section else None
+        section_aliases = {
+            "dnd_species": "dnd_species_class",
+            "dnd_class": "dnd_species_class",
+        }
+        sections = {section_aliases.get(section, section)} if section else None
         _start_background_prediction_render(self, chart, str(render_token), sections=sections)
 
     def _dnd_prediction_adapter(self) -> DndPredictionPanelAdapter:
@@ -38265,6 +38330,7 @@ class MainWindow(QMainWindow):
         if not self._confirm_discard_or_save():
             event.ignore()
             return
+        self._flush_stale_predictions_before_chart_exit()
         _stop_background_prediction_render(self)
         _stop_traits_prediction_refresh_workers(self)
         if self._size_checker_popup is not None:
