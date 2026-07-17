@@ -17241,6 +17241,8 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         stored_left_panel_visible = self._settings.value("manage_charts/left_panel_visible", "1")
         self._left_panel_visible = str(stored_left_panel_visible).lower() in {"1", "true", "yes"}
         self.left_panel_stack.setVisible(self._left_panel_visible)
+        if self._left_panel_visible and self._active_left_panel == "rankings":
+            QTimer.singleShot(0, self._refresh_rankings_panel)
 
         stored_active_right_panel = self._settings.value(
             "manage_charts/active_right_panel",
