@@ -22018,18 +22018,11 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         root_layout.setContentsMargins(14, 14, 14, 14)
         root_layout.setSpacing(12)
 
-        tab_header_scroll = QScrollArea(dialog)
-        tab_header_scroll.setWidgetResizable(True)
-        tab_header_scroll.setFrameShape(QFrame.NoFrame)
-        tab_header_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        tab_header_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        tab_header_scroll.setMinimumHeight(64)
-        tab_header_scroll.setMaximumHeight(150)
-        tab_header_frame = QFrame()
+        tab_header_frame = QFrame(dialog)
         tab_header_frame.setObjectName("settings_tab_header")
+        tab_header_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
         tab_header_layout = SettingsHeaderFlowLayout(tab_header_frame, margin=8, spacing=8)
-        tab_header_scroll.setWidget(tab_header_frame)
-        root_layout.addWidget(tab_header_scroll)
+        root_layout.addWidget(tab_header_frame)
 
         settings_tab_stack = QStackedWidget(dialog)
         settings_tab_stack.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -22616,7 +22609,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
 
         property_manager_section = self._add_settings_collapsible_section(
             content_layout,
-            "Property Managers",
+            "Property Manager",
         )
         self._populate_settings_property_manager_section(property_manager_section)
 
