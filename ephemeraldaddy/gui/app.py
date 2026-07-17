@@ -1312,7 +1312,7 @@ GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS: frozenset[str] = frozenset(
 )
 SIMILAR_CHARTS_EXPORT_FORMAT_KEY = "exports/similar_charts_format"
 CHART_VIEW_NAV_CACHE_LIMIT = 24
-CHART_VIEW_TIMING_PREVIEW_DEBOUNCE_MS = 4000
+CHART_VIEW_TIMING_PREVIEW_DEBOUNCE_MS = 450
 
 DATABASE_METRICS_PERSISTENT_CACHE_VERSION = 1
 DATABASE_METRICS_PERSISTENT_CACHE_FILENAME = ".database_metrics_cache.json"
@@ -34328,16 +34328,20 @@ class MainWindow(QMainWindow):
                     return
         if not self._validate_rectification_range_inputs(show_feedback=show_dialog):
             return
-        if recalculate_chart and chart_id is not None:
-            saved_chart = None
+        persisted_chart_for_change = None
+        if chart_id is not None:
             try:
-                saved_chart = load_chart(chart_id)
+                persisted_chart_for_change = load_chart(chart_id)
             except ValueError:
                 chart_id = None
                 self._orphan_current_chart_reference()
             except Exception:
-                saved_chart = None
-            if saved_chart is not None and self._saved_chart_birth_inputs_match_form(saved_chart):
+                persisted_chart_for_change = None
+        if recalculate_chart and chart_id is not None:
+            if (
+                persisted_chart_for_change is not None
+                and self._saved_chart_birth_inputs_match_form(persisted_chart_for_change)
+            ):
                 recalculate_chart = False
         if not recalculate_chart and chart_id is not None:
             try:
@@ -34468,9 +34472,9 @@ class MainWindow(QMainWindow):
         #chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
         #chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
         previous_chart_for_refresh = (
-            self._latest_chart
+            persisted_chart_for_change
             if (
-                self._latest_chart is not None
+                persisted_chart_for_change is not None
                 and chart_id is not None
                 and self.current_chart_id == chart_id
             )
@@ -34527,9 +34531,9 @@ class MainWindow(QMainWindow):
                     )
         self._save_material_facts_for_chart(chart_id)
         previous_recalculation_token = (
-            self._chart_analytics_cache_token(self._latest_chart)
+            self._chart_analytics_cache_token(persisted_chart_for_change)
             if (
-                self._latest_chart is not None
+                persisted_chart_for_change is not None
                 and self.current_chart_id == chart_id
             )
             else None
@@ -35546,9 +35550,9 @@ class MainWindow(QMainWindow):
         if self._suppress_lucygoosey:
             return
         # Rectified-time, rectified-range, and known birthtime edits change core
-        # calculated chart data. Rebuild once after a real editing pause instead
-        # of on each digit/checkbox signal, which keeps the GUI responsive while
-        # still updating Chart Data Output automatically.
+        # calculated chart data. Rebuild once after typing pauses instead of on
+        # each digit/checkbox signal, which keeps the GUI responsive while still
+        # updating Chart Data Output automatically.
         self._timing_preview_update_timer.start(CHART_VIEW_TIMING_PREVIEW_DEBOUNCE_MS)
         if self._can_autosave_current_chart():
             self._metadata_autosave_requires_recalculation = True
