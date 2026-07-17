@@ -738,6 +738,7 @@ from ephemeraldaddy.core.db import (
     delete_charts,
     invalidate_all_dominant_weight_caches,
     update_chart,
+    update_chart_lightweight_metadata,
     update_chart_dominant_sign_weights,
     update_chart_weirdness_score,
     set_current_chart,
@@ -24889,6 +24890,8 @@ class MainWindow(QMainWindow):
         self._metadata_autosave_timer.setSingleShot(True)
         self._metadata_autosave_timer.timeout.connect(self._flush_pending_metadata_save)
         self._metadata_autosave_requires_recalculation = False
+        self._last_chart_save_changed_fields: set[str] | None = None
+        self._last_chart_save_recalculated = False
         self._timing_preview_update_timer = QTimer(self)
         self._timing_preview_update_timer.setSingleShot(True)
         self._timing_preview_update_timer.timeout.connect(
@@ -32611,6 +32614,8 @@ class MainWindow(QMainWindow):
             choice = dialog.exec()
             if choice == QMessageBox.Save:
                 self.on_update_chart(show_dialog=True)
+                if not self._lucygoosey:
+                    self._metadata_autosave_requires_recalculation = False
             elif choice == QMessageBox.Discard:
                 self._set_lucygoosey(False)
             return not self._lucygoosey
@@ -34530,7 +34535,12 @@ class MainWindow(QMainWindow):
                 chart.relationship_types = relationship_types
                 self._set_relationship_type_selection(relationship_types)
 
-        if not is_placeholder and not subjective_notes_autosave:
+        should_refresh_prediction_metadata = bool(
+            not is_placeholder
+            and not subjective_notes_autosave
+            and (is_new_chart or recalculate_chart)
+        )
+        if should_refresh_prediction_metadata:
             try:
                 self._cache_enneagram_prediction_metadata(chart)
             except Exception:
@@ -34576,7 +34586,10 @@ class MainWindow(QMainWindow):
             chart_id = save_chart(chart, **save_kwargs)
             set_current_chart(chart_id)
         else:
-            update_chart(chart_id, chart, **save_kwargs)
+            if recalculate_chart:
+                update_chart(chart_id, chart, **save_kwargs)
+            else:
+                update_chart_lightweight_metadata(chart_id, chart)
             set_current_chart(chart_id)
             self._invalidate_chart_view_navigation_cache_for_ids({chart_id})
 
@@ -34621,6 +34634,8 @@ class MainWindow(QMainWindow):
             chart,
             birth_place=place,
         )
+        self._last_chart_save_changed_fields = None if changed_fields is None else set(changed_fields)
+        self._last_chart_save_recalculated = bool(chart_recalculated)
         self._update_sentiment_tally(
             changed_ids={chart_id},
             changed_fields=changed_fields,
@@ -35449,6 +35464,20 @@ class MainWindow(QMainWindow):
         except Exception:
             logger.warning("Failed to flush D&D Predictions before leaving Chart View.", exc_info=True)
 
+
+    def _should_flush_predictions_before_database_view(self) -> bool:
+        """Return whether Chart View exit should synchronously refresh Predictions caches.
+
+        Lightweight metadata edits (alias/from/notes/tags/etc.) should not make
+        the Database View button wait for D&D/Enneagram prediction cache writes.
+        Those caches depend on structural chart data, so only force the old
+        synchronous exit flush after new saves or birth/calculation changes.
+        """
+        changed_fields = getattr(self, "_last_chart_save_changed_fields", None)
+        if changed_fields is None:
+            return bool(getattr(self, "_last_chart_save_recalculated", False))
+        return "birth_data" in changed_fields or bool(getattr(self, "_last_chart_save_recalculated", False))
+
     def on_manage_charts(
         self,
         startup_progress: Callable[[str, int], None] | None = None,
@@ -35460,10 +35489,12 @@ class MainWindow(QMainWindow):
         )
         if startup_progress is None and not self._confirm_discard_or_save():
             return False
-        self._flush_stale_predictions_before_chart_exit()
+        self._flush_pending_metadata_save()
+        self._flush_pending_sentiment_metrics_save()
+        if self._should_flush_predictions_before_database_view():
+            self._flush_stale_predictions_before_chart_exit()
         self._chart_view_history.clear()
         self._chart_view_history_index = -1
-        self._flush_pending_sentiment_metrics_save()
         self._settings.setValue("app/last_view", "database")
         if startup_progress:
             startup_progress("Preparing Database View…", 65)

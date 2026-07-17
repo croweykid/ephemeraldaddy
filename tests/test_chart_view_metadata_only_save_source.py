@@ -81,3 +81,12 @@ def test_chart_save_change_detection_uses_persisted_chart_not_preview_baseline()
     token_block = update_source[previous_token_index:cache_entry_index]
     assert "self._chart_analytics_cache_token(persisted_chart_for_change)" in token_block
     assert "self._chart_analytics_cache_token(self._latest_chart)" not in token_block
+
+
+def test_metadata_only_saves_use_lightweight_db_update_path():
+    update_start = APP_SOURCE.index("def on_update_chart")
+    update_end = APP_SOURCE.index("def _reset_new_chart_form", update_start)
+    update_source = APP_SOURCE[update_start:update_end]
+    assert "update_chart_lightweight_metadata" in APP_SOURCE
+    assert "if recalculate_chart:\n                update_chart(chart_id, chart, **save_kwargs)" in update_source
+    assert "else:\n                update_chart_lightweight_metadata(chart_id, chart)" in update_source
