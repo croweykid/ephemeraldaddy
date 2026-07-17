@@ -32,3 +32,11 @@ def test_enneagram_adapter_uses_chart_view_prediction_norm_scope_source():
 def test_enneagram_cache_key_includes_norm_token_source():
     cache_key = ENNEAGRAM_SOURCE.split("def _cache_key", 1)[1].split("def _restore_cache", 1)[0]
     assert "self._norms_token()" in cache_key
+
+
+def test_enneagram_predictor_uses_analysis_enneagrams_reference_source():
+    assert "from ephemeraldaddy.analysis.enneagram import ENNEAGRAMS" in APP_SOURCE
+    calculator = APP_SOURCE.split("def _calculate_enneagram_type_weights", 1)[1].split("def _normalize_chart_row", 1)[0]
+    adapter = APP_SOURCE.split("def _enneagram_prediction_adapter", 1)[1].split("def _draw_enneagram_predictions", 1)[0]
+    assert "enneagram=ENNEAGRAMS" in calculator
+    assert "enneagram=ENNEAGRAMS" in adapter

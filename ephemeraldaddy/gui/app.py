@@ -838,6 +838,7 @@ from ephemeraldaddy.core.interpretations import (
     ENNEAGRAM,
 )
 from ephemeraldaddy.core.decans import ZODIAC_DECANS
+from ephemeraldaddy.analysis.enneagram import ENNEAGRAMS
 
 from ephemeraldaddy.gui.features.charts.delegates import CHART_ROW_PLACE_COLOR, ChartRowDelegate
 from ephemeraldaddy.gui.features.charts.provenance import (
@@ -37014,7 +37015,7 @@ class MainWindow(QMainWindow):
     def _calculate_enneagram_type_weights(self, chart: Chart) -> dict[int, float]:
         return _calculate_enneagram_type_weights(
             chart,
-            enneagram=ENNEAGRAM,
+            enneagram=ENNEAGRAMS,
             calculate_sign_weights=_similarity_sign_dominance_weights,
             calculate_body_weights=_similarity_body_dominance_weights,
             calculate_house_weights=_similarity_house_dominance_weights,
@@ -37437,7 +37438,7 @@ class MainWindow(QMainWindow):
 
     def _enneagram_prediction_adapter(self) -> EnneagramPredictionPanelAdapter:
         return EnneagramPredictionPanelAdapter(
-            enneagram=ENNEAGRAM,
+            enneagram=ENNEAGRAMS,
             calculate_type_weights=self._calculate_enneagram_type_weights,
             chart_theme_colors=CHART_THEME_COLORS,
             apply_standard_bar_axes=self._apply_standard_ncv_bar_chart_axes,

@@ -1211,7 +1211,8 @@ class EnneagramPredictionPanelAdapter:
     def cache_metadata(self, chart: Any) -> dict[int, float]:
         norm_charts = self._norm_charts()
         parts = self._score_parts(chart, norm_charts)
-        scores = {enneagram_type: values["deviation"] for enneagram_type, values in parts.items()}
+        raw_scores = {enneagram_type: values["deviation"] for enneagram_type, values in parts.items()}
+        scores = _coerce_complete_enneagram_type_scores(raw_scores) or raw_scores
         scores = cache_enneagram_prediction_metadata(chart, scores)
         db_norm_averages = {
             enneagram_type: values["database"]
