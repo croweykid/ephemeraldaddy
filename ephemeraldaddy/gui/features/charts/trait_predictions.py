@@ -430,6 +430,8 @@ def _on_trait_prediction_link_activated(owner: Any, target: str) -> None:
 
 def _configure_traits_prediction_label(owner: Any, label: QLabel) -> None:
     label.setOpenExternalLinks(False)
+    label.setTextFormat(Qt.RichText)
+    label.setTextInteractionFlags(Qt.TextBrowserInteraction)
     apply_chart_info_link_cursor(label)
     if getattr(label, "_ephemeraldaddy_trait_links_connected", False):
         return
