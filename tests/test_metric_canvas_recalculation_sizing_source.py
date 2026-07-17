@@ -36,6 +36,16 @@ def test_metric_canvas_refresh_can_target_hidden_stacked_tabs():
     assert "self._schedule_all_metric_canvas_layout_refreshes()" in APP_SOURCE
 
 
+def test_metric_chart_registration_tracks_scroll_area_and_viewport():
+    register_start = APP_SOURCE.index("    def _register_metric_chart")
+    register_source = APP_SOURCE[register_start : APP_SOURCE.index("    def _metric_canvas_is_alive", register_start)]
+
+    assert "def _register_metric_chart_scroll_area" in register_source
+    assert "scroll_area = self._metric_canvas_scroll_area(canvas)" in register_source
+    assert "self._register_metric_scroll_widget(scroll_area)" in register_source
+    assert "QTimer.singleShot(0" in register_source
+
+
 def test_canvas_resize_events_do_not_fan_out_to_every_metric_canvas():
     event_filter_start = APP_SOURCE.index('metric_chart_titles = getattr(self, "_metric_chart_titles", {})')
     event_filter = APP_SOURCE[event_filter_start : APP_SOURCE.index("        if chart_canvas is not None and obj is chart_canvas", event_filter_start)]

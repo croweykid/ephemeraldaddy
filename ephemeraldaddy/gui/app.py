@@ -28671,10 +28671,22 @@ class MainWindow(QMainWindow):
         self._metric_scroll_widgets.discard(canvas)
         self._pending_metric_canvas_layout_refreshes.discard(canvas)
 
+    def _register_metric_chart_scroll_area(self, canvas: FigureCanvas) -> None:
+        """Track the owning scroll area/viewport for panel-wide metric resizes."""
+        try:
+            scroll_area = self._metric_canvas_scroll_area(canvas)
+        except RuntimeError:
+            self._unregister_metric_chart(canvas)
+            return
+        if scroll_area is not None:
+            self._register_metric_scroll_widget(scroll_area)
+
     def _register_metric_chart(self, canvas: FigureCanvas, title: str) -> None:
         self._metric_chart_titles[canvas] = title
         apply_popout_cursor(canvas)
         self._register_metric_scroll_widget(canvas)
+        self._register_metric_chart_scroll_area(canvas)
+        QTimer.singleShot(0, lambda metric_canvas=canvas: self._register_metric_chart_scroll_area(metric_canvas))
 
     def _metric_canvas_is_alive(self, canvas: FigureCanvas) -> bool:
         """Return False when a PySide wrapper points at a deleted C++ canvas."""
