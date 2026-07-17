@@ -9,6 +9,10 @@ def _popout_source() -> str:
     return Path("ephemeraldaddy/gui/features/charts/similar_charts_popout.py").read_text()
 
 
+def _ranking_panel_source() -> str:
+    return Path("ephemeraldaddy/gui/ranking_panel.py").read_text()
+
+
 def _worker_source() -> str:
     return Path("ephemeraldaddy/gui/features/charts/similar_charts_worker.py").read_text()
 
@@ -97,21 +101,21 @@ def test_trait_prediction_rankings_skip_hidden_charts_but_keep_aggregate_cache_s
 def test_trait_rankings_are_moved_to_rankings_panel():
     database_source = _database_analytics_source()
     app_source = _app_source()
+    ranking_panel_source = _ranking_panel_source()
     create_method = database_source.split("def _create_traits_database_analytics_section", 1)[1].split(
         "def _traits_distribution_display_mode", 1
-    )[0]
-    rankings_panel = app_source.split("def _build_rankings_panel", 1)[1].split(
-        "def _rankings_database_chart_ids", 1
     )[0]
 
     assert '("Trait Predictions", "trait_predictions")' in create_method
     assert '("Trait Rankings", "trait_rankings")' not in create_method
+    assert 'from ephemeraldaddy.gui.ranking_panel import RankingsPanelMixin' in app_source
+    assert 'class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDialog):' in app_source
     assert 'self.rankings_panel_button = QPushButton("🏆")' in app_source
     assert '"rankings": self.rankings_panel_scroll' in app_source
-    assert '"🧬Traits"' in rankings_panel
-    assert '"♏ Sign Dominance"' in rankings_panel
-    assert 'self.rankings_trait_combo' in rankings_panel
-    assert 'self.rankings_sign_combo.addItems(list(ZODIAC_NAMES))' in rankings_panel
+    assert '"🧬Traits"' in ranking_panel_source
+    assert '"♏ Sign Dominance"' in ranking_panel_source
+    assert 'self.rankings_trait_combo' in ranking_panel_source
+    assert 'self.rankings_sign_combo.addItems(list(ZODIAC_NAMES))' in ranking_panel_source
 
 
 def test_trait_rankings_default_to_database_until_manual_rank_selected():
