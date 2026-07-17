@@ -31268,6 +31268,7 @@ class MainWindow(QMainWindow):
                     getattr(self, "_species_info_map", {}),
                     chart_info_output,
                 )
+        metric_chart_titles = getattr(self, "_metric_chart_titles", {})
         if obj in getattr(self, "_metric_scroll_widgets", set()):
             if event.type() in (QEvent.Enter, QEvent.MouseButtonPress):
                 metrics_scroll = getattr(self, "metrics_scroll", None)
@@ -31277,9 +31278,8 @@ class MainWindow(QMainWindow):
                 return self._handle_metrics_wheel(event)
             if event.type() == QEvent.KeyPress:
                 return self._handle_metrics_keypress(event)
-            if event.type() == QEvent.Resize:
+            if event.type() == QEvent.Resize and obj not in metric_chart_titles:
                 self._schedule_all_metric_canvas_layout_refreshes()
-        metric_chart_titles = getattr(self, "_metric_chart_titles", {})
         if obj in metric_chart_titles:
             if event.type() == QEvent.Resize:
                 self._schedule_metric_canvas_layout_refresh(obj)

@@ -28,3 +28,11 @@ def test_metric_canvas_refresh_can_target_hidden_stacked_tabs():
     assert "def _schedule_all_metric_canvas_layout_refreshes" in APP_SOURCE
     assert "Resize every registered right-panel metric canvas" in APP_SOURCE
     assert "self._schedule_all_metric_canvas_layout_refreshes()" in APP_SOURCE
+
+
+def test_canvas_resize_events_do_not_fan_out_to_every_metric_canvas():
+    event_filter_start = APP_SOURCE.index('metric_chart_titles = getattr(self, "_metric_chart_titles", {})')
+    event_filter = APP_SOURCE[event_filter_start : APP_SOURCE.index("        if chart_canvas is not None and obj is chart_canvas", event_filter_start)]
+
+    assert 'metric_chart_titles = getattr(self, "_metric_chart_titles", {})' in event_filter
+    assert "if event.type() == QEvent.Resize and obj not in metric_chart_titles:" in event_filter
