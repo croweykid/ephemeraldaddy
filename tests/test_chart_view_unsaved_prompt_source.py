@@ -105,6 +105,24 @@ def test_retcon_time_edits_defer_autosave_so_leave_prompt_can_win():
     assert "self._autosave_checkbox_state()" not in method
 
 
+def test_current_chart_uid_for_navigation_repairs_stale_uid_state():
+    method = _method_source("_current_chart_uid_for_navigation")
+    assert "latest_chart_uid" in method
+    assert "stored_chart_uid != latest_chart_uid" in method
+    assert "self.current_chart_uid = latest_chart_uid" in method
+    assert "resolved_chart_uid = self._normalized_chart_uid_key(get_chart_uid(current_chart_id))" in method
+    assert "return stored_chart_uid" in method
+
+
+def test_navigation_cache_id_invalidation_evicts_deleted_cached_charts_after_rows_disappear():
+    method = _method_source("_invalidate_chart_view_navigation_cache_for_ids")
+    assert "normalized_chart_ids" in method
+    assert "chart_uid_map = get_chart_uid_map(normalized_chart_ids)" in method
+    assert 'getattr(cached_chart, "id", 0)' in method
+    assert "if cached_chart_id in normalized_chart_ids:" in method
+    assert "self._invalidate_chart_view_navigation_cache(stale_cache_uids)" in method
+
+
 def test_loaded_rectified_time_is_restored_before_checkbox_enabled():
     method = _method_source("load_chart_by_uid")
     stored_hour_index = method.index('stored_retcon_hour = getattr(chart, "retcon_hour", None)')

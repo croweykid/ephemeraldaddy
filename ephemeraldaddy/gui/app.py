@@ -34891,15 +34891,33 @@ class MainWindow(QMainWindow):
         )
 
     def _current_chart_uid_for_navigation(self) -> str | None:
-        chart_uid = self._normalized_chart_uid_key(getattr(self, "current_chart_uid", None))
-        if chart_uid:
-            return chart_uid
-        chart_uid = self._normalized_chart_uid_key(getattr(self._latest_chart, "chart_uid", None))
-        if chart_uid:
-            return chart_uid
-        if self.current_chart_id is not None:
-            return self._normalized_chart_uid_key(get_chart_uid(int(self.current_chart_id)))
-        return None
+        stored_chart_uid = self._normalized_chart_uid_key(getattr(self, "current_chart_uid", None))
+        current_chart_id = int(self.current_chart_id) if self.current_chart_id is not None else None
+        latest_chart = getattr(self, "_latest_chart", None)
+        latest_chart_uid = self._normalized_chart_uid_key(getattr(latest_chart, "chart_uid", None))
+        latest_chart_id = getattr(latest_chart, "id", None)
+        try:
+            latest_chart_id = int(latest_chart_id) if latest_chart_id is not None else None
+        except (TypeError, ValueError):
+            latest_chart_id = None
+
+        if latest_chart_uid and (
+            current_chart_id is None
+            or latest_chart_id is None
+            or latest_chart_id == current_chart_id
+        ):
+            if stored_chart_uid != latest_chart_uid:
+                self.current_chart_uid = latest_chart_uid
+            return latest_chart_uid
+
+        if current_chart_id is not None:
+            resolved_chart_uid = self._normalized_chart_uid_key(get_chart_uid(current_chart_id))
+            if resolved_chart_uid:
+                if stored_chart_uid != resolved_chart_uid:
+                    self.current_chart_uid = resolved_chart_uid
+                return resolved_chart_uid
+
+        return stored_chart_uid
 
     def _cache_chart_view_navigation_entry(self, chart_uid: str | None, chart: Chart | None) -> None:
         if chart is None:
@@ -34931,8 +34949,22 @@ class MainWindow(QMainWindow):
         if not chart_ids:
             self._invalidate_chart_view_navigation_cache()
             return
-        chart_uid_map = get_chart_uid_map(chart_ids)
+        normalized_chart_ids = {int(chart_id) for chart_id in chart_ids if chart_id is not None}
+        if not normalized_chart_ids:
+            return
+
+        chart_uid_map = get_chart_uid_map(normalized_chart_ids)
         self._invalidate_chart_view_navigation_cache(set(chart_uid_map.values()))
+
+        stale_cache_uids: set[str] = set()
+        for cached_uid, cached_chart in self._chart_view_navigation_cache.items():
+            try:
+                cached_chart_id = int(getattr(cached_chart, "id", 0) or 0)
+            except (TypeError, ValueError):
+                cached_chart_id = 0
+            if cached_chart_id in normalized_chart_ids:
+                stale_cache_uids.add(cached_uid)
+        self._invalidate_chart_view_navigation_cache(stale_cache_uids)
 
     @staticmethod
     def _normalized_batch_sentiment_metric_value(raw_value: Any, default: int = 1) -> int:
