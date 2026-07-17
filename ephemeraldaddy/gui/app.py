@@ -34672,16 +34672,22 @@ class MainWindow(QMainWindow):
         )
         self._last_chart_save_changed_fields = None if changed_fields is None else set(changed_fields)
         self._last_chart_save_recalculated = bool(chart_recalculated)
-        self._update_sentiment_tally(
-            changed_ids={chart_id},
-            changed_fields=changed_fields,
-            update_database_metrics=True,
-            update_similarities=bool(
-                changed_fields is None or "birth_data" in changed_fields
-            ),
+        refresh_database_metrics = self._database_refresh_requires_metrics(changed_fields)
+        if refresh_database_metrics:
+            self._update_sentiment_tally(
+                changed_ids={chart_id},
+                changed_fields=changed_fields,
+                update_database_metrics=True,
+                update_similarities=bool(
+                    changed_fields is None or "birth_data" in changed_fields
+                ),
+            )
+        else:
+            self._manage_charts_pending_changed_ids.add(chart_id)
+        self._refresh_manage_charts_in_background(
+            {chart_id},
+            refresh_metrics=refresh_database_metrics,
         )
-        self._manage_charts_pending_changed_ids.add(chart_id)
-        self._refresh_manage_charts_in_background({chart_id})
         self._loaded_birth_place = place
         self._loaded_lat = chart.lat
         self._loaded_lon = chart.lon
@@ -35442,7 +35448,37 @@ class MainWindow(QMainWindow):
         if changed_ids:
             self._manage_charts_pending_changed_ids.difference_update(changed_ids)
 
-    def _refresh_manage_charts_in_background(self, changed_ids: set[int]) -> None:
+
+    @staticmethod
+    def _database_refresh_requires_metrics(changed_fields: set[str] | frozenset[str] | None) -> bool:
+        """Return whether a Chart View save must refresh Database analytics.
+
+        Lightweight descriptive edits such as alias, From, biography, comments,
+        quotes, rectification notes, source text, death details, and material
+        facts only need the visible Database rows reloaded.  They do not affect
+        analytics charts, prediction norms, similarity baselines, or tag
+        catalogs, so forcing a synchronous metrics refresh on Chart View exit is
+        unnecessary lag.
+        """
+        if changed_fields is None:
+            return True
+        metric_fields = {
+            "birth_data",
+            "sentiments",
+            "relationship_types",
+            "tags",
+            "gender",
+            "alignment",
+            "matched_expectations",
+        }
+        return bool(set(changed_fields) & metric_fields)
+
+    def _refresh_manage_charts_in_background(
+        self,
+        changed_ids: set[int],
+        *,
+        refresh_metrics: bool = True,
+    ) -> None:
         if not changed_ids:
             return
         manage_dialog = self._manage_charts_dialog
@@ -35453,10 +35489,12 @@ class MainWindow(QMainWindow):
         if not getattr(manage_dialog, "_chart_rows", None):
             return
         manage_dialog._refresh_charts(
-            refresh_metrics=True,
+            refresh_metrics=refresh_metrics,
             changed_ids=set(changed_ids),
+            refresh_tag_completers=refresh_metrics,
         )
-        self._prediction_norms_revision = int(getattr(self, "_prediction_norms_revision", 0) or 0) + 1
+        if refresh_metrics:
+            self._prediction_norms_revision = int(getattr(self, "_prediction_norms_revision", 0) or 0) + 1
         self._manage_charts_pending_changed_ids.difference_update(changed_ids)
 
     def _flush_stale_predictions_before_chart_exit(self) -> None:
