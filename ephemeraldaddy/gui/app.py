@@ -14969,11 +14969,11 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             return
 
         try:
-            changed_ids = add_tag_to_charts(chart_ids, tag_value)
+            changed_uids = add_tag_to_charts(chart_ids, tag_value)
             self._batch_tagging_debug_log(
-                "tag_click_saved tag=%r changed_ids=%s",
+                "tag_click_saved tag=%r changed_uids=%s",
                 tag_value,
-                sorted(changed_ids),
+                sorted(changed_uids),
             )
         except Exception as exc:
             QMessageBox.critical(
@@ -14983,7 +14983,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             )
             return
 
-        if not changed_ids:
+        if not changed_uids:
             QMessageBox.information(
                 self,
                 "No changes applied",
@@ -14994,6 +14994,8 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
 
         self._batch_tags_lucygoosey = False
         self.batch_tags_input.setText(tag_value)
+        changed_ids_by_uid = get_chart_ids_by_uid(changed_uids)
+        changed_ids = set(changed_ids_by_uid.values())
         normalized_key = tag_value.casefold()
         for chart_id in changed_ids:
             cached_chart = self._get_chart_for_filter(chart_id)
@@ -15718,11 +15720,11 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             return
 
         try:
-            changed_ids = add_tag_to_charts(chart_ids, tag_to_add)
+            changed_uids = add_tag_to_charts(chart_ids, tag_to_add)
             self._batch_tagging_debug_log(
-                "tag_apply_saved tag=%r changed_ids=%s",
+                "tag_apply_saved tag=%r changed_uids=%s",
                 tag_to_add,
-                sorted(changed_ids),
+                sorted(changed_uids),
             )
         except Exception as exc:
             QMessageBox.critical(
@@ -15732,7 +15734,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             )
             return
 
-        if not changed_ids:
+        if not changed_uids:
             QMessageBox.information(
                 self,
                 "No changes applied",
@@ -15743,6 +15745,8 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
 
         self._batch_tags_lucygoosey = False
         self.batch_tags_input.setText(tag_to_add)
+        changed_ids_by_uid = get_chart_ids_by_uid(changed_uids)
+        changed_ids = set(changed_ids_by_uid.values())
         normalized_key = tag_to_add.casefold()
         for chart_id in changed_ids:
             cached_chart = self._get_chart_for_filter(chart_id)
