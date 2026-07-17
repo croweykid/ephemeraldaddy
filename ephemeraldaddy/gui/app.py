@@ -34901,10 +34901,10 @@ class MainWindow(QMainWindow):
         except (TypeError, ValueError):
             latest_chart_id = None
 
-        if latest_chart_uid and (
-            current_chart_id is None
-            or latest_chart_id is None
-            or latest_chart_id == current_chart_id
+        if (
+            current_chart_id is not None
+            and latest_chart_uid
+            and latest_chart_id == current_chart_id
         ):
             if stored_chart_uid != latest_chart_uid:
                 self.current_chart_uid = latest_chart_uid

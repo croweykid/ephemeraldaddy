@@ -108,6 +108,9 @@ def test_retcon_time_edits_defer_autosave_so_leave_prompt_can_win():
 def test_current_chart_uid_for_navigation_repairs_stale_uid_state():
     method = _method_source("_current_chart_uid_for_navigation")
     assert "latest_chart_uid" in method
+    assert "current_chart_id is not None" in method
+    assert "latest_chart_id == current_chart_id" in method
+    assert "current_chart_id is None" not in method
     assert "stored_chart_uid != latest_chart_uid" in method
     assert "self.current_chart_uid = latest_chart_uid" in method
     assert "resolved_chart_uid = self._normalized_chart_uid_key(get_chart_uid(current_chart_id))" in method
