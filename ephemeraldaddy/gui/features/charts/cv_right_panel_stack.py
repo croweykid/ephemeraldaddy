@@ -704,11 +704,11 @@ def _visible_prediction_warmup_sections(owner: object) -> set[str]:
 
 
 def sync_prediction_section_visibility(owner: object) -> None:
-    widgets = getattr(owner, "_chart_analysis_section_widgets", {})
+    widgets = getattr(owner, "_prediction_section_widgets", {})
     if not isinstance(widgets, dict):
         return
     for key in ("traits", "enneagram", "dnd_statblock", "dnd_species", "dnd_class", "dnd_alignment"):
-        widget = widgets.get(f"predictions.{key}")
+        widget = widgets.get(key)
         if widget is not None and hasattr(widget, "setVisible"):
             widget.setVisible(_prediction_section_visible(owner, key))
 
@@ -1323,7 +1323,7 @@ def schedule_chart_render_for_active_right_panel(owner: object) -> None:
             return
         sync_prediction_section_visibility(owner)
         render_traits = getattr(owner, "_render_traits_predictions", None)
-        if callable(render_traits) and not traits_ready and _prediction_section_visible(owner, "traits"):
+        if callable(render_traits) and not traits_ready_for_chart and _prediction_section_visible(owner, "traits"):
             render_traits(chart)
             setattr(owner, "_traits_prediction_last_render_chart_token", render_token)
         if _prediction_section_visible(owner, "enneagram"):
