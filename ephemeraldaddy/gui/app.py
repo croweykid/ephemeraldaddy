@@ -29992,7 +29992,10 @@ class MainWindow(QMainWindow):
         self._species_info_map = species_info_map
         state = getattr(self, "_chart_right_panel_state", None)
         if getattr(state, "active_tab", None) == "predictions":
-            self._schedule_chart_render_for_active_right_panel()
+            if bool(getattr(self, "_suppress_right_panel_refresh_for_timing_preview", False)):
+                self._suppress_right_panel_refresh_for_timing_preview = False
+            else:
+                self._schedule_chart_render_for_active_right_panel()
 
     def _build_chart_export_markdown(self, chart: Chart) -> str:
         date_label = chart.dt.strftime("%Y-%m-%d") if chart.dt else "Unknown"
@@ -35639,7 +35642,6 @@ class MainWindow(QMainWindow):
     def _flush_timing_preview_update(self) -> None:
         if self._suppress_lucygoosey:
             return
-        self._reset_metric_canvases_for_retcon_timing_update()
         self._refresh_chart_preview()
 
     def _reset_metric_canvases_for_retcon_timing_update(self) -> None:
@@ -35692,11 +35694,22 @@ class MainWindow(QMainWindow):
         if chart_result is None:
             return
         chart, _place, _location_msg, _tz_override = chart_result
-        chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
-        chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
-        chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
         self._update_unknown_positions_summary(chart)
-        self._schedule_chart_render(chart)
+        # Timing edits are intentionally a lightweight live preview path.  The
+        # old behavior eagerly recalculated every dominance cache and queued all
+        # right-panel analytics for each minute/key change, which could stall the
+        # GUI long before the user finished rectifying the time.  Keep the
+        # play-by-play Chart Data Output and chart wheel current, and mark the
+        # analytics as stale so visible sections recalculate on an explicit save
+        # or tab/section refresh instead of during time entry.
+        self._mark_chart_analytics_sections_lucy_goosey()
+        self._suppress_right_panel_refresh_for_timing_preview = True
+        self._schedule_chart_render(
+            chart,
+            sections={"summary", "wheel"},
+            queue_priority="interactive",
+            refresh_time_sensitivity=False,
+        )
 
     def _handle_lilith_calculation_method_changed(
         self,
@@ -35785,10 +35798,15 @@ class MainWindow(QMainWindow):
         *,
         allow_collapsed_sections: bool = False,
         queue_priority: RenderQueuePriority = "interactive",
+        refresh_time_sensitivity: bool = True,
     ) -> None:
         self._latest_chart = chart
         time_sensitivity_panel = getattr(self, "time_sensitivity_panel", None)
-        if time_sensitivity_panel is not None and hasattr(time_sensitivity_panel, "refresh_for_current_chart"):
+        if (
+            refresh_time_sensitivity
+            and time_sensitivity_panel is not None
+            and hasattr(time_sensitivity_panel, "refresh_for_current_chart")
+        ):
             time_sensitivity_panel.refresh_for_current_chart()
         update_main_window_title(self)
         if self._pending_render_chart is not None and self._pending_render_chart is not chart:
@@ -35915,6 +35933,7 @@ class MainWindow(QMainWindow):
             self._render_flush_timer.start(0)
             return
 
+        self._suppress_right_panel_refresh_for_timing_preview = False
         self._pending_render_chart = None
         # draw() is synchronous for chart/metric canvases, so overlay shutdown can
         # be tied to actual completion of the final render pass here.
