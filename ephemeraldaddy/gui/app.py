@@ -21775,6 +21775,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if confirm != QMessageBox.StandardButton.Yes:
             return
 
+        deleted_chart_uids = set(get_chart_uid_map(chart_ids).values())
+
         try:
             deleted = delete_charts(chart_ids)
         except Exception as e:
@@ -21792,7 +21794,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         parent = self._owner_window()
         if isinstance(parent, QWidget) and hasattr(parent, "_on_charts_deleted"):
-            parent._on_charts_deleted(set(chart_ids))
+            parent._on_charts_deleted(set(chart_ids), chart_uids=deleted_chart_uids)
         remaining_selection = [
             chart_id for chart_id in self._selected_chart_ids() if chart_id not in set(chart_ids)
         ]
@@ -34325,6 +34327,8 @@ class MainWindow(QMainWindow):
                     is_placeholder = True
                 elif incomplete_choice == "discard":
                     if chart_id is not None:
+                        chart_uid = self._current_chart_uid_for_navigation() or get_chart_uid(chart_id)
+                        chart_uids = {chart_uid} if chart_uid else set()
                         try:
                             delete_charts([chart_id])
                         except Exception as e:
@@ -34334,7 +34338,7 @@ class MainWindow(QMainWindow):
                                 f"Could not delete chart #{chart_id}:\n{e}",
                             )
                             return
-                        self._on_charts_deleted({chart_id})
+                        self._on_charts_deleted({chart_id}, chart_uids=chart_uids)
                         self._manage_charts_pending_changed_ids.add(chart_id)
                     else:
                         self._reset_new_chart_form()
@@ -34730,6 +34734,9 @@ class MainWindow(QMainWindow):
         if confirm != QMessageBox.StandardButton.Yes:
             return
 
+        chart_uid = self._current_chart_uid_for_navigation() or get_chart_uid(chart_id)
+        chart_uids = {chart_uid} if chart_uid else set()
+
         try:
             delete_charts([chart_id])
         except Exception as e:
@@ -34740,7 +34747,7 @@ class MainWindow(QMainWindow):
             )
             return
 
-        self._on_charts_deleted({chart_id})
+        self._on_charts_deleted({chart_id}, chart_uids=chart_uids)
         self._manage_charts_pending_changed_ids.add(chart_id)
         self.on_manage_charts()
 
@@ -34955,16 +34962,6 @@ class MainWindow(QMainWindow):
 
         chart_uid_map = get_chart_uid_map(normalized_chart_ids)
         self._invalidate_chart_view_navigation_cache(set(chart_uid_map.values()))
-
-        stale_cache_uids: set[str] = set()
-        for cached_uid, cached_chart in self._chart_view_navigation_cache.items():
-            try:
-                cached_chart_id = int(getattr(cached_chart, "id", 0) or 0)
-            except (TypeError, ValueError):
-                cached_chart_id = 0
-            if cached_chart_id in normalized_chart_ids:
-                stale_cache_uids.add(cached_uid)
-        self._invalidate_chart_view_navigation_cache(stale_cache_uids)
 
     @staticmethod
     def _normalized_batch_sentiment_metric_value(raw_value: Any, default: int = 1) -> int:
@@ -35496,8 +35493,21 @@ class MainWindow(QMainWindow):
         )
         manage_dialog._size_checker_popup = self._size_checker_popup
 
-    def _on_charts_deleted(self, chart_ids: set[int]) -> None:
-        self._invalidate_chart_view_navigation_cache_for_ids(chart_ids)
+    def _on_charts_deleted(
+        self,
+        chart_ids: set[int],
+        *,
+        chart_uids: set[str] | None = None,
+    ) -> None:
+        normalized_chart_uids = {
+            normalized_uid
+            for chart_uid in (chart_uids or set())
+            if (normalized_uid := self._normalized_chart_uid_key(chart_uid))
+        }
+        if normalized_chart_uids:
+            self._invalidate_chart_view_navigation_cache(normalized_chart_uids)
+        else:
+            self._invalidate_chart_view_navigation_cache_for_ids(chart_ids)
         if self.current_chart_id is None or self.current_chart_id not in chart_ids:
             return
         self._orphan_current_chart_reference()

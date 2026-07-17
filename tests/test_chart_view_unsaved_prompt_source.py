@@ -124,13 +124,19 @@ def test_current_chart_uid_for_navigation_repairs_stale_uid_state():
     assert "return stored_chart_uid" in method
 
 
-def test_navigation_cache_id_invalidation_evicts_deleted_cached_charts_after_rows_disappear():
-    method = _method_source("_invalidate_chart_view_navigation_cache_for_ids")
-    assert "normalized_chart_ids" in method
-    assert "chart_uid_map = get_chart_uid_map(normalized_chart_ids)" in method
-    assert 'getattr(cached_chart, "id", 0)' in method
-    assert "if cached_chart_id in normalized_chart_ids:" in method
-    assert "self._invalidate_chart_view_navigation_cache(stale_cache_uids)" in method
+def test_delete_flow_invalidates_navigation_cache_with_predelete_uids():
+    delete_start = APP_SOURCE.index("    def _on_delete(self) -> None:")
+    delete_end = APP_SOURCE.find("\n    def ", delete_start + 1)
+    delete_method = APP_SOURCE[delete_start:delete_end]
+    deleted_callback = _method_source("_on_charts_deleted")
+    id_adapter = _method_source("_invalidate_chart_view_navigation_cache_for_ids")
+
+    assert "deleted_chart_uids = set(get_chart_uid_map(chart_ids).values())" in delete_method
+    assert "parent._on_charts_deleted(set(chart_ids), chart_uids=deleted_chart_uids)" in delete_method
+    assert "chart_uids: set[str] | None = None" in deleted_callback
+    assert "self._invalidate_chart_view_navigation_cache(normalized_chart_uids)" in deleted_callback
+    assert "self._invalidate_chart_view_navigation_cache_for_ids(chart_ids)" in deleted_callback
+    assert 'getattr(cached_chart, "id", 0)' not in id_adapter
 
 
 def test_loaded_rectified_time_is_restored_before_checkbox_enabled():
