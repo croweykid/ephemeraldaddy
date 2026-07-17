@@ -60,8 +60,13 @@ def test_gender_guesser_render_routes_through_predictions_panel():
 def test_predictions_visibility_can_skip_hidden_section_work():
     visibility_source = (REPO_ROOT / "ephemeraldaddy/gui/visibility.py").read_text()
     chart_view_source = (REPO_ROOT / "ephemeraldaddy/gui/features/controllers/chart_view_window.py").read_text()
-    for section_key in ("traits", "enneagram", "dnd_statblock", "dnd_species", "dnd_class", "dnd_alignment"):
+    default_visible_sections = ("traits", "dnd_species", "dnd_class", "dnd_alignment")
+    default_hidden_sections = ("enneagram", "dnd_statblock")
+    for section_key in default_visible_sections:
         assert f'"predictions.{section_key}": True' in visibility_source
+        assert f'section_key="predictions.{section_key}"' in chart_view_source
+    for section_key in default_hidden_sections:
+        assert f'"predictions.{section_key}": False' in visibility_source
         assert f'section_key="predictions.{section_key}"' in chart_view_source
     assert "def sync_prediction_section_visibility" in RIGHT_PANEL_STACK_SOURCE
     assert "sections = (set(sections) & visible_sections)" in RIGHT_PANEL_STACK_SOURCE
