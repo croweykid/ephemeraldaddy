@@ -106,6 +106,7 @@ from ephemeraldaddy.gui.style import (
 
 
 DND_STAT_KEYS: tuple[str, ...] = ("STR", "DEX", "CON", "INT", "WIS", "CHA")
+DND_SPECIES_CLASS_CACHE_VERSION = 2
 logger = logging.getLogger(__name__)
 
 
@@ -767,7 +768,7 @@ def _dnd_label_link(text: str, href: str) -> str:
     )
 
 
-def _collect_top_three_class_payloads(chart: Any) -> tuple[dict[str, float], list[dict[str, Any]]]:
+def _collect_ranked_class_payloads(chart: Any) -> tuple[dict[str, float], list[dict[str, Any]]]:
     try:
         axis_scores = score_class_axes(chart)
         class_scores = DnDClassScorer().score_classes(axis_scores)
@@ -780,7 +781,7 @@ def _collect_top_three_class_payloads(chart: Any) -> tuple[dict[str, float], lis
         return {}, []
 
     payloads: list[dict[str, Any]] = []
-    for scored_class in ranked_classes[:3]:
+    for scored_class in ranked_classes:
         class_definition = DND_CLASSES.get(scored_class.key)
         class_display_name = (
             class_definition.display_name
@@ -800,17 +801,30 @@ def _collect_top_three_class_payloads(chart: Any) -> tuple[dict[str, float], lis
     return {axis_key: float(value) for axis_key, value in axis_scores.items()}, payloads
 
 
-def _collect_top_three_species_payloads(chart: Any) -> list[dict[str, Any]]:
+def _collect_ranked_species_payloads(chart: Any) -> list[dict[str, Any]]:
     try:
-        species_top_three = assign_top_three_species_with_evidence(chart)
+        assigner = SpeciesAssigner()
+        positions = assigner._get_positions(chart)
+        aspects = assigner._get_aspects(chart, positions)
+        features = assigner._extract_features(positions, aspects)
+        scores = assigner._score_families(positions, aspects, features)
+        ranked_species = assigner._apply_human_fallback_policy(assigner._rank_families(scores))
+        species_rankings = []
+        for family, score_card in ranked_species:
+            subtype, subtype_evidence = assigner._pick_subtype(family, positions, aspects, features)
+            evidence = assigner._compact_evidence(score_card.reasons, subtype_evidence, features)
+            species_rankings.append((family, subtype, round(score_card.score, 3), evidence))
     except Exception:
         try:
-            species_top_three = [(*species[:3], []) for species in assign_top_three_species(chart)]
+            species_rankings = assign_top_three_species_with_evidence(chart)
         except Exception:
-            species_top_three = []
+            try:
+                species_rankings = [(*species[:3], []) for species in assign_top_three_species(chart)]
+            except Exception:
+                species_rankings = []
 
     payloads: list[dict[str, Any]] = []
-    for family, subtype, score, evidence in species_top_three[:3]:
+    for family, subtype, score, evidence in species_rankings:
         subtype_text = str(subtype or "").strip()
         label = f"{family} ({subtype_text})" if subtype_text else str(family)
         payloads.append(
@@ -831,9 +845,9 @@ def build_dnd_species_summary_html(
     linked: bool = False,
     species_payloads: list[dict[str, Any]] | None = None,
 ) -> str:
-    species_payloads = species_payloads if species_payloads is not None else _collect_top_three_species_payloads(chart)
+    species_payloads = species_payloads if species_payloads is not None else _collect_ranked_species_payloads(chart)
     species_lines: list[str] = []
-    for rank, payload in enumerate(species_payloads, start=1):
+    for rank, payload in enumerate(species_payloads[:3], start=1):
         label = str(payload["label"])
         rendered_label = (
             _dnd_label_link(label, f"dnd-species:{rank - 1}")
@@ -843,6 +857,8 @@ def build_dnd_species_summary_html(
         species_lines.append(f"{rank}) {rendered_label}")
     if not species_lines:
         species_lines.append("No species prediction available.")
+    if linked and len(species_payloads) > 3:
+        species_lines.append(_dnd_label_link("More...", "dnd-species-more:0"))
     return "<b>Top 3 Species/Subspecies</b><br>" + "<br>".join(species_lines)
 
 
@@ -853,9 +869,9 @@ def build_dnd_class_summary_html(
     class_payloads: list[dict[str, Any]] | None = None,
 ) -> str:
     if class_payloads is None:
-        _axis_scores, class_payloads = _collect_top_three_class_payloads(chart)
+        _axis_scores, class_payloads = _collect_ranked_class_payloads(chart)
     class_lines: list[str] = []
-    for rank, payload in enumerate(class_payloads, start=1):
+    for rank, payload in enumerate(class_payloads[:3], start=1):
         label = str(payload["name"])
         rendered_label = (
             _dnd_label_link(label, f"dnd-class:{rank - 1}")
@@ -865,7 +881,29 @@ def build_dnd_class_summary_html(
         class_lines.append(f"{rank}) {rendered_label}")
     if not class_lines:
         class_lines.append("No class prediction available.")
+    if linked and len(class_payloads) > 3:
+        class_lines.append(_dnd_label_link("More...", "dnd-class-more:0"))
     return "<b>Top 3 Classes</b><br>" + "<br>".join(class_lines)
+
+
+def build_dnd_all_species_summary_html(species_payloads: list[dict[str, Any]]) -> str:
+    species_lines: list[str] = []
+    for rank, payload in enumerate(species_payloads, start=1):
+        label = str(payload["label"])
+        species_lines.append(f"{rank}) {_dnd_label_link(label, f'dnd-species:{rank - 1}')}")
+    if not species_lines:
+        species_lines.append("No species prediction available.")
+    return "<b>All Species/Subspecies</b><br>" + "<br>".join(species_lines)
+
+
+def build_dnd_all_class_summary_html(class_payloads: list[dict[str, Any]]) -> str:
+    class_lines: list[str] = []
+    for rank, payload in enumerate(class_payloads, start=1):
+        label = str(payload["name"])
+        class_lines.append(f"{rank}) {_dnd_label_link(label, f'dnd-class:{rank - 1}')}")
+    if not class_lines:
+        class_lines.append("No class prediction available.")
+    return "<b>All Classes</b><br>" + "<br>".join(class_lines)
 
 
 def build_dnd_top_three_summary_html(
@@ -1210,9 +1248,9 @@ def configure_dnd_top_three_summary_label(
 ) -> None:
     """Render clickable top-three D&D species/classes into a Predictions label."""
 
-    species_payloads = species_payloads if species_payloads is not None else _collect_top_three_species_payloads(chart)
+    species_payloads = species_payloads if species_payloads is not None else _collect_ranked_species_payloads(chart)
     if class_payloads is None:
-        _axis_scores, class_payloads = _collect_top_three_class_payloads(chart)
+        _axis_scores, class_payloads = _collect_ranked_class_payloads(chart)
 
     previous_handler = getattr(label, "_dnd_top_three_link_handler", None)
     if previous_handler is not None:
@@ -1228,6 +1266,12 @@ def configure_dnd_top_three_summary_label(
 
     def _on_link_activated(href: str) -> None:
         prefix, _separator, index_text = str(href).partition(":")
+        if prefix == "dnd-species-more":
+            label.setText(build_dnd_all_species_summary_html(species_payloads))
+            return
+        if prefix == "dnd-class-more":
+            label.setText(build_dnd_all_class_summary_html(class_payloads))
+            return
         try:
             index = int(index_text)
         except ValueError:
@@ -1607,28 +1651,30 @@ class DndPredictionPanelAdapter:
     def _species_class_owner_cache(self) -> dict[str, Any]:
         return _owner_cache_bucket(self.owner, "_dnd_species_class_prediction_view_cache")
 
+    def _is_current_species_class_cache(self, chart: Any, payload: Any) -> bool:
+        return (
+            isinstance(payload, dict)
+            and payload.get("version") == DND_SPECIES_CLASS_CACHE_VERSION
+            and _cache_payload_chart_uid_matches(chart, payload, require_uid=True)
+            and isinstance(payload.get("species"), list)
+            and isinstance(payload.get("classes"), list)
+        )
+
     def _restore_species_class_cache(self, chart: Any) -> dict[str, Any] | None:
         cached = getattr(chart, "_dnd_species_class_prediction_cache", None)
-        if (
-            isinstance(cached, dict)
-            and _cache_payload_chart_uid_matches(chart, cached, require_uid=True)
-            and isinstance(cached.get("species"), list)
-            and isinstance(cached.get("classes"), list)
-        ):
+        if self._is_current_species_class_cache(chart, cached):
             return cached
         chart_cache_id = self._chart_cache_identity(chart)
         restored = self._species_class_owner_cache().get(chart_cache_id) if chart_cache_id else None
-        if not _cache_payload_chart_uid_matches(chart, restored, require_uid=True):
+        if not self._is_current_species_class_cache(chart, restored):
             restored = None
         if not isinstance(restored, dict):
             restored = _load_persisted_dnd_prediction_payload(chart).get("species_class")
             if isinstance(restored, dict) and "chart_uid" not in restored:
                 restored["chart_uid"] = _chart_prediction_cache_uid(chart)
-        if (
-            isinstance(restored, dict)
-            and isinstance(restored.get("species"), list)
-            and isinstance(restored.get("classes"), list)
-        ):
+            if not self._is_current_species_class_cache(chart, restored):
+                restored = None
+        if isinstance(restored, dict):
             if chart_cache_id:
                 self._species_class_owner_cache()[chart_cache_id] = restored
             try:
@@ -1639,11 +1685,12 @@ class DndPredictionPanelAdapter:
         return None
 
     def _cache_species_class_metadata(self, chart: Any) -> dict[str, Any]:
-        axis_scores, class_payloads = _collect_top_three_class_payloads(chart)
+        axis_scores, class_payloads = _collect_ranked_class_payloads(chart)
         cache_payload = {
             "chart_uid": _chart_prediction_cache_uid(chart),
+            "version": DND_SPECIES_CLASS_CACHE_VERSION,
             "key": self._chart_state_cache_token(chart),
-            "species": _collect_top_three_species_payloads(chart),
+            "species": _collect_ranked_species_payloads(chart),
             "classes": class_payloads,
             "class_axis_scores": axis_scores,
             "cached_at": time.time(),
