@@ -87,3 +87,25 @@ def test_chart_view_traits_keep_uid_metadata_visible_when_cache_is_stale_or_inco
     assert "if cached_only and (cached_rows_by_name or stale_rows_by_name):" in cached_only_method
     assert "rows previously persisted for this chart UID remain displayable" in cached_only_method
     assert "metadata[\"stale\"] = True" in cached_only_method
+
+
+def test_rankings_panel_traits_prefer_shared_prediction_norm_snapshot():
+    ranking_panel_source = (ROOT / "ephemeraldaddy" / "gui" / "ranking_panel.py").read_text(encoding="utf-8")
+    method = ranking_panel_source.split("def _refresh_rankings_panel", 1)[1].split(
+        "def _refresh_sign_dominance_rankings", 1
+    )[0]
+    assert "trait_snapshot_averages(trait_items)" in method
+    assert "requested_trait_names.issubset(set(snapshot_averages))" in method
+    assert method.index("trait_snapshot_averages(trait_items)") < method.index("_collect_traits_distribution_analytics")
+    snapshot_branch = method.split(
+        "if requested_trait_names and requested_trait_names.issubset(set(snapshot_averages)):", 1
+    )[1].split("else:", 1)[0]
+    assert "_collect_traits_distribution_analytics" not in snapshot_branch
+
+
+def test_restore_window_settings_refreshes_open_rankings_panel_after_widgets_exist():
+    restore_method = APP_SOURCE.split("def _restore_window_settings", 1)[1].split(
+        "stored_active_right_panel", 1
+    )[0]
+    assert 'if self._left_panel_visible and self._active_left_panel == "rankings":' in restore_method
+    assert "QTimer.singleShot(0, self._refresh_rankings_panel)" in restore_method

@@ -19,6 +19,7 @@ from ephemeraldaddy.gui.features.settings.traits import list_traits
 from ephemeraldaddy.gui.features.charts.metrics import (
     calculate_dominant_sign_weights as _calculate_dominant_sign_weights,
 )
+from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import trait_snapshot_averages
 
 
 class RankingsPanelMixin:
@@ -202,20 +203,35 @@ class RankingsPanelMixin:
         cache_warmed = False
         parsed_percent: float | None = 100.0
         if selected_trait_name:
-            database_analytics = self._collect_traits_distribution_analytics(
-                database_chart_ids,
-                trait_items=trait_items,
-                trait_signature=trait_signature,
-            )
-            database_count = max(0, int(database_analytics.get("chart_count", 0)))
-            totals = database_analytics.get("totals", {})
-            names = list(database_analytics.get("trait_names", []))
-            database_values = {
-                name: (float(totals.get(name, 0.0)) / float(database_count) if database_count else 0.0)
-                for name in names
-            }
-            cache_warmed = database_count > 0 and not bool(database_analytics.get("partial", False))
-            parsed_percent = database_analytics.get("parsed_percent", 100.0)
+            requested_trait_names = {name for name, _color, _profile in trait_signature}
+            try:
+                snapshot_averages = trait_snapshot_averages(trait_items)
+            except Exception:
+                snapshot_averages = {}
+            if requested_trait_names and requested_trait_names.issubset(set(snapshot_averages)):
+                database_values = {
+                    name: float(snapshot_averages[name]) / 100.0
+                    for name in requested_trait_names
+                }
+                cache_warmed = True
+                parsed_percent = 100.0
+                if not isinstance(getattr(self, "_traits_distribution_chart_likelihood_cache", None), dict):
+                    self._load_traits_distribution_likelihood_cache()
+            else:
+                database_analytics = self._collect_traits_distribution_analytics(
+                    database_chart_ids,
+                    trait_items=trait_items,
+                    trait_signature=trait_signature,
+                )
+                database_count = max(0, int(database_analytics.get("chart_count", 0)))
+                totals = database_analytics.get("totals", {})
+                names = list(database_analytics.get("trait_names", []))
+                database_values = {
+                    name: (float(totals.get(name, 0.0)) / float(database_count) if database_count else 0.0)
+                    for name in names
+                }
+                cache_warmed = database_count > 0 and not bool(database_analytics.get("partial", False))
+                parsed_percent = database_analytics.get("parsed_percent", 100.0)
         trait_rankings = self._traits_distribution_chart_rankings(
             chart_ids=database_chart_ids,
             trait_signature=trait_signature,
