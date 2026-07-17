@@ -5296,22 +5296,24 @@ class DatabaseAnalyticsChartsMixin:
             self._sync_traits_distribution_display_mode()
             return
         snapshot_database_values: dict[str, float] = {}
-        if rankings_mode:
+        requested_snapshot_trait_names = {name for name, _color, _profile in trait_signature}
+        if rankings_mode and requested_snapshot_trait_names:
             try:
                 snapshot_averages = trait_snapshot_averages(trait_items)
             except Exception:
                 logger.exception("Failed to load shared Predictions trait norm snapshot for Trait Rankings.")
                 snapshot_averages = {}
-            snapshot_database_values = {
-                name: float(snapshot_averages[name]) / 100.0
-                for name, _color, _profile in trait_signature
-                if name in snapshot_averages
-            }
+            if requested_snapshot_trait_names.issubset(set(snapshot_averages)):
+                snapshot_database_values = {
+                    name: float(snapshot_averages[name]) / 100.0
+                    for name in requested_snapshot_trait_names
+                }
         if rankings_mode and snapshot_database_values:
+            snapshot_chart_count = max(1, len(database_chart_ids))
             database_analytics = {
                 "trait_names": [name for name, _color, _profile in trait_signature],
-                "totals": {name: value for name, value in snapshot_database_values.items()},
-                "chart_count": len(database_chart_ids),
+                "totals": {name: value * float(snapshot_chart_count) for name, value in snapshot_database_values.items()},
+                "chart_count": snapshot_chart_count,
                 "colors": {name: color for name, color, _profile in trait_signature},
                 "partial": False,
                 "requested_chart_count": len(database_chart_ids),
