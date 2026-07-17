@@ -9,7 +9,7 @@ from PySide6.QtCore import QSettings
 SETTINGS_GROUP = "visibility"
 
 CHART_DATA_KEYS: dict[str, bool] = { #visibility toggles are here
-    "chart_data.cursedness": True,
+    "chart_data.cursedness": False,
     "chart_data.dnd_output": True,
     "chart_data.human_design": True,
     "popout.synastry_aspect_weights": False,
