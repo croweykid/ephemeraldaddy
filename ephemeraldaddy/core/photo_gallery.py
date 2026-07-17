@@ -13,7 +13,7 @@ from urllib.parse import urlparse
 import requests
 from PIL import Image, ImageOps
 
-from ephemeraldaddy.core.db import DB_PATH, get_chart_uid
+from ephemeraldaddy.core.db import DB_PATH, get_chart_profile_pic, get_chart_uid, set_chart_profile_pic
 
 PHOTO_GALLERY_FILENAME = "charts.photo_gallery.db"
 MAX_PHOTO_WIDTH = 1920
@@ -63,7 +63,17 @@ def _resize_image(raw: bytes) -> tuple[bytes, str, int, int]:
         return output.getvalue(), "image/jpeg", int(image.width), int(image.height)
 
 
+def _profile_photo_exists(chart_uid: str, profile_pic: str | int | None) -> bool:
+    try:
+        photo_id = int(profile_pic) if profile_pic else None
+    except (TypeError, ValueError):
+        return False
+    return photo_id is not None and get_photo_data(photo_id, chart_uid) is not None
+
+
 def _insert_photo(chart_uid: str, raw: bytes, *, source: str, filename: str) -> int:
+    existing_profile_pic = get_chart_profile_pic(chart_uid)
+    has_profile_pic = _profile_photo_exists(chart_uid, existing_profile_pic)
     data, mime_type, width, height = _resize_image(raw)
     with _connect() as conn:
         cursor = conn.execute(
@@ -74,7 +84,10 @@ def _insert_photo(chart_uid: str, raw: bytes, *, source: str, filename: str) -> 
             (chart_uid, source, filename, mime_type, width, height, data, datetime.now(timezone.utc).isoformat()),
         )
         conn.commit()
-        return int(cursor.lastrowid)
+        photo_id = int(cursor.lastrowid)
+    if not has_profile_pic:
+        set_chart_profile_pic(chart_uid, photo_id)
+    return photo_id
 
 
 def add_photo_file(chart_uid: str, path: str | Path) -> int:
@@ -119,6 +132,29 @@ def get_photo_data(photo_id: int, chart_uid: str | None = None) -> dict[str, Any
     return dict(row) if row is not None else None
 
 
+def set_profile_photo(chart_uid: str | None, photo_id: int) -> bool:
+    if not chart_uid:
+        return False
+    if get_photo_data(int(photo_id), chart_uid) is None:
+        return False
+    set_chart_profile_pic(chart_uid, int(photo_id))
+    return True
+
+
+def get_profile_photo_id(chart_uid: str | None) -> int | None:
+    value = get_chart_profile_pic(chart_uid)
+    try:
+        photo_id = int(value) if value else None
+    except (TypeError, ValueError):
+        return None
+    if photo_id is None or not chart_uid:
+        return None
+    if get_photo_data(photo_id, chart_uid) is None:
+        set_chart_profile_pic(chart_uid, "")
+        return None
+    return photo_id
+
+
 def delete_photo(photo_id: int, chart_uid: str | None = None) -> bool:
     with _connect() as conn:
         if chart_uid:
@@ -129,7 +165,11 @@ def delete_photo(photo_id: int, chart_uid: str | None = None) -> bool:
         else:
             cursor = conn.execute("DELETE FROM chart_photos WHERE id = ?", (int(photo_id),))
         conn.commit()
-        return cursor.rowcount > 0
+        deleted = cursor.rowcount > 0
+    if deleted and chart_uid and get_chart_profile_pic(chart_uid) == str(int(photo_id)):
+        remaining = list_photos(chart_uid)
+        set_chart_profile_pic(chart_uid, int(remaining[-1]["id"]) if remaining else "")
+    return deleted
 
 
 def list_photos(chart_uid: str | None) -> list[dict[str, Any]]:

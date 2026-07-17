@@ -163,6 +163,7 @@ CHART_EXPORT_DEFAULTS: dict[str, Any] = {
     "death_minute": 0,
     "death_place": "",
     "is_current": 0,
+    "profile_pic": "",
 }
 
 
@@ -544,6 +545,7 @@ def _create_charts_table(conn: sqlite3.Connection) -> None:
             death_hour        INTEGER,
             death_minute      INTEGER,
             death_place       TEXT,
+            profile_pic       TEXT,
             created_at        TEXT NOT NULL,
             is_current        INTEGER NOT NULL DEFAULT 0
         )
@@ -940,6 +942,13 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
             """
             ALTER TABLE charts
             ADD COLUMN is_current INTEGER NOT NULL DEFAULT 0
+            """
+        )
+    if "profile_pic" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE charts
+            ADD COLUMN profile_pic TEXT
             """
         )
     if "alias" not in columns:
@@ -4339,6 +4348,43 @@ def get_chart_uid(chart_id: int | None) -> str | None:
     return get_chart_uid_map([int(chart_id)]).get(int(chart_id))
 
 
+
+def get_chart_profile_pic(chart_uid: str | None) -> str:
+    """Return the persisted Photo Gallery profile picture id for a chart UID."""
+    normalized_uid = _normalize_chart_uid(chart_uid)
+    if normalized_uid is None:
+        return ""
+    conn = _get_conn()
+    try:
+        with conn:
+            _ensure_chart_uids(conn)
+        if "profile_pic" not in _table_columns(conn, "charts"):
+            return ""
+        row = conn.execute(
+            "SELECT profile_pic FROM charts WHERE chart_uid = ?",
+            (normalized_uid,),
+        ).fetchone()
+        return str(row[0] or "").strip() if row is not None else ""
+    finally:
+        conn.close()
+
+
+def set_chart_profile_pic(chart_uid: str | None, profile_pic: str | int | None) -> None:
+    """Persist the Photo Gallery profile picture id for a chart UID."""
+    normalized_uid = _normalize_chart_uid(chart_uid)
+    if normalized_uid is None:
+        return
+    conn = _get_conn()
+    try:
+        with conn:
+            _ensure_chart_uids(conn)
+            conn.execute(
+                "UPDATE charts SET profile_pic = ? WHERE chart_uid = ?",
+                (str(profile_pic or "").strip(), normalized_uid),
+            )
+    finally:
+        conn.close()
+
 def get_chart_id_by_uid(chart_uid: str | None) -> int | None:
     """Return the local integer row id for a stable chart UID.
 
@@ -4956,6 +5002,7 @@ def _chart_row_projection(columns: set[str]) -> str:
         "derived_aspects" if "derived_aspects" in columns else "NULL AS derived_aspects"
     )
     quotes_projection = "quotes" if "quotes" in columns else "NULL AS quotes"
+    profile_pic_projection = "profile_pic" if "profile_pic" in columns else "NULL AS profile_pic"
     return f"""
         chart_uid, name, alias, from_whence, gender, birth_place, datetime_iso, tz_name, lat, lon,
                used_utc_fallback, sentiments, relationship_types,
@@ -4973,7 +5020,8 @@ def _chart_row_projection(columns: set[str]) -> str:
                bazi_year_element, bazi_month_element, bazi_day_element, bazi_hour_element,
                COALESCE(chart_type, source),
                is_placeholder, is_deceased, birth_month, birth_day, birth_year,
-               death_month, death_day, death_year, deathtime_unknown, death_hour, death_minute, death_place
+               death_month, death_day, death_year, deathtime_unknown, death_hour, death_minute, death_place,
+               {profile_pic_projection}
     """
 
 def _chart_from_row(chart_id: int, row):
@@ -5064,6 +5112,7 @@ def _chart_from_row(chart_id: int, row):
         death_hour,
         death_minute,
         death_place,
+        profile_pic,
     ) = row_values
 
     if bool(is_placeholder):
@@ -5089,6 +5138,7 @@ def _chart_from_row(chart_id: int, row):
         placeholder.biography = biography or ""
         placeholder.chart_data_source = chart_data_source or ""
         placeholder.alternate_chart_uid = alternate_chart_uid or ""
+        placeholder.profile_pic = str(profile_pic or "").strip()
         placeholder.positive_sentiment_intensity = _normalize_optional_sentiment_metric(
             positive_sentiment_intensity
         )
@@ -5233,6 +5283,7 @@ def _chart_from_row(chart_id: int, row):
     chart.biography = biography or ""
     chart.chart_data_source = chart_data_source or ""
     chart.alternate_chart_uid = alternate_chart_uid or ""
+    chart.profile_pic = str(profile_pic or "").strip()
     chart.positive_sentiment_intensity = _normalize_optional_sentiment_metric(
         positive_sentiment_intensity
     )
