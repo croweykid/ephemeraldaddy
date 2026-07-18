@@ -20,6 +20,12 @@ CHART_DATA_KEYS: dict[str, bool] = { #visibility toggles are here
     "chart_view.gender_guesser": False,
     "charts.standard_deviation_indicators": True,
     "analytics.dnd_statblock_explainers": False,
+    "predictions.traits": True,
+    "predictions.enneagram": False,
+    "predictions.dnd_statblock": False,
+    "predictions.dnd_species": True,
+    "predictions.dnd_class": True,
+    "predictions.dnd_alignment": True,
 }
 
 DATABASE_ANALYTICS_VISIBILITY_KEYS: dict[str, bool] = {
