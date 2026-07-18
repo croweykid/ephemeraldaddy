@@ -35727,8 +35727,10 @@ class MainWindow(QMainWindow):
         try:
             adapter = dnd_adapter or self._dnd_prediction_adapter()
             if dnd_stale or predictions_token_mismatch:
-                if any(self._visibility.get(f"predictions.{key}") for key in ("dnd_statblock", "dnd_species", "dnd_class")):
-                    adapter.cache_metadata(chart)
+                if self._visibility.get("predictions.dnd_statblock"):
+                    adapter.cache_statblock_metadata(chart)
+                if any(self._visibility.get(f"predictions.{key}") for key in ("dnd_species", "dnd_class")):
+                    adapter.cache_species_class_metadata(chart)
                 if self._visibility.get("predictions.dnd_alignment"):
                     adapter.cache_alignment_metadata(chart)
         except Exception:
@@ -38109,8 +38111,19 @@ class MainWindow(QMainWindow):
             show_explainers=self._visibility.get("analytics.dnd_statblock_explainers"),
         )
 
+    def _visible_dnd_prediction_sections(self) -> set[str]:
+        return {
+            key
+            for key in ("dnd_statblock", "dnd_species", "dnd_class", "dnd_alignment")
+            if self._visibility.get(f"predictions.{key}")
+        }
+
     def _render_dndification_predictions(self, chart: Chart | None) -> None:
-        summary_label = self._dnd_prediction_adapter().render(chart, self._render_metric_panel)
+        summary_label = self._dnd_prediction_adapter().render(
+            chart,
+            self._render_metric_panel,
+            visible_sections=self._visible_dnd_prediction_sections(),
+        )
         if summary_label is not None:
             self.dnd_prediction_top_three_label = summary_label
 

@@ -115,15 +115,24 @@ class _PredictionsWarmupWorker(QObject):
             _predictions_thread_debug(self._owner, "D&D adapter stage start job=%s callable=%s", self._job_token, callable(adapter_factory))
             if callable(adapter_factory) and self._sections.intersection({"dnd_statblock", "dnd_alignment", "dnd_species_class"}):
                 adapter = adapter_factory()
-                if "dnd_statblock" in self._sections or "dnd_species_class" in self._sections:
-                    cache_dnd = getattr(adapter, "cache_metadata", None)
-                    _predictions_thread_debug(self._owner, "D&D statblock cache stage start job=%s callable=%s", self._job_token, callable(cache_dnd))
+                if "dnd_statblock" in self._sections:
+                    cache_statblock = getattr(adapter, "cache_statblock_metadata", None)
+                    _predictions_thread_debug(self._owner, "D&D statblock cache stage start job=%s callable=%s", self._job_token, callable(cache_statblock))
                     try:
-                        if callable(cache_dnd):
-                            cache_dnd(self._chart)
+                        if callable(cache_statblock):
+                            cache_statblock(self._chart)
                     except Exception as exc:  # pragma: no cover - defensive UI path
                         logger.warning("D&D statblock prediction cache failed for %s: %s", _chart_display_name(self._chart), exc, exc_info=True)
                         section_errors.append(f"D&D statblock: {exc}")
+                if "dnd_species_class" in self._sections:
+                    cache_species_class = getattr(adapter, "cache_species_class_metadata", None)
+                    _predictions_thread_debug(self._owner, "D&D species/class cache stage start job=%s callable=%s", self._job_token, callable(cache_species_class))
+                    try:
+                        if callable(cache_species_class):
+                            cache_species_class(self._chart)
+                    except Exception as exc:  # pragma: no cover - defensive UI path
+                        logger.warning("D&D species/class prediction cache failed for %s: %s", _chart_display_name(self._chart), exc, exc_info=True)
+                        section_errors.append(f"D&D species/class: {exc}")
                 if "dnd_alignment" in self._sections:
                     self.progress.emit("Preparing alignment predictions…", 70)
                     cache_alignment = getattr(adapter, "cache_alignment_metadata", None)
@@ -695,8 +704,9 @@ def _visible_prediction_warmup_sections(owner: object) -> set[str]:
     sections: set[str] = set()
     if _prediction_section_visible(owner, "enneagram"):
         sections.add("enneagram")
-    if any(_prediction_section_visible(owner, key) for key in ("dnd_statblock", "dnd_species", "dnd_class")):
+    if _prediction_section_visible(owner, "dnd_statblock"):
         sections.add("dnd_statblock")
+    if any(_prediction_section_visible(owner, key) for key in ("dnd_species", "dnd_class")):
         sections.add("dnd_species_class")
     if _prediction_section_visible(owner, "dnd_alignment"):
         sections.add("dnd_alignment")

@@ -76,3 +76,23 @@ def test_predictions_visibility_can_skip_hidden_section_work():
     assert "All Predictions sections are hidden; nothing to calculate." in RIGHT_PANEL_STACK_SOURCE
     assert "if self._visibility.get(\"predictions.enneagram\")" in APP_SOURCE
     assert "adapter.cache_alignment_metadata(chart)" in APP_SOURCE
+
+
+def test_dnd_prediction_visibility_splits_statblock_species_and_alignment_work():
+    app_source = APP_SOURCE
+    dnd_source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/dnd_predictions.py").read_text()
+    assert 'if _prediction_section_visible(owner, "dnd_statblock"):' in RIGHT_PANEL_STACK_SOURCE
+    assert 'sections.add("dnd_statblock")' in RIGHT_PANEL_STACK_SOURCE
+    assert 'for key in ("dnd_species", "dnd_class")' in RIGHT_PANEL_STACK_SOURCE
+    assert 'cache_statblock_metadata' in RIGHT_PANEL_STACK_SOURCE
+    assert 'cache_species_class_metadata' in RIGHT_PANEL_STACK_SOURCE
+    assert 'visible_sections=self._visible_dnd_prediction_sections()' in app_source
+    assert 'def _visible_dnd_prediction_sections' in app_source
+    assert 'if self._visibility.get("predictions.dnd_statblock")' in app_source
+    assert 'adapter.cache_statblock_metadata(chart)' in app_source
+    assert 'adapter.cache_species_class_metadata(chart)' in app_source
+    assert 'def cache_statblock_metadata' in dnd_source
+    assert 'def cache_species_class_metadata' in dnd_source
+    assert 'render_species_class = bool(visible_sections.intersection({"dnd_species", "dnd_class"}))' in dnd_source
+    assert 'if render_species_class:\n            self._render_species_and_class_summaries(chart)' in dnd_source
+    assert 'if render_alignment and self.alignment_layout is not None:' in dnd_source
