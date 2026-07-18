@@ -115,15 +115,24 @@ class _PredictionsWarmupWorker(QObject):
             _predictions_thread_debug(self._owner, "D&D adapter stage start job=%s callable=%s", self._job_token, callable(adapter_factory))
             if callable(adapter_factory) and self._sections.intersection({"dnd_statblock", "dnd_alignment", "dnd_species_class"}):
                 adapter = adapter_factory()
-                if "dnd_statblock" in self._sections or "dnd_species_class" in self._sections:
-                    cache_dnd = getattr(adapter, "cache_metadata", None)
-                    _predictions_thread_debug(self._owner, "D&D statblock cache stage start job=%s callable=%s", self._job_token, callable(cache_dnd))
+                if "dnd_statblock" in self._sections:
+                    cache_statblock = getattr(adapter, "cache_statblock_metadata", None)
+                    _predictions_thread_debug(self._owner, "D&D statblock cache stage start job=%s callable=%s", self._job_token, callable(cache_statblock))
                     try:
-                        if callable(cache_dnd):
-                            cache_dnd(self._chart)
+                        if callable(cache_statblock):
+                            cache_statblock(self._chart)
                     except Exception as exc:  # pragma: no cover - defensive UI path
                         logger.warning("D&D statblock prediction cache failed for %s: %s", _chart_display_name(self._chart), exc, exc_info=True)
                         section_errors.append(f"D&D statblock: {exc}")
+                if "dnd_species_class" in self._sections:
+                    cache_species_class = getattr(adapter, "cache_species_class_metadata", None)
+                    _predictions_thread_debug(self._owner, "D&D species/class cache stage start job=%s callable=%s", self._job_token, callable(cache_species_class))
+                    try:
+                        if callable(cache_species_class):
+                            cache_species_class(self._chart)
+                    except Exception as exc:  # pragma: no cover - defensive UI path
+                        logger.warning("D&D species/class prediction cache failed for %s: %s", _chart_display_name(self._chart), exc, exc_info=True)
+                        section_errors.append(f"D&D species/class: {exc}")
                 if "dnd_alignment" in self._sections:
                     self.progress.emit("Preparing alignment predictions…", 70)
                     cache_alignment = getattr(adapter, "cache_alignment_metadata", None)
@@ -680,6 +689,39 @@ def _resolve_chart_right_panel_key(owner: object, panel_key: str) -> str:
     return normalized
 
 
+
+def _prediction_section_visible(owner: object, section_key: str) -> bool:
+    visibility = getattr(owner, "_visibility", None)
+    if visibility is not None and hasattr(visibility, "get"):
+        try:
+            return bool(visibility.get(f"predictions.{section_key}"))
+        except Exception:
+            return True
+    return True
+
+
+def _visible_prediction_warmup_sections(owner: object) -> set[str]:
+    sections: set[str] = set()
+    if _prediction_section_visible(owner, "enneagram"):
+        sections.add("enneagram")
+    if _prediction_section_visible(owner, "dnd_statblock"):
+        sections.add("dnd_statblock")
+    if any(_prediction_section_visible(owner, key) for key in ("dnd_species", "dnd_class")):
+        sections.add("dnd_species_class")
+    if _prediction_section_visible(owner, "dnd_alignment"):
+        sections.add("dnd_alignment")
+    return sections
+
+
+def sync_prediction_section_visibility(owner: object) -> None:
+    widgets = getattr(owner, "_prediction_section_widgets", {})
+    if not isinstance(widgets, dict):
+        return
+    for key in ("traits", "enneagram", "dnd_statblock", "dnd_species", "dnd_class", "dnd_alignment"):
+        widget = widgets.get(key)
+        if widget is not None and hasattr(widget, "setVisible"):
+            widget.setVisible(_prediction_section_visible(owner, key))
+
 def _start_prediction_loading_blink(label: QLabel) -> None:
     """Make a Predictions loading label pulse purple while fresh section data loads."""
     start_prediction_loading_blink(label)
@@ -728,8 +770,9 @@ def _show_predictions_panel_pending_placeholders(owner: object, chart: object | 
     """Paint lightweight section placeholders before any cached prediction lookup runs."""
     chart_name = html.escape(_chart_display_name(chart))
     _set_predictions_status(owner, f"Opening Predictions for <b>{chart_name}</b>…")
+    sync_prediction_section_visibility(owner)
     traits_label = getattr(owner, "traits_prediction_label", None)
-    if isinstance(traits_label, QLabel):
+    if _prediction_section_visible(owner, "traits") and isinstance(traits_label, QLabel):
         loading_html = "●  Loading trait predictions…  ●" #for this chart's UID
         try:
             owner._traits_prediction_above_avg_html = loading_html
@@ -750,50 +793,53 @@ def _show_predictions_panel_pending_placeholders(owner: object, chart: object | 
         traits_table = getattr(owner, "traits_prediction_table", None)
         if hasattr(traits_table, "setVisible"):
             traits_table.setVisible(False)
-    _clear_layout_for_prediction_placeholder(
-        owner,
-        "enneagram_prediction_chart_layout",
-        "enneagram_prediction_canvas",
-        "Loading cached Enneagram predictions…",
-    )
+    if _prediction_section_visible(owner, "enneagram"):
+        _clear_layout_for_prediction_placeholder(
+            owner,
+            "enneagram_prediction_chart_layout",
+            "enneagram_prediction_canvas",
+            "Loading cached Enneagram predictions…",
+        )
     tritype_label = getattr(owner, "enneagram_prediction_tritype_label", None)
-    if isinstance(tritype_label, QLabel):
+    if _prediction_section_visible(owner, "enneagram") and isinstance(tritype_label, QLabel):
         _set_prediction_label_loading(
             tritype_label,
             "Loading Enneagram predictions…", #for this chart's UID
             alignment=Qt.AlignLeft | Qt.AlignTop,
         )
-    _clear_layout_for_prediction_placeholder(
-        owner,
-        "dnd_predictions_chart_layout",
-        "dnd_prediction_statblock_canvas",
-        "Loading cached D&D statblock predictions…",
-    )
+    if _prediction_section_visible(owner, "dnd_statblock"):
+        _clear_layout_for_prediction_placeholder(
+            owner,
+            "dnd_predictions_chart_layout",
+            "dnd_prediction_statblock_canvas",
+            "Loading cached D&D statblock predictions…",
+        )
     summary_label = getattr(owner, "dnd_prediction_top_three_label", None)
     if isinstance(summary_label, QLabel):
         summary_label.setText("<b>D&D Statblock:</b> <span style='color:#c77dff;'>● Loading predictions… ●</span>")  #for this UID
     species_label = getattr(owner, "dnd_prediction_species_label", None)
-    if isinstance(species_label, QLabel):
+    if _prediction_section_visible(owner, "dnd_species") and isinstance(species_label, QLabel):
         _set_prediction_label_loading(
             species_label,
             "Loading D&D species predictions…", #for this UID
             alignment=Qt.AlignLeft | Qt.AlignTop,
         )
     class_label = getattr(owner, "dnd_prediction_class_label", None)
-    if isinstance(class_label, QLabel):
+    if _prediction_section_visible(owner, "dnd_class") and isinstance(class_label, QLabel):
         _set_prediction_label_loading(
             class_label,
             "Loading D&D class predictions…", #for this UID
             alignment=Qt.AlignLeft | Qt.AlignTop,
         )
-    _clear_layout_for_prediction_placeholder(
-        owner,
-        "dnd_alignment_chart_layout",
-        "dnd_prediction_alignment_canvas",
-        "Loading cached D&D alignment predictions…",
-    )
+    if _prediction_section_visible(owner, "dnd_alignment"):
+        _clear_layout_for_prediction_placeholder(
+            owner,
+            "dnd_alignment_chart_layout",
+            "dnd_prediction_alignment_canvas",
+            "Loading cached D&D alignment predictions…",
+        )
     alignment_debug_label = getattr(owner, "dnd_prediction_alignment_debug_label", None)
-    if isinstance(alignment_debug_label, QLabel):
+    if _prediction_section_visible(owner, "dnd_alignment") and isinstance(alignment_debug_label, QLabel):
         alignment_debug_label.setText("<b>Alignment debug deviations from DB norm:</b> <span style='color:#c77dff;'>● Loading predictions… ●</span>") #for this UID
 
 def set_chart_right_panel(owner: object, panel_key: str) -> None:
@@ -1049,8 +1095,11 @@ def _finish_background_prediction_render(
     _predictions_thread_debug(owner, "finish applying GUI render job=%s chart=%s", job_token, chart_name)
     state = getattr(owner, "_chart_right_panel_state", None)
     if getattr(owner, "_latest_chart", None) is chart:
-        owner._render_enneagram_predictions(chart)
-        owner._render_dndification_predictions(chart)
+        sync_prediction_section_visibility(owner)
+        if _prediction_section_visible(owner, "enneagram"):
+            owner._render_enneagram_predictions(chart)
+        if any(_prediction_section_visible(owner, key) for key in ("dnd_statblock", "dnd_species", "dnd_class", "dnd_alignment")):
+            owner._render_dndification_predictions(chart)
         schedule_metric_refreshes = getattr(owner, "_schedule_deferred_all_metric_canvas_layout_refreshes", None)
         if not callable(schedule_metric_refreshes):
             schedule_metric_refreshes = getattr(owner, "_schedule_deferred_visible_metric_canvas_layout_refreshes", None)
@@ -1176,6 +1225,11 @@ def stop_background_prediction_render(owner: object, wait_msecs: int | None = No
 
 
 def _start_background_prediction_render(owner: object, chart: object, render_token: str, sections: set[str] | None = None) -> None:
+    visible_sections = _visible_prediction_warmup_sections(owner)
+    sections = (set(sections) & visible_sections) if sections is not None else visible_sections
+    if not sections:
+        _set_predictions_status(owner, "All Predictions sections are hidden; nothing to calculate.")
+        return
     chart_name = _chart_display_name(chart)
     _predictions_thread_debug(owner, "start requested chart=%s render_token=%s", chart_name, render_token)
     _set_predictions_status(owner, f"Loading Predictions for <b>{html.escape(chart_name)}</b> in the background…")
@@ -1277,12 +1331,15 @@ def schedule_chart_render_for_active_right_panel(owner: object) -> None:
             and traits_ready_for_chart
         ):
             return
+        sync_prediction_section_visibility(owner)
         render_traits = getattr(owner, "_render_traits_predictions", None)
-        if callable(render_traits):
+        if callable(render_traits) and not traits_ready_for_chart and _prediction_section_visible(owner, "traits"):
             render_traits(chart)
             setattr(owner, "_traits_prediction_last_render_chart_token", render_token)
-        owner._render_enneagram_predictions(chart)
-        owner._render_dndification_predictions(chart)
+        if _prediction_section_visible(owner, "enneagram"):
+            owner._render_enneagram_predictions(chart)
+        if any(_prediction_section_visible(owner, key) for key in ("dnd_statblock", "dnd_species", "dnd_class", "dnd_alignment")):
+            owner._render_dndification_predictions(chart)
         if state is not None:
             state.last_render_chart_token = render_token
         _set_predictions_status(

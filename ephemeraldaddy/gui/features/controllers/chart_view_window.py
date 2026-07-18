@@ -1605,12 +1605,23 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     )
     layout.addWidget(owner.predictions_background_status_label)
 
+    def register_prediction_section(section_key: str, section_layout: QVBoxLayout) -> None:
+        widgets = getattr(owner, "_prediction_section_widgets", None)
+        if not isinstance(widgets, dict):
+            widgets = {}
+            owner._prediction_section_widgets = widgets
+        content_widget = section_layout.parentWidget()
+        section_widget = content_widget.parentWidget() if content_widget is not None else None
+        if section_widget is not None:
+            widgets[section_key] = section_widget
+
     traits_section_layout = owner._add_chart_analysis_collapsible_section(
         panel=panel,
         layout=layout,
         title="Traits",
         expanded=True,
     )
+    register_prediction_section("traits", traits_section_layout)
     traits_header_row = QWidget()
     traits_header_layout = QHBoxLayout()
     traits_header_layout.setContentsMargins(0, 0, 0, 0)
@@ -1653,6 +1664,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         title="Enneagram",
         expanded=True,
     )
+    register_prediction_section("enneagram", enneagram_section_layout)
     owner.enneagram_prediction_chart_panel = QWidget()
     owner.enneagram_prediction_chart_layout = QVBoxLayout()
     owner.enneagram_prediction_chart_layout.setContentsMargins(0, 0, 0, 0)
@@ -1673,6 +1685,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         title="D&D Statblock",
         expanded=True,
     )
+    register_prediction_section("dnd_statblock", dnd_statblock_section_layout)
     owner.dnd_predictions_chart_panel = QWidget()
     owner.dnd_predictions_chart_layout = QVBoxLayout()
     owner.dnd_predictions_chart_layout.setContentsMargins(0, 0, 0, 0)
@@ -1690,6 +1703,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         title="D&D Species",
         expanded=True,
     )
+    register_prediction_section("dnd_species", dnd_species_section_layout)
     owner.dnd_prediction_species_label = _make_predictions_loading_label(
         "Loading D&D species predictions…",  #for this UID
         alignment=Qt.AlignLeft | Qt.AlignTop,
@@ -1707,6 +1721,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         title="D&D Class",
         expanded=True,
     )
+    register_prediction_section("dnd_class", dnd_class_section_layout)
     owner.dnd_prediction_class_label = _make_predictions_loading_label(
         "Loading D&D class predictions…",  #for this UID
         alignment=Qt.AlignLeft | Qt.AlignTop,
@@ -1724,6 +1739,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         title="D&D Alignment",
         expanded=True,
     )
+    register_prediction_section("dnd_alignment", dnd_alignment_section_layout)
     owner.dnd_alignment_chart_panel = QWidget()
     owner.dnd_alignment_chart_layout = QVBoxLayout()
     owner.dnd_alignment_chart_layout.setContentsMargins(0, 0, 0, 0)

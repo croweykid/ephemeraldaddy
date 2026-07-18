@@ -1989,11 +1989,18 @@ class DndPredictionPanelAdapter:
             pass
         return info_html
 
-    def cache_metadata(self, chart: Any) -> dict[str, float]:
+    def cache_statblock_metadata(self, chart: Any) -> dict[str, float]:
         norm_charts = self._norm_charts()
         statblock = self._score_statblock(chart, norm_charts, allow_stale=False)
-        self._cache_species_class_metadata(chart)
         return {stat_key: float(statblock.scores.get(stat_key, 0.0)) for stat_key in self.dnd_stat_keys}
+
+    def cache_species_class_metadata(self, chart: Any) -> dict[str, Any]:
+        return self._cache_species_class_metadata(chart)
+
+    def cache_metadata(self, chart: Any) -> dict[str, float]:
+        scores = self.cache_statblock_metadata(chart)
+        self.cache_species_class_metadata(chart)
+        return scores
 
     def cache_alignment_metadata(self, chart: Any) -> dict[str, float]:
         return dnd_alignment_deviations(self.owner or self, chart, allow_stale=False)
@@ -2083,24 +2090,32 @@ class DndPredictionPanelAdapter:
                 refreshing=refreshing,
             )
 
-    def render(self, chart: Any | None, metric_panel_renderer: Callable[..., Any]) -> Any:
-        if self.chart_layout is None:
+    def render(self, chart: Any | None, metric_panel_renderer: Callable[..., Any], visible_sections: set[str] | None = None) -> Any:
+        visible_sections = set(visible_sections or {"dnd_statblock", "dnd_species", "dnd_class", "dnd_alignment"})
+        render_statblock = "dnd_statblock" in visible_sections
+        render_species_class = bool(visible_sections.intersection({"dnd_species", "dnd_class"}))
+        render_alignment = "dnd_alignment" in visible_sections
+        if not (render_statblock or render_species_class or render_alignment):
+            return self.summary_label
+        if self.chart_layout is None and (render_statblock or render_species_class):
             return self.summary_label
         self._remove_stale_recalculate_notices(self.chart_layout)
         self._remove_stale_recalculate_notices(self.alignment_layout)
         self._remove_species_class_recalculate_notices()
-        summary_label = self._ensure_summary_label()
-        self._render_species_and_class_summaries(chart)
+        summary_label = self._ensure_summary_label() if render_statblock else self.summary_label
+        if render_species_class:
+            self._render_species_and_class_summaries(chart)
         if chart is None or self.is_placeholder_chart(chart):
-            metric_panel_renderer(
-                canvas_attr="dnd_prediction_statblock_canvas",
-                container_layout=self.chart_layout,
-                figsize=(5.5, 2.8),
-                title="D&D Statblock",
-                draw_fn=self._draw_no_data,
-                chart=chart,
-            )
-            if self.alignment_layout is not None:
+            if render_statblock:
+                metric_panel_renderer(
+                    canvas_attr="dnd_prediction_statblock_canvas",
+                    container_layout=self.chart_layout,
+                    figsize=(5.5, 2.8),
+                    title="D&D Statblock",
+                    draw_fn=self._draw_no_data,
+                    chart=chart,
+                )
+            if render_alignment and self.alignment_layout is not None:
                 metric_panel_renderer(
                     canvas_attr="dnd_prediction_alignment_canvas",
                     container_layout=self.alignment_layout,
@@ -2116,13 +2131,13 @@ class DndPredictionPanelAdapter:
         statblock_cache = self._restore_statblock_cache(chart)
         auto_refresh_started = False
         species_class_stale = self._species_class_cache_is_stale(chart)
-        if species_class_stale:
+        if render_species_class and species_class_stale:
             manual_only = self._manual_recalculation_only()
             self._show_species_class_stale_recalculate_notices(chart, refreshing=not manual_only)
             if not manual_only and callable(self.calculate_callback):
                 auto_refresh_started = True
                 self.calculate_callback(chart, "dnd_species_class")
-        if isinstance(statblock_cache, dict):
+        if render_statblock and isinstance(statblock_cache, dict):
             norm_charts = self._norm_charts()
             statblock_stale = self._statblock_cache_is_stale(chart, norm_charts)
             metric_panel_renderer(
@@ -2139,10 +2154,10 @@ class DndPredictionPanelAdapter:
                 if not manual_only and not auto_refresh_started and callable(self.calculate_callback):
                     auto_refresh_started = True
                     self.calculate_callback(chart, None)
-        else:
+        elif render_statblock:
             self._show_calculate_prompt(chart, section="dnd_statblock")
 
-        if self.alignment_layout is not None:
+        if render_alignment and self.alignment_layout is not None:
             alignment_owner_cache = _owner_cache_bucket(self.owner, "_dnd_alignment_prediction_view_cache")
             alignment_cache = getattr(chart, "_dnd_alignment_score_parts_cache", None)
             if not _cache_payload_chart_uid_matches(chart, alignment_cache, require_uid=True):

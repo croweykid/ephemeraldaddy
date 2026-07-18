@@ -615,6 +615,7 @@ from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import (
     set_chart_right_panel_container_visible,
     stop_background_prediction_render as _stop_background_prediction_render,
     sync_chart_right_panel_placeholder_state,
+    sync_prediction_section_visibility,
 )
 from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import (
     dnd_stat_snapshot_averages,
@@ -22186,6 +22187,27 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         visibility_section.addSpacing(8)
         visibility_section.addWidget(self._build_settings_subheader_label("Predictions (popout chart)"))
 
+        prediction_section_options = (
+            ("traits", "Show Traits predictions"),
+            ("enneagram", "Show Enneagram predictions"),
+            ("dnd_statblock", "Show D&&D Statblock predictions"),
+            ("dnd_species", "Show D&&D Species predictions"),
+            ("dnd_class", "Show D&&D Class predictions"),
+            ("dnd_alignment", "Show D&&D Alignment predictions"),
+        )
+        for prediction_section_key, prediction_section_label in prediction_section_options:
+            prediction_section_checkbox = QCheckBox(prediction_section_label)
+            prediction_section_checkbox.setChecked(
+                self._visibility.get(f"predictions.{prediction_section_key}")
+            )
+            prediction_section_checkbox.toggled.connect(
+                lambda checked, key=prediction_section_key: self._set_prediction_section_visibility_from_settings(
+                    key,
+                    checked,
+                )
+            )
+            visibility_section.addWidget(prediction_section_checkbox)
+
         dnd_statblock_explainers_checkbox = QCheckBox("Show D&&D Statblock explainers")
         dnd_statblock_explainers_checkbox.setChecked(
             self._visibility.get("analytics.dnd_statblock_explainers")
@@ -24062,6 +24084,18 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
     def _set_standard_deviation_indicator_visibility_from_settings(self, checked: bool) -> None:
         self._visibility.set("charts.standard_deviation_indicators", checked)
         self._refresh_charts(refresh_metrics=True)
+
+    def _set_prediction_section_visibility_from_settings(self, section_key: str, checked: bool) -> None:
+        self._visibility.set(f"predictions.{section_key}", checked)
+        parent = self._owner_window()
+        if isinstance(parent, MainWindow):
+            parent._visibility.set(f"predictions.{section_key}", checked)
+            sync_prediction_section_visibility(parent)
+            state = getattr(parent, "_chart_right_panel_state", None)
+            if state is not None:
+                state.last_render_chart_token = None
+            if checked and getattr(state, "active_tab", None) == "predictions":
+                parent._schedule_chart_render_for_active_right_panel()
 
     def _set_dnd_statblock_explainer_visibility_from_settings(self, checked: bool) -> None:
         self._visibility.set("analytics.dnd_statblock_explainers", checked)
@@ -35688,14 +35722,19 @@ class MainWindow(QMainWindow):
             and state.last_render_chart_token == render_token
         )
         try:
-            self._cache_enneagram_prediction_metadata(chart)
+            if self._visibility.get("predictions.enneagram"):
+                self._cache_enneagram_prediction_metadata(chart)
         except Exception:
             logger.warning("Failed to flush Enneagram Predictions before leaving Chart View.", exc_info=True)
         try:
             adapter = dnd_adapter or self._dnd_prediction_adapter()
             if dnd_stale or predictions_token_mismatch:
-                adapter.cache_metadata(chart)
-                adapter.cache_alignment_metadata(chart)
+                if self._visibility.get("predictions.dnd_statblock"):
+                    adapter.cache_statblock_metadata(chart)
+                if any(self._visibility.get(f"predictions.{key}") for key in ("dnd_species", "dnd_class")):
+                    adapter.cache_species_class_metadata(chart)
+                if self._visibility.get("predictions.dnd_alignment"):
+                    adapter.cache_alignment_metadata(chart)
         except Exception:
             logger.warning("Failed to flush D&D Predictions before leaving Chart View.", exc_info=True)
 
@@ -38074,8 +38113,19 @@ class MainWindow(QMainWindow):
             show_explainers=self._visibility.get("analytics.dnd_statblock_explainers"),
         )
 
+    def _visible_dnd_prediction_sections(self) -> set[str]:
+        return {
+            key
+            for key in ("dnd_statblock", "dnd_species", "dnd_class", "dnd_alignment")
+            if self._visibility.get(f"predictions.{key}")
+        }
+
     def _render_dndification_predictions(self, chart: Chart | None) -> None:
-        summary_label = self._dnd_prediction_adapter().render(chart, self._render_metric_panel)
+        summary_label = self._dnd_prediction_adapter().render(
+            chart,
+            self._render_metric_panel,
+            visible_sections=self._visible_dnd_prediction_sections(),
+        )
         if summary_label is not None:
             self.dnd_prediction_top_three_label = summary_label
 
