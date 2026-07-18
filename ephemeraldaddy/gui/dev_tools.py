@@ -48,8 +48,6 @@ from ephemeraldaddy.gui.style import (
 )
 
 SETTINGS_KEY_BATCH_TAGGING_TERMINAL_DEBUG = "dev_tools/batch_tagging_terminal_debug"
-SETTINGS_KEY_CHART_LOAD_TERMINAL_DEBUG = "dev_tools/chart_load_terminal_debug"
-CHART_LOAD_TERMINAL_DEBUG_DEFAULT = False
 BATCH_TAGGING_TERMINAL_DEBUG_DEFAULT = False
 SETTINGS_KEY_ENNEAGRAM_PREDICTIONS_DEBUG = "dev_tools/enneagram_predictions_debug"
 ENNEAGRAM_PREDICTIONS_DEBUG_DEFAULT = False
@@ -92,37 +90,6 @@ def add_demo_mode_setting(
     checkbox.setToolTip(
         "When enabled, hides Chart View Observations, Chart Info Notes, and subjective "
         "ratings in Search and Batch Editor so the app can be shown without private notes."
-    )
-    checkbox.toggled.connect(on_toggled)
-    section_layout.addWidget(checkbox)
-    return checkbox
-
-
-def load_chart_load_terminal_debug_enabled(settings, *, fallback: bool = False) -> bool:
-    value = settings.value(SETTINGS_KEY_CHART_LOAD_TERMINAL_DEBUG, int(fallback))
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        normalized = value.strip().lower()
-        if normalized in {"1", "true", "yes", "on"}:
-            return True
-        if normalized in {"0", "false", "no", "off"}:
-            return False
-    if isinstance(value, (int, float)):
-        return bool(value)
-    return bool(fallback)
-
-
-def add_chart_load_terminal_debug_setting(
-    *,
-    section_layout: QVBoxLayout,
-    is_enabled: bool,
-    on_toggled: Callable[[bool], None],
-) -> QCheckBox:
-    checkbox = QCheckBox("Chart loading: terminal step debug logging")
-    checkbox.setChecked(bool(is_enabled))
-    checkbox.setToolTip(
-        "When enabled, Database View double-click chart loads print timed phase diagnostics to the terminal."
     )
     checkbox.toggled.connect(on_toggled)
     section_layout.addWidget(checkbox)
