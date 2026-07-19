@@ -34838,6 +34838,7 @@ class MainWindow(QMainWindow):
         self._loaded_lat = None
         self._loaded_lon = None
         self._latest_chart = None
+        self._time_sensitivity_last_refresh_token = None
         time_sensitivity_panel = getattr(self, "time_sensitivity_panel", None)
         if time_sensitivity_panel is not None and hasattr(time_sensitivity_panel, "refresh_for_current_chart"):
             time_sensitivity_panel.refresh_for_current_chart()
