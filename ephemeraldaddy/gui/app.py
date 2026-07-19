@@ -19158,16 +19158,6 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             owner = self._owner_window()
             if owner is not None and hasattr(owner, "_invalidate_chart_view_navigation_cache_for_ids"):
                 owner._invalidate_chart_view_navigation_cache_for_ids(changed_ids)
-        if self._has_active_chart_filters():
-            # Expensive chart objects are only needed for calculated/advanced
-            # filters.  The default Database View path should not synchronously
-            # hydrate every saved chart before the list can render.
-            chart_ids_for_cache = []
-            for row in self._chart_rows:
-                normalized = self._normalize_chart_row(row)
-                if normalized is not None:
-                    chart_ids_for_cache.append(normalized[0])
-            self._hydrate_chart_filter_cache(chart_ids_for_cache)
         self._populate_list(
             selected_ids=selected_ids,
             refresh_metrics=refresh_metrics,
@@ -19381,6 +19371,13 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             "_database_view_row_info_visibility",
             DATABASE_VIEW_ROW_INFO_DEFAULTS,
         )
+        has_active_chart_filters = self._has_active_chart_filters()
+        if has_active_chart_filters or row_info_visibility.get("sign_glyphs", True):
+            # Hydrate only the rows that survived collection/hidden filtering.
+            # This preserves fast batch loading for visible chart glyphs and
+            # calculated filters without forcing every saved chart to load when
+            # the user is viewing a smaller collection or has glyphs disabled.
+            self._hydrate_chart_filter_cache(int(row[0]) for row in rows)
         rendered_row_count = 0
         total_rows = max(len(rows), 1)
         if progress_callback:
@@ -19420,12 +19417,13 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                 _chart_uid,
                 _weirdness_score,
             ) in rows:
-                try:
-                    matches_filters = self._chart_matches_filters(cid)
-                except Exception:
-                    matches_filters = False
-                if not matches_filters:
-                    continue
+                if has_active_chart_filters:
+                    try:
+                        matches_filters = self._chart_matches_filters(cid)
+                    except Exception:
+                        matches_filters = False
+                    if not matches_filters:
+                        continue
                 self._displayed_chart_rows_by_id[int(cid)] = (
                     cid,
                     name,
