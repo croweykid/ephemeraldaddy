@@ -17329,6 +17329,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         self._database_metrics_background_preload_scheduled = False
         self._deferred_database_metrics_refresh_scheduled = False
         self._incremental_metrics_refresh_scheduled = False
+        self._save_database_metrics_persistent_cache()
         save_traits_cache = getattr(self, "_save_traits_distribution_likelihood_cache", None)
         if callable(save_traits_cache) and getattr(self, "_traits_distribution_likelihood_cache_dirty", False):
             save_traits_cache()
