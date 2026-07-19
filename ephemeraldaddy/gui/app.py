@@ -1323,6 +1323,10 @@ GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS: frozenset[str] = frozenset(
 SIMILAR_CHARTS_EXPORT_FORMAT_KEY = "exports/similar_charts_format"
 CHART_VIEW_NAV_CACHE_LIMIT = 24
 CHART_VIEW_TIMING_PREVIEW_DEBOUNCE_MS = 450
+DATABASE_METRICS_DEFERRED_REFRESH_DELAY_MS = 250
+DATABASE_METRICS_INCREMENTAL_REFRESH_DELAY_MS = 25
+CHART_RENDER_INTERACTIVE_DELAY_MS = 1
+CHART_RENDER_BACKGROUND_DELAY_MS = 25
 
 DATABASE_METRICS_PERSISTENT_CACHE_VERSION = 1
 DATABASE_METRICS_PERSISTENT_CACHE_FILENAME = ".database_metrics_cache.json"
@@ -3592,7 +3596,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         if self._incremental_metrics_refresh_scheduled:
             return
         self._incremental_metrics_refresh_scheduled = True
-        QTimer.singleShot(0, self._run_incremental_metrics_refresh_step)
+        QTimer.singleShot(DATABASE_METRICS_INCREMENTAL_REFRESH_DELAY_MS, self._run_incremental_metrics_refresh_step)
 
     def _run_incremental_metrics_refresh_step(self) -> None:
         if not self._incremental_metrics_refresh_sections:
@@ -3617,7 +3621,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             force_full_refresh=self._incremental_metrics_force_full_refresh,
         )
         self._incremental_metrics_force_full_refresh = False
-        QTimer.singleShot(0, self._run_incremental_metrics_refresh_step)
+        QTimer.singleShot(DATABASE_METRICS_INCREMENTAL_REFRESH_DELAY_MS, self._run_incremental_metrics_refresh_step)
 
 
     def _start_database_metrics_cache_preload(self) -> None:
@@ -19717,7 +19721,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         if self._deferred_database_metrics_refresh_scheduled:
             return
         self._deferred_database_metrics_refresh_scheduled = True
-        QTimer.singleShot(0, self._run_deferred_database_metrics_refresh)
+        QTimer.singleShot(DATABASE_METRICS_DEFERRED_REFRESH_DELAY_MS, self._run_deferred_database_metrics_refresh)
 
     def _run_deferred_database_metrics_refresh(self) -> None:
         self._deferred_database_metrics_refresh_scheduled = False
@@ -36193,7 +36197,17 @@ class MainWindow(QMainWindow):
             and time_sensitivity_panel is not None
             and hasattr(time_sensitivity_panel, "refresh_for_current_chart")
         ):
-            time_sensitivity_panel.refresh_for_current_chart()
+            # The time-sensitivity panel is one of Chart View's heavier refreshes.
+            # _schedule_chart_render() is called repeatedly as individual sections
+            # are queued, so only refresh this panel when the underlying chart
+            # identity/calculation token changes instead of on every section pass.
+            try:
+                time_sensitivity_token = self._chart_analytics_cache_token(chart)
+            except Exception:
+                time_sensitivity_token = str(id(chart))
+            if getattr(self, "_time_sensitivity_last_refresh_token", None) != time_sensitivity_token:
+                time_sensitivity_panel.refresh_for_current_chart()
+                self._time_sensitivity_last_refresh_token = time_sensitivity_token
         update_main_window_title(self)
         if self._pending_render_chart is not None and self._pending_render_chart is not chart:
             self._chart_render_queue_state.clear()
@@ -36247,7 +36261,12 @@ class MainWindow(QMainWindow):
             priority=queue_priority,
         )
         if not self._render_flush_timer.isActive():
-            self._render_flush_timer.start(0)
+            delay_ms = (
+                CHART_RENDER_BACKGROUND_DELAY_MS
+                if queue_priority == "background"
+                else CHART_RENDER_INTERACTIVE_DELAY_MS
+            )
+            self._render_flush_timer.start(delay_ms)
 
     def _flush_scheduled_chart_render(self) -> None:
         chart = self._pending_render_chart
@@ -36302,7 +36321,7 @@ class MainWindow(QMainWindow):
         ):
             self._chart_render_queue_state.discard_if_unqueued(section)
             if self._chart_render_queue_state.has_queued_work():
-                self._render_flush_timer.start(0)
+                self._render_flush_timer.start(CHART_RENDER_INTERACTIVE_DELAY_MS)
             elif not self._chart_render_queue_state.has_pending_work():
                 self._pending_render_chart = None
                 self._hide_chart_loading_overlay()
@@ -36313,10 +36332,10 @@ class MainWindow(QMainWindow):
             self._mark_chart_analytics_sections_clean({section}, chart)
 
         if self._chart_render_queue_state.has_queued_work():
-            self._render_flush_timer.start(0)
+            self._render_flush_timer.start(CHART_RENDER_INTERACTIVE_DELAY_MS)
             return
         if self._chart_render_queue_state.has_pending_work():
-            self._render_flush_timer.start(0)
+            self._render_flush_timer.start(CHART_RENDER_BACKGROUND_DELAY_MS)
             return
 
         self._suppress_right_panel_refresh_for_timing_preview = False
