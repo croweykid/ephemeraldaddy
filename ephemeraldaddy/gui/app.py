@@ -17322,7 +17322,24 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         if self.isVisible() and not getattr(self, "_applying_window_placement", False):
             self._session_window_layout_adjusted = True
 
+    def _flush_pending_database_metrics_before_close(self) -> None:
+        """Finish queued Database Analytics refreshes before persisting cache."""
+        has_deferred_work = bool(
+            self._deferred_database_metrics_refresh_scheduled
+            or self._deferred_database_metrics_changed_ids
+            or self._deferred_database_metrics_sections
+            or self._deferred_database_metrics_force_full_refresh
+        )
+        if has_deferred_work:
+            self._run_deferred_database_metrics_refresh()
+        while self._incremental_metrics_refresh_scheduled:
+            pending_sections = list(getattr(self, "_incremental_metrics_refresh_sections", []))
+            self._run_incremental_metrics_refresh_step()
+            if not pending_sections:
+                break
+
     def closeEvent(self, event) -> None:
+        self._flush_pending_database_metrics_before_close()
         self._is_closing = True
         self._database_metrics_preload_enabled = False
         self._database_metrics_background_preload_sections.clear()
