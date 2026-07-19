@@ -1323,6 +1323,10 @@ GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS: frozenset[str] = frozenset(
 SIMILAR_CHARTS_EXPORT_FORMAT_KEY = "exports/similar_charts_format"
 CHART_VIEW_NAV_CACHE_LIMIT = 24
 CHART_VIEW_TIMING_PREVIEW_DEBOUNCE_MS = 450
+DATABASE_METRICS_DEFERRED_REFRESH_DELAY_MS = 250
+DATABASE_METRICS_INCREMENTAL_REFRESH_DELAY_MS = 25
+CHART_RENDER_INTERACTIVE_DELAY_MS = 1
+CHART_RENDER_BACKGROUND_DELAY_MS = 25
 
 DATABASE_METRICS_PERSISTENT_CACHE_VERSION = 1
 DATABASE_METRICS_PERSISTENT_CACHE_FILENAME = ".database_metrics_cache.json"
@@ -3592,7 +3596,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         if self._incremental_metrics_refresh_scheduled:
             return
         self._incremental_metrics_refresh_scheduled = True
-        QTimer.singleShot(0, self._run_incremental_metrics_refresh_step)
+        QTimer.singleShot(DATABASE_METRICS_INCREMENTAL_REFRESH_DELAY_MS, self._run_incremental_metrics_refresh_step)
 
     def _run_incremental_metrics_refresh_step(self) -> None:
         if not self._incremental_metrics_refresh_sections:
@@ -3617,7 +3621,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             force_full_refresh=self._incremental_metrics_force_full_refresh,
         )
         self._incremental_metrics_force_full_refresh = False
-        QTimer.singleShot(0, self._run_incremental_metrics_refresh_step)
+        QTimer.singleShot(DATABASE_METRICS_INCREMENTAL_REFRESH_DELAY_MS, self._run_incremental_metrics_refresh_step)
 
 
     def _start_database_metrics_cache_preload(self) -> None:
@@ -17318,7 +17322,24 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         if self.isVisible() and not getattr(self, "_applying_window_placement", False):
             self._session_window_layout_adjusted = True
 
+    def _flush_pending_database_metrics_before_close(self) -> None:
+        """Finish queued Database Analytics refreshes before persisting cache."""
+        has_deferred_work = bool(
+            self._deferred_database_metrics_refresh_scheduled
+            or self._deferred_database_metrics_changed_ids
+            or self._deferred_database_metrics_sections
+            or self._deferred_database_metrics_force_full_refresh
+        )
+        if has_deferred_work:
+            self._run_deferred_database_metrics_refresh()
+        while self._incremental_metrics_refresh_scheduled:
+            pending_sections = list(getattr(self, "_incremental_metrics_refresh_sections", []))
+            self._run_incremental_metrics_refresh_step()
+            if not pending_sections:
+                break
+
     def closeEvent(self, event) -> None:
+        self._flush_pending_database_metrics_before_close()
         self._is_closing = True
         self._database_metrics_preload_enabled = False
         self._database_metrics_background_preload_sections.clear()
@@ -19155,12 +19176,6 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             owner = self._owner_window()
             if owner is not None and hasattr(owner, "_invalidate_chart_view_navigation_cache_for_ids"):
                 owner._invalidate_chart_view_navigation_cache_for_ids(changed_ids)
-        chart_ids_for_cache = []
-        for row in self._chart_rows:
-            normalized = self._normalize_chart_row(row)
-            if normalized is not None:
-                chart_ids_for_cache.append(normalized[0])
-        self._hydrate_chart_filter_cache(chart_ids_for_cache)
         self._populate_list(
             selected_ids=selected_ids,
             refresh_metrics=refresh_metrics,
@@ -19374,6 +19389,13 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             "_database_view_row_info_visibility",
             DATABASE_VIEW_ROW_INFO_DEFAULTS,
         )
+        has_active_chart_filters = self._has_active_chart_filters()
+        if has_active_chart_filters or row_info_visibility.get("sign_glyphs", True):
+            # Hydrate only the rows that survived collection/hidden filtering.
+            # This preserves fast batch loading for visible chart glyphs and
+            # calculated filters without forcing every saved chart to load when
+            # the user is viewing a smaller collection or has glyphs disabled.
+            self._hydrate_chart_filter_cache(int(row[0]) for row in rows)
         rendered_row_count = 0
         total_rows = max(len(rows), 1)
         if progress_callback:
@@ -19413,12 +19435,13 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                 _chart_uid,
                 _weirdness_score,
             ) in rows:
-                try:
-                    matches_filters = self._chart_matches_filters(cid)
-                except Exception:
-                    matches_filters = False
-                if not matches_filters:
-                    continue
+                if has_active_chart_filters:
+                    try:
+                        matches_filters = self._chart_matches_filters(cid)
+                    except Exception:
+                        matches_filters = False
+                    if not matches_filters:
+                        continue
                 self._displayed_chart_rows_by_id[int(cid)] = (
                     cid,
                     name,
@@ -19717,7 +19740,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         if self._deferred_database_metrics_refresh_scheduled:
             return
         self._deferred_database_metrics_refresh_scheduled = True
-        QTimer.singleShot(0, self._run_deferred_database_metrics_refresh)
+        QTimer.singleShot(DATABASE_METRICS_DEFERRED_REFRESH_DELAY_MS, self._run_deferred_database_metrics_refresh)
 
     def _run_deferred_database_metrics_refresh(self) -> None:
         self._deferred_database_metrics_refresh_scheduled = False
@@ -21357,14 +21380,44 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         ],
     ) -> bool:
         chart_id = normalized_row[0]
-        if self._active_collection_id == DEFAULT_COLLECTION_POSSIBLE_DUPLICATES:
+        active_collection_id = self._active_collection_id
+        if active_collection_id == DEFAULT_COLLECTION_ALL:
+            return True
+        if active_collection_id == DEFAULT_COLLECTION_POSSIBLE_DUPLICATES:
             return chart_id in self._possible_duplicate_chart_ids
+
         chart_source = normalized_row[14]
-        chart = self._get_chart_for_filter(chart_id)
-        chart_uid = str(getattr(chart, "chart_uid", "") or "").strip()
+        chart_uid = str(normalized_row[30] or "").strip() if len(normalized_row) > 30 else ""
+        if active_collection_id in {
+            DEFAULT_COLLECTION_EVENT,
+            DEFAULT_COLLECTION_SYNASTRY,
+            DEFAULT_COLLECTION_PERSONAL_TRANSIT,
+            DEFAULT_COLLECTION_NONHUMAN_ENTITY,
+            DEFAULT_COLLECTION_HYPOTHETICAL,
+        }:
+            return chart_source == active_collection_id
+        if active_collection_id in {
+            DEFAULT_COLLECTION_PERSONAL,
+            DEFAULT_COLLECTION_PARASOCIAL,
+            DEFAULT_COLLECTION_PUBLIC,
+        }:
+            relationship_types = parse_relationship_types(normalized_row[24] or "") if len(normalized_row) > 24 else []
+            relationship_type_keys = {str(value).strip().casefold() for value in relationship_types}
+            is_parasocial = (
+                chart_source == SOURCE_PARASOCIAL
+                or "parasocial" in relationship_type_keys
+                or "public figure" in relationship_type_keys
+            )
+            is_public = chart_source == SOURCE_PUBLIC_DB
+            if active_collection_id == DEFAULT_COLLECTION_PERSONAL:
+                return (not is_parasocial) and (not is_public)
+            if active_collection_id == DEFAULT_COLLECTION_PARASOCIAL:
+                return is_parasocial
+            return is_public
+
         return chart_belongs_to_collection(
-            self._active_collection_id,
-            chart=chart,
+            active_collection_id,
+            chart=None,
             source=chart_source,
             custom_collections=self._custom_collections,
             chart_id=chart_id,
@@ -34801,6 +34854,7 @@ class MainWindow(QMainWindow):
         self._loaded_lat = None
         self._loaded_lon = None
         self._latest_chart = None
+        self._time_sensitivity_last_refresh_token = None
         time_sensitivity_panel = getattr(self, "time_sensitivity_panel", None)
         if time_sensitivity_panel is not None and hasattr(time_sensitivity_panel, "refresh_for_current_chart"):
             time_sensitivity_panel.refresh_for_current_chart()
@@ -36193,7 +36247,17 @@ class MainWindow(QMainWindow):
             and time_sensitivity_panel is not None
             and hasattr(time_sensitivity_panel, "refresh_for_current_chart")
         ):
-            time_sensitivity_panel.refresh_for_current_chart()
+            # The time-sensitivity panel is one of Chart View's heavier refreshes.
+            # _schedule_chart_render() is called repeatedly as individual sections
+            # are queued, so only refresh this panel when the underlying chart
+            # identity/calculation token changes instead of on every section pass.
+            try:
+                time_sensitivity_token = self._chart_analytics_cache_token(chart)
+            except Exception:
+                time_sensitivity_token = str(id(chart))
+            if getattr(self, "_time_sensitivity_last_refresh_token", None) != time_sensitivity_token:
+                time_sensitivity_panel.refresh_for_current_chart()
+                self._time_sensitivity_last_refresh_token = time_sensitivity_token
         update_main_window_title(self)
         if self._pending_render_chart is not None and self._pending_render_chart is not chart:
             self._chart_render_queue_state.clear()
@@ -36247,7 +36311,12 @@ class MainWindow(QMainWindow):
             priority=queue_priority,
         )
         if not self._render_flush_timer.isActive():
-            self._render_flush_timer.start(0)
+            delay_ms = (
+                CHART_RENDER_BACKGROUND_DELAY_MS
+                if queue_priority == "background"
+                else CHART_RENDER_INTERACTIVE_DELAY_MS
+            )
+            self._render_flush_timer.start(delay_ms)
 
     def _flush_scheduled_chart_render(self) -> None:
         chart = self._pending_render_chart
@@ -36302,7 +36371,7 @@ class MainWindow(QMainWindow):
         ):
             self._chart_render_queue_state.discard_if_unqueued(section)
             if self._chart_render_queue_state.has_queued_work():
-                self._render_flush_timer.start(0)
+                self._render_flush_timer.start(CHART_RENDER_INTERACTIVE_DELAY_MS)
             elif not self._chart_render_queue_state.has_pending_work():
                 self._pending_render_chart = None
                 self._hide_chart_loading_overlay()
@@ -36313,10 +36382,10 @@ class MainWindow(QMainWindow):
             self._mark_chart_analytics_sections_clean({section}, chart)
 
         if self._chart_render_queue_state.has_queued_work():
-            self._render_flush_timer.start(0)
+            self._render_flush_timer.start(CHART_RENDER_INTERACTIVE_DELAY_MS)
             return
         if self._chart_render_queue_state.has_pending_work():
-            self._render_flush_timer.start(0)
+            self._render_flush_timer.start(CHART_RENDER_BACKGROUND_DELAY_MS)
             return
 
         self._suppress_right_panel_refresh_for_timing_preview = False
