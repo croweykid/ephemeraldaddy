@@ -17329,7 +17329,6 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         self._database_metrics_background_preload_scheduled = False
         self._deferred_database_metrics_refresh_scheduled = False
         self._incremental_metrics_refresh_scheduled = False
-        self._save_database_metrics_persistent_cache()
         save_traits_cache = getattr(self, "_save_traits_distribution_likelihood_cache", None)
         if callable(save_traits_cache) and getattr(self, "_traits_distribution_likelihood_cache_dirty", False):
             save_traits_cache()
@@ -19159,12 +19158,16 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             owner = self._owner_window()
             if owner is not None and hasattr(owner, "_invalidate_chart_view_navigation_cache_for_ids"):
                 owner._invalidate_chart_view_navigation_cache_for_ids(changed_ids)
-        chart_ids_for_cache = []
-        for row in self._chart_rows:
-            normalized = self._normalize_chart_row(row)
-            if normalized is not None:
-                chart_ids_for_cache.append(normalized[0])
-        self._hydrate_chart_filter_cache(chart_ids_for_cache)
+        if self._has_active_chart_filters():
+            # Expensive chart objects are only needed for calculated/advanced
+            # filters.  The default Database View path should not synchronously
+            # hydrate every saved chart before the list can render.
+            chart_ids_for_cache = []
+            for row in self._chart_rows:
+                normalized = self._normalize_chart_row(row)
+                if normalized is not None:
+                    chart_ids_for_cache.append(normalized[0])
+            self._hydrate_chart_filter_cache(chart_ids_for_cache)
         self._populate_list(
             selected_ids=selected_ids,
             refresh_metrics=refresh_metrics,
@@ -21361,14 +21364,44 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         ],
     ) -> bool:
         chart_id = normalized_row[0]
-        if self._active_collection_id == DEFAULT_COLLECTION_POSSIBLE_DUPLICATES:
+        active_collection_id = self._active_collection_id
+        if active_collection_id == DEFAULT_COLLECTION_ALL:
+            return True
+        if active_collection_id == DEFAULT_COLLECTION_POSSIBLE_DUPLICATES:
             return chart_id in self._possible_duplicate_chart_ids
+
         chart_source = normalized_row[14]
-        chart = self._get_chart_for_filter(chart_id)
-        chart_uid = str(getattr(chart, "chart_uid", "") or "").strip()
+        chart_uid = str(normalized_row[30] or "").strip() if len(normalized_row) > 30 else ""
+        if active_collection_id in {
+            DEFAULT_COLLECTION_EVENT,
+            DEFAULT_COLLECTION_SYNASTRY,
+            DEFAULT_COLLECTION_PERSONAL_TRANSIT,
+            DEFAULT_COLLECTION_NONHUMAN_ENTITY,
+            DEFAULT_COLLECTION_HYPOTHETICAL,
+        }:
+            return chart_source == active_collection_id
+        if active_collection_id in {
+            DEFAULT_COLLECTION_PERSONAL,
+            DEFAULT_COLLECTION_PARASOCIAL,
+            DEFAULT_COLLECTION_PUBLIC,
+        }:
+            relationship_types = parse_relationship_types(normalized_row[24] or "") if len(normalized_row) > 24 else []
+            relationship_type_keys = {str(value).strip().casefold() for value in relationship_types}
+            is_parasocial = (
+                chart_source == SOURCE_PARASOCIAL
+                or "parasocial" in relationship_type_keys
+                or "public figure" in relationship_type_keys
+            )
+            is_public = chart_source == SOURCE_PUBLIC_DB
+            if active_collection_id == DEFAULT_COLLECTION_PERSONAL:
+                return (not is_parasocial) and (not is_public)
+            if active_collection_id == DEFAULT_COLLECTION_PARASOCIAL:
+                return is_parasocial
+            return is_public
+
         return chart_belongs_to_collection(
-            self._active_collection_id,
-            chart=chart,
+            active_collection_id,
+            chart=None,
             source=chart_source,
             custom_collections=self._custom_collections,
             chart_id=chart_id,

@@ -593,7 +593,7 @@ class ChartsController:
                 refresh_after_show()
                 if app is not None:
                     app.processEvents()
-                progress_callback("Database View is ready; analytics are updating.", 99)
+                progress_callback("Database View is ready.", 99)
             else:
                 # Non-startup transitions still defer the expensive refresh until
                 # after the dialog has painted, preserving interactive snappiness.
