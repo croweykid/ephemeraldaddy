@@ -278,7 +278,7 @@ def _is_personal_chart_type_for_age_inference(value: Optional[str]) -> bool:
 # ordering, joins, and bounded internal lookup adapters while older call sites
 # are migrated. New cross-feature metadata, cache keys, relationships, exports,
 # and user-visible references should use chart_uid instead of chart_id.
-SCHEMA_VERSION = 19
+SCHEMA_VERSION = 20
 
 CHART_UID_LENGTH = 16
 
@@ -925,6 +925,107 @@ def _prune_duplicate_exclusions(conn: sqlite3.Connection) -> None:
            OR chart_uid_high NOT IN (SELECT chart_uid FROM charts WHERE chart_uid IS NOT NULL AND chart_uid != '')
         """
     )
+
+
+def _chart_id_to_uid_map(conn: sqlite3.Connection) -> dict[int, str]:
+    if not _charts_table_exists(conn):
+        return {}
+    _ensure_chart_uids(conn)
+    rows = conn.execute(
+        """
+        SELECT id, chart_uid
+        FROM charts
+        WHERE chart_uid IS NOT NULL AND chart_uid != ''
+        """
+    ).fetchall()
+    return {int(chart_id): str(chart_uid) for chart_id, chart_uid in rows if chart_uid}
+
+
+def _normalize_uid_or_legacy_chart_id_values(
+    value: Any,
+    *,
+    chart_id_to_uid: Mapping[int, str],
+) -> list[str]:
+    if value is None:
+        return []
+    text = str(value or "").strip()
+    if not text:
+        return []
+    try:
+        decoded = json.loads(text)
+    except (TypeError, ValueError):
+        decoded = None
+    candidates = decoded if isinstance(decoded, list) else [text]
+
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        uid = _normalize_chart_uid(candidate)
+        if uid is None:
+            try:
+                legacy_id = int(str(candidate).strip())
+            except (TypeError, ValueError):
+                legacy_id = 0
+            uid = chart_id_to_uid.get(legacy_id)
+        if uid is None or uid in seen:
+            continue
+        normalized.append(uid)
+        seen.add(uid)
+    return normalized
+
+
+def _rewrite_legacy_chart_relationship_ids_to_uids(conn: sqlite3.Connection) -> None:
+    columns = _table_columns(conn, "charts")
+    rewrite_columns = [
+        column for column in ("reminds_me_of", "alternate_chart_uid") if column in columns
+    ]
+    if not rewrite_columns:
+        return
+
+    chart_id_to_uid = _chart_id_to_uid_map(conn)
+    select_columns = ", ".join(["id", *rewrite_columns])
+    rows = conn.execute(f"SELECT {select_columns} FROM charts").fetchall()
+    for row in rows:
+        chart_id = int(row[0])
+        own_uid = chart_id_to_uid.get(chart_id)
+        updates: dict[str, str] = {}
+        for index, column in enumerate(rewrite_columns, start=1):
+            normalized_values = [
+                uid
+                for uid in _normalize_uid_or_legacy_chart_id_values(
+                    row[index],
+                    chart_id_to_uid=chart_id_to_uid,
+                )
+                if uid != own_uid
+            ]
+            if column == "alternate_chart_uid":
+                normalized_value = normalized_values[0] if normalized_values else ""
+            else:
+                normalized_value = serialize_reminds_me_of_uids(normalized_values)
+            if normalized_value != (row[index] or ""):
+                updates[column] = normalized_value
+        if not updates:
+            continue
+        assignments = ", ".join(f"{column} = ?" for column in updates)
+        conn.execute(
+            f"UPDATE charts SET {assignments} WHERE id = ?",
+            [*updates.values(), chart_id],
+        )
+
+
+def _finalize_chart_uids_for_v20(conn: sqlite3.Connection) -> None:
+    if not _charts_table_exists(conn):
+        return
+    _migrate_charts_columns(conn)
+    _ensure_chart_uids(conn)
+    _create_indexes(conn)
+    _create_duplicate_exclusions_table(conn)
+    _create_chart_trait_metadata_table(conn)
+    _create_dnd_prediction_metadata_table(conn)
+    _create_enneagram_prediction_metadata_table(conn)
+    _rewrite_legacy_chart_relationship_ids_to_uids(conn)
+    _prune_duplicate_exclusions(conn)
+    conn.execute("DELETE FROM duplicate_exclusions")
 
 
 def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
@@ -1609,7 +1710,6 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
     _create_enneagram_prediction_metadata_table(conn)
     if _charts_table_exists(conn):
         _prune_duplicate_exclusions(conn)
-
     if user_version == 0:
         if not _charts_table_exists(conn):
             _create_charts_table(conn)
@@ -1617,6 +1717,7 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
             _migrate_charts_columns(conn)
         _backfill_non_placeholder_birth_date_parts(conn)
         _create_indexes(conn)
+        _finalize_chart_uids_for_v20(conn)
         conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         return
 
@@ -1718,6 +1819,11 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
         _create_duplicate_exclusions_table(conn)
         _prune_duplicate_exclusions(conn)
         conn.execute("PRAGMA user_version = 19")
+        user_version = 19
+
+    if user_version < 20:
+        _finalize_chart_uids_for_v20(conn)
+        conn.execute("PRAGMA user_version = 20")
 
 
 def _connect_raw() -> sqlite3.Connection:
@@ -4077,7 +4183,9 @@ def list_charts() -> List[
     social_score, chart_type, is_placeholder, is_deceased,
     birth_month, birth_day, birth_year, retcon_hour, retcon_minute,
     from_whence, data_rating, relationship_types, tags, reminds_me_of,
-    dominant_sign_weights, dominant_planet_weights, dominant_mode, chart_uid)
+    dominant_sign_weights, dominant_planet_weights, dominant_mode, chart_uid,
+    weirdness_score, weirdness_formula_version, weirdness_norm_signature,
+    chart_uid)
 
     The first 22 fields are kept in their historical order for callers that
     index into the row tuple; lightweight display/filter fields are appended so
@@ -4205,6 +4313,7 @@ def list_charts() -> List[
                 _normalize_weirdness_score(row["weirdness_score"]),
                 int(row["weirdness_formula_version"]) if row["weirdness_formula_version"] is not None else None,
                 str(row["weirdness_norm_signature"] or ""),
+                row["chart_uid"],
             )
         )
     return rows
@@ -4292,23 +4401,6 @@ def save_duplicate_exclusions_by_uids(chart_uids: Iterable[str | None]) -> int:
     with conn:
         _create_duplicate_exclusions_table(conn)
         for left_uid, right_uid, created_at in pairs:
-            conn.execute(
-                """
-                INSERT OR IGNORE INTO duplicate_exclusions (
-                    chart_id_low,
-                    chart_id_high,
-                    created_at
-                )
-                SELECT
-                    CASE WHEN low.id < high.id THEN low.id ELSE high.id END,
-                    CASE WHEN low.id < high.id THEN high.id ELSE low.id END,
-                    ?
-                FROM charts AS low
-                JOIN charts AS high ON high.chart_uid = ?
-                WHERE low.chart_uid = ?
-                """,
-                (created_at, right_uid, left_uid),
-            )
             cursor = conn.execute(
                 """
                 INSERT OR IGNORE INTO duplicate_exclusions_uid (
