@@ -39,6 +39,32 @@ def test_similar_charts_popout_cache_tracks_row_signatures_and_rescores_changed_
 
 
 
+def test_similar_charts_cache_tokens_include_gender_only_when_demographic_match_enabled():
+    source = _app_source()
+    row_signature_method = source.split("def _similar_charts_popout_database_row_signatures", 1)[1].split(
+        "def _similar_charts_popout_database_signature", 1
+    )[0]
+    subject_signature_method = source.split("def _similar_charts_popout_subject_signature", 1)[1].split(
+        "def _similar_charts_popout_settings_signature", 1
+    )[0]
+    analytics_token_method = source.split("def _chart_analytics_cache_token", 1)[1].split(
+        "def _mark_chart_analytics_sections_lucy_goosey", 1
+    )[0]
+    show_method = source.split("def _show_similar_charts_popout", 1)[1].split(
+        "def _export_similar_charts_popout_share", 1
+    )[0]
+
+    assert "def _similar_charts_demographic_match_enabled" in source
+    assert "include_gender: bool = False" in row_signature_method
+    assert "if include_gender:" in row_signature_method
+    assert 'payload["gender"] = str(_row_value(row, 4) or "").strip()' in row_signature_method
+    assert "if self._similar_charts_demographic_match_enabled():" in subject_signature_method
+    assert 'signature_payload["gender"]' in subject_signature_method
+    assert "if self._similar_charts_demographic_match_enabled():" in analytics_token_method
+    assert "demographic_token" in analytics_token_method
+    assert "include_gender=self._similar_charts_demographic_match_enabled()" in show_method
+
+
 def test_similar_charts_popout_exact_cache_hit_skips_full_recompute_progress():
     source = _app_source()
     show_method = source.split("def _show_similar_charts_popout", 1)[1].split(

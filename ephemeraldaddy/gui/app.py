@@ -26629,11 +26629,19 @@ class MainWindow(QMainWindow):
                 visible_rows.append(row)
         return visible_rows
 
+    def _similar_charts_demographic_match_enabled(self) -> bool:
+        settings = getattr(self, "_similarity_calculator_settings", None)
+        mode = _normalize_astro_twin_demographic_match_mode(
+            getattr(settings, "demographic_match_mode", ASTRO_TWIN_DEMOGRAPHIC_MATCH_NONE)
+        )
+        return mode != ASTRO_TWIN_DEMOGRAPHIC_MATCH_NONE
+
     def _similar_charts_popout_database_row_signatures(
         self,
         rows: list[tuple[Any, ...]],
         *,
         chart_uids_by_id: Mapping[int, str],
+        include_gender: bool = False,
     ) -> dict[str, str]:
         def _row_value(row: tuple[Any, ...], index: int) -> Any:
             return row[index] if len(row) > index else None
@@ -26667,6 +26675,8 @@ class MainWindow(QMainWindow):
                 "birth_day": _row_value(row, 18),
                 "birth_year": _row_value(row, 19),
             }
+            if include_gender:
+                payload["gender"] = str(_row_value(row, 4) or "").strip()
             encoded = json.dumps(payload, default=str, sort_keys=True, separators=(",", ":"))
             signatures[chart_uid] = hashlib.sha256(encoded.encode("utf-8")).hexdigest()
         return signatures
@@ -26704,6 +26714,8 @@ class MainWindow(QMainWindow):
             "human_design_gates": list(getattr(chart, "human_design_gates", None) or []),
             "human_design_channels": list(getattr(chart, "human_design_channels", None) or []),
         }
+        if self._similar_charts_demographic_match_enabled():
+            signature_payload["gender"] = str(getattr(chart, "gender", None) or "").strip()
         payload = json.dumps(signature_payload, default=str, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
@@ -27977,6 +27989,7 @@ class MainWindow(QMainWindow):
         row_signatures = self._similar_charts_popout_database_row_signatures(
             chart_rows,
             chart_uids_by_id=chart_uids_by_id,
+            include_gender=self._similar_charts_demographic_match_enabled(),
         )
         chart_names_by_id = self._similar_charts_popout_chart_names_by_id(chart_rows)
         candidates: list[tuple[int, Chart]] | None = None
@@ -36753,7 +36766,10 @@ class MainWindow(QMainWindow):
         )
         place_token = f"lat:{getattr(chart, 'lat', 0.0):.6f}|lon:{getattr(chart, 'lon', 0.0):.6f}"
         chart_scope_token = f"id:{int(chart_id)}" if chart_id is not None else "draft"
-        return f"{chart_scope_token}|{place_token}|{timing_token}"
+        demographic_token = ""
+        if self._similar_charts_demographic_match_enabled():
+            demographic_token = f"|gender:{str(getattr(chart, 'gender', None) or '').strip()}"
+        return f"{chart_scope_token}|{place_token}|{timing_token}{demographic_token}"
 
     def _mark_chart_analytics_sections_lucy_goosey(self, sections: set[str] | None = None) -> None:
         if sections is None:
