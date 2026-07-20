@@ -179,6 +179,46 @@ def test_uid_finalization_rewrites_legacy_relationships_and_duplicate_exclusions
     assert '"legacy_duplicate_exclusions_rewritten":1' in marker[0]
 
 
+def test_uid_finalization_prints_terminal_confirmation(capsys):
+    conn = sqlite3.connect(":memory:")
+    conn.execute("PRAGMA user_version = 19")
+    conn.execute(
+        """
+        CREATE TABLE charts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            chart_uid TEXT,
+            name TEXT NOT NULL,
+            birth_place TEXT,
+            datetime_iso TEXT NOT NULL,
+            lat REAL NOT NULL,
+            lon REAL NOT NULL,
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO charts (chart_uid, name, birth_place, datetime_iso, lat, lon, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "",
+            "Terminal Confirmation",
+            "New York, USA",
+            "2000-01-01T12:00:00+00:00",
+            40.7128,
+            -74.0060,
+            datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        ),
+    )
+
+    db._ensure_schema(conn)
+
+    captured = capsys.readouterr()
+    assert "[EphemeralDaddy UID migration] Chart UID finalization complete:" in captured.err
+    assert "1 chart(s) verified" in captured.err
+
+
 def test_append_database_preserves_non_colliding_source_chart_uid(tmp_path, monkeypatch):
     target_path = tmp_path / "target.db"
     source_path = tmp_path / "source.db"

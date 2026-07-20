@@ -8,6 +8,7 @@ import csv
 import math
 import shutil
 import sqlite3
+import sys
 import threading
 import uuid
 from datetime import datetime, timezone
@@ -973,6 +974,22 @@ def _mark_app_migration_applied(
     )
 
 
+def _emit_uid_finalization_status(details: Mapping[str, Any]) -> None:
+    if bool(details.get("already_finalized", False)):
+        message = (
+            "[EphemeralDaddy UID migration] Chart UID finalization already verified; "
+            "all chart identity should now be UID-authoritative."
+        )
+    else:
+        message = (
+            "[EphemeralDaddy UID migration] Chart UID finalization complete: "
+            f"{int(details.get('chart_count', 0) or 0)} chart(s) verified, "
+            f"{int(details.get('relationship_rows_rewritten', 0) or 0)} relationship row(s) rewritten, "
+            f"{int(details.get('legacy_duplicate_exclusions_rewritten', 0) or 0)} legacy duplicate-exclusion row(s) migrated."
+        )
+    print(message, file=sys.stderr, flush=True)
+
+
 def _chart_id_to_uid_map(conn: sqlite3.Connection) -> dict[int, str]:
     if not _charts_table_exists(conn):
         return {}
@@ -1099,10 +1116,13 @@ def finalize_chart_uid_migration(conn: sqlite3.Connection) -> dict[str, Any]:
     """Run the one-release migration that makes chart UIDs authoritative."""
     _create_app_migrations_table(conn)
     if _app_migration_applied(conn, UID_FINALIZATION_MIGRATION_KEY):
-        return {"already_finalized": True}
+        details = {"already_finalized": True}
+        _emit_uid_finalization_status(details)
+        return details
     if not _charts_table_exists(conn):
         details = {"already_finalized": False, "chart_count": 0}
         _mark_app_migration_applied(conn, UID_FINALIZATION_MIGRATION_KEY, details)
+        _emit_uid_finalization_status(details)
         return details
 
     _migrate_charts_columns(conn)
@@ -1138,6 +1158,7 @@ def finalize_chart_uid_migration(conn: sqlite3.Connection) -> dict[str, Any]:
         "relationship_rows_rewritten": relationship_rows_changed,
     }
     _mark_app_migration_applied(conn, UID_FINALIZATION_MIGRATION_KEY, details)
+    _emit_uid_finalization_status(details)
     return details
 
 
