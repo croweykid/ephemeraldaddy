@@ -1348,6 +1348,12 @@ def schedule_chart_render_for_active_right_panel(owner: object) -> None:
             "Use Calculate/Recalculate only when you want to refresh them.",
         )
         return
+    if active_panel == "time_sensitivity":
+        time_sensitivity_panel = getattr(owner, "time_sensitivity_panel", None)
+        refresh = getattr(time_sensitivity_panel, "refresh_for_current_chart", None)
+        if callable(refresh):
+            refresh()
+        return
     if active_panel == "abc" and owner._is_chart_analysis_section_visible("anagrams"):
         owner._schedule_chart_render(chart, sections={"anagrams"})
 
