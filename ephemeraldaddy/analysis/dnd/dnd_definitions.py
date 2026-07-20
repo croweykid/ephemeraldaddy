@@ -1905,7 +1905,7 @@ FAMILY_SUBTYPES: Dict[str, List[str]] = { #note: this is not a complete species 
     "Human": ["Human Weirdo", "Standard Human"],
     "Catfolk": ["Pantherkin", "Tigerfolk", "Tabaxi"], #add leonin or no? too obvious is how it feels...ugh, hate it. :-\
     "Reptilian": ["Lizardfolk", "Kobold"],
-    "Robot": ["Autognome", "Construct"],
+    "Robot": ["Autognome", "Sentient Robot"],
     "Rodentfolk": ["Squirrelfolk", "Ratfolk", "Mousefolk"],
     "Shifter": ["Changeling", "Doppelganger", "Lycanthrope"],
     "Skeleton": ["Lich", "Bone Warrior"], #come on.
@@ -2019,7 +2019,7 @@ SPECIES_DESCRIPTIONS: Dict[str, str] = {
 
     "Robot": "Constructed person continues forcing philosophers to earn their lunch.",
     "Robot::Autognome": "Clockwork little fellow bustles in with polished joints and the air of a toolbox granted citizenship.",
-    "Robot::Construct": "General-purpose manufactured being stands there making 'artificial' seem oddly judgmental.",
+    "Robot::Sentient Robot": "General-purpose manufactured being stands there making 'artificial' seem oddly judgmental.",
 
     "Rodentfolk": "Small alert mammal-person arrives with quick hands, bright eyes, and a suspiciously efficient relationship to leftovers.",
     "Rodentfolk::Squirrelfolk": "Tree-running acrobat pauses just long enough to look busy in three directions at once.",
