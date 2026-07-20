@@ -80,7 +80,10 @@ from ephemeraldaddy.gui.features.charts.euphonics import (
 from ephemeraldaddy.gui.features.charts.loading_overlay import ChartLoadingOverlay
 from ephemeraldaddy.gui.features.charts.prediction_loading_labels import start_prediction_loading_blink
 from ephemeraldaddy.gui.features.charts.time_sensitivity_panel import TimeSensitivityPanel
-from ephemeraldaddy.gui.features.charts.trait_predictions import configure_traits_prediction_table
+from ephemeraldaddy.gui.features.charts.trait_predictions import (
+    configure_traits_prediction_table,
+    start_traits_prediction_calculation,
+)
 from ephemeraldaddy.gui.features.controllers.chart_right_panel import ChartRightPanelController
 from ephemeraldaddy.gui.style import (
     ABC_PANEL_BODY_LABEL_STYLE,
@@ -1691,6 +1694,16 @@ def _build_distinguishing_factors_section(owner: QWidget, panel: QWidget, layout
 
 
 
+def _calculate_prediction_section_from_header(owner: QWidget, section_key: str) -> None:
+    """Dispatch a Predictions header action to the section's existing calculator."""
+    if section_key == "traits":
+        start_traits_prediction_calculation(owner)
+        return
+    calculate = getattr(owner, "_calculate_predictions_on_demand", None)
+    if callable(calculate):
+        calculate(getattr(owner, "_latest_chart", None), section_key)
+
+
 def _install_prediction_header_action(owner: QWidget, section_layout: QVBoxLayout, section_key: str) -> None:
     """Attach the Predictions calculate/recalculate status control to a section header."""
     content_widget = section_layout.parentWidget()
@@ -1705,10 +1718,7 @@ def _install_prediction_header_action(owner: QWidget, section_layout: QVBoxLayou
     button.setFocusPolicy(Qt.NoFocus)
     button.setStyleSheet("QToolButton { border: none; background: transparent; padding: 0 3px; font-size: 13px; }")
     button.clicked.connect(
-        lambda _checked=False, key=section_key: owner._calculate_predictions_on_demand(
-            getattr(owner, "_latest_chart", None),
-            key,
-        )
+        lambda _checked=False, key=section_key: _calculate_prediction_section_from_header(owner, key)
     )
     header_layout.insertWidget(1, button, 0, Qt.AlignLeft | Qt.AlignVCenter)
     buttons = getattr(owner, "_prediction_header_action_buttons", None)

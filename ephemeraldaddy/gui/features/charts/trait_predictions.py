@@ -1730,6 +1730,11 @@ def _trait_render_signatures(owner: Any, chart: Any, traits: list[dict[str, Any]
     }
 
 
+def start_traits_prediction_calculation(owner: Any) -> None:
+    """Start the existing Traits prediction calculation flow from external UI controls."""
+    _start_traits_prediction_calculation(owner)
+
+
 def _start_traits_prediction_calculation(owner: Any) -> None:
     chart = getattr(owner, "_traits_prediction_pending_chart", None)
     traits = getattr(owner, "_traits_prediction_pending_traits", None)
