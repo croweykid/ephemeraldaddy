@@ -169,7 +169,7 @@ def draw_dnd_statblock_predictions(
 def draw_dnd_species_predictions(ax: Any, chart: Any, *, apply_standard_bar_axes: Any) -> None:
     pick = SpeciesAssigner().assign(chart)
     top = pick.top_three[:10]
-    labels = [f"{family} ({subtype})" if subtype else family for family, subtype, _score in top]
+    labels = [_species_display_label(family, subtype) for family, subtype, _score in top]
     values = [float(score) for _family, _subtype, score in top]
     colors = get_cycled_earthtone_colors(len(labels))
     bars = ax.bar(labels, values)
@@ -692,13 +692,18 @@ def build_dnd_statblock_popout_info_html(
     )
 
 
+def _species_display_label(family: str, subtype: str) -> str:
+    subtype_text = str(subtype or "").strip()
+    return subtype_text if subtype_text else str(family)
+
+
 def format_dnd_species_info_text(
     family: str,
     subtype: str,
     score: float,
     evidence: list[str],
 ) -> str:
-    label = f"{family} ({subtype})" if subtype else family
+    label = _species_display_label(family, subtype)
     header = f"{label} • {score:.2f}"
     species_description = SPECIES_DESCRIPTIONS.get(family, "")
     subtype_key = f"{family}::{subtype}" if subtype else ""
@@ -709,16 +714,42 @@ def format_dnd_species_info_text(
         if description_parts
         else "Species flavor text unavailable."
     )
+    category_line = f"Category: {family}" if subtype else ""
+    leading_lines = [header]
+    if category_line:
+        leading_lines.append(category_line)
+    leading_lines.extend([description_line, ""])
     if evidence:
         lines = [f"• {line}" for line in evidence]
-        return "\n".join([header, description_line, "", "Evidence:"] + lines)
+        return "\n".join(leading_lines + ["Evidence:"] + lines)
     return "\n".join(
-        [
-            header,
-            description_line,
-            "",
+        leading_lines
+        + [
             "• Evidence is unavailable for this species assignment.",
         ]
+    )
+
+
+def format_dnd_species_info_html(
+    family: str,
+    subtype: str,
+    score: float,
+    evidence: list[str],
+) -> str:
+    label = _species_display_label(family, subtype)
+    category_html = ""
+    if str(subtype or "").strip():
+        category_html = f"<div><b>Category:</b> {html.escape(str(family))}</div>"
+    evidence_items = "".join(f"<li>{html.escape(str(line))}</li>" for line in evidence if str(line).strip())
+    if not evidence_items:
+        evidence_items = "<li>Evidence is unavailable for this species assignment.</li>"
+    return (
+        f'<div><b><span style="color:{CHART_DATA_HIGHLIGHT_COLOR};">{html.escape(label)}</span></b> '
+        f"<span>• {float(score):.2f}</span></div>"
+        f"{category_html}"
+        f"<div style='height:8px;'></div>"
+        f"<div><b>Evidence:</b></div>"
+        f"<ul>{evidence_items}</ul>"
     )
 
 
@@ -829,7 +860,7 @@ def _collect_ranked_species_payloads(chart: Any) -> list[dict[str, Any]]:
     payloads: list[dict[str, Any]] = []
     for family, subtype, score, evidence in species_rankings:
         subtype_text = str(subtype or "").strip()
-        label = f"{family} ({subtype_text})" if subtype_text else str(family)
+        label = _species_display_label(str(family), subtype_text)
         payloads.append(
             {
                 "label": label,
@@ -1305,6 +1336,11 @@ def configure_dnd_top_three_summary_label(
             before_show()
         set_chart_info_text(info_panel, text)
 
+    def _show_html(html_text: str) -> None:
+        if before_show is not None:
+            before_show()
+        set_chart_info_html(info_panel, html_text)
+
     def _on_link_activated(href: str) -> None:
         prefix, _separator, index_text = str(href).partition(":")
         if prefix == "dnd-species-more":
@@ -1319,8 +1355,8 @@ def configure_dnd_top_three_summary_label(
             return
         if prefix == "dnd-species" and 0 <= index < len(species_payloads):
             payload = species_payloads[index]
-            _show_text(
-                format_dnd_species_info_text(
+            _show_html(
+                format_dnd_species_info_html(
                     str(payload.get("family", "Unknown Species")),
                     str(payload.get("subtype", "")),
                     float(payload.get("score", 0.0)),
