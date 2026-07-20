@@ -1251,6 +1251,7 @@ from ephemeraldaddy.gui.features.controllers.chart_view_window import (
     draw_weight_distribution_reference_lines,
     format_weight_distribution_html,
     format_unknown_positions_summary_html,
+    get_chart_view_emoji_portrait,
     get_chart_view_tags,
     install_chart_info_panel_content_observers,
     install_chart_view_undo_shortcuts,
@@ -1261,7 +1262,9 @@ from ephemeraldaddy.gui.features.controllers.chart_view_window import (
     refresh_chart_info_panel_toggle_button_styles,
     refresh_euphonics_for_chart,
     render_chart_view_tag_selection,
+    set_chart_view_emoji_portrait_state,
     set_chart_view_tag_state,
+    setup_chart_view_emoji_portrait_section,
     setup_chart_view_quotes_section,
     setup_chart_view_tags_section,
     get_chart_view_quotes,
@@ -26062,6 +26065,10 @@ class MainWindow(QMainWindow):
             3,
             1,
         )
+        setup_chart_view_emoji_portrait_section(
+            self,
+            sentiment_metrics_container_layout,
+        )
         build_subjective_notes_alignment_sections(
             self,
             sentiment_metrics_container_layout,
@@ -33716,6 +33723,7 @@ class MainWindow(QMainWindow):
             getattr(self, "_reminds_me_of_current", [])
         )
         placeholder.comments = self.comments_edit.toPlainText().strip()
+        placeholder.emoji_portrait = get_chart_view_emoji_portrait(self)
         placeholder.quotes = get_chart_view_quotes(self)
         placeholder.rectification_notes = self.rectification_edit.toPlainText().strip()
         placeholder.biography = self.biography_edit.toPlainText().strip()
@@ -33876,6 +33884,7 @@ class MainWindow(QMainWindow):
                 chart.relationship_types = []
         if hasattr(chart, "comments"):
             chart.comments = self.comments_edit.toPlainText().strip()
+        chart.emoji_portrait = get_chart_view_emoji_portrait(self)
         chart.quotes = get_chart_view_quotes(self)
         if hasattr(chart, "rectification_notes"):
             chart.rectification_notes = self.rectification_edit.toPlainText().strip()
@@ -35438,6 +35447,7 @@ class MainWindow(QMainWindow):
         self._update_alternate_chart_completer()
         self._set_alternate_chart_state(getattr(chart, "alternate_chart_uid", ""))
         self.comments_edit.setPlainText(getattr(chart, "comments", "") or "")
+        set_chart_view_emoji_portrait_state(self, getattr(chart, "emoji_portrait", "") or "")
         set_chart_view_quote_state(self, getattr(chart, "quotes", []) or [])
         self.rectification_edit.setPlainText(getattr(chart, "rectification_notes", "") or "")
         self.biography_edit.setPlainText(getattr(chart, "biography", "") or "")
