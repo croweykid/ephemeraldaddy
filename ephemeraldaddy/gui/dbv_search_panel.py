@@ -829,7 +829,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     def compact_nakshatra_label(label: str) -> str:
         return abbreviate_nakshatra_label(str(label))
 
-    search_title = QLabel("Search filters")
+    search_title = QLabel("Search Filters")
     search_title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
     layout.addWidget(search_title)
 
@@ -967,10 +967,10 @@ def build_dbv_search_panel(window) -> "QWidget":
     )
 
     header_layout = QHBoxLayout()
-    title = QLabel("Search Filters")
-    title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
+    #title = QLabel("Search Filters")
+    #title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
     app_module.apply_emoji_pngs_to_label(title)
-    header_layout.addWidget(title)
+    #header_layout.addWidget(title)
     header_layout.addStretch(1)
     #I removed this button, since there's a "Clear Filters" button on the bottom right now.
     #reset_button = QPushButton("Reset")
