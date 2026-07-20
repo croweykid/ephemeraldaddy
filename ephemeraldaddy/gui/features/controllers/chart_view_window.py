@@ -1690,6 +1690,54 @@ def _build_distinguishing_factors_section(owner: QWidget, panel: QWidget, layout
     distinguishing_section_layout.addWidget(owner.distinguishing_factors_label)
 
 
+
+def _install_prediction_header_action(owner: QWidget, section_layout: QVBoxLayout, section_key: str) -> None:
+    """Attach the Predictions calculate/recalculate status control to a section header."""
+    content_widget = section_layout.parentWidget()
+    section_widget = content_widget.parentWidget() if content_widget is not None else None
+    toggle = section_widget.findChild(QToolButton) if section_widget is not None else None
+    header_layout = toggle.layout() if toggle is not None else None
+    if header_layout is None:
+        return
+    button = QToolButton(toggle)
+    button.setAutoRaise(True)
+    button.setCursor(Qt.PointingHandCursor)
+    button.setFocusPolicy(Qt.NoFocus)
+    button.setStyleSheet("QToolButton { border: none; background: transparent; padding: 0 3px; font-size: 13px; }")
+    button.clicked.connect(
+        lambda _checked=False, key=section_key: owner._calculate_predictions_on_demand(
+            getattr(owner, "_latest_chart", None),
+            key,
+        )
+    )
+    header_layout.insertWidget(1, button, 0, Qt.AlignLeft | Qt.AlignVCenter)
+    buttons = getattr(owner, "_prediction_header_action_buttons", None)
+    if not isinstance(buttons, dict):
+        buttons = {}
+        owner._prediction_header_action_buttons = buttons
+    buttons[section_key] = button
+    _set_prediction_header_action(owner, section_key, "calculate")
+
+
+def _set_prediction_header_action(owner: QWidget, section_key: str, state: str) -> None:
+    """Switch a Predictions section header between calculate, recalculate, and up-to-date states."""
+    buttons = getattr(owner, "_prediction_header_action_buttons", {})
+    button = buttons.get(section_key) if isinstance(buttons, dict) else None
+    if not isinstance(button, QToolButton):
+        return
+    if state == "up_to_date":
+        button.setText("✅")
+        button.setEnabled(False)
+        button.setToolTip("calculations are up to date!")
+    elif state == "recalculate":
+        button.setText("♻️")
+        button.setEnabled(True)
+        button.setToolTip("Recalculate this Predictions section")
+    else:
+        button.setText("🧮")
+        button.setEnabled(True)
+        button.setToolTip("Calculate this Predictions section")
+
 def _build_predictions_panel(owner: QWidget) -> QWidget:
     """Build Predictions tab body widget + layout."""
     panel = QWidget()
@@ -1706,6 +1754,10 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         "color: #d8c8ff; background: rgba(129, 86, 255, 0.10); border: 1px solid rgba(180, 150, 255, 0.35); border-radius: 6px; padding: 6px;"
     )
     layout.addWidget(owner.predictions_background_status_label)
+    owner._set_prediction_header_action = MethodType(
+        lambda self, section_key, state: _set_prediction_header_action(self, section_key, state),
+        owner,
+    )
 
     def register_prediction_section(section_key: str, section_layout: QVBoxLayout) -> None:
         widgets = getattr(owner, "_prediction_section_widgets", None)
@@ -1724,6 +1776,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         expanded=True,
     )
     register_prediction_section("traits", traits_section_layout)
+    _install_prediction_header_action(owner, traits_section_layout, "traits")
     traits_header_row = QWidget()
     traits_header_layout = QHBoxLayout()
     traits_header_layout.setContentsMargins(0, 0, 0, 0)
@@ -1767,6 +1820,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         expanded=True,
     )
     register_prediction_section("enneagram", enneagram_section_layout)
+    _install_prediction_header_action(owner, enneagram_section_layout, "enneagram")
     owner.enneagram_prediction_chart_panel = QWidget()
     owner.enneagram_prediction_chart_layout = QVBoxLayout()
     owner.enneagram_prediction_chart_layout.setContentsMargins(0, 0, 0, 0)
@@ -1788,6 +1842,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         expanded=True,
     )
     register_prediction_section("dnd_statblock", dnd_statblock_section_layout)
+    _install_prediction_header_action(owner, dnd_statblock_section_layout, "dnd_statblock")
     owner.dnd_predictions_chart_panel = QWidget()
     owner.dnd_predictions_chart_layout = QVBoxLayout()
     owner.dnd_predictions_chart_layout.setContentsMargins(0, 0, 0, 0)
@@ -1806,6 +1861,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         expanded=True,
     )
     register_prediction_section("dnd_species", dnd_species_section_layout)
+    _install_prediction_header_action(owner, dnd_species_section_layout, "dnd_species")
     owner.dnd_prediction_species_label = _make_predictions_loading_label(
         "Loading Fantasy RPG species predictions…",  #for this UID
         alignment=Qt.AlignLeft | Qt.AlignTop,
@@ -1824,6 +1880,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         expanded=True,
     )
     register_prediction_section("dnd_class", dnd_class_section_layout)
+    _install_prediction_header_action(owner, dnd_class_section_layout, "dnd_class")
     owner.dnd_prediction_class_label = _make_predictions_loading_label(
         "Loading Fantasy RPG class predictions…",  #for this UID
         alignment=Qt.AlignLeft | Qt.AlignTop,
@@ -1842,6 +1899,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         expanded=True,
     )
     register_prediction_section("dnd_alignment", dnd_alignment_section_layout)
+    _install_prediction_header_action(owner, dnd_alignment_section_layout, "dnd_alignment")
     owner.dnd_alignment_chart_panel = QWidget()
     owner.dnd_alignment_chart_layout = QVBoxLayout()
     owner.dnd_alignment_chart_layout.setContentsMargins(0, 0, 0, 0)

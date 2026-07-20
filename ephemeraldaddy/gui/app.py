@@ -38246,6 +38246,7 @@ class MainWindow(QMainWindow):
             manual_recalculation_provider=lambda: bool(getattr(self, "_predictions_manual_recalculation_only", True)),
             norm_charts_provider=self._prediction_norm_charts,
             norm_charts_token_provider=self._prediction_norms_render_token,
+            header_action_callback=getattr(self, "_set_prediction_header_action", None),
         )
 
     def _draw_enneagram_predictions(self, ax, chart: Chart) -> None:
