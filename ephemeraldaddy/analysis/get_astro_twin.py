@@ -1842,7 +1842,19 @@ def find_astro_twins(
         if apply_least_similar_dominance_guardrail
         else set()
     )
+    normalized_custom_settings = custom_settings or SimilarityCalculatorSettings.defaults_for_default_mode()
+    if use_all_or_nothing:
+        normalized_custom_settings = all_or_nothing_similarity_settings(normalized_custom_settings)
+    placement_weighting_mode = normalized_custom_settings.normalized_placement_weighting_mode()
+    demographic_match_mode = normalized_custom_settings.normalized_demographic_match_mode()
+    hidden_ids = {int(chart_id) for chart_id in (hidden_chart_ids or set())}
     candidate_list = list(candidates) if use_database_distinction else candidates
+    if use_database_distinction and demographic_match_mode != ASTRO_TWIN_DEMOGRAPHIC_MATCH_NONE:
+        candidate_list = [
+            (chart_id, candidate)
+            for chart_id, candidate in candidate_list
+            if astro_twin_demographic_matches(query_chart, candidate, demographic_match_mode)
+        ]
     candidate_total = len(candidate_list) if isinstance(candidate_list, list) else None
     collect_all_matches = bool(candidate_total is not None and target_k >= candidate_total)
     distinction_norm_charts = [chart for _chart_id, chart in candidate_list] if use_database_distinction else []
@@ -1851,12 +1863,6 @@ def find_astro_twins(
         from ephemeraldaddy.gui.features.charts.distinguishing_factors import database_distinction_profile
 
         distinction_profile = database_distinction_profile(query_chart, distinction_norm_charts)
-    normalized_custom_settings = custom_settings or SimilarityCalculatorSettings.defaults_for_default_mode()
-    if use_all_or_nothing:
-        normalized_custom_settings = all_or_nothing_similarity_settings(normalized_custom_settings)
-    placement_weighting_mode = normalized_custom_settings.normalized_placement_weighting_mode()
-    demographic_match_mode = normalized_custom_settings.normalized_demographic_match_mode()
-    hidden_ids = {int(chart_id) for chart_id in (hidden_chart_ids or set())}
     processed_count = 0
     for chart_id, candidate in candidate_list:
         processed_count += 1

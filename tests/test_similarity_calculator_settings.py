@@ -1,4 +1,5 @@
-from types import SimpleNamespace
+import sys
+from types import ModuleType, SimpleNamespace
 
 from ephemeraldaddy.analysis import get_astro_twin
 from ephemeraldaddy.analysis.get_astro_twin import (
@@ -579,6 +580,50 @@ def test_all_or_nothing_least_similar_skips_dominance_guardrail(monkeypatch):
 def test_database_distinction_algorithm_mode_is_supported():
     assert normalize_similar_charts_algorithm_mode("database distinction") == "database_distinction"
     assert normalize_similar_charts_algorithm_mode("database_distinction") == "database_distinction"
+
+
+def test_database_distinction_norms_are_filtered_by_demographic_mode(monkeypatch):
+    distinguishing_factors = ModuleType("ephemeraldaddy.gui.features.charts.distinguishing_factors")
+    monkeypatch.setitem(
+        sys.modules,
+        "ephemeraldaddy.gui.features.charts.distinguishing_factors",
+        distinguishing_factors,
+    )
+
+    profiled_norm_names = []
+    scored_norm_names = []
+
+    def fake_profile(_query, norm_charts):
+        profiled_norm_names.extend(chart.name for chart in norm_charts)
+        return SimpleNamespace(factors=("profiled",), concentration_traits=(), repeated_gate_counts=())
+
+    def fake_score(_profile, candidate, norm_charts):
+        scored_norm_names.append((candidate.name, tuple(chart.name for chart in norm_charts)))
+        return 0.5, {"repeated_hd_gates": 0.5}
+
+    monkeypatch.setattr(distinguishing_factors, "database_distinction_profile", fake_profile, raising=False)
+    monkeypatch.setattr(distinguishing_factors, "database_distinction_similarity_score", fake_score, raising=False)
+    query = SimpleNamespace(name="Query", gender="Female", positions={"Sun": 0.0}, is_placeholder=False)
+    candidates = [
+        (1, SimpleNamespace(name="AFAB-M", gender="AFAB-M", positions={"Sun": 1.0}, is_placeholder=False)),
+        (2, SimpleNamespace(name="AFAB-NB", gender="AFAB-NB", positions={"Sun": 2.0}, is_placeholder=False)),
+        (3, SimpleNamespace(name="Male", gender="Male", positions={"Sun": 3.0}, is_placeholder=False)),
+    ]
+
+    matches = find_astro_twins(
+        query,
+        candidates,
+        top_k=3,
+        algorithm_mode="database_distinction",
+        custom_settings=SimilarityCalculatorSettings(demographic_match_mode="sex"),
+    )
+
+    assert profiled_norm_names == ["AFAB-M", "AFAB-NB"]
+    assert scored_norm_names == [
+        ("AFAB-M", ("AFAB-M", "AFAB-NB")),
+        ("AFAB-NB", ("AFAB-M", "AFAB-NB")),
+    ]
+    assert [match.chart_name for match in matches] == ["AFAB-M", "AFAB-NB"]
 
 
 def test_demographic_match_mode_defaults_to_no_preference():
