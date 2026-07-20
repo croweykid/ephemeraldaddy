@@ -333,9 +333,15 @@ def fetch_word_definition(word: str, *, timeout_seconds: float = 1.8) -> str:
                 parsed = None
 
             if isinstance(parsed, list) and parsed:
-                entry = parsed[0]
-                meanings = entry.get("meanings") if isinstance(entry, dict) else None
-                if isinstance(meanings, list):
+                for entry in parsed:
+                    if not isinstance(entry, dict):
+                        continue
+                    entry_word = str(entry.get("word") or "").strip().casefold()
+                    if entry_word and entry_word != cleaned:
+                        continue
+                    meanings = entry.get("meanings")
+                    if not isinstance(meanings, list):
+                        continue
                     for meaning in meanings:
                         definitions = meaning.get("definitions") if isinstance(meaning, dict) else None
                         if not isinstance(definitions, list):
@@ -369,9 +375,15 @@ def fetch_word_definition(word: str, *, timeout_seconds: float = 1.8) -> str:
         except ValueError:
             parsed = None
         if isinstance(parsed, list) and parsed:
-            first = parsed[0]
-            defs = first.get("defs") if isinstance(first, dict) else None
-            if isinstance(defs, list):
+            for first in parsed:
+                if not isinstance(first, dict):
+                    continue
+                result_word = str(first.get("word") or "").strip().casefold()
+                if result_word != cleaned:
+                    continue
+                defs = first.get("defs")
+                if not isinstance(defs, list):
+                    continue
                 for item in defs:
                     if not isinstance(item, str):
                         continue
