@@ -222,3 +222,66 @@ def test_definition_clicked_toggles_inline_detail_and_rerenders_word_list(monkey
     assert presenter.state.clicked_definitions == {}
     assert definition_label.update_geometry_calls == 2
     assert widgets.container.update_geometry_calls == 4
+
+class FakeDefinitionResponse:
+    def __init__(self, status_code, payload):
+        self.status_code = status_code
+        self._payload = payload
+
+    def json(self):
+        return self._payload
+
+
+class FakeDefinitionSession:
+    def __init__(self, responses):
+        self.responses = list(responses)
+        self.urls = []
+
+    def get(self, url, **_kwargs):
+        self.urls.append(url)
+        return self.responses.pop(0)
+
+
+def test_fetch_word_definition_ignores_dictionary_api_spelling_substitutions(monkeypatch):
+    anagrams.fetch_word_definition.cache_clear()
+    session = FakeDefinitionSession(
+        [
+            FakeDefinitionResponse(
+                200,
+                [
+                    {
+                        "word": "antitumor",
+                        "meanings": [
+                            {"definitions": [{"definition": "Acting against tumors."}]}
+                        ],
+                    }
+                ],
+            ),
+            FakeDefinitionResponse(200, []),
+        ]
+    )
+    monkeypatch.setattr(anagrams, "_DEFINITION_HTTP_SESSION", session)
+
+    try:
+        assert anagrams.fetch_word_definition("antirumor") == "Definition unavailable."
+    finally:
+        anagrams.fetch_word_definition.cache_clear()
+
+
+def test_fetch_word_definition_ignores_datamuse_spelling_suggestions(monkeypatch):
+    anagrams.fetch_word_definition.cache_clear()
+    session = FakeDefinitionSession(
+        [
+            FakeDefinitionResponse(404, {}),
+            FakeDefinitionResponse(
+                200,
+                [{"word": "antitumor", "defs": ["adj\tActing against tumors."]}],
+            ),
+        ]
+    )
+    monkeypatch.setattr(anagrams, "_DEFINITION_HTTP_SESSION", session)
+
+    try:
+        assert anagrams.fetch_word_definition("antirumor") == "Definition unavailable."
+    finally:
+        anagrams.fetch_word_definition.cache_clear()

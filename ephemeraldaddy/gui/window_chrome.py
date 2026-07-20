@@ -58,6 +58,36 @@ def update_main_window_title(window: "QMainWindow") -> None:
     window.setWindowTitle(f"{APP_DISPLAY_NAME} | Natal Chart of {chart_name}")
 
 
+def _resolve_menu_handler(window: "QWidget", *handler_names: str) -> Callable[..., Any] | None:
+    """Return the first callable handler available on a menu owner.
+
+    Database View keeps a logical app owner separately from Qt parentage, so
+    window-chrome actions should also consider that owner before disabling a
+    menu item. This keeps shared app actions, including Settings, reachable
+    from both top-level windows.
+    """
+
+    candidates: list[Any] = [window]
+    owner = getattr(window, "_app_owner", None)
+    if owner is not None:
+        candidates.append(owner)
+    owner_method = getattr(window, "_owner_window", None)
+    if callable(owner_method):
+        try:
+            resolved_owner = owner_method()
+        except Exception:
+            resolved_owner = None
+        if resolved_owner is not None and resolved_owner not in candidates:
+            candidates.append(resolved_owner)
+
+    for candidate_owner in candidates:
+        for name in handler_names:
+            candidate = getattr(candidate_owner, name, None)
+            if callable(candidate):
+                return candidate
+    return None
+
+
 def _bind_menu_action(menu, label: str, window: "QWidget", *handler_names: str) -> None:
     """Attach a menu action to the first available window handler.
 
@@ -65,13 +95,7 @@ def _bind_menu_action(menu, label: str, window: "QWidget", *handler_names: str) 
     or been renamed.
     """
 
-    handler: Callable[..., Any] | None = None
-    for name in handler_names:
-        candidate = getattr(window, name, None)
-        if callable(candidate):
-            handler = candidate
-            break
-
+    handler = _resolve_menu_handler(window, *handler_names)
     if handler is None:
         action = menu.addAction(label)
         action.setEnabled(False)
@@ -80,16 +104,15 @@ def _bind_menu_action(menu, label: str, window: "QWidget", *handler_names: str) 
     menu.addAction(label, handler)
 
 
+def _bind_settings_menu_action(menu, owner: "QWidget") -> None:
+    """Attach the Settings action used by Chart View and Database View chrome."""
+    _bind_menu_action(menu, "Settings", owner, "_on_open_settings", "on_open_settings")
+
+
 def _add_preferences_submenu(app_menu, owner: "QWidget") -> None:
     """Attach the Preferences submenu and known preference actions."""
     preferences_menu = app_menu.addMenu("Preferences")
-    _bind_menu_action(
-        preferences_menu,
-        "Settings",
-        owner,
-        "_on_open_settings",
-        "on_open_settings",
-    )
+    _bind_settings_menu_action(preferences_menu, owner)
 
 
 def _configure_menu_bar_visibility(menu_bar) -> None:
@@ -264,7 +287,7 @@ def configure_main_window_chrome(window: "QMainWindow") -> None:
     menu_bar.clear()
 
     app_menu = menu_bar.addMenu(APP_DISPLAY_NAME)
-    _bind_menu_action(app_menu, "Settings", window, "_on_open_settings", "on_open_settings")
+    _bind_settings_menu_action(app_menu, window)
     _add_preferences_submenu(app_menu, window)
     app_menu.addAction("About", lambda: _show_about_from_onboarding(window))
     app_menu.addAction("Minimize", lambda: _minimize_window(window))
@@ -328,7 +351,7 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
     menu_bar.setStyleSheet(WINDOW_CHROME_MENU_STYLE)
 
     app_menu = menu_bar.addMenu(APP_DISPLAY_NAME)
-    _bind_menu_action(app_menu, "Settings", dialog, "_on_open_settings", "on_open_settings")
+    _bind_settings_menu_action(app_menu, dialog)
     _add_preferences_submenu(app_menu, dialog)
     app_menu.addAction("Minimize", lambda: _minimize_window(dialog))
     app_menu.addSeparator()
