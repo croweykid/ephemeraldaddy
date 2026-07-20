@@ -109,7 +109,7 @@ from ephemeraldaddy.gui.style import (
 
 
 DND_STAT_KEYS: tuple[str, ...] = ("STR", "DEX", "CON", "INT", "WIS", "CHA")
-DND_SPECIES_CLASS_CACHE_VERSION = 2
+DND_SPECIES_CLASS_CACHE_VERSION = 3
 logger = logging.getLogger(__name__)
 
 
@@ -169,7 +169,7 @@ def draw_dnd_statblock_predictions(
 def draw_dnd_species_predictions(ax: Any, chart: Any, *, apply_standard_bar_axes: Any) -> None:
     pick = SpeciesAssigner().assign(chart)
     top = pick.top_three[:10]
-    labels = [f"{family} ({subtype})" if subtype else family for family, subtype, _score in top]
+    labels = [_species_display_label(family, subtype) for family, subtype, _score in top]
     values = [float(score) for _family, _subtype, score in top]
     colors = get_cycled_earthtone_colors(len(labels))
     bars = ax.bar(labels, values)
@@ -692,33 +692,71 @@ def build_dnd_statblock_popout_info_html(
     )
 
 
+def _species_display_label(family: str, subtype: str) -> str:
+    subtype_text = str(subtype or "").strip()
+    return subtype_text if subtype_text else str(family)
+
+
 def format_dnd_species_info_text(
     family: str,
     subtype: str,
     score: float,
     evidence: list[str],
 ) -> str:
-    label = f"{family} ({subtype})" if subtype else family
+    label = _species_display_label(family, subtype)
     header = f"{label} • {score:.2f}"
+    description_line = _species_description_text(family, subtype)
+    category_line = f"Category: {family}" if subtype else ""
+    leading_lines = [header]
+    if category_line:
+        leading_lines.append(category_line)
+    leading_lines.extend([description_line, ""])
+    if evidence:
+        lines = [f"• {line}" for line in evidence]
+        return "\n".join(leading_lines + ["Evidence:"] + lines)
+    return "\n".join(
+        leading_lines
+        + [
+            "• Evidence is unavailable for this species assignment.",
+        ]
+    )
+
+
+def _species_description_text(family: str, subtype: str) -> str:
     species_description = SPECIES_DESCRIPTIONS.get(family, "")
     subtype_key = f"{family}::{subtype}" if subtype else ""
     subtype_description = SPECIES_DESCRIPTIONS.get(subtype_key, "")
     description_parts = [part for part in (species_description, subtype_description) if part]
-    description_line = (
+    return (
         " ".join(description_parts)
         if description_parts
         else "Species flavor text unavailable."
     )
-    if evidence:
-        lines = [f"• {line}" for line in evidence]
-        return "\n".join([header, description_line, "", "Evidence:"] + lines)
-    return "\n".join(
-        [
-            header,
-            description_line,
-            "",
-            "• Evidence is unavailable for this species assignment.",
-        ]
+
+
+def format_dnd_species_info_html(
+    family: str,
+    subtype: str,
+    score: float,
+    evidence: list[str],
+) -> str:
+    label = _species_display_label(family, subtype)
+    description_text = _species_description_text(family, subtype)
+    category_html = ""
+    if str(subtype or "").strip():
+        category_html = f"<div><b>Category:</b> {html.escape(str(family))}</div>"
+    evidence_items = "".join(f"<li>{html.escape(str(line))}</li>" for line in evidence if str(line).strip())
+    if not evidence_items:
+        evidence_items = "<li>Evidence is unavailable for this species assignment.</li>"
+    return (
+        f'<div><b><span style="color:{CHART_DATA_HIGHLIGHT_COLOR};">{html.escape(label)}</span></b> '
+        f"<span>• {float(score):.2f}</span></div>"
+        f"{category_html}"
+        f"<div style='height:8px;'></div>"
+        f"<div>{html.escape(description_text)}</div>"
+        f"<div style='height:8px;'></div>"
+        f"<div><b>Evidence:</b></div>"
+        f"<ul>{evidence_items}</ul>"
     )
 
 
@@ -829,7 +867,7 @@ def _collect_ranked_species_payloads(chart: Any) -> list[dict[str, Any]]:
     payloads: list[dict[str, Any]] = []
     for family, subtype, score, evidence in species_rankings:
         subtype_text = str(subtype or "").strip()
-        label = f"{family} ({subtype_text})" if subtype_text else str(family)
+        label = _species_display_label(str(family), subtype_text)
         payloads.append(
             {
                 "label": label,
@@ -1305,6 +1343,11 @@ def configure_dnd_top_three_summary_label(
             before_show()
         set_chart_info_text(info_panel, text)
 
+    def _show_html(html_text: str) -> None:
+        if before_show is not None:
+            before_show()
+        set_chart_info_html(info_panel, html_text)
+
     def _on_link_activated(href: str) -> None:
         prefix, _separator, index_text = str(href).partition(":")
         if prefix == "dnd-species-more":
@@ -1319,8 +1362,8 @@ def configure_dnd_top_three_summary_label(
             return
         if prefix == "dnd-species" and 0 <= index < len(species_payloads):
             payload = species_payloads[index]
-            _show_text(
-                format_dnd_species_info_text(
+            _show_html(
+                format_dnd_species_info_html(
                     str(payload.get("family", "Unknown Species")),
                     str(payload.get("subtype", "")),
                     float(payload.get("score", 0.0)),
@@ -1538,7 +1581,13 @@ class DndPredictionPanelAdapter:
         self.calculate_callback = calculate_callback
         self.reset_canvas_callback = reset_canvas_callback
 
+    def _set_header_action(self, section: str, state: str) -> None:
+        callback = getattr(self.owner, "_set_prediction_header_action", None)
+        if callable(callback):
+            callback(section, state)
+
     def _show_calculate_prompt(self, chart: Any | None, *, layout: Any = None, section: str = "dnd_statblock", summary_text: str | None = None) -> None:
+        self._set_header_action(section, "calculate")
         target_layout = layout or self.chart_layout
         if target_layout is None:
             return
@@ -1560,11 +1609,7 @@ class DndPredictionPanelAdapter:
         label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
         label.setMinimumHeight(label.sizeHint().height())
         label.setStyleSheet("color: #f5f5f5; font-weight: 600;")
-        button = QPushButton("Calculate!")
-        button.setStyleSheet("background-color: #7b4dff; color: white; font-weight: bold; padding: 6px 14px; border-radius: 5px;")
-        button.clicked.connect(lambda _checked=False, chart=chart, section=section: self.calculate_callback(chart, section) if callable(self.calculate_callback) and chart is not None else None)
         panel_layout.addWidget(label, alignment=Qt.AlignCenter)
-        panel_layout.addWidget(button, alignment=Qt.AlignCenter)
         target_layout.addWidget(panel)
 
     def _norm_charts(self) -> Any:
@@ -2048,6 +2093,7 @@ class DndPredictionPanelAdapter:
         return bool(getattr(self.owner, "_predictions_manual_recalculation_only", True))
 
     def _show_stale_recalculate_notice(self, layout: Any, chart: Any, section: str, *, refreshing: bool = False) -> None:
+        self._set_header_action(section, "recalculate")
         if layout is None:
             return
         self._remove_stale_recalculate_notices(layout)
@@ -2066,11 +2112,7 @@ class DndPredictionPanelAdapter:
         label = QLabel(label_text)
         label.setWordWrap(True)
         label.setStyleSheet("color: #d8d8d8; font-style: italic; padding: 2px 0 0 0;")
-        button = QPushButton("Recalculate")
-        button.setStyleSheet("background-color: #7b4dff; color: white; font-weight: bold; font-style: italic; padding: 6px 14px; border-radius: 5px;")
-        button.clicked.connect(lambda _checked=False, chart=chart, section=section: self.calculate_callback(chart, section) if callable(self.calculate_callback) else None)
         panel_layout.addWidget(label, alignment=Qt.AlignCenter)
-        panel_layout.addWidget(button, alignment=Qt.AlignCenter)
         try:
             layout.insertWidget(0, panel)
         except Exception:
@@ -2131,6 +2173,9 @@ class DndPredictionPanelAdapter:
         statblock_cache = self._restore_statblock_cache(chart)
         auto_refresh_started = False
         species_class_stale = self._species_class_cache_is_stale(chart)
+        if render_species_class and not species_class_stale:
+            self._set_header_action("dnd_species", "up_to_date")
+            self._set_header_action("dnd_class", "up_to_date")
         if render_species_class and species_class_stale:
             manual_only = self._manual_recalculation_only()
             self._show_species_class_stale_recalculate_notices(chart, refreshing=not manual_only)
@@ -2154,6 +2199,8 @@ class DndPredictionPanelAdapter:
                 if not manual_only and not auto_refresh_started and callable(self.calculate_callback):
                     auto_refresh_started = True
                     self.calculate_callback(chart, None)
+            else:
+                self._set_header_action("dnd_statblock", "up_to_date")
         elif render_statblock:
             self._show_calculate_prompt(chart, section="dnd_statblock")
 
@@ -2199,6 +2246,8 @@ class DndPredictionPanelAdapter:
                     self._show_stale_recalculate_notice(self.alignment_layout, chart, "dnd_alignment", refreshing=not manual_only)
                     if not manual_only and not auto_refresh_started and callable(self.calculate_callback):
                         self.calculate_callback(chart, None)
+                else:
+                    self._set_header_action("dnd_alignment", "up_to_date")
                 self._render_alignment_debug_summary(chart)
             else:
                 self._show_calculate_prompt(chart, layout=self.alignment_layout, section="dnd_alignment")

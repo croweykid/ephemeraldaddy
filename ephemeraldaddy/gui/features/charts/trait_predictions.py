@@ -1662,10 +1662,7 @@ def _traits_calculate_prompt_html() -> str:
         "No prior data. Calculate (can take awhile)?"
         "</div>"
         "<div style='height:10px;'></div>"
-        "<a href='trait-predictions:calculate' "
-        "style='display:inline-block; background-color:#7b4dff; color:white; "
-        "font-weight:bold; padding:7px 16px; border-radius:5px; text-decoration:none;'>"
-        "Calculate!</a>"
+        "<div style='color:#d8c8ff; font-style:italic;'>Use the 🧮 button in this section header to calculate.</div>"
         "</div>"
     )
 
@@ -1674,11 +1671,7 @@ def _traits_recalculate_prompt_html(updated_at: str | None) -> str:
     timestamp = html.escape(updated_at or "unknown")
     return (
         "<div style='width:100%; padding:0 0 8px 0; text-align:center; color:#b8b8b8;'>"
-        f"<span style='font-style:italic;'>Cached trait predictions shown. Last calculated: {timestamp}.</span> "
-        "<a href='trait-predictions:calculate' "
-        "style='display:inline-block; margin-left:6px; background-color:#7b4dff; color:white; "
-        "font-weight:bold; padding:4px 10px; border-radius:5px; text-decoration:none;'>"
-        "Recalculate!</a>"
+        f"<span style='font-style:italic;'>Cached trait predictions shown. Last calculated: {timestamp}. Use the ♻️ header button to recalculate.</span> "
         "</div>"
     )
 
@@ -1688,13 +1681,15 @@ def _traits_stale_recalculate_prompt_html(updated_at: str | None) -> str:
     return (
         "<div style='width:100%; padding:0 0 8px 0; text-align:center; color:#ffdf8a;'>"
         "<span style='font-style:italic;'>Cached trait predictions shown, but the chart's birth data "
-        f"has changed since they were calculated ({timestamp}).</span> "
-        "<a href='trait-predictions:calculate' "
-        "style='display:inline-block; margin-left:6px; background-color:#7b4dff; color:white; "
-        "font-weight:bold; padding:4px 10px; border-radius:5px; text-decoration:none;'>"
-        "Recalculate!</a>"
+        f"has changed since they were calculated ({timestamp}). Use the ♻️ header button to recalculate.</span> "
         "</div>"
     )
+
+
+def _set_traits_header_action(owner: Any, state: str) -> None:
+    callback = getattr(owner, "_set_prediction_header_action", None)
+    if callable(callback):
+        callback("traits", state)
 
 
 def _predictions_manual_recalculation_only(owner: Any) -> bool:
@@ -1733,6 +1728,11 @@ def _trait_render_signatures(owner: Any, chart: Any, traits: list[dict[str, Any]
         "norm_signature": norm_signature,
         "chart_signature": _chart_trait_metadata_signature(chart),
     }
+
+
+def start_traits_prediction_calculation(owner: Any) -> None:
+    """Start the existing Traits prediction calculation flow from external UI controls."""
+    _start_traits_prediction_calculation(owner)
 
 
 def _start_traits_prediction_calculation(owner: Any) -> None:
@@ -2177,6 +2177,7 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
         owner._traits_prediction_pending_cache_key = cache_key or ""
         owner._traits_prediction_pending_signatures = signatures
         if bool(cached_metadata.get("stale")):
+            _set_traits_header_action(owner, "recalculate")
             if _predictions_manual_recalculation_only(owner):
                 _apply_traits_prediction_metadata(
                     owner,
@@ -2193,6 +2194,7 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
                 )
                 QTimer.singleShot(0, lambda owner=owner: _start_traits_prediction_calculation(owner))
         else:
+            _set_traits_header_action(owner, "up_to_date")
             _apply_traits_prediction_metadata(owner, traits, cached_metadata)
         return
 
@@ -2200,6 +2202,7 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
     owner._traits_prediction_pending_traits = traits
     owner._traits_prediction_pending_cache_key = cache_key or ""
     owner._traits_prediction_pending_signatures = signatures
+    _set_traits_header_action(owner, "calculate")
     if _predictions_manual_recalculation_only(owner):
         _predictions_debug(owner, "Trait render found no persisted trait metadata; waiting for manual calculate cache_key=%s", (cache_key or "")[:12])
         prompt_html = _traits_calculate_prompt_html()
