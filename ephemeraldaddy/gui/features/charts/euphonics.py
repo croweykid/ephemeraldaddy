@@ -56,6 +56,17 @@ def _entry_tokens(entry: dict[str, Any]) -> set[str]:
     return tokens
 
 
+def _name_parts_with_offsets(name: str) -> list[tuple[str, int]]:
+    """Return normalized alphabetic name parts and their starts in the joined name."""
+    parts: list[tuple[str, int]] = []
+    joined_offset = 0
+    for match in re.finditer(r"[a-z]+", str(name or "").lower()):
+        part = match.group(0)
+        parts.append((part, joined_offset))
+        joined_offset += len(part)
+    return parts
+
+
 def _token_positions(normalized_name: str, token: str) -> list[int]:
     """Return overlapping occurrence positions for a euphonics token."""
     if not token:
@@ -64,6 +75,18 @@ def _token_positions(normalized_name: str, token: str) -> list[int]:
         match.start()
         for match in re.finditer(f"(?={re.escape(token)})", normalized_name)
     ]
+
+
+def _special_y_positions(entry_id: str, name_parts: list[tuple[str, int]]) -> list[int] | None:
+    """Return position-restricted matches for the context-sensitive Y entries."""
+    normalized_name = "".join(part for part, _offset in name_parts)
+    if entry_id == "Y_INITIAL":
+        return [offset for part, offset in name_parts if part.startswith("y")]
+    if entry_id == "Y_FINAL":
+        if normalized_name.endswith("y"):
+            return [len(normalized_name) - 1]
+        return []
+    return None
 
 
 def _sound_color(sound_id: str) -> str:
@@ -87,18 +110,24 @@ def _sound_color(sound_id: str) -> str:
 
 
 def euphonics_matches_for_name(name: str) -> list[dict[str, str | int]]:
-    """Match euphonics entries present in a chart name, sorted by frequency then appearance."""
-    normalized_name = re.sub(r"[^a-z]", "", str(name or "").lower())
+    """Match euphonics entries present in a chart name, sorted by first appearance."""
+    name_parts = _name_parts_with_offsets(str(name or ""))
+    normalized_name = "".join(part for part, _offset in name_parts)
     if not normalized_name:
         return []
     matches: list[dict[str, str | int]] = []
     seen: set[str] = set()
     for entry in euphonics_entries():
-        token_positions = [
-            (token, positions)
-            for token in entry["_tokens"]
-            if token and (positions := _token_positions(normalized_name, token))
-        ]
+        entry_id = str(entry.get("id") or entry.get("letterGroup") or "").strip()
+        special_positions = _special_y_positions(entry_id, name_parts)
+        if special_positions is not None:
+            token_positions = [("y", special_positions)] if special_positions else []
+        else:
+            token_positions = [
+                (token, positions)
+                for token in entry["_tokens"]
+                if token and (positions := _token_positions(normalized_name, token))
+            ]
         if not token_positions:
             continue
         matched_token, positions = max(
@@ -109,7 +138,7 @@ def euphonics_matches_for_name(name: str) -> list[dict[str, str | int]]:
                 len(token_and_positions[0]),
             ),
         )
-        entry_id = str(entry.get("id") or entry.get("letterGroup") or matched_token).strip()
+        entry_id = entry_id or matched_token
         if entry_id in seen:
             continue
         seen.add(entry_id)
@@ -124,7 +153,7 @@ def euphonics_matches_for_name(name: str) -> list[dict[str, str | int]]:
                 "color": _sound_color(entry_id),
             }
         )
-    matches.sort(key=lambda match: (-int(match["occurrences"]), int(match["first_index"])))
+    matches.sort(key=lambda match: int(match["first_index"]))
     return matches
 
 
