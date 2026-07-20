@@ -1483,6 +1483,7 @@ def _contrasting_similarities_section_title(section_title: str) -> str:
     return f"Contrasting {factor_name}"
 
 from ephemeraldaddy.analysis.dnd.species_assigner_v2 import (
+    FAMILY_SUBTYPES,
     SPECIES_FAMILIES,
     assign_top_three_species,
     assign_top_three_species_with_evidence,
@@ -10976,6 +10977,10 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             and birthdate_latest_year is None
             and self.species_filter_combo.currentData() == "Any"
             and (
+                not hasattr(self, "subspecies_filter_combo")
+                or self.subspecies_filter_combo.currentData() == "Any"
+            )
+            and (
                 not hasattr(self, "dnd_class_filter_combo")
                 or self.dnd_class_filter_combo.currentData() == "Any"
             )
@@ -17732,6 +17737,8 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             if hasattr(self, "dnd_class_filter_combo") and self.dnd_class_filter_combo is not None:
                 self.dnd_class_filter_combo.setCurrentIndex(0)
             self.species_filter_combo.setCurrentIndex(0)
+            if hasattr(self, "subspecies_filter_combo") and self.subspecies_filter_combo is not None:
+                self.subspecies_filter_combo.setCurrentIndex(0)
             for min_input in self._dnd_stat_filter_min_inputs.values():
                 min_input.setText("")
             for max_input in self._dnd_stat_filter_max_inputs.values():
@@ -20023,6 +20030,49 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         self._populate_list(selected_ids=set(self._selected_chart_ids()) | normalized_ids, refresh_metrics=False)
         self._on_selection_changed(sync_persistent_selection=False)
 
+    def _cached_top_three_species_for_filter(self, chart) -> list[tuple[str, str]]:
+        """Return cached Top 3 Species/Subspecies without recalculating predictions.
+
+        The Fantasy RPG species scorer is intentionally expensive. Database View
+        search must not run that scorer synchronously for every row when a
+        dropdown changes, because doing so blocks the UI. This filter therefore
+        reads already-generated prediction metadata from chart memory, the
+        owner-level prediction cache, or persisted UID metadata only.
+        """
+        chart_uid = str(getattr(chart, "chart_uid", "") or "").strip()
+        payload = getattr(chart, "_dnd_species_class_prediction_cache", None)
+        if not isinstance(payload, dict):
+            chart_cache_id = chart_uid or str(id(chart))
+            owner_cache = getattr(self, "_dnd_species_class_prediction_view_cache", {})
+            payload = owner_cache.get(chart_cache_id) if isinstance(owner_cache, dict) else None
+        if not isinstance(payload, dict) and chart_uid:
+            filter_cache = getattr(self, "_dnd_species_search_filter_cache", None)
+            if not isinstance(filter_cache, dict):
+                try:
+                    from ephemeraldaddy.core import db
+
+                    stored_metadata = db.get_all_chart_dnd_prediction_metadata()
+                except Exception:
+                    stored_metadata = {}
+                filter_cache = {
+                    uid: (stored.get("species_class") if isinstance(stored, dict) else {})
+                    for uid, stored in stored_metadata.items()
+                }
+                self._dnd_species_search_filter_cache = filter_cache
+            payload = filter_cache.get(chart_uid, {})
+        species_payloads = payload.get("species") if isinstance(payload, dict) else None
+        if not isinstance(species_payloads, list):
+            return []
+        top_three: list[tuple[str, str]] = []
+        for entry in species_payloads[:3]:
+            if not isinstance(entry, dict):
+                continue
+            family = str(entry.get("family", "") or "").strip()
+            subtype = str(entry.get("subtype", "") or "").strip()
+            if family:
+                top_three.append((family, subtype))
+        return top_three
+
     def _chart_matches_filters(self, chart_id: int) -> bool:
         incomplete_birthdate_state = self.incomplete_birthdate_checkbox.mode()
         hidden_charts_state = (
@@ -20131,6 +20181,11 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             else ""
         )
         selected_species = self.species_filter_combo.currentData()
+        selected_subspecies = (
+            self.subspecies_filter_combo.currentData()
+            if hasattr(self, "subspecies_filter_combo") and self.subspecies_filter_combo is not None
+            else "Any"
+        )
         selected_dnd_class = (
             self.dnd_class_filter_combo.currentData()
             if hasattr(self, "dnd_class_filter_combo") and self.dnd_class_filter_combo is not None
@@ -20564,17 +20619,27 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             if chart_birthdate_latest is not None and chart_birthdate > chart_birthdate_latest:
                 return False
 
-        if selected_species != "Any":
+        if selected_species != "Any" or selected_subspecies != "Any":
             chart = self._get_chart_for_filter(chart_id)
             if chart is None:
                 return False
-            species_top_three = assign_top_three_species(chart)
+            species_top_three = self._cached_top_three_species_for_filter(chart)
+            if not species_top_three:
+                return False
             top_three_species = {
                 species_name
-                for species_name, _subtype, _score in species_top_three[:3]
+                for species_name, _subtype in species_top_three[:3]
             }
-            if selected_species not in top_three_species:
+            if selected_species != "Any" and selected_species not in top_three_species:
                 return False
+            if selected_subspecies != "Any":
+                top_three_subspecies = {
+                    subtype
+                    for species_name, subtype in species_top_three[:3]
+                    if selected_species == "Any" or species_name == selected_species
+                }
+                if selected_subspecies not in top_three_subspecies:
+                    return False
 
         if selected_dnd_class != "Any":
             chart = self._get_chart_for_filter(chart_id)
