@@ -109,7 +109,7 @@ from ephemeraldaddy.gui.style import (
 
 
 DND_STAT_KEYS: tuple[str, ...] = ("STR", "DEX", "CON", "INT", "WIS", "CHA")
-DND_SPECIES_CLASS_CACHE_VERSION = 2
+DND_SPECIES_CLASS_CACHE_VERSION = 3
 logger = logging.getLogger(__name__)
 
 
@@ -705,15 +705,7 @@ def format_dnd_species_info_text(
 ) -> str:
     label = _species_display_label(family, subtype)
     header = f"{label} • {score:.2f}"
-    species_description = SPECIES_DESCRIPTIONS.get(family, "")
-    subtype_key = f"{family}::{subtype}" if subtype else ""
-    subtype_description = SPECIES_DESCRIPTIONS.get(subtype_key, "")
-    description_parts = [part for part in (species_description, subtype_description) if part]
-    description_line = (
-        " ".join(description_parts)
-        if description_parts
-        else "Species flavor text unavailable."
-    )
+    description_line = _species_description_text(family, subtype)
     category_line = f"Category: {family}" if subtype else ""
     leading_lines = [header]
     if category_line:
@@ -730,6 +722,18 @@ def format_dnd_species_info_text(
     )
 
 
+def _species_description_text(family: str, subtype: str) -> str:
+    species_description = SPECIES_DESCRIPTIONS.get(family, "")
+    subtype_key = f"{family}::{subtype}" if subtype else ""
+    subtype_description = SPECIES_DESCRIPTIONS.get(subtype_key, "")
+    description_parts = [part for part in (species_description, subtype_description) if part]
+    return (
+        " ".join(description_parts)
+        if description_parts
+        else "Species flavor text unavailable."
+    )
+
+
 def format_dnd_species_info_html(
     family: str,
     subtype: str,
@@ -737,6 +741,7 @@ def format_dnd_species_info_html(
     evidence: list[str],
 ) -> str:
     label = _species_display_label(family, subtype)
+    description_text = _species_description_text(family, subtype)
     category_html = ""
     if str(subtype or "").strip():
         category_html = f"<div><b>Category:</b> {html.escape(str(family))}</div>"
@@ -747,6 +752,8 @@ def format_dnd_species_info_html(
         f'<div><b><span style="color:{CHART_DATA_HIGHLIGHT_COLOR};">{html.escape(label)}</span></b> '
         f"<span>• {float(score):.2f}</span></div>"
         f"{category_html}"
+        f"<div style='height:8px;'></div>"
+        f"<div>{html.escape(description_text)}</div>"
         f"<div style='height:8px;'></div>"
         f"<div><b>Evidence:</b></div>"
         f"<ul>{evidence_items}</ul>"

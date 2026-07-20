@@ -25,3 +25,8 @@ def test_dnd_species_prediction_click_uses_formatted_html_info_panel():
     assert "CHART_DATA_HIGHLIGHT_COLOR" in SOURCE
     assert "set_chart_info_html(info_panel, html_text)" in SOURCE
     assert "format_dnd_species_info_html(" in SOURCE
+    assert "description_text = _species_description_text(family, subtype)" in SOURCE
+
+
+def test_dnd_species_prediction_cache_version_invalidates_old_labels():
+    assert "DND_SPECIES_CLASS_CACHE_VERSION = 3" in SOURCE
