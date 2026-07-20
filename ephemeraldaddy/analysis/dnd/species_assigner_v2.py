@@ -1114,7 +1114,7 @@ class SpeciesAssigner:
             evidence.append("Rodent family is clear, but without a narrow subtype lock.")
             return "Mousefolk", evidence
 
-        if family == "Shapeshifter":
+        if family == "Shifter":
             if max(float(sr.get("Gemini", 0.0)), float(sr.get("Pisces", 0.0)), link("Mercury", "Neptune")) >= 0.30:
                 evidence.append("Socially fluid mutable coding selects Changeling.")
                 return "Changeling", evidence
