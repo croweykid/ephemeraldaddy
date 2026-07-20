@@ -1363,6 +1363,71 @@ def _build_material_facts_panel(owner: QWidget) -> QWidget:
 
 
 
+
+def normalize_emoji_portrait_text(value: str, *, limit: int = 10) -> str:
+    """Return a compact emoji/glyph portrait value suitable for chart metadata."""
+    normalized_chars: list[str] = []
+    for char in str(value or ""):
+        if char.isspace() or char.isalnum():
+            continue
+        normalized_chars.append(char)
+        if len(normalized_chars) >= limit:
+            break
+    return "".join(normalized_chars)
+
+
+def setup_chart_view_emoji_portrait_section(owner: QWidget, layout: QVBoxLayout) -> None:
+    """Build Chart View's Subjective Notes Emoji Portrait metadata input."""
+    portrait_box = _build_subjective_notes_metric_section(
+        owner,
+        title="Emoji Portrait",
+        content_builder=lambda content_layout: _populate_emoji_portrait_section(owner, content_layout),
+    )
+    layout.addWidget(portrait_box)
+
+
+def _populate_emoji_portrait_section(owner: QWidget, content_layout: QVBoxLayout) -> None:
+    helper_label = QLabel("Up to 10 emojis, punctuation, or glyphs. Letters/numbers/spaces are ignored.")
+    helper_label.setWordWrap(True)
+    helper_label.setStyleSheet("color: #b8b8b8;")
+    content_layout.addWidget(helper_label)
+
+    owner.emoji_portrait_edit = QLineEdit()
+    owner.emoji_portrait_edit.setObjectName("chart_view_emoji_portrait_edit")
+    owner.emoji_portrait_edit.setPlaceholderText("e.g. 🦇✨🗡️?!")
+    owner.emoji_portrait_edit.setToolTip("Saved to this chart's metadata; max 10 emojis, punctuation, or glyphs.")
+
+    def sanitize_emoji_portrait_text(text: str) -> None:
+        sanitized = normalize_emoji_portrait_text(text)
+        if sanitized == text:
+            return
+        cursor_position = min(owner.emoji_portrait_edit.cursorPosition(), len(sanitized))
+        owner.emoji_portrait_edit.blockSignals(True)
+        owner.emoji_portrait_edit.setText(sanitized)
+        owner.emoji_portrait_edit.setCursorPosition(cursor_position)
+        owner.emoji_portrait_edit.blockSignals(False)
+        owner._mark_lucygoosey()
+
+    owner.emoji_portrait_edit.textChanged.connect(sanitize_emoji_portrait_text)
+    owner.emoji_portrait_edit.textChanged.connect(owner._mark_lucygoosey)
+    content_layout.addWidget(owner.emoji_portrait_edit)
+
+
+def set_chart_view_emoji_portrait_state(owner: QWidget, value: str) -> None:
+    edit = getattr(owner, "emoji_portrait_edit", None)
+    if edit is None:
+        return
+    edit.blockSignals(True)
+    edit.setText(normalize_emoji_portrait_text(value))
+    edit.blockSignals(False)
+
+
+def get_chart_view_emoji_portrait(owner: QWidget) -> str:
+    edit = getattr(owner, "emoji_portrait_edit", None)
+    if edit is None:
+        return ""
+    return normalize_emoji_portrait_text(edit.text())
+
 def build_subjective_notes_alignment_sections(owner: QWidget, layout: QVBoxLayout) -> None:
     """Build Subjective Notes Alignment and Sexiness collapsible sections."""
     alignment_box = _build_subjective_notes_metric_section(
