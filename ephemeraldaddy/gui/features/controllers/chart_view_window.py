@@ -73,7 +73,10 @@ from ephemeraldaddy.gui.features.charts.anagrams import (
     chart_identity_options,
     chart_identity_text_for_source,
 )
-from ephemeraldaddy.gui.features.charts.euphonics import render_euphonics_html
+from ephemeraldaddy.gui.features.charts.euphonics import (
+    render_euphonics_compact_html,
+    render_euphonics_html,
+)
 from ephemeraldaddy.gui.features.charts.loading_overlay import ChartLoadingOverlay
 from ephemeraldaddy.gui.features.charts.prediction_loading_labels import start_prediction_loading_blink
 from ephemeraldaddy.gui.features.charts.time_sensitivity_panel import TimeSensitivityPanel
@@ -1577,6 +1580,33 @@ def _build_euphonics_section(owner: QWidget, panel: QWidget, layout: QVBoxLayout
     owner.euphonics_label.setStyleSheet(ABC_PANEL_BODY_LABEL_STYLE)
     section_layout.addWidget(owner.euphonics_label)
 
+    owner.euphonics_details_label = QLabel("No chart name available for Euphonics.")
+    owner.euphonics_details_label.setTextFormat(Qt.RichText)
+    owner.euphonics_details_label.setWordWrap(True)
+    owner.euphonics_details_label.setTextInteractionFlags(Qt.TextSelectableByMouse | Qt.LinksAccessibleByMouse)
+    owner.euphonics_details_label.setStyleSheet(ABC_PANEL_BODY_LABEL_STYLE)
+    owner.euphonics_details_label.setVisible(False)
+    section_layout.addWidget(owner.euphonics_details_label)
+
+    owner.euphonics_details_toggle = QToolButton()
+    owner.euphonics_details_toggle.setText("details")
+    owner.euphonics_details_toggle.setCheckable(True)
+    owner.euphonics_details_toggle.setAutoRaise(True)
+    owner.euphonics_details_toggle.setCursor(Qt.PointingHandCursor)
+    owner.euphonics_details_toggle.setStyleSheet(
+        "QToolButton { color: #9bd3ff; text-decoration: underline; padding: 0; }"
+    )
+
+    def toggle_details(checked: bool) -> None:
+        owner.euphonics_details_label.setVisible(checked)
+        owner.euphonics_details_toggle.setText("hide details" if checked else "details")
+        euphonics_box.adjustSize()
+        panel.adjustSize()
+        panel.updateGeometry()
+
+    owner.euphonics_details_toggle.toggled.connect(toggle_details)
+    section_layout.addWidget(owner.euphonics_details_toggle, 0, Qt.AlignLeft)
+
 
 def refresh_euphonics_for_chart(owner: QWidget, chart: Chart | None) -> None:
     """Refresh the ABC tab's Euphonics list for the selected name source."""
@@ -1600,7 +1630,14 @@ def refresh_euphonics_for_chart(owner: QWidget, chart: Chart | None) -> None:
         source_dropdown.setMinimumWidth(source_dropdown.sizeHint().width() + 12)
         source_dropdown.blockSignals(previous_block_state)
     _subject_label, subject_text = chart_identity_text_for_source(chart, selected_source)
-    label.setText(render_euphonics_html(str(subject_text or "")))
+    subject_name = str(subject_text or "")
+    label.setText(render_euphonics_compact_html(subject_name))
+    details_label = getattr(owner, "euphonics_details_label", None)
+    if details_label is not None:
+        details_label.setText(render_euphonics_html(subject_name))
+    details_toggle = getattr(owner, "euphonics_details_toggle", None)
+    if details_toggle is not None:
+        details_toggle.setChecked(False)
 
 
 def _build_subjective_notes_panel(owner: QWidget) -> tuple[QWidget, QVBoxLayout]:
