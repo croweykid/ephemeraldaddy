@@ -70,6 +70,153 @@ def test_schema_backfills_unique_chart_uids_for_legacy_rows():
     assert "chart_uid" in columns
     assert len({row[0] for row in rows}) == 2
     assert all(isinstance(row[0], str) and len(row[0]) >= 8 for row in rows)
+    marker = conn.execute(
+        "SELECT details_json FROM app_migrations WHERE key = ?",
+        (db.UID_FINALIZATION_MIGRATION_KEY,),
+    ).fetchone()
+    assert marker is not None
+
+
+def test_uid_finalization_rewrites_legacy_relationships_and_duplicate_exclusions():
+    conn = sqlite3.connect(":memory:")
+    conn.execute("PRAGMA user_version = 19")
+    conn.execute(
+        """
+        CREATE TABLE charts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            chart_uid TEXT,
+            name TEXT NOT NULL,
+            birth_place TEXT,
+            datetime_iso TEXT NOT NULL,
+            lat REAL NOT NULL,
+            lon REAL NOT NULL,
+            reminds_me_of TEXT,
+            alternate_chart_uid TEXT,
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+    first_id = conn.execute(
+        """
+        INSERT INTO charts (
+            chart_uid, name, birth_place, datetime_iso, lat, lon,
+            reminds_me_of, alternate_chart_uid, created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "FINALUID0000001",
+            "One",
+            "New York, USA",
+            "2000-01-01T12:00:00+00:00",
+            40.7128,
+            -74.0060,
+            "[2]",
+            "2",
+            datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        ),
+    ).lastrowid
+    second_id = conn.execute(
+        """
+        INSERT INTO charts (
+            chart_uid, name, birth_place, datetime_iso, lat, lon, created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "",
+            "Two",
+            "New York, USA",
+            "2000-01-01T12:00:00+00:00",
+            40.7128,
+            -74.0060,
+            datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        ),
+    ).lastrowid
+    conn.execute(
+        """
+        CREATE TABLE duplicate_exclusions (
+            chart_id_low INTEGER NOT NULL,
+            chart_id_high INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            PRIMARY KEY (chart_id_low, chart_id_high)
+        )
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO duplicate_exclusions (chart_id_low, chart_id_high, created_at)
+        VALUES (?, ?, ?)
+        """,
+        (first_id, second_id, datetime.now(timezone.utc).isoformat(timespec="seconds")),
+    )
+
+    db._ensure_schema(conn)
+
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == db.SCHEMA_VERSION
+    uid_rows = conn.execute("SELECT id, chart_uid FROM charts ORDER BY id ASC").fetchall()
+    uid_by_id = {int(chart_id): str(chart_uid) for chart_id, chart_uid in uid_rows}
+    assert uid_by_id[first_id] == "FINALUID0000001"
+    assert len(uid_by_id[second_id]) >= 8
+    reminds_me_of, alternate_uid = conn.execute(
+        "SELECT reminds_me_of, alternate_chart_uid FROM charts WHERE id = ?",
+        (first_id,),
+    ).fetchone()
+    assert db.parse_reminds_me_of_uids(reminds_me_of) == [uid_by_id[second_id]]
+    assert alternate_uid == uid_by_id[second_id]
+    assert conn.execute("SELECT COUNT(*) FROM duplicate_exclusions").fetchone()[0] == 0
+    assert conn.execute(
+        """
+        SELECT chart_uid_low, chart_uid_high
+        FROM duplicate_exclusions_uid
+        """
+    ).fetchall() == [tuple(sorted((uid_by_id[first_id], uid_by_id[second_id])))]
+    marker = conn.execute(
+        "SELECT details_json FROM app_migrations WHERE key = ?",
+        (db.UID_FINALIZATION_MIGRATION_KEY,),
+    ).fetchone()
+    assert marker is not None
+    assert '"legacy_duplicate_exclusions_rewritten":1' in marker[0]
+
+
+def test_uid_finalization_prints_terminal_confirmation(capsys):
+    conn = sqlite3.connect(":memory:")
+    conn.execute("PRAGMA user_version = 19")
+    conn.execute(
+        """
+        CREATE TABLE charts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            chart_uid TEXT,
+            name TEXT NOT NULL,
+            birth_place TEXT,
+            datetime_iso TEXT NOT NULL,
+            lat REAL NOT NULL,
+            lon REAL NOT NULL,
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO charts (chart_uid, name, birth_place, datetime_iso, lat, lon, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "",
+            "Terminal Confirmation",
+            "New York, USA",
+            "2000-01-01T12:00:00+00:00",
+            40.7128,
+            -74.0060,
+            datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        ),
+    )
+
+    db._ensure_schema(conn)
+
+    captured = capsys.readouterr()
+    assert "[EphemeralDaddy UID migration] Chart UID finalization complete:" in captured.err
+    assert "1 chart(s) verified" in captured.err
 
 
 def test_append_database_preserves_non_colliding_source_chart_uid(tmp_path, monkeypatch):

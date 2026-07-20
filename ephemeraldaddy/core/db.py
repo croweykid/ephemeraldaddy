@@ -8,6 +8,7 @@ import csv
 import math
 import shutil
 import sqlite3
+import sys
 import threading
 import uuid
 from datetime import datetime, timezone
@@ -278,9 +279,10 @@ def _is_personal_chart_type_for_age_inference(value: Optional[str]) -> bool:
 # ordering, joins, and bounded internal lookup adapters while older call sites
 # are migrated. New cross-feature metadata, cache keys, relationships, exports,
 # and user-visible references should use chart_uid instead of chart_id.
-SCHEMA_VERSION = 19
+SCHEMA_VERSION = 20
 
 CHART_UID_LENGTH = 16
+UID_FINALIZATION_MIGRATION_KEY = "chart_uid_finalization_v1"
 
 _SENTIMENT_CANONICAL_BY_KEY = {
     option.strip().lower(): option for option in SENTIMENT_OPTIONS
@@ -925,6 +927,237 @@ def _prune_duplicate_exclusions(conn: sqlite3.Connection) -> None:
            OR chart_uid_high NOT IN (SELECT chart_uid FROM charts WHERE chart_uid IS NOT NULL AND chart_uid != '')
         """
     )
+
+
+def _create_app_migrations_table(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS app_migrations (
+            key          TEXT PRIMARY KEY,
+            applied_at   TEXT NOT NULL,
+            details_json TEXT NOT NULL DEFAULT '{}'
+        )
+        """
+    )
+
+
+def _app_migration_applied(conn: sqlite3.Connection, key: str) -> bool:
+    _create_app_migrations_table(conn)
+    row = conn.execute(
+        "SELECT 1 FROM app_migrations WHERE key = ?",
+        (str(key),),
+    ).fetchone()
+    return row is not None
+
+
+def _mark_app_migration_applied(
+    conn: sqlite3.Connection,
+    key: str,
+    details: Mapping[str, Any] | None = None,
+) -> None:
+    _create_app_migrations_table(conn)
+    conn.execute(
+        """
+        INSERT INTO app_migrations (key, applied_at, details_json)
+        VALUES (?, ?, ?)
+        ON CONFLICT(key) DO UPDATE SET
+            applied_at = excluded.applied_at,
+            details_json = excluded.details_json
+        """,
+        (
+            str(key),
+            datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            json.dumps(dict(details or {}), sort_keys=True, separators=(",", ":")),
+        ),
+    )
+
+
+def _emit_uid_finalization_status(details: Mapping[str, Any]) -> None:
+    if bool(details.get("already_finalized", False)):
+        message = (
+            "[EphemeralDaddy UID migration] Chart UID finalization already verified; "
+            "all chart identity should now be UID-authoritative."
+        )
+    else:
+        message = (
+            "[EphemeralDaddy UID migration] Chart UID finalization complete: "
+            f"{int(details.get('chart_count', 0) or 0)} chart(s) verified, "
+            f"{int(details.get('relationship_rows_rewritten', 0) or 0)} relationship row(s) rewritten, "
+            f"{int(details.get('legacy_duplicate_exclusions_rewritten', 0) or 0)} legacy duplicate-exclusion row(s) migrated."
+        )
+    print(message, file=sys.stderr, flush=True)
+
+
+def _chart_id_to_uid_map(conn: sqlite3.Connection) -> dict[int, str]:
+    if not _charts_table_exists(conn):
+        return {}
+    _ensure_chart_uids(conn)
+    rows = conn.execute(
+        """
+        SELECT id, chart_uid
+        FROM charts
+        WHERE chart_uid IS NOT NULL AND chart_uid != ''
+        """
+    ).fetchall()
+    return {int(chart_id): str(chart_uid) for chart_id, chart_uid in rows if chart_uid}
+
+
+def _uid_finalization_normalize_relationship_value(
+    value: Any,
+    *,
+    chart_id_to_uid: Mapping[int, str],
+) -> list[str]:
+    if value is None:
+        return []
+    candidates: list[Any]
+    if isinstance(value, (list, tuple)):
+        candidates = list(value)
+    else:
+        text = str(value or "").strip()
+        if not text:
+            return []
+        try:
+            decoded = json.loads(text)
+        except (TypeError, ValueError):
+            decoded = None
+        candidates = list(decoded) if isinstance(decoded, list) else [text]
+
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        uid = _normalize_chart_uid(candidate)
+        if uid is None:
+            try:
+                legacy_id = int(str(candidate).strip())
+            except (TypeError, ValueError):
+                legacy_id = 0
+            uid = chart_id_to_uid.get(legacy_id)
+        if uid is None or uid in seen:
+            continue
+        normalized.append(uid)
+        seen.add(uid)
+    return normalized
+
+
+def _finalize_chart_uid_relationship_fields(conn: sqlite3.Connection) -> int:
+    columns = _table_columns(conn, "charts")
+    target_columns = [
+        column
+        for column in ("reminds_me_of", "alternate_chart_uid")
+        if column in columns
+    ]
+    if not target_columns:
+        return 0
+
+    chart_id_to_uid = _chart_id_to_uid_map(conn)
+    select_columns = ", ".join(["id", *target_columns])
+    rows = conn.execute(f"SELECT {select_columns} FROM charts").fetchall()
+    changed = 0
+    for row in rows:
+        chart_id = int(row[0])
+        updates: dict[str, str] = {}
+        for index, column in enumerate(target_columns, start=1):
+            if column == "reminds_me_of":
+                normalized_uids = [
+                    uid
+                    for uid in _uid_finalization_normalize_relationship_value(
+                        row[index],
+                        chart_id_to_uid=chart_id_to_uid,
+                    )
+                    if uid != chart_id_to_uid.get(chart_id)
+                ]
+                normalized_value = serialize_reminds_me_of_uids(normalized_uids)
+            else:
+                normalized_uids = _uid_finalization_normalize_relationship_value(
+                    row[index],
+                    chart_id_to_uid=chart_id_to_uid,
+                )
+                normalized_value = normalized_uids[0] if normalized_uids else ""
+                if normalized_value == chart_id_to_uid.get(chart_id):
+                    normalized_value = ""
+            if normalized_value != (row[index] or ""):
+                updates[column] = normalized_value
+        if not updates:
+            continue
+        assignments = ", ".join(f"{column} = ?" for column in updates)
+        conn.execute(
+            f"UPDATE charts SET {assignments} WHERE id = ?",
+            [*updates.values(), chart_id],
+        )
+        changed += 1
+    return changed
+
+
+def _validate_finalized_chart_uids(conn: sqlite3.Connection) -> None:
+    if not _charts_table_exists(conn):
+        return
+    rows = conn.execute("SELECT id, chart_uid FROM charts ORDER BY id ASC").fetchall()
+    seen: set[str] = set()
+    missing_ids: list[int] = []
+    duplicate_uids: set[str] = set()
+    for chart_id, raw_uid in rows:
+        normalized_uid = _normalize_chart_uid(raw_uid)
+        if normalized_uid is None:
+            missing_ids.append(int(chart_id))
+            continue
+        if normalized_uid in seen:
+            duplicate_uids.add(normalized_uid)
+        seen.add(normalized_uid)
+    if missing_ids or duplicate_uids:
+        raise RuntimeError(
+            "Chart UID finalization failed validation: "
+            f"missing IDs={missing_ids}, duplicate UIDs={sorted(duplicate_uids)}"
+        )
+
+
+def finalize_chart_uid_migration(conn: sqlite3.Connection) -> dict[str, Any]:
+    """Run the one-release migration that makes chart UIDs authoritative."""
+    _create_app_migrations_table(conn)
+    if _app_migration_applied(conn, UID_FINALIZATION_MIGRATION_KEY):
+        details = {"already_finalized": True}
+        _emit_uid_finalization_status(details)
+        return details
+    if not _charts_table_exists(conn):
+        details = {"already_finalized": False, "chart_count": 0}
+        _mark_app_migration_applied(conn, UID_FINALIZATION_MIGRATION_KEY, details)
+        _emit_uid_finalization_status(details)
+        return details
+
+    _migrate_charts_columns(conn)
+    _ensure_chart_uids(conn)
+    _create_indexes(conn)
+    _create_duplicate_exclusions_table(conn)
+    _create_chart_trait_metadata_table(conn)
+    _create_dnd_prediction_metadata_table(conn)
+    _create_enneagram_prediction_metadata_table(conn)
+
+    legacy_duplicate_rows = conn.execute(
+        "SELECT COUNT(*) FROM duplicate_exclusions"
+    ).fetchone()
+    legacy_duplicate_count = int(legacy_duplicate_rows[0] or 0) if legacy_duplicate_rows else 0
+    _create_duplicate_exclusions_table(conn)
+    _prune_duplicate_exclusions(conn)
+    conn.execute("DELETE FROM duplicate_exclusions")
+    relationship_rows_changed = _finalize_chart_uid_relationship_fields(conn)
+    _prune_duplicate_exclusions(conn)
+    _validate_finalized_chart_uids(conn)
+
+    chart_count_row = conn.execute("SELECT COUNT(*) FROM charts").fetchone()
+    uid_duplicate_count_row = conn.execute(
+        "SELECT COUNT(*) FROM duplicate_exclusions_uid"
+    ).fetchone()
+    details = {
+        "already_finalized": False,
+        "chart_count": int(chart_count_row[0] or 0) if chart_count_row else 0,
+        "legacy_duplicate_exclusions_rewritten": legacy_duplicate_count,
+        "uid_duplicate_exclusions": int(uid_duplicate_count_row[0] or 0)
+        if uid_duplicate_count_row
+        else 0,
+        "relationship_rows_rewritten": relationship_rows_changed,
+    }
+    _mark_app_migration_applied(conn, UID_FINALIZATION_MIGRATION_KEY, details)
+    _emit_uid_finalization_status(details)
+    return details
 
 
 def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
@@ -1603,12 +1836,15 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
     if _charts_table_exists(conn):
         _migrate_charts_columns(conn)
         _backfill_non_placeholder_birth_date_parts(conn)
+    _create_app_migrations_table(conn)
     _create_duplicate_exclusions_table(conn)
     _create_chart_trait_metadata_table(conn)
     _create_dnd_prediction_metadata_table(conn)
     _create_enneagram_prediction_metadata_table(conn)
     if _charts_table_exists(conn):
         _prune_duplicate_exclusions(conn)
+    if user_version >= 20:
+        finalize_chart_uid_migration(conn)
 
     if user_version == 0:
         if not _charts_table_exists(conn):
@@ -1617,6 +1853,7 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
             _migrate_charts_columns(conn)
         _backfill_non_placeholder_birth_date_parts(conn)
         _create_indexes(conn)
+        finalize_chart_uid_migration(conn)
         conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         return
 
@@ -1718,6 +1955,11 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
         _create_duplicate_exclusions_table(conn)
         _prune_duplicate_exclusions(conn)
         conn.execute("PRAGMA user_version = 19")
+        user_version = 19
+
+    if user_version < 20:
+        finalize_chart_uid_migration(conn)
+        conn.execute("PRAGMA user_version = 20")
 
 
 def _connect_raw() -> sqlite3.Connection:
@@ -4077,7 +4319,9 @@ def list_charts() -> List[
     social_score, chart_type, is_placeholder, is_deceased,
     birth_month, birth_day, birth_year, retcon_hour, retcon_minute,
     from_whence, data_rating, relationship_types, tags, reminds_me_of,
-    dominant_sign_weights, dominant_planet_weights, dominant_mode, chart_uid)
+    dominant_sign_weights, dominant_planet_weights, dominant_mode, chart_uid,
+    weirdness_score, weirdness_formula_version, weirdness_norm_signature,
+    chart_uid)
 
     The first 22 fields are kept in their historical order for callers that
     index into the row tuple; lightweight display/filter fields are appended so
@@ -4205,6 +4449,7 @@ def list_charts() -> List[
                 _normalize_weirdness_score(row["weirdness_score"]),
                 int(row["weirdness_formula_version"]) if row["weirdness_formula_version"] is not None else None,
                 str(row["weirdness_norm_signature"] or ""),
+                row["chart_uid"],
             )
         )
     return rows
@@ -4291,24 +4536,26 @@ def save_duplicate_exclusions_by_uids(chart_uids: Iterable[str | None]) -> int:
     inserted = 0
     with conn:
         _create_duplicate_exclusions_table(conn)
+        uid_finalized = _app_migration_applied(conn, UID_FINALIZATION_MIGRATION_KEY)
         for left_uid, right_uid, created_at in pairs:
-            conn.execute(
-                """
-                INSERT OR IGNORE INTO duplicate_exclusions (
-                    chart_id_low,
-                    chart_id_high,
-                    created_at
+            if not uid_finalized:
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO duplicate_exclusions (
+                        chart_id_low,
+                        chart_id_high,
+                        created_at
+                    )
+                    SELECT
+                        CASE WHEN low.id < high.id THEN low.id ELSE high.id END,
+                        CASE WHEN low.id < high.id THEN high.id ELSE low.id END,
+                        ?
+                    FROM charts AS low
+                    JOIN charts AS high ON high.chart_uid = ?
+                    WHERE low.chart_uid = ?
+                    """,
+                    (created_at, right_uid, left_uid),
                 )
-                SELECT
-                    CASE WHEN low.id < high.id THEN low.id ELSE high.id END,
-                    CASE WHEN low.id < high.id THEN high.id ELSE low.id END,
-                    ?
-                FROM charts AS low
-                JOIN charts AS high ON high.chart_uid = ?
-                WHERE low.chart_uid = ?
-                """,
-                (created_at, right_uid, left_uid),
-            )
             cursor = conn.execute(
                 """
                 INSERT OR IGNORE INTO duplicate_exclusions_uid (
