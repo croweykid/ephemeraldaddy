@@ -430,7 +430,7 @@ def _sync_reciprocal_reminds_me_of_links(
     source_chart_uid: str | None,
     linked_chart_uids: Iterable[Any] | None,
 ) -> None:
-    """Keep Reminds Me Of UID links reciprocal across chart rows."""
+    """Add missing reciprocal Reminds Me Of UID links for the saved chart."""
     source_uid = _normalize_chart_uid(source_chart_uid)
     if source_uid is None:
         return
@@ -439,35 +439,24 @@ def _sync_reciprocal_reminds_me_of_links(
         for uid in parse_reminds_me_of_uids(linked_chart_uids)
         if uid != source_uid
     ]
-    desired_set = set(desired_uids)
+    if not desired_uids:
+        return
 
+    placeholders = ",".join("?" for _uid in desired_uids)
     rows = conn.execute(
-        "SELECT chart_uid, reminds_me_of FROM charts WHERE chart_uid IS NOT NULL AND chart_uid != ''"
+        f"SELECT chart_uid, reminds_me_of FROM charts WHERE chart_uid IN ({placeholders})",
+        desired_uids,
     ).fetchall()
-    existing_chart_uids = {
-        uid
-        for raw_uid, _raw_reminds_me_of in rows
-        for uid in [_normalize_chart_uid(raw_uid)]
-        if uid is not None
-    }
-    desired_set &= existing_chart_uids
-
     for raw_uid, raw_reminds_me_of in rows:
         row_uid = _normalize_chart_uid(raw_uid)
         if row_uid is None or row_uid == source_uid:
             continue
         row_reminds_me_of = parse_reminds_me_of_uids(raw_reminds_me_of)
-        should_link_back = row_uid in desired_set
-        has_link_back = source_uid in row_reminds_me_of
-        if should_link_back and not has_link_back:
-            updated_uids = [*row_reminds_me_of, source_uid]
-        elif not should_link_back and has_link_back:
-            updated_uids = [uid for uid in row_reminds_me_of if uid != source_uid]
-        else:
+        if source_uid in row_reminds_me_of:
             continue
         conn.execute(
             "UPDATE charts SET reminds_me_of = ? WHERE chart_uid = ?",
-            (serialize_reminds_me_of_uids(updated_uids), row_uid),
+            (serialize_reminds_me_of_uids([*row_reminds_me_of, source_uid]), row_uid),
         )
 
 

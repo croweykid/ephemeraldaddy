@@ -528,6 +528,9 @@ from matplotlib.figure import Figure
 from matplotlib.patches import Patch
 
 from ephemeraldaddy.core.deps import ensure_all_deps
+from ephemeraldaddy.core.reminds_me_of_reciprocity_cleanup import (
+    ensure_existing_reminds_me_of_reciprocity,
+)
 from ephemeraldaddy.io.geocode import geocode_location, LocationLookupError, search_locations
 from ephemeraldaddy.gui.astrotheme_search import (
     parse_astrotheme_profile,
@@ -18706,6 +18709,26 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             format_chart_similarity_relationship_conversion_report(report),
         )
 
+    def _on_ensure_reminds_me_of_reciprocity(self) -> None:
+        try:
+            report = ensure_existing_reminds_me_of_reciprocity()
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Reminds Me Of cleanup failed",
+                f"Could not synchronize existing Reminds Me Of links:\n{exc}",
+            )
+            return
+
+        QMessageBox.information(
+            self,
+            "Reminds Me Of cleanup complete",
+            "Existing Reminds Me Of links have been checked for reciprocity.\n\n"
+            f"Charts scanned: {report.charts_scanned}\n"
+            f"Charts updated: {report.charts_updated}\n"
+            f"Reciprocal links added: {report.reciprocal_links_added}",
+        )
+
     def _on_recalculate_all_weights_in_db(self) -> None:
         chart_ids: list[int] = []
         for row in self._chart_rows:
@@ -22530,6 +22553,13 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             self._on_convert_logged_chart_similarity_ids_to_uids
         )
         dev_tools_section.addWidget(convert_similarity_relationship_ids_button)
+
+        reminds_me_of_reciprocity_button = QPushButton("Ensure Reminds Me Of reciprocity")
+        reminds_me_of_reciprocity_button.setToolTip(
+            "Temporary one-time cleanup: add missing reverse links for existing Reminds Me Of entries."
+        )
+        reminds_me_of_reciprocity_button.clicked.connect(self._on_ensure_reminds_me_of_reciprocity)
+        dev_tools_section.addWidget(reminds_me_of_reciprocity_button)
 
         predictions_default_zero_checkbox = QCheckBox(
             "Predictions: default alignment to 0 when unassigned"

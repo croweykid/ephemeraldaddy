@@ -156,11 +156,6 @@ def test_reminds_me_of_links_are_saved_reciprocally(monkeypatch, tmp_path):
     assert db.parse_reminds_me_of_uids(db.load_chart(first_id).reminds_me_of) == [second_uid]
     assert db.parse_reminds_me_of_uids(db.load_chart(second_id).reminds_me_of) == [first_uid]
 
-    first.reminds_me_of = ""
-    db.update_chart_lightweight_metadata(first_id, first)
-
-    assert db.parse_reminds_me_of_uids(db.load_chart(first_id).reminds_me_of) == []
-    assert db.parse_reminds_me_of_uids(db.load_chart(second_id).reminds_me_of) == []
 
 
 def test_new_chart_reminds_me_of_link_is_saved_reciprocally(monkeypatch, tmp_path):
