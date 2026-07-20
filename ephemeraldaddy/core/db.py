@@ -106,6 +106,7 @@ CHART_EXPORT_DEFAULTS: dict[str, Any] = {
     "relationship_types": "",
     "tags": "",
     "comments": "",
+    "emoji_portrait": "",
     "rectification_notes": "",
     "positive_sentiment_intensity": 0,
     "negative_sentiment_intensity": 0,
@@ -477,6 +478,7 @@ def _create_charts_table(conn: sqlite3.Connection) -> None:
             tags              TEXT,
             reminds_me_of     TEXT,
             comments          TEXT,
+            emoji_portrait    TEXT,
             quotes            TEXT,
             rectification_notes TEXT,
             biography         TEXT,
@@ -1260,6 +1262,13 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
             """
             ALTER TABLE charts
             ADD COLUMN comments TEXT
+            """
+        )
+    if "emoji_portrait" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE charts
+            ADD COLUMN emoji_portrait TEXT
             """
         )
     if "quotes" not in columns:
@@ -3419,7 +3428,7 @@ def append_database(source: Path) -> dict[str, Any]:
                     """
                     INSERT INTO charts
                         (id, chart_uid, name, alias, from_whence, gender, birth_place, datetime_iso, tz_name,
-                         lat, lon, used_utc_fallback, sentiments, relationship_types, tags, reminds_me_of, comments, quotes, rectification_notes, biography, chart_data_source, alternate_chart_uid,
+                         lat, lon, used_utc_fallback, sentiments, relationship_types, tags, reminds_me_of, comments, emoji_portrait, quotes, rectification_notes, biography, chart_data_source, alternate_chart_uid,
                          positive_sentiment_intensity, negative_sentiment_intensity, familiarity,
                          alignment_score, sexiness_score, matched_expectations, familiarity_factors, age_when_first_met, year_first_encountered, data_rating,
                          social_score, birthtime_unknown, signs_unknown, unknown_signs, retcon_time_used, retcon_hour, retcon_minute,
@@ -3434,7 +3443,7 @@ def append_database(source: Path) -> dict[str, Any]:
                          is_placeholder, is_deceased, birth_month, birth_day, birth_year,
                          death_month, death_day, death_year, deathtime_unknown, death_hour, death_minute, death_place,
                          created_at, is_current)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         new_chart_id,
@@ -3454,6 +3463,7 @@ def append_database(source: Path) -> dict[str, Any]:
                         _row_value("tags"),
                         serialize_reminds_me_of_uids(reminds_me_of_uids),
                         _row_value("comments"),
+                        _row_value("emoji_portrait"),
                         _row_value("quotes"),
                         _row_value("rectification_notes"),
                         _row_value("biography"),
@@ -3651,6 +3661,7 @@ def save_chart(
                 (name, alias, from_whence, gender, birth_place, datetime_iso, tz_name,
                  lat, lon, used_utc_fallback, sentiments, relationship_types, tags, reminds_me_of,
                  comments,
+                 emoji_portrait,
                  quotes,
                  rectification_notes,
                  biography,
@@ -3683,7 +3694,7 @@ def save_chart(
                  death_minute,
                  death_place,
                  created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 chart.name,
@@ -3709,6 +3720,7 @@ def save_chart(
                 _serialize_tags(getattr(chart, "tags", [])),
                 getattr(chart, "reminds_me_of", None),
                 getattr(chart, "comments", None),
+                getattr(chart, "emoji_portrait", None),
                 _serialize_quotes(getattr(chart, "quotes", [])),
                 getattr(chart, "rectification_notes", None),
                 getattr(chart, "biography", None),
@@ -3968,6 +3980,7 @@ def update_chart(
                 tags = ?,
                 reminds_me_of = ?,
                 comments = ?,
+                emoji_portrait = ?,
                 quotes = ?,
                 rectification_notes = ?,
                 biography = ?,
@@ -4057,6 +4070,7 @@ def update_chart(
                 _serialize_tags(getattr(chart, "tags", [])),
                 getattr(chart, "reminds_me_of", None),
                 getattr(chart, "comments", None),
+                getattr(chart, "emoji_portrait", None),
                 _serialize_quotes(getattr(chart, "quotes", [])),
                 getattr(chart, "rectification_notes", None),
                 getattr(chart, "biography", None),
@@ -4199,6 +4213,7 @@ def update_chart_lightweight_metadata(chart_id: int, chart) -> None:
                 tags = ?,
                 reminds_me_of = ?,
                 comments = ?,
+                emoji_portrait = ?,
                 quotes = ?,
                 rectification_notes = ?,
                 biography = ?,
@@ -4238,6 +4253,7 @@ def update_chart_lightweight_metadata(chart_id: int, chart) -> None:
                 _serialize_tags(getattr(chart, "tags", [])),
                 getattr(chart, "reminds_me_of", None),
                 getattr(chart, "comments", None),
+                getattr(chart, "emoji_portrait", None),
                 _serialize_quotes(getattr(chart, "quotes", [])),
                 getattr(chart, "rectification_notes", None),
                 getattr(chart, "biography", None),
@@ -5268,6 +5284,7 @@ def _new_chart_shell(
     chart.tags = []
     chart.reminds_me_of = ""
     chart.comments = ""
+    chart.emoji_portrait = ""
     chart.quotes = []
     chart.rectification_notes = ""
     chart.biography = ""
@@ -5379,12 +5396,13 @@ def _chart_row_projection(columns: set[str]) -> str:
     derived_aspects_projection = (
         "derived_aspects" if "derived_aspects" in columns else "NULL AS derived_aspects"
     )
+    emoji_portrait_projection = "emoji_portrait" if "emoji_portrait" in columns else "NULL AS emoji_portrait"
     quotes_projection = "quotes" if "quotes" in columns else "NULL AS quotes"
     profile_pic_projection = "profile_pic" if "profile_pic" in columns else "NULL AS profile_pic"
     return f"""
         chart_uid, name, alias, from_whence, gender, birth_place, datetime_iso, tz_name, lat, lon,
                used_utc_fallback, sentiments, relationship_types,
-               tags, reminds_me_of, comments, {quotes_projection}, rectification_notes, biography, chart_data_source, alternate_chart_uid,
+               tags, reminds_me_of, comments, {emoji_portrait_projection}, {quotes_projection}, rectification_notes, biography, chart_data_source, alternate_chart_uid,
                positive_sentiment_intensity, negative_sentiment_intensity,
                familiarity, alignment_score, sexiness_score, {"weirdness_score" if "weirdness_score" in columns else "NULL AS weirdness_score"}, matched_expectations, {familiarity_factors_projection}, age_when_first_met, year_first_encountered, data_rating, birthtime_unknown, signs_unknown, unknown_signs,
                retcon_time_used, retcon_hour, retcon_minute,
@@ -5423,6 +5441,7 @@ def _chart_from_row(chart_id: int, row):
         tags,
         reminds_me_of,
         comments,
+        emoji_portrait,
         quotes,
         rectification_notes,
         biography,
@@ -5511,6 +5530,7 @@ def _chart_from_row(chart_id: int, row):
         placeholder.tags = parse_tags(tags)
         placeholder.reminds_me_of = reminds_me_of or ""
         placeholder.comments = comments or ""
+        placeholder.emoji_portrait = emoji_portrait or ""
         placeholder.quotes = parse_quotes(quotes)
         placeholder.rectification_notes = rectification_notes or ""
         placeholder.biography = biography or ""
@@ -5656,6 +5676,7 @@ def _chart_from_row(chart_id: int, row):
     chart.tags = parse_tags(tags)
     chart.reminds_me_of = reminds_me_of or ""
     chart.comments = comments or ""
+    chart.emoji_portrait = emoji_portrait or ""
     chart.quotes = parse_quotes(quotes)
     chart.rectification_notes = rectification_notes or ""
     chart.biography = biography or ""

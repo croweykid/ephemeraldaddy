@@ -73,7 +73,10 @@ from ephemeraldaddy.gui.features.charts.anagrams import (
     chart_identity_options,
     chart_identity_text_for_source,
 )
-from ephemeraldaddy.gui.features.charts.euphonics import render_euphonics_html
+from ephemeraldaddy.gui.features.charts.euphonics import (
+    render_euphonics_compact_html,
+    render_euphonics_html,
+)
 from ephemeraldaddy.gui.features.charts.loading_overlay import ChartLoadingOverlay
 from ephemeraldaddy.gui.features.charts.prediction_loading_labels import start_prediction_loading_blink
 from ephemeraldaddy.gui.features.charts.time_sensitivity_panel import TimeSensitivityPanel
@@ -1363,6 +1366,71 @@ def _build_material_facts_panel(owner: QWidget) -> QWidget:
 
 
 
+
+def normalize_emoji_portrait_text(value: str, *, limit: int = 10) -> str:
+    """Return a compact emoji/glyph portrait value suitable for chart metadata."""
+    normalized_chars: list[str] = []
+    for char in str(value or ""):
+        if char.isspace() or char.isalnum():
+            continue
+        normalized_chars.append(char)
+        if len(normalized_chars) >= limit:
+            break
+    return "".join(normalized_chars)
+
+
+def setup_chart_view_emoji_portrait_section(owner: QWidget, layout: QVBoxLayout) -> None:
+    """Build Chart View's Subjective Notes Emoji Portrait metadata input."""
+    portrait_box = _build_subjective_notes_metric_section(
+        owner,
+        title="Emoji Portrait",
+        content_builder=lambda content_layout: _populate_emoji_portrait_section(owner, content_layout),
+    )
+    layout.addWidget(portrait_box)
+
+
+def _populate_emoji_portrait_section(owner: QWidget, content_layout: QVBoxLayout) -> None:
+    helper_label = QLabel("Up to 10 emojis, punctuation, or glyphs. Letters/numbers/spaces are ignored.")
+    helper_label.setWordWrap(True)
+    helper_label.setStyleSheet("color: #b8b8b8;")
+    content_layout.addWidget(helper_label)
+
+    owner.emoji_portrait_edit = QLineEdit()
+    owner.emoji_portrait_edit.setObjectName("chart_view_emoji_portrait_edit")
+    owner.emoji_portrait_edit.setPlaceholderText("e.g. 🦇✨🗡️?!")
+    owner.emoji_portrait_edit.setToolTip("Saved to this chart's metadata; max 10 emojis, punctuation, or glyphs.")
+
+    def sanitize_emoji_portrait_text(text: str) -> None:
+        sanitized = normalize_emoji_portrait_text(text)
+        if sanitized == text:
+            return
+        cursor_position = min(owner.emoji_portrait_edit.cursorPosition(), len(sanitized))
+        owner.emoji_portrait_edit.blockSignals(True)
+        owner.emoji_portrait_edit.setText(sanitized)
+        owner.emoji_portrait_edit.setCursorPosition(cursor_position)
+        owner.emoji_portrait_edit.blockSignals(False)
+        owner._mark_lucygoosey()
+
+    owner.emoji_portrait_edit.textChanged.connect(sanitize_emoji_portrait_text)
+    owner.emoji_portrait_edit.textChanged.connect(owner._mark_lucygoosey)
+    content_layout.addWidget(owner.emoji_portrait_edit)
+
+
+def set_chart_view_emoji_portrait_state(owner: QWidget, value: str) -> None:
+    edit = getattr(owner, "emoji_portrait_edit", None)
+    if edit is None:
+        return
+    edit.blockSignals(True)
+    edit.setText(normalize_emoji_portrait_text(value))
+    edit.blockSignals(False)
+
+
+def get_chart_view_emoji_portrait(owner: QWidget) -> str:
+    edit = getattr(owner, "emoji_portrait_edit", None)
+    if edit is None:
+        return ""
+    return normalize_emoji_portrait_text(edit.text())
+
 def build_subjective_notes_alignment_sections(owner: QWidget, layout: QVBoxLayout) -> None:
     """Build Subjective Notes Alignment and Sexiness collapsible sections."""
     alignment_box = _build_subjective_notes_metric_section(
@@ -1512,6 +1580,33 @@ def _build_euphonics_section(owner: QWidget, panel: QWidget, layout: QVBoxLayout
     owner.euphonics_label.setStyleSheet(ABC_PANEL_BODY_LABEL_STYLE)
     section_layout.addWidget(owner.euphonics_label)
 
+    owner.euphonics_details_label = QLabel("No chart name available for Euphonics.")
+    owner.euphonics_details_label.setTextFormat(Qt.RichText)
+    owner.euphonics_details_label.setWordWrap(True)
+    owner.euphonics_details_label.setTextInteractionFlags(Qt.TextSelectableByMouse | Qt.LinksAccessibleByMouse)
+    owner.euphonics_details_label.setStyleSheet(ABC_PANEL_BODY_LABEL_STYLE)
+    owner.euphonics_details_label.setVisible(False)
+    section_layout.addWidget(owner.euphonics_details_label)
+
+    owner.euphonics_details_toggle = QToolButton()
+    owner.euphonics_details_toggle.setText("details")
+    owner.euphonics_details_toggle.setCheckable(True)
+    owner.euphonics_details_toggle.setAutoRaise(True)
+    owner.euphonics_details_toggle.setCursor(Qt.PointingHandCursor)
+    owner.euphonics_details_toggle.setStyleSheet(
+        "QToolButton { color: #9bd3ff; text-decoration: underline; padding: 0; }"
+    )
+
+    def toggle_details(checked: bool) -> None:
+        owner.euphonics_details_label.setVisible(checked)
+        owner.euphonics_details_toggle.setText("hide details" if checked else "details")
+        euphonics_box.adjustSize()
+        panel.adjustSize()
+        panel.updateGeometry()
+
+    owner.euphonics_details_toggle.toggled.connect(toggle_details)
+    section_layout.addWidget(owner.euphonics_details_toggle, 0, Qt.AlignLeft)
+
 
 def refresh_euphonics_for_chart(owner: QWidget, chart: Chart | None) -> None:
     """Refresh the ABC tab's Euphonics list for the selected name source."""
@@ -1535,7 +1630,14 @@ def refresh_euphonics_for_chart(owner: QWidget, chart: Chart | None) -> None:
         source_dropdown.setMinimumWidth(source_dropdown.sizeHint().width() + 12)
         source_dropdown.blockSignals(previous_block_state)
     _subject_label, subject_text = chart_identity_text_for_source(chart, selected_source)
-    label.setText(render_euphonics_html(str(subject_text or "")))
+    subject_name = str(subject_text or "")
+    label.setText(render_euphonics_compact_html(subject_name))
+    details_label = getattr(owner, "euphonics_details_label", None)
+    if details_label is not None:
+        details_label.setText(render_euphonics_html(subject_name))
+    details_toggle = getattr(owner, "euphonics_details_toggle", None)
+    if details_toggle is not None:
+        details_toggle.setChecked(False)
 
 
 def _build_subjective_notes_panel(owner: QWidget) -> tuple[QWidget, QVBoxLayout]:
