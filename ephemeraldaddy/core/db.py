@@ -425,6 +425,52 @@ def serialize_reminds_me_of_uids(uids: Iterable[Any] | None) -> str:
     return json.dumps(normalized_uids, separators=(",", ":"))
 
 
+def _sync_reciprocal_reminds_me_of_links(
+    conn: sqlite3.Connection,
+    source_chart_uid: str | None,
+    linked_chart_uids: Iterable[Any] | None,
+) -> None:
+    """Keep Reminds Me Of UID links reciprocal across chart rows."""
+    source_uid = _normalize_chart_uid(source_chart_uid)
+    if source_uid is None:
+        return
+    desired_uids = [
+        uid
+        for uid in parse_reminds_me_of_uids(linked_chart_uids)
+        if uid != source_uid
+    ]
+    desired_set = set(desired_uids)
+
+    rows = conn.execute(
+        "SELECT chart_uid, reminds_me_of FROM charts WHERE chart_uid IS NOT NULL AND chart_uid != ''"
+    ).fetchall()
+    existing_chart_uids = {
+        uid
+        for raw_uid, _raw_reminds_me_of in rows
+        for uid in [_normalize_chart_uid(raw_uid)]
+        if uid is not None
+    }
+    desired_set &= existing_chart_uids
+
+    for raw_uid, raw_reminds_me_of in rows:
+        row_uid = _normalize_chart_uid(raw_uid)
+        if row_uid is None or row_uid == source_uid:
+            continue
+        row_reminds_me_of = parse_reminds_me_of_uids(raw_reminds_me_of)
+        should_link_back = row_uid in desired_set
+        has_link_back = source_uid in row_reminds_me_of
+        if should_link_back and not has_link_back:
+            updated_uids = [*row_reminds_me_of, source_uid]
+        elif not should_link_back and has_link_back:
+            updated_uids = [uid for uid in row_reminds_me_of if uid != source_uid]
+        else:
+            continue
+        conn.execute(
+            "UPDATE charts SET reminds_me_of = ? WHERE chart_uid = ?",
+            (serialize_reminds_me_of_uids(updated_uids), row_uid),
+        )
+
+
 def _generate_chart_uid(existing_uids: set[str] | None = None) -> str:
     existing = existing_uids if existing_uids is not None else set()
     while True:
@@ -3819,6 +3865,11 @@ def save_chart(
             (chart_uid, int(chart_id)),
         )
         setattr(chart, "chart_uid", chart_uid)
+        _sync_reciprocal_reminds_me_of_links(
+            conn,
+            chart_uid,
+            getattr(chart, "reminds_me_of", None),
+        )
     if birth_place is not None:
         setattr(chart, "birth_place", birth_place)
     conn.close()
@@ -4154,6 +4205,11 @@ def update_chart(
                 chart_id,
             ),
         )
+        _sync_reciprocal_reminds_me_of_links(
+            conn,
+            getattr(chart, "chart_uid", None),
+            getattr(chart, "reminds_me_of", None),
+        )
     if resolved_birth_place is not None:
         setattr(chart, "birth_place", resolved_birth_place)
     conn.close()
@@ -4266,6 +4322,11 @@ def update_chart_lightweight_metadata(chart_id: int, chart) -> None:
                 getattr(chart, "death_place", None),
                 int(chart_id),
             ),
+        )
+        _sync_reciprocal_reminds_me_of_links(
+            conn,
+            getattr(chart, "chart_uid", None),
+            getattr(chart, "reminds_me_of", None),
         )
     conn.close()
 
