@@ -193,6 +193,7 @@ class Chart:
         self.tags = []
         self.reminds_me_of = ""
         self.comments = ""
+        self.emoji_portrait = ""
         self.quotes = []
         self.rectification_notes = ""
         self.biography = ""
@@ -303,6 +304,7 @@ class Chart:
             "relationship_types": self.relationship_types,
             "tags": self.tags,
             "comments": self.comments,
+            "emoji_portrait": self.emoji_portrait,
             "quotes": self.quotes,
             "rectification_notes": self.rectification_notes,
             "biography": self.biography,
