@@ -35,7 +35,7 @@ def test_database_view_loads_selected_chart_by_uid_when_available():
     populate_source = APP_SOURCE.split("item = QListWidgetItem(label)", 1)[1].split(
         "is_hypothetical = _chart_row_is_hypothetical", 1
     )[0]
-    assert "item.setData(Qt.UserRole + 1" in populate_source
+    assert "item.setData(Qt.UserRole + 2" in populate_source
     load_source = _indented_method_source(APP_SOURCE, "_load_chart_from_item")
-    assert "chart_uid = str(item.data(Qt.UserRole + 1)" in load_source
+    assert "chart_uid = str(item.data(Qt.UserRole + 2)" in load_source
     assert "parent.load_chart_by_uid(chart_uid)" in load_source

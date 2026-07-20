@@ -19630,7 +19630,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                 label = "  ".join(part for part in visible_label_parts if part)
                 item = QListWidgetItem(label)
                 item.setData(Qt.UserRole, cid)
-                item.setData(Qt.UserRole + 1, str(_chart_uid or "").strip().upper())
+                item.setData(Qt.UserRole + 2, str(_chart_uid or "").strip().upper())
                 is_hypothetical = _chart_row_is_hypothetical(
                     (
                         cid,
@@ -24807,7 +24807,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
 
     def _load_chart_from_item(self, item: QListWidgetItem) -> None:
         chart_id = item.data(Qt.UserRole)
-        chart_uid = str(item.data(Qt.UserRole + 1) or "").strip().upper()
+        chart_uid = str(item.data(Qt.UserRole + 2) or "").strip().upper()
         if chart_id is None and not chart_uid:
             return
         parent = self._owner_window()
