@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 from ephemeraldaddy.gui.style import MIDDLE_PANEL_ACCENT_COLOR
 CHART_ROW_PLACE_COLOR = "#9c7a53"
 HYPOTHETICAL_ROW_COLOR = "#c9b3ff"
+CHART_ROW_OPEN_FEEDBACK_ROLE = Qt.UserRole + 42
 
 
 class ChartRowDelegate(QStyledItemDelegate):
@@ -59,6 +60,7 @@ class ChartRowDelegate(QStyledItemDelegate):
         widget = opt.widget
         style = widget.style() if widget else QApplication.style()
         style.drawControl(QStyle.CE_ItemViewItem, opt, painter, widget)
+        self._paint_open_feedback(painter, opt, index)
 
         rect = opt.rect.adjusted(8, 0, -8, 0)
         metrics = QFontMetrics(opt.font)
@@ -148,6 +150,39 @@ class ChartRowDelegate(QStyledItemDelegate):
             if x >= rect.right():
                 break
 
+        painter.restore()
+
+    def _paint_open_feedback(
+        self,
+        painter: QPainter,
+        option: QStyleOptionViewItem,
+        index: QModelIndex,
+    ) -> None:
+        """Paint a subtle acknowledgement pulse for rows opening Chart View."""
+        raw_progress = index.data(CHART_ROW_OPEN_FEEDBACK_ROLE)
+        try:
+            progress = float(raw_progress)
+        except (TypeError, ValueError):
+            return
+        progress = max(0.0, min(1.0, progress))
+        if progress <= 0.0:
+            return
+
+        pulse = 1.0 - progress
+        accent = QColor(MIDDLE_PANEL_ACCENT_COLOR)
+        fill = QColor(accent)
+        fill.setAlphaF(0.06 + (0.14 * progress))
+        border = QColor(accent)
+        border.setAlphaF(0.18 + (0.42 * progress))
+
+        painter.save()
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        feedback_rect = option.rect.adjusted(2, 2, -2, -2)
+        inset = int(round(2 * pulse))
+        feedback_rect = feedback_rect.adjusted(inset, inset, -inset, -inset)
+        painter.setPen(border)
+        painter.setBrush(fill)
+        painter.drawRoundedRect(feedback_rect, 7, 7)
         painter.restore()
 
     @staticmethod
