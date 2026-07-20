@@ -453,6 +453,7 @@ from PySide6.QtCore import (
     Slot,
     QRegularExpression,
     QItemSelectionModel,
+    QStringListModel,
 )
 
 
@@ -34123,7 +34124,16 @@ class MainWindow(QMainWindow):
                 choices.append(choice)
                 seen.add(choice_key)
 
-        completer = QCompleter(choices, line_edit)
+        existing_completer = getattr(line_edit, "_reminds_me_of_completer", None)
+        if isinstance(existing_completer, QCompleter):
+            existing_model = existing_completer.model()
+            if isinstance(existing_model, QStringListModel):
+                existing_model.setStringList(choices)
+            else:
+                existing_completer.setModel(QStringListModel(choices, existing_completer))
+            return
+
+        completer = QCompleter(QStringListModel(choices, line_edit), line_edit)
         completer.setCaseSensitivity(Qt.CaseInsensitive)
         completer.setFilterMode(Qt.MatchContains)
         # Keep keyboard focus anchored in the text field while suggestions are shown.
