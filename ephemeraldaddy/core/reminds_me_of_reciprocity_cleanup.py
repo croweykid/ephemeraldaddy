@@ -1,8 +1,10 @@
 """Temporary one-time cleanup for legacy one-way Reminds Me Of links.
 
-This module is intentionally small and self-contained so it can be removed after
-existing personal databases have been normalized.  Future Chart View saves keep
-new Reminds Me Of edits reciprocal at entry/save time.
+TEMP_RMO_RECIPROCITY_CLEANUP_REMOVE_AFTER_LOCAL_DB_MIGRATION:
+This whole module is a one-off Settings > Developer Tools cleanup helper.  After
+the existing local database has been normalized, it can be deleted along with
+the app.py import, handler, button, and tests that use this same marker.  Future
+Chart View saves keep new Reminds Me Of edits reciprocal at entry/save time.
 """
 
 from __future__ import annotations
