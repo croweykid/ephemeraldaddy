@@ -278,7 +278,7 @@ def _is_personal_chart_type_for_age_inference(value: Optional[str]) -> bool:
 # ordering, joins, and bounded internal lookup adapters while older call sites
 # are migrated. New cross-feature metadata, cache keys, relationships, exports,
 # and user-visible references should use chart_uid instead of chart_id.
-SCHEMA_VERSION = 19
+SCHEMA_VERSION = 20
 
 CHART_UID_LENGTH = 16
 
@@ -1609,7 +1609,6 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
     _create_enneagram_prediction_metadata_table(conn)
     if _charts_table_exists(conn):
         _prune_duplicate_exclusions(conn)
-
     if user_version == 0:
         if not _charts_table_exists(conn):
             _create_charts_table(conn)
@@ -1718,6 +1717,10 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
         _create_duplicate_exclusions_table(conn)
         _prune_duplicate_exclusions(conn)
         conn.execute("PRAGMA user_version = 19")
+        user_version = 19
+
+    if user_version < 20:
+        conn.execute("PRAGMA user_version = 20")
 
 
 def _connect_raw() -> sqlite3.Connection:
@@ -4077,7 +4080,9 @@ def list_charts() -> List[
     social_score, chart_type, is_placeholder, is_deceased,
     birth_month, birth_day, birth_year, retcon_hour, retcon_minute,
     from_whence, data_rating, relationship_types, tags, reminds_me_of,
-    dominant_sign_weights, dominant_planet_weights, dominant_mode, chart_uid)
+    dominant_sign_weights, dominant_planet_weights, dominant_mode, chart_uid,
+    weirdness_score, weirdness_formula_version, weirdness_norm_signature,
+    chart_uid)
 
     The first 22 fields are kept in their historical order for callers that
     index into the row tuple; lightweight display/filter fields are appended so
@@ -4205,6 +4210,7 @@ def list_charts() -> List[
                 _normalize_weirdness_score(row["weirdness_score"]),
                 int(row["weirdness_formula_version"]) if row["weirdness_formula_version"] is not None else None,
                 str(row["weirdness_norm_signature"] or ""),
+                row["chart_uid"],
             )
         )
     return rows
@@ -4292,23 +4298,6 @@ def save_duplicate_exclusions_by_uids(chart_uids: Iterable[str | None]) -> int:
     with conn:
         _create_duplicate_exclusions_table(conn)
         for left_uid, right_uid, created_at in pairs:
-            conn.execute(
-                """
-                INSERT OR IGNORE INTO duplicate_exclusions (
-                    chart_id_low,
-                    chart_id_high,
-                    created_at
-                )
-                SELECT
-                    CASE WHEN low.id < high.id THEN low.id ELSE high.id END,
-                    CASE WHEN low.id < high.id THEN high.id ELSE low.id END,
-                    ?
-                FROM charts AS low
-                JOIN charts AS high ON high.chart_uid = ?
-                WHERE low.chart_uid = ?
-                """,
-                (created_at, right_uid, left_uid),
-            )
             cursor = conn.execute(
                 """
                 INSERT OR IGNORE INTO duplicate_exclusions_uid (

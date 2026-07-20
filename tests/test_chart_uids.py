@@ -70,8 +70,6 @@ def test_schema_backfills_unique_chart_uids_for_legacy_rows():
     assert "chart_uid" in columns
     assert len({row[0] for row in rows}) == 2
     assert all(isinstance(row[0], str) and len(row[0]) >= 8 for row in rows)
-
-
 def test_append_database_preserves_non_colliding_source_chart_uid(tmp_path, monkeypatch):
     target_path = tmp_path / "target.db"
     source_path = tmp_path / "source.db"
