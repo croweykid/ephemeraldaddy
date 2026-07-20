@@ -545,6 +545,7 @@ def build_similarity_calculator_settings_section(
     on_weight_changed: Callable[[str, float], None],
     on_placement_weighting_mode_changed: Callable[[str], None],
     on_all_or_nothing_criterion_changed: Callable[[str], None],
+    on_demographic_match_mode_changed: Callable[[str], None],
     on_reset_weights_clicked: Callable[[], None],
     on_calibrate_clicked: Callable[[], None],
     on_save_thresholds_clicked: Callable[[], None],
@@ -625,6 +626,32 @@ def build_similarity_calculator_settings_section(
     )
     database_distinction_help.setWordWrap(True)
     section_layout.addWidget(database_distinction_help)
+
+    demographic_match_row = QHBoxLayout()
+    demographic_match_row.addWidget(QLabel("Match preference"))
+    demographic_match_group = QButtonGroup(dialog)
+    demographic_match_group.setExclusive(True)
+    demographic_match_buttons: dict[str, QRadioButton] = {}
+    for mode, label_text, tooltip in (
+        ("none", "No preference", "Use the current Astro Twin behavior; do not filter by gender or sex metadata."),
+        (
+            "gender",
+            "Gender match",
+            "Filter candidates to compatible gender categories before calculating Astro Twin scores.",
+        ),
+        ("sex", "Sex match", "Filter candidates to compatible sex-group categories before calculating Astro Twin scores."),
+    ):
+        button = QRadioButton(label_text)
+        button.setToolTip(tooltip)
+        demographic_match_group.addButton(button)
+        button.toggled.connect(
+            lambda checked, selected_mode=mode: checked and on_demographic_match_mode_changed(selected_mode)
+        )
+        demographic_match_row.addWidget(button)
+        demographic_match_buttons[mode] = button
+    demographic_match_buttons["none"].setChecked(True)
+    demographic_match_row.addStretch(1)
+    section_layout.addLayout(demographic_match_row)
 
     custom_fields_frame = QFrame()
     custom_fields_frame.setFrameShape(QFrame.StyledPanel)
@@ -707,6 +734,7 @@ def build_similarity_calculator_settings_section(
     weighting_mode_row.addStretch(1)
     custom_fields_layout.addLayout(weighting_mode_row)
 
+
     reset_similarity_weights_button = QPushButton("Reset Weights to Defaults")
     reset_similarity_weights_button.clicked.connect(on_reset_weights_clicked)
     custom_fields_layout.addWidget(reset_similarity_weights_button, alignment=Qt.AlignLeft)
@@ -783,6 +811,7 @@ def build_similarity_calculator_settings_section(
         "calculator_total_label": total_weight_value_label,
         "placement_weighting_mode_combo": weighting_mode_combo,
         "all_or_nothing_criterion_combo": all_or_nothing_criterion_combo,
+        "demographic_match_buttons": demographic_match_buttons,
         "threshold_spinboxes": threshold_spinboxes,
     }
 

@@ -275,6 +275,9 @@ def _load_similarity_calculator_settings(settings) -> SimilarityCalculatorSettin
         "all_or_nothing_component": _normalize_all_or_nothing_component(
             payload.get("all_or_nothing_component", defaults.all_or_nothing_component)
         ),
+        "demographic_match_mode": _normalize_astro_twin_demographic_match_mode(
+            payload.get("demographic_match_mode", defaults.demographic_match_mode)
+        ),
     }
     return SimilarityCalculatorSettings(**values)
 
@@ -317,6 +320,7 @@ def _save_similarity_calculator_settings(settings, value: SimilarityCalculatorSe
             "weight_big_3": float(value.weight_big_3),
             "placement_weighting_mode": _normalize_placement_weighting_mode(value.placement_weighting_mode),
             "all_or_nothing_component": _normalize_all_or_nothing_component(value.all_or_nothing_component),
+            "demographic_match_mode": _normalize_astro_twin_demographic_match_mode(value.demographic_match_mode),
         },
     )
 
@@ -657,6 +661,7 @@ from ephemeraldaddy.analysis.bazi_getter import (
     bazi_sign_weights_from_chart,
 )
 from ephemeraldaddy.analysis.get_astro_twin import (
+    ASTRO_TWIN_DEMOGRAPHIC_MATCH_NONE,
     DOMINANCE_COMPONENT_KEYS,
     PLACEMENT_WEIGHTING_MODE_CHART_DEFINED,
     SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE,
@@ -672,6 +677,7 @@ from ephemeraldaddy.analysis.get_astro_twin import (
     chart_sign_dominance_weights as _similarity_sign_dominance_weights,
     find_astro_twins,
     normalize_all_or_nothing_component as _normalize_all_or_nothing_component,
+    normalize_astro_twin_demographic_match_mode as _normalize_astro_twin_demographic_match_mode,
     normalize_placement_weighting_mode as _normalize_placement_weighting_mode,
     normalize_similar_charts_algorithm_mode as _normalize_similar_charts_algorithm_mode,
 )
@@ -22661,6 +22667,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             on_weight_changed=self._on_similarity_calculator_weight_changed,
             on_placement_weighting_mode_changed=self._on_similarity_calculator_placement_weighting_mode_changed,
             on_all_or_nothing_criterion_changed=self._on_similarity_calculator_all_or_nothing_component_changed,
+            on_demographic_match_mode_changed=self._on_similarity_calculator_demographic_match_mode_changed,
             on_reset_weights_clicked=self._reset_similarity_calculator_defaults,
             on_calibrate_clicked=self._calibrate_similarity_norms,
             on_save_thresholds_clicked=self._save_similarity_threshold_overrides,
@@ -22681,6 +22688,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         self._similarity_calculator_total_label = similarity_controls["calculator_total_label"]
         self._similarity_calculator_placement_weighting_mode_combo = similarity_controls["placement_weighting_mode_combo"]
         self._similarity_calculator_all_or_nothing_component_combo = similarity_controls["all_or_nothing_criterion_combo"]
+        self._similarity_calculator_demographic_match_buttons = similarity_controls["demographic_match_buttons"]
         self._similarity_threshold_spinboxes = similarity_controls["threshold_spinboxes"]
         self._set_similar_charts_algorithm_mode(self._similar_charts_algorithm_mode)
         self._load_similarity_calculator_controls()
@@ -23010,6 +23018,18 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             if target_index >= 0:
                 blocker = QSignalBlocker(weighting_mode_combo)
                 weighting_mode_combo.setCurrentIndex(target_index)
+                del blocker
+        demographic_buttons = getattr(self, "_similarity_calculator_demographic_match_buttons", {})
+        if isinstance(demographic_buttons, dict):
+            demographic_mode = _normalize_astro_twin_demographic_match_mode(
+                getattr(settings, "demographic_match_mode", ASTRO_TWIN_DEMOGRAPHIC_MATCH_NONE)
+            )
+            target_button = demographic_buttons.get(demographic_mode) or demographic_buttons.get(
+                ASTRO_TWIN_DEMOGRAPHIC_MATCH_NONE
+            )
+            if target_button is not None:
+                blocker = QSignalBlocker(target_button)
+                target_button.setChecked(True)
                 del blocker
         all_or_nothing_combo = getattr(self, "_similarity_calculator_all_or_nothing_component_combo", None)
         if isinstance(all_or_nothing_combo, QComboBox):
@@ -23422,6 +23442,17 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                     del blocker
         self._save_similarity_calculator_from_controls()
 
+    def _on_similarity_calculator_demographic_match_mode_changed(self, mode: str) -> None:
+        normalized_mode = _normalize_astro_twin_demographic_match_mode(mode)
+        buttons = getattr(self, "_similarity_calculator_demographic_match_buttons", {})
+        if isinstance(buttons, dict):
+            target_button = buttons.get(normalized_mode)
+            if isinstance(target_button, QRadioButton) and not target_button.isChecked():
+                blocker = QSignalBlocker(target_button)
+                target_button.setChecked(True)
+                del blocker
+        self._save_similarity_calculator_from_controls()
+
     def _on_similarity_calculator_placement_weighting_mode_changed(self, mode: str) -> None:
         normalized_mode = _normalize_placement_weighting_mode(mode)
         combo = getattr(self, "_similarity_calculator_placement_weighting_mode_combo", None)
@@ -23465,6 +23496,17 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         total_label = getattr(self, "_similarity_calculator_total_label", None)
         if isinstance(total_label, QLabel):
             total_label.setText(f"{checked_total:.2f} / 1.00 ({checked_total * 100.0:.1f}%)")
+
+    def _current_similarity_calculator_demographic_match_mode(self) -> str:
+        buttons = getattr(self, "_similarity_calculator_demographic_match_buttons", {})
+        if isinstance(buttons, dict):
+            for mode, button in buttons.items():
+                if isinstance(button, QRadioButton) and button.isChecked():
+                    return _normalize_astro_twin_demographic_match_mode(mode)
+        settings = getattr(self, "_similarity_calculator_settings", None)
+        return _normalize_astro_twin_demographic_match_mode(
+            getattr(settings, "demographic_match_mode", ASTRO_TWIN_DEMOGRAPHIC_MATCH_NONE)
+        )
 
     def _save_similarity_calculator_from_controls(self) -> None:
         if not getattr(self, "_similarity_calculator_checkboxes", None):
@@ -23522,6 +23564,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                     lambda: "inner_planet_placement",
                 )()
             ),
+            demographic_match_mode=self._current_similarity_calculator_demographic_match_mode(),
         )
         self._similarity_calculator_settings = settings
         _save_similarity_calculator_settings(self._settings, settings)
@@ -26586,11 +26629,19 @@ class MainWindow(QMainWindow):
                 visible_rows.append(row)
         return visible_rows
 
+    def _similar_charts_demographic_match_enabled(self) -> bool:
+        settings = getattr(self, "_similarity_calculator_settings", None)
+        mode = _normalize_astro_twin_demographic_match_mode(
+            getattr(settings, "demographic_match_mode", ASTRO_TWIN_DEMOGRAPHIC_MATCH_NONE)
+        )
+        return mode != ASTRO_TWIN_DEMOGRAPHIC_MATCH_NONE
+
     def _similar_charts_popout_database_row_signatures(
         self,
         rows: list[tuple[Any, ...]],
         *,
         chart_uids_by_id: Mapping[int, str],
+        include_gender: bool = False,
     ) -> dict[str, str]:
         def _row_value(row: tuple[Any, ...], index: int) -> Any:
             return row[index] if len(row) > index else None
@@ -26624,6 +26675,8 @@ class MainWindow(QMainWindow):
                 "birth_day": _row_value(row, 18),
                 "birth_year": _row_value(row, 19),
             }
+            if include_gender:
+                payload["gender"] = str(_row_value(row, 4) or "").strip()
             encoded = json.dumps(payload, default=str, sort_keys=True, separators=(",", ":"))
             signatures[chart_uid] = hashlib.sha256(encoded.encode("utf-8")).hexdigest()
         return signatures
@@ -26661,6 +26714,8 @@ class MainWindow(QMainWindow):
             "human_design_gates": list(getattr(chart, "human_design_gates", None) or []),
             "human_design_channels": list(getattr(chart, "human_design_channels", None) or []),
         }
+        if self._similar_charts_demographic_match_enabled():
+            signature_payload["gender"] = str(getattr(chart, "gender", None) or "").strip()
         payload = json.dumps(signature_payload, default=str, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
@@ -27934,6 +27989,7 @@ class MainWindow(QMainWindow):
         row_signatures = self._similar_charts_popout_database_row_signatures(
             chart_rows,
             chart_uids_by_id=chart_uids_by_id,
+            include_gender=self._similar_charts_demographic_match_enabled(),
         )
         chart_names_by_id = self._similar_charts_popout_chart_names_by_id(chart_rows)
         candidates: list[tuple[int, Chart]] | None = None
@@ -36710,7 +36766,10 @@ class MainWindow(QMainWindow):
         )
         place_token = f"lat:{getattr(chart, 'lat', 0.0):.6f}|lon:{getattr(chart, 'lon', 0.0):.6f}"
         chart_scope_token = f"id:{int(chart_id)}" if chart_id is not None else "draft"
-        return f"{chart_scope_token}|{place_token}|{timing_token}"
+        demographic_token = ""
+        if self._similar_charts_demographic_match_enabled():
+            demographic_token = f"|gender:{str(getattr(chart, 'gender', None) or '').strip()}"
+        return f"{chart_scope_token}|{place_token}|{timing_token}{demographic_token}"
 
     def _mark_chart_analytics_sections_lucy_goosey(self, sections: set[str] | None = None) -> None:
         if sections is None:
