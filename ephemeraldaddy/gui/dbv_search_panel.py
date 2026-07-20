@@ -785,6 +785,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     SEARCH_SENTIMENT_OPTIONS = app_module.SEARCH_SENTIMENT_OPTIONS
     SEARCH_RELATIONSHIP_TYPE_OPTIONS = app_module.SEARCH_RELATIONSHIP_TYPE_OPTIONS
     DND_CLASSES = app_module.DND_CLASSES
+    FAMILY_SUBTYPES = app_module.FAMILY_SUBTYPES
     SPECIES_FAMILIES = app_module.SPECIES_FAMILIES
     GENERATION_FILTER_OPTIONS = app_module.GENERATION_FILTER_OPTIONS
     SEARCH_GENDER_OPTIONS = app_module.SEARCH_GENDER_OPTIONS
@@ -829,8 +830,9 @@ def build_dbv_search_panel(window) -> "QWidget":
     def compact_nakshatra_label(label: str) -> str:
         return abbreviate_nakshatra_label(str(label))
 
-    search_title = QLabel("Search filters")
+    search_title = QLabel("Search Filters")
     search_title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
+    app_module.apply_emoji_pngs_to_label(search_title)
     layout.addWidget(search_title)
 
     window.search_tags_toggle = QToolButton()
@@ -967,10 +969,6 @@ def build_dbv_search_panel(window) -> "QWidget":
     )
 
     header_layout = QHBoxLayout()
-    title = QLabel("Search Filters")
-    title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
-    app_module.apply_emoji_pngs_to_label(title)
-    header_layout.addWidget(title)
     header_layout.addStretch(1)
     #I removed this button, since there's a "Clear Filters" button on the bottom right now.
     #reset_button = QPushButton("Reset")
@@ -2079,9 +2077,43 @@ def build_dbv_search_panel(window) -> "QWidget":
     window.species_filter_combo.addItem("Any", "Any")
     for species in SPECIES_FAMILIES:
         window.species_filter_combo.addItem(species, species)
-    window.species_filter_combo.currentIndexChanged.connect(window._on_filter_changed)
     species_filter_row.addWidget(window.species_filter_combo, 1)
     dnd_species_group_layout.addLayout(species_filter_row)
+
+    subspecies_filter_row = QHBoxLayout()
+    subspecies_filter_label = QLabel("Subspecies")
+    subspecies_filter_row.addWidget(subspecies_filter_label)
+    window.subspecies_filter_combo = QComboBox()
+    apply_default_dropdown_style(window.subspecies_filter_combo)
+    window.subspecies_filter_combo.addItem("Any", "Any")
+    subspecies_filter_row.addWidget(window.subspecies_filter_combo, 1)
+    dnd_species_group_layout.addLayout(subspecies_filter_row)
+
+    def refresh_subspecies_filter_options() -> None:
+        selected_species = str(window.species_filter_combo.currentData() or "Any")
+        subtypes = list(FAMILY_SUBTYPES.get(selected_species, []))
+        row_visible = selected_species != "Any" and bool(subtypes)
+        subspecies_filter_label.setVisible(row_visible)
+        window.subspecies_filter_combo.setVisible(row_visible)
+        window.subspecies_filter_combo.blockSignals(True)
+        try:
+            previous_subspecies = str(window.subspecies_filter_combo.currentData() or "Any")
+            window.subspecies_filter_combo.clear()
+            window.subspecies_filter_combo.addItem("Any", "Any")
+            for subtype in subtypes:
+                window.subspecies_filter_combo.addItem(subtype, subtype)
+            previous_index = window.subspecies_filter_combo.findData(previous_subspecies)
+            window.subspecies_filter_combo.setCurrentIndex(previous_index if previous_index >= 0 else 0)
+        finally:
+            window.subspecies_filter_combo.blockSignals(False)
+
+    def on_species_filter_changed() -> None:
+        refresh_subspecies_filter_options()
+        window._on_filter_changed()
+
+    window.species_filter_combo.currentIndexChanged.connect(on_species_filter_changed)
+    window.subspecies_filter_combo.currentIndexChanged.connect(window._on_filter_changed)
+    refresh_subspecies_filter_options()
 
     dnd_stats_header = QLabel("Stat ranges")
     dnd_stats_header.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)

@@ -1672,6 +1672,12 @@ def _set_traits_header_action(owner: Any, state: str) -> None:
         callback("traits", state)
 
 
+def _set_traits_header_action(owner: Any, state: str) -> None:
+    callback = getattr(owner, "_set_prediction_header_action", None)
+    if callable(callback):
+        callback("traits", state)
+
+
 def _predictions_manual_recalculation_only(owner: Any) -> bool:
     # Predictions panel contract for future maintainers/agents:
     # default manual mode means "show the current chart UID's latest saved
