@@ -178,7 +178,7 @@ def refresh_prediction_norms_snapshot(owner: Any) -> dict[str, Any]:
 
         dnd_alignment_traits = _dnd_alignment_trait_items()
     except Exception:
-        logger.exception("Could not include D&D alignment traits in Predictions norms snapshot.")
+        logger.exception("Could not include Fantasy RPG alignment traits in Predictions norms snapshot.")
         dnd_alignment_traits = []
 
     trait_baselines: dict[str, dict[str, Any]] = {}

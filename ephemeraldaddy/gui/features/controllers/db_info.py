@@ -553,7 +553,7 @@ def add_database_info_settings_section(owner: Any, content_layout) -> None:
     controls_row.addWidget(refresh_button, 0, Qt.AlignLeft)
     norms_button = QPushButton("Refresh Predictions Norms")
     norms_button.setToolTip(
-        "Rebuild the shared static Predictions norm snapshot used by Chart View Traits, D&D Alignment, and D&D Statblocks."
+        "Rebuild the shared static Predictions norm snapshot used by Chart View Traits, Fantasy RPG Alignment, and Fantasy RPG Statblocks."
     )
     norms_button.clicked.connect(lambda _checked=False: _refresh_prediction_norms(owner))
     controls_row.addWidget(norms_button, 0, Qt.AlignLeft)

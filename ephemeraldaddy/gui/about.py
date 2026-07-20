@@ -153,10 +153,10 @@ If you’re doing real astro research, placeholders are your polite sticky note 
 Human design elements: Gates, Lines & Channels
 For anyone familiar with the framework: in Chart View, G stands for gates, and L stands for lines, but currently the Human Design chart generation is in alpha phase.
 
-## Weird toy metrics (D&D Species, Cursedness, Gender Guesser)
+## Weird toy metrics (Fantasy RPG Species/Classes, Cursedness, Gender Guesser)
 These exist. They are fun. They are noncannonical to science and occultist lore alike.
 
-- **D&D Species**: vibe-based speculative classifier.
+- **Fantasy RPG Species/Classes**: vibe-based speculative classifier.
 - **Cursedness**: weighted “volatility, chaos & intensity of life experiences” score for entertainment + comparative curiosity.
 - **Gender Guesser**: partially lore-inspired, partially experimental scoring, with a spectrum-oriented treatment rather than strict binary sign assignment.
 

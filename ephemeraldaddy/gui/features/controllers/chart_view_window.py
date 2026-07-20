@@ -1784,7 +1784,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     dnd_statblock_section_layout = owner._add_chart_analysis_collapsible_section(
         panel=panel,
         layout=layout,
-        title="D&D Statblock",
+        title="Fantasy RPG Statblock",
         expanded=True,
     )
     register_prediction_section("dnd_statblock", dnd_statblock_section_layout)
@@ -1796,18 +1796,18 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     owner.dnd_predictions_chart_panel.setLayout(owner.dnd_predictions_chart_layout)
     dnd_statblock_section_layout.addWidget(owner.dnd_predictions_chart_panel)
     owner.dnd_predictions_chart_layout.addWidget(
-        _make_predictions_loading_label("Loading cached D&D statblock predictions…")
+        _make_predictions_loading_label("Loading cached Fantasy RPG statblock predictions…")
     )
 
     dnd_species_section_layout = owner._add_chart_analysis_collapsible_section(
         panel=panel,
         layout=layout,
-        title="D&D Species",
+        title="Fantasy RPG Species",
         expanded=True,
     )
     register_prediction_section("dnd_species", dnd_species_section_layout)
     owner.dnd_prediction_species_label = _make_predictions_loading_label(
-        "Loading D&D species predictions…",  #for this UID
+        "Loading Fantasy RPG species predictions…",  #for this UID
         alignment=Qt.AlignLeft | Qt.AlignTop,
     )
     owner.dnd_prediction_species_label.setTextFormat(Qt.RichText)
@@ -1820,12 +1820,12 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     dnd_class_section_layout = owner._add_chart_analysis_collapsible_section(
         panel=panel,
         layout=layout,
-        title="D&D Class",
+        title="Fantasy RPG Class",
         expanded=True,
     )
     register_prediction_section("dnd_class", dnd_class_section_layout)
     owner.dnd_prediction_class_label = _make_predictions_loading_label(
-        "Loading D&D class predictions…",  #for this UID
+        "Loading Fantasy RPG class predictions…",  #for this UID
         alignment=Qt.AlignLeft | Qt.AlignTop,
     )
     owner.dnd_prediction_class_label.setTextFormat(Qt.RichText)
@@ -1838,7 +1838,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     dnd_alignment_section_layout = owner._add_chart_analysis_collapsible_section(
         panel=panel,
         layout=layout,
-        title="D&D Alignment",
+        title="Fantasy RPG Alignment",
         expanded=True,
     )
     register_prediction_section("dnd_alignment", dnd_alignment_section_layout)
@@ -1850,7 +1850,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     owner.dnd_alignment_chart_panel.setLayout(owner.dnd_alignment_chart_layout)
     dnd_alignment_section_layout.addWidget(owner.dnd_alignment_chart_panel)
     owner.dnd_alignment_chart_layout.addWidget(
-        _make_predictions_loading_label("Loading cached D&D alignment predictions…")
+        _make_predictions_loading_label("Loading cached Fantasy RPG alignment predictions…")
     )
 
     owner._add_chart_analysis_section(

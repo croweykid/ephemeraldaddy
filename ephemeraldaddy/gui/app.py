@@ -4063,7 +4063,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         if self._species_distribution_mode == "stat_block":
             subheader.setText("Average stat values within database/selection.")
             return
-        subheader.setText("Distribution of D&D species/classes in database")
+        subheader.setText("Distribution of Fantasy RPG species/classes in database")
 
     def _on_analysis_chart_dropdown_changed(self, chart_key: str) -> None:
         if chart_key == "species_distribution":
@@ -5202,11 +5202,11 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         self._create_traits_database_analytics_section(panel, predictions_category_layout)
         self._create_enneagram_database_analytics_section(panel, predictions_category_layout)
 
-        #D&D TYPING SECTION
+        #Fantasy RPG TYPING SECTION
         species_section_layout = self._add_left_panel_collapsible_section(
             panel,
             predictions_category_layout,
-            "⚔️D&&D-ification",
+            "⚔️Fantasy Archetypes",
             section_key="species_distribution",
             expanded=self._is_database_metrics_section_expanded("species_distribution"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
@@ -5216,10 +5216,10 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         )
         self._database_metrics_section_expanded["species_distribution"] = self._is_database_metrics_section_expanded("species_distribution")
         self._database_metrics_section_visible["species_distribution"] = self._is_database_metrics_section_visible("species_distribution")
-        #D&D Typing Chart Header
+        #Fantasy RPG Typing Chart Header
         self._create_analysis_chart_header(
             species_section_layout,
-            "⚔️D&&D-ification",
+            "⚔️Fantasy Archetypes",
             "species_distribution",
             "species_distribution",
             dropdown_options=[
@@ -5231,11 +5231,11 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             ],
             show_title=False,
         )
-        self.species_distribution_subheader = add_database_subheader("D&D-themed subjective taxonomical distribution in selection/database, because it's fun.")
+        self.species_distribution_subheader = add_database_subheader("Fantasy RPG-themed subjective taxonomical distribution in selection/database, because it's fun.")
         species_section_layout.addWidget(self.species_distribution_subheader)
         self._update_species_distribution_subheader()
 
-        #D&D Typing Chart
+        #Fantasy RPG Typing Chart
         (
             self.species_distribution_chart_container,
             self.species_distribution_chart_layout,
@@ -22214,7 +22214,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         )
         visibility_section.addWidget(cursedness_checkbox)
 
-        dnd_species_checkbox = QCheckBox("Show D&&D Card")
+        dnd_species_checkbox = QCheckBox("Show Fantasy RPG Card")
         dnd_species_checkbox.setChecked(self._visibility.get("chart_data.dnd_output"))
         dnd_species_checkbox.toggled.connect(
             lambda checked: self._set_chart_data_visibility("chart_data.dnd_output", checked)
@@ -22296,10 +22296,10 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         prediction_section_options = (
             ("traits", "Show Traits predictions"),
             ("enneagram", "Show Enneagram predictions"),
-            ("dnd_statblock", "Show D&&D Statblock predictions"),
-            ("dnd_species", "Show D&&D Species predictions"),
-            ("dnd_class", "Show D&&D Class predictions"),
-            ("dnd_alignment", "Show D&&D Alignment predictions"),
+            ("dnd_statblock", "Show Fantasy RPG Statblock predictions"),
+            ("dnd_species", "Show Fantasy RPG Species predictions"),
+            ("dnd_class", "Show Fantasy RPG Class predictions"),
+            ("dnd_alignment", "Show Fantasy RPG Alignment predictions"),
         )
         for prediction_section_key, prediction_section_label in prediction_section_options:
             prediction_section_checkbox = QCheckBox(prediction_section_label)
@@ -22314,7 +22314,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             )
             visibility_section.addWidget(prediction_section_checkbox)
 
-        dnd_statblock_explainers_checkbox = QCheckBox("Show D&&D Statblock explainers")
+        dnd_statblock_explainers_checkbox = QCheckBox("Show Fantasy RPG Statblock explainers")
         dnd_statblock_explainers_checkbox.setChecked(
             self._visibility.get("analytics.dnd_statblock_explainers")
         )
@@ -22327,7 +22327,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         visibility_section.addSpacing(8)
         visibility_section.addWidget(self._build_settings_subheader_label("Database Analytics Panel (DB View)"))
 
-        species_distribution_checkbox = QCheckBox("Show D&&D Typing")
+        species_distribution_checkbox = QCheckBox("Show Fantasy RPG Typing")
         species_distribution_checkbox.setChecked(
             self._is_database_metrics_section_visible("species_distribution")
         )
@@ -35789,7 +35789,7 @@ class MainWindow(QMainWindow):
             dnd_adapter = self._dnd_prediction_adapter()
             dnd_stale = bool(dnd_adapter.caches_are_stale(chart))
         except Exception:
-            logger.warning("Failed to inspect D&D Predictions freshness before leaving Chart View.", exc_info=True)
+            logger.warning("Failed to inspect Fantasy RPG Predictions freshness before leaving Chart View.", exc_info=True)
         if (
             state is not None
             and render_token
@@ -35817,14 +35817,14 @@ class MainWindow(QMainWindow):
                 if self._visibility.get("predictions.dnd_alignment"):
                     adapter.cache_alignment_metadata(chart)
         except Exception:
-            logger.warning("Failed to flush D&D Predictions before leaving Chart View.", exc_info=True)
+            logger.warning("Failed to flush Fantasy RPG Predictions before leaving Chart View.", exc_info=True)
 
 
     def _should_flush_predictions_before_database_view(self) -> bool:
         """Return whether Chart View exit should synchronously refresh Predictions caches.
 
         Lightweight metadata edits (alias/from/notes/tags/etc.) should not make
-        the Database View button wait for D&D/Enneagram prediction cache writes.
+        the Database View button wait for Fantasy RPG/Enneagram prediction cache writes.
         The dirty bit is accumulated across the whole open-chart session, so a
         later lightweight autosave cannot erase an earlier structural edit that
         still needs one final prediction cache flush.

@@ -1093,7 +1093,7 @@ DND_STATS_HYPOTHETICAL = { #lore- x research-based. (GPT edited my findings to t
         "label": "Intelligence",
         "subtype": "scientific / research intelligence",
         "sample_note": (
-            "Because this cohort is literal scientists, this measures scientific eminence more than generic D&D INT: "
+            "Because this cohort is literal scientists, this measures scientific eminence more than generic Fantasy RPG INT: "
             "model-building, hypothesis pursuit, technical reasoning, problem attack, conceptual persistence, and public legibility."
         ),
         "confidence": "medium-low",

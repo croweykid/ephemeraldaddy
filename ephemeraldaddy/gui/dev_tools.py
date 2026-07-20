@@ -262,7 +262,7 @@ FILESYSTEM_INFOGRAPHIC_ITEMS: tuple[dict[str, object], ...] = (
         "children": (
             ("gui/", "Screens, windows, buttons, popups, and user-facing interactions.", "PySide6 GUI layer; app.py remains the shell while feature widgets should live in focused modules."),
             ("core/", "The astrology engine and shared rules: charts, aspects, houses, interpretations, databases, backups, photos, and time helpers.", "Domain logic used by GUI and analysis modules; keep calculations here when they are not view-specific."),
-            ("analysis/", "Special calculators and reference libraries: Astro Twin matching, Human Design, BaZi, Enneagram, traits, cycles, D&D-flavored analysis, and time sensitivity.", "Higher-level derived analytics; many files consume core chart data and cached metadata."),
+            ("analysis/", "Special calculators and reference libraries: Astro Twin matching, Human Design, BaZi, Enneagram, traits, cycles, Fantasy RPG analysis, and time sensitivity.", "Higher-level derived analytics; many files consume core chart data and cached metadata."),
             ("graphics/", "Drawing tools and visual assets, including chart wheels and emoji rendering support.", "Matplotlib/graphics helpers plus packaged image assets."),
             ("data/", "Reference datasets and generated population data the app reads from.", "Static/generated data inputs; compiled/ contains preprocessed artifacts."),
             ("io/", "Import, export, and place lookup plumbing.", "CSV/JSON/gazetteer/geocode boundaries."),

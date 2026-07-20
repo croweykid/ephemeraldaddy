@@ -106,33 +106,33 @@ class _PredictionsWarmupWorker(QObject):
                     section_errors.append(f"Enneagram: {exc}")
                 _predictions_thread_debug(self._owner, "Enneagram cache stage complete job=%s", self._job_token)
             if self._sections.intersection({"dnd_statblock", "dnd_alignment", "dnd_species_class"}):
-                self.progress.emit("Preparing D&D predictions…", 45)
+                self.progress.emit("Preparing Fantasy RPG predictions…", 45)
             if self._cancelled or QThread.currentThread().isInterruptionRequested():
-                _predictions_thread_debug(self._owner, "worker cancelled before D&D cache job=%s", self._job_token)
+                _predictions_thread_debug(self._owner, "worker cancelled before Fantasy RPG cache job=%s", self._job_token)
                 self.finished.emit(self._chart, self._render_token, self._job_token, None)
                 return
             adapter_factory = getattr(self._owner, "_dnd_prediction_adapter", None)
-            _predictions_thread_debug(self._owner, "D&D adapter stage start job=%s callable=%s", self._job_token, callable(adapter_factory))
+            _predictions_thread_debug(self._owner, "Fantasy RPG adapter stage start job=%s callable=%s", self._job_token, callable(adapter_factory))
             if callable(adapter_factory) and self._sections.intersection({"dnd_statblock", "dnd_alignment", "dnd_species_class"}):
                 adapter = adapter_factory()
                 if "dnd_statblock" in self._sections:
                     cache_statblock = getattr(adapter, "cache_statblock_metadata", None)
-                    _predictions_thread_debug(self._owner, "D&D statblock cache stage start job=%s callable=%s", self._job_token, callable(cache_statblock))
+                    _predictions_thread_debug(self._owner, "Fantasy RPG statblock cache stage start job=%s callable=%s", self._job_token, callable(cache_statblock))
                     try:
                         if callable(cache_statblock):
                             cache_statblock(self._chart)
                     except Exception as exc:  # pragma: no cover - defensive UI path
-                        logger.warning("D&D statblock prediction cache failed for %s: %s", _chart_display_name(self._chart), exc, exc_info=True)
-                        section_errors.append(f"D&D statblock: {exc}")
+                        logger.warning("Fantasy RPG statblock prediction cache failed for %s: %s", _chart_display_name(self._chart), exc, exc_info=True)
+                        section_errors.append(f"Fantasy RPG statblock: {exc}")
                 if "dnd_species_class" in self._sections:
                     cache_species_class = getattr(adapter, "cache_species_class_metadata", None)
-                    _predictions_thread_debug(self._owner, "D&D species/class cache stage start job=%s callable=%s", self._job_token, callable(cache_species_class))
+                    _predictions_thread_debug(self._owner, "Fantasy RPG species/class cache stage start job=%s callable=%s", self._job_token, callable(cache_species_class))
                     try:
                         if callable(cache_species_class):
                             cache_species_class(self._chart)
                     except Exception as exc:  # pragma: no cover - defensive UI path
-                        logger.warning("D&D species/class prediction cache failed for %s: %s", _chart_display_name(self._chart), exc, exc_info=True)
-                        section_errors.append(f"D&D species/class: {exc}")
+                        logger.warning("Fantasy RPG species/class prediction cache failed for %s: %s", _chart_display_name(self._chart), exc, exc_info=True)
+                        section_errors.append(f"Fantasy RPG species/class: {exc}")
                 if "dnd_alignment" in self._sections:
                     self.progress.emit("Preparing alignment predictions…", 70)
                     cache_alignment = getattr(adapter, "cache_alignment_metadata", None)
@@ -140,9 +140,9 @@ class _PredictionsWarmupWorker(QObject):
                         if callable(cache_alignment):
                             cache_alignment(self._chart)
                     except Exception as exc:  # pragma: no cover - defensive UI path
-                        logger.warning("D&D alignment prediction cache failed for %s: %s", _chart_display_name(self._chart), exc, exc_info=True)
-                        section_errors.append(f"D&D alignment: {exc}")
-                _predictions_thread_debug(self._owner, "D&D cache stage complete job=%s errors=%s", self._job_token, len(section_errors))
+                        logger.warning("Fantasy RPG alignment prediction cache failed for %s: %s", _chart_display_name(self._chart), exc, exc_info=True)
+                        section_errors.append(f"Fantasy RPG alignment: {exc}")
+                _predictions_thread_debug(self._owner, "Fantasy RPG cache stage complete job=%s errors=%s", self._job_token, len(section_errors))
             if section_errors:
                 self.progress.emit("Some Predictions sections failed; showing available cached sections…", 88)
             self.progress.emit("Finishing Predictions…", 90)
@@ -812,23 +812,23 @@ def _show_predictions_panel_pending_placeholders(owner: object, chart: object | 
             owner,
             "dnd_predictions_chart_layout",
             "dnd_prediction_statblock_canvas",
-            "Loading cached D&D statblock predictions…",
+            "Loading cached Fantasy RPG statblock predictions…",
         )
     summary_label = getattr(owner, "dnd_prediction_top_three_label", None)
     if isinstance(summary_label, QLabel):
-        summary_label.setText("<b>D&D Statblock:</b> <span style='color:#c77dff;'>● Loading predictions… ●</span>")  #for this UID
+        summary_label.setText("<b>Fantasy RPG Statblock:</b> <span style='color:#c77dff;'>● Loading predictions… ●</span>")  #for this UID
     species_label = getattr(owner, "dnd_prediction_species_label", None)
     if _prediction_section_visible(owner, "dnd_species") and isinstance(species_label, QLabel):
         _set_prediction_label_loading(
             species_label,
-            "Loading D&D species predictions…", #for this UID
+            "Loading Fantasy RPG species predictions…", #for this UID
             alignment=Qt.AlignLeft | Qt.AlignTop,
         )
     class_label = getattr(owner, "dnd_prediction_class_label", None)
     if _prediction_section_visible(owner, "dnd_class") and isinstance(class_label, QLabel):
         _set_prediction_label_loading(
             class_label,
-            "Loading D&D class predictions…", #for this UID
+            "Loading Fantasy RPG class predictions…", #for this UID
             alignment=Qt.AlignLeft | Qt.AlignTop,
         )
     if _prediction_section_visible(owner, "dnd_alignment"):
@@ -836,7 +836,7 @@ def _show_predictions_panel_pending_placeholders(owner: object, chart: object | 
             owner,
             "dnd_alignment_chart_layout",
             "dnd_prediction_alignment_canvas",
-            "Loading cached D&D alignment predictions…",
+            "Loading cached Fantasy RPG alignment predictions…",
         )
     alignment_debug_label = getattr(owner, "dnd_prediction_alignment_debug_label", None)
     if _prediction_section_visible(owner, "dnd_alignment") and isinstance(alignment_debug_label, QLabel):
@@ -974,8 +974,8 @@ def _predictions_panel_has_rendered_content(owner: object) -> bool:
             and class_text.rstrip().endswith("—")
         )
         or (
-            "Loading D&D species predictions" in species_text  #for this UID
-            and "Loading D&D class predictions" in class_text  #for this UID
+            "Loading Fantasy RPG species predictions" in species_text  #for this UID
+            and "Loading Fantasy RPG class predictions" in class_text  #for this UID
         )
     )
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 """
-Foundational axes for assigning D&D-style classes and subclasses from an
+Foundational axes for assigning Fantasy RPG-style classes and subclasses from an
 astrological chart or other symbolic profile.
 
 This module does not score classes yet. It defines the semantic skeleton the
@@ -434,7 +434,7 @@ DERIVED_ASPECTS: Sequence[Tuple[str, float, float]] = tuple(
 
 @dataclass(frozen=True)
 class AxisFeatureSet:
-    """Stable chart features consumed by D&D class-axis scoring."""
+    """Stable chart features consumed by Fantasy RPG class-axis scoring."""
 
     planet_prominence: Mapping[str, float]
     element_balance: Mapping[str, float]

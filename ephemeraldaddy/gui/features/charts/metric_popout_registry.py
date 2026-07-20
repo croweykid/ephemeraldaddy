@@ -191,15 +191,15 @@ METRIC_PANEL_SPECS: tuple[MetricPanelSpec, ...] = (
     ),
     MetricPanelSpec(
         key="dnd_statblock",
-        title="D&D Statblock",
+        title="Fantasy RPG Statblock",
         draw=_call_draw("_draw_dnd_statblock_predictions"),
         popout_size=(8.5, 4.2),
-        placeholder="Click a stat bar to view what that D&D ability score suggests.",
+        placeholder="Click a stat bar to view what that ability score suggests.",
         configure_info=_configure_dnd,
     ),
     MetricPanelSpec(
         key="dnd_alignment",
-        title="D&D Alignment",
+        title="Fantasy RPG Alignment",
         draw=_call_draw("_draw_dnd_alignment_predictions"),
         popout_size=(8.5, 6.0),
         placeholder="Click an alignment point to view its description, or the gold star for the math breakdown.",

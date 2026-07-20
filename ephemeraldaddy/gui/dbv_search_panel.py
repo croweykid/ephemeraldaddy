@@ -2057,9 +2057,9 @@ def build_dbv_search_panel(window) -> "QWidget":
     relationship_group_layout.addLayout(relationship_layout)
     interactions_category_layout.addWidget(relationship_section)
 
-    #Search: D&D section
+    #Search: Fantasy RPG section
     dnd_species_section, dnd_species_group_layout = add_collapsible_section(
-        "⚔️D&&D-ification",
+        "⚔️Fantasy RPG",
     )
     class_filter_row = QHBoxLayout()
     class_filter_row.addWidget(QLabel("Top 3 Classes"))

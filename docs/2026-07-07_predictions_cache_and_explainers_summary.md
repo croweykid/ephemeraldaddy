@@ -2,27 +2,27 @@
 
 ## Scope
 
-This document summarizes the requested Chart View Predictions-panel changes discussed in this conversation, especially the D&D-ification Statblock/Alignment behavior, statblock popout math explainers, persisted prediction caches, stale-cache UI, UID-only cache identity, and the related Traits-panel cached-rendering behavior. It also records the current architectural core shared by Database View > Database Analytics > Predictions/Traits distribution and Chart View > Predictions: durable calculation data should live in UID-backed metadata and shared calculation caches, while rendered HTML should remain downstream presentation rather than a durable cache.
+This document summarizes the requested Chart View Predictions-panel changes discussed in this conversation, especially the Fantasy RPG Statblock/Alignment behavior, statblock popout math explainers, persisted prediction caches, stale-cache UI, UID-only cache identity, and the related Traits-panel cached-rendering behavior. It also records the current architectural core shared by Database View > Database Analytics > Predictions/Traits distribution and Chart View > Predictions: durable calculation data should live in UID-backed metadata and shared calculation caches, while rendered HTML should remain downstream presentation rather than a durable cache.
 
 ## Original user goals
 
-1. **Make the D&D Statblock popout math auditable.**
+1. **Make the Fantasy RPG Statblock popout math auditable.**
    - The Statblock popout already listed evidence subtotals.
    - The requested behavior was to add a divider and then show:
      - each subtotal again,
      - the subtotals added together,
      - the actual DB norm comparison,
      - when the DB norm/cache value was cached,
-     - and the remaining math leading to the final displayed D&D stat.
+     - and the remaining math leading to the final displayed Fantasy RPG stat.
 
 2. **Never block previously loaded Predictions results behind a Calculate prompt.**
    - If any Predictions section has prior data for a chart, that data should display by default.
    - Even stale data should display first.
    - If stale, the UI should show a recalculation option at the top while keeping old results visible.
 
-3. **Make D&D prediction caches survive app restarts.**
+3. **Make Fantasy RPG prediction caches survive app restarts.**
    - In-memory owner/chart-object caches were not enough.
-   - D&D Statblock and Alignment payloads needed UID-backed persistence in app metadata/storage.
+   - Fantasy RPG Statblock and Alignment payloads needed UID-backed persistence in app metadata/storage.
 
 4. **Use UIDs only.**
    - Legacy chart ID fallbacks should be removed.
@@ -35,14 +35,14 @@ This document summarizes the requested Chart View Predictions-panel changes disc
 6. **Use a visually consistent Recalculate control.**
    - The stale notice should use a button styled like the Predictions-panel `Calculate!` button, not a random rich-text link.
 
-7. **Apply the cache-first principle beyond D&D Statblock.**
-   - D&D Alignment should also restore and display cached results.
+7. **Apply the cache-first principle beyond Fantasy RPG Statblock.**
+   - Fantasy RPG Alignment should also restore and display cached results.
    - Traits should render available persisted metadata/results immediately and should not depend on a rendered-HTML cache as a source of truth.
    - Fast sections should not be unnecessarily bottlenecked by a manual Calculate/Recalculate flow.
 
 ## Programmatic changes made
 
-### 1. D&D statblock evidence subtotals and math walkthrough
+### 1. Fantasy RPG statblock evidence subtotals and math walkthrough
 
 File: `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
 
@@ -53,7 +53,7 @@ File: `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
   - displayed subtotal sum,
   - scorer-equivalent raw total after category balancing/count weighting,
   - DB norm raw average when available,
-  - ratio math against the D&D average anchor,
+  - ratio math against the Fantasy RPG average anchor,
   - clamp/round behavior,
   - fallback tanh normalization when DB norms are unavailable or zero,
   - and the final displayed stat value.
@@ -122,7 +122,7 @@ Important implementation location:
 
 - `DndPredictionPanelAdapter.build_popout_info()` in `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
 
-### 5. Persist D&D prediction metadata across app sessions
+### 5. Persist Fantasy RPG prediction metadata across app sessions
 
 File: `ephemeraldaddy/core/db.py`
 
@@ -150,7 +150,7 @@ Important implementation locations:
 - `get_chart_dnd_prediction_metadata()` in `ephemeraldaddy/core/db.py`
 - `_ensure_schema()` in `ephemeraldaddy/core/db.py`
 
-### 6. Serialize and restore D&D statblock payloads safely
+### 6. Serialize and restore Fantasy RPG statblock payloads safely
 
 File: `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
 
@@ -168,11 +168,11 @@ Important implementation locations:
 - `_statblock_from_cache_dict()` in `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
 - `_restore_statblock_cache_payload()` in `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
 
-### 7. Persist and restore D&D Statblock and Alignment caches
+### 7. Persist and restore Fantasy RPG Statblock and Alignment caches
 
 File: `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
 
-D&D cache persistence/restoration helpers were added:
+Fantasy RPG cache persistence/restoration helpers were added:
 
 - `_load_persisted_dnd_prediction_payload(chart)`
 - `_persist_dnd_prediction_payload(chart, section, payload)`
@@ -200,7 +200,7 @@ Important implementation locations:
 
 File: `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
 
-The UID migration concern was addressed by removing chart ID fallbacks from D&D prediction cache identity.
+The UID migration concern was addressed by removing chart ID fallbacks from Fantasy RPG prediction cache identity.
 
 Current behavior:
 
@@ -252,11 +252,11 @@ Important implementation locations:
 - `DndPredictionPanelAdapter._statblock_cache_is_stale()` in `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
 - `DndPredictionPanelAdapter._score_statblock()` in `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
 
-### 10. Display cached/stale D&D results by default and show a Recalculate button
+### 10. Display cached/stale Fantasy RPG results by default and show a Recalculate button
 
 File: `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
 
-D&D rendering was updated so cached results display by default when available.
+Fantasy RPG rendering was updated so cached results display by default when available.
 
 Behavior:
 
@@ -329,7 +329,7 @@ The current Predictions architecture has three related but distinct trait-data l
    - Owned by Database Analytics.
    - Stores reusable per-chart/per-analytical-profile trait likelihoods.
    - Uses chart tokens and compact profile entries so small chart/trait edits can update incrementally instead of forcing a full database recalculation.
-   - Shared by Database Analytics, Chart View Traits, and D&D Alignment via `_collect_traits_distribution_analytics()` / `trait_likelihoods_with_distribution_cache()`.
+   - Shared by Database Analytics, Chart View Traits, and Fantasy RPG Alignment via `_collect_traits_distribution_analytics()` / `trait_likelihoods_with_distribution_cache()`.
 
 2. **`.database_norms_cache`**
    - Stores DB-level trait averages and norm signatures.
@@ -355,7 +355,7 @@ Important implementation locations:
 - `trait_metadata_for_chart()` in `ephemeraldaddy/gui/features/charts/trait_predictions.py`
 - `_dnd_alignment_score_parts()` in `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
 
-### 14. D&D Statblock DB norm reuse is separate from trait likelihood caching
+### 14. Fantasy RPG Statblock DB norm reuse is separate from trait likelihood caching
 
 Files:
 
@@ -363,7 +363,7 @@ Files:
 - `ephemeraldaddy/analysis/dnd/dnd_class_axes_v2.py`
 - `ephemeraldaddy/gui/features/charts/dnd_predictions.py`
 
-D&D Statblock scoring is not trait-profile likelihood scoring. It uses D&D stat predictors and DB-relative stat norm averages. Therefore, Statblock should not be forced into `.traits_distribution_likelihood_cache` unless the statblock system is redesigned around trait-like analytical profiles.
+Fantasy RPG Statblock scoring is not trait-profile likelihood scoring. It uses Fantasy RPG stat predictors and DB-relative stat norm averages. Therefore, Statblock should not be forced into `.traits_distribution_likelihood_cache` unless the statblock system is redesigned around trait-like analytical profiles.
 
 Current behavior:
 
@@ -381,7 +381,7 @@ Important implementation locations:
 
 ## Known testing notes from the implementation cycle
 
-The focused D&D stat normalization tests passed during development:
+The focused Fantasy RPG stat normalization tests passed during development:
 
 ```bash
 PYTHONPATH=/workspace/ephemeraldaddy pytest tests/test_dnd_stat_normalization.py -q
@@ -408,7 +408,7 @@ The failing assertions referenced existing source expectations in:
 - `ephemeraldaddy/gui/features/charts/cv_right_panel_stack.py`
 - `ephemeraldaddy/gui/features/controllers/chart_view_window.py`
 
-Those failures were not introduced by the D&D cache/explainer work, but they remained present during the focused verification runs.
+Those failures were not introduced by the Fantasy RPG cache/explainer work, but they remained present during the focused verification runs.
 
 ## Remaining caveats / follow-up ideas
 

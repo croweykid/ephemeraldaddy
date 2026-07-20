@@ -1146,11 +1146,11 @@ CHART_DATA_SECTION_HEADERS = (
     "CHANNELS",
     "AWARENESS STREAMS",
     "CURSEDNESS",
-    "D&D-ification",
+    "FANTASY RPG",
 )
 CHART_DATA_COLON_LABELS = (
     "CURSEDNESS:",
-    "D&D SPECIES/RACE:",
+    "FANTASY SPECIES/RACE:",
     "Reasoning:",
 )
 

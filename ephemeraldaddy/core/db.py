@@ -675,7 +675,7 @@ def _create_dnd_prediction_metadata_table(conn: sqlite3.Connection) -> None:
 
 
 def upsert_chart_dnd_prediction_metadata(chart_uid: str, payload: Mapping[str, Any]) -> None:
-    """Persist cached D&D prediction metadata for a chart UID."""
+    """Persist cached Fantasy RPG prediction metadata for a chart UID."""
     normalized_uid = _normalize_chart_uid(chart_uid)
     if normalized_uid is None:
         raise ValueError(f"Invalid chart UID {chart_uid!r}")
@@ -699,7 +699,7 @@ def upsert_chart_dnd_prediction_metadata(chart_uid: str, payload: Mapping[str, A
 
 
 def get_chart_dnd_prediction_metadata(chart_uid: str) -> dict[str, Any]:
-    """Return persisted cached D&D prediction metadata for a chart UID."""
+    """Return persisted cached Fantasy RPG prediction metadata for a chart UID."""
     normalized_uid = _normalize_chart_uid(chart_uid)
     if normalized_uid is None:
         return {}

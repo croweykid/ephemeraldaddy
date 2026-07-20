@@ -602,7 +602,7 @@ def trait_likelihoods_with_distribution_cache(
 ) -> dict[str, float]:
     """Score traits through the shared Database Analytics likelihood cache when possible.
 
-    Database Analytics, Chart View Traits, and D&D alignment traits all use this
+    Database Analytics, Chart View Traits, and Fantasy RPG alignment traits all use this
     wrapper so persisted database charts are scored once per analytical profile.
     Draft/unsaved charts still fall back to direct scoring because they do not
     have stable database row tokens for the persisted cache.
@@ -650,7 +650,7 @@ def trait_likelihoods_with_distribution_cache(
 def _chart_trait_metadata_signature(chart: Any) -> str:
     """Fingerprint only the birth-data inputs that should invalidate predictions.
 
-    Trait/D&D/Enneagram Predictions are persisted per permanent chart UID and
+    Trait/Fantasy RPG/Enneagram Predictions are persisted per permanent chart UID and
     should remain instantly reusable across Chart View opens.  Derived astrology
     payloads (positions, aspects, HD/BaZi weights, etc.) are intentionally not
     part of this signature: those values are recalculated from the essential

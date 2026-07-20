@@ -47,8 +47,8 @@ def test_predictions_traits_placeholder_prevents_whole_panel_skip():
 def test_predictions_warmup_sections_fail_independently():
     assert "section_errors: list[str] = []" in RIGHT_PANEL_STACK_SOURCE
     assert "Enneagram prediction cache failed" in RIGHT_PANEL_STACK_SOURCE
-    assert "D&D statblock prediction cache failed" in RIGHT_PANEL_STACK_SOURCE
-    assert "D&D alignment prediction cache failed" in RIGHT_PANEL_STACK_SOURCE
+    assert "Fantasy RPG statblock prediction cache failed" in RIGHT_PANEL_STACK_SOURCE
+    assert "Fantasy RPG alignment prediction cache failed" in RIGHT_PANEL_STACK_SOURCE
     assert "Some Predictions sections failed; showing available cached sections" in RIGHT_PANEL_STACK_SOURCE
 
 
