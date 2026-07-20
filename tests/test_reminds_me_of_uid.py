@@ -140,3 +140,32 @@ def test_append_database_preserves_multiple_reminds_me_of_uids(monkeypatch, tmp_
         imported_other_uid,
     ]
     assert source_uid not in db.parse_reminds_me_of_uids(imported_related.reminds_me_of)
+
+
+def test_reminds_me_of_links_are_saved_reciprocally(monkeypatch, tmp_path):
+    _use_temp_db(monkeypatch, tmp_path)
+    first_id = db.save_chart(_chart("First"), birth_place="UTC")
+    second_id = db.save_chart(_chart("Second"), birth_place="UTC")
+    first_uid = db.get_chart_uid(first_id)
+    second_uid = db.get_chart_uid(second_id)
+
+    first = db.load_chart(first_id)
+    first.reminds_me_of = db.serialize_reminds_me_of_uids([second_uid])
+    db.update_chart(first_id, first, birth_place="UTC")
+
+    assert db.parse_reminds_me_of_uids(db.load_chart(first_id).reminds_me_of) == [second_uid]
+    assert db.parse_reminds_me_of_uids(db.load_chart(second_id).reminds_me_of) == [first_uid]
+
+
+
+def test_new_chart_reminds_me_of_link_is_saved_reciprocally(monkeypatch, tmp_path):
+    _use_temp_db(monkeypatch, tmp_path)
+    existing_id = db.save_chart(_chart("Existing"), birth_place="UTC")
+    existing_uid = db.get_chart_uid(existing_id)
+
+    new_chart = _chart("New")
+    new_chart.reminds_me_of = db.serialize_reminds_me_of_uids([existing_uid])
+    new_id = db.save_chart(new_chart, birth_place="UTC")
+    new_uid = db.get_chart_uid(new_id)
+
+    assert db.parse_reminds_me_of_uids(db.load_chart(existing_id).reminds_me_of) == [new_uid]
