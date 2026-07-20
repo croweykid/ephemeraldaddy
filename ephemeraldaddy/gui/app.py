@@ -1334,7 +1334,7 @@ CHART_VIEW_NAV_CACHE_LIMIT = 24
 CHART_VIEW_TIMING_PREVIEW_DEBOUNCE_MS = 450
 DATABASE_METRICS_DEFERRED_REFRESH_DELAY_MS = 250
 DATABASE_METRICS_INCREMENTAL_REFRESH_DELAY_MS = 25
-CHART_RENDER_INTERACTIVE_DELAY_MS = 1
+CHART_RENDER_INTERACTIVE_DELAY_MS = 100
 CHART_RENDER_BACKGROUND_DELAY_MS = 25
 
 DATABASE_METRICS_PERSISTENT_CACHE_VERSION = 1
@@ -25097,6 +25097,8 @@ class MainWindow(QMainWindow):
         self._metadata_autosave_requires_recalculation = False
         self._last_chart_save_changed_fields: set[str] | None = None
         self._last_chart_save_recalculated = False
+        self._chart_view_saved_changes_since_load = False
+        self._chart_view_prediction_flush_pending = False
         self._timing_preview_update_timer = QTimer(self)
         self._timing_preview_update_timer.setSingleShot(True)
         self._timing_preview_update_timer.timeout.connect(
@@ -34864,6 +34866,30 @@ class MainWindow(QMainWindow):
         )
         self._last_chart_save_changed_fields = None if changed_fields is None else set(changed_fields)
         self._last_chart_save_recalculated = bool(chart_recalculated)
+        save_changed_chart_data = bool(
+            is_new_chart
+            or chart_recalculated
+            or changed_fields is None
+            or bool(changed_fields)
+        )
+        self._chart_view_saved_changes_since_load = (
+            bool(getattr(self, "_chart_view_saved_changes_since_load", False))
+            or save_changed_chart_data
+        )
+        save_requires_prediction_flush = bool(
+            not is_placeholder
+            and not subjective_notes_autosave
+            and (
+                is_new_chart
+                or chart_recalculated
+                or changed_fields is None
+                or "birth_data" in changed_fields
+            )
+        )
+        self._chart_view_prediction_flush_pending = (
+            bool(getattr(self, "_chart_view_prediction_flush_pending", False))
+            or save_requires_prediction_flush
+        )
         refresh_database_metrics = self._database_refresh_requires_metrics(changed_fields)
         if refresh_database_metrics:
             self._update_sentiment_tally(
@@ -35359,8 +35385,9 @@ class MainWindow(QMainWindow):
             and current_chart_uid is not None
             and current_chart_uid != normalized_chart_uid
         )
-        if replacing_current_chart:
+        if replacing_current_chart and self._should_flush_predictions_before_database_view():
             self._flush_stale_predictions_before_chart_exit()
+            self._chart_view_prediction_flush_pending = False
         self._prepare_chart_right_panel_for_loading()
         is_same_chart_request = current_chart_uid == normalized_chart_uid
         if not from_chart_link and not is_same_chart_request:
@@ -35554,6 +35581,10 @@ class MainWindow(QMainWindow):
         self._update_time_input_text_colors()
         self._suppress_lucygoosey = False
         self._set_lucygoosey(False)
+        self._last_chart_save_changed_fields = set()
+        self._last_chart_save_recalculated = False
+        self._chart_view_saved_changes_since_load = False
+        self._chart_view_prediction_flush_pending = False
         self._loaded_birth_place = chart.birth_place
         self._loaded_lat = chart.lat
         self._loaded_lon = chart.lon
@@ -35593,7 +35624,10 @@ class MainWindow(QMainWindow):
         previous_chart_uid = self._chart_view_history[previous_index]
         if not self._confirm_discard_or_save():
             return
-        self._flush_stale_predictions_before_chart_exit()
+        self._cancel_pending_chart_render()
+        if self._should_flush_predictions_before_database_view():
+            self._flush_stale_predictions_before_chart_exit()
+            self._chart_view_prediction_flush_pending = False
         if self.load_chart_by_uid(
             previous_chart_uid,
             from_chart_link=True,
@@ -35791,13 +35825,11 @@ class MainWindow(QMainWindow):
 
         Lightweight metadata edits (alias/from/notes/tags/etc.) should not make
         the Database View button wait for D&D/Enneagram prediction cache writes.
-        Those caches depend on structural chart data, so only force the old
-        synchronous exit flush after new saves or birth/calculation changes.
+        The dirty bit is accumulated across the whole open-chart session, so a
+        later lightweight autosave cannot erase an earlier structural edit that
+        still needs one final prediction cache flush.
         """
-        changed_fields = getattr(self, "_last_chart_save_changed_fields", None)
-        if changed_fields is None:
-            return bool(getattr(self, "_last_chart_save_recalculated", False))
-        return "birth_data" in changed_fields or bool(getattr(self, "_last_chart_save_recalculated", False))
+        return bool(getattr(self, "_chart_view_prediction_flush_pending", False))
 
     def on_manage_charts(
         self,
@@ -35810,10 +35842,12 @@ class MainWindow(QMainWindow):
         )
         if startup_progress is None and not self._confirm_discard_or_save():
             return False
+        self._cancel_pending_chart_render()
         self._flush_pending_metadata_save()
         self._flush_pending_sentiment_metrics_save()
         if self._should_flush_predictions_before_database_view():
             self._flush_stale_predictions_before_chart_exit()
+            self._chart_view_prediction_flush_pending = False
         self._chart_view_history.clear()
         self._chart_view_history_index = -1
         self._settings.setValue("app/last_view", "database")
@@ -36330,15 +36364,17 @@ class MainWindow(QMainWindow):
     ) -> None:
         self._latest_chart = chart
         time_sensitivity_panel = getattr(self, "time_sensitivity_panel", None)
+        active_right_tab = getattr(getattr(self, "_chart_right_panel_state", None), "active_tab", None)
         if (
             refresh_time_sensitivity
+            and active_right_tab == "time_sensitivity"
             and time_sensitivity_panel is not None
             and hasattr(time_sensitivity_panel, "refresh_for_current_chart")
         ):
             # The time-sensitivity panel is one of Chart View's heavier refreshes.
-            # _schedule_chart_render() is called repeatedly as individual sections
-            # are queued, so only refresh this panel when the underlying chart
-            # identity/calculation token changes instead of on every section pass.
+            # Only refresh it synchronously when the user is actually looking at
+            # that tab. Opening Chart View should leave quick navigation back to
+            # Database View responsive instead of front-loading hidden panel work.
             try:
                 time_sensitivity_token = self._chart_analytics_cache_token(chart)
             except Exception:
@@ -36405,6 +36441,15 @@ class MainWindow(QMainWindow):
                 else CHART_RENDER_INTERACTIVE_DELAY_MS
             )
             self._render_flush_timer.start(delay_ms)
+
+    def _cancel_pending_chart_render(self) -> None:
+        """Drop queued Chart View rendering so navigation can happen immediately."""
+        self._pending_render_chart = None
+        self._chart_render_generation += 1
+        self._chart_render_queue_state.clear()
+        if self._render_flush_timer.isActive():
+            self._render_flush_timer.stop()
+        self._hide_chart_loading_overlay()
 
     def _flush_scheduled_chart_render(self) -> None:
         chart = self._pending_render_chart
@@ -38916,7 +38961,9 @@ class MainWindow(QMainWindow):
         if not self._confirm_discard_or_save():
             event.ignore()
             return
-        self._flush_stale_predictions_before_chart_exit()
+        if self._should_flush_predictions_before_database_view():
+            self._flush_stale_predictions_before_chart_exit()
+            self._chart_view_prediction_flush_pending = False
         _stop_background_prediction_render(self)
         _stop_traits_prediction_refresh_workers(self)
         if self._size_checker_popup is not None:
