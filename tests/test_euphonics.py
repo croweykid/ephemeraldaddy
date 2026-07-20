@@ -89,3 +89,47 @@ def test_render_euphonics_html_shows_occurrence_count_and_sound_color(monkeypatc
     assert "(found: A x 3)" in rendered
     assert "color:#ff8fa3" in rendered
     assert "color:#9bd3ff" in rendered
+
+
+def test_render_euphonics_compact_html_emphasizes_titles_and_scales_examples(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        euphonics,
+        "euphonics_matches_for_name",
+        lambda _name: [
+            {
+                "id": "A",
+                "title": "A title",
+                "summary": "A summary",
+                "matched_token": "A",
+                "occurrences": 3,
+                "first_index": 0,
+                "color": "#ff8fa3",
+                "examples": [f"a{i}" for i in range(12)],
+            },
+            {
+                "id": "B",
+                "title": "B title",
+                "summary": "B summary",
+                "matched_token": "B",
+                "occurrences": 1,
+                "first_index": 1,
+                "color": "#72ddf7",
+                "examples": ["b0", "b1", "b2"],
+            },
+        ],
+    )
+    monkeypatch.setattr(
+        euphonics.random, "sample", lambda examples, count: examples[:count]
+    )
+
+    rendered = euphonics.render_euphonics_compact_html("banana")
+
+    assert "font-size:18px; font-weight:700;" in rendered
+    assert "font-size:13px; font-weight:400;" in rendered
+    assert "<ul>" not in rendered
+    assert "A title</span>. <span" in rendered
+    assert all(f"a{i}" in rendered for i in range(9))
+    assert all(f"b{i}" in rendered for i in range(3))
+    assert "a9" not in rendered
