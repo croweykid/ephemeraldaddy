@@ -1,6 +1,3 @@
-# TEMP_RMO_RECIPROCITY_CLEANUP_REMOVE_AFTER_LOCAL_DB_MIGRATION:
-# Delete this test file with the temporary cleanup module after the local legacy
-# Reminds Me Of data has been normalized and the Dev Tools helper is removed.
 from pathlib import Path
 from datetime import datetime
 from zoneinfo import ZoneInfo

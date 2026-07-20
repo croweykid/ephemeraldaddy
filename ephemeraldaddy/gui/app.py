@@ -532,9 +532,6 @@ from matplotlib.figure import Figure
 from matplotlib.patches import Patch
 
 from ephemeraldaddy.core.deps import ensure_all_deps
-# TEMP_RMO_RECIPROCITY_CLEANUP_REMOVE_AFTER_LOCAL_DB_MIGRATION:
-# Remove this import together with _on_ensure_reminds_me_of_reciprocity(), the
-# Dev Tools button below, and ephemeraldaddy/core/reminds_me_of_reciprocity_cleanup.py.
 from ephemeraldaddy.core.reminds_me_of_reciprocity_cleanup import (
     ensure_existing_reminds_me_of_reciprocity,
 )
@@ -18718,9 +18715,6 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             format_chart_similarity_relationship_conversion_report(report),
         )
 
-    # TEMP_RMO_RECIPROCITY_CLEANUP_REMOVE_AFTER_LOCAL_DB_MIGRATION:
-    # One-time repair action for pre-reciprocity personal databases. Safe to
-    # delete after the local database cleanup has been run and verified.
     def _on_ensure_reminds_me_of_reciprocity(self) -> None:
         try:
             report = ensure_existing_reminds_me_of_reciprocity()
@@ -22566,9 +22560,6 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         )
         dev_tools_section.addWidget(convert_similarity_relationship_ids_button)
 
-        # TEMP_RMO_RECIPROCITY_CLEANUP_REMOVE_AFTER_LOCAL_DB_MIGRATION:
-        # Temporary Dev Tools button for the one-time legacy cleanup. Remove this
-        # block with the matching import/handler/module once cleanup is complete.
         reminds_me_of_reciprocity_button = QPushButton("Ensure Reminds Me Of reciprocity")
         reminds_me_of_reciprocity_button.setToolTip(
             "Temporary one-time cleanup: add missing reverse links for existing Reminds Me Of entries."
