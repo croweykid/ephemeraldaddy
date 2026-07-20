@@ -1334,7 +1334,7 @@ CHART_VIEW_NAV_CACHE_LIMIT = 24
 CHART_VIEW_TIMING_PREVIEW_DEBOUNCE_MS = 450
 DATABASE_METRICS_DEFERRED_REFRESH_DELAY_MS = 250
 DATABASE_METRICS_INCREMENTAL_REFRESH_DELAY_MS = 25
-CHART_RENDER_INTERACTIVE_DELAY_MS = 1
+CHART_RENDER_INTERACTIVE_DELAY_MS = 100
 CHART_RENDER_BACKGROUND_DELAY_MS = 25
 
 DATABASE_METRICS_PERSISTENT_CACHE_VERSION = 1
@@ -35593,6 +35593,7 @@ class MainWindow(QMainWindow):
         previous_chart_uid = self._chart_view_history[previous_index]
         if not self._confirm_discard_or_save():
             return
+        self._cancel_pending_chart_render()
         self._flush_stale_predictions_before_chart_exit()
         if self.load_chart_by_uid(
             previous_chart_uid,
@@ -35810,6 +35811,7 @@ class MainWindow(QMainWindow):
         )
         if startup_progress is None and not self._confirm_discard_or_save():
             return False
+        self._cancel_pending_chart_render()
         self._flush_pending_metadata_save()
         self._flush_pending_sentiment_metrics_save()
         if self._should_flush_predictions_before_database_view():
@@ -36330,15 +36332,17 @@ class MainWindow(QMainWindow):
     ) -> None:
         self._latest_chart = chart
         time_sensitivity_panel = getattr(self, "time_sensitivity_panel", None)
+        active_right_tab = getattr(getattr(self, "_chart_right_panel_state", None), "active_tab", None)
         if (
             refresh_time_sensitivity
+            and active_right_tab == "time_sensitivity"
             and time_sensitivity_panel is not None
             and hasattr(time_sensitivity_panel, "refresh_for_current_chart")
         ):
             # The time-sensitivity panel is one of Chart View's heavier refreshes.
-            # _schedule_chart_render() is called repeatedly as individual sections
-            # are queued, so only refresh this panel when the underlying chart
-            # identity/calculation token changes instead of on every section pass.
+            # Only refresh it synchronously when the user is actually looking at
+            # that tab. Opening Chart View should leave quick navigation back to
+            # Database View responsive instead of front-loading hidden panel work.
             try:
                 time_sensitivity_token = self._chart_analytics_cache_token(chart)
             except Exception:
@@ -36405,6 +36409,15 @@ class MainWindow(QMainWindow):
                 else CHART_RENDER_INTERACTIVE_DELAY_MS
             )
             self._render_flush_timer.start(delay_ms)
+
+    def _cancel_pending_chart_render(self) -> None:
+        """Drop queued Chart View rendering so navigation can happen immediately."""
+        self._pending_render_chart = None
+        self._chart_render_generation += 1
+        self._chart_render_queue_state.clear()
+        if self._render_flush_timer.isActive():
+            self._render_flush_timer.stop()
+        self._hide_chart_loading_overlay()
 
     def _flush_scheduled_chart_render(self) -> None:
         chart = self._pending_render_chart
