@@ -25097,6 +25097,7 @@ class MainWindow(QMainWindow):
         self._metadata_autosave_requires_recalculation = False
         self._last_chart_save_changed_fields: set[str] | None = None
         self._last_chart_save_recalculated = False
+        self._chart_view_saved_changes_since_load = False
         self._timing_preview_update_timer = QTimer(self)
         self._timing_preview_update_timer.setSingleShot(True)
         self._timing_preview_update_timer.timeout.connect(
@@ -34864,6 +34865,12 @@ class MainWindow(QMainWindow):
         )
         self._last_chart_save_changed_fields = None if changed_fields is None else set(changed_fields)
         self._last_chart_save_recalculated = bool(chart_recalculated)
+        self._chart_view_saved_changes_since_load = bool(
+            is_new_chart
+            or chart_recalculated
+            or changed_fields is None
+            or bool(changed_fields)
+        )
         refresh_database_metrics = self._database_refresh_requires_metrics(changed_fields)
         if refresh_database_metrics:
             self._update_sentiment_tally(
@@ -35359,7 +35366,7 @@ class MainWindow(QMainWindow):
             and current_chart_uid is not None
             and current_chart_uid != normalized_chart_uid
         )
-        if replacing_current_chart:
+        if replacing_current_chart and self._should_flush_predictions_before_database_view():
             self._flush_stale_predictions_before_chart_exit()
         self._prepare_chart_right_panel_for_loading()
         is_same_chart_request = current_chart_uid == normalized_chart_uid
@@ -35554,6 +35561,9 @@ class MainWindow(QMainWindow):
         self._update_time_input_text_colors()
         self._suppress_lucygoosey = False
         self._set_lucygoosey(False)
+        self._last_chart_save_changed_fields = set()
+        self._last_chart_save_recalculated = False
+        self._chart_view_saved_changes_since_load = False
         self._loaded_birth_place = chart.birth_place
         self._loaded_lat = chart.lat
         self._loaded_lon = chart.lon
@@ -35594,7 +35604,8 @@ class MainWindow(QMainWindow):
         if not self._confirm_discard_or_save():
             return
         self._cancel_pending_chart_render()
-        self._flush_stale_predictions_before_chart_exit()
+        if self._should_flush_predictions_before_database_view():
+            self._flush_stale_predictions_before_chart_exit()
         if self.load_chart_by_uid(
             previous_chart_uid,
             from_chart_link=True,
@@ -35795,6 +35806,8 @@ class MainWindow(QMainWindow):
         Those caches depend on structural chart data, so only force the old
         synchronous exit flush after new saves or birth/calculation changes.
         """
+        if not bool(getattr(self, "_chart_view_saved_changes_since_load", False)):
+            return False
         changed_fields = getattr(self, "_last_chart_save_changed_fields", None)
         if changed_fields is None:
             return bool(getattr(self, "_last_chart_save_recalculated", False))
