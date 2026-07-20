@@ -58,6 +58,9 @@ SIMILAR_CHARTS_ALGORITHM_DATABASE_DISTINCTION = "database_distinction"
 PLACEMENT_WEIGHTING_MODE_CHART_DEFINED = "chart_defined"
 PLACEMENT_WEIGHTING_MODE_GENERIC = "generic"
 PLACEMENT_WEIGHTING_MODE_HYBRID = "hybrid"
+ASTRO_TWIN_DEMOGRAPHIC_MATCH_NONE = "none"
+ASTRO_TWIN_DEMOGRAPHIC_MATCH_GENDER = "gender"
+ASTRO_TWIN_DEMOGRAPHIC_MATCH_SEX = "sex"
 HYBRID_LUMINARY_BONUS_BY_SIGN_MATCHES: dict[int, float] = {
     0: 0.82,
     1: 0.92,
@@ -444,6 +447,7 @@ class SimilarityCalculatorSettings:
     weight_big_3: float = 0.00
     placement_weighting_mode: str = PLACEMENT_WEIGHTING_MODE_CHART_DEFINED
     all_or_nothing_component: str = DEFAULT_ALL_OR_NOTHING_COMPONENT
+    demographic_match_mode: str = ASTRO_TWIN_DEMOGRAPHIC_MATCH_NONE
 
     def __post_init__(self) -> None:
         """Fold legacy combined-dominance constructor values into granular fields.
@@ -602,6 +606,9 @@ class SimilarityCalculatorSettings:
     def normalized_all_or_nothing_component(self) -> str:
         return normalize_all_or_nothing_component(self.all_or_nothing_component)
 
+    def normalized_demographic_match_mode(self) -> str:
+        return normalize_astro_twin_demographic_match_mode(self.demographic_match_mode)
+
 
 def normalize_similar_charts_algorithm_mode(value: object) -> str:
     normalized = str(value or "").strip().lower().replace("-", "_").replace(" ", "_")
@@ -616,6 +623,88 @@ def normalize_similar_charts_algorithm_mode(value: object) -> str:
     }:
         return normalized
     return SIMILAR_CHARTS_ALGORITHM_DEFAULT
+
+
+def normalize_astro_twin_demographic_match_mode(value: object) -> str:
+    normalized = str(value or "").strip().lower().replace("-", "_").replace(" ", "_")
+    if normalized in {"no_preference", "none", "off", "false", "0"}:
+        return ASTRO_TWIN_DEMOGRAPHIC_MATCH_NONE
+    if normalized in {"gender", "gender_match"}:
+        return ASTRO_TWIN_DEMOGRAPHIC_MATCH_GENDER
+    if normalized in {"sex", "sex_match"}:
+        return ASTRO_TWIN_DEMOGRAPHIC_MATCH_SEX
+    return ASTRO_TWIN_DEMOGRAPHIC_MATCH_NONE
+
+
+def normalize_astro_twin_gender_category(value: object) -> str | None:
+    normalized = str(value or "").strip().lower().replace("_", "-")
+    if not normalized or normalized in {"unknown", "none", "n/a", "na", "blank"}:
+        return None
+    compact = " ".join(normalized.split())
+    compact = compact.replace(" ", "-")
+    aliases = {
+        "f": "female",
+        "female": "female",
+        "woman": "female",
+        "m": "male",
+        "male": "male",
+        "man": "male",
+        "afab-m": "afab-m",
+        "afab-male": "afab-m",
+        "trans-man": "afab-m",
+        "trans-male": "afab-m",
+        "amab-f": "amab-f",
+        "amab-female": "amab-f",
+        "trans-woman": "amab-f",
+        "trans-female": "amab-f",
+        "afab-nb": "afab-nb",
+        "afab-nonbinary": "afab-nb",
+        "afab-non-binary": "afab-nb",
+        "amab-nb": "amab-nb",
+        "amab-nonbinary": "amab-nb",
+        "amab-non-binary": "amab-nb",
+        "nonbinary": "nonbinary",
+        "non-binary": "nonbinary",
+        "nb": "nonbinary",
+    }
+    return aliases.get(compact)
+
+
+def astro_twin_allowed_demographic_categories(subject_gender: object, mode: object) -> frozenset[str] | None:
+    normalized_mode = normalize_astro_twin_demographic_match_mode(mode)
+    if normalized_mode == ASTRO_TWIN_DEMOGRAPHIC_MATCH_NONE:
+        return None
+    subject_category = normalize_astro_twin_gender_category(subject_gender)
+    if subject_category is None:
+        return None
+    if normalized_mode == ASTRO_TWIN_DEMOGRAPHIC_MATCH_GENDER:
+        if subject_category == "female":
+            return frozenset({"female"})
+        if subject_category == "male":
+            return frozenset({"male"})
+        if subject_category == "amab-f":
+            return frozenset({"female", "amab-f"})
+        if subject_category == "afab-m":
+            return frozenset({"male", "afab-m"})
+        if subject_category in {"amab-nb", "afab-nb"}:
+            return None
+        return frozenset({subject_category})
+    if subject_category in {"female", "afab-m", "afab-nb"}:
+        return frozenset({"female", "afab-m", "afab-nb"})
+    if subject_category in {"male", "amab-f", "amab-nb"}:
+        return frozenset({"male", "amab-f", "amab-nb"})
+    return None
+
+
+def astro_twin_demographic_matches(subject_chart: Chart, candidate_chart: Chart, mode: object) -> bool:
+    allowed = astro_twin_allowed_demographic_categories(
+        getattr(subject_chart, "gender", None),
+        mode,
+    )
+    if allowed is None:
+        return True
+    candidate_category = normalize_astro_twin_gender_category(getattr(candidate_chart, "gender", None))
+    return candidate_category in allowed
 
 
 def normalize_all_or_nothing_component(value: object) -> str:
@@ -635,6 +724,7 @@ def all_or_nothing_similarity_settings(
     values: dict[str, object] = {
         "placement_weighting_mode": source.normalized_placement_weighting_mode(),
         "all_or_nothing_component": selected_component,
+        "demographic_match_mode": source.normalized_demographic_match_mode(),
     }
     if selected_component == "combined_dominance":
         values["use_combined_dominance"] = True
@@ -1765,6 +1855,7 @@ def find_astro_twins(
     if use_all_or_nothing:
         normalized_custom_settings = all_or_nothing_similarity_settings(normalized_custom_settings)
     placement_weighting_mode = normalized_custom_settings.normalized_placement_weighting_mode()
+    demographic_match_mode = normalized_custom_settings.normalized_demographic_match_mode()
     hidden_ids = {int(chart_id) for chart_id in (hidden_chart_ids or set())}
     processed_count = 0
     for chart_id, candidate in candidate_list:
@@ -1778,6 +1869,8 @@ def find_astro_twins(
         if bool(getattr(candidate, "is_placeholder", False)):
             continue
         if not getattr(candidate, "positions", None):
+            continue
+        if not astro_twin_demographic_matches(query_chart, candidate, demographic_match_mode):
             continue
 
         if least_similar:

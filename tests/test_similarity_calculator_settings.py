@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from ephemeraldaddy.analysis import get_astro_twin
 from ephemeraldaddy.analysis.get_astro_twin import (
     SimilarityCalculatorSettings,
+    astro_twin_allowed_demographic_categories,
     all_or_nothing_similarity_settings,
     chart_dissimilarity_score_comprehensive,
     chart_similarity_score_all_or_nothing,
@@ -531,6 +532,17 @@ def test_custom_similarity_only_calculates_enabled_weighted_components(monkeypat
     assert final_score == 0.5
 
 
+def test_all_or_nothing_settings_preserve_demographic_match_mode():
+    settings = all_or_nothing_similarity_settings(
+        SimilarityCalculatorSettings(
+            all_or_nothing_component="human_design_gates",
+            demographic_match_mode="sex",
+        )
+    )
+
+    assert settings.normalized_demographic_match_mode() == "sex"
+
+
 def test_all_or_nothing_least_similar_skips_dominance_guardrail(monkeypatch):
     def fail_unneeded_guardrail(*_args, **_kwargs):
         raise AssertionError("least-similar dominance guardrail should not run for all-or-nothing")
@@ -567,3 +579,81 @@ def test_all_or_nothing_least_similar_skips_dominance_guardrail(monkeypatch):
 def test_database_distinction_algorithm_mode_is_supported():
     assert normalize_similar_charts_algorithm_mode("database distinction") == "database_distinction"
     assert normalize_similar_charts_algorithm_mode("database_distinction") == "database_distinction"
+
+
+def test_demographic_match_mode_defaults_to_no_preference():
+    settings = SimilarityCalculatorSettings.defaults_for_default_mode()
+
+    assert settings.normalized_demographic_match_mode() == "none"
+    assert astro_twin_allowed_demographic_categories("Female", settings.demographic_match_mode) is None
+
+
+def test_gender_match_categories_follow_requested_rules():
+    assert astro_twin_allowed_demographic_categories("AMAB-F", "gender") == frozenset({"female", "amab-f"})
+    assert astro_twin_allowed_demographic_categories("AFAB-M", "gender") == frozenset({"male", "afab-m"})
+    assert astro_twin_allowed_demographic_categories("AFAB-NB", "gender") is None
+    assert astro_twin_allowed_demographic_categories("AMAB-NB", "gender") is None
+    assert astro_twin_allowed_demographic_categories("Female", "gender") == frozenset({"female"})
+    assert astro_twin_allowed_demographic_categories("Male", "gender") == frozenset({"male"})
+
+
+def test_sex_match_categories_follow_requested_rules():
+    afab_group = frozenset({"female", "afab-m", "afab-nb"})
+    amab_group = frozenset({"male", "amab-f", "amab-nb"})
+
+    assert astro_twin_allowed_demographic_categories("Female", "sex") == afab_group
+    assert astro_twin_allowed_demographic_categories("AFAB-NB", "sex") == afab_group
+    assert astro_twin_allowed_demographic_categories("AFAB-M", "sex") == afab_group
+    assert astro_twin_allowed_demographic_categories("Male", "sex") == amab_group
+    assert astro_twin_allowed_demographic_categories("AMAB-NB", "sex") == amab_group
+    assert astro_twin_allowed_demographic_categories("AMAB-F", "sex") == amab_group
+
+
+def test_find_astro_twins_prefilters_demographic_matches_before_scoring(monkeypatch):
+    scored_names = []
+
+    def fake_custom(_query, candidate, _settings):
+        scored_names.append(candidate.name)
+        return 0.5, {"placement": 0.5}
+
+    monkeypatch.setattr(get_astro_twin, "chart_similarity_score_custom", fake_custom)
+    query = SimpleNamespace(name="Query", gender="AMAB-F", positions={"Sun": 0.0}, is_placeholder=False)
+    candidates = [
+        (1, SimpleNamespace(name="Female", gender="Female", positions={"Sun": 1.0}, is_placeholder=False)),
+        (2, SimpleNamespace(name="AMAB-F", gender="AMAB-F", positions={"Sun": 2.0}, is_placeholder=False)),
+        (3, SimpleNamespace(name="Male", gender="Male", positions={"Sun": 3.0}, is_placeholder=False)),
+    ]
+
+    matches = find_astro_twins(
+        query,
+        candidates,
+        top_k=3,
+        algorithm_mode="default",
+        custom_settings=SimilarityCalculatorSettings(demographic_match_mode="gender"),
+    )
+
+    assert scored_names == ["Female", "AMAB-F"]
+    assert [match.chart_name for match in matches] == ["Female", "AMAB-F"]
+
+
+def test_find_astro_twins_no_preference_preserves_unfiltered_results(monkeypatch):
+    monkeypatch.setattr(
+        get_astro_twin,
+        "chart_similarity_score_custom",
+        lambda _query, _candidate, _settings: (0.5, {"placement": 0.5}),
+    )
+    query = SimpleNamespace(name="Query", gender="Female", positions={"Sun": 0.0}, is_placeholder=False)
+    candidates = [
+        (1, SimpleNamespace(name="Female", gender="Female", positions={"Sun": 1.0}, is_placeholder=False)),
+        (2, SimpleNamespace(name="Male", gender="Male", positions={"Sun": 2.0}, is_placeholder=False)),
+    ]
+
+    matches = find_astro_twins(
+        query,
+        candidates,
+        top_k=2,
+        algorithm_mode="default",
+        custom_settings=SimilarityCalculatorSettings(demographic_match_mode="none"),
+    )
+
+    assert [match.chart_name for match in matches] == ["Female", "Male"]
