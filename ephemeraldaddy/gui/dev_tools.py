@@ -1404,8 +1404,9 @@ class ManageMetadataLabelsDialog(QDialog):
         window_title: str = "Property Manager",
         intro_text: str = "Current + legacy labels found in database (including unused/orphaned).",
         show_close_button: bool = True,
+        window_flags: Qt.WindowType = Qt.Dialog,
     ) -> None:
-        super().__init__(parent)
+        super().__init__(parent, window_flags)
         self.setWindowTitle(window_title)
         self.resize(860, 520)
         self._load_usage = load_usage
