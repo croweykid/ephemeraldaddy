@@ -354,6 +354,159 @@ def refresh_search_tags_list(window, known_tags: list[str]) -> None:
         tree.setItemWidget(root_item, 0, make_row(checkbox, logic, tag))
 
 
+
+def has_active_search_tag_filters(window) -> bool:
+    """Return whether any Database View tag-search filter is active."""
+    from ephemeraldaddy.gui.widgets.quad_state import QuadStateSlider
+
+    search_tag_text = (
+        window.search_tags_input.text().strip()
+        if hasattr(window, "search_tags_input")
+        else ""
+    )
+    if search_tag_text:
+        return True
+    if any(
+        checkbox.mode() in {QuadStateSlider.MODE_TRUE, QuadStateSlider.MODE_FALSE}
+        for checkbox in getattr(window, "search_tag_filter_checkboxes", {}).values()
+    ):
+        return True
+    search_untagged_checkbox = getattr(window, "search_untagged_checkbox", None)
+    return (
+        isinstance(search_untagged_checkbox, QuadStateSlider)
+        and search_untagged_checkbox.mode() != QuadStateSlider.MODE_EMPTY
+    )
+
+
+def on_search_tags_changed(window, *_: object) -> None:
+    """Refresh Database View typed-tag preview/selection state after tag text changes."""
+    from ephemeraldaddy.gui.features.charts.tagging import parse_tag_text, render_tag_chip_preview
+
+    tags = parse_tag_text(window.search_tags_input.text())
+    render_tag_chip_preview(window.search_tags_preview_label, tags)
+    sync_search_tags_list_selection(window, set(tags))
+    window._on_filter_changed()
+
+
+def apply_search_location_completer(window, line_edit, choices: list[str]) -> None:
+    """Install a contains-matching completer on a Database View location field."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QCompleter, QLineEdit
+
+    if not isinstance(line_edit, QLineEdit):
+        return
+    completer = QCompleter(choices, line_edit)
+    completer.setCaseSensitivity(Qt.CaseInsensitive)
+    completer.setFilterMode(Qt.MatchContains)
+    line_edit.setCompleter(completer)
+
+
+def update_search_location_completers(window) -> None:
+    """Refresh Database View country/city/state completers from loaded chart rows."""
+    countries: set[str] = set()
+    cities: set[str] = set()
+    states: set[str] = set()
+    for chart_row in getattr(window, "_chart_rows", []):
+        birth_place = str(chart_row[5] if len(chart_row) > 5 else "" or "").strip()
+        if not birth_place:
+            continue
+        country, city, state = window._normalized_location_components(birth_place)
+        if country:
+            countries.add(country)
+        if city:
+            cities.add(city)
+        if state:
+            states.add(state)
+
+    apply_search_location_completer(
+        window,
+        getattr(window, "_search_location_country_input", None),
+        sorted(countries),
+    )
+    apply_search_location_completer(
+        window,
+        getattr(window, "_search_location_city_input", None),
+        sorted(cities),
+    )
+    apply_search_location_completer(
+        window,
+        getattr(window, "_search_location_state_input", None),
+        sorted(states),
+    )
+
+
+def tag_completer_revision_from_rows(window) -> tuple[object, ...]:
+    """Return the loaded-row fields that affect chart/tag/location completers."""
+    return tuple(
+        (
+            row[0] if len(row) > 0 else None,
+            row[5] if len(row) > 5 else None,
+            row[25] if len(row) > 25 else None,
+            row[26] if len(row) > 26 else None,
+        )
+        for row in getattr(window, "_chart_rows", [])
+    )
+
+
+def tag_completer_tags_for_session(window) -> list[str]:
+    """Return recognized tags plus tags already known in this app session."""
+    from ephemeraldaddy.gui.features.charts.tagging import list_recognized_tags, normalize_tag_list
+
+    tags_by_key: dict[str, str] = {
+        tag.casefold(): tag
+        for tag in list_recognized_tags()
+    }
+    for tag in getattr(window, "_known_chart_tags", []) or []:
+        normalized = str(tag or "").strip()
+        if normalized:
+            tags_by_key.setdefault(normalized.casefold(), normalized)
+    for tag in normalize_tag_list(getattr(window, "_chart_tags_current", []) or []):
+        tags_by_key.setdefault(tag.casefold(), tag)
+    return sorted(tags_by_key.values(), key=lambda value: value.casefold())
+
+
+def update_tag_completers_if_needed(window, *, force: bool = False) -> None:
+    """Refresh Database View tag/location completers only when relevant rows changed."""
+    revision_token = tag_completer_revision_from_rows(window)
+    if not force and revision_token == getattr(window, "_tag_completer_revision_token", None):
+        return
+    window._update_tag_completers()
+    window._tag_completer_revision_token = revision_token
+
+
+def update_tag_completers(
+    window,
+    *,
+    refresh_location_completers: bool = True,
+    refresh_tag_lists: bool = True,
+) -> None:
+    """Refresh Chart View, Database View, and Batch tag completers from session tags."""
+    from PySide6.QtWidgets import QLineEdit
+
+    from ephemeraldaddy.gui.features.charts.tagging import apply_tag_completer
+
+    known_tags = tag_completer_tags_for_session(window)
+    window._known_chart_tags = known_tags
+    for line_edit in (
+        getattr(window, "chart_tags_input", None),
+        getattr(window, "search_tags_input", None),
+        getattr(window, "batch_tags_input", None),
+    ):
+        if isinstance(line_edit, QLineEdit):
+            apply_tag_completer(line_edit, known_tags)
+
+    update_reminds_me_of_completer = getattr(window, "_update_reminds_me_of_completer", None)
+    if callable(update_reminds_me_of_completer):
+        update_reminds_me_of_completer()
+    if refresh_location_completers:
+        window._update_location_completers()
+    if refresh_tag_lists:
+        refresh_search_tags_list(window, known_tags)
+        refresh_batch_tags_list = getattr(window, "_refresh_batch_tags_list", None)
+        if callable(refresh_batch_tags_list):
+            refresh_batch_tags_list(known_tags)
+
+
 def sync_search_tags_list_selection(window, selected_tags: set[str]) -> None:
     """Update existing tag-filter widgets for typed tag text without rebuilding the tree.
 

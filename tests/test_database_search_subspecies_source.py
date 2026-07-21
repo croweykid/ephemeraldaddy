@@ -6,7 +6,9 @@ SEARCH_PANEL_SOURCE = (ROOT / "ephemeraldaddy" / "gui" / "dbv_search_panel.py").
 
 
 def test_species_filter_exposes_dependent_subspecies_dropdown() -> None:
-    assert "FAMILY_SUBTYPES = app_module.FAMILY_SUBTYPES" in SEARCH_PANEL_SOURCE
+    assert "FAMILY_SUBTYPES" in SEARCH_PANEL_SOURCE
+    assert "from ephemeraldaddy.gui import app" not in SEARCH_PANEL_SOURCE
+    assert "app_module." not in SEARCH_PANEL_SOURCE
     assert "window.subspecies_filter_combo = QComboBox()" in SEARCH_PANEL_SOURCE
     assert "def refresh_subspecies_filter_options()" in SEARCH_PANEL_SOURCE
     assert "FAMILY_SUBTYPES.get(selected_species, [])" in SEARCH_PANEL_SOURCE
