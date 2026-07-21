@@ -1483,7 +1483,6 @@ def _contrasting_similarities_section_title(section_title: str) -> str:
     return f"Contrasting {factor_name}"
 
 from ephemeraldaddy.analysis.dnd.species_assigner_v2 import (
-    FAMILY_SUBTYPES,
     SPECIES_FAMILIES,
     assign_top_three_species,
     assign_top_three_species_with_evidence,
@@ -10977,10 +10976,6 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             and birthdate_latest_year is None
             and self.species_filter_combo.currentData() == "Any"
             and (
-                not hasattr(self, "subspecies_filter_combo")
-                or self.subspecies_filter_combo.currentData() == "Any"
-            )
-            and (
                 not hasattr(self, "dnd_class_filter_combo")
                 or self.dnd_class_filter_combo.currentData() == "Any"
             )
@@ -17737,8 +17732,6 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             if hasattr(self, "dnd_class_filter_combo") and self.dnd_class_filter_combo is not None:
                 self.dnd_class_filter_combo.setCurrentIndex(0)
             self.species_filter_combo.setCurrentIndex(0)
-            if hasattr(self, "subspecies_filter_combo") and self.subspecies_filter_combo is not None:
-                self.subspecies_filter_combo.setCurrentIndex(0)
             for min_input in self._dnd_stat_filter_min_inputs.values():
                 min_input.setText("")
             for max_input in self._dnd_stat_filter_max_inputs.values():
@@ -20138,11 +20131,6 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             else ""
         )
         selected_species = self.species_filter_combo.currentData()
-        selected_subspecies = (
-            self.subspecies_filter_combo.currentData()
-            if hasattr(self, "subspecies_filter_combo") and self.subspecies_filter_combo is not None
-            else "Any"
-        )
         selected_dnd_class = (
             self.dnd_class_filter_combo.currentData()
             if hasattr(self, "dnd_class_filter_combo") and self.dnd_class_filter_combo is not None
@@ -20576,7 +20564,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             if chart_birthdate_latest is not None and chart_birthdate > chart_birthdate_latest:
                 return False
 
-        if selected_species != "Any" or selected_subspecies != "Any":
+        if selected_species != "Any":
             chart = self._get_chart_for_filter(chart_id)
             if chart is None:
                 return False
@@ -20585,16 +20573,8 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                 species_name
                 for species_name, _subtype, _score in species_top_three[:3]
             }
-            if selected_species != "Any" and selected_species not in top_three_species:
+            if selected_species not in top_three_species:
                 return False
-            if selected_subspecies != "Any":
-                top_three_subspecies = {
-                    subtype
-                    for species_name, subtype, _score in species_top_three[:3]
-                    if selected_species == "Any" or species_name == selected_species
-                }
-                if selected_subspecies not in top_three_subspecies:
-                    return False
 
         if selected_dnd_class != "Any":
             chart = self._get_chart_for_filter(chart_id)
