@@ -1470,8 +1470,8 @@ from ephemeraldaddy.gui.style import (
 )
 from ephemeraldaddy.core.timeutils import localize_naive_datetime
 
-DISSIMILARITY_CHART_1_RGB = (80, 170, 255)
-DISSIMILARITY_CHART_2_RGB = (255, 215, 80)
+DISSIMILARITY_CHART_1_RGB = (255, 215, 80)
+DISSIMILARITY_CHART_2_RGB = (80, 170, 255)
 DISSIMILARITY_OWNER_RGB = {
     "chart_1": DISSIMILARITY_CHART_1_RGB,
     "chart_2": DISSIMILARITY_CHART_2_RGB,
