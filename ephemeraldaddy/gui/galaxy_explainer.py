@@ -439,7 +439,7 @@ def show_guide_to_the_galaxy(owner: "QWidget") -> None:
                 self.update()
 
         def _body_positions(self):
-            rect = self.rect().adjusted(34, 34, -34, -34)
+            rect = self.rect().adjusted(34, 104, -34, -34)
             center = QPointF(rect.center())
             max_radius = min(rect.width(), rect.height()) / 2.0 * 0.86
             positions = []
@@ -455,6 +455,18 @@ def show_guide_to_the_galaxy(owner: "QWidget") -> None:
             painter = QPainter(self)
             painter.setRenderHint(QPainter.Antialiasing)
             painter.fillRect(self.rect(), QColor("#08101f"))
+            painter.setPen(QColor("#dbe7ff"))
+            painter.setFont(QFont("", 10, QFont.Bold))
+            painter.drawText(QRectF(18, 10, self.width() - 36, 22), Qt.AlignLeft | Qt.AlignTop, "Compressed Model")
+            painter.setPen(QColor("#9fb5d9"))
+            painter.setFont(QFont("", 8))
+            painter.drawText(
+                QRectF(18, 32, self.width() - 36, 58),
+                Qt.AlignLeft | Qt.AlignTop | Qt.TextWordWrap,
+                "The solar system is far vaster than any comfortable screen model. Orbit sizes, planet sizes, "
+                "and speeds are deliberately compressed so the pattern is legible. Earth is fixed at the center "
+                "because this illustrates how astrology interprets sky positions from here on Earth.",
+            )
             center, positions = self._body_positions()
             painter.setPen(QPen(QColor("#2f4265"), 1))
             for _body, _point, radius in positions:
@@ -562,11 +574,13 @@ def show_guide_to_the_galaxy(owner: "QWidget") -> None:
     panel_buttons.setMaximumHeight(46)
     panel_buttons_layout = QHBoxLayout(panel_buttons)
     panel_buttons_layout.setContentsMargins(0, 0, 0, 0)
-    geocentric_button = QPushButton("Geocentric Model", panel_buttons)
+    geocentric_button = QPushButton("Animated Model", panel_buttons)
+    vocab_button = QPushButton("Vocab", panel_buttons)
     accuracy_scores_button = QPushButton("Accuracy Scores", panel_buttons)
     interval_button = QPushButton("Interval Calculator", panel_buttons)
     database_stats_button = QPushButton("Database Statistics", panel_buttons)
     panel_buttons_layout.addWidget(geocentric_button)
+    panel_buttons_layout.addWidget(vocab_button)
     panel_buttons_layout.addWidget(accuracy_scores_button)
     panel_buttons_layout.addStretch(1)
     panel_buttons_layout.addWidget(interval_button)
@@ -605,21 +619,17 @@ def show_guide_to_the_galaxy(owner: "QWidget") -> None:
     model = SolarSystemModel(choose_body, dialog)
     geocentric_panel = QWidget(dialog)
     geocentric_layout = QVBoxLayout(geocentric_panel)
+    geocentric_layout.setContentsMargins(0, 0, 0, 0)
     geocentric_layout.addWidget(model, 1)
-    model_summary = QTextBrowser(geocentric_panel)
-    model_summary.setOpenExternalLinks(False)
-    model_summary.setMaximumHeight(210)
-    model_summary.setHtml(
-        "<h2>Compressed model caveat</h2>"
-        "<p>The solar system is far vaster than any comfortable screen model. Orbit sizes, planet sizes, "
-        "and speeds are deliberately compressed so the pattern is legible. Earth is fixed at the center "
-        "because this is illustrating how astrology interprets sky positions from here on Earth.</p>"
+
+    vocab_panel = QTextBrowser(dialog)
+    vocab_panel.setOpenExternalLinks(False)
+    vocab_panel.setHtml(
         "<h2>Astrology versus astronomy vocabulary</h2>"
         "<p><strong>Retrograde</strong> in astrology is geocentric apparent backward motion against the zodiac. "
         "Astronomically, the body does not usually reverse its orbit; the effect comes from changing Earth-body-Sun geometry. "
         "Lilith variants are mathematical lunar-apogee conventions or tradition-specific labels, not physical planets.</p>"
     )
-    geocentric_layout.addWidget(model_summary)
 
     accuracy_panel = QTextBrowser(dialog)
     accuracy_panel.setHtml("<h2>Accuracy Scores</h2><p>Coming soon!</p>")
@@ -628,12 +638,14 @@ def show_guide_to_the_galaxy(owner: "QWidget") -> None:
 
     left_stack = QStackedWidget(dialog)
     left_stack.addWidget(geocentric_panel)
+    left_stack.addWidget(vocab_panel)
     left_stack.addWidget(accuracy_panel)
     right_stack = QStackedWidget(dialog)
     right_stack.addWidget(interval_panel)
     right_stack.addWidget(database_stats_panel)
 
     geocentric_button.clicked.connect(lambda: left_stack.setCurrentWidget(geocentric_panel))
+    vocab_button.clicked.connect(lambda: left_stack.setCurrentWidget(vocab_panel))
     accuracy_scores_button.clicked.connect(lambda: left_stack.setCurrentWidget(accuracy_panel))
     interval_button.clicked.connect(lambda: right_stack.setCurrentWidget(interval_panel))
     database_stats_button.clicked.connect(lambda: right_stack.setCurrentWidget(database_stats_panel))
