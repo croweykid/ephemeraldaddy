@@ -1858,7 +1858,7 @@ SPECIES_FAMILIES: List[str] = [
     "Birdfolk",
     "Canids",
     "Cosmids",
-    "Cyborgs",
+    #"Cyborgs",
     "Cyclops",  #no subtypes
     "Dragons",  #we should actually add elemental dragon subtypes. water, fire, earth, metal & air dragons.
     "Dwarf",
@@ -1878,12 +1878,12 @@ SPECIES_FAMILIES: List[str] = [
     "Ogres",  #actually, Ogres should be a subtype of "Giants". The Giant family should also include storm giants, hill giants, stone giants, fire giants, frost giants, cloud giants, and trolls.
     "Orcs",  #no subtypes
     "Plasmoid",  #no subtypes
-    "Robot",
+    "Construct",
     "Rodentfolk",
-    "Shifter",
+    "Shapechanger",
     "Skeleton",
     "Stone People", #golem
-    "Succubi/Incubi",
+    "Succubi/Incubi", #no subtypes
     "Tiefling",
     "Triton",  #no subtypes
     "Vampire",
@@ -1895,22 +1895,21 @@ FAMILY_SUBTYPES: Dict[str, List[str]] = { #note: this is not a complete species 
     "Birdfolk": ["Kenku", "Owlin", "Aarakocra", "Birdperson"],
     "Canids": ["Shepherd Dogs", "Wolfkin", "Gnolls", "Houndfolk"],
     "Cosmids": ["Chronomancers", "Abysswalkers", "Starspawned", "Cometkin", "Eclipsians"], #cosmids are really boring/hippie woo. should we throw in some aberrations for flavor?
-    "Cyborgs": ["Digital Assistant", "Warforged", "Light Augmented"],
+    #"Cyborgs": ["Digital Assistant", "Warforged", "Light Augmented"],
     "Dwarf": ["Duergar", "Mountain Dwarf", "Hill Dwarf"],
     "Elf": ["Drow", "Shadar-Kai", "Sea Elf", "High Elf", "Wood Elf", "Eladrin Elf", "Avariel Elf"],
     "Fey": ["Hobgoblins", "Fairies", "Firbolgs", "Satyr/Fawn", "Trolls", "Leprechauns"],
     "Genasi": ["Fire", "Air", "Earth", "Water", "Electric", "Mud", "Ice"],
     "Spirits": ["Poltergeist", "Wraith", "Ghoul", "Vagrant Spirit"], #ghost is a vagrant spirit, but less poetic sounding
     "Halfling": ["Ghostwise", "Stout", "Lightfoot"],
-    "Human": ["Human Weirdo", "Standard Human"],
+    "Human": ["Quirky Human", "Standard Human"],
     "Catfolk": ["Pantherkin", "Tigerfolk", "Tabaxi"], #add leonin or no? too obvious is how it feels...ugh, hate it. :-\
     "Reptilian": ["Lizardfolk", "Kobold"],
-    "Robot": ["Autognome", "Sentient Robot"],
+    "Construct": ["Autognome", "Digital Assistant", "Warforged", "Sentient Robot"],
     "Rodentfolk": ["Squirrelfolk", "Ratfolk", "Mousefolk"],
-    "Shifter": ["Changeling", "Doppelganger", "Lycanthrope"],
+    "Shapechanger": ["Changeling", "Doppelganger", "Lycanthrope"],
     "Skeleton": ["Lich", "Bone Warrior"], #come on.
-    "Stone People": ["Crystalborn Golem", "Earth-Forged Golem", "Stoneborn Golem"],
-    "Succubi/Incubi": ["Dreamweaver Incubi/Succubi", "Abyssal Incubi/Succubi"],
+    "Stone People": ["Crystalborn Golem", "Earth-Forged Golem", "Stoneborn Golem"],\
     "Tiefling": ["Feral", "Asmodeus", "Zariel", "Levistus", "Standard"],
     "Vampire": ["True Vampire", "Nosferatu", "Dhampir"],
     "Snakey": ["Yuan-Ti Pureblood", "Yuan-Ti Malison"],
@@ -1941,10 +1940,8 @@ SPECIES_DESCRIPTIONS: Dict[str, str] = {
     "Cosmids::Cometkin": "Fast-looking citizen appears to be leaving even while standing perfectly still.",
     "Cosmids::Eclipsians": "Threshold enthusiast enters dramatically, then becomes useless in committee for exactly the same reason.",
 
-    "Cyborgs": "Part-person, part-machine individual continues giving off the faint impression of warranty paperwork.",
-    "Cyborgs::Digital Assistant": "Overdesigned intellect attends dinner and quietly converts it into a systems problem.",
-    "Cyborgs::Warforged": "Reinforced model arrives with bolts, plating, and the settled confidence of a device tested on doors.",
-    "Cyborgs::Light Augmented": "Subtle upgrade type keeps hearing, seeing, and tracking six things more than everyone else at table.",
+    #"Cyborgs": "Part-person, part-machine individual continues giving off the faint impression of warranty paperwork.",
+    #"Cyborgs::Light Augmented": "Subtle upgrade type keeps hearing, seeing, and tracking six things more than everyone else at table.",
 
     "Cyclops": "One-eyed giant again proves that depth perception is for people with smaller opinions.",
     "Dragons": "Flying treasury with self-esteem issues circles overhead, evaluating local property values.",
@@ -1998,7 +1995,7 @@ SPECIES_DESCRIPTIONS: Dict[str, str] = {
     "Halfling::Lightfoot": "Friendly pocket-sized operator disappears in plain sight and returns with information.",
 
     "Human": "General-purpose mammal continues thriving through adaptability, confidence, and baffling amounts of improvisation.",
-    "Human::Human Weirdo": "Custom-built human arrives with one suspiciously early specialization and every intention of using it.",
+    "Human::Quirky Human": "Custom-built human arrives with one suspiciously early specialization and every intention of using it.",
     "Human::Standard Human": "Baseline human once again demonstrates that versatility is just ambition with comfortable shoes.",
 
     "Catfolk": "Feline biped enters room already evaluating curtains, shelves, and your general suitability.",
@@ -2017,19 +2014,21 @@ SPECIES_DESCRIPTIONS: Dict[str, str] = {
     "Orcs": "Broad-shouldered force of nature continues treating hesitation as a hobby for weaker species.",
     "Plasmoid": "Sentient Jell-o oozes into view and immediately raises several furniture-related questions.",
 
-    "Robot": "Constructed person continues forcing philosophers to earn their lunch.",
-    "Robot::Autognome": "Clockwork little fellow bustles in with polished joints and the air of a toolbox granted citizenship.",
-    "Robot::Sentient Robot": "General-purpose manufactured being stands there making 'artificial' seem oddly judgmental.",
+    "Construct": "Constructed person continues forcing philosophers to earn their lunch.",
+    "Construct::Autognome": "Clockwork little fellow bustles in with polished joints and the air of a toolbox granted citizenship.",
+    "Construct::Digital Assistant": "Overdesigned intellect attends dinner and quietly converts it into a systems problem.",
+    "Construct::Warforged": "Reinforced model arrives with bolts, plating, and the settled confidence of a device tested on doors.",
+    "Construct::Sentient Robot": "General-purpose manufactured being stands there making 'artificial' seem oddly judgmental.",
 
     "Rodentfolk": "Small alert mammal-person arrives with quick hands, bright eyes, and a suspiciously efficient relationship to leftovers.",
     "Rodentfolk::Squirrelfolk": "Tree-running acrobat pauses just long enough to look busy in three directions at once.",
     "Rodentfolk::Ratfolk": "Urban survival specialist appears from somewhere structurally improbable and already knows the alleys better than you.",
     "Rodentfolk::Mousefolk": "Miscellaneous rodent model includes whiskers, paws, vigilance, and a deeply professional relationship to storage.",
 
-    "Shifter": "Identity-flexible person continues treating fixed form as more of a suggestion than a rule.",
-    "Shifter::Changeling": "Socially adaptable face-swapping citizen somehow makes introductions feel provisional.",
-    "Shifter::Doppelganger": "Unsettling copy specialist enters room already prepared to improve on original material.",
-    "Shifter::Lycanthrope": "Civilian with moon-related staffing issues again requests understanding from the village.",
+    "Shapechanger": "Identity-flexible person continues treating fixed form as more of a suggestion than a rule.",
+    "Shapechanger::Changeling": "Socially adaptable face-swapping citizen somehow makes introductions feel provisional.",
+    "Shapechanger::Doppelganger": "Unsettling copy specialist enters room already prepared to improve on original material.",
+    "Shapechanger::Lycanthrope": "Civilian with moon-related staffing issues again requests understanding from the village.",
 
     "Skeleton": "Animated bone arrangement continues proving that posture can outlive almost anything.",
     "Skeleton::Lich": "Ancient spell bureaucrat refuses retirement, decomposition, and common decency in equal measure.",
@@ -2042,8 +2041,8 @@ SPECIES_DESCRIPTIONS: Dict[str, str] = {
     "Stone People::Stoneborn Golem": "Plain rock citizen remains calm, durable, and almost offensively difficult to hurry.",
 
     "Succubi/Incubi": "Beautifully persuasive outsider arrives with excellent posture and a completely unwholesome agenda.",
-    "Succubi/Incubi::Dreamweaver Incubi/Succubi": "Soft-spoken enchantress drifts in smelling of perfume, poor judgment, and late-hour decisions.",
-    "Succubi/Incubi::Abyssal Incubi/Succubi": "Infernal seduction specialist enters like a bad idea wearing very expensive confidence.",
+    #"Succubi/Incubi::Dreamweaver Incubi/Succubi": "Soft-spoken enchantress drifts in smelling of perfume, poor judgment, and late-hour decisions.",
+    #"Succubi/Incubi::Abyssal Incubi/Succubi": "Infernal seduction specialist enters like a bad idea wearing very expensive confidence.",
 
     "Tiefling": "Humanoids descended from or marked by devils. Horned citizen once again pays socially for ancestry they did not personally design.",
     "Tiefling::Feral": "Less polished infernal edition arrives looking as though civilization was tried and found negotiable.",
