@@ -1893,12 +1893,12 @@ SPECIES_FAMILIES: List[str] = [
 FAMILY_SUBTYPES: Dict[str, List[str]] = { #note: this is not a complete species list; it only includes species with subtypes, and excluse those without, such as: cyclops, dragons, half-orcs, merfolk, nymphs, ogres, orcs, minotaurs, plasmoids, and tritons
     "Aasimar": ["Protector Aasimar", "Scourge Aasimar", "Fallen Aasimar"],
     "Birdfolk": ["Kenku", "Owlin", "Aarakocra", "Birdperson"],
-    "Canids": ["Shepherd Dogs", "Wolfkin", "Gnolls", "Houndfolk"],
+    "Canids": ["Shepherd Dog Dogfolk", "Wolfkin", "Gnolls", "Houndfolk"],
     "Cosmids": ["Chronomancers", "Abysswalkers", "Starspawned", "Cometkin", "Eclipsians"], #cosmids are really boring/hippie woo. should we throw in some aberrations for flavor?
     "Dwarf": ["Duergar", "Mountain Dwarf", "Hill Dwarf"],
     "Elf": ["Drow", "Shadar-Kai", "Sea Elf", "High Elf", "Wood Elf", "Eladrin Elf", "Avariel Elf"],
     "Fey": ["Hobgoblins", "Fairies", "Firbolgs", "Satyr/Fawn", "Trolls", "Leprechauns"],
-    "Genasi": ["Fire", "Air", "Earth", "Water", "Electric", "Mud", "Ice"],
+    "Genasi": ["Fire Genasi", "Air Genasi", "Earth Genasi", "Water Genasi", "Electric Genasi", "Mud Genasi", "Ice Genasi"],
     "Spirits": ["Poltergeist", "Wraith", "Ghoul", "Vagrant Spirit"], #ghost is a vagrant spirit, but less poetic sounding
     "Halfling": ["Ghostwise", "Stout", "Lightfoot"],
     "Human": ["Quirky Human", "Standard Human"],
@@ -1909,7 +1909,7 @@ FAMILY_SUBTYPES: Dict[str, List[str]] = { #note: this is not a complete species 
     "Shapechanger": ["Changeling", "Doppelganger", "Lycanthrope"],
     "Skeleton": ["Lich", "Bone Warrior"], #come on.
     "Stone People": ["Crystalborn Golem", "Earth-Forged Golem", "Stoneborn Golem"],\
-    "Tiefling": ["Feral", "Asmodeus", "Zariel", "Levistus", "Standard"],
+    "Tiefling": ["Feral Tiefling", "Asmodeus Tiefling", "Zariel Tiefling", "Levistus Tiefling", "Standard Tiefling"],
     "Vampire": ["True Vampire", "Nosferatu", "Dhampir"],
     "Snakey": ["Yuan-Ti Pureblood", "Yuan-Ti Malison"],
 }
@@ -1927,7 +1927,7 @@ SPECIES_DESCRIPTIONS: Dict[str, str] = {
     "Birdfolk::Birdperson": "General bird-person category includes elegance, shrieking, side-eye, and the occasional wet-footed aristocrat.",
 
     "Canids": "Dog-and-wolf people enter camp already aware of the mood, the menu, and who failed to latch the gate.",
-    "Canids::Shepherd Dogs": "Practical canine manager once again prevents disaster nobody else had even noticed forming.",
+    "Canids::Shepherd Dog Dogfolk": "Practical canine manager once again prevents disaster nobody else had even noticed forming.",
     "Canids::Wolfkin": "Long-limbed moonlight partisan continues finding village law charming but not binding.",
     "Canids::Gnolls": "Hyena-shaped appetite arrives laughing in a way the furniture does not appreciate.",
     "Canids::Houndfolk": "Nose-first detective sorts the room by scent and quietly loses respect for everyone in it.",
@@ -1969,13 +1969,13 @@ SPECIES_DESCRIPTIONS: Dict[str, str] = {
     "Fey::Leprechauns": "Small polished trickster exits hedge with your ring, your purse, and a stronger reading of the contract than yours.",
 
     "Genasi": "The humanoid hybrid descendant of an elemental. Elementally sponsored citizen continues bringing weather, geology, or plumbing concerns directly into the conversation.",
-    "Genasi::Fire": "Warm-looking individual enters room with the confident crackle of a hearth that knows exactly what it’s doing.",
-    "Genasi::Air": "Light, breezy person remains only loosely committed to chairs, gravity, and linear conversation.",
-    "Genasi::Earth": "Solid mineral-flavored citizen stands there with the unhurried certainty of a hillside.",
-    "Genasi::Water": "Fluid-tempered person continues slipping around social edges like a tide around pilings.",
-    "Genasi::Electric": "Static-haired storm enthusiast arrives already one spark ahead of the furniture.",
-    "Genasi::Mud": "Practical elemental hybrid proves, once again, that useful and glamorous are rarely close relatives.",
-    "Genasi::Ice": "Cool, crystalline individual lowers room temperature and expectations with admirable efficiency.",
+    "Genasi::Fire Genasi": "Warm-looking individual enters room with the confident crackle of a hearth that knows exactly what it’s doing.",
+    "Genasi::Air Genasi": "Light, breezy person remains only loosely committed to chairs, gravity, and linear conversation.",
+    "Genasi::Earth Genasi": "Solid mineral-flavored citizen stands there with the unhurried certainty of a hillside.",
+    "Genasi::Water Genasi": "Fluid-tempered person continues slipping around social edges like a tide around pilings.",
+    "Genasi::Electric Genasi": "Static-haired storm enthusiast arrives already one spark ahead of the furniture.",
+    "Genasi::Mud Genasi": "Practical elemental hybrid proves, once again, that useful and glamorous are rarely close relatives.",
+    "Genasi::Ice Genasi": "Cool, crystalline individual lowers room temperature and expectations with admirable efficiency.",
 
     "Gnome": "Mistakenly referred to as 'Christmas elves'. Small overclocked citizens frequently employed in seasonal sweat shops. May arrive with bright eyes, quick hands, and the unmistakable air of someone about to 'improve' things beyond your ability to recognize or possibly use them.",
     "Half-orcs": "Large practical citizen continues combining blunt force, bruised dignity, and better judgment than locals gave them credit for.",

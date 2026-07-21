@@ -994,7 +994,7 @@ class SpeciesAssigner:
         if family == "Canids":
             if max(prom.get("Saturn", 0.0), float(hr.get(6, 0.0)), float(hr.get(10, 0.0))) >= 0.40 and prom.get("Moon", 0.0) >= 0.35:
                 evidence.append("Duty-and-pack markers favor the shepherd lane.")
-                return "Shepherd Dogs", evidence
+                return "Shepherd Dog Dogfolk", evidence
             if max(float(sr.get("Scorpio", 0.0)), float(hr.get(8, 0.0)), float(hr.get(12, 0.0))) >= 0.20 and max(link("Mars", "Moon", HARD_ASPECTS), link("Mars", "AS", HARD_ASPECTS)) >= 0.25:
                 evidence.append("Lunar survival plus Mars gives the wolf lane.")
                 return "Wolfkin", evidence
@@ -1083,26 +1083,26 @@ class SpeciesAssigner:
 
         if family == "Genasi":
             dominant = feats["dominant_element"]
-            if dominant == "Fire":
+            if dominant == "Fire Genasi":
                 if max(link("Uranus", "Mars"), link("Uranus", "Mercury")) >= 0.28:
                     evidence.append("Fire dominated by current and spark selects Electric.")
-                    return "Electric", evidence
-                return "Fire", evidence
-            if dominant == "Air":
+                    return "Electric Genasi", evidence
+                return "Fire Genasi", evidence
+            if dominant == "Air Genasi":
                 if max(link("Uranus", "Mars"), link("Uranus", "Mercury")) >= 0.24:
                     evidence.append("Air crackles into Electric.")
-                    return "Electric", evidence
-                return "Air", evidence
-            if dominant == "Earth":
+                    return "Electric Genasi", evidence
+                return "Air Genasi", evidence
+            if dominant == "Earth Genasi":
                 if er["Water"] >= 0.26:
                     evidence.append("Earth with enough Water becomes Mud.")
-                    return "Mud", evidence
-                return "Earth", evidence
-            if dominant == "Water":
+                    return "Mud Genasi", evidence
+                return "Earth Genasi", evidence
+            if dominant == "Water Genasi":
                 if max(link("Saturn", "Moon"), link("Saturn", "Neptune")) >= 0.25:
                     evidence.append("Water held rigid by Saturn becomes Ice.")
-                    return "Ice", evidence
-                return "Water", evidence
+                    return "Ice Genasi", evidence
+                return "Water Genasi", evidence
             return dominant, evidence
 
         if family == "Spirits":
@@ -1222,18 +1222,18 @@ class SpeciesAssigner:
         if family == "Tiefling":
             if max(link("Mars", "Uranus"), prom.get("Mars", 0.0), float(hr.get(1, 0.0))) >= 0.34:
                 evidence.append("Unruly Mars pushes it feral.")
-                return "Feral", evidence
+                return "Feral Tiefling", evidence
             if max(link("Saturn", "Sun"), link("Saturn", "Pluto")) >= 0.28:
                 evidence.append("Saturnine infernal authority selects the Asmodeus-ish lane.")
-                return "Asmodeus", evidence
+                return "Asmodeus Tiefling", evidence
             if max(link("Mars", "Sun"), float(hr.get(10, 0.0))) >= 0.28:
                 evidence.append("Martial visibility selects the Zariel-ish lane.")
-                return "Zariel", evidence
+                return "Zariel Tiefling", evidence
             if max(link("Saturn", "Neptune"), float(sr.get("Capricorn", 0.0))) >= 0.24:
                 evidence.append("Cold infernal reserve selects the Levistus-ish lane.")
-                return "Levistus", evidence
+                return "Levistus Tiefling", evidence
             evidence.append("Infernal family is clear without a hard bloodline lock.")
-            return "Standard", evidence
+            return "Standard Tiefling", evidence
 
         if family == "Vampire":
             if strong_link("Venus", "Pluto") and strong_link("Saturn", "Pluto"):
