@@ -3506,7 +3506,7 @@ class DatabaseAnalyticsChartsMixin:
         show_x_axis_labels: bool = False,
     ) -> FigureCanvas:
         labels = list(selection_species.keys())
-        # Keep D&D species and class distributions visually consistent and compact
+        # Keep Fantasy RPG species and class distributions visually consistent and compact
         # so the full graph remains visible above the fold.
         chart_height = 4.9
         figure = Figure(figsize=(1.5, chart_height))

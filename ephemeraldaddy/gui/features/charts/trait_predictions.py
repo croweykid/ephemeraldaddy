@@ -602,7 +602,7 @@ def trait_likelihoods_with_distribution_cache(
 ) -> dict[str, float]:
     """Score traits through the shared Database Analytics likelihood cache when possible.
 
-    Database Analytics, Chart View Traits, and D&D alignment traits all use this
+    Database Analytics, Chart View Traits, and Fantasy RPG alignment traits all use this
     wrapper so persisted database charts are scored once per analytical profile.
     Draft/unsaved charts still fall back to direct scoring because they do not
     have stable database row tokens for the persisted cache.
@@ -650,7 +650,7 @@ def trait_likelihoods_with_distribution_cache(
 def _chart_trait_metadata_signature(chart: Any) -> str:
     """Fingerprint only the birth-data inputs that should invalidate predictions.
 
-    Trait/D&D/Enneagram Predictions are persisted per permanent chart UID and
+    Trait/Fantasy RPG/Enneagram Predictions are persisted per permanent chart UID and
     should remain instantly reusable across Chart View opens.  Derived astrology
     payloads (positions, aspects, HD/BaZi weights, etc.) are intentionally not
     part of this signature: those values are recalculated from the essential
@@ -1649,52 +1649,27 @@ def _trait_predictions_refresh_message(updated_at: str | None) -> str:
     timestamp = html.escape(updated_at or "never")
     return (
         "<div style='color:#70d878; font-style:italic; padding-bottom:5px; text-align:center;'>"
-        f"Predictions panel is refreshing. Current results last updated: {timestamp} ♻️"
+        f"Current results last updated: {timestamp} ♻️"
         "</div>"
     )
 
 
 def _traits_calculate_prompt_html() -> str:
-    return (
-        "<div style='width:100%; min-height:120px; padding:24px 0; text-align:center;'>"
-        "<div style='display:inline-block; max-width:100%; color:#f5f5f5; "
-        "font-weight:600; white-space:normal; line-height:1.35; margin-bottom:12px;'>"
-        "No prior data. Calculate (can take awhile)?"
-        "</div>"
-        "<div style='height:10px;'></div>"
-        "<a href='trait-predictions:calculate' "
-        "style='display:inline-block; background-color:#7b4dff; color:white; "
-        "font-weight:bold; padding:7px 16px; border-radius:5px; text-decoration:none;'>"
-        "Calculate!</a>"
-        "</div>"
-    )
+    return ""
 
 
 def _traits_recalculate_prompt_html(updated_at: str | None) -> str:
-    timestamp = html.escape(updated_at or "unknown")
-    return (
-        "<div style='width:100%; padding:0 0 8px 0; text-align:center; color:#b8b8b8;'>"
-        f"<span style='font-style:italic;'>Cached trait predictions shown. Last calculated: {timestamp}.</span> "
-        "<a href='trait-predictions:calculate' "
-        "style='display:inline-block; margin-left:6px; background-color:#7b4dff; color:white; "
-        "font-weight:bold; padding:4px 10px; border-radius:5px; text-decoration:none;'>"
-        "Recalculate!</a>"
-        "</div>"
-    )
+    return ""
 
 
 def _traits_stale_recalculate_prompt_html(updated_at: str | None) -> str:
-    timestamp = html.escape(updated_at or "unknown")
-    return (
-        "<div style='width:100%; padding:0 0 8px 0; text-align:center; color:#ffdf8a;'>"
-        "<span style='font-style:italic;'>Cached trait predictions shown, but the chart's birth data "
-        f"has changed since they were calculated ({timestamp}).</span> "
-        "<a href='trait-predictions:calculate' "
-        "style='display:inline-block; margin-left:6px; background-color:#7b4dff; color:white; "
-        "font-weight:bold; padding:4px 10px; border-radius:5px; text-decoration:none;'>"
-        "Recalculate!</a>"
-        "</div>"
-    )
+    return ""
+
+
+def _set_traits_header_action(owner: Any, state: str) -> None:
+    callback = getattr(owner, "_set_prediction_header_action", None)
+    if callable(callback):
+        callback("traits", state)
 
 
 def _predictions_manual_recalculation_only(owner: Any) -> bool:
@@ -1733,6 +1708,11 @@ def _trait_render_signatures(owner: Any, chart: Any, traits: list[dict[str, Any]
         "norm_signature": norm_signature,
         "chart_signature": _chart_trait_metadata_signature(chart),
     }
+
+
+def start_traits_prediction_calculation(owner: Any) -> None:
+    """Start the existing Traits prediction calculation flow from external UI controls."""
+    _start_traits_prediction_calculation(owner)
 
 
 def _start_traits_prediction_calculation(owner: Any) -> None:
@@ -1973,11 +1953,16 @@ def _apply_traits_prediction_view(owner: Any, above_html: str, below_html: str, 
     label = getattr(owner, "traits_prediction_label", None)
     if isinstance(label, QLabel):
         stop_prediction_loading_blink(label)
-        label.setText(_current_traits_prediction_html(owner) or "Trait predictions unavailable for this chart.")
-        # Cached trait rows hide the label while the table carries the content.
-        # A later chart may have no cached metadata yet and must reveal this
-        # label again so the manual Calculate/Recalculate prompt is visible.
-        label.setVisible(True)
+        current_html = _current_traits_prediction_html(owner)
+        if current_html:
+            label.setText(current_html)
+            label.setVisible(True)
+        else:
+            # Empty content is a valid actionable no-cache/manual state now that
+            # calculation lives in the section header button. Do not substitute
+            # the old unavailable fallback for a calculable chart.
+            label.setText("")
+            label.setVisible(False)
         label.adjustSize()
         label.setMinimumHeight(label.sizeHint().height())
 
@@ -2177,6 +2162,7 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
         owner._traits_prediction_pending_cache_key = cache_key or ""
         owner._traits_prediction_pending_signatures = signatures
         if bool(cached_metadata.get("stale")):
+            _set_traits_header_action(owner, "recalculate")
             if _predictions_manual_recalculation_only(owner):
                 _apply_traits_prediction_metadata(
                     owner,
@@ -2193,6 +2179,7 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
                 )
                 QTimer.singleShot(0, lambda owner=owner: _start_traits_prediction_calculation(owner))
         else:
+            _set_traits_header_action(owner, "up_to_date")
             _apply_traits_prediction_metadata(owner, traits, cached_metadata)
         return
 
@@ -2200,6 +2187,7 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
     owner._traits_prediction_pending_traits = traits
     owner._traits_prediction_pending_cache_key = cache_key or ""
     owner._traits_prediction_pending_signatures = signatures
+    _set_traits_header_action(owner, "calculate")
     if _predictions_manual_recalculation_only(owner):
         _predictions_debug(owner, "Trait render found no persisted trait metadata; waiting for manual calculate cache_key=%s", (cache_key or "")[:12])
         prompt_html = _traits_calculate_prompt_html()

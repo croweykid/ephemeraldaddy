@@ -8,6 +8,7 @@ import csv
 import math
 import shutil
 import sqlite3
+import sys
 import threading
 import uuid
 from datetime import datetime, timezone
@@ -425,6 +426,41 @@ def serialize_reminds_me_of_uids(uids: Iterable[Any] | None) -> str:
     return json.dumps(normalized_uids, separators=(",", ":"))
 
 
+def _sync_reciprocal_reminds_me_of_links(
+    conn: sqlite3.Connection,
+    source_chart_uid: str | None,
+    linked_chart_uids: Iterable[Any] | None,
+) -> None:
+    """Add missing reciprocal Reminds Me Of UID links for the saved chart."""
+    source_uid = _normalize_chart_uid(source_chart_uid)
+    if source_uid is None:
+        return
+    desired_uids = [
+        uid
+        for uid in parse_reminds_me_of_uids(linked_chart_uids)
+        if uid != source_uid
+    ]
+    if not desired_uids:
+        return
+
+    placeholders = ",".join("?" for _uid in desired_uids)
+    rows = conn.execute(
+        f"SELECT chart_uid, reminds_me_of FROM charts WHERE chart_uid IN ({placeholders})",
+        desired_uids,
+    ).fetchall()
+    for raw_uid, raw_reminds_me_of in rows:
+        row_uid = _normalize_chart_uid(raw_uid)
+        if row_uid is None or row_uid == source_uid:
+            continue
+        row_reminds_me_of = parse_reminds_me_of_uids(raw_reminds_me_of)
+        if source_uid in row_reminds_me_of:
+            continue
+        conn.execute(
+            "UPDATE charts SET reminds_me_of = ? WHERE chart_uid = ?",
+            (serialize_reminds_me_of_uids([*row_reminds_me_of, source_uid]), row_uid),
+        )
+
+
 def _generate_chart_uid(existing_uids: set[str] | None = None) -> str:
     existing = existing_uids if existing_uids is not None else set()
     while True:
@@ -674,7 +710,7 @@ def _create_dnd_prediction_metadata_table(conn: sqlite3.Connection) -> None:
 
 
 def upsert_chart_dnd_prediction_metadata(chart_uid: str, payload: Mapping[str, Any]) -> None:
-    """Persist cached D&D prediction metadata for a chart UID."""
+    """Persist cached Fantasy RPG prediction metadata for a chart UID."""
     normalized_uid = _normalize_chart_uid(chart_uid)
     if normalized_uid is None:
         raise ValueError(f"Invalid chart UID {chart_uid!r}")
@@ -697,8 +733,35 @@ def upsert_chart_dnd_prediction_metadata(chart_uid: str, payload: Mapping[str, A
         conn.close()
 
 
+def get_all_chart_dnd_prediction_metadata() -> dict[str, dict[str, Any]]:
+    """Return all persisted Fantasy RPG prediction metadata keyed by chart UID."""
+    conn = _get_conn()
+    conn.row_factory = sqlite3.Row
+    try:
+        _create_dnd_prediction_metadata_table(conn)
+        rows = conn.execute(
+            """
+            SELECT chart_uid, payload
+            FROM chart_dnd_prediction_metadata
+            """
+        ).fetchall()
+        metadata: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            chart_uid = _normalize_chart_uid(str(row["chart_uid"] or ""))
+            if chart_uid is None:
+                continue
+            try:
+                payload = json.loads(str(row["payload"] or "{}"))
+            except json.JSONDecodeError:
+                payload = {}
+            metadata[chart_uid] = payload if isinstance(payload, dict) else {}
+        return metadata
+    finally:
+        conn.close()
+
+
 def get_chart_dnd_prediction_metadata(chart_uid: str) -> dict[str, Any]:
-    """Return persisted cached D&D prediction metadata for a chart UID."""
+    """Return persisted cached Fantasy RPG prediction metadata for a chart UID."""
     normalized_uid = _normalize_chart_uid(chart_uid)
     if normalized_uid is None:
         return {}
@@ -973,6 +1036,22 @@ def _mark_app_migration_applied(
     )
 
 
+def _emit_uid_finalization_status(details: Mapping[str, Any]) -> None:
+    if bool(details.get("already_finalized", False)):
+        message = (
+            "[EphemeralDaddy UID migration] Chart UID finalization already verified; "
+            "all chart identity should now be UID-authoritative."
+        )
+    else:
+        message = (
+            "[EphemeralDaddy UID migration] Chart UID finalization complete: "
+            f"{int(details.get('chart_count', 0) or 0)} chart(s) verified, "
+            f"{int(details.get('relationship_rows_rewritten', 0) or 0)} relationship row(s) rewritten, "
+            f"{int(details.get('legacy_duplicate_exclusions_rewritten', 0) or 0)} legacy duplicate-exclusion row(s) migrated."
+        )
+    print(message, file=sys.stderr, flush=True)
+
+
 def _chart_id_to_uid_map(conn: sqlite3.Connection) -> dict[int, str]:
     if not _charts_table_exists(conn):
         return {}
@@ -1099,10 +1178,13 @@ def finalize_chart_uid_migration(conn: sqlite3.Connection) -> dict[str, Any]:
     """Run the one-release migration that makes chart UIDs authoritative."""
     _create_app_migrations_table(conn)
     if _app_migration_applied(conn, UID_FINALIZATION_MIGRATION_KEY):
-        return {"already_finalized": True}
+        details = {"already_finalized": True}
+        _emit_uid_finalization_status(details)
+        return details
     if not _charts_table_exists(conn):
         details = {"already_finalized": False, "chart_count": 0}
         _mark_app_migration_applied(conn, UID_FINALIZATION_MIGRATION_KEY, details)
+        _emit_uid_finalization_status(details)
         return details
 
     _migrate_charts_columns(conn)
@@ -1138,6 +1220,7 @@ def finalize_chart_uid_migration(conn: sqlite3.Connection) -> dict[str, Any]:
         "relationship_rows_rewritten": relationship_rows_changed,
     }
     _mark_app_migration_applied(conn, UID_FINALIZATION_MIGRATION_KEY, details)
+    _emit_uid_finalization_status(details)
     return details
 
 
@@ -3819,6 +3902,11 @@ def save_chart(
             (chart_uid, int(chart_id)),
         )
         setattr(chart, "chart_uid", chart_uid)
+        _sync_reciprocal_reminds_me_of_links(
+            conn,
+            chart_uid,
+            getattr(chart, "reminds_me_of", None),
+        )
     if birth_place is not None:
         setattr(chart, "birth_place", birth_place)
     conn.close()
@@ -4154,6 +4242,11 @@ def update_chart(
                 chart_id,
             ),
         )
+        _sync_reciprocal_reminds_me_of_links(
+            conn,
+            getattr(chart, "chart_uid", None),
+            getattr(chart, "reminds_me_of", None),
+        )
     if resolved_birth_place is not None:
         setattr(chart, "birth_place", resolved_birth_place)
     conn.close()
@@ -4266,6 +4359,11 @@ def update_chart_lightweight_metadata(chart_id: int, chart) -> None:
                 getattr(chart, "death_place", None),
                 int(chart_id),
             ),
+        )
+        _sync_reciprocal_reminds_me_of_links(
+            conn,
+            getattr(chart, "chart_uid", None),
+            getattr(chart, "reminds_me_of", None),
         )
     conn.close()
 

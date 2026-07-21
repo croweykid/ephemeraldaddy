@@ -49,7 +49,7 @@ SPECIES_DISTRIBUTION_CALIBRATION: Dict[str, float] = {
     #"Orcs": 0.94,
     #"Half-orcs": 0.95,
     # Under-selected families reported in production data.
-    "Shapeshifter": 1.06,
+    "Shapechanger": 1.06,
     "Triton": 1.06,
     "Rodentfolk": 1.06,
     "Elf": 1.15,
@@ -601,7 +601,7 @@ class SpeciesAssigner:
         cards["Aasimar"].add(0.95 * p("Sun"), "Sun prominence lifts Aasimar.")
         cards["Aasimar"].add(0.55 * p("Jupiter"), "Jupiter supports exalted scale.")
         cards["Aasimar"].add(0.35 * dominant_element_score("Fire", "Air"), "Fire/Air tilt helps the celestial register.")
-        cards["Aasimar"].add(0.25 * ratio_houses(9, 10, 11), "High-visibility houses (9th/10th/11th) reinforce it.")
+        cards["Aasimar"].add(0.25 * ratio_houses(9, 10, 11), "High-visibility houses (H9/H10/H11) reinforce it.")
         cards["Aasimar"].add(0.35 * link("Sun", "Jupiter", ALL_MAJOR_ASPECTS), "Sun-Jupiter contact tightens the fit.")
         cards["Aasimar"].add(-0.25 * max(p("Pluto"), link("Sun", "Pluto", HARD_ASPECTS)), "Heavy Plutonian weight muddies it.")
 
@@ -610,7 +610,7 @@ class SpeciesAssigner:
         cards["Birdfolk"].add(1.15 * air_bird_signature, "Gemini/Aquarius/Libra avian signature.")
         cards["Birdfolk"].add(0.42 * p("Mercury"), "Mercury sharpens movement and avian alertness.")
         cards["Birdfolk"].add(0.28 * p("Uranus"), "Uranus adds altitude and oddness.")
-        cards["Birdfolk"].add(0.22 * ratio_houses(3, 9, 11), "Movement/open-sky houses (3rd/9th/11th) help.")
+        cards["Birdfolk"].add(0.22 * ratio_houses(3, 9, 11), "Movement/open-sky houses (H3/H9/H11) help.")
 
         # Canids
         cards["Canids"].add(0.75 * p("Moon"), "Moon gives bonding and pack signal.")
@@ -618,29 +618,29 @@ class SpeciesAssigner:
         cards["Canids"].add(0.40 * p("Saturn"), "Saturn helps the working-dog end of the range.")
         cards["Canids"].add(0.45 * dominant_element_score("Earth", "Water"), "Earth/Water grounds the family.")
         cards["Canids"].add(0.60 * canid_sign_signature, "Aries/Cancer/Scorpio/Capricorn supports the canid field.")
-        cards["Canids"].add(0.25 * ratio_houses(4, 6, 8), "Domestic/survival houses (4th/6th/8th) reinforce it.")
+        cards["Canids"].add(0.25 * ratio_houses(4, 6, 8), "Domestic/survival houses (H4/H6/H8) reinforce it.")
 
         # Cosmids
         cards["Cosmids"].add(0.50 * (p("Uranus") + p("Neptune") + p("Pluto")), "Outer-planet emphasis (Uranus/Neptune/Pluto) helps Cosmids.")
         cards["Cosmids"].add(0.55 * dominant_element_score("Air", "Water"), "Dominant Air/Water helps the unearthly register.")
-        cards["Cosmids"].add(0.40 * ratio_houses(8, 11, 12), "Liminal houses (8th/11th/12th) reinforce it.")
+        cards["Cosmids"].add(0.40 * ratio_houses(8, 11, 12), "Liminal houses (H8/H11/H12) reinforce it.")
         cards["Cosmids"].add(0.18 * self._clamp01(len(feats["tight_outer_to_identity"]) / 3.0), "Outer planets (Uranus/Neptune/Pluto) tied to identity points (Sun/Moon/Ascendant) intensify it.")
 
-        # Cyborgs
-        cards["Cyborgs"].add(0.72 * p("Mercury"), "Mercury handles throughput and interface.")
-        cards["Cyborgs"].add(0.70 * p("Uranus"), "Uranus gives augmentation and novel hardware.")
-        cards["Cyborgs"].add(0.28 * dominant_element_score("Air", "Earth"), "Air/Earth supports the engineered body.")
-        cards["Cyborgs"].add(0.32 * link("Mercury", "Uranus", ALL_MAJOR_ASPECTS), "Mercury-Uranus link supports synthetic cognition.")
-        cards["Cyborgs"].add(0.28 * link("Mars", "Uranus", ALL_MAJOR_ASPECTS), "Mars-Uranus helps the weaponized end.")
-        cards["Cyborgs"].add(0.18 * ratio_houses(3, 6, 10, 11), "Systems houses (3rd/6th/10th/11th) reinforce the fit.")
-        #Add Aquarius dominance
+        # # Cyborgs
+        # cards["Cyborgs"].add(0.72 * p("Mercury"), "Mercury handles throughput and interface.")
+        # cards["Cyborgs"].add(0.70 * p("Uranus"), "Uranus gives augmentation and novel hardware.")
+        # cards["Cyborgs"].add(0.28 * dominant_element_score("Air", "Earth"), "Air/Earth supports the engineered body.")
+        # cards["Cyborgs"].add(0.32 * link("Mercury", "Uranus", ALL_MAJOR_ASPECTS), "Mercury-Uranus link supports synthetic cognition.")
+        # cards["Cyborgs"].add(0.28 * link("Mars", "Uranus", ALL_MAJOR_ASPECTS), "Mars-Uranus helps the weaponized end.")
+        # cards["Cyborgs"].add(0.18 * ratio_houses(3, 6, 10, 11), "Systems houses (H3/H6/H10/H11) reinforce the fit.")
+        # #Add Aquarius dominance
 
         # Cyclops
         cards["Cyclops"].add(0.72 * p("Sun"), "Cyclops needs solar centrality.")
         cards["Cyclops"].add(0.55 * p("Saturn"), "Saturn adds blunt singularity.")
         cards["Cyclops"].add(0.30 * p("Jupiter"), "Jupiter adds scale.")
         cards["Cyclops"].add(0.35 * dominant_element_score("Fire", "Earth"), "Fire/Earth supports the giant-body feel.")
-        cards["Cyclops"].add(0.22 * ratio_houses(1, 10), "Identity/visibility houses (1st/10th) help.")
+        cards["Cyclops"].add(0.22 * ratio_houses(1, 10), "Identity/visibility houses (H1/H10) help.")
 
         # Dragons
         cards["Dragons"].add(0.65 * p("Jupiter"), "Jupiter gives scale and grandeur.")
@@ -654,7 +654,7 @@ class SpeciesAssigner:
         cards["Dwarf"].add(1.10 * dominant_element_score("Earth"), "Earth anchors Dwarf.")
         cards["Dwarf"].add(0.85 * p("Saturn"), "Saturn gives craft, endurance, and load-bearing temperament.")
         cards["Dwarf"].add(0.65 * dwarf_sign_signature, "Taurus/Capricorn is the main sign lane.")
-        cards["Dwarf"].add(0.25 * ratio_houses(2, 4, 6, 10), "Material/work houses (2nd/4th/6th/10th) reinforce it.")
+        cards["Dwarf"].add(0.25 * ratio_houses(2, 4, 6, 10), "Material/work houses (H2/H4/H6/H10) reinforce it.")
         cards["Dwarf"].add(0.18 * tr["bestial"], "Bestial classical coding supports the earthy stock.")
         if taurus_stellium_count >= 3:
             stellium_bonus = 1.20 * taurus_dominance_weight
@@ -668,7 +668,7 @@ class SpeciesAssigner:
         cards["Elf"].add(0.52 * p("Venus"), "Venus helps grace and finish.")
         cards["Elf"].add(0.42 * p("Mercury"), "Mercury helps finesse and speed.")
         cards["Elf"].add(0.62 * elf_sign_signature, "Libra/Aquarius/Gemini/Pisces is the main Elven sign lane.")
-        cards["Elf"].add(0.25 * ratio_houses(3, 5, 9, 11), "Social/cultivated houses (3rd/5th/9th/11th) help.")
+        cards["Elf"].add(0.25 * ratio_houses(3, 5, 9, 11), "Social/cultivated houses (H3/H5/H9/H11) help.")
         cards["Elf"].add(0.26 * max(link("Venus", "Mercury", ALL_MAJOR_ASPECTS), link("Venus", "Jupiter", ALL_MAJOR_ASPECTS)), "Refined social/intellectual contacts reinforce Elf.")
 
         # Fey
@@ -676,19 +676,19 @@ class SpeciesAssigner:
         cards["Fey"].add(0.42 * p("Neptune"), "Neptune adds enchantment.")
         cards["Fey"].add(0.35 * p("Uranus"), "Uranus adds caprice and strangeness.")
         cards["Fey"].add(0.36 * dominant_element_score("Air", "Water"), "Air/Water suits the Fey register.")
-        cards["Fey"].add(0.28 * ratio_houses(5, 7, 11), "Pleasure/social houses (5th/7th/11th) reinforce it.")
+        cards["Fey"].add(0.28 * ratio_houses(5, 7, 11), "Pleasure/social houses (H5/H7/H11) reinforce it.")
         cards["Fey"].add(0.26 * max(link("Venus", "Neptune", ALL_MAJOR_ASPECTS), link("Venus", "Uranus", ALL_MAJOR_ASPECTS)), "Venus tied to Neptune/Uranus helps.")
 
         # Genasi
         cards["Genasi"].add(1.25 * self._clamp01((dominant_ratio - 0.31) / 0.24), "Genasi needs real elemental dominance.")
         cards["Genasi"].add(0.20 * max(p("Mars"), p("Moon"), p("Saturn"), p("Uranus")), "A strong elemental ruler helps.")
-        cards["Genasi"].add(0.15 * ratio_houses(1, 4, 8), "Embodied/atmospheric houses (1st/4th/8th) help.")
+        cards["Genasi"].add(0.15 * ratio_houses(1, 4, 8), "Embodied/atmospheric houses (H1/H4/H8) help.")
 
         # Spirits
         cards["Spirits"].add(1.05 * p("Neptune"), "Neptune is the main Spirits driver.")
         cards["Spirits"].add(0.45 * dominant_element_score("Water"), "Water helps diffusion and permeability.")
         cards["Spirits"].add(0.28 * dominant_element_score("Air"), "Air helps disembodiment.")
-        cards["Spirits"].add(0.62 * ratio_houses(8, 12), "The 8th/12th-house axis reinforces it.")
+        cards["Spirits"].add(0.62 * ratio_houses(8, 12), "The H8/H12-axis reinforces it.")
         cards["Spirits"].add(0.22 * link("Moon", "Neptune", ALL_MAJOR_ASPECTS), "Moon-Neptune contact helps.")
         cards["Spirits"].add(-0.20 * dominant_element_score("Earth"), "Heavy Earth resists it.")
 
@@ -720,27 +720,27 @@ class SpeciesAssigner:
         cards["Human"].add(0.42 * (1.0 - spikiness), "Low symbolic extremity supports Human.")
         cards["Human"].add(0.20 * self._clamp01(1.0 - dominant_ratio), "Lack of elemental overcommitment helps.")
 
-        # Tabaxi
-        cards["Tabaxi"].add(0.68 * p("Mercury"), "Mercury gives feline quickness.")
-        cards["Tabaxi"].add(0.55 * p("Venus"), "Venus adds social polish and allure.")
-        cards["Tabaxi"].add(0.60 * dominant_element_score("Fire", "Air"), "Fire/Air helps the agile cat lane.")
-        cards["Tabaxi"].add(0.62 * feline_sign_signature, "Leo/Libra/Scorpio is the main feline sign lane.")
-        cards["Tabaxi"].add(0.20 * ratio_houses(1, 5, 7), "Performance/social houses (1st/5th/7th) reinforce it.")
+        # Tabaxi / Catfolk
+        cards["Catfolk"].add(0.68 * p("Mercury"), "Mercury gives feline quickness.")
+        cards["Catfolk"].add(0.55 * p("Venus"), "Venus adds social polish and allure.")
+        cards["Catfolk"].add(0.60 * dominant_element_score("Fire", "Air"), "Fire/Air helps the agile cat lane.")
+        cards["Catfolk"].add(0.62 * feline_sign_signature, "Leo/Libra/Scorpio is the main feline sign lane.")
+        cards["Catfolk"].add(0.20 * ratio_houses(1, 5, 7), "Performance/social houses (H1/H5/H7) reinforce it.")
 
         # Lizardfolk
-        cards["Lizardfolk (Reptilians)"].add(0.82 * p("Saturn"), "Saturn gives cold pragmatism.")
-        cards["Lizardfolk (Reptilians)"].add(0.58 * p("Pluto"), "Pluto adds survival intensity.")
-        cards["Lizardfolk (Reptilians)"].add(0.72 * dominant_element_score("Earth"), "Earth is the main element lane.")
-        cards["Lizardfolk (Reptilians)"].add(0.32 * dominant_mode_score("fixed"), "Fixed emphasis = thick skin and arguably also sun basking - stationary for ectothermic homeostasis.")
-        cards["Lizardfolk (Reptilians)"].add(0.26 * ratio_signs("Capricorn", "Scorpio", "Taurus"), "Capricorn/Scorpio/Taurus supports it.")
-        cards["Lizardfolk (Reptilians)"].add(0.18 * ratio_houses(2, 6, 8, 10), "Survival/work houses (2nd/6th/8th/10th) reinforce it.")
+        cards["Reptilian"].add(0.82 * p("Saturn"), "Saturn gives cold pragmatism.")
+        cards["Reptilian"].add(0.58 * p("Pluto"), "Pluto adds survival intensity.")
+        cards["Reptilian"].add(0.72 * dominant_element_score("Earth"), "Earth is the main element lane.")
+        cards["Reptilian"].add(0.32 * dominant_mode_score("fixed"), "Fixed emphasis = thick skin and arguably also sun basking - stationary for ectothermic homeostasis.")
+        cards["Reptilian"].add(0.26 * ratio_signs("Capricorn", "Scorpio", "Taurus"), "Capricorn/Scorpio/Taurus supports it.")
+        cards["Reptilian"].add(0.18 * ratio_houses(2, 6, 8, 10), "Survival/work houses (H2/H6/H8/H10) reinforce it.")
 
         # Merfolk
         cards["Merfolk"].add(1.05 * dominant_element_score("Water"), "Water is the main Merfolk lane.")
         cards["Merfolk"].add(0.62 * p("Moon"), "Moon supports tide and body memory.")
         cards["Merfolk"].add(0.58 * p("Neptune"), "Neptune supports the sea register.")
         cards["Merfolk"].add(0.26 * p("Venus"), "Venus softens the aquatic presentation.")
-        cards["Merfolk"].add(0.25 * ratio_houses(4, 8, 12), "Submerged houses (4th/8th/12th) reinforce it.")
+        cards["Merfolk"].add(0.25 * ratio_houses(4, 8, 12), "Submerged houses (H4/H8/H12) reinforce it.")
 
         # Minotaur
         cards["Minotaur"].add(0.88 * p("Mars"), "Mars is primary.")
@@ -754,7 +754,7 @@ class SpeciesAssigner:
         cards["Nymph"].add(0.50 * p("Moon"), "Moon adds organic softness.")
         cards["Nymph"].add(0.45 * dominant_element_score("Water", "Earth"), "Water/Earth supports the nature-body lane.")
         cards["Nymph"].add(0.22 * link("Venus", "Moon", ALL_MAJOR_ASPECTS), "Venus-Moon contact helps.")
-        cards["Nymph"].add(0.22 * ratio_houses(4, 5, 7, 12), "Natural/intimate houses (4th/5th/7th/12th) reinforce it.")
+        cards["Nymph"].add(0.22 * ratio_houses(4, 5, 7, 12), "Natural/intimate houses (H4/H5/H7/H12) reinforce it.")
 
         # Ogres
         cards["Ogres"].add(0.95 * p("Mars"), "Mars supplies force.")
@@ -778,13 +778,13 @@ class SpeciesAssigner:
         cards["Plasmoid"].add(0.32 * dominant_mode_score("mutable"), "Mutable emphasis helps.")
         cards["Plasmoid"].add(0.22 * link("Neptune", "Uranus", ALL_MAJOR_ASPECTS), "Neptune-Uranus contact helps.")
 
-        # Robots
-        cards["Robots"].add(0.88 * p("Uranus"), "Uranus is the primary Robots signal.")
-        cards["Robots"].add(0.72 * p("Mercury"), "Mercury adds instruction and cognition.")
-        cards["Robots"].add(0.32 * p("Saturn"), "Saturn supports the construct edge.")
-        cards["Robots"].add(0.52 * dominant_element_score("Earth", "Air"), "Air/Earth supports constructed life.")
-        cards["Robots"].add(0.28 * ratio_houses(3, 6, 10), "Procedure-heavy houses (3rd/6th/10th) reinforce it.")
-        cards["Robots"].add(-0.20 * max(p("Moon"), p("Neptune")), "High Moon/Neptune softens Robots.")
+        # Constructs
+        cards["Construct"].add(0.88 * p("Uranus"), "Uranus is the primary Robots signal.")
+        cards["Construct"].add(0.72 * p("Mercury"), "Mercury adds instruction and cognition.")
+        cards["Construct"].add(0.32 * p("Saturn"), "Saturn supports the construct edge.")
+        cards["Construct"].add(0.52 * dominant_element_score("Earth", "Air"), "Air/Earth supports constructed life.")
+        cards["Construct"].add(0.28 * ratio_houses(3, 6, 10), "Procedure-heavy houses (H3/H6/H10) reinforce it.")
+        cards["Construct"].add(-0.20 * max(p("Moon"), p("Neptune")), "High Moon/Neptune softens Robots.")
         #add Libra or Aquarius dominance
 
         # Rodentfolk
@@ -797,35 +797,66 @@ class SpeciesAssigner:
         cards["Rodentfolk"].add(0.24 * p("Mercury") * dominant_element_score("Earth", require_all=False), "Mercury plus dominant Earth boosts practical Rodentfolk sorting.")
 
         # Shapeshifter
-        cards["Shapeshifter"].add(0.80 * dominant_mode_score("mutable"), "Mutable emphasis is central.")
-        cards["Shapeshifter"].add(0.58 * shape_sign_signature, "Gemini/Pisces/Libra/Aquarius supports fluid identity.")
-        cards["Shapeshifter"].add(0.42 * max(p("Mercury"), p("Neptune"), p("Uranus"), p("Pluto")), "Labile/uncanny planets (Mercury/Neptune/Uranus/Pluto) help.")
-        cards["Shapeshifter"].add(0.34 * ratio_houses(1, 8, 12), "Identity/liminal houses (1st/8th/12th) reinforce it.")
-        cards["Shapeshifter"].add(0.24 * max(link("Mercury", "Neptune", ALL_MAJOR_ASPECTS), link("Mercury", "Pluto", ALL_MAJOR_ASPECTS), link("Moon", "Uranus", ALL_MAJOR_ASPECTS)), "Identity-fluid contacts help.")
-        cards["Shapeshifter"].add(0.30 * self._clamp01((dominant_mode_score("mutable") - 0.30) / 0.32), "Very high mutable concentration strongly favors Shapeshifter.")
-        cards["Shapeshifter"].add(0.20 * self._clamp01((ratio_signs("Gemini", "Pisces") - 0.22) / 0.22), "Gemini/Pisces dominance materially increases Shapeshifter fit.")
+        cards["Shapechanger"].add(0.80 * dominant_mode_score("mutable"), "Mutable emphasis is central.")
+        cards["Shapechanger"].add(0.58 * shape_sign_signature, "Gemini/Pisces/Libra/Aquarius supports fluid identity.")
+        cards["Shapechanger"].add(0.42 * max(p("Mercury"), p("Neptune"), p("Uranus"), p("Pluto")), "Labile/uncanny planets (Mercury/Neptune/Uranus/Pluto) help.")
+        cards["Shapechanger"].add(0.34 * ratio_houses(1, 8, 12), "Identity/liminal houses (H1/H8/H12) reinforce it.")
+        cards["Shapechanger"].add(0.24 * max(link("Mercury", "Neptune", ALL_MAJOR_ASPECTS), link("Mercury", "Pluto", ALL_MAJOR_ASPECTS), link("Moon", "Uranus", ALL_MAJOR_ASPECTS)), "Identity-fluid contacts help.")
+        cards["Shapechanger"].add(0.30 * self._clamp01((dominant_mode_score("mutable") - 0.30) / 0.32), "Very high mutable concentration strongly favors Shapeshifter.")
+        cards["Shapechanger"].add(0.20 * self._clamp01((ratio_signs("Gemini", "Pisces") - 0.22) / 0.22), "Gemini/Pisces dominance materially increases Shapeshifter fit.")
 
         # Skeleton
         cards["Skeleton"].add(0.90 * p("Saturn"), "Saturn is primary.")
         cards["Skeleton"].add(0.66 * p("Mercury"), "Mercury supports the dry intellectual version.")
         cards["Skeleton"].add(0.34 * p("Pluto"), "Pluto supports undead persistence.")
         cards["Skeleton"].add(0.38 * dominant_element_score("Earth", "Air"), "Dry Earth/Air supports it.")
-        cards["Skeleton"].add(0.26 * ratio_houses(8, 10, 12), "Death/austerity houses (8th/10th/12th) help.")
+        cards["Skeleton"].add(0.26 * ratio_houses(8, 10, 12), "Death/austerity houses (H8/H10/H12) help.")
         cards["Skeleton"].add(-0.25 * max(p("Venus"), p("Moon")), "Strong softness works against Skeleton.")
 
         # Stone People
-        cards["Stone People (Golems)"].add(1.00 * dominant_element_score("Earth"), "Earth is primary.")
-        cards["Stone People (Golems)"].add(0.82 * p("Saturn"), "Saturn gives mass and structure.")
-        cards["Stone People (Golems)"].add(0.34 * max(p("Mars"), p("Pluto")), "A second hard planet (Mars or Pluto) helps the animated mass.")
-        cards["Stone People (Golems)"].add(0.32 * dominant_mode_score("fixed"), "Fixed emphasis supports it.")
-        cards["Stone People (Golems)"].add(0.28 * ratio_houses(2, 4, 10), "Material houses (2nd/4th/10th) reinforce it.")
+        cards["Stone People"].add(1.00 * dominant_element_score("Earth"), "Earth is primary.")
+        cards["Stone People"].add(0.82 * p("Saturn"), "Saturn gives mass and structure.")
+        cards["Stone People"].add(0.34 * max(p("Mars"), p("Pluto")), "A second hard planet (Mars or Pluto) helps the animated mass.")
+        cards["Stone People"].add(0.32 * dominant_mode_score("fixed"), "Fixed emphasis supports it.")
+        cards["Stone People"].add(0.28 * ratio_houses(2, 4, 10), "Material houses (H2/H4/H10) reinforce it.")
 
-        # Succubi/Incubi
-        cards["Succubi/Incubi"].add(0.92 * p("Venus"), "Venus is primary.")
-        cards["Succubi/Incubi"].add(0.52 * max(p("Neptune"), p("Pluto")), "Neptune/Pluto prominence adds seduction and danger.")
-        cards["Succubi/Incubi"].add(0.38 * dominant_element_score("Air", "Water"), "Air/Water suits the social-erotic field.")
-        cards["Succubi/Incubi"].add(0.24 * ratio_houses(5, 7, 8), "Pleasure/relationship/taboo houses (5th/7th/8th) reinforce it.")
-        cards["Succubi/Incubi"].add(0.30 * max(link("Venus", "Neptune", ALL_MAJOR_ASPECTS), link("Venus", "Pluto", ALL_MAJOR_ASPECTS)), "Venus tied to Neptune/Pluto helps.")
+        # Succubus: pleasure → relationship → hidden influence
+        # cards["Succubi/Incubi"].add(0.92 * p("Venus"), "Venus is primary.")
+        # cards["Succubi/Incubi"].add(0.52 * max(p("Neptune"), p("Pluto")), "Neptune/Pluto prominence adds seduction and danger.")
+        # cards["Succubi/Incubi"].add(0.38 * dominant_element_score("Air", "Water"), "Air/Water suits the social-erotic field.")
+        # cards["Succubi/Incubi"].add(0.24 * ratio_houses(5, 7, 8), "Pleasure/relationship/taboo houses (H5/H7/H8) reinforce it.")
+        # cards["Succubi/Incubi"].add(0.30 * max(link("Venus", "Neptune", ALL_MAJOR_ASPECTS), link("Venus", "Pluto", ALL_MAJOR_ASPECTS)), "Venus tied to Neptune/Pluto helps.")
+        cards["Succubi/Incubi"].add(
+            0.75 * p("Venus"),
+            "Venus supplies attraction and interpersonal magnetism."
+        )
+        cards["Succubi/Incubi"].add(
+            0.70 * p("Neptune"),
+            "Neptune supplies fantasy, projection, glamour, and psychic permeability."
+        )
+        cards["Succubi/Incubi"].add(
+            0.25 * max(p("Mercury"), p("Moon")),
+            "Mercury or Moon supports social and emotional responsiveness."
+        )
+        cards["Succubi/Incubi"].add(
+            0.30 * dominant_element_score("Air", "Water"),
+            "Air/Water supports social and emotional fluidity."
+        )
+        cards["Succubi/Incubi"].add(
+            0.25 * ratio_houses(5, 7, 12),
+            "Pleasure, relationship, and hidden influence houses reinforce the type."
+        )
+        cards["Succubi/Incubi"].add(
+            0.45 * link("Venus", "Neptune", ALL_MAJOR_ASPECTS),
+            "Venus-Neptune is the central seduction-through-fantasy signature."
+        )
+        cards["Succubi/Incubi"].add(
+            0.20 * max(
+                link("Moon", "Neptune", ALL_MAJOR_ASPECTS),
+                link("Venus", "Pluto", ALL_MAJOR_ASPECTS),
+            ),
+            "Dream infiltration or predatory attraction adds secondary support."
+        )
 
         # Tiefling
         cards["Tiefling"].add(0.74 * p("Mars"), "Mars drives the infernal edge.")
@@ -840,25 +871,61 @@ class SpeciesAssigner:
         cards["Triton"].add(0.54 * p("Neptune"), "Neptune gives the marine register.")
         cards["Triton"].add(0.46 * p("Mars"), "Mars adds martial authority.")
         cards["Triton"].add(0.32 * p("Jupiter"), "Jupiter adds nobility and breadth.")
-        cards["Triton"].add(0.24 * ratio_houses(9, 10, 11), "High public houses (9th/10th/11th) fit the sentinel role.")
+        cards["Triton"].add(0.24 * ratio_houses(9, 10, 11), "High public houses (H9/H10/H11) fit the sentinel role.")
         cards["Triton"].add(0.22 * self._clamp01((er["Water"] - 0.30) / 0.30), "Strong Water saturation pushes from generic aquatic into Triton.")
         cards["Triton"].add(0.16 * self._clamp01((max(p("Neptune"), p("Jupiter")) - 0.28) / 0.30), "Neptune/Jupiter authority supports Triton even when Mars is quieter.")
 
-        # Vampire
-        cards["Vampire"].add(0.86 * p("Venus"), "Venus is primary.")
-        cards["Vampire"].add(0.82 * p("Pluto"), "Pluto is equally central.")
-        cards["Vampire"].add(0.38 * p("Saturn"), "Saturn adds restraint and preservation.")
-        cards["Vampire"].add(0.52 * ratio_signs("Scorpio", "Libra", "Capricorn"), "Scorpio/Libra/Capricorn supports the register.")
-        cards["Vampire"].add(0.32 * ratio_houses(8, 12), "The 8th/12th axis supports it.")
-        cards["Vampire"].add(0.32 * max(link("Venus", "Pluto", ALL_MAJOR_ASPECTS), link("Saturn", "Pluto", ALL_MAJOR_ASPECTS)), "Tight Venus-Pluto or Saturn-Pluto contact helps.")
+        # Vampire: appetite → extraction → concealed existence
+        cards["Vampire"].add(
+            0.82 * p("Pluto"),
+            "Pluto is the central engine of predation, extraction, and death-transformation."
+        )
+        cards["Vampire"].add(
+            0.62 * p("Saturn"),
+            "Saturn adds preservation, arrested mortality, age, and bodily austerity."
+        )
+        cards["Vampire"].add(
+            0.38 * max(p("Moon"), p("Mars")),
+            "Moon or Mars supplies recurring hunger or predatory drive."
+        )
+        cards["Vampire"].add(
+            0.22 * p("Venus"),
+            "Venus adds allure and refinement but is not required for vampirism."
+        )
+        cards["Vampire"].add(
+            0.40 * ratio_signs("Scorpio", "Taurus", "Capricorn"),
+            "Scorpio/Taurus/Capricorn supports extraction, appetite, possession, and preservation."
+        )
+        cards["Vampire"].add(
+            0.34 * ratio_houses(2, 8, 12),
+            "Consumption, extraction, and concealed existence reinforce the type."
+        )
+        cards["Vampire"].add(
+            0.42 * max(
+                link("Saturn", "Pluto", ALL_MAJOR_ASPECTS),
+                link("Moon", "Pluto", ALL_MAJOR_ASPECTS),
+                link("Mars", "Pluto", ALL_MAJOR_ASPECTS),
+            ),
+            "Pluto linked to preservation, hunger, or predation establishes the vampiric mechanism."
+        )
+        cards["Vampire"].add(
+            0.18 * link("Venus", "Pluto", ALL_MAJOR_ASPECTS),
+            "Venus-Pluto adds the seductive or aristocratic presentation."
+        )
+        # cards["Vampire"].add(0.86 * p("Venus"), "Venus is primary.")
+        # cards["Vampire"].add(0.82 * p("Pluto"), "Pluto is equally central.")
+        # cards["Vampire"].add(0.38 * p("Saturn"), "Saturn adds restraint and preservation.")
+        # cards["Vampire"].add(0.52 * ratio_signs("Scorpio", "Libra", "Capricorn"), "Scorpio/Libra/Capricorn supports the register.")
+        # cards["Vampire"].add(0.32 * ratio_houses(8, 12), "The H8/12-axis supports it.")
+        # cards["Vampire"].add(0.32 * max(link("Venus", "Pluto", ALL_MAJOR_ASPECTS), link("Saturn", "Pluto", ALL_MAJOR_ASPECTS)), "Tight Venus-Pluto or Saturn-Pluto contact helps.")
 
         # Yuan-Ti
-        cards["Yuan-Ti (Serpentine)"].add(0.86 * p("Pluto"), "Pluto is primary.")
-        cards["Yuan-Ti (Serpentine)"].add(0.48 * p("Neptune"), "Neptune adds glamour and venomous blur.")
-        cards["Yuan-Ti (Serpentine)"].add(0.44 * dominant_element_score("Water", "Earth"), "Water/Earth suits the serpent body.")
-        cards["Yuan-Ti (Serpentine)"].add(0.70 * serpent_sign_signature, "Scorpio/Pisces/Capricorn is the main serpent lane.")
-        cards["Yuan-Ti (Serpentine)"].add(0.30 * ratio_houses(8, 12), "Liminal houses (8th/12th) reinforce it.")
-        cards["Yuan-Ti (Serpentine)"].add(0.24 * max(link("Pluto", "Neptune", ALL_MAJOR_ASPECTS), link("Venus", "Pluto", ALL_MAJOR_ASPECTS)), "Hypnotic contacts (Pluto-Neptune or Venus-Pluto) help.")
+        cards["Snakey"].add(0.86 * p("Pluto"), "Pluto is primary.")
+        cards["Snakey"].add(0.48 * p("Neptune"), "Neptune adds glamour and venomous blur.")
+        cards["Snakey"].add(0.44 * dominant_element_score("Water", "Earth"), "Water/Earth suits the serpent body.")
+        cards["Snakey"].add(0.70 * serpent_sign_signature, "Scorpio/Pisces/Capricorn is the main serpent lane.")
+        cards["Snakey"].add(0.30 * ratio_houses(8, 12), "Liminal houses (H8/H12) reinforce it.")
+        cards["Snakey"].add(0.24 * max(link("Pluto", "Neptune", ALL_MAJOR_ASPECTS), link("Venus", "Pluto", ALL_MAJOR_ASPECTS)), "Hypnotic contacts (Pluto-Neptune or Venus-Pluto) help.")
 
         # Mild floor so empty scorecards do not go negative or vanish completely.
         for family, card in cards.items():
@@ -901,12 +968,12 @@ class SpeciesAssigner:
         if family == "Aasimar":
             if max(link("Pluto", "Sun", HARD_ASPECTS), link("Pluto", "Moon", HARD_ASPECTS), link("Saturn", "Sun", HARD_ASPECTS)) >= 0.35:
                 evidence.append("Pluto/Saturn cuts across the solar axis.")
-                return "Fallen", evidence
+                return "Fallen Aasimar", evidence
             if max(link("Mars", "Sun", HARD_ASPECTS), link("Mars", "AS", HARD_ASPECTS), prom.get("Mars", 0.0)) >= 0.60:
                 evidence.append("Mars pushes the celestial type toward punitive heat.")
-                return "Scourge", evidence
+                return "Scourge Aasimar", evidence
             evidence.append("Solar-Jovian type stays upright and protective.")
-            return "Protector", evidence
+            return "Protector Aasimar", evidence
 
         if family == "Birdfolk":
             gem = float(sr.get("Gemini", 0.0))
@@ -922,12 +989,12 @@ class SpeciesAssigner:
                 evidence.append("Air plus altitude and daylight markers lands in the sky-hunter lane.")
                 return "Aarakocra", evidence
             evidence.append("Avian family is clear, but without a narrow subtype lock.")
-            return "Other (non-owl, non-kenku, non-aarakocra)", evidence
+            return "Birdperson", evidence
 
         if family == "Canids":
             if max(prom.get("Saturn", 0.0), float(hr.get(6, 0.0)), float(hr.get(10, 0.0))) >= 0.40 and prom.get("Moon", 0.0) >= 0.35:
                 evidence.append("Duty-and-pack markers favor the shepherd lane.")
-                return "Shepherd Dogs", evidence
+                return "Shepherd Dog Dogfolk", evidence
             if max(float(sr.get("Scorpio", 0.0)), float(hr.get(8, 0.0)), float(hr.get(12, 0.0))) >= 0.20 and max(link("Mars", "Moon", HARD_ASPECTS), link("Mars", "AS", HARD_ASPECTS)) >= 0.25:
                 evidence.append("Lunar survival plus Mars gives the wolf lane.")
                 return "Wolfkin", evidence
@@ -953,33 +1020,27 @@ class SpeciesAssigner:
             evidence.append("Fallback threshold logic nudges it toward eclipse coding.")
             return "Eclipsians", evidence
 
-        if family == "Cyborgs":
-            if prom.get("Mercury", 0.0) >= 0.45 and strong_link("Mercury", "Saturn") and strong_link("Mercury", "Uranus"):
-                evidence.append("Mercury fused to Saturn and Uranus selects the machine-mind subtype.")
-                return "Advanced AI", evidence
-            if max(link("Mars", "Uranus"), link("Mars", "Saturn")) >= 0.30:
-                evidence.append("Mars plugged into metal or voltage selects the combat chassis.")
-                return "Combat-Oriented", evidence
-            evidence.append("The augmentations are real but not total.")
-            return "Light Augmented", evidence
+        # if family == "Cyborgs":
+        #     evidence.append("The augmentations are real but not total.")
+        #     return "Lightly Tech-Augmented Critter", evidence
 
         if family == "Dwarf":
             if max(float(hr.get(8, 0.0)), float(hr.get(12, 0.0)), link("Saturn", "Pluto")) >= 0.28:
-                evidence.append("Underground/pressure markers (8th/12th houses or Saturn-Pluto) select the deep subtype.")
-                return "Duergar (Underdark)", evidence
-            if strong_link("Mercury", "Saturn") and max(float(hr.get(2, 0.0)), float(hr.get(8, 0.0))) >= 0.18:
-                evidence.append("Mercury-Saturn with security houses (2nd/8th) selects the warding subtype.")
-                return "Mark of Warding (Eberron)", evidence
+                evidence.append("Underground/pressure markers (H8/H12 or Saturn-Pluto) select the deep subtype.")
+                return "Duergar", evidence
+            # if strong_link("Mercury", "Saturn") and max(float(hr.get(2, 0.0)), float(hr.get(8, 0.0))) >= 0.18:
+            #     evidence.append("Mercury-Saturn with security houses (H2/H8) selects the warding subtype.")
+            #     return "Mark of Warding (Eberron)", evidence
             if max(prom.get("Mars", 0.0), link("Mars", "Saturn")) >= 0.40:
                 evidence.append("Mars plus Saturn pushes it toward the mountain lane.")
-                return "Mountain", evidence
+                return "Mountain Dwarf", evidence
             evidence.append("The softer, steadier earthy branch fits best.")
-            return "Hill", evidence
+            return "Hill Dwarf", evidence
 
         if family == "Elf":
             if max(link("Venus", "Pluto"), float(sr.get("Scorpio", 0.0))) >= 0.26 and er["Water"] >= 0.22:
                 evidence.append("Water and underworld polish select the dark branch.")
-                return "Drow (Dark Elf)", evidence
+                return "Drow", evidence
             if max(link("Saturn", "Pluto"), float(hr.get(12, 0.0))) >= 0.28:
                 evidence.append("Saturn-Pluto or 12th-house severity selects the dim austere branch.")
                 return "Shadar-Kai", evidence
@@ -994,10 +1055,10 @@ class SpeciesAssigner:
                 return "Wood Elf", evidence
             if max(prom.get("Uranus", 0.0), prom.get("Moon", 0.0)) >= 0.40 and feats["mode_ratios"].get("cardinal", 0.0) >= 0.18:
                 evidence.append("Mood shift and bright angularity select the seasonal branch.")
-                return "Eladrin (Seasonal)", evidence
+                return "Eladrin Elf", evidence
             if er["Air"] >= 0.30 and max(prom.get("Sun", 0.0), prom.get("Jupiter", 0.0), float(hr.get(10, 0.0))) >= 0.40:
                 evidence.append("Air and height select the winged branch.")
-                return "Avariel", evidence
+                return "Avariel Elf", evidence
             evidence.append("The civilized airy branch remains the default.")
             return "High Elf", evidence
 
@@ -1025,23 +1086,23 @@ class SpeciesAssigner:
             if dominant == "Fire":
                 if max(link("Uranus", "Mars"), link("Uranus", "Mercury")) >= 0.28:
                     evidence.append("Fire dominated by current and spark selects Electric.")
-                    return "Electric", evidence
-                return "Fire", evidence
+                    return "Electric Genasi", evidence
+                return "Fire Genasi", evidence
             if dominant == "Air":
                 if max(link("Uranus", "Mars"), link("Uranus", "Mercury")) >= 0.24:
                     evidence.append("Air crackles into Electric.")
-                    return "Electric", evidence
-                return "Air", evidence
+                    return "Electric Genasi", evidence
+                return "Air Genasi", evidence
             if dominant == "Earth":
                 if er["Water"] >= 0.26:
                     evidence.append("Earth with enough Water becomes Mud.")
-                    return "Mud", evidence
-                return "Earth", evidence
+                    return "Mud Genasi", evidence
+                return "Earth Genasi", evidence
             if dominant == "Water":
                 if max(link("Saturn", "Moon"), link("Saturn", "Neptune")) >= 0.25:
                     evidence.append("Water held rigid by Saturn becomes Ice.")
-                    return "Ice", evidence
-                return "Water", evidence
+                    return "Ice Genasi", evidence
+                return "Water Genasi", evidence
             return dominant, evidence
 
         if family == "Spirits":
@@ -1064,23 +1125,23 @@ class SpeciesAssigner:
             if er["Earth"] >= 0.28:
                 evidence.append("Earthier and tougher selects Stout.")
                 return "Stout", evidence
-            if max(link("Venus", "Jupiter"), float(hr.get(4, 0.0)), float(hr.get(5, 0.0))) >= 0.28:
-                evidence.append("Domestic welcome and abundance selects the hospitality mark.")
-                return "Mark of Hospitality (Eberron)", evidence
-            if max(link("Venus", "Moon"), float(hr.get(6, 0.0))) >= 0.28:
-                evidence.append("Caretaking softness selects the healing mark.")
-                return "Mark of Healing (Eberron)", evidence
+            # if max(link("Venus", "Jupiter"), float(hr.get(4, 0.0)), float(hr.get(5, 0.0))) >= 0.28:
+            #     evidence.append("Domestic welcome and abundance selects the hospitality mark.")
+            #     return "Mark of Hospitality (Eberron)", evidence
+            # if max(link("Venus", "Moon"), float(hr.get(6, 0.0))) >= 0.28:
+            #     evidence.append("Caretaking softness selects the healing mark.")
+            #     return "Mark of Healing (Eberron)", evidence
             evidence.append("Quick social localism selects Lightfoot.")
             return "Lightfoot", evidence
 
         if family == "Human":
             if feats["spikiness"] >= 0.42:
                 evidence.append("Still broadly human, but with a sharper skew.")
-                return "Variant", evidence
+                return "Quirky Human", evidence
             evidence.append("Balanced and low-spike chart lands in Standard.")
-            return "Standard", evidence
+            return "Standard Human", evidence
 
-        if family == "Tabaxi":
+        if family == "Catfolk":
             if max(link("Venus", "Pluto"), float(sr.get("Scorpio", 0.0))) >= 0.28:
                 evidence.append("Dark glamour selects Pantherkin.")
                 return "Pantherkin", evidence
@@ -1088,21 +1149,32 @@ class SpeciesAssigner:
                 evidence.append("Solar or martial striping selects Tigerfolk.")
                 return "Tigerfolk", evidence
             evidence.append("Feline family is clear, but without a narrow cat branch.")
-            return "Other (non-panther, non-tiger, non-lion, non-cat)", evidence
+            return "Tabaxi", evidence
 
-        if family == "Lizardfolk (Reptilians)":
+        if family == "Reptilian":
             if max(link("Mars", "Jupiter"), prom.get("Jupiter", 0.0), float(hr.get(10, 0.0))) >= 0.32:
-                evidence.append("Big prehistoric momentum selects Dinoboiz.")
-                return "Dinoboiz", evidence
+                evidence.append("Big prehistoric momentum selects Lizardolk.")
+                return "Lizardfolk", evidence
             evidence.append("Reptilian family is clear without the dinosaur tilt.")
-            return "Other", evidence
+            return "Kobold", evidence
 
-        if family == "Robots":
+        if family == "Construct":
+            if prom.get("Mercury", 0.0) >= 0.45 and strong_link("Mercury", "Saturn") and strong_link("Mercury", "Uranus"):
+                evidence.append("Mercury fused to Saturn and Uranus selects the machine-mind subtype.")
+                return "Digital Assistant", evidence
             if strong_link("Mercury", "Saturn") and er["Earth"] >= er["Water"]:
                 evidence.append("Mercury-Saturn with neat terrestrial engineering selects Autognome.")
                 return "Autognome", evidence
-            evidence.append("Construct logic wins without the gnomey finish.")
-            return "Alternative Construct", evidence
+            if max(
+                    link("Mars", "Saturn", ALL_MAJOR_ASPECTS),
+                    link("Mars", "Uranus", ALL_MAJOR_ASPECTS),
+            ) >= 0.30:
+                evidence.append(
+                    "Mars joined to engineered structure or machinery selects the constructed warrior."
+                )
+                return "Warforged", evidence
+            evidence.append("Sentient robot logic wins without the gnomey finish.")
+            return "Sentient Robot", evidence
 
         if family == "Rodentfolk":
             if er["Air"] > er["Earth"] and max(float(sr.get("Gemini", 0.0)), prom.get("Mercury", 0.0)) >= 0.24:
@@ -1112,80 +1184,73 @@ class SpeciesAssigner:
                 evidence.append("Earth plus understructure and survival selects Ratfolk.")
                 return "Ratfolk", evidence
             evidence.append("Rodent family is clear, but without a narrow subtype lock.")
-            return "Other (non-rat, non-squirrel)", evidence
+            return "Mousefolk", evidence
 
-        if family == "Shapeshifter":
+        if family == "Shapechanger":
             if max(float(sr.get("Gemini", 0.0)), float(sr.get("Pisces", 0.0)), link("Mercury", "Neptune")) >= 0.30:
-                evidence.append("Socially fluid mutable coding selects Changelings.")
-                return "Changelings", evidence
+                evidence.append("Socially fluid mutable coding selects Changeling.")
+                return "Changeling", evidence
             if strong_link("Mercury", "Pluto") and max(prom.get("Mercury", 0.0), float(hr.get(1, 0.0))) >= 0.28:
                 evidence.append("Mercury under Plutonian pressure selects Doppelgangers.")
-                return "Doppelgangers", evidence
+                return "Doppelganger", evidence
             if max(link("Mars", "Moon"), float(hr.get(1, 0.0)) + float(hr.get(8, 0.0)) + float(hr.get(12, 0.0))) >= 0.28:
                 evidence.append("Body-instinct conflict selects Lycanthropes.")
-                return "Lycanthropes", evidence
+                return "Lycanthrope", evidence
             evidence.append("Fluid identity remains social rather than predatory.")
-            return "Changelings", evidence
+            return "Shifter", evidence
 
         if family == "Skeleton":
             if strong_link("Mercury", "Pluto") and strong_link("Mercury", "Saturn"):
                 evidence.append("Mercury bound to Saturn and Pluto selects the death-scholar.")
                 return "Lich", evidence
-            if strong_link("Mercury", "Saturn"):
-                evidence.append("Dry learned Saturn-Mercury selects the caster subtype.")
-                return "Skeletal Mage", evidence
+            # if strong_link("Mercury", "Saturn"):
+            #     evidence.append("Dry learned Saturn-Mercury selects the caster subtype.")
+            #     return "Skeletal Mage", evidence
             evidence.append("The simple martial frame remains.")
             return "Bone Warrior", evidence
 
-        if family == "Stone People (Golems)":
+        if family == "Stone People":
             if er["Earth"] >= 0.34 and max(link("Uranus", "Venus"), link("Uranus", "Mercury")) >= 0.24:
                 evidence.append("Stone plus luminous or precise Uranus selects Crystalborn.")
-                return "Crystalborn", evidence
+                return "Crystalborn Golem", evidence
             if strong_link("Saturn", "Mars"):
                 evidence.append("Saturn-Mars pressure selects the forged subtype.")
-                return "Earth-Forged Golems", evidence
+                return "Earth-Forged Golem", evidence
             evidence.append("Plain living mass remains the default.")
-            return "Stoneborn", evidence
-
-        if family == "Succubi/Incubi":
-            if strong_link("Venus", "Neptune"):
-                evidence.append("Venus drowned in Neptune selects Dreamweaver.")
-                return "Dreamweaver Succubi", evidence
-            evidence.append("The more direct infernal seduction subtype fits better.")
-            return "Abyssal Succubi", evidence
+            return "Stoneborn Golem", evidence
 
         if family == "Tiefling":
             if max(link("Mars", "Uranus"), prom.get("Mars", 0.0), float(hr.get(1, 0.0))) >= 0.34:
                 evidence.append("Unruly Mars pushes it feral.")
-                return "Feral", evidence
+                return "Feral Tiefling", evidence
             if max(link("Saturn", "Sun"), link("Saturn", "Pluto")) >= 0.28:
                 evidence.append("Saturnine infernal authority selects the Asmodeus-ish lane.")
-                return "Bloodlines (e.g., Asmodeus)", evidence
+                return "Asmodeus Tiefling", evidence
             if max(link("Mars", "Sun"), float(hr.get(10, 0.0))) >= 0.28:
                 evidence.append("Martial visibility selects the Zariel-ish lane.")
-                return "Bloodlines (e.g., Zariel)", evidence
+                return "Zariel Tiefling", evidence
             if max(link("Saturn", "Neptune"), float(sr.get("Capricorn", 0.0))) >= 0.24:
                 evidence.append("Cold infernal reserve selects the Levistus-ish lane.")
-                return "Bloodlines (e.g., Levistus)", evidence
+                return "Levistus Tiefling", evidence
             evidence.append("Infernal family is clear without a hard bloodline lock.")
-            return "Standard", evidence
+            return "Standard Tiefling", evidence
 
         if family == "Vampire":
             if strong_link("Venus", "Pluto") and strong_link("Saturn", "Pluto"):
                 evidence.append("Venus-Pluto and Saturn-Pluto select the full aristocratic form.")
-                return "True Vampire", evidence
+                return "Patrician Vampire", evidence
             if strong_link("Saturn", "Pluto") and prom.get("Venus", 0.0) < 0.35:
                 evidence.append("Dry Saturn-Pluto without strong Venus selects Nosferatu.")
                 return "Nosferatu", evidence
             evidence.append("The partial blooded compromise remains.")
-            return "Dhampir", evidence
+            return "Child of the Night", evidence
 
-        if family == "Yuan-Ti (Serpentine)":
+        if family == "Snakey":
             if strong_link("Pluto", "Neptune") and strong_link("Venus", "Pluto"):
                 evidence.append("Smooth hypnotic venom selects Pureblood.")
-                return "Pureblood", evidence
+                return "Yuan-Ti Pureblood", evidence
             evidence.append("The more visibly serpentine branch fits better.")
-            return "Malison", evidence
+            return "Yuan-Ti Malison", evidence
 
         if family in {"Cyclops", "Dragons", "Merfolk", "Minotaur", "Nymph", "Ogres", "Orcs", "Plasmoid", "Triton", "Gnome"}:
             return "", evidence
@@ -1200,7 +1265,7 @@ class SpeciesAssigner:
         out: List[str] = []
         er = feats["element_ratios"]
         out.append(
-            "Elements: " + ", ".join(f"{k}={er[k]:.2f}" for k in ("Fire", "Earth", "Air", "Water")) + "."
+            ", ".join(f"{k}={er[k]:.2f}" for k in ("Fire", "Earth", "Air", "Water")) + "."
         )
         for text in family_reasons:
             if text not in out:

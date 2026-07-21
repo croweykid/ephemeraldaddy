@@ -7,7 +7,6 @@ import calendar
 import copy
 import ctypes
 import datetime
-import faulthandler
 from dataclasses import asdict
 import html
 import hashlib
@@ -33,6 +32,8 @@ from pathlib import Path
 import re
 from importlib import resources as importlib_resources
 from zoneinfo import ZoneInfo
+
+from ephemeraldaddy.gui.crash_diagnostics import install_crash_diagnostics
 
 
 logger = logging.getLogger(__name__)
@@ -275,6 +276,9 @@ def _load_similarity_calculator_settings(settings) -> SimilarityCalculatorSettin
         "all_or_nothing_component": _normalize_all_or_nothing_component(
             payload.get("all_or_nothing_component", defaults.all_or_nothing_component)
         ),
+        "demographic_match_mode": _normalize_astro_twin_demographic_match_mode(
+            payload.get("demographic_match_mode", defaults.demographic_match_mode)
+        ),
     }
     return SimilarityCalculatorSettings(**values)
 
@@ -317,6 +321,7 @@ def _save_similarity_calculator_settings(settings, value: SimilarityCalculatorSe
             "weight_big_3": float(value.weight_big_3),
             "placement_weighting_mode": _normalize_placement_weighting_mode(value.placement_weighting_mode),
             "all_or_nothing_component": _normalize_all_or_nothing_component(value.all_or_nothing_component),
+            "demographic_match_mode": _normalize_astro_twin_demographic_match_mode(value.demographic_match_mode),
         },
     )
 
@@ -528,6 +533,12 @@ from matplotlib.figure import Figure
 from matplotlib.patches import Patch
 
 from ephemeraldaddy.core.deps import ensure_all_deps
+# TEMP_RMO_RECIPROCITY_CLEANUP_REMOVE_AFTER_LOCAL_DB_MIGRATION:
+# Remove this import together with _on_ensure_reminds_me_of_reciprocity(), the
+# Dev Tools button below, and ephemeraldaddy/core/reminds_me_of_reciprocity_cleanup.py.
+from ephemeraldaddy.core.reminds_me_of_reciprocity_cleanup import (
+    ensure_existing_reminds_me_of_reciprocity,
+)
 from ephemeraldaddy.io.geocode import geocode_location, LocationLookupError, search_locations
 from ephemeraldaddy.gui.astrotheme_search import (
     parse_astrotheme_profile,
@@ -657,6 +668,7 @@ from ephemeraldaddy.analysis.bazi_getter import (
     bazi_sign_weights_from_chart,
 )
 from ephemeraldaddy.analysis.get_astro_twin import (
+    ASTRO_TWIN_DEMOGRAPHIC_MATCH_NONE,
     DOMINANCE_COMPONENT_KEYS,
     PLACEMENT_WEIGHTING_MODE_CHART_DEFINED,
     SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE,
@@ -672,6 +684,7 @@ from ephemeraldaddy.analysis.get_astro_twin import (
     chart_sign_dominance_weights as _similarity_sign_dominance_weights,
     find_astro_twins,
     normalize_all_or_nothing_component as _normalize_all_or_nothing_component,
+    normalize_astro_twin_demographic_match_mode as _normalize_astro_twin_demographic_match_mode,
     normalize_placement_weighting_mode as _normalize_placement_weighting_mode,
     normalize_similar_charts_algorithm_mode as _normalize_similar_charts_algorithm_mode,
 )
@@ -1334,7 +1347,7 @@ CHART_VIEW_NAV_CACHE_LIMIT = 24
 CHART_VIEW_TIMING_PREVIEW_DEBOUNCE_MS = 450
 DATABASE_METRICS_DEFERRED_REFRESH_DELAY_MS = 250
 DATABASE_METRICS_INCREMENTAL_REFRESH_DELAY_MS = 25
-CHART_RENDER_INTERACTIVE_DELAY_MS = 1
+CHART_RENDER_INTERACTIVE_DELAY_MS = 100
 CHART_RENDER_BACKGROUND_DELAY_MS = 25
 
 DATABASE_METRICS_PERSISTENT_CACHE_VERSION = 1
@@ -1458,19 +1471,42 @@ from ephemeraldaddy.gui.style import (
 )
 from ephemeraldaddy.core.timeutils import localize_naive_datetime
 
-DISSIMILARITY_CHART_1_RGB = (80, 170, 255)
-DISSIMILARITY_CHART_2_RGB = (255, 215, 80)
+DISSIMILARITY_CHART_1_RGB = (255, 215, 80)
+DISSIMILARITY_CHART_2_RGB = (80, 170, 255)
 DISSIMILARITY_OWNER_RGB = {
     "chart_1": DISSIMILARITY_CHART_1_RGB,
     "chart_2": DISSIMILARITY_CHART_2_RGB,
 }
 
 
+def _dissimilarity_owner_color_css(owner: str) -> str:
+    red, green, blue = DISSIMILARITY_OWNER_RGB[owner]
+    return f"rgb({red}, {green}, {blue})"
+
+
+def _format_pair_dissimilarity_summary(
+    first_name: str,
+    second_name: str,
+    total_contrasts: int,
+) -> str:
+    factor_label = "factor" if total_contrasts == 1 else "factors"
+    return (
+        f'<span style="color: {_dissimilarity_owner_color_css("chart_1")};">'
+        f'{html.escape(first_name)}</span> '
+        f'<span style="color: #9b9b9b;">↔</span> '
+        f'<span style="color: {_dissimilarity_owner_color_css("chart_2")};">'
+        f'{html.escape(second_name)}</span>'
+        f'<span style="color: #9b9b9b;">: '
+        f'<span style="font-weight: 600;">{total_contrasts} contrasting {factor_label}</span> '
+        f'found.</span>'
+    )
+
 def _contrasting_similarities_section_title(section_title: str) -> str:
     factor_name = section_title.replace(" in contrast", "").replace(" in common", "")
     return f"Contrasting {factor_name}"
 
 from ephemeraldaddy.analysis.dnd.species_assigner_v2 import (
+    FAMILY_SUBTYPES,
     SPECIES_FAMILIES,
     assign_top_three_species,
     assign_top_three_species_with_evidence,
@@ -2224,31 +2260,25 @@ def _env_flag_enabled(value: str | None) -> bool:
 
 
 def _configure_debug_logging() -> None:
-    """Enable startup diagnostics when debug env flags are set."""
-    if not (
+    """Enable startup diagnostics and persistent native-crash tracebacks."""
+    debug_enabled = (
         _env_flag_enabled(os.environ.get("EPHEMERALDADDY_DEBUG"))
         or _env_flag_enabled(os.environ.get("EPHEMERALDADDY_DEBUG_STARTUP"))
-    ):
-        return
-    root_logger = logging.getLogger()
-    if not root_logger.handlers:
-        logging.basicConfig(
-            level=logging.DEBUG,
-            format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
-        )
-    if sys.stderr is not None and not faulthandler.is_enabled():
-        try:
-            faulthandler.enable(file=sys.stderr, all_threads=True)
-        except RuntimeError as exc:
-            logger.debug("Faulthandler unavailable for debug startup logging: %s", exc)
-    elif sys.stderr is None:
-        logger.debug("Faulthandler skipped because sys.stderr is unavailable.")
+    )
+    if debug_enabled:
+        root_logger = logging.getLogger()
+        if not root_logger.handlers:
+            logging.basicConfig(
+                level=logging.DEBUG,
+                format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+            )
+    crash_log_path = install_crash_diagnostics(debug_enabled=debug_enabled)
     logger.debug(
-        "Debug logging enabled (pid=%s platform=%s argv=%s faulthandler=%s).",
+        "Debug logging configured (pid=%s platform=%s argv=%s crash_log=%s).",
         os.getpid(),
         sys.platform,
         sys.argv,
-        faulthandler.is_enabled(),
+        crash_log_path,
     )
 
 
@@ -4063,7 +4093,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         if self._species_distribution_mode == "stat_block":
             subheader.setText("Average stat values within database/selection.")
             return
-        subheader.setText("Distribution of D&D species/classes in database")
+        subheader.setText("Distribution of Fantasy RPG species/classes in database")
 
     def _on_analysis_chart_dropdown_changed(self, chart_key: str) -> None:
         if chart_key == "species_distribution":
@@ -5202,11 +5232,11 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         self._create_traits_database_analytics_section(panel, predictions_category_layout)
         self._create_enneagram_database_analytics_section(panel, predictions_category_layout)
 
-        #D&D TYPING SECTION
+        #Fantasy RPG TYPING SECTION
         species_section_layout = self._add_left_panel_collapsible_section(
             panel,
             predictions_category_layout,
-            "⚔️D&&D-ification",
+            "⚔️Fantasy Archetypes",
             section_key="species_distribution",
             expanded=self._is_database_metrics_section_expanded("species_distribution"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
@@ -5216,10 +5246,10 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         )
         self._database_metrics_section_expanded["species_distribution"] = self._is_database_metrics_section_expanded("species_distribution")
         self._database_metrics_section_visible["species_distribution"] = self._is_database_metrics_section_visible("species_distribution")
-        #D&D Typing Chart Header
+        #Fantasy RPG Typing Chart Header
         self._create_analysis_chart_header(
             species_section_layout,
-            "⚔️D&&D-ification",
+            "⚔️Fantasy Archetypes",
             "species_distribution",
             "species_distribution",
             dropdown_options=[
@@ -5231,11 +5261,11 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             ],
             show_title=False,
         )
-        self.species_distribution_subheader = add_database_subheader("D&D-themed subjective taxonomical distribution in selection/database, because it's fun.")
+        self.species_distribution_subheader = add_database_subheader("Fantasy RPG-themed subjective taxonomical distribution in selection/database, because it's fun.")
         species_section_layout.addWidget(self.species_distribution_subheader)
         self._update_species_distribution_subheader()
 
-        #D&D Typing Chart
+        #Fantasy RPG Typing Chart
         (
             self.species_distribution_chart_container,
             self.species_distribution_chart_layout,
@@ -7902,9 +7932,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         first_name = str(getattr(first, "name", "") or f"#{resolution.first_chart_id}")
         second_name = str(getattr(second, "name", "") or f"#{resolution.second_chart_id}")
         self._similarities_pair_result_label.setText(
-            f"{first_name} ↔ {second_name}: "
-            f'<span style="color: #ffb74d; font-weight: 600;">'
-            f"{total_contrasts} contrasting factor(s)</span> found."
+            _format_pair_dissimilarity_summary(first_name, second_name, total_contrasts)
         )
 
     def _update_dissimilarities_analysis(self, chart_ids: list[int]) -> int:
@@ -10963,6 +10991,10 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             and birthdate_latest_day is None
             and birthdate_latest_year is None
             and self.species_filter_combo.currentData() == "Any"
+            and (
+                not hasattr(self, "subspecies_filter_combo")
+                or self.subspecies_filter_combo.currentData() == "Any"
+            )
             and (
                 not hasattr(self, "dnd_class_filter_combo")
                 or self.dnd_class_filter_combo.currentData() == "Any"
@@ -17720,6 +17752,8 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             if hasattr(self, "dnd_class_filter_combo") and self.dnd_class_filter_combo is not None:
                 self.dnd_class_filter_combo.setCurrentIndex(0)
             self.species_filter_combo.setCurrentIndex(0)
+            if hasattr(self, "subspecies_filter_combo") and self.subspecies_filter_combo is not None:
+                self.subspecies_filter_combo.setCurrentIndex(0)
             for min_input in self._dnd_stat_filter_min_inputs.values():
                 min_input.setText("")
             for max_input in self._dnd_stat_filter_max_inputs.values():
@@ -18704,6 +18738,29 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             self,
             "Similarity relationship conversion complete",
             format_chart_similarity_relationship_conversion_report(report),
+        )
+
+    # TEMP_RMO_RECIPROCITY_CLEANUP_REMOVE_AFTER_LOCAL_DB_MIGRATION:
+    # One-time repair action for pre-reciprocity personal databases. Safe to
+    # delete after the local database cleanup has been run and verified.
+    def _on_ensure_reminds_me_of_reciprocity(self) -> None:
+        try:
+            report = ensure_existing_reminds_me_of_reciprocity()
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Reminds Me Of cleanup failed",
+                f"Could not synchronize existing Reminds Me Of links:\n{exc}",
+            )
+            return
+
+        QMessageBox.information(
+            self,
+            "Reminds Me Of cleanup complete",
+            "Existing Reminds Me Of links have been checked for reciprocity.\n\n"
+            f"Charts scanned: {report.charts_scanned}\n"
+            f"Charts updated: {report.charts_updated}\n"
+            f"Reciprocal links added: {report.reciprocal_links_added}",
         )
 
     def _on_recalculate_all_weights_in_db(self) -> None:
@@ -19988,6 +20045,49 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         self._populate_list(selected_ids=set(self._selected_chart_ids()) | normalized_ids, refresh_metrics=False)
         self._on_selection_changed(sync_persistent_selection=False)
 
+    def _cached_top_three_species_for_filter(self, chart) -> list[tuple[str, str]]:
+        """Return cached Top 3 Species/Subspecies without recalculating predictions.
+
+        The Fantasy RPG species scorer is intentionally expensive. Database View
+        search must not run that scorer synchronously for every row when a
+        dropdown changes, because doing so blocks the UI. This filter therefore
+        reads already-generated prediction metadata from chart memory, the
+        owner-level prediction cache, or persisted UID metadata only.
+        """
+        chart_uid = str(getattr(chart, "chart_uid", "") or "").strip()
+        payload = getattr(chart, "_dnd_species_class_prediction_cache", None)
+        if not isinstance(payload, dict):
+            chart_cache_id = chart_uid or str(id(chart))
+            owner_cache = getattr(self, "_dnd_species_class_prediction_view_cache", {})
+            payload = owner_cache.get(chart_cache_id) if isinstance(owner_cache, dict) else None
+        if not isinstance(payload, dict) and chart_uid:
+            filter_cache = getattr(self, "_dnd_species_search_filter_cache", None)
+            if not isinstance(filter_cache, dict):
+                try:
+                    from ephemeraldaddy.core import db
+
+                    stored_metadata = db.get_all_chart_dnd_prediction_metadata()
+                except Exception:
+                    stored_metadata = {}
+                filter_cache = {
+                    uid: (stored.get("species_class") if isinstance(stored, dict) else {})
+                    for uid, stored in stored_metadata.items()
+                }
+                self._dnd_species_search_filter_cache = filter_cache
+            payload = filter_cache.get(chart_uid, {})
+        species_payloads = payload.get("species") if isinstance(payload, dict) else None
+        if not isinstance(species_payloads, list):
+            return []
+        top_three: list[tuple[str, str]] = []
+        for entry in species_payloads[:3]:
+            if not isinstance(entry, dict):
+                continue
+            family = str(entry.get("family", "") or "").strip()
+            subtype = str(entry.get("subtype", "") or "").strip()
+            if family:
+                top_three.append((family, subtype))
+        return top_three
+
     def _chart_matches_filters(self, chart_id: int) -> bool:
         incomplete_birthdate_state = self.incomplete_birthdate_checkbox.mode()
         hidden_charts_state = (
@@ -20096,6 +20196,11 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             else ""
         )
         selected_species = self.species_filter_combo.currentData()
+        selected_subspecies = (
+            self.subspecies_filter_combo.currentData()
+            if hasattr(self, "subspecies_filter_combo") and self.subspecies_filter_combo is not None
+            else "Any"
+        )
         selected_dnd_class = (
             self.dnd_class_filter_combo.currentData()
             if hasattr(self, "dnd_class_filter_combo") and self.dnd_class_filter_combo is not None
@@ -20529,17 +20634,27 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             if chart_birthdate_latest is not None and chart_birthdate > chart_birthdate_latest:
                 return False
 
-        if selected_species != "Any":
+        if selected_species != "Any" or selected_subspecies != "Any":
             chart = self._get_chart_for_filter(chart_id)
             if chart is None:
                 return False
-            species_top_three = assign_top_three_species(chart)
+            species_top_three = self._cached_top_three_species_for_filter(chart)
+            if not species_top_three:
+                return False
             top_three_species = {
                 species_name
-                for species_name, _subtype, _score in species_top_three[:3]
+                for species_name, _subtype in species_top_three[:3]
             }
-            if selected_species not in top_three_species:
+            if selected_species != "Any" and selected_species not in top_three_species:
                 return False
+            if selected_subspecies != "Any":
+                top_three_subspecies = {
+                    subtype
+                    for species_name, subtype in species_top_three[:3]
+                    if selected_species == "Any" or species_name == selected_species
+                }
+                if selected_subspecies not in top_three_subspecies:
+                    return False
 
         if selected_dnd_class != "Any":
             chart = self._get_chart_for_filter(chart_id)
@@ -22214,7 +22329,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         )
         visibility_section.addWidget(cursedness_checkbox)
 
-        dnd_species_checkbox = QCheckBox("Show D&&D Card")
+        dnd_species_checkbox = QCheckBox("Show Fantasy RPG Card")
         dnd_species_checkbox.setChecked(self._visibility.get("chart_data.dnd_output"))
         dnd_species_checkbox.toggled.connect(
             lambda checked: self._set_chart_data_visibility("chart_data.dnd_output", checked)
@@ -22296,10 +22411,10 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         prediction_section_options = (
             ("traits", "Show Traits predictions"),
             ("enneagram", "Show Enneagram predictions"),
-            ("dnd_statblock", "Show D&&D Statblock predictions"),
-            ("dnd_species", "Show D&&D Species predictions"),
-            ("dnd_class", "Show D&&D Class predictions"),
-            ("dnd_alignment", "Show D&&D Alignment predictions"),
+            ("dnd_statblock", "Show Fantasy RPG Statblock predictions"),
+            ("dnd_species", "Show Fantasy RPG Species predictions"),
+            ("dnd_class", "Show Fantasy RPG Class predictions"),
+            ("dnd_alignment", "Show Fantasy RPG Alignment predictions"),
         )
         for prediction_section_key, prediction_section_label in prediction_section_options:
             prediction_section_checkbox = QCheckBox(prediction_section_label)
@@ -22314,7 +22429,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             )
             visibility_section.addWidget(prediction_section_checkbox)
 
-        dnd_statblock_explainers_checkbox = QCheckBox("Show D&&D Statblock explainers")
+        dnd_statblock_explainers_checkbox = QCheckBox("Show Fantasy RPG Statblock explainers")
         dnd_statblock_explainers_checkbox.setChecked(
             self._visibility.get("analytics.dnd_statblock_explainers")
         )
@@ -22327,7 +22442,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         visibility_section.addSpacing(8)
         visibility_section.addWidget(self._build_settings_subheader_label("Database Analytics Panel (DB View)"))
 
-        species_distribution_checkbox = QCheckBox("Show D&&D Typing")
+        species_distribution_checkbox = QCheckBox("Show Fantasy RPG Typing")
         species_distribution_checkbox.setChecked(
             self._is_database_metrics_section_visible("species_distribution")
         )
@@ -22531,6 +22646,16 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         )
         dev_tools_section.addWidget(convert_similarity_relationship_ids_button)
 
+        # TEMP_RMO_RECIPROCITY_CLEANUP_REMOVE_AFTER_LOCAL_DB_MIGRATION:
+        # Temporary Dev Tools button for the one-time legacy cleanup. Remove this
+        # block with the matching import/handler/module once cleanup is complete.
+        reminds_me_of_reciprocity_button = QPushButton("Ensure Reminds Me Of reciprocity")
+        reminds_me_of_reciprocity_button.setToolTip(
+            "Temporary one-time cleanup: add missing reverse links for existing Reminds Me Of entries."
+        )
+        reminds_me_of_reciprocity_button.clicked.connect(self._on_ensure_reminds_me_of_reciprocity)
+        dev_tools_section.addWidget(reminds_me_of_reciprocity_button)
+
         predictions_default_zero_checkbox = QCheckBox(
             "Predictions: default alignment to 0 when unassigned"
         )
@@ -22661,6 +22786,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             on_weight_changed=self._on_similarity_calculator_weight_changed,
             on_placement_weighting_mode_changed=self._on_similarity_calculator_placement_weighting_mode_changed,
             on_all_or_nothing_criterion_changed=self._on_similarity_calculator_all_or_nothing_component_changed,
+            on_demographic_match_mode_changed=self._on_similarity_calculator_demographic_match_mode_changed,
             on_reset_weights_clicked=self._reset_similarity_calculator_defaults,
             on_calibrate_clicked=self._calibrate_similarity_norms,
             on_save_thresholds_clicked=self._save_similarity_threshold_overrides,
@@ -22681,6 +22807,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         self._similarity_calculator_total_label = similarity_controls["calculator_total_label"]
         self._similarity_calculator_placement_weighting_mode_combo = similarity_controls["placement_weighting_mode_combo"]
         self._similarity_calculator_all_or_nothing_component_combo = similarity_controls["all_or_nothing_criterion_combo"]
+        self._similarity_calculator_demographic_match_buttons = similarity_controls["demographic_match_buttons"]
         self._similarity_threshold_spinboxes = similarity_controls["threshold_spinboxes"]
         self._set_similar_charts_algorithm_mode(self._similar_charts_algorithm_mode)
         self._load_similarity_calculator_controls()
@@ -23010,6 +23137,18 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             if target_index >= 0:
                 blocker = QSignalBlocker(weighting_mode_combo)
                 weighting_mode_combo.setCurrentIndex(target_index)
+                del blocker
+        demographic_buttons = getattr(self, "_similarity_calculator_demographic_match_buttons", {})
+        if isinstance(demographic_buttons, dict):
+            demographic_mode = _normalize_astro_twin_demographic_match_mode(
+                getattr(settings, "demographic_match_mode", ASTRO_TWIN_DEMOGRAPHIC_MATCH_NONE)
+            )
+            target_button = demographic_buttons.get(demographic_mode) or demographic_buttons.get(
+                ASTRO_TWIN_DEMOGRAPHIC_MATCH_NONE
+            )
+            if target_button is not None:
+                blocker = QSignalBlocker(target_button)
+                target_button.setChecked(True)
                 del blocker
         all_or_nothing_combo = getattr(self, "_similarity_calculator_all_or_nothing_component_combo", None)
         if isinstance(all_or_nothing_combo, QComboBox):
@@ -23422,6 +23561,17 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                     del blocker
         self._save_similarity_calculator_from_controls()
 
+    def _on_similarity_calculator_demographic_match_mode_changed(self, mode: str) -> None:
+        normalized_mode = _normalize_astro_twin_demographic_match_mode(mode)
+        buttons = getattr(self, "_similarity_calculator_demographic_match_buttons", {})
+        if isinstance(buttons, dict):
+            target_button = buttons.get(normalized_mode)
+            if isinstance(target_button, QRadioButton) and not target_button.isChecked():
+                blocker = QSignalBlocker(target_button)
+                target_button.setChecked(True)
+                del blocker
+        self._save_similarity_calculator_from_controls()
+
     def _on_similarity_calculator_placement_weighting_mode_changed(self, mode: str) -> None:
         normalized_mode = _normalize_placement_weighting_mode(mode)
         combo = getattr(self, "_similarity_calculator_placement_weighting_mode_combo", None)
@@ -23465,6 +23615,17 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         total_label = getattr(self, "_similarity_calculator_total_label", None)
         if isinstance(total_label, QLabel):
             total_label.setText(f"{checked_total:.2f} / 1.00 ({checked_total * 100.0:.1f}%)")
+
+    def _current_similarity_calculator_demographic_match_mode(self) -> str:
+        buttons = getattr(self, "_similarity_calculator_demographic_match_buttons", {})
+        if isinstance(buttons, dict):
+            for mode, button in buttons.items():
+                if isinstance(button, QRadioButton) and button.isChecked():
+                    return _normalize_astro_twin_demographic_match_mode(mode)
+        settings = getattr(self, "_similarity_calculator_settings", None)
+        return _normalize_astro_twin_demographic_match_mode(
+            getattr(settings, "demographic_match_mode", ASTRO_TWIN_DEMOGRAPHIC_MATCH_NONE)
+        )
 
     def _save_similarity_calculator_from_controls(self) -> None:
         if not getattr(self, "_similarity_calculator_checkboxes", None):
@@ -23522,6 +23683,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                     lambda: "inner_planet_placement",
                 )()
             ),
+            demographic_match_mode=self._current_similarity_calculator_demographic_match_mode(),
         )
         self._similarity_calculator_settings = settings
         _save_similarity_calculator_settings(self._settings, settings)
@@ -25097,6 +25259,8 @@ class MainWindow(QMainWindow):
         self._metadata_autosave_requires_recalculation = False
         self._last_chart_save_changed_fields: set[str] | None = None
         self._last_chart_save_recalculated = False
+        self._chart_view_saved_changes_since_load = False
+        self._chart_view_prediction_flush_pending = False
         self._timing_preview_update_timer = QTimer(self)
         self._timing_preview_update_timer.setSingleShot(True)
         self._timing_preview_update_timer.timeout.connect(
@@ -26584,11 +26748,19 @@ class MainWindow(QMainWindow):
                 visible_rows.append(row)
         return visible_rows
 
+    def _similar_charts_demographic_match_enabled(self) -> bool:
+        settings = getattr(self, "_similarity_calculator_settings", None)
+        mode = _normalize_astro_twin_demographic_match_mode(
+            getattr(settings, "demographic_match_mode", ASTRO_TWIN_DEMOGRAPHIC_MATCH_NONE)
+        )
+        return mode != ASTRO_TWIN_DEMOGRAPHIC_MATCH_NONE
+
     def _similar_charts_popout_database_row_signatures(
         self,
         rows: list[tuple[Any, ...]],
         *,
         chart_uids_by_id: Mapping[int, str],
+        include_gender: bool = False,
     ) -> dict[str, str]:
         def _row_value(row: tuple[Any, ...], index: int) -> Any:
             return row[index] if len(row) > index else None
@@ -26622,6 +26794,8 @@ class MainWindow(QMainWindow):
                 "birth_day": _row_value(row, 18),
                 "birth_year": _row_value(row, 19),
             }
+            if include_gender:
+                payload["gender"] = str(_row_value(row, 4) or "").strip()
             encoded = json.dumps(payload, default=str, sort_keys=True, separators=(",", ":"))
             signatures[chart_uid] = hashlib.sha256(encoded.encode("utf-8")).hexdigest()
         return signatures
@@ -26659,6 +26833,8 @@ class MainWindow(QMainWindow):
             "human_design_gates": list(getattr(chart, "human_design_gates", None) or []),
             "human_design_channels": list(getattr(chart, "human_design_channels", None) or []),
         }
+        if self._similar_charts_demographic_match_enabled():
+            signature_payload["gender"] = str(getattr(chart, "gender", None) or "").strip()
         payload = json.dumps(signature_payload, default=str, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
@@ -27932,6 +28108,7 @@ class MainWindow(QMainWindow):
         row_signatures = self._similar_charts_popout_database_row_signatures(
             chart_rows,
             chart_uids_by_id=chart_uids_by_id,
+            include_gender=self._similar_charts_demographic_match_enabled(),
         )
         chart_names_by_id = self._similar_charts_popout_chart_names_by_id(chart_rows)
         candidates: list[tuple[int, Chart]] | None = None
@@ -28372,9 +28549,7 @@ class MainWindow(QMainWindow):
         first_name = str(getattr(first, "name", "") or f"#{resolution.first_chart_id}")
         second_name = str(getattr(second, "name", "") or f"#{resolution.second_chart_id}")
         self._similarities_pair_result_label.setText(
-            f"{first_name} ↔ {second_name}: "
-            f'<span style="color: #ffb74d; font-weight: 600;">'
-            f"{total_contrasts} contrasting factor(s)</span> found."
+            _format_pair_dissimilarity_summary(first_name, second_name, total_contrasts)
         )
 
     def _update_dissimilarities_analysis(self, chart_ids: list[int]) -> int:
@@ -34864,6 +35039,30 @@ class MainWindow(QMainWindow):
         )
         self._last_chart_save_changed_fields = None if changed_fields is None else set(changed_fields)
         self._last_chart_save_recalculated = bool(chart_recalculated)
+        save_changed_chart_data = bool(
+            is_new_chart
+            or chart_recalculated
+            or changed_fields is None
+            or bool(changed_fields)
+        )
+        self._chart_view_saved_changes_since_load = (
+            bool(getattr(self, "_chart_view_saved_changes_since_load", False))
+            or save_changed_chart_data
+        )
+        save_requires_prediction_flush = bool(
+            not is_placeholder
+            and not subjective_notes_autosave
+            and (
+                is_new_chart
+                or chart_recalculated
+                or changed_fields is None
+                or "birth_data" in changed_fields
+            )
+        )
+        self._chart_view_prediction_flush_pending = (
+            bool(getattr(self, "_chart_view_prediction_flush_pending", False))
+            or save_requires_prediction_flush
+        )
         refresh_database_metrics = self._database_refresh_requires_metrics(changed_fields)
         if refresh_database_metrics:
             self._update_sentiment_tally(
@@ -35359,8 +35558,9 @@ class MainWindow(QMainWindow):
             and current_chart_uid is not None
             and current_chart_uid != normalized_chart_uid
         )
-        if replacing_current_chart:
+        if replacing_current_chart and self._should_flush_predictions_before_database_view():
             self._flush_stale_predictions_before_chart_exit()
+            self._chart_view_prediction_flush_pending = False
         self._prepare_chart_right_panel_for_loading()
         is_same_chart_request = current_chart_uid == normalized_chart_uid
         if not from_chart_link and not is_same_chart_request:
@@ -35554,6 +35754,10 @@ class MainWindow(QMainWindow):
         self._update_time_input_text_colors()
         self._suppress_lucygoosey = False
         self._set_lucygoosey(False)
+        self._last_chart_save_changed_fields = set()
+        self._last_chart_save_recalculated = False
+        self._chart_view_saved_changes_since_load = False
+        self._chart_view_prediction_flush_pending = False
         self._loaded_birth_place = chart.birth_place
         self._loaded_lat = chart.lat
         self._loaded_lon = chart.lon
@@ -35593,7 +35797,10 @@ class MainWindow(QMainWindow):
         previous_chart_uid = self._chart_view_history[previous_index]
         if not self._confirm_discard_or_save():
             return
-        self._flush_stale_predictions_before_chart_exit()
+        self._cancel_pending_chart_render()
+        if self._should_flush_predictions_before_database_view():
+            self._flush_stale_predictions_before_chart_exit()
+            self._chart_view_prediction_flush_pending = False
         if self.load_chart_by_uid(
             previous_chart_uid,
             from_chart_link=True,
@@ -35755,7 +35962,7 @@ class MainWindow(QMainWindow):
             dnd_adapter = self._dnd_prediction_adapter()
             dnd_stale = bool(dnd_adapter.caches_are_stale(chart))
         except Exception:
-            logger.warning("Failed to inspect D&D Predictions freshness before leaving Chart View.", exc_info=True)
+            logger.warning("Failed to inspect Fantasy RPG Predictions freshness before leaving Chart View.", exc_info=True)
         if (
             state is not None
             and render_token
@@ -35783,21 +35990,19 @@ class MainWindow(QMainWindow):
                 if self._visibility.get("predictions.dnd_alignment"):
                     adapter.cache_alignment_metadata(chart)
         except Exception:
-            logger.warning("Failed to flush D&D Predictions before leaving Chart View.", exc_info=True)
+            logger.warning("Failed to flush Fantasy RPG Predictions before leaving Chart View.", exc_info=True)
 
 
     def _should_flush_predictions_before_database_view(self) -> bool:
         """Return whether Chart View exit should synchronously refresh Predictions caches.
 
         Lightweight metadata edits (alias/from/notes/tags/etc.) should not make
-        the Database View button wait for D&D/Enneagram prediction cache writes.
-        Those caches depend on structural chart data, so only force the old
-        synchronous exit flush after new saves or birth/calculation changes.
+        the Database View button wait for Fantasy RPG/Enneagram prediction cache writes.
+        The dirty bit is accumulated across the whole open-chart session, so a
+        later lightweight autosave cannot erase an earlier structural edit that
+        still needs one final prediction cache flush.
         """
-        changed_fields = getattr(self, "_last_chart_save_changed_fields", None)
-        if changed_fields is None:
-            return bool(getattr(self, "_last_chart_save_recalculated", False))
-        return "birth_data" in changed_fields or bool(getattr(self, "_last_chart_save_recalculated", False))
+        return bool(getattr(self, "_chart_view_prediction_flush_pending", False))
 
     def on_manage_charts(
         self,
@@ -35810,10 +36015,12 @@ class MainWindow(QMainWindow):
         )
         if startup_progress is None and not self._confirm_discard_or_save():
             return False
+        self._cancel_pending_chart_render()
         self._flush_pending_metadata_save()
         self._flush_pending_sentiment_metrics_save()
         if self._should_flush_predictions_before_database_view():
             self._flush_stale_predictions_before_chart_exit()
+            self._chart_view_prediction_flush_pending = False
         self._chart_view_history.clear()
         self._chart_view_history_index = -1
         self._settings.setValue("app/last_view", "database")
@@ -36330,15 +36537,17 @@ class MainWindow(QMainWindow):
     ) -> None:
         self._latest_chart = chart
         time_sensitivity_panel = getattr(self, "time_sensitivity_panel", None)
+        active_right_tab = getattr(getattr(self, "_chart_right_panel_state", None), "active_tab", None)
         if (
             refresh_time_sensitivity
+            and active_right_tab == "time_sensitivity"
             and time_sensitivity_panel is not None
             and hasattr(time_sensitivity_panel, "refresh_for_current_chart")
         ):
             # The time-sensitivity panel is one of Chart View's heavier refreshes.
-            # _schedule_chart_render() is called repeatedly as individual sections
-            # are queued, so only refresh this panel when the underlying chart
-            # identity/calculation token changes instead of on every section pass.
+            # Only refresh it synchronously when the user is actually looking at
+            # that tab. Opening Chart View should leave quick navigation back to
+            # Database View responsive instead of front-loading hidden panel work.
             try:
                 time_sensitivity_token = self._chart_analytics_cache_token(chart)
             except Exception:
@@ -36405,6 +36614,15 @@ class MainWindow(QMainWindow):
                 else CHART_RENDER_INTERACTIVE_DELAY_MS
             )
             self._render_flush_timer.start(delay_ms)
+
+    def _cancel_pending_chart_render(self) -> None:
+        """Drop queued Chart View rendering so navigation can happen immediately."""
+        self._pending_render_chart = None
+        self._chart_render_generation += 1
+        self._chart_render_queue_state.clear()
+        if self._render_flush_timer.isActive():
+            self._render_flush_timer.stop()
+        self._hide_chart_loading_overlay()
 
     def _flush_scheduled_chart_render(self) -> None:
         chart = self._pending_render_chart
@@ -36665,7 +36883,10 @@ class MainWindow(QMainWindow):
         )
         place_token = f"lat:{getattr(chart, 'lat', 0.0):.6f}|lon:{getattr(chart, 'lon', 0.0):.6f}"
         chart_scope_token = f"id:{int(chart_id)}" if chart_id is not None else "draft"
-        return f"{chart_scope_token}|{place_token}|{timing_token}"
+        demographic_token = ""
+        if self._similar_charts_demographic_match_enabled():
+            demographic_token = f"|gender:{str(getattr(chart, 'gender', None) or '').strip()}"
+        return f"{chart_scope_token}|{place_token}|{timing_token}{demographic_token}"
 
     def _mark_chart_analytics_sections_lucy_goosey(self, sections: set[str] | None = None) -> None:
         if sections is None:
@@ -38103,6 +38324,7 @@ class MainWindow(QMainWindow):
             manual_recalculation_provider=lambda: bool(getattr(self, "_predictions_manual_recalculation_only", True)),
             norm_charts_provider=self._prediction_norm_charts,
             norm_charts_token_provider=self._prediction_norms_render_token,
+            header_action_callback=getattr(self, "_set_prediction_header_action", None),
         )
 
     def _draw_enneagram_predictions(self, ax, chart: Chart) -> None:
@@ -38916,7 +39138,9 @@ class MainWindow(QMainWindow):
         if not self._confirm_discard_or_save():
             event.ignore()
             return
-        self._flush_stale_predictions_before_chart_exit()
+        if self._should_flush_predictions_before_database_view():
+            self._flush_stale_predictions_before_chart_exit()
+            self._chart_view_prediction_flush_pending = False
         _stop_background_prediction_render(self)
         _stop_traits_prediction_refresh_workers(self)
         if self._size_checker_popup is not None:

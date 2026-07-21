@@ -501,27 +501,29 @@ def _colorized_plain_chart_info_fragment(text: str) -> str:
         return ""
     text = html.unescape(text)
     tokens = _sorted_chart_info_tokens()
-    uppercase_word_only_tokens = {"AS", "IC", "G"}
+    case_sensitive_word_only_tokens = {"AS", "DS", "IC", "MC", "G", "Ego"}
     strict_pattern_parts = [
         re.escape(token)
         for token, _color in tokens
-        if token in uppercase_word_only_tokens
+        if token in case_sensitive_word_only_tokens
     ]
     pattern_parts = [
         re.escape(token)
         for token, _color in tokens
-        if token and token not in uppercase_word_only_tokens
+        if token and token not in case_sensitive_word_only_tokens
     ]
+    word_left_boundary = r"(?<![A-Za-z0-9])"
+    word_right_boundary = r"(?![A-Za-z0-9])"
     weight_pattern = r"(?<![\w.])[-+]\d+(?:\.\d+)?(?![\w.])"
     channel_pattern = r"\bChannel\s+\d{1,2}-\d{1,2}\b"
     strict_token_pattern = (
-        rf"(?<!\w)(?:{'|'.join(strict_pattern_parts)})(?!\w)"
+        rf"{word_left_boundary}(?:{'|'.join(strict_pattern_parts)}){word_right_boundary}"
         if strict_pattern_parts
         else ""
     )
     if pattern_parts:
         token_pattern = "|".join(pattern_parts)
-        token_group = f"(?i:{token_pattern})"
+        token_group = rf"{word_left_boundary}(?i:{token_pattern}){word_right_boundary}"
         if strict_token_pattern:
             pattern = re.compile(
                 f"({weight_pattern})|({channel_pattern})|({strict_token_pattern})|({token_group})"
@@ -546,7 +548,7 @@ def _colorized_plain_chart_info_fragment(text: str) -> str:
             color = CHART_INFO_POSITIVE_WEIGHT_COLOR if raw.startswith("+") else CHART_INFO_NEGATIVE_WEIGHT_COLOR
         elif re.match(channel_pattern, raw, re.IGNORECASE):
             color = CHART_DATA_HIGHLIGHT_COLOR
-        elif raw in uppercase_word_only_tokens:
+        elif raw in case_sensitive_word_only_tokens:
             color = color_by_exact.get(raw)
         else:
             color = color_by_casefold.get(raw.casefold())
@@ -1146,11 +1148,11 @@ CHART_DATA_SECTION_HEADERS = (
     "CHANNELS",
     "AWARENESS STREAMS",
     "CURSEDNESS",
-    "D&D-ification",
+    "FANTASY RPG",
 )
 CHART_DATA_COLON_LABELS = (
     "CURSEDNESS:",
-    "D&D SPECIES/RACE:",
+    "FANTASY SPECIES/RACE:",
     "Reasoning:",
 )
 

@@ -1,4 +1,4 @@
-"""D&D prediction chart rendering helpers for Chart View."""
+"""Fantasy RPG prediction chart rendering helpers for Chart View."""
 
 from __future__ import annotations
 
@@ -109,7 +109,7 @@ from ephemeraldaddy.gui.style import (
 
 
 DND_STAT_KEYS: tuple[str, ...] = ("STR", "DEX", "CON", "INT", "WIS", "CHA")
-DND_SPECIES_CLASS_CACHE_VERSION = 2
+DND_SPECIES_CLASS_CACHE_VERSION = 3
 logger = logging.getLogger(__name__)
 
 
@@ -169,7 +169,7 @@ def draw_dnd_statblock_predictions(
 def draw_dnd_species_predictions(ax: Any, chart: Any, *, apply_standard_bar_axes: Any) -> None:
     pick = SpeciesAssigner().assign(chart)
     top = pick.top_three[:10]
-    labels = [f"{family} ({subtype})" if subtype else family for family, subtype, _score in top]
+    labels = [_species_display_label(family, subtype) for family, subtype, _score in top]
     values = [float(score) for _family, _subtype, score in top]
     colors = get_cycled_earthtone_colors(len(labels))
     bars = ax.bar(labels, values)
@@ -254,7 +254,7 @@ def _evidence_line(label: str, contribution: float, detail: str = "") -> str:
 
 
 def _build_dnd_stat_evidence_html(chart: Any, stat_key: str, *, max_items_per_category: int = 8) -> tuple[str, list[tuple[str, float]]]:
-    """Explain the chart-specific predictor evidence behind one D&D stat score."""
+    """Explain the chart-specific predictor evidence behind one Fantasy RPG stat score."""
     factors = DND_STAT_PREDICTORS.get(stat_key, {})
     if not isinstance(factors, dict):
         return "", []
@@ -619,10 +619,10 @@ def build_dnd_statblock_popout_info_html(
     db_norm_averages: Any = None,
 ) -> str:
     if chart is None:
-        return "No chart is available for this D&D stat interpretation."
+        return "No chart is available for this Fantasy RPG stat interpretation."
     stat_definition = _stat_definition_for_key(stat_key)
     if stat_definition is None:
-        return f"No D&D stat interpretation data available for {html.escape(str(stat_key))}."
+        return f"No Fantasy RPG stat interpretation data available for {html.escape(str(stat_key))}."
 
     if statblock is None:
         statblock = score_dnd_statblock(chart, norm_charts=norm_charts, db_norm_averages=db_norm_averages)
@@ -692,33 +692,71 @@ def build_dnd_statblock_popout_info_html(
     )
 
 
+def _species_display_label(family: str, subtype: str) -> str:
+    subtype_text = str(subtype or "").strip()
+    return subtype_text if subtype_text else str(family)
+
+
 def format_dnd_species_info_text(
     family: str,
     subtype: str,
     score: float,
     evidence: list[str],
 ) -> str:
-    label = f"{family} ({subtype})" if subtype else family
+    label = _species_display_label(family, subtype)
     header = f"{label} • {score:.2f}"
+    description_line = _species_description_text(family, subtype)
+    category_line = f"Category: {family}" if subtype else ""
+    leading_lines = [header]
+    if category_line:
+        leading_lines.append(category_line)
+    leading_lines.extend([description_line, ""])
+    if evidence:
+        lines = [f"• {line}" for line in evidence]
+        return "\n".join(leading_lines + ["\nEvidence:"] + lines)
+    return "\n".join(
+        leading_lines
+        + [
+            "• Evidence is unavailable for this species assignment.",
+        ]
+    )
+
+
+def _species_description_text(family: str, subtype: str) -> str:
     species_description = SPECIES_DESCRIPTIONS.get(family, "")
     subtype_key = f"{family}::{subtype}" if subtype else ""
     subtype_description = SPECIES_DESCRIPTIONS.get(subtype_key, "")
     description_parts = [part for part in (species_description, subtype_description) if part]
-    description_line = (
+    return (
         " ".join(description_parts)
         if description_parts
         else "Species flavor text unavailable."
     )
-    if evidence:
-        lines = [f"• {line}" for line in evidence]
-        return "\n".join([header, description_line, "", "Evidence:"] + lines)
-    return "\n".join(
-        [
-            header,
-            description_line,
-            "",
-            "• Evidence is unavailable for this species assignment.",
-        ]
+
+
+def format_dnd_species_info_html(
+    family: str,
+    subtype: str,
+    score: float,
+    evidence: list[str],
+) -> str:
+    label = _species_display_label(family, subtype)
+    description_text = _species_description_text(family, subtype)
+    category_html = ""
+    if str(subtype or "").strip():
+        category_html = f"<div><b>Category:</b> {html.escape(str(family))}</div>"
+    evidence_items = "".join(f"<li>{html.escape(str(line))}</li>" for line in evidence if str(line).strip())
+    if not evidence_items:
+        evidence_items = "<li>Evidence is unavailable for this species assignment.</li>"
+    return (
+        f'<div><b><span style="color:{CHART_DATA_HIGHLIGHT_COLOR};">{html.escape(label)}</span></b> '
+        f"<span>• {float(score):.2f}</span></div>"
+        f"{category_html}"
+        f"<div style='height:8px;'></div>"
+        f"<div>{html.escape(description_text)}</div>"
+        f"<div style='height:8px;'></div>"
+        f"<div><b>Evidence:</b></div>"
+        f"<ul>{evidence_items}</ul>"
     )
 
 
@@ -829,7 +867,7 @@ def _collect_ranked_species_payloads(chart: Any) -> list[dict[str, Any]]:
     payloads: list[dict[str, Any]] = []
     for family, subtype, score, evidence in species_rankings:
         subtype_text = str(subtype or "").strip()
-        label = f"{family} ({subtype_text})" if subtype_text else str(family)
+        label = _species_display_label(str(family), subtype_text)
         payloads.append(
             {
                 "label": label,
@@ -927,7 +965,7 @@ ALIGNMENT_TRAIT_KEYS: tuple[str, ...] = ("good", "evil", "lawful", "chaotic")
 
 
 def _dnd_alignment_trait_items() -> list[dict[str, Any]]:
-    """Expose D&D alignments through the same trait scoring shape as custom traits."""
+    """Expose Fantasy RPG alignments through the same trait scoring shape as custom traits."""
     items: list[dict[str, Any]] = []
     for key in ALIGNMENT_TRAIT_KEYS:
         definition = DND_ALIGNMENTS.get(key, {})
@@ -944,7 +982,7 @@ def _dnd_alignment_trait_items() -> list[dict[str, Any]]:
 
 
 def _dnd_alignment_trait_name(trait: Mapping[str, Any]) -> str:
-    """Return a normalized D&D alignment trait label outside cache-key helpers."""
+    """Return a normalized Fantasy RPG alignment trait label outside cache-key helpers."""
     return str(trait.get("name", "")).strip()
 
 
@@ -972,13 +1010,13 @@ def _dnd_alignment_cache_key(owner: Any, chart: Any) -> tuple[str, str]:
 
 
 def _dnd_alignment_norms_token(owner: Any) -> str:
-    """Return a cache token for only the D&D alignment baselines.
+    """Return a cache token for only the Fantasy RPG alignment baselines.
 
     The generic Predictions norms token (``_prediction_norms_render_token``) also
     includes user-created custom Trait baselines.  Using it here makes Alignment
     caches go stale when the user adds
     or edits unrelated Traits, even though Alignment only depends on the four
-    fixed D&D axes.
+    fixed Fantasy RPG axes.
     """
     trait_items = _dnd_alignment_trait_items()
     snapshot_provider = getattr(owner, "_prediction_norm_snapshot_trait_averages", None)
@@ -1010,7 +1048,7 @@ def _dnd_alignment_norms_token(owner: Any) -> str:
 
 
 def _dnd_alignment_score_parts(owner: Any, chart: Any, *, allow_stale: bool = False) -> dict[str, dict[str, float]]:
-    """Return chart, database, and deviation values for each D&D alignment axis."""
+    """Return chart, database, and deviation values for each Fantasy RPG alignment axis."""
     cache_key = _dnd_alignment_cache_key(owner, chart)
     cached = getattr(chart, "_dnd_alignment_score_parts_cache", None)
     if not _cache_payload_chart_uid_matches(chart, cached, require_uid=True):
@@ -1070,7 +1108,7 @@ def _dnd_alignment_score_parts(owner: Any, chart: Any, *, allow_stale: bool = Fa
 
 
 def dnd_alignment_deviations(owner: Any, chart: Any, *, allow_stale: bool = False) -> dict[str, float]:
-    """Return D&D alignment trait deviation percentages versus database norms."""
+    """Return Fantasy RPG alignment trait deviation percentages versus database norms."""
     return {
         key: values["deviation"]
         for key, values in _dnd_alignment_score_parts(owner, chart, allow_stale=allow_stale).items()
@@ -1088,7 +1126,7 @@ def _dnd_alignment_display_name(key: str) -> str:
 
 
 def build_dnd_alignment_description_html(alignment_key: str) -> str:
-    """Build click-through info for one D&D alignment point."""
+    """Build click-through info for one Fantasy RPG alignment point."""
     title = _dnd_alignment_display_name(alignment_key)
     description = str(
         _dnd_alignment_definition(alignment_key).get("description")
@@ -1105,7 +1143,7 @@ def build_dnd_alignment_breakdown_html(owner: Any, chart: Any) -> str:
     """Build the default popout Chart Info math breakdown for the alignment grid."""
     parts = _dnd_alignment_score_parts(owner, chart, allow_stale=True)
     if not parts:
-        return "<b>D&D Alignment math</b><br>No database-normalized alignment scores are available."
+        return "<b>Fantasy RPG Alignment math</b><br>No database-normalized alignment scores are available."
     rows = []
     for key in ALIGNMENT_TRAIT_KEYS:
         values = parts.get(key)
@@ -1124,7 +1162,7 @@ def build_dnd_alignment_breakdown_html(owner: Any, chart: Any) -> str:
     lawful = float(parts.get("lawful", {}).get("deviation", 0.0))
     chaotic = float(parts.get("chaotic", {}).get("deviation", 0.0))
     return (
-        '<h2 style="color:#f5f5f5; margin-bottom:8px;">D&D Alignment math</h2>'
+        '<h2 style="color:#f5f5f5; margin-bottom:8px;">Fantasy RPG Alignment math</h2>'
         '<div style="color:#ffffff; font-size:10pt; line-height:1.35;">'
         'Each axis is scored like a trait prediction, then compared to the database average. '
         'The plotted point uses net Lawful–Chaotic for X and net Good–Evil for Y.<br><br>'
@@ -1141,7 +1179,7 @@ def build_dnd_alignment_breakdown_html(owner: Any, chart: Any) -> str:
 
 
 def resolve_dnd_official_alignment(net_good: float, net_lawful: float) -> str:
-    """Resolve net Good/Evil and Lawful/Chaotic percentages into a D&D alignment."""
+    """Resolve net Good/Evil and Lawful/Chaotic percentages into a Fantasy RPG alignment."""
 
     def _law_axis(value: float) -> str:
         if value > 2.0:
@@ -1165,7 +1203,7 @@ def resolve_dnd_official_alignment(net_good: float, net_lawful: float) -> str:
 
 
 def build_dnd_alignment_debug_summary_html(owner: Any, chart: Any) -> str:
-    """Return the raw D&D alignment deviation values shown below the grid."""
+    """Return the raw Fantasy RPG alignment deviation values shown below the grid."""
     deviations = dnd_alignment_deviations(owner, chart, allow_stale=True)
     good = float(deviations.get("good", 0.0))
     evil = float(deviations.get("evil", 0.0))
@@ -1191,7 +1229,7 @@ def build_dnd_alignment_debug_summary_html(owner: Any, chart: Any) -> str:
 
 
 def draw_dnd_alignment_grid(ax: Any, chart: Any, *, owner: Any) -> None:
-    """Draw the D&D alignment net coordinate as a two-axis deviation grid."""
+    """Draw the Fantasy RPG alignment net coordinate as a two-axis deviation grid."""
     import numpy as np
     from matplotlib.colors import LinearSegmentedColormap
 
@@ -1268,7 +1306,7 @@ def draw_dnd_alignment_grid(ax: Any, chart: Any, *, owner: Any) -> None:
     )
     net_point.set_gid("dnd_alignment_math:net")
     net_point.set_picker(True)
-    ax.set_title("D&D Alignment", color="#f5f5f5", fontsize=10, pad=8) # vs DB Norm
+    ax.set_title("Fantasy RPG Alignment", color="#f5f5f5", fontsize=10, pad=8) # vs DB Norm
     ax.set_xlabel("Chaotic  ← →  Lawful", color="#d8d8d8", fontsize=8)
     ax.set_ylabel("Evil  ← →  Good", color="#d8d8d8", fontsize=8)
     ax.tick_params(colors="#d8d8d8", labelsize=7)
@@ -1287,7 +1325,7 @@ def configure_dnd_top_three_summary_label(
     species_payloads: list[dict[str, Any]] | None = None,
     class_payloads: list[dict[str, Any]] | None = None,
 ) -> None:
-    """Render clickable top-three D&D species/classes into a Predictions label."""
+    """Render clickable top-three Fantasy RPG species/classes into a Predictions label."""
 
     species_payloads = species_payloads if species_payloads is not None else _collect_ranked_species_payloads(chart)
     if class_payloads is None:
@@ -1305,6 +1343,11 @@ def configure_dnd_top_three_summary_label(
             before_show()
         set_chart_info_text(info_panel, text)
 
+    def _show_html(html_text: str) -> None:
+        if before_show is not None:
+            before_show()
+        set_chart_info_html(info_panel, html_text)
+
     def _on_link_activated(href: str) -> None:
         prefix, _separator, index_text = str(href).partition(":")
         if prefix == "dnd-species-more":
@@ -1319,8 +1362,8 @@ def configure_dnd_top_three_summary_label(
             return
         if prefix == "dnd-species" and 0 <= index < len(species_payloads):
             payload = species_payloads[index]
-            _show_text(
-                format_dnd_species_info_text(
+            _show_html(
+                format_dnd_species_info_html(
                     str(payload.get("family", "Unknown Species")),
                     str(payload.get("subtype", "")),
                     float(payload.get("score", 0.0)),
@@ -1364,8 +1407,8 @@ def _chart_name_for_uid_error(chart: Any) -> str:
 
 def _log_missing_chart_uid(chart: Any, context: str) -> None:
     message = (
-        f"[D&D predictions UID error] Chart '{_chart_name_for_uid_error(chart)}' has no Chart UID; "
-        f"{context} could not be computed. Fix the chart UID before relying on cached D&D predictions."
+        f"[Fantasy RPG predictions UID error] Chart '{_chart_name_for_uid_error(chart)}' has no Chart UID; "
+        f"{context} could not be computed. Fix the chart UID before relying on cached Fantasy RPG predictions."
     )
     logger.error(message)
     print(message, file=sys.stderr, flush=True)
@@ -1375,7 +1418,7 @@ def _chart_prediction_cache_identity(chart: Any) -> str:
     chart_uid = _chart_prediction_cache_uid(chart)
     if chart_uid:
         return f"uid:{chart_uid}"
-    _log_missing_chart_uid(chart, "D&D prediction cache identity")
+    _log_missing_chart_uid(chart, "Fantasy RPG prediction cache identity")
     return ""
 
 
@@ -1488,7 +1531,7 @@ def _persist_dnd_prediction_payload(chart: Any, section: str, payload: dict[str,
         pass
 
 class DndPredictionPanelAdapter:
-    """Own the D&D prediction panel lifecycle for Chart View.
+    """Own the Fantasy RPG prediction panel lifecycle for Chart View.
 
     Predictions cache contract: Chart View must display only metadata belonging
     to the currently open chart UID.  When manual recalculation is enabled, stale
@@ -1538,7 +1581,13 @@ class DndPredictionPanelAdapter:
         self.calculate_callback = calculate_callback
         self.reset_canvas_callback = reset_canvas_callback
 
+    def _set_header_action(self, section: str, state: str) -> None:
+        callback = getattr(self.owner, "_set_prediction_header_action", None)
+        if callable(callback):
+            callback(section, state)
+
     def _show_calculate_prompt(self, chart: Any | None, *, layout: Any = None, section: str = "dnd_statblock", summary_text: str | None = None) -> None:
+        self._set_header_action(section, "calculate")
         target_layout = layout or self.chart_layout
         if target_layout is None:
             return
@@ -1547,25 +1596,6 @@ class DndPredictionPanelAdapter:
         if callable(self.reset_canvas_callback):
             canvas_attr = "dnd_prediction_alignment_canvas" if section == "dnd_alignment" else "dnd_prediction_statblock_canvas"
             self.reset_canvas_callback(canvas_attr)
-        panel = QWidget()
-        panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
-        panel_layout = QVBoxLayout()
-        panel_layout.setContentsMargins(12, 18, 12, 18)
-        panel_layout.setSpacing(10)
-        panel_layout.setAlignment(Qt.AlignCenter)
-        panel.setLayout(panel_layout)
-        label = QLabel("No prior data. Calculate (can take awhile)?")
-        label.setAlignment(Qt.AlignCenter)
-        label.setWordWrap(True)
-        label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
-        label.setMinimumHeight(label.sizeHint().height())
-        label.setStyleSheet("color: #f5f5f5; font-weight: 600;")
-        button = QPushButton("Calculate!")
-        button.setStyleSheet("background-color: #7b4dff; color: white; font-weight: bold; padding: 6px 14px; border-radius: 5px;")
-        button.clicked.connect(lambda _checked=False, chart=chart, section=section: self.calculate_callback(chart, section) if callable(self.calculate_callback) and chart is not None else None)
-        panel_layout.addWidget(label, alignment=Qt.AlignCenter)
-        panel_layout.addWidget(button, alignment=Qt.AlignCenter)
-        target_layout.addWidget(panel)
 
     def _norm_charts(self) -> Any:
         if self.norm_charts_provider is None:
@@ -1611,7 +1641,7 @@ class DndPredictionPanelAdapter:
             if not isinstance(species_class_cache, dict):
                 # Species/class are first-run generated factors.  Once generated
                 # they are persisted by chart UID; subsequent renders use saved
-                # metadata and stale D&D recalculation remains user-controlled.
+                # metadata and stale Fantasy RPG recalculation remains user-controlled.
                 species_class_cache = self._cache_species_class_metadata(chart)
         species_payloads = (
             list(species_class_cache.get("species", []))
@@ -1675,7 +1705,7 @@ class DndPredictionPanelAdapter:
             for norm_chart in norm_charts:
                 chart_uid = _chart_prediction_cache_uid(norm_chart)
                 if not chart_uid:
-                    _log_missing_chart_uid(norm_chart, "D&D prediction norm cache token")
+                    _log_missing_chart_uid(norm_chart, "Fantasy RPG prediction norm cache token")
                     tokens.append("missing_uid")
                 else:
                     tokens.append(chart_uid)
@@ -1702,7 +1732,7 @@ class DndPredictionPanelAdapter:
         )
 
     def _species_class_cache_is_stale(self, chart: Any) -> bool:
-        """Return whether cached D&D Species/Class summaries need recalculation."""
+        """Return whether cached Fantasy RPG Species/Class summaries need recalculation."""
         cached = self._restore_species_class_cache(chart)
         if not isinstance(cached, dict):
             return False
@@ -1824,7 +1854,7 @@ class DndPredictionPanelAdapter:
         # include mutable legacy row IDs and is not safe for Predictions caches.
         chart_uid = _chart_prediction_cache_uid(chart)
         if not chart_uid:
-            _log_missing_chart_uid(chart, "D&D statblock chart state token")
+            _log_missing_chart_uid(chart, "Fantasy RPG statblock chart state token")
             return "missing_uid"
         state_payload = {
             "uid": chart_uid,
@@ -2006,7 +2036,7 @@ class DndPredictionPanelAdapter:
         return dnd_alignment_deviations(self.owner or self, chart, allow_stale=False)
 
     def caches_are_stale(self, chart: Any) -> bool:
-        """Return whether any persisted D&D Predictions cache is stale."""
+        """Return whether any persisted Fantasy RPG Predictions cache is stale."""
         norm_charts = self._norm_charts()
         if self._species_class_cache_is_stale(chart):
             return True
@@ -2048,36 +2078,13 @@ class DndPredictionPanelAdapter:
         return bool(getattr(self.owner, "_predictions_manual_recalculation_only", True))
 
     def _show_stale_recalculate_notice(self, layout: Any, chart: Any, section: str, *, refreshing: bool = False) -> None:
+        self._set_header_action(section, "recalculate")
         if layout is None:
             return
         self._remove_stale_recalculate_notices(layout)
-        panel = QWidget()
-        panel.setProperty("dnd_stale_recalculate_notice", True)
-        panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
-        panel_layout = QVBoxLayout()
-        panel_layout.setContentsMargins(0, 0, 0, 6)
-        panel_layout.setSpacing(4)
-        panel.setLayout(panel_layout)
-        label_text = (
-            "Cached results shown; automatic refresh is running in the background."
-            if refreshing
-            else "Cached results shown; chart data or DB norms may have changed."
-        )
-        label = QLabel(label_text)
-        label.setWordWrap(True)
-        label.setStyleSheet("color: #d8d8d8; font-style: italic; padding: 2px 0 0 0;")
-        button = QPushButton("Recalculate")
-        button.setStyleSheet("background-color: #7b4dff; color: white; font-weight: bold; font-style: italic; padding: 6px 14px; border-radius: 5px;")
-        button.clicked.connect(lambda _checked=False, chart=chart, section=section: self.calculate_callback(chart, section) if callable(self.calculate_callback) else None)
-        panel_layout.addWidget(label, alignment=Qt.AlignCenter)
-        panel_layout.addWidget(button, alignment=Qt.AlignCenter)
-        try:
-            layout.insertWidget(0, panel)
-        except Exception:
-            layout.addWidget(panel)
 
     def _show_species_class_stale_recalculate_notices(self, chart: Any, *, refreshing: bool = False) -> None:
-        """Show explicit recalc controls for stale D&D Species and Class summaries."""
+        """Show explicit recalc controls for stale Fantasy RPG Species and Class summaries."""
         targets = (
             ("dnd_prediction_species_section_layout", "dnd_species"),
             ("dnd_prediction_class_section_layout", "dnd_class"),
@@ -2111,7 +2118,7 @@ class DndPredictionPanelAdapter:
                     canvas_attr="dnd_prediction_statblock_canvas",
                     container_layout=self.chart_layout,
                     figsize=(5.5, 2.8),
-                    title="D&D Statblock",
+                    title="Fantasy RPG Statblock",
                     draw_fn=self._draw_no_data,
                     chart=chart,
                 )
@@ -2120,7 +2127,7 @@ class DndPredictionPanelAdapter:
                     canvas_attr="dnd_prediction_alignment_canvas",
                     container_layout=self.alignment_layout,
                     figsize=(5.5, 3.4),
-                    title="D&D Alignment",
+                    title="Fantasy RPG Alignment",
                     draw_fn=self._draw_no_data,
                     chart=chart,
                     display_height=DND_ALIGNMENT_GRAPH_HEIGHT_PX,
@@ -2131,6 +2138,9 @@ class DndPredictionPanelAdapter:
         statblock_cache = self._restore_statblock_cache(chart)
         auto_refresh_started = False
         species_class_stale = self._species_class_cache_is_stale(chart)
+        if render_species_class and not species_class_stale:
+            self._set_header_action("dnd_species", "up_to_date")
+            self._set_header_action("dnd_class", "up_to_date")
         if render_species_class and species_class_stale:
             manual_only = self._manual_recalculation_only()
             self._show_species_class_stale_recalculate_notices(chart, refreshing=not manual_only)
@@ -2144,7 +2154,7 @@ class DndPredictionPanelAdapter:
                 canvas_attr="dnd_prediction_statblock_canvas",
                 container_layout=self.chart_layout,
                 figsize=(5.5, 2.8),
-                title="D&D Statblock",
+                title="Fantasy RPG Statblock",
                 draw_fn=self.draw,
                 chart=chart,
             )
@@ -2154,6 +2164,8 @@ class DndPredictionPanelAdapter:
                 if not manual_only and not auto_refresh_started and callable(self.calculate_callback):
                     auto_refresh_started = True
                     self.calculate_callback(chart, None)
+            else:
+                self._set_header_action("dnd_statblock", "up_to_date")
         elif render_statblock:
             self._show_calculate_prompt(chart, section="dnd_statblock")
 
@@ -2189,7 +2201,7 @@ class DndPredictionPanelAdapter:
                     canvas_attr="dnd_prediction_alignment_canvas",
                     container_layout=self.alignment_layout,
                     figsize=(5.5, 3.8),
-                    title="D&D Alignment",
+                    title="Fantasy RPG Alignment",
                     draw_fn=self.draw_alignment,
                     chart=chart,
                     display_height=DND_ALIGNMENT_GRAPH_HEIGHT_PX,
@@ -2199,6 +2211,8 @@ class DndPredictionPanelAdapter:
                     self._show_stale_recalculate_notice(self.alignment_layout, chart, "dnd_alignment", refreshing=not manual_only)
                     if not manual_only and not auto_refresh_started and callable(self.calculate_callback):
                         self.calculate_callback(chart, None)
+                else:
+                    self._set_header_action("dnd_alignment", "up_to_date")
                 self._render_alignment_debug_summary(chart)
             else:
                 self._show_calculate_prompt(chart, layout=self.alignment_layout, section="dnd_alignment")
@@ -2210,7 +2224,7 @@ def connect_dnd_alignment_popout_pick_handler(
     *,
     build_breakdown_html: Any,
 ) -> None:
-    """Attach D&D alignment point click behavior to the popout chart canvas."""
+    """Attach Fantasy RPG alignment point click behavior to the popout chart canvas."""
 
     set_chart_info_html(info_panel, build_breakdown_html())
 
@@ -2234,7 +2248,7 @@ def connect_dnd_statblock_popout_pick_handler(
     *,
     build_info_html: Any,
 ) -> None:
-    """Attach D&D stat-block bar click behavior to the popout chart canvas."""
+    """Attach Fantasy RPG stat-block bar click behavior to the popout chart canvas."""
 
     def _on_pick(event) -> None:
         artist = getattr(event, "artist", None)

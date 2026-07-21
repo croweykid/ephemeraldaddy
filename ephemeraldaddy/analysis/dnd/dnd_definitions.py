@@ -1858,9 +1858,9 @@ SPECIES_FAMILIES: List[str] = [
     "Birdfolk",
     "Canids",
     "Cosmids",
-    "Cyborgs",
+    #"Cyborgs",
     "Cyclops",  #no subtypes
-    "Dragons",  #no subtypes
+    "Dragons",  #we should actually add elemental dragon subtypes. water, fire, earth, metal & air dragons.
     "Dwarf",
     "Elf",
     "Fey",
@@ -1870,66 +1870,64 @@ SPECIES_FAMILIES: List[str] = [
     "Half-orcs",  #no subtypes
     "Halfling",
     "Human",
-    "Tabaxi",
-    "Lizardfolk (Reptilians)",
+    "Catfolk",
+    "Reptilian",
     "Merfolk",  #no subtypes
     "Minotaur",  #no subtypes
     "Nymph",  #no subtypes
-    "Ogres",  #no subtypes
+    "Ogres",  #actually, Ogres should be a subtype of "Giants". The Giant family should also include storm giants, hill giants, stone giants, fire giants, frost giants, cloud giants, and trolls.
     "Orcs",  #no subtypes
     "Plasmoid",  #no subtypes
-    "Robots",
+    "Construct",
     "Rodentfolk",
-    "Shapeshifter",
+    "Shapechanger",
     "Skeleton",
-    "Stone People (Golems)",
-    "Succubi/Incubi",
+    "Stone People", #golem
+    "Succubi/Incubi", #no subtypes
     "Tiefling",
     "Triton",  #no subtypes
     "Vampire",
-    "Yuan-Ti (Serpentine)",
+    "Snakey",
 ]
 
 FAMILY_SUBTYPES: Dict[str, List[str]] = { #note: this is not a complete species list; it only includes species with subtypes, and excluse those without, such as: cyclops, dragons, half-orcs, merfolk, nymphs, ogres, orcs, minotaurs, plasmoids, and tritons
-    "Aasimar": ["Protector", "Scourge", "Fallen"],
-    "Birdfolk": ["Kenku", "Owlin", "Aarakocra", "Other (non-owl, non-kenku, non-aarakocra)"],
-    "Canids": ["Shepherd Dogs", "Wolfkin", "Gnolls", "Houndfolk"],
-    "Cosmids": ["Chronomancers", "Abysswalkers", "Starspawned", "Cometkin", "Eclipsians"],
-    "Cyborgs": ["Advanced AI", "Combat-Oriented", "Light Augmented"],
-    "Dwarf": ["Duergar (Underdark)", "Mark of Warding (Eberron)", "Mountain", "Hill"],
-    "Elf": ["Drow (Dark Elf)", "Shadar-Kai", "Sea Elf", "High Elf", "Wood Elf", "Eladrin (Seasonal)", "Avariel"],
+    "Aasimar": ["Protector Aasimar", "Scourge Aasimar", "Fallen Aasimar"],
+    "Birdfolk": ["Kenku", "Owlin", "Aarakocra", "Birdperson"],
+    "Canids": ["Shepherd Dog Dogfolk", "Wolfkin", "Gnolls", "Houndfolk"],
+    "Cosmids": ["Chronomancers", "Abysswalkers", "Starspawned", "Cometkin", "Eclipsians"], #cosmids are really boring/hippie woo. should we throw in some aberrations for flavor?
+    "Dwarf": ["Duergar", "Mountain Dwarf", "Hill Dwarf"],
+    "Elf": ["Drow", "Shadar-Kai", "Sea Elf", "High Elf", "Wood Elf", "Eladrin Elf", "Avariel Elf"],
     "Fey": ["Hobgoblins", "Fairies", "Firbolgs", "Satyr/Fawn", "Trolls", "Leprechauns"],
-    "Genasi": ["Fire", "Air", "Earth", "Water", "Electric", "Mud", "Ice"],
-    "Spirits": ["Poltergeist", "Wraith", "Ghoul", "Vagrant Spirit"],
-    "Halfling": ["Ghostwise", "Stout", "Mark of Hospitality (Eberron)", "Mark of Healing (Eberron)", "Lightfoot"],
-    "Human": ["Variant", "Standard"],
-    "Tabaxi": ["Pantherkin", "Tigerfolk", "Other (non-panther, non-tiger, non-lion, non-cat)"],
-    "Lizardfolk (Reptilians)": ["Dinoboiz", "Other"],
-    "Robots": ["Autognome", "Alternative Construct"],
-    "Rodentfolk": ["Squirrelfolk", "Ratfolk", "Other (non-rat, non-squirrel)"],
-    "Shapeshifter": ["Changelings", "Doppelgangers", "Lycanthropes"],
-    "Skeleton": ["Lich", "Skeletal Mage", "Bone Warrior"],
-    "Stone People (Golems)": ["Crystalborn", "Earth-Forged Golems", "Stoneborn"],
-    "Succubi/Incubi": ["Dreamweaver Succubi", "Abyssal Succubi"],
-    "Tiefling": ["Feral", "Bloodlines (e.g., Asmodeus)", "Bloodlines (e.g., Zariel)", "Bloodlines (e.g., Levistus)", "Standard"],
+    "Genasi": ["Fire Genasi", "Air Genasi", "Earth Genasi", "Water Genasi", "Electric Genasi", "Mud Genasi", "Ice Genasi"],
+    "Spirits": ["Poltergeist", "Wraith", "Ghoul", "Vagrant Spirit"], #ghost is a vagrant spirit, but less poetic sounding
+    "Halfling": ["Ghostwise", "Stout", "Lightfoot"],
+    "Human": ["Quirky Human", "Standard Human"],
+    "Catfolk": ["Pantherkin", "Tigerfolk", "Tabaxi"], #add leonin or no? too obvious is how it feels...ugh, hate it. :-\
+    "Reptilian": ["Lizardfolk", "Kobold"],
+    "Construct": ["Autognome", "Digital Assistant", "Warforged", "Sentient Robot"],
+    "Rodentfolk": ["Squirrelfolk", "Ratfolk", "Mousefolk"],
+    "Shapechanger": ["Changeling", "Doppelganger", "Lycanthrope"],
+    "Skeleton": ["Lich", "Bone Warrior"], #come on.
+    "Stone People": ["Crystalborn Golem", "Earth-Forged Golem", "Stoneborn Golem"],\
+    "Tiefling": ["Feral Tiefling", "Asmodeus Tiefling", "Zariel Tiefling", "Levistus Tiefling", "Standard Tiefling"],
     "Vampire": ["True Vampire", "Nosferatu", "Dhampir"],
-    "Yuan-Ti (Serpentine)": ["Pureblood", "Malison"],
+    "Snakey": ["Yuan-Ti Pureblood", "Yuan-Ti Malison"],
 }
 
 SPECIES_DESCRIPTIONS: Dict[str, str] = {
-    "Aasimar": "Locals remain uneasy around these suspiciously well-lit people.",
-    "Aasimar::Protector": "Seen at dawn on hilltops, looking as though they personally approved the sunrise.",
-    "Aasimar::Scourge": "Town reports another glowing moral enthusiast running several degrees too hot.",
-    "Aasimar::Fallen": "Former angelic type arrives with singed dignity and no patience for follow-up questions.",
+    "Aasimar": "Humanoids descended from or touched by angels. Locals remain uneasy around these suspiciously well-lit people.",
+    "Aasimar::Protector Aasimar": "Seen at dawn on hilltops, looking as though they personally approved the sunrise.",
+    "Aasimar::Scourge Aasimar": "Town reports another glowing moral enthusiast running several degrees too hot.",
+    "Aasimar::Fallen Aasimar": "Former angelic type arrives with singed dignity and no patience for follow-up questions.",
 
     "Birdfolk": "Feathered citizens continue noticing everything, especially whatever you hoped they had missed.",
-    "Birdfolk::Kenku": "Crow-person repeats your exact sentence in a tone that improves it and ruins your day.",
+    "Birdfolk::Kenku": "Anthropomorphic corvid repeats your exact sentence in a tone that improves it and ruins your day.",
     "Birdfolk::Owlin": "Soft-looking night bird turns head once and suddenly owns the room.",
-    "Birdfolk::Aarakocra": "Cliff-built flyer attends ground meeting with the distant courtesy of someone forced indoors by weather.",
-    "Birdfolk::Other (non-owl, non-kenku, non-aarakocra)": "General bird-person category includes elegance, shrieking, side-eye, and the occasional wet-footed aristocrat.",
+    "Birdfolk::Aarakocra": "Raptorial, cliff-built flyer attends ground meeting with the distant courtesy of someone forced indoors by weather.",
+    "Birdfolk::Birdperson": "General bird-person category includes elegance, shrieking, side-eye, and the occasional wet-footed aristocrat.",
 
     "Canids": "Dog-and-wolf people enter camp already aware of the mood, the menu, and who failed to latch the gate.",
-    "Canids::Shepherd Dogs": "Practical canine manager once again prevents disaster nobody else had even noticed forming.",
+    "Canids::Shepherd Dog Dogfolk": "Practical canine manager once again prevents disaster nobody else had even noticed forming.",
     "Canids::Wolfkin": "Long-limbed moonlight partisan continues finding village law charming but not binding.",
     "Canids::Gnolls": "Hyena-shaped appetite arrives laughing in a way the furniture does not appreciate.",
     "Canids::Houndfolk": "Nose-first detective sorts the room by scent and quietly loses respect for everyone in it.",
@@ -1941,28 +1939,26 @@ SPECIES_DESCRIPTIONS: Dict[str, str] = {
     "Cosmids::Cometkin": "Fast-looking citizen appears to be leaving even while standing perfectly still.",
     "Cosmids::Eclipsians": "Threshold enthusiast enters dramatically, then becomes useless in committee for exactly the same reason.",
 
-    "Cyborgs": "Part-person, part-machine individual continues giving off the faint impression of warranty paperwork.",
-    "Cyborgs::Advanced AI": "Overdesigned intellect attends dinner and quietly converts it into a systems problem.",
-    "Cyborgs::Combat-Oriented": "Reinforced model arrives with bolts, plating, and the settled confidence of a device tested on doors.",
-    "Cyborgs::Light Augmented": "Subtle upgrade type keeps hearing, seeing, and tracking six things more than everyone else at table.",
+    #"Cyborgs": "Part-person, part-machine individual continues giving off the faint impression of warranty paperwork.",
+    #"Cyborgs::Light Augmented": "Subtle upgrade type keeps hearing, seeing, and tracking six things more than everyone else at table.",
 
     "Cyclops": "One-eyed giant again proves that depth perception is for people with smaller opinions.",
     "Dragons": "Flying treasury with self-esteem issues circles overhead, evaluating local property values.",
 
     "Dwarf": "Compact expert in weight, heat, and workmanship continues being right in a highly portable form.",
-    "Dwarf::Duergar (Underdark)": "Underground cousin emerges pale, practical, and unimpressed by all this unnecessary daylight.",
-    "Dwarf::Mark of Warding (Eberron)": "Security-minded dwarf enters room looking as though even their cufflinks require authorization.",
-    "Dwarf::Mountain": "Broad alpine model proceeds uphill with the emotional flexibility of a locked gate.",
-    "Dwarf::Hill": "Rounder agricultural edition smells faintly of grain, cellars, and excellent long-term planning.",
+    "Dwarf::Duergar": "Underground cousin emerges pale, practical, and unimpressed by all this unnecessary daylight.",
+    #"Dwarf::Mark of Warding (Eberron)": "Security-minded dwarf enters room looking as though even their cufflinks require authorization.",
+    "Dwarf::Mountain Dwarf": "Broad alpine model proceeds uphill with the emotional flexibility of a locked gate.",
+    "Dwarf::Hill Dwarf": "Rounder agricultural edition smells faintly of grain, cellars, and excellent long-term planning.",
 
     "Elf": "Improbably composed person glides by, giving time itself the air of a solvable inconvenience.",
-    "Elf::Drow (Dark Elf)": "Subterranean beauty arrives polished, dangerous, and apparently sponsored by candlelight.",
+    "Elf::Drow": "Subterranean beauty arrives polished, dangerous, and apparently sponsored by candlelight.",
     "Elf::Shadar-Kai": "Severe shadow elf continues treating joy as a rare but acceptable scheduling exception.",
     "Elf::Sea Elf": "Marine aristocrat moves across dry land with the indulgent patience of a visiting seal expert.",
     "Elf::High Elf": "Refined elf surveys room with the weary look of someone raised among books and let down by people.",
     "Elf::Wood Elf": "Forest-built archer materializes from leaves already disapproving of your foot placement.",
-    "Elf::Eladrin (Seasonal)": "Mood-based elf changes emotional climate three times before soup arrives.",
-    "Elf::Avariel": "Winged elf attends mud-level society with admirable grace and visible reluctance.",
+    "Elf::Eladrin Elf": "Mood-based elf changes emotional climate three times before soup arrives.",
+    "Elf::Avariel Elf": "Winged elf attends mud-level society with admirable grace and visible reluctance.",
 
     "Fey": "Decorative natural force enters scene, immediately making cups, promises, and nicknames far too significant.",
     "Fey::Hobgoblins": "Well-lacquered fey disciplinarian continues folding banners with almost religious hostility.",
@@ -1972,16 +1968,16 @@ SPECIES_DESCRIPTIONS: Dict[str, str] = {
     "Fey::Trolls": "Marsh-assembled woodland issue stands near bridge looking ancestral and inconvenient.",
     "Fey::Leprechauns": "Small polished trickster exits hedge with your ring, your purse, and a stronger reading of the contract than yours.",
 
-    "Genasi": "Elementally sponsored citizen continues bringing weather, geology, or plumbing concerns directly into the conversation.",
-    "Genasi::Fire": "Warm-looking individual enters room with the confident crackle of a hearth that knows exactly what it’s doing.",
-    "Genasi::Air": "Light, breezy person remains only loosely committed to chairs, gravity, and linear conversation.",
-    "Genasi::Earth": "Solid mineral-flavored citizen stands there with the unhurried certainty of a hillside.",
-    "Genasi::Water": "Fluid-tempered person continues slipping around social edges like a tide around pilings.",
-    "Genasi::Electric": "Static-haired storm enthusiast arrives already one spark ahead of the furniture.",
-    "Genasi::Mud": "Practical elemental hybrid proves, once again, that useful and glamorous are rarely close relatives.",
-    "Genasi::Ice": "Cool, crystalline individual lowers room temperature and expectations with admirable efficiency.",
+    "Genasi": "The humanoid hybrid descendant of an elemental. Elementally sponsored citizen continues bringing weather, geology, or plumbing concerns directly into the conversation.",
+    "Genasi::Fire Genasi": "Warm-looking individual enters room with the confident crackle of a hearth that knows exactly what it’s doing.",
+    "Genasi::Air Genasi": "Light, breezy person remains only loosely committed to chairs, gravity, and linear conversation.",
+    "Genasi::Earth Genasi": "Solid mineral-flavored citizen stands there with the unhurried certainty of a hillside.",
+    "Genasi::Water Genasi": "Fluid-tempered person continues slipping around social edges like a tide around pilings.",
+    "Genasi::Electric Genasi": "Static-haired storm enthusiast arrives already one spark ahead of the furniture.",
+    "Genasi::Mud Genasi": "Practical elemental hybrid proves, once again, that useful and glamorous are rarely close relatives.",
+    "Genasi::Ice Genasi": "Cool, crystalline individual lowers room temperature and expectations with admirable efficiency.",
 
-    "Gnome": "Small overclocked citizen arrives with bright eyes, quick hands, and the unmistakable air of someone about to 'improve' things beyond your ability to recognize or possibly use them.",
+    "Gnome": "Mistakenly referred to as 'Christmas elves'. Small overclocked citizens frequently employed in seasonal sweat shops. May arrive with bright eyes, quick hands, and the unmistakable air of someone about to 'improve' things beyond your ability to recognize or possibly use them.",
     "Half-orcs": "Large practical citizen continues combining blunt force, bruised dignity, and better judgment than locals gave them credit for.",
 
     "Spirits": "Formerly alive presence continues declining to let material inconvenience settle the matter.",
@@ -1993,22 +1989,22 @@ SPECIES_DESCRIPTIONS: Dict[str, str] = {
     "Halfling": "Compact citizen continues solving adult problems with snacks, timing, and better sense than taller people.",
     "Halfling::Ghostwise": "Quiet little mind-reader watches group discussion the way a cat watches a complicated bug.",
     "Halfling::Stout": "Portable brick of a person remains cheerfully resistant to weather, worry, and being moved.",
-    "Halfling::Mark of Hospitality (Eberron)": "Innkeeper-grade halfling somehow turns tea, blankets, and eye contact into infrastructure.",
-    "Halfling::Mark of Healing (Eberron)": "Small practical healer arrives smelling of herbs, clean linen, and being taken seriously.",
+    #"Halfling::Mark of Hospitality (Eberron)": "Innkeeper-grade halfling somehow turns tea, blankets, and eye contact into infrastructure.",
+    #"Halfling::Mark of Healing (Eberron)": "Small practical healer arrives smelling of herbs, clean linen, and being taken seriously.",
     "Halfling::Lightfoot": "Friendly pocket-sized operator disappears in plain sight and returns with information.",
 
     "Human": "General-purpose mammal continues thriving through adaptability, confidence, and baffling amounts of improvisation.",
-    "Human::Variant": "Custom-built human arrives with one suspiciously early specialization and every intention of using it.",
-    "Human::Standard": "Baseline human once again demonstrates that versatility is just ambition with comfortable shoes.",
+    "Human::Quirky Human": "Custom-built human arrives with one suspiciously early specialization and every intention of using it.",
+    "Human::Standard Human": "Baseline human once again demonstrates that versatility is just ambition with comfortable shoes.",
 
-    "Tabaxi": "Feline biped enters room already evaluating curtains, shelves, and your general suitability.",
-    "Tabaxi::Pantherkin": "Sleek dark cat-person glides in looking like the lighting was arranged in advance.",
-    "Tabaxi::Tigerfolk": "Striped aristocrat of the food chain surveys locals with regal patience and moderate appetite.",
-    "Tabaxi::Other (non-panther, non-tiger, non-lion, non-cat)": "Assorted feline model includes spots, tufted ears, and the usual whiskered confidence surplus.",
+    "Catfolk": "Feline biped enters room already evaluating curtains, shelves, and your general suitability.",
+    "Catfolk::Pantherkin": "Sleek dark cat-person glides in looking like the lighting was arranged in advance.",
+    "Catfolk::Tigerfolk": "Striped aristocrat of the food chain surveys locals with regal patience and moderate appetite.",
+    "Catfolk::Other (non-panther, non-tiger, non-lion, non-cat)": "Assorted feline model includes spots, tufted ears, and the usual whiskered confidence surplus.",
 
-    "Lizardfolk (Reptilians)": "Scaled pragmatist continues treating emotion as interesting weather rather than management policy.",
-    "Lizardfolk (Reptilians)::Dinoboiz": "Prehistoric enthusiast arrives looking like evolution briefly got theatrical.",
-    "Lizardfolk (Reptilians)::Other": "General reptile edition stands very still until suddenly becoming the most relevant thing present.",
+    "Reptilian": "Scaled pragmatist continues treating emotion as interesting weather rather than management policy.",
+    "Reptilian::Lizardfolk": "Prehistoric enthusiast arrives looking like evolution briefly got theatrical.",
+    "Reptilian::Kobold": "General reptile edition stands very still until suddenly becoming the most relevant thing present.",
 
     "Merfolk": "Aquatic resident surfaces briefly to confirm that land culture is still doing several things incorrectly.",
     "Minotaur": "Bull-headed powerhouse enters hallway and instantly makes architecture feel like a personal challenge.",
@@ -2017,40 +2013,42 @@ SPECIES_DESCRIPTIONS: Dict[str, str] = {
     "Orcs": "Broad-shouldered force of nature continues treating hesitation as a hobby for weaker species.",
     "Plasmoid": "Sentient Jell-o oozes into view and immediately raises several furniture-related questions.",
 
-    "Robots": "Constructed person continues forcing philosophers to earn their lunch.",
-    "Robots::Autognome": "Clockwork little fellow bustles in with polished joints and the air of a toolbox granted citizenship.",
-    "Robots::Alternative Construct": "General-purpose manufactured being stands there making 'artificial' seem oddly judgmental.",
+    "Construct": "Constructed person continues forcing philosophers to earn their lunch.",
+    "Construct::Autognome": "Clockwork little fellow bustles in with polished joints and the air of a toolbox granted citizenship.",
+    "Construct::Digital Assistant": "Overdesigned intellect attends dinner and quietly converts it into a systems problem.",
+    "Construct::Warforged": "Reinforced model arrives with bolts, plating, and the settled confidence of a device tested on doors.",
+    "Construct::Sentient Robot": "General-purpose manufactured being stands there making 'artificial' seem oddly judgmental.",
 
     "Rodentfolk": "Small alert mammal-person arrives with quick hands, bright eyes, and a suspiciously efficient relationship to leftovers.",
     "Rodentfolk::Squirrelfolk": "Tree-running acrobat pauses just long enough to look busy in three directions at once.",
     "Rodentfolk::Ratfolk": "Urban survival specialist appears from somewhere structurally improbable and already knows the alleys better than you.",
-    "Rodentfolk::Other (non-rat, non-squirrel)": "Miscellaneous rodent model includes whiskers, paws, vigilance, and a deeply professional relationship to storage.",
+    "Rodentfolk::Mousefolk": "Miscellaneous rodent model includes whiskers, paws, vigilance, and a deeply professional relationship to storage.",
 
-    "Shapeshifter": "Identity-flexible person continues treating fixed form as more of a suggestion than a rule.",
-    "Shapeshifter::Changelings": "Socially adaptable face-swapping citizen somehow makes introductions feel provisional.",
-    "Shapeshifter::Doppelgangers": "Unsettling copy specialist enters room already prepared to improve on original material.",
-    "Shapeshifter::Lycanthropes": "Civilian with moon-related staffing issues again requests understanding from the village.",
+    "Shapechanger": "Identity-flexible person continues treating fixed form as more of a suggestion than a rule.",
+    "Shapechanger::Changeling": "Socially adaptable face-swapping citizen somehow makes introductions feel provisional.",
+    "Shapechanger::Doppelganger": "Unsettling copy specialist enters room already prepared to improve on original material.",
+    "Shapechanger::Lycanthrope": "Civilian with moon-related staffing issues again requests understanding from the village.",
 
     "Skeleton": "Animated bone arrangement continues proving that posture can outlive almost anything.",
     "Skeleton::Lich": "Ancient spell bureaucrat refuses retirement, decomposition, and common decency in equal measure.",
-    "Skeleton::Skeletal Mage": "Bony scholar rattles in carrying exactly the sort of spellbook everyone hoped had burned years ago.",
+    #"Skeleton::Skeletal Mage": "Bony scholar rattles in carrying exactly the sort of spellbook everyone hoped had burned years ago.",
     "Skeleton::Bone Warrior": "Minimalist soldier arrives with no spare flesh and no apparent complaints.",
 
-    "Stone People (Golems)": "Large mineral person stands where placed and quietly improves the load-bearing profile of the district.",
-    "Stone People (Golems)::Crystalborn": "Facet-covered being catches the light like a chandelier that learned boundaries.",
-    "Stone People (Golems)::Earth-Forged Golems": "Purpose-built dirt-and-stone labor titan continues making architecture feel underqualified.",
-    "Stone People (Golems)::Stoneborn": "Plain rock citizen remains calm, durable, and almost offensively difficult to hurry.",
+    "Stone People": "Large mineral person stands where placed and quietly improves the load-bearing profile of the district.",
+    "Stone People::Crystalborn Golem": "Facet-covered being catches the light like a chandelier that learned boundaries.",
+    "Stone People::Earth-Forged Golem": "Purpose-built dirt-and-stone labor titan continues making architecture feel underqualified.",
+    "Stone People::Stoneborn Golem": "Plain rock citizen remains calm, durable, and almost offensively difficult to hurry.",
 
     "Succubi/Incubi": "Beautifully persuasive outsider arrives with excellent posture and a completely unwholesome agenda.",
-    "Succubi/Incubi::Dreamweaver Succubi": "Soft-spoken enchantress drifts in smelling of perfume, poor judgment, and late-hour decisions.",
-    "Succubi/Incubi::Abyssal Succubi": "Infernal seduction specialist enters like a bad idea wearing very expensive confidence.",
+    #"Succubi/Incubi::Dreamweaver Incubi/Succubi": "Soft-spoken enchantress drifts in smelling of perfume, poor judgment, and late-hour decisions.",
+    #"Succubi/Incubi::Abyssal Incubi/Succubi": "Infernal seduction specialist enters like a bad idea wearing very expensive confidence.",
 
-    "Tiefling": "Horned citizen once again pays socially for ancestry they did not personally design.",
+    "Tiefling": "Humanoids descended from or marked by devils. Horned citizen once again pays socially for ancestry they did not personally design.",
     "Tiefling::Feral": "Less polished infernal edition arrives looking as though civilization was tried and found negotiable.",
-    "Tiefling::Bloodlines (e.g., Asmodeus)": "Classic devil-blood scion enters with formal manners and highly suspicious composure.",
-    "Tiefling::Bloodlines (e.g., Zariel)": "Martial infernal descendant appears ready to settle ethics as a field exercise.",
-    "Tiefling::Bloodlines (e.g., Levistus)": "Chilled, elegant tiefling continues making courtesy sound faintly refrigerated.",
-    "Tiefling::Standard": "Ordinary infernal-touched citizen stands there with horns, tail, and the usual burden of other people’s imagination.",
+    "Tiefling::Asmodeus": "Classic devil-blood scion enters with formal manners and highly suspicious composure.",
+    "Tiefling::Zariel": "Martial infernal descendant appears ready to settle ethics as a field exercise.",
+    "Tiefling::Levistus": "Chilled, elegant tiefling continues making courtesy sound faintly refrigerated.",
+    "Tiefling::Regular Tiefling": "Ordinary infernal-touched citizen stands there with horns, tail, and the usual burden of other people’s imagination.",
 
     "Triton": "Sea-noble strides ashore with saltwater dignity and the air of an inspector from a stricter kingdom.",
 
@@ -2059,9 +2057,9 @@ SPECIES_DESCRIPTIONS: Dict[str, str] = {
     "Vampire::Nosferatu": "Less decorative version emerges from the dark like a tax audit with teeth.",
     "Vampire::Dhampir": "Halfway blood-suspicious citizen tries, not always convincingly, to keep things civil.",
 
-    "Yuan-Ti (Serpentine)": "Serpentine schemer enters room with scales, composure, and no sentimental attachment to trust.",
-    "Yuan-Ti (Serpentine)::Pureblood": "Mostly human-passing snake person continues relying on manners to do a great deal of dangerous work.",
-    "Yuan-Ti (Serpentine)::Malison": "More visibly serpent-shaped edition arrives having given up entirely on passing and perhaps improved for it.",
+    "Snakey": "Serpentine schemer enters room with scales, composure, and no sentimental attachment to trust.",
+    "Snakey::Yuan-Ti Pureblood": "Mostly human-passing snake person continues relying on manners to do a great deal of dangerous work.",
+    "Snakey::Yuan-Ti Malison": "More visibly serpent-shaped edition arrives having given up entirely on passing and perhaps improved for it.",
 }
 
 DND_5E_MASTER = {
