@@ -88,6 +88,19 @@ def _resolve_menu_handler(window: "QWidget", *handler_names: str) -> Callable[..
     return None
 
 
+def _keep_action_in_window_menu(action) -> None:
+    """Keep actions in our window_chrome menus instead of macOS app menus."""
+    menu_role = getattr(action, "setMenuRole", None)
+    if not callable(menu_role):
+        return
+    no_role = getattr(action, "NoRole", None)
+    if no_role is None:
+        menu_role_enum = getattr(action, "MenuRole", None)
+        no_role = getattr(menu_role_enum, "NoRole", None)
+    if no_role is not None:
+        menu_role(no_role)
+
+
 def _bind_menu_action(menu, label: str, window: "QWidget", *handler_names: str) -> None:
     """Attach a menu action to the first available window handler.
 
@@ -98,10 +111,17 @@ def _bind_menu_action(menu, label: str, window: "QWidget", *handler_names: str) 
     handler = _resolve_menu_handler(window, *handler_names)
     if handler is None:
         action = menu.addAction(label)
+        _keep_action_in_window_menu(action)
         action.setEnabled(False)
         return
 
-    menu.addAction(label, handler)
+    action = menu.addAction(label, handler)
+    _keep_action_in_window_menu(action)
+
+
+def _bind_settings_menu_action(menu, owner: "QWidget") -> None:
+    """Attach the Settings action used by Chart View and Database View chrome."""
+    _bind_menu_action(menu, "Settings", owner, "_on_open_settings", "on_open_settings")
 
 
 def _bind_settings_menu_action(menu, owner: "QWidget") -> None:
@@ -116,11 +136,19 @@ def _add_preferences_submenu(app_menu, owner: "QWidget") -> None:
 
 
 def _configure_menu_bar_visibility(menu_bar) -> None:
-    """Prefer native menu positioning; allow opt-in in-window menu bars on macOS."""
+    """Keep Terminal-launched macOS builds from hiding window_chrome menus.
+
+    Qt's native macOS menu integration can relocate actions named Settings,
+    Preferences, About, and Exit into the process application menu (often
+    labeled "Python" when launched from Terminal). Database View and Chart View
+    both expose their own window_chrome menu headed by APP_DISPLAY_NAME, so
+    development/Terminal launches default to an in-window menu bar unless the
+    native menu bar is explicitly requested.
+    """
     if (
         sys.platform == "darwin"
         and not getattr(sys, "frozen", False)
-        and os.environ.get("EPHEMERALDADDY_FORCE_IN_WINDOW_MENUBAR") == "1"
+        and os.environ.get("EPHEMERALDADDY_USE_NATIVE_MENUBAR") != "1"
     ):
         menu_bar.setNativeMenuBar(False)
 
@@ -289,10 +317,10 @@ def configure_main_window_chrome(window: "QMainWindow") -> None:
     app_menu = menu_bar.addMenu(APP_DISPLAY_NAME)
     _bind_settings_menu_action(app_menu, window)
     _add_preferences_submenu(app_menu, window)
-    app_menu.addAction("About", lambda: _show_about_from_onboarding(window))
-    app_menu.addAction("Minimize", lambda: _minimize_window(window))
+    _keep_action_in_window_menu(app_menu.addAction("About", lambda: _show_about_from_onboarding(window)))
+    _keep_action_in_window_menu(app_menu.addAction("Minimize", lambda: _minimize_window(window)))
     app_menu.addSeparator()
-    app_menu.addAction(f"Exit", _quit_application)
+    _keep_action_in_window_menu(app_menu.addAction(f"Exit", _quit_application))
 
     chart_menu = menu_bar.addMenu("Charts") #note: chart_menu is "Chart View"'s version of Database Views charts_menu
     _bind_menu_action(chart_menu, "New Chart", window, "on_new_chart")
@@ -353,9 +381,9 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
     app_menu = menu_bar.addMenu(APP_DISPLAY_NAME)
     _bind_settings_menu_action(app_menu, dialog)
     _add_preferences_submenu(app_menu, dialog)
-    app_menu.addAction("Minimize", lambda: _minimize_window(dialog))
+    _keep_action_in_window_menu(app_menu.addAction("Minimize", lambda: _minimize_window(dialog)))
     app_menu.addSeparator()
-    app_menu.addAction(f"Exit", _quit_application)
+    _keep_action_in_window_menu(app_menu.addAction(f"Exit", _quit_application))
 
     file_menu = menu_bar.addMenu("Database")
     import_menu = file_menu.addMenu("Import from CSV")
