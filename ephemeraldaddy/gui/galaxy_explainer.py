@@ -621,16 +621,6 @@ def show_guide_to_the_galaxy(owner: "QWidget") -> None:
     geocentric_layout = QVBoxLayout(geocentric_panel)
     geocentric_layout.setContentsMargins(0, 0, 0, 0)
     geocentric_layout.addWidget(model, 1)
-    model_summary = QTextBrowser(geocentric_panel)
-    model_summary.setOpenExternalLinks(False)
-    model_summary.setMaximumHeight(210)
-    model_summary.setHtml(
-        "<h2>Compressed Model</h2>"
-        "<p>The solar system is far vaster than any comfortable screen model. Orbit sizes, planet sizes, "
-        "and speeds are deliberately compressed so the pattern is legible. Earth is fixed at the center "
-        "because this is illustrating how astrology interprets sky positions from here on Earth.</p>"
-    )
-    geocentric_layout.addWidget(model_summary, 0)
 
     vocab_panel = QTextBrowser(dialog)
     vocab_panel.setOpenExternalLinks(False)
