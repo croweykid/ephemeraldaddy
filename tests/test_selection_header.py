@@ -43,6 +43,17 @@ def test_all_collection_filtered_shows_search_results_and_database_total():
     )
 
 
+def test_all_collection_filtered_zero_selected_clarifies_results_count():
+    assert (
+        format_selection_summary(
+            counts=_counts(selected=0, search_results=53),
+            active_collection_id="all",
+            active_filters=True,
+        )
+        == "Charts Selected: 0 selected in 53 results. 11 in database"
+    )
+
+
 def test_non_all_collection_unfiltered_shows_collection_name_and_database_total():
     assert (
         format_selection_summary(
@@ -65,6 +76,17 @@ def test_non_all_collection_filtered_shows_results_collection_and_database_total
     )
 
 
+def test_non_all_collection_filtered_zero_selected_clarifies_results_count():
+    assert (
+        format_selection_summary(
+            counts=_counts(selected=0, search_results=6),
+            active_collection_id="personal",
+            active_filters=True,
+        )
+        == "Charts Selected: 0 selected in 6 results. 7 in Personal collection. (11 in database)"
+    )
+
+
 def test_custom_collection_name_is_used_and_counts_are_hardened():
     assert (
         format_selection_summary(
@@ -84,7 +106,7 @@ def test_custom_collection_name_is_used_and_counts_are_hardened():
                 )
             },
         )
-        == "Charts Selected: 0 of 0 results. 3 in Favorites collection. (0 in database)"
+        == "Charts Selected: 0 selected in 0 results. 3 in Favorites collection. (0 in database)"
     )
 
 

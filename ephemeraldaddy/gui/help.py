@@ -187,7 +187,7 @@ What they’re not used for:
 Human design elements: Gates, Lines & Channels
 For anyone familiar with the framework: in Chart View, G stands for gates, and L stands for lines, but currently the Human Design chart generation is in alpha phase.
 
-Weird toy metrics (D&D Species, Cursedness, Gender Guesser)
+Weird toy metrics (Fantasy RPG Species/Classes, Cursedness, Gender Guesser)
 These exist. They are fun. They are noncannonical to science and occultist lore alike."""
         ),
         keywords=("nakshatra", "gates", "lines", "cursedness","human design","toy metrics"),

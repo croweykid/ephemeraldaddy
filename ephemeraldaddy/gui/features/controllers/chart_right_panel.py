@@ -189,6 +189,12 @@ class ChartRightPanelController:
                 return
             QTimer.singleShot(0, lambda: schedule_chart_render_for_active_right_panel(self._owner))
             return
+        if active_panel == "time_sensitivity":
+            time_sensitivity_panel = getattr(self._owner, "time_sensitivity_panel", None)
+            refresh = getattr(time_sensitivity_panel, "refresh_for_current_chart", None)
+            if callable(refresh):
+                refresh()
+            return
         if active_panel in {"abc", "anagrams"} and self._is_analysis_section_visible("anagrams"):
             schedule_chart_render = getattr(self._owner, "_schedule_chart_render", None)
             if callable(schedule_chart_render):

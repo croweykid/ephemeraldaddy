@@ -1121,7 +1121,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                         self._species_header_format,
                     )
                     self.setCurrentBlockState(1)
-        if stripped_text in {"Statblock", "Statblock ⓘ", "D&D Statblock", "D&D Statblock ⓘ"}:
+        if stripped_text in {"Statblock", "Statblock ⓘ", "Fantasy RPG Statblock", "Fantasy RPG Statblock ⓘ"}:
             self.setFormat(0, self._qt_len(text), self._dnd_subheader_format)
         elif stripped_text == "Top 3 Species":
             self.setFormat(0, self._qt_len(text), self._dnd_subheader_format)

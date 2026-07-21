@@ -87,6 +87,11 @@ def format_selection_summary(
                 f"{counts.database} in database"
             )
         if has_filtered_results:
+            if counts.selected == 0:
+                return (
+                    f"Charts Selected: 0 selected in {counts.search_results} results. "
+                    f"{counts.database} in database"
+                )
             return (
                 f"Charts Selected: {counts.selected} of {counts.search_results} results. "
                 f"{counts.database} in database"
@@ -105,6 +110,12 @@ def format_selection_summary(
             f"({counts.database} in database)"
         )
     if has_filtered_results:
+        if counts.selected == 0:
+            return (
+                f"Charts Selected: 0 selected in {counts.search_results} results. "
+                f"{counts.current_collection} in {collection_name} collection. "
+                f"({counts.database} in database)"
+            )
         return (
             f"Charts Selected: {counts.selected} of {counts.search_results} results. "
             f"{counts.current_collection} in {collection_name} collection. "
@@ -140,6 +151,11 @@ def format_selection_summary_html(
                 f"{counts.database} in database."# in database
             )
         if has_filtered_results:
+            if counts.selected == 0:
+                return (
+                    f"{prefix} 0 selected in {counts.search_results} results. "
+                    f"{counts.database} in database."# in database
+                )
             return (
                 f"{prefix} {counts.selected} of {counts.search_results} results. "
                 f"{counts.database} in database."# in database
@@ -160,6 +176,12 @@ def format_selection_summary_html(
             f"({counts.database} in database)"
         )
     if has_filtered_results:
+        if counts.selected == 0:
+            return (
+                f"{prefix} 0 selected in {counts.search_results} results. "
+                f"{counts.current_collection} in {collection_name} collection. "
+                f"({counts.database} in database)"
+            )
         return (
             f"{prefix} {counts.selected} of {counts.search_results} results. "
             f"{counts.current_collection} in {collection_name} collection. "

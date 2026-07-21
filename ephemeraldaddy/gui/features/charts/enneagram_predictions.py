@@ -1045,6 +1045,7 @@ class EnneagramPredictionPanelAdapter:
         manual_recalculation_provider: Callable[[], bool] | None = None,
         norm_charts_provider: Callable[[], Any] | None = None,
         norm_charts_token_provider: Callable[[], str] | None = None,
+        header_action_callback: Callable[[str, str], None] | None = None,
     ) -> None:
         self.enneagram = enneagram
         self.calculate_type_weights = calculate_type_weights
@@ -1061,6 +1062,11 @@ class EnneagramPredictionPanelAdapter:
         self.manual_recalculation_provider = manual_recalculation_provider
         self.norm_charts_provider = norm_charts_provider
         self.norm_charts_token_provider = norm_charts_token_provider
+        self.header_action_callback = header_action_callback
+
+    def _set_header_action(self, state: str) -> None:
+        if callable(self.header_action_callback):
+            self.header_action_callback("enneagram", state)
 
     def _manual_recalculation_only(self) -> bool:
         if callable(self.manual_recalculation_provider):
@@ -1071,6 +1077,7 @@ class EnneagramPredictionPanelAdapter:
         return True
 
     def _show_calculate_prompt(self, chart: Any | None) -> None:
+        self._set_header_action("calculate")
         layout = self.enneagram_prediction_chart_layout
         if layout is None:
             return
@@ -1078,25 +1085,6 @@ class EnneagramPredictionPanelAdapter:
             self.clear_layout_widgets(layout)
         if callable(self.reset_canvas_callback):
             self.reset_canvas_callback("enneagram_prediction_canvas")
-        panel = QWidget()
-        panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
-        panel_layout = QVBoxLayout()
-        panel_layout.setContentsMargins(12, 18, 12, 18)
-        panel_layout.setSpacing(10)
-        panel_layout.setAlignment(Qt.AlignCenter)
-        panel.setLayout(panel_layout)
-        label = QLabel("No prior data. Calculate (can take awhile)?")
-        label.setAlignment(Qt.AlignCenter)
-        label.setWordWrap(True)
-        label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
-        label.setMinimumHeight(label.sizeHint().height())
-        label.setStyleSheet("color: #f5f5f5; font-weight: 600;")
-        button = QPushButton("Calculate!")
-        button.setStyleSheet("background-color: #7b4dff; color: white; font-weight: bold; padding: 6px 14px; border-radius: 5px;")
-        button.clicked.connect(lambda _checked=False, chart=chart: self.calculate_callback(chart, "enneagram") if callable(self.calculate_callback) and chart is not None else None)
-        panel_layout.addWidget(label, alignment=Qt.AlignCenter)
-        panel_layout.addWidget(button, alignment=Qt.AlignCenter)
-        layout.addWidget(panel)
         if self.tritype_label is not None:
             stop_prediction_loading_blink(self.tritype_label)
             self.tritype_label.setText("<b>Predicted Tritype:</b> No prior data")
@@ -1229,32 +1217,10 @@ class EnneagramPredictionPanelAdapter:
         return scores
 
     def _show_stale_recalculate_notice(self, chart: Any, *, refreshing: bool = False) -> None:
+        self._set_header_action("recalculate")
         layout = self.enneagram_prediction_chart_layout
         if layout is None:
             return
-        panel = QWidget()
-        panel.setProperty("enneagram_stale_recalculate_notice", True)
-        panel_layout = QVBoxLayout()
-        panel_layout.setContentsMargins(0, 0, 0, 6)
-        panel_layout.setSpacing(4)
-        panel.setLayout(panel_layout)
-        label_text = (
-            "Cached results shown; automatic refresh is running in the background."
-            if refreshing
-            else "Cached results shown; chart data or prediction definitions may have changed."
-        )
-        label = QLabel(label_text)
-        label.setWordWrap(True)
-        label.setStyleSheet("color: #d8d8d8; font-style: italic; padding: 2px 0 0 0;")
-        button = QPushButton("Recalculate")
-        button.setStyleSheet("background-color: #7b4dff; color: white; font-weight: bold; font-style: italic; padding: 6px 14px; border-radius: 5px;")
-        button.clicked.connect(lambda _checked=False, chart=chart: self.calculate_callback(chart, "enneagram") if callable(self.calculate_callback) else None)
-        panel_layout.addWidget(label, alignment=Qt.AlignCenter)
-        panel_layout.addWidget(button, alignment=Qt.AlignCenter)
-        try:
-            layout.insertWidget(0, panel)
-        except Exception:
-            layout.addWidget(panel)
 
     def render(self, chart: Any | None, metric_panel_renderer: Callable[..., Any]) -> None:
         if chart is None or self.is_placeholder_chart(chart):
@@ -1309,6 +1275,8 @@ class EnneagramPredictionPanelAdapter:
             self._show_stale_recalculate_notice(chart, refreshing=not manual_only)
             if not manual_only and callable(self.calculate_callback):
                 self.calculate_callback(chart, "enneagram")
+        if not cache_stale:
+            self._set_header_action("up_to_date")
         if self.tritype_label is not None:
             stop_prediction_loading_blink(self.tritype_label)
             self.tritype_label.setText(

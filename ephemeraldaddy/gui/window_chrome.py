@@ -124,6 +124,11 @@ def _bind_settings_menu_action(menu, owner: "QWidget") -> None:
     _bind_menu_action(menu, "Settings", owner, "_on_open_settings", "on_open_settings")
 
 
+def _bind_settings_menu_action(menu, owner: "QWidget") -> None:
+    """Attach the Settings action used by Chart View and Database View chrome."""
+    _bind_menu_action(menu, "Settings", owner, "_on_open_settings", "on_open_settings")
+
+
 def _add_preferences_submenu(app_menu, owner: "QWidget") -> None:
     """Attach the Preferences submenu and known preference actions."""
     preferences_menu = app_menu.addMenu("Preferences")

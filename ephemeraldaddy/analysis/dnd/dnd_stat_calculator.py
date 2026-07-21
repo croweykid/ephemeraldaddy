@@ -67,10 +67,10 @@ def _to_dnd_stat_from_db_norm(
     floor: int = 5,
     ceiling: int = 20,
 ) -> int:
-    """Map a chart stat to D&D terms by direct ratio to the DB average.
+    """Map a chart stat to Fantasy RPG terms by direct ratio to the DB average.
 
     The database norm is the anchor: whatever average value the database has for
-    a stat is treated as D&D 11. The chart value then moves up or down by the
+    a stat is treated as Fantasy RPG 11. The chart value then moves up or down by the
     exact same percentage deviation from that norm. No per-chart min/max, tanh,
     or criteria-budget normalization is applied to this DB-relative path.
     """
@@ -102,7 +102,7 @@ def _calculate_db_norm_stat_averages(norm_charts: Iterable[Any] | None) -> Dict[
 
 
 def _to_dnd_stat(raw_score: float, floor: int = 5, ceiling: int = 20) -> int:
-    """Map a normalized predictor score onto the D&D 5-20 ability range.
+    """Map a normalized predictor score onto the Fantasy RPG 5-20 ability range.
 
     The midpoint is intentionally anchored at 11 so ordinary predictions land in
     the requested "Average" band of 10-12. Scores below the midpoint spend the
@@ -162,7 +162,7 @@ def _calculate_predictor_criteria_budgets(
     """Estimate each stat's potential evidence volume from its criteria.
 
     The weighted predictor scorer already averages within many categories, but
-    D&D stats have wildly different category coverage: WIS currently has only a
+    Fantasy RPG stats have wildly different category coverage: WIS currently has only a
     few sign criteria while STR/DEX/CHA have signs, houses, positions, aspects,
     gates, profiles, and more. This budget lets the stat calculator compare raw
     signed evidence against the amount of evidence a stat could reasonably have
@@ -215,7 +215,7 @@ def _normalize_weighted_stat_scores(
 ) -> Dict[str, float]:
     """Convert weighted predictor evidence to stable 0..1 stat scores.
 
-    D&D stat predictors already return signed evidence: positive values mean a
+    Fantasy RPG stat predictors already return signed evidence: positive values mean a
     chart matched more pro-stat criteria, negative values mean it matched more
     anti-stat criteria, and zero means neutral/ordinary evidence. The old path
     normalized each chart's six stats by that chart's min and max, which forced
@@ -250,7 +250,7 @@ def score_dnd_statblock(
     norm_charts: Iterable[Any] | None = None,
     db_norm_averages: Mapping[str, float] | None = None,
 ) -> DnDStatBlock:
-    """Score D&D stats using direct DB-relative stat ratios when norms exist."""
+    """Score Fantasy RPG stats using direct DB-relative stat ratios when norms exist."""
     raw_weighted_scores = calculate_weighted_criteria_scores(
         chart,
         predictors=DND_STAT_PREDICTORS,

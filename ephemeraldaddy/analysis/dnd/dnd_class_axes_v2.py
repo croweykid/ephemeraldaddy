@@ -2,7 +2,7 @@ from __future__ import annotations
 
 """
 Foundational axes plus class-family gates and class scoring for assigning
-D&D-style classes from an astrological chart or other symbolic profile.
+Fantasy RPG-style classes from an astrological chart or other symbolic profile.
 
 Design rules:
 1) Axes describe durable behavioral dimensions.
@@ -470,7 +470,7 @@ class AxisFeatureSet:
 
 @dataclass(frozen=True)
 class DnDStatBlock:
-    """Display-oriented D&D stat profile derived from axis/features."""
+    """Display-oriented Fantasy RPG stat profile derived from axis/features."""
 
     raw_scores: Mapping[str, float]
     scores: Mapping[str, int]

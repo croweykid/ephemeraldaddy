@@ -4,7 +4,7 @@
 - app.py is the central GUI file.
 - Database Analytics live in gui/features/charts/database_analytics.py
 - The Search Panel lives in gui/dbv_search_panel.py
-- most astrological descriptions, color coding & info you need is found in core/interpretations.py, most D&D specific info in analysis/dnd/..., and additional human design information found in /analysis/..., mostly under "hd_incarnation_crosses" and "human_design_reference".
+- most astrological descriptions, color coding & info you need is found in core/interpretations.py, most Fantasy RPG specific info in analysis/dnd/..., and additional human design information found in /analysis/..., mostly under "hd_incarnation_crosses" and "human_design_reference".
 - the app's visual aesthetic is defined in gui/style.py (anything appwide that isn't in style.py belongs there)
 - Tooltips are defined in gui/tooltips.py
 - The windowchrome menu for Chart View & Database View is in gui/window_chrome.py

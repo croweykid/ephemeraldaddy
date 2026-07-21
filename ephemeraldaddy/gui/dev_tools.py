@@ -262,7 +262,7 @@ FILESYSTEM_INFOGRAPHIC_ITEMS: tuple[dict[str, object], ...] = (
         "children": (
             ("gui/", "Screens, windows, buttons, popups, and user-facing interactions.", "PySide6 GUI layer; app.py remains the shell while feature widgets should live in focused modules."),
             ("core/", "The astrology engine and shared rules: charts, aspects, houses, interpretations, databases, backups, photos, and time helpers.", "Domain logic used by GUI and analysis modules; keep calculations here when they are not view-specific."),
-            ("analysis/", "Special calculators and reference libraries: Astro Twin matching, Human Design, BaZi, Enneagram, traits, cycles, D&D-flavored analysis, and time sensitivity.", "Higher-level derived analytics; many files consume core chart data and cached metadata."),
+            ("analysis/", "Special calculators and reference libraries: Astro Twin matching, Human Design, BaZi, Enneagram, traits, cycles, Fantasy RPG analysis, and time sensitivity.", "Higher-level derived analytics; many files consume core chart data and cached metadata."),
             ("graphics/", "Drawing tools and visual assets, including chart wheels and emoji rendering support.", "Matplotlib/graphics helpers plus packaged image assets."),
             ("data/", "Reference datasets and generated population data the app reads from.", "Static/generated data inputs; compiled/ contains preprocessed artifacts."),
             ("io/", "Import, export, and place lookup plumbing.", "CSV/JSON/gazetteer/geocode boundaries."),
@@ -545,6 +545,7 @@ def build_similarity_calculator_settings_section(
     on_weight_changed: Callable[[str, float], None],
     on_placement_weighting_mode_changed: Callable[[str], None],
     on_all_or_nothing_criterion_changed: Callable[[str], None],
+    on_demographic_match_mode_changed: Callable[[str], None],
     on_reset_weights_clicked: Callable[[], None],
     on_calibrate_clicked: Callable[[], None],
     on_save_thresholds_clicked: Callable[[], None],
@@ -625,6 +626,32 @@ def build_similarity_calculator_settings_section(
     )
     database_distinction_help.setWordWrap(True)
     section_layout.addWidget(database_distinction_help)
+
+    demographic_match_row = QHBoxLayout()
+    demographic_match_row.addWidget(QLabel("Match preference"))
+    demographic_match_group = QButtonGroup(dialog)
+    demographic_match_group.setExclusive(True)
+    demographic_match_buttons: dict[str, QRadioButton] = {}
+    for mode, label_text, tooltip in (
+        ("none", "No preference", "Use the current Astro Twin behavior; do not filter by gender or sex metadata."),
+        (
+            "gender",
+            "Gender match",
+            "Filter candidates to compatible gender categories before calculating Astro Twin scores.",
+        ),
+        ("sex", "Sex match", "Filter candidates to compatible sex-group categories before calculating Astro Twin scores."),
+    ):
+        button = QRadioButton(label_text)
+        button.setToolTip(tooltip)
+        demographic_match_group.addButton(button)
+        button.toggled.connect(
+            lambda checked, selected_mode=mode: checked and on_demographic_match_mode_changed(selected_mode)
+        )
+        demographic_match_row.addWidget(button)
+        demographic_match_buttons[mode] = button
+    demographic_match_buttons["none"].setChecked(True)
+    demographic_match_row.addStretch(1)
+    section_layout.addLayout(demographic_match_row)
 
     custom_fields_frame = QFrame()
     custom_fields_frame.setFrameShape(QFrame.StyledPanel)
@@ -707,6 +734,7 @@ def build_similarity_calculator_settings_section(
     weighting_mode_row.addStretch(1)
     custom_fields_layout.addLayout(weighting_mode_row)
 
+
     reset_similarity_weights_button = QPushButton("Reset Weights to Defaults")
     reset_similarity_weights_button.clicked.connect(on_reset_weights_clicked)
     custom_fields_layout.addWidget(reset_similarity_weights_button, alignment=Qt.AlignLeft)
@@ -783,6 +811,7 @@ def build_similarity_calculator_settings_section(
         "calculator_total_label": total_weight_value_label,
         "placement_weighting_mode_combo": weighting_mode_combo,
         "all_or_nothing_criterion_combo": all_or_nothing_criterion_combo,
+        "demographic_match_buttons": demographic_match_buttons,
         "threshold_spinboxes": threshold_spinboxes,
     }
 
@@ -1374,6 +1403,7 @@ class ManageMetadataLabelsDialog(QDialog):
         lock_field: bool = False,
         window_title: str = "Property Manager",
         intro_text: str = "Current + legacy labels found in database (including unused/orphaned).",
+        show_close_button: bool = True,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(window_title)
@@ -1503,8 +1533,9 @@ QComboBox QAbstractItemView {
         self._remove_selected_button.clicked.connect(self._remove_selected_from_collection)
         # refresh_button = QPushButton("Refresh")
         # refresh_button.clicked.connect(self._reload_usage)
-        self._close_button = QPushButton("Close")
-        self._close_button.clicked.connect(self.accept)
+        close_button = QPushButton("Close") if show_close_button else None
+        if close_button is not None:
+            close_button.clicked.connect(self.accept)
 
         button_row.addWidget(self._rename_button)
         button_row.addWidget(self._delete_button)
@@ -1514,7 +1545,8 @@ QComboBox QAbstractItemView {
         button_row.addWidget(self._remove_selected_button)
         button_row.addStretch(1)
         #button_row.addWidget(refresh_button)
-        button_row.addWidget(self._close_button)
+        if close_button is not None:
+            button_row.addWidget(close_button)
         layout.addLayout(button_row)
 
         # Defer loading so the dialog can render immediately before DB work runs.

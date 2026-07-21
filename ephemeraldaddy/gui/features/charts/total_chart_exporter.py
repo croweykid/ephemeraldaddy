@@ -184,7 +184,7 @@ def _build_predictions_export_text(
         lines.append("")
         try:
             statblock = score_dnd_statblock(chart)
-            lines.append("D&D Statblock:")
+            lines.append("Fantasy RPG Statblock:")
             for stat_key in _DND_STAT_EXPORT_ORDER:
                 lines.append(
                     f"- {stat_key}: {int(statblock.scores.get(stat_key, 0))} "
@@ -193,7 +193,7 @@ def _build_predictions_export_text(
             lines.append("")
             lines.append(_plain_text_from_htmlish(build_dnd_top_three_summary_html(chart, linked=False)))
         except Exception as exc:
-            lines.append(f"D&D predictions unavailable: {exc}")
+            lines.append(f"Fantasy RPG predictions unavailable: {exc}")
     return _section("Predictions Panel", "\n".join(lines), markdown=markdown)
 
 

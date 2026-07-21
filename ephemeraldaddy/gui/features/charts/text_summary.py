@@ -1059,7 +1059,7 @@ def format_chart_text(
         lines.append(cursedness_line)
     if species_payloads or class_payloads or statblock_payload:
         lines.append("---------")
-        lines.append("D&D-ification")
+        lines.append("Fantasy RPG")
         lines.append("---------")
     if statblock_payload:
         stat_line_text = str(statblock_payload["line"])
