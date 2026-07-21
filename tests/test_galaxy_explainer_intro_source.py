@@ -28,10 +28,10 @@ def test_guide_intro_blurb_keeps_scrollable_text_browser_and_reduced_height():
     source = _guide_source()
 
     assert "subhead = QTextBrowser" in source
-    assert "subhead_frame.setMinimumHeight(46)" in source
-    assert "subhead_frame.setMaximumHeight(46)" in source
-    assert "subhead.setMinimumHeight(46)" in source
-    assert "subhead.setMaximumHeight(46)" in source
+    assert "subhead_frame.setMinimumHeight(100)" in source
+    assert "subhead_frame.setMaximumHeight(100)" in source
+    assert "subhead.setMinimumHeight(100)" in source
+    assert "subhead.setMaximumHeight(100)" in source
 
 
 def test_guide_bottom_panels_are_controlled_by_button_panel():
