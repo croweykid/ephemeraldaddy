@@ -119,20 +119,9 @@ def _bind_menu_action(menu, label: str, window: "QWidget", *handler_names: str) 
     _keep_action_in_window_menu(action)
 
 
-def _bind_settings_menu_action(menu, owner: "QWidget") -> None:
-    """Attach the Settings action used by Chart View and Database View chrome."""
-    _bind_menu_action(menu, "Settings", owner, "_on_open_settings", "on_open_settings")
-
-
-def _bind_settings_menu_action(menu, owner: "QWidget") -> None:
-    """Attach the Settings action used by Chart View and Database View chrome."""
-    _bind_menu_action(menu, "Settings", owner, "_on_open_settings", "on_open_settings")
-
-
-def _add_preferences_submenu(app_menu, owner: "QWidget") -> None:
-    """Attach the Preferences submenu and known preference actions."""
-    preferences_menu = app_menu.addMenu("Preferences")
-    _bind_settings_menu_action(preferences_menu, owner)
+def _add_settings_action(app_menu, owner: "QWidget") -> None:
+    """Attach Settings directly under Ephemeral Daddy in window_chrome menus."""
+    _bind_menu_action(app_menu, "Settings", owner, "_on_open_settings", "on_open_settings")
 
 
 def _configure_menu_bar_visibility(menu_bar) -> None:
@@ -315,8 +304,7 @@ def configure_main_window_chrome(window: "QMainWindow") -> None:
     menu_bar.clear()
 
     app_menu = menu_bar.addMenu(APP_DISPLAY_NAME)
-    _bind_settings_menu_action(app_menu, window)
-    _add_preferences_submenu(app_menu, window)
+    _add_settings_action(app_menu, window)
     _keep_action_in_window_menu(app_menu.addAction("About", lambda: _show_about_from_onboarding(window)))
     _keep_action_in_window_menu(app_menu.addAction("Minimize", lambda: _minimize_window(window)))
     app_menu.addSeparator()
@@ -379,8 +367,7 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
     menu_bar.setStyleSheet(WINDOW_CHROME_MENU_STYLE)
 
     app_menu = menu_bar.addMenu(APP_DISPLAY_NAME)
-    _bind_settings_menu_action(app_menu, dialog)
-    _add_preferences_submenu(app_menu, dialog)
+    _add_settings_action(app_menu, dialog)
     _keep_action_in_window_menu(app_menu.addAction("Minimize", lambda: _minimize_window(dialog)))
     app_menu.addSeparator()
     _keep_action_in_window_menu(app_menu.addAction(f"Exit", _quit_application))
