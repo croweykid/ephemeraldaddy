@@ -283,6 +283,7 @@ class SimilaritiesController:
             ("dominant_nakshatras", "Dominant nakshatras in common", 100),
             ("common_aspects", "Aspects in common", 160),
             ("common_hd_gates", "Gates in common", 120),
+            ("common_hd_gate_lines", "Gate Lines in common", 120),
             ("common_hd_channels", "Channels in common", 120),
             ("common_hd_defined_centers", "Defined Centers in common", 100),
             ("common_hd_authorities", "Authorities in common", 100),
@@ -381,6 +382,21 @@ class SimilaritiesController:
         target_output = info_panel.output
 
         def _render_target() -> None:
+            if normalized_target.startswith("gate_line:"):
+                gate_line_text = normalized_target.split(":", 1)[1]
+                parts = gate_line_text.split(".", 1)
+                if len(parts) == 2 and all(part.isdigit() for part in parts):
+                    gate_number, line_number = int(parts[0]), int(parts[1])
+                    if not self.host._invoke_db_info_renderer(
+                        "_show_human_design_gate_line_info",
+                        target_output,
+                        gate_number,
+                        line_number,
+                    ):
+                        self.host._render_db_gate_info_fallback(
+                            target_output, gate_number
+                        )
+                    return
             if normalized_target.startswith("gate:"):
                 gate_text = normalized_target.split(":", 1)[1]
                 if gate_text.isdigit():

@@ -32,6 +32,8 @@ SIMILARITIES_JSON_FACTOR_KEYS: tuple[str, ...] = (
     "antiaspects",
     "gates",
     "antigates",
+    "gate_lines",
+    "antigate_lines",
     "channels",
     "antichannels",
     "centers",
@@ -56,6 +58,7 @@ SIMILARITIES_JSON_SECTION_CATEGORIES: dict[str, str] = {
     "Dominant nakshatras in common": "nakshatras",
     "Aspects in common": "aspects",
     "Gates in common": "gates",
+    "Gate Lines in common": "gate_lines",
     "Channels in common": "channels",
     "Defined Centers in common": "centers",
     "Authorities in common": "authorities",
@@ -72,6 +75,7 @@ SIMILARITIES_JSON_SECTION_CATEGORIES: dict[str, str] = {
     "Dominant nakshatras in contrast": "antinakshatras",
     "Aspects in contrast": "antiaspects",
     "Gates in contrast": "antigates",
+    "Gate Lines in contrast": "antigate_lines",
     "Channels in contrast": "antichannels",
     "Defined Centers in contrast": "anticenters",
     "Authorities in contrast": "antiauthorities",
@@ -92,6 +96,7 @@ DISSIMILARITIES_JSON_ANTI_TO_UNIQUE_CATEGORIES: dict[str, str] = {
     "antipositions": "positions",
     "antiaspects": "aspects",
     "antigates": "gates",
+    "antigate_lines": "gate_lines",
     "antichannels": "channels",
     "anticenters": "centers",
     "antiprofiles": "profiles",
@@ -232,6 +237,15 @@ def normalize_similarities_json_criterion(
         if not gate_num.isdigit():
             return None
         return int(gate_num)
+
+    if section_title in {"Gate Lines in common", "Gate Lines in contrast"}:
+        parts = text.split(".", 1)
+        if len(parts) != 2 or not all(part.strip().isdigit() for part in parts):
+            return None
+        gate_num, line_num = (int(parts[0].strip()), int(parts[1].strip()))
+        if not (1 <= gate_num <= 64 and 1 <= line_num <= 6):
+            return None
+        return f"{gate_num}.{line_num}"
 
     if section_title in {"Channels in common", "Channels in contrast"}:
         normalized = _normalize_channel_criterion(text)

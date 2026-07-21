@@ -7981,11 +7981,15 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                 ("Dominant nakshatras in contrast", self.similarities_dominant_nakshatras_list, self.similarities_dominant_nakshatras_toggle),
                 ("Aspects in contrast", self.similarities_common_aspects_list, self.similarities_common_aspects_toggle),
                 ("Gates in contrast", self.similarities_common_hd_gates_list, self.similarities_common_hd_gates_toggle),
+                ("Gate Lines in contrast", self.similarities_common_hd_gate_lines_list, self.similarities_common_hd_gate_lines_toggle),
                 ("Channels in contrast", self.similarities_common_hd_channels_list, self.similarities_common_hd_channels_toggle),
                 ("Defined Centers in contrast", self.similarities_common_hd_defined_centers_list, self.similarities_common_hd_defined_centers_toggle),
                 ("Authorities in contrast", self.similarities_common_hd_authorities_list, self.similarities_common_hd_authorities_toggle),
                 ("Profiles in contrast", self.similarities_common_hd_profiles_list, self.similarities_common_hd_profiles_toggle),
                 ("BaZi signs in contrast", self.similarities_common_bazi_signs_list, self.similarities_common_bazi_signs_toggle),
+            )
+            self.similarities_common_hd_gate_lines_toggle.parentWidget().setVisible(
+                bool(section_matches.get("Gates in contrast", []))
             )
             update_similarities_loading_progress(progress, "Rendering dissimilarities results…")
             for section_title, section_list, toggle in render_pairs:
@@ -8544,6 +8548,11 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
     ) -> list[tuple[str, int, int]]:
         return self._build_common_human_design_aggregates(chart_ids).gates
 
+    def _build_common_human_design_gate_lines(
+        self, chart_ids: list[int]
+    ) -> list[tuple[str, int, int]]:
+        return self._build_common_human_design_aggregates(chart_ids).gate_lines
+
     def _build_common_human_design_channels(
         self, chart_ids: list[int]
     ) -> list[tuple[str, int, int]]:
@@ -8845,6 +8854,13 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                 [],
                 show_no_match_row=False,
             )
+            self.similarities_common_hd_gate_lines_toggle.parentWidget().setVisible(False)
+            self._set_similarities_section_matches(
+                self.similarities_common_hd_gate_lines_list,
+                self.similarities_common_hd_gate_lines_toggle,
+                [],
+                show_no_match_row=False,
+            )
             self._set_similarities_section_matches(
                 self.similarities_common_hd_channels_list,
                 self.similarities_common_hd_channels_toggle,
@@ -8897,6 +8913,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                 selected_non_placeholder_chart_ids
             )
             common_hd_gates = common_hd_aggregates.gates
+            common_hd_gate_lines = common_hd_aggregates.gate_lines if common_hd_gates else []
             common_hd_channels = common_hd_aggregates.channels
             common_hd_defined_centers = common_hd_aggregates.defined_centers
             common_hd_authorities = common_hd_aggregates.authorities
@@ -8925,6 +8942,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             db_common_aspects = db_baselines["common_aspects"]
             db_common_aspects_totals = db_baselines["common_aspects_totals"]
             db_common_hd_gates = db_baselines["common_hd_gates"]
+            db_common_hd_gate_lines = db_baselines["common_hd_gate_lines"]
             db_common_hd_channels = db_baselines["common_hd_channels"]
             db_common_hd_defined_centers = db_baselines["common_hd_defined_centers"]
             db_common_hd_authorities = db_baselines["common_hd_authorities"]
@@ -9131,6 +9149,24 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                             ),
                         )
                         for label, match_count, total_count in common_hd_gates
+                    ],
+                ),
+                (
+                    "Gate Lines in common",
+                    [
+                        (
+                            label,
+                            match_count,
+                            total_count,
+                            int(db_common_hd_gate_lines.get(label, 0)),
+                            db_total_count,
+                            self._similarity_matching_chart_names(
+                                "Gate Lines in common",
+                                label,
+                                selected_non_placeholder_chart_ids,
+                            ),
+                        )
+                        for label, match_count, total_count in common_hd_gate_lines
                     ],
                 ),
                 (
@@ -9351,6 +9387,15 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                 common_hd_gates,
                 selection_total_count=len(selected_non_placeholder_chart_ids),
                 db_match_counts=db_common_hd_gates,
+                db_total_count=db_total_count,
+            )
+            self.similarities_common_hd_gate_lines_toggle.parentWidget().setVisible(bool(common_hd_gates))
+            self._set_similarities_section_matches(
+                self.similarities_common_hd_gate_lines_list,
+                self.similarities_common_hd_gate_lines_toggle,
+                common_hd_gate_lines,
+                selection_total_count=len(selected_non_placeholder_chart_ids),
+                db_match_counts=db_common_hd_gate_lines,
                 db_total_count=db_total_count,
             )
             self._set_similarities_section_matches(
@@ -28598,10 +28643,14 @@ class MainWindow(QMainWindow):
                 ("Dominant nakshatras in contrast", self.similarities_dominant_nakshatras_list, self.similarities_dominant_nakshatras_toggle),
                 ("Aspects in contrast", self.similarities_common_aspects_list, self.similarities_common_aspects_toggle),
                 ("Gates in contrast", self.similarities_common_hd_gates_list, self.similarities_common_hd_gates_toggle),
+                ("Gate Lines in contrast", self.similarities_common_hd_gate_lines_list, self.similarities_common_hd_gate_lines_toggle),
                 ("Channels in contrast", self.similarities_common_hd_channels_list, self.similarities_common_hd_channels_toggle),
                 ("Defined Centers in contrast", self.similarities_common_hd_defined_centers_list, self.similarities_common_hd_defined_centers_toggle),
                 ("Authorities in contrast", self.similarities_common_hd_authorities_list, self.similarities_common_hd_authorities_toggle),
                 ("Profiles in contrast", self.similarities_common_hd_profiles_list, self.similarities_common_hd_profiles_toggle),
+            )
+            self.similarities_common_hd_gate_lines_toggle.parentWidget().setVisible(
+                bool(section_matches.get("Gates in contrast", []))
             )
             update_similarities_loading_progress(progress, "Rendering dissimilarities results…")
             for section_title, section_list, toggle in render_pairs:
