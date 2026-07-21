@@ -1462,6 +1462,7 @@ from ephemeraldaddy.gui.style import (
     similarity_gradient_rgb_for_range,
     configure_collapsible_header_toggle,
     configure_static_collapsible_header_label,
+    create_divider,
     set_collapsible_header_title,
     install_appwide_cursor_defaults,
     set_chart_info_text,
@@ -5557,10 +5558,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         first_chart_input.setCompleter(first_completer)
         layout.addWidget(first_chart_input)
 
-        divider = QFrame(dialog)
-        divider.setFrameShape(QFrame.HLine)
-        divider.setFrameShadow(QFrame.Sunken)
-        layout.addWidget(divider)
+        layout.addWidget(create_divider(dialog))
 
         second_chart_input = QLineEdit(dialog)
         second_chart_input.setPlaceholderText("Select second chart")
@@ -5837,7 +5835,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
 
         summary_header_lines = [
             f"Synastry Chart for {base_chart.name} & {overlay_chart.name}",
-            "-----------------------------------",
+            "",
             "",
             f"{overlay_chart.name}'s Aspects to {base_chart.name}:",
         ]
@@ -14467,10 +14465,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         )
 
         sentiment_metrics_widget.setLayout(sentiment_metrics_layout)
-        sentiment_metrics_divider = QFrame()
-        sentiment_metrics_divider.setFrameShape(QFrame.HLine)
-        sentiment_metrics_divider.setFrameShadow(QFrame.Sunken)
-        sentiment_section_layout.addWidget(sentiment_metrics_divider)
+        sentiment_section_layout.addWidget(create_divider())
         sentiment_metrics_subheader = QLabel("Personal Relevance")
         sentiment_metrics_subheader.setStyleSheet("font-weight: 600;")
         sentiment_section_layout.addWidget(sentiment_metrics_subheader)

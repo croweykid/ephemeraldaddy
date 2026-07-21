@@ -80,7 +80,7 @@ def _install_pyside_stubs():
 
 def _install_style_stub():
     style = sys.modules.setdefault("ephemeraldaddy.gui.style", types.ModuleType("ephemeraldaddy.gui.style"))
-    style.CHART_DATA_DIVIDER = getattr(style, "CHART_DATA_DIVIDER", "---------")
+    style.CHART_DATA_DIVIDER = getattr(style, "CHART_DATA_DIVIDER", "")
     style.CHART_DATA_HIGHLIGHT_COLOR = getattr(style, "CHART_DATA_HIGHLIGHT_COLOR", "#ffffff")
     style.DEFAULT_DROPDOWN_STYLE = getattr(style, "DEFAULT_DROPDOWN_STYLE", "")
     style.ARROW_STYLES = getattr(style, "ARROW_STYLES", {"classic": "->"})

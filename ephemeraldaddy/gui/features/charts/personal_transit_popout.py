@@ -75,7 +75,6 @@ def build_personal_transit_header_lines(
     timezone_label = local_dt.strftime("%Z") or str(local_tz)
     return [
         "Personal Transit (Transit → Natal)",
-        "---------------------------------",
         f"Name:      {natal_chart_name}",
         format_chart_header(
             "when_where",

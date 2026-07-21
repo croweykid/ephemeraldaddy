@@ -1053,14 +1053,10 @@ def format_chart_text(
 
     if cursedness_line:
         lines.append("")
-        lines.append("---------")
         lines.append("CURSEDNESS")
-        lines.append("---------")
         lines.append(cursedness_line)
     if species_payloads or class_payloads or statblock_payload:
-        lines.append("---------")
         lines.append("Fantasy RPG")
-        lines.append("---------")
     if statblock_payload:
         stat_line_text = str(statblock_payload["line"])
         species_info_map[len(lines)] = [

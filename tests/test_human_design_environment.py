@@ -7,7 +7,7 @@ if style_stub is None:
     style_stub = ModuleType("ephemeraldaddy.gui.style")
     sys.modules["ephemeraldaddy.gui.style"] = style_stub
 style_stub.ARROW_STYLES = {"classic": "→"}
-style_stub.CHART_DATA_DIVIDER = "---------"
+style_stub.CHART_DATA_DIVIDER = ""
 
 
 def _blend_hex_colors(color_a: str, _color_b: str, _ratio: float) -> str:

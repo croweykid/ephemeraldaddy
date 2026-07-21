@@ -44,6 +44,7 @@ from ephemeraldaddy.gui.style import (
     DATABASE_VIEW_HEADER_COLOR,
     CHART_DATA_HIGHLIGHT_COLOR,
     INACTIVE_ACTION_BUTTON_STYLE,
+    create_divider,
     similarity_gradient_rgb_for_range,
 )
 
@@ -746,10 +747,7 @@ def build_similarity_calculator_settings_section(
     #custom_fields_layout.addLayout(reset_granular_row)
     section_layout.addWidget(custom_fields_frame)
 
-    section_divider = QFrame()
-    section_divider.setFrameShape(QFrame.HLine)
-    section_divider.setFrameShadow(QFrame.Sunken)
-    section_layout.addWidget(section_divider)
+    section_layout.addWidget(create_divider())
 
     calibrate_similarity_button = QPushButton("Calibrate Similarity Norms")
     calibrate_similarity_button.setToolTip(
