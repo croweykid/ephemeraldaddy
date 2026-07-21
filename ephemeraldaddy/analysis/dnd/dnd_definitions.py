@@ -1895,7 +1895,6 @@ FAMILY_SUBTYPES: Dict[str, List[str]] = { #note: this is not a complete species 
     "Birdfolk": ["Kenku", "Owlin", "Aarakocra", "Birdperson"],
     "Canids": ["Shepherd Dogs", "Wolfkin", "Gnolls", "Houndfolk"],
     "Cosmids": ["Chronomancers", "Abysswalkers", "Starspawned", "Cometkin", "Eclipsians"], #cosmids are really boring/hippie woo. should we throw in some aberrations for flavor?
-    #"Cyborgs": ["Digital Assistant", "Warforged", "Light Augmented"],
     "Dwarf": ["Duergar", "Mountain Dwarf", "Hill Dwarf"],
     "Elf": ["Drow", "Shadar-Kai", "Sea Elf", "High Elf", "Wood Elf", "Eladrin Elf", "Avariel Elf"],
     "Fey": ["Hobgoblins", "Fairies", "Firbolgs", "Satyr/Fawn", "Trolls", "Leprechauns"],

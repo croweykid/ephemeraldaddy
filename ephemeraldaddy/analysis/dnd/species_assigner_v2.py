@@ -778,7 +778,7 @@ class SpeciesAssigner:
         cards["Plasmoid"].add(0.32 * dominant_mode_score("mutable"), "Mutable emphasis helps.")
         cards["Plasmoid"].add(0.22 * link("Neptune", "Uranus", ALL_MAJOR_ASPECTS), "Neptune-Uranus contact helps.")
 
-        # Robots
+        # Constructs
         cards["Construct"].add(0.88 * p("Uranus"), "Uranus is the primary Robots signal.")
         cards["Construct"].add(0.72 * p("Mercury"), "Mercury adds instruction and cognition.")
         cards["Construct"].add(0.32 * p("Saturn"), "Saturn supports the construct edge.")
@@ -1159,14 +1159,19 @@ class SpeciesAssigner:
             return "Kobold", evidence
 
         if family == "Construct":
-            if strong_link("Mercury", "Saturn") and er["Earth"] >= er["Water"]:
-                evidence.append("Mercury-Saturn with neat terrestrial engineering selects Autognome.")
-                return "Autognome", evidence
             if prom.get("Mercury", 0.0) >= 0.45 and strong_link("Mercury", "Saturn") and strong_link("Mercury", "Uranus"):
                 evidence.append("Mercury fused to Saturn and Uranus selects the machine-mind subtype.")
                 return "Digital Assistant", evidence
-            if max(link("Mars", "Uranus"), link("Mars", "Saturn")) >= 0.30:
-                evidence.append("Mars plugged into metal or voltage selects the combat chassis.")
+            if strong_link("Mercury", "Saturn") and er["Earth"] >= er["Water"]:
+                evidence.append("Mercury-Saturn with neat terrestrial engineering selects Autognome.")
+                return "Autognome", evidence
+            if max(
+                    link("Mars", "Saturn", ALL_MAJOR_ASPECTS),
+                    link("Mars", "Uranus", ALL_MAJOR_ASPECTS),
+            ) >= 0.30:
+                evidence.append(
+                    "Mars joined to engineered structure or machinery selects the constructed warrior."
+                )
                 return "Warforged", evidence
             evidence.append("Sentient robot logic wins without the gnomey finish.")
             return "Sentient Robot", evidence
