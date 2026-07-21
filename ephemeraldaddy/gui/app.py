@@ -9739,23 +9739,21 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                         totals[class_name] += 1
                         total_count += 1
             else:
-                try:
-                    species_top_three = assign_top_three_species(chart)
-                except Exception:
-                    logger.exception(
-                        "Failed to calculate fallback Fantasy RPG species distribution for chart UID %s.",
-                        getattr(chart, "chart_uid", None) or getattr(chart, "uid", None),
-                    )
-                    continue
-                if not species_top_three:
+                payload = self._dnd_species_class_payload_for_chart(chart)
+                species_payloads = payload.get("species") if isinstance(payload, dict) else []
+                if not isinstance(species_payloads, list) or not species_payloads:
                     continue
                 if mode == "top_three_species":
-                    for species_name, _subtype, _score in species_top_three[:3]:
+                    for entry in species_payloads[:3]:
+                        if not isinstance(entry, dict):
+                            continue
+                        species_name = str(entry.get("family", "") or "").strip()
                         if species_name in totals:
                             totals[species_name] += 1
                             total_count += 1
                 else:
-                    top_species = species_top_three[0][0]
+                    first_species = species_payloads[0] if species_payloads else {}
+                    top_species = str(first_species.get("family", "") or "").strip() if isinstance(first_species, dict) else ""
                     if top_species in totals:
                         totals[top_species] += 1
                         total_count += 1
@@ -10222,20 +10220,22 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                     snapshot["relationship_total_count"] += 1
 
         if compute_species_metrics and not snapshot["is_placeholder"]:
-            try:
-                species_top_three = assign_top_three_species(chart)
-            except Exception:
-                logger.exception(
-                    "Failed to calculate Fantasy RPG species distribution snapshot for chart UID %s.",
-                    getattr(chart, "chart_uid", None) or getattr(chart, "uid", None),
-                )
-                species_top_three = []
-            if species_top_three:
-                top_species = species_top_three[0][0]
+            species_class_payload = self._dnd_species_class_payload_for_chart(chart)
+            species_payloads = (
+                species_class_payload.get("species")
+                if isinstance(species_class_payload, dict)
+                else []
+            )
+            if isinstance(species_payloads, list) and species_payloads:
+                first_species = species_payloads[0] if species_payloads else {}
+                top_species = str(first_species.get("family", "") or "").strip() if isinstance(first_species, dict) else ""
                 if top_species in snapshot["species_totals_by_mode"]["top_species"]:
                     snapshot["species_totals_by_mode"]["top_species"][top_species] += 1
                     snapshot["species_total_count_by_mode"]["top_species"] += 1
-                for species_name, _subtype, _score in species_top_three[:3]:
+                for entry in species_payloads[:3]:
+                    if not isinstance(entry, dict):
+                        continue
+                    species_name = str(entry.get("family", "") or "").strip()
                     if species_name in snapshot["species_totals_by_mode"]["top_three_species"]:
                         snapshot["species_totals_by_mode"]["top_three_species"][species_name] += 1
                         snapshot["species_total_count_by_mode"]["top_three_species"] += 1
@@ -20141,36 +20141,25 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         self._populate_list(selected_ids=set(self._selected_chart_ids()) | normalized_ids, refresh_metrics=False)
         self._on_selection_changed(sync_persistent_selection=False)
 
-    def _cached_top_three_species_for_filter(self, chart) -> list[tuple[str, str]]:
-        """Return cached Top 3 Species/Subspecies without recalculating predictions.
+    def _dnd_species_class_payload_for_chart(self, chart) -> dict[str, Any]:
+        """Return the appwide Fantasy RPG species/class cache for a chart.
 
-        The Fantasy RPG species scorer is intentionally expensive. Database View
-        search must not run that scorer synchronously for every row when a
-        dropdown changes, because doing so blocks the UI. This filter therefore
-        reads already-generated prediction metadata from chart memory, the
-        owner-level prediction cache, or persisted UID metadata only.
+        Chart View, Database Analytics, and Database View Search all route
+        through the prediction adapter so stale persisted species/subspecies
+        payloads are version/key checked in one place before being reused.
         """
-        chart_uid = str(getattr(chart, "chart_uid", "") or "").strip()
-        payload = getattr(chart, "_dnd_species_class_prediction_cache", None)
-        if not isinstance(payload, dict):
-            chart_cache_id = chart_uid or str(id(chart))
-            owner_cache = getattr(self, "_dnd_species_class_prediction_view_cache", {})
-            payload = owner_cache.get(chart_cache_id) if isinstance(owner_cache, dict) else None
-        if not isinstance(payload, dict) and chart_uid:
-            filter_cache = getattr(self, "_dnd_species_search_filter_cache", None)
-            if not isinstance(filter_cache, dict):
-                try:
-                    from ephemeraldaddy.core import db
+        try:
+            return self._dnd_prediction_adapter().cache_species_class_metadata(chart)
+        except Exception:
+            logger.exception(
+                "Failed to refresh Fantasy RPG species/class cache for chart UID %s.",
+                getattr(chart, "chart_uid", None) or getattr(chart, "uid", None),
+            )
+            return {}
 
-                    stored_metadata = db.get_all_chart_dnd_prediction_metadata()
-                except Exception:
-                    stored_metadata = {}
-                filter_cache = {
-                    uid: (stored.get("species_class") if isinstance(stored, dict) else {})
-                    for uid, stored in stored_metadata.items()
-                }
-                self._dnd_species_search_filter_cache = filter_cache
-            payload = filter_cache.get(chart_uid, {})
+    def _cached_top_three_species_for_filter(self, chart) -> list[tuple[str, str]]:
+        """Return Top 3 Species/Subspecies from the shared appwide cache."""
+        payload = self._dnd_species_class_payload_for_chart(chart)
         species_payloads = payload.get("species") if isinstance(payload, dict) else None
         if not isinstance(species_payloads, list):
             return []
