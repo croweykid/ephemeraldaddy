@@ -577,7 +577,8 @@ def tag_completer_revision_from_rows(window) -> tuple[object, ...]:
 
 def tag_completer_tags_for_session(window) -> list[str]:
     """Return recognized tags plus tags already known in this app session."""
-    from ephemeraldaddy.gui.features.charts.tagging import list_recognized_tags, normalize_tag_list
+    from ephemeraldaddy.core.db import list_recognized_tags
+    from ephemeraldaddy.gui.features.charts.tagging import normalize_tag_list
 
     tags_by_key: dict[str, str] = {
         tag.casefold(): tag
