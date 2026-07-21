@@ -24759,16 +24759,113 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         if hasattr(self, "_help_scrim"):
             return
 
-        self._help_marker_buttons = []
         self._help_scrim = QWidget(self)
         self._help_scrim.hide()
         self._help_scrim.setStyleSheet("background-color: rgba(0, 0, 0, 26);")
+
+        self._help_side_panel = QFrame(self._help_scrim)
+        self._help_side_panel.setStyleSheet(
+            "QFrame {"
+            "background-color: #616161;"
+            "border-right: 1px solid #f2c94c;"
+            "}"
+            "QLabel { color: #ffffff; }"
+            "QLineEdit {"
+            "background-color: #737373;"
+            "border: 1px solid #f2c94c;"
+            "color: #ffffff;"
+            "padding: 6px;"
+            "border-radius: 4px;"
+            "}"
+            "QListWidget {"
+            "background-color: #6a6a6a;"
+            "border: 1px solid #f2c94c;"
+            "color: #ffffff;"
+            "}"
+        )
+        panel_layout = QVBoxLayout(self._help_side_panel)
+        panel_layout.setContentsMargins(14, 12, 14, 14)
+        panel_layout.setSpacing(10)
+
+        panel_title = QLabel("❓") #"Help"
+        panel_title.setStyleSheet("font-size: 16px; font-weight: 600; color: #f2c94c;")
+        panel_layout.addWidget(panel_title)
+
+        panel_hint = QLabel("Search feature explanations and developer notes.")
+        panel_hint.setWordWrap(True)
+        panel_layout.addWidget(panel_hint)
+
+        self._help_search_edit = QLineEdit()
+        self._help_search_edit.setPlaceholderText("Search help notes…")
+        self._help_search_edit.textChanged.connect(self._refresh_help_search_results)
+        panel_layout.addWidget(self._help_search_edit)
+
+        self._help_results_list = QListWidget()
+        self._help_results_list.currentRowChanged.connect(self._show_selected_help_entry)
+        panel_layout.addWidget(self._help_results_list, 1)
+
+        self._help_entry_detail = QLabel()
+        self._help_entry_detail.setWordWrap(True)
+        self._help_entry_detail.setContentsMargins(10, 10, 10, 10)
+        self._help_entry_detail.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+        self._help_entry_detail.setStyleSheet(
+            "background-color: #5a5a5a; border: 1px solid #f2c94c; border-radius: 4px; padding: 12px;"
+        )
+        self._help_entry_detail_scroll = QScrollArea()
+        self._help_entry_detail_scroll.setWidgetResizable(True)
+        self._help_entry_detail_scroll.setFrameShape(QScrollArea.NoFrame)
+        self._help_entry_detail_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._help_entry_detail_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self._help_entry_detail_scroll.setMinimumHeight(240)
+        self._help_entry_detail_scroll.setWidget(self._help_entry_detail)
+        panel_layout.addWidget(self._help_entry_detail_scroll, 2)
+
+        self._help_icon_button = QToolButton(self._help_side_panel)
+        self._help_icon_button.setText("?")
+        self._help_icon_button.setToolTip("Open the Help panel.")
+        self._help_icon_button.clicked.connect(self._open_help_side_panel)
+        self._help_icon_button.setStyleSheet(
+            "QToolButton {"
+            "background-color: #f2c94c;"
+            "color: #14213d;"
+            "border: 1px solid #14213d;"
+            "border-radius: 10px;"
+            "font-weight: 700;"
+            "font-size: 16px;"
+            "padding: 0px;"
+            "}"
+        )
+        self._help_icon_button.setFixedSize(20, 20)
+
+        self._help_icon_close = QPushButton("×", self._help_side_panel)
+        self._help_icon_close.setToolTip("Close Help overlay")
+        self._help_icon_close.clicked.connect(self._disable_help_overlay)
+        self._help_icon_close.setFixedSize(18, 18)
+        self._help_icon_close.setStyleSheet(
+            "QPushButton {"
+            "background-color: #9a9a9a;"
+            "color: #2f2f2f;"
+            "border: 1px solid #4f4f4f;"
+            "border-radius: 9px;"
+            "font-size: 16px;"
+            "padding: 0px;"
+            "}"
+        )
+
         self._help_resize_overlay()
+        self._refresh_help_search_results()
 
     def _help_resize_overlay(self) -> None:
         if not hasattr(self, "_help_scrim"):
             return
         self._help_scrim.setGeometry(0, 0, self.width(), self.height())
+        self._help_side_panel.setGeometry(0, 0, 320, self._help_scrim.height())
+        right_edge = self._help_side_panel.width() - 12
+        self._help_icon_close.move(right_edge - self._help_icon_close.width(), 12)
+        self._help_icon_button.move(
+            self._help_icon_close.x() - 8 - self._help_icon_button.width(),
+            12,
+        )
 
     def _toggle_help_overlay(self) -> None:
         if self._help_overlay_active:
@@ -24781,6 +24878,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         self._help_overlay_active = True
         self._help_scrim.show()
         self._help_scrim.raise_()
+        self._help_side_panel.show()
         #self._rebuild_help_markers()
 
     def _disable_help_overlay(self) -> None:
@@ -24788,6 +24886,13 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         self._clear_help_markers()
         if hasattr(self, "_help_scrim"):
             self._help_scrim.hide()
+
+    def _open_help_side_panel(self) -> None:
+        if not self._help_overlay_active:
+            return
+        self._help_side_panel.show()
+        self._help_side_panel.raise_()
+        self._help_search_edit.setFocus()
 
     def _clear_help_markers(self) -> None:
         for marker in self._help_marker_buttons:
@@ -24824,6 +24929,9 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             marker.raise_()
             self._help_marker_buttons.append(marker)
 
+        self._help_side_panel.raise_()
+        self._help_icon_button.raise_()
+        self._help_icon_close.raise_()
 
     def _help_widget_label(self, widget: QWidget) -> str:
         if isinstance(widget, QAbstractButton):
@@ -24848,10 +24956,14 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             QSpinBox,
         )
         excluded_widgets = {
+            getattr(self, "_help_icon_button", None),
+            getattr(self, "_help_icon_close", None),
             getattr(self, "manage_help_overlay_button", None),
         }
         for widget in candidates:
             if widget in excluded_widgets:
+                continue
+            if hasattr(self, "_help_side_panel") and self._help_side_panel.isAncestorOf(widget):
                 continue
             if widget.window() is not self:
                 continue
@@ -24866,7 +24978,19 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         return targets
 
     def _refresh_help_search_results(self) -> None:
-        return
+        if not hasattr(self, "_help_results_list"):
+            return
+        self._help_results_list.clear()
+        self._help_search_results_cache = self._search_help_entries_for_current_view(
+            self._help_search_edit.text()
+        )
+        for entry in self._help_search_results_cache:
+            self._help_results_list.addItem(entry.title)
+        if self._help_search_results_cache:
+            self._help_results_list.setCurrentRow(0)
+        else:
+            self._help_entry_detail.setText("No help entries matched your search.")
+            self._help_entry_detail_scroll.verticalScrollBar().setValue(0)
 
     def _search_help_entries_for_current_view(
         self,
@@ -24905,7 +25029,17 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         )
 
     def _show_selected_help_entry(self, row: int) -> None:
-        return
+        if not hasattr(self, "_help_search_results_cache"):
+            return
+        if row < 0 or row >= len(self._help_search_results_cache):
+            self._help_entry_detail.setText("Select an entry to view details.")
+            self._help_entry_detail_scroll.verticalScrollBar().setValue(0)
+            return
+        entry = self._help_search_results_cache[row]
+        keywords = ", ".join(entry.keywords)
+        suffix = f"\n\nKeywords: {keywords}" if keywords else ""
+        self._help_entry_detail.setText(f"{entry.description}{suffix}")
+        self._help_entry_detail_scroll.verticalScrollBar().setValue(0)
 
     def _on_retcon_engine(self) -> None:
         parent = self._owner_window()
@@ -39154,17 +39288,115 @@ class MainWindow(QMainWindow):
         central = self.centralWidget()
         if central is None:
             return
-        self._help_marker_buttons = []
+
         self._help_scrim = QWidget(central)
         self._help_scrim.hide()
         self._help_scrim.setStyleSheet("background-color: rgba(0, 0, 0, 26);")
+
+        self._help_side_panel = QFrame(self._help_scrim)
+        self._help_side_panel.setStyleSheet(
+            "QFrame {"
+            "background-color: #616161;"
+            "border-right: 1px solid #f2c94c;"
+            "}"
+            "QLabel { color: #ffffff; }"
+            "QLineEdit {"
+            "background-color: #737373;"
+            "border: 1px solid #f2c94c;"
+            "color: #ffffff;"
+            "padding: 6px;"
+            "border-radius: 4px;"
+            "}"
+            "QListWidget {"
+            "background-color: #6a6a6a;"
+            "border: 1px solid #f2c94c;"
+            "color: #ffffff;"
+            "}"
+        )
+        panel_layout = QVBoxLayout(self._help_side_panel)
+        panel_layout.setContentsMargins(14, 12, 14, 14)
+        panel_layout.setSpacing(10)
+
+        panel_title = QLabel("❓") #"Help"
+        panel_title.setStyleSheet("font-size: 16px; font-weight: 600; color: #f2c94c;")
+        panel_layout.addWidget(panel_title)
+
+        panel_hint = QLabel("Search feature explanations and developer notes.")
+        panel_hint.setWordWrap(True)
+        panel_layout.addWidget(panel_hint)
+
+        self._help_search_edit = QLineEdit()
+        self._help_search_edit.setPlaceholderText("Search help notes…")
+        self._help_search_edit.textChanged.connect(self._refresh_help_search_results)
+        panel_layout.addWidget(self._help_search_edit)
+
+        self._help_results_list = QListWidget()
+        self._help_results_list.currentRowChanged.connect(self._show_selected_help_entry)
+        panel_layout.addWidget(self._help_results_list, 1)
+
+        self._help_entry_detail = QLabel()
+        self._help_entry_detail.setWordWrap(True)
+        self._help_entry_detail.setContentsMargins(10, 10, 10, 10)
+        self._help_entry_detail.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+        self._help_entry_detail.setStyleSheet(
+            "background-color: #5a5a5a; border: 1px solid #f2c94c; border-radius: 4px; padding: 12px;"
+        )
+        self._help_entry_detail_scroll = QScrollArea()
+        self._help_entry_detail_scroll.setWidgetResizable(True)
+        self._help_entry_detail_scroll.setFrameShape(QScrollArea.NoFrame)
+        self._help_entry_detail_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._help_entry_detail_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self._help_entry_detail_scroll.setMinimumHeight(240)
+        self._help_entry_detail_scroll.setWidget(self._help_entry_detail)
+        panel_layout.addWidget(self._help_entry_detail_scroll, 2)
+
+        self._help_icon_button = QToolButton(self._help_side_panel)
+        self._help_icon_button.setText("?")
+        self._help_icon_button.setToolTip("Open the Help panel.")
+        self._help_icon_button.clicked.connect(self._open_help_side_panel)
+        self._help_icon_button.setStyleSheet(
+            "QToolButton {"
+            "background-color: #f2c94c;"
+            "color: #14213d;"
+            "border: 1px solid #14213d;"
+            "border-radius: 10px;"
+            "font-weight: 700;"
+            "font-size: 16px;"
+            "padding: 0px;"
+            "}"
+        )
+        self._help_icon_button.setFixedSize(20, 20)
+
+        self._help_icon_close = QPushButton("×", self._help_side_panel)
+        self._help_icon_close.setToolTip("Close Help overlay")
+        self._help_icon_close.clicked.connect(self._disable_help_overlay)
+        self._help_icon_close.setFixedSize(18, 18)
+        self._help_icon_close.setStyleSheet(
+            "QPushButton {"
+            "background-color: #9a9a9a;"
+            "color: #2f2f2f;"
+            "border: 1px solid #4f4f4f;"
+            "border-radius: 9px;"
+            "font-size: 16px;"
+            "padding: 0px;"
+            "}"
+        )
+
         self._help_resize_overlay()
+        self._refresh_help_search_results()
 
     def _help_resize_overlay(self) -> None:
         central = self.centralWidget()
         if central is None or not hasattr(self, "_help_scrim"):
             return
         self._help_scrim.setGeometry(0, 0, central.width(), central.height())
+        self._help_side_panel.setGeometry(0, 0, 320, self._help_scrim.height())
+        right_edge = self._help_side_panel.width() - 12
+        self._help_icon_close.move(right_edge - self._help_icon_close.width(), 12)
+        self._help_icon_button.move(
+            self._help_icon_close.x() - 8 - self._help_icon_button.width(),
+            12,
+        )
 
     def on_open_sign_degrees_reference_circle(self) -> None:
         from ephemeraldaddy.gui.features.charts.sign_degrees_reference_popout import show_sign_degrees_reference_popout
@@ -39182,6 +39414,7 @@ class MainWindow(QMainWindow):
         self._help_overlay_active = True
         self._help_scrim.show()
         self._help_scrim.raise_()
+        self._help_side_panel.show()
         #self._rebuild_help_markers()
 
     def _disable_help_overlay(self) -> None:
@@ -39189,6 +39422,13 @@ class MainWindow(QMainWindow):
         self._clear_help_markers()
         if hasattr(self, "_help_scrim"):
             self._help_scrim.hide()
+
+    def _open_help_side_panel(self) -> None:
+        if not self._help_overlay_active:
+            return
+        self._help_side_panel.show()
+        self._help_side_panel.raise_()
+        self._help_search_edit.setFocus()
 
     def _clear_help_markers(self) -> None:
         for marker in self._help_marker_buttons:
@@ -39225,6 +39465,9 @@ class MainWindow(QMainWindow):
             marker.raise_()
             self._help_marker_buttons.append(marker)
 
+        self._help_side_panel.raise_()
+        self._help_icon_button.raise_()
+        self._help_icon_close.raise_()
 
     def _help_widget_label(self, widget: QWidget) -> str:
         if isinstance(widget, (QAbstractButton, QLabel)):
@@ -39241,6 +39484,8 @@ class MainWindow(QMainWindow):
         label_targets = central.findChildren(QLabel)
         for widget in [*button_targets, *label_targets]:
             if widget in {
+                getattr(self, "_help_icon_button", None),
+                getattr(self, "_help_icon_close", None),
                 self.help_overlay_button,
             }:
                 continue
@@ -39252,10 +39497,32 @@ class MainWindow(QMainWindow):
         return targets
 
     def _refresh_help_search_results(self) -> None:
-        return
+        if not hasattr(self, "_help_results_list"):
+            return
+        self._help_results_list.clear()
+        self._help_search_results_cache = tuple(
+            help_notes.search_help_entries(self._help_search_edit.text())
+        )
+        for entry in self._help_search_results_cache:
+            self._help_results_list.addItem(entry.title)
+        if self._help_search_results_cache:
+            self._help_results_list.setCurrentRow(0)
+        else:
+            self._help_entry_detail.setText("No help entries matched your search.")
+            self._help_entry_detail_scroll.verticalScrollBar().setValue(0)
 
     def _show_selected_help_entry(self, row: int) -> None:
-        return
+        if not hasattr(self, "_help_search_results_cache"):
+            return
+        if row < 0 or row >= len(self._help_search_results_cache):
+            self._help_entry_detail.setText("Select an entry to view details.")
+            self._help_entry_detail_scroll.verticalScrollBar().setValue(0)
+            return
+        entry = self._help_search_results_cache[row]
+        keywords = ", ".join(entry.keywords)
+        suffix = f"\n\nKeywords: {keywords}" if keywords else ""
+        self._help_entry_detail.setText(f"{entry.description}{suffix}")
+        self._help_entry_detail_scroll.verticalScrollBar().setValue(0)
 
 def main(startup_loading: StartupProgress | QWidget | None = None):
     _configure_debug_logging()
