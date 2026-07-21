@@ -123,7 +123,7 @@ def apply_appwide_button_tone(button: QAbstractButton) -> None:
 
 
 class _AppwideCursorDefaultsFilter(QObject):
-    """Apply shared button defaults to widgets created after QApplication setup."""
+    """Apply shared interactive-widget defaults after QApplication setup."""
 
     def __init__(self, app: QApplication) -> None:
         super().__init__(app)
@@ -138,9 +138,13 @@ class _AppwideCursorDefaultsFilter(QObject):
         if isinstance(obj, QAbstractButton):
             apply_button_cursor(obj)
             apply_appwide_button_tone(obj)
+        if isinstance(obj, QComboBox):
+            configure_dropdown_popup_height(obj)
         for child in obj.findChildren(QAbstractButton):
             apply_button_cursor(child)
             apply_appwide_button_tone(child)
+        for child in obj.findChildren(QComboBox):
+            configure_dropdown_popup_height(child)
 
 
 def install_appwide_cursor_defaults(app: QApplication) -> None:
@@ -197,6 +201,7 @@ APPWIDE_NEGATION_BUTTON_BACKGROUND_COLOR = "#4a4d57"
 APPWIDE_NEGATION_BUTTON_HOVER_BACKGROUND_COLOR = "#5a5e6b"
 APPWIDE_NEGATION_BUTTON_BORDER_COLOR = "#747987"
 APPWIDE_PLAIN_TEXT_INPUT_BACKGROUND_COLOR = COLOR_BG_SURFACE
+APPWIDE_DROPDOWN_POPUP_MAX_HEIGHT_PX = 400
 
 APPWIDE_DARK_THEME_STYLESHEET = f"""
 QMainWindow {{
@@ -820,7 +825,8 @@ QScrollBar::sub-page:horizontal {
 }
 """.replace("__COLOR_BG_PANEL__", COLOR_BG_PANEL).replace("__COLOR_BG_SURFACE__", COLOR_BG_SURFACE).replace("__COLOR_BORDER_STRONG__", COLOR_BORDER_STRONG)
 
-DEFAULT_DROPDOWN_STYLE = """
+DEFAULT_DROPDOWN_STYLE = (
+    """
 QComboBox {
     background-color: __COLOR_BG_SURFACE__;
     alternate-background-color: __COLOR_BG_SURFACE__;
@@ -841,6 +847,7 @@ QComboBox QAbstractItemView {
     alternate-background-color: __COLOR_BG_SURFACE__;
     selection-background-color: #4f3f25;
     outline: 0;
+    max-height: __APPWIDE_DROPDOWN_POPUP_MAX_HEIGHT_PX__px;
 }
 QComboBox QAbstractItemView::item {
     padding: 3px 2px 3px 2px;
@@ -868,7 +875,15 @@ QComboBox QAbstractItemView::indicator {
     margin: 0px;
     padding: 0px;
 }
-""".replace("__COLOR_BG_SURFACE__", COLOR_BG_SURFACE).replace("__COLOR_BORDER_STRONG__", COLOR_BORDER_STRONG).replace("__CHART_DATA_HIGHLIGHT_COLOR__", CHART_DATA_HIGHLIGHT_COLOR)
+"""
+    .replace("__COLOR_BG_SURFACE__", COLOR_BG_SURFACE)
+    .replace("__COLOR_BORDER_STRONG__", COLOR_BORDER_STRONG)
+    .replace("__CHART_DATA_HIGHLIGHT_COLOR__", CHART_DATA_HIGHLIGHT_COLOR)
+    .replace(
+        "__APPWIDE_DROPDOWN_POPUP_MAX_HEIGHT_PX__",
+        str(APPWIDE_DROPDOWN_POPUP_MAX_HEIGHT_PX),
+    )
+)
 
 WINDOW_CHROME_MENU_STYLE = """
 QMenu {
@@ -1442,6 +1457,16 @@ def configure_static_collapsible_header_label(label: QLabel, *, title: str) -> N
     label.setStyleSheet(COLLAPSIBLE_SECTION_STATIC_HEADER_STYLE)
 
 
+def configure_dropdown_popup_height(dropdown: QComboBox) -> None:
+    """Constrain a combo-box popup to the appwide max height and scroll overflow."""
+    dropdown.setMaxVisibleItems(max(1, APPWIDE_DROPDOWN_POPUP_MAX_HEIGHT_PX // 24))
+    popup_view = dropdown.view()
+    if popup_view is None:
+        return
+    popup_view.setMaximumHeight(APPWIDE_DROPDOWN_POPUP_MAX_HEIGHT_PX)
+    popup_view.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+
+
 def apply_shared_dropdown_style(dropdown: QComboBox) -> None:
     """Force shared dropdown styling on a combo and its popup view.
 
@@ -1456,6 +1481,8 @@ def apply_shared_dropdown_style(dropdown: QComboBox) -> None:
     popup_view = QListView(dropdown)
     popup_view.setTextElideMode(Qt.ElideNone)
     popup_view.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+    popup_view.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+    popup_view.setMaximumHeight(APPWIDE_DROPDOWN_POPUP_MAX_HEIGHT_PX)
     popup_view.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Preferred)
     popup_view.setStyleSheet(
         """
@@ -1463,6 +1490,7 @@ QListView {
     background-color: #1c1c1c;
     alternate-background-color: #1c1c1c;
     outline: 0;
+    max-height: __APPWIDE_DROPDOWN_POPUP_MAX_HEIGHT_PX__px;
 }
 QListView::viewport {
     background-color: #1c1c1c;
@@ -1494,9 +1522,15 @@ QListView::indicator {
     margin: 0px;
     padding: 0px;
 }
-""".replace("__CHART_DATA_HIGHLIGHT_COLOR__", CHART_DATA_HIGHLIGHT_COLOR)
+"""
+        .replace("__CHART_DATA_HIGHLIGHT_COLOR__", CHART_DATA_HIGHLIGHT_COLOR)
+        .replace(
+            "__APPWIDE_DROPDOWN_POPUP_MAX_HEIGHT_PX__",
+            str(APPWIDE_DROPDOWN_POPUP_MAX_HEIGHT_PX),
+        )
     )
     dropdown.setView(popup_view)
+    configure_dropdown_popup_height(dropdown)
 
 # About dialog typography/color hierarchy (aligned to Database View middle panel palette).
 ABOUT_DIALOG_INTRO_STYLE = f"font-weight: 700; color: {MIDDLE_PANEL_ACCENT_COLOR};"
