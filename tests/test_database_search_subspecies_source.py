@@ -27,10 +27,17 @@ def test_search_filters_apply_selected_subspecies_to_top_three_species() -> None
     assert "assign_top_three_species(chart)" not in species_filter_block
 
 
-def test_subspecies_filter_uses_bulk_cached_prediction_metadata() -> None:
-    assert "def _cached_top_three_species_for_filter" in APP_SOURCE
-    assert "get_all_chart_dnd_prediction_metadata()" in APP_SOURCE
-    assert "search must not run that scorer synchronously" in APP_SOURCE
+def test_subspecies_filter_uses_shared_prediction_cache() -> None:
+    assert "def _dnd_species_class_payload_for_chart" in APP_SOURCE
+    assert "species_class_metadata" in APP_SOURCE
+    assert "Return Top 3 Species/Subspecies from the shared appwide cache." in APP_SOURCE
+
+
+def test_dev_tools_can_rebuild_shared_dnd_species_class_cache() -> None:
+    assert 'QPushButton("Refresh Fantasy RPG Species/Class Cache")' in APP_SOURCE
+    assert "def _on_refresh_dnd_species_class_cache_in_db" in APP_SOURCE
+    assert 'clear_chart_dnd_prediction_metadata_section("species_class")' in APP_SOURCE
+    assert "adapter.cache_species_class_metadata(chart)" in APP_SOURCE
 
 
 def test_clear_and_active_filter_state_include_subspecies() -> None:

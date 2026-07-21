@@ -760,6 +760,23 @@ def get_all_chart_dnd_prediction_metadata() -> dict[str, dict[str, Any]]:
         conn.close()
 
 
+def clear_chart_dnd_prediction_metadata_section(section: str) -> int:
+    """Remove one cached Fantasy RPG prediction metadata section for every chart UID."""
+    normalized_section = str(section or "").strip()
+    if not normalized_section:
+        return 0
+    metadata = get_all_chart_dnd_prediction_metadata()
+    cleared = 0
+    for chart_uid, payload in metadata.items():
+        if not isinstance(payload, dict) or normalized_section not in payload:
+            continue
+        updated_payload = dict(payload)
+        updated_payload.pop(normalized_section, None)
+        upsert_chart_dnd_prediction_metadata(chart_uid, updated_payload)
+        cleared += 1
+    return cleared
+
+
 def get_chart_dnd_prediction_metadata(chart_uid: str) -> dict[str, Any]:
     """Return persisted cached Fantasy RPG prediction metadata for a chart UID."""
     normalized_uid = _normalize_chart_uid(chart_uid)

@@ -29,4 +29,11 @@ def test_dnd_species_prediction_click_uses_formatted_html_info_panel():
 
 
 def test_dnd_species_prediction_cache_version_invalidates_old_labels():
-    assert "DND_SPECIES_CLASS_CACHE_VERSION = 3" in SOURCE
+    assert "DND_SPECIES_CLASS_CACHE_VERSION = 4" in SOURCE
+
+
+def test_species_class_metadata_can_restore_without_forced_rebuild():
+    assert "def species_class_metadata" in SOURCE
+    assert "self._restore_species_class_cache(chart)" in SOURCE
+    assert "def cache_species_class_metadata" in SOURCE
+    assert "force_refresh=True" in SOURCE

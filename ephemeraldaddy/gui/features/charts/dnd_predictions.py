@@ -2026,8 +2026,15 @@ class DndPredictionPanelAdapter:
         statblock = self._score_statblock(chart, norm_charts, allow_stale=False)
         return {stat_key: float(statblock.scores.get(stat_key, 0.0)) for stat_key in self.dnd_stat_keys}
 
-    def cache_species_class_metadata(self, chart: Any) -> dict[str, Any]:
+    def species_class_metadata(self, chart: Any, *, force_refresh: bool = False) -> dict[str, Any]:
+        if not force_refresh:
+            restored = self._restore_species_class_cache(chart)
+            if isinstance(restored, dict):
+                return restored
         return self._cache_species_class_metadata(chart)
+
+    def cache_species_class_metadata(self, chart: Any) -> dict[str, Any]:
+        return self.species_class_metadata(chart, force_refresh=True)
 
     def cache_metadata(self, chart: Any) -> dict[str, float]:
         scores = self.cache_statblock_metadata(chart)
