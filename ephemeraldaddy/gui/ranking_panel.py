@@ -14,12 +14,14 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from ephemeraldaddy.core.interpretations import SIGN_COLORS, ZODIAC_NAMES, ZODIAC_SIGNS
+from ephemeraldaddy.core.chart import chart_uses_houses
 from ephemeraldaddy.core.db import get_chart_ids_by_uid, get_chart_uid_map, load_dominant_sign_weights
 from ephemeraldaddy.gui.features.settings.traits import list_traits
 from ephemeraldaddy.gui.features.charts.metrics import (
     calculate_dominant_sign_weights as _calculate_dominant_sign_weights,
 )
 from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import trait_snapshot_averages
+from ephemeraldaddy.gui.features.charts.presentation import sign_for_longitude
 
 
 class RankingsPanelMixin:
@@ -325,6 +327,38 @@ class RankingsPanelMixin:
         )
         self._refresh_sign_dominance_rankings(database_chart_ids)
 
+
+    @staticmethod
+    def _rankings_chart_body_sign(chart: Any, body: str) -> str | None:
+        positions = getattr(chart, "positions", None) or {}
+        longitude = positions.get(body)
+        if longitude is None:
+            return None
+        try:
+            return sign_for_longitude(float(longitude))
+        except (TypeError, ValueError):
+            return None
+
+    def _sign_dominance_chart_name_style(self, chart: Any, selected_sign: str) -> str:
+        sun_matches = self._rankings_chart_body_sign(chart, "Sun") == selected_sign
+        moon_matches = self._rankings_chart_body_sign(chart, "Moon") == selected_sign
+        rising_matches = (
+            bool(chart_uses_houses(chart))
+            and self._rankings_chart_body_sign(chart, "AS") == selected_sign
+        )
+        css_parts = ["text-decoration:none"]
+        if not sun_matches:
+            css_parts.append("font-style:italic")
+        if sun_matches and moon_matches:
+            css_parts.append("color:#39ff14")
+        elif moon_matches and not sun_matches:
+            css_parts.append("color:#5dade2")
+        else:
+            css_parts.append("color:#f0f0f0")
+        if sun_matches and moon_matches and rising_matches:
+            css_parts.append("font-weight:700")
+        return "; ".join(css_parts)
+
     def _refresh_sign_dominance_rankings(self, database_chart_ids: set[int]) -> None:
         combo = getattr(self, "rankings_sign_combo", None)
         label = getattr(self, "rankings_signs_label", None)
@@ -375,6 +409,7 @@ class RankingsPanelMixin:
                     "name": str(getattr(chart, "name", "") or f"Chart {chart_uid or chart_id}"),
                     "value": value,
                     "weights": weights,
+                    "name_style": self._sign_dominance_chart_name_style(chart, selected_sign),
                 }
             )
         if not db_average and db_count:
@@ -412,6 +447,7 @@ class RankingsPanelMixin:
             chart_uid = html.escape(str(row.get("chart_uid", "") or ""))
             chart_key = str(row.get("chart_uid") or row.get("name") or "").strip()
             name = html.escape(str(row["name"]))
+            name_style = html.escape(str(row.get("name_style") or "color:#f0f0f0; text-decoration:none"), quote=True)
             glyph_html = ""
             shared_signs = sign_top_20_memberships.get(chart_key, [])
             if len(shared_signs) >= 2:
@@ -426,7 +462,7 @@ class RankingsPanelMixin:
             table_rows.append(
                 "<tr>"
                 f"<td style='padding:1px 8px 1px 0; color:#9a9a9a; text-align:right;'>{rank}</td>"
-                f"<td style='padding:1px 8px 1px 0;'><a href='chart:{chart_uid}' style='color:#f0f0f0; text-decoration:none;'>{name}{glyph_html}</a></td>"
+                f"<td style='padding:1px 8px 1px 0;'><a href='chart:{chart_uid}' style='{name_style}'>{name}{glyph_html}</a></td>"
                 f"<td style='padding:1px 8px 1px 0; color:#d8d8d8; text-align:right;'>{value:.1f}%</td>"
                 f"<td style='padding:1px 0; color:{deviation_color}; text-align:right;'>{deviation:+.1f}</td>"
                 "</tr>"
