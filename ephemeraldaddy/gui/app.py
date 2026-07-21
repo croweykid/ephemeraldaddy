@@ -26487,11 +26487,25 @@ class MainWindow(QMainWindow):
         render_key = self._chart_analysis_render_key_for_section(section_key)
         if render_key is None:
             return
-        self._schedule_chart_render(
-            self._latest_chart,
-            sections={render_key},
-            queue_priority="interactive",
-        )
+
+        # Collapsed right-panel sections can have stale or zero child geometry at
+        # the instant their content widget becomes visible.  Queue the initial
+        # render until the next event-loop turn so canvases/text browsers measure
+        # the expanded scroll viewport, then re-check shortly afterward for Qt's
+        # stacked-panel settling pass.
+        chart = self._latest_chart
+
+        def schedule_expanded_section_render() -> None:
+            if self._latest_chart is not chart:
+                return
+            self._schedule_chart_render(
+                chart,
+                sections={render_key},
+                queue_priority="interactive",
+            )
+
+        QTimer.singleShot(0, schedule_expanded_section_render)
+        QTimer.singleShot(75, schedule_expanded_section_render)
 
     def _is_chart_analysis_section_visible(self, section_key: str) -> bool:
         return self._chart_analysis_section_visible.get(section_key, True)

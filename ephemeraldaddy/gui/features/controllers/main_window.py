@@ -214,6 +214,14 @@ class ChartAnalysisSectionsController:
             toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
             panel.updateGeometry()
             restore_scroll_position()
+            if checked:
+                refresh_visible_canvases = getattr(
+                    self._owner,
+                    "_schedule_deferred_visible_metric_canvas_layout_refreshes",
+                    None,
+                )
+                if callable(refresh_visible_canvases):
+                    QTimer.singleShot(0, refresh_visible_canvases)
             if on_toggled is not None:
                 on_toggled(checked)
 
