@@ -760,6 +760,7 @@ from ephemeraldaddy.core.db import (
     update_chart_weirdness_score,
     set_current_chart,
     parse_relationship_types,
+    list_recognized_tags,
     add_tag_to_charts,
     backup_database,
     restore_database,
@@ -915,6 +916,7 @@ from ephemeraldaddy.gui.features.charts.aspect_sorting import (
     sort_natal_aspects as _sort_natal_aspects,
 )
 from ephemeraldaddy.gui.features.charts.tagging import (
+    apply_tag_completer,
     normalize_tag_list,
     parse_tag_text,
     render_tag_chip_preview,
@@ -959,34 +961,20 @@ from ephemeraldaddy.gui.dbv_batch_similarity import (
 )
 from ephemeraldaddy.gui.dbv_search_panel import (
     active_body_dynamics_filters as get_active_body_dynamics_filters,
-    apply_search_location_completer,
     body_dynamics_filters_are_active,
     build_dbv_search_bar_row,
     build_dbv_search_panel,
-    build_birthdate_filter_date,
-    cached_top_three_species_for_filter,
     chart_matches_body_dynamics_filters,
     collect_search_tag_filter_sets,
     collect_search_trait_filter_sets,
-    dnd_species_class_payload_for_chart,
-    dominant_enneagram_types_for_search,
-    focus_database_search_input,
-    has_active_search_tag_filters,
     chart_matches_trait_filters,
     on_search_tag_category_logic_changed,
-    on_search_tags_changed,
     on_search_tag_category_mode_changed,
     on_search_tag_logic_changed,
     on_search_tag_mode_changed,
     refresh_tag_catalog_for_added_tags,
     refresh_search_tags_list,
-    matched_expectations_value_for_chart,
-    parse_year_first_encountered_text,
-    tag_completer_revision_from_rows,
-    tag_completer_tags_for_session,
-    update_search_location_completers,
-    update_tag_completers,
-    update_tag_completers_if_needed,
+    sync_search_tags_list_selection,
     reset_body_dynamics_filters,
     weight_is_at_least_triple_next_highest,
 )
@@ -3112,7 +3100,18 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
 
 
     def _focus_database_search_input(self) -> None:
-        focus_database_search_input(self)
+        """Move keyboard focus to Database View's chart search field."""
+        search_input = getattr(self, "search_text_input", None)
+        if not isinstance(search_input, QLineEdit):
+            return
+        search_panel_button = getattr(self, "search_panel_button", None)
+        if search_panel_button is not None and hasattr(search_panel_button, "setChecked"):
+            search_panel_button.setChecked(True)
+        show_search_panel = getattr(self, "_show_search_database_panel", None)
+        if callable(show_search_panel):
+            show_search_panel()
+        search_input.setFocus(Qt.ShortcutFocusReason)
+        search_input.selectAll()
 
     # Database & Selection Analysis Panel (left sidebar).
     #export chart function:
@@ -14579,7 +14578,23 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         self._batch_last_selection_ids = chart_id_set
 
     def _has_active_search_tag_filters(self) -> bool:
-        return has_active_search_tag_filters(self)
+        search_tag_text = (
+            self.search_tags_input.text().strip()
+            if hasattr(self, "search_tags_input")
+            else ""
+        )
+        if search_tag_text:
+            return True
+        if any(
+            checkbox.mode() in {QuadStateSlider.MODE_TRUE, QuadStateSlider.MODE_FALSE}
+            for checkbox in getattr(self, "search_tag_filter_checkboxes", {}).values()
+        ):
+            return True
+        search_untagged_checkbox = getattr(self, "search_untagged_checkbox", None)
+        return (
+            isinstance(search_untagged_checkbox, QuadStateSlider)
+            and search_untagged_checkbox.mode() != QuadStateSlider.MODE_EMPTY
+        )
 
     def _should_refresh_tag_distribution_for_batch_tag_update(self) -> bool:
         if (
@@ -14672,11 +14687,42 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
 
     @staticmethod
     def _dominant_enneagram_types_for_search(chart: Chart | None) -> set[int]:
-        return dominant_enneagram_types_for_search(chart)
+        if chart is None:
+            return set()
+        weights = getattr(chart, "enneagram_type_weights", None)
+        numeric_weights: dict[int, float] = {}
+        if isinstance(weights, dict):
+            for raw_type, raw_weight in weights.items():
+                try:
+                    enneagram_type = int(raw_type)
+                    weight = float(raw_weight)
+                except (TypeError, ValueError):
+                    continue
+                if 1 <= enneagram_type <= 9:
+                    numeric_weights[enneagram_type] = weight
+        if numeric_weights:
+            max_weight = max(numeric_weights.values())
+            return {
+                enneagram_type
+                for enneagram_type, weight in numeric_weights.items()
+                if weight == max_weight
+            }
+        try:
+            dominant_type = int(getattr(chart, "dominant_enneagram_type", 0) or 0)
+        except (TypeError, ValueError):
+            return set()
+        return {dominant_type} if 1 <= dominant_type <= 9 else set()
 
     @staticmethod
     def _matched_expectations_value_for_chart(chart: Chart | None) -> int:
-        return matched_expectations_value_for_chart(chart)
+        if chart is None:
+            return 0
+        raw_value = getattr(chart, "matched_expectations", 0)
+        try:
+            parsed_value = int(raw_value) if raw_value is not None else 0
+        except (TypeError, ValueError):
+            parsed_value = 0
+        return max(-10, min(10, parsed_value))
 
     def _set_batch_alignment_state(self, items: list[tuple[int, Chart]]) -> None:
         if not items:
@@ -14745,31 +14791,96 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         year: int | None,
         is_latest: bool,
     ) -> datetime.date | None:
-        return build_birthdate_filter_date(
-            month=month,
-            day=day,
-            year=year,
-            is_latest=is_latest,
-        )
+        if month is None and day is None and year is None:
+            return None
+        resolved_year = int(year) if year is not None else (9999 if is_latest else 1)
+        resolved_month = int(month) if month is not None else (12 if is_latest else 1)
+        if day is not None:
+            resolved_day = int(day)
+        else:
+            resolved_day = calendar.monthrange(resolved_year, resolved_month)[1] if is_latest else 1
+        try:
+            return datetime.date(resolved_year, resolved_month, resolved_day)
+        except ValueError:
+            return None
 
     @staticmethod
     def _parse_year_first_encountered_text(raw_value: str | None) -> int | None:
-        return parse_year_first_encountered_text(raw_value)
+        value = (raw_value or "").strip()
+        if value == "":
+            return None
+        if value.isdigit():
+            return int(value)
+        return None
 
     def _apply_location_completer(self, line_edit: QLineEdit | None, choices: list[str]) -> None:
-        apply_search_location_completer(self, line_edit, choices)
+        if not isinstance(line_edit, QLineEdit):
+            return
+        completer = QCompleter(choices, line_edit)
+        completer.setCaseSensitivity(Qt.CaseInsensitive)
+        completer.setFilterMode(Qt.MatchContains)
+        line_edit.setCompleter(completer)
 
     def _update_location_completers(self) -> None:
-        update_search_location_completers(self)
+        countries: set[str] = set()
+        cities: set[str] = set()
+        states: set[str] = set()
+        chart_rows = getattr(self, "_chart_rows", [])
+        for chart_row in chart_rows:
+            birth_place = str(chart_row[5] if len(chart_row) > 5 else "" or "").strip()
+            if not birth_place:
+                continue
+            country, city, state = self._normalized_location_components(birth_place)
+            if country:
+                countries.add(country)
+            if city:
+                cities.add(city)
+            if state:
+                states.add(state)
+
+        self._apply_location_completer(
+            getattr(self, "_search_location_country_input", None),
+            sorted(countries),
+        )
+        self._apply_location_completer(
+            getattr(self, "_search_location_city_input", None),
+            sorted(cities),
+        )
+        self._apply_location_completer(
+            getattr(self, "_search_location_state_input", None),
+            sorted(states),
+        )
 
     def _tag_completer_revision_from_rows(self) -> tuple[object, ...]:
-        return tag_completer_revision_from_rows(self)
+        return tuple(
+            (
+                row[0] if len(row) > 0 else None,
+                row[5] if len(row) > 5 else None,
+                row[25] if len(row) > 25 else None,
+                row[26] if len(row) > 26 else None,
+            )
+            for row in getattr(self, "_chart_rows", [])
+        )
 
     def _update_tag_completers_if_needed(self, *, force: bool = False) -> None:
-        update_tag_completers_if_needed(self, force=force)
+        revision_token = self._tag_completer_revision_from_rows()
+        if not force and revision_token == getattr(self, "_tag_completer_revision_token", None):
+            return
+        self._update_tag_completers()
+        self._tag_completer_revision_token = revision_token
 
     def _tag_completer_tags_for_session(self) -> list[str]:
-        return tag_completer_tags_for_session(self)
+        tags_by_key: dict[str, str] = {
+            tag.casefold(): tag
+            for tag in list_recognized_tags()
+        }
+        for tag in getattr(self, "_known_chart_tags", []) or []:
+            normalized = str(tag or "").strip()
+            if normalized:
+                tags_by_key.setdefault(normalized.casefold(), normalized)
+        for tag in normalize_tag_list(getattr(self, "_chart_tags_current", []) or []):
+            tags_by_key.setdefault(tag.casefold(), tag)
+        return sorted(tags_by_key.values(), key=lambda value: value.casefold())
 
     def _update_tag_completers(
         self,
@@ -14777,15 +14888,26 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         refresh_location_completers: bool = True,
         refresh_tag_lists: bool = True,
     ) -> None:
-        update_tag_completers(
-            self,
-            refresh_location_completers=refresh_location_completers,
-            refresh_tag_lists=refresh_tag_lists,
-        )
+        known_tags = self._tag_completer_tags_for_session()
+        self._known_chart_tags = known_tags
+        chart_input = getattr(self, "chart_tags_input", None)
+        search_input = getattr(self, "search_tags_input", None)
+        batch_tags_input = getattr(self, "batch_tags_input", None)
+        for line_edit in (chart_input, search_input, batch_tags_input):
+            if not isinstance(line_edit, QLineEdit):
+                continue
+            apply_tag_completer(line_edit, known_tags)
+        if refresh_location_completers:
+            self._update_location_completers()
+        if refresh_tag_lists:
+            self._refresh_search_tags_list(known_tags)
+            self._refresh_batch_tags_list(known_tags)
 
     def _on_search_tags_changed(self, *_: object) -> None:
-        # Delegated helper keeps the no-rebuild path: sync_search_tags_list_selection(self, set(tags))
-        on_search_tags_changed(self, *_)
+        tags = parse_tag_text(self.search_tags_input.text())
+        render_tag_chip_preview(self.search_tags_preview_label, tags)
+        sync_search_tags_list_selection(self, set(tags))
+        self._on_filter_changed()
 
     def _refresh_search_tags_list(self, known_tags: list[str]) -> None:
         refresh_search_tags_list(self, known_tags)
@@ -19819,10 +19941,36 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         self._on_selection_changed(sync_persistent_selection=False)
 
     def _dnd_species_class_payload_for_chart(self, chart) -> dict[str, Any]:
-        return dnd_species_class_payload_for_chart(self, chart)
+        """Return the appwide Fantasy RPG species/class cache for a chart.
+
+        Chart View, Database Analytics, and Database View Search all route
+        through the prediction adapter so stale persisted species/subspecies
+        payloads are version/key checked in one place before being reused.
+        """
+        try:
+            return self._dnd_prediction_adapter().cache_species_class_metadata(chart)
+        except Exception:
+            logger.exception(
+                "Failed to refresh Fantasy RPG species/class cache for chart UID %s.",
+                getattr(chart, "chart_uid", None) or getattr(chart, "uid", None),
+            )
+            return {}
 
     def _cached_top_three_species_for_filter(self, chart) -> list[tuple[str, str]]:
-        return cached_top_three_species_for_filter(self, chart)
+        """Return Top 3 Species/Subspecies from the shared appwide cache."""
+        payload = self._dnd_species_class_payload_for_chart(chart)
+        species_payloads = payload.get("species") if isinstance(payload, dict) else None
+        if not isinstance(species_payloads, list):
+            return []
+        top_three: list[tuple[str, str]] = []
+        for entry in species_payloads[:3]:
+            if not isinstance(entry, dict):
+                continue
+            family = str(entry.get("family", "") or "").strip()
+            subtype = str(entry.get("subtype", "") or "").strip()
+            if family:
+                top_three.append((family, subtype))
+        return top_three
 
     def _chart_matches_filters(self, chart_id: int) -> bool:
         incomplete_birthdate_state = self.incomplete_birthdate_checkbox.mode()
@@ -33953,7 +34101,12 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def _parse_year_first_encountered_text(raw_value: str | None) -> int | None:
-        return parse_year_first_encountered_text(raw_value)
+        value = (raw_value or "").strip()
+        if value == "":
+            return None
+        if value.isdigit():
+            return int(value)
+        return None
 
     def _on_deceased_toggled(self, checked: bool) -> None:
         if hasattr(self, "death_row_widget"):
@@ -34044,10 +34197,42 @@ class MainWindow(QMainWindow):
         show_death_chart_window(self)
 
     def _apply_location_completer(self, line_edit: QLineEdit | None, choices: list[str]) -> None:
-        apply_search_location_completer(self, line_edit, choices)
+        if not isinstance(line_edit, QLineEdit):
+            return
+        completer = QCompleter(choices, line_edit)
+        completer.setCaseSensitivity(Qt.CaseInsensitive)
+        completer.setFilterMode(Qt.MatchContains)
+        line_edit.setCompleter(completer)
 
     def _update_location_completers(self) -> None:
-        update_search_location_completers(self)
+        countries: set[str] = set()
+        cities: set[str] = set()
+        states: set[str] = set()
+        chart_rows = getattr(self, "_chart_rows", [])
+        for chart_row in chart_rows:
+            birth_place = str(chart_row[5] if len(chart_row) > 5 else "" or "").strip()
+            if not birth_place:
+                continue
+            country, city, state = self._normalized_location_components(birth_place)
+            if country:
+                countries.add(country)
+            if city:
+                cities.add(city)
+            if state:
+                states.add(state)
+
+        self._apply_location_completer(
+            getattr(self, "_search_location_country_input", None),
+            sorted(countries),
+        )
+        self._apply_location_completer(
+            getattr(self, "_search_location_city_input", None),
+            sorted(cities),
+        )
+        self._apply_location_completer(
+            getattr(self, "_search_location_state_input", None),
+            sorted(states),
+        )
 
     def _refresh_search_tags_list(self, known_tags: list[str]) -> None:
         refresh_search_tags_list(self, known_tags)
@@ -34183,13 +34368,35 @@ class MainWindow(QMainWindow):
         self._mark_lucygoosey()
 
     def _tag_completer_revision_from_rows(self) -> tuple[object, ...]:
-        return tag_completer_revision_from_rows(self)
+        return tuple(
+            (
+                row[0] if len(row) > 0 else None,
+                row[5] if len(row) > 5 else None,
+                row[25] if len(row) > 25 else None,
+                row[26] if len(row) > 26 else None,
+            )
+            for row in getattr(self, "_chart_rows", [])
+        )
 
     def _update_tag_completers_if_needed(self, *, force: bool = False) -> None:
-        update_tag_completers_if_needed(self, force=force)
+        revision_token = self._tag_completer_revision_from_rows()
+        if not force and revision_token == getattr(self, "_tag_completer_revision_token", None):
+            return
+        self._update_tag_completers()
+        self._tag_completer_revision_token = revision_token
 
     def _tag_completer_tags_for_session(self) -> list[str]:
-        return tag_completer_tags_for_session(self)
+        tags_by_key: dict[str, str] = {
+            tag.casefold(): tag
+            for tag in list_recognized_tags()
+        }
+        for tag in getattr(self, "_known_chart_tags", []) or []:
+            normalized = str(tag or "").strip()
+            if normalized:
+                tags_by_key.setdefault(normalized.casefold(), normalized)
+        for tag in normalize_tag_list(getattr(self, "_chart_tags_current", []) or []):
+            tags_by_key.setdefault(tag.casefold(), tag)
+        return sorted(tags_by_key.values(), key=lambda value: value.casefold())
 
     def _update_tag_completers(
         self,
@@ -34197,11 +34404,24 @@ class MainWindow(QMainWindow):
         refresh_location_completers: bool = True,
         refresh_tag_lists: bool = True,
     ) -> None:
-        update_tag_completers(
-            self,
-            refresh_location_completers=refresh_location_completers,
-            refresh_tag_lists=refresh_tag_lists,
-        )
+        sorted_tags = self._tag_completer_tags_for_session()
+        self._known_chart_tags = sorted_tags
+        if hasattr(self, "chart_tags_input"):
+            apply_tag_completer(self.chart_tags_input, sorted_tags)
+        if hasattr(self, "search_tags_input"):
+            apply_tag_completer(self.search_tags_input, sorted_tags)
+        if hasattr(self, "batch_tags_input"):
+            apply_tag_completer(self.batch_tags_input, sorted_tags)
+        self._update_reminds_me_of_completer()
+        if refresh_location_completers:
+            self._update_location_completers()
+        if refresh_tag_lists:
+            refresh_search_tags_list = getattr(self, "_refresh_search_tags_list", None)
+            if callable(refresh_search_tags_list):
+                refresh_search_tags_list(sorted_tags)
+            refresh_batch_tags_list = getattr(self, "_refresh_batch_tags_list", None)
+            if callable(refresh_batch_tags_list):
+                refresh_batch_tags_list(sorted_tags)
 
     def _on_chart_tags_changed(self, *_: object) -> None:
         on_chart_view_tags_changed(self)
@@ -35161,11 +35381,42 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def _dominant_enneagram_types_for_search(chart: Chart | None) -> set[int]:
-        return dominant_enneagram_types_for_search(chart)
+        if chart is None:
+            return set()
+        weights = getattr(chart, "enneagram_type_weights", None)
+        numeric_weights: dict[int, float] = {}
+        if isinstance(weights, dict):
+            for raw_type, raw_weight in weights.items():
+                try:
+                    enneagram_type = int(raw_type)
+                    weight = float(raw_weight)
+                except (TypeError, ValueError):
+                    continue
+                if 1 <= enneagram_type <= 9:
+                    numeric_weights[enneagram_type] = weight
+        if numeric_weights:
+            max_weight = max(numeric_weights.values())
+            return {
+                enneagram_type
+                for enneagram_type, weight in numeric_weights.items()
+                if weight == max_weight
+            }
+        try:
+            dominant_type = int(getattr(chart, "dominant_enneagram_type", 0) or 0)
+        except (TypeError, ValueError):
+            return set()
+        return {dominant_type} if 1 <= dominant_type <= 9 else set()
 
     @staticmethod
     def _matched_expectations_value_for_chart(chart: Chart | None) -> int:
-        return matched_expectations_value_for_chart(chart)
+        if chart is None:
+            return 0
+        raw_value = getattr(chart, "matched_expectations", 0)
+        try:
+            parsed_value = int(raw_value) if raw_value is not None else 0
+        except (TypeError, ValueError):
+            parsed_value = 0
+        return max(-10, min(10, parsed_value))
 
     def load_chart_by_id(
         self,
