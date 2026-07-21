@@ -5784,7 +5784,11 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         canvas.draw_idle()
         right_layout.addWidget(canvas, 7)
 
+        # Keep the Chart Data Output header row aligned with the left
+        # popout panel's "Chart Info!" label so both text panels begin on
+        # the same horizontal line.
         summary_controls = QHBoxLayout()
+        summary_controls.setContentsMargins(0, 0, 0, 0)
         summary_controls.addStretch(1)
         summary_sort_label = QLabel("Aspects")
         summary_sort_label.setStyleSheet("font-weight: bold;")
@@ -5794,7 +5798,10 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         summary_sort_combo.setMinimumWidth(140)
         summary_controls.addWidget(summary_sort_label)
         summary_controls.addWidget(summary_sort_combo)
-        right_layout.addLayout(summary_controls)
+        chart_data_header = QWidget()
+        chart_data_header.setLayout(summary_controls)
+        chart_data_header.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        right_layout.addWidget(chart_data_header, 0)
 
         summary_output = ChartDataTableOutput()
         summary_output.setReadOnly(True)
@@ -6218,7 +6225,11 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         right_layout.addWidget(canvas, 7)
 
+        # Keep the Chart Data Output header row aligned with the left
+        # popout panel's "Chart Info!" label so both text panels begin on
+        # the same horizontal line.
         summary_controls = QHBoxLayout()
+        summary_controls.setContentsMargins(0, 0, 0, 0)
         summary_controls.addStretch(1)
         summary_sort_label = QLabel("Aspects")
         summary_sort_label.setStyleSheet("font-weight: bold;")
@@ -6228,7 +6239,10 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         summary_sort_combo.setMinimumWidth(140)
         summary_controls.addWidget(summary_sort_label)
         summary_controls.addWidget(summary_sort_combo)
-        right_layout.addLayout(summary_controls)
+        chart_data_header = QWidget()
+        chart_data_header.setLayout(summary_controls)
+        chart_data_header.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        right_layout.addWidget(chart_data_header, 0)
 
         summary_output = ChartDataTableOutput()
         summary_output.setReadOnly(True)
@@ -7057,7 +7071,11 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         right_layout.addWidget(canvas, 7)
 
+        # Keep the Chart Data Output header row aligned with the left
+        # popout panel's "Chart Info!" label so both text panels begin on
+        # the same horizontal line.
         summary_controls = QHBoxLayout()
+        summary_controls.setContentsMargins(0, 0, 0, 0)
         summary_controls.addStretch(1)
         summary_sort_label = QLabel("Aspects")
         summary_sort_label.setStyleSheet("font-weight: bold;")
@@ -7067,7 +7085,10 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         summary_sort_combo.setMinimumWidth(140)
         summary_controls.addWidget(summary_sort_label)
         summary_controls.addWidget(summary_sort_combo)
-        right_layout.addLayout(summary_controls)
+        chart_data_header = QWidget()
+        chart_data_header.setLayout(summary_controls)
+        chart_data_header.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        right_layout.addWidget(chart_data_header, 0)
 
         summary_output = ChartDataTableOutput()
         summary_output.setReadOnly(True)
@@ -38675,7 +38696,11 @@ class MainWindow(QMainWindow):
         canvas.draw_idle()
         right_layout.addWidget(canvas, 7)
 
+        # Keep the Chart Data Output header row aligned with the left
+        # popout panel's "Chart Info!" label so both text panels begin on
+        # the same horizontal line.
         summary_controls = QHBoxLayout()
+        summary_controls.setContentsMargins(0, 0, 0, 0)
         summary_controls.addStretch(1)
         summary_sort_label = QLabel("Aspects")
         summary_sort_label.setStyleSheet("font-weight: bold;")
@@ -38685,7 +38710,10 @@ class MainWindow(QMainWindow):
         summary_sort_combo.setMinimumWidth(140)
         summary_controls.addWidget(summary_sort_label)
         summary_controls.addWidget(summary_sort_combo)
-        right_layout.addLayout(summary_controls)
+        chart_data_header = QWidget()
+        chart_data_header.setLayout(summary_controls)
+        chart_data_header.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        right_layout.addWidget(chart_data_header, 0)
 
         summary_output = ChartDataTableOutput()
         summary_output.setReadOnly(True)
