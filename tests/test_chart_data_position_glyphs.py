@@ -7,7 +7,7 @@ if style_stub is None:
     style_stub = ModuleType("ephemeraldaddy.gui.style")
     sys.modules["ephemeraldaddy.gui.style"] = style_stub
 style_stub.CHART_DATA_HIGHLIGHT_COLOR = "#ffffff"
-style_stub.CHART_DATA_DIVIDER = "---------"
+style_stub.CHART_DATA_DIVIDER = ""
 style_stub.ARROW_STYLES = {"classic": "→"}
 style_stub.format_chart_header = lambda _key, *, birth_place, lat, lon: f"Place: {birth_place} | {lat:.4f}, {lon:.4f}"
 style_stub.blend_hex_colors = lambda first, second, ratio=0.5: first
