@@ -6,6 +6,11 @@ APP_SOURCE = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text(encoding="utf-8
 SEARCH_PANEL_SOURCE = (REPO_ROOT / "ephemeraldaddy/gui/dbv_search_panel.py").read_text(encoding="utf-8")
 
 
+def test_search_panel_does_not_import_gui_app_module():
+    assert "from ephemeraldaddy.gui import app" not in SEARCH_PANEL_SOURCE
+    assert "app_module." not in SEARCH_PANEL_SOURCE
+
+
 def test_search_tags_typing_does_not_rebuild_tag_tree_on_each_keystroke():
     handler = APP_SOURCE.split("def _on_search_tags_changed", 1)[1].split(
         "def _refresh_search_tags_list", 1
@@ -54,7 +59,7 @@ def test_right_search_filter_panel_no_longer_owns_top_level_search_inputs():
     assert "window.search_text_input = QLineEdit()" not in panel_prefix
     assert "window.astrotheme_search_input = QLineEdit()" not in panel_prefix
     assert "window.search_tags_input = QLineEdit()" not in panel_prefix
-    assert 'QLabel("Search filters")' in panel_prefix
+    assert 'QLabel("Search Filters")' in panel_prefix
 
 
 def test_middle_panel_search_bar_row_preserves_search_wiring():
