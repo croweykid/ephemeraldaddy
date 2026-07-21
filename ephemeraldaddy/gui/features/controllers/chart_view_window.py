@@ -1714,9 +1714,14 @@ def _install_prediction_header_action(owner: QWidget, section_layout: QVBoxLayou
         return
     button = QToolButton(toggle)
     button.setAutoRaise(True)
-    button.setCursor(Qt.PointingHandCursor)
     button.setFocusPolicy(Qt.NoFocus)
-    button.setStyleSheet("QToolButton { border: none; background: transparent; padding: 0 3px; font-size: 13px; }")
+    button.setFixedSize(28, 22)
+    button.setStyleSheet(
+        "QToolButton { color: #f5f5f5; border: none; background: transparent; "
+        "padding: 0 3px; font-size: 15px; } "
+        "QToolButton:hover { color: #ffffff; background: rgba(255,255,255,0.10); border-radius: 4px; }"
+    )
+    apply_button_cursor(button)
     button.clicked.connect(
         lambda _checked=False, key=section_key: _calculate_prediction_section_from_header(owner, key)
     )
@@ -1742,11 +1747,11 @@ def _set_prediction_header_action(owner: QWidget, section_key: str, state: str) 
     elif state == "recalculate":
         button.setText("♻️")
         button.setEnabled(True)
-        button.setToolTip("Recalculate this Predictions section")
+        button.setToolTip("Recalculate!")
     else:
         button.setText("🧮")
         button.setEnabled(True)
-        button.setToolTip("Calculate this Predictions section")
+        button.setToolTip("Calculate!")
 
 def _build_predictions_panel(owner: QWidget) -> QWidget:
     """Build Predictions tab body widget + layout."""

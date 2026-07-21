@@ -1655,35 +1655,21 @@ def _trait_predictions_refresh_message(updated_at: str | None) -> str:
 
 
 def _traits_calculate_prompt_html() -> str:
-    return (
-        "<div style='width:100%; min-height:120px; padding:24px 0; text-align:center;'>"
-        "<div style='display:inline-block; max-width:100%; color:#f5f5f5; "
-        "font-weight:600; white-space:normal; line-height:1.35; margin-bottom:12px;'>"
-        "No prior data. Calculate (can take awhile)?"
-        "</div>"
-        "<div style='height:10px;'></div>"
-        "<div style='color:#d8c8ff; font-style:italic;'>Use the 🧮 button in this section header to calculate.</div>"
-        "</div>"
-    )
+    return ""
 
 
 def _traits_recalculate_prompt_html(updated_at: str | None) -> str:
-    timestamp = html.escape(updated_at or "unknown")
-    return (
-        "<div style='width:100%; padding:0 0 8px 0; text-align:center; color:#b8b8b8;'>"
-        f"<span style='font-style:italic;'>Cached trait predictions shown. Last calculated: {timestamp}. Use the ♻️ header button to recalculate.</span> "
-        "</div>"
-    )
+    return ""
 
 
 def _traits_stale_recalculate_prompt_html(updated_at: str | None) -> str:
-    timestamp = html.escape(updated_at or "unknown")
-    return (
-        "<div style='width:100%; padding:0 0 8px 0; text-align:center; color:#ffdf8a;'>"
-        "<span style='font-style:italic;'>Cached trait predictions shown, but the chart's birth data "
-        f"has changed since they were calculated ({timestamp}). Use the ♻️ header button to recalculate.</span> "
-        "</div>"
-    )
+    return ""
+
+
+def _set_traits_header_action(owner: Any, state: str) -> None:
+    callback = getattr(owner, "_set_prediction_header_action", None)
+    if callable(callback):
+        callback("traits", state)
 
 
 def _set_traits_header_action(owner: Any, state: str) -> None:
