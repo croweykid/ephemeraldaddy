@@ -733,6 +733,33 @@ def upsert_chart_dnd_prediction_metadata(chart_uid: str, payload: Mapping[str, A
         conn.close()
 
 
+def get_all_chart_dnd_prediction_metadata() -> dict[str, dict[str, Any]]:
+    """Return all persisted Fantasy RPG prediction metadata keyed by chart UID."""
+    conn = _get_conn()
+    conn.row_factory = sqlite3.Row
+    try:
+        _create_dnd_prediction_metadata_table(conn)
+        rows = conn.execute(
+            """
+            SELECT chart_uid, payload
+            FROM chart_dnd_prediction_metadata
+            """
+        ).fetchall()
+        metadata: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            chart_uid = _normalize_chart_uid(str(row["chart_uid"] or ""))
+            if chart_uid is None:
+                continue
+            try:
+                payload = json.loads(str(row["payload"] or "{}"))
+            except json.JSONDecodeError:
+                payload = {}
+            metadata[chart_uid] = payload if isinstance(payload, dict) else {}
+        return metadata
+    finally:
+        conn.close()
+
+
 def get_chart_dnd_prediction_metadata(chart_uid: str) -> dict[str, Any]:
     """Return persisted cached Fantasy RPG prediction metadata for a chart UID."""
     normalized_uid = _normalize_chart_uid(chart_uid)
