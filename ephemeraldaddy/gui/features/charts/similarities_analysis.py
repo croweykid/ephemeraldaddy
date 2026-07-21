@@ -270,6 +270,8 @@ class SimilaritiesBaselineProvider(Protocol):
 
     def _build_common_human_design_gates(self, chart_ids: list[int]) -> list[tuple[str, int, int]]: ...
 
+    def _build_common_human_design_gate_lines(self, chart_ids: list[int]) -> list[tuple[str, int, int]]: ...
+
     def _build_common_human_design_channels(self, chart_ids: list[int]) -> list[tuple[str, int, int]]: ...
 
     def _build_common_human_design_defined_centers(self, chart_ids: list[int]) -> list[tuple[str, int, int]]: ...
@@ -315,6 +317,7 @@ _DISSIMILARITIES_SECTION_ORDER: tuple[str, ...] = (
     "Dominant nakshatras in contrast",
     "Aspects in contrast",
     "Gates in contrast",
+    "Gate Lines in contrast",
     "Channels in contrast",
     "Defined Centers in contrast",
     "Authorities in contrast",
@@ -328,6 +331,7 @@ def _common_section_title_for_contrast(section_title: str) -> str:
     replacements = {
         "Aspects in contrast": "Aspects in common",
         "Gates in contrast": "Gates in common",
+        "Gate Lines in contrast": "Gate Lines in common",
         "Channels in contrast": "Channels in common",
         "Defined Centers in contrast": "Defined Centers in common",
         "Authorities in contrast": "Authorities in common",
@@ -457,6 +461,14 @@ def _build_similarity_factor_counts(
         )
         for gate in sorted(set(hd_gates)):
             add("Gates in contrast", f"Gate {gate}")
+        chart_gate_numbers = {int(gate) for gate in hd_gates if str(gate).strip().isdigit()}
+        for gate, line in sorted(set(getattr(chart, "human_design_gate_lines", ()) or ())):
+            if not (str(gate).strip().isdigit() and str(line).strip().isdigit()):
+                continue
+            gate_num = int(str(gate).strip())
+            line_num = int(str(line).strip())
+            if gate_num in chart_gate_numbers and 1 <= line_num <= 6:
+                add("Gate Lines in contrast", f"{gate_num}.{line_num}")
         normalized_channels: set[str] = set()
         for channel in hd_channels:
             raw = str(channel).strip()
@@ -504,7 +516,18 @@ def build_dissimilarity_export_sections(
         db_section_counts, db_section_totals = db_counts.get(section_title, ({}, {}))
         matches: list[tuple[str, int, int, int, int, str, str]] = []
         selected_total_count = len(selected_chart_ids)
+        common_gate_numbers = {
+            int(label.replace("Gate ", "", 1).strip())
+            for label, gate_count in pair_counts.get("Gates in contrast", ({}, {}))[0].items()
+            if str(label).startswith("Gate ")
+            and str(label).replace("Gate ", "", 1).strip().isdigit()
+            and int(gate_count) == selected_total_count
+        }
         for label, count in sorted(counts.items(), key=lambda item: item[0].lower()):
+            if section_title == "Gate Lines in contrast":
+                gate_text = str(label).split(".", 1)[0]
+                if not gate_text.isdigit() or int(gate_text) not in common_gate_numbers:
+                    continue
             total_count = int(totals.get(label, selected_total_count))
             if (
                 count != 1
@@ -599,6 +622,7 @@ def build_similarity_db_baselines(
         "common_aspects": _match_counts(common_aspects),
         "common_aspects_totals": _match_totals(common_aspects),
         "common_hd_gates": _match_counts(common_hd_aggregates.gates),
+        "common_hd_gate_lines": _match_counts(common_hd_aggregates.gate_lines),
         "common_hd_channels": _match_counts(common_hd_aggregates.channels),
         "common_hd_defined_centers": _match_counts(common_hd_aggregates.defined_centers),
         "common_hd_authorities": _match_counts(common_hd_aggregates.authorities),

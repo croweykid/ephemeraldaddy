@@ -18,6 +18,7 @@ class HumanDesignSharedAggregates:
     """Common Human Design factors computed from one pass over charts."""
 
     gates: SimilarityMatches
+    gate_lines: SimilarityMatches
     channels: SimilarityMatches
     defined_centers: SimilarityMatches
     authorities: SimilarityMatches
@@ -83,9 +84,10 @@ def compute_common_human_design_aggregates(
     chart_list = [chart for chart in charts if chart is not None]
     chart_count = len(chart_list)
     if chart_count < 2:
-        return HumanDesignSharedAggregates([], [], [], [], [])
+        return HumanDesignSharedAggregates([], [], [], [], [], [])
 
     gate_counts: dict[str, int] = {}
+    gate_line_counts: dict[str, int] = {}
     channel_counts: dict[str, int] = {}
     center_counts: dict[str, int] = {}
     authority_counts: dict[str, int] = {}
@@ -94,9 +96,28 @@ def compute_common_human_design_aggregates(
     for chart in chart_list:
         hd_gates, _hd_lines, hd_channels, hd_defined_centers, _hd_type, hd_authority = extract_profile(chart)
 
-        for gate in sorted({int(gate) for gate in hd_gates if str(gate).strip().isdigit()}):
+        chart_gates = {int(gate) for gate in hd_gates if str(gate).strip().isdigit()}
+        for gate in sorted(chart_gates):
             label = f"Gate {gate}"
             gate_counts[label] = gate_counts.get(label, 0) + 1
+
+        chart_gate_lines: set[tuple[int, int]] = set()
+        for item in getattr(chart, "human_design_gate_lines", ()) or ():
+            if isinstance(item, (tuple, list)) and len(item) >= 2:
+                gate, line = item[0], item[1]
+            else:
+                raw = str(item).strip()
+                if "." not in raw:
+                    continue
+                gate, line = raw.split(".", 1)
+            if str(gate).strip().isdigit() and str(line).strip().isdigit():
+                gate_num = int(str(gate).strip())
+                line_num = int(str(line).strip())
+                if 1 <= gate_num <= 64 and 1 <= line_num <= 6:
+                    chart_gate_lines.add((gate_num, line_num))
+        for gate, line in sorted(chart_gate_lines):
+            label = f"{gate}.{line}"
+            gate_line_counts[label] = gate_line_counts.get(label, 0) + 1
 
         for channel in {normalize_human_design_channel(channel) for channel in hd_channels}:
             if channel:
@@ -119,8 +140,16 @@ def compute_common_human_design_aggregates(
         if f"Gate {gate}" in gate_counts
     }
 
+    ordered_gate_line_counts = {
+        f"{gate}.{line}": gate_line_counts[f"{gate}.{line}"]
+        for gate in range(1, 65)
+        for line in range(1, 7)
+        if f"{gate}.{line}" in gate_line_counts
+    }
+
     return HumanDesignSharedAggregates(
         gates=sort_matches(ordered_gate_counts, chart_count),
+        gate_lines=sort_matches(ordered_gate_line_counts, chart_count),
         channels=sort_matches(_ordered_channel_counts(channel_counts), chart_count),
         defined_centers=sort_matches(
             _ordered_known_then_extra_counts(center_counts, defined_center_order), chart_count
