@@ -86,7 +86,7 @@ def add_demo_mode_setting(
     is_enabled: bool,
     on_toggled: Callable[[bool], None],
 ) -> QCheckBox:
-    checkbox = QCheckBox("Demo mode: hide subjective/private notes")
+    checkbox = QCheckBox("Private Mode: hide subjective/private notes") #formerly "demo mode"
     checkbox.setChecked(bool(is_enabled))
     checkbox.setToolTip(
         "When enabled, hides Chart View Observations, Chart Info Notes, and subjective "
