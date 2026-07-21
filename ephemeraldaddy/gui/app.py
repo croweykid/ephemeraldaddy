@@ -39540,7 +39540,7 @@ def main(startup_loading: StartupProgress | QWidget | None = None):
     # app initializes, but avoid repeated focus hacks after startup.
     if isinstance(startup_loading, QWidget):
         logger.debug("Bringing startup loading widget to front.")
-        bring_window_to_front(startup_loading)
+        bring_window_to_front(startup_loading, use_topmost_pulse=False)
     settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
     if _should_run_startup_dependency_check(settings):
         startup_loading.update_status("Checking required dependencies…", 15)
