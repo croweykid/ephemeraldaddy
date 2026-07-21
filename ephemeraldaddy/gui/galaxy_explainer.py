@@ -390,11 +390,12 @@ def show_guide_to_the_galaxy(owner: "QWidget") -> None:
     from PySide6.QtWidgets import (
         QComboBox,
         QDialog,
-        QDialogButtonBox,
+        QFrame,
         QHBoxLayout,
         QLabel,
         QPushButton,
         QTextBrowser,
+        QToolButton,
         QVBoxLayout,
         QWidget,
     )
@@ -505,15 +506,39 @@ def show_guide_to_the_galaxy(owner: "QWidget") -> None:
     dialog.resize(1180, 760)
     layout = QVBoxLayout(dialog)
     layout.addWidget(QLabel("<h1>Guide to the Galaxy</h1>"))
-    subhead = QTextBrowser(dialog)
-    subhead.setOpenExternalLinks(False)
-    subhead.setMaximumHeight(96)
-    subhead.setHtml(
-        "<p><em>This is not astronomy. The two are connected, but astronomy is an empirical, materialist science that has been quite differentiated since at least the 1700s. Astrology is subjective metaphysics and many people would deem it a pseudoscience in the pejorative sense. They do reference many of the same basic tools, but they are not entirely in accord. For instance, the <a href='ephemeraldaddy://help/sidereal-discussion'>sidereal discussion</a>.</em></p>"
-        "<p>You will notice that the model below reflects observed cosmic phenomena from the perspective of Earth (geocentric model), rather than a literal heliocentric model. The broad tradition of astrology predates the concept of heliocentrism, as far as most remaining <a href='ephemeraldaddy://help/heliocentric_astrology'>historical sources</a> indicate. That said, geocentric astrology is not automatically the same claim as 'geocentric physics'. A birth chart is cast from the native’s location on Earth, so geocentric coordinates make practical sense even in a heliocentric solar system.<p>"
-        "<p>Nevertheless, it's worth noting that ancient astrologers usually were not making that modern distinction cleanly. Most probably assumed the geocentric cosmos was physically true, because that was the dominant educated model. This is a significant argument against mainstream adoption of astrology as a viable model for explaining any aspects of reality besides those which emerge out of faith-based and/or subconscious psychological projections.</p>"
-        "<p>Regardless, as far as the developer of this app has been able to personally determine, many aspects of it seem to correlate beyond expected standard deviation reliably enough to warrant further scrutiny, and so I for one am not entirely deterred by its anachronisms. It's possible that some systems function well by using relative rather than absolute observations. I would contend that if there is any validity to astrology, it is only because tropical astrology (specifically) is far more about earthly cycles mapped to celestial patterns rather than the cosmos themselves, a fact which tropical astrologers of any quality acknowledge. The <a href='ephemeraldaddy://help/heliocentric_astrology'>great schism between astrology and astronomy</a> arguably arose out of the distinction that astronomy studied the sky for the sky's sake, whereas in astrology, said cosmos were primarily used as (increasingly symbolic and mythologized) reference points for seasonal shifts, noteworthy impacts on temperature, weather, lighting. From this standpoint, the prior's validity conceivably remains in tact.</p>"
+    intro_pages = (
+        "<p><em>This is not astronomy. The two are connected, but astronomy is an empirical, materialist science that has been quite differentiated since at least the 1700s. Astrology is subjective metaphysics and many people would deem it a pseudoscience in the pejorative sense. They do reference many of the same basic tools, but they are not entirely in accord. For instance, the <a href='ephemeraldaddy://help/sidereal-discussion'>sidereal discussion</a>.</em></p>",
+        "<p>You will notice that the model below reflects observed cosmic phenomena from the perspective of Earth (geocentric model), rather than a literal heliocentric model. The broad tradition of astrology predates the concept of heliocentrism, as far as most remaining <a href='ephemeraldaddy://help/heliocentric_astrology'>historical sources</a> indicate. That said, geocentric astrology is not automatically the same claim as 'geocentric physics'. A birth chart is cast from the native’s location on Earth, so geocentric coordinates make practical sense even in a heliocentric solar system.</p>",
+        "<p>Nevertheless, it's worth noting that ancient astrologers usually were not making that modern distinction cleanly. Most probably assumed the geocentric cosmos was physically true, because that was the dominant educated model. This is a significant argument against mainstream adoption of astrology as a viable model for explaining any aspects of reality besides those which emerge out of faith-based and/or subconscious psychological projections.</p>",
+        "<p>Regardless, as far as the developer of this app has been able to personally determine, many aspects of it seem to correlate beyond expected standard deviation reliably enough to warrant further scrutiny, and so I for one am not entirely deterred by its anachronisms. It's possible that some systems function well by using relative rather than absolute observations. I would contend that if there is any validity to astrology, it is only because tropical astrology (specifically) is far more about earthly cycles mapped to celestial patterns rather than the cosmos themselves, a fact which tropical astrologers of any quality acknowledge. The <a href='ephemeraldaddy://help/heliocentric_astrology'>great schism between astrology and astronomy</a> arguably arose out of the distinction that astronomy studied the sky for the sky's sake, whereas in astrology, said cosmos were primarily used as (increasingly symbolic and mythologized) reference points for seasonal shifts, noteworthy impacts on temperature, weather, lighting. From this standpoint, the prior's validity conceivably remains in tact.</p>",
     )
+    intro_index = {"value": 0}
+    subhead_frame = QFrame(dialog)
+    subhead_frame.setMinimumHeight(146)
+    subhead_layout = QHBoxLayout(subhead_frame)
+    subhead_layout.setContentsMargins(0, 0, 0, 0)
+    previous_intro_button = QToolButton(subhead_frame)
+    previous_intro_button.setText("‹")
+    previous_intro_button.setToolTip("Previous intro paragraph")
+    next_intro_button = QToolButton(subhead_frame)
+    next_intro_button.setText("›")
+    next_intro_button.setToolTip("Next intro paragraph")
+    subhead = QTextBrowser(subhead_frame)
+    subhead.setOpenExternalLinks(False)
+    subhead.setMinimumHeight(146)
+    subhead.setHtml(intro_pages[0])
+    subhead_layout.addWidget(previous_intro_button)
+    subhead_layout.addWidget(subhead, 1)
+    subhead_layout.addWidget(next_intro_button)
+
+    def refresh_intro_page() -> None:
+        subhead.setHtml(intro_pages[intro_index["value"]])
+        previous_intro_button.setEnabled(intro_index["value"] > 0)
+        next_intro_button.setEnabled(intro_index["value"] < len(intro_pages) - 1)
+
+    def move_intro_page(delta: int) -> None:
+        intro_index["value"] = min(max(intro_index["value"] + delta, 0), len(intro_pages) - 1)
+        refresh_intro_page()
 
     def open_subhead_help(url):  # noqa: ANN001
         if url.host() == "help" and url.path().strip("/") in {"sidereal-discussion", "sidereal_discussion"}:
@@ -521,8 +546,11 @@ def show_guide_to_the_galaxy(owner: "QWidget") -> None:
         elif url.host() == "help" and url.path().strip("/") in {"heliocentric-astrology", "heliocentric_astrology"}:
             _show_heliocentric_discussion_help(dialog)
 
+    previous_intro_button.clicked.connect(lambda: move_intro_page(-1))
+    next_intro_button.clicked.connect(lambda: move_intro_page(1))
     subhead.anchorClicked.connect(open_subhead_help)
-    layout.addWidget(subhead)
+    refresh_intro_page()
+    layout.addWidget(subhead_frame)
 
     row = QHBoxLayout()
     controls = QHBoxLayout()
@@ -652,7 +680,4 @@ def show_guide_to_the_galaxy(owner: "QWidget") -> None:
         thread.start()
 
     calculate_button.clicked.connect(refresh_ranges)
-    buttons = QDialogButtonBox(QDialogButtonBox.Close, parent=dialog)
-    buttons.rejected.connect(dialog.reject)
-    layout.addWidget(buttons)
     dialog.show()

@@ -105,18 +105,21 @@ def _bind_menu_action(menu, label: str, window: "QWidget", *handler_names: str) 
     """Attach a menu action to the first available window handler.
 
     This keeps startup resilient across builds where a handler may have moved
-    or been renamed.
+    or been renamed. Actions are created before insertion so menu roles can be
+    disabled up front; on macOS, Qt may otherwise relocate a Settings action
+    into the native application menu before it can be triggered from the
+    Chart View or Database View window_chrome menu.
     """
+    from PySide6.QtGui import QAction
 
     handler = _resolve_menu_handler(window, *handler_names)
-    if handler is None:
-        action = menu.addAction(label)
-        _keep_action_in_window_menu(action)
-        action.setEnabled(False)
-        return
-
-    action = menu.addAction(label, handler)
+    action = QAction(label, menu)
     _keep_action_in_window_menu(action)
+    if handler is None:
+        action.setEnabled(False)
+    else:
+        action.triggered.connect(handler)
+    menu.addAction(action)
 
 
 def _add_settings_action(app_menu, owner: "QWidget") -> None:
@@ -345,14 +348,14 @@ def configure_main_window_chrome(window: "QMainWindow") -> None:
     _bind_menu_action(tools_menu, "🧓 Interpret Astro Age (alpha)", window, "on_interpret_astro_age")
     _bind_menu_action(tools_menu, "🎱 Chart Predictor Quiz (alpha)", window, "on_open_chart_predictor_quiz")
     _bind_menu_action(tools_menu, "🕗 Rectification Engine", window, "_on_retcon_engine")
-    _bind_menu_action(tools_menu, "🔘 Sign Degrees Reference Circle", window, "_on_open_sign_degrees_reference_circle",
-                      "on_open_sign_degrees_reference_circle")
 
     # view_menu = menu_bar.addMenu("View")
     # _bind_menu_action(view_menu, "Chart Analytics", window, "on_show_chart_analytics_panel")
 
     help_menu = menu_bar.addMenu("HALP!")
     help_menu.addAction("Guide to the Galaxy", lambda: show_guide_to_the_galaxy(window))
+    _bind_menu_action(help_menu, "🔘 Sign Degrees Reference Circle", window, "_on_open_sign_degrees_reference_circle",
+                      "on_open_sign_degrees_reference_circle")
     _bind_menu_action(help_menu, "Tutorial", window, "_on_manage_help_overlay", "on_manage_help_overlay", "_toggle_help_overlay")
     _bind_menu_action(help_menu, "About", window, "_show_about_from_onboarding(dialog)")
 
@@ -419,8 +422,6 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
         "_on_menu_open_chart_predictor_quiz",
         "on_open_chart_predictor_quiz",
     )
-    _bind_menu_action(tools_menu, "🔘 Sign Degrees Reference Circle", dialog, "_on_open_sign_degrees_reference_circle",
-                      "on_open_sign_degrees_reference_circle")
 
     view_menu = menu_bar.addMenu("View")
     _bind_menu_action(view_menu, "Database Analytics", dialog, "_show_database_analytics_panel")
@@ -432,8 +433,9 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
 
     help_menu = menu_bar.addMenu("HALP!")
     help_menu.addAction("Guide to the Galaxy", lambda: show_guide_to_the_galaxy(dialog))
+    _bind_menu_action(help_menu, "🔘 Sign Degrees Reference Circle", dialog, "_on_open_sign_degrees_reference_circle",
+                      "on_open_sign_degrees_reference_circle")
     _bind_menu_action(help_menu, "HALP!", dialog, "_on_manage_help_overlay", "on_manage_help_overlay")
-    #_bind_menu_action(help_menu, "Sign Degrees Reference Circle", dialog, "_on_open_sign_degrees_reference_circle", "on_open_sign_degrees_reference_circle")
     help_menu.addAction("About", lambda: _show_about_from_onboarding(dialog))
 
     layout.setMenuBar(menu_bar)
