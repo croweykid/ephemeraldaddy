@@ -6,6 +6,31 @@ APP_SOURCE = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text(encoding="utf-8
 SEARCH_PANEL_SOURCE = (REPO_ROOT / "ephemeraldaddy/gui/dbv_search_panel.py").read_text(encoding="utf-8")
 
 
+def test_search_panel_does_not_import_gui_app_module():
+    assert "from ephemeraldaddy.gui import app" not in SEARCH_PANEL_SOURCE
+    assert "app_module." not in SEARCH_PANEL_SOURCE
+
+
+def test_search_tag_helpers_can_short_circuit_without_qt_imports():
+    from ephemeraldaddy.gui.dbv_search_panel import (
+        refresh_search_tags_list,
+        sync_search_tags_list_selection,
+    )
+
+    class MissingTreeWindow:
+        pass
+
+    class CollapsedToggle:
+        def isChecked(self):
+            return False
+
+    class CollapsedWindow:
+        search_tags_toggle = CollapsedToggle()
+
+    refresh_search_tags_list(MissingTreeWindow(), [])
+    sync_search_tags_list_selection(CollapsedWindow(), set())
+
+
 def test_search_tags_typing_does_not_rebuild_tag_tree_on_each_keystroke():
     handler = APP_SOURCE.split("def _on_search_tags_changed", 1)[1].split(
         "def _refresh_search_tags_list", 1
@@ -19,8 +44,9 @@ def test_search_tags_selection_sync_respects_collapsed_tag_tree():
         "def on_search_tag_logic_changed", 1
     )[0]
     assert "search_tags_toggle" in helper
-    assert "not search_tags_toggle.isChecked()" in helper
-    assert "return" in helper.split("not search_tags_toggle.isChecked()", 1)[1]
+    assert 'getattr(search_tags_toggle, "isChecked", None)' in helper
+    assert "callable(is_checked) and not is_checked()" in helper
+    assert "return" in helper.split("callable(is_checked) and not is_checked()", 1)[1]
 
 
 def test_search_tags_selection_sync_suppresses_per_checkbox_filter_signals():
@@ -54,7 +80,7 @@ def test_right_search_filter_panel_no_longer_owns_top_level_search_inputs():
     assert "window.search_text_input = QLineEdit()" not in panel_prefix
     assert "window.astrotheme_search_input = QLineEdit()" not in panel_prefix
     assert "window.search_tags_input = QLineEdit()" not in panel_prefix
-    assert 'QLabel("Search filters")' in panel_prefix
+    assert 'QLabel("Search Filters")' in panel_prefix
 
 
 def test_middle_panel_search_bar_row_preserves_search_wiring():
