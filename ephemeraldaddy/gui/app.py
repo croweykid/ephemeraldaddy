@@ -963,9 +963,14 @@ from ephemeraldaddy.gui.dbv_search_panel import (
     body_dynamics_filters_are_active,
     build_dbv_search_bar_row,
     build_dbv_search_panel,
+    build_birthdate_filter_date,
+    cached_top_three_species_for_filter,
     chart_matches_body_dynamics_filters,
     collect_search_tag_filter_sets,
     collect_search_trait_filter_sets,
+    dnd_species_class_payload_for_chart,
+    dominant_enneagram_types_for_search,
+    focus_database_search_input,
     has_active_search_tag_filters,
     chart_matches_trait_filters,
     on_search_tag_category_logic_changed,
@@ -975,6 +980,8 @@ from ephemeraldaddy.gui.dbv_search_panel import (
     on_search_tag_mode_changed,
     refresh_tag_catalog_for_added_tags,
     refresh_search_tags_list,
+    matched_expectations_value_for_chart,
+    parse_year_first_encountered_text,
     tag_completer_revision_from_rows,
     tag_completer_tags_for_session,
     update_search_location_completers,
@@ -3105,18 +3112,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
 
 
     def _focus_database_search_input(self) -> None:
-        """Move keyboard focus to Database View's chart search field."""
-        search_input = getattr(self, "search_text_input", None)
-        if not isinstance(search_input, QLineEdit):
-            return
-        search_panel_button = getattr(self, "search_panel_button", None)
-        if search_panel_button is not None and hasattr(search_panel_button, "setChecked"):
-            search_panel_button.setChecked(True)
-        show_search_panel = getattr(self, "_show_search_database_panel", None)
-        if callable(show_search_panel):
-            show_search_panel()
-        search_input.setFocus(Qt.ShortcutFocusReason)
-        search_input.selectAll()
+        focus_database_search_input(self)
 
     # Database & Selection Analysis Panel (left sidebar).
     #export chart function:
@@ -14655,42 +14651,11 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
 
     @staticmethod
     def _dominant_enneagram_types_for_search(chart: Chart | None) -> set[int]:
-        if chart is None:
-            return set()
-        weights = getattr(chart, "enneagram_type_weights", None)
-        numeric_weights: dict[int, float] = {}
-        if isinstance(weights, dict):
-            for raw_type, raw_weight in weights.items():
-                try:
-                    enneagram_type = int(raw_type)
-                    weight = float(raw_weight)
-                except (TypeError, ValueError):
-                    continue
-                if 1 <= enneagram_type <= 9:
-                    numeric_weights[enneagram_type] = weight
-        if numeric_weights:
-            max_weight = max(numeric_weights.values())
-            return {
-                enneagram_type
-                for enneagram_type, weight in numeric_weights.items()
-                if weight == max_weight
-            }
-        try:
-            dominant_type = int(getattr(chart, "dominant_enneagram_type", 0) or 0)
-        except (TypeError, ValueError):
-            return set()
-        return {dominant_type} if 1 <= dominant_type <= 9 else set()
+        return dominant_enneagram_types_for_search(chart)
 
     @staticmethod
     def _matched_expectations_value_for_chart(chart: Chart | None) -> int:
-        if chart is None:
-            return 0
-        raw_value = getattr(chart, "matched_expectations", 0)
-        try:
-            parsed_value = int(raw_value) if raw_value is not None else 0
-        except (TypeError, ValueError):
-            parsed_value = 0
-        return max(-10, min(10, parsed_value))
+        return matched_expectations_value_for_chart(chart)
 
     def _set_batch_alignment_state(self, items: list[tuple[int, Chart]]) -> None:
         if not items:
@@ -14759,27 +14724,16 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         year: int | None,
         is_latest: bool,
     ) -> datetime.date | None:
-        if month is None and day is None and year is None:
-            return None
-        resolved_year = int(year) if year is not None else (9999 if is_latest else 1)
-        resolved_month = int(month) if month is not None else (12 if is_latest else 1)
-        if day is not None:
-            resolved_day = int(day)
-        else:
-            resolved_day = calendar.monthrange(resolved_year, resolved_month)[1] if is_latest else 1
-        try:
-            return datetime.date(resolved_year, resolved_month, resolved_day)
-        except ValueError:
-            return None
+        return build_birthdate_filter_date(
+            month=month,
+            day=day,
+            year=year,
+            is_latest=is_latest,
+        )
 
     @staticmethod
     def _parse_year_first_encountered_text(raw_value: str | None) -> int | None:
-        value = (raw_value or "").strip()
-        if value == "":
-            return None
-        if value.isdigit():
-            return int(value)
-        return None
+        return parse_year_first_encountered_text(raw_value)
 
     def _apply_location_completer(self, line_edit: QLineEdit | None, choices: list[str]) -> None:
         apply_search_location_completer(self, line_edit, choices)
@@ -19844,36 +19798,10 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         self._on_selection_changed(sync_persistent_selection=False)
 
     def _dnd_species_class_payload_for_chart(self, chart) -> dict[str, Any]:
-        """Return the appwide Fantasy RPG species/class cache for a chart.
-
-        Chart View, Database Analytics, and Database View Search all route
-        through the prediction adapter so stale persisted species/subspecies
-        payloads are version/key checked in one place before being reused.
-        """
-        try:
-            return self._dnd_prediction_adapter().cache_species_class_metadata(chart)
-        except Exception:
-            logger.exception(
-                "Failed to refresh Fantasy RPG species/class cache for chart UID %s.",
-                getattr(chart, "chart_uid", None) or getattr(chart, "uid", None),
-            )
-            return {}
+        return dnd_species_class_payload_for_chart(self, chart)
 
     def _cached_top_three_species_for_filter(self, chart) -> list[tuple[str, str]]:
-        """Return Top 3 Species/Subspecies from the shared appwide cache."""
-        payload = self._dnd_species_class_payload_for_chart(chart)
-        species_payloads = payload.get("species") if isinstance(payload, dict) else None
-        if not isinstance(species_payloads, list):
-            return []
-        top_three: list[tuple[str, str]] = []
-        for entry in species_payloads[:3]:
-            if not isinstance(entry, dict):
-                continue
-            family = str(entry.get("family", "") or "").strip()
-            subtype = str(entry.get("subtype", "") or "").strip()
-            if family:
-                top_three.append((family, subtype))
-        return top_three
+        return cached_top_three_species_for_filter(self, chart)
 
     def _chart_matches_filters(self, chart_id: int) -> bool:
         incomplete_birthdate_state = self.incomplete_birthdate_checkbox.mode()
@@ -34004,12 +33932,7 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def _parse_year_first_encountered_text(raw_value: str | None) -> int | None:
-        value = (raw_value or "").strip()
-        if value == "":
-            return None
-        if value.isdigit():
-            return int(value)
-        return None
+        return parse_year_first_encountered_text(raw_value)
 
     def _on_deceased_toggled(self, checked: bool) -> None:
         if hasattr(self, "death_row_widget"):
@@ -35217,42 +35140,11 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def _dominant_enneagram_types_for_search(chart: Chart | None) -> set[int]:
-        if chart is None:
-            return set()
-        weights = getattr(chart, "enneagram_type_weights", None)
-        numeric_weights: dict[int, float] = {}
-        if isinstance(weights, dict):
-            for raw_type, raw_weight in weights.items():
-                try:
-                    enneagram_type = int(raw_type)
-                    weight = float(raw_weight)
-                except (TypeError, ValueError):
-                    continue
-                if 1 <= enneagram_type <= 9:
-                    numeric_weights[enneagram_type] = weight
-        if numeric_weights:
-            max_weight = max(numeric_weights.values())
-            return {
-                enneagram_type
-                for enneagram_type, weight in numeric_weights.items()
-                if weight == max_weight
-            }
-        try:
-            dominant_type = int(getattr(chart, "dominant_enneagram_type", 0) or 0)
-        except (TypeError, ValueError):
-            return set()
-        return {dominant_type} if 1 <= dominant_type <= 9 else set()
+        return dominant_enneagram_types_for_search(chart)
 
     @staticmethod
     def _matched_expectations_value_for_chart(chart: Chart | None) -> int:
-        if chart is None:
-            return 0
-        raw_value = getattr(chart, "matched_expectations", 0)
-        try:
-            parsed_value = int(raw_value) if raw_value is not None else 0
-        except (TypeError, ValueError):
-            parsed_value = 0
-        return max(-10, min(10, parsed_value))
+        return matched_expectations_value_for_chart(chart)
 
     def load_chart_by_id(
         self,
