@@ -58,6 +58,49 @@ def update_main_window_title(window: "QMainWindow") -> None:
     window.setWindowTitle(f"{APP_DISPLAY_NAME} | Natal Chart of {chart_name}")
 
 
+def _resolve_menu_handler(window: "QWidget", *handler_names: str) -> Callable[..., Any] | None:
+    """Return the first callable handler available on a menu owner.
+
+    Database View keeps a logical app owner separately from Qt parentage, so
+    window-chrome actions should also consider that owner before disabling a
+    menu item. This keeps shared app actions, including Settings, reachable
+    from both top-level windows.
+    """
+
+    candidates: list[Any] = [window]
+    owner = getattr(window, "_app_owner", None)
+    if owner is not None:
+        candidates.append(owner)
+    owner_method = getattr(window, "_owner_window", None)
+    if callable(owner_method):
+        try:
+            resolved_owner = owner_method()
+        except Exception:
+            resolved_owner = None
+        if resolved_owner is not None and resolved_owner not in candidates:
+            candidates.append(resolved_owner)
+
+    for candidate_owner in candidates:
+        for name in handler_names:
+            candidate = getattr(candidate_owner, name, None)
+            if callable(candidate):
+                return candidate
+    return None
+
+
+def _keep_action_in_window_menu(action) -> None:
+    """Keep actions in our window_chrome menus instead of macOS app menus."""
+    menu_role = getattr(action, "setMenuRole", None)
+    if not callable(menu_role):
+        return
+    no_role = getattr(action, "NoRole", None)
+    if no_role is None:
+        menu_role_enum = getattr(action, "MenuRole", None)
+        no_role = getattr(menu_role_enum, "NoRole", None)
+    if no_role is not None:
+        menu_role(no_role)
+
+
 def _bind_menu_action(menu, label: str, window: "QWidget", *handler_names: str) -> None:
     """Attach a menu action to the first available window handler.
 
@@ -65,39 +108,36 @@ def _bind_menu_action(menu, label: str, window: "QWidget", *handler_names: str) 
     or been renamed.
     """
 
-    handler: Callable[..., Any] | None = None
-    for name in handler_names:
-        candidate = getattr(window, name, None)
-        if callable(candidate):
-            handler = candidate
-            break
-
+    handler = _resolve_menu_handler(window, *handler_names)
     if handler is None:
         action = menu.addAction(label)
+        _keep_action_in_window_menu(action)
         action.setEnabled(False)
         return
 
-    menu.addAction(label, handler)
+    action = menu.addAction(label, handler)
+    _keep_action_in_window_menu(action)
 
 
-def _add_preferences_submenu(app_menu, owner: "QWidget") -> None:
-    """Attach the Preferences submenu and known preference actions."""
-    preferences_menu = app_menu.addMenu("Preferences")
-    _bind_menu_action(
-        preferences_menu,
-        "Settings",
-        owner,
-        "_on_open_settings",
-        "on_open_settings",
-    )
+def _add_settings_action(app_menu, owner: "QWidget") -> None:
+    """Attach Settings directly under Ephemeral Daddy in window_chrome menus."""
+    _bind_menu_action(app_menu, "Settings", owner, "_on_open_settings", "on_open_settings")
 
 
 def _configure_menu_bar_visibility(menu_bar) -> None:
-    """Prefer native menu positioning; allow opt-in in-window menu bars on macOS."""
+    """Keep Terminal-launched macOS builds from hiding window_chrome menus.
+
+    Qt's native macOS menu integration can relocate actions named Settings,
+    Preferences, About, and Exit into the process application menu (often
+    labeled "Python" when launched from Terminal). Database View and Chart View
+    both expose their own window_chrome menu headed by APP_DISPLAY_NAME, so
+    development/Terminal launches default to an in-window menu bar unless the
+    native menu bar is explicitly requested.
+    """
     if (
         sys.platform == "darwin"
         and not getattr(sys, "frozen", False)
-        and os.environ.get("EPHEMERALDADDY_FORCE_IN_WINDOW_MENUBAR") == "1"
+        and os.environ.get("EPHEMERALDADDY_USE_NATIVE_MENUBAR") != "1"
     ):
         menu_bar.setNativeMenuBar(False)
 
@@ -264,12 +304,11 @@ def configure_main_window_chrome(window: "QMainWindow") -> None:
     menu_bar.clear()
 
     app_menu = menu_bar.addMenu(APP_DISPLAY_NAME)
-    _bind_menu_action(app_menu, "Settings", window, "_on_open_settings", "on_open_settings")
-    _add_preferences_submenu(app_menu, window)
-    app_menu.addAction("About", lambda: _show_about_from_onboarding(window))
-    app_menu.addAction("Minimize", lambda: _minimize_window(window))
+    _add_settings_action(app_menu, window)
+    _keep_action_in_window_menu(app_menu.addAction("About", lambda: _show_about_from_onboarding(window)))
+    _keep_action_in_window_menu(app_menu.addAction("Minimize", lambda: _minimize_window(window)))
     app_menu.addSeparator()
-    app_menu.addAction(f"Exit", _quit_application)
+    _keep_action_in_window_menu(app_menu.addAction(f"Exit", _quit_application))
 
     chart_menu = menu_bar.addMenu("Charts") #note: chart_menu is "Chart View"'s version of Database Views charts_menu
     _bind_menu_action(chart_menu, "New Chart", window, "on_new_chart")
@@ -328,11 +367,10 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
     menu_bar.setStyleSheet(WINDOW_CHROME_MENU_STYLE)
 
     app_menu = menu_bar.addMenu(APP_DISPLAY_NAME)
-    _bind_menu_action(app_menu, "Settings", dialog, "_on_open_settings", "on_open_settings")
-    _add_preferences_submenu(app_menu, dialog)
-    app_menu.addAction("Minimize", lambda: _minimize_window(dialog))
+    _add_settings_action(app_menu, dialog)
+    _keep_action_in_window_menu(app_menu.addAction("Minimize", lambda: _minimize_window(dialog)))
     app_menu.addSeparator()
-    app_menu.addAction(f"Exit", _quit_application)
+    _keep_action_in_window_menu(app_menu.addAction(f"Exit", _quit_application))
 
     file_menu = menu_bar.addMenu("Database")
     import_menu = file_menu.addMenu("Import from CSV")
