@@ -8703,6 +8703,17 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             elif section_title == "Gates in common":
                 hd_gates, _hd_lines, _hd_channels, _hd_centers, _hd_type, _hd_authority = self._extract_human_design_profile(chart)
                 include = label.startswith("Gate ") and label.replace("Gate ", "").isdigit() and int(label.replace("Gate ", "")) in set(hd_gates)
+            elif section_title == "Gate Lines in common":
+                self._extract_human_design_profile(chart)
+                gate_line_parts = label.split(".", 1)
+                if len(gate_line_parts) == 2 and all(part.strip().isdigit() for part in gate_line_parts):
+                    gate_num, line_num = (
+                        int(gate_line_parts[0].strip()),
+                        int(gate_line_parts[1].strip()),
+                    )
+                    include = (gate_num, line_num) in set(
+                        getattr(chart, "human_design_gate_lines", ()) or ()
+                    )
             elif section_title == "Channels in common":
                 _hd_gates, _hd_lines, hd_channels, _hd_centers, _hd_type, _hd_authority = self._extract_human_design_profile(chart)
                 normalized_channels: set[str] = set()
