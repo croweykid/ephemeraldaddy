@@ -241,6 +241,13 @@ def parse_similarity_info_target(section_title: str, label: str) -> str | None:
         if gate_token.isdigit():
             return f"gate:{int(gate_token)}"
 
+    if section_key in {"gate lines in common", "gate lines in contrast"}:
+        parts = normalized_label.split(".", 1)
+        if len(parts) == 2 and all(part.strip().isdigit() for part in parts):
+            gate_num, line_num = int(parts[0].strip()), int(parts[1].strip())
+            if 1 <= gate_num <= 64 and 1 <= line_num <= 6:
+                return f"gate_line:{gate_num}.{line_num}"
+
     if section_key == "channels in contrast":
         channel_token = normalized_label.strip()
         parts = channel_token.split("-")

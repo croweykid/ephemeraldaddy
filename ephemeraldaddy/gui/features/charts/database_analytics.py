@@ -2305,6 +2305,20 @@ class DatabaseAnalyticsChartsMixin:
                 hd_result = build_human_design_result(chart)
             except Exception:
                 hd_result = None
+            hd_gate_lines = sorted(
+                {
+                    (int(activation.gate), int(activation.line))
+                    for activation in (
+                        (
+                            *getattr(hd_result, "personality_activations", ()),
+                            *getattr(hd_result, "design_activations", ()),
+                        )
+                        if hd_result is not None
+                        else ()
+                    )
+                    if 1 <= int(activation.gate) <= 64 and 1 <= int(activation.line) <= 6
+                }
+            )
             hd_defined_centers = sorted(
                 {
                     str(center).strip()
@@ -2320,6 +2334,7 @@ class DatabaseAnalyticsChartsMixin:
             )
             chart.human_design_gates = list(hd_gates)
             chart.human_design_lines = list(hd_lines)
+            chart.human_design_gate_lines = list(hd_gate_lines)
             chart.human_design_channels = list(hd_channels)
             chart.human_design_defined_centers = list(hd_defined_centers)
             if hd_type:
@@ -2350,6 +2365,21 @@ class DatabaseAnalyticsChartsMixin:
             for line in (getattr(chart, "human_design_lines", []) or [])
             if isinstance(line, int) and 1 <= int(line) <= 6
         ]
+        hd_gate_lines = []
+        for item in getattr(chart, "human_design_gate_lines", []) or []:
+            if isinstance(item, (tuple, list)) and len(item) >= 2:
+                gate, line = item[0], item[1]
+            else:
+                raw = str(item).strip()
+                if "." not in raw:
+                    continue
+                gate, line = raw.split(".", 1)
+            if str(gate).strip().isdigit() and str(line).strip().isdigit():
+                gate_num = int(str(gate).strip())
+                line_num = int(str(line).strip())
+                if 1 <= gate_num <= 64 and 1 <= line_num <= 6:
+                    hd_gate_lines.append((gate_num, line_num))
+        chart.human_design_gate_lines = sorted(set(hd_gate_lines))
         hd_channels = [
             str(channel)
             for channel in (getattr(chart, "human_design_channels", []) or [])
