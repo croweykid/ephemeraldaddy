@@ -1596,21 +1596,6 @@ class DndPredictionPanelAdapter:
         if callable(self.reset_canvas_callback):
             canvas_attr = "dnd_prediction_alignment_canvas" if section == "dnd_alignment" else "dnd_prediction_statblock_canvas"
             self.reset_canvas_callback(canvas_attr)
-        panel = QWidget()
-        panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
-        panel_layout = QVBoxLayout()
-        panel_layout.setContentsMargins(12, 18, 12, 18)
-        panel_layout.setSpacing(10)
-        panel_layout.setAlignment(Qt.AlignCenter)
-        panel.setLayout(panel_layout)
-        label = QLabel("No prior data. Calculate (can take awhile)?")
-        label.setAlignment(Qt.AlignCenter)
-        label.setWordWrap(True)
-        label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
-        label.setMinimumHeight(label.sizeHint().height())
-        label.setStyleSheet("color: #f5f5f5; font-weight: 600;")
-        panel_layout.addWidget(label, alignment=Qt.AlignCenter)
-        target_layout.addWidget(panel)
 
     def _norm_charts(self) -> Any:
         if self.norm_charts_provider is None:
@@ -2097,26 +2082,6 @@ class DndPredictionPanelAdapter:
         if layout is None:
             return
         self._remove_stale_recalculate_notices(layout)
-        panel = QWidget()
-        panel.setProperty("dnd_stale_recalculate_notice", True)
-        panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
-        panel_layout = QVBoxLayout()
-        panel_layout.setContentsMargins(0, 0, 0, 6)
-        panel_layout.setSpacing(4)
-        panel.setLayout(panel_layout)
-        label_text = (
-            "Cached results shown; automatic refresh is running in the background."
-            if refreshing
-            else "Cached results shown; chart data or DB norms may have changed."
-        )
-        label = QLabel(label_text)
-        label.setWordWrap(True)
-        label.setStyleSheet("color: #d8d8d8; font-style: italic; padding: 2px 0 0 0;")
-        panel_layout.addWidget(label, alignment=Qt.AlignCenter)
-        try:
-            layout.insertWidget(0, panel)
-        except Exception:
-            layout.addWidget(panel)
 
     def _show_species_class_stale_recalculate_notices(self, chart: Any, *, refreshing: bool = False) -> None:
         """Show explicit recalc controls for stale Fantasy RPG Species and Class summaries."""

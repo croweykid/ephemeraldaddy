@@ -1655,35 +1655,15 @@ def _trait_predictions_refresh_message(updated_at: str | None) -> str:
 
 
 def _traits_calculate_prompt_html() -> str:
-    return (
-        "<div style='width:100%; min-height:120px; padding:24px 0; text-align:center;'>"
-        "<div style='display:inline-block; max-width:100%; color:#f5f5f5; "
-        "font-weight:600; white-space:normal; line-height:1.35; margin-bottom:12px;'>"
-        "No prior data. Calculate (can take awhile)?"
-        "</div>"
-        "<div style='height:10px;'></div>"
-        "<div style='color:#d8c8ff; font-style:italic;'>Use the 🧮 button in this section header to calculate.</div>"
-        "</div>"
-    )
+    return ""
 
 
 def _traits_recalculate_prompt_html(updated_at: str | None) -> str:
-    timestamp = html.escape(updated_at or "unknown")
-    return (
-        "<div style='width:100%; padding:0 0 8px 0; text-align:center; color:#b8b8b8;'>"
-        f"<span style='font-style:italic;'>Cached trait predictions shown. Last calculated: {timestamp}. Use the ♻️ header button to recalculate.</span> "
-        "</div>"
-    )
+    return ""
 
 
 def _traits_stale_recalculate_prompt_html(updated_at: str | None) -> str:
-    timestamp = html.escape(updated_at or "unknown")
-    return (
-        "<div style='width:100%; padding:0 0 8px 0; text-align:center; color:#ffdf8a;'>"
-        "<span style='font-style:italic;'>Cached trait predictions shown, but the chart's birth data "
-        f"has changed since they were calculated ({timestamp}). Use the ♻️ header button to recalculate.</span> "
-        "</div>"
-    )
+    return ""
 
 
 def _set_traits_header_action(owner: Any, state: str) -> None:
@@ -1973,11 +1953,16 @@ def _apply_traits_prediction_view(owner: Any, above_html: str, below_html: str, 
     label = getattr(owner, "traits_prediction_label", None)
     if isinstance(label, QLabel):
         stop_prediction_loading_blink(label)
-        label.setText(_current_traits_prediction_html(owner) or "Trait predictions unavailable for this chart.")
-        # Cached trait rows hide the label while the table carries the content.
-        # A later chart may have no cached metadata yet and must reveal this
-        # label again so the manual Calculate/Recalculate prompt is visible.
-        label.setVisible(True)
+        current_html = _current_traits_prediction_html(owner)
+        if current_html:
+            label.setText(current_html)
+            label.setVisible(True)
+        else:
+            # Empty content is a valid actionable no-cache/manual state now that
+            # calculation lives in the section header button. Do not substitute
+            # the old unavailable fallback for a calculable chart.
+            label.setText("")
+            label.setVisible(False)
         label.adjustSize()
         label.setMinimumHeight(label.sizeHint().height())
 
