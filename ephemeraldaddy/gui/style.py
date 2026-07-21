@@ -183,6 +183,10 @@ FONT_SIZE_SMALL = 11
 FONT_SIZE_BODY = 13
 FONT_SIZE_HEADER = 15
 
+# Appwide body-copy measure. Use this for explanatory prose so text blocks
+# remain readable regardless of the containing panel width.
+APPWIDE_BODY_TEXT_MAX_LINE_CHARS = 70
+
 # Backward-compatible aliases for existing code paths while the UI migrates to
 # the token names above.
 APPWIDE_TEXT_INPUT_BACKGROUND_COLOR = COLOR_BG_INPUT
