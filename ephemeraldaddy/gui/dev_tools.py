@@ -1403,6 +1403,7 @@ class ManageMetadataLabelsDialog(QDialog):
         lock_field: bool = False,
         window_title: str = "Property Manager",
         intro_text: str = "Current + legacy labels found in database (including unused/orphaned).",
+        show_close_button: bool = True,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(window_title)
@@ -1532,8 +1533,9 @@ QComboBox QAbstractItemView {
         self._remove_selected_button.clicked.connect(self._remove_selected_from_collection)
         # refresh_button = QPushButton("Refresh")
         # refresh_button.clicked.connect(self._reload_usage)
-        self._close_button = QPushButton("Close")
-        self._close_button.clicked.connect(self.accept)
+        close_button = QPushButton("Close") if show_close_button else None
+        if close_button is not None:
+            close_button.clicked.connect(self.accept)
 
         button_row.addWidget(self._rename_button)
         button_row.addWidget(self._delete_button)
@@ -1543,7 +1545,8 @@ QComboBox QAbstractItemView {
         button_row.addWidget(self._remove_selected_button)
         button_row.addStretch(1)
         #button_row.addWidget(refresh_button)
-        button_row.addWidget(self._close_button)
+        if close_button is not None:
+            button_row.addWidget(close_button)
         layout.addLayout(button_row)
 
         # Defer loading so the dialog can render immediately before DB work runs.
