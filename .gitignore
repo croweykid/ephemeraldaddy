@@ -32,3 +32,5 @@ ephemeraldaddy/graphics/.DS_Store
 ephemeraldaddy/gui/.DS_Store
 .DS_Store
 ephemeraldaddy/.DS_Store
+.logs/startup-20260721-100812.log
+/.logs
