@@ -39091,6 +39091,11 @@ def main(startup_loading: StartupProgress | QWidget | None = None):
     _configure_matplotlib_info_marker_font()
 
     app = _get_qapp()
+    # Database View is a separate top-level dialog while Chart View is hidden at
+    # launch.  Keep the event loop alive until the explicit app-exit path runs so
+    # a transiently hidden/closed startup widget cannot make app.exec() return
+    # without a traceback.
+    app.setQuitOnLastWindowClosed(False)
     if startup_loading is None:
         startup_loading = StartupLoadingWidget()
         startup_loading.show()
