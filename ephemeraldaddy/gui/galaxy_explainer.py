@@ -588,7 +588,7 @@ def show_guide_to_the_galaxy(owner: "QWidget") -> None:
             except Exception as exc:  # defensive UI boundary for optional ephemeris data
                 self.finished.emit(self._body, self._sign, (), exc)
 
-    range_job: dict[str, object | None] = {"thread": None, "worker": None}
+    range_job: dict[str, object | None] = {"thread": None, "worker": None, "relay": None}
     dialog_alive = {"value": True}
 
     def _mark_dialog_closed() -> None:
@@ -599,6 +599,7 @@ def show_guide_to_the_galaxy(owner: "QWidget") -> None:
     def _finish_range_job(thread: QThread, worker: SignRangeWorker) -> None:
         range_job["thread"] = None
         range_job["worker"] = None
+        range_job["relay"] = None
 
         def forget_job() -> None:
             _ACTIVE_RANGE_JOBS.discard((thread, worker))
@@ -635,8 +636,19 @@ def show_guide_to_the_galaxy(owner: "QWidget") -> None:
                     dialog_alive["value"] = False
             _finish_range_job(thread, worker)
 
+        class RangeResultRelay(QObject):
+            @Slot(str, str, object, object)
+            def deliver(self, done_body: str, done_sign: str, ranges: object, error: object) -> None:
+                handle_finished(done_body, done_sign, ranges, error)
+
+        relay = RangeResultRelay(dialog)
+        range_job["relay"] = relay
+
         thread.started.connect(worker.run)
-        worker.finished.connect(handle_finished)
+        # Connect through a main-thread QObject.  A Python closure has no QObject
+        # thread affinity, so PySide may invoke it in the worker thread; touching
+        # QTextBrowser from there can segfault Qt while it lays out/paints text.
+        worker.finished.connect(relay.deliver, Qt.QueuedConnection)
         thread.start()
 
     calculate_button.clicked.connect(refresh_ranges)
