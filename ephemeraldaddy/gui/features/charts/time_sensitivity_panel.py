@@ -1472,17 +1472,26 @@ class TimeSensitivityPanel(QWidget):
             nonlocal adjusting_browser_height
             if adjusting_browser_height:
                 return
+            try:
+                if browser.parentWidget() is None:
+                    return
+            except RuntimeError:
+                return
             adjusting_browser_height = True
-            document = browser.document()
-            text_width = max(1, browser.viewport().width())
-            if int(document.textWidth()) != text_width:
-                document.setTextWidth(text_width)
-            document.adjustSize()
-            height = int(document.size().height()) + 18
-            fixed_height = max(min_height, min(max_height, height))
-            if browser.height() != fixed_height:
-                browser.setFixedHeight(fixed_height)
-            adjusting_browser_height = False
+            try:
+                document = browser.document()
+                text_width = max(1, browser.viewport().width())
+                if int(document.textWidth()) != text_width:
+                    document.setTextWidth(text_width)
+                document.adjustSize()
+                height = int(document.size().height()) + 18
+                fixed_height = max(min_height, min(max_height, height))
+                if browser.height() != fixed_height:
+                    browser.setFixedHeight(fixed_height)
+            except RuntimeError:
+                return
+            finally:
+                adjusting_browser_height = False
 
         def schedule_browser_height_adjustments() -> None:
             # QTextDocument wrapping depends on the QTextBrowser viewport width,

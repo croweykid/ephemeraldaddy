@@ -31,5 +31,9 @@ def test_time_sensitivity_html_sections_remeasure_browser_after_expansion():
 
     assert "from PySide6.QtCore import Qt, QTimer, QUrl" in TIME_SENSITIVITY_SOURCE
     assert "def schedule_browser_height_adjustments" in method
+    assert "if browser.parentWidget() is None:" in method
+    assert "except RuntimeError:" in method
+    assert "finally:" in method
+    assert "adjusting_browser_height = False" in method
     assert "for delay_ms in (0, 50, 150, 300):" in method
     assert "QTimer.singleShot(delay_ms, adjust_browser_height)" in method
