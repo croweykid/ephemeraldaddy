@@ -27884,10 +27884,9 @@ class MainWindow(QMainWindow):
                 "</span>"
             )
             chart_uid = str(getattr(match, "chart_uid", "") or "").strip() or str(get_chart_uid(int(match.chart_id)) or "").strip()
-            chart_identity_label = chart_uid or "UID unavailable"
             match_blocks.append(
                 (
-                    f'{rank_label} {chart_identity_label} — <a href="{match.chart_id}">{display_name}</a> '
+                    f'{rank_label} <a href="{match.chart_id}">{display_name}</a> '
                     f'<a href="{make_similar_info_target(info_link_prefix="sim-info:panel", chart_id=int(match.chart_id))}">ⓘ</a>'
                     f'{display_note}<br>'
                     f'Similarity <span style="color: {band_color}; font-weight: 600;">'
