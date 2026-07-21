@@ -109,7 +109,7 @@ from ephemeraldaddy.gui.style import (
 
 
 DND_STAT_KEYS: tuple[str, ...] = ("STR", "DEX", "CON", "INT", "WIS", "CHA")
-DND_SPECIES_CLASS_CACHE_VERSION = 3
+DND_SPECIES_CLASS_CACHE_VERSION = 4
 logger = logging.getLogger(__name__)
 
 
@@ -692,8 +692,26 @@ def build_dnd_statblock_popout_info_html(
     )
 
 
-def _species_display_label(family: str, subtype: str) -> str:
+_GENASI_SUBTYPE_DISPLAY_NAMES: dict[str, str] = {
+    "fire": "Fire Genasi",
+    "air": "Air Genasi",
+    "earth": "Earth Genasi",
+    "water": "Water Genasi",
+    "electric": "Electric Genasi",
+    "mud": "Mud Genasi",
+    "ice": "Ice Genasi",
+}
+
+
+def _canonical_species_subtype(family: str, subtype: object) -> str:
     subtype_text = str(subtype or "").strip()
+    if str(family or "").strip() == "Genasi":
+        return _GENASI_SUBTYPE_DISPLAY_NAMES.get(subtype_text.casefold(), subtype_text)
+    return subtype_text
+
+
+def _species_display_label(family: str, subtype: str) -> str:
+    subtype_text = _canonical_species_subtype(family, subtype)
     return subtype_text if subtype_text else str(family)
 
 
@@ -866,7 +884,7 @@ def _collect_ranked_species_payloads(chart: Any) -> list[dict[str, Any]]:
 
     payloads: list[dict[str, Any]] = []
     for family, subtype, score, evidence in species_rankings:
-        subtype_text = str(subtype or "").strip()
+        subtype_text = _canonical_species_subtype(str(family), subtype)
         label = _species_display_label(str(family), subtype_text)
         payloads.append(
             {
@@ -889,7 +907,10 @@ def build_dnd_species_summary_html(
     species_payloads = species_payloads if species_payloads is not None else _collect_ranked_species_payloads(chart)
     species_lines: list[str] = []
     for rank, payload in enumerate(species_payloads[:3], start=1):
-        label = str(payload["label"])
+        label = _species_display_label(
+            str(payload.get("family", "")),
+            str(payload.get("subtype", payload.get("label", ""))),
+        )
         rendered_label = (
             _dnd_label_link(label, f"dnd-species:{rank - 1}")
             if linked
@@ -930,7 +951,10 @@ def build_dnd_class_summary_html(
 def build_dnd_all_species_summary_html(species_payloads: list[dict[str, Any]]) -> str:
     species_lines: list[str] = []
     for rank, payload in enumerate(species_payloads, start=1):
-        label = str(payload["label"])
+        label = _species_display_label(
+            str(payload.get("family", "")),
+            str(payload.get("subtype", payload.get("label", ""))),
+        )
         species_lines.append(f"{rank}) {_dnd_label_link(label, f'dnd-species:{rank - 1}')}")
     if not species_lines:
         species_lines.append("No species prediction available.")

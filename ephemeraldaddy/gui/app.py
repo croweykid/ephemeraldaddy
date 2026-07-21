@@ -1350,7 +1350,7 @@ DATABASE_METRICS_INCREMENTAL_REFRESH_DELAY_MS = 25
 CHART_RENDER_INTERACTIVE_DELAY_MS = 100
 CHART_RENDER_BACKGROUND_DELAY_MS = 25
 
-DATABASE_METRICS_PERSISTENT_CACHE_VERSION = 1
+DATABASE_METRICS_PERSISTENT_CACHE_VERSION = 2
 DATABASE_METRICS_PERSISTENT_CACHE_FILENAME = ".database_metrics_cache.json"
 GENERATION_UNKNOWN_OPTION = "unknown"
 GENERATION_FILTER_OPTIONS: tuple[str, ...] = tuple(
@@ -9670,6 +9670,10 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                         reverse=True,
                     )
                 except Exception:
+                    logger.exception(
+                        "Failed to calculate fallback Fantasy RPG class distribution for chart UID %s.",
+                        getattr(chart, "chart_uid", None) or getattr(chart, "uid", None),
+                    )
                     continue
                 selected_classes = ranked_classes[:3] if mode == "top_three_classes" else ranked_classes[:1]
                 for class_key, _scored_class in selected_classes:
@@ -9682,6 +9686,10 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                 try:
                     species_top_three = assign_top_three_species(chart)
                 except Exception:
+                    logger.exception(
+                        "Failed to calculate fallback Fantasy RPG species distribution for chart UID %s.",
+                        getattr(chart, "chart_uid", None) or getattr(chart, "uid", None),
+                    )
                     continue
                 if not species_top_three:
                     continue
@@ -10161,6 +10169,10 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             try:
                 species_top_three = assign_top_three_species(chart)
             except Exception:
+                logger.exception(
+                    "Failed to calculate Fantasy RPG species distribution snapshot for chart UID %s.",
+                    getattr(chart, "chart_uid", None) or getattr(chart, "uid", None),
+                )
                 species_top_three = []
             if species_top_three:
                 top_species = species_top_three[0][0]
@@ -10180,6 +10192,10 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                     reverse=True,
                 )
             except Exception:
+                logger.exception(
+                    "Failed to calculate Fantasy RPG class data for chart UID %s.",
+                    getattr(chart, "chart_uid", None) or getattr(chart, "uid", None),
+                )
                 ranked_classes = []
             if ranked_classes:
                 # Guard against non-informative rankings. When every class score is flat
@@ -20693,6 +20709,10 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                     reverse=True,
                 )
             except Exception:
+                logger.exception(
+                    "Failed to calculate Fantasy RPG class data for chart UID %s.",
+                    getattr(chart, "chart_uid", None) or getattr(chart, "uid", None),
+                )
                 ranked_classes = []
             top_three_classes = {
                 (
