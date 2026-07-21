@@ -4,11 +4,15 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+SETTINGS_KEY_HIDE_PLACEHOLDER_CHARTS_FILTER = "manage_charts/hide_placeholder_charts_filter"
+SETTINGS_KEY_HIDDEN_CHARTS_FILTER_MODE = "manage_charts/hidden_charts_filter_mode"
+
 from ephemeraldaddy.core.interpretations import (
     JONES_PLANETS,
     NATAL_CHART_MAX_YEAR,
     NATAL_CHART_MIN_YEAR,
 )
+
 
 BODY_DYNAMICS_ROLE_OPTIONS: tuple[tuple[str, str], ...] = (
     ("Enabler", "enabler"),
@@ -160,17 +164,13 @@ def _tag_value_display_name(value: str) -> str:
 
 def refresh_search_tags_list(window, known_tags: list[str]) -> None:
     """Refresh the Database View tag-filter tree for ``window``."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QButtonGroup, QHBoxLayout, QRadioButton, QToolButton, QWidget
     from ephemeraldaddy.gui import app as app_module
     from ephemeraldaddy.gui.style import create_divider
 
-    QButtonGroup = app_module.QButtonGroup
-    QHBoxLayout = app_module.QHBoxLayout
-    QRadioButton = app_module.QRadioButton
-    QToolButton = app_module.QToolButton
-    Qt = app_module.Qt
-    QuadStateSlider = app_module.QuadStateSlider
-    QWidget = app_module.QWidget
-    parse_tag_text = app_module.parse_tag_text
+    from ephemeraldaddy.gui.features.charts.tagging import parse_tag_text
+    from ephemeraldaddy.gui.widgets.quad_state import QuadStateSlider
 
     if not hasattr(window, "search_tags_list_widget"):
         return
@@ -365,11 +365,11 @@ def sync_search_tags_list_selection(window, selected_tags: set[str]) -> None:
     mark matching existing per-tag sliders active, so keep the tree structure
     intact and update modes in-place.
     """
+    from PySide6.QtWidgets import QToolButton
     from ephemeraldaddy.gui import app as app_module
     from ephemeraldaddy.gui.style import create_divider
 
-    QToolButton = app_module.QToolButton
-    QuadStateSlider = app_module.QuadStateSlider
+    from ephemeraldaddy.gui.widgets.quad_state import QuadStateSlider
 
     search_tags_toggle = getattr(window, "search_tags_toggle", None)
     if isinstance(search_tags_toggle, QToolButton) and not search_tags_toggle.isChecked():
@@ -390,12 +390,11 @@ def refresh_tag_catalog_for_added_tags(window, tags: list[str]) -> None:
     tag-add action, not while the Database View tag search field is being typed
     into.
     """
+    from PySide6.QtWidgets import QLineEdit
     from ephemeraldaddy.gui import app as app_module
     from ephemeraldaddy.gui.style import create_divider
 
-    QLineEdit = app_module.QLineEdit
-    apply_tag_completer = app_module.apply_tag_completer
-    normalize_tag_list = app_module.normalize_tag_list
+    from ephemeraldaddy.gui.features.charts.tagging import apply_tag_completer, normalize_tag_list
 
     normalized_tags = normalize_tag_list(tags)
     if not normalized_tags:
@@ -466,10 +465,10 @@ def on_search_tag_mode_changed(window, _tag_name: str) -> None:
 
 def collect_search_tag_filter_sets(window) -> tuple[set[str], set[str], set[str]]:
     """Return (required, optional, excluded) tag filters from the search UI."""
+    from ephemeraldaddy.gui.widgets.quad_state import QuadStateSlider
     from ephemeraldaddy.gui import app as app_module
     from ephemeraldaddy.gui.style import create_divider
 
-    QuadStateSlider = app_module.QuadStateSlider
     required_tags: set[str] = set()
     optional_tags: set[str] = set()
     excluded_tags: set[str] = set()
@@ -498,7 +497,7 @@ def collect_search_trait_filter_sets(window) -> tuple[set[str], set[str], set[st
     from ephemeraldaddy.gui import app as app_module
     from ephemeraldaddy.gui.style import create_divider
 
-    QuadStateSlider = app_module.QuadStateSlider
+    from ephemeraldaddy.gui.widgets.quad_state import QuadStateSlider
 
     def text_traits(attribute_name: str) -> set[str]:
         widget = getattr(window, attribute_name, None)
@@ -651,12 +650,14 @@ def refresh_search_traits_list(window, kind: str = "present") -> None:
     ``kind`` is ``"present"`` for above-norm traits or ``"absent"`` for
     below-norm traits.
     """
+    from PySide6.QtWidgets import QHBoxLayout, QTreeWidgetItem, QWidget
+
     from ephemeraldaddy.analysis.traits import list_traits
+    from ephemeraldaddy.gui.widgets.quad_state import QuadStateSlider
     from ephemeraldaddy.gui import app as app_module
     from ephemeraldaddy.gui.style import create_divider
     from PySide6.QtWidgets import QTreeWidgetItem
 
-    QuadStateSlider = app_module.QuadStateSlider
     kind = "absent" if kind == "absent" else "present"
     tree_attr = f"search_traits_{kind}_list_widget"
     checkboxes_attr = f"search_trait_{kind}_filter_checkboxes"
@@ -677,8 +678,8 @@ def refresh_search_traits_list(window, kind: str = "present") -> None:
         if not trait_name:
             continue
         item = QTreeWidgetItem()
-        row = app_module.QWidget()
-        row_layout = app_module.QHBoxLayout(row)
+        row = QWidget()
+        row_layout = QHBoxLayout(row)
         row_layout.setContentsMargins(0, 0, 0, 0)
         checkbox = QuadStateSlider(trait_name)
         if trait_name in existing_modes:
@@ -697,17 +698,12 @@ if TYPE_CHECKING:
 
 def build_dbv_search_bar_row(window) -> "QWidget":
     """Build the always-visible Database View search bars for the middle panel."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QHBoxLayout, QLabel, QLineEdit, QPushButton, QVBoxLayout, QWidget
     from ephemeraldaddy.gui import app as app_module
     from ephemeraldaddy.gui.style import create_divider
 
-    QWidget = app_module.QWidget
-    QHBoxLayout = app_module.QHBoxLayout
-    QVBoxLayout = app_module.QVBoxLayout
-    QLineEdit = app_module.QLineEdit
-    QPushButton = app_module.QPushButton
-    QLabel = app_module.QLabel
-    Qt = app_module.Qt
-    QuadStateSlider = app_module.QuadStateSlider
+    from ephemeraldaddy.gui.widgets.quad_state import QuadStateSlider
 
     row_widget = QWidget()
     row_layout = QHBoxLayout()
@@ -805,6 +801,15 @@ def build_dbv_search_bar_row(window) -> "QWidget":
 
 def build_dbv_search_panel(window) -> "QWidget":
     """Build the Database View search panel while mutating ``window`` state."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QIntValidator
+    from PySide6.QtWidgets import (
+        QButtonGroup, QCheckBox, QComboBox, QFormLayout, QFrame, QGridLayout,
+        QHBoxLayout, QLabel, QLineEdit, QListWidget, QPushButton, QRadioButton,
+        QSizePolicy, QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
+    )
+
+    from ephemeraldaddy.gui.emoji_render import apply_emoji_png_to_button, apply_emoji_pngs_to_label
     from ephemeraldaddy.gui import app as app_module
     from ephemeraldaddy.gui.style import create_divider
 
@@ -859,6 +864,22 @@ def build_dbv_search_panel(window) -> "QWidget":
     configure_collapsible_header_toggle = app_module.configure_collapsible_header_toggle
     configure_static_collapsible_header_label = app_module.configure_static_collapsible_header_label
     from ephemeraldaddy.gui.features.charts.presentation import abbreviate_body_label, abbreviate_nakshatra_label
+    from ephemeraldaddy.gui.style import (
+        COLLAPSIBLE_NESTED_SECTION_CONTENT_STYLE, COLLAPSIBLE_SECTION_CONTENT_STYLE,
+        DATABASE_ANALYTICS_CONTENT_DEBUG_STYLE, DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS,
+        DATABASE_ANALYTICS_SUBHEADER_STYLE, DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
+        DATABASE_VIEW_PANEL_HEADER_STYLE, DEFAULT_DROPDOWN_STYLE, apply_shared_dropdown_style,
+        configure_collapsible_header_toggle, configure_static_collapsible_header_label,
+    )
+    from ephemeraldaddy.gui.ui_helpers import EmojiTiledPanel
+    from ephemeraldaddy.gui.widgets.quad_state import QuadStateSlider
+    from ephemeraldaddy.gui.widgets.search_controls import (
+        ASPECT_DEFS, DND_CLASSES, FAMILY_SUBTYPES, GENERATION_FILTER_OPTIONS,
+        HD_CHANNELS, NAKSHATRA_RANGES, RODDEN_RATING, SEARCH_GENDER_GUESSED_OPTIONS,
+        SEARCH_GENDER_OPTIONS, SEARCH_RELATIONSHIP_TYPE_OPTIONS, SEARCH_SENTIMENT_OPTIONS,
+        SOURCE_OPTIONS, SPECIES_FAMILIES, ZODIAC_NAMES,
+    )
+
     # Search panel (right sidebar).
     panel = EmojiTiledPanel("🔎", font_size=100, opacity=0.12) #Search panel background
     panel.setMinimumWidth(260)
@@ -866,7 +887,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     panel.setLayout(layout)
 
     def apply_default_dropdown_style(dropdown: QComboBox) -> None:
-        app_module.apply_shared_dropdown_style(dropdown)
+        apply_shared_dropdown_style(dropdown)
 
     def center_dropdown_items(dropdown: QComboBox) -> None:
         dropdown.setEditable(False)
@@ -897,7 +918,7 @@ def build_dbv_search_panel(window) -> "QWidget":
 
     search_title = QLabel("Search Filters")
     search_title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
-    app_module.apply_emoji_pngs_to_label(search_title)
+    apply_emoji_pngs_to_label(search_title)
     layout.addWidget(search_title)
 
     window.search_tags_toggle = QToolButton()
@@ -997,7 +1018,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     )
     if settings is not None and bool(
         settings.value(
-            app_module.SETTINGS_KEY_HIDE_PLACEHOLDER_CHARTS_FILTER,
+            SETTINGS_KEY_HIDE_PLACEHOLDER_CHARTS_FILTER,
             0,
             type=int,
         )
@@ -1014,7 +1035,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     window.hidden_charts_checkbox = QuadStateSlider("hidden charts")
     if settings is not None:
         hidden_charts_mode = settings.value(
-            app_module.SETTINGS_KEY_HIDDEN_CHARTS_FILTER_MODE,
+            SETTINGS_KEY_HIDDEN_CHARTS_FILTER_MODE,
             QuadStateSlider.MODE_EMPTY,
             type=int,
         )
@@ -1084,7 +1105,7 @@ def build_dbv_search_panel(window) -> "QWidget":
             panel.adjustSize()
             panel.updateGeometry()
 
-        app_module.apply_emoji_png_to_button(toggle, icon_px=16)
+        apply_emoji_png_to_button(toggle, icon_px=16)
         set_toggle_expanded_state(False)
 
         toggle.toggled.connect(toggle_content)
