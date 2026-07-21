@@ -1209,7 +1209,7 @@ class DatabaseAnalyticsChartsMixin:
             QMessageBox.information(
                 self,
                 "incomplete birthdate",
-                "There is incomplete birthdate available to export yet.",
+                "No exportable rows are available for this chart yet. Try expanding or refreshing the analytics section, or check whether the current filters exclude all charts.",
             )
             return
 

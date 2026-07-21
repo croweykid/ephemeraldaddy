@@ -166,6 +166,8 @@ def refresh_search_tags_list(window, known_tags: list[str]) -> None:
     """Refresh the Database View tag-filter tree for ``window``."""
     from PySide6.QtCore import Qt
     from PySide6.QtWidgets import QButtonGroup, QHBoxLayout, QRadioButton, QToolButton, QWidget
+    from ephemeraldaddy.gui import app as app_module
+    from ephemeraldaddy.gui.style import create_divider
 
     from ephemeraldaddy.gui.features.charts.tagging import parse_tag_text
     from ephemeraldaddy.gui.widgets.quad_state import QuadStateSlider
@@ -364,6 +366,8 @@ def sync_search_tags_list_selection(window, selected_tags: set[str]) -> None:
     intact and update modes in-place.
     """
     from PySide6.QtWidgets import QToolButton
+    from ephemeraldaddy.gui import app as app_module
+    from ephemeraldaddy.gui.style import create_divider
 
     from ephemeraldaddy.gui.widgets.quad_state import QuadStateSlider
 
@@ -387,6 +391,8 @@ def refresh_tag_catalog_for_added_tags(window, tags: list[str]) -> None:
     into.
     """
     from PySide6.QtWidgets import QLineEdit
+    from ephemeraldaddy.gui import app as app_module
+    from ephemeraldaddy.gui.style import create_divider
 
     from ephemeraldaddy.gui.features.charts.tagging import apply_tag_completer, normalize_tag_list
 
@@ -460,6 +466,8 @@ def on_search_tag_mode_changed(window, _tag_name: str) -> None:
 def collect_search_tag_filter_sets(window) -> tuple[set[str], set[str], set[str]]:
     """Return (required, optional, excluded) tag filters from the search UI."""
     from ephemeraldaddy.gui.widgets.quad_state import QuadStateSlider
+    from ephemeraldaddy.gui import app as app_module
+    from ephemeraldaddy.gui.style import create_divider
 
     required_tags: set[str] = set()
     optional_tags: set[str] = set()
@@ -486,6 +494,8 @@ def collect_search_trait_filter_sets(window) -> tuple[set[str], set[str], set[st
     excluded_absent)``. "Present" traits are chart traits above the database
     norm; "absent" traits are chart traits below the database norm.
     """
+    from ephemeraldaddy.gui import app as app_module
+    from ephemeraldaddy.gui.style import create_divider
 
     from ephemeraldaddy.gui.widgets.quad_state import QuadStateSlider
 
@@ -644,6 +654,9 @@ def refresh_search_traits_list(window, kind: str = "present") -> None:
 
     from ephemeraldaddy.analysis.traits import list_traits
     from ephemeraldaddy.gui.widgets.quad_state import QuadStateSlider
+    from ephemeraldaddy.gui import app as app_module
+    from ephemeraldaddy.gui.style import create_divider
+    from PySide6.QtWidgets import QTreeWidgetItem
 
     kind = "absent" if kind == "absent" else "present"
     tree_attr = f"search_traits_{kind}_list_widget"
@@ -687,6 +700,8 @@ def build_dbv_search_bar_row(window) -> "QWidget":
     """Build the always-visible Database View search bars for the middle panel."""
     from PySide6.QtCore import Qt
     from PySide6.QtWidgets import QHBoxLayout, QLabel, QLineEdit, QPushButton, QVBoxLayout, QWidget
+    from ephemeraldaddy.gui import app as app_module
+    from ephemeraldaddy.gui.style import create_divider
 
     from ephemeraldaddy.gui.widgets.quad_state import QuadStateSlider
 
@@ -795,6 +810,59 @@ def build_dbv_search_panel(window) -> "QWidget":
     )
 
     from ephemeraldaddy.gui.emoji_render import apply_emoji_png_to_button, apply_emoji_pngs_to_label
+    from ephemeraldaddy.gui import app as app_module
+    from ephemeraldaddy.gui.style import create_divider
+
+    # Qt widgets/classes
+    QWidget = app_module.QWidget
+    EmojiTiledPanel = app_module.EmojiTiledPanel
+    QVBoxLayout = app_module.QVBoxLayout
+    QComboBox = app_module.QComboBox
+    QLabel = app_module.QLabel
+    QLineEdit = app_module.QLineEdit
+    QHBoxLayout = app_module.QHBoxLayout
+    QPushButton = app_module.QPushButton
+    QListWidget = app_module.QListWidget
+    from PySide6.QtWidgets import QTreeWidget, QTreeWidgetItem
+    QCheckBox = app_module.QCheckBox
+    QToolButton = app_module.QToolButton
+    Qt = app_module.Qt
+    QuadStateSlider = app_module.QuadStateSlider
+    QRadioButton = app_module.QRadioButton
+    QButtonGroup = app_module.QButtonGroup
+    QGridLayout = app_module.QGridLayout
+    QFormLayout = app_module.QFormLayout
+    QIntValidator = app_module.QIntValidator
+    QSizePolicy = app_module.QSizePolicy
+
+    # Shared styles/constants/helpers already resolved in app.py.
+    DEFAULT_DROPDOWN_STYLE = app_module.DEFAULT_DROPDOWN_STYLE
+    DATABASE_VIEW_PANEL_HEADER_STYLE = app_module.DATABASE_VIEW_PANEL_HEADER_STYLE
+    DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE = app_module.DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE
+    COLLAPSIBLE_SECTION_CONTENT_STYLE = app_module.COLLAPSIBLE_SECTION_CONTENT_STYLE
+    COLLAPSIBLE_NESTED_SECTION_CONTENT_STYLE = app_module.COLLAPSIBLE_NESTED_SECTION_CONTENT_STYLE
+    DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS = app_module.DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS
+    DATABASE_ANALYTICS_CONTENT_DEBUG_STYLE = app_module.DATABASE_ANALYTICS_CONTENT_DEBUG_STYLE
+    DATABASE_ANALYTICS_SUBHEADER_STYLE = app_module.DATABASE_ANALYTICS_SUBHEADER_STYLE
+    RODDEN_RATING = app_module.RODDEN_RATING
+    ZODIAC_NAMES = app_module.ZODIAC_NAMES
+    ASPECT_DEFS = app_module.ASPECT_DEFS
+    HD_CHANNELS = app_module.HD_CHANNELS
+    NAKSHATRA_RANGES = app_module.NAKSHATRA_RANGES
+    # Import date bounds directly from core.interpretations instead of the GUI
+    # module so Database View can be built safely when app.py is executed as
+    # ``python -m ephemeraldaddy.gui.app``.
+    SEARCH_SENTIMENT_OPTIONS = app_module.SEARCH_SENTIMENT_OPTIONS
+    SEARCH_RELATIONSHIP_TYPE_OPTIONS = app_module.SEARCH_RELATIONSHIP_TYPE_OPTIONS
+    DND_CLASSES = app_module.DND_CLASSES
+    FAMILY_SUBTYPES = app_module.FAMILY_SUBTYPES
+    SPECIES_FAMILIES = app_module.SPECIES_FAMILIES
+    GENERATION_FILTER_OPTIONS = app_module.GENERATION_FILTER_OPTIONS
+    SEARCH_GENDER_OPTIONS = app_module.SEARCH_GENDER_OPTIONS
+    SEARCH_GENDER_GUESSED_OPTIONS = app_module.SEARCH_GENDER_GUESSED_OPTIONS
+    SOURCE_OPTIONS = app_module.SOURCE_OPTIONS
+    configure_collapsible_header_toggle = app_module.configure_collapsible_header_toggle
+    configure_static_collapsible_header_label = app_module.configure_static_collapsible_header_label
     from ephemeraldaddy.gui.features.charts.presentation import abbreviate_body_label, abbreviate_nakshatra_label
     from ephemeraldaddy.gui.style import (
         COLLAPSIBLE_NESTED_SECTION_CONTENT_STYLE, COLLAPSIBLE_SECTION_CONTENT_STYLE,
@@ -880,14 +948,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     )
     layout.addWidget(window.search_tags_list_widget)
 
-    divider = QFrame()
-    divider.setFixedHeight(4)
-    divider.setStyleSheet(
-        "background-color: #1f1f1f;"
-        "border-top: 1px solid #3b3b3b;"
-        "border-bottom: 1px solid #0d0d0d;"
-    )
-    layout.addWidget(divider)
+    layout.addWidget(create_divider())
 
     def build_trait_search_layout(kind: str, title: str, placeholder: str) -> QVBoxLayout:
         trait_layout = QVBoxLayout()
@@ -1151,10 +1212,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     birth_filters_row.addStretch(1)
     birth_info_status_layout.addLayout(birth_filters_row)
 
-    rodden_divider = QFrame()
-    rodden_divider.setFrameShape(QFrame.HLine)
-    rodden_divider.setStyleSheet("color: #2f2f2f;")
-    birth_info_status_layout.addWidget(rodden_divider)
+    birth_info_status_layout.addWidget(create_divider())
 
     rodden_header = QLabel("Rodden Rating")
     rodden_header.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
@@ -2231,10 +2289,7 @@ def build_dbv_search_panel(window) -> "QWidget":
         "_birthdate_latest_year_input",
     )
 
-    generation_divider = QFrame()
-    generation_divider.setFrameShape(QFrame.HLine)
-    generation_divider.setStyleSheet("color: #2f2f2f;")
-    timing_section_layout.addWidget(generation_divider)
+    timing_section_layout.addWidget(create_divider())
 
     generation_header = QLabel("Generation")
     generation_header.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
@@ -2253,10 +2308,7 @@ def build_dbv_search_panel(window) -> "QWidget":
         generation_layout.addWidget(checkbox, row, col)
     timing_section_layout.addLayout(generation_layout)
 
-    lifespan_divider = QFrame()
-    lifespan_divider.setFrameShape(QFrame.HLine)
-    lifespan_divider.setStyleSheet("color: #2f2f2f;")
-    timing_section_layout.addWidget(lifespan_divider)
+    timing_section_layout.addWidget(create_divider())
     mortality_header = QLabel("Mortality")
     mortality_header.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
     timing_section_layout.addWidget(mortality_header)

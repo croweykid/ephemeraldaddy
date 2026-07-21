@@ -12,7 +12,6 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
     QFileDialog,
-    QFrame,
     QHBoxLayout,
     QLabel,
     QMessageBox,
@@ -35,6 +34,7 @@ from ephemeraldaddy.core.db import (
     list_chart_export_properties,
     list_charts,
 )
+from ephemeraldaddy.gui.style import create_divider
 from ephemeraldaddy.gui.features.charts.collections import (
     DEFAULT_COLLECTION_ALL,
     DEFAULT_COLLECTION_OPTIONS,
@@ -76,10 +76,7 @@ def build_custom_db_export_widget(
     format_row.addStretch(1)
     layout.addLayout(format_row)
 
-    divider = QFrame(dialog)
-    divider.setFrameShape(QFrame.HLine)
-    divider.setFrameShadow(QFrame.Sunken)
-    layout.addWidget(divider)
+    layout.addWidget(create_divider(dialog))
 
     layout.addWidget(QLabel("Collections to include"))
     collections_helper_label = QLabel(
@@ -146,10 +143,7 @@ def build_custom_db_export_widget(
         properties_layout.addWidget(checkbox)
     properties_layout.addStretch(1)
 
-    sidecar_divider = QFrame(dialog)
-    sidecar_divider.setFrameShape(QFrame.HLine)
-    sidecar_divider.setFrameShadow(QFrame.Sunken)
-    layout.addWidget(sidecar_divider)
+    layout.addWidget(create_divider(dialog))
 
     sidecar_label = QLabel("Linked sidecar files to include")
     layout.addWidget(sidecar_label)

@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QListView,
     QProgressDialog,
+    QFrame,
     QHBoxLayout,
     QScrollArea,
     QSizePolicy,
@@ -1129,7 +1130,17 @@ ABC_PANEL_SECTION_CONTENT_MARGINS = (0, 2, 0, 0)
 ABC_PANEL_SECTION_CONTENT_SPACING = 4
 ABC_PANEL_BODY_LABEL_STYLE = f"color: {COLOR_TEXT_PRIMARY}; padding: 4px 0 8px 0;"
 CHART_DATA_MONOSPACE_FONT_FAMILY = "Courier New"
-CHART_DATA_DIVIDER = "---------"
+DIVIDER_STYLE = "color: #2f2f2f; background-color: #2f2f2f; max-height: 1px;"
+CHART_DATA_DIVIDER = ""
+
+
+def create_divider(parent: QWidget | None = None) -> QFrame:
+    """Return the appwide styled horizontal graphic divider."""
+    divider = QFrame(parent)
+    divider.setFrameShape(QFrame.HLine)
+    divider.setFrameShadow(QFrame.Plain)
+    divider.setStyleSheet(DIVIDER_STYLE)
+    return divider
 CHART_DATA_SECTION_HEADER_STYLE = {
     "background_color": COLOR_BG_ELEVATED,
     "text_color": COLOR_TEXT_PRIMARY,

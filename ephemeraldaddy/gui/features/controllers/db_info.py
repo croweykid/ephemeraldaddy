@@ -12,7 +12,7 @@ from typing import Any
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
-from PySide6.QtWidgets import QComboBox, QFrame, QHBoxLayout, QLabel, QPushButton, QToolButton
+from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QPushButton, QToolButton
 
 from ephemeraldaddy.core.interpretations import HOUSE_COLORS, PLANET_COLORS, SIGN_COLORS, ZODIAC_NAMES
 from ephemeraldaddy.gui.features.charts.collections import (
@@ -32,6 +32,7 @@ from ephemeraldaddy.gui.style import (
     apply_button_cursor,
     CHART_DATA_HIGHLIGHT_COLOR,
     apply_shared_dropdown_style,
+    create_divider,
     similarity_gradient_rgb_for_range,
 )
 from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import (
@@ -560,10 +561,7 @@ def add_database_info_settings_section(owner: Any, content_layout) -> None:
     controls_row.addStretch(1)
     section_layout.addLayout(controls_row)
 
-    divider = QFrame()
-    divider.setFrameShape(QFrame.HLine)
-    divider.setFrameShadow(QFrame.Sunken)
-    section_layout.addWidget(divider)
+    section_layout.addWidget(create_divider())
 
     owner._settings_db_info_collection_combo = collection_combo
     owner._settings_db_info_export_button = export_button
