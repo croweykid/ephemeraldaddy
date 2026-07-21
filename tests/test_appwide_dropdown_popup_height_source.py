@@ -14,13 +14,14 @@ def test_style_defines_appwide_dropdown_popup_max_height_rule():
     assert "popup_view.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)" in source
 
 
-def test_appwide_widget_defaults_apply_dropdown_popup_height_to_all_combos():
+def test_appwide_widget_defaults_do_not_mutate_combo_popup_views():
     source = (REPO_ROOT / "ephemeraldaddy/gui/style.py").read_text()
+    filter_start = source.index("class _AppwideCursorDefaultsFilter")
+    filter_source = source[filter_start : source.index("def install_appwide_cursor_defaults", filter_start)]
 
-    assert "if isinstance(obj, QComboBox):" in source
-    assert "for child in obj.findChildren(QComboBox):" in source
-    assert "configure_dropdown_popup_height(obj)" in source
-    assert "configure_dropdown_popup_height(child)" in source
+    assert "Apply shared button defaults" in filter_source
+    assert "QComboBox" not in filter_source
+    assert "configure_dropdown_popup_height" not in filter_source
 
 
 def test_shared_dropdown_style_uses_same_appwide_popup_height_rule():

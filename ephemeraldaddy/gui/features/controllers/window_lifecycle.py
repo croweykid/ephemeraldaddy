@@ -37,28 +37,16 @@ def configure_initial_window_state(
     # intended user-facing behavior (Database View first, Chart View on demand).
     startup_loading.update_status("Opening default view shell…", 65)
     app.processEvents()
-    default_view_opened = bool(show_default_view())
+    show_default_view()
 
     startup_loading.update_status("Finalizing startup…", 97)
     app.processEvents()
 
-    visible_windows = [
-        widget
-        for widget in QApplication.topLevelWidgets()
-        if widget is not window and widget is not startup_loading and widget.isVisible()
-    ]
-    if default_view_opened and visible_windows:
-        # Keep startup Database View-first without surfacing the blank Chart View
-        # MainWindow.  The main window remains alive as the application owner and
-        # is shown later only when the user opens/edits a chart.
-        if window.isVisible():
-            window.hide()
-    else:
-        # If the default Database View could not become a visible top-level
-        # window, keep the owner window alive instead of letting Qt close the
-        # final visible widget (the startup loader) and return from app.exec()
-        # silently.  This preserves an inspectable UI state on startup failures.
-        window.show()
+    # Keep startup Database View-first without surfacing the blank Chart View
+    # MainWindow.  The main window remains alive as the application owner and is
+    # shown later only when the user opens/edits a chart.
+    if window.isVisible():
+        window.hide()
 
     startup_loading.update_status("Startup complete.", 100)
 

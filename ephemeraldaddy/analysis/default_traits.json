@@ -1068,7 +1068,7 @@
   },
   "democratically elected": {
     "name": "democratically elected",
-    "samples": [29, 0],
+    "samples": 29,
     "signs": {
       "Pisces": -15,
       "Virgo": -21

@@ -123,7 +123,7 @@ def apply_appwide_button_tone(button: QAbstractButton) -> None:
 
 
 class _AppwideCursorDefaultsFilter(QObject):
-    """Apply shared interactive-widget defaults after QApplication setup."""
+    """Apply shared button defaults after QApplication setup."""
 
     def __init__(self, app: QApplication) -> None:
         super().__init__(app)
@@ -138,13 +138,9 @@ class _AppwideCursorDefaultsFilter(QObject):
         if isinstance(obj, QAbstractButton):
             apply_button_cursor(obj)
             apply_appwide_button_tone(obj)
-        if isinstance(obj, QComboBox):
-            configure_dropdown_popup_height(obj)
         for child in obj.findChildren(QAbstractButton):
             apply_button_cursor(child)
             apply_appwide_button_tone(child)
-        for child in obj.findChildren(QComboBox):
-            configure_dropdown_popup_height(child)
 
 
 def install_appwide_cursor_defaults(app: QApplication) -> None:
