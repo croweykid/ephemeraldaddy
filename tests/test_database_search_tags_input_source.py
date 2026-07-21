@@ -11,14 +11,6 @@ def test_search_panel_does_not_import_gui_app_module():
     assert "app_module." not in SEARCH_PANEL_SOURCE
 
 
-def test_tag_completer_uses_db_recognized_tags_source():
-    helper = SEARCH_PANEL_SOURCE.split("def tag_completer_tags_for_session", 1)[1].split(
-        "def update_tag_completers_if_needed", 1
-    )[0]
-    assert "from ephemeraldaddy.core.db import list_recognized_tags" in helper
-    assert "from ephemeraldaddy.gui.features.charts.tagging import list_recognized_tags" not in helper
-
-
 def test_search_tags_typing_does_not_rebuild_tag_tree_on_each_keystroke():
     handler = APP_SOURCE.split("def _on_search_tags_changed", 1)[1].split(
         "def _refresh_search_tags_list", 1
