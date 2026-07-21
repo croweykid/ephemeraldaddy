@@ -573,6 +573,73 @@ def chart_matches_trait_filters(
         return False
     return True
 
+
+def trait_autocomplete_names() -> list[str]:
+    """Return active trait names for Database View trait search autocompleters."""
+    from ephemeraldaddy.analysis.traits import list_traits
+
+    names: list[str] = []
+    seen: set[str] = set()
+    for trait in list_traits(active_only=True):
+        trait_name = str(trait.get("name", "")).strip()
+        trait_key = trait_name.casefold()
+        if not trait_name or trait_key in seen:
+            continue
+        seen.add(trait_key)
+        names.append(trait_name)
+    return sorted(names, key=str.casefold)
+
+
+def install_trait_search_autocomplete(line_edit, traits: list[str]) -> None:
+    """Install substring trait-name autocomplete on a trait search field."""
+    from PySide6.QtCore import Qt, QStringListModel
+    from PySide6.QtWidgets import QCompleter
+
+    model = QStringListModel(traits, line_edit)
+    completer = QCompleter(model, line_edit)
+    completer.setCaseSensitivity(Qt.CaseInsensitive)
+    completer.setFilterMode(Qt.MatchContains)
+    completer.setCompletionMode(QCompleter.PopupCompletion)
+    completer.setMaxVisibleItems(12)
+    line_edit.setCompleter(completer)
+    line_edit._dbv_trait_completer_model = model
+
+
+def refresh_trait_search_autocompletes(window) -> None:
+    """Refresh trait autocomplete models without rebuilding the whole search UI."""
+    traits = trait_autocomplete_names()
+    for attr in (
+        "search_traits_present_input",
+        "search_traits_absent_input",
+        "search_traits_input",
+    ):
+        line_edit = getattr(window, attr, None)
+        if line_edit is None:
+            continue
+        model = getattr(line_edit, "_dbv_trait_completer_model", None)
+        if model is not None and hasattr(model, "setStringList"):
+            model.setStringList(traits)
+        elif hasattr(line_edit, "setCompleter"):
+            install_trait_search_autocomplete(line_edit, traits)
+
+
+def apply_unique_trait_completion(line_edit) -> None:
+    """Replace a partial trait search with its only matching saved trait, if unique."""
+    text_getter = getattr(line_edit, "text", None)
+    text_setter = getattr(line_edit, "setText", None)
+    if not callable(text_getter) or not callable(text_setter):
+        return
+    query = str(text_getter() or "").strip()
+    if not query or "," in query:
+        return
+    model = getattr(line_edit, "_dbv_trait_completer_model", None)
+    string_list = getattr(model, "stringList", None)
+    if not callable(string_list):
+        return
+    matches = [name for name in string_list() if query.casefold() in str(name).casefold()]
+    if len(matches) == 1 and matches[0] != query:
+        text_setter(matches[0])
+
 def refresh_search_traits_list(window, kind: str = "present") -> None:
     """Refresh a Database View trait-filter tree for ``window``.
 
@@ -874,8 +941,12 @@ def build_dbv_search_panel(window) -> "QWidget":
 
         trait_input = QLineEdit()
         trait_input.setPlaceholderText(placeholder)
-        trait_input.textChanged.connect(window._on_filter_changed)
+        install_trait_search_autocomplete(trait_input, trait_autocomplete_names())
+        trait_input.returnPressed.connect(lambda line_edit=trait_input: apply_unique_trait_completion(line_edit))
         trait_input.returnPressed.connect(window._on_filter_changed)
+        completer = trait_input.completer()
+        if completer is not None:
+            completer.activated.connect(window._on_filter_changed)
         setattr(window, input_attr, trait_input)
         trait_layout.addWidget(trait_input)
 
@@ -901,6 +972,7 @@ def build_dbv_search_panel(window) -> "QWidget":
         toggle.toggled.connect(
             lambda expanded, trait_kind=kind: refresh_search_traits_list(window, trait_kind) if expanded else None
         )
+        toggle.toggled.connect(lambda expanded: refresh_trait_search_autocompletes(window) if expanded else None)
         trait_layout.addWidget(list_widget)
         return trait_layout
 
