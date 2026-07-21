@@ -31,9 +31,8 @@ def test_search_filters_apply_selected_subspecies_to_top_three_species() -> None
 
 def test_subspecies_filter_uses_shared_prediction_cache() -> None:
     assert "def _dnd_species_class_payload_for_chart" in APP_SOURCE
-    assert "def dnd_species_class_payload_for_chart" in SEARCH_PANEL_SOURCE
-    assert "cache_species_class_metadata(chart)" in SEARCH_PANEL_SOURCE
-    assert "Return Top 3 Species/Subspecies from the shared appwide cache." in SEARCH_PANEL_SOURCE
+    assert "cache_species_class_metadata(chart)" in APP_SOURCE
+    assert "Return Top 3 Species/Subspecies from the shared appwide cache." in APP_SOURCE
 
 
 def test_clear_and_active_filter_state_include_subspecies() -> None:
