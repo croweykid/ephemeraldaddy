@@ -13709,11 +13709,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             and event.type() == QEvent.KeyPress
             and event.key() in (Qt.Key_Return, Qt.Key_Enter)
         ):
-            astrotheme_import_button = getattr(self, "astrotheme_import_button", None)
-            if astrotheme_import_button is not None:
-                astrotheme_import_button.click()
-            else:
-                self._on_import_astrotheme_from_search_panel()
+            self._on_import_astrotheme_from_search_panel()
             return True
         database_analytics_key = None
         if isinstance(obj, FigureCanvas):
