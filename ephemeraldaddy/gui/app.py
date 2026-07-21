@@ -7,7 +7,6 @@ import calendar
 import copy
 import ctypes
 import datetime
-import faulthandler
 from dataclasses import asdict
 import html
 import hashlib
@@ -33,6 +32,8 @@ from pathlib import Path
 import re
 from importlib import resources as importlib_resources
 from zoneinfo import ZoneInfo
+
+from ephemeraldaddy.gui.crash_diagnostics import install_crash_diagnostics
 
 
 logger = logging.getLogger(__name__)
@@ -2259,31 +2260,25 @@ def _env_flag_enabled(value: str | None) -> bool:
 
 
 def _configure_debug_logging() -> None:
-    """Enable startup diagnostics when debug env flags are set."""
-    if not (
+    """Enable startup diagnostics and persistent native-crash tracebacks."""
+    debug_enabled = (
         _env_flag_enabled(os.environ.get("EPHEMERALDADDY_DEBUG"))
         or _env_flag_enabled(os.environ.get("EPHEMERALDADDY_DEBUG_STARTUP"))
-    ):
-        return
-    root_logger = logging.getLogger()
-    if not root_logger.handlers:
-        logging.basicConfig(
-            level=logging.DEBUG,
-            format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
-        )
-    if sys.stderr is not None and not faulthandler.is_enabled():
-        try:
-            faulthandler.enable(file=sys.stderr, all_threads=True)
-        except RuntimeError as exc:
-            logger.debug("Faulthandler unavailable for debug startup logging: %s", exc)
-    elif sys.stderr is None:
-        logger.debug("Faulthandler skipped because sys.stderr is unavailable.")
+    )
+    if debug_enabled:
+        root_logger = logging.getLogger()
+        if not root_logger.handlers:
+            logging.basicConfig(
+                level=logging.DEBUG,
+                format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+            )
+    crash_log_path = install_crash_diagnostics(debug_enabled=debug_enabled)
     logger.debug(
-        "Debug logging enabled (pid=%s platform=%s argv=%s faulthandler=%s).",
+        "Debug logging configured (pid=%s platform=%s argv=%s crash_log=%s).",
         os.getpid(),
         sys.platform,
         sys.argv,
-        faulthandler.is_enabled(),
+        crash_log_path,
     )
 
 
