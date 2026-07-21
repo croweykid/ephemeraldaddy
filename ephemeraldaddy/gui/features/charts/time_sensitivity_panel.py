@@ -10,7 +10,7 @@ from typing import Any
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
-from PySide6.QtCore import Qt, QUrl
+from PySide6.QtCore import Qt, QTimer, QUrl
 from PySide6.QtWidgets import (
     QAbstractScrollArea,
     QCheckBox,
@@ -1472,29 +1472,47 @@ class TimeSensitivityPanel(QWidget):
             nonlocal adjusting_browser_height
             if adjusting_browser_height:
                 return
+            try:
+                if browser.parentWidget() is None:
+                    return
+            except RuntimeError:
+                return
             adjusting_browser_height = True
-            document = browser.document()
-            text_width = max(1, browser.viewport().width())
-            if int(document.textWidth()) != text_width:
-                document.setTextWidth(text_width)
-            document.adjustSize()
-            height = int(document.size().height()) + 18
-            fixed_height = max(min_height, min(max_height, height))
-            if browser.height() != fixed_height:
-                browser.setFixedHeight(fixed_height)
-            adjusting_browser_height = False
+            try:
+                document = browser.document()
+                text_width = max(1, browser.viewport().width())
+                if int(document.textWidth()) != text_width:
+                    document.setTextWidth(text_width)
+                document.adjustSize()
+                height = int(document.size().height()) + 18
+                fixed_height = max(min_height, min(max_height, height))
+                if browser.height() != fixed_height:
+                    browser.setFixedHeight(fixed_height)
+            except RuntimeError:
+                return
+            finally:
+                adjusting_browser_height = False
+
+        def schedule_browser_height_adjustments() -> None:
+            # QTextDocument wrapping depends on the QTextBrowser viewport width,
+            # which is often stale while a collapsed section is first expanding.
+            # Re-measure over a few event-loop turns so initially hidden rich text
+            # (especially the long Human Design section) does not stay clipped or
+            # over-tall until the user collapses and re-expands it.
+            for delay_ms in (0, 50, 150, 300):
+                QTimer.singleShot(delay_ms, adjust_browser_height)
 
         def toggle_section(checked: bool) -> None:
             content.setVisible(checked)
             toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
             if checked:
-                adjust_browser_height()
+                schedule_browser_height_adjustments()
 
         toggle.toggled.connect(toggle_section)
-        adjust_browser_height()
+        schedule_browser_height_adjustments()
         if section_key == "human_design":
             browser.document().documentLayout().documentSizeChanged.connect(
-                lambda _size: adjust_browser_height()
+                lambda _size: schedule_browser_height_adjustments()
             )
         content_layout.addWidget(browser)
         self._charts_layout.addWidget(section)
