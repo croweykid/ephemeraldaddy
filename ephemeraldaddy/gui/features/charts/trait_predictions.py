@@ -1672,12 +1672,6 @@ def _set_traits_header_action(owner: Any, state: str) -> None:
         callback("traits", state)
 
 
-def _set_traits_header_action(owner: Any, state: str) -> None:
-    callback = getattr(owner, "_set_prediction_header_action", None)
-    if callable(callback):
-        callback("traits", state)
-
-
 def _predictions_manual_recalculation_only(owner: Any) -> bool:
     # Predictions panel contract for future maintainers/agents:
     # default manual mode means "show the current chart UID's latest saved
@@ -1959,11 +1953,16 @@ def _apply_traits_prediction_view(owner: Any, above_html: str, below_html: str, 
     label = getattr(owner, "traits_prediction_label", None)
     if isinstance(label, QLabel):
         stop_prediction_loading_blink(label)
-        label.setText(_current_traits_prediction_html(owner) or "Trait predictions unavailable for this chart.")
-        # Cached trait rows hide the label while the table carries the content.
-        # A later chart may have no cached metadata yet and must reveal this
-        # label again so the manual Calculate/Recalculate prompt is visible.
-        label.setVisible(True)
+        current_html = _current_traits_prediction_html(owner)
+        if current_html:
+            label.setText(current_html)
+            label.setVisible(True)
+        else:
+            # Empty content is a valid actionable no-cache/manual state now that
+            # calculation lives in the section header button. Do not substitute
+            # the old unavailable fallback for a calculable chart.
+            label.setText("")
+            label.setVisible(False)
         label.adjustSize()
         label.setMinimumHeight(label.sizeHint().height())
 
