@@ -1478,6 +1478,28 @@ DISSIMILARITY_OWNER_RGB = {
 }
 
 
+def _dissimilarity_owner_color_css(owner: str) -> str:
+    red, green, blue = DISSIMILARITY_OWNER_RGB[owner]
+    return f"rgb({red}, {green}, {blue})"
+
+
+def _format_pair_dissimilarity_summary(
+    first_name: str,
+    second_name: str,
+    total_contrasts: int,
+) -> str:
+    factor_label = "factor" if total_contrasts == 1 else "factors"
+    return (
+        f'<span style="color: {_dissimilarity_owner_color_css("chart_1")};">'
+        f'{html.escape(first_name)}</span> '
+        f'<span style="color: #9b9b9b;">↔</span> '
+        f'<span style="color: {_dissimilarity_owner_color_css("chart_2")};">'
+        f'{html.escape(second_name)}</span>'
+        f'<span style="color: #9b9b9b;">: '
+        f'<span style="font-weight: 600;">{total_contrasts} contrasting {factor_label}</span> '
+        f'found.</span>'
+    )
+
 def _contrasting_similarities_section_title(section_title: str) -> str:
     factor_name = section_title.replace(" in contrast", "").replace(" in common", "")
     return f"Contrasting {factor_name}"
@@ -7915,9 +7937,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         first_name = str(getattr(first, "name", "") or f"#{resolution.first_chart_id}")
         second_name = str(getattr(second, "name", "") or f"#{resolution.second_chart_id}")
         self._similarities_pair_result_label.setText(
-            f"{first_name} ↔ {second_name}: "
-            f'<span style="color: #ffb74d; font-weight: 600;">'
-            f"{total_contrasts} contrasting factor(s)</span> found."
+            _format_pair_dissimilarity_summary(first_name, second_name, total_contrasts)
         )
 
     def _update_dissimilarities_analysis(self, chart_ids: list[int]) -> int:
@@ -28534,9 +28554,7 @@ class MainWindow(QMainWindow):
         first_name = str(getattr(first, "name", "") or f"#{resolution.first_chart_id}")
         second_name = str(getattr(second, "name", "") or f"#{resolution.second_chart_id}")
         self._similarities_pair_result_label.setText(
-            f"{first_name} ↔ {second_name}: "
-            f'<span style="color: #ffb74d; font-weight: 600;">'
-            f"{total_contrasts} contrasting factor(s)</span> found."
+            _format_pair_dissimilarity_summary(first_name, second_name, total_contrasts)
         )
 
     def _update_dissimilarities_analysis(self, chart_ids: list[int]) -> int:
