@@ -109,7 +109,9 @@ from ephemeraldaddy.gui.style import (
 
 
 DND_STAT_KEYS: tuple[str, ...] = ("STR", "DEX", "CON", "INT", "WIS", "CHA")
-DND_SPECIES_CLASS_CACHE_VERSION = 3
+# v4 invalidates species/class payloads cached before the Genasi subtype
+# rename from elemental shorthand ("Fire") to display names ("Fire Genasi").
+DND_SPECIES_CLASS_CACHE_VERSION = 4
 logger = logging.getLogger(__name__)
 
 

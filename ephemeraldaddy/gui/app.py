@@ -1350,7 +1350,7 @@ DATABASE_METRICS_INCREMENTAL_REFRESH_DELAY_MS = 25
 CHART_RENDER_INTERACTIVE_DELAY_MS = 100
 CHART_RENDER_BACKGROUND_DELAY_MS = 25
 
-DATABASE_METRICS_PERSISTENT_CACHE_VERSION = 1
+DATABASE_METRICS_PERSISTENT_CACHE_VERSION = 2
 DATABASE_METRICS_PERSISTENT_CACHE_FILENAME = ".database_metrics_cache.json"
 GENERATION_UNKNOWN_OPTION = "unknown"
 GENERATION_FILTER_OPTIONS: tuple[str, ...] = tuple(
@@ -3522,7 +3522,8 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             self._schedule_database_metrics_background_preload()
             return
         if (
-            section_key in self._database_metrics_preloaded_sections
+            section_key != "species_distribution"
+            and section_key in self._database_metrics_preloaded_sections
             and self._database_metric_section_has_rendered_content(section_key)
         ):
             # The background preloader already built an accurate canvas for the
@@ -3560,7 +3561,10 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             update_similarities=False,
             sections_to_refresh={section_key},
         )
-        self._database_metrics_preloaded_sections.add(section_key)
+        if self._database_metric_section_has_rendered_content(section_key):
+            self._database_metrics_preloaded_sections.add(section_key)
+        else:
+            self._database_metrics_preloaded_sections.discard(section_key)
         self._schedule_database_metrics_background_preload()
 
     def _is_database_metrics_section_expanded(self, section_key: str) -> bool:
@@ -3774,7 +3778,10 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             update_similarities=False,
             sections_to_refresh={section_key},
         )
-        self._database_metrics_preloaded_sections.add(section_key)
+        if self._database_metric_section_has_rendered_content(section_key):
+            self._database_metrics_preloaded_sections.add(section_key)
+        else:
+            self._database_metrics_preloaded_sections.discard(section_key)
         if self._database_metrics_background_preload_sections:
             self._schedule_database_metrics_background_preload()
 
@@ -9719,6 +9726,10 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                         reverse=True,
                     )
                 except Exception:
+                    logger.exception(
+                        "Failed to calculate fallback Fantasy RPG class distribution for chart UID %s.",
+                        getattr(chart, "chart_uid", None) or getattr(chart, "uid", None),
+                    )
                     continue
                 selected_classes = ranked_classes[:3] if mode == "top_three_classes" else ranked_classes[:1]
                 for class_key, _scored_class in selected_classes:
@@ -9731,6 +9742,10 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                 try:
                     species_top_three = assign_top_three_species(chart)
                 except Exception:
+                    logger.exception(
+                        "Failed to calculate fallback Fantasy RPG species distribution for chart UID %s.",
+                        getattr(chart, "chart_uid", None) or getattr(chart, "uid", None),
+                    )
                     continue
                 if not species_top_three:
                     continue
@@ -10210,6 +10225,10 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             try:
                 species_top_three = assign_top_three_species(chart)
             except Exception:
+                logger.exception(
+                    "Failed to calculate Fantasy RPG species distribution snapshot for chart UID %s.",
+                    getattr(chart, "chart_uid", None) or getattr(chart, "uid", None),
+                )
                 species_top_three = []
             if species_top_three:
                 top_species = species_top_three[0][0]
@@ -10229,6 +10248,10 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                     reverse=True,
                 )
             except Exception:
+                logger.exception(
+                    "Failed to calculate Fantasy RPG class data for chart UID %s.",
+                    getattr(chart, "chart_uid", None) or getattr(chart, "uid", None),
+                )
                 ranked_classes = []
             if ranked_classes:
                 # Guard against non-informative rankings. When every class score is flat
@@ -12742,25 +12765,42 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                 database_dnd_counts = database_cache["species_totals_by_mode"][species_mode]
 
             if _should_refresh_database_metric_section("species_distribution"):
-                if species_mode == "stat_block":
-                    species_canvas = self._build_dnd_statblock_summary_chart(
-                        selection_cache=selection_cache,
-                        database_cache=database_cache,
-                        loaded_charts=loaded_charts,
-                    )
-                else:
-                    species_canvas = self._build_species_distribution_chart(
-                        selection_species=selection_species,
-                        database_species=database_species,
-                        selection_species_counts=selection_dnd_counts,
-                        database_species_counts=database_dnd_counts,
-                        loaded_charts=loaded_charts,
-                    )
                 self._clear_layout(self.species_distribution_chart_layout)
-                self.species_distribution_chart_layout.addWidget(
-                    species_canvas,
-                    0,
-                )
+                try:
+                    if species_mode == "stat_block":
+                        species_canvas = self._build_dnd_statblock_summary_chart(
+                            selection_cache=selection_cache,
+                            database_cache=database_cache,
+                            loaded_charts=loaded_charts,
+                        )
+                    else:
+                        species_canvas = self._build_species_distribution_chart(
+                            selection_species=selection_species,
+                            database_species=database_species,
+                            selection_species_counts=selection_dnd_counts,
+                            database_species_counts=database_dnd_counts,
+                            loaded_charts=loaded_charts,
+                        )
+                    self.species_distribution_chart_layout.addWidget(
+                        species_canvas,
+                        0,
+                    )
+                except Exception:
+                    logger.exception(
+                        "Failed to render Database Analytics Fantasy RPG Archetypes chart "
+                        "for mode %s.",
+                        species_mode,
+                    )
+                    self.species_distribution_chart_layout.addWidget(
+                        self._build_text_analysis_widget(
+                            [
+                                "Fantasy RPG Archetypes could not render.",
+                                "Check the terminal log for details, then try switching modes or refreshing Database Analytics.",
+                            ]
+                        ),
+                        0,
+                        Qt.AlignTop,
+                    )
             species_labels = list(selection_species.keys())
             self._analysis_chart_export_rows["species_distribution"] = (
                 self._build_analysis_export_rows(
@@ -20725,6 +20765,10 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                     reverse=True,
                 )
             except Exception:
+                logger.exception(
+                    "Failed to calculate Fantasy RPG class data for chart UID %s.",
+                    getattr(chart, "chart_uid", None) or getattr(chart, "uid", None),
+                )
                 ranked_classes = []
             top_three_classes = {
                 (
