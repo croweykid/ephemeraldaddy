@@ -573,11 +573,7 @@ class ChartsController:
         else:
             self._clear_pending_changed_ids()
         apply_launch_window_policy = getattr(dialog, "apply_launch_window_policy", None)
-        # Avoid the Windows top-most "pulse" during startup. Changing top-level
-        # window flags after a window has been shown can make Qt/Windows recreate
-        # native HWNDs, which may briefly surface blank black/white transient
-        # rectangles around the splash and Database View launch choreography.
-        use_launch_pulse = False
+        use_launch_pulse = not bool(getattr(dialog, "_launch_foreground_completed", False))
         if dialog.isVisible():
             if callable(apply_launch_window_policy):
                 apply_launch_window_policy(use_topmost_pulse=use_launch_pulse)
