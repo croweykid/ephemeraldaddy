@@ -1,0 +1,26 @@
+# Incomplete ID -> UID Conversion: Status Update
+Our ultimate goal is to eradicate all instances of the legacy chart_id in favor of the permanent & unique chart UID, for all internal chart-identifying functions of the app. And yet in app.py alone, I see 1,592 instances of it.  We built scaffolding, as you can see, to fully migrate the entire database from ID to UID, to ensure that there was no further dependency on ID, and yet I see vestiges of ID everywhere.
+
+# Why? Where & how is it still being used?
+I see a usefulness to it in identifying the rank of a chart within Database View's middle panel's current sorting. If we are sorting by social score, it is useful to know that the chart name is #499 in the database, in terms of Social score. Or #2 in terms of Oldness. That's intuitive and useful, and arguably the only reason we would ever display a fluctuating ID. But I believe that some prior instances of use treated it as if it were a permanent/stable identity associated with each chart, whereas others use it to display sorting ranking in the current sorting view. Since this seemed inherently unstable for caching purposes, we added UIDs to provide a stable identifier in the metadata of every individual chart that wouldn't fluctuate based on the user's current viewing preference.
+
+# Why chart_id still appears so much in app.py
+app.py has an explicit file-level warning saying chart_id references are transitional compatibility only, and new code should use chart_uid / Chart UID instead. So the high count is partly expected because the migration is incomplete and deliberately bridged in this file.
+
+The biggest reason is that the Qt list/database UI still stores the legacy integer row ID in Qt.UserRole for list items, while the permanent UID is stored separately in Qt.UserRole + 2. That means selection, visible-row tracking, double-click loading, and many Database View interactions still speak in row IDs at the widget boundary. 
+
+Selection state is still ID-based: _selected_chart_id_order, _selected_chart_ids_set, _visible_chart_ids, and related filter/navigation anchors are integer row-ID structures. 
+
+The selected/visible helper methods still read integer IDs from list items and return list[int], which causes downstream batch tools, popouts, analytics refreshes, and commands to continue using chart_id terminology. 
+
+Chart View itself now has UID-first navigation scaffolding, but it keeps current_chart_id as a local compatibility handle and resolves it into current_chart_uid whenever possible. 
+
+load_chart_by_id() is now explicitly a compatibility adapter: it resolves the integer ID to a UID and delegates to load_chart_by_uid(). This is a good sign of the migration, but it also explains why chart_id remains in older callers. 
+
+Durable features have already started storing UIDs while accepting legacy IDs as a migration bridge. For example, custom collections load legacy chart_ids, convert them to chart_uids, and save only chart_uids back to settings. 
+
+Hidden-chart settings do the same: they load permanent hidden UIDs, read old hidden chart IDs only as a fallback, convert those IDs to UIDs, and then persist UIDs. 
+
+Analytics freshness/caching has also been moved toward UID stability: row tokens are keyed by UID, with a legacy-id:<id> fallback only when a UID cannot be resolved. 
+
+The stale-cache path similarly maps current row IDs to UIDs before deciding what changed, again falling back to legacy-id:<id> only if no UID exists. 
