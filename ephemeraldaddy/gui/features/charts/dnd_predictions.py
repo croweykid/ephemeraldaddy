@@ -1538,7 +1538,13 @@ class DndPredictionPanelAdapter:
         self.calculate_callback = calculate_callback
         self.reset_canvas_callback = reset_canvas_callback
 
+    def _set_header_action(self, section: str, state: str) -> None:
+        callback = getattr(self.owner, "_set_prediction_header_action", None)
+        if callable(callback):
+            callback(section, state)
+
     def _show_calculate_prompt(self, chart: Any | None, *, layout: Any = None, section: str = "dnd_statblock", summary_text: str | None = None) -> None:
+        self._set_header_action(section, "calculate")
         target_layout = layout or self.chart_layout
         if target_layout is None:
             return
@@ -1547,25 +1553,6 @@ class DndPredictionPanelAdapter:
         if callable(self.reset_canvas_callback):
             canvas_attr = "dnd_prediction_alignment_canvas" if section == "dnd_alignment" else "dnd_prediction_statblock_canvas"
             self.reset_canvas_callback(canvas_attr)
-        panel = QWidget()
-        panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
-        panel_layout = QVBoxLayout()
-        panel_layout.setContentsMargins(12, 18, 12, 18)
-        panel_layout.setSpacing(10)
-        panel_layout.setAlignment(Qt.AlignCenter)
-        panel.setLayout(panel_layout)
-        label = QLabel("No prior data. Calculate (can take awhile)?")
-        label.setAlignment(Qt.AlignCenter)
-        label.setWordWrap(True)
-        label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
-        label.setMinimumHeight(label.sizeHint().height())
-        label.setStyleSheet("color: #f5f5f5; font-weight: 600;")
-        button = QPushButton("Calculate!")
-        button.setStyleSheet("background-color: #7b4dff; color: white; font-weight: bold; padding: 6px 14px; border-radius: 5px;")
-        button.clicked.connect(lambda _checked=False, chart=chart, section=section: self.calculate_callback(chart, section) if callable(self.calculate_callback) and chart is not None else None)
-        panel_layout.addWidget(label, alignment=Qt.AlignCenter)
-        panel_layout.addWidget(button, alignment=Qt.AlignCenter)
-        target_layout.addWidget(panel)
 
     def _norm_charts(self) -> Any:
         if self.norm_charts_provider is None:
@@ -2048,33 +2035,10 @@ class DndPredictionPanelAdapter:
         return bool(getattr(self.owner, "_predictions_manual_recalculation_only", True))
 
     def _show_stale_recalculate_notice(self, layout: Any, chart: Any, section: str, *, refreshing: bool = False) -> None:
+        self._set_header_action(section, "recalculate")
         if layout is None:
             return
         self._remove_stale_recalculate_notices(layout)
-        panel = QWidget()
-        panel.setProperty("dnd_stale_recalculate_notice", True)
-        panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
-        panel_layout = QVBoxLayout()
-        panel_layout.setContentsMargins(0, 0, 0, 6)
-        panel_layout.setSpacing(4)
-        panel.setLayout(panel_layout)
-        label_text = (
-            "Cached results shown; automatic refresh is running in the background."
-            if refreshing
-            else "Cached results shown; chart data or DB norms may have changed."
-        )
-        label = QLabel(label_text)
-        label.setWordWrap(True)
-        label.setStyleSheet("color: #d8d8d8; font-style: italic; padding: 2px 0 0 0;")
-        button = QPushButton("Recalculate")
-        button.setStyleSheet("background-color: #7b4dff; color: white; font-weight: bold; font-style: italic; padding: 6px 14px; border-radius: 5px;")
-        button.clicked.connect(lambda _checked=False, chart=chart, section=section: self.calculate_callback(chart, section) if callable(self.calculate_callback) else None)
-        panel_layout.addWidget(label, alignment=Qt.AlignCenter)
-        panel_layout.addWidget(button, alignment=Qt.AlignCenter)
-        try:
-            layout.insertWidget(0, panel)
-        except Exception:
-            layout.addWidget(panel)
 
     def _show_species_class_stale_recalculate_notices(self, chart: Any, *, refreshing: bool = False) -> None:
         """Show explicit recalc controls for stale Fantasy RPG Species and Class summaries."""
@@ -2131,6 +2095,9 @@ class DndPredictionPanelAdapter:
         statblock_cache = self._restore_statblock_cache(chart)
         auto_refresh_started = False
         species_class_stale = self._species_class_cache_is_stale(chart)
+        if render_species_class and not species_class_stale:
+            self._set_header_action("dnd_species", "up_to_date")
+            self._set_header_action("dnd_class", "up_to_date")
         if render_species_class and species_class_stale:
             manual_only = self._manual_recalculation_only()
             self._show_species_class_stale_recalculate_notices(chart, refreshing=not manual_only)
@@ -2154,6 +2121,8 @@ class DndPredictionPanelAdapter:
                 if not manual_only and not auto_refresh_started and callable(self.calculate_callback):
                     auto_refresh_started = True
                     self.calculate_callback(chart, None)
+            else:
+                self._set_header_action("dnd_statblock", "up_to_date")
         elif render_statblock:
             self._show_calculate_prompt(chart, section="dnd_statblock")
 
@@ -2199,6 +2168,8 @@ class DndPredictionPanelAdapter:
                     self._show_stale_recalculate_notice(self.alignment_layout, chart, "dnd_alignment", refreshing=not manual_only)
                     if not manual_only and not auto_refresh_started and callable(self.calculate_callback):
                         self.calculate_callback(chart, None)
+                else:
+                    self._set_header_action("dnd_alignment", "up_to_date")
                 self._render_alignment_debug_summary(chart)
             else:
                 self._show_calculate_prompt(chart, layout=self.alignment_layout, section="dnd_alignment")
