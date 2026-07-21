@@ -461,7 +461,7 @@ def show_guide_to_the_galaxy(owner: "QWidget") -> None:
             painter.setPen(QColor("#9fb5d9"))
             painter.setFont(QFont("", 8))
             painter.drawText(
-                QRectF(18, 32, self.width() - 36, 58),
+                QRectF(18, 32, self.width() - 36, 70),
                 Qt.AlignLeft | Qt.AlignTop | Qt.TextWordWrap,
                 "The solar system is far vaster than any comfortable screen model. Orbit sizes, planet sizes, "
                 "and speeds are deliberately compressed so the pattern is legible. Earth is fixed at the center "
