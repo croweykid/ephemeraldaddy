@@ -134,11 +134,15 @@ def install_crash_diagnostics(*, debug_enabled: bool = False) -> Path | None:
         logger.debug("Faulthandler skipped because no diagnostics stream is available.")
 
     if _log_file is not None:
-        for native_signal in _NATIVE_SIGNALS:
-            try:
-                faulthandler.register(native_signal, file=_log_file, all_threads=True, chain=True)
-            except (RuntimeError, ValueError, OSError) as exc:
-                logger.debug("Could not register faulthandler for signal %s: %s", native_signal, exc)
+        register_signal = getattr(faulthandler, "register", None)
+        if register_signal is None:
+            logger.debug("Faulthandler signal registration is unavailable on this platform.")
+        else:
+            for native_signal in _NATIVE_SIGNALS:
+                try:
+                    register_signal(native_signal, file=_log_file, all_threads=True, chain=True)
+                except (RuntimeError, ValueError, OSError) as exc:
+                    logger.debug("Could not register faulthandler for signal %s: %s", native_signal, exc)
 
     sys.excepthook = _exception_hook
     if hasattr(threading, "excepthook"):
