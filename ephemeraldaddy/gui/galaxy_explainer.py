@@ -394,11 +394,14 @@ def show_guide_to_the_galaxy(owner: "QWidget") -> None:
         QHBoxLayout,
         QLabel,
         QPushButton,
+        QStackedWidget,
         QTextBrowser,
         QToolButton,
         QVBoxLayout,
         QWidget,
     )
+
+    from ephemeraldaddy.gui.style import APPWIDE_BODY_TEXT_MAX_LINE_CHARS
 
     model_bodies = [
         {"name": "Moon", "period": 27.32, "distance": 0.18, "color": "#d7dde8", "size": 6},
@@ -514,7 +517,8 @@ def show_guide_to_the_galaxy(owner: "QWidget") -> None:
     )
     intro_index = {"value": 0}
     subhead_frame = QFrame(dialog)
-    subhead_frame.setMinimumHeight(146)
+    subhead_frame.setMinimumHeight(46)
+    subhead_frame.setMaximumHeight(46)
     subhead_layout = QHBoxLayout(subhead_frame)
     subhead_layout.setContentsMargins(0, 0, 0, 0)
     previous_intro_button = QToolButton(subhead_frame)
@@ -525,14 +529,15 @@ def show_guide_to_the_galaxy(owner: "QWidget") -> None:
     next_intro_button.setToolTip("Next intro paragraph")
     subhead = QTextBrowser(subhead_frame)
     subhead.setOpenExternalLinks(False)
-    subhead.setMinimumHeight(146)
-    subhead.setHtml(intro_pages[0])
+    subhead.setMinimumHeight(46)
+    subhead.setMaximumHeight(46)
+    subhead.setHtml(f"<div style='max-width: {APPWIDE_BODY_TEXT_MAX_LINE_CHARS}ch;'>{intro_pages[0]}</div>")
     subhead_layout.addWidget(previous_intro_button)
     subhead_layout.addWidget(subhead, 1)
     subhead_layout.addWidget(next_intro_button)
 
     def refresh_intro_page() -> None:
-        subhead.setHtml(intro_pages[intro_index["value"]])
+        subhead.setHtml(f"<div style='max-width: {APPWIDE_BODY_TEXT_MAX_LINE_CHARS}ch;'>{intro_pages[intro_index['value']]}</div>")
         previous_intro_button.setEnabled(intro_index["value"] > 0)
         next_intro_button.setEnabled(intro_index["value"] < len(intro_pages) - 1)
 
@@ -552,6 +557,22 @@ def show_guide_to_the_galaxy(owner: "QWidget") -> None:
     refresh_intro_page()
     layout.addWidget(subhead_frame)
 
+    panel_buttons = QFrame(dialog)
+    panel_buttons.setMinimumHeight(100)
+    panel_buttons.setMaximumHeight(100)
+    panel_buttons_layout = QHBoxLayout(panel_buttons)
+    panel_buttons_layout.setContentsMargins(0, 0, 0, 0)
+    geocentric_button = QPushButton("Geocentric Model", panel_buttons)
+    accuracy_scores_button = QPushButton("Accuracy Scores", panel_buttons)
+    interval_button = QPushButton("Interval Calculator", panel_buttons)
+    database_stats_button = QPushButton("Database Statistics", panel_buttons)
+    panel_buttons_layout.addWidget(geocentric_button)
+    panel_buttons_layout.addWidget(accuracy_scores_button)
+    panel_buttons_layout.addStretch(1)
+    panel_buttons_layout.addWidget(interval_button)
+    panel_buttons_layout.addWidget(database_stats_button)
+    layout.addWidget(panel_buttons)
+
     row = QHBoxLayout()
     controls = QHBoxLayout()
     body_combo = QComboBox(dialog)
@@ -565,25 +586,16 @@ def show_guide_to_the_galaxy(owner: "QWidget") -> None:
     controls.addWidget(sign_combo)
     controls.addWidget(calculate_button)
 
-    right = QVBoxLayout()
-    right.addLayout(controls)
-    explain = QTextBrowser(dialog)
-    explain.setOpenExternalLinks(False)
-    explain.setHtml(
-        "<h2>Compressed model caveat</h2>"
-        "<p>The solar system is far vaster than any comfortable screen model. Orbit sizes, planet sizes, "
-        "and speeds are deliberately compressed so the pattern is legible. Earth is fixed at the center "
-        "because this is illustrating how astrology interprets sky positions from here on Earth.</p>"
-        "<h2>Timeline buckets</h2>"
-        "<p>We classify sign occupancy as minute-scale, hour-scale, day-scale, month-scale, year-scale, "
-        "multi-year, or decade-scale. Irregular apparent cycles usually come from retrograde loops, eccentric "
-        "orbits, or calculated points rather than a planet literally reversing direction in space.</p>"
-        "<h2>Astrology versus astronomy vocabulary</h2>"
-        "<p><strong>Retrograde</strong> in astrology is geocentric apparent backward motion against the zodiac. "
-        "Astronomically, the body does not usually reverse its orbit; the effect comes from changing Earth-body-Sun geometry. "
-        "Lilith variants are mathematical lunar-apogee conventions or tradition-specific labels, not physical planets.</p>"
+    interval_panel = QWidget(dialog)
+    interval_panel_layout = QVBoxLayout(interval_panel)
+    interval_panel_layout.addLayout(controls)
+    interval_results = QTextBrowser(interval_panel)
+    interval_results.setOpenExternalLinks(False)
+    interval_results.setHtml(
+        "<h2>Interval Calculator</h2>"
+        "<p>Choose a body/point and sign, then calculate intervals within the configured 300-year window.</p>"
     )
-    right.addWidget(explain, 1)
+    interval_panel_layout.addWidget(interval_results, 1)
 
     def choose_body(name: str) -> None:
         index = body_combo.findText(name)
@@ -591,8 +603,43 @@ def show_guide_to_the_galaxy(owner: "QWidget") -> None:
             body_combo.setCurrentIndex(index)
 
     model = SolarSystemModel(choose_body, dialog)
-    row.addWidget(model, 3)
-    row.addLayout(right, 2)
+    geocentric_panel = QWidget(dialog)
+    geocentric_layout = QVBoxLayout(geocentric_panel)
+    geocentric_layout.addWidget(model, 1)
+    model_summary = QTextBrowser(geocentric_panel)
+    model_summary.setOpenExternalLinks(False)
+    model_summary.setMaximumHeight(210)
+    model_summary.setHtml(
+        "<h2>Compressed model caveat</h2>"
+        "<p>The solar system is far vaster than any comfortable screen model. Orbit sizes, planet sizes, "
+        "and speeds are deliberately compressed so the pattern is legible. Earth is fixed at the center "
+        "because this is illustrating how astrology interprets sky positions from here on Earth.</p>"
+        "<h2>Astrology versus astronomy vocabulary</h2>"
+        "<p><strong>Retrograde</strong> in astrology is geocentric apparent backward motion against the zodiac. "
+        "Astronomically, the body does not usually reverse its orbit; the effect comes from changing Earth-body-Sun geometry. "
+        "Lilith variants are mathematical lunar-apogee conventions or tradition-specific labels, not physical planets.</p>"
+    )
+    geocentric_layout.addWidget(model_summary)
+
+    accuracy_panel = QTextBrowser(dialog)
+    accuracy_panel.setHtml("<h2>Accuracy Scores</h2><p>Coming soon!</p>")
+    database_stats_panel = QTextBrowser(dialog)
+    database_stats_panel.setHtml("<h2>Database Statistics</h2><p>Coming soon!</p>")
+
+    left_stack = QStackedWidget(dialog)
+    left_stack.addWidget(geocentric_panel)
+    left_stack.addWidget(accuracy_panel)
+    right_stack = QStackedWidget(dialog)
+    right_stack.addWidget(interval_panel)
+    right_stack.addWidget(database_stats_panel)
+
+    geocentric_button.clicked.connect(lambda: left_stack.setCurrentWidget(geocentric_panel))
+    accuracy_scores_button.clicked.connect(lambda: left_stack.setCurrentWidget(accuracy_panel))
+    interval_button.clicked.connect(lambda: right_stack.setCurrentWidget(interval_panel))
+    database_stats_button.clicked.connect(lambda: right_stack.setCurrentWidget(database_stats_panel))
+
+    row.addWidget(left_stack, 3)
+    row.addWidget(right_stack, 2)
     layout.addLayout(row, 1)
 
     class SignRangeWorker(QObject):
@@ -642,7 +689,7 @@ def show_guide_to_the_galaxy(owner: "QWidget") -> None:
         sign = sign_combo.currentText()
         calculate_button.setEnabled(False)
         calculate_button.setText("Calculating…")
-        explain.setHtml(f"<h2>{body} in {sign}</h2><p><em>Calculating sign ranges in the background…</em></p>")
+        interval_results.setHtml(f"<h2>{body} in {sign}</h2><p><em>Calculating sign ranges in the background…</em></p>")
 
         thread = QThread()
         worker = SignRangeWorker(body, sign)
@@ -655,9 +702,9 @@ def show_guide_to_the_galaxy(owner: "QWidget") -> None:
             if dialog_alive["value"]:
                 try:
                     if error is None:
-                        explain.setHtml(_build_ranges_html(done_body, done_sign, ranges))
+                        interval_results.setHtml(_build_ranges_html(done_body, done_sign, ranges))
                     else:
-                        explain.setHtml(f"<h2>{done_body} in {done_sign}</h2><p><em>Could not calculate ranges from the built-in ephemeris: {error}</em></p>")
+                        interval_results.setHtml(f"<h2>{done_body} in {done_sign}</h2><p><em>Could not calculate ranges from the built-in ephemeris: {error}</em></p>")
                     calculate_button.setEnabled(True)
                     calculate_button.setText("Show 300y past / 100y future sign ranges")
                 except RuntimeError:
