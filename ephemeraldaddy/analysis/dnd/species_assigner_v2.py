@@ -1083,22 +1083,22 @@ class SpeciesAssigner:
 
         if family == "Genasi":
             dominant = feats["dominant_element"]
-            if dominant == "Fire Genasi":
+            if dominant == "Fire":
                 if max(link("Uranus", "Mars"), link("Uranus", "Mercury")) >= 0.28:
                     evidence.append("Fire dominated by current and spark selects Electric.")
                     return "Electric Genasi", evidence
                 return "Fire Genasi", evidence
-            if dominant == "Air Genasi":
+            if dominant == "Air":
                 if max(link("Uranus", "Mars"), link("Uranus", "Mercury")) >= 0.24:
                     evidence.append("Air crackles into Electric.")
                     return "Electric Genasi", evidence
                 return "Air Genasi", evidence
-            if dominant == "Earth Genasi":
+            if dominant == "Earth":
                 if er["Water"] >= 0.26:
                     evidence.append("Earth with enough Water becomes Mud.")
                     return "Mud Genasi", evidence
                 return "Earth Genasi", evidence
-            if dominant == "Water Genasi":
+            if dominant == "Water":
                 if max(link("Saturn", "Moon"), link("Saturn", "Neptune")) >= 0.25:
                     evidence.append("Water held rigid by Saturn becomes Ice.")
                     return "Ice Genasi", evidence

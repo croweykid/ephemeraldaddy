@@ -713,7 +713,7 @@ def format_dnd_species_info_text(
     leading_lines.extend([description_line, ""])
     if evidence:
         lines = [f"• {line}" for line in evidence]
-        return "\n".join(leading_lines + ["Evidence:"] + lines)
+        return "\n".join(leading_lines + ["\nEvidence:"] + lines)
     return "\n".join(
         leading_lines
         + [

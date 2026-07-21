@@ -1649,7 +1649,7 @@ def _trait_predictions_refresh_message(updated_at: str | None) -> str:
     timestamp = html.escape(updated_at or "never")
     return (
         "<div style='color:#70d878; font-style:italic; padding-bottom:5px; text-align:center;'>"
-        f"Predictions panel is refreshing. Current results last updated: {timestamp} ♻️"
+        f"Current results last updated: {timestamp} ♻️"
         "</div>"
     )
 
