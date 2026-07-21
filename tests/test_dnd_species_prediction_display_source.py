@@ -29,4 +29,4 @@ def test_dnd_species_prediction_click_uses_formatted_html_info_panel():
 
 
 def test_dnd_species_prediction_cache_version_invalidates_old_labels():
-    assert "DND_SPECIES_CLASS_CACHE_VERSION = 3" in SOURCE
+    assert "DND_SPECIES_CLASS_CACHE_VERSION = 4" in SOURCE
