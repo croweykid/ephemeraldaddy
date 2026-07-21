@@ -7989,7 +7989,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                 ("BaZi signs in contrast", self.similarities_common_bazi_signs_list, self.similarities_common_bazi_signs_toggle),
             )
             self.similarities_common_hd_gate_lines_toggle.parentWidget().setVisible(
-                bool(section_matches.get("Gates in contrast", []))
+                bool(section_matches.get("Gate Lines in contrast", []))
             )
             update_similarities_loading_progress(progress, "Rendering dissimilarities results…")
             for section_title, section_list, toggle in render_pairs:
@@ -28650,7 +28650,7 @@ class MainWindow(QMainWindow):
                 ("Profiles in contrast", self.similarities_common_hd_profiles_list, self.similarities_common_hd_profiles_toggle),
             )
             self.similarities_common_hd_gate_lines_toggle.parentWidget().setVisible(
-                bool(section_matches.get("Gates in contrast", []))
+                bool(section_matches.get("Gate Lines in contrast", []))
             )
             update_similarities_loading_progress(progress, "Rendering dissimilarities results…")
             for section_title, section_list, toggle in render_pairs:
