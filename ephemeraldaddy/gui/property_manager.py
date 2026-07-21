@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from PySide6.QtCore import Qt
+
 from ephemeraldaddy.core.db import (
     apply_metadata_label_change,
     get_metadata_label_usage,
@@ -61,8 +63,12 @@ class PropertyManagerCoordinator:
             window_title="Property Manager",
         )
         close_button = getattr(dialog, "_close_button", None)
-        if embedded and close_button is not None:
-            close_button.hide()
+        if embedded:
+            dialog.setWindowFlags(Qt.Widget)
+            dialog.setWindowModality(Qt.NonModal)
+            dialog.setSizeGripEnabled(False)
+            if close_button is not None:
+                close_button.hide()
         return dialog
 
     def launch(
