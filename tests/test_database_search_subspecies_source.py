@@ -6,7 +6,9 @@ SEARCH_PANEL_SOURCE = (ROOT / "ephemeraldaddy" / "gui" / "dbv_search_panel.py").
 
 
 def test_species_filter_exposes_dependent_subspecies_dropdown() -> None:
-    assert "FAMILY_SUBTYPES = app_module.FAMILY_SUBTYPES" in SEARCH_PANEL_SOURCE
+    assert "FAMILY_SUBTYPES" in SEARCH_PANEL_SOURCE
+    assert "from ephemeraldaddy.gui import app" not in SEARCH_PANEL_SOURCE
+    assert "app_module." not in SEARCH_PANEL_SOURCE
     assert "window.subspecies_filter_combo = QComboBox()" in SEARCH_PANEL_SOURCE
     assert "def refresh_subspecies_filter_options()" in SEARCH_PANEL_SOURCE
     assert "FAMILY_SUBTYPES.get(selected_species, [])" in SEARCH_PANEL_SOURCE
@@ -29,8 +31,9 @@ def test_search_filters_apply_selected_subspecies_to_top_three_species() -> None
 
 def test_subspecies_filter_uses_shared_prediction_cache() -> None:
     assert "def _dnd_species_class_payload_for_chart" in APP_SOURCE
-    assert "cache_species_class_metadata(chart)" in APP_SOURCE
-    assert "Return Top 3 Species/Subspecies from the shared appwide cache." in APP_SOURCE
+    assert "def dnd_species_class_payload_for_chart" in SEARCH_PANEL_SOURCE
+    assert "cache_species_class_metadata(chart)" in SEARCH_PANEL_SOURCE
+    assert "Return Top 3 Species/Subspecies from the shared appwide cache." in SEARCH_PANEL_SOURCE
 
 
 def test_clear_and_active_filter_state_include_subspecies() -> None:
