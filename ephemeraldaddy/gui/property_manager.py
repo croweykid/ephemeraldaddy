@@ -61,14 +61,12 @@ class PropertyManagerCoordinator:
             initial_field=initial_field,
             lock_field=False,
             window_title="Property Manager",
+            show_close_button=not embedded,
         )
-        close_button = getattr(dialog, "_close_button", None)
         if embedded:
             dialog.setWindowFlags(Qt.Widget)
             dialog.setWindowModality(Qt.NonModal)
             dialog.setSizeGripEnabled(False)
-            if close_button is not None:
-                close_button.hide()
         return dialog
 
     def launch(
