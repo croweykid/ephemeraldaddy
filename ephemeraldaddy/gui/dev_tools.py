@@ -44,6 +44,7 @@ from ephemeraldaddy.gui.style import (
     DATABASE_VIEW_HEADER_COLOR,
     CHART_DATA_HIGHLIGHT_COLOR,
     INACTIVE_ACTION_BUTTON_STYLE,
+    create_divider,
     similarity_gradient_rgb_for_range,
 )
 
@@ -85,7 +86,7 @@ def add_demo_mode_setting(
     is_enabled: bool,
     on_toggled: Callable[[bool], None],
 ) -> QCheckBox:
-    checkbox = QCheckBox("Demo mode: hide subjective/private notes")
+    checkbox = QCheckBox("Private Mode: hide subjective/private notes") #formerly "demo mode"
     checkbox.setChecked(bool(is_enabled))
     checkbox.setToolTip(
         "When enabled, hides Chart View Observations, Chart Info Notes, and subjective "
@@ -746,10 +747,7 @@ def build_similarity_calculator_settings_section(
     #custom_fields_layout.addLayout(reset_granular_row)
     section_layout.addWidget(custom_fields_frame)
 
-    section_divider = QFrame()
-    section_divider.setFrameShape(QFrame.HLine)
-    section_divider.setFrameShadow(QFrame.Sunken)
-    section_layout.addWidget(section_divider)
+    section_layout.addWidget(create_divider())
 
     calibrate_similarity_button = QPushButton("Calibrate Similarity Norms")
     calibrate_similarity_button.setToolTip(
@@ -1404,8 +1402,9 @@ class ManageMetadataLabelsDialog(QDialog):
         window_title: str = "Property Manager",
         intro_text: str = "Current + legacy labels found in database (including unused/orphaned).",
         show_close_button: bool = True,
+        window_flags: Qt.WindowType = Qt.Dialog,
     ) -> None:
-        super().__init__(parent)
+        super().__init__(parent, window_flags)
         self.setWindowTitle(window_title)
         self.resize(860, 520)
         self._load_usage = load_usage

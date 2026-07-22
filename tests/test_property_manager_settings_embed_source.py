@@ -6,9 +6,11 @@ DEV_TOOLS_SOURCE = Path("ephemeraldaddy/gui/dev_tools.py").read_text()
 
 
 def test_embedded_property_manager_uses_plain_widget_chrome() -> None:
+    create_widget_block = PROPERTY_MANAGER_SOURCE.split("def create_widget(", 1)[1].split("def launch(", 1)[0]
     embedded_block = PROPERTY_MANAGER_SOURCE.split("if embedded:", 1)[1].split("return dialog", 1)[0]
 
-    assert "dialog.setWindowFlags(Qt.Widget)" in embedded_block
+    assert "window_flags=Qt.Widget if embedded else Qt.Dialog" in create_widget_block
+    assert "dialog.setWindowFlags(Qt.Widget)" not in embedded_block
     assert "dialog.setWindowModality(Qt.NonModal)" in embedded_block
     assert "dialog.setSizeGripEnabled(False)" in embedded_block
 
@@ -23,6 +25,8 @@ def test_embedded_property_manager_does_not_create_legacy_close_button() -> None
 
     assert "show_close_button=not embedded" in create_widget_block
     assert "show_close_button: bool = True" in init_signature
+    assert "window_flags: Qt.WindowType = Qt.Dialog" in init_signature
+    assert "super().__init__(parent, window_flags)" in dialog_source
     assert "QPushButton(\"Close\") if show_close_button else None" in button_block
     assert "self._close_button" not in DEV_TOOLS_SOURCE
     assert "close_button.hide()" not in PROPERTY_MANAGER_SOURCE

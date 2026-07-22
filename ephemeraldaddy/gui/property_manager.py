@@ -62,9 +62,9 @@ class PropertyManagerCoordinator:
             lock_field=False,
             window_title="Property Manager",
             show_close_button=not embedded,
+            window_flags=Qt.Widget if embedded else Qt.Dialog,
         )
         if embedded:
-            dialog.setWindowFlags(Qt.Widget)
             dialog.setWindowModality(Qt.NonModal)
             dialog.setSizeGripEnabled(False)
         return dialog

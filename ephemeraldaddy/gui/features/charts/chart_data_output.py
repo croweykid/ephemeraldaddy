@@ -64,7 +64,7 @@ def _normalized_chart_data_text(text: str) -> str:
     normalized: list[str] = []
     for index, line in enumerate(lines):
         stripped = line.strip()
-        if stripped == CHART_DATA_DIVIDER:
+        if CHART_DATA_DIVIDER and stripped == CHART_DATA_DIVIDER:
             previous_line = lines[index - 1].strip() if index > 0 else ""
             next_line = lines[index + 1].strip() if index + 1 < len(lines) else ""
             if _is_chart_data_section_header(previous_line) or _is_chart_data_section_header(next_line):
@@ -1347,7 +1347,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         current_section = self._current_chart_data_section()
         if current_section not in {"POSITIONS", "UNCERTAIN TIME VARIANTS"}:
             return
-        if not stripped_text or stripped_text == "POSITIONS" or stripped_text == CHART_DATA_DIVIDER:
+        if not stripped_text or stripped_text == "POSITIONS" or (CHART_DATA_DIVIDER and stripped_text == CHART_DATA_DIVIDER):
             return
         columns = self._split_padded_columns(text.rstrip())
         if len(columns) < 4:

@@ -390,14 +390,18 @@ def show_guide_to_the_galaxy(owner: "QWidget") -> None:
     from PySide6.QtWidgets import (
         QComboBox,
         QDialog,
-        QDialogButtonBox,
+        QFrame,
         QHBoxLayout,
         QLabel,
         QPushButton,
+        QStackedWidget,
         QTextBrowser,
+        QToolButton,
         QVBoxLayout,
         QWidget,
     )
+
+    from ephemeraldaddy.gui.style import APPWIDE_BODY_TEXT_MAX_LINE_CHARS
 
     model_bodies = [
         {"name": "Moon", "period": 27.32, "distance": 0.18, "color": "#d7dde8", "size": 6},
@@ -435,7 +439,7 @@ def show_guide_to_the_galaxy(owner: "QWidget") -> None:
                 self.update()
 
         def _body_positions(self):
-            rect = self.rect().adjusted(34, 34, -34, -34)
+            rect = self.rect().adjusted(34, 104, -34, -34)
             center = QPointF(rect.center())
             max_radius = min(rect.width(), rect.height()) / 2.0 * 0.86
             positions = []
@@ -451,6 +455,18 @@ def show_guide_to_the_galaxy(owner: "QWidget") -> None:
             painter = QPainter(self)
             painter.setRenderHint(QPainter.Antialiasing)
             painter.fillRect(self.rect(), QColor("#08101f"))
+            painter.setPen(QColor("#dbe7ff"))
+            painter.setFont(QFont("", 10, QFont.Bold))
+            painter.drawText(QRectF(18, 10, self.width() - 36, 22), Qt.AlignLeft | Qt.AlignTop, "Compressed Model")
+            painter.setPen(QColor("#9fb5d9"))
+            painter.setFont(QFont("", 8))
+            painter.drawText(
+                QRectF(18, 32, self.width() - 36, 70),
+                Qt.AlignLeft | Qt.AlignTop | Qt.TextWordWrap,
+                "The solar system is far vaster than any comfortable screen model. Orbit sizes, planet sizes, "
+                "and speeds are deliberately compressed so the pattern is legible. Earth is fixed at the center "
+                "because this illustrates how astrology interprets sky positions from here on Earth.",
+            )
             center, positions = self._body_positions()
             painter.setPen(QPen(QColor("#2f4265"), 1))
             for _body, _point, radius in positions:
@@ -505,15 +521,41 @@ def show_guide_to_the_galaxy(owner: "QWidget") -> None:
     dialog.resize(1180, 760)
     layout = QVBoxLayout(dialog)
     layout.addWidget(QLabel("<h1>Guide to the Galaxy</h1>"))
-    subhead = QTextBrowser(dialog)
-    subhead.setOpenExternalLinks(False)
-    subhead.setMaximumHeight(96)
-    subhead.setHtml(
-        "<p><em>This is not astronomy. The two are connected, but astronomy is an empirical, materialist science that has been quite differentiated since at least the 1700s. Astrology is subjective metaphysics and many people would deem it a pseudoscience in the pejorative sense. They do reference many of the same basic tools, but they are not entirely in accord. For instance, the <a href='ephemeraldaddy://help/sidereal-discussion'>sidereal discussion</a>.</em></p>"
-        "<p>You will notice that the model below reflects observed cosmic phenomena from the perspective of Earth (geocentric model), rather than a literal heliocentric model. The broad tradition of astrology predates the concept of heliocentrism, as far as most remaining <a href='ephemeraldaddy://help/heliocentric_astrology'>historical sources</a> indicate. That said, geocentric astrology is not automatically the same claim as 'geocentric physics'. A birth chart is cast from the native’s location on Earth, so geocentric coordinates make practical sense even in a heliocentric solar system.<p>"
-        "<p>Nevertheless, it's worth noting that ancient astrologers usually were not making that modern distinction cleanly. Most probably assumed the geocentric cosmos was physically true, because that was the dominant educated model. This is a significant argument against mainstream adoption of astrology as a viable model for explaining any aspects of reality besides those which emerge out of faith-based and/or subconscious psychological projections.</p>"
-        "<p>Regardless, as far as the developer of this app has been able to personally determine, many aspects of it seem to correlate beyond expected standard deviation reliably enough to warrant further scrutiny, and so I for one am not entirely deterred by its anachronisms. It's possible that some systems function well by using relative rather than absolute observations. I would contend that if there is any validity to astrology, it is only because tropical astrology (specifically) is far more about earthly cycles mapped to celestial patterns rather than the cosmos themselves, a fact which tropical astrologers of any quality acknowledge. The <a href='ephemeraldaddy://help/heliocentric_astrology'>great schism between astrology and astronomy</a> arguably arose out of the distinction that astronomy studied the sky for the sky's sake, whereas in astrology, said cosmos were primarily used as (increasingly symbolic and mythologized) reference points for seasonal shifts, noteworthy impacts on temperature, weather, lighting. From this standpoint, the prior's validity conceivably remains in tact.</p>"
+    intro_pages = (
+        "<p><em>This is not astronomy. The two are connected, but astronomy is an empirical, materialist science that has been quite differentiated since at least the 1700s. Astrology is subjective metaphysics and many people would deem it a pseudoscience in the pejorative sense. They do reference many of the same basic tools, but they are not entirely in accord. For instance, the <a href='ephemeraldaddy://help/sidereal-discussion'>sidereal discussion</a>.</em></p>",
+        "<p>You will notice that the model below reflects observed cosmic phenomena from the perspective of Earth (geocentric model), rather than a literal heliocentric model. The broad tradition of astrology predates the concept of heliocentrism, as far as most remaining <a href='ephemeraldaddy://help/heliocentric_astrology'>historical sources</a> indicate. That said, geocentric astrology is not automatically the same claim as 'geocentric physics'. A birth chart is cast from the native’s location on Earth, so geocentric coordinates make practical sense even in a heliocentric solar system.</p>",
+        "<p>Nevertheless, it's worth noting that ancient astrologers usually were not making that modern distinction cleanly. Most probably assumed the geocentric cosmos was physically true, because that was the dominant educated model. This is a significant argument against mainstream adoption of astrology as a viable model for explaining any aspects of reality besides those which emerge out of faith-based and/or subconscious psychological projections.</p>",
+        "<p>Regardless, as far as the developer of this app has been able to personally determine, many aspects of it seem to correlate beyond expected standard deviation reliably enough to warrant further scrutiny, and so I for one am not entirely deterred by its anachronisms. It's possible that some systems function well by using relative rather than absolute observations. I would contend that if there is any validity to astrology, it is only because tropical astrology (specifically) is far more about earthly cycles mapped to celestial patterns rather than the cosmos themselves, a fact which tropical astrologers of any quality acknowledge. The <a href='ephemeraldaddy://help/heliocentric_astrology'>great schism between astrology and astronomy</a> arguably arose out of the distinction that astronomy studied the sky for the sky's sake, whereas in astrology, said cosmos were primarily used as (increasingly symbolic and mythologized) reference points for seasonal shifts, noteworthy impacts on temperature, weather, lighting. From this standpoint, the prior's validity conceivably remains in tact.</p>",
     )
+    intro_index = {"value": 0}
+    subhead_frame = QFrame(dialog)
+    subhead_frame.setMinimumHeight(100)
+    subhead_frame.setMaximumHeight(100)
+    subhead_layout = QHBoxLayout(subhead_frame)
+    subhead_layout.setContentsMargins(0, 0, 0, 0)
+    previous_intro_button = QToolButton(subhead_frame)
+    previous_intro_button.setText("‹")
+    previous_intro_button.setToolTip("Previous intro paragraph")
+    next_intro_button = QToolButton(subhead_frame)
+    next_intro_button.setText("›")
+    next_intro_button.setToolTip("Next intro paragraph")
+    subhead = QTextBrowser(subhead_frame)
+    subhead.setOpenExternalLinks(False)
+    subhead.setMinimumHeight(100)
+    subhead.setMaximumHeight(100)
+    subhead.setHtml(f"<div style='max-width: {APPWIDE_BODY_TEXT_MAX_LINE_CHARS}ch;'>{intro_pages[0]}</div>")
+    subhead_layout.addWidget(previous_intro_button)
+    subhead_layout.addWidget(subhead, 1)
+    subhead_layout.addWidget(next_intro_button)
+
+    def refresh_intro_page() -> None:
+        subhead.setHtml(f"<div style='max-width: {APPWIDE_BODY_TEXT_MAX_LINE_CHARS}ch;'>{intro_pages[intro_index['value']]}</div>")
+        previous_intro_button.setEnabled(intro_index["value"] > 0)
+        next_intro_button.setEnabled(intro_index["value"] < len(intro_pages) - 1)
+
+    def move_intro_page(delta: int) -> None:
+        intro_index["value"] = min(max(intro_index["value"] + delta, 0), len(intro_pages) - 1)
+        refresh_intro_page()
 
     def open_subhead_help(url):  # noqa: ANN001
         if url.host() == "help" and url.path().strip("/") in {"sidereal-discussion", "sidereal_discussion"}:
@@ -521,8 +563,29 @@ def show_guide_to_the_galaxy(owner: "QWidget") -> None:
         elif url.host() == "help" and url.path().strip("/") in {"heliocentric-astrology", "heliocentric_astrology"}:
             _show_heliocentric_discussion_help(dialog)
 
+    previous_intro_button.clicked.connect(lambda: move_intro_page(-1))
+    next_intro_button.clicked.connect(lambda: move_intro_page(1))
     subhead.anchorClicked.connect(open_subhead_help)
-    layout.addWidget(subhead)
+    refresh_intro_page()
+    layout.addWidget(subhead_frame)
+
+    panel_buttons = QFrame(dialog)
+    panel_buttons.setMinimumHeight(46)
+    panel_buttons.setMaximumHeight(46)
+    panel_buttons_layout = QHBoxLayout(panel_buttons)
+    panel_buttons_layout.setContentsMargins(0, 0, 0, 0)
+    geocentric_button = QPushButton("Animated Model", panel_buttons)
+    vocab_button = QPushButton("Vocab", panel_buttons)
+    accuracy_scores_button = QPushButton("Accuracy Scores", panel_buttons)
+    interval_button = QPushButton("Interval Calculator", panel_buttons)
+    database_stats_button = QPushButton("Database Statistics", panel_buttons)
+    panel_buttons_layout.addWidget(geocentric_button)
+    panel_buttons_layout.addWidget(vocab_button)
+    panel_buttons_layout.addWidget(accuracy_scores_button)
+    panel_buttons_layout.addStretch(1)
+    panel_buttons_layout.addWidget(interval_button)
+    panel_buttons_layout.addWidget(database_stats_button)
+    layout.addWidget(panel_buttons)
 
     row = QHBoxLayout()
     controls = QHBoxLayout()
@@ -537,25 +600,16 @@ def show_guide_to_the_galaxy(owner: "QWidget") -> None:
     controls.addWidget(sign_combo)
     controls.addWidget(calculate_button)
 
-    right = QVBoxLayout()
-    right.addLayout(controls)
-    explain = QTextBrowser(dialog)
-    explain.setOpenExternalLinks(False)
-    explain.setHtml(
-        "<h2>Compressed model caveat</h2>"
-        "<p>The solar system is far vaster than any comfortable screen model. Orbit sizes, planet sizes, "
-        "and speeds are deliberately compressed so the pattern is legible. Earth is fixed at the center "
-        "because this is illustrating how astrology interprets sky positions from here on Earth.</p>"
-        "<h2>Timeline buckets</h2>"
-        "<p>We classify sign occupancy as minute-scale, hour-scale, day-scale, month-scale, year-scale, "
-        "multi-year, or decade-scale. Irregular apparent cycles usually come from retrograde loops, eccentric "
-        "orbits, or calculated points rather than a planet literally reversing direction in space.</p>"
-        "<h2>Astrology versus astronomy vocabulary</h2>"
-        "<p><strong>Retrograde</strong> in astrology is geocentric apparent backward motion against the zodiac. "
-        "Astronomically, the body does not usually reverse its orbit; the effect comes from changing Earth-body-Sun geometry. "
-        "Lilith variants are mathematical lunar-apogee conventions or tradition-specific labels, not physical planets.</p>"
+    interval_panel = QWidget(dialog)
+    interval_panel_layout = QVBoxLayout(interval_panel)
+    interval_panel_layout.addLayout(controls)
+    interval_results = QTextBrowser(interval_panel)
+    interval_results.setOpenExternalLinks(False)
+    interval_results.setHtml(
+        "<h2>Interval Calculator</h2>"
+        "<p>Choose a body/point and sign, then calculate intervals within the configured 300-year window.</p>"
     )
-    right.addWidget(explain, 1)
+    interval_panel_layout.addWidget(interval_results, 1)
 
     def choose_body(name: str) -> None:
         index = body_combo.findText(name)
@@ -563,8 +617,41 @@ def show_guide_to_the_galaxy(owner: "QWidget") -> None:
             body_combo.setCurrentIndex(index)
 
     model = SolarSystemModel(choose_body, dialog)
-    row.addWidget(model, 3)
-    row.addLayout(right, 2)
+    geocentric_panel = QWidget(dialog)
+    geocentric_layout = QVBoxLayout(geocentric_panel)
+    geocentric_layout.setContentsMargins(0, 0, 0, 0)
+    geocentric_layout.addWidget(model, 1)
+
+    vocab_panel = QTextBrowser(dialog)
+    vocab_panel.setOpenExternalLinks(False)
+    vocab_panel.setHtml(
+        "<h2>Astrology versus astronomy vocabulary</h2>"
+        "<p><strong>Retrograde</strong> in astrology is geocentric apparent backward motion against the zodiac. "
+        "Astronomically, the body does not usually reverse its orbit; the effect comes from changing Earth-body-Sun geometry. "
+        "Lilith variants are mathematical lunar-apogee conventions or tradition-specific labels, not physical planets.</p>"
+    )
+
+    accuracy_panel = QTextBrowser(dialog)
+    accuracy_panel.setHtml("<h2>Accuracy Scores</h2><p>Coming soon!</p>")
+    database_stats_panel = QTextBrowser(dialog)
+    database_stats_panel.setHtml("<h2>Database Statistics</h2><p>Coming soon!</p>")
+
+    left_stack = QStackedWidget(dialog)
+    left_stack.addWidget(geocentric_panel)
+    left_stack.addWidget(vocab_panel)
+    left_stack.addWidget(accuracy_panel)
+    right_stack = QStackedWidget(dialog)
+    right_stack.addWidget(interval_panel)
+    right_stack.addWidget(database_stats_panel)
+
+    geocentric_button.clicked.connect(lambda: left_stack.setCurrentWidget(geocentric_panel))
+    vocab_button.clicked.connect(lambda: left_stack.setCurrentWidget(vocab_panel))
+    accuracy_scores_button.clicked.connect(lambda: left_stack.setCurrentWidget(accuracy_panel))
+    interval_button.clicked.connect(lambda: right_stack.setCurrentWidget(interval_panel))
+    database_stats_button.clicked.connect(lambda: right_stack.setCurrentWidget(database_stats_panel))
+
+    row.addWidget(left_stack, 3)
+    row.addWidget(right_stack, 2)
     layout.addLayout(row, 1)
 
     class SignRangeWorker(QObject):
@@ -614,7 +701,7 @@ def show_guide_to_the_galaxy(owner: "QWidget") -> None:
         sign = sign_combo.currentText()
         calculate_button.setEnabled(False)
         calculate_button.setText("Calculating…")
-        explain.setHtml(f"<h2>{body} in {sign}</h2><p><em>Calculating sign ranges in the background…</em></p>")
+        interval_results.setHtml(f"<h2>{body} in {sign}</h2><p><em>Calculating sign ranges in the background…</em></p>")
 
         thread = QThread()
         worker = SignRangeWorker(body, sign)
@@ -627,9 +714,9 @@ def show_guide_to_the_galaxy(owner: "QWidget") -> None:
             if dialog_alive["value"]:
                 try:
                     if error is None:
-                        explain.setHtml(_build_ranges_html(done_body, done_sign, ranges))
+                        interval_results.setHtml(_build_ranges_html(done_body, done_sign, ranges))
                     else:
-                        explain.setHtml(f"<h2>{done_body} in {done_sign}</h2><p><em>Could not calculate ranges from the built-in ephemeris: {error}</em></p>")
+                        interval_results.setHtml(f"<h2>{done_body} in {done_sign}</h2><p><em>Could not calculate ranges from the built-in ephemeris: {error}</em></p>")
                     calculate_button.setEnabled(True)
                     calculate_button.setText("Show 300y past / 100y future sign ranges")
                 except RuntimeError:
@@ -652,7 +739,4 @@ def show_guide_to_the_galaxy(owner: "QWidget") -> None:
         thread.start()
 
     calculate_button.clicked.connect(refresh_ranges)
-    buttons = QDialogButtonBox(QDialogButtonBox.Close, parent=dialog)
-    buttons.rejected.connect(dialog.reject)
-    layout.addWidget(buttons)
     dialog.show()

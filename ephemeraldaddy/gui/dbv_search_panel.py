@@ -71,6 +71,133 @@ def weight_is_at_least_triple_next_highest(
     return key_is_isolated(selected_key)
 
 
+
+def focus_database_search_input(window) -> None:
+    """Move keyboard focus to Database View's chart search field."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QLineEdit
+
+    search_input = getattr(window, "search_text_input", None)
+    if not isinstance(search_input, QLineEdit):
+        return
+    search_panel_button = getattr(window, "search_panel_button", None)
+    if search_panel_button is not None and hasattr(search_panel_button, "setChecked"):
+        search_panel_button.setChecked(True)
+    show_search_panel = getattr(window, "_show_search_database_panel", None)
+    if callable(show_search_panel):
+        show_search_panel()
+    search_input.setFocus(Qt.ShortcutFocusReason)
+    search_input.selectAll()
+
+
+def dominant_enneagram_types_for_search(chart) -> set[int]:
+    """Return the dominant Enneagram type set used by Database View filters."""
+    if chart is None:
+        return set()
+    weights = getattr(chart, "enneagram_type_weights", None)
+    numeric_weights: dict[int, float] = {}
+    if isinstance(weights, dict):
+        for raw_type, raw_weight in weights.items():
+            try:
+                enneagram_type = int(raw_type)
+                weight = float(raw_weight)
+            except (TypeError, ValueError):
+                continue
+            if 1 <= enneagram_type <= 9:
+                numeric_weights[enneagram_type] = weight
+    if numeric_weights:
+        max_weight = max(numeric_weights.values())
+        return {
+            enneagram_type
+            for enneagram_type, weight in numeric_weights.items()
+            if weight == max_weight
+        }
+    try:
+        dominant_type = int(getattr(chart, "dominant_enneagram_type", 0) or 0)
+    except (TypeError, ValueError):
+        return set()
+    return {dominant_type} if 1 <= dominant_type <= 9 else set()
+
+
+def matched_expectations_value_for_chart(chart) -> int:
+    """Return a clamped matched-expectations score for DBV search filters."""
+    if chart is None:
+        return 0
+    raw_value = getattr(chart, "matched_expectations", 0)
+    try:
+        parsed_value = int(raw_value) if raw_value is not None else 0
+    except (TypeError, ValueError):
+        parsed_value = 0
+    return max(-10, min(10, parsed_value))
+
+
+def build_birthdate_filter_date(
+    *,
+    month: int | None,
+    day: int | None,
+    year: int | None,
+    is_latest: bool,
+):
+    """Build an earliest/latest concrete date from partial DBV birthdate filters."""
+    import calendar
+    import datetime
+
+    if month is None and day is None and year is None:
+        return None
+    resolved_year = int(year) if year is not None else (9999 if is_latest else 1)
+    resolved_month = int(month) if month is not None else (12 if is_latest else 1)
+    if day is not None:
+        resolved_day = int(day)
+    else:
+        resolved_day = calendar.monthrange(resolved_year, resolved_month)[1] if is_latest else 1
+    try:
+        return datetime.date(resolved_year, resolved_month, resolved_day)
+    except ValueError:
+        return None
+
+
+def parse_year_first_encountered_text(raw_value: str | None) -> int | None:
+    """Parse a DBV year-first-encountered filter field."""
+    value = (raw_value or "").strip()
+    if value == "":
+        return None
+    if value.isdigit():
+        return int(value)
+    return None
+
+
+def dnd_species_class_payload_for_chart(window, chart) -> dict[str, object]:
+    """Return the appwide Fantasy RPG species/class cache for a chart."""
+    import logging
+
+    logger = logging.getLogger(__name__)
+    try:
+        return window._dnd_prediction_adapter().cache_species_class_metadata(chart)
+    except Exception:
+        logger.exception(
+            "Failed to refresh Fantasy RPG species/class cache for chart UID %s.",
+            getattr(chart, "chart_uid", None) or getattr(chart, "uid", None),
+        )
+        return {}
+
+
+def cached_top_three_species_for_filter(window, chart) -> list[tuple[str, str]]:
+    """Return Top 3 Species/Subspecies from the shared appwide cache."""
+    payload = dnd_species_class_payload_for_chart(window, chart)
+    species_payloads = payload.get("species") if isinstance(payload, dict) else None
+    if not isinstance(species_payloads, list):
+        return []
+    top_three: list[tuple[str, str]] = []
+    for entry in species_payloads[:3]:
+        if not isinstance(entry, dict):
+            continue
+        family = str(entry.get("family", "") or "").strip()
+        subtype = str(entry.get("subtype", "") or "").strip()
+        if family:
+            top_three.append((family, subtype))
+    return top_three
+
+
 def active_body_dynamics_filters(window) -> list[dict[str, object]]:
     """Return active Body Dynamics filter rows from the Database View search panel."""
     return [
@@ -354,6 +481,160 @@ def refresh_search_tags_list(window, known_tags: list[str]) -> None:
         window.search_tag_filter_checkboxes[tag] = checkbox
         window.search_tag_filter_logic_buttons[tag] = logic
         tree.setItemWidget(root_item, 0, make_row(checkbox, logic, tag))
+
+
+
+def has_active_search_tag_filters(window) -> bool:
+    """Return whether any Database View tag-search filter is active."""
+    from ephemeraldaddy.gui.widgets.quad_state import QuadStateSlider
+
+    search_tag_text = (
+        window.search_tags_input.text().strip()
+        if hasattr(window, "search_tags_input")
+        else ""
+    )
+    if search_tag_text:
+        return True
+    if any(
+        checkbox.mode() in {QuadStateSlider.MODE_TRUE, QuadStateSlider.MODE_FALSE}
+        for checkbox in getattr(window, "search_tag_filter_checkboxes", {}).values()
+    ):
+        return True
+    search_untagged_checkbox = getattr(window, "search_untagged_checkbox", None)
+    return (
+        isinstance(search_untagged_checkbox, QuadStateSlider)
+        and search_untagged_checkbox.mode() != QuadStateSlider.MODE_EMPTY
+    )
+
+
+def on_search_tags_changed(window, *_: object) -> None:
+    """Refresh Database View typed-tag preview/selection state after tag text changes."""
+    from ephemeraldaddy.gui.features.charts.tagging import parse_tag_text, render_tag_chip_preview
+
+    tags = parse_tag_text(window.search_tags_input.text())
+    render_tag_chip_preview(window.search_tags_preview_label, tags)
+    sync_search_tags_list_selection(window, set(tags))
+    window._on_filter_changed()
+
+
+def apply_search_location_completer(window, line_edit, choices: list[str]) -> None:
+    """Install a contains-matching completer on a Database View location field."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QCompleter, QLineEdit
+
+    if not isinstance(line_edit, QLineEdit):
+        return
+    completer = QCompleter(choices, line_edit)
+    completer.setCaseSensitivity(Qt.CaseInsensitive)
+    completer.setFilterMode(Qt.MatchContains)
+    line_edit.setCompleter(completer)
+
+
+def update_search_location_completers(window) -> None:
+    """Refresh Database View country/city/state completers from loaded chart rows."""
+    countries: set[str] = set()
+    cities: set[str] = set()
+    states: set[str] = set()
+    for chart_row in getattr(window, "_chart_rows", []):
+        birth_place = str(chart_row[5] if len(chart_row) > 5 else "" or "").strip()
+        if not birth_place:
+            continue
+        country, city, state = window._normalized_location_components(birth_place)
+        if country:
+            countries.add(country)
+        if city:
+            cities.add(city)
+        if state:
+            states.add(state)
+
+    apply_search_location_completer(
+        window,
+        getattr(window, "_search_location_country_input", None),
+        sorted(countries),
+    )
+    apply_search_location_completer(
+        window,
+        getattr(window, "_search_location_city_input", None),
+        sorted(cities),
+    )
+    apply_search_location_completer(
+        window,
+        getattr(window, "_search_location_state_input", None),
+        sorted(states),
+    )
+
+
+def tag_completer_revision_from_rows(window) -> tuple[object, ...]:
+    """Return the loaded-row fields that affect chart/tag/location completers."""
+    return tuple(
+        (
+            row[0] if len(row) > 0 else None,
+            row[5] if len(row) > 5 else None,
+            row[25] if len(row) > 25 else None,
+            row[26] if len(row) > 26 else None,
+        )
+        for row in getattr(window, "_chart_rows", [])
+    )
+
+
+def tag_completer_tags_for_session(window) -> list[str]:
+    """Return recognized tags plus tags already known in this app session."""
+    from ephemeraldaddy.core.db import list_recognized_tags
+    from ephemeraldaddy.gui.features.charts.tagging import normalize_tag_list
+
+    tags_by_key: dict[str, str] = {
+        tag.casefold(): tag
+        for tag in list_recognized_tags()
+    }
+    for tag in getattr(window, "_known_chart_tags", []) or []:
+        normalized = str(tag or "").strip()
+        if normalized:
+            tags_by_key.setdefault(normalized.casefold(), normalized)
+    for tag in normalize_tag_list(getattr(window, "_chart_tags_current", []) or []):
+        tags_by_key.setdefault(tag.casefold(), tag)
+    return sorted(tags_by_key.values(), key=lambda value: value.casefold())
+
+
+def update_tag_completers_if_needed(window, *, force: bool = False) -> None:
+    """Refresh Database View tag/location completers only when relevant rows changed."""
+    revision_token = tag_completer_revision_from_rows(window)
+    if not force and revision_token == getattr(window, "_tag_completer_revision_token", None):
+        return
+    window._update_tag_completers()
+    window._tag_completer_revision_token = revision_token
+
+
+def update_tag_completers(
+    window,
+    *,
+    refresh_location_completers: bool = True,
+    refresh_tag_lists: bool = True,
+) -> None:
+    """Refresh Chart View, Database View, and Batch tag completers from session tags."""
+    from PySide6.QtWidgets import QLineEdit
+
+    from ephemeraldaddy.gui.features.charts.tagging import apply_tag_completer
+
+    known_tags = tag_completer_tags_for_session(window)
+    window._known_chart_tags = known_tags
+    for line_edit in (
+        getattr(window, "chart_tags_input", None),
+        getattr(window, "search_tags_input", None),
+        getattr(window, "batch_tags_input", None),
+    ):
+        if isinstance(line_edit, QLineEdit):
+            apply_tag_completer(line_edit, known_tags)
+
+    update_reminds_me_of_completer = getattr(window, "_update_reminds_me_of_completer", None)
+    if callable(update_reminds_me_of_completer):
+        update_reminds_me_of_completer()
+    if refresh_location_completers:
+        window._update_location_completers()
+    if refresh_tag_lists:
+        refresh_search_tags_list(window, known_tags)
+        refresh_batch_tags_list = getattr(window, "_refresh_batch_tags_list", None)
+        if callable(refresh_batch_tags_list):
+            refresh_batch_tags_list(known_tags)
 
 
 def sync_search_tags_list_selection(window, selected_tags: set[str]) -> None:
@@ -881,14 +1162,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     )
     layout.addWidget(window.search_tags_list_widget)
 
-    divider = QFrame()
-    divider.setFixedHeight(4)
-    divider.setStyleSheet(
-        "background-color: #1f1f1f;"
-        "border-top: 1px solid #3b3b3b;"
-        "border-bottom: 1px solid #0d0d0d;"
-    )
-    layout.addWidget(divider)
+    layout.addWidget(create_divider())
 
     def build_trait_search_layout(kind: str, title: str, placeholder: str) -> QVBoxLayout:
         trait_layout = QVBoxLayout()
@@ -1152,10 +1426,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     birth_filters_row.addStretch(1)
     birth_info_status_layout.addLayout(birth_filters_row)
 
-    rodden_divider = QFrame()
-    rodden_divider.setFrameShape(QFrame.HLine)
-    rodden_divider.setStyleSheet("color: #2f2f2f;")
-    birth_info_status_layout.addWidget(rodden_divider)
+    birth_info_status_layout.addWidget(create_divider())
 
     rodden_header = QLabel("Rodden Rating")
     rodden_header.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
@@ -2232,10 +2503,7 @@ def build_dbv_search_panel(window) -> "QWidget":
         "_birthdate_latest_year_input",
     )
 
-    generation_divider = QFrame()
-    generation_divider.setFrameShape(QFrame.HLine)
-    generation_divider.setStyleSheet("color: #2f2f2f;")
-    timing_section_layout.addWidget(generation_divider)
+    timing_section_layout.addWidget(create_divider())
 
     generation_header = QLabel("Generation")
     generation_header.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
@@ -2254,10 +2522,7 @@ def build_dbv_search_panel(window) -> "QWidget":
         generation_layout.addWidget(checkbox, row, col)
     timing_section_layout.addLayout(generation_layout)
 
-    lifespan_divider = QFrame()
-    lifespan_divider.setFrameShape(QFrame.HLine)
-    lifespan_divider.setStyleSheet("color: #2f2f2f;")
-    timing_section_layout.addWidget(lifespan_divider)
+    timing_section_layout.addWidget(create_divider())
     mortality_header = QLabel("Mortality")
     mortality_header.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
     timing_section_layout.addWidget(mortality_header)

@@ -59,3 +59,27 @@ def test_window_chrome_actions_disable_qt_macos_menu_relocation_roles():
     assert 'setMenuRole' in keep_source
     assert 'NoRole' in keep_source
     assert '_keep_action_in_window_menu(action)' in source
+
+
+def test_settings_action_disables_menu_role_before_insertion():
+    source = SOURCE_PATH.read_text()
+    bind_start = source.index("def _bind_menu_action")
+    bind_end = source.index("def _add_settings_action", bind_start)
+    bind_source = source[bind_start:bind_end]
+
+    assert "QAction(label, menu)" in bind_source
+    assert bind_source.index("_keep_action_in_window_menu(action)") < bind_source.index("menu.addAction(action)")
+    assert "action.triggered.connect(handler)" in bind_source
+
+
+def test_sign_degrees_reference_circle_lives_in_help_menus():
+    source = SOURCE_PATH.read_text()
+    main_start = source.index("def configure_main_window_chrome")
+    manage_start = source.index("def configure_manage_dialog_chrome")
+    main_source = source[main_start:manage_start]
+    manage_source = source[manage_start:]
+
+    assert main_source.index('help_menu = menu_bar.addMenu("HALP!")') < main_source.index('"🔘 Sign Degrees Reference Circle"')
+    assert 'tools_menu, "🔘 Sign Degrees Reference Circle"' not in main_source
+    assert manage_source.index('help_menu = menu_bar.addMenu("HALP!")') < manage_source.index('"🔘 Sign Degrees Reference Circle"')
+    assert 'tools_menu, "🔘 Sign Degrees Reference Circle"' not in manage_source

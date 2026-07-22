@@ -760,7 +760,6 @@ from ephemeraldaddy.core.db import (
     update_chart_weirdness_score,
     set_current_chart,
     parse_relationship_types,
-    list_recognized_tags,
     add_tag_to_charts,
     backup_database,
     restore_database,
@@ -916,7 +915,6 @@ from ephemeraldaddy.gui.features.charts.aspect_sorting import (
     sort_natal_aspects as _sort_natal_aspects,
 )
 from ephemeraldaddy.gui.features.charts.tagging import (
-    apply_tag_completer,
     normalize_tag_list,
     parse_tag_text,
     render_tag_chip_preview,
@@ -961,20 +959,34 @@ from ephemeraldaddy.gui.dbv_batch_similarity import (
 )
 from ephemeraldaddy.gui.dbv_search_panel import (
     active_body_dynamics_filters as get_active_body_dynamics_filters,
+    apply_search_location_completer,
     body_dynamics_filters_are_active,
     build_dbv_search_bar_row,
     build_dbv_search_panel,
+    build_birthdate_filter_date,
+    cached_top_three_species_for_filter,
     chart_matches_body_dynamics_filters,
     collect_search_tag_filter_sets,
     collect_search_trait_filter_sets,
+    dnd_species_class_payload_for_chart,
+    dominant_enneagram_types_for_search,
+    focus_database_search_input,
+    has_active_search_tag_filters,
     chart_matches_trait_filters,
     on_search_tag_category_logic_changed,
+    on_search_tags_changed,
     on_search_tag_category_mode_changed,
     on_search_tag_logic_changed,
     on_search_tag_mode_changed,
     refresh_tag_catalog_for_added_tags,
     refresh_search_tags_list,
-    sync_search_tags_list_selection,
+    matched_expectations_value_for_chart,
+    parse_year_first_encountered_text,
+    tag_completer_revision_from_rows,
+    tag_completer_tags_for_session,
+    update_search_location_completers,
+    update_tag_completers,
+    update_tag_completers_if_needed,
     reset_body_dynamics_filters,
     weight_is_at_least_triple_next_highest,
 )
@@ -1239,6 +1251,7 @@ from ephemeraldaddy.gui.features.charts.similarities_analysis import (
     calculate_pair_similarity_result,
     close_similarities_loading_progress,
     resize_similarities_list_to_contents,
+    show_high_similarity_chart_pairs,
     show_similarities_loading_progress,
     update_similarities_loading_progress,
 )
@@ -1462,6 +1475,7 @@ from ephemeraldaddy.gui.style import (
     similarity_gradient_rgb_for_range,
     configure_collapsible_header_toggle,
     configure_static_collapsible_header_label,
+    create_divider,
     set_collapsible_header_title,
     install_appwide_cursor_defaults,
     set_chart_info_text,
@@ -3099,18 +3113,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
 
 
     def _focus_database_search_input(self) -> None:
-        """Move keyboard focus to Database View's chart search field."""
-        search_input = getattr(self, "search_text_input", None)
-        if not isinstance(search_input, QLineEdit):
-            return
-        search_panel_button = getattr(self, "search_panel_button", None)
-        if search_panel_button is not None and hasattr(search_panel_button, "setChecked"):
-            search_panel_button.setChecked(True)
-        show_search_panel = getattr(self, "_show_search_database_panel", None)
-        if callable(show_search_panel):
-            show_search_panel()
-        search_input.setFocus(Qt.ShortcutFocusReason)
-        search_input.selectAll()
+        focus_database_search_input(self)
 
     # Database & Selection Analysis Panel (left sidebar).
     #export chart function:
@@ -5108,7 +5111,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         age_section_layout = self._add_left_panel_collapsible_section(
             panel,
             demographics_category_layout,
-            "Eras && Ages",
+            "Eras & Ages",
             section_key="age",
             expanded=self._is_database_metrics_section_expanded("age"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
@@ -5119,7 +5122,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         self._database_metrics_section_expanded["age"] = self._is_database_metrics_section_expanded("age")
         self._create_analysis_chart_header(
             age_section_layout,
-            "Eras && Ages",
+            "Eras & Ages",
             "age",
             "age",
             dropdown_options=[
@@ -5344,10 +5347,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         first_chart_input.setCompleter(first_completer)
         layout.addWidget(first_chart_input)
 
-        divider = QFrame(dialog)
-        divider.setFrameShape(QFrame.HLine)
-        divider.setFrameShadow(QFrame.Sunken)
-        layout.addWidget(divider)
+        layout.addWidget(create_divider(dialog))
 
         second_chart_input = QLineEdit(dialog)
         second_chart_input.setPlaceholderText("Select second chart")
@@ -5573,7 +5573,11 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         canvas.draw_idle()
         right_layout.addWidget(canvas, 7)
 
+        # Keep the Chart Data Output header row aligned with the left
+        # popout panel's "Chart Info!" label so both text panels begin on
+        # the same horizontal line.
         summary_controls = QHBoxLayout()
+        summary_controls.setContentsMargins(0, 0, 0, 0)
         summary_controls.addStretch(1)
         summary_sort_label = QLabel("Aspects")
         summary_sort_label.setStyleSheet("font-weight: bold;")
@@ -5583,7 +5587,10 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         summary_sort_combo.setMinimumWidth(140)
         summary_controls.addWidget(summary_sort_label)
         summary_controls.addWidget(summary_sort_combo)
-        right_layout.addLayout(summary_controls)
+        chart_data_header = QWidget()
+        chart_data_header.setLayout(summary_controls)
+        chart_data_header.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        right_layout.addWidget(chart_data_header, 0)
 
         summary_output = ChartDataTableOutput()
         summary_output.setReadOnly(True)
@@ -5624,7 +5631,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
 
         summary_header_lines = [
             f"Synastry Chart for {base_chart.name} & {overlay_chart.name}",
-            "-----------------------------------",
+            "",
             "",
             f"{overlay_chart.name}'s Aspects to {base_chart.name}:",
         ]
@@ -6007,7 +6014,11 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         right_layout.addWidget(canvas, 7)
 
+        # Keep the Chart Data Output header row aligned with the left
+        # popout panel's "Chart Info!" label so both text panels begin on
+        # the same horizontal line.
         summary_controls = QHBoxLayout()
+        summary_controls.setContentsMargins(0, 0, 0, 0)
         summary_controls.addStretch(1)
         summary_sort_label = QLabel("Aspects")
         summary_sort_label.setStyleSheet("font-weight: bold;")
@@ -6017,7 +6028,10 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         summary_sort_combo.setMinimumWidth(140)
         summary_controls.addWidget(summary_sort_label)
         summary_controls.addWidget(summary_sort_combo)
-        right_layout.addLayout(summary_controls)
+        chart_data_header = QWidget()
+        chart_data_header.setLayout(summary_controls)
+        chart_data_header.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        right_layout.addWidget(chart_data_header, 0)
 
         summary_output = ChartDataTableOutput()
         summary_output.setReadOnly(True)
@@ -6846,7 +6860,11 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         right_layout.addWidget(canvas, 7)
 
+        # Keep the Chart Data Output header row aligned with the left
+        # popout panel's "Chart Info!" label so both text panels begin on
+        # the same horizontal line.
         summary_controls = QHBoxLayout()
+        summary_controls.setContentsMargins(0, 0, 0, 0)
         summary_controls.addStretch(1)
         summary_sort_label = QLabel("Aspects")
         summary_sort_label.setStyleSheet("font-weight: bold;")
@@ -6856,7 +6874,10 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         summary_sort_combo.setMinimumWidth(140)
         summary_controls.addWidget(summary_sort_label)
         summary_controls.addWidget(summary_sort_combo)
-        right_layout.addLayout(summary_controls)
+        chart_data_header = QWidget()
+        chart_data_header.setLayout(summary_controls)
+        chart_data_header.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        right_layout.addWidget(chart_data_header, 0)
 
         summary_output = ChartDataTableOutput()
         summary_output.setReadOnly(True)
@@ -14254,10 +14275,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         )
 
         sentiment_metrics_widget.setLayout(sentiment_metrics_layout)
-        sentiment_metrics_divider = QFrame()
-        sentiment_metrics_divider.setFrameShape(QFrame.HLine)
-        sentiment_metrics_divider.setFrameShadow(QFrame.Sunken)
-        sentiment_section_layout.addWidget(sentiment_metrics_divider)
+        sentiment_section_layout.addWidget(create_divider())
         sentiment_metrics_subheader = QLabel("Personal Relevance")
         sentiment_metrics_subheader.setStyleSheet("font-weight: 600;")
         sentiment_section_layout.addWidget(sentiment_metrics_subheader)
@@ -14562,23 +14580,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         self._batch_last_selection_ids = chart_id_set
 
     def _has_active_search_tag_filters(self) -> bool:
-        search_tag_text = (
-            self.search_tags_input.text().strip()
-            if hasattr(self, "search_tags_input")
-            else ""
-        )
-        if search_tag_text:
-            return True
-        if any(
-            checkbox.mode() in {QuadStateSlider.MODE_TRUE, QuadStateSlider.MODE_FALSE}
-            for checkbox in getattr(self, "search_tag_filter_checkboxes", {}).values()
-        ):
-            return True
-        search_untagged_checkbox = getattr(self, "search_untagged_checkbox", None)
-        return (
-            isinstance(search_untagged_checkbox, QuadStateSlider)
-            and search_untagged_checkbox.mode() != QuadStateSlider.MODE_EMPTY
-        )
+        return has_active_search_tag_filters(self)
 
     def _should_refresh_tag_distribution_for_batch_tag_update(self) -> bool:
         if (
@@ -14671,42 +14673,11 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
 
     @staticmethod
     def _dominant_enneagram_types_for_search(chart: Chart | None) -> set[int]:
-        if chart is None:
-            return set()
-        weights = getattr(chart, "enneagram_type_weights", None)
-        numeric_weights: dict[int, float] = {}
-        if isinstance(weights, dict):
-            for raw_type, raw_weight in weights.items():
-                try:
-                    enneagram_type = int(raw_type)
-                    weight = float(raw_weight)
-                except (TypeError, ValueError):
-                    continue
-                if 1 <= enneagram_type <= 9:
-                    numeric_weights[enneagram_type] = weight
-        if numeric_weights:
-            max_weight = max(numeric_weights.values())
-            return {
-                enneagram_type
-                for enneagram_type, weight in numeric_weights.items()
-                if weight == max_weight
-            }
-        try:
-            dominant_type = int(getattr(chart, "dominant_enneagram_type", 0) or 0)
-        except (TypeError, ValueError):
-            return set()
-        return {dominant_type} if 1 <= dominant_type <= 9 else set()
+        return dominant_enneagram_types_for_search(chart)
 
     @staticmethod
     def _matched_expectations_value_for_chart(chart: Chart | None) -> int:
-        if chart is None:
-            return 0
-        raw_value = getattr(chart, "matched_expectations", 0)
-        try:
-            parsed_value = int(raw_value) if raw_value is not None else 0
-        except (TypeError, ValueError):
-            parsed_value = 0
-        return max(-10, min(10, parsed_value))
+        return matched_expectations_value_for_chart(chart)
 
     def _set_batch_alignment_state(self, items: list[tuple[int, Chart]]) -> None:
         if not items:
@@ -14775,96 +14746,31 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         year: int | None,
         is_latest: bool,
     ) -> datetime.date | None:
-        if month is None and day is None and year is None:
-            return None
-        resolved_year = int(year) if year is not None else (9999 if is_latest else 1)
-        resolved_month = int(month) if month is not None else (12 if is_latest else 1)
-        if day is not None:
-            resolved_day = int(day)
-        else:
-            resolved_day = calendar.monthrange(resolved_year, resolved_month)[1] if is_latest else 1
-        try:
-            return datetime.date(resolved_year, resolved_month, resolved_day)
-        except ValueError:
-            return None
+        return build_birthdate_filter_date(
+            month=month,
+            day=day,
+            year=year,
+            is_latest=is_latest,
+        )
 
     @staticmethod
     def _parse_year_first_encountered_text(raw_value: str | None) -> int | None:
-        value = (raw_value or "").strip()
-        if value == "":
-            return None
-        if value.isdigit():
-            return int(value)
-        return None
+        return parse_year_first_encountered_text(raw_value)
 
     def _apply_location_completer(self, line_edit: QLineEdit | None, choices: list[str]) -> None:
-        if not isinstance(line_edit, QLineEdit):
-            return
-        completer = QCompleter(choices, line_edit)
-        completer.setCaseSensitivity(Qt.CaseInsensitive)
-        completer.setFilterMode(Qt.MatchContains)
-        line_edit.setCompleter(completer)
+        apply_search_location_completer(self, line_edit, choices)
 
     def _update_location_completers(self) -> None:
-        countries: set[str] = set()
-        cities: set[str] = set()
-        states: set[str] = set()
-        chart_rows = getattr(self, "_chart_rows", [])
-        for chart_row in chart_rows:
-            birth_place = str(chart_row[5] if len(chart_row) > 5 else "" or "").strip()
-            if not birth_place:
-                continue
-            country, city, state = self._normalized_location_components(birth_place)
-            if country:
-                countries.add(country)
-            if city:
-                cities.add(city)
-            if state:
-                states.add(state)
-
-        self._apply_location_completer(
-            getattr(self, "_search_location_country_input", None),
-            sorted(countries),
-        )
-        self._apply_location_completer(
-            getattr(self, "_search_location_city_input", None),
-            sorted(cities),
-        )
-        self._apply_location_completer(
-            getattr(self, "_search_location_state_input", None),
-            sorted(states),
-        )
+        update_search_location_completers(self)
 
     def _tag_completer_revision_from_rows(self) -> tuple[object, ...]:
-        return tuple(
-            (
-                row[0] if len(row) > 0 else None,
-                row[5] if len(row) > 5 else None,
-                row[25] if len(row) > 25 else None,
-                row[26] if len(row) > 26 else None,
-            )
-            for row in getattr(self, "_chart_rows", [])
-        )
+        return tag_completer_revision_from_rows(self)
 
     def _update_tag_completers_if_needed(self, *, force: bool = False) -> None:
-        revision_token = self._tag_completer_revision_from_rows()
-        if not force and revision_token == getattr(self, "_tag_completer_revision_token", None):
-            return
-        self._update_tag_completers()
-        self._tag_completer_revision_token = revision_token
+        update_tag_completers_if_needed(self, force=force)
 
     def _tag_completer_tags_for_session(self) -> list[str]:
-        tags_by_key: dict[str, str] = {
-            tag.casefold(): tag
-            for tag in list_recognized_tags()
-        }
-        for tag in getattr(self, "_known_chart_tags", []) or []:
-            normalized = str(tag or "").strip()
-            if normalized:
-                tags_by_key.setdefault(normalized.casefold(), normalized)
-        for tag in normalize_tag_list(getattr(self, "_chart_tags_current", []) or []):
-            tags_by_key.setdefault(tag.casefold(), tag)
-        return sorted(tags_by_key.values(), key=lambda value: value.casefold())
+        return tag_completer_tags_for_session(self)
 
     def _update_tag_completers(
         self,
@@ -14872,26 +14778,15 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         refresh_location_completers: bool = True,
         refresh_tag_lists: bool = True,
     ) -> None:
-        known_tags = self._tag_completer_tags_for_session()
-        self._known_chart_tags = known_tags
-        chart_input = getattr(self, "chart_tags_input", None)
-        search_input = getattr(self, "search_tags_input", None)
-        batch_tags_input = getattr(self, "batch_tags_input", None)
-        for line_edit in (chart_input, search_input, batch_tags_input):
-            if not isinstance(line_edit, QLineEdit):
-                continue
-            apply_tag_completer(line_edit, known_tags)
-        if refresh_location_completers:
-            self._update_location_completers()
-        if refresh_tag_lists:
-            self._refresh_search_tags_list(known_tags)
-            self._refresh_batch_tags_list(known_tags)
+        update_tag_completers(
+            self,
+            refresh_location_completers=refresh_location_completers,
+            refresh_tag_lists=refresh_tag_lists,
+        )
 
     def _on_search_tags_changed(self, *_: object) -> None:
-        tags = parse_tag_text(self.search_tags_input.text())
-        render_tag_chip_preview(self.search_tags_preview_label, tags)
-        sync_search_tags_list_selection(self, set(tags))
-        self._on_filter_changed()
+        # Delegated helper keeps the no-rebuild path: sync_search_tags_list_selection(self, set(tags))
+        on_search_tags_changed(self, *_)
 
     def _refresh_search_tags_list(self, known_tags: list[str]) -> None:
         refresh_search_tags_list(self, known_tags)
@@ -19925,36 +19820,10 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         self._on_selection_changed(sync_persistent_selection=False)
 
     def _dnd_species_class_payload_for_chart(self, chart) -> dict[str, Any]:
-        """Return the appwide Fantasy RPG species/class cache for a chart.
-
-        Chart View, Database Analytics, and Database View Search all route
-        through the prediction adapter so stale persisted species/subspecies
-        payloads are version/key checked in one place before being reused.
-        """
-        try:
-            return self._dnd_prediction_adapter().cache_species_class_metadata(chart)
-        except Exception:
-            logger.exception(
-                "Failed to refresh Fantasy RPG species/class cache for chart UID %s.",
-                getattr(chart, "chart_uid", None) or getattr(chart, "uid", None),
-            )
-            return {}
+        return dnd_species_class_payload_for_chart(self, chart)
 
     def _cached_top_three_species_for_filter(self, chart) -> list[tuple[str, str]]:
-        """Return Top 3 Species/Subspecies from the shared appwide cache."""
-        payload = self._dnd_species_class_payload_for_chart(chart)
-        species_payloads = payload.get("species") if isinstance(payload, dict) else None
-        if not isinstance(species_payloads, list):
-            return []
-        top_three: list[tuple[str, str]] = []
-        for entry in species_payloads[:3]:
-            if not isinstance(entry, dict):
-                continue
-            family = str(entry.get("family", "") or "").strip()
-            subtype = str(entry.get("subtype", "") or "").strip()
-            if family:
-                top_three.append((family, subtype))
-        return top_three
+        return cached_top_three_species_for_filter(self, chart)
 
     def _chart_matches_filters(self, chart_id: int) -> bool:
         incomplete_birthdate_state = self.incomplete_birthdate_checkbox.mode()
@@ -22685,6 +22554,14 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         self._load_similarity_calculator_controls()
         self._load_similarity_thresholds_into_controls()
 
+        show_high_similarity_button = QPushButton("Show 90-100% similarities")
+        show_high_similarity_button.setToolTip(
+            "Calculate database-wide Astro Twin scores with the current calculator mode and list chart pairs "
+            "whose similarity is between 90% and 100%. Each listed chart name opens in Chart View."
+        )
+        show_high_similarity_button.clicked.connect(self._show_high_similarity_chart_pairs)
+        similarity_calculator_section.addWidget(show_high_similarity_button, alignment=Qt.AlignLeft)
+
         enneagram_section = self._add_settings_collapsible_section(content_layout, "Predictions")
         enneagram_controls = build_predictions_settings_section(
             dialog=dialog,
@@ -23366,6 +23243,39 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                 else "Astro Twin cache was already empty."
             ),
         )
+
+    def _show_high_similarity_chart_pairs(self) -> None:
+        show_high_similarity_chart_pairs(
+            self,
+            chart_ids=list(getattr(self, "_active_chart_rows_by_id", {})),
+            exclude_placeholder_chart_ids=self._exclude_similarities_placeholder_chart_ids,
+            load_charts_by_id=load_charts,
+            algorithm_mode=getattr(self, "_similar_charts_algorithm_mode", SIMILAR_CHARTS_ALGORITHM_DEFAULT),
+            custom_settings=copy.deepcopy(getattr(self, "_similarity_calculator_settings", None)),
+            hidden_chart_ids=set(getattr(self, "_hidden_chart_ids", set())),
+            include_hidden_charts=bool(getattr(self, "_show_hidden_charts", False)),
+            open_chart_uid=self._open_high_similarity_chart_uid,
+        )
+
+    def _open_high_similarity_chart_uid(self, chart_uid: str) -> bool:
+        normalized_chart_uid = str(chart_uid or "").strip().upper()
+        if not normalized_chart_uid:
+            return False
+        parent = self._owner_window()
+        if parent is None or not hasattr(parent, "load_chart_by_uid"):
+            QMessageBox.warning(self, "Open chart", "Unable to open that chart in Chart View.")
+            return False
+        if not parent.load_chart_by_uid(normalized_chart_uid, from_chart_link=True):
+            return False
+        if isinstance(parent, MainWindow):
+            parent._show_chart_view_maximized(maximize=self.isMaximized(), source_window=self)
+            parent._retarget_size_checker_to_main_view()
+        elif isinstance(parent, QWidget):
+            parent.showNormal()
+            parent.raise_()
+            parent.activateWindow()
+        self.hide()
+        return True
 
     def _on_similarity_calculator_checkbox_toggled(self, key: str, checked: bool) -> None:
         checkbox = self._similarity_calculator_checkboxes.get(key)
@@ -24546,16 +24456,113 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         if hasattr(self, "_help_scrim"):
             return
 
-        self._help_marker_buttons = []
         self._help_scrim = QWidget(self)
         self._help_scrim.hide()
         self._help_scrim.setStyleSheet("background-color: rgba(0, 0, 0, 26);")
+
+        self._help_side_panel = QFrame(self._help_scrim)
+        self._help_side_panel.setStyleSheet(
+            "QFrame {"
+            "background-color: #616161;"
+            "border-right: 1px solid #f2c94c;"
+            "}"
+            "QLabel { color: #ffffff; }"
+            "QLineEdit {"
+            "background-color: #737373;"
+            "border: 1px solid #f2c94c;"
+            "color: #ffffff;"
+            "padding: 6px;"
+            "border-radius: 4px;"
+            "}"
+            "QListWidget {"
+            "background-color: #6a6a6a;"
+            "border: 1px solid #f2c94c;"
+            "color: #ffffff;"
+            "}"
+        )
+        panel_layout = QVBoxLayout(self._help_side_panel)
+        panel_layout.setContentsMargins(14, 12, 14, 14)
+        panel_layout.setSpacing(10)
+
+        panel_title = QLabel("❓") #"Help"
+        panel_title.setStyleSheet("font-size: 16px; font-weight: 600; color: #f2c94c;")
+        panel_layout.addWidget(panel_title)
+
+        panel_hint = QLabel("Search feature explanations and developer notes.")
+        panel_hint.setWordWrap(True)
+        panel_layout.addWidget(panel_hint)
+
+        self._help_search_edit = QLineEdit()
+        self._help_search_edit.setPlaceholderText("Search help notes…")
+        self._help_search_edit.textChanged.connect(self._refresh_help_search_results)
+        panel_layout.addWidget(self._help_search_edit)
+
+        self._help_results_list = QListWidget()
+        self._help_results_list.currentRowChanged.connect(self._show_selected_help_entry)
+        panel_layout.addWidget(self._help_results_list, 1)
+
+        self._help_entry_detail = QLabel()
+        self._help_entry_detail.setWordWrap(True)
+        self._help_entry_detail.setContentsMargins(10, 10, 10, 10)
+        self._help_entry_detail.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+        self._help_entry_detail.setStyleSheet(
+            "background-color: #5a5a5a; border: 1px solid #f2c94c; border-radius: 4px; padding: 12px;"
+        )
+        self._help_entry_detail_scroll = QScrollArea()
+        self._help_entry_detail_scroll.setWidgetResizable(True)
+        self._help_entry_detail_scroll.setFrameShape(QScrollArea.NoFrame)
+        self._help_entry_detail_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._help_entry_detail_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self._help_entry_detail_scroll.setMinimumHeight(240)
+        self._help_entry_detail_scroll.setWidget(self._help_entry_detail)
+        panel_layout.addWidget(self._help_entry_detail_scroll, 2)
+
+        self._help_icon_button = QToolButton(self._help_side_panel)
+        self._help_icon_button.setText("?")
+        self._help_icon_button.setToolTip("Open the Help panel.")
+        self._help_icon_button.clicked.connect(self._open_help_side_panel)
+        self._help_icon_button.setStyleSheet(
+            "QToolButton {"
+            "background-color: #f2c94c;"
+            "color: #14213d;"
+            "border: 1px solid #14213d;"
+            "border-radius: 10px;"
+            "font-weight: 700;"
+            "font-size: 16px;"
+            "padding: 0px;"
+            "}"
+        )
+        self._help_icon_button.setFixedSize(20, 20)
+
+        self._help_icon_close = QPushButton("×", self._help_side_panel)
+        self._help_icon_close.setToolTip("Close Help overlay")
+        self._help_icon_close.clicked.connect(self._disable_help_overlay)
+        self._help_icon_close.setFixedSize(18, 18)
+        self._help_icon_close.setStyleSheet(
+            "QPushButton {"
+            "background-color: #9a9a9a;"
+            "color: #2f2f2f;"
+            "border: 1px solid #4f4f4f;"
+            "border-radius: 9px;"
+            "font-size: 16px;"
+            "padding: 0px;"
+            "}"
+        )
+
         self._help_resize_overlay()
+        self._refresh_help_search_results()
 
     def _help_resize_overlay(self) -> None:
         if not hasattr(self, "_help_scrim"):
             return
         self._help_scrim.setGeometry(0, 0, self.width(), self.height())
+        self._help_side_panel.setGeometry(0, 0, 320, self._help_scrim.height())
+        right_edge = self._help_side_panel.width() - 12
+        self._help_icon_close.move(right_edge - self._help_icon_close.width(), 12)
+        self._help_icon_button.move(
+            self._help_icon_close.x() - 8 - self._help_icon_button.width(),
+            12,
+        )
 
     def _toggle_help_overlay(self) -> None:
         if self._help_overlay_active:
@@ -24568,6 +24575,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         self._help_overlay_active = True
         self._help_scrim.show()
         self._help_scrim.raise_()
+        self._help_side_panel.show()
         #self._rebuild_help_markers()
 
     def _disable_help_overlay(self) -> None:
@@ -24575,6 +24583,13 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         self._clear_help_markers()
         if hasattr(self, "_help_scrim"):
             self._help_scrim.hide()
+
+    def _open_help_side_panel(self) -> None:
+        if not self._help_overlay_active:
+            return
+        self._help_side_panel.show()
+        self._help_side_panel.raise_()
+        self._help_search_edit.setFocus()
 
     def _clear_help_markers(self) -> None:
         for marker in self._help_marker_buttons:
@@ -24611,6 +24626,9 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             marker.raise_()
             self._help_marker_buttons.append(marker)
 
+        self._help_side_panel.raise_()
+        self._help_icon_button.raise_()
+        self._help_icon_close.raise_()
 
     def _help_widget_label(self, widget: QWidget) -> str:
         if isinstance(widget, QAbstractButton):
@@ -24635,10 +24653,14 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             QSpinBox,
         )
         excluded_widgets = {
+            getattr(self, "_help_icon_button", None),
+            getattr(self, "_help_icon_close", None),
             getattr(self, "manage_help_overlay_button", None),
         }
         for widget in candidates:
             if widget in excluded_widgets:
+                continue
+            if hasattr(self, "_help_side_panel") and self._help_side_panel.isAncestorOf(widget):
                 continue
             if widget.window() is not self:
                 continue
@@ -24653,7 +24675,19 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         return targets
 
     def _refresh_help_search_results(self) -> None:
-        return
+        if not hasattr(self, "_help_results_list"):
+            return
+        self._help_results_list.clear()
+        self._help_search_results_cache = self._search_help_entries_for_current_view(
+            self._help_search_edit.text()
+        )
+        for entry in self._help_search_results_cache:
+            self._help_results_list.addItem(entry.title)
+        if self._help_search_results_cache:
+            self._help_results_list.setCurrentRow(0)
+        else:
+            self._help_entry_detail.setText("No help entries matched your search.")
+            self._help_entry_detail_scroll.verticalScrollBar().setValue(0)
 
     def _search_help_entries_for_current_view(
         self,
@@ -24692,7 +24726,17 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         )
 
     def _show_selected_help_entry(self, row: int) -> None:
-        return
+        if not hasattr(self, "_help_search_results_cache"):
+            return
+        if row < 0 or row >= len(self._help_search_results_cache):
+            self._help_entry_detail.setText("Select an entry to view details.")
+            self._help_entry_detail_scroll.verticalScrollBar().setValue(0)
+            return
+        entry = self._help_search_results_cache[row]
+        keywords = ", ".join(entry.keywords)
+        suffix = f"\n\nKeywords: {keywords}" if keywords else ""
+        self._help_entry_detail.setText(f"{entry.description}{suffix}")
+        self._help_entry_detail_scroll.verticalScrollBar().setValue(0)
 
     def _on_retcon_engine(self) -> None:
         parent = self._owner_window()
@@ -33951,12 +33995,7 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def _parse_year_first_encountered_text(raw_value: str | None) -> int | None:
-        value = (raw_value or "").strip()
-        if value == "":
-            return None
-        if value.isdigit():
-            return int(value)
-        return None
+        return parse_year_first_encountered_text(raw_value)
 
     def _on_deceased_toggled(self, checked: bool) -> None:
         if hasattr(self, "death_row_widget"):
@@ -34047,42 +34086,10 @@ class MainWindow(QMainWindow):
         show_death_chart_window(self)
 
     def _apply_location_completer(self, line_edit: QLineEdit | None, choices: list[str]) -> None:
-        if not isinstance(line_edit, QLineEdit):
-            return
-        completer = QCompleter(choices, line_edit)
-        completer.setCaseSensitivity(Qt.CaseInsensitive)
-        completer.setFilterMode(Qt.MatchContains)
-        line_edit.setCompleter(completer)
+        apply_search_location_completer(self, line_edit, choices)
 
     def _update_location_completers(self) -> None:
-        countries: set[str] = set()
-        cities: set[str] = set()
-        states: set[str] = set()
-        chart_rows = getattr(self, "_chart_rows", [])
-        for chart_row in chart_rows:
-            birth_place = str(chart_row[5] if len(chart_row) > 5 else "" or "").strip()
-            if not birth_place:
-                continue
-            country, city, state = self._normalized_location_components(birth_place)
-            if country:
-                countries.add(country)
-            if city:
-                cities.add(city)
-            if state:
-                states.add(state)
-
-        self._apply_location_completer(
-            getattr(self, "_search_location_country_input", None),
-            sorted(countries),
-        )
-        self._apply_location_completer(
-            getattr(self, "_search_location_city_input", None),
-            sorted(cities),
-        )
-        self._apply_location_completer(
-            getattr(self, "_search_location_state_input", None),
-            sorted(states),
-        )
+        update_search_location_completers(self)
 
     def _refresh_search_tags_list(self, known_tags: list[str]) -> None:
         refresh_search_tags_list(self, known_tags)
@@ -34218,35 +34225,13 @@ class MainWindow(QMainWindow):
         self._mark_lucygoosey()
 
     def _tag_completer_revision_from_rows(self) -> tuple[object, ...]:
-        return tuple(
-            (
-                row[0] if len(row) > 0 else None,
-                row[5] if len(row) > 5 else None,
-                row[25] if len(row) > 25 else None,
-                row[26] if len(row) > 26 else None,
-            )
-            for row in getattr(self, "_chart_rows", [])
-        )
+        return tag_completer_revision_from_rows(self)
 
     def _update_tag_completers_if_needed(self, *, force: bool = False) -> None:
-        revision_token = self._tag_completer_revision_from_rows()
-        if not force and revision_token == getattr(self, "_tag_completer_revision_token", None):
-            return
-        self._update_tag_completers()
-        self._tag_completer_revision_token = revision_token
+        update_tag_completers_if_needed(self, force=force)
 
     def _tag_completer_tags_for_session(self) -> list[str]:
-        tags_by_key: dict[str, str] = {
-            tag.casefold(): tag
-            for tag in list_recognized_tags()
-        }
-        for tag in getattr(self, "_known_chart_tags", []) or []:
-            normalized = str(tag or "").strip()
-            if normalized:
-                tags_by_key.setdefault(normalized.casefold(), normalized)
-        for tag in normalize_tag_list(getattr(self, "_chart_tags_current", []) or []):
-            tags_by_key.setdefault(tag.casefold(), tag)
-        return sorted(tags_by_key.values(), key=lambda value: value.casefold())
+        return tag_completer_tags_for_session(self)
 
     def _update_tag_completers(
         self,
@@ -34254,24 +34239,11 @@ class MainWindow(QMainWindow):
         refresh_location_completers: bool = True,
         refresh_tag_lists: bool = True,
     ) -> None:
-        sorted_tags = self._tag_completer_tags_for_session()
-        self._known_chart_tags = sorted_tags
-        if hasattr(self, "chart_tags_input"):
-            apply_tag_completer(self.chart_tags_input, sorted_tags)
-        if hasattr(self, "search_tags_input"):
-            apply_tag_completer(self.search_tags_input, sorted_tags)
-        if hasattr(self, "batch_tags_input"):
-            apply_tag_completer(self.batch_tags_input, sorted_tags)
-        self._update_reminds_me_of_completer()
-        if refresh_location_completers:
-            self._update_location_completers()
-        if refresh_tag_lists:
-            refresh_search_tags_list = getattr(self, "_refresh_search_tags_list", None)
-            if callable(refresh_search_tags_list):
-                refresh_search_tags_list(sorted_tags)
-            refresh_batch_tags_list = getattr(self, "_refresh_batch_tags_list", None)
-            if callable(refresh_batch_tags_list):
-                refresh_batch_tags_list(sorted_tags)
+        update_tag_completers(
+            self,
+            refresh_location_completers=refresh_location_completers,
+            refresh_tag_lists=refresh_tag_lists,
+        )
 
     def _on_chart_tags_changed(self, *_: object) -> None:
         on_chart_view_tags_changed(self)
@@ -35231,42 +35203,11 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def _dominant_enneagram_types_for_search(chart: Chart | None) -> set[int]:
-        if chart is None:
-            return set()
-        weights = getattr(chart, "enneagram_type_weights", None)
-        numeric_weights: dict[int, float] = {}
-        if isinstance(weights, dict):
-            for raw_type, raw_weight in weights.items():
-                try:
-                    enneagram_type = int(raw_type)
-                    weight = float(raw_weight)
-                except (TypeError, ValueError):
-                    continue
-                if 1 <= enneagram_type <= 9:
-                    numeric_weights[enneagram_type] = weight
-        if numeric_weights:
-            max_weight = max(numeric_weights.values())
-            return {
-                enneagram_type
-                for enneagram_type, weight in numeric_weights.items()
-                if weight == max_weight
-            }
-        try:
-            dominant_type = int(getattr(chart, "dominant_enneagram_type", 0) or 0)
-        except (TypeError, ValueError):
-            return set()
-        return {dominant_type} if 1 <= dominant_type <= 9 else set()
+        return dominant_enneagram_types_for_search(chart)
 
     @staticmethod
     def _matched_expectations_value_for_chart(chart: Chart | None) -> int:
-        if chart is None:
-            return 0
-        raw_value = getattr(chart, "matched_expectations", 0)
-        try:
-            parsed_value = int(raw_value) if raw_value is not None else 0
-        except (TypeError, ValueError):
-            parsed_value = 0
-        return max(-10, min(10, parsed_value))
+        return matched_expectations_value_for_chart(chart)
 
     def load_chart_by_id(
         self,
@@ -38333,7 +38274,11 @@ class MainWindow(QMainWindow):
         canvas.draw_idle()
         right_layout.addWidget(canvas, 7)
 
+        # Keep the Chart Data Output header row aligned with the left
+        # popout panel's "Chart Info!" label so both text panels begin on
+        # the same horizontal line.
         summary_controls = QHBoxLayout()
+        summary_controls.setContentsMargins(0, 0, 0, 0)
         summary_controls.addStretch(1)
         summary_sort_label = QLabel("Aspects")
         summary_sort_label.setStyleSheet("font-weight: bold;")
@@ -38343,7 +38288,10 @@ class MainWindow(QMainWindow):
         summary_sort_combo.setMinimumWidth(140)
         summary_controls.addWidget(summary_sort_label)
         summary_controls.addWidget(summary_sort_combo)
-        right_layout.addLayout(summary_controls)
+        chart_data_header = QWidget()
+        chart_data_header.setLayout(summary_controls)
+        chart_data_header.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        right_layout.addWidget(chart_data_header, 0)
 
         summary_output = ChartDataTableOutput()
         summary_output.setReadOnly(True)
@@ -38941,17 +38889,115 @@ class MainWindow(QMainWindow):
         central = self.centralWidget()
         if central is None:
             return
-        self._help_marker_buttons = []
+
         self._help_scrim = QWidget(central)
         self._help_scrim.hide()
         self._help_scrim.setStyleSheet("background-color: rgba(0, 0, 0, 26);")
+
+        self._help_side_panel = QFrame(self._help_scrim)
+        self._help_side_panel.setStyleSheet(
+            "QFrame {"
+            "background-color: #616161;"
+            "border-right: 1px solid #f2c94c;"
+            "}"
+            "QLabel { color: #ffffff; }"
+            "QLineEdit {"
+            "background-color: #737373;"
+            "border: 1px solid #f2c94c;"
+            "color: #ffffff;"
+            "padding: 6px;"
+            "border-radius: 4px;"
+            "}"
+            "QListWidget {"
+            "background-color: #6a6a6a;"
+            "border: 1px solid #f2c94c;"
+            "color: #ffffff;"
+            "}"
+        )
+        panel_layout = QVBoxLayout(self._help_side_panel)
+        panel_layout.setContentsMargins(14, 12, 14, 14)
+        panel_layout.setSpacing(10)
+
+        panel_title = QLabel("❓") #"Help"
+        panel_title.setStyleSheet("font-size: 16px; font-weight: 600; color: #f2c94c;")
+        panel_layout.addWidget(panel_title)
+
+        panel_hint = QLabel("Search feature explanations and developer notes.")
+        panel_hint.setWordWrap(True)
+        panel_layout.addWidget(panel_hint)
+
+        self._help_search_edit = QLineEdit()
+        self._help_search_edit.setPlaceholderText("Search help notes…")
+        self._help_search_edit.textChanged.connect(self._refresh_help_search_results)
+        panel_layout.addWidget(self._help_search_edit)
+
+        self._help_results_list = QListWidget()
+        self._help_results_list.currentRowChanged.connect(self._show_selected_help_entry)
+        panel_layout.addWidget(self._help_results_list, 1)
+
+        self._help_entry_detail = QLabel()
+        self._help_entry_detail.setWordWrap(True)
+        self._help_entry_detail.setContentsMargins(10, 10, 10, 10)
+        self._help_entry_detail.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+        self._help_entry_detail.setStyleSheet(
+            "background-color: #5a5a5a; border: 1px solid #f2c94c; border-radius: 4px; padding: 12px;"
+        )
+        self._help_entry_detail_scroll = QScrollArea()
+        self._help_entry_detail_scroll.setWidgetResizable(True)
+        self._help_entry_detail_scroll.setFrameShape(QScrollArea.NoFrame)
+        self._help_entry_detail_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._help_entry_detail_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self._help_entry_detail_scroll.setMinimumHeight(240)
+        self._help_entry_detail_scroll.setWidget(self._help_entry_detail)
+        panel_layout.addWidget(self._help_entry_detail_scroll, 2)
+
+        self._help_icon_button = QToolButton(self._help_side_panel)
+        self._help_icon_button.setText("?")
+        self._help_icon_button.setToolTip("Open the Help panel.")
+        self._help_icon_button.clicked.connect(self._open_help_side_panel)
+        self._help_icon_button.setStyleSheet(
+            "QToolButton {"
+            "background-color: #f2c94c;"
+            "color: #14213d;"
+            "border: 1px solid #14213d;"
+            "border-radius: 10px;"
+            "font-weight: 700;"
+            "font-size: 16px;"
+            "padding: 0px;"
+            "}"
+        )
+        self._help_icon_button.setFixedSize(20, 20)
+
+        self._help_icon_close = QPushButton("×", self._help_side_panel)
+        self._help_icon_close.setToolTip("Close Help overlay")
+        self._help_icon_close.clicked.connect(self._disable_help_overlay)
+        self._help_icon_close.setFixedSize(18, 18)
+        self._help_icon_close.setStyleSheet(
+            "QPushButton {"
+            "background-color: #9a9a9a;"
+            "color: #2f2f2f;"
+            "border: 1px solid #4f4f4f;"
+            "border-radius: 9px;"
+            "font-size: 16px;"
+            "padding: 0px;"
+            "}"
+        )
+
         self._help_resize_overlay()
+        self._refresh_help_search_results()
 
     def _help_resize_overlay(self) -> None:
         central = self.centralWidget()
         if central is None or not hasattr(self, "_help_scrim"):
             return
         self._help_scrim.setGeometry(0, 0, central.width(), central.height())
+        self._help_side_panel.setGeometry(0, 0, 320, self._help_scrim.height())
+        right_edge = self._help_side_panel.width() - 12
+        self._help_icon_close.move(right_edge - self._help_icon_close.width(), 12)
+        self._help_icon_button.move(
+            self._help_icon_close.x() - 8 - self._help_icon_button.width(),
+            12,
+        )
 
     def on_open_sign_degrees_reference_circle(self) -> None:
         from ephemeraldaddy.gui.features.charts.sign_degrees_reference_popout import show_sign_degrees_reference_popout
@@ -38969,6 +39015,7 @@ class MainWindow(QMainWindow):
         self._help_overlay_active = True
         self._help_scrim.show()
         self._help_scrim.raise_()
+        self._help_side_panel.show()
         #self._rebuild_help_markers()
 
     def _disable_help_overlay(self) -> None:
@@ -38976,6 +39023,13 @@ class MainWindow(QMainWindow):
         self._clear_help_markers()
         if hasattr(self, "_help_scrim"):
             self._help_scrim.hide()
+
+    def _open_help_side_panel(self) -> None:
+        if not self._help_overlay_active:
+            return
+        self._help_side_panel.show()
+        self._help_side_panel.raise_()
+        self._help_search_edit.setFocus()
 
     def _clear_help_markers(self) -> None:
         for marker in self._help_marker_buttons:
@@ -39012,6 +39066,9 @@ class MainWindow(QMainWindow):
             marker.raise_()
             self._help_marker_buttons.append(marker)
 
+        self._help_side_panel.raise_()
+        self._help_icon_button.raise_()
+        self._help_icon_close.raise_()
 
     def _help_widget_label(self, widget: QWidget) -> str:
         if isinstance(widget, (QAbstractButton, QLabel)):
@@ -39028,6 +39085,8 @@ class MainWindow(QMainWindow):
         label_targets = central.findChildren(QLabel)
         for widget in [*button_targets, *label_targets]:
             if widget in {
+                getattr(self, "_help_icon_button", None),
+                getattr(self, "_help_icon_close", None),
                 self.help_overlay_button,
             }:
                 continue
@@ -39039,10 +39098,32 @@ class MainWindow(QMainWindow):
         return targets
 
     def _refresh_help_search_results(self) -> None:
-        return
+        if not hasattr(self, "_help_results_list"):
+            return
+        self._help_results_list.clear()
+        self._help_search_results_cache = tuple(
+            help_notes.search_help_entries(self._help_search_edit.text())
+        )
+        for entry in self._help_search_results_cache:
+            self._help_results_list.addItem(entry.title)
+        if self._help_search_results_cache:
+            self._help_results_list.setCurrentRow(0)
+        else:
+            self._help_entry_detail.setText("No help entries matched your search.")
+            self._help_entry_detail_scroll.verticalScrollBar().setValue(0)
 
     def _show_selected_help_entry(self, row: int) -> None:
-        return
+        if not hasattr(self, "_help_search_results_cache"):
+            return
+        if row < 0 or row >= len(self._help_search_results_cache):
+            self._help_entry_detail.setText("Select an entry to view details.")
+            self._help_entry_detail_scroll.verticalScrollBar().setValue(0)
+            return
+        entry = self._help_search_results_cache[row]
+        keywords = ", ".join(entry.keywords)
+        suffix = f"\n\nKeywords: {keywords}" if keywords else ""
+        self._help_entry_detail.setText(f"{entry.description}{suffix}")
+        self._help_entry_detail_scroll.verticalScrollBar().setValue(0)
 
 def main(startup_loading: StartupProgress | QWidget | None = None):
     _configure_debug_logging()

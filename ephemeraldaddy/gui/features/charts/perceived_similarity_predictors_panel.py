@@ -8,7 +8,7 @@ from math import sqrt
 from typing import Any, Mapping
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QFrame, QLabel, QPushButton, QSizePolicy, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QLabel, QPushButton, QSizePolicy, QVBoxLayout, QWidget
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
@@ -24,6 +24,7 @@ from ephemeraldaddy.core.db import get_chart_uid_map, load_chart, load_charts
 from ephemeraldaddy.gui.features.charts.chart_similarity_relationships import (
     load_chart_similarity_relationship_states,
 )
+from ephemeraldaddy.gui.style import create_divider
 
 
 DEFAULT_HIGHLIGHT_COLOR = "#f2d16b"
@@ -88,11 +89,7 @@ class PerceivedSimilarityPredictorsPanel(QWidget):
         layout.addWidget(refresh_button)
         self._refresh_button = refresh_button
 
-        divider = QFrame()
-        divider.setFrameShape(QFrame.HLine)
-        divider.setFrameShadow(QFrame.Plain)
-        divider.setStyleSheet("color: #3f3f3f; background-color: #3f3f3f; max-height: 1px;")
-        layout.addWidget(divider)
+        layout.addWidget(create_divider())
 
         weights_header = QLabel("Recommended Factor Weights")
         weights_header.setAlignment(Qt.AlignHCenter)
