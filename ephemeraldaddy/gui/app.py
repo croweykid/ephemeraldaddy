@@ -2594,12 +2594,10 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         self._database_metrics_section_visible: dict[str, bool] = {}
         self._incremental_metrics_refresh_sections: list[str] = []
         self._incremental_metrics_refresh_changed_uids: set[str] = set()
-        self._incremental_metrics_refresh_changed_ids: set[int] = set()
         self._incremental_metrics_force_full_refresh: bool = False
         self._incremental_metrics_refresh_scheduled = False
         self._deferred_database_metrics_refresh_scheduled = False
         self._deferred_database_metrics_changed_uids: set[str] = set()
-        self._deferred_database_metrics_changed_ids: set[int] = set()
         self._deferred_database_metrics_sections: set[str] = set()
         self._deferred_database_metrics_force_full_refresh = False
         self._database_metrics_background_preload_scheduled = False
@@ -3496,7 +3494,6 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             normalized_changed_uids.update(self._chart_uids_for_ids(changed_ids))
         self._incremental_metrics_refresh_sections = expanded_sections
         self._incremental_metrics_refresh_changed_uids = normalized_changed_uids
-        self._incremental_metrics_refresh_changed_ids = set(self._chart_ids_for_uids(normalized_changed_uids))
         self._incremental_metrics_force_full_refresh = force_full_refresh
         if self._incremental_metrics_refresh_scheduled:
             return
@@ -3508,7 +3505,6 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             self._incremental_metrics_refresh_scheduled = False
             self._incremental_metrics_force_full_refresh = False
             self._incremental_metrics_refresh_changed_uids.clear()
-            self._incremental_metrics_refresh_changed_ids.clear()
             if not self._deferred_database_metrics_refresh_scheduled:
                 self._show_database_analytics_pending_indicator(False)
             return
@@ -7528,8 +7524,8 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         ordered_ids = self._chart_ids_for_uids(ordered_uids)
         self._selected_chart_id_order = ordered_ids
         self._selected_chart_ids_set = set(ordered_ids)
-        if hasattr(self, "_batch_selection_order"):
-            self._update_batch_selection_order(ordered_ids)
+        if hasattr(self, "_batch_selection_uid_order"):
+            self._update_batch_selection_order_by_uids(ordered_uids)
 
     def _replace_persistent_selection(self, chart_ids: Iterable[int]) -> None:
         ordered_ids: list[int] = []
@@ -14206,8 +14202,6 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         self._batch_metric_programmatic_update = False
         self._batch_last_selection_uids: set[str] = set()
         self._batch_selection_uid_order: list[str] = []
-        self._batch_last_selection_ids: set[int] = set()
-        self._batch_selection_order: list[int] = []
         self._batch_metric_lucygoosey: dict[str, bool] = {
             "positive_sentiment_intensity": False,
             "negative_sentiment_intensity": False,
@@ -14585,7 +14579,6 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         self._render_batch_selection_tag_summary(tag_counts, selected_count)
         self._set_batch_alignment_state(resolved_items)
         self._batch_last_selection_uids = chart_uid_set
-        self._batch_last_selection_ids = chart_id_set
 
     def _update_batch_tag_state(self) -> None:
         if not hasattr(self, "batch_tags_input"):
@@ -14605,7 +14598,6 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             self._set_batch_tags_state([], preserve_lucygoosey=preserve_lucygoosey_tags)
             self._render_batch_selection_tag_summary({}, 0)
             self._batch_last_selection_uids = set()
-            self._batch_last_selection_ids = set()
             return
 
         self._update_batch_edit_action_buttons()
@@ -14633,7 +14625,6 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             self._set_batch_tags_state([], preserve_lucygoosey=preserve_lucygoosey_tags)
             self._render_batch_selection_tag_summary({}, 0)
             self._batch_last_selection_uids = chart_uid_set
-            self._batch_last_selection_ids = chart_id_set
             return
 
         tag_values: list[str] = []
@@ -14650,7 +14641,6 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         )
         self._render_batch_selection_tag_summary(tag_counts, len(resolved_items))
         self._batch_last_selection_uids = chart_uid_set
-        self._batch_last_selection_ids = chart_id_set
 
     def _has_active_search_tag_filters(self) -> bool:
         return has_active_search_tag_filters(self)
@@ -14699,8 +14689,6 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             if chart_uid not in self._batch_selection_uid_order:
                 self._batch_selection_uid_order.append(chart_uid)
 
-        # Legacy mirror for batch helpers that still need local rows.
-        self._batch_selection_order = self._chart_ids_for_uids(self._batch_selection_uid_order)
 
     def _update_batch_selection_order(self, selected_chart_ids: list[int]) -> None:
         chart_uid_map = get_chart_uid_map(selected_chart_ids)
@@ -17112,10 +17100,6 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             self._batch_last_selection_uids = set()
         if hasattr(self, "_batch_selection_uid_order"):
             self._batch_selection_uid_order = []
-        if hasattr(self, "_batch_last_selection_ids"):
-            self._batch_last_selection_ids = set()
-        if hasattr(self, "_batch_selection_order"):
-            self._batch_selection_order = []
         for checkbox in self.batch_sentiment_checkboxes.values():
             self._set_batch_checkbox_state(checkbox, QuadStateSlider.MODE_EMPTY)
         for checkbox in self.batch_relationship_type_checkboxes.values():
@@ -19762,7 +19746,6 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             normalized_changed_uids.update(self._chart_uids_for_ids(changed_ids))
         if normalized_changed_uids:
             self._deferred_database_metrics_changed_uids.update(normalized_changed_uids)
-            self._deferred_database_metrics_changed_ids.update(self._chart_ids_for_uids(normalized_changed_uids))
         if sections_to_refresh is not None:
             self._deferred_database_metrics_sections.update(sections_to_refresh)
         self._deferred_database_metrics_force_full_refresh = (
@@ -19777,7 +19760,6 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         self._deferred_database_metrics_refresh_scheduled = False
         if self._is_closing:
             self._deferred_database_metrics_changed_uids.clear()
-            self._deferred_database_metrics_changed_ids.clear()
             self._deferred_database_metrics_sections.clear()
             self._deferred_database_metrics_force_full_refresh = False
             return
@@ -19786,7 +19768,6 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         sections_to_refresh = set(self._deferred_database_metrics_sections) or None
         force_full_refresh = self._deferred_database_metrics_force_full_refresh
         self._deferred_database_metrics_changed_uids.clear()
-        self._deferred_database_metrics_changed_ids.clear()
         self._deferred_database_metrics_sections.clear()
         self._deferred_database_metrics_force_full_refresh = False
         self._run_database_metrics_refresh(
