@@ -5550,6 +5550,9 @@ class DatabaseAnalyticsChartsMixin:
                 label_colors={name: color_lookup.get(name, DEFAULT_TRAIT_COLOR) for name in ordered_labels},
                 include_count_prefixes=False,
                 auto_height=True,
+                # Traits bars are average likelihood deltas, not categorical proportions.
+                # The generic SE guides are only meaningful for count/proportion charts.
+                include_significance_guides=False,
             )
             self.traits_distribution_chart_layout.addWidget(canvas, 0)
         else:
