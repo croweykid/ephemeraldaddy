@@ -5309,6 +5309,29 @@ class DatabaseAnalyticsChartsMixin:
         )
         return result
 
+    def _schedule_traits_distribution_warm_refresh(self) -> None:
+        """Continue warming trait distribution norms while the section remains open."""
+        if getattr(self, "_traits_distribution_warm_refresh_scheduled", False):
+            return
+        self._traits_distribution_warm_refresh_scheduled = True
+
+        def _refresh() -> None:
+            self._traits_distribution_warm_refresh_scheduled = False
+            if getattr(self, "_is_closing", False):
+                return
+            is_expanded = getattr(self, "_is_database_metrics_section_expanded", None)
+            if callable(is_expanded) and not is_expanded("traits_distribution"):
+                return
+            update = getattr(self, "_update_sentiment_tally", None)
+            if callable(update):
+                update(
+                    update_database_metrics=True,
+                    update_similarities=False,
+                    sections_to_refresh={"traits_distribution"},
+                )
+
+        QTimer.singleShot(750, _refresh)
+
     def _render_traits_distribution_section(
         self,
         *,
@@ -5489,6 +5512,8 @@ class DatabaseAnalyticsChartsMixin:
             ),
         )
         database_partial = bool(database_analytics.get("partial", False))
+        if database_partial:
+            self._schedule_traits_distribution_warm_refresh()
         requested_database_count = int(database_analytics.get("requested_chart_count", database_count) or database_count)
         if loaded_charts > 0:
             if database_partial:
