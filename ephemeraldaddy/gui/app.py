@@ -757,7 +757,6 @@ from ephemeraldaddy.core.db import (
     update_chart_lightweight_metadata,
     update_chart_dominant_sign_weights,
     update_chart_weirdness_score,
-    set_current_chart,
     set_current_chart_by_uid,
     parse_relationship_types,
     add_tag_to_charts,
@@ -13851,7 +13850,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                 f"Astrotheme import failed while saving the chart:\n{exc}",
             )
             return
-        set_current_chart(chart_id)
+        set_current_chart_by_uid(getattr(chart, "chart_uid", None) or get_chart_uid(chart_id))
         parent._set_current_chart_identity(chart_id, chart)
         parent._record_manage_charts_pending_change(chart_id, refresh_metrics=True)
         parent._loaded_birth_place = place
@@ -18317,7 +18316,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                     imported += 1
                     if used_fallback:
                         warnings += 1
-                    set_current_chart(chart_id)
+                    set_current_chart_by_uid(getattr(chart, "chart_uid", None) or get_chart_uid(chart_id))
                     progress.setLabelText(f"Importing charts... processed {idx}")
                     QApplication.processEvents()
         except Exception as e:
@@ -18455,7 +18454,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                     imported += 1
                     if used_fallback:
                         warnings += 1
-                    set_current_chart(chart_id)
+                    set_current_chart_by_uid(getattr(chart, "chart_uid", None) or get_chart_uid(chart_id))
                     progress.setLabelText(f"Importing charts... processed {idx}")
                     QApplication.processEvents()
         except Exception as e:
@@ -19125,8 +19124,8 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             for chart_id in changed_ids:
                 self._chart_cache.pop(chart_id, None)
             owner = self._owner_window()
-            if owner is not None and hasattr(owner, "_invalidate_chart_view_navigation_cache_for_ids"):
-                owner._invalidate_chart_view_navigation_cache_for_ids(changed_ids)
+            if owner is not None and hasattr(owner, "_invalidate_chart_view_navigation_cache"):
+                owner._invalidate_chart_view_navigation_cache(self._chart_uids_for_ids(changed_ids))
         self._populate_list(
             selected_ids=selected_ids,
             refresh_metrics=refresh_metrics,
@@ -32918,7 +32917,7 @@ class MainWindow(QMainWindow):
 
     def _orphan_current_chart_reference(self) -> None:
         self._set_current_chart_identity(None)
-        set_current_chart(None)
+        set_current_chart_by_uid(None)
         self.update_button.setText("Save Chart")
         self._set_lucygoosey(False)
 
@@ -34796,14 +34795,14 @@ class MainWindow(QMainWindow):
             if not self._confirm_duplicate_chart_save(chart):
                 return
             chart_id = save_chart(chart, **save_kwargs)
-            set_current_chart(chart_id)
+            set_current_chart_by_uid(getattr(chart, "chart_uid", None) or get_chart_uid(chart_id))
         else:
             if recalculate_chart:
                 update_chart(chart_id, chart, **save_kwargs)
             else:
                 update_chart_lightweight_metadata(chart_id, chart)
-            set_current_chart(chart_id)
-            self._invalidate_chart_view_navigation_cache_for_ids({chart_id})
+            set_current_chart_by_uid(getattr(chart, "chart_uid", None) or get_chart_uid(chart_id))
+            self._invalidate_chart_view_navigation_cache({getattr(chart, "chart_uid", None) or get_chart_uid(chart_id)})
 
         self._set_current_chart_identity(chart_id, chart)
         if not subjective_notes_autosave:
@@ -34944,7 +34943,7 @@ class MainWindow(QMainWindow):
         self._chart_view_history.clear()
         self._chart_view_history_index = -1
         self._set_current_chart_identity(None)
-        set_current_chart(None)
+        set_current_chart_by_uid(None)
         self._loaded_birth_place = None
         self._loaded_lat = None
         self._loaded_lon = None
@@ -35254,20 +35253,6 @@ class MainWindow(QMainWindow):
             normalized_chart_uid = self._normalized_chart_uid_key(chart_uid)
             if normalized_chart_uid:
                 self._chart_view_navigation_cache.pop(normalized_chart_uid, None)
-
-    def _invalidate_chart_view_navigation_cache_for_ids(
-        self,
-        chart_ids: set[int] | list[int] | tuple[int, ...] | None = None,
-    ) -> None:
-        if not chart_ids:
-            self._invalidate_chart_view_navigation_cache()
-            return
-        normalized_chart_ids = {int(chart_id) for chart_id in chart_ids if chart_id is not None}
-        if not normalized_chart_ids:
-            return
-
-        chart_uid_map = get_chart_uid_map(normalized_chart_ids)
-        self._invalidate_chart_view_navigation_cache(set(chart_uid_map.values()))
 
     @staticmethod
     def _normalized_batch_sentiment_metric_value(raw_value: Any, default: int = 1) -> int:
@@ -35889,11 +35874,11 @@ class MainWindow(QMainWindow):
             for chart_uid in (chart_uids or set())
             if (normalized_uid := self._normalized_chart_uid_key(chart_uid))
         }
-        if normalized_chart_uids:
-            self._invalidate_chart_view_navigation_cache(normalized_chart_uids)
-        else:
-            self._invalidate_chart_view_navigation_cache_for_ids(chart_ids)
-        if self.current_chart_id is None or self.current_chart_id not in chart_ids:
+        if not normalized_chart_uids:
+            normalized_chart_uids = self._chart_uids_for_ids(chart_ids)
+        self._invalidate_chart_view_navigation_cache(normalized_chart_uids)
+        current_chart_uid = self._current_chart_uid_for_navigation()
+        if current_chart_uid is None or current_chart_uid not in normalized_chart_uids:
             return
         self._orphan_current_chart_reference()
         self._latest_chart = None

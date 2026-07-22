@@ -4355,10 +4355,15 @@ class DatabaseAnalyticsChartsMixin:
             selected_trait_name=str(context.get("selected_trait_name", "") or ""),
             database_values=context.get("database_values", {}),
         )
-        self._traits_distribution_current_ranked_chart_ids = {
-            int(row["chart_id"])
+        self._traits_distribution_current_ranked_chart_uids = {
+            str(row["chart_uid"]).strip().upper()
             for row in rankings
-            if isinstance(row, dict) and "chart_id" in row
+            if isinstance(row, dict) and row.get("chart_uid")
+        }
+        self._traits_distribution_current_ranked_chart_ids = {
+            int(row["legacy_chart_id"])
+            for row in rankings
+            if isinstance(row, dict) and row.get("legacy_chart_id") is not None
         }
         rank_label.setText(
             self._render_traits_distribution_rankings_html(
@@ -4520,7 +4525,8 @@ class DatabaseAnalyticsChartsMixin:
             chart_name = str(getattr(chart, "name", "") or f"Chart {chart_id}").strip()
             rows.append(
                 {
-                    "chart_id": int(chart_id),
+                    "chart_uid": str(db.get_chart_uid(int(chart_id)) or "").strip().upper(),
+                    "legacy_chart_id": int(chart_id),
                     "name": chart_name or f"Chart {chart_id}",
                     "likelihood": likelihood,
                     "deviation": likelihood - db_average_pct,
@@ -4581,10 +4587,10 @@ class DatabaseAnalyticsChartsMixin:
             name = html.escape(str(row.get("name", "")))
             chart_uid = str(row.get("chart_uid", "") or "").strip()
             try:
-                chart_id = int(row.get("chart_id"))
+                chart_id = int(row.get("legacy_chart_id"))
             except (TypeError, ValueError):
                 chart_id = 0
-            chart_target = chart_uid or (str(chart_id) if chart_id else "")
+            chart_target = chart_uid
             chart_link = (
                 f"<a href='chart:{html.escape(chart_target)}' style='color:#f0f0f0; text-decoration:none;'>{name}</a>"
                 if chart_target
@@ -5451,7 +5457,16 @@ class DatabaseAnalyticsChartsMixin:
                 selected_trait_name=selected_trait_name or "",
                 database_values=database_values,
             )
-            self._traits_distribution_current_ranked_chart_ids = {int(row["chart_id"]) for row in rankings}
+            self._traits_distribution_current_ranked_chart_uids = {
+                str(row["chart_uid"]).strip().upper()
+                for row in rankings
+                if isinstance(row, dict) and row.get("chart_uid")
+            }
+            self._traits_distribution_current_ranked_chart_ids = {
+                int(row["legacy_chart_id"])
+                for row in rankings
+                if isinstance(row, dict) and row.get("legacy_chart_id") is not None
+            }
             rank_label.setText(
                 self._render_traits_distribution_rankings_html(
                     selected_trait_name,
