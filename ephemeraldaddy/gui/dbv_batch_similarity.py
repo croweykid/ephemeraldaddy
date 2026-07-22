@@ -83,8 +83,8 @@ def refresh_batch_similarity_chart_options(owner: Any, choices: list[str] | None
 
 def apply_batch_similarity(owner: Any) -> None:
     """Persist one perceived similarity percentage from selected chart(s) to a target chart."""
-    selected_chart_ids = owner._exclude_similarities_placeholder_chart_ids(
-        owner._selected_chart_ids()
+    selected_chart_ids = owner._exclude_similarities_placeholder_local_row_ids(
+        owner._selected_local_row_ids()
     )
     if not selected_chart_ids:
         QMessageBox.information(

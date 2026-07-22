@@ -2549,11 +2549,11 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         # refreshed only for older local-row adapters that have not migrated yet.
         self._selected_chart_uid_order: list[str] = []
         self._selected_chart_uids_set: set[str] = set()
-        self._selected_chart_id_order: list[int] = []
-        self._selected_chart_ids_set: set[int] = set()
-        self._visible_chart_ids: set[int] = set()
+        self._selected_local_row_id_order: list[int] = []
+        self._selected_local_row_ids_set: set[int] = set()
+        self._visible_local_row_ids: set[int] = set()
         self._filter_navigation_anchor_chart_uid: str | None = None
-        self._filter_navigation_anchor_chart_id: int | None = None
+        self._filter_navigation_anchor_local_row_id: int | None = None
         self._selection_update_mode = "replace"
         self._prior_deselected_selection: list[str] = []
         self._syncing_visible_selection = False
@@ -2585,7 +2585,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             int(self._show_hidden_charts),
         )
         self._hidden_chart_uids = self._load_hidden_chart_uids_from_settings()
-        self._hidden_chart_ids = set(get_chart_ids_by_uid(self._hidden_chart_uids).values())
+        self._hidden_local_row_ids = set(get_chart_ids_by_uid(self._hidden_chart_uids).values())
         self._analysis_chart_export_rows: dict[str, list[tuple[Any, ...]]] = {}
         self._analysis_chart_filenames: dict[str, str] = {}
         self._analysis_chart_dropdowns: dict[str, QComboBox] = {}
@@ -3510,7 +3510,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
 
         section_key = self._incremental_metrics_refresh_sections.pop(0)
         changed_ids = (
-            set(self._chart_ids_for_uids(self._incremental_metrics_refresh_changed_uids))
+            set(self._local_row_ids_for_uids(self._incremental_metrics_refresh_changed_uids))
             if self._incremental_metrics_refresh_changed_uids
             else None
         )
@@ -4134,7 +4134,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                 sections_to_refresh={chart_key},
             )
             self._update_dominant_factors_subheader(
-                use_selection_scope=self.list_widget is not None and len(self._selected_chart_ids()) > 0
+                use_selection_scope=self.list_widget is not None and len(self._selected_local_row_ids()) > 0
             )
             return
 
@@ -5296,7 +5296,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         self.transit_panel_controller.generate_personal_transit()
 
     def _on_generate_composite_chart(self) -> None:
-        selected_chart_ids = self._selected_chart_ids()
+        selected_chart_ids = self._selected_local_row_ids()
         if len(selected_chart_ids) != 2:
             chart_ids = self._prompt_composite_chart_selection()
             if chart_ids is None:
@@ -5328,7 +5328,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         for row in list_charts():
             chart_id, name, alias, *_rest = row
             chart_id = int(chart_id)
-            if disallow_placeholder_charts and self._is_placeholder_chart_id(chart_id):
+            if disallow_placeholder_charts and self._is_placeholder_local_row_id(chart_id):
                 continue
             display_name = name.strip() if isinstance(name, str) and name.strip() else f"Chart {chart_id}"
             if alias:
@@ -7109,7 +7109,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         if not isinstance(panel, PerceivedSimilarityPredictorsPanel):
             return
         panel.refresh_for_chart_ids(
-            self._exclude_placeholder_chart_ids(self._selected_chart_ids()),
+            self._exclude_placeholder_local_row_ids(self._selected_local_row_ids()),
             algorithm_mode=self._settings.value(
                 SETTINGS_KEY_SIMILAR_CHARTS_ALGORITHM_MODE,
                 SIMILAR_CHARTS_ALGORITHM_DEFAULT,
@@ -7289,7 +7289,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
     def _on_export_selected_total_chart(self) -> None:
         _run_total_chart_export_flow(
             self,
-            self._selected_chart_ids(),
+            self._selected_local_row_ids(),
             prompt_for_chart=lambda: self._prompt_single_chart_selection(
                 dialog_title="Export chart analysis",
                 submit_button_label="Export chart analysis",
@@ -7302,7 +7302,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
 
 
     def _resolve_middle_panel_tool_chart_id(self, tool_title: str) -> int | None:
-        selected_chart_ids = self._selected_chart_ids()
+        selected_chart_ids = self._selected_local_row_ids()
         if len(selected_chart_ids) == 1:
             return selected_chart_ids[0]
         return self._prompt_single_chart_selection(
@@ -7429,7 +7429,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         return chart_uid or None
 
     @staticmethod
-    def _legacy_item_chart_id(item: QListWidgetItem | None) -> int | None:
+    def _item_local_row_id(item: QListWidgetItem | None) -> int | None:
         if item is None:
             return None
         raw_chart_id = item.data(Qt.UserRole + 3)
@@ -7440,7 +7440,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         except (TypeError, ValueError):
             return None
 
-    def _chart_ids_for_uids(self, chart_uids: Iterable[str | None]) -> list[int]:
+    def _local_row_ids_for_uids(self, chart_uids: Iterable[str | None]) -> list[int]:
         ordered_uids = [
             chart_uid
             for raw_uid in chart_uids
@@ -7449,14 +7449,14 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         ids_by_uid = get_chart_ids_by_uid(ordered_uids)
         return [int(ids_by_uid[chart_uid]) for chart_uid in ordered_uids if chart_uid in ids_by_uid]
 
-    def _selected_chart_ids(
+    def _selected_local_row_ids(
         self,
         selected_items: list[QListWidgetItem] | None = None,
     ) -> list[int]:
         if selected_items is None:
             self._reconcile_persistent_selection_with_database()
-            return list(getattr(self, "_selected_chart_id_order", []))
-        return self._chart_ids_for_uids(self._selected_chart_uids(selected_items))
+            return list(getattr(self, "_selected_local_row_id_order", []))
+        return self._local_row_ids_for_uids(self._selected_chart_uids(selected_items))
 
     def _selected_chart_uids(
         self,
@@ -7474,14 +7474,14 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                 chart_uids.append(chart_uid)
         return chart_uids
 
-    def _visible_selected_chart_ids(self) -> list[int]:
-        return self._selected_chart_ids(self.list_widget.selectedItems()) if self.list_widget is not None else []
+    def _visible_selected_local_row_ids(self) -> list[int]:
+        return self._selected_local_row_ids(self.list_widget.selectedItems()) if self.list_widget is not None else []
 
     def _visible_selected_chart_uids(self) -> list[str]:
         return self._selected_chart_uids(self.list_widget.selectedItems()) if self.list_widget is not None else []
 
-    def _all_visible_chart_ids(self) -> list[int]:
-        return self._chart_ids_for_uids(self._all_visible_chart_uids())
+    def _all_visible_local_row_ids(self) -> list[int]:
+        return self._local_row_ids_for_uids(self._all_visible_chart_uids())
 
     def _all_visible_chart_uids(self) -> list[str]:
         if self.list_widget is None:
@@ -7506,13 +7506,13 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         self._selected_chart_uids_set = set(ordered_uids)
 
         # Legacy mirrors are local adapters only; the authoritative selection is UID order above.
-        ordered_ids = self._chart_ids_for_uids(ordered_uids)
-        self._selected_chart_id_order = ordered_ids
-        self._selected_chart_ids_set = set(ordered_ids)
+        ordered_ids = self._local_row_ids_for_uids(ordered_uids)
+        self._selected_local_row_id_order = ordered_ids
+        self._selected_local_row_ids_set = set(ordered_ids)
         if hasattr(self, "_batch_selection_uid_order"):
             self._update_batch_selection_order_by_uids(ordered_uids)
 
-    def _replace_persistent_selection(self, chart_ids: Iterable[int]) -> None:
+    def _replace_persistent_selection_by_local_row_ids(self, chart_ids: Iterable[int]) -> None:
         ordered_ids: list[int] = []
         for raw_chart_id in chart_ids:
             try:
@@ -7644,7 +7644,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             field.setCompleter(completer)
         refresh_batch_similarity_chart_options(self, choices)
 
-    def _is_placeholder_chart_id(self, chart_id: int) -> bool:
+    def _is_placeholder_local_row_id(self, chart_id: int) -> bool:
         row = self._active_chart_rows_by_id.get(int(chart_id))
         if row is not None and _chart_row_is_non_aggregable(row):
             return True
@@ -7657,32 +7657,32 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         # be excluded from metric snapshots and database-wide totals.
         return _chart_is_non_aggregable(chart)
 
-    def _exclude_placeholder_chart_ids(self, chart_ids: list[int]) -> list[int]:
+    def _exclude_placeholder_local_row_ids(self, chart_ids: list[int]) -> list[int]:
         return [
             int(chart_id)
             for chart_id in chart_ids
-            if not self._is_placeholder_chart_id(int(chart_id))
+            if not self._is_placeholder_local_row_id(int(chart_id))
         ]
 
-    def _is_similarities_placeholder_chart_id(self, chart_id: int) -> bool:
+    def _is_similarities_placeholder_local_row_id(self, chart_id: int) -> bool:
         row = self._active_chart_rows_by_id.get(int(chart_id))
         if row is not None and _chart_row_is_placeholder(row):
             return True
         chart = self._get_chart_for_filter(int(chart_id))
         return not _chart_is_similarity_participant(chart)
 
-    def _exclude_similarities_placeholder_chart_ids(self, chart_ids: list[int]) -> list[int]:
+    def _exclude_similarities_placeholder_local_row_ids(self, chart_ids: list[int]) -> list[int]:
         return [
             int(chart_id)
             for chart_id in chart_ids
-            if not self._is_similarities_placeholder_chart_id(int(chart_id))
+            if not self._is_similarities_placeholder_local_row_id(int(chart_id))
         ]
 
     def _resolve_similarity_pair_targets(
         self, selected_chart_ids: list[int]
     ) -> SimilarityPairResolution:
         input_state = SimilarityInputState(
-            selected_chart_ids=self._exclude_similarities_placeholder_chart_ids(selected_chart_ids),
+            selected_chart_ids=self._exclude_similarities_placeholder_local_row_ids(selected_chart_ids),
             first_checked=bool(
                 self._similarities_first_use_checkbox
                 and self._similarities_first_use_checkbox.isChecked()
@@ -7711,7 +7711,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         if self._similarities_pair_result_label is None:
             return
         resolution = self._resolve_similarity_pair_targets(
-            self._selected_chart_ids()
+            self._selected_local_row_ids()
         )
         if resolution.first_chart_id is None or resolution.second_chart_id is None:
             QMessageBox.warning(
@@ -7766,7 +7766,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
     def _calculate_pair_dissimilarity_from_selection(self) -> None:
         if self._similarities_pair_result_label is None:
             return
-        resolution = self._resolve_similarity_pair_targets(self._selected_chart_ids())
+        resolution = self._resolve_similarity_pair_targets(self._selected_local_row_ids())
         if resolution.first_chart_id is None or resolution.second_chart_id is None:
             QMessageBox.warning(
                 self,
@@ -7795,7 +7795,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         )
 
     def _update_dissimilarities_analysis(self, chart_ids: list[int]) -> int:
-        selected_chart_ids = self._exclude_similarities_placeholder_chart_ids(chart_ids)
+        selected_chart_ids = self._exclude_similarities_placeholder_local_row_ids(chart_ids)
         if len(selected_chart_ids) != 2:
             self.similarities_controller.set_export_sections([])
             self.similarities_status_label.setText(
@@ -8612,7 +8612,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         return ", ".join(matching_names)
 
     def _update_similarities_analysis(self, chart_ids: list[int]) -> None:
-        selected_non_placeholder_chart_ids = self._exclude_similarities_placeholder_chart_ids(chart_ids)
+        selected_non_placeholder_chart_ids = self._exclude_similarities_placeholder_local_row_ids(chart_ids)
         db_chart_ids = [
             int(normalized[0])
             for row in self._chart_rows
@@ -10448,7 +10448,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         return filtered_ids
 
     def _update_selection_header(self) -> None:
-        selected_total = len(self._selected_chart_ids())
+        selected_total = len(self._selected_local_row_ids())
         summary_counts = SelectionSummaryCounts.from_values(
             selected=selected_total,
             search_results=self.list_widget.count(),
@@ -11044,7 +11044,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             similarities_scrollbar = self.similarities_analysis_panel_scroll.verticalScrollBar()
             similarities_scroll_value = similarities_scrollbar.value()
 
-        chart_ids = self._selected_chart_ids()
+        chart_ids = self._selected_local_row_ids()
 
         labels = list(SENTIMENT_OPTIONS)
         negative_start = (
@@ -13486,7 +13486,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             if event.type() == QEvent.KeyPress:
                 if event.key() == Qt.Key_Escape:
                     self._clear_persistent_selection()
-                    self._filter_navigation_anchor_chart_id = None
+                    self._filter_navigation_anchor_local_row_id = None
                     self._on_selection_changed()
                     return True
                 if event.key() in (Qt.Key_Up, Qt.Key_Down) and not list_widget.selectedItems():
@@ -14360,7 +14360,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
     def _update_batch_edit_state(self) -> None:
         self._update_batch_edit_action_buttons()
         selected_chart_uids = self._selected_chart_uids()
-        selected_chart_ids = self._chart_ids_for_uids(selected_chart_uids)
+        selected_chart_ids = self._local_row_ids_for_uids(selected_chart_uids)
         chart_uid_set = set(selected_chart_uids)
         chart_id_set = set(selected_chart_ids)
         preserve_lucygoosey_metrics = (
@@ -14570,7 +14570,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             return
 
         selected_chart_uids = self._selected_chart_uids()
-        selected_chart_ids = self._chart_ids_for_uids(selected_chart_uids)
+        selected_chart_ids = self._local_row_ids_for_uids(selected_chart_uids)
         chart_uid_set = set(selected_chart_uids)
         chart_id_set = set(selected_chart_ids)
         preserve_lucygoosey_tags = (
@@ -14648,7 +14648,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             self._batch_tagging_debug_log("phase2c_tag_distribution_refresh_skipped_collapsed")
             return
 
-        chart_ids = self._selected_chart_ids()
+        chart_ids = self._selected_local_row_ids()
         database_chart_ids = {
             int(row[0])
             for row in getattr(self, "_chart_rows", [])
@@ -14887,7 +14887,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         if not tag_value:
             return
 
-        chart_ids = self._selected_chart_ids()
+        chart_ids = self._selected_local_row_ids()
         self._batch_tagging_debug_log(
             "tag_click_start tag=%r selected_ids=%s",
             tag_value,
@@ -15057,7 +15057,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         if not tag_to_remove:
             return
 
-        chart_ids = self._selected_chart_ids()
+        chart_ids = self._selected_local_row_ids()
         if not chart_ids:
             QMessageBox.information(
                 self,
@@ -15110,7 +15110,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         self._batch_tagging_debug_log(
             "phase1_saved changed_ids=%s selection_count=%s",
             sorted(changed_ids),
-            len(self._selected_chart_ids()),
+            len(self._selected_local_row_ids()),
         )
         try:
             if added_tags:
@@ -15201,7 +15201,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             selected_chart_uids.update(self._chart_uids_for_ids(chart_ids))
         if not selected_chart_uids:
             selected_chart_uids = set(self._selected_chart_uids())
-        selected_chart_ids = set(self._chart_ids_for_uids(selected_chart_uids))
+        selected_chart_ids = set(self._local_row_ids_for_uids(selected_chart_uids))
         if not hasattr(self, "_pending_batch_refresh_uids"):
             self._pending_batch_refresh_uids: set[str] = set()
         if not hasattr(self, "_pending_batch_refresh_ids"):
@@ -15222,7 +15222,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             self._pending_batch_refresh_selection_state or refresh_selection_state
         )
         pending_uids = set(self._pending_batch_refresh_uids)
-        pending_ids = set(self._chart_ids_for_uids(pending_uids))
+        pending_ids = set(self._local_row_ids_for_uids(pending_uids))
         self._batch_tagging_debug_log(
             "phase2_queue pending_uids=%s in_progress=%s",
             sorted(pending_uids),
@@ -15256,7 +15256,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                 return
 
             changed_uids = set(self._pending_batch_refresh_uids)
-            changed_ids = set(self._chart_ids_for_uids(changed_uids))
+            changed_ids = set(self._local_row_ids_for_uids(changed_uids))
             if not changed_uids:
                 self._pending_batch_refresh_metrics = False
                 self._pending_batch_refresh_selection_state = False
@@ -15322,7 +15322,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         flashed_items: list[QListWidgetItem] = []
         for row in range(self.list_widget.count()):
             item = self.list_widget.item(row)
-            chart_id = self._legacy_item_chart_id(item)
+            chart_id = self._item_local_row_id(item)
             if chart_id not in chart_ids:
                 continue
             original_backgrounds[row] = item.background()
@@ -15346,7 +15346,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         if state == QuadStateSlider.MODE_MIXED:
             return
         checked = state == QuadStateSlider.MODE_TRUE
-        chart_ids = self._selected_chart_ids()
+        chart_ids = self._selected_local_row_ids()
         if not chart_ids:
             QMessageBox.information(
                 self,
@@ -15410,7 +15410,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         if state == QuadStateSlider.MODE_MIXED:
             return
         checked = state == QuadStateSlider.MODE_TRUE
-        chart_ids = list(dict.fromkeys(self._selected_chart_ids()))
+        chart_ids = list(dict.fromkeys(self._selected_local_row_ids()))
         if not chart_ids:
             QMessageBox.information(
                 self,
@@ -15507,7 +15507,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         return list(getattr(selected_chart, "familiarity_factors", []) or [])
 
     def _open_batch_familiarity_calculator(self) -> None:
-        chart_ids = self._selected_chart_ids()
+        chart_ids = self._selected_local_row_ids()
         if not chart_ids:
             QMessageBox.information(
                 self,
@@ -15586,7 +15586,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         metric_label: str,
         value: int | None,
     ) -> None:
-        chart_ids = self._selected_chart_ids()
+        chart_ids = self._selected_local_row_ids()
         if not chart_ids:
             QMessageBox.information(
                 self,
@@ -15641,7 +15641,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         self._set_batch_metric_lucygoosey_state(field_key, True)
 
     def _on_batch_tags_apply(self) -> None:
-        chart_ids = self._selected_chart_ids()
+        chart_ids = self._selected_local_row_ids()
         self._batch_tagging_debug_log(
             "tag_apply_start selected_ids=%s raw_input=%r",
             sorted(set(chart_ids)),
@@ -15740,7 +15740,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         )
 
     def _on_batch_alignment_apply(self) -> None:
-        chart_ids = self._selected_chart_ids()
+        chart_ids = self._selected_local_row_ids()
         if not chart_ids:
             QMessageBox.information(
                 self,
@@ -15866,7 +15866,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         source = self.batch_source_combo.itemData(index)
         if not source:
             return
-        chart_ids = self._selected_chart_ids()
+        chart_ids = self._selected_local_row_ids()
         if not chart_ids:
             QMessageBox.information(
                 self,
@@ -15922,7 +15922,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         if gender == "":
             return
         resolved_gender = None if gender == "__blank__" else gender
-        chart_ids = self._selected_chart_ids()
+        chart_ids = self._selected_local_row_ids()
         if not chart_ids:
             QMessageBox.information(
                 self,
@@ -15976,7 +15976,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         if state == QuadStateSlider.MODE_MIXED:
             return
         checked = state == QuadStateSlider.MODE_TRUE
-        chart_ids = self._selected_chart_ids()
+        chart_ids = self._selected_local_row_ids()
         if not chart_ids:
             QMessageBox.information(
                 self,
@@ -16036,7 +16036,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         if state == QuadStateSlider.MODE_MIXED:
             return
         checked = state == QuadStateSlider.MODE_TRUE
-        chart_ids = self._selected_chart_ids()
+        chart_ids = self._selected_local_row_ids()
         if not chart_ids:
             QMessageBox.information(
                 self,
@@ -16690,7 +16690,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         self._update_collection_membership_buttons()
 
     def _update_collection_membership_buttons(self) -> None:
-        selected_count = len(self._selected_chart_ids()) if hasattr(self, "list_widget") else 0
+        selected_count = len(self._selected_local_row_ids()) if hasattr(self, "list_widget") else 0
         selected_collection_id = self._selected_custom_collection_id()
         selected_collection = (
             self._custom_collections.get(selected_collection_id)
@@ -16824,7 +16824,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         return collection_id
 
     def _on_create_custom_collection(self) -> None:
-        selected_chart_ids = set(self._selected_chart_ids())
+        selected_chart_ids = set(self._selected_local_row_ids())
         include_selected_charts = False
         if selected_chart_ids:
             selected_count = len(selected_chart_ids)
@@ -16920,7 +16920,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         if collection_id is None or collection_id not in self._custom_collections:
             QMessageBox.information(self, "Collections", "Select a custom collection first.")
             return
-        chart_ids = set(self._selected_chart_ids())
+        chart_ids = set(self._selected_local_row_ids())
         if not chart_ids:
             QMessageBox.information(self, "Collections", "Select one or more charts first.")
             return
@@ -16947,7 +16947,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         if collection_id is None or collection_id not in self._custom_collections:
             QMessageBox.information(self, "Collections", "Select a custom collection first.")
             return
-        chart_ids = set(self._selected_chart_ids())
+        chart_ids = set(self._selected_local_row_ids())
         if not chart_ids:
             QMessageBox.information(self, "Collections", "Select one or more charts first.")
             return
@@ -17373,8 +17373,8 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
     def _searchable_body_options(self) -> list[tuple[str, str]]:
         return [("Any", "Any"), *self._searchable_bodies()]
 
-    def _chart_id_from_list_item(self, item: QListWidgetItem | None) -> int | None:
-        return self._legacy_item_chart_id(item)
+    def _local_row_id_from_list_item(self, item: QListWidgetItem | None) -> int | None:
+        return self._item_local_row_id(item)
 
     def _chart_uid_from_list_item(self, item: QListWidgetItem | None) -> str | None:
         return self._normalized_item_chart_uid(item)
@@ -17390,7 +17390,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         selected_chart_uids = list(getattr(self, "_selected_chart_uid_order", []))
         return selected_chart_uids[-1] if selected_chart_uids else None
 
-    def _current_filter_navigation_anchor_chart_id(self) -> int | None:
+    def _current_filter_navigation_anchor_local_row_id(self) -> int | None:
         anchor_uid = self._current_filter_navigation_anchor_chart_uid()
         if not anchor_uid:
             return None
@@ -17398,7 +17398,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
 
     def _clear_filter_selection(self) -> None:
         self._filter_navigation_anchor_chart_uid = self._current_filter_navigation_anchor_chart_uid()
-        self._filter_navigation_anchor_chart_id = self._current_filter_navigation_anchor_chart_id()
+        self._filter_navigation_anchor_local_row_id = self._current_filter_navigation_anchor_local_row_id()
         self._replace_persistent_selection_by_uids([])
         if self.list_widget is None:
             return
@@ -17856,7 +17856,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             self._filter_navigation_anchor_chart_uid = (
                 current_chart_uid if current_chart_uid in selected_chart_uids else selected_chart_uids[-1]
             )
-            self._filter_navigation_anchor_chart_id = get_chart_id_by_uid(self._filter_navigation_anchor_chart_uid)
+            self._filter_navigation_anchor_local_row_id = get_chart_id_by_uid(self._filter_navigation_anchor_chart_uid)
         self._selection_update_mode = "replace"
 
         if self._right_panel_visible and self._active_right_panel == "edit":
@@ -17866,7 +17866,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         panel = getattr(self, "perceived_similarity_predictors_panel", None)
         if isinstance(panel, PerceivedSimilarityPredictorsPanel):
             panel.update_selected_chart_label(
-                self._exclude_placeholder_chart_ids(self._selected_chart_ids())
+                self._exclude_placeholder_local_row_ids(self._selected_local_row_ids())
             )
         if not refresh_metrics:
             self._update_selection_header()
@@ -17902,7 +17902,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             button.setEnabled(enabled)
 
     def _update_batch_edit_action_buttons(self) -> None:
-        selected_count = len(self._selected_chart_ids()) if hasattr(self, "list_widget") else 0
+        selected_count = len(self._selected_local_row_ids()) if hasattr(self, "list_widget") else 0
         if hasattr(self, "batch_delete_chart_button"):
             chart_label = "Chart" if selected_count == 1 else "Charts"
             self._set_button_text_if_changed(
@@ -18029,7 +18029,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         self._start_inline_chart_rename(selected_items[0])
 
     def _start_inline_chart_rename(self, item: QListWidgetItem) -> None:
-        chart_id = self._legacy_item_chart_id(item)
+        chart_id = self._item_local_row_id(item)
         if chart_id is None:
             return
 
@@ -18151,7 +18151,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         self._set_sort_mode("alpha")
 
     def _on_export_selected(self) -> None:
-        chart_ids = self._selected_chart_ids()
+        chart_ids = self._selected_local_row_ids()
         if not chart_ids:
             QMessageBox.information(
                 self,
@@ -18816,7 +18816,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
     def _set_sort_mode(self, mode: str) -> None:
         if mode == "social_score" and bool(getattr(self, "_demo_mode_enabled", DEMO_MODE_DEFAULT)):
             mode = "alpha"
-        selected_ids = set(self._selected_chart_ids())
+        selected_ids = set(self._selected_local_row_ids())
         default_descending_by_mode = {
             "alpha": False,
             "date": True,
@@ -19121,7 +19121,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         }
         if changed_ids:
             normalized_changed_uids.update(self._chart_uids_for_ids(changed_ids))
-        changed_ids = set(self._chart_ids_for_uids(normalized_changed_uids)) or None
+        changed_ids = set(self._local_row_ids_for_uids(normalized_changed_uids)) or None
 
         if progress_callback:
             progress_callback("Loading saved chart rows…", 90)
@@ -19276,10 +19276,10 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         defer_metrics_refresh: bool = False,
     ) -> None:
         if selected_ids is not None:
-            self._replace_persistent_selection(selected_ids)
+            self._replace_persistent_selection_by_local_row_ids(selected_ids)
         else:
             self._reconcile_persistent_selection_with_database()
-        selected_ids = set(getattr(self, "_selected_chart_ids_set", set()))
+        selected_ids = set(getattr(self, "_selected_local_row_ids_set", set()))
         if progress_callback:
             progress_callback("Syncing chart tools…", 93)
         self._refresh_personal_transit_chart_options()
@@ -19302,7 +19302,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         self._database_total_count = len(display_database_rows)
         rows = [row for row in display_database_rows if self._chart_in_active_collection(row)]
         if not getattr(self, "_show_hidden_charts", False):
-            hidden_chart_ids = set(getattr(self, "_hidden_chart_ids", set()))
+            hidden_chart_ids = set(getattr(self, "_hidden_local_row_ids", set()))
             rows = [row for row in rows if int(row[0]) not in hidden_chart_ids]
         self._active_chart_rows_by_id = {int(row[0]): row for row in rows}
         self._displayed_chart_rows_by_id = {}
@@ -19670,7 +19670,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                     item.setSelected(True)
         finally:
             del list_signal_blocker
-        self._visible_chart_ids = visible_chart_ids
+        self._visible_local_row_ids = visible_chart_ids
         if refresh_metrics:
             if defer_metrics_refresh:
                 if progress_callback:
@@ -19749,7 +19749,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             self._deferred_database_metrics_force_full_refresh = False
             return
         changed_uids = set(self._deferred_database_metrics_changed_uids)
-        changed_ids = set(self._chart_ids_for_uids(changed_uids)) or None
+        changed_ids = set(self._local_row_ids_for_uids(changed_uids)) or None
         sections_to_refresh = set(self._deferred_database_metrics_sections) or None
         force_full_refresh = self._deferred_database_metrics_force_full_refresh
         self._deferred_database_metrics_changed_uids.clear()
@@ -19777,7 +19777,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             int(self._hide_hypothetical_charts),
         )
         self._populate_list(
-            selected_ids=set(self._selected_chart_ids()),
+            selected_ids=set(self._selected_local_row_ids()),
             refresh_metrics=False,
         )
         self._on_selection_changed(sync_persistent_selection=False)
@@ -19791,7 +19791,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         if hasattr(self, "hidden_charts_filter_row"):
             self.hidden_charts_filter_row.setVisible(self._show_hidden_charts)
         self._populate_list(
-            selected_ids=set(self._selected_chart_ids()),
+            selected_ids=set(self._selected_local_row_ids()),
             refresh_metrics=False,
         )
         self._on_selection_changed(sync_persistent_selection=False)
@@ -19816,17 +19816,17 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         )
 
     def _show_chart_list_context_menu(self, position: QPoint) -> None:
-        selected_ids = self._visible_selected_chart_ids()
+        selected_ids = self._visible_selected_local_row_ids()
         if not selected_ids:
             item = self.list_widget.itemAt(position)
             if item is not None:
                 self.list_widget.setCurrentItem(item)
                 item.setSelected(True)
-                selected_ids = self._visible_selected_chart_ids()
+                selected_ids = self._visible_selected_local_row_ids()
         if not selected_ids:
             return
         menu = QMenu(self.list_widget)
-        hidden_chart_ids = set(getattr(self, "_hidden_chart_ids", set()))
+        hidden_chart_ids = set(getattr(self, "_hidden_local_row_ids", set()))
         selected_hidden_ids = [chart_id for chart_id in selected_ids if chart_id in hidden_chart_ids]
         selected_visible_ids = [chart_id for chart_id in selected_ids if chart_id not in hidden_chart_ids]
         rename_action = None
@@ -19883,7 +19883,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         if not normalized_ids:
             return
         changed_chart_uids = self._chart_uids_for_ids(normalized_ids)
-        self._hidden_chart_ids.update(normalized_ids)
+        self._hidden_local_row_ids.update(normalized_ids)
         self._hidden_chart_uids.update(changed_chart_uids)
         self._save_hidden_chart_uids_to_settings()
         refresh_rankings = getattr(self, "_refresh_traits_distribution_rankings_after_hidden_chart_change", None)
@@ -19892,7 +19892,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         refresh_rankings_panel = getattr(self, "_refresh_rankings_after_hidden_chart_change", None)
         if callable(refresh_rankings_panel):
             refresh_rankings_panel(changed_chart_uids)
-        remaining_selection = set(self._selected_chart_ids()) - normalized_ids
+        remaining_selection = set(self._selected_local_row_ids()) - normalized_ids
         self._populate_list(selected_ids=remaining_selection, refresh_metrics=False)
         self._on_selection_changed(sync_persistent_selection=False)
 
@@ -19901,13 +19901,13 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         if not normalized_ids:
             return
         changed_chart_uids = self._chart_uids_for_ids(normalized_ids)
-        self._hidden_chart_ids.difference_update(normalized_ids)
+        self._hidden_local_row_ids.difference_update(normalized_ids)
         self._hidden_chart_uids.difference_update(changed_chart_uids)
         self._save_hidden_chart_uids_to_settings()
         refresh_rankings_panel = getattr(self, "_refresh_rankings_after_hidden_chart_change", None)
         if callable(refresh_rankings_panel):
             refresh_rankings_panel(changed_chart_uids)
-        self._populate_list(selected_ids=set(self._selected_chart_ids()) | normalized_ids, refresh_metrics=False)
+        self._populate_list(selected_ids=set(self._selected_local_row_ids()) | normalized_ids, refresh_metrics=False)
         self._on_selection_changed(sync_persistent_selection=False)
 
     def _dnd_species_class_payload_for_chart(self, chart) -> dict[str, Any]:
@@ -20583,7 +20583,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             return False
 
         if hidden_charts_state != QuadStateSlider.MODE_EMPTY:
-            is_hidden_chart = int(chart_id) in getattr(self, "_hidden_chart_ids", set())
+            is_hidden_chart = int(chart_id) in getattr(self, "_hidden_local_row_ids", set())
             if hidden_charts_state == QuadStateSlider.MODE_TRUE and not is_hidden_chart:
                 return False
             if hidden_charts_state == QuadStateSlider.MODE_FALSE and is_hidden_chart:
@@ -21904,7 +21904,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
 
     def _on_delete(self) -> None:
         chart_uids = self._selected_chart_uids()
-        chart_ids = self._chart_ids_for_uids(chart_uids)
+        chart_ids = self._local_row_ids_for_uids(chart_uids)
         if not chart_uids:
             QMessageBox.information(
                 self,
@@ -23370,11 +23370,11 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         show_high_similarity_chart_pairs(
             self,
             chart_ids=list(getattr(self, "_active_chart_rows_by_id", {})),
-            exclude_placeholder_chart_ids=self._exclude_similarities_placeholder_chart_ids,
+            exclude_placeholder_chart_ids=self._exclude_similarities_placeholder_local_row_ids,
             load_charts_by_id=load_charts,
             algorithm_mode=getattr(self, "_similar_charts_algorithm_mode", SIMILAR_CHARTS_ALGORITHM_DEFAULT),
             custom_settings=copy.deepcopy(getattr(self, "_similarity_calculator_settings", None)),
-            hidden_chart_ids=set(getattr(self, "_hidden_chart_ids", set())),
+            hidden_chart_ids=set(getattr(self, "_hidden_local_row_ids", set())),
             include_hidden_charts=bool(getattr(self, "_show_hidden_charts", False)),
             open_chart_uid=self._open_high_similarity_chart_uid,
         )
@@ -24214,7 +24214,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         )
         self._settings.sync()
         self._populate_list(
-            selected_ids=set(self._selected_chart_ids()) or None,
+            selected_ids=set(self._selected_local_row_ids()) or None,
             refresh_metrics=False,
         )
 
@@ -24330,8 +24330,8 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         self._metadata_migration_panel = panel
 
     def _selected_non_placeholder_chart_ids(self) -> list[int]:
-        selected_chart_ids = self._selected_chart_ids()
-        return self._exclude_placeholder_chart_ids(selected_chart_ids)
+        selected_chart_ids = self._selected_local_row_ids()
+        return self._exclude_placeholder_local_row_ids(selected_chart_ids)
 
     def _resolve_metadata_target_chart_ids(self) -> list[int]:
         database_view_active = bool(self.isVisible() and self.isActiveWindow())
@@ -24875,7 +24875,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         self._load_chart_from_item(item)
 
     def _load_chart_from_item(self, item: QListWidgetItem) -> None:
-        chart_id = self._legacy_item_chart_id(item)
+        chart_id = self._item_local_row_id(item)
         chart_uid = self._normalized_item_chart_uid(item)
         if chart_id is None and not chart_uid:
             return
@@ -24935,7 +24935,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             )
             return
 
-        chart_id_value = self._legacy_item_chart_id(item)
+        chart_id_value = self._item_local_row_id(item)
         if chart_id_value is None:
             QMessageBox.warning(
                 self,
@@ -25139,7 +25139,7 @@ class MainWindow(QMainWindow):
         self.current_chart_id = None
         self.current_chart_uid: str | None = None
         self._hidden_chart_uids = self._load_hidden_chart_uids_from_settings()
-        self._hidden_chart_ids = set(get_chart_ids_by_uid(self._hidden_chart_uids).values())
+        self._hidden_local_row_ids = set(get_chart_ids_by_uid(self._hidden_chart_uids).values())
         self._loaded_birth_place = None
         self._loaded_lat = None
         self._loaded_lon = None
@@ -26644,7 +26644,7 @@ class MainWindow(QMainWindow):
             current_chart_id=self.current_chart_id if current_chart_id is None else current_chart_id,
             load_chart_by_id=load_chart,
             load_charts_by_ids=load_charts,
-            hidden_chart_ids=set(getattr(self, "_hidden_chart_ids", set())),
+            hidden_chart_ids=set(getattr(self, "_hidden_local_row_ids", set())),
             include_hidden_charts=bool(getattr(self, "_show_hidden_charts", False)),
             excluded_chart_ids=set(getattr(self, "_similar_charts_candidate_excluded_chart_ids", set())),
         )
@@ -26652,7 +26652,7 @@ class MainWindow(QMainWindow):
     def _similar_charts_visible_candidate_rows(self, rows: list[tuple[Any, ...]]) -> list[tuple[Any, ...]]:
         if getattr(self, "_show_hidden_charts", False):
             return list(rows)
-        hidden_chart_ids = set(getattr(self, "_hidden_chart_ids", set()))
+        hidden_chart_ids = set(getattr(self, "_hidden_local_row_ids", set()))
         if not hidden_chart_ids:
             return list(rows)
         visible_rows: list[tuple[Any, ...]] = []
@@ -27491,7 +27491,7 @@ class MainWindow(QMainWindow):
             least_similar=least_similar,
             algorithm_mode=algorithm_mode,
             custom_settings=copy.deepcopy(getattr(self, "_similarity_calculator_settings", None)),
-            hidden_chart_ids=set(getattr(self, "_hidden_chart_ids", set())),
+            hidden_chart_ids=set(getattr(self, "_hidden_local_row_ids", set())),
             include_hidden_charts=bool(getattr(self, "_show_hidden_charts", False)),
         )
         worker.moveToThread(thread)
@@ -27875,7 +27875,7 @@ class MainWindow(QMainWindow):
                     least_similar=False,
                     algorithm_mode=algorithm_mode,
                     custom_settings=getattr(self, "_similarity_calculator_settings", None),
-                    hidden_chart_ids=set(getattr(self, "_hidden_chart_ids", set())),
+                    hidden_chart_ids=set(getattr(self, "_hidden_local_row_ids", set())),
                     include_hidden_charts=False,
                 )
             )
@@ -27929,7 +27929,7 @@ class MainWindow(QMainWindow):
             chart = chart_override
             subject_chart_id = subject_chart_id_override
         elif database_view_active and manage_dialog is not None and hasattr(manage_dialog, "list_widget"):
-            selected_chart_ids = manage_dialog._selected_chart_ids()
+            selected_chart_ids = manage_dialog._selected_local_row_ids()
             if len(selected_chart_ids) < 1:
                 QMessageBox.information(
                     self,
@@ -28143,7 +28143,7 @@ class MainWindow(QMainWindow):
                         least_similar=False,
                         algorithm_mode=algorithm_mode,
                         custom_settings=getattr(self, "_similarity_calculator_settings", None),
-                        hidden_chart_ids=set(getattr(self, "_hidden_chart_ids", set())),
+                        hidden_chart_ids=set(getattr(self, "_hidden_local_row_ids", set())),
                         include_hidden_charts=False,
                     )
                     if self._similar_charts_can_derive_least_from_full_similarity_ranking(algorithm_mode):
@@ -28157,7 +28157,7 @@ class MainWindow(QMainWindow):
                             least_similar=True,
                             algorithm_mode=algorithm_mode,
                             custom_settings=getattr(self, "_similarity_calculator_settings", None),
-                            hidden_chart_ids=set(getattr(self, "_hidden_chart_ids", set())),
+                            hidden_chart_ids=set(getattr(self, "_hidden_local_row_ids", set())),
                             include_hidden_charts=False,
                         )
                     most_similar_matches.extend(refreshed_most)
@@ -28234,7 +28234,7 @@ class MainWindow(QMainWindow):
                             algorithm_mode=algorithm_mode,
                             custom_settings=getattr(self, "_similarity_calculator_settings", None),
                             should_cancel=lambda p=progress: bool(p.wasCanceled() or p.property("operation_canceled")),
-                            hidden_chart_ids=set(getattr(self, "_hidden_chart_ids", set())),
+                            hidden_chart_ids=set(getattr(self, "_hidden_local_row_ids", set())),
                             include_hidden_charts=False,
                             progress_callback=_score_progress,
                         )
@@ -28261,7 +28261,7 @@ class MainWindow(QMainWindow):
                                 algorithm_mode=algorithm_mode,
                                 custom_settings=getattr(self, "_similarity_calculator_settings", None),
                                 should_cancel=lambda p=progress: bool(p.wasCanceled() or p.property("operation_canceled")),
-                                hidden_chart_ids=set(getattr(self, "_hidden_chart_ids", set())),
+                                hidden_chart_ids=set(getattr(self, "_hidden_local_row_ids", set())),
                                 include_hidden_charts=False,
                                 progress_callback=lambda done, total: _score_progress(done, total, start=82, end=90),
                             )
@@ -28427,7 +28427,7 @@ class MainWindow(QMainWindow):
     def _calculate_pair_dissimilarity_from_selection(self) -> None:
         if self._similarities_pair_result_label is None:
             return
-        resolution = self._resolve_similarity_pair_targets(self._selected_chart_ids())
+        resolution = self._resolve_similarity_pair_targets(self._selected_local_row_ids())
         if resolution.first_chart_id is None or resolution.second_chart_id is None:
             QMessageBox.warning(
                 self,
@@ -28456,7 +28456,7 @@ class MainWindow(QMainWindow):
         )
 
     def _update_dissimilarities_analysis(self, chart_ids: list[int]) -> int:
-        selected_chart_ids = self._exclude_placeholder_chart_ids(chart_ids)
+        selected_chart_ids = self._exclude_placeholder_local_row_ids(chart_ids)
         if len(selected_chart_ids) != 2:
             self._similarities_export_sections = []
             self.similarities_status_label.setText(
@@ -30512,7 +30512,7 @@ class MainWindow(QMainWindow):
                 item = selected_items[0]
         if item is None:
             return None
-        return manage_dialog._legacy_item_chart_id(item)
+        return manage_dialog._item_local_row_id(item)
 
     def _resolve_chart_for_active_action(
         self,
@@ -34115,7 +34115,7 @@ class MainWindow(QMainWindow):
 
     def _sync_chart_view_hide_checkbox(self) -> None:
         chart_id = getattr(self, "current_chart_id", None)
-        is_hidden = chart_id is not None and int(chart_id) in getattr(self, "_hidden_chart_ids", set())
+        is_hidden = chart_id is not None and int(chart_id) in getattr(self, "_hidden_local_row_ids", set())
         self._set_chart_view_hide_checkbox_checked(is_hidden)
 
     def _on_chart_view_hide_chart_toggled(self, checked: bool) -> None:
@@ -34125,10 +34125,10 @@ class MainWindow(QMainWindow):
             return
         normalized_id = int(chart_id)
         if checked:
-            self._hidden_chart_ids.add(normalized_id)
+            self._hidden_local_row_ids.add(normalized_id)
             self._hidden_chart_uids.update(self._chart_uids_for_ids([normalized_id]))
         else:
-            self._hidden_chart_ids.discard(normalized_id)
+            self._hidden_local_row_ids.discard(normalized_id)
             self._hidden_chart_uids.difference_update(self._chart_uids_for_ids([normalized_id]))
         self._save_hidden_chart_uids_to_settings()
         self._refresh_database_view_after_chart_hidden_toggle(normalized_id)
@@ -34156,7 +34156,7 @@ class MainWindow(QMainWindow):
         manage_dialog = getattr(self, "_manage_charts_dialog", None)
         if manage_dialog is None:
             return
-        manage_dialog._hidden_chart_ids = set(getattr(self, "_hidden_chart_ids", set()))
+        manage_dialog._hidden_local_row_ids = set(getattr(self, "_hidden_local_row_ids", set()))
         manage_dialog._hidden_chart_uids = set(getattr(self, "_hidden_chart_uids", set()))
         refresh_rankings = getattr(manage_dialog, "_refresh_traits_distribution_rankings_after_hidden_chart_change", None)
         if callable(refresh_rankings):
@@ -34165,8 +34165,8 @@ class MainWindow(QMainWindow):
         if callable(refresh_rankings_panel):
             refresh_rankings_panel(self._chart_uids_for_ids([int(changed_chart_id)]))
         if manage_dialog.isVisible() and getattr(manage_dialog, "_chart_rows", None):
-            selected_ids = set(manage_dialog._selected_chart_ids())
-            if int(changed_chart_id) not in manage_dialog._hidden_chart_ids:
+            selected_ids = set(manage_dialog._selected_local_row_ids())
+            if int(changed_chart_id) not in manage_dialog._hidden_local_row_ids:
                 selected_ids.add(int(changed_chart_id))
             manage_dialog._populate_list(selected_ids=selected_ids, refresh_metrics=False)
             manage_dialog._on_selection_changed(sync_persistent_selection=False)
@@ -38876,7 +38876,7 @@ class MainWindow(QMainWindow):
         default_second_chart_id = None
         if len(selected_chart_ids) == 2:
             default_first_chart_id, default_second_chart_id = selected_chart_ids
-        if default_first_chart_id is not None and manage_dialog._is_placeholder_chart_id(default_first_chart_id):
+        if default_first_chart_id is not None and manage_dialog._is_placeholder_local_row_id(default_first_chart_id):
             default_first_chart_id = None
         chart_ids = manage_dialog._prompt_composite_chart_selection(
             default_first_chart_id=default_first_chart_id,
