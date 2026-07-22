@@ -7573,10 +7573,10 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                 self._replace_persistent_selection_by_uids([])
             return
         valid_uids = {
-            str(normalized[35] or "").strip().upper()
+            str(normalized[30] or "").strip().upper()
             for row in chart_rows
             if (normalized := self._normalize_chart_row(row)) is not None
-            and str(normalized[35] or "").strip()
+            and str(normalized[30] or "").strip()
         }
         current = getattr(self, "_selected_chart_uid_order", [])
         reconciled = [chart_uid for chart_uid in current if chart_uid in valid_uids]

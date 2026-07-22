@@ -1209,7 +1209,11 @@ class DatabaseAnalyticsChartsMixin:
                     )
                     include = cross_label == label_text
             if include:
-                matching_names.append(self._display_name_for_chart_id(int(chart_id)))
+                if selected_uids:
+                    chart_name = str(getattr(chart, "name", "") or "").strip()
+                    matching_names.append(chart_name or str(chart_key_value))
+                else:
+                    matching_names.append(self._display_name_for_chart_id(int(chart_key_value)))
         return ", ".join(matching_names)
 
     def _export_database_analysis_chart_csv(self, chart_key: str, chart_title: str) -> None:
