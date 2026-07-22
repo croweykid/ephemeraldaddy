@@ -5309,6 +5309,24 @@ class DatabaseAnalyticsChartsMixin:
         )
         return result
 
+    def _schedule_traits_distribution_cache_warm_continuation(self) -> None:
+        """Keep warming trait likelihood caches after a time-budgeted partial pass."""
+        if bool(getattr(self, "_traits_distribution_cache_warm_continuation_scheduled", False)):
+            return
+        schedule_refresh = getattr(self, "_schedule_deferred_database_metrics_refresh", None)
+        if not callable(schedule_refresh):
+            return
+        self._traits_distribution_cache_warm_continuation_scheduled = True
+
+        def _continue_warming() -> None:
+            self._traits_distribution_cache_warm_continuation_scheduled = False
+            schedule_refresh(
+                sections_to_refresh={"traits_distribution"},
+                force_full_refresh=False,
+            )
+
+        QTimer.singleShot(250, _continue_warming)
+
     def _render_traits_distribution_section(
         self,
         *,
@@ -5490,6 +5508,8 @@ class DatabaseAnalyticsChartsMixin:
         )
         database_partial = bool(database_analytics.get("partial", False))
         requested_database_count = int(database_analytics.get("requested_chart_count", database_count) or database_count)
+        if database_partial:
+            self._schedule_traits_distribution_cache_warm_continuation()
         if loaded_charts > 0:
             if database_partial:
                 self.traits_distribution_subheader_label.setText(
