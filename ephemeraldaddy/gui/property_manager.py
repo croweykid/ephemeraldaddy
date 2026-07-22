@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 
 from ephemeraldaddy.core.db import (
     apply_metadata_label_change,
@@ -31,6 +31,10 @@ class PropertyManagerCoordinator:
     def _mark_needs_refresh_after_close(self) -> None:
         self._needs_refresh_after_close = True
 
+    def _queue_embedded_refresh_after_reload(self) -> None:
+        self._mark_needs_refresh_after_close()
+        QTimer.singleShot(0, self.refresh_after_close)
+
     def create_widget(
         self,
         *,
@@ -48,9 +52,15 @@ class PropertyManagerCoordinator:
             # the dialog still hold selected/dragged items.  Do not refresh the
             # host chart model from inside the dialog's rename/reload cycle; on
             # some platforms that rebuilds views while Qt is still unwinding the
-            # completed edit and can trigger a native crash.  Mark the host as
-            # dirty here, then refresh once after the dialog closes.
-            refresh_chart_context=self._mark_needs_refresh_after_close,
+            # completed edit and can trigger a native crash.  Standalone dialogs
+            # flush after close; the Settings-embedded manager has no normal
+            # finished signal, so it queues the flush until after its reload
+            # returns to the Qt event loop.
+            refresh_chart_context=(
+                self._queue_embedded_refresh_after_reload
+                if embedded
+                else self._mark_needs_refresh_after_close
+            ),
             collection_actions={
                 "create": self._host._on_create_custom_collection,
                 "rename": self._host._on_rename_custom_collection_by_id,
