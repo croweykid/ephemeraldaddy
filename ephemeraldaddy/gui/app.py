@@ -752,7 +752,6 @@ from ephemeraldaddy.core.db import (
     parse_reminds_me_of_uids,
     serialize_reminds_me_of_uids,
     set_alternate_chart_uid,
-    delete_charts,
     invalidate_all_dominant_weight_caches,
     update_chart,
     update_chart_lightweight_metadata,
@@ -771,7 +770,8 @@ from ephemeraldaddy.core.db import (
     clear_self_tag_from_other_charts,
     resolve_user_age_details,
     list_duplicate_exclusions,
-    save_duplicate_exclusions,
+    save_duplicate_exclusions_by_uids,
+    delete_charts_by_uids,
 )
 
 from ephemeraldaddy.data.age_distribution_estimator import discrete_age_distribution
@@ -16764,15 +16764,15 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         self._populate_list()
 
     def _on_mark_not_duplicates(self) -> None:
-        selected_ids = sorted(set(self._selected_chart_ids()))
-        if len(selected_ids) < 2:
+        selected_uids = sorted(set(self._selected_chart_uids()))
+        if len(selected_uids) < 2:
             QMessageBox.information(
                 self,
                 "Mark Not Duplicates",
                 "Select at least two charts to mark as not duplicates.",
             )
             return
-        inserted = save_duplicate_exclusions(selected_ids)
+        inserted = save_duplicate_exclusions_by_uids(selected_uids)
         self._excluded_duplicate_pairs = list_duplicate_exclusions()
         self._on_check_for_duplicates()
         QMessageBox.information(
@@ -21869,8 +21869,9 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         return _house_for_longitude(cusps, lon)
 
     def _on_delete(self) -> None:
-        chart_ids = self._selected_chart_ids()
-        if not chart_ids:
+        chart_uids = self._selected_chart_uids()
+        chart_ids = self._chart_ids_for_uids(chart_uids)
+        if not chart_uids:
             QMessageBox.information(
                 self,
                 "Delete charts",
@@ -21894,10 +21895,10 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         if confirm != QMessageBox.StandardButton.Yes:
             return
 
-        deleted_chart_uids = set(get_chart_uid_map(chart_ids).values())
+        deleted_chart_uids = set(chart_uids)
 
         try:
-            deleted = delete_charts(chart_ids)
+            deleted = delete_charts_by_uids(chart_uids)
         except Exception as e:
             QMessageBox.critical(
                 self,
@@ -21915,9 +21916,9 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         if isinstance(parent, QWidget) and hasattr(parent, "_on_charts_deleted"):
             parent._on_charts_deleted(set(chart_ids), chart_uids=deleted_chart_uids)
         remaining_selection = [
-            chart_id for chart_id in self._selected_chart_ids() if chart_id not in set(chart_ids)
+            chart_uid for chart_uid in self._selected_chart_uids() if chart_uid not in deleted_chart_uids
         ]
-        self._replace_persistent_selection(remaining_selection)
+        self._replace_persistent_selection_by_uids(remaining_selection)
         self._refresh_charts(changed_ids=set(chart_ids))
 
     def _on_new_chart(self) -> None:
@@ -34594,7 +34595,7 @@ class MainWindow(QMainWindow):
                         chart_uid = self._current_chart_uid_for_navigation() or get_chart_uid(chart_id)
                         chart_uids = {chart_uid} if chart_uid else set()
                         try:
-                            delete_charts([chart_id])
+                            delete_charts_by_uids([chart_uid])
                         except Exception as e:
                             QMessageBox.critical(
                                 self,
@@ -35043,7 +35044,7 @@ class MainWindow(QMainWindow):
         chart_uids = {chart_uid} if chart_uid else set()
 
         try:
-            delete_charts([chart_id])
+            delete_charts_by_uids([chart_uid])
         except Exception as e:
             QMessageBox.critical(
                 self,
