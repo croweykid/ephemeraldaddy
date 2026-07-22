@@ -2654,7 +2654,14 @@ class DatabaseAnalyticsChartsMixin:
             selection_total=selection_total,
             database_total=database_total,
         )
-        sigma = typical_standard_error(results)
+        signal_results = [
+            result
+            for result in results
+            if result.z_score is not None and abs(float(result.z_score)) >= 1.0
+        ]
+        if not signal_results:
+            return
+        sigma = typical_standard_error(signal_results)
         if sigma is None:
             sigma = self._typical_single_selection_standard_error(
                 selection_counts=selection_count_values,
@@ -5542,17 +5549,16 @@ class DatabaseAnalyticsChartsMixin:
             canvas = self._build_dominant_planet_chart(
                 selection_planets={name: selection_values.get(name, 0.0) for name in ordered_labels},
                 database_planets={name: database_values.get(name, 0.0) for name in ordered_labels},
-                selection_planet_counts={name: selection_count for name in ordered_labels},
-                database_planet_counts={name: database_count for name in ordered_labels},
+                selection_planet_counts={name: float(selection_totals.get(name, 0.0)) for name in ordered_labels},
+                database_planet_counts={name: float(database_totals.get(name, 0.0)) for name in ordered_labels},
                 loaded_charts=loaded_charts,
                 labels=ordered_labels,
                 force_value_fallback_colors=False,
                 label_colors={name: color_lookup.get(name, DEFAULT_TRAIT_COLOR) for name in ordered_labels},
                 include_count_prefixes=False,
                 auto_height=True,
-                # Traits bars are average likelihood deltas, not categorical proportions.
-                # The generic SE guides are only meaningful for count/proportion charts.
-                include_significance_guides=False,
+                selection_total=float(selection_count),
+                database_total=float(database_count),
             )
             self.traits_distribution_chart_layout.addWidget(canvas, 0)
         else:
