@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 
 from ephemeraldaddy.core.db import (
     apply_metadata_label_change,
@@ -26,6 +26,14 @@ class PropertyManagerCoordinator:
 
     def __init__(self, host: Any) -> None:
         self._host = host
+        self._needs_refresh_after_close = False
+
+    def _mark_needs_refresh_after_close(self) -> None:
+        self._needs_refresh_after_close = True
+
+    def _queue_embedded_refresh_after_reload(self) -> None:
+        self._mark_needs_refresh_after_close()
+        QTimer.singleShot(0, self.refresh_after_close)
 
     def create_widget(
         self,
@@ -40,15 +48,18 @@ class PropertyManagerCoordinator:
             apply_change=apply_metadata_label_change,
             label_limit=32767,
             load_chart_names=self.chart_names,
-            # The Property Manager can rename/delete labels while the host's Search
-            # or Batch Editor tag pickers are visible.  Avoid refreshing those
-            # tag-picker models from inside the modal dialog; rebuilding visible
-            # Qt item views during the dialog's own rename/reload cycle can leave
-            # deleted items in active signal paths.  The host refreshes tag
-            # completers and tag lists once the dialog closes.
-            refresh_chart_context=lambda: self._host._refresh_charts(
-                refresh_metrics=False,
-                refresh_tag_completers=False,
+            # The Property Manager can rename/delete labels while Qt item views in
+            # the dialog still hold selected/dragged items.  Do not refresh the
+            # host chart model from inside the dialog's rename/reload cycle; on
+            # some platforms that rebuilds views while Qt is still unwinding the
+            # completed edit and can trigger a native crash.  Standalone dialogs
+            # flush after close; the Settings-embedded manager has no normal
+            # finished signal, so it queues the flush until after its reload
+            # returns to the Qt event loop.
+            refresh_chart_context=(
+                self._queue_embedded_refresh_after_reload
+                if embedded
+                else self._mark_needs_refresh_after_close
             ),
             collection_actions={
                 "create": self._host._on_create_custom_collection,
@@ -78,8 +89,14 @@ class PropertyManagerCoordinator:
         self.refresh_after_close()
 
     def refresh_after_close(self) -> None:
+        needs_refresh = self._needs_refresh_after_close
+        self._needs_refresh_after_close = False
         self._host._update_tag_completers()
-        self._host._refresh_charts(refresh_metrics=True, force_full_analysis_refresh=True)
+        self._host._refresh_charts(
+            refresh_metrics=True,
+            force_full_analysis_refresh=needs_refresh,
+            refresh_tag_completers=False,
+        )
 
     def load_usage(self) -> dict[str, list[dict[str, int | str]]]:
         usage = get_metadata_label_usage()
