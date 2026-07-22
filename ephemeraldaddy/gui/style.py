@@ -1133,7 +1133,29 @@ ABC_PANEL_SECTION_FRAME_SPACING = 0
 ABC_PANEL_SECTION_CONTENT_MARGINS = (0, 2, 0, 0)
 ABC_PANEL_SECTION_CONTENT_SPACING = 4
 ABC_PANEL_BODY_LABEL_STYLE = f"color: {COLOR_TEXT_PRIMARY}; padding: 4px 0 8px 0;"
-CHART_DATA_MONOSPACE_FONT_FAMILY = "Courier New"
+# Chart Data Output uses the same appwide sans-serif family by default.
+# Leave the family empty to inherit QApplication/QWidget defaults; set a family
+# name here if this panel ever needs a dedicated typeface again.
+CHART_DATA_OUTPUT_FONT_FAMILY = ""
+CHART_DATA_OUTPUT_FONT_POINT_SIZE_DELTA = -2
+CHART_DATA_OUTPUT_FIXED_PITCH = False
+# Backward-compatible alias for older imports; this is no longer monospace by default.
+CHART_DATA_MONOSPACE_FONT_FAMILY = CHART_DATA_OUTPUT_FONT_FAMILY
+
+
+def chart_data_output_font(base_font: QFont | None = None) -> QFont:
+    """Return the centralized font for Chart Data Output text widgets."""
+    font = QFont(base_font) if base_font is not None else QFont()
+    if CHART_DATA_OUTPUT_FONT_FAMILY:
+        font.setFamily(CHART_DATA_OUTPUT_FONT_FAMILY)
+    font.setFixedPitch(CHART_DATA_OUTPUT_FIXED_PITCH)
+    if CHART_DATA_OUTPUT_FIXED_PITCH:
+        font.setStyleHint(QFont.StyleHint.Monospace)
+    if CHART_DATA_OUTPUT_FONT_POINT_SIZE_DELTA:
+        point_size = font.pointSize()
+        if point_size > 0:
+            font.setPointSize(max(point_size + CHART_DATA_OUTPUT_FONT_POINT_SIZE_DELTA, 1))
+    return font
 DIVIDER_STYLE = "color: #2f2f2f; background-color: #2f2f2f; max-height: 1px;"
 CHART_DATA_DIVIDER = ""
 

@@ -1453,7 +1453,7 @@ from ephemeraldaddy.gui.style import (
     CHART_INFO_SPECIES_HEADER_COLOR,
     CHART_DATA_DIVIDER,
     CHART_DATA_HIGHLIGHT_COLOR,
-    CHART_DATA_MONOSPACE_FONT_FAMILY,
+    chart_data_output_font,
     CHART_DATA_SECTION_HEADERS,
     DND_STAT_EARTHTONE_COLORS,
     MIDDLE_PANEL_ACCENT_COLOR,
@@ -5537,7 +5537,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         )
         header_left.setStyleSheet(CHART_DATA_POPOUT_HEADER_STYLE)
         header_font = header_left.font()
-        header_font.setFamily(CHART_DATA_MONOSPACE_FONT_FAMILY)
+        header_font = chart_data_output_font(header_font)
         header_left.setFont(header_font)
         header_layout.addWidget(header_left, 0, Qt.AlignLeft | Qt.AlignTop)
         header_layout.addStretch(1)
@@ -6001,7 +6001,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         header_left = QLabel("")
         header_left.setStyleSheet(CHART_DATA_POPOUT_HEADER_STYLE)
         header_font = header_left.font()
-        header_font.setFamily(CHART_DATA_MONOSPACE_FONT_FAMILY)
+        header_font = chart_data_output_font(header_font)
         header_left.setFont(header_font)
         header_layout.addWidget(header_left, 0, Qt.AlignLeft | Qt.AlignTop)
         header_layout.addStretch(1)
@@ -25731,11 +25731,7 @@ class MainWindow(QMainWindow):
         # Output panel: read-only chart summary (below inputs).
         self.output_text = ChartDataTableOutput()
         self.output_text.setReadOnly(True)
-        output_font = self.output_text.font()
-        output_font.setStyleHint(QFont.StyleHint.Monospace)
-        output_font.setFixedPitch(True)
-        output_font.setPointSize(max(output_font.pointSize() - 2, 1))
-        self.output_text.setFont(output_font)
+        self.output_text.setFont(chart_data_output_font(self.output_text.font()))
         self.output_text.setPlaceholderText(
             "Chart summary will appear here.\n\n"
             "Generate a chart to see positions, houses, and aspects."
@@ -30400,14 +30396,14 @@ class MainWindow(QMainWindow):
         )
         summary_label.setStyleSheet(CHART_DATA_POPOUT_HEADER_STYLE)
         summary_font = summary_label.font()
-        summary_font.setFamily(CHART_DATA_MONOSPACE_FONT_FAMILY)
+        summary_font = chart_data_output_font(summary_font)
         summary_label.setFont(summary_font)
         layout.addWidget(summary_label, 0)
 
         breakdown_output = QPlainTextEdit()
         breakdown_output.setReadOnly(True)
         breakdown_font = breakdown_output.font()
-        breakdown_font.setFamily(CHART_DATA_MONOSPACE_FONT_FAMILY)
+        breakdown_font = chart_data_output_font(breakdown_font)
         breakdown_output.setFont(breakdown_font)
         breakdown_output.setPlaceholderText("Astro age breakdown unavailable.")
 
@@ -37828,7 +37824,7 @@ class MainWindow(QMainWindow):
         )
         popout_header_left.setStyleSheet(CHART_DATA_POPOUT_HEADER_STYLE)
         popout_header_left_font = popout_header_left.font()
-        popout_header_left_font.setFamily(CHART_DATA_MONOSPACE_FONT_FAMILY)
+        popout_header_left_font = chart_data_output_font(popout_header_left_font)
         popout_header_left.setFont(popout_header_left_font)
         popout_header_layout.addWidget(popout_header_left, 0, Qt.AlignLeft | Qt.AlignTop)
         popout_header_layout.addStretch(1)
@@ -37993,7 +37989,7 @@ class MainWindow(QMainWindow):
         )
         header_label.setStyleSheet(f"{CHART_DATA_POPOUT_HEADER_STYLE} background: transparent;")
         header_font = header_label.font()
-        header_font.setFamily(CHART_DATA_MONOSPACE_FONT_FAMILY)
+        header_font = chart_data_output_font(header_font)
         header_font.setBold(True)
         if header_font.pointSizeF() > 0:
             header_font.setPointSizeF(max(1.0, header_font.pointSizeF() * 0.65))
