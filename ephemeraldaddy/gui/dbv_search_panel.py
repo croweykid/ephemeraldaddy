@@ -1,4 +1,10 @@
-"""Database View right-hand search panel UI builder."""
+"""Database View right-hand search panel UI builder.
+
+This module intentionally owns Database View search-panel widgets and helper
+logic directly.  It must not import :mod:`ephemeraldaddy.gui.app`; the main
+window delegates here rather than the extracted panel reaching back into app.py
+as a service locator.
+"""
 
 from __future__ import annotations
 
@@ -276,6 +282,66 @@ def chart_matches_body_dynamics_filters(window, chart, filters: list[dict[str, o
     return True
 
 
+def _tree_scroll_value(tree) -> int:
+    """Return a QTreeWidget vertical-scroll value without depending on app.py."""
+    scrollbar_getter = getattr(tree, "verticalScrollBar", None)
+    scrollbar = scrollbar_getter() if callable(scrollbar_getter) else None
+    value_getter = getattr(scrollbar, "value", None)
+    if not callable(value_getter):
+        return 0
+    try:
+        return int(value_getter())
+    except (TypeError, ValueError):
+        return 0
+
+
+def _restore_tree_scroll_value(tree, value: int) -> None:
+    """Restore a QTreeWidget vertical-scroll value after a controlled rebuild."""
+    scrollbar_getter = getattr(tree, "verticalScrollBar", None)
+    scrollbar = scrollbar_getter() if callable(scrollbar_getter) else None
+    setter = getattr(scrollbar, "setValue", None)
+    if callable(setter):
+        setter(int(value))
+
+
+def _tree_expanded_state(tree) -> dict[str, bool]:
+    """Capture top-level QTreeWidget expansion state by item UserRole/text key."""
+    from PySide6.QtCore import Qt
+
+    expanded_state: dict[str, bool] = {}
+    if not hasattr(tree, "topLevelItemCount"):
+        return expanded_state
+    for index in range(tree.topLevelItemCount()):
+        item = tree.topLevelItem(index)
+        if item is None:
+            continue
+        key = str(item.data(0, Qt.UserRole) or item.text(0) or "")
+        if key:
+            expanded_state[key.casefold()] = item.isExpanded()
+    return expanded_state
+
+
+def _tag_tree_signature(known_tags: list[str]) -> tuple[str, ...]:
+    """Return the structural tag tree signature for rebuild deduping."""
+    clean_tags = {str(tag or "").strip() for tag in known_tags if str(tag or "").strip()}
+    return tuple(sorted(clean_tags, key=str.casefold))
+
+
+def _trait_tree_signature() -> tuple[str, ...]:
+    """Return the active trait-list signature for rebuild deduping."""
+    from ephemeraldaddy.analysis.traits import list_traits
+
+    names: list[str] = []
+    seen: set[str] = set()
+    for trait in list_traits(active_only=True):
+        trait_name = str(trait.get("name", "")).strip()
+        trait_key = trait_name.casefold()
+        if trait_name and trait_key not in seen:
+            seen.add(trait_key)
+            names.append(trait_name)
+    return tuple(sorted(names, key=str.casefold))
+
+
 def _tag_category_display_name(prefix: str) -> str:
     defaults = {
         "occupation": "Occupation",
@@ -329,6 +395,11 @@ def refresh_search_tags_list(window, known_tags: list[str]) -> None:
             window.search_tags_input.text() if hasattr(window, "search_tags_input") else ""
         )
     }
+    signature = _tag_tree_signature(known_tags)
+    if signature == getattr(window, "_dbv_search_tag_tree_signature", None):
+        sync_search_tags_list_selection(window, set(selected_tags))
+        return
+
     existing_checkboxes = getattr(window, "search_tag_filter_checkboxes", {})
     existing_modes = {tag_name: checkbox.mode() for tag_name, checkbox in existing_checkboxes.items()}
     existing_logic = {
@@ -336,12 +407,8 @@ def refresh_search_tags_list(window, known_tags: list[str]) -> None:
         for tag_name, buttons in getattr(window, "search_tag_filter_logic_buttons", {}).items()
     }
     tree = window.search_tags_list_widget
-    expanded_state: dict[str, bool] = {}
-    if hasattr(tree, "topLevelItemCount"):
-        for index in range(tree.topLevelItemCount()):
-            item = tree.topLevelItem(index)
-            if item is not None:
-                expanded_state[str(item.data(0, Qt.UserRole) or "")] = item.isExpanded()
+    scroll_value = _tree_scroll_value(tree)
+    expanded_state = _tree_expanded_state(tree)
     window.search_tag_filter_checkboxes = {}
     window.search_tag_filter_logic_buttons = {}
     window.search_tag_category_checkboxes = {}
@@ -501,6 +568,8 @@ def refresh_search_tags_list(window, known_tags: list[str]) -> None:
         window.search_tag_filter_logic_buttons[tag] = logic
         tree.setItemWidget(root_item, 0, make_row(checkbox, logic, tag))
 
+    window._dbv_search_tag_tree_signature = signature
+    _restore_tree_scroll_value(tree, scroll_value)
 
 
 def has_active_search_tag_filters(window) -> bool:
@@ -935,6 +1004,7 @@ def apply_unique_trait_completion(line_edit) -> None:
     if len(matches) == 1 and matches[0] != query:
         text_setter(matches[0])
 
+
 def refresh_search_traits_list(window, kind: str = "present") -> None:
     """Refresh a Database View trait-filter tree for ``window``.
 
@@ -943,7 +1013,6 @@ def refresh_search_traits_list(window, kind: str = "present") -> None:
     """
     from PySide6.QtWidgets import QHBoxLayout, QTreeWidgetItem, QWidget
 
-    from ephemeraldaddy.analysis.traits import list_traits
     from ephemeraldaddy.gui.widgets.quad_state import QuadStateSlider
 
     kind = "absent" if kind == "absent" else "present"
@@ -955,16 +1024,19 @@ def refresh_search_traits_list(window, kind: str = "present") -> None:
         checkboxes_attr = "search_trait_filter_checkboxes"
     if tree is None:
         return
+    signature_attr = f"_dbv_search_trait_{kind}_tree_signature"
+    signature = _trait_tree_signature()
+    if signature == getattr(window, signature_attr, None):
+        return
+
     existing_modes = {
         trait_name: checkbox.mode()
         for trait_name, checkbox in getattr(window, checkboxes_attr, {}).items()
     }
+    scroll_value = _tree_scroll_value(tree)
     tree.clear()
     setattr(window, checkboxes_attr, {})
-    for trait in list_traits(active_only=True):
-        trait_name = str(trait.get("name", "")).strip()
-        if not trait_name:
-            continue
+    for trait_name in signature:
         item = QTreeWidgetItem()
         row = QWidget()
         row_layout = QHBoxLayout(row)
@@ -978,6 +1050,9 @@ def refresh_search_traits_list(window, kind: str = "present") -> None:
         tree.addTopLevelItem(item)
         tree.setItemWidget(item, 0, row)
         getattr(window, checkboxes_attr)[trait_name] = checkbox
+
+    setattr(window, signature_attr, signature)
+    _restore_tree_scroll_value(tree, scroll_value)
 
 
 if TYPE_CHECKING:
