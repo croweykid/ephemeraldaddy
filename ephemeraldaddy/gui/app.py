@@ -59,7 +59,6 @@ SETTINGS_KEY_HIDE_HYPOTHETICAL_CHARTS = "manage_charts/hide_hypothetical_charts"
 SETTINGS_KEY_HIDE_PLACEHOLDER_CHARTS_FILTER = "manage_charts/hide_placeholder_charts_filter"
 SETTINGS_KEY_HIDDEN_CHARTS_FILTER_MODE = "manage_charts/hidden_charts_filter_mode"
 SETTINGS_KEY_SHOW_HIDDEN_CHARTS = "manage_charts/show_hidden_charts"
-SETTINGS_KEY_HIDDEN_CHART_IDS = "manage_charts/hidden_chart_ids"
 SETTINGS_KEY_HIDDEN_CHART_UIDS = "manage_charts/hidden_chart_uids"
 DATABASE_VIEW_ROW_INFO_OPTIONS: tuple[tuple[str, str], ...] = (
     ("name", "Name"),
@@ -4394,12 +4393,8 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             collection_id = normalize_collection_id(raw_id or name.replace(" ", "_"))
             if collection_id in DEFAULT_COLLECTION_IDS or collection_id in collections:
                 continue
-            chart_ids = self._coerce_chart_ids(entry.get("chart_ids", []))
             chart_uids = self._coerce_chart_uids(entry.get("chart_uids", []))
-            if chart_ids:
-                chart_uids.update(self._chart_uids_for_ids(chart_ids))
-            if not chart_ids and chart_uids:
-                chart_ids.update(get_chart_ids_by_uid(chart_uids).values())
+            chart_ids = set(get_chart_ids_by_uid(chart_uids).values())
             collections[collection_id] = CustomCollection(
                 collection_id=collection_id,
                 name=name,
@@ -4419,16 +4414,6 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         ]
         self._settings.setValue("manage_charts/custom_collections", json.dumps(payload))
 
-    @staticmethod
-    def _coerce_chart_ids(raw_values: object) -> set[int]:
-        chart_ids: set[int] = set()
-        if isinstance(raw_values, (list, tuple, set)):
-            for value in raw_values:
-                try:
-                    chart_ids.add(int(value))
-                except (TypeError, ValueError):
-                    continue
-        return chart_ids
 
     @staticmethod
     def _coerce_chart_uids(raw_values: object) -> set[str]:
@@ -19822,17 +19807,6 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             raw_uids = raw_value or []
         hidden_uids = self._coerce_chart_uids(raw_uids)
 
-        legacy_value = self._settings.value(SETTINGS_KEY_HIDDEN_CHART_IDS, "[]")
-        if isinstance(legacy_value, str):
-            try:
-                legacy_raw_ids = json.loads(legacy_value)
-            except json.JSONDecodeError:
-                legacy_raw_ids = []
-        else:
-            legacy_raw_ids = legacy_value or []
-        legacy_ids = self._coerce_chart_ids(legacy_raw_ids)
-        if legacy_ids:
-            hidden_uids.update(self._chart_uids_for_ids(legacy_ids))
         return hidden_uids
 
     def _save_hidden_chart_uids_to_settings(self) -> None:
@@ -19840,7 +19814,6 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             SETTINGS_KEY_HIDDEN_CHART_UIDS,
             json.dumps(sorted(getattr(self, "_hidden_chart_uids", set()))),
         )
-        self._settings.remove(SETTINGS_KEY_HIDDEN_CHART_IDS)
 
     def _show_chart_list_context_menu(self, position: QPoint) -> None:
         selected_ids = self._visible_selected_chart_ids()
@@ -27258,12 +27231,8 @@ class MainWindow(QMainWindow):
             collection_id = normalize_collection_id(raw_id or name.replace(" ", "_"))
             if collection_id in DEFAULT_COLLECTION_IDS or collection_id in collections:
                 continue
-            chart_ids = self._coerce_chart_ids(entry.get("chart_ids", []))
             chart_uids = self._coerce_chart_uids(entry.get("chart_uids", []))
-            if chart_ids:
-                chart_uids.update(self._chart_uids_for_ids(chart_ids))
-            if not chart_ids and chart_uids:
-                chart_ids.update(get_chart_ids_by_uid(chart_uids).values())
+            chart_ids = set(get_chart_ids_by_uid(chart_uids).values())
             collections[collection_id] = CustomCollection(
                 collection_id=collection_id,
                 name=name,
@@ -27287,16 +27256,6 @@ class MainWindow(QMainWindow):
         ]
         self._settings.setValue("manage_charts/custom_collections", json.dumps(payload))
 
-    @staticmethod
-    def _coerce_chart_ids(raw_values: object) -> set[int]:
-        chart_ids: set[int] = set()
-        if isinstance(raw_values, (list, tuple, set)):
-            for value in raw_values:
-                try:
-                    chart_ids.add(int(value))
-                except (TypeError, ValueError):
-                    continue
-        return chart_ids
 
     @staticmethod
     def _coerce_chart_uids(raw_values: object) -> set[str]:
@@ -34185,17 +34144,6 @@ class MainWindow(QMainWindow):
             raw_uids = raw_value or []
         hidden_uids = self._coerce_chart_uids(raw_uids)
 
-        legacy_value = self._settings.value(SETTINGS_KEY_HIDDEN_CHART_IDS, "[]")
-        if isinstance(legacy_value, str):
-            try:
-                legacy_raw_ids = json.loads(legacy_value)
-            except json.JSONDecodeError:
-                legacy_raw_ids = []
-        else:
-            legacy_raw_ids = legacy_value or []
-        legacy_ids = self._coerce_chart_ids(legacy_raw_ids)
-        if legacy_ids:
-            hidden_uids.update(self._chart_uids_for_ids(legacy_ids))
         return hidden_uids
 
     def _save_hidden_chart_uids_to_settings(self) -> None:
@@ -34203,7 +34151,6 @@ class MainWindow(QMainWindow):
             SETTINGS_KEY_HIDDEN_CHART_UIDS,
             json.dumps(sorted(getattr(self, "_hidden_chart_uids", set()))),
         )
-        self._settings.remove(SETTINGS_KEY_HIDDEN_CHART_IDS)
 
     def _refresh_database_view_after_chart_hidden_toggle(self, changed_chart_id: int) -> None:
         manage_dialog = getattr(self, "_manage_charts_dialog", None)
