@@ -2547,12 +2547,17 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         self._filter_refresh_timer.setSingleShot(True)
         self._filter_refresh_timer.setInterval(75)
         self._filter_refresh_timer.timeout.connect(self._run_scheduled_filter_refresh)
+        # Database View selection is UID-owned. Legacy integer mirrors are
+        # refreshed only for older local-row adapters that have not migrated yet.
+        self._selected_chart_uid_order: list[str] = []
+        self._selected_chart_uids_set: set[str] = set()
         self._selected_chart_id_order: list[int] = []
         self._selected_chart_ids_set: set[int] = set()
         self._visible_chart_ids: set[int] = set()
+        self._filter_navigation_anchor_chart_uid: str | None = None
         self._filter_navigation_anchor_chart_id: int | None = None
         self._selection_update_mode = "replace"
-        self._prior_deselected_selection: list[int] = []
+        self._prior_deselected_selection: list[str] = []
         self._syncing_visible_selection = False
         self._custom_collections: dict[str, CustomCollection] = {}
         self._active_collection_id = DEFAULT_COLLECTION_ALL
@@ -7384,37 +7389,36 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             return []
 
         self._reconcile_persistent_selection_with_database()
-        selected_ids = set(getattr(self, "_selected_chart_ids_set", set()))
-        if not selected_ids:
+        selected_uids = set(getattr(self, "_selected_chart_uids_set", set()))
+        if not selected_uids:
             return _selected_chart_list_item_names(self.list_widget)
 
         selected_names: list[str] = []
-        copied_ids: set[int] = set()
+        copied_uids: set[str] = set()
         for row in range(self.list_widget.count()):
             item = self.list_widget.item(row)
-            if item is None:
-                continue
-            chart_id = self._chart_id_from_list_item(item)
-            if chart_id is None or chart_id not in selected_ids:
+            chart_uid = self._chart_uid_from_list_item(item)
+            if chart_uid is None or chart_uid not in selected_uids:
                 continue
             name = _chart_list_item_raw_name(item)
             if name:
                 selected_names.append(name)
-                copied_ids.add(chart_id)
+                copied_uids.add(chart_uid)
 
-        if len(copied_ids) == len(selected_ids):
+        if len(copied_uids) == len(selected_uids):
             return selected_names
 
         chart_names_by_id = self._similar_charts_popout_chart_names_by_id(
             getattr(self, "_chart_rows", [])
         )
-        for chart_id in getattr(self, "_selected_chart_id_order", []):
-            if chart_id in copied_ids:
+        for chart_uid in getattr(self, "_selected_chart_uid_order", []):
+            if chart_uid in copied_uids:
                 continue
-            name = str(chart_names_by_id.get(chart_id) or "").strip()
+            chart_id = get_chart_id_by_uid(chart_uid)
+            name = str(chart_names_by_id.get(chart_id) if chart_id is not None else "").strip()
             if name:
                 selected_names.append(name)
-                copied_ids.add(chart_id)
+                copied_uids.add(chart_uid)
         return selected_names
 
     def _copy_selected_chart_names_to_clipboard(self) -> bool:
@@ -7424,6 +7428,35 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         QApplication.clipboard().setText("\n".join(selected_names))
         return True
 
+    @staticmethod
+    def _normalized_item_chart_uid(item: QListWidgetItem | None) -> str | None:
+        if item is None:
+            return None
+        raw_chart_uid = item.data(Qt.UserRole) or item.data(Qt.UserRole + 2)
+        chart_uid = str(raw_chart_uid or "").strip().upper()
+        return chart_uid or None
+
+    @staticmethod
+    def _legacy_item_chart_id(item: QListWidgetItem | None) -> int | None:
+        if item is None:
+            return None
+        raw_chart_id = item.data(Qt.UserRole + 3)
+        if raw_chart_id is None or isinstance(raw_chart_id, bool):
+            return None
+        try:
+            return int(raw_chart_id)
+        except (TypeError, ValueError):
+            return None
+
+    def _chart_ids_for_uids(self, chart_uids: Iterable[str | None]) -> list[int]:
+        ordered_uids = [
+            chart_uid
+            for raw_uid in chart_uids
+            if (chart_uid := self._normalized_chart_uid_key(raw_uid))
+        ]
+        ids_by_uid = get_chart_ids_by_uid(ordered_uids)
+        return [int(ids_by_uid[chart_uid]) for chart_uid in ordered_uids if chart_uid in ids_by_uid]
+
     def _selected_chart_ids(
         self,
         selected_items: list[QListWidgetItem] | None = None,
@@ -7431,16 +7464,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         if selected_items is None:
             self._reconcile_persistent_selection_with_database()
             return list(getattr(self, "_selected_chart_id_order", []))
-        chart_ids: list[int] = []
-        for item in selected_items:
-            raw_chart_id = item.data(Qt.UserRole)
-            if raw_chart_id is None or isinstance(raw_chart_id, bool):
-                continue
-            try:
-                chart_ids.append(int(raw_chart_id))
-            except (TypeError, ValueError):
-                continue
-        return chart_ids
+        return self._chart_ids_for_uids(self._selected_chart_uids(selected_items))
 
     def _selected_chart_uids(
         self,
@@ -7448,17 +7472,11 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
     ) -> list[str]:
         if selected_items is None:
             self._reconcile_persistent_selection_with_database()
-            chart_uid_map = get_chart_uid_map(getattr(self, "_selected_chart_id_order", []))
-            return [
-                str(chart_uid_map[chart_id]).strip().upper()
-                for chart_id in getattr(self, "_selected_chart_id_order", [])
-                if chart_uid_map.get(chart_id)
-            ]
+            return list(getattr(self, "_selected_chart_uid_order", []))
         chart_uids: list[str] = []
         seen: set[str] = set()
         for item in selected_items:
-            raw_chart_uid = item.data(Qt.UserRole + 2)
-            chart_uid = str(raw_chart_uid or "").strip().upper()
+            chart_uid = self._normalized_item_chart_uid(item)
             if chart_uid and chart_uid not in seen:
                 seen.add(chart_uid)
                 chart_uids.append(chart_uid)
@@ -7471,43 +7489,56 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         return self._selected_chart_uids(self.list_widget.selectedItems()) if self.list_widget is not None else []
 
     def _all_visible_chart_ids(self) -> list[int]:
+        return self._chart_ids_for_uids(self._all_visible_chart_uids())
+
+    def _all_visible_chart_uids(self) -> list[str]:
         if self.list_widget is None:
             return []
-        chart_ids: list[int] = []
+        chart_uids: list[str] = []
         for row in range(self.list_widget.count()):
-            item = self.list_widget.item(row)
-            if item is None:
+            chart_uid = self._normalized_item_chart_uid(self.list_widget.item(row))
+            if chart_uid:
+                chart_uids.append(chart_uid)
+        return chart_uids
+
+    def _replace_persistent_selection_by_uids(self, chart_uids: Iterable[str | None]) -> None:
+        ordered_uids: list[str] = []
+        seen_uids: set[str] = set()
+        for raw_uid in chart_uids:
+            chart_uid = self._normalized_chart_uid_key(raw_uid)
+            if not chart_uid or chart_uid in seen_uids:
                 continue
-            raw_chart_id = item.data(Qt.UserRole)
-            if raw_chart_id is None or isinstance(raw_chart_id, bool):
-                continue
-            try:
-                chart_ids.append(int(raw_chart_id))
-            except (TypeError, ValueError):
-                continue
-        return chart_ids
+            seen_uids.add(chart_uid)
+            ordered_uids.append(chart_uid)
+        self._selected_chart_uid_order = ordered_uids
+        self._selected_chart_uids_set = set(ordered_uids)
+
+        # Legacy mirrors are local adapters only; the authoritative selection is UID order above.
+        ordered_ids = self._chart_ids_for_uids(ordered_uids)
+        self._selected_chart_id_order = ordered_ids
+        self._selected_chart_ids_set = set(ordered_ids)
+        if hasattr(self, "_batch_selection_order"):
+            self._update_batch_selection_order(ordered_ids)
 
     def _replace_persistent_selection(self, chart_ids: Iterable[int]) -> None:
-        ordered: list[int] = []
-        seen: set[int] = set()
+        ordered_ids: list[int] = []
         for raw_chart_id in chart_ids:
             try:
-                chart_id = int(raw_chart_id)
+                ordered_ids.append(int(raw_chart_id))
             except (TypeError, ValueError):
                 continue
-            if chart_id in seen:
-                continue
-            seen.add(chart_id)
-            ordered.append(chart_id)
-        self._selected_chart_id_order = ordered
-        self._selected_chart_ids_set = set(ordered)
-        if hasattr(self, "_batch_selection_order"):
-            self._update_batch_selection_order(ordered)
+        chart_uid_map = get_chart_uid_map(ordered_ids)
+        ordered_uids = [
+            str(chart_uid_map[chart_id]).strip().upper()
+            for chart_id in ordered_ids
+            if chart_uid_map.get(chart_id)
+        ]
+        self._replace_persistent_selection_by_uids(ordered_uids)
 
     def _clear_persistent_selection(self) -> None:
-        previous_selection = list(getattr(self, "_selected_chart_id_order", []))
+        previous_selection = list(getattr(self, "_selected_chart_uid_order", []))
         self._remember_single_chart_deselection(previous_selection, [])
-        self._replace_persistent_selection([])
+        self._replace_persistent_selection_by_uids([])
         if self.list_widget is not None and self.list_widget.selectedItems():
             blocker = QSignalBlocker(self.list_widget)
             self.list_widget.clearSelection()
@@ -7516,14 +7547,14 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
 
     def _remember_single_chart_deselection(
         self,
-        previous_selection: Iterable[int],
-        current_selection: Iterable[int],
+        previous_selection: Iterable[str],
+        current_selection: Iterable[str],
     ) -> None:
-        previous_ids = list(previous_selection)
-        current_ids = list(current_selection)
-        if len(previous_ids) == 1 and not current_ids:
-            self._prior_deselected_selection = previous_ids
-        elif current_ids:
+        previous_uids = [uid for raw_uid in previous_selection if (uid := self._normalized_chart_uid_key(raw_uid))]
+        current_uids = [uid for raw_uid in current_selection if (uid := self._normalized_chart_uid_key(raw_uid))]
+        if len(previous_uids) == 1 and not current_uids:
+            self._prior_deselected_selection = previous_uids
+        elif current_uids:
             self._prior_deselected_selection = []
 
     def _restore_prior_deselected_selection(self) -> bool:
@@ -7531,7 +7562,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         if len(prior_selection) != 1:
             return False
         self._prior_deselected_selection = []
-        self._replace_persistent_selection(prior_selection)
+        self._replace_persistent_selection_by_uids(prior_selection)
         self._sync_visible_selection_from_persistent_selection()
         self._on_selection_changed(sync_persistent_selection=False)
         return True
@@ -7539,69 +7570,64 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
     def _reconcile_persistent_selection_with_database(self) -> None:
         chart_rows = getattr(self, "_chart_rows", [])
         if not chart_rows:
-            if getattr(self, "_selected_chart_id_order", []):
-                self._replace_persistent_selection([])
+            if getattr(self, "_selected_chart_uid_order", []):
+                self._replace_persistent_selection_by_uids([])
             return
-        valid_ids = {
-            int(normalized[0])
+        valid_uids = {
+            str(normalized[35] or "").strip().upper()
             for row in chart_rows
             if (normalized := self._normalize_chart_row(row)) is not None
+            and str(normalized[35] or "").strip()
         }
-        current = getattr(self, "_selected_chart_id_order", [])
-        reconciled = [chart_id for chart_id in current if chart_id in valid_ids]
+        current = getattr(self, "_selected_chart_uid_order", [])
+        reconciled = [chart_uid for chart_uid in current if chart_uid in valid_uids]
         if len(reconciled) != len(current):
-            self._replace_persistent_selection(reconciled)
+            self._replace_persistent_selection_by_uids(reconciled)
 
     def _sync_visible_selection_from_persistent_selection(self) -> None:
         if self.list_widget is None:
             return
-        selected_ids = set(getattr(self, "_selected_chart_ids_set", set()))
+        selected_uids = set(getattr(self, "_selected_chart_uids_set", set()))
         self._syncing_visible_selection = True
         blocker = QSignalBlocker(self.list_widget)
         try:
             self.list_widget.clearSelection()
             for row in range(self.list_widget.count()):
                 item = self.list_widget.item(row)
-                if item is None:
-                    continue
-                raw_chart_id = item.data(Qt.UserRole)
-                try:
-                    chart_id = int(raw_chart_id)
-                except (TypeError, ValueError):
-                    continue
-                if chart_id in selected_ids:
+                chart_uid = self._normalized_item_chart_uid(item)
+                if chart_uid in selected_uids:
                     item.setSelected(True)
         finally:
             blocker.unblock()
             self._syncing_visible_selection = False
 
     def _merge_visible_selection_into_persistent_selection(self, *, replace: bool) -> None:
-        visible_ids = set(self._all_visible_chart_ids())
-        selected_visible_ids = self._visible_selected_chart_ids()
+        visible_uids = set(self._all_visible_chart_uids())
+        selected_visible_uids = self._visible_selected_chart_uids()
         if replace:
-            self._replace_persistent_selection(selected_visible_ids)
+            self._replace_persistent_selection_by_uids(selected_visible_uids)
             return
 
-        selected_visible_set = set(selected_visible_ids)
-        merged: list[int] = []
-        seen: set[int] = set()
-        for chart_id in getattr(self, "_selected_chart_id_order", []):
-            if chart_id in visible_ids and chart_id not in selected_visible_set:
+        selected_visible_set = set(selected_visible_uids)
+        merged: list[str] = []
+        seen: set[str] = set()
+        for chart_uid in getattr(self, "_selected_chart_uid_order", []):
+            if chart_uid in visible_uids and chart_uid not in selected_visible_set:
                 continue
-            if chart_id in seen:
+            if chart_uid in seen:
                 continue
-            seen.add(chart_id)
-            merged.append(chart_id)
-        for chart_id in selected_visible_ids:
-            if chart_id in seen:
+            seen.add(chart_uid)
+            merged.append(chart_uid)
+        for chart_uid in selected_visible_uids:
+            if chart_uid in seen:
                 continue
-            seen.add(chart_id)
-            merged.append(chart_id)
-        self._replace_persistent_selection(merged)
+            seen.add(chart_uid)
+            merged.append(chart_uid)
+        self._replace_persistent_selection_by_uids(merged)
 
     def _hidden_selected_chart_count(self) -> int:
-        visible_selected = set(self._visible_selected_chart_ids())
-        return max(0, len(getattr(self, "_selected_chart_ids_set", set())) - len(visible_selected))
+        visible_selected = set(self._visible_selected_chart_uids())
+        return max(0, len(getattr(self, "_selected_chart_uids_set", set())) - len(visible_selected))
 
     def _refresh_similarities_chart_options(self) -> None:
         similarity_rows = [
@@ -15269,7 +15295,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         flashed_items: list[QListWidgetItem] = []
         for row in range(self.list_widget.count()):
             item = self.list_widget.item(row)
-            chart_id = item.data(Qt.UserRole)
+            chart_id = self._legacy_item_chart_id(item)
             if chart_id not in chart_ids:
                 continue
             original_backgrounds[row] = item.background()
@@ -17321,30 +17347,32 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         return [("Any", "Any"), *self._searchable_bodies()]
 
     def _chart_id_from_list_item(self, item: QListWidgetItem | None) -> int | None:
-        if item is None:
-            return None
-        raw_chart_id = item.data(Qt.UserRole)
-        if raw_chart_id is None or isinstance(raw_chart_id, bool):
-            return None
-        try:
-            return int(raw_chart_id)
-        except (TypeError, ValueError):
-            return None
+        return self._legacy_item_chart_id(item)
+
+    def _chart_uid_from_list_item(self, item: QListWidgetItem | None) -> str | None:
+        return self._normalized_item_chart_uid(item)
+
+    def _current_filter_navigation_anchor_chart_uid(self) -> str | None:
+        current_item = self.list_widget.currentItem() if self.list_widget is not None else None
+        current_chart_uid = self._chart_uid_from_list_item(current_item)
+        if current_chart_uid is not None:
+            return current_chart_uid
+        selected_chart_uids = self._visible_selected_chart_uids()
+        if selected_chart_uids:
+            return selected_chart_uids[-1]
+        selected_chart_uids = list(getattr(self, "_selected_chart_uid_order", []))
+        return selected_chart_uids[-1] if selected_chart_uids else None
 
     def _current_filter_navigation_anchor_chart_id(self) -> int | None:
-        current_item = self.list_widget.currentItem() if self.list_widget is not None else None
-        current_chart_id = self._chart_id_from_list_item(current_item)
-        if current_chart_id is not None:
-            return current_chart_id
-        selected_chart_ids = self._visible_selected_chart_ids()
-        if selected_chart_ids:
-            return selected_chart_ids[-1]
-        selected_chart_ids = list(getattr(self, "_selected_chart_id_order", []))
-        return selected_chart_ids[-1] if selected_chart_ids else None
+        anchor_uid = self._current_filter_navigation_anchor_chart_uid()
+        if not anchor_uid:
+            return None
+        return get_chart_id_by_uid(anchor_uid)
 
     def _clear_filter_selection(self) -> None:
+        self._filter_navigation_anchor_chart_uid = self._current_filter_navigation_anchor_chart_uid()
         self._filter_navigation_anchor_chart_id = self._current_filter_navigation_anchor_chart_id()
-        self._replace_persistent_selection([])
+        self._replace_persistent_selection_by_uids([])
         if self.list_widget is None:
             return
         blocker = QSignalBlocker(self.list_widget)
@@ -17355,10 +17383,10 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
     def _select_filter_navigation_row(self, *, direction: int) -> bool:
         if self.list_widget is None or self.list_widget.count() <= 0:
             return False
-        anchor_id = getattr(self, "_filter_navigation_anchor_chart_id", None)
+        anchor_uid = getattr(self, "_filter_navigation_anchor_chart_uid", None)
         anchor_row: int | None = None
         for row in range(self.list_widget.count()):
-            if self._chart_id_from_list_item(self.list_widget.item(row)) == anchor_id:
+            if self._chart_uid_from_list_item(self.list_widget.item(row)) == anchor_uid:
                 anchor_row = row
                 break
         if anchor_row is None:
@@ -17787,20 +17815,21 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
 
         if self._syncing_visible_selection:
             return
-        previous_selection = list(getattr(self, "_selected_chart_id_order", []))
+        previous_selection = list(getattr(self, "_selected_chart_uid_order", []))
         if sync_persistent_selection:
             replace_selection = getattr(self, "_selection_update_mode", "replace") == "replace"
             self._merge_visible_selection_into_persistent_selection(replace=replace_selection)
             self._remember_single_chart_deselection(
                 previous_selection,
-                getattr(self, "_selected_chart_id_order", []),
+                getattr(self, "_selected_chart_uid_order", []),
             )
-        selected_chart_ids = self._visible_selected_chart_ids()
-        if selected_chart_ids:
-            current_chart_id = self._chart_id_from_list_item(self.list_widget.currentItem())
-            self._filter_navigation_anchor_chart_id = (
-                current_chart_id if current_chart_id in selected_chart_ids else selected_chart_ids[-1]
+        selected_chart_uids = self._visible_selected_chart_uids()
+        if selected_chart_uids:
+            current_chart_uid = self._chart_uid_from_list_item(self.list_widget.currentItem())
+            self._filter_navigation_anchor_chart_uid = (
+                current_chart_uid if current_chart_uid in selected_chart_uids else selected_chart_uids[-1]
             )
+            self._filter_navigation_anchor_chart_id = get_chart_id_by_uid(self._filter_navigation_anchor_chart_uid)
         self._selection_update_mode = "replace"
 
         if self._right_panel_visible and self._active_right_panel == "edit":
@@ -17973,7 +18002,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         self._start_inline_chart_rename(selected_items[0])
 
     def _start_inline_chart_rename(self, item: QListWidgetItem) -> None:
-        chart_id = item.data(Qt.UserRole)
+        chart_id = self._legacy_item_chart_id(item)
         if chart_id is None:
             return
 
@@ -19489,8 +19518,10 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                     visible_label_parts.append(current_age_label)
                 label = "  ".join(part for part in visible_label_parts if part)
                 item = QListWidgetItem(label)
-                item.setData(Qt.UserRole, cid)
-                item.setData(Qt.UserRole + 2, str(_chart_uid or "").strip().upper())
+                item_chart_uid = str(_chart_uid or "").strip().upper()
+                item.setData(Qt.UserRole, item_chart_uid)
+                item.setData(Qt.UserRole + 2, item_chart_uid)
+                item.setData(Qt.UserRole + 3, cid)
                 is_hypothetical = _chart_row_is_hypothetical(
                     (
                         cid,
@@ -24809,8 +24840,8 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         self._load_chart_from_item(item)
 
     def _load_chart_from_item(self, item: QListWidgetItem) -> None:
-        chart_id = item.data(Qt.UserRole)
-        chart_uid = str(item.data(Qt.UserRole + 2) or "").strip().upper()
+        chart_id = self._legacy_item_chart_id(item)
+        chart_uid = self._normalized_item_chart_uid(item)
         if chart_id is None and not chart_uid:
             return
         parent = self._owner_window()
@@ -24869,7 +24900,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             )
             return
 
-        chart_id_value = item.data(Qt.UserRole)
+        chart_id_value = self._legacy_item_chart_id(item)
         if chart_id_value is None:
             QMessageBox.warning(
                 self,
@@ -30460,13 +30491,7 @@ class MainWindow(QMainWindow):
                 item = selected_items[0]
         if item is None:
             return None
-        raw_chart_id = item.data(Qt.UserRole)
-        if raw_chart_id is None:
-            return None
-        try:
-            return int(raw_chart_id)
-        except (TypeError, ValueError):
-            return None
+        return manage_dialog._legacy_item_chart_id(item)
 
     def _resolve_chart_for_active_action(
         self,
