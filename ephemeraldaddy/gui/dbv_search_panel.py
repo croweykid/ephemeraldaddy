@@ -291,17 +291,19 @@ def _tag_value_display_name(value: str) -> str:
 
 def refresh_search_tags_list(window, known_tags: list[str]) -> None:
     """Refresh the Database View tag-filter tree for ``window``."""
+    if not hasattr(window, "search_tags_list_widget"):
+        return
+    search_tags_toggle = getattr(window, "search_tags_toggle", None)
+    is_checked = getattr(search_tags_toggle, "isChecked", None)
+    if callable(is_checked) and not is_checked():
+        return
+
     from PySide6.QtCore import Qt
-    from PySide6.QtWidgets import QButtonGroup, QHBoxLayout, QRadioButton, QToolButton, QWidget
+    from PySide6.QtWidgets import QButtonGroup, QHBoxLayout, QRadioButton, QWidget
 
     from ephemeraldaddy.gui.features.charts.tagging import parse_tag_text
     from ephemeraldaddy.gui.widgets.quad_state import QuadStateSlider
 
-    if not hasattr(window, "search_tags_list_widget"):
-        return
-    search_tags_toggle = getattr(window, "search_tags_toggle", None)
-    if isinstance(search_tags_toggle, QToolButton) and not search_tags_toggle.isChecked():
-        return
     selected_tags = {
         tag.casefold()
         for tag in parse_tag_text(
@@ -644,13 +646,12 @@ def sync_search_tags_list_selection(window, selected_tags: set[str]) -> None:
     mark matching existing per-tag sliders active, so keep the tree structure
     intact and update modes in-place.
     """
-    from PySide6.QtWidgets import QToolButton
+    search_tags_toggle = getattr(window, "search_tags_toggle", None)
+    is_checked = getattr(search_tags_toggle, "isChecked", None)
+    if callable(is_checked) and not is_checked():
+        return
 
     from ephemeraldaddy.gui.widgets.quad_state import QuadStateSlider
-
-    search_tags_toggle = getattr(window, "search_tags_toggle", None)
-    if isinstance(search_tags_toggle, QToolButton) and not search_tags_toggle.isChecked():
-        return
 
     selected_casefolded = {str(tag).casefold() for tag in selected_tags}
     for tag_name, checkbox in getattr(window, "search_tag_filter_checkboxes", {}).items():
@@ -925,6 +926,7 @@ def refresh_search_traits_list(window, kind: str = "present") -> None:
 
     from ephemeraldaddy.analysis.traits import list_traits
     from ephemeraldaddy.gui.widgets.quad_state import QuadStateSlider
+
     kind = "absent" if kind == "absent" else "present"
     tree_attr = f"search_traits_{kind}_list_widget"
     checkboxes_attr = f"search_trait_{kind}_filter_checkboxes"
@@ -1075,14 +1077,12 @@ def build_dbv_search_panel(window) -> "QWidget":
     )
 
     from ephemeraldaddy.gui.emoji_render import apply_emoji_png_to_button, apply_emoji_pngs_to_label
-
     from ephemeraldaddy.gui.features.charts.presentation import abbreviate_body_label, abbreviate_nakshatra_label
     from ephemeraldaddy.gui.style import (
         COLLAPSIBLE_NESTED_SECTION_CONTENT_STYLE, COLLAPSIBLE_SECTION_CONTENT_STYLE,
         DATABASE_ANALYTICS_CONTENT_DEBUG_STYLE, DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS,
         DATABASE_ANALYTICS_SUBHEADER_STYLE, DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
         DATABASE_VIEW_PANEL_HEADER_STYLE, DEFAULT_DROPDOWN_STYLE, apply_shared_dropdown_style,
-        create_divider,
         configure_collapsible_header_toggle, configure_static_collapsible_header_label,
     )
     from ephemeraldaddy.gui.ui_helpers import EmojiTiledPanel

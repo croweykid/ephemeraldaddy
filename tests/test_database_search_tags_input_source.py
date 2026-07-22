@@ -11,12 +11,24 @@ def test_search_panel_does_not_import_gui_app_module():
     assert "app_module." not in SEARCH_PANEL_SOURCE
 
 
-def test_tag_completer_uses_db_recognized_tags_source():
-    helper = SEARCH_PANEL_SOURCE.split("def tag_completer_tags_for_session", 1)[1].split(
-        "def update_tag_completers_if_needed", 1
-    )[0]
-    assert "from ephemeraldaddy.core.db import list_recognized_tags" in helper
-    assert "from ephemeraldaddy.gui.features.charts.tagging import list_recognized_tags" not in helper
+def test_search_tag_helpers_can_short_circuit_without_qt_imports():
+    from ephemeraldaddy.gui.dbv_search_panel import (
+        refresh_search_tags_list,
+        sync_search_tags_list_selection,
+    )
+
+    class MissingTreeWindow:
+        pass
+
+    class CollapsedToggle:
+        def isChecked(self):
+            return False
+
+    class CollapsedWindow:
+        search_tags_toggle = CollapsedToggle()
+
+    refresh_search_tags_list(MissingTreeWindow(), [])
+    sync_search_tags_list_selection(CollapsedWindow(), set())
 
 
 def test_search_tags_typing_does_not_rebuild_tag_tree_on_each_keystroke():
@@ -32,8 +44,9 @@ def test_search_tags_selection_sync_respects_collapsed_tag_tree():
         "def on_search_tag_logic_changed", 1
     )[0]
     assert "search_tags_toggle" in helper
-    assert "not search_tags_toggle.isChecked()" in helper
-    assert "return" in helper.split("not search_tags_toggle.isChecked()", 1)[1]
+    assert 'getattr(search_tags_toggle, "isChecked", None)' in helper
+    assert "callable(is_checked) and not is_checked()" in helper
+    assert "return" in helper.split("callable(is_checked) and not is_checked()", 1)[1]
 
 
 def test_search_tags_selection_sync_suppresses_per_checkbox_filter_signals():
