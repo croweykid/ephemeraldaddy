@@ -91,6 +91,15 @@ def test_incremental_refresh_reuses_same_changed_ids_for_every_section_step():
     assert "self._incremental_metrics_refresh_changed_ids.clear()" not in per_section_body
 
 
+
+def test_database_metrics_cache_uses_normalized_active_local_row_ids():
+    helper = _method_source(APP_SOURCE, "_active_database_metric_chart_ids")
+    refresh = _method_source(APP_SOURCE, "_refresh_database_metrics_cache")
+    assert "self._normalize_chart_row(row)" in helper
+    assert "active_ids.add(int(normalized[0]))" in helper
+    assert "active_ids = self._active_database_metric_chart_ids()" in refresh
+
+
 def test_incremental_refresh_preserves_warmer_snapshot_sections():
     method = _method_source(APP_SOURCE, "_refresh_database_metrics_cache")
     assert "computed_sections.issubset(self._database_metrics_snapshot_sections)" in method

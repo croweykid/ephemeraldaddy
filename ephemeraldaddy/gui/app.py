@@ -7421,12 +7421,17 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         return True
 
     @staticmethod
+    def _normalized_chart_uid_key(chart_uid: str | None) -> str | None:
+        """Return the canonical UID key used by Database View selection state."""
+        normalized_uid = str(chart_uid or "").strip().upper()
+        return normalized_uid or None
+
+    @staticmethod
     def _normalized_item_chart_uid(item: QListWidgetItem | None) -> str | None:
         if item is None:
             return None
         raw_chart_uid = item.data(Qt.UserRole) or item.data(Qt.UserRole + 2)
-        chart_uid = str(raw_chart_uid or "").strip().upper()
-        return chart_uid or None
+        return ManageChartsDialog._normalized_chart_uid_key(raw_chart_uid)
 
     @staticmethod
     def _item_local_row_id(item: QListWidgetItem | None) -> int | None:
@@ -10354,6 +10359,16 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         
         self._apply_bazi_snapshot_delta(totals, snapshot, direction)
 
+    def _active_database_metric_chart_ids(self) -> set[int]:
+        """Return local row IDs for the currently loaded Database View rows."""
+        active_ids: set[int] = set()
+        for row in getattr(self, "_chart_rows", []) or []:
+            normalized = self._normalize_chart_row(row)
+            if normalized is None:
+                continue
+            active_ids.add(int(normalized[0]))
+        return active_ids
+
     def _refresh_database_metrics_cache(
         self,
         force_full_refresh: bool = False,
@@ -10372,7 +10387,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         if self._database_metrics_cache is None or force_full_refresh:
             cache = self._empty_database_metrics_cache()
             self._database_metric_snapshots = {}
-            active_ids = {row[0] for row in self._chart_rows}
+            active_ids = self._active_database_metric_chart_ids()
             cache["chart_ids"] = set(active_ids)
             for chart_id in active_ids:
                 snapshot = self._build_chart_metric_snapshot(
@@ -10388,7 +10403,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             self._database_metrics_cache_stale_requires_full_refresh = False
             return
         cache = self._database_metrics_cache
-        active_ids = {row[0] for row in self._chart_rows}
+        active_ids = self._active_database_metric_chart_ids()
         removed_ids = set(cache["chart_ids"]) - active_ids
         for removed_id in removed_ids:
             previous = self._database_metric_snapshots.pop(removed_id, None)
