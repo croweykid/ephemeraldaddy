@@ -18,7 +18,7 @@ import textwrap
 import time
 import warnings
 from collections import Counter
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence
 
 from matplotlib import font_manager as mpl_font_manager
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
@@ -1148,13 +1148,22 @@ class DatabaseAnalyticsChartsMixin:
         return chart_name or f"Chart {int(chart_id)}"
 
     def _analysis_matching_chart_names(self, chart_key: str, label: str) -> str:
-        selected_ids = self._exclude_placeholder_chart_ids(self._selected_chart_ids())
-        if not selected_ids:
+        selected_uid_method = getattr(self, "_selected_chart_uids", None)
+        get_chart_by_uid = getattr(self, "_get_chart_for_filter_by_uid", None)
+        selected_uids = list(selected_uid_method() or []) if callable(selected_uid_method) else []
+        selected_ids: list[int] = []
+        if not selected_uids:
+            selected_ids = self._exclude_placeholder_local_row_ids(self._selected_local_row_ids())
+        if not selected_uids and not selected_ids:
             return ""
         matching_names: list[str] = []
         label_text = str(label).strip()
-        for chart_id in selected_ids:
-            chart = self._get_chart_for_filter(int(chart_id))
+        chart_keys: Iterable[str | int] = selected_uids or selected_ids
+        for chart_key_value in chart_keys:
+            if selected_uids and callable(get_chart_by_uid):
+                chart = get_chart_by_uid(str(chart_key_value))
+            else:
+                chart = self._get_chart_for_filter(int(chart_key_value))
             if chart is None:
                 continue
             include = False
@@ -1200,7 +1209,11 @@ class DatabaseAnalyticsChartsMixin:
                     )
                     include = cross_label == label_text
             if include:
-                matching_names.append(self._display_name_for_chart_id(int(chart_id)))
+                if selected_uids:
+                    chart_name = str(getattr(chart, "name", "") or "").strip()
+                    matching_names.append(chart_name or str(chart_key_value))
+                else:
+                    matching_names.append(self._display_name_for_chart_id(int(chart_key_value)))
         return ", ".join(matching_names)
 
     def _export_database_analysis_chart_csv(self, chart_key: str, chart_title: str) -> None:
@@ -1626,8 +1639,17 @@ class DatabaseAnalyticsChartsMixin:
 
     def _database_analytics_single_selected_chart(self) -> Any | None:
         """Return the one selected chart, or None when Database Analytics is aggregating."""
-        selected_ids_method = getattr(self, "_selected_chart_ids", None)
-        exclude_method = getattr(self, "_exclude_placeholder_chart_ids", None)
+        selected_uids_method = getattr(self, "_selected_chart_uids", None)
+        get_chart_by_uid = getattr(self, "_get_chart_for_filter_by_uid", None)
+        if callable(selected_uids_method) and callable(get_chart_by_uid):
+            selected_uids = list(selected_uids_method() or [])
+            if len(selected_uids) == 1:
+                return get_chart_by_uid(str(selected_uids[0]))
+            if selected_uids:
+                return None
+
+        selected_ids_method = getattr(self, "_selected_local_row_ids", None)
+        exclude_method = getattr(self, "_exclude_placeholder_local_row_ids", None)
         get_chart = getattr(self, "_get_chart_for_filter", None)
         if not callable(selected_ids_method) or not callable(get_chart):
             return None
@@ -4337,10 +4359,15 @@ class DatabaseAnalyticsChartsMixin:
             selected_trait_name=str(context.get("selected_trait_name", "") or ""),
             database_values=context.get("database_values", {}),
         )
-        self._traits_distribution_current_ranked_chart_ids = {
-            int(row["chart_id"])
+        self._traits_distribution_current_ranked_chart_uids = {
+            str(row["chart_uid"]).strip().upper()
             for row in rankings
-            if isinstance(row, dict) and "chart_id" in row
+            if isinstance(row, dict) and row.get("chart_uid")
+        }
+        self._traits_distribution_current_ranked_chart_ids = {
+            int(row["legacy_chart_id"])
+            for row in rankings
+            if isinstance(row, dict) and row.get("legacy_chart_id") is not None
         }
         rank_label.setText(
             self._render_traits_distribution_rankings_html(
@@ -4388,7 +4415,7 @@ class DatabaseAnalyticsChartsMixin:
             sorted(
                 {
                     int(chart_id)
-                    for chart_id in getattr(self, "_traits_distribution_latest_selected_chart_ids", ())
+                    for chart_id in getattr(self, "_traits_distribution_latest_selected_local_row_ids", ())
                 }
             )
         )
@@ -4502,7 +4529,8 @@ class DatabaseAnalyticsChartsMixin:
             chart_name = str(getattr(chart, "name", "") or f"Chart {chart_id}").strip()
             rows.append(
                 {
-                    "chart_id": int(chart_id),
+                    "chart_uid": str(db.get_chart_uid(int(chart_id)) or "").strip().upper(),
+                    "legacy_chart_id": int(chart_id),
                     "name": chart_name or f"Chart {chart_id}",
                     "likelihood": likelihood,
                     "deviation": likelihood - db_average_pct,
@@ -4563,10 +4591,10 @@ class DatabaseAnalyticsChartsMixin:
             name = html.escape(str(row.get("name", "")))
             chart_uid = str(row.get("chart_uid", "") or "").strip()
             try:
-                chart_id = int(row.get("chart_id"))
+                chart_id = int(row.get("legacy_chart_id"))
             except (TypeError, ValueError):
                 chart_id = 0
-            chart_target = chart_uid or (str(chart_id) if chart_id else "")
+            chart_target = chart_uid
             chart_link = (
                 f"<a href='chart:{html.escape(chart_target)}' style='color:#f0f0f0; text-decoration:none;'>{name}</a>"
                 if chart_target
@@ -5297,7 +5325,7 @@ class DatabaseAnalyticsChartsMixin:
         selected_trait_name = self._sync_traits_distribution_rank_combo(trait_items)
         rankings_mode = self._traits_distribution_display_mode() == "trait_rankings"
         if rankings_mode and not selected_trait_name:
-            self._traits_distribution_latest_selected_chart_ids = tuple(
+            self._traits_distribution_latest_selected_local_row_ids = tuple(
                 sorted({int(chart_id) for chart_id in chart_ids})
             ) if loaded_charts > 0 else ()
             self._traits_distribution_rank_context = {
@@ -5316,7 +5344,7 @@ class DatabaseAnalyticsChartsMixin:
             self._analysis_chart_export_rows["traits_distribution"] = []
             rank_selected_button = getattr(self, "traits_distribution_rank_selected_button", None)
             if isinstance(rank_selected_button, QPushButton):
-                has_current_selection = bool(getattr(self, "_traits_distribution_latest_selected_chart_ids", ()))
+                has_current_selection = bool(getattr(self, "_traits_distribution_latest_selected_local_row_ids", ()))
                 rank_selected_button.setEnabled(has_current_selection)
                 rank_selected_button.setText("rank selected" if has_current_selection else "show database")
             rank_label = getattr(self, "traits_distribution_rank_label", None)
@@ -5365,7 +5393,7 @@ class DatabaseAnalyticsChartsMixin:
                 trait_items=trait_items,
                 trait_signature=trait_signature,
             )
-        self._traits_distribution_latest_selected_chart_ids = tuple(
+        self._traits_distribution_latest_selected_local_row_ids = tuple(
             sorted({int(chart_id) for chart_id in chart_ids})
         ) if loaded_charts > 0 else ()
         manual_rank_ids = tuple(
@@ -5411,7 +5439,7 @@ class DatabaseAnalyticsChartsMixin:
             ranking_scope_label = "the database"
         rank_selected_button = getattr(self, "traits_distribution_rank_selected_button", None)
         if isinstance(rank_selected_button, QPushButton):
-            has_current_selection = bool(getattr(self, "_traits_distribution_latest_selected_chart_ids", ()))
+            has_current_selection = bool(getattr(self, "_traits_distribution_latest_selected_local_row_ids", ()))
             rank_selected_button.setEnabled(has_current_selection or bool(manual_rank_ids))
             rank_selected_button.setText(
                 "rank selected" if has_current_selection else "show database"
@@ -5433,7 +5461,16 @@ class DatabaseAnalyticsChartsMixin:
                 selected_trait_name=selected_trait_name or "",
                 database_values=database_values,
             )
-            self._traits_distribution_current_ranked_chart_ids = {int(row["chart_id"]) for row in rankings}
+            self._traits_distribution_current_ranked_chart_uids = {
+                str(row["chart_uid"]).strip().upper()
+                for row in rankings
+                if isinstance(row, dict) and row.get("chart_uid")
+            }
+            self._traits_distribution_current_ranked_chart_ids = {
+                int(row["legacy_chart_id"])
+                for row in rankings
+                if isinstance(row, dict) and row.get("legacy_chart_id") is not None
+            }
             rank_label.setText(
                 self._render_traits_distribution_rankings_html(
                     selected_trait_name,

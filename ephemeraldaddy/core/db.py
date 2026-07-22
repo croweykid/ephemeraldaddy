@@ -4665,30 +4665,50 @@ def save_duplicate_exclusions_by_uids(chart_uids: Iterable[str | None]) -> int:
     return inserted
 
 
-def set_current_chart(chart_id: Optional[int]) -> None:
-    """Mark exactly one chart as current (or clear if None)."""
+def set_current_chart_by_uid(chart_uid: str | None) -> None:
+    """Mark exactly one chart as current by stable UID (or clear if None)."""
+    normalized_uid = _normalize_chart_uid(chart_uid)
     conn = _get_conn()
     with conn:
+        _ensure_chart_uids(conn)
         conn.execute("UPDATE charts SET is_current = 0")
-        if chart_id is not None:
+        if normalized_uid is not None:
             conn.execute(
-                "UPDATE charts SET is_current = 1 WHERE id = ?",
-                (chart_id,),
+                "UPDATE charts SET is_current = 1 WHERE chart_uid = ?",
+                (normalized_uid,),
             )
     conn.close()
 
 
-def get_current_chart_id() -> Optional[int]:
-    """Return the current chart id, if any."""
+def set_current_chart(chart_id: Optional[int]) -> None:
+    """Compatibility adapter: mark current chart after resolving a local row ID to UID."""
+    if chart_id is None:
+        set_current_chart_by_uid(None)
+        return
+    set_current_chart_by_uid(get_chart_uid(int(chart_id)))
+
+
+def get_current_chart_uid() -> Optional[str]:
+    """Return the current chart UID, if any."""
     conn = _get_conn()
-    cur = conn.execute(
-        "SELECT id FROM charts WHERE is_current = 1 LIMIT 1"
-    )
-    row = cur.fetchone()
+    with conn:
+        _ensure_chart_uids(conn)
+        cur = conn.execute(
+            "SELECT chart_uid FROM charts WHERE is_current = 1 LIMIT 1"
+        )
+        row = cur.fetchone()
     conn.close()
     if row is None:
         return None
-    return int(row[0])
+    return _normalize_chart_uid(row[0])
+
+
+def get_current_chart_id() -> Optional[int]:
+    """Compatibility adapter: return the local row ID for the current UID-backed chart."""
+    current_uid = get_current_chart_uid()
+    if current_uid is None:
+        return None
+    return get_chart_id_by_uid(current_uid)
 
 
 def delete_charts(chart_ids: List[int]) -> int:

@@ -99,7 +99,7 @@ def clear_batch_from_whence_state(owner: Any) -> None:
 
 def apply_batch_from_whence(owner: Any) -> None:
     """Apply the Batch Editor Bio From value to all selected charts."""
-    chart_ids = owner._selected_chart_ids()
+    chart_ids = owner._selected_local_row_ids()
     if not chart_ids:
         QMessageBox.information(
             owner,
