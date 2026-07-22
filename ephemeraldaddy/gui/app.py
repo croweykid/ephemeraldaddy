@@ -7421,12 +7421,17 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         return True
 
     @staticmethod
+    def _normalized_chart_uid_key(chart_uid: str | None) -> str | None:
+        """Return the canonical UID key used by Database View selection state."""
+        normalized_uid = str(chart_uid or "").strip().upper()
+        return normalized_uid or None
+
+    @staticmethod
     def _normalized_item_chart_uid(item: QListWidgetItem | None) -> str | None:
         if item is None:
             return None
         raw_chart_uid = item.data(Qt.UserRole) or item.data(Qt.UserRole + 2)
-        chart_uid = str(raw_chart_uid or "").strip().upper()
-        return chart_uid or None
+        return ManageChartsDialog._normalized_chart_uid_key(raw_chart_uid)
 
     @staticmethod
     def _item_local_row_id(item: QListWidgetItem | None) -> int | None:

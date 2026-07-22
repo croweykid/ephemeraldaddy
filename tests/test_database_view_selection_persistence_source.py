@@ -79,3 +79,9 @@ def test_copy_uses_persistent_selection_for_all_selected_chart_names():
     assert "_selected_chart_id_order" in method
     assert "_similar_charts_popout_chart_names_by_id" in method
     assert "\"\\n\".join(selected_names)" in copy_method
+
+def test_database_view_has_local_uid_normalizer_for_persistent_selection():
+    assert "class ManageChartsDialog" in APP_SOURCE
+    class_source = APP_SOURCE[APP_SOURCE.index("class ManageChartsDialog"):APP_SOURCE.index("class MainWindow")]
+    assert "def _normalized_chart_uid_key" in class_source
+    assert "return ManageChartsDialog._normalized_chart_uid_key(raw_chart_uid)" in class_source
