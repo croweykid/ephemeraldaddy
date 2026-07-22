@@ -413,6 +413,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QPlainTextEdit,
     QTextEdit,
+    QTextBrowser,
     QInputDialog,
     QListWidget,
     QListWidgetItem,
@@ -22553,6 +22554,14 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         self._load_similarity_calculator_controls()
         self._load_similarity_thresholds_into_controls()
 
+        show_high_similarity_button = QPushButton("Show 90-100% similarities")
+        show_high_similarity_button.setToolTip(
+            "Calculate database-wide Astro Twin scores with the current calculator mode and list chart pairs "
+            "whose similarity is between 90% and 100%. Each listed chart name opens in Chart View."
+        )
+        show_high_similarity_button.clicked.connect(self._show_high_similarity_chart_pairs)
+        similarity_calculator_section.addWidget(show_high_similarity_button, alignment=Qt.AlignLeft)
+
         enneagram_section = self._add_settings_collapsible_section(content_layout, "Predictions")
         enneagram_controls = build_predictions_settings_section(
             dialog=dialog,
@@ -23234,6 +23243,123 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                 else "Astro Twin cache was already empty."
             ),
         )
+
+    def _show_high_similarity_chart_pairs(self) -> None:
+        chart_ids = sorted(int(chart_id) for chart_id in getattr(self, "_active_chart_rows_by_id", {}))
+        chart_ids = self._exclude_similarities_placeholder_chart_ids(chart_ids)
+        if len(chart_ids) < 2:
+            QMessageBox.information(
+                self,
+                "90-100% similarities",
+                "At least two non-placeholder charts are needed to calculate high-similarity pairs.",
+            )
+            return
+        progress = QProgressDialog("Loading charts…", "Cancel", 0, len(chart_ids), self)
+        progress.setWindowTitle("90-100% similarities")
+        progress.setMinimumDuration(250)
+        progress.setValue(0)
+        QApplication.processEvents()
+        try:
+            charts_by_id = load_charts(chart_ids)
+        except Exception as exc:
+            progress.close()
+            QMessageBox.critical(self, "90-100% similarities", f"Could not load charts:\n{exc}")
+            return
+        valid_pairs: list[tuple[float, int, int]] = []
+        id_chart_pairs = [
+            (chart_id, chart)
+            for chart_id, chart in charts_by_id.items()
+            if chart is not None and not bool(getattr(chart, "is_placeholder", False)) and getattr(chart, "positions", None)
+        ]
+        total_steps = max(1, len(id_chart_pairs))
+        progress.setLabelText("Calculating 90-100% Astro Twin pairs…")
+        progress.setMaximum(total_steps)
+        settings = copy.deepcopy(getattr(self, "_similarity_calculator_settings", None))
+        hidden_chart_ids = set(getattr(self, "_hidden_chart_ids", set()))
+        include_hidden = bool(getattr(self, "_show_hidden_charts", False))
+        for index, (chart_id, chart) in enumerate(id_chart_pairs):
+            if progress.wasCanceled():
+                progress.close()
+                return
+            candidates = id_chart_pairs[index + 1 :]
+            if candidates:
+                matches = find_astro_twins(
+                    chart,
+                    candidates,
+                    top_k=len(candidates),
+                    exclude_chart_id=chart_id,
+                    algorithm_mode=getattr(self, "_similar_charts_algorithm_mode", SIMILAR_CHARTS_ALGORITHM_DEFAULT),
+                    custom_settings=settings,
+                    hidden_chart_ids=hidden_chart_ids,
+                    include_hidden_charts=include_hidden,
+                )
+                for match in matches:
+                    percent = float(match.score) * 100.0
+                    if 90.0 <= percent <= 100.0:
+                        valid_pairs.append((percent, chart_id, int(match.chart_id)))
+            progress.setValue(index + 1)
+            QApplication.processEvents()
+        progress.close()
+        valid_pairs.sort(key=lambda row: (-row[0], row[1], row[2]))
+        self._show_high_similarity_chart_pairs_dialog(valid_pairs, charts_by_id)
+
+    def _show_high_similarity_chart_pairs_dialog(
+        self,
+        pairs: list[tuple[float, int, int]],
+        charts_by_id: Mapping[int, Any],
+    ) -> None:
+        dialog = QDialog(self)
+        dialog.setWindowTitle("90-100% similarities")
+        dialog.resize(720, 520)
+        layout = QVBoxLayout(dialog)
+        browser = QTextBrowser(dialog)
+        browser.setOpenExternalLinks(False)
+        browser.setOpenLinks(False)
+        if not pairs:
+            browser.setHtml("<p>No chart pairs are currently 90-100% similar.</p>")
+        else:
+            lines = ["<h2>90-100% similarities</h2>", "<p>Click a chart name to open it in Chart View.</p>", "<ol>"]
+            for percent, first_id, second_id in pairs:
+                first = charts_by_id.get(first_id)
+                second = charts_by_id.get(second_id)
+                first_uid = html.escape(str(getattr(first, "chart_uid", "") or ""))
+                second_uid = html.escape(str(getattr(second, "chart_uid", "") or ""))
+                first_name = html.escape(str(getattr(first, "name", "") or "Unnamed"))
+                second_name = html.escape(str(getattr(second, "name", "") or "Unnamed"))
+                lines.append(
+                    f'<li><a href="chart:{first_uid}">{first_name}</a> ↔ '
+                    f'<a href="chart:{second_uid}">{second_name}</a> — {percent:.1f}%</li>'
+                )
+            lines.append("</ol>")
+            browser.setHtml("".join(lines))
+        browser.anchorClicked.connect(lambda url: self._open_high_similarity_chart_link(url.toString(), dialog))
+        layout.addWidget(browser)
+        close_button = QPushButton("Close")
+        close_button.clicked.connect(dialog.accept)
+        layout.addWidget(close_button, alignment=Qt.AlignRight)
+        dialog.exec()
+
+    def _open_high_similarity_chart_link(self, target: str, dialog: QDialog) -> None:
+        chart_uid = str(target or "")
+        if chart_uid.startswith("chart:"):
+            chart_uid = chart_uid.split(":", 1)[1]
+        chart_uid = chart_uid.strip().upper()
+        if not chart_uid:
+            return
+        parent = self._owner_window()
+        if parent is None or not hasattr(parent, "load_chart_by_uid"):
+            QMessageBox.warning(self, "Open chart", "Unable to open that chart in Chart View.")
+            return
+        if parent.load_chart_by_uid(chart_uid, from_chart_link=True):
+            if isinstance(parent, MainWindow):
+                parent._show_chart_view_maximized(maximize=self.isMaximized(), source_window=self)
+                parent._retarget_size_checker_to_main_view()
+            elif isinstance(parent, QWidget):
+                parent.showNormal()
+                parent.raise_()
+                parent.activateWindow()
+            dialog.accept()
+            self.hide()
 
     def _on_similarity_calculator_checkbox_toggled(self, key: str, checked: bool) -> None:
         checkbox = self._similarity_calculator_checkboxes.get(key)
