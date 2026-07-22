@@ -1084,6 +1084,7 @@ def build_dbv_search_panel(window) -> "QWidget":
         DATABASE_ANALYTICS_SUBHEADER_STYLE, DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
         DATABASE_VIEW_PANEL_HEADER_STYLE, DEFAULT_DROPDOWN_STYLE, apply_shared_dropdown_style,
         configure_collapsible_header_toggle, configure_static_collapsible_header_label,
+        create_divider,
     )
     from ephemeraldaddy.gui.ui_helpers import EmojiTiledPanel
     from ephemeraldaddy.gui.widgets.quad_state import QuadStateSlider
