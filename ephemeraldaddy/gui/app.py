@@ -1251,6 +1251,7 @@ from ephemeraldaddy.gui.features.charts.similarities_analysis import (
     calculate_pair_similarity_result,
     close_similarities_loading_progress,
     resize_similarities_list_to_contents,
+    show_high_similarity_chart_pairs,
     show_similarities_loading_progress,
     update_similarities_loading_progress,
 )
@@ -22553,6 +22554,14 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         self._load_similarity_calculator_controls()
         self._load_similarity_thresholds_into_controls()
 
+        show_high_similarity_button = QPushButton("Show 90-100% similarities")
+        show_high_similarity_button.setToolTip(
+            "Calculate database-wide Astro Twin scores with the current calculator mode and list chart pairs "
+            "whose similarity is between 90% and 100%. Each listed chart name opens in Chart View."
+        )
+        show_high_similarity_button.clicked.connect(self._show_high_similarity_chart_pairs)
+        similarity_calculator_section.addWidget(show_high_similarity_button, alignment=Qt.AlignLeft)
+
         enneagram_section = self._add_settings_collapsible_section(content_layout, "Predictions")
         enneagram_controls = build_predictions_settings_section(
             dialog=dialog,
@@ -23234,6 +23243,39 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                 else "Astro Twin cache was already empty."
             ),
         )
+
+    def _show_high_similarity_chart_pairs(self) -> None:
+        show_high_similarity_chart_pairs(
+            self,
+            chart_ids=list(getattr(self, "_active_chart_rows_by_id", {})),
+            exclude_placeholder_chart_ids=self._exclude_similarities_placeholder_chart_ids,
+            load_charts_by_id=load_charts,
+            algorithm_mode=getattr(self, "_similar_charts_algorithm_mode", SIMILAR_CHARTS_ALGORITHM_DEFAULT),
+            custom_settings=copy.deepcopy(getattr(self, "_similarity_calculator_settings", None)),
+            hidden_chart_ids=set(getattr(self, "_hidden_chart_ids", set())),
+            include_hidden_charts=bool(getattr(self, "_show_hidden_charts", False)),
+            open_chart_uid=self._open_high_similarity_chart_uid,
+        )
+
+    def _open_high_similarity_chart_uid(self, chart_uid: str) -> bool:
+        normalized_chart_uid = str(chart_uid or "").strip().upper()
+        if not normalized_chart_uid:
+            return False
+        parent = self._owner_window()
+        if parent is None or not hasattr(parent, "load_chart_by_uid"):
+            QMessageBox.warning(self, "Open chart", "Unable to open that chart in Chart View.")
+            return False
+        if not parent.load_chart_by_uid(normalized_chart_uid, from_chart_link=True):
+            return False
+        if isinstance(parent, MainWindow):
+            parent._show_chart_view_maximized(maximize=self.isMaximized(), source_window=self)
+            parent._retarget_size_checker_to_main_view()
+        elif isinstance(parent, QWidget):
+            parent.showNormal()
+            parent.raise_()
+            parent.activateWindow()
+        self.hide()
+        return True
 
     def _on_similarity_calculator_checkbox_toggled(self, key: str, checked: bool) -> None:
         checkbox = self._similarity_calculator_checkboxes.get(key)
