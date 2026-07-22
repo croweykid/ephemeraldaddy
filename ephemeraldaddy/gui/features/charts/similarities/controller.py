@@ -217,14 +217,14 @@ class SimilaritiesController:
             completer.setFilterMode(Qt.MatchContains)
             chart_input.setCompleter(completer)
             chart_input.textChanged.connect(
-                lambda _text: self.update_analysis(self.host._selected_chart_ids())
+                lambda _text: self.update_analysis(self.host._selected_local_row_ids())
             )
             input_layout.addWidget(chart_input, stretch=1)
 
             use_checkbox = QCheckBox("use this")
             use_checkbox.setStyleSheet(use_this_checkbox_style)
             use_checkbox.toggled.connect(
-                lambda _checked: self.update_analysis(self.host._selected_chart_ids())
+                lambda _checked: self.update_analysis(self.host._selected_local_row_ids())
             )
             input_layout.addWidget(use_checkbox, stretch=0, alignment=Qt.AlignRight)
 
