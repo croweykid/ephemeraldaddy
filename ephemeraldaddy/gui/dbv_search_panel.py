@@ -572,6 +572,532 @@ def refresh_search_tags_list(window, known_tags: list[str]) -> None:
     _restore_tree_scroll_value(tree, scroll_value)
 
 
+
+def has_active_chart_filters(window) -> bool:
+    """Return whether any Database View chart-search filter is active."""
+    from ephemeraldaddy.gui.features.charts.search_text import database_search_text_is_active
+    from ephemeraldaddy.gui.widgets.quad_state import QuadStateSlider
+
+    selected_sentiments = {
+        name
+        for name, checkbox in window.sentiment_filter_checkboxes.items()
+        if checkbox.mode() == QuadStateSlider.MODE_TRUE and name != "none"
+    }
+    excluded_sentiments = {
+        name
+        for name, checkbox in window.sentiment_filter_checkboxes.items()
+        if checkbox.mode() == QuadStateSlider.MODE_FALSE and name != "none"
+    }
+    include_none_sentiment = (
+        "none" in window.sentiment_filter_checkboxes
+        and window.sentiment_filter_checkboxes["none"].mode() == QuadStateSlider.MODE_TRUE
+    )
+    exclude_none_sentiment = (
+        "none" in window.sentiment_filter_checkboxes
+        and window.sentiment_filter_checkboxes["none"].mode() == QuadStateSlider.MODE_FALSE
+    )
+    selected_relationship_types = {
+        name
+        for name, checkbox in window.relationship_filter_checkboxes.items()
+        if checkbox.mode() == QuadStateSlider.MODE_TRUE and name != "none"
+    }
+    excluded_relationship_types = {
+        name
+        for name, checkbox in window.relationship_filter_checkboxes.items()
+        if checkbox.mode() == QuadStateSlider.MODE_FALSE and name != "none"
+    }
+    include_none_relationship = (
+        "none" in window.relationship_filter_checkboxes
+        and window.relationship_filter_checkboxes["none"].mode() == QuadStateSlider.MODE_TRUE
+    )
+    exclude_none_relationship = (
+        "none" in window.relationship_filter_checkboxes
+        and window.relationship_filter_checkboxes["none"].mode()
+        == QuadStateSlider.MODE_FALSE
+    )
+    selected_genders = {
+        name
+        for name, checkbox in window.gender_filter_checkboxes.items()
+        if checkbox.mode() == QuadStateSlider.MODE_TRUE and name != "none"
+    }
+    excluded_genders = {
+        name
+        for name, checkbox in window.gender_filter_checkboxes.items()
+        if checkbox.mode() == QuadStateSlider.MODE_FALSE and name != "none"
+    }
+    include_none_gender = (
+        "none" in window.gender_filter_checkboxes
+        and window.gender_filter_checkboxes["none"].mode() == QuadStateSlider.MODE_TRUE
+    )
+    exclude_none_gender = (
+        "none" in window.gender_filter_checkboxes
+        and window.gender_filter_checkboxes["none"].mode() == QuadStateSlider.MODE_FALSE
+    )
+    selected_guessed_gender = str(window.gender_guessed_filter_combo.currentData() or "")
+    selected_chart_types = {
+        source
+        for source, checkbox in window.chart_type_filter_checkboxes.items()
+        if checkbox.mode() == QuadStateSlider.MODE_TRUE
+    }
+    excluded_chart_types = {
+        source
+        for source, checkbox in window.chart_type_filter_checkboxes.items()
+        if checkbox.mode() == QuadStateSlider.MODE_FALSE
+    }
+    selected_data_ratings = {
+        grade
+        for grade, checkbox in window.data_rating_filter_checkboxes.items()
+        if checkbox.mode() == QuadStateSlider.MODE_TRUE
+    }
+    excluded_data_ratings = {
+        grade
+        for grade, checkbox in window.data_rating_filter_checkboxes.items()
+        if checkbox.mode() == QuadStateSlider.MODE_FALSE
+    }
+    selected_generations = {
+        name
+        for name, checkbox in window.generation_filter_checkboxes.items()
+        if checkbox.mode() == QuadStateSlider.MODE_TRUE
+    }
+    excluded_generations = {
+        name
+        for name, checkbox in window.generation_filter_checkboxes.items()
+        if checkbox.mode() == QuadStateSlider.MODE_FALSE
+    }
+    birthdate_earliest_month = window._parse_integer_filter_text(
+        window._birthdate_earliest_month_input.text()
+        if window._birthdate_earliest_month_input is not None
+        else ""
+    )
+    birthdate_earliest_day = window._parse_integer_filter_text(
+        window._birthdate_earliest_day_input.text()
+        if window._birthdate_earliest_day_input is not None
+        else ""
+    )
+    birthdate_earliest_year = window._parse_integer_filter_text(
+        window._birthdate_earliest_year_input.text()
+        if window._birthdate_earliest_year_input is not None
+        else ""
+    )
+    birthdate_latest_month = window._parse_integer_filter_text(
+        window._birthdate_latest_month_input.text()
+        if window._birthdate_latest_month_input is not None
+        else ""
+    )
+    birthdate_latest_day = window._parse_integer_filter_text(
+        window._birthdate_latest_day_input.text()
+        if window._birthdate_latest_day_input is not None
+        else ""
+    )
+    birthdate_latest_year = window._parse_integer_filter_text(
+        window._birthdate_latest_year_input.text()
+        if window._birthdate_latest_year_input is not None
+        else ""
+    )
+    selected_search_tags, optional_search_tags, excluded_search_tags = collect_search_tag_filter_sets(window)
+    (
+        required_present_search_traits,
+        excluded_present_search_traits,
+        required_absent_search_traits,
+        excluded_absent_search_traits,
+    ) = collect_search_trait_filter_sets(window)
+    selected_enneagram_types = {
+        int(enneagram_type)
+        for enneagram_type, checkbox in getattr(window, "enneagram_type_filter_checkboxes", {}).items()
+        if checkbox.mode() == QuadStateSlider.MODE_TRUE
+    }
+    excluded_enneagram_types = {
+        int(enneagram_type)
+        for enneagram_type, checkbox in getattr(window, "enneagram_type_filter_checkboxes", {}).items()
+        if checkbox.mode() == QuadStateSlider.MODE_FALSE
+    }
+    search_untagged_mode = (
+        window.search_untagged_checkbox.mode()
+        if hasattr(window, "search_untagged_checkbox")
+        and window.search_untagged_checkbox is not None
+        else QuadStateSlider.MODE_EMPTY
+    )
+
+    active_body_filters = [
+        filters
+        for filters in window._search_body_filters
+        if str(filters["sign"].currentData()) != "Any"
+        or str(filters["house"].currentData()) != "Any"
+    ]
+    active_aspect_filters = [
+        filters
+        for filters in window._aspect_filters
+        if str(filters["planet_1"].currentData()) != "Any"
+        or str(filters["aspect"].currentData()) != "Any"
+        or str(filters["planet_2"].currentData()) != "Any"
+    ]
+    active_dominant_sign_filters = [
+        filters
+        for filters in window._dominant_sign_filters
+        if str(filters["sign"].currentData()) != "Any"
+    ]
+    active_subordinate_sign_filters = [
+        filters
+        for filters in getattr(window, "_subordinate_sign_filters", [])
+        if str(filters["sign"].currentData()) != "Any"
+    ]
+    active_dominant_planet_filters = [
+        filters
+        for filters in window._dominant_planet_filters
+        if str(filters["planet"].currentData()) != "Any"
+    ]
+    active_subordinate_planet_filters = [
+        filters
+        for filters in getattr(window, "_subordinate_planet_filters", [])
+        if str(filters["planet"].currentData()) != "Any"
+    ]
+    active_body_dynamics_filter_rows = active_body_dynamics_filters(window)
+    selected_isolated_dominant_body = (
+        str(window._isolated_dominant_body_filter_combo.currentData())
+        if window._isolated_dominant_body_filter_combo is not None
+        else "Any"
+    )
+    selected_isolated_dominant_sign = (
+        str(window._isolated_dominant_sign_filter_combo.currentData())
+        if window._isolated_dominant_sign_filter_combo is not None
+        else "Any"
+    )
+    active_dominant_mode_filters = [
+        filters
+        for filters in window._dominant_mode_filters
+        if filters["mode"].currentData() != "Any"
+    ]
+    selected_decan_sign = (
+        str(window._decan_sign_filter_combo.currentData())
+        if window._decan_sign_filter_combo is not None
+        else "Any"
+    )
+    selected_decan_number = (
+        str(window._decan_number_filter_combo.currentData())
+        if window._decan_number_filter_combo is not None
+        else "Any"
+    )
+    active_dominant_nakshatra_filters = [
+        filters
+        for filters in window._dominant_nakshatra_filters
+        if str(filters["nakshatra"].currentData()) != "Any"
+    ]
+    active_subordinate_nakshatra_filters = [
+        filters
+        for filters in getattr(window, "_subordinate_nakshatra_filters", [])
+        if str(filters["nakshatra"].currentData()) != "Any"
+    ]
+    active_dominant_element_filters = [
+        filters
+        for filters in window._dominant_element_filters
+        if str(filters["element"].currentData()) != "Any"
+    ]
+    year_first_encountered_earliest = (
+        window._year_first_encountered_earliest_input.text().strip()
+        if window._year_first_encountered_earliest_input is not None
+        else ""
+    )
+    year_first_encountered_latest = (
+        window._year_first_encountered_latest_input.text().strip()
+        if window._year_first_encountered_latest_input is not None
+        else ""
+    )
+    year_first_encountered_blank_state = (
+        window._year_first_encountered_blank_checkbox.mode()
+        if window._year_first_encountered_blank_checkbox is not None
+        else QuadStateSlider.MODE_EMPTY
+    )
+    guessed_gender_filter = str(window.gender_guessed_filter_combo.currentData() or "")
+    positive_sentiment_intensity_min = window._parse_integer_filter_text(
+        window._positive_sentiment_intensity_min_input.text()
+        if window._positive_sentiment_intensity_min_input is not None
+        else ""
+    )
+    positive_sentiment_intensity_max = window._parse_integer_filter_text(
+        window._positive_sentiment_intensity_max_input.text()
+        if window._positive_sentiment_intensity_max_input is not None
+        else ""
+    )
+    negative_sentiment_intensity_min = window._parse_integer_filter_text(
+        window._negative_sentiment_intensity_min_input.text()
+        if window._negative_sentiment_intensity_min_input is not None
+        else ""
+    )
+    negative_sentiment_intensity_max = window._parse_integer_filter_text(
+        window._negative_sentiment_intensity_max_input.text()
+        if window._negative_sentiment_intensity_max_input is not None
+        else ""
+    )
+    familiarity_min = window._parse_integer_filter_text(
+        window._familiarity_min_input.text()
+        if window._familiarity_min_input is not None
+        else ""
+    )
+    familiarity_max = window._parse_integer_filter_text(
+        window._familiarity_max_input.text()
+        if window._familiarity_max_input is not None
+        else ""
+    )
+    alignment_score_min = window._parse_signed_integer_filter_text(
+        window._alignment_score_min_input.text()
+        if window._alignment_score_min_input is not None
+        else ""
+    )
+    alignment_score_max = window._parse_signed_integer_filter_text(
+        window._alignment_score_max_input.text()
+        if window._alignment_score_max_input is not None
+        else ""
+    )
+    include_blank_alignment = bool(
+        window._alignment_score_blank_checkbox is not None
+        and window._alignment_score_blank_checkbox.isChecked()
+    )
+    matched_expectations_min = window._parse_signed_integer_filter_text(
+        window._matched_expectations_min_input.text()
+        if window._matched_expectations_min_input is not None
+        else ""
+    )
+    matched_expectations_max = window._parse_signed_integer_filter_text(
+        window._matched_expectations_max_input.text()
+        if window._matched_expectations_max_input is not None
+        else ""
+    )
+    include_blank_matched_expectations = bool(
+        window._matched_expectations_blank_checkbox is not None
+        and window._matched_expectations_blank_checkbox.isChecked()
+    )
+    notes_comments_mode = (
+        window._notes_comments_filter_checkbox.mode()
+        if window._notes_comments_filter_checkbox is not None
+        else QuadStateSlider.MODE_EMPTY
+    )
+    notes_comments_text = (
+        window._notes_comments_filter_input.text().strip()
+        if window._notes_comments_filter_input is not None
+        else ""
+    )
+    notes_bio_mode = (
+        window._notes_bio_filter_checkbox.mode()
+        if window._notes_bio_filter_checkbox is not None
+        else QuadStateSlider.MODE_EMPTY
+    )
+    notes_bio_text = (
+        window._notes_bio_filter_input.text().strip()
+        if window._notes_bio_filter_input is not None
+        else ""
+    )
+    notes_quotes_mode = (
+        window._notes_quotes_filter_checkbox.mode()
+        if window._notes_quotes_filter_checkbox is not None
+        else QuadStateSlider.MODE_EMPTY
+    )
+    notes_quotes_text = (
+        window._notes_quotes_filter_input.text().strip()
+        if window._notes_quotes_filter_input is not None
+        else ""
+    )
+    notes_rectification_mode = (
+        window._notes_rectification_filter_checkbox.mode()
+        if window._notes_rectification_filter_checkbox is not None
+        else QuadStateSlider.MODE_EMPTY
+    )
+    notes_rectification_text = (
+        window._notes_rectification_filter_input.text().strip()
+        if window._notes_rectification_filter_input is not None
+        else ""
+    )
+    notes_source_mode = (
+        window._notes_source_filter_checkbox.mode()
+        if window._notes_source_filter_checkbox is not None
+        else QuadStateSlider.MODE_EMPTY
+    )
+    notes_source_text = (
+        window._notes_source_filter_input.text().strip()
+        if window._notes_source_filter_input is not None
+        else ""
+    )
+    notes_comments_active = (
+        notes_comments_mode != QuadStateSlider.MODE_EMPTY and bool(notes_comments_text)
+    )
+    notes_bio_active = (
+        notes_bio_mode != QuadStateSlider.MODE_EMPTY and bool(notes_bio_text)
+    )
+    notes_quotes_active = (
+        notes_quotes_mode != QuadStateSlider.MODE_EMPTY and bool(notes_quotes_text)
+    )
+    notes_rectification_active = (
+        notes_rectification_mode != QuadStateSlider.MODE_EMPTY and bool(notes_rectification_text)
+    )
+    notes_source_active = (
+        notes_source_mode != QuadStateSlider.MODE_EMPTY and bool(notes_source_text)
+    )
+    selected_human_design_channels = {
+        str(combo.currentData())
+        for combo in window._human_design_channel_filters
+        if str(combo.currentData()) != "Any"
+    }
+    selected_human_design_gates = {
+        (
+            int(filters["gate"].currentData()) if str(filters["gate"].currentData()) != "Any" else "Any",
+            int(filters["line"].currentData()) if str(filters["line"].currentData()) != "Any" else "Any",
+        )
+        for filters in getattr(window, "_human_design_gate_line_filters", [])
+        if str(filters["gate"].currentData()) != "Any"
+        or str(filters["line"].currentData()) != "Any"
+    }
+    selected_human_design_type = (
+        str(window._human_design_type_filter_combo.currentData())
+        if window._human_design_type_filter_combo is not None
+        else "Any"
+    )
+    selected_human_design_profile = (
+        str(window._human_design_profile_filter_combo.currentData())
+        if window._human_design_profile_filter_combo is not None
+        else "Any"
+    )
+    selected_human_design_defined_centers = {
+        str(combo.currentData())
+        for combo in window._human_design_defined_center_filters
+        if str(combo.currentData()) != "Any"
+    }
+    dnd_stat_ranges_active = any(
+        (
+            window._parse_integer_filter_text(min_input.text()) is not None
+            or window._parse_integer_filter_text(
+                window._dnd_stat_filter_max_inputs.get(stat_key).text()
+                if stat_key in window._dnd_stat_filter_max_inputs
+                else ""
+            )
+            is not None
+        )
+        for stat_key, min_input in window._dnd_stat_filter_min_inputs.items()
+    )
+
+    return not (
+        not getattr(window, "_hide_hypothetical_charts", False)
+        and window.incomplete_birthdate_checkbox.mode() == QuadStateSlider.MODE_EMPTY
+        and (
+            not getattr(window, "_show_hidden_charts", False)
+            or not hasattr(window, "hidden_charts_checkbox")
+            or window.hidden_charts_checkbox.mode() == QuadStateSlider.MODE_EMPTY
+        )
+        and window.birthtime_unknown_checkbox.mode() == QuadStateSlider.MODE_EMPTY
+        and window.retconned_checkbox.mode() == QuadStateSlider.MODE_EMPTY
+        and (window.living_checkbox is None or window.living_checkbox.mode() == QuadStateSlider.MODE_EMPTY)
+        and not selected_sentiments
+        and not excluded_sentiments
+        and not include_none_sentiment
+        and not exclude_none_sentiment
+        and not selected_relationship_types
+        and not excluded_relationship_types
+        and not include_none_relationship
+        and not exclude_none_relationship
+        and not selected_genders
+        and not excluded_genders
+        and not include_none_gender
+        and not exclude_none_gender
+        and not active_body_filters
+        and not active_aspect_filters
+        and not active_dominant_sign_filters
+        and not active_subordinate_sign_filters
+        and not active_dominant_planet_filters
+        and not active_subordinate_planet_filters
+        and selected_isolated_dominant_body == "Any"
+        and selected_isolated_dominant_sign == "Any"
+        and selected_decan_sign == "Any"
+        and selected_decan_number == "Any"
+        and not active_body_dynamics_filter_rows
+        and not active_dominant_mode_filters
+        and not active_dominant_nakshatra_filters
+        and not active_subordinate_nakshatra_filters
+        and not active_dominant_element_filters
+        and not year_first_encountered_earliest
+        and not year_first_encountered_latest
+        and year_first_encountered_blank_state == QuadStateSlider.MODE_EMPTY
+        and not selected_chart_types
+        and not excluded_chart_types
+        and not selected_data_ratings
+        and not excluded_data_ratings
+        and not selected_generations
+        and not excluded_generations
+        and birthdate_earliest_month is None
+        and birthdate_earliest_day is None
+        and birthdate_earliest_year is None
+        and birthdate_latest_month is None
+        and birthdate_latest_day is None
+        and birthdate_latest_year is None
+        and window.species_filter_combo.currentData() == "Any"
+        and (
+            not hasattr(window, "subspecies_filter_combo")
+            or window.subspecies_filter_combo.currentData() == "Any"
+        )
+        and (
+            not hasattr(window, "dnd_class_filter_combo")
+            or window.dnd_class_filter_combo.currentData() == "Any"
+        )
+        and not dnd_stat_ranges_active
+        and not guessed_gender_filter
+        and positive_sentiment_intensity_min is None
+        and positive_sentiment_intensity_max is None
+        and negative_sentiment_intensity_min is None
+        and negative_sentiment_intensity_max is None
+        and familiarity_min is None
+        and familiarity_max is None
+        and alignment_score_min is None
+        and alignment_score_max is None
+        and not include_blank_alignment
+        and matched_expectations_min is None
+        and matched_expectations_max is None
+        and not (
+            include_blank_matched_expectations
+            and (
+                matched_expectations_min is not None
+                or matched_expectations_max is not None
+            )
+        )
+        and not notes_comments_active
+        and not notes_bio_active
+        and not notes_quotes_active
+        and not notes_rectification_active
+        and not notes_source_active
+        and not selected_human_design_channels
+        and not selected_human_design_gates
+        and selected_human_design_type == "Any"
+        and selected_human_design_profile == "Any"
+        and not selected_human_design_defined_centers
+        and not database_search_text_is_active(window.search_text_input.text())
+        and (
+            window._search_location_country_input is None
+            or not window._search_location_country_input.text().strip()
+        )
+        and (
+            window._search_location_city_input is None
+            or not window._search_location_city_input.text().strip()
+        )
+        and (
+            window._search_location_state_input is None
+            or not window._search_location_state_input.text().strip()
+        )
+        and (
+            not hasattr(window, "search_tags_input")
+            or not window.search_tags_input.text().strip()
+        )
+        and (
+            not hasattr(window, "search_untagged_checkbox")
+            or search_untagged_mode == QuadStateSlider.MODE_EMPTY
+        )
+        and not selected_search_tags
+        and not optional_search_tags
+        and not excluded_search_tags
+        and not required_present_search_traits
+        and not excluded_present_search_traits
+        and not required_absent_search_traits
+        and not excluded_absent_search_traits
+        and not selected_enneagram_types
+        and not excluded_enneagram_types
+    )
+
+
 def has_active_search_tag_filters(window) -> bool:
     """Return whether any Database View tag-search filter is active."""
     from ephemeraldaddy.gui.widgets.quad_state import QuadStateSlider
