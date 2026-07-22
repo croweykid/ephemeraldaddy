@@ -759,6 +759,7 @@ from ephemeraldaddy.core.db import (
     update_chart_dominant_sign_weights,
     update_chart_weirdness_score,
     set_current_chart,
+    set_current_chart_by_uid,
     parse_relationship_types,
     add_tag_to_charts,
     backup_database,
@@ -7441,8 +7442,33 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                 continue
         return chart_ids
 
+    def _selected_chart_uids(
+        self,
+        selected_items: list[QListWidgetItem] | None = None,
+    ) -> list[str]:
+        if selected_items is None:
+            self._reconcile_persistent_selection_with_database()
+            chart_uid_map = get_chart_uid_map(getattr(self, "_selected_chart_id_order", []))
+            return [
+                str(chart_uid_map[chart_id]).strip().upper()
+                for chart_id in getattr(self, "_selected_chart_id_order", [])
+                if chart_uid_map.get(chart_id)
+            ]
+        chart_uids: list[str] = []
+        seen: set[str] = set()
+        for item in selected_items:
+            raw_chart_uid = item.data(Qt.UserRole + 2)
+            chart_uid = str(raw_chart_uid or "").strip().upper()
+            if chart_uid and chart_uid not in seen:
+                seen.add(chart_uid)
+                chart_uids.append(chart_uid)
+        return chart_uids
+
     def _visible_selected_chart_ids(self) -> list[int]:
         return self._selected_chart_ids(self.list_widget.selectedItems()) if self.list_widget is not None else []
+
+    def _visible_selected_chart_uids(self) -> list[str]:
+        return self._selected_chart_uids(self.list_widget.selectedItems()) if self.list_widget is not None else []
 
     def _all_visible_chart_ids(self) -> list[int]:
         if self.list_widget is None:
@@ -21410,9 +21436,39 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                 exc,
             )
 
+    def _get_chart_for_filter_by_uid(self, chart_uid: str | None):
+        normalized_uid = self._normalized_chart_uid_key(chart_uid)
+        if not normalized_uid:
+            return None
+        for cached_chart in self._chart_cache.values():
+            if self._normalized_chart_uid_key(getattr(cached_chart, "chart_uid", None)) == normalized_uid:
+                return cached_chart
+        try:
+            chart = load_chart_by_uid(normalized_uid)
+        except Exception as exc:
+            debug_id = _new_debug_action_id("chart_cache_load_uid")
+            logger.exception(
+                "Chart load failed for filter cache (id=%s chart_uid=%s): %s",
+                debug_id,
+                normalized_uid,
+                exc,
+            )
+            chart = None
+        if chart is not None:
+            try:
+                self._chart_cache[int(getattr(chart, "id"))] = chart
+            except (TypeError, ValueError):
+                pass
+        return chart
+
     def _get_chart_for_filter(self, chart_id: int):
         if chart_id in self._chart_cache:
             return self._chart_cache[chart_id]
+        chart_uid = get_chart_uid(int(chart_id))
+        if chart_uid:
+            chart = self._get_chart_for_filter_by_uid(chart_uid)
+            self._chart_cache[chart_id] = chart
+            return chart
         try:
             chart = load_chart(chart_id)
         except Exception as exc:
@@ -35306,7 +35362,7 @@ class MainWindow(QMainWindow):
             )
             return False
 
-        set_current_chart(chart_id)
+        set_current_chart_by_uid(normalized_chart_uid)
         self._pending_render_chart = None
         self._similar_charts_request_id = None
         self._chart_render_queue_state.clear()

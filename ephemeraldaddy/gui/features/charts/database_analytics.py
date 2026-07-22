@@ -18,7 +18,7 @@ import textwrap
 import time
 import warnings
 from collections import Counter
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence
 
 from matplotlib import font_manager as mpl_font_manager
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
@@ -1148,13 +1148,22 @@ class DatabaseAnalyticsChartsMixin:
         return chart_name or f"Chart {int(chart_id)}"
 
     def _analysis_matching_chart_names(self, chart_key: str, label: str) -> str:
-        selected_ids = self._exclude_placeholder_chart_ids(self._selected_chart_ids())
-        if not selected_ids:
+        selected_uid_method = getattr(self, "_selected_chart_uids", None)
+        get_chart_by_uid = getattr(self, "_get_chart_for_filter_by_uid", None)
+        selected_uids = list(selected_uid_method() or []) if callable(selected_uid_method) else []
+        selected_ids: list[int] = []
+        if not selected_uids:
+            selected_ids = self._exclude_placeholder_chart_ids(self._selected_chart_ids())
+        if not selected_uids and not selected_ids:
             return ""
         matching_names: list[str] = []
         label_text = str(label).strip()
-        for chart_id in selected_ids:
-            chart = self._get_chart_for_filter(int(chart_id))
+        chart_keys: Iterable[str | int] = selected_uids or selected_ids
+        for chart_key_value in chart_keys:
+            if selected_uids and callable(get_chart_by_uid):
+                chart = get_chart_by_uid(str(chart_key_value))
+            else:
+                chart = self._get_chart_for_filter(int(chart_key_value))
             if chart is None:
                 continue
             include = False
@@ -1626,6 +1635,15 @@ class DatabaseAnalyticsChartsMixin:
 
     def _database_analytics_single_selected_chart(self) -> Any | None:
         """Return the one selected chart, or None when Database Analytics is aggregating."""
+        selected_uids_method = getattr(self, "_selected_chart_uids", None)
+        get_chart_by_uid = getattr(self, "_get_chart_for_filter_by_uid", None)
+        if callable(selected_uids_method) and callable(get_chart_by_uid):
+            selected_uids = list(selected_uids_method() or [])
+            if len(selected_uids) == 1:
+                return get_chart_by_uid(str(selected_uids[0]))
+            if selected_uids:
+                return None
+
         selected_ids_method = getattr(self, "_selected_chart_ids", None)
         exclude_method = getattr(self, "_exclude_placeholder_chart_ids", None)
         get_chart = getattr(self, "_get_chart_for_filter", None)
