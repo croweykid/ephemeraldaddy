@@ -166,13 +166,32 @@ def parse_year_first_encountered_text(raw_value: str | None) -> int | None:
     return None
 
 
+def _dnd_prediction_adapter_for_window(window):
+    """Return the Fantasy RPG prediction adapter factory from DBV or its owner."""
+    adapter_factory = getattr(window, "_dnd_prediction_adapter", None)
+    if callable(adapter_factory):
+        return adapter_factory()
+
+    owner_window = getattr(window, "_owner_window", None)
+    owner = owner_window() if callable(owner_window) else getattr(window, "_app_owner", None)
+    if owner is not None and owner is not window:
+        adapter_factory = getattr(owner, "_dnd_prediction_adapter", None)
+        if callable(adapter_factory):
+            return adapter_factory()
+
+    return None
+
+
 def dnd_species_class_payload_for_chart(window, chart) -> dict[str, object]:
     """Return the appwide Fantasy RPG species/class cache for a chart."""
     import logging
 
     logger = logging.getLogger(__name__)
     try:
-        return window._dnd_prediction_adapter().cache_species_class_metadata(chart)
+        adapter = _dnd_prediction_adapter_for_window(window)
+        if adapter is None:
+            raise AttributeError("_dnd_prediction_adapter")
+        return adapter.cache_species_class_metadata(chart)
     except Exception:
         logger.exception(
             "Failed to refresh Fantasy RPG species/class cache for chart UID %s.",
