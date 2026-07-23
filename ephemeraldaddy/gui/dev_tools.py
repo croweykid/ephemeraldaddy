@@ -1145,7 +1145,7 @@ TAG_CATEGORY_OPTIONS: tuple[tuple[str, str], ...] = (
     ("Occupation", "occupation"),
     ("🧬 Trait", "trait"),
     ("Reputation", "reputation"),
-    ("Affiliation/Subculture", "affiliation"),
+    ("Affiliation", "affiliation"),
     ("Crime", "crime"),
     ("Life Events","life_events"),
     ("Characters Played", "character"),

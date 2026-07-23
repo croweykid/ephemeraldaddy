@@ -347,7 +347,7 @@ def _tag_category_display_name(prefix: str) -> str:
         "occupation": "Occupation",
         "trait": "Trait",
         "reputation": "Reputation",
-        "affiliation": "Affiliation/Subculture",
+        "affiliation": "Affiliation",
         "crime": "Crime",
         "life_events": "Life Events",
         "character": "Characters Played",
