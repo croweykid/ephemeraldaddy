@@ -97,8 +97,8 @@ def test_dnd_prediction_visibility_splits_statblock_species_and_alignment_work()
     assert 'if render_species_class:\n            self._render_species_and_class_summaries(chart)' in dnd_source
     assert 'if render_alignment and self.alignment_layout is not None:' in dnd_source
 
-def test_predictions_settings_legacy_radio_placeholders_do_not_parent_to_dialog():
-    assert '"default_radio": QRadioButton(dialog)' not in DEV_TOOLS_SOURCE
-    assert '"custom_radio": QRadioButton(dialog)' not in DEV_TOOLS_SOURCE
-    assert 'legacy_default_radio = QRadioButton()' in DEV_TOOLS_SOURCE
-    assert 'legacy_custom_radio = QRadioButton()' in DEV_TOOLS_SOURCE
+def test_predictions_settings_removes_obsolete_legacy_radio_placeholders():
+    assert '"default_radio"' not in DEV_TOOLS_SOURCE.split('def build_predictions_settings_section', 1)[1]
+    assert '"custom_radio"' not in DEV_TOOLS_SOURCE.split('def build_predictions_settings_section', 1)[1]
+    assert '_enneagram_predictor_default_radio' not in APP_SOURCE
+    assert '_enneagram_predictor_custom_radio' not in APP_SOURCE
