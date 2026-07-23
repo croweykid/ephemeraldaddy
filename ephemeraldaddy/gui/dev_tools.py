@@ -1743,6 +1743,12 @@ QComboBox QAbstractItemView {
             node_base_labels: dict[str, str] = {}
             node_counts: dict[str, int] = {}
             node_chart_counts: dict[str, int] = {}
+            parent_node_path_keys: set[str] = set()
+            for row in rows:
+                label = str(row.get("label", "")).strip()
+                parts = [part.strip() for part in label.split(".") if part.strip()]
+                for depth in range(max(len(parts) - 1, 0)):
+                    parent_node_path_keys.add(".".join(parts[: depth + 1]).casefold())
             uncategorized_items: list[QTreeWidgetItem] = []
 
             def node_label_for_path(path: str, part: str, depth: int) -> str:
@@ -1788,11 +1794,15 @@ QComboBox QAbstractItemView {
                 red, green, blue = similarity_gradient_rgb_for_range(count, minimum_count, maximum_count)
                 item.setForeground(0, QColor(red, green, blue))
                 if len(parts) >= 2:
+                    exact_path_key = ".".join(parts).casefold()
                     parent_parts = parts[:-1]
                     for depth in range(len(parent_parts)):
                         path_key = ".".join(parent_parts[: depth + 1]).casefold()
                         node_counts[path_key] = node_counts.get(path_key, 0) + 1
                         node_chart_counts[path_key] = node_chart_counts.get(path_key, 0) + count
+                    if exact_path_key in parent_node_path_keys:
+                        node_counts[exact_path_key] = node_counts.get(exact_path_key, 0) + 1
+                        node_chart_counts[exact_path_key] = node_chart_counts.get(exact_path_key, 0) + count
                     ensure_node(parent_parts, len(parent_parts) - 1).addChild(item)
                 else:
                     uncategorized_items.append(item)
