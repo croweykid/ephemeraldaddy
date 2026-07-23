@@ -1437,28 +1437,28 @@ class ManageMetadataLabelsDialog(QDialog):
         self._field_selector.currentIndexChanged.connect(self._sync_field_button_selection)
         self._field_selector.setVisible(False)
 
-        self._field_button_group = QButtonGroup(self)
-        self._field_button_group.setExclusive(True)
-        field_button_row = QHBoxLayout()
-        field_button_row.setContentsMargins(0, 0, 0, 0)
-        field_button_row.setSpacing(6)
-        field_button_style = (
-            "QPushButton { padding: 3px 10px; min-height: 24px; font-weight: 700; }"
-            "QPushButton:checked { color: "
-            + DATABASE_VIEW_HEADER_COLOR
-            + "; border: 1px solid "
-            + DATABASE_VIEW_HEADER_COLOR
-            + "; }"
-        )
-        for index, (label, _field_value) in enumerate(field_options):
-            button = QPushButton(label, self)
-            button.setCheckable(True)
-            button.setStyleSheet(field_button_style)
-            self._field_button_group.addButton(button, index)
-            field_button_row.addWidget(button)
-        field_button_row.addStretch(1)
-        self._field_button_group.idClicked.connect(self._field_selector.setCurrentIndex)
         if not lock_field:
+            self._field_button_group = QButtonGroup(self)
+            self._field_button_group.setExclusive(True)
+            field_button_row = QHBoxLayout()
+            field_button_row.setContentsMargins(0, 0, 0, 0)
+            field_button_row.setSpacing(6)
+            field_button_style = (
+                "QPushButton { padding: 3px 10px; min-height: 24px; font-weight: 700; }"
+                "QPushButton:checked { color: "
+                + DATABASE_VIEW_HEADER_COLOR
+                + "; border: 1px solid "
+                + DATABASE_VIEW_HEADER_COLOR
+                + "; }"
+            )
+            for index, (label, _field_value) in enumerate(field_options):
+                button = QPushButton(label, self)
+                button.setCheckable(True)
+                button.setStyleSheet(field_button_style)
+                self._field_button_group.addButton(button, index)
+                field_button_row.addWidget(button)
+            field_button_row.addStretch(1)
+            self._field_button_group.idClicked.connect(self._field_selector.setCurrentIndex)
             layout.addLayout(field_button_row)
 
         header_row = QHBoxLayout()
