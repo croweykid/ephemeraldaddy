@@ -14627,6 +14627,9 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             self._update_batch_tag_state()
             self._batch_tagging_debug_log("phase2b_batch_tag_state_updated")
             self._refresh_tag_distribution_after_batch_tag_update(changed_ids)
+            coordinator = getattr(self, "_property_manager_coordinator", None)
+            if coordinator is not None:
+                coordinator.refresh_open_widgets()
             if self._has_active_search_tag_filters():
                 self._refresh_filters_after_batch_edit(
                     changed_ids,

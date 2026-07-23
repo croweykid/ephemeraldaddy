@@ -2,6 +2,7 @@ from __future__ import annotations
 
 # LEGACY CHART ID WARNING: any chart_id reference in this file is transitional compatibility only; new code must use chart_uid/Chart UID and must not introduce new chart ID reliance.
 
+import weakref
 from typing import Any
 
 from PySide6.QtCore import Qt, QTimer
@@ -28,6 +29,7 @@ class PropertyManagerCoordinator:
     def __init__(self, host: Any) -> None:
         self._host = host
         self._needs_refresh_after_close = False
+        self._open_widgets: list[weakref.ReferenceType[ManageMetadataLabelsDialog]] = []
 
     def _mark_needs_refresh_after_close(self) -> None:
         self._needs_refresh_after_close = True
@@ -79,7 +81,23 @@ class PropertyManagerCoordinator:
         if embedded:
             dialog.setWindowModality(Qt.NonModal)
             dialog.setSizeGripEnabled(False)
+        self._track_widget(dialog)
         return dialog
+
+    def _track_widget(self, dialog: ManageMetadataLabelsDialog) -> None:
+        self._open_widgets = [ref for ref in self._open_widgets if ref() is not None]
+        self._open_widgets.append(weakref.ref(dialog))
+
+    def refresh_open_widgets(self) -> None:
+        live_refs: list[weakref.ReferenceType[ManageMetadataLabelsDialog]] = []
+        for dialog_ref in self._open_widgets:
+            dialog = dialog_ref()
+            if dialog is None:
+                continue
+            live_refs.append(dialog_ref)
+            if dialog.isVisible():
+                dialog.refresh_usage()
+        self._open_widgets = live_refs
 
     def launch(
         self,

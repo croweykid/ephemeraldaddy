@@ -39,7 +39,6 @@ from PySide6.QtWidgets import (
 from ephemeraldaddy.gui.settings_widgets import SettingsHelpLabel
 from ephemeraldaddy.gui.tooltips import TooltipHelpLabel
 from ephemeraldaddy.gui.style import (
-    DEFAULT_DROPDOWN_STYLE,
     apply_shared_dropdown_style,
     DATABASE_VIEW_HEADER_COLOR,
     CHART_DATA_HIGHLIGHT_COLOR,
@@ -1406,7 +1405,7 @@ class ManageMetadataLabelsDialog(QDialog):
     ) -> None:
         super().__init__(parent, window_flags)
         self.setWindowTitle(window_title)
-        self.resize(860, 520)
+        self.resize(860, 620)
         self._load_usage = load_usage
         self._apply_change = apply_change
         self._load_chart_names = load_chart_names
@@ -1423,52 +1422,62 @@ class ManageMetadataLabelsDialog(QDialog):
         layout = QVBoxLayout(self)
 
         self._field_selector = QComboBox(self)
-        self._field_selector.addItem("TAGS", self.FIELD_TAGS)
-        self._field_selector.addItem("COLLECTIONS", self.FIELD_COLLECTIONS)
-        self._field_selector.addItem("RELATIONSHIPS", self.FIELD_RELATIONSHIPS)
-        self._field_selector.addItem("SENTIMENTS", self.FIELD_SENTIMENTS)
-        for index in range(self._field_selector.count()):
-            self._field_selector.setItemData(index, Qt.AlignCenter, Qt.TextAlignmentRole)
-        self._field_selector.currentIndexChanged.connect(self._refresh_list)
-        self._field_selector.setVisible(not lock_field)
-        apply_shared_dropdown_style(self._field_selector)
-        self._field_selector.setStyleSheet(
-            DEFAULT_DROPDOWN_STYLE
-            + """
-QComboBox {
-    min-height: 36px;
-    padding: 6px 8px;
-    text-align: center;
-    color: """
-            + DATABASE_VIEW_HEADER_COLOR
-            + """;
-    font-weight: 700;
-}
-QComboBox QAbstractItemView {
-    color: """
-            + DATABASE_VIEW_HEADER_COLOR
-            + """;
-    font-weight: 700;
-}
-"""
+        field_options = sorted(
+            [
+                ("Collections Manager", self.FIELD_COLLECTIONS),
+                ("Relationships Manager", self.FIELD_RELATIONSHIPS),
+                ("Sentiments Manager", self.FIELD_SENTIMENTS),
+                ("Tags Manager", self.FIELD_TAGS),
+            ],
+            key=lambda option: option[0].casefold(),
         )
-        layout.addWidget(self._field_selector)
+        for label, field_value in field_options:
+            self._field_selector.addItem(label, field_value)
+        self._field_selector.currentIndexChanged.connect(self._refresh_list)
+        self._field_selector.currentIndexChanged.connect(self._sync_field_button_selection)
+        self._field_selector.setVisible(False)
 
-        layout.addSpacing(8)
+        if not lock_field:
+            self._field_button_group = QButtonGroup(self)
+            self._field_button_group.setExclusive(True)
+            field_button_row = QHBoxLayout()
+            field_button_row.setContentsMargins(0, 0, 0, 0)
+            field_button_row.setSpacing(6)
+            field_button_style = (
+                "QPushButton { padding: 3px 10px; min-height: 24px; font-weight: 700; }"
+                "QPushButton:checked { color: "
+                + DATABASE_VIEW_HEADER_COLOR
+                + "; border: 1px solid "
+                + DATABASE_VIEW_HEADER_COLOR
+                + "; }"
+            )
+            for index, (label, _field_value) in enumerate(field_options):
+                button = QPushButton(label, self)
+                button.setCheckable(True)
+                button.setStyleSheet(field_button_style)
+                self._field_button_group.addButton(button, index)
+                field_button_row.addWidget(button)
+            field_button_row.addStretch(1)
+            self._field_button_group.idClicked.connect(self._field_selector.setCurrentIndex)
+            layout.addLayout(field_button_row)
+
+        header_row = QHBoxLayout()
+        header_row.setContentsMargins(0, 0, 0, 0)
         intro_label = QLabel(intro_text)
         intro_label.setStyleSheet("font-style: italic;")
-        layout.addWidget(intro_label)
-
-        sort_row = QHBoxLayout()
-        sort_row.addStretch(1)
-        sort_row.addWidget(QLabel("Sort:"))
+        header_row.addWidget(intro_label, 1)
+        header_row.addWidget(QLabel("Sort:"))
         self._sort_selector = QComboBox(self)
-        self._sort_selector.addItem("Frequency", self.SORT_FREQUENCY)
-        self._sort_selector.addItem("Alphabetical", self.SORT_ALPHABETICAL)
+        sort_options = sorted(
+            [("Alphabetical", self.SORT_ALPHABETICAL), ("Frequency", self.SORT_FREQUENCY)],
+            key=lambda option: option[0].casefold(),
+        )
+        for label, sort_value in sort_options:
+            self._sort_selector.addItem(label, sort_value)
         apply_shared_dropdown_style(self._sort_selector)
         self._sort_selector.currentIndexChanged.connect(self._refresh_list)
-        sort_row.addWidget(self._sort_selector)
-        layout.addLayout(sort_row)
+        header_row.addWidget(self._sort_selector)
+        layout.addLayout(header_row)
 
         split_layout = QHBoxLayout()
         self._unsorted_panel = QVBoxLayout()
@@ -1505,7 +1514,7 @@ QComboBox QAbstractItemView {
         self._chart_names_list.setSelectionMode(QAbstractItemView.NoSelection)
         right_panel.addWidget(self._chart_names_list, 1)
         split_layout.addLayout(right_panel, 1)
-        layout.addLayout(split_layout)
+        layout.addLayout(split_layout, 1)
 
         if initial_field in {
             self.FIELD_SENTIMENTS,
@@ -1516,6 +1525,7 @@ QComboBox QAbstractItemView {
             index = self._field_selector.findData(initial_field)
             if index >= 0:
                 self._field_selector.setCurrentIndex(index)
+        self._sync_field_button_selection()
 
         button_row = QHBoxLayout()
         self._rename_button = QPushButton("Rename")
@@ -1550,6 +1560,16 @@ QComboBox QAbstractItemView {
 
         # Defer loading so the dialog can render immediately before DB work runs.
         QTimer.singleShot(0, self._reload_usage)
+
+    def _sync_field_button_selection(self) -> None:
+        if not hasattr(self, "_field_button_group"):
+            return
+        active_button = self._field_button_group.button(self._field_selector.currentIndex())
+        if active_button is not None:
+            active_button.setChecked(True)
+
+    def refresh_usage(self) -> None:
+        self._reload_usage()
 
     def _load_tag_category_display_names(self) -> None:
         settings = getattr(self, "_settings", None)
