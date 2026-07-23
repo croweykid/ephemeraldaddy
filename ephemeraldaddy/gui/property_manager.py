@@ -14,6 +14,7 @@ from ephemeraldaddy.core.db import (
     parse_tags,
 )
 from ephemeraldaddy.gui.dev_tools import ManageMetadataLabelsDialog
+from ephemeraldaddy.gui.features.charts.tag_search import tag_matches_filter
 from ephemeraldaddy.gui.features.charts.collections import (
     DEFAULT_COLLECTION_OPTIONS,
     chart_belongs_to_collection,
@@ -173,7 +174,7 @@ class PropertyManagerCoordinator:
                     tag.casefold()
                     for tag in parse_tags(_values_to_csv(getattr(chart, "tags", [])))
                 }
-                if label.casefold() in tags:
+                if any(tag_matches_filter(tag, label) for tag in tags):
                     matches.append(chart_name)
             elif field == ManageMetadataLabelsDialog.FIELD_SENTIMENTS:
                 sentiments = set(
