@@ -49,6 +49,7 @@ from ephemeraldaddy.gui.features.charts.chart_data_output import (
     ChartDataTooltipOutput,
     apply_chart_data_highlighter,
 )
+from ephemeraldaddy.gui.style import chart_data_output_font
 from ephemeraldaddy.gui.features.charts.text_summary import (
     format_compact_transit_chart_text,
 )
@@ -238,9 +239,7 @@ class TransitPanelController:
 
         h.todays_transits_output = ChartDataTooltipOutput()
         h.todays_transits_output.setReadOnly(True)
-        output_font = h.todays_transits_output.font()
-        output_font.setPointSize(9)
-        h.todays_transits_output.setFont(output_font)
+        h.todays_transits_output.setFont(chart_data_output_font(h.todays_transits_output.font()))
         h.todays_transits_output.setTabStopDistance(6)
         apply_chart_data_highlighter(h.todays_transits_output)
         h.todays_transits_output.setPlaceholderText(

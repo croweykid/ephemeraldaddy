@@ -47,7 +47,7 @@ from ephemeraldaddy.gui.style import (
     RELATIVE_YEAR_COLORS,
     ARROW_STYLES,
     SEPARATOR_STYLE,
-    CHART_DATA_MONOSPACE_FONT_FAMILY,
+    chart_data_output_font,
 )
 
 
@@ -267,12 +267,7 @@ class ChartDataTableOutput(QPlainTextEdit):
         self.setLineWrapMode(QPlainTextEdit.NoWrap)
         self.setFrameShape(QFrame.NoFrame)
 
-        output_font = QFont(self.font())
-        output_font.setStyleHint(QFont.StyleHint.Monospace)
-        output_font.setFixedPitch(True)
-        if CHART_DATA_MONOSPACE_FONT_FAMILY:
-            output_font.setFamily(CHART_DATA_MONOSPACE_FONT_FAMILY)
-        self.setFont(output_font)
+        self.setFont(chart_data_output_font(self.font()))
 
         # Ensure every chart-data output panel gets the shared visual formatter by default.
         # This keeps in-view and popout chart-data styling aligned app-wide.
