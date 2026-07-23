@@ -1568,6 +1568,9 @@ class ManageMetadataLabelsDialog(QDialog):
         if active_button is not None:
             active_button.setChecked(True)
 
+    def refresh_usage(self) -> None:
+        self._reload_usage()
+
     def _load_tag_category_display_names(self) -> None:
         settings = getattr(self, "_settings", None)
         if settings is None:
