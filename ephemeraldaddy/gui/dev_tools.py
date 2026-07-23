@@ -2440,15 +2440,22 @@ def build_predictions_settings_section(
     dominance_row.addStretch(1)
     section_layout.addLayout(dominance_row)
 
+    # Legacy keys are kept so older app/controller paths that still look them up do
+    # not crash.  Keep the placeholder radios unparented so they never render as
+    # stray controls in the Settings window.
+    legacy_default_radio = QRadioButton()
+    legacy_custom_radio = QRadioButton()
+    legacy_default_radio.hide()
+    legacy_custom_radio.hide()
+
     return {
         "checkboxes": checkboxes,
         "manual_recalculation_checkbox": manual_recalculation_checkbox,
         "score_mode_combo": score_mode_combo,
         "scale_combo": scale_combo,
         "dominance_combo": dominance_combo,
-        # Legacy keys kept so older app/controller paths that still look them up do not crash.
-        "default_radio": QRadioButton(dialog),
-        "custom_radio": QRadioButton(dialog),
+        "default_radio": legacy_default_radio,
+        "custom_radio": legacy_custom_radio,
         "weight_spinboxes": {},
         "total_label": QLabel("disabled"),
     }
