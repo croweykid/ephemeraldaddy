@@ -1742,6 +1742,7 @@ QComboBox QAbstractItemView {
             node_by_path: dict[str, QTreeWidgetItem] = {}
             node_base_labels: dict[str, str] = {}
             node_counts: dict[str, int] = {}
+            node_chart_counts: dict[str, int] = {}
             uncategorized_items: list[QTreeWidgetItem] = []
 
             def node_label_for_path(path: str, part: str, depth: int) -> str:
@@ -1791,6 +1792,7 @@ QComboBox QAbstractItemView {
                     for depth in range(len(parent_parts)):
                         path_key = ".".join(parent_parts[: depth + 1]).casefold()
                         node_counts[path_key] = node_counts.get(path_key, 0) + 1
+                        node_chart_counts[path_key] = node_chart_counts.get(path_key, 0) + count
                     ensure_node(parent_parts, len(parent_parts) - 1).addChild(item)
                 else:
                     uncategorized_items.append(item)
@@ -1798,7 +1800,9 @@ QComboBox QAbstractItemView {
             for key, node in node_by_path.items():
                 base_label = node_base_labels.get(key, str(node.text(0)))
                 tag_count = node_counts.get(key, node.childCount())
-                node.setText(0, f"{base_label} ({tag_count} tags)")
+                chart_count = node_chart_counts.get(key, 0)
+                chart_word = "chart" if chart_count == 1 else "charts"
+                node.setText(0, f"{base_label} ({tag_count} tags, {chart_count} {chart_word})")
                 node.setExpanded(expanded_state.get(str(node.data(0, Qt.UserRole + 10) or ""), False))
             for item in uncategorized_items:
                 self._unsorted_list_widget.addTopLevelItem(item.clone())
@@ -1837,8 +1841,9 @@ QComboBox QAbstractItemView {
         for tree in self._selection_trees():
             for item in tree.selectedItems():
                 if item.childCount() > 0:
-                    continue
-                label = str(item.data(0, Qt.UserRole + 2) or item.data(0, Qt.UserRole) or "").strip()
+                    label = str(item.data(0, Qt.UserRole + 10) or "").strip()
+                else:
+                    label = str(item.data(0, Qt.UserRole + 2) or item.data(0, Qt.UserRole) or "").strip()
                 if label:
                     labels.append(label)
         return list(dict.fromkeys(labels))
@@ -1851,8 +1856,10 @@ QComboBox QAbstractItemView {
 
     def _selected_key(self) -> str:
         item = self._current_selection_item()
-        if item is None or item.childCount() > 0:
+        if item is None:
             return ""
+        if item.childCount() > 0:
+            return str(item.data(0, Qt.UserRole + 10) or "").strip()
         return str(item.data(0, Qt.UserRole + 1) or "").strip()
 
     def _assign_tags_to_category(self, category_prefix: str, labels: list[str]) -> None:
