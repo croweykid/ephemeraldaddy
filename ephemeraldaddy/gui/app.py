@@ -22208,8 +22208,6 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         self._prediction_score_mode_combo = enneagram_controls["score_mode_combo"]
         self._enneagram_predictor_scale_combo = enneagram_controls["scale_combo"]
         self._prediction_dominance_normalization_combo = enneagram_controls["dominance_combo"]
-        self._enneagram_predictor_default_radio = enneagram_controls["default_radio"]
-        self._enneagram_predictor_custom_radio = enneagram_controls["custom_radio"]
         self._enneagram_predictor_weight_spinboxes = enneagram_controls["weight_spinboxes"]
         self._enneagram_predictor_total_label = enneagram_controls["total_label"]
         self._load_enneagram_predictor_controls()

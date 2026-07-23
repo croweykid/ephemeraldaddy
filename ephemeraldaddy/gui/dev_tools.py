@@ -2466,9 +2466,6 @@ def build_predictions_settings_section(
         "score_mode_combo": score_mode_combo,
         "scale_combo": scale_combo,
         "dominance_combo": dominance_combo,
-        # Legacy keys kept so older app/controller paths that still look them up do not crash.
-        "default_radio": QRadioButton(dialog),
-        "custom_radio": QRadioButton(dialog),
         "weight_spinboxes": {},
         "total_label": QLabel("disabled"),
     }

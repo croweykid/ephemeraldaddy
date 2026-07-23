@@ -96,3 +96,9 @@ def test_dnd_prediction_visibility_splits_statblock_species_and_alignment_work()
     assert 'render_species_class = bool(visible_sections.intersection({"dnd_species", "dnd_class"}))' in dnd_source
     assert 'if render_species_class:\n            self._render_species_and_class_summaries(chart)' in dnd_source
     assert 'if render_alignment and self.alignment_layout is not None:' in dnd_source
+
+def test_predictions_settings_removes_obsolete_legacy_radio_placeholders():
+    assert '"default_radio"' not in DEV_TOOLS_SOURCE.split('def build_predictions_settings_section', 1)[1]
+    assert '"custom_radio"' not in DEV_TOOLS_SOURCE.split('def build_predictions_settings_section', 1)[1]
+    assert '_enneagram_predictor_default_radio' not in APP_SOURCE
+    assert '_enneagram_predictor_custom_radio' not in APP_SOURCE
