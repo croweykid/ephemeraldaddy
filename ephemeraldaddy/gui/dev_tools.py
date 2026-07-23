@@ -1414,6 +1414,7 @@ class ManageMetadataLabelsDialog(QDialog):
         self._settings = settings
         self._label_limit = max(1, label_limit)
         self._usage_data: dict[str, list[dict[str, int | str]]] = {}
+        self._refreshing_label_views = False
         self._tag_category_display_names: dict[str, str] = {
             prefix.casefold(): name for name, prefix in TAG_CATEGORY_OPTIONS
         }
@@ -1749,9 +1750,14 @@ class ManageMetadataLabelsDialog(QDialog):
                 key = str(top_level.data(0, Qt.UserRole + 10) or "").strip()
                 if key:
                     expanded_state[key] = top_level.isExpanded()
-        self._list_widget.clear()
-        if hasattr(self, "_unsorted_list_widget"):
-            self._unsorted_list_widget.clear()
+        self._refreshing_label_views = True
+        for tree in self._selection_trees():
+            tree.blockSignals(True)
+            tree.setCurrentItem(None)
+            tree.clearSelection()
+            tree.clear()
+        if hasattr(self, "_chart_names_list"):
+            self._chart_names_list.clear()
         minimum_count = 0
         maximum_count = 0
         if rows:
@@ -1860,6 +1866,9 @@ class ManageMetadataLabelsDialog(QDialog):
                 widget = item.widget() if item is not None else None
                 if widget is not None:
                     widget.setVisible(tags_mode)
+        for tree in self._selection_trees():
+            tree.blockSignals(False)
+        self._refreshing_label_views = False
         self._on_selection_changed()
 
     def _selected_label(self) -> str:
@@ -1971,6 +1980,8 @@ class ManageMetadataLabelsDialog(QDialog):
         return None
 
     def _on_selection_changed(self, source_tree: QTreeWidget | None = None) -> None:
+        if getattr(self, "_refreshing_label_views", False):
+            return
         if source_tree is not None and source_tree.selectedItems():
             for tree in self._selection_trees():
                 if tree is not source_tree:
@@ -1982,6 +1993,8 @@ class ManageMetadataLabelsDialog(QDialog):
         self._refresh_chart_names()
 
     def _refresh_chart_names(self) -> None:
+        if getattr(self, "_refreshing_label_views", False):
+            return
         self._chart_names_list.clear()
         if not callable(self._load_chart_names):
             return
