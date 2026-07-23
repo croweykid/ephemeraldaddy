@@ -4134,7 +4134,12 @@ class DatabaseAnalyticsChartsMixin:
             database_counts_raw = database_tag_categories.get(category_name, {})
             source_counts = selection_counts_raw if loaded_charts else database_counts_raw
             filtered_tags = [tag for tag, count in source_counts.items() if int(count) > 1]
-            filtered_tags.sort(key=lambda tag: tag.casefold())
+            filtered_tags.sort(
+                key=lambda tag: (
+                    -int(source_counts.get(tag, 0)),
+                    tag.casefold(),
+                )
+            )
             if not filtered_tags:
                 continue
             selection_counts = [int(selection_counts_raw.get(tag, 0)) for tag in filtered_tags]
@@ -5499,7 +5504,13 @@ class DatabaseAnalyticsChartsMixin:
                 )
             )
         self._sync_traits_distribution_display_mode()
-        ordered_labels = sorted(trait_names, key=lambda name: name.casefold())
+        ordered_labels = sorted(
+            trait_names,
+            key=lambda name: (
+                -(selection_values.get(name, 0.0) if loaded_charts else database_values.get(name, 0.0)),
+                name.casefold(),
+            ),
+        )
         database_partial = bool(database_analytics.get("partial", False))
         if database_partial:
             self._schedule_traits_distribution_warm_refresh()

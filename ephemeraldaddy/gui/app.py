@@ -9562,14 +9562,11 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         progress_callback: Callable[[], None] | None = None,
         mode: str = "top_species",
     ) -> dict[str, float]:
-        class_labels = sorted(
-            (definition.display_name for definition in DND_CLASSES.values()),
-            key=str.casefold,
-        )
+        class_labels = [definition.display_name for definition in DND_CLASSES.values()]
         if mode in {"top_class", "top_three_classes"}:
             totals = {class_name: 0 for class_name in class_labels}
         else:
-            totals = {species: 0 for species in sorted(SPECIES_FAMILIES, key=str.casefold)}
+            totals = {species: 0 for species in SPECIES_FAMILIES}
         total_count = 0
         for chart_id in chart_ids:
             if progress_callback:
@@ -11132,10 +11129,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                     }
                     database_class_total_count = sum(database_class_totals.values())
 
-                class_labels = sorted(
-                    (definition.display_name for definition in DND_CLASSES.values()),
-                    key=str.casefold,
-                )
+                class_labels = [definition.display_name for definition in DND_CLASSES.values()]
                 for class_name in selection_class_totals:
                     if class_name not in class_labels:
                         class_labels.append(class_name)
@@ -11171,7 +11165,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                         if selection_cache["species_total_count_by_mode"][species_mode]
                         else 0
                     )
-                    for species in sorted(SPECIES_FAMILIES, key=str.casefold)
+                    for species in SPECIES_FAMILIES
                 }
                 database_species = {
                     species: (
@@ -11180,7 +11174,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
                         if database_cache["species_total_count_by_mode"][species_mode]
                         else 0
                     )
-                    for species in sorted(SPECIES_FAMILIES, key=str.casefold)
+                    for species in SPECIES_FAMILIES
                 }
 
             try:
