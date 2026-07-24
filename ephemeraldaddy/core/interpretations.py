@@ -11,14 +11,14 @@ CURRENT_YEAR = datetime.date.today().year
 
 # Unified date brackets for ephemeris-backed transit calculations/searches.
 # Earliest year is fixed as a precise sandbox floor for debugging/troubleshooting.
-EPHEMERIS_MIN_YEAR = 1800
+EPHEMERIS_MIN_YEAR = 1500
 EPHEMERIS_SCOPE_FUTURE_YEARS = 100
 EPHEMERIS_MAX_YEAR = CURRENT_YEAR + EPHEMERIS_SCOPE_FUTURE_YEARS
 EPHEMERIS_MIN_DATE = datetime.date(EPHEMERIS_MIN_YEAR, 1, 1)
 EPHEMERIS_MAX_DATE = datetime.date(EPHEMERIS_MAX_YEAR, 12, 31)
 
 # Unified date brackets for natal chart creation input constraints.
-NATAL_CHART_MIN_YEAR = 1700
+NATAL_CHART_MIN_YEAR = 1500
 NATAL_CHART_MAX_YEAR = CURRENT_YEAR + 60
 NATAL_CHART_MIN_DATE = datetime.date(NATAL_CHART_MIN_YEAR, 1, 1)
 NATAL_CHART_MAX_DATE = datetime.date(NATAL_CHART_MAX_YEAR, 12, 31)
