@@ -4480,13 +4480,17 @@ class DatabaseAnalyticsChartsMixin:
         rows: list[dict[str, Any]] = []
         hidden_chart_ids = {int(chart_id) for chart_id in getattr(self, "_hidden_chart_ids", set())}
         db_average_pct = float(database_values.get(selected_trait_name, 0.0)) * 100.0
+        chart_uid_by_id = self._traits_distribution_chart_uid_by_id()
         for chart_id in normalized_chart_ids:
             if int(chart_id) in hidden_chart_ids:
                 continue
             chart = self._get_chart_for_filter(int(chart_id))
             if chart is None or self._is_placeholder_chart(chart):
                 continue
-            chart_cache_key = (cache_revision, trait_signature, int(chart_id))
+            chart_uid = chart_uid_by_id.get(int(chart_id), "")
+            if not chart_uid:
+                continue
+            chart_cache_key = (cache_revision, trait_signature, chart_uid)
             likelihoods = likelihood_cache.get(chart_cache_key)
             if likelihoods is not None:
                 try:
@@ -4503,14 +4507,14 @@ class DatabaseAnalyticsChartsMixin:
                 cached_likelihood = None
                 individual_cache = getattr(self, "_traits_distribution_individual_likelihood_cache", None)
                 if isinstance(individual_cache, dict):
-                    cached_likelihood = individual_cache.get((selected_trait_key, int(chart_id)))
+                    cached_likelihood = individual_cache.get((selected_trait_key, chart_uid))
                 if cached_likelihood is None:
                     profile_cache = getattr(self, "_traits_distribution_individual_profile_likelihood_cache", None)
                     profile_token_cache = getattr(self, "_traits_distribution_individual_profile_token_cache", None)
                     if isinstance(profile_cache, dict) and isinstance(profile_token_cache, dict):
-                        profile_cache_key = (selected_trait_key[2], int(chart_id))
+                        profile_cache_key = (selected_trait_key[2], chart_uid)
                         cached_chart_token = str(profile_token_cache.get(profile_cache_key, "") or "")
-                        current_chart_token = self._traits_distribution_chart_tokens().get(int(chart_id))
+                        current_chart_token = self._traits_distribution_chart_tokens().get(chart_uid)
                         if cached_chart_token and cached_chart_token == current_chart_token:
                             cached_likelihood = profile_cache.get(profile_cache_key)
                 if cached_likelihood is None:
@@ -4524,7 +4528,7 @@ class DatabaseAnalyticsChartsMixin:
             chart_name = str(getattr(chart, "name", "") or f"Chart {chart_id}").strip()
             rows.append(
                 {
-                    "chart_uid": str(db.get_chart_uid(int(chart_id)) or "").strip().upper(),
+                    "chart_uid": chart_uid,
                     "legacy_chart_id": int(chart_id),
                     "name": chart_name or f"Chart {chart_id}",
                     "likelihood": likelihood,
@@ -4789,13 +4793,16 @@ class DatabaseAnalyticsChartsMixin:
 
         likelihood_cache = getattr(self, "_traits_distribution_chart_likelihood_cache", None)
         changed_ids = {int(chart_id) for chart_id in changed_chart_ids}
+        changed_uids = {str(uid).strip().upper() for uid in db.get_chart_uid_map(changed_ids).values() if str(uid or "").strip()}
         if isinstance(likelihood_cache, dict):
             for cache_key in list(likelihood_cache):
                 if (
                     isinstance(cache_key, tuple)
                     and len(cache_key) >= 3
-                    and isinstance(cache_key[2], int)
-                    and cache_key[2] in changed_ids
+                    and (
+                        (isinstance(cache_key[2], str) and cache_key[2].strip().upper() in changed_uids)
+                        or (isinstance(cache_key[2], int) and cache_key[2] in changed_ids)
+                    )
                 ):
                     likelihood_cache.pop(cache_key, None)
         else:
@@ -4806,7 +4813,11 @@ class DatabaseAnalyticsChartsMixin:
             for cache_key in list(individual_cache):
                 if isinstance(cache_key, tuple) and len(cache_key) == 2:
                     try:
-                        if int(cache_key[1]) in changed_ids:
+                        raw_chart_key = cache_key[1]
+                        if isinstance(raw_chart_key, str):
+                            if raw_chart_key.strip().upper() in changed_uids:
+                                individual_cache.pop(cache_key, None)
+                        elif int(raw_chart_key) in changed_ids:
                             individual_cache.pop(cache_key, None)
                     except (TypeError, ValueError):
                         individual_cache.pop(cache_key, None)
@@ -4843,13 +4854,30 @@ class DatabaseAnalyticsChartsMixin:
             "retcon_minute": _get(21),
         }
 
-    def _traits_distribution_chart_tokens(self) -> dict[int, str]:
-        """Return stable per-chart birth-data fingerprints for persisted trait-score reuse."""
+    def _traits_distribution_chart_tokens(self) -> dict[str, str]:
+        """Return stable per-chart birth-data fingerprints keyed by chart UID."""
         cached_tokens = getattr(self, "_traits_distribution_chart_token_cache", None)
         if isinstance(cached_tokens, dict):
             return dict(cached_tokens)
         normalize_row = getattr(self, "_normalize_chart_row", None)
-        tokens: dict[int, str] = {}
+        tokens: dict[str, str] = {}
+        for row in getattr(self, "_chart_rows", []) or []:
+            normalized = normalize_row(row) if callable(normalize_row) else row
+            if normalized is None:
+                continue
+            payload = self._traits_distribution_chart_token_payload(normalized)
+            chart_uid = str(payload.get("chart_uid", "") or "").strip().upper()
+            if not chart_uid:
+                continue
+            tokens[chart_uid] = self._stable_traits_metadata_hash(payload)
+        self._traits_distribution_chart_token_cache = dict(tokens)
+        return tokens
+
+    def _traits_distribution_chart_uid_by_id(self) -> dict[int, str]:
+        """Return current Database View row IDs mapped to stable chart UIDs."""
+        normalize_row = getattr(self, "_normalize_chart_row", None)
+        uid_by_id: dict[int, str] = {}
+        missing_ids: list[int] = []
         for row in getattr(self, "_chart_rows", []) or []:
             normalized = normalize_row(row) if callable(normalize_row) else row
             if normalized is None:
@@ -4859,9 +4887,14 @@ class DatabaseAnalyticsChartsMixin:
             except (TypeError, ValueError, IndexError):
                 continue
             payload = self._traits_distribution_chart_token_payload(normalized)
-            tokens[chart_id] = self._stable_traits_metadata_hash(payload)
-        self._traits_distribution_chart_token_cache = dict(tokens)
-        return tokens
+            chart_uid = str(payload.get("chart_uid", "") or "").strip().upper()
+            if chart_uid:
+                uid_by_id[chart_id] = chart_uid
+            else:
+                missing_ids.append(chart_id)
+        if missing_ids:
+            uid_by_id.update({chart_id: str(uid).strip().upper() for chart_id, uid in db.get_chart_uid_map(missing_ids).items() if str(uid or "").strip()})
+        return uid_by_id
 
     def _traits_distribution_likelihood_cache_path(self):
         from ephemeraldaddy.core.db import DB_DIR
@@ -4890,10 +4923,11 @@ class DatabaseAnalyticsChartsMixin:
             return False
         cache_revision = int(getattr(self, "_database_metrics_cache_revision", 0))
         chart_tokens = self._traits_distribution_chart_tokens()
+        chart_uid_by_id = self._traits_distribution_chart_uid_by_id()
         likelihood_cache: dict[tuple[Any, ...], dict[str, float]] = {}
-        individual_cache: dict[tuple[tuple[str, str, str], int], float] = {}
-        individual_profile_cache: dict[tuple[str, int], float] = {}
-        individual_profile_token_cache: dict[tuple[str, int], str] = {}
+        individual_cache: dict[tuple[tuple[str, str, str], str], float] = {}
+        individual_profile_cache: dict[tuple[str, str], float] = {}
+        individual_profile_token_cache: dict[tuple[str, str], str] = {}
         skipped_entries = 0
 
         def chart_is_current(chart_id: int, saved_chart_token: str) -> bool:
@@ -4915,16 +4949,22 @@ class DatabaseAnalyticsChartsMixin:
                     skipped_entries += 1
                     continue
                 try:
-                    chart_id = int(entry.get("chart_id"))
                     profile_index = int(entry.get("profile"))
                     likelihood = float(entry.get("likelihood"))
                 except (TypeError, ValueError):
                     skipped_entries += 1
                     continue
-                if profile_index < 0 or profile_index >= len(profile_keys):
+                chart_uid = str(entry.get("chart_uid", "") or "").strip().upper()
+                if not chart_uid:
+                    legacy_id = entry.get("chart_id")
+                    try:
+                        chart_uid = self._traits_distribution_chart_uid_by_id().get(int(legacy_id), "")
+                    except (TypeError, ValueError):
+                        chart_uid = ""
+                if not chart_uid or profile_index < 0 or profile_index >= len(profile_keys):
                     skipped_entries += 1
                     continue
-                profile_cache_key = (profile_keys[profile_index], chart_id)
+                profile_cache_key = (profile_keys[profile_index], chart_uid)
                 individual_profile_cache[profile_cache_key] = likelihood
                 individual_profile_token_cache[profile_cache_key] = str(entry.get("chart_token", "") or "")
         else:
@@ -4940,7 +4980,11 @@ class DatabaseAnalyticsChartsMixin:
                 except (TypeError, ValueError):
                     skipped_entries += 1
                     continue
-                entry_is_current = chart_is_current(chart_id, str(entry.get("chart_token", "") or ""))
+                chart_uid = self._traits_distribution_chart_uid_by_id().get(chart_id, "")
+                if not chart_uid:
+                    skipped_entries += 1
+                    continue
+                entry_is_current = chart_is_current(chart_uid, str(entry.get("chart_token", "") or ""))
                 signature = entry.get("trait_signature")
                 likelihoods = entry.get("likelihoods")
                 if not isinstance(signature, list) or not isinstance(likelihoods, dict):
@@ -4968,12 +5012,12 @@ class DatabaseAnalyticsChartsMixin:
                     trait_key = trait_keys_by_name.get(str(name))
                     if trait_key is not None:
                         if entry_is_current:
-                            individual_cache[(trait_key, chart_id)] = likelihood
-                        profile_cache_key = (trait_key[2], chart_id)
+                            individual_cache[(trait_key, chart_uid)] = likelihood
+                        profile_cache_key = (trait_key[2], chart_uid)
                         individual_profile_cache[profile_cache_key] = likelihood
                         individual_profile_token_cache[profile_cache_key] = str(entry.get("chart_token", "") or "")
                 if normalized_likelihoods and entry_is_current:
-                    likelihood_cache[(cache_revision, trait_signature, chart_id)] = normalized_likelihoods
+                    likelihood_cache[(cache_revision, trait_signature, chart_uid)] = normalized_likelihoods
                 elif not normalized_likelihoods:
                     skipped_entries += 1
         if not likelihood_cache and not individual_cache and not individual_profile_cache:
@@ -5016,9 +5060,8 @@ class DatabaseAnalyticsChartsMixin:
                     or not isinstance(likelihoods, dict)
                 ):
                     continue
-                try:
-                    chart_id = int(cache_key[2])
-                except (TypeError, ValueError):
+                chart_uid = str(cache_key[2] or "").strip().upper()
+                if not chart_uid:
                     continue
                 trait_keys_by_name = {name: (name, color, profile) for name, color, profile in cache_key[1]}
                 for name, value in likelihoods.items():
@@ -5026,9 +5069,9 @@ class DatabaseAnalyticsChartsMixin:
                     if trait_key is None:
                         continue
                     try:
-                        profile_cache_key = (trait_key[2], chart_id)
+                        profile_cache_key = (trait_key[2], chart_uid)
                         individual_profile_cache[profile_cache_key] = float(value)
-                        current_chart_token = self._traits_distribution_chart_tokens().get(chart_id)
+                        current_chart_token = self._traits_distribution_chart_tokens().get(chart_uid)
                         if current_chart_token:
                             individual_profile_token_cache[profile_cache_key] = current_chart_token
                     except (TypeError, ValueError):
@@ -5045,12 +5088,14 @@ class DatabaseAnalyticsChartsMixin:
             profile_key = str(cache_key[0])
             if not profile_key:
                 continue
+            chart_uid = str(cache_key[1] or "").strip().upper()
+            if not chart_uid:
+                continue
             try:
-                chart_id = int(cache_key[1])
                 normalized_likelihood = float(likelihood)
             except (TypeError, ValueError):
                 continue
-            current_chart_token = chart_tokens.get(chart_id)
+            current_chart_token = chart_tokens.get(chart_uid)
             cached_chart_token = str(individual_profile_token_cache.get(cache_key, "") or "")
             entry_chart_token = cached_chart_token or str(current_chart_token or "")
             if not entry_chart_token:
@@ -5063,7 +5108,7 @@ class DatabaseAnalyticsChartsMixin:
             entries.append(
                 {
                     "profile": profile_index,
-                    "chart_id": chart_id,
+                    "chart_uid": chart_uid,
                     "chart_token": entry_chart_token,
                     "likelihood": normalized_likelihood,
                 }
@@ -5150,6 +5195,7 @@ class DatabaseAnalyticsChartsMixin:
             individual_profile_token_cache = {}
             self._traits_distribution_individual_profile_token_cache = individual_profile_token_cache
         chart_tokens = self._traits_distribution_chart_tokens()
+        chart_uid_by_id = self._traits_distribution_chart_uid_by_id()
         if not isinstance(individual_profile_cache, dict):
             individual_profile_cache = {}
             self._traits_distribution_individual_profile_likelihood_cache = individual_profile_cache
@@ -5173,7 +5219,10 @@ class DatabaseAnalyticsChartsMixin:
             chart = self._get_chart_for_filter(int(chart_id))
             if chart is None or self._is_placeholder_chart(chart):
                 continue
-            chart_cache_key = (cache_revision, trait_signature, int(chart_id))
+            chart_uid = chart_uid_by_id.get(int(chart_id), "")
+            if not chart_uid:
+                continue
+            chart_cache_key = (cache_revision, trait_signature, chart_uid)
             likelihoods = likelihood_cache.get(chart_cache_key)
             if likelihoods is not None:
                 _predictions_debug(self, "Traits distribution chart cache hit chart_id=%s traits=%s", chart_id, len(likelihoods))
@@ -5181,11 +5230,11 @@ class DatabaseAnalyticsChartsMixin:
                 likelihoods = {}
                 missing_trait_items: list[dict[str, Any]] = []
                 for trait_key in trait_signature:
-                    cached_likelihood = individual_cache.get((trait_key, int(chart_id)))
+                    cached_likelihood = individual_cache.get((trait_key, chart_uid))
                     if cached_likelihood is None:
-                        profile_cache_key = (trait_key[2], int(chart_id))
+                        profile_cache_key = (trait_key[2], chart_uid)
                         profile_chart_token = str(individual_profile_token_cache.get(profile_cache_key, "") or "")
-                        current_chart_token = chart_tokens.get(int(chart_id))
+                        current_chart_token = chart_tokens.get(chart_uid)
                         if profile_chart_token and profile_chart_token == current_chart_token:
                             cached_likelihood = individual_profile_cache.get(profile_cache_key)
                     if cached_likelihood is None:
@@ -5241,10 +5290,10 @@ class DatabaseAnalyticsChartsMixin:
                     for trait_key in trait_signature:
                         name = trait_key[0]
                         if name in missing_likelihoods:
-                            individual_cache[(trait_key, int(chart_id))] = float(missing_likelihoods[name])
-                            profile_cache_key = (trait_key[2], int(chart_id))
+                            individual_cache[(trait_key, chart_uid)] = float(missing_likelihoods[name])
+                            profile_cache_key = (trait_key[2], chart_uid)
                             individual_profile_cache[profile_cache_key] = float(missing_likelihoods[name])
-                            current_chart_token = chart_tokens.get(int(chart_id))
+                            current_chart_token = chart_tokens.get(chart_uid)
                             if current_chart_token:
                                 individual_profile_token_cache[profile_cache_key] = current_chart_token
                     cache_updated = True
