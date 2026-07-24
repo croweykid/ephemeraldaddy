@@ -115,7 +115,11 @@ class SpeciesAssigner:
     def assign(self, chart: Any) -> SpeciesPick:
         positions = self._get_positions(chart)
         aspects = self._get_aspects(chart, positions)
-        feats = self._extract_features(positions, aspects)
+        feats = self._extract_features(
+            positions,
+            aspects,
+            chart_uses_houses=self._chart_uses_houses(chart),
+        )
         scores = self._score_families(positions, aspects, feats)
 
         ranked = self._rank_families(scores)
@@ -237,6 +241,31 @@ class SpeciesAssigner:
     @staticmethod
     def _safe_ratio(numerator: float, denominator: float) -> float:
         return float(numerator) / max(1e-9, float(denominator))
+
+    @staticmethod
+    def _chart_uses_houses(chart: Any) -> bool:
+        if isinstance(chart, Mapping):
+            if "chart_uses_houses" in chart:
+                return bool(chart.get("chart_uses_houses"))
+            if "use_birth_time_data" in chart:
+                return bool(chart.get("use_birth_time_data"))
+            if "birthtime_unknown" in chart:
+                return not bool(chart.get("birthtime_unknown"))
+            return True
+
+        explicit = getattr(chart, "chart_uses_houses", None)
+        if explicit is not None:
+            return bool(explicit)
+
+        use_birth_time_data = getattr(chart, "use_birth_time_data", None)
+        if use_birth_time_data is not None:
+            return bool(use_birth_time_data)
+
+        birthtime_unknown = getattr(chart, "birthtime_unknown", None)
+        if birthtime_unknown is not None:
+            return not bool(birthtime_unknown)
+
+        return True
 
     def _get_positions(self, chart: Any) -> Dict[str, Dict[str, Any]]:
         if hasattr(chart, "positions") and isinstance(getattr(chart, "positions"), Mapping):
@@ -385,6 +414,8 @@ class SpeciesAssigner:
         self,
         positions: Mapping[str, Mapping[str, Any]],
         aspects: List[Mapping[str, Any]],
+        *,
+        chart_uses_houses: bool = True,
     ) -> Dict[str, Any]:
         element_totals = {"Fire": 0.0, "Earth": 0.0, "Air": 0.0, "Water": 0.0}
         mode_totals = {"cardinal": 0.0, "fixed": 0.0, "mutable": 0.0}
@@ -479,6 +510,7 @@ class SpeciesAssigner:
             "season_ratios": season_ratios,
             "fertility_ratios": fertility_ratios,
             "house_ratios": house_ratios,
+            "chart_uses_houses": bool(chart_uses_houses),
             "prominence": prominence,
             "dominant_element": dominant_element,
             "dominant_elements": dominant_element_labels_from_weights(element_ratios),
@@ -971,24 +1003,29 @@ class SpeciesAssigner:
         def p(body: str) -> float:
             return float(prom.get(body, 0.0))
 
+        def christmas_ratio_houses(*houses: int) -> float:
+            if not bool(feats.get("chart_uses_houses", True)):
+                return 0.0
+            return ratio_houses(*houses)
+
         def christmas_elf_scores() -> Tuple[float, float, float]:
             christmas_craft = max(
                 p("Mercury"),
                 link("Mercury", "Venus"),
                 link("Mercury", "Saturn"),
-                ratio_houses(6),
+                christmas_ratio_houses(6),
             )
             christmas_festivity = max(
                 link("Venus", "Jupiter"),
-                ratio_houses(5),
-                ratio_houses(11),
+                christmas_ratio_houses(5),
+                christmas_ratio_houses(11),
                 ratio_signs("Sagittarius"),
             )
             christmas_factory = max(
                 p("Saturn"),
                 ratio_signs("Capricorn"),
-                ratio_houses(6),
-                ratio_houses(10),
+                christmas_ratio_houses(6),
+                christmas_ratio_houses(10),
             )
             return christmas_craft, christmas_festivity, christmas_factory
 
@@ -1423,7 +1460,11 @@ def assign_top_three_species_with_evidence(chart: Any) -> List[Tuple[str, str, f
     assigner = SpeciesAssigner()
     positions = assigner._get_positions(chart)
     aspects = assigner._get_aspects(chart, positions)
-    feats = assigner._extract_features(positions, aspects)
+    feats = assigner._extract_features(
+        positions,
+        aspects,
+        chart_uses_houses=assigner._chart_uses_houses(chart),
+    )
     scores = assigner._score_families(positions, aspects, feats)
     ranked = assigner._rank_families(scores)
 
