@@ -234,6 +234,57 @@ def test_time_sensitivity_result_loads_by_birth_date_not_chart_uid(tmp_path):
     assert loaded.birth_date_key == "04-05-2001"
 
 
+def test_time_sensitivity_result_prefers_exact_chart_uid_before_birth_date(tmp_path):
+    from datetime import datetime
+    from types import SimpleNamespace
+
+    from ephemeraldaddy.analysis.time_sensitivity import (
+        load_time_sensitivity_result_for_chart,
+    )
+
+    config = TimeSensitivityConfig(interval_minutes=30, include_day_end=True)
+    db_path = tmp_path / "time_sensitivity.db"
+    shared = dict(
+        birth_date_key="04-05-2001",
+        algorithm_version="time-sensitivity-v2",
+        computed_at="2026-06-20T00:00:00Z",
+        config=config.__dict__,
+        sample_count=49,
+        baseline_time="12:00",
+        numeric_ranges={},
+        human_design={},
+        stable=[],
+        variable=[],
+        warnings=[],
+    )
+    save_time_sensitivity_result(
+        TimeSensitivityResult(
+            chart_uid="FIRST",
+            chart_name="First",
+            overall={"stability_percent": 100.0},
+            **shared,
+        ),
+        db_path,
+    )
+    save_time_sensitivity_result(
+        TimeSensitivityResult(
+            chart_uid="SECOND",
+            chart_name="Second",
+            overall={"stability_percent": 42.0},
+            **shared,
+        ),
+        db_path,
+    )
+
+    chart = SimpleNamespace(dt=datetime(2001, 4, 5, 8, 30), chart_uid="FIRST")
+
+    loaded = load_time_sensitivity_result_for_chart(chart, config, db_path)
+
+    assert loaded is not None
+    assert loaded.chart_uid == "FIRST"
+    assert loaded.overall["stability_percent"] == 100.0
+
+
 def test_aggregate_numeric_reports_sampled_time_spans_and_transition_windows():
     from ephemeraldaddy.analysis import time_sensitivity as module
 

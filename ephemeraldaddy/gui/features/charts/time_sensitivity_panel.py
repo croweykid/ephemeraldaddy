@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import statistics
+from dataclasses import asdict
 from html import escape
 from urllib.parse import quote
 from typing import Any
@@ -1062,7 +1063,7 @@ def human_design_time_range_text(
         if isinstance(summary, dict)
         else []
     )
-    heading = f"Timing: " #for HD Gate {gate}
+    heading = f"Timing: "  # for HD Gate {gate}
     if line is not None:
         heading += f".{line}"
     if spans:
@@ -1082,7 +1083,7 @@ def _summary_html(result: TimeSensitivityResult) -> str:
         f"{result.baseline_time} ({overall.get('baseline_source', 'baseline')})"
     )
     html_lines: list[str] = [
-        #f"<div><strong>Overall stability:</strong> {float(overall.get('stability_percent', 0)):.0f}%</div>",
+        # f"<div><strong>Overall stability:</strong> {float(overall.get('stability_percent', 0)):.0f}%</div>",
         f"<div><strong>Max possible change from {escape(baseline_label)}:</strong> {float(overall.get('max_total_change_from_baseline_percent', 0)):.0f}%</div>",
         "<div><strong>Most sensitive:</strong> "
         + _color_code_text(", ".join(overall.get("most_sensitive", []) or ["n/a"]))
@@ -1135,11 +1136,15 @@ def _human_design_html(result: TimeSensitivityResult) -> str:
         hd_items.append(f"Possible {escape(key.title())}: {sometimes}")
     centers = hd.get("centers", {})
     definite_centers = (
-        ", ".join(_hd_center_anchor(str(item)) for item in centers.get("always", [])[:20])
+        ", ".join(
+            _hd_center_anchor(str(item)) for item in centers.get("always", [])[:20]
+        )
         or "none"
     )
     possible_centers = (
-        ", ".join(_hd_center_anchor(str(item)) for item in centers.get("sometimes", [])[:20])
+        ", ".join(
+            _hd_center_anchor(str(item)) for item in centers.get("sometimes", [])[:20]
+        )
         or "none"
     )
     hd_items.append(f"Definite Defined Centers: {definite_centers}")
@@ -1246,7 +1251,11 @@ class TimeSensitivityPanel(QWidget):
         super().__init__()
         self._owner = owner
         self._last_result: TimeSensitivityResult | None = None
-        self._chart_date_key: str = ""
+        self._chart_refresh_key: tuple[str, str, tuple[tuple[str, object], ...]] = (
+            "",
+            "",
+            (),
+        )
         layout = QVBoxLayout()
         layout.setContentsMargins(6, 6, 6, 6)
         layout.setSpacing(6)
@@ -1353,10 +1362,17 @@ class TimeSensitivityPanel(QWidget):
     def refresh_for_current_chart(self) -> None:
         chart = self._current_chart()
         date_key = birth_date_key_for_chart(chart) if chart is not None else ""
-        if date_key == self._chart_date_key:
+        chart_uid = (
+            str(getattr(chart, "chart_uid", "") or "").strip()
+            if chart is not None
+            else ""
+        )
+        config_items = tuple(sorted(asdict(self._current_config()).items()))
+        refresh_key = (chart_uid, date_key, config_items)
+        if refresh_key == self._chart_refresh_key:
             self._set_confidence_for_result(self._last_result)
             return
-        self._chart_date_key = date_key
+        self._chart_refresh_key = refresh_key
         self._last_result = None
         if chart is None:
             self.compute_module.setVisible(False)
@@ -1397,7 +1413,10 @@ class TimeSensitivityPanel(QWidget):
         try:
             config = self._current_config()
             self._last_result = compute_time_sensitivity(chart, config)
-            self._chart_date_key = birth_date_key_for_chart(chart)
+            chart_uid = str(getattr(chart, "chart_uid", "") or "").strip()
+            date_key = birth_date_key_for_chart(chart)
+            config_items = tuple(sorted(asdict(config).items()))
+            self._chart_refresh_key = (chart_uid, date_key, config_items)
             save_time_sensitivity_result(self._last_result)
             self._set_confidence_for_result(self._last_result)
             self.output.setHtml(format_time_sensitivity_result_html(self._last_result))
@@ -1462,11 +1481,20 @@ class TimeSensitivityPanel(QWidget):
         browser.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         browser.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         browser.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)
-        browser.setHtml(html)
+        html_loaded = expanded
+        if expanded:
+            browser.setHtml(html)
         min_height = 80 if section_key == "human_design" else 48
         max_height = 16777215 if section_key == "human_design" else 700
 
         adjusting_browser_height = False
+
+        def ensure_browser_html_loaded() -> None:
+            nonlocal html_loaded
+            if html_loaded:
+                return
+            browser.setHtml(html)
+            html_loaded = True
 
         def adjust_browser_height() -> None:
             nonlocal adjusting_browser_height
@@ -1497,8 +1525,10 @@ class TimeSensitivityPanel(QWidget):
             # QTextDocument wrapping depends on the QTextBrowser viewport width,
             # which is often stale while a collapsed section is first expanding.
             # Re-measure over a few event-loop turns so initially hidden rich text
-            # (especially the long Human Design section) does not stay clipped or
-            # over-tall until the user collapses and re-expands it.
+            # does not stay clipped or over-tall after the user expands it.
+            if not content.isVisible():
+                return
+            ensure_browser_html_loaded()
             for delay_ms in (0, 50, 150, 300):
                 QTimer.singleShot(delay_ms, adjust_browser_height)
 
@@ -1509,7 +1539,8 @@ class TimeSensitivityPanel(QWidget):
                 schedule_browser_height_adjustments()
 
         toggle.toggled.connect(toggle_section)
-        schedule_browser_height_adjustments()
+        if expanded:
+            schedule_browser_height_adjustments()
         if section_key == "human_design":
             browser.document().documentLayout().documentSizeChanged.connect(
                 lambda _size: schedule_browser_height_adjustments()
