@@ -4781,7 +4781,13 @@ def get_chart_uid_map(chart_ids: Iterable[int] | None = None) -> dict[int, str]:
                 "SELECT id, chart_uid FROM charts WHERE chart_uid IS NOT NULL AND chart_uid != ''"
             ).fetchall()
         else:
-            normalized_ids = sorted({int(chart_id) for chart_id in chart_ids})
+            normalized_ids = sorted(
+                {
+                    int(chart_id)
+                    for chart_id in chart_ids
+                    if chart_id is not None and str(chart_id).strip()
+                }
+            )
             if not normalized_ids:
                 return {}
             placeholders = ", ".join("?" for _ in normalized_ids)
