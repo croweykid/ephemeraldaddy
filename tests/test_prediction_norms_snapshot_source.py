@@ -125,3 +125,18 @@ def test_rankings_panel_falls_back_when_trait_likelihood_cache_is_incomplete():
     assert "if not self._rankings_trait_likelihood_cache_complete" in refresh_method
     assert "database_values = {}" in refresh_method
     assert "if not database_values:" in refresh_method
+
+def test_prediction_norm_snapshot_loads_norm_charts_by_uid_not_id():
+    helper = SNAPSHOT_SOURCE.split("def _owner_chart_uids", 1)[1].split("def refresh_prediction_norms_snapshot", 1)[0]
+    assert "def _owner_chart_ids" not in SNAPSHOT_SOURCE
+    assert "db.load_charts_by_uids(chart_uids)" in helper
+    assert "db.load_charts(chart_ids)" not in helper
+
+
+def test_trait_direct_database_averages_load_charts_by_uid_not_id():
+    helper = TRAIT_SOURCE.split("def _calculate_database_trait_averages_direct", 1)[1].split("def _database_trait_averages", 1)[0]
+    assert "chart_uids: tuple[str, ...]" in helper
+    assert "db.load_charts_by_uids(chart_uids)" in helper
+    assert "db.load_chart(int(chart_id))" not in helper
+    caller = TRAIT_SOURCE.split("def _database_trait_averages", 1)[1].split("def _trait_metadata_cache_key", 1)[0]
+    assert "_calculate_database_trait_averages_direct(owner, chart_uids" in caller

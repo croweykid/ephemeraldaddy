@@ -22,6 +22,12 @@ class _Dummy:
     def __ror__(self, _other):
         return self
 
+    def __add__(self, _other):
+        return self
+
+    def __radd__(self, _other):
+        return self
+
 
 backend_qtagg = types.ModuleType("matplotlib.backends.backend_qtagg")
 backend_qtagg.FigureCanvasQTAgg = FigureCanvasAgg
@@ -273,28 +279,76 @@ def test_significance_guides_accept_count_mappings_with_blank_label(monkeypatch)
     assert captured["database_counts"] == [5, 7]
 
 
-def test_traits_distribution_cache_clear_evicts_only_changed_chart_likelihoods():
+def test_traits_distribution_cache_clear_evicts_only_changed_chart_likelihoods(monkeypatch):
     mixin = DatabaseAnalyticsChartsMixin()
     trait_signature = (("Kind", "#ffffff", "{}"),)
     mixin._traits_distribution_analytics_cache = {"aggregate": {"stale": True}}
     mixin._traits_distribution_chart_likelihood_cache = {
-        (7, trait_signature, 101): {"Kind": 55.0},
-        (7, trait_signature, 202): {"Kind": 65.0},
+        (7, trait_signature, "UID000000000101"): {"Kind": 55.0},
+        (7, trait_signature, "UID000000000202"): {"Kind": 65.0},
     }
+
+    from ephemeraldaddy.gui.features.charts import database_analytics
+
+    monkeypatch.setattr(database_analytics.db, "get_chart_uid_map", lambda _ids: {101: "UID000000000101"})
 
     mixin._clear_traits_distribution_analytics_cache({101})
 
     assert mixin._traits_distribution_analytics_cache == {}
-    assert (7, trait_signature, 101) not in mixin._traits_distribution_chart_likelihood_cache
-    assert mixin._traits_distribution_chart_likelihood_cache[(7, trait_signature, 202)] == {"Kind": 65.0}
+    assert (7, trait_signature, "UID000000000101") not in mixin._traits_distribution_chart_likelihood_cache
+    assert mixin._traits_distribution_chart_likelihood_cache[(7, trait_signature, "UID000000000202")] == {"Kind": 65.0}
 
 
 def test_traits_distribution_cache_clear_without_changed_ids_drops_all_chart_likelihoods():
     mixin = DatabaseAnalyticsChartsMixin()
     mixin._traits_distribution_analytics_cache = {"aggregate": {"stale": True}}
-    mixin._traits_distribution_chart_likelihood_cache = {(7, (), 101): {"Kind": 55.0}}
+    mixin._traits_distribution_chart_likelihood_cache = {(7, (), "UID000000000101"): {"Kind": 55.0}}
 
     mixin._clear_traits_distribution_analytics_cache()
 
     assert mixin._traits_distribution_analytics_cache == {}
     assert mixin._traits_distribution_chart_likelihood_cache == {}
+
+
+def test_traits_distribution_likelihood_cache_migrates_previous_v3_chart_id_entries(tmp_path, monkeypatch):
+    from ephemeraldaddy.gui.features.charts import database_analytics
+
+    class FakeDialog(DatabaseAnalyticsChartsMixin):
+        def __init__(self):
+            self._database_metrics_cache_revision = 0
+            self._chart_rows = [
+                (101, None, None, None, "", None, "", 0, 0, 0, None, 0, None, 0, "Natal", 0, 0, None, None, None, None, None, None, "blank", None, None, None, None, None, None, "UID000000000101"),
+            ]
+
+        @staticmethod
+        def _normalize_chart_row(row):
+            return row
+
+    monkeypatch.setattr(database_analytics.db, "DB_DIR", tmp_path)
+    monkeypatch.setattr(database_analytics.db, "get_chart_uid_map", lambda chart_ids: {101: "UID000000000101"})
+    cache_path = tmp_path / database_analytics.TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_FILENAME
+    cache_path.write_text(
+        database_analytics.json.dumps(
+            {
+                "version": database_analytics.TRAITS_DISTRIBUTION_LIKELIHOOD_CACHE_VERSION,
+                "format": "profile_likelihoods_v1",
+                "profiles": ["{}"],
+                "profile_entries": [
+                    {
+                        "profile": 0,
+                        "chart_id": 101,
+                        "chart_token": "saved-token",
+                        "likelihood": 87.5,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    dialog = FakeDialog()
+
+    assert dialog._load_traits_distribution_likelihood_cache() is True
+    assert dialog._traits_distribution_individual_profile_likelihood_cache == {
+        ("{}", "UID000000000101"): 87.5
+    }
