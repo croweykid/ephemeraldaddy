@@ -1896,10 +1896,11 @@ FAMILY_SUBTYPES: Dict[str, List[str]] = { #note: this is not a complete species 
     "Canids": ["Shepherd Dog Dogfolk", "Wolfkin", "Gnolls", "Houndfolk"],
     "Cosmids": ["Chronomancers", "Abysswalkers", "Starspawned", "Cometkin", "Eclipsians"], #cosmids are really boring/hippie woo. should we throw in some aberrations for flavor?
     "Dwarf": ["Duergar", "Mountain Dwarf", "Hill Dwarf"],
-    "Elf": ["Drow", "Shadar-Kai", "Sea Elf", "High Elf", "Wood Elf", "Eladrin Elf", "Avariel Elf"],
+    "Elf": ["Drow", "Shadar-Kai", "Sea Elf", "High Elf", "Wood Elf", "Eladrin Elf", "Avariel Elf", "Christmas Elf"],
     "Fey": ["Hobgoblins", "Fairies", "Firbolgs", "Satyr/Fawn", "Trolls", "Leprechauns"],
     "Genasi": ["Fire Genasi", "Air Genasi", "Earth Genasi", "Water Genasi", "Electric Genasi", "Mud Genasi", "Ice Genasi"],
     "Spirits": ["Poltergeist", "Wraith", "Ghoul", "Vagrant Spirit"], #ghost is a vagrant spirit, but less poetic sounding
+    "Gnome": ["Christmas Elf"],
     "Halfling": ["Ghostwise", "Stout", "Lightfoot"],
     "Human": ["Quirky Human", "Standard Human"],
     "Catfolk": ["Pantherkin", "Tigerfolk", "Tabaxi"], #add leonin or no? too obvious is how it feels...ugh, hate it. :-\
@@ -1959,6 +1960,7 @@ SPECIES_DESCRIPTIONS: Dict[str, str] = {
     "Elf::Wood Elf": "Forest-built archer materializes from leaves already disapproving of your foot placement.",
     "Elf::Eladrin Elf": "Mood-based elf changes emotional climate three times before soup arrives.",
     "Elf::Avariel Elf": "Winged elf attends mud-level society with admirable grace and visible reluctance.",
+    "Elf::Christmas Elf": "Seasonal workshop specialist combines tiny tools, overtime cheer, and terrifying logistical discipline.",
 
     "Fey": "Decorative natural force enters scene, immediately making cups, promises, and nicknames far too significant.",
     "Fey::Hobgoblins": "Well-lacquered fey disciplinarian continues folding banners with almost religious hostility.",
@@ -1978,6 +1980,7 @@ SPECIES_DESCRIPTIONS: Dict[str, str] = {
     "Genasi::Ice Genasi": "Cool, crystalline individual lowers room temperature and expectations with admirable efficiency.",
 
     "Gnome": "Mistakenly referred to as 'Christmas elves'. Small overclocked citizens frequently employed in seasonal sweat shops. May arrive with bright eyes, quick hands, and the unmistakable air of someone about to 'improve' things beyond your ability to recognize or possibly use them.",
+    "Gnome::Christmas Elf": "Holiday-branded gnome contractor shows up with production quotas, jingling tools, and weaponized cheer.",
     "Half-orcs": "Large practical citizen continues combining blunt force, bruised dignity, and better judgment than locals gave them credit for.",
 
     "Spirits": "Formerly alive presence continues declining to let material inconvenience settle the matter.",

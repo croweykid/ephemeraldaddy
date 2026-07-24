@@ -849,7 +849,11 @@ def _collect_ranked_species_payloads(chart: Any) -> list[dict[str, Any]]:
         assigner = SpeciesAssigner()
         positions = assigner._get_positions(chart)
         aspects = assigner._get_aspects(chart, positions)
-        features = assigner._extract_features(positions, aspects)
+        features = assigner._extract_features(
+            positions,
+            aspects,
+            chart_uses_houses=default_chart_uses_houses(chart),
+        )
         scores = assigner._score_families(positions, aspects, features)
         ranked_species = assigner._apply_human_fallback_policy(assigner._rank_families(scores))
         species_rankings = []

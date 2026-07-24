@@ -115,7 +115,11 @@ class SpeciesAssigner:
     def assign(self, chart: Any) -> SpeciesPick:
         positions = self._get_positions(chart)
         aspects = self._get_aspects(chart, positions)
-        feats = self._extract_features(positions, aspects)
+        feats = self._extract_features(
+            positions,
+            aspects,
+            chart_uses_houses=self._chart_uses_houses(chart),
+        )
         scores = self._score_families(positions, aspects, feats)
 
         ranked = self._rank_families(scores)
@@ -237,6 +241,31 @@ class SpeciesAssigner:
     @staticmethod
     def _safe_ratio(numerator: float, denominator: float) -> float:
         return float(numerator) / max(1e-9, float(denominator))
+
+    @staticmethod
+    def _chart_uses_houses(chart: Any) -> bool:
+        if isinstance(chart, Mapping):
+            if "chart_uses_houses" in chart:
+                return bool(chart.get("chart_uses_houses"))
+            if "use_birth_time_data" in chart:
+                return bool(chart.get("use_birth_time_data"))
+            if "birthtime_unknown" in chart:
+                return not bool(chart.get("birthtime_unknown"))
+            return True
+
+        explicit = getattr(chart, "chart_uses_houses", None)
+        if explicit is not None:
+            return bool(explicit)
+
+        use_birth_time_data = getattr(chart, "use_birth_time_data", None)
+        if use_birth_time_data is not None:
+            return bool(use_birth_time_data)
+
+        birthtime_unknown = getattr(chart, "birthtime_unknown", None)
+        if birthtime_unknown is not None:
+            return not bool(birthtime_unknown)
+
+        return True
 
     def _get_positions(self, chart: Any) -> Dict[str, Dict[str, Any]]:
         if hasattr(chart, "positions") and isinstance(getattr(chart, "positions"), Mapping):
@@ -385,6 +414,8 @@ class SpeciesAssigner:
         self,
         positions: Mapping[str, Mapping[str, Any]],
         aspects: List[Mapping[str, Any]],
+        *,
+        chart_uses_houses: bool = True,
     ) -> Dict[str, Any]:
         element_totals = {"Fire": 0.0, "Earth": 0.0, "Air": 0.0, "Water": 0.0}
         mode_totals = {"cardinal": 0.0, "fixed": 0.0, "mutable": 0.0}
@@ -479,6 +510,7 @@ class SpeciesAssigner:
             "season_ratios": season_ratios,
             "fertility_ratios": fertility_ratios,
             "house_ratios": house_ratios,
+            "chart_uses_houses": bool(chart_uses_houses),
             "prominence": prominence,
             "dominant_element": dominant_element,
             "dominant_elements": dominant_element_labels_from_weights(element_ratios),
@@ -962,6 +994,45 @@ class SpeciesAssigner:
         def link(a: str, b: str, kinds: Optional[Iterable[str]] = None, max_orb: Optional[float] = None) -> float:
             return self._aspect_strength(a, b, aspects, set(kinds) if kinds is not None else ALL_MAJOR_ASPECTS, max_orb=max_orb)
 
+        def ratio_signs(*signs: str) -> float:
+            return sum(float(sr.get(sign, 0.0)) for sign in signs)
+
+        def ratio_houses(*houses: int) -> float:
+            return sum(float(hr.get(h, 0.0)) for h in houses)
+
+        def p(body: str) -> float:
+            return float(prom.get(body, 0.0))
+
+        def christmas_ratio_houses(*houses: int) -> float:
+            if not bool(feats.get("chart_uses_houses", True)):
+                return 0.0
+            return ratio_houses(*houses)
+
+        def christmas_elf_scores() -> Tuple[float, float, float]:
+            christmas_craft = max(
+                p("Mercury"),
+                link("Mercury", "Venus"),
+                link("Mercury", "Saturn"),
+                christmas_ratio_houses(6),
+            )
+            christmas_festivity = max(
+                link("Venus", "Jupiter"),
+                christmas_ratio_houses(5),
+                christmas_ratio_houses(11),
+                ratio_signs("Sagittarius"),
+            )
+            christmas_factory = max(
+                p("Saturn"),
+                ratio_signs("Capricorn"),
+                christmas_ratio_houses(6),
+                christmas_ratio_houses(10),
+            )
+            return christmas_craft, christmas_festivity, christmas_factory
+
+        def is_christmas_elf_candidate() -> bool:
+            craft, festivity, factory = christmas_elf_scores()
+            return min(craft, festivity, factory) >= 0.28
+
         def strong_link(a: str, b: str, kinds: Optional[Iterable[str]] = None) -> bool:
             return link(a, b, kinds, self.tight_orb_deg) >= 0.30
 
@@ -1038,6 +1109,9 @@ class SpeciesAssigner:
             return "Hill Dwarf", evidence
 
         if family == "Elf":
+            if is_christmas_elf_candidate():
+                evidence.append("Craft, festivity, and factory markers select the seasonal workshop branch.")
+                return "Christmas Elf", evidence
             if max(link("Venus", "Pluto"), float(sr.get("Scorpio", 0.0))) >= 0.26 and er["Water"] >= 0.22:
                 evidence.append("Water and underworld polish select the dark branch.")
                 return "Drow", evidence
@@ -1061,6 +1135,12 @@ class SpeciesAssigner:
                 return "Avariel Elf", evidence
             evidence.append("The civilized airy branch remains the default.")
             return "High Elf", evidence
+
+        if family == "Gnome":
+            if is_christmas_elf_candidate():
+                evidence.append("Craft, festivity, and factory markers select the seasonal workshop branch.")
+                return "Christmas Elf", evidence
+            return "", evidence
 
         if family == "Fey":
             if strong_link("Venus", "Saturn"):
@@ -1252,7 +1332,7 @@ class SpeciesAssigner:
             evidence.append("The more visibly serpentine branch fits better.")
             return "Yuan-Ti Malison", evidence
 
-        if family in {"Cyclops", "Dragons", "Merfolk", "Minotaur", "Nymph", "Ogres", "Orcs", "Plasmoid", "Triton", "Gnome"}:
+        if family in {"Cyclops", "Dragons", "Merfolk", "Minotaur", "Nymph", "Ogres", "Orcs", "Plasmoid", "Triton"}:
             return "", evidence
 
         return "", evidence
@@ -1380,7 +1460,11 @@ def assign_top_three_species_with_evidence(chart: Any) -> List[Tuple[str, str, f
     assigner = SpeciesAssigner()
     positions = assigner._get_positions(chart)
     aspects = assigner._get_aspects(chart, positions)
-    feats = assigner._extract_features(positions, aspects)
+    feats = assigner._extract_features(
+        positions,
+        aspects,
+        chart_uses_houses=assigner._chart_uses_houses(chart),
+    )
     scores = assigner._score_families(positions, aspects, feats)
     ranked = assigner._rank_families(scores)
 
