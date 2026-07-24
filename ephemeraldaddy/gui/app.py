@@ -1357,7 +1357,7 @@ GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS: frozenset[str] = frozenset(
 )
 SIMILAR_CHARTS_EXPORT_FORMAT_KEY = "exports/similar_charts_format"
 CHART_VIEW_NAV_CACHE_LIMIT = 24
-CHART_VIEW_TIMING_PREVIEW_DEBOUNCE_MS = 450
+CHART_VIEW_TIMING_PREVIEW_DEBOUNCE_MS = 2500
 DATABASE_METRICS_DEFERRED_REFRESH_DELAY_MS = 250
 DATABASE_METRICS_INCREMENTAL_REFRESH_DELAY_MS = 25
 CHART_RENDER_INTERACTIVE_DELAY_MS = 100
@@ -35643,9 +35643,10 @@ class MainWindow(QMainWindow):
         if self._suppress_lucygoosey:
             return
         # Rectified-time, rectified-range, and known birthtime edits change core
-        # calculated chart data. Rebuild once after typing pauses instead of on
-        # each digit/checkbox signal, which keeps the GUI responsive while still
-        # updating Chart Data Output automatically.
+        # calculated chart data. Rebuild once after a real editing pause instead of on
+        # each digit/checkbox signal.  The chart rebuild can take long enough to
+        # block typing, so keep this delay aligned with recalculating autosave
+        # instead of firing midway through manual HH:mm entry.
         self._timing_preview_update_timer.start(CHART_VIEW_TIMING_PREVIEW_DEBOUNCE_MS)
         if self._can_autosave_current_chart():
             self._metadata_autosave_requires_recalculation = True
