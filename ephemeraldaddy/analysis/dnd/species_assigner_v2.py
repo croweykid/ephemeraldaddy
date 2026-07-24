@@ -962,6 +962,40 @@ class SpeciesAssigner:
         def link(a: str, b: str, kinds: Optional[Iterable[str]] = None, max_orb: Optional[float] = None) -> float:
             return self._aspect_strength(a, b, aspects, set(kinds) if kinds is not None else ALL_MAJOR_ASPECTS, max_orb=max_orb)
 
+        def ratio_signs(*signs: str) -> float:
+            return sum(float(sr.get(sign, 0.0)) for sign in signs)
+
+        def ratio_houses(*houses: int) -> float:
+            return sum(float(hr.get(h, 0.0)) for h in houses)
+
+        def p(body: str) -> float:
+            return float(prom.get(body, 0.0))
+
+        def christmas_elf_scores() -> Tuple[float, float, float]:
+            christmas_craft = max(
+                p("Mercury"),
+                link("Mercury", "Venus"),
+                link("Mercury", "Saturn"),
+                ratio_houses(6),
+            )
+            christmas_festivity = max(
+                link("Venus", "Jupiter"),
+                ratio_houses(5),
+                ratio_houses(11),
+                ratio_signs("Sagittarius"),
+            )
+            christmas_factory = max(
+                p("Saturn"),
+                ratio_signs("Capricorn"),
+                ratio_houses(6),
+                ratio_houses(10),
+            )
+            return christmas_craft, christmas_festivity, christmas_factory
+
+        def is_christmas_elf_candidate() -> bool:
+            craft, festivity, factory = christmas_elf_scores()
+            return min(craft, festivity, factory) >= 0.28
+
         def strong_link(a: str, b: str, kinds: Optional[Iterable[str]] = None) -> bool:
             return link(a, b, kinds, self.tight_orb_deg) >= 0.30
 
@@ -1038,6 +1072,9 @@ class SpeciesAssigner:
             return "Hill Dwarf", evidence
 
         if family == "Elf":
+            if is_christmas_elf_candidate():
+                evidence.append("Craft, festivity, and factory markers select the seasonal workshop branch.")
+                return "Christmas Elf", evidence
             if max(link("Venus", "Pluto"), float(sr.get("Scorpio", 0.0))) >= 0.26 and er["Water"] >= 0.22:
                 evidence.append("Water and underworld polish select the dark branch.")
                 return "Drow", evidence
@@ -1061,6 +1098,12 @@ class SpeciesAssigner:
                 return "Avariel Elf", evidence
             evidence.append("The civilized airy branch remains the default.")
             return "High Elf", evidence
+
+        if family == "Gnome":
+            if is_christmas_elf_candidate():
+                evidence.append("Craft, festivity, and factory markers select the seasonal workshop branch.")
+                return "Christmas Elf", evidence
+            return "", evidence
 
         if family == "Fey":
             if strong_link("Venus", "Saturn"):
@@ -1252,7 +1295,7 @@ class SpeciesAssigner:
             evidence.append("The more visibly serpentine branch fits better.")
             return "Yuan-Ti Malison", evidence
 
-        if family in {"Cyclops", "Dragons", "Merfolk", "Minotaur", "Nymph", "Ogres", "Orcs", "Plasmoid", "Triton", "Gnome"}:
+        if family in {"Cyclops", "Dragons", "Merfolk", "Minotaur", "Nymph", "Ogres", "Orcs", "Plasmoid", "Triton"}:
             return "", evidence
 
         return "", evidence
