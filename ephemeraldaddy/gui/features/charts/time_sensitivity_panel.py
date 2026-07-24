@@ -1481,11 +1481,20 @@ class TimeSensitivityPanel(QWidget):
         browser.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         browser.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         browser.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)
-        browser.setHtml(html)
+        html_loaded = expanded
+        if expanded:
+            browser.setHtml(html)
         min_height = 80 if section_key == "human_design" else 48
         max_height = 16777215 if section_key == "human_design" else 700
 
         adjusting_browser_height = False
+
+        def ensure_browser_html_loaded() -> None:
+            nonlocal html_loaded
+            if html_loaded:
+                return
+            browser.setHtml(html)
+            html_loaded = True
 
         def adjust_browser_height() -> None:
             nonlocal adjusting_browser_height
@@ -1516,8 +1525,10 @@ class TimeSensitivityPanel(QWidget):
             # QTextDocument wrapping depends on the QTextBrowser viewport width,
             # which is often stale while a collapsed section is first expanding.
             # Re-measure over a few event-loop turns so initially hidden rich text
-            # (especially the long Human Design section) does not stay clipped or
-            # over-tall until the user collapses and re-expands it.
+            # does not stay clipped or over-tall after the user expands it.
+            if not content.isVisible():
+                return
+            ensure_browser_html_loaded()
             for delay_ms in (0, 50, 150, 300):
                 QTimer.singleShot(delay_ms, adjust_browser_height)
 
@@ -1528,7 +1539,8 @@ class TimeSensitivityPanel(QWidget):
                 schedule_browser_height_adjustments()
 
         toggle.toggled.connect(toggle_section)
-        schedule_browser_height_adjustments()
+        if expanded:
+            schedule_browser_height_adjustments()
         if section_key == "human_design":
             browser.document().documentLayout().documentSizeChanged.connect(
                 lambda _size: schedule_browser_height_adjustments()
