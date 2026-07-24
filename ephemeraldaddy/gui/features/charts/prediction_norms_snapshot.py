@@ -135,30 +135,47 @@ def dnd_stat_snapshot_averages(snapshot: Mapping[str, Any] | None = None) -> dic
     return averages if len(averages) == len(DND_STAT_KEYS) else {}
 
 
-def _owner_chart_ids(owner: Any) -> list[int]:
+def _owner_chart_uids(owner: Any) -> tuple[str, ...]:
     if hasattr(owner, "_prediction_norm_rows"):
         rows = owner._prediction_norm_rows()
     else:
         rows = list(db.list_charts())
-    chart_ids: list[int] = []
+    chart_uids: set[str] = set()
+    missing_uid_row_ids: list[int] = []
     for row in rows or []:
+        values = tuple(row) if isinstance(row, (list, tuple)) else row
+        raw_uid = ""
         try:
-            chart_ids.append(int(row[0]))
+            raw_uid = str(values[30] or "")
+        except Exception:
+            raw_uid = ""
+        chart_uid = raw_uid.strip().upper()
+        if chart_uid:
+            chart_uids.add(chart_uid)
+            continue
+        try:
+            missing_uid_row_ids.append(int(values[0]))
         except Exception:
             continue
-    return chart_ids
+    if missing_uid_row_ids:
+        chart_uids.update(
+            str(uid).strip().upper()
+            for uid in db.get_chart_uid_map(missing_uid_row_ids).values()
+            if str(uid or "").strip()
+        )
+    return tuple(sorted(chart_uids))
 
 
 def _load_norm_charts(owner: Any) -> list[Any]:
-    chart_ids = _owner_chart_ids(owner)
+    chart_uids = _owner_chart_uids(owner)
     try:
-        charts_by_id = db.load_charts(chart_ids)
+        charts_by_uid = db.load_charts_by_uids(chart_uids)
     except Exception:
-        charts_by_id = {}
+        charts_by_uid = {}
     is_placeholder = getattr(owner, "_is_placeholder_chart", None)
     charts: list[Any] = []
-    for chart_id in chart_ids:
-        chart = charts_by_id.get(chart_id)
+    for chart_uid in chart_uids:
+        chart = charts_by_uid.get(chart_uid)
         if chart is None:
             continue
         if callable(is_placeholder) and is_placeholder(chart):
