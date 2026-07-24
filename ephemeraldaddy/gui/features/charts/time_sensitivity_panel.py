@@ -1526,7 +1526,7 @@ class TimeSensitivityPanel(QWidget):
             # which is often stale while a collapsed section is first expanding.
             # Re-measure over a few event-loop turns so initially hidden rich text
             # does not stay clipped or over-tall after the user expands it.
-            if not content.isVisible():
+            if not toggle.isChecked():
                 return
             ensure_browser_html_loaded()
             for delay_ms in (0, 50, 150, 300):

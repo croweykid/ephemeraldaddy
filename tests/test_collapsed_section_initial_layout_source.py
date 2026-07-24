@@ -1,8 +1,12 @@
 from pathlib import Path
 
 APP_SOURCE = Path("ephemeraldaddy/gui/app.py").read_text()
-MAIN_WINDOW_SOURCE = Path("ephemeraldaddy/gui/features/controllers/main_window.py").read_text()
-TIME_SENSITIVITY_SOURCE = Path("ephemeraldaddy/gui/features/charts/time_sensitivity_panel.py").read_text()
+MAIN_WINDOW_SOURCE = Path(
+    "ephemeraldaddy/gui/features/controllers/main_window.py"
+).read_text()
+TIME_SENSITIVITY_SOURCE = Path(
+    "ephemeraldaddy/gui/features/charts/time_sensitivity_panel.py"
+).read_text()
 
 
 def test_chart_analysis_expansion_defers_initial_render_until_geometry_settles():
@@ -10,7 +14,9 @@ def test_chart_analysis_expansion_defers_initial_render_until_geometry_settles()
     end = APP_SOURCE.index("    def _is_chart_analysis_section_visible", start)
     method = APP_SOURCE[start:end]
 
-    assert "Collapsed right-panel sections can have stale or zero child geometry" in method
+    assert (
+        "Collapsed right-panel sections can have stale or zero child geometry" in method
+    )
     assert "QTimer.singleShot(0, schedule_expanded_section_render)" in method
     assert "QTimer.singleShot(75, schedule_expanded_section_render)" in method
 
@@ -47,5 +53,6 @@ def test_time_sensitivity_collapsed_html_sections_defer_html_and_height_work():
     assert "html_loaded = expanded" in method
     assert "if expanded:\n            browser.setHtml(html)" in method
     assert "def ensure_browser_html_loaded" in method
-    assert "if not content.isVisible():\n                return" in method
+    assert "if not toggle.isChecked():\n                return" in method
+    assert "if not content.isVisible():\n                return" not in method
     assert "if expanded:\n            schedule_browser_height_adjustments()" in method
