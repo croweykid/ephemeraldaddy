@@ -894,8 +894,14 @@ def ensure_time_sensitivity_db(path: Path = TIME_SENSITIVITY_DB_PATH) -> None:
                 "ALTER TABLE chart_time_sensitivity_ranges ADD COLUMN birth_date_key TEXT NOT NULL DEFAULT ''"
             )
         conn.execute("""
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_time_sensitivity_birth_date_config
-            ON chart_time_sensitivity_ranges(birth_date_key, algorithm_version, config_hash)
+            CREATE INDEX IF NOT EXISTS idx_time_sensitivity_chart_uid_config
+            ON chart_time_sensitivity_ranges(chart_uid, algorithm_version, config_hash, updated_at DESC)
+            WHERE chart_uid != ''
+            """)
+        conn.execute("DROP INDEX IF EXISTS idx_time_sensitivity_birth_date_config")
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_time_sensitivity_birth_date_config
+            ON chart_time_sensitivity_ranges(birth_date_key, algorithm_version, config_hash, updated_at DESC)
             WHERE birth_date_key != ''
             """)
 
@@ -911,21 +917,22 @@ def save_time_sensitivity_result(
     now = datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     storage_chart_uid = result.chart_uid or f"date:{result.birth_date_key}"
     with sqlite3.connect(path) as conn:
-        conn.execute(
-            """
-            DELETE FROM chart_time_sensitivity_ranges
-            WHERE (birth_date_key != '' AND birth_date_key = ? AND algorithm_version = ? AND config_hash = ?)
-               OR (chart_uid != '' AND chart_uid = ? AND algorithm_version = ? AND config_hash = ?)
-            """,
-            (
-                result.birth_date_key,
-                result.algorithm_version,
-                config_hash,
-                result.chart_uid,
-                result.algorithm_version,
-                config_hash,
-            ),
-        )
+        if result.chart_uid:
+            conn.execute(
+                """
+                DELETE FROM chart_time_sensitivity_ranges
+                WHERE chart_uid = ? AND algorithm_version = ? AND config_hash = ?
+                """,
+                (result.chart_uid, result.algorithm_version, config_hash),
+            )
+        else:
+            conn.execute(
+                """
+                DELETE FROM chart_time_sensitivity_ranges
+                WHERE birth_date_key != '' AND birth_date_key = ? AND algorithm_version = ? AND config_hash = ?
+                """,
+                (result.birth_date_key, result.algorithm_version, config_hash),
+            )
         conn.execute(
             """
             INSERT INTO chart_time_sensitivity_ranges (
@@ -950,27 +957,43 @@ def load_time_sensitivity_result_for_chart(
     config: TimeSensitivityConfig | None = None,
     path: Path = TIME_SENSITIVITY_DB_PATH,
 ) -> TimeSensitivityResult | None:
-    """Load the most recent saved Time Sensitivity result for a chart's MM-DD-YYYY birth date."""
+    """Load the saved Time Sensitivity result for a chart, preferring its UID."""
     birth_date_key = birth_date_key_for_chart(chart)
-    if not birth_date_key or not path.exists():
+    chart_uid = str(getattr(chart, "chart_uid", "") or "").strip()
+    if not path.exists() or (not chart_uid and not birth_date_key):
         return None
     cfg = config or TimeSensitivityConfig()
     ensure_time_sensitivity_db(path)
     config_hash = _config_hash(asdict(cfg))
+    row: tuple[Any, ...] | None = None
     with sqlite3.connect(path) as conn:
-        row = conn.execute(
-            """
-            SELECT result_json
-            FROM chart_time_sensitivity_ranges
-            WHERE birth_date_key = ?
-              AND algorithm_version = ?
-              AND config_hash = ?
-            ORDER BY updated_at DESC
-            LIMIT 1
-            """,
-            (birth_date_key, TIME_SENSITIVITY_ALGORITHM_VERSION, config_hash),
-        ).fetchone()
-        if row is None and path != TIME_SENSITIVITY_DB_PATH:
+        if chart_uid:
+            row = conn.execute(
+                """
+                SELECT result_json
+                FROM chart_time_sensitivity_ranges
+                WHERE chart_uid = ?
+                  AND algorithm_version = ?
+                  AND config_hash = ?
+                ORDER BY updated_at DESC
+                LIMIT 1
+                """,
+                (chart_uid, TIME_SENSITIVITY_ALGORITHM_VERSION, config_hash),
+            ).fetchone()
+        if row is None and birth_date_key:
+            row = conn.execute(
+                """
+                SELECT result_json
+                FROM chart_time_sensitivity_ranges
+                WHERE birth_date_key = ?
+                  AND algorithm_version = ?
+                  AND config_hash = ?
+                ORDER BY updated_at DESC
+                LIMIT 1
+                """,
+                (birth_date_key, TIME_SENSITIVITY_ALGORITHM_VERSION, config_hash),
+            ).fetchone()
+        if row is None and birth_date_key and path != TIME_SENSITIVITY_DB_PATH:
             row = conn.execute(
                 """
                 SELECT result_json
