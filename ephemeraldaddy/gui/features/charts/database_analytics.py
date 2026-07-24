@@ -4932,6 +4932,19 @@ class DatabaseAnalyticsChartsMixin:
             profile_entries = payload.get("profile_entries", [])
             if not isinstance(profile_entries, list):
                 return False
+            legacy_chart_ids: set[int] = set()
+            for entry in profile_entries:
+                if not isinstance(entry, dict) or str(entry.get("chart_uid", "") or "").strip():
+                    continue
+                try:
+                    legacy_chart_ids.add(int(entry.get("chart_id")))
+                except (TypeError, ValueError):
+                    continue
+            legacy_uid_by_id = {
+                int(chart_id): str(uid).strip().upper()
+                for chart_id, uid in db.get_chart_uid_map(legacy_chart_ids).items()
+                if str(uid or "").strip()
+            } if legacy_chart_ids else {}
             for entry in profile_entries:
                 if not isinstance(entry, dict):
                     skipped_entries += 1
@@ -4943,6 +4956,11 @@ class DatabaseAnalyticsChartsMixin:
                     skipped_entries += 1
                     continue
                 chart_uid = str(entry.get("chart_uid", "") or "").strip().upper()
+                if not chart_uid:
+                    try:
+                        chart_uid = legacy_uid_by_id.get(int(entry.get("chart_id")), "")
+                    except (TypeError, ValueError):
+                        chart_uid = ""
                 if not chart_uid or profile_index < 0 or profile_index >= len(profile_keys):
                     skipped_entries += 1
                     continue
