@@ -4359,11 +4359,6 @@ class DatabaseAnalyticsChartsMixin:
             for row in rankings
             if isinstance(row, dict) and row.get("chart_uid")
         }
-        self._traits_distribution_current_ranked_chart_ids = {
-            int(row["legacy_chart_id"])
-            for row in rankings
-            if isinstance(row, dict) and row.get("legacy_chart_id") is not None
-        }
         rank_label.setText(
             self._render_traits_distribution_rankings_html(
                 context.get("selected_trait_name"),
@@ -4375,8 +4370,13 @@ class DatabaseAnalyticsChartsMixin:
         )
 
     def _refresh_traits_distribution_rankings_after_hidden_chart_change(self, hidden_chart_ids: set[int]) -> None:
-        current_ranked_ids = getattr(self, "_traits_distribution_current_ranked_chart_ids", set())
-        if not hidden_chart_ids or not current_ranked_ids or not (set(hidden_chart_ids) & set(current_ranked_ids)):
+        current_ranked_uids = getattr(self, "_traits_distribution_current_ranked_chart_uids", set())
+        hidden_uids = {
+            str(uid).strip().upper()
+            for uid in db.get_chart_uid_map({int(chart_id) for chart_id in hidden_chart_ids}).values()
+            if str(uid or "").strip()
+        }
+        if not hidden_uids or not current_ranked_uids or not (hidden_uids & set(current_ranked_uids)):
             return
         self._refresh_traits_distribution_rankings_from_cached_context()
 
@@ -4529,7 +4529,6 @@ class DatabaseAnalyticsChartsMixin:
             rows.append(
                 {
                     "chart_uid": chart_uid,
-                    "legacy_chart_id": int(chart_id),
                     "name": chart_name or f"Chart {chart_id}",
                     "likelihood": likelihood,
                     "deviation": likelihood - db_average_pct,
@@ -4589,10 +4588,6 @@ class DatabaseAnalyticsChartsMixin:
         for rank, row in enumerate(rankings, start=1):
             name = html.escape(str(row.get("name", "")))
             chart_uid = str(row.get("chart_uid", "") or "").strip()
-            try:
-                chart_id = int(row.get("legacy_chart_id"))
-            except (TypeError, ValueError):
-                chart_id = 0
             chart_target = chart_uid
             chart_link = (
                 f"<a href='chart:{html.escape(chart_target)}' style='color:#f0f0f0; text-decoration:none;'>{name}</a>"
@@ -4686,14 +4681,15 @@ class DatabaseAnalyticsChartsMixin:
     def _persist_traits_distribution_metadata(
         self,
         *,
-        normalized_chart_ids: tuple[int, ...],
+        chart_uids: tuple[str, ...],
+        charts_by_uid: Mapping[str, Any],
         trait_items: list[dict[str, Any]],
         trait_names: list[str],
-        chart_likelihoods: dict[int, dict[str, float]],
+        chart_likelihoods: dict[str, dict[str, float]],
         database_averages_pct: dict[str, float],
     ) -> None:
         """Passively backfill UID-keyed trait metadata from warmed analytics scores."""
-        if not normalized_chart_ids or not trait_names or not chart_likelihoods:
+        if not chart_uids or not trait_names or not chart_likelihoods:
             return
         trait_signature_hash = self._stable_traits_metadata_hash(
             {
@@ -4708,10 +4704,8 @@ class DatabaseAnalyticsChartsMixin:
                 ],
             }
         )
-        uid_by_id = db.get_chart_uid_map(normalized_chart_ids)
-        norm_signature = self._stable_traits_metadata_hash(
-            tuple(sorted(str(uid).strip().upper() for uid in uid_by_id.values() if str(uid or "").strip()))
-        )
+        normalized_scope_uids = tuple(sorted(str(uid).strip().upper() for uid in chart_uids if str(uid or "").strip()))
+        norm_signature = self._stable_traits_metadata_hash(normalized_scope_uids)
         trait_uids_by_name = {
             str(trait.get("name", "")).strip(): str(trait.get("uid") or trait.get("trait_uid") or "").strip()
             for trait in trait_items
@@ -4734,16 +4728,16 @@ class DatabaseAnalyticsChartsMixin:
                     }
                     for name, average in database_averages_pct.items()
                 ],
-                chart_count=len(normalized_chart_ids),
-                norm_state={"chart_ids": list(normalized_chart_ids)},
+                chart_count=len(normalized_scope_uids),
+                norm_state={"chart_uids": list(normalized_scope_uids)},
             )
         except Exception:
             logger.exception("Failed to persist trait baseline snapshot.")
         threshold = TRAIT_DEVIATION_ASSIGNMENT_THRESHOLD
-        for chart_id, likelihoods in chart_likelihoods.items():
-            chart = self._get_chart_for_filter(int(chart_id))
-            chart_uid = str(getattr(chart, "chart_uid", "") or "").strip()
-            if not chart_uid:
+        for chart_uid, likelihoods in chart_likelihoods.items():
+            chart_uid = str(chart_uid or "").strip().upper()
+            chart = charts_by_uid.get(chart_uid)
+            if not chart_uid or chart is None:
                 continue
             rows: list[dict[str, Any]] = []
             for name in trait_names:
@@ -4799,10 +4793,8 @@ class DatabaseAnalyticsChartsMixin:
                 if (
                     isinstance(cache_key, tuple)
                     and len(cache_key) >= 3
-                    and (
-                        (isinstance(cache_key[2], str) and cache_key[2].strip().upper() in changed_uids)
-                        or (isinstance(cache_key[2], int) and cache_key[2] in changed_ids)
-                    )
+                    and isinstance(cache_key[2], str)
+                    and cache_key[2].strip().upper() in changed_uids
                 ):
                     likelihood_cache.pop(cache_key, None)
         else:
@@ -4813,13 +4805,10 @@ class DatabaseAnalyticsChartsMixin:
             for cache_key in list(individual_cache):
                 if isinstance(cache_key, tuple) and len(cache_key) == 2:
                     try:
-                        raw_chart_key = cache_key[1]
-                        if isinstance(raw_chart_key, str):
-                            if raw_chart_key.strip().upper() in changed_uids:
-                                individual_cache.pop(cache_key, None)
-                        elif int(raw_chart_key) in changed_ids:
-                            individual_cache.pop(cache_key, None)
+                        raw_chart_uid = str(cache_key[1] or "").strip().upper()
                     except (TypeError, ValueError):
+                        raw_chart_uid = ""
+                    if raw_chart_uid in changed_uids:
                         individual_cache.pop(cache_key, None)
         else:
             self._traits_distribution_individual_likelihood_cache = {}
@@ -4923,15 +4912,14 @@ class DatabaseAnalyticsChartsMixin:
             return False
         cache_revision = int(getattr(self, "_database_metrics_cache_revision", 0))
         chart_tokens = self._traits_distribution_chart_tokens()
-        chart_uid_by_id = self._traits_distribution_chart_uid_by_id()
         likelihood_cache: dict[tuple[Any, ...], dict[str, float]] = {}
         individual_cache: dict[tuple[tuple[str, str, str], str], float] = {}
         individual_profile_cache: dict[tuple[str, str], float] = {}
         individual_profile_token_cache: dict[tuple[str, str], str] = {}
         skipped_entries = 0
 
-        def chart_is_current(chart_id: int, saved_chart_token: str) -> bool:
-            current_chart_token = chart_tokens.get(chart_id)
+        def chart_is_current(chart_uid: str, saved_chart_token: str) -> bool:
+            current_chart_token = chart_tokens.get(chart_uid)
             return not (current_chart_token and saved_chart_token and saved_chart_token != current_chart_token)
 
         # Version 3 stores each analytical profile once and then stores per-chart
@@ -4955,12 +4943,6 @@ class DatabaseAnalyticsChartsMixin:
                     skipped_entries += 1
                     continue
                 chart_uid = str(entry.get("chart_uid", "") or "").strip().upper()
-                if not chart_uid:
-                    legacy_id = entry.get("chart_id")
-                    try:
-                        chart_uid = self._traits_distribution_chart_uid_by_id().get(int(legacy_id), "")
-                    except (TypeError, ValueError):
-                        chart_uid = ""
                 if not chart_uid or profile_index < 0 or profile_index >= len(profile_keys):
                     skipped_entries += 1
                     continue
@@ -4968,58 +4950,8 @@ class DatabaseAnalyticsChartsMixin:
                 individual_profile_cache[profile_cache_key] = likelihood
                 individual_profile_token_cache[profile_cache_key] = str(entry.get("chart_token", "") or "")
         else:
-            entries = payload.get("entries", [])
-            if not isinstance(entries, list):
-                return False
-            for entry in entries:
-                if not isinstance(entry, dict):
-                    skipped_entries += 1
-                    continue
-                try:
-                    chart_id = int(entry.get("chart_id"))
-                except (TypeError, ValueError):
-                    skipped_entries += 1
-                    continue
-                chart_uid = self._traits_distribution_chart_uid_by_id().get(chart_id, "")
-                if not chart_uid:
-                    skipped_entries += 1
-                    continue
-                entry_is_current = chart_is_current(chart_uid, str(entry.get("chart_token", "") or ""))
-                signature = entry.get("trait_signature")
-                likelihoods = entry.get("likelihoods")
-                if not isinstance(signature, list) or not isinstance(likelihoods, dict):
-                    skipped_entries += 1
-                    continue
-                trait_signature = tuple(
-                    (str(item[0]), str(item[1]), str(item[2]))
-                    for item in signature
-                    if isinstance(item, (list, tuple)) and len(item) == 3
-                )
-                if not trait_signature:
-                    skipped_entries += 1
-                    continue
-                normalized_likelihoods: dict[str, float] = {}
-                trait_keys_by_name = {name: (name, color, profile) for name, color, profile in trait_signature}
-                for name, value in likelihoods.items():
-                    if not isinstance(name, str):
-                        continue
-                    try:
-                        likelihood = float(value)
-                    except (TypeError, ValueError):
-                        skipped_entries += 1
-                        continue
-                    normalized_likelihoods[str(name)] = likelihood
-                    trait_key = trait_keys_by_name.get(str(name))
-                    if trait_key is not None:
-                        if entry_is_current:
-                            individual_cache[(trait_key, chart_uid)] = likelihood
-                        profile_cache_key = (trait_key[2], chart_uid)
-                        individual_profile_cache[profile_cache_key] = likelihood
-                        individual_profile_token_cache[profile_cache_key] = str(entry.get("chart_token", "") or "")
-                if normalized_likelihoods and entry_is_current:
-                    likelihood_cache[(cache_revision, trait_signature, chart_uid)] = normalized_likelihoods
-                elif not normalized_likelihoods:
-                    skipped_entries += 1
+            logger.info("Ignoring obsolete traits distribution likelihood cache version %s.", payload_version)
+            return False
         if not likelihood_cache and not individual_cache and not individual_profile_cache:
             return False
         if skipped_entries:
@@ -5158,15 +5090,25 @@ class DatabaseAnalyticsChartsMixin:
             else self._traits_distribution_signature(trait_items)
         )
         normalized_chart_ids = tuple(sorted({int(chart_id) for chart_id in chart_ids}))
+        chart_uid_by_id = self._traits_distribution_chart_uid_by_id()
+        normalized_chart_uids = tuple(
+            sorted(
+                {
+                    chart_uid
+                    for chart_id in normalized_chart_ids
+                    if (chart_uid := chart_uid_by_id.get(int(chart_id), ""))
+                }
+            )
+        )
         aggregate_cache = getattr(self, "_traits_distribution_analytics_cache", None)
         if not isinstance(aggregate_cache, dict):
             aggregate_cache = {}
             self._traits_distribution_analytics_cache = aggregate_cache
         cache_revision = int(getattr(self, "_database_metrics_cache_revision", 0))
-        aggregate_cache_key = (cache_revision, trait_signature, normalized_chart_ids)
+        aggregate_cache_key = (cache_revision, trait_signature, normalized_chart_uids)
         cached = aggregate_cache.get(aggregate_cache_key)
         if isinstance(cached, dict):
-            _predictions_debug(self, "Traits distribution aggregate cache hit charts=%s traits=%s", len(normalized_chart_ids), len(trait_signature))
+            _predictions_debug(self, "Traits distribution aggregate cache hit chart_uids=%s traits=%s", len(normalized_chart_uids), len(trait_signature))
             return copy.deepcopy(cached)
 
         trait_names = [name for name, _color, _profile in trait_signature]
@@ -5195,7 +5137,6 @@ class DatabaseAnalyticsChartsMixin:
             individual_profile_token_cache = {}
             self._traits_distribution_individual_profile_token_cache = individual_profile_token_cache
         chart_tokens = self._traits_distribution_chart_tokens()
-        chart_uid_by_id = self._traits_distribution_chart_uid_by_id()
         if not isinstance(individual_profile_cache, dict):
             individual_profile_cache = {}
             self._traits_distribution_individual_profile_likelihood_cache = individual_profile_cache
@@ -5212,7 +5153,8 @@ class DatabaseAnalyticsChartsMixin:
         cache_updated = False
         partial = False
         parsed_chart_count = 0
-        chart_likelihoods_for_metadata: dict[int, dict[str, float]] = {}
+        charts_by_uid_for_metadata: dict[str, Any] = {}
+        chart_likelihoods_for_metadata: dict[str, dict[str, float]] = {}
         uncached_started_at = time.monotonic()
         for chart_id in normalized_chart_ids:
             parsed_chart_count += 1
@@ -5225,7 +5167,7 @@ class DatabaseAnalyticsChartsMixin:
             chart_cache_key = (cache_revision, trait_signature, chart_uid)
             likelihoods = likelihood_cache.get(chart_cache_key)
             if likelihoods is not None:
-                _predictions_debug(self, "Traits distribution chart cache hit chart_id=%s traits=%s", chart_id, len(likelihoods))
+                _predictions_debug(self, "Traits distribution chart cache hit chart_uid=%s traits=%s", chart_uid, len(likelihoods))
             if likelihoods is None:
                 likelihoods = {}
                 missing_trait_items: list[dict[str, Any]] = []
@@ -5246,8 +5188,8 @@ class DatabaseAnalyticsChartsMixin:
                 if likelihoods:
                     _predictions_debug(
                         self,
-                        "Traits distribution individual cache filled chart_id=%s cached_traits=%s missing_traits=%s",
-                        chart_id,
+                        "Traits distribution individual cache filled chart_uid=%s cached_traits=%s missing_traits=%s",
+                        chart_uid,
                         len(likelihoods),
                         len(missing_trait_items),
                     )
@@ -5262,8 +5204,8 @@ class DatabaseAnalyticsChartsMixin:
                         partial = True
                         _predictions_debug(
                             self,
-                            "Traits distribution partial stop chart_id=%s parsed=%s requested=%s",
-                            chart_id,
+                            "Traits distribution partial stop chart_uid=%s parsed=%s requested=%s",
+                            chart_uid,
                             parsed_chart_count,
                             len(normalized_chart_ids),
                         )
@@ -5271,8 +5213,8 @@ class DatabaseAnalyticsChartsMixin:
                     try:
                         _predictions_debug(
                             self,
-                            "Traits distribution scoring chart_id=%s missing_traits=%s",
-                            chart_id,
+                            "Traits distribution scoring chart_uid=%s missing_traits=%s",
+                            chart_uid,
                             len(missing_trait_items),
                         )
                         missing_likelihoods = calculate_trait_likelihoods(
@@ -5300,7 +5242,8 @@ class DatabaseAnalyticsChartsMixin:
                 if len(likelihoods) >= len(trait_names):
                     likelihood_cache[chart_cache_key] = dict(likelihoods)
             if len(likelihoods) >= len(trait_names):
-                chart_likelihoods_for_metadata[int(chart_id)] = dict(likelihoods)
+                charts_by_uid_for_metadata[chart_uid] = chart
+                chart_likelihoods_for_metadata[chart_uid] = dict(likelihoods)
             chart_count += 1
             for name in trait_names:
                 try:
@@ -5331,7 +5274,8 @@ class DatabaseAnalyticsChartsMixin:
             )
             if chart_count:
                 self._persist_traits_distribution_metadata(
-                    normalized_chart_ids=normalized_chart_ids,
+                    chart_uids=normalized_chart_uids,
+                    charts_by_uid=charts_by_uid_for_metadata,
                     trait_items=trait_items,
                     trait_names=trait_names,
                     chart_likelihoods=chart_likelihoods_for_metadata,
@@ -5404,7 +5348,6 @@ class DatabaseAnalyticsChartsMixin:
                 "cache_warmed": False,
                 "parsed_percent": None,
             }
-            self._traits_distribution_current_ranked_chart_ids = set()
             chart_layout = getattr(self, "traits_distribution_chart_layout", None)
             if chart_layout is not None:
                 self._clear_layout(chart_layout)
@@ -5532,11 +5475,6 @@ class DatabaseAnalyticsChartsMixin:
                 str(row["chart_uid"]).strip().upper()
                 for row in rankings
                 if isinstance(row, dict) and row.get("chart_uid")
-            }
-            self._traits_distribution_current_ranked_chart_ids = {
-                int(row["legacy_chart_id"])
-                for row in rankings
-                if isinstance(row, dict) and row.get("legacy_chart_id") is not None
             }
             rank_label.setText(
                 self._render_traits_distribution_rankings_html(

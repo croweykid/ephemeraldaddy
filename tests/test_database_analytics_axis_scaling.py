@@ -22,6 +22,12 @@ class _Dummy:
     def __ror__(self, _other):
         return self
 
+    def __add__(self, _other):
+        return self
+
+    def __radd__(self, _other):
+        return self
+
 
 backend_qtagg = types.ModuleType("matplotlib.backends.backend_qtagg")
 backend_qtagg.FigureCanvasQTAgg = FigureCanvasAgg
