@@ -8,7 +8,7 @@ from __future__ import annotations
 # definitions also live below rather than being silently collapsed together.
 TAG_CATEGORY_OPTIONS: tuple[tuple[str, str], ...] = (
     ("Occupation", "occupation"),
-    ("🧬 Trait", "trait"),
+    ("Trait", "trait"),
     ("Reputation", "reputation"),
     ("Affiliation", "affiliation"),
     ("Crime", "crime"),
@@ -38,18 +38,18 @@ TAG_CATEGORY_PREFIXES = frozenset(TAG_CATEGORY_DISPLAY_NAMES)
 # Database Analytics deliberately retains its established shorter/pluralized
 # labels and recognition of explicit uncategorized/unknown prefixes.
 TAG_DISTRIBUTION_CATEGORY_ORDER: tuple[str, ...] = (
-    "Occupation",
-    "Uncategorized",
-    "Trait",
-    "Reputation",
     "Affiliation",
+    "Characters Played",
     "Crime",
-    "Life Events",
-    "Characters",
-    "Hobbies",
-    "Personality",
     "Genres",
+    "Hobbies",
+    "Life Events",
+    "Occupation",
     "Places",
+    "Reputation",
+    "Trait",
+    "Typology",
+    "Uncategorized",
 )
 TAG_DISTRIBUTION_CATEGORY_ALIASES: dict[str, str] = {
     "occupation": "Occupation",
@@ -64,8 +64,7 @@ TAG_DISTRIBUTION_CATEGORY_ALIASES: dict[str, str] = {
     "character": "Characters",
     "hobbies": "Hobbies",
     "hobby": "Hobbies",
-    "personality": "Personality",
-    "personality_types": "Personality",
+    "personality_types": "Typology",
     "genres": "Genres",
     "genre": "Genres",
     "places": "Places",
