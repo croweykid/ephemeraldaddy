@@ -11,6 +11,7 @@ import html
 from typing import Any
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from ephemeraldaddy.core.interpretations import SIGN_COLORS, ZODIAC_NAMES, ZODIAC_SIGNS
@@ -22,6 +23,10 @@ from ephemeraldaddy.gui.features.charts.metrics import (
 )
 from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import trait_snapshot_averages
 from ephemeraldaddy.gui.features.charts.presentation import sign_for_longitude
+
+
+_DEFAULT_TRAIT_NAME_COLOR = QColor("#cfcfcf")
+_ADD_ON_TRAIT_NAME_COLOR = QColor("#ff9f1c")
 
 
 class RankingsPanelMixin:
@@ -171,6 +176,7 @@ class RankingsPanelMixin:
             for trait in trait_items
             if str(trait.get("name", "")).strip() and not bool(trait.get("archived", False))
         ]
+        active_traits.sort(key=lambda trait: str(trait.get("name", "")).strip().casefold())
         current_name = str(combo.currentData() or getattr(self, "_rankings_trait_name", "") or "")
         combo.blockSignals(True)
         try:
@@ -185,6 +191,12 @@ class RankingsPanelMixin:
             for trait in active_traits:
                 name = str(trait.get("name", "")).strip()
                 combo.addItem(name, name)
+                name_color = (
+                    _DEFAULT_TRAIT_NAME_COLOR
+                    if bool(trait.get("bundled", False))
+                    else _ADD_ON_TRAIT_NAME_COLOR
+                )
+                combo.setItemData(combo.count() - 1, name_color, Qt.ForegroundRole)
             selected_index = combo.findData(current_name) if current_name else 0
             combo.setCurrentIndex(selected_index if selected_index >= 0 else 0)
             selected_name = combo.currentData()
