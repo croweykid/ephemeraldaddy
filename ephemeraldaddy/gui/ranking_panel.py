@@ -13,7 +13,12 @@ from typing import Any
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
-from ephemeraldaddy.core.interpretations import SIGN_COLORS, ZODIAC_NAMES, ZODIAC_SIGNS
+from ephemeraldaddy.core.interpretations import (
+    PLANET_COLORS,
+    SIGN_COLORS,
+    ZODIAC_NAMES,
+    ZODIAC_SIGNS,
+)
 from ephemeraldaddy.core.chart import chart_uses_houses
 from ephemeraldaddy.core.db import get_chart_ids_by_uid, get_chart_uid_map, load_dominant_sign_weights
 from ephemeraldaddy.gui.features.settings.traits import list_traits
@@ -102,6 +107,9 @@ class RankingsPanelMixin:
         self.rankings_signs_label.setOpenExternalLinks(False)
         self.rankings_signs_label.linkActivated.connect(
             self._on_traits_distribution_rank_chart_link_activated
+        )
+        self.rankings_signs_label.linkHovered.connect(
+            self._on_sign_dominance_rank_chart_link_hovered
         )
         self.rankings_signs_label.setWordWrap(True)
         self.rankings_signs_label.setStyleSheet("color: #d8d8d8; padding: 2px 0 6px 0;")
@@ -372,6 +380,127 @@ class RankingsPanelMixin:
             css_parts.append("font-weight:700")
         return "; ".join(css_parts)
 
+    @staticmethod
+    def _sign_dominance_colored_term(text: object, color: str) -> str:
+        """Return one safely escaped, color-coded tooltip term."""
+        return (
+            f"<span style='color:{html.escape(str(color), quote=True)};'>"
+            f"{html.escape(str(text))}</span>"
+        )
+
+    def _sign_dominance_tooltip_html(self, chart: Any, selected_sign: str) -> str:
+        """Explain the luminary/Ascendant pattern behind a dominance result."""
+        chart_name = html.escape(str(getattr(chart, "name", "") or "This chart"))
+
+        def body(body_name: str) -> str:
+            return self._sign_dominance_colored_term(
+                body_name, str(PLANET_COLORS.get(body_name, "#d8d8d8"))
+            )
+
+        def sign(sign_name: str) -> str:
+            return self._sign_dominance_colored_term(
+                sign_name, str(SIGN_COLORS.get(sign_name, "#d8d8d8"))
+            )
+
+        selected = sign(selected_sign)
+        sun_sign = self._rankings_chart_body_sign(chart, "Sun")
+        moon_sign = self._rankings_chart_body_sign(chart, "Moon")
+        ascendant_sign = (
+            self._rankings_chart_body_sign(chart, "AS") if chart_uses_houses(chart) else None
+        )
+        sun_matches = sun_sign == selected_sign
+        moon_matches = moon_sign == selected_sign
+        rising_matches = ascendant_sign == selected_sign
+
+        prefix = f"<b>{chart_name}</b> is {selected} dominant"
+        if sun_matches and moon_matches and rising_matches:
+            return (
+                f"{prefix} with {body('Sun')}, {body('Moon')} and {body('AS')} "
+                f"in {selected}."
+            )
+        if sun_matches and rising_matches:
+            return (
+                f"{prefix} with {body('Sun')} and {body('AS')} in {selected}, "
+                f"but {body('Moon')} in {sign(moon_sign or 'unknown')}."
+            )
+        if moon_matches and rising_matches:
+            return (
+                f"{prefix} with {body('Moon')} and {body('AS')} in {selected}, "
+                f"but {body('Sun')} in {sign(sun_sign or 'unknown')}."
+            )
+        if sun_matches and moon_matches:
+            ascendant = (
+                f"in {sign(ascendant_sign)}" if ascendant_sign else "unknown"
+            )
+            return (
+                f"{prefix} with {body('Sun')} and {body('Moon')} in {selected}, "
+                f"but {body('AS')} {ascendant}."
+            )
+
+        matching_bodies = [
+            body_name
+            for body_name, matches in (
+                ("Sun", sun_matches),
+                ("Moon", moon_matches),
+                ("AS", rising_matches),
+            )
+            if matches
+        ]
+        if matching_bodies:
+            matching_text = (
+                body(matching_bodies[0])
+                if len(matching_bodies) == 1
+                else " and ".join(body(body_name) for body_name in matching_bodies)
+            )
+            exceptions = []
+            if not sun_matches:
+                exceptions.append(f"{sign(sun_sign or 'unknown')} {body('Sun')}")
+            if not moon_matches:
+                exceptions.append(f"{sign(moon_sign or 'unknown')} {body('Moon')}")
+            if not rising_matches:
+                exceptions.append(
+                    f"{sign(ascendant_sign)} {body('AS')}"
+                    if ascendant_sign
+                    else f"{body('AS')} unknown"
+                )
+            return f"{prefix} with {matching_text} in {selected}, but {', '.join(exceptions)}."
+
+        ascendant = (
+            f"{sign(ascendant_sign)} {body('AS')}"
+            if ascendant_sign
+            else f"{body('AS')} unknown"
+        )
+        return (
+            f"{prefix} despite {sign(sun_sign or 'unknown')} {body('Sun')}, "
+            f"{sign(moon_sign or 'unknown')} {body('Moon')} and {ascendant}."
+        )
+
+    def _on_sign_dominance_rank_chart_link_hovered(self, link: str) -> None:
+        """Expose the hovered ranking row's explanation through Qt's tooltip."""
+        label = getattr(self, "rankings_signs_label", None)
+        if not isinstance(label, QLabel):
+            return
+        tooltips = getattr(self, "_rankings_sign_dominance_tooltips", {})
+        label.setToolTip(
+            str(tooltips.get(str(link), "")) if isinstance(tooltips, dict) else ""
+        )
+
+    @staticmethod
+    def _sign_dominance_key_html(selected_sign: str) -> str:
+        """Return the visual key for chart-name styling in dominance rankings."""
+        safe_sign = html.escape(selected_sign)
+        entries = (
+            ("font-weight:700; color:#39ff14", f"Sun/Moon/AS all in {safe_sign}"),
+            ("color:#39ff14", f"Sun/Moon in {safe_sign}"),
+            ("font-style:italic; color:#f0f0f0", f"AS only, but still dominant in {safe_sign}"),
+            ("color:#f0f0f0", f"Sun only, but still dominant in {safe_sign}"),
+            ("font-style:italic; color:#5dade2", f"Moon only, but still dominant in {safe_sign}"),
+        )
+        return "<div style='padding:0 0 4px 8px;'>" + "<br>".join(
+            f"<span style='color:#9a9a9a;'>•</span> <span style='{style};'>{text}</span>"
+            for style, text in entries
+        ) + "</div>"
+
     def _refresh_sign_dominance_rankings(self, database_chart_ids: set[int]) -> None:
         combo = getattr(self, "rankings_sign_combo", None)
         label = getattr(self, "rankings_signs_label", None)
@@ -385,6 +514,7 @@ class RankingsPanelMixin:
         stored_weights = load_dominant_sign_weights(list(normalized_chart_ids))
         chart_uids_by_id = get_chart_uid_map(normalized_chart_ids)
         rows: list[dict[str, Any]] = []
+        dominance_tooltips: dict[str, str] = {}
         sign_top_20_memberships: dict[str, list[str]] = {}
         hidden_chart_uids = {
             self._normalize_rankings_chart_uid(chart_uid)
@@ -425,6 +555,11 @@ class RankingsPanelMixin:
                     "name_style": self._sign_dominance_chart_name_style(chart, selected_sign),
                 }
             )
+            if chart_uid:
+                dominance_tooltips[f"chart:{chart_uid}"] = self._sign_dominance_tooltip_html(
+                    chart, selected_sign
+                )
+        self._rankings_sign_dominance_tooltips = dominance_tooltips
         if not db_average and db_count:
             db_average = sum(float(row["value"]) for row in rows) / float(db_count)
         rows.sort(key=lambda row: (-float(row["value"]), str(row["name"]).casefold()))
@@ -488,6 +623,7 @@ class RankingsPanelMixin:
             return
         label.setText(
             f"<div style='padding-bottom:3px;'>Top {display_limit} charts by <b>{safe_sign}</b> dominance in the database.</div>"
+            f"{self._sign_dominance_key_html(selected_sign)}"
             "<table cellspacing='0' cellpadding='0' style='width:100%;'>"
             "<tr><th style='padding:1px 8px 2px 0; color:#f5f5f5; text-align:right;'>#</th>"
             "<th style='padding:1px 8px 2px 0; color:#f5f5f5; text-align:left;'>chart</th>"
