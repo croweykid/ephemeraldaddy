@@ -15,7 +15,7 @@ from PySide6.QtCore import (
     QEventLoop,
     #QVariantAnimation,
 )
-from PySide6.QtGui import QFont, QIcon#, QFontMetrics
+from PySide6.QtGui import QColor, QFont, QIcon#, QFontMetrics
 from PySide6.QtWidgets import (
     QApplication,
     QAbstractButton,
@@ -171,6 +171,12 @@ COLOR_ACCENT_PRIMARY = "#c8914f"
 COLOR_ACCENT_SUCCESS = "#68d391"
 COLOR_ACCENT_DANGER = "#f87171"
 COLOR_ACCENT_WARNING = "#f6c85f"
+
+# Optional semantic colors for dropdowns whose choices need a visual category
+# distinction.  Keep these separate from the base dropdown stylesheet so
+# callers can opt into per-item coloring without changing every combo box.
+DROPDOWN_MUTED_ITEM_TEXT_COLOR = "#cfcfcf"
+DROPDOWN_ACCENT_ITEM_TEXT_COLOR = "#ff9f1c"
 
 SPACE_1 = 2
 SPACE_2 = 4
@@ -1501,6 +1507,12 @@ QListView::indicator {
 """.replace("__CHART_DATA_HIGHLIGHT_COLOR__", CHART_DATA_HIGHLIGHT_COLOR)
     )
     dropdown.setView(popup_view)
+
+
+def set_dropdown_item_text_color(dropdown: QComboBox, item_index: int, color: str) -> None:
+    """Apply a reusable foreground color to one dropdown option."""
+    dropdown.setItemData(item_index, QColor(color), Qt.ForegroundRole)
+
 
 # About dialog typography/color hierarchy (aligned to Database View middle panel palette).
 ABOUT_DIALOG_INTRO_STYLE = f"font-weight: 700; color: {MIDDLE_PANEL_ACCENT_COLOR};"
