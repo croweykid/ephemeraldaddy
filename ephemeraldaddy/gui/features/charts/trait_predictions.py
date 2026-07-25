@@ -480,34 +480,11 @@ def _database_chart_rows(owner: Any) -> list[Any]:
         return []
 
 
-def _database_chart_ids(owner: Any) -> tuple[int, ...]:
-    def _build() -> tuple[int, ...]:
-        chart_rows = _database_chart_rows(owner)
-        normalize_row = getattr(owner, "_normalize_chart_row", None)
-        chart_ids: set[int] = set()
-        for row in chart_rows:
-            normalized = normalize_row(row) if callable(normalize_row) else row
-            if normalized is None:
-                continue
-            try:
-                chart_ids.add(int(normalized[0]))
-            except (TypeError, ValueError, IndexError):
-                continue
-        return tuple(sorted(chart_ids))
-
-    return _owner_memoized(owner, "_traits_prediction_database_chart_ids_cache", _build)
-
-
 def _database_chart_uids(owner: Any) -> tuple[str, ...]:
     def _build() -> tuple[str, ...]:
         chart_rows = _database_chart_rows(owner)
         chart_uids: set[str] = set()
-        missing_uid_ids: set[int] = set()
         for row in chart_rows:
-            try:
-                chart_id = int(row[0])
-            except (TypeError, ValueError, IndexError):
-                continue
             raw_uid = None
             try:
                 if len(row) > 30:
@@ -517,17 +494,6 @@ def _database_chart_uids(owner: Any) -> tuple[str, ...]:
             chart_uid = str(raw_uid or "").strip().upper()
             if chart_uid:
                 chart_uids.add(chart_uid)
-            else:
-                missing_uid_ids.add(chart_id)
-        if missing_uid_ids:
-            try:
-                chart_uids.update(
-                    str(uid).strip().upper()
-                    for uid in db.get_chart_uid_map(missing_uid_ids).values()
-                    if str(uid or "").strip()
-                )
-            except Exception as exc:
-                logger.warning("Traits panel could not resolve chart UIDs for norm signature: %s", exc, exc_info=True)
         return tuple(sorted(chart_uids))
 
     return _owner_memoized(owner, "_traits_prediction_database_chart_uids_cache", _build)
@@ -543,44 +509,10 @@ def _debug_chart_uid(chart: Any) -> str:
     return chart_uid or "unavailable"
 
 
-def _database_chart_uid_and_id_for_chart(owner: Any, chart: Any) -> tuple[str, int | None] | None:
-    """Resolve a chart object back to its persisted Database View UID and row id."""
+def _database_chart_uid_for_chart(chart: Any) -> str | None:
+    """Resolve a chart object to its permanent persisted UID."""
     chart_uid = str(getattr(chart, "chart_uid", "") or "").strip().upper()
-    explicit_id = getattr(chart, "chart_id", None) or getattr(chart, "id", None)
-    if chart_uid:
-        try:
-            return chart_uid, int(explicit_id) if explicit_id is not None else db.get_chart_id_by_uid(chart_uid)
-        except (TypeError, ValueError):
-            return chart_uid, db.get_chart_id_by_uid(chart_uid)
-        except Exception:
-            return chart_uid, None
-    try:
-        persisted_id = int(explicit_id) if explicit_id is not None else None
-    except (TypeError, ValueError):
-        persisted_id = None
-    if persisted_id is None:
-        return None
-    try:
-        chart_uid = str(db.get_chart_uid(persisted_id) or "").strip().upper()
-    except Exception:
-        chart_uid = ""
-    if chart_uid:
-        return chart_uid, persisted_id
-    normalize_row = getattr(owner, "_normalize_chart_row", None)
-    for row in _database_chart_rows(owner):
-        normalized = normalize_row(row) if callable(normalize_row) else row
-        if normalized is None:
-            continue
-        try:
-            chart_id = int(normalized[0])
-        except (TypeError, ValueError, IndexError):
-            continue
-        row_uid = ""
-        if isinstance(normalized, (list, tuple)) and len(normalized) > 30:
-            row_uid = str(normalized[30] or "").strip().upper()
-        if chart_id == persisted_id and row_uid:
-            return row_uid, persisted_id
-    return None
+    return chart_uid or None
 
 
 def _persisted_chart_signature_matches_current(chart_uid: str, chart: Any) -> bool:
@@ -609,15 +541,12 @@ def trait_likelihoods_with_distribution_cache(
     """
     if chart is None or not traits:
         return {}
-    collect = getattr(owner, "_collect_traits_distribution_analytics", None)
+    collect = getattr(owner, "_collect_traits_distribution_analytics_by_uids", None)
     signature_builder = getattr(owner, "_traits_distribution_signature", None)
-    chart_identity = _database_chart_uid_and_id_for_chart(owner, chart)
-    chart_uid = chart_identity[0] if chart_identity is not None else ""
-    chart_id = chart_identity[1] if chart_identity is not None else None
+    chart_uid = _database_chart_uid_for_chart(chart) or ""
     if (
         not callable(collect)
         or not callable(signature_builder)
-        or chart_id is None
         or not chart_uid
         or not _persisted_chart_signature_matches_current(chart_uid, chart)
     ):
@@ -625,7 +554,7 @@ def trait_likelihoods_with_distribution_cache(
     try:
         signature = signature_builder(traits)
         analytics = collect(
-            [chart_id],
+            [chart_uid],
             trait_items=traits,
             trait_signature=signature,
             time_budget_seconds=None,
@@ -702,40 +631,18 @@ def _database_norm_chart_token_source(owner: Any) -> tuple[tuple[str, str], ...]
     if not rows:
         return tuple((uid, "") for uid in _database_chart_uids(owner))
 
-    normalized_rows_by_id: dict[int, Any] = {}
+    normalized_rows_by_uid: dict[str, Any] = {}
     for row in rows:
         normalized = normalize_row(row) if callable(normalize_row) else row
         if normalized is None:
             continue
-        try:
-            chart_id = int(normalized[0])
-        except Exception:
-            continue
-        normalized_rows_by_id[chart_id] = normalized
+        uid = str(normalized[30] or "").strip().upper() if isinstance(normalized, (list, tuple)) and len(normalized) > 30 else ""
+        if uid:
+            normalized_rows_by_uid[uid] = normalized
 
     tokens: list[tuple[str, str]] = []
-    uid_map: dict[int, str] = {}
-    missing_uid_ids: list[int] = []
-    for chart_id, normalized in normalized_rows_by_id.items():
-        uid = ""
-        if isinstance(normalized, (list, tuple)) and len(normalized) > 30 and normalized[30]:
-            uid = str(normalized[30]).strip().upper()
-        if not uid:
-            missing_uid_ids.append(chart_id)
-            continue
+    for uid, normalized in normalized_rows_by_uid.items():
         tokens.append((uid, _stable_json_hash(_database_norm_chart_token_payload(normalized, uid))))
-
-    if missing_uid_ids:
-        try:
-            uid_map = db.get_chart_uid_map(missing_uid_ids)
-        except Exception:
-            uid_map = {}
-        for chart_id in missing_uid_ids:
-            normalized = normalized_rows_by_id.get(chart_id)
-            uid = str(uid_map.get(chart_id, "")).strip().upper()
-            if not uid:
-                continue
-            tokens.append((uid, _stable_json_hash(_database_norm_chart_token_payload(normalized, uid))))
     return tuple(sorted(tokens))
 
 
@@ -1124,14 +1031,13 @@ def _database_trait_averages(
                         len(requested_names),
                     )
                     return {name: float(snapshot_averages[name]) for name in requested_names}
-    chart_ids = _database_chart_ids(owner)
     chart_uids = _database_chart_uids(owner)
     current_norm_state = _database_norm_state(owner)
-    collect = getattr(owner, "_collect_traits_distribution_analytics", None)
+    collect = getattr(owner, "_collect_traits_distribution_analytics_by_uids", None)
     signature_builder = getattr(owner, "_traits_distribution_signature", None)
     if not chart_uids:
         return {}
-    if not chart_ids or not callable(collect) or not callable(signature_builder):
+    if not callable(collect) or not callable(signature_builder):
         return _calculate_database_trait_averages_direct(owner, chart_uids, traits)
     averages: dict[str, float] = {}
     cache_entries = _load_trait_norm_cache()
@@ -1188,7 +1094,7 @@ def _database_trait_averages(
 
     try:
         _predictions_debug(owner, "Trait DB averages collecting missing traits=%s chart_uids=%s", len(missing_traits), len(chart_uids))
-        analytics = collect(chart_ids, trait_items=missing_traits, trait_signature=signature_builder(missing_traits))
+        analytics = collect(chart_uids, trait_items=missing_traits, trait_signature=signature_builder(missing_traits))
     except Exception as exc:
         logger.warning("Traits panel could not collect Database Analytics trait averages: %s", exc, exc_info=True)
         direct_averages = _calculate_database_trait_averages_direct(owner, chart_uids, missing_traits)
