@@ -22275,6 +22275,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         property_manager_section = self._add_settings_collapsible_section(
             content_layout,
             "Property Manager",
+            fill_available_height=True,
         )
         self._populate_settings_property_manager_section(property_manager_section)
 
@@ -23513,6 +23514,8 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         self,
         parent_layout: QVBoxLayout,
         title: str,
+        *,
+        fill_available_height: bool = False,
     ) -> QVBoxLayout:
         tab_stack = getattr(self, "_settings_tab_stack", None)
         tab_header_layout = getattr(self, "_settings_tab_header_layout", None)
@@ -23532,18 +23535,22 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             section_content = QFrame()
             section_content.setObjectName("settings_section_content")
             section_content.setMinimumHeight(0)
-            section_content.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+            section_content.setSizePolicy(
+                QSizePolicy.Expanding,
+                QSizePolicy.Expanding if fill_available_height else QSizePolicy.Preferred,
+            )
             section_content_layout = QVBoxLayout(section_content)
             section_content_layout.setSizeConstraint(QLayout.SetDefaultConstraint)
             section_content_layout.setContentsMargins(18, 16, 18, 16)
             section_content_layout.setSpacing(10)
-            page_layout.addWidget(section_content)
+            page_layout.addWidget(section_content, 1 if fill_available_height else 0)
 
             tab_index = tab_stack.addWidget(page_scroll)
             title_to_index = getattr(self, "_settings_section_title_to_index", None)
             if isinstance(title_to_index, dict):
                 title_to_index[title] = tab_index
-            page_layout.addStretch(1)
+            if not fill_available_height:
+                page_layout.addStretch(1)
             tab_button = QPushButton(title)
             tab_button.setObjectName("settings_tab_button")
             tab_button.setCheckable(True)
