@@ -18,6 +18,7 @@ from ephemeraldaddy.core.interpretations import (
     NATAL_CHART_MAX_YEAR,
     NATAL_CHART_MIN_YEAR,
 )
+from ephemeraldaddy.gui.tag_categories import tag_category_display_name
 
 
 BODY_DYNAMICS_ROLE_OPTIONS: tuple[tuple[str, str], ...] = (
@@ -342,26 +343,6 @@ def _trait_tree_signature() -> tuple[str, ...]:
     return tuple(sorted(names, key=str.casefold))
 
 
-def _tag_category_display_name(prefix: str) -> str:
-    defaults = {
-        "occupation": "Occupation",
-        "trait": "Trait",
-        "reputation": "Reputation",
-        "affiliation": "Affiliation",
-        "crime": "Crime",
-        "life_events": "Life Events",
-        "character": "Characters Played",
-        "hobbies": "Hobbies",
-        "personality_types": "Typology",
-        "genres": "Genres",
-        "place": "Place",
-    }
-    clean_prefix = str(prefix or "").strip()
-    if not clean_prefix:
-        return ""
-    return defaults.get(clean_prefix.casefold(), clean_prefix.replace("_", " ").replace("-", " ").title())
-
-
 def _split_search_tag_category(tag: str) -> tuple[str, str]:
     clean_tag = str(tag or "").strip()
     if "." not in clean_tag:
@@ -538,11 +519,11 @@ def refresh_search_tags_list(window, known_tags: list[str]) -> None:
         window.search_tag_filter_logic_buttons[tag] = logic
         tree.setItemWidget(item, 0, make_row(checkbox, logic, tag))
 
-    for prefix in sorted(grouped, key=lambda key: _tag_category_display_name(key).casefold()):
-        category_item = QTreeWidgetItemClass([_tag_category_display_name(prefix)])
+    for prefix in sorted(grouped, key=lambda key: tag_category_display_name(key).casefold()):
+        category_item = QTreeWidgetItemClass([tag_category_display_name(prefix)])
         category_item.setData(0, Qt.UserRole, prefix.casefold())
         tree.addTopLevelItem(category_item)
-        category_checkbox = QuadStateSlider(_tag_category_display_name(prefix))
+        category_checkbox = QuadStateSlider(tag_category_display_name(prefix))
         category_checkbox.modeChanged.connect(
             lambda mode, p=prefix: on_search_tag_category_mode_changed(window, p, mode)
         )

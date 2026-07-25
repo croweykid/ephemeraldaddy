@@ -279,6 +279,12 @@ from ephemeraldaddy.gui.style import (
     get_cycled_earthtone_colors,
     value_to_red_blue_rgb,
 )
+from ephemeraldaddy.gui.tag_categories import (
+    TAG_CATEGORY_OPTIONS,
+    TAG_CATEGORY_PREFIX_ALIASES,
+    TAG_CATEGORY_PREFIXES,
+    tag_category_display_name,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -710,42 +716,12 @@ class DatabaseAnalyticsChartsMixin:
         "金": "Metal", #🪓🪡
         "水": "Water", #🌊💧
     }
+    _TAG_CATEGORY_DISPLAY_ORDER = tuple(name for name, _prefix in TAG_CATEGORY_OPTIONS)
     TAG_DISTRIBUTION_CATEGORY_ORDER: tuple[str, ...] = (
-        "Occupation",
+        _TAG_CATEGORY_DISPLAY_ORDER[0],
         "Uncategorized",
-        "Trait",
-        "Reputation",
-        "Affiliation",
-        "Crime",
-        "Life Events",
-        "Characters",
-        "Hobbies",
-        "Personality",
-        "Genres",
-        "Places",
+        *_TAG_CATEGORY_DISPLAY_ORDER[1:],
     )
-    TAG_DISTRIBUTION_CATEGORY_ALIASES: dict[str, str] = {
-        "occupation": "Occupation",
-        "trait": "Trait",
-        "reputation": "Reputation",
-        "affiliation": "Affiliation",
-        "crime": "Crime",
-        "life events": "Life Events",
-        "life_events": "Life Events",
-        "life-events": "Life Events",
-        "characters": "Characters",
-        "character": "Characters",
-        "hobbies": "Hobbies",
-        "hobby": "Hobbies",
-        "personality": "Personality",
-        "personality_types": "Personality",
-        "genres": "Genres",
-        "genre": "Genres",
-        "places": "Places",
-        "place": "Places",
-        "uncategorized": "Uncategorized",
-        "unknown": "Uncategorized",
-    }
     DOMINANT_FACTORS_TOP3_DROPDOWN_OPTIONS: tuple[tuple[str, str], ...] = (
         ("Dominant Signs (Top 3)", "top3_signs"),
         ("Dominant Bodies (Top 3)", "top3_planets"),
@@ -4049,11 +4025,10 @@ class DatabaseAnalyticsChartsMixin:
             parts = [part.strip() for part in cleaned.split(".") if part.strip()]
             if len(parts) >= 2:
                 category_key = parts[0].casefold()
-                category_label = DatabaseAnalyticsChartsMixin.TAG_DISTRIBUTION_CATEGORY_ALIASES.get(
-                    category_key,
-                )
-                if category_label is None:
+                canonical_prefix = TAG_CATEGORY_PREFIX_ALIASES.get(category_key, category_key)
+                if canonical_prefix not in TAG_CATEGORY_PREFIXES:
                     return "Uncategorized", cleaned
+                category_label = tag_category_display_name(canonical_prefix)
                 child_label = ".".join(parts[1:]).strip()
                 return category_label, child_label
         return "Uncategorized", cleaned

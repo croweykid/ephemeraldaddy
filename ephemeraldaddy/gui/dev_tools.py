@@ -38,6 +38,7 @@ from PySide6.QtWidgets import (
 )
 from ephemeraldaddy.gui.settings_widgets import SettingsHelpLabel
 from ephemeraldaddy.gui.tooltips import TooltipHelpLabel
+from ephemeraldaddy.gui.tag_categories import TAG_CATEGORY_OPTIONS, TAG_CATEGORY_PREFIXES
 from ephemeraldaddy.gui.style import (
     apply_shared_dropdown_style,
     DATABASE_VIEW_HEADER_COLOR,
@@ -1140,20 +1141,6 @@ class _MergeLabelsDialog(QDialog):
         return consolidate, into
 
 
-TAG_CATEGORY_OPTIONS: tuple[tuple[str, str], ...] = (
-    ("Occupation", "occupation"),
-    ("🧬 Trait", "trait"),
-    ("Reputation", "reputation"),
-    ("Affiliation", "affiliation"),
-    ("Crime", "crime"),
-    ("Life Events","life_events"),
-    ("Characters Played", "character"),
-    ("Hobbies", "hobbies"),
-    ("Typology", "personality_types"),
-    ("Genres", "genres"),
-    ("Place", "place"),
-)
-TAG_CATEGORY_PREFIXES = {prefix.casefold() for _name, prefix in TAG_CATEGORY_OPTIONS}
 SETTINGS_KEY_TAG_CATEGORY_DISPLAY_NAMES = "property_manager/tag_category_display_names"
 
 
