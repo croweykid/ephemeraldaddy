@@ -1481,7 +1481,9 @@ class ManageMetadataLabelsDialog(QDialog):
         layout.addLayout(header_row)
 
         split_layout = QHBoxLayout()
-        self._unsorted_panel = QVBoxLayout()
+        self._unsorted_panel_widget = QWidget(self)
+        self._unsorted_panel = QVBoxLayout(self._unsorted_panel_widget)
+        self._unsorted_panel.setContentsMargins(0, 0, 0, 0)
         self._unsorted_panel.addWidget(QLabel("Uncategorized tags"))
         self._unsorted_list_widget = _TagHierarchyTree(
             self,
@@ -1495,7 +1497,7 @@ class ManageMetadataLabelsDialog(QDialog):
             lambda _current, _previous: self._on_selection_changed(self._unsorted_list_widget)
         )
         self._unsorted_panel.addWidget(self._unsorted_list_widget, 1)
-        split_layout.addLayout(self._unsorted_panel, 1)
+        split_layout.addWidget(self._unsorted_panel_widget, 1)
 
         self._list_widget = _TagHierarchyTree(
             self,
@@ -1859,13 +1861,12 @@ class ManageMetadataLabelsDialog(QDialog):
                 item.setForeground(0, QColor(red, green, blue))
                 self._list_widget.addTopLevelItem(item)
         tags_mode = self._active_field() == self.FIELD_TAGS
-        if hasattr(self, "_unsorted_list_widget"):
-            self._unsorted_list_widget.setVisible(tags_mode)
-            for index in range(self._unsorted_panel.count()):
-                item = self._unsorted_panel.itemAt(index)
-                widget = item.widget() if item is not None else None
-                if widget is not None:
-                    widget.setVisible(tags_mode)
+        if hasattr(self, "_unsorted_panel_widget"):
+            # Only Tags has an uncategorized column. Hiding its containing
+            # widget removes that column from the layout entirely, allowing
+            # both remaining columns to use the full width in the other
+            # managers while preserving Tags' 1:2:1 column proportions.
+            self._unsorted_panel_widget.setVisible(tags_mode)
         for tree in self._selection_trees():
             tree.blockSignals(False)
         self._refreshing_label_views = False
