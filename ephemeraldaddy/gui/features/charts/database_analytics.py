@@ -280,10 +280,8 @@ from ephemeraldaddy.gui.style import (
     value_to_red_blue_rgb,
 )
 from ephemeraldaddy.gui.tag_categories import (
-    TAG_CATEGORY_OPTIONS,
-    TAG_CATEGORY_PREFIX_ALIASES,
-    TAG_CATEGORY_PREFIXES,
-    tag_category_display_name,
+    TAG_DISTRIBUTION_CATEGORY_ALIASES,
+    TAG_DISTRIBUTION_CATEGORY_ORDER as SHARED_TAG_DISTRIBUTION_CATEGORY_ORDER,
 )
 
 logger = logging.getLogger(__name__)
@@ -716,12 +714,7 @@ class DatabaseAnalyticsChartsMixin:
         "金": "Metal", #🪓🪡
         "水": "Water", #🌊💧
     }
-    _TAG_CATEGORY_DISPLAY_ORDER = tuple(name for name, _prefix in TAG_CATEGORY_OPTIONS)
-    TAG_DISTRIBUTION_CATEGORY_ORDER: tuple[str, ...] = (
-        _TAG_CATEGORY_DISPLAY_ORDER[0],
-        "Uncategorized",
-        *_TAG_CATEGORY_DISPLAY_ORDER[1:],
-    )
+    TAG_DISTRIBUTION_CATEGORY_ORDER = SHARED_TAG_DISTRIBUTION_CATEGORY_ORDER
     DOMINANT_FACTORS_TOP3_DROPDOWN_OPTIONS: tuple[tuple[str, str], ...] = (
         ("Dominant Signs (Top 3)", "top3_signs"),
         ("Dominant Bodies (Top 3)", "top3_planets"),
@@ -4025,10 +4018,9 @@ class DatabaseAnalyticsChartsMixin:
             parts = [part.strip() for part in cleaned.split(".") if part.strip()]
             if len(parts) >= 2:
                 category_key = parts[0].casefold()
-                canonical_prefix = TAG_CATEGORY_PREFIX_ALIASES.get(category_key, category_key)
-                if canonical_prefix not in TAG_CATEGORY_PREFIXES:
+                category_label = TAG_DISTRIBUTION_CATEGORY_ALIASES.get(category_key)
+                if category_label is None:
                     return "Uncategorized", cleaned
-                category_label = tag_category_display_name(canonical_prefix)
                 child_label = ".".join(parts[1:]).strip()
                 return category_label, child_label
         return "Uncategorized", cleaned
