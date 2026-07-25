@@ -5315,6 +5315,30 @@ class DatabaseAnalyticsChartsMixin:
         )
         return result
 
+    def _collect_traits_distribution_analytics_by_uids(
+        self,
+        chart_uids: list[str] | set[str] | tuple[str, ...],
+        trait_items: list[dict[str, Any]] | None = None,
+        trait_signature: tuple[tuple[str, str, str], ...] | None = None,
+        time_budget_seconds: float | None = TRAITS_DISTRIBUTION_SCORING_TIME_BUDGET_SECONDS,
+    ) -> dict[str, Any]:
+        """Expose shared trait analytics to Predictions through permanent UIDs only.
+
+        The older collector remains an adapter for Database View's Qt row
+        selection boundary. Translation happens here; its internal and
+        persistent cache identities are already UID-based.
+        """
+        normalized_uids = tuple(
+            sorted({str(uid or "").strip().upper() for uid in chart_uids if str(uid or "").strip()})
+        )
+        chart_ids_by_uid = db.get_chart_ids_by_uid(normalized_uids) if normalized_uids else {}
+        return self._collect_traits_distribution_analytics(
+            set(chart_ids_by_uid.values()),
+            trait_items=trait_items,
+            trait_signature=trait_signature,
+            time_budget_seconds=time_budget_seconds,
+        )
+
     def _schedule_traits_distribution_warm_refresh(self) -> None:
         """Continue warming trait distribution norms while the section remains open."""
         if getattr(self, "_traits_distribution_warm_refresh_scheduled", False):
