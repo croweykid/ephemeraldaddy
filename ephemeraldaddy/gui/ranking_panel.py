@@ -22,6 +22,11 @@ from ephemeraldaddy.gui.features.charts.metrics import (
 )
 from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import trait_snapshot_averages
 from ephemeraldaddy.gui.features.charts.presentation import sign_for_longitude
+from ephemeraldaddy.gui.style import (
+    DROPDOWN_ACCENT_ITEM_TEXT_COLOR,
+    DROPDOWN_MUTED_ITEM_TEXT_COLOR,
+    set_dropdown_item_text_color,
+)
 
 
 class RankingsPanelMixin:
@@ -171,6 +176,7 @@ class RankingsPanelMixin:
             for trait in trait_items
             if str(trait.get("name", "")).strip() and not bool(trait.get("archived", False))
         ]
+        active_traits.sort(key=lambda trait: str(trait.get("name", "")).strip().casefold())
         current_name = str(combo.currentData() or getattr(self, "_rankings_trait_name", "") or "")
         combo.blockSignals(True)
         try:
@@ -185,6 +191,12 @@ class RankingsPanelMixin:
             for trait in active_traits:
                 name = str(trait.get("name", "")).strip()
                 combo.addItem(name, name)
+                name_color = (
+                    DROPDOWN_MUTED_ITEM_TEXT_COLOR
+                    if bool(trait.get("bundled", False))
+                    else DROPDOWN_ACCENT_ITEM_TEXT_COLOR
+                )
+                set_dropdown_item_text_color(combo, combo.count() - 1, name_color)
             selected_index = combo.findData(current_name) if current_name else 0
             combo.setCurrentIndex(selected_index if selected_index >= 0 else 0)
             selected_name = combo.currentData()
