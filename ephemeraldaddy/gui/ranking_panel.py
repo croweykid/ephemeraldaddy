@@ -475,7 +475,7 @@ class RankingsPanelMixin:
             )
             return
         label.setText(
-            f"<div style='padding-bottom:3px;'>Top {display_limit} charts by <b>{safe_sign}</b> dominance in the database.</div>"
+            f"<div style='padding-bottom:3px;'>Top {display_limit} charts by <b>{safe_sign}</b> dominance in database.</div>"
             "<table cellspacing='0' cellpadding='0' style='width:100%;'>"
             "<tr><th style='padding:1px 8px 2px 0; color:#f5f5f5; text-align:right;'>#</th>"
             "<th style='padding:1px 8px 2px 0; color:#f5f5f5; text-align:left;'>chart</th>"
