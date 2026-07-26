@@ -324,11 +324,21 @@ class ChartAnalysisSectionsController:
             details_container.setVisible(False)
             section_layout.addWidget(details_container)
 
-            def show_details(_target: str = "", *, link: QLabel = details_link, container: QWidget = details_container) -> None:
-                link.setVisible(False)
-                container.setVisible(True)
+            def toggle_details(
+                _target: str = "",
+                *,
+                link: QLabel = details_link,
+                container: QWidget = details_container,
+            ) -> None:
+                expanded = not container.isVisible()
+                container.setVisible(expanded)
+                link.setText(
+                    '<a href="chart-analysis-details" '
+                    'style="color:#6fa8dc;text-decoration:none;font-weight:700;">'
+                    f'{"show less" if expanded else "more info..."}</a>'
+                )
 
-            details_link.linkActivated.connect(show_details)
+            details_link.linkActivated.connect(toggle_details)
 
             if has_above_average_details:
                 above_average_label = QLabel("")
