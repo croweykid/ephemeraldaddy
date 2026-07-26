@@ -390,10 +390,22 @@ class RankingsPanelMixin:
         safe_sign = html.escape(selected_sign)
         entries = (
             ("font-weight:700; color:#39ff14", f"Sun/Moon/AS all in {safe_sign}"),
-            ("color:#39ff14", f"Sun/Moon in {safe_sign}"),
-            ("font-style:italic; color:#f0f0f0", f"AS only, but still dominant in {safe_sign}"),
-            ("color:#f0f0f0", f"Sun only, but still dominant in {safe_sign}"),
-            ("font-style:italic; color:#5dade2", f"Moon only, but still dominant in {safe_sign}"),
+            (
+                "color:#39ff14",
+                f"Sun/Moon in {safe_sign}; AS elsewhere or unknown",
+            ),
+            (
+                "color:#f0f0f0",
+                f"Sun in {safe_sign}; Moon not in {safe_sign} (AS may match, differ, or be unknown)",
+            ),
+            (
+                "font-style:italic; color:#5dade2",
+                f"Moon in {safe_sign}; Sun not in {safe_sign} (AS may match, differ, or be unknown)",
+            ),
+            (
+                "font-style:italic; color:#f0f0f0",
+                f"Neither Sun nor Moon in {safe_sign} (AS may match, differ, or be unknown)",
+            ),
         )
         return "<div style='padding:0 0 4px 8px;'>" + "<br>".join(
             f"<span style='color:#9a9a9a;'>•</span> <span style='{style};'>{text}</span>"

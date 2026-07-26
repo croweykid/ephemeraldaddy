@@ -45,10 +45,12 @@ def test_sign_dominance_subheader_contains_five_item_visual_key():
     )[0]
 
     assert "Sun/Moon/AS all in" in helper
-    assert "Sun/Moon in" in helper
-    assert "AS only, but still dominant in" in helper
-    assert "Sun only, but still dominant in" in helper
-    assert "Moon only, but still dominant in" in helper
+    assert "Sun/Moon in" in helper and "AS elsewhere or unknown" in helper
+    assert "Sun in" in helper and "Moon not in" in helper
+    assert "Moon in" in helper and "Sun not in" in helper
+    assert "Neither Sun nor Moon in" in helper
+    assert "AS may match, differ, or be unknown" in helper
+    assert "AS only" not in helper
     assert "font-weight:700; color:#39ff14" in helper
     assert "font-style:italic; color:#5dade2" in helper
     assert 'key.count' not in helper
