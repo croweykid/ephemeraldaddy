@@ -940,6 +940,8 @@ def build_dnd_all_species_summary_html(species_payloads: list[dict[str, Any]]) -
         species_lines.append(f"{rank}) {_dnd_label_link(label, f'dnd-species:{rank - 1}')}")
     if not species_lines:
         species_lines.append("No species prediction available.")
+    else:
+        species_lines.append(_dnd_label_link("Show Less", "dnd-species-less:0"))
     return "<b>All Species/Subspecies</b><br>" + "<br>".join(species_lines)
 
 
@@ -950,6 +952,8 @@ def build_dnd_all_class_summary_html(class_payloads: list[dict[str, Any]]) -> st
         class_lines.append(f"{rank}) {_dnd_label_link(label, f'dnd-class:{rank - 1}')}")
     if not class_lines:
         class_lines.append("No class prediction available.")
+    else:
+        class_lines.append(_dnd_label_link("Show Less", "dnd-class-less:0"))
     return "<b>All Classes</b><br>" + "<br>".join(class_lines)
 
 
@@ -1361,6 +1365,24 @@ def configure_dnd_top_three_summary_label(
             return
         if prefix == "dnd-class-more":
             label.setText(build_dnd_all_class_summary_html(class_payloads))
+            return
+        if prefix in {"dnd-species-less", "dnd-class-less"}:
+            if section == "species":
+                summary_html = build_dnd_species_summary_html(
+                    chart, linked=True, species_payloads=species_payloads
+                )
+            elif section == "class":
+                summary_html = build_dnd_class_summary_html(
+                    chart, linked=True, class_payloads=class_payloads
+                )
+            else:
+                summary_html = build_dnd_top_three_summary_html(
+                    chart,
+                    linked=True,
+                    species_payloads=species_payloads,
+                    class_payloads=class_payloads,
+                )
+            label.setText(summary_html)
             return
         try:
             index = int(index_text)
