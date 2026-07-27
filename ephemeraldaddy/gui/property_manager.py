@@ -9,6 +9,7 @@ from PySide6.QtCore import Qt, QTimer
 
 from ephemeraldaddy.core.db import (
     apply_metadata_label_change,
+    get_chart_uid_map,
     get_metadata_label_usage,
     parse_relationship_types,
     parse_sentiments,
@@ -117,7 +118,7 @@ class PropertyManagerCoordinator:
             refresh_tag_completers=False,
         )
 
-    def load_usage(self) -> dict[str, list[dict[str, int | str]]]:
+    def load_usage(self) -> dict[str, list[dict[str, object]]]:
         usage = get_metadata_label_usage()
         # Relationship labels should disappear fully after rename/delete.
         usage[ManageMetadataLabelsDialog.FIELD_RELATIONSHIPS] = [
@@ -125,6 +126,28 @@ class PropertyManagerCoordinator:
             for row in usage.get(ManageMetadataLabelsDialog.FIELD_RELATIONSHIPS, [])
             if int(row.get("count", 0) or 0) > 0
         ]
+        rows = [
+            normalized
+            for row in self._host._chart_rows
+            if (normalized := self._host._normalize_chart_row(row)) is not None
+        ]
+        uid_by_id = get_chart_uid_map([row[0] for row in rows])
+        tag_chart_uids: dict[str, set[str]] = {}
+        for row in rows:
+            chart = self._host._get_chart_for_filter(row[0])
+            chart_uid = str(uid_by_id.get(row[0]) or "").strip().upper()
+            if chart is None or not chart_uid:
+                continue
+            raw_tags = getattr(chart, "tags", [])
+            if not isinstance(raw_tags, str):
+                raw_tags = ",".join(
+                    str(value) for value in (raw_tags or []) if isinstance(value, str)
+                )
+            for tag in parse_tags(raw_tags):
+                tag_chart_uids.setdefault(tag.casefold(), set()).add(chart_uid)
+        for row in usage.get(ManageMetadataLabelsDialog.FIELD_TAGS, []):
+            label = str(row.get("label", "")).strip().casefold()
+            row["chart_uids"] = sorted(tag_chart_uids.get(label, set()))
         usage[ManageMetadataLabelsDialog.FIELD_COLLECTIONS] = self._collection_usage_rows()
         return usage
 
@@ -164,7 +187,7 @@ class PropertyManagerCoordinator:
             )
         return collection_rows
 
-    def chart_names(self, field: str, label: str, key: str) -> list[str]:
+    def chart_names(self, field: str, label: str, key: str) -> list[str | tuple[str, bool]]:
         def _values_to_csv(values: object) -> str:
             if isinstance(values, str):
                 return values
@@ -175,7 +198,7 @@ class PropertyManagerCoordinator:
             except TypeError:
                 return ""
 
-        matches: list[str] = []
+        matches: list[str | tuple[str, bool]] = []
         rows = [
             normalized
             for row in self._host._chart_rows
@@ -193,7 +216,9 @@ class PropertyManagerCoordinator:
                     for tag in parse_tags(_values_to_csv(getattr(chart, "tags", [])))
                 }
                 if any(tag_matches_filter(tag, label) for tag in tags):
-                    matches.append(chart_name)
+                    # Exact parent-tag matches are displayed first and in
+                    # italics; charts inherited from child tags follow them.
+                    matches.append((chart_name, label.casefold() in tags))
             elif field == ManageMetadataLabelsDialog.FIELD_SENTIMENTS:
                 sentiments = set(
                     parse_sentiments(_values_to_csv(getattr(chart, "sentiments", [])))
@@ -218,4 +243,12 @@ class PropertyManagerCoordinator:
                     chart_id=chart_id,
                 ):
                     matches.append(chart_name)
-        return sorted(matches, key=str.casefold)
+        if field == ManageMetadataLabelsDialog.FIELD_TAGS:
+            return sorted(
+                matches,
+                key=lambda match: (
+                    not bool(match[1]),
+                    str(match[0]).casefold(),
+                ),
+            )
+        return sorted(matches, key=lambda match: str(match).casefold())

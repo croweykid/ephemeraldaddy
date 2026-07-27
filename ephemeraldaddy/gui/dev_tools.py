@@ -1346,9 +1346,12 @@ class _TagHierarchyTree(QTreeWidget):
         source_items = source.selectedItems() if isinstance(source, QTreeWidget) else self.selectedItems()
         labels: list[str] = []
         for item in source_items:
-            if item.childCount() > 0:
-                continue
-            label = str(item.data(0, Qt.UserRole + 2) or item.data(0, Qt.UserRole) or "").strip()
+            label = str(
+                item.data(0, Qt.UserRole + 2)
+                or item.data(0, Qt.UserRole + 10)
+                or item.data(0, Qt.UserRole)
+                or ""
+            ).strip()
             if label:
                 labels.append(label)
         labels = list(dict.fromkeys(labels))
@@ -1400,7 +1403,7 @@ class ManageMetadataLabelsDialog(QDialog):
         self._collection_actions = collection_actions or {}
         self._settings = settings
         self._label_limit = max(1, label_limit)
-        self._usage_data: dict[str, list[dict[str, int | str]]] = {}
+        self._usage_data: dict[str, list[dict[str, object]]] = {}
         self._refreshing_label_views = False
         self._tag_category_display_names: dict[str, str] = {
             prefix.casefold(): name for name, prefix in TAG_CATEGORY_OPTIONS
@@ -1499,7 +1502,8 @@ class ManageMetadataLabelsDialog(QDialog):
         split_layout.addWidget(self._list_widget, 2)
 
         right_panel = QVBoxLayout()
-        right_panel.addWidget(QLabel("Charts with selected property"))
+        self._chart_names_heading = QLabel(self._chart_names_heading_text())
+        right_panel.addWidget(self._chart_names_heading)
         self._chart_names_list = QListWidget(self)
         self._chart_names_list.setSelectionMode(QAbstractItemView.NoSelection)
         right_panel.addWidget(self._chart_names_list, 1)
@@ -1587,7 +1591,29 @@ class ManageMetadataLabelsDialog(QDialog):
         value = self._field_selector.currentData()
         return str(value or self.FIELD_SENTIMENTS)
 
-    def _active_rows(self) -> list[dict[str, int | str]]:
+    def _chart_names_heading_text(self) -> str:
+        return {
+            self.FIELD_TAGS: "Charts with selected tag",
+            self.FIELD_COLLECTIONS: "Charts in selected collection",
+            self.FIELD_RELATIONSHIPS: "Charts with selected relationship",
+            self.FIELD_SENTIMENTS: "Charts with selected sentiment",
+        }.get(self._active_field(), "Charts")
+
+    def _selected_chart_names_heading_text(self, selected_label: str) -> str:
+        clean_label = str(selected_label or "").strip()
+        if not clean_label:
+            return self._chart_names_heading_text()
+        if self._active_field() == self.FIELD_TAGS:
+            clean_label = " > ".join(
+                part.replace("_", " ").replace("-", " ").title()
+                for part in clean_label.split(".")
+                if part
+            )
+        if self._active_field() == self.FIELD_COLLECTIONS:
+            return f"Charts in {clean_label}"
+        return f"Charts with {clean_label}"
+
+    def _active_rows(self) -> list[dict[str, object]]:
         rows = list(self._usage_data.get(self._active_field(), []))
         sort_mode = self.SORT_FREQUENCY
         if hasattr(self, "_sort_selector"):
@@ -1747,6 +1773,8 @@ class ManageMetadataLabelsDialog(QDialog):
             tree.clear()
         if hasattr(self, "_chart_names_list"):
             self._chart_names_list.clear()
+        if hasattr(self, "_chart_names_heading"):
+            self._chart_names_heading.setText(self._chart_names_heading_text())
         minimum_count = 0
         maximum_count = 0
         if rows:
@@ -1756,8 +1784,7 @@ class ManageMetadataLabelsDialog(QDialog):
         if self._active_field() == self.FIELD_TAGS:
             node_by_path: dict[str, QTreeWidgetItem] = {}
             node_base_labels: dict[str, str] = {}
-            node_counts: dict[str, int] = {}
-            node_chart_counts: dict[str, int] = {}
+            node_chart_memberships: dict[str, set[str]] = {}
             parent_node_path_keys: set[str] = set()
             for row in rows:
                 label = str(row.get("label", "")).strip()
@@ -1800,6 +1827,33 @@ class ManageMetadataLabelsDialog(QDialog):
                 label = str(row.get("label", "")).strip()
                 count = int(row.get("count", 0) or 0)
                 parts = [part.strip() for part in label.split(".") if part.strip()]
+                exact_path_key = ".".join(parts).casefold()
+                raw_chart_uids = row.get("chart_uids")
+                if isinstance(raw_chart_uids, (list, tuple, set)):
+                    chart_memberships = {
+                        str(chart_uid).strip().upper()
+                        for chart_uid in raw_chart_uids
+                        if str(chart_uid).strip()
+                    }
+                else:
+                    # Compatibility for alternate usage providers that only
+                    # supply aggregate counts; production rows carry UIDs.
+                    chart_memberships = {
+                        f"{exact_path_key}:{index}" for index in range(count)
+                    }
+                if parts and exact_path_key in parent_node_path_keys:
+                    # A tag can also be a folder.  Represent it with the folder
+                    # node itself rather than adding a second, identically named
+                    # leaf beside that node (for example ``Conservative`` and
+                    # ``Conservative.Republican``).
+                    node = ensure_node(parts, len(parts) - 1)
+                    node.setData(0, Qt.UserRole, node_base_labels[exact_path_key])
+                    node.setData(0, Qt.UserRole + 1, str(row.get("key", label)))
+                    node.setData(0, Qt.UserRole + 2, label)
+                    for depth in range(len(parts)):
+                        path_key = ".".join(parts[: depth + 1]).casefold()
+                        node_chart_memberships.setdefault(path_key, set()).update(chart_memberships)
+                    continue
                 leaf_value = parts[-1] if parts else label
                 display_label = leaf_value.replace("_", " ").replace("-", " ").title()
                 item = QTreeWidgetItem([f"{display_label}  ({count} charts)"])
@@ -1809,25 +1863,19 @@ class ManageMetadataLabelsDialog(QDialog):
                 red, green, blue = similarity_gradient_rgb_for_range(count, minimum_count, maximum_count)
                 item.setForeground(0, QColor(red, green, blue))
                 if len(parts) >= 2:
-                    exact_path_key = ".".join(parts).casefold()
                     parent_parts = parts[:-1]
                     for depth in range(len(parent_parts)):
                         path_key = ".".join(parent_parts[: depth + 1]).casefold()
-                        node_counts[path_key] = node_counts.get(path_key, 0) + 1
-                        node_chart_counts[path_key] = node_chart_counts.get(path_key, 0) + count
-                    if exact_path_key in parent_node_path_keys:
-                        node_counts[exact_path_key] = node_counts.get(exact_path_key, 0) + 1
-                        node_chart_counts[exact_path_key] = node_chart_counts.get(exact_path_key, 0) + count
+                        node_chart_memberships.setdefault(path_key, set()).update(chart_memberships)
                     ensure_node(parent_parts, len(parent_parts) - 1).addChild(item)
                 else:
                     uncategorized_items.append(item)
 
             for key, node in node_by_path.items():
                 base_label = node_base_labels.get(key, str(node.text(0)))
-                tag_count = node_counts.get(key, node.childCount())
-                chart_count = node_chart_counts.get(key, 0)
+                chart_count = len(node_chart_memberships.get(key, set()))
                 chart_word = "chart" if chart_count == 1 else "charts"
-                node.setText(0, f"{base_label} ({tag_count} tags, {chart_count} {chart_word})")
+                node.setText(0, f"{base_label} ({chart_count} {chart_word})")
                 node.setExpanded(expanded_state.get(str(node.data(0, Qt.UserRole + 10) or ""), False))
             for item in uncategorized_items:
                 self._unsorted_list_widget.addTopLevelItem(item.clone())
@@ -1905,15 +1953,15 @@ class ManageMetadataLabelsDialog(QDialog):
         )
         if len(cleaned_labels) == 1:
             label = cleaned_labels[0]
-            _old_prefix, bare_tag = _split_tag_category(label)
-            trait_name = bare_tag or label
-            row = self._row_for_key(label) or next(
-                (row for row in self._active_rows() if str(row.get("label", "")).strip() == label),
-                {},
+            trait_name = label.rsplit(".", 1)[-1]
+            subtree = set(self._tag_labels_in_subtree(label))
+            entry_count = sum(
+                int(row.get("count", 0) or 0)
+                for row in self._active_rows()
+                if str(row.get("label", "")).strip() in subtree
             )
-            entry_count = int(row.get("count", 0) or 0) if isinstance(row, dict) else 0
             prompt = (
-                f"Assign category '{category_name}' to trait '{trait_name}' "
+                f"Move tag '{trait_name}' and its child tags into '{category_name}' "
                 f"({entry_count} {'entry' if entry_count == 1 else 'entries'})?"
             )
         else:
@@ -1931,10 +1979,28 @@ class ManageMetadataLabelsDialog(QDialog):
         total_occurrences = 0
         total_rows = 0
         changed_count = 0
-        for index, label in enumerate(cleaned_labels):
-            _old_prefix, bare_tag = _split_tag_category(label, self._known_tag_category_prefixes())
-            updated_label = _compose_tag_category(cleaned_prefix, bare_tag)
-            if not bare_tag or updated_label == label:
+        label_changes: list[tuple[str, str]] = []
+        move_roots = [
+            label
+            for label in cleaned_labels
+            if not any(
+                label.casefold().startswith(f"{other.casefold()}.")
+                for other in cleaned_labels
+                if other != label
+            )
+        ]
+        for label in move_roots:
+            if cleaned_prefix.casefold() == label.casefold() or cleaned_prefix.casefold().startswith(
+                f"{label.casefold()}."
+            ):
+                continue
+            new_root = _compose_tag_category(cleaned_prefix, label.rsplit(".", 1)[-1])
+            for subtree_label in self._tag_labels_in_subtree(label) or [label]:
+                suffix = subtree_label[len(label):]
+                label_changes.append((subtree_label, f"{new_root}{suffix}"))
+        label_changes = list(dict.fromkeys(label_changes))
+        for index, (label, updated_label) in enumerate(label_changes):
+            if updated_label == label:
                 continue
             summary = self._apply_change(
                 field=self.FIELD_TAGS,
@@ -1960,12 +2026,27 @@ class ManageMetadataLabelsDialog(QDialog):
         )
         self._reload_usage(refresh_chart_context=True)
 
-    def _row_for_key(self, key: str) -> dict[str, int | str] | None:
+    def _row_for_key(self, key: str) -> dict[str, object] | None:
         for row in self._active_rows():
             row_key = str(row.get("key", row.get("label", ""))).strip()
             if row_key == key:
                 return row
         return None
+
+    def _tag_labels_in_subtree(self, prefix: str) -> list[str]:
+        clean_prefix = str(prefix or "").strip()
+        prefix_casefold = clean_prefix.casefold()
+        if not clean_prefix:
+            return []
+        return [
+            label
+            for row in self._active_rows()
+            if (label := str(row.get("label", "")).strip())
+            and (
+                label.casefold() == prefix_casefold
+                or label.casefold().startswith(f"{prefix_casefold}.")
+            )
+        ]
 
     def _on_selection_changed(self, source_tree: QTreeWidget | None = None) -> None:
         if getattr(self, "_refreshing_label_views", False):
@@ -1990,20 +2071,39 @@ class ManageMetadataLabelsDialog(QDialog):
         selected_key = self._selected_key()
         if not selected_label:
             return
+        self._chart_names_heading.setText(
+            self._selected_chart_names_heading_text(selected_label)
+        )
         try:
             chart_names = self._load_chart_names(self._active_field(), selected_label, selected_key)
         except Exception:
             chart_names = []
-        for chart_name in chart_names:
+        for chart_result in chart_names:
+            is_direct_tag_match = False
+            if isinstance(chart_result, tuple):
+                chart_name, is_direct_tag_match = chart_result
+            else:
+                chart_name = chart_result
             clean_name = str(chart_name).strip()
             if clean_name:
-                self._chart_names_list.addItem(clean_name)
+                item = QListWidgetItem(clean_name)
+                if self._active_field() == self.FIELD_TAGS and is_direct_tag_match:
+                    font = item.font()
+                    font.setItalic(True)
+                    item.setFont(font)
+                self._chart_names_list.addItem(item)
 
     def _delete_selected(self) -> None:
         if self._active_field() == self.FIELD_COLLECTIONS:
             self._delete_selected_collection()
             return
         old_labels = self._selected_labels()
+        if self._active_field() == self.FIELD_TAGS:
+            expanded_labels: list[str] = []
+            for old_label in old_labels:
+                subtree_labels = self._tag_labels_in_subtree(old_label)
+                expanded_labels.extend(subtree_labels or [old_label])
+            old_labels = list(dict.fromkeys(expanded_labels))
         if not old_labels:
             QMessageBox.information(self, "Manage metadata", "Select one or more labels to delete.")
             return
@@ -2146,13 +2246,22 @@ class ManageMetadataLabelsDialog(QDialog):
             return
         if new_prefix.casefold() == cleaned_old_prefix.casefold():
             return
+        if new_prefix.casefold().startswith(f"{cleaned_old_prefix.casefold()}."):
+            QMessageBox.warning(
+                self,
+                title,
+                "A tag category cannot be renamed into one of its own child paths.",
+            )
+            return
 
         affected_labels: list[tuple[str, str]] = []
         old_prefix_casefold = cleaned_old_prefix.casefold()
         for row in self._active_rows():
             original_label = str(row.get("label", "")).strip()
             original_casefold = original_label.casefold()
-            if original_casefold.startswith(f"{old_prefix_casefold}."):
+            if original_casefold == old_prefix_casefold:
+                affected_labels.append((original_label, new_prefix))
+            elif original_casefold.startswith(f"{old_prefix_casefold}."):
                 suffix = original_label[len(cleaned_old_prefix):].lstrip(".")
                 if suffix:
                     affected_labels.append((original_label, f"{new_prefix}.{suffix}"))
