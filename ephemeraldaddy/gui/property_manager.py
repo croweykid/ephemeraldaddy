@@ -164,7 +164,7 @@ class PropertyManagerCoordinator:
             )
         return collection_rows
 
-    def chart_names(self, field: str, label: str, key: str) -> list[str]:
+    def chart_names(self, field: str, label: str, key: str) -> list[str | tuple[str, bool]]:
         def _values_to_csv(values: object) -> str:
             if isinstance(values, str):
                 return values
@@ -175,7 +175,7 @@ class PropertyManagerCoordinator:
             except TypeError:
                 return ""
 
-        matches: list[str] = []
+        matches: list[str | tuple[str, bool]] = []
         rows = [
             normalized
             for row in self._host._chart_rows
@@ -193,7 +193,9 @@ class PropertyManagerCoordinator:
                     for tag in parse_tags(_values_to_csv(getattr(chart, "tags", [])))
                 }
                 if any(tag_matches_filter(tag, label) for tag in tags):
-                    matches.append(chart_name)
+                    # Exact parent-tag matches are displayed first and in
+                    # italics; charts inherited from child tags follow them.
+                    matches.append((chart_name, label.casefold() in tags))
             elif field == ManageMetadataLabelsDialog.FIELD_SENTIMENTS:
                 sentiments = set(
                     parse_sentiments(_values_to_csv(getattr(chart, "sentiments", [])))
@@ -218,4 +220,12 @@ class PropertyManagerCoordinator:
                     chart_id=chart_id,
                 ):
                     matches.append(chart_name)
-        return sorted(matches, key=str.casefold)
+        if field == ManageMetadataLabelsDialog.FIELD_TAGS:
+            return sorted(
+                matches,
+                key=lambda match: (
+                    not bool(match[1]),
+                    str(match[0]).casefold(),
+                ),
+            )
+        return sorted(matches, key=lambda match: str(match).casefold())

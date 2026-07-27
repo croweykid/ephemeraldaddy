@@ -1499,7 +1499,8 @@ class ManageMetadataLabelsDialog(QDialog):
         split_layout.addWidget(self._list_widget, 2)
 
         right_panel = QVBoxLayout()
-        right_panel.addWidget(QLabel("Charts with selected property"))
+        self._chart_names_heading = QLabel("Charts with selected property")
+        right_panel.addWidget(self._chart_names_heading)
         self._chart_names_list = QListWidget(self)
         self._chart_names_list.setSelectionMode(QAbstractItemView.NoSelection)
         right_panel.addWidget(self._chart_names_list, 1)
@@ -1747,6 +1748,8 @@ class ManageMetadataLabelsDialog(QDialog):
             tree.clear()
         if hasattr(self, "_chart_names_list"):
             self._chart_names_list.clear()
+        if hasattr(self, "_chart_names_heading"):
+            self._chart_names_heading.setText("Charts with selected property")
         minimum_count = 0
         maximum_count = 0
         if rows:
@@ -1756,7 +1759,6 @@ class ManageMetadataLabelsDialog(QDialog):
         if self._active_field() == self.FIELD_TAGS:
             node_by_path: dict[str, QTreeWidgetItem] = {}
             node_base_labels: dict[str, str] = {}
-            node_counts: dict[str, int] = {}
             node_chart_counts: dict[str, int] = {}
             parent_node_path_keys: set[str] = set()
             for row in rows:
@@ -1800,6 +1802,20 @@ class ManageMetadataLabelsDialog(QDialog):
                 label = str(row.get("label", "")).strip()
                 count = int(row.get("count", 0) or 0)
                 parts = [part.strip() for part in label.split(".") if part.strip()]
+                exact_path_key = ".".join(parts).casefold()
+                if parts and exact_path_key in parent_node_path_keys:
+                    # A tag can also be a folder.  Represent it with the folder
+                    # node itself rather than adding a second, identically named
+                    # leaf beside that node (for example ``Conservative`` and
+                    # ``Conservative.Republican``).
+                    node = ensure_node(parts, len(parts) - 1)
+                    node.setData(0, Qt.UserRole, node_base_labels[exact_path_key])
+                    node.setData(0, Qt.UserRole + 1, str(row.get("key", label)))
+                    node.setData(0, Qt.UserRole + 2, label)
+                    for depth in range(len(parts)):
+                        path_key = ".".join(parts[: depth + 1]).casefold()
+                        node_chart_counts[path_key] = node_chart_counts.get(path_key, 0) + count
+                    continue
                 leaf_value = parts[-1] if parts else label
                 display_label = leaf_value.replace("_", " ").replace("-", " ").title()
                 item = QTreeWidgetItem([f"{display_label}  ({count} charts)"])
@@ -1809,25 +1825,19 @@ class ManageMetadataLabelsDialog(QDialog):
                 red, green, blue = similarity_gradient_rgb_for_range(count, minimum_count, maximum_count)
                 item.setForeground(0, QColor(red, green, blue))
                 if len(parts) >= 2:
-                    exact_path_key = ".".join(parts).casefold()
                     parent_parts = parts[:-1]
                     for depth in range(len(parent_parts)):
                         path_key = ".".join(parent_parts[: depth + 1]).casefold()
-                        node_counts[path_key] = node_counts.get(path_key, 0) + 1
                         node_chart_counts[path_key] = node_chart_counts.get(path_key, 0) + count
-                    if exact_path_key in parent_node_path_keys:
-                        node_counts[exact_path_key] = node_counts.get(exact_path_key, 0) + 1
-                        node_chart_counts[exact_path_key] = node_chart_counts.get(exact_path_key, 0) + count
                     ensure_node(parent_parts, len(parent_parts) - 1).addChild(item)
                 else:
                     uncategorized_items.append(item)
 
             for key, node in node_by_path.items():
                 base_label = node_base_labels.get(key, str(node.text(0)))
-                tag_count = node_counts.get(key, node.childCount())
                 chart_count = node_chart_counts.get(key, 0)
                 chart_word = "chart" if chart_count == 1 else "charts"
-                node.setText(0, f"{base_label} ({tag_count} tags, {chart_count} {chart_word})")
+                node.setText(0, f"{base_label} ({chart_count} {chart_word})")
                 node.setExpanded(expanded_state.get(str(node.data(0, Qt.UserRole + 10) or ""), False))
             for item in uncategorized_items:
                 self._unsorted_list_widget.addTopLevelItem(item.clone())
@@ -1990,14 +2000,33 @@ class ManageMetadataLabelsDialog(QDialog):
         selected_key = self._selected_key()
         if not selected_label:
             return
+        if self._active_field() == self.FIELD_TAGS:
+            display_tag = " > ".join(
+                part.replace("_", " ").replace("-", " ").title()
+                for part in selected_label.split(".")
+                if part
+            )
+            self._chart_names_heading.setText(f"Charts with {display_tag}")
+        else:
+            self._chart_names_heading.setText("Charts with selected property")
         try:
             chart_names = self._load_chart_names(self._active_field(), selected_label, selected_key)
         except Exception:
             chart_names = []
-        for chart_name in chart_names:
+        for chart_result in chart_names:
+            is_direct_tag_match = False
+            if isinstance(chart_result, tuple):
+                chart_name, is_direct_tag_match = chart_result
+            else:
+                chart_name = chart_result
             clean_name = str(chart_name).strip()
             if clean_name:
-                self._chart_names_list.addItem(clean_name)
+                item = QListWidgetItem(clean_name)
+                if self._active_field() == self.FIELD_TAGS and is_direct_tag_match:
+                    font = item.font()
+                    font.setItalic(True)
+                    item.setFont(font)
+                self._chart_names_list.addItem(item)
 
     def _delete_selected(self) -> None:
         if self._active_field() == self.FIELD_COLLECTIONS:
