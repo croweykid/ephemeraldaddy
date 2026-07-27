@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ephemeraldaddy.core.interpretations import PLANET_COLORS, SIGN_COLORS
 from ephemeraldaddy.gui.style import (
     CHART_DATA_HIGHLIGHT_COLOR,
     apply_chart_info_link_cursor,
@@ -37,6 +38,110 @@ APP_TOOLTIP_STYLE = (
 )
 
 _ORIGINAL_SET_TOOLTIP: Callable[[QWidget, str], None] | None = None
+
+
+def _colored_tooltip_term(text: object, color: str) -> str:
+    """Return one safely escaped, color-coded tooltip term."""
+    return (
+        f"<span style='color:{escape(str(color), quote=True)};'>"
+        f"{escape(str(text))}</span>"
+    )
+
+
+def sign_dominance_tooltip_html(
+    *,
+    chart_name: str,
+    selected_sign: str,
+    sun_sign: str | None,
+    moon_sign: str | None,
+    ascendant_sign: str | None,
+) -> str:
+    """Explain and color-code the Big Three pattern behind sign dominance."""
+
+    def body(body_name: str) -> str:
+        return _colored_tooltip_term(
+            body_name, str(PLANET_COLORS.get(body_name, "#d8d8d8"))
+        )
+
+    def sign(sign_name: str) -> str:
+        return _colored_tooltip_term(
+            sign_name, str(SIGN_COLORS.get(sign_name, "#d8d8d8"))
+        )
+
+    selected = sign(selected_sign)
+    sun_matches = sun_sign == selected_sign
+    moon_matches = moon_sign == selected_sign
+    rising_matches = ascendant_sign == selected_sign
+    prefix = f"<b>{escape(str(chart_name or 'This chart'))}</b> is {selected} dominant"
+
+    if sun_matches and moon_matches and rising_matches:
+        return (
+            f"{prefix} with {body('Sun')}, {body('Moon')} and {body('AS')} "
+            f"in {selected}."
+        )
+    if sun_matches and rising_matches:
+        return (
+            f"{prefix} with {body('Sun')} and {body('AS')} in {selected}, "
+            f"but {body('Moon')} in {sign(moon_sign or 'unknown')}."
+        )
+    if moon_matches and rising_matches:
+        return (
+            f"{prefix} with {body('Moon')} and {body('AS')} in {selected}, "
+            f"but {body('Sun')} in {sign(sun_sign or 'unknown')}."
+        )
+    if sun_matches and moon_matches:
+        ascendant = f"in {sign(ascendant_sign)}" if ascendant_sign else "unknown"
+        return (
+            f"{prefix} with {body('Sun')} and {body('Moon')} in {selected}, "
+            f"but {body('AS')} {ascendant}."
+        )
+
+    matching_bodies = [
+        body_name
+        for body_name, matches in (
+            ("Sun", sun_matches),
+            ("Moon", moon_matches),
+            ("AS", rising_matches),
+        )
+        if matches
+    ]
+    if matching_bodies:
+        matching_text = (
+            body(matching_bodies[0])
+            if len(matching_bodies) == 1
+            else " and ".join(body(body_name) for body_name in matching_bodies)
+        )
+        exceptions = []
+        if not sun_matches:
+            exceptions.append(f"{sign(sun_sign or 'unknown')} {body('Sun')}")
+        if not moon_matches:
+            exceptions.append(f"{sign(moon_sign or 'unknown')} {body('Moon')}")
+        if not rising_matches:
+            exceptions.append(
+                f"{sign(ascendant_sign)} {body('AS')}"
+                if ascendant_sign
+                else f"{body('AS')} unknown"
+            )
+        return f"{prefix} with {matching_text} in {selected}, but {', '.join(exceptions)}."
+
+    ascendant = (
+        f"{sign(ascendant_sign)} {body('AS')}"
+        if ascendant_sign
+        else f"{body('AS')} unknown"
+    )
+    return (
+        f"{prefix} despite {sign(sun_sign or 'unknown')} {body('Sun')}, "
+        f"{sign(moon_sign or 'unknown')} {body('Moon')} and {ascendant}."
+    )
+
+
+def set_link_hover_tooltip(
+    widget: QWidget,
+    link: str,
+    tooltips_by_link: Mapping[str, str],
+) -> None:
+    """Set a rich-text widget's tooltip to the explanation for its hovered link."""
+    widget.setToolTip(str(tooltips_by_link.get(str(link), "")))
 
 
 def install_app_tooltip_style(app: QApplication) -> None:
