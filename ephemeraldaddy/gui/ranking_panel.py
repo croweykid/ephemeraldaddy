@@ -13,7 +13,11 @@ from typing import Any
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
-from ephemeraldaddy.core.interpretations import SIGN_COLORS, ZODIAC_NAMES, ZODIAC_SIGNS
+from ephemeraldaddy.core.interpretations import (
+    SIGN_COLORS,
+    ZODIAC_NAMES,
+    ZODIAC_SIGNS,
+)
 from ephemeraldaddy.core.chart import chart_uses_houses
 from ephemeraldaddy.core.db import get_chart_ids_by_uid, get_chart_uid_map, load_dominant_sign_weights
 from ephemeraldaddy.gui.features.settings.traits import list_traits
@@ -27,6 +31,7 @@ from ephemeraldaddy.gui.style import (
     DROPDOWN_MUTED_ITEM_TEXT_COLOR,
     set_dropdown_item_text_color,
 )
+from ephemeraldaddy.gui.tooltips import sign_dominance_tooltip_html, set_link_hover_tooltip
 
 
 class RankingsPanelMixin:
@@ -102,6 +107,13 @@ class RankingsPanelMixin:
         self.rankings_signs_label.setOpenExternalLinks(False)
         self.rankings_signs_label.linkActivated.connect(
             self._on_traits_distribution_rank_chart_link_activated
+        )
+        self.rankings_signs_label.linkHovered.connect(
+            lambda link: set_link_hover_tooltip(
+                self.rankings_signs_label,
+                link,
+                getattr(self, "_rankings_sign_dominance_tooltips", {}),
+            )
         )
         self.rankings_signs_label.setWordWrap(True)
         self.rankings_signs_label.setStyleSheet("color: #d8d8d8; padding: 2px 0 6px 0;")
@@ -372,6 +384,22 @@ class RankingsPanelMixin:
             css_parts.append("font-weight:700")
         return "; ".join(css_parts)
 
+    @staticmethod
+    def _sign_dominance_key_html(selected_sign: str) -> str:
+        """Return the visual key for chart-name styling in dominance rankings."""
+        safe_sign = html.escape(selected_sign)
+        entries = (
+            ("font-weight:700; color:#39ff14", f"Sun/Moon/AS all in {safe_sign}"),
+            ("color:#39ff14", f"Sun/Moon in {safe_sign}"),
+            ("font-style:italic; color:#f0f0f0", f"AS only, but still dominant in {safe_sign}"),
+            ("color:#f0f0f0", f"Sun only, but still dominant in {safe_sign}"),
+            ("font-style:italic; color:#5dade2", f"Moon only, but still dominant in {safe_sign}"),
+        )
+        return "<div style='padding:0 0 4px 8px;'>" + "<br>".join(
+            f"<span style='color:#9a9a9a;'>•</span> <span style='{style};'>{text}</span>"
+            for style, text in entries
+        ) + "</div>"
+
     def _refresh_sign_dominance_rankings(self, database_chart_ids: set[int]) -> None:
         combo = getattr(self, "rankings_sign_combo", None)
         label = getattr(self, "rankings_signs_label", None)
@@ -385,6 +413,7 @@ class RankingsPanelMixin:
         stored_weights = load_dominant_sign_weights(list(normalized_chart_ids))
         chart_uids_by_id = get_chart_uid_map(normalized_chart_ids)
         rows: list[dict[str, Any]] = []
+        dominance_tooltips: dict[str, str] = {}
         sign_top_20_memberships: dict[str, list[str]] = {}
         hidden_chart_uids = {
             self._normalize_rankings_chart_uid(chart_uid)
@@ -425,6 +454,19 @@ class RankingsPanelMixin:
                     "name_style": self._sign_dominance_chart_name_style(chart, selected_sign),
                 }
             )
+            if chart_uid:
+                dominance_tooltips[f"chart:{chart_uid}"] = sign_dominance_tooltip_html(
+                    chart_name=str(getattr(chart, "name", "") or "This chart"),
+                    selected_sign=selected_sign,
+                    sun_sign=self._rankings_chart_body_sign(chart, "Sun"),
+                    moon_sign=self._rankings_chart_body_sign(chart, "Moon"),
+                    ascendant_sign=(
+                        self._rankings_chart_body_sign(chart, "AS")
+                        if chart_uses_houses(chart)
+                        else None
+                    ),
+                )
+        self._rankings_sign_dominance_tooltips = dominance_tooltips
         if not db_average and db_count:
             db_average = sum(float(row["value"]) for row in rows) / float(db_count)
         rows.sort(key=lambda row: (-float(row["value"]), str(row["name"]).casefold()))
@@ -488,6 +530,7 @@ class RankingsPanelMixin:
             return
         label.setText(
             f"<div style='padding-bottom:3px;'>Top {display_limit} charts by <b>{safe_sign}</b> dominance in the database.</div>"
+            f"{self._sign_dominance_key_html(selected_sign)}"
             "<table cellspacing='0' cellpadding='0' style='width:100%;'>"
             "<tr><th style='padding:1px 8px 2px 0; color:#f5f5f5; text-align:right;'>#</th>"
             "<th style='padding:1px 8px 2px 0; color:#f5f5f5; text-align:left;'>chart</th>"
