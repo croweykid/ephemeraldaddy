@@ -1596,6 +1596,20 @@ class ManageMetadataLabelsDialog(QDialog):
             self.FIELD_SENTIMENTS: "Charts with selected sentiment",
         }.get(self._active_field(), "Charts")
 
+    def _selected_chart_names_heading_text(self, selected_label: str) -> str:
+        clean_label = str(selected_label or "").strip()
+        if not clean_label:
+            return self._chart_names_heading_text()
+        if self._active_field() == self.FIELD_TAGS:
+            clean_label = " > ".join(
+                part.replace("_", " ").replace("-", " ").title()
+                for part in clean_label.split(".")
+                if part
+            )
+        if self._active_field() == self.FIELD_COLLECTIONS:
+            return f"Charts in {clean_label}"
+        return f"Charts with {clean_label}"
+
     def _active_rows(self) -> list[dict[str, int | str]]:
         rows = list(self._usage_data.get(self._active_field(), []))
         sort_mode = self.SORT_FREQUENCY
@@ -2008,15 +2022,9 @@ class ManageMetadataLabelsDialog(QDialog):
         selected_key = self._selected_key()
         if not selected_label:
             return
-        if self._active_field() == self.FIELD_TAGS:
-            display_tag = " > ".join(
-                part.replace("_", " ").replace("-", " ").title()
-                for part in selected_label.split(".")
-                if part
-            )
-            self._chart_names_heading.setText(f"Charts with {display_tag}")
-        else:
-            self._chart_names_heading.setText(self._chart_names_heading_text())
+        self._chart_names_heading.setText(
+            self._selected_chart_names_heading_text(selected_label)
+        )
         try:
             chart_names = self._load_chart_names(self._active_field(), selected_label, selected_key)
         except Exception:

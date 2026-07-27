@@ -20,7 +20,7 @@ def test_parent_tag_chart_results_distinguish_exact_and_child_matches() -> None:
     assert 'matches.append((chart_name, label.casefold() in tags))' in PROPERTY_MANAGER_SOURCE
     assert "not bool(match[1])" in PROPERTY_MANAGER_SOURCE
     assert "font.setItalic(True)" in DEV_TOOLS_SOURCE
-    assert 'self._chart_names_heading.setText(f"Charts with {display_tag}")' in DEV_TOOLS_SOURCE
+    assert "self._selected_chart_names_heading_text(selected_label)" in DEV_TOOLS_SOURCE
 
 
 def test_each_property_manager_uses_a_field_specific_chart_heading() -> None:
@@ -28,3 +28,13 @@ def test_each_property_manager_uses_a_field_specific_chart_heading() -> None:
     assert 'self.FIELD_COLLECTIONS: "Charts in selected collection"' in DEV_TOOLS_SOURCE
     assert 'self.FIELD_RELATIONSHIPS: "Charts with selected relationship"' in DEV_TOOLS_SOURCE
     assert 'self.FIELD_SENTIMENTS: "Charts with selected sentiment"' in DEV_TOOLS_SOURCE
+
+
+def test_each_selected_property_is_named_in_the_chart_heading() -> None:
+    heading = DEV_TOOLS_SOURCE.split(
+        "def _selected_chart_names_heading_text", 1
+    )[1].split("def _active_rows", 1)[0]
+
+    assert 'return f"Charts in {clean_label}"' in heading
+    assert 'return f"Charts with {clean_label}"' in heading
+    assert 'clean_label = " > ".join(' in heading
