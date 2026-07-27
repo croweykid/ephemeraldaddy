@@ -1592,7 +1592,7 @@ def _build_euphonics_section(owner: QWidget, panel: QWidget, layout: QVBoxLayout
     section_layout.addWidget(owner.euphonics_details_label)
 
     owner.euphonics_details_toggle = QToolButton()
-    owner.euphonics_details_toggle.setText("details")
+    owner.euphonics_details_toggle.setText("Details")
     owner.euphonics_details_toggle.setCheckable(True)
     owner.euphonics_details_toggle.setAutoRaise(True)
     owner.euphonics_details_toggle.setCursor(Qt.PointingHandCursor)
@@ -1602,7 +1602,7 @@ def _build_euphonics_section(owner: QWidget, panel: QWidget, layout: QVBoxLayout
 
     def toggle_details(checked: bool) -> None:
         owner.euphonics_details_label.setVisible(checked)
-        owner.euphonics_details_toggle.setText("hide details" if checked else "details")
+        owner.euphonics_details_toggle.setText("Show Less" if checked else "Details")
         euphonics_box.adjustSize()
         panel.adjustSize()
         panel.updateGeometry()
