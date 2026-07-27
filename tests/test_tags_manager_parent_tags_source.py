@@ -54,6 +54,8 @@ def test_parent_tag_actions_include_the_exact_tag_and_its_children() -> None:
 
     assert "if original_casefold == old_prefix_casefold:" in rename
     assert "affected_labels.append((original_label, new_prefix))" in rename
+    assert 'new_prefix.casefold().startswith(f"{cleaned_old_prefix.casefold()}.")' in rename
+    assert "cannot be renamed into one of its own child paths" in rename
     assert "subtree_labels = self._tag_labels_in_subtree(old_label)" in delete
     assert "for subtree_label in self._tag_labels_in_subtree(label) or [label]:" in move
     assert 'suffix = subtree_label[len(label):]' in move

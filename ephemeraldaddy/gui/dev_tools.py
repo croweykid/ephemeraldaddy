@@ -2246,6 +2246,13 @@ class ManageMetadataLabelsDialog(QDialog):
             return
         if new_prefix.casefold() == cleaned_old_prefix.casefold():
             return
+        if new_prefix.casefold().startswith(f"{cleaned_old_prefix.casefold()}."):
+            QMessageBox.warning(
+                self,
+                title,
+                "A tag category cannot be renamed into one of its own child paths.",
+            )
+            return
 
         affected_labels: list[tuple[str, str]] = []
         old_prefix_casefold = cleaned_old_prefix.casefold()
