@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -67,17 +68,21 @@ def _keep_settings_dialog_foreground(owner: Any) -> None:
 
 def add_traits_settings_section(owner: Any, content_layout: Any) -> None:
     """Add the Settings > Traits manager section to the settings dialog."""
-    traits_section = owner._add_settings_collapsible_section(content_layout, "Traits")
+    traits_section = owner._add_settings_collapsible_section(
+        content_layout,
+        "Traits",
+        fill_available_height=True,
+    )
     traits_section.addWidget(
         owner._build_settings_help_label(
             "Manage custom trait profiles exported from Similarities Analysis. Uploaded traits are saved locally in ~/.ephemeraldaddy/traits and scored in Chart View > Predictions."
         )
     )
     owner._traits_list_widget = QListWidget()
-    owner._traits_list_widget.setMinimumHeight(130)
-    owner._traits_list_widget.setMaximumHeight(190)
+    owner._traits_list_widget.setMinimumHeight(0)
+    owner._traits_list_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
     owner._traits_list_widget.setSelectionMode(QAbstractItemView.SingleSelection)
-    traits_section.addWidget(owner._traits_list_widget)
+    traits_section.addWidget(owner._traits_list_widget, 1)
 
     traits_button_row = QHBoxLayout()
     owner._traits_delete_button = QPushButton("Delete selected")
