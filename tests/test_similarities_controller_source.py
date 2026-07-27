@@ -36,3 +36,12 @@ def test_manage_charts_routes_similarity_state_lifecycle_through_controller():
     assert "self.similarities_controller.set_export_sections(" in manage_charts_source
     assert "self.similarities_controller.set_chart_lookup(chart_lookup)" in manage_charts_source
     assert "self.similarities_controller.clear_db_baseline_cache()" in manage_charts_source
+
+
+def test_use_this_checkbox_only_appears_for_nonempty_chart_input():
+    controller_source = CONTROLLER_SOURCE.read_text(encoding="utf-8")
+
+    assert "use_checkbox.setVisible(False)" in controller_source
+    assert "has_chart_name = bool(text.strip())" in controller_source
+    assert "checkbox.setChecked(False)" in controller_source
+    assert "checkbox.setVisible(has_chart_name)" in controller_source

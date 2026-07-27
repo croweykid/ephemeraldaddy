@@ -223,10 +223,21 @@ class SimilaritiesController:
 
             use_checkbox = QCheckBox("use this")
             use_checkbox.setStyleSheet(use_this_checkbox_style)
+            use_checkbox.setVisible(False)
             use_checkbox.toggled.connect(
                 lambda _checked: self.update_analysis(self.host._selected_local_row_ids())
             )
             input_layout.addWidget(use_checkbox, stretch=0, alignment=Qt.AlignRight)
+
+            def sync_use_checkbox_visibility(
+                text: str, checkbox: QCheckBox = use_checkbox
+            ) -> None:
+                has_chart_name = bool(text.strip())
+                if not has_chart_name:
+                    checkbox.setChecked(False)
+                checkbox.setVisible(has_chart_name)
+
+            chart_input.textChanged.connect(sync_use_checkbox_visibility)
 
             setattr(self, input_attr, chart_input)
             setattr(self, checkbox_attr, use_checkbox)

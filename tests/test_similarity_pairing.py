@@ -43,11 +43,20 @@ def test_unresolved_pair_has_no_breakdown_ids():
     assert similarity_breakdown_chart_ids(resolution) is None
 
 
-def test_chart_lookup_labels_expose_chart_uid_instead_of_legacy_id():
-    row = (101, "Alice", "Al", None, "", None, "", 0, 0, 0, None, 0, None, 0, "natal", 0, 0, None, None, None, None, None, None, "blank", None, None, None, None, None, None, "UIDALICE000001")
+def test_chart_lookup_labels_show_name_alias_and_from_without_uid():
+    row = (101, "Alice", "Al", "Wonderland", "", None, "", 0, 0, 0, None, 0, None, 0, "natal", 0, 0, None, None, None, None, None, None, "blank", None, None, None, None, None, None, "UIDALICE000001")
 
     chart_lookup, choices = build_chart_lookup([row])
 
-    assert choices == ["Alice (Al)  [UID: UIDALICE000001]"]
+    assert choices == ["Alice (Al) (Wonderland)"]
     assert chart_lookup[choices[0]] == 101
-    assert "#101" not in choices[0]
+    assert "UID" not in choices[0]
+
+
+def test_chart_lookup_omits_empty_alias_and_from_parentheses():
+    row = (101, "Alice", None, None)
+
+    chart_lookup, choices = build_chart_lookup([row])
+
+    assert choices == ["Alice"]
+    assert chart_lookup["Alice"] == 101
