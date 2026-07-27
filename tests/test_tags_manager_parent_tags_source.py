@@ -38,3 +38,21 @@ def test_each_selected_property_is_named_in_the_chart_heading() -> None:
     assert 'return f"Charts in {clean_label}"' in heading
     assert 'return f"Charts with {clean_label}"' in heading
     assert 'clean_label = " > ".join(' in heading
+
+
+def test_parent_tag_actions_include_the_exact_tag_and_its_children() -> None:
+    rename = DEV_TOOLS_SOURCE.split(
+        "def _rename_selected_tag_category", 1
+    )[1].split("def _create_collection", 1)[0]
+    delete = DEV_TOOLS_SOURCE.split("def _delete_selected", 1)[1].split(
+        "def _rename_tag_category_display_name", 1
+    )[0]
+    move = DEV_TOOLS_SOURCE.split("def _assign_tags_to_category", 1)[1].split(
+        "def _row_for_key", 1
+    )[0]
+
+    assert "if original_casefold == old_prefix_casefold:" in rename
+    assert "affected_labels.append((original_label, new_prefix))" in rename
+    assert "subtree_labels = self._tag_labels_in_subtree(old_label)" in delete
+    assert "for subtree_label in self._tag_labels_in_subtree(label) or [label]:" in move
+    assert 'suffix = subtree_label[len(label):]' in move

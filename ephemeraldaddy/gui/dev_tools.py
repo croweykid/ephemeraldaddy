@@ -1346,9 +1346,12 @@ class _TagHierarchyTree(QTreeWidget):
         source_items = source.selectedItems() if isinstance(source, QTreeWidget) else self.selectedItems()
         labels: list[str] = []
         for item in source_items:
-            if item.childCount() > 0:
-                continue
-            label = str(item.data(0, Qt.UserRole + 2) or item.data(0, Qt.UserRole) or "").strip()
+            label = str(
+                item.data(0, Qt.UserRole + 2)
+                or item.data(0, Qt.UserRole + 10)
+                or item.data(0, Qt.UserRole)
+                or ""
+            ).strip()
             if label:
                 labels.append(label)
         labels = list(dict.fromkeys(labels))
@@ -1937,15 +1940,15 @@ class ManageMetadataLabelsDialog(QDialog):
         )
         if len(cleaned_labels) == 1:
             label = cleaned_labels[0]
-            _old_prefix, bare_tag = _split_tag_category(label)
-            trait_name = bare_tag or label
-            row = self._row_for_key(label) or next(
-                (row for row in self._active_rows() if str(row.get("label", "")).strip() == label),
-                {},
+            trait_name = label.rsplit(".", 1)[-1]
+            subtree = set(self._tag_labels_in_subtree(label))
+            entry_count = sum(
+                int(row.get("count", 0) or 0)
+                for row in self._active_rows()
+                if str(row.get("label", "")).strip() in subtree
             )
-            entry_count = int(row.get("count", 0) or 0) if isinstance(row, dict) else 0
             prompt = (
-                f"Assign category '{category_name}' to trait '{trait_name}' "
+                f"Move tag '{trait_name}' and its child tags into '{category_name}' "
                 f"({entry_count} {'entry' if entry_count == 1 else 'entries'})?"
             )
         else:
@@ -1963,10 +1966,28 @@ class ManageMetadataLabelsDialog(QDialog):
         total_occurrences = 0
         total_rows = 0
         changed_count = 0
-        for index, label in enumerate(cleaned_labels):
-            _old_prefix, bare_tag = _split_tag_category(label, self._known_tag_category_prefixes())
-            updated_label = _compose_tag_category(cleaned_prefix, bare_tag)
-            if not bare_tag or updated_label == label:
+        label_changes: list[tuple[str, str]] = []
+        move_roots = [
+            label
+            for label in cleaned_labels
+            if not any(
+                label.casefold().startswith(f"{other.casefold()}.")
+                for other in cleaned_labels
+                if other != label
+            )
+        ]
+        for label in move_roots:
+            if cleaned_prefix.casefold() == label.casefold() or cleaned_prefix.casefold().startswith(
+                f"{label.casefold()}."
+            ):
+                continue
+            new_root = _compose_tag_category(cleaned_prefix, label.rsplit(".", 1)[-1])
+            for subtree_label in self._tag_labels_in_subtree(label) or [label]:
+                suffix = subtree_label[len(label):]
+                label_changes.append((subtree_label, f"{new_root}{suffix}"))
+        label_changes = list(dict.fromkeys(label_changes))
+        for index, (label, updated_label) in enumerate(label_changes):
+            if updated_label == label:
                 continue
             summary = self._apply_change(
                 field=self.FIELD_TAGS,
@@ -1998,6 +2019,21 @@ class ManageMetadataLabelsDialog(QDialog):
             if row_key == key:
                 return row
         return None
+
+    def _tag_labels_in_subtree(self, prefix: str) -> list[str]:
+        clean_prefix = str(prefix or "").strip()
+        prefix_casefold = clean_prefix.casefold()
+        if not clean_prefix:
+            return []
+        return [
+            label
+            for row in self._active_rows()
+            if (label := str(row.get("label", "")).strip())
+            and (
+                label.casefold() == prefix_casefold
+                or label.casefold().startswith(f"{prefix_casefold}.")
+            )
+        ]
 
     def _on_selection_changed(self, source_tree: QTreeWidget | None = None) -> None:
         if getattr(self, "_refreshing_label_views", False):
@@ -2049,6 +2085,12 @@ class ManageMetadataLabelsDialog(QDialog):
             self._delete_selected_collection()
             return
         old_labels = self._selected_labels()
+        if self._active_field() == self.FIELD_TAGS:
+            expanded_labels: list[str] = []
+            for old_label in old_labels:
+                subtree_labels = self._tag_labels_in_subtree(old_label)
+                expanded_labels.extend(subtree_labels or [old_label])
+            old_labels = list(dict.fromkeys(expanded_labels))
         if not old_labels:
             QMessageBox.information(self, "Manage metadata", "Select one or more labels to delete.")
             return
@@ -2197,7 +2239,9 @@ class ManageMetadataLabelsDialog(QDialog):
         for row in self._active_rows():
             original_label = str(row.get("label", "")).strip()
             original_casefold = original_label.casefold()
-            if original_casefold.startswith(f"{old_prefix_casefold}."):
+            if original_casefold == old_prefix_casefold:
+                affected_labels.append((original_label, new_prefix))
+            elif original_casefold.startswith(f"{old_prefix_casefold}."):
                 suffix = original_label[len(cleaned_old_prefix):].lstrip(".")
                 if suffix:
                     affected_labels.append((original_label, f"{new_prefix}.{suffix}"))
