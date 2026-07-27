@@ -1403,7 +1403,7 @@ class ManageMetadataLabelsDialog(QDialog):
         self._collection_actions = collection_actions or {}
         self._settings = settings
         self._label_limit = max(1, label_limit)
-        self._usage_data: dict[str, list[dict[str, int | str]]] = {}
+        self._usage_data: dict[str, list[dict[str, object]]] = {}
         self._refreshing_label_views = False
         self._tag_category_display_names: dict[str, str] = {
             prefix.casefold(): name for name, prefix in TAG_CATEGORY_OPTIONS
@@ -1613,7 +1613,7 @@ class ManageMetadataLabelsDialog(QDialog):
             return f"Charts in {clean_label}"
         return f"Charts with {clean_label}"
 
-    def _active_rows(self) -> list[dict[str, int | str]]:
+    def _active_rows(self) -> list[dict[str, object]]:
         rows = list(self._usage_data.get(self._active_field(), []))
         sort_mode = self.SORT_FREQUENCY
         if hasattr(self, "_sort_selector"):
@@ -1784,7 +1784,7 @@ class ManageMetadataLabelsDialog(QDialog):
         if self._active_field() == self.FIELD_TAGS:
             node_by_path: dict[str, QTreeWidgetItem] = {}
             node_base_labels: dict[str, str] = {}
-            node_chart_counts: dict[str, int] = {}
+            node_chart_memberships: dict[str, set[str]] = {}
             parent_node_path_keys: set[str] = set()
             for row in rows:
                 label = str(row.get("label", "")).strip()
@@ -1828,6 +1828,19 @@ class ManageMetadataLabelsDialog(QDialog):
                 count = int(row.get("count", 0) or 0)
                 parts = [part.strip() for part in label.split(".") if part.strip()]
                 exact_path_key = ".".join(parts).casefold()
+                raw_chart_uids = row.get("chart_uids")
+                if isinstance(raw_chart_uids, (list, tuple, set)):
+                    chart_memberships = {
+                        str(chart_uid).strip().upper()
+                        for chart_uid in raw_chart_uids
+                        if str(chart_uid).strip()
+                    }
+                else:
+                    # Compatibility for alternate usage providers that only
+                    # supply aggregate counts; production rows carry UIDs.
+                    chart_memberships = {
+                        f"{exact_path_key}:{index}" for index in range(count)
+                    }
                 if parts and exact_path_key in parent_node_path_keys:
                     # A tag can also be a folder.  Represent it with the folder
                     # node itself rather than adding a second, identically named
@@ -1839,7 +1852,7 @@ class ManageMetadataLabelsDialog(QDialog):
                     node.setData(0, Qt.UserRole + 2, label)
                     for depth in range(len(parts)):
                         path_key = ".".join(parts[: depth + 1]).casefold()
-                        node_chart_counts[path_key] = node_chart_counts.get(path_key, 0) + count
+                        node_chart_memberships.setdefault(path_key, set()).update(chart_memberships)
                     continue
                 leaf_value = parts[-1] if parts else label
                 display_label = leaf_value.replace("_", " ").replace("-", " ").title()
@@ -1853,14 +1866,14 @@ class ManageMetadataLabelsDialog(QDialog):
                     parent_parts = parts[:-1]
                     for depth in range(len(parent_parts)):
                         path_key = ".".join(parent_parts[: depth + 1]).casefold()
-                        node_chart_counts[path_key] = node_chart_counts.get(path_key, 0) + count
+                        node_chart_memberships.setdefault(path_key, set()).update(chart_memberships)
                     ensure_node(parent_parts, len(parent_parts) - 1).addChild(item)
                 else:
                     uncategorized_items.append(item)
 
             for key, node in node_by_path.items():
                 base_label = node_base_labels.get(key, str(node.text(0)))
-                chart_count = node_chart_counts.get(key, 0)
+                chart_count = len(node_chart_memberships.get(key, set()))
                 chart_word = "chart" if chart_count == 1 else "charts"
                 node.setText(0, f"{base_label} ({chart_count} {chart_word})")
                 node.setExpanded(expanded_state.get(str(node.data(0, Qt.UserRole + 10) or ""), False))
@@ -2013,7 +2026,7 @@ class ManageMetadataLabelsDialog(QDialog):
         )
         self._reload_usage(refresh_chart_context=True)
 
-    def _row_for_key(self, key: str) -> dict[str, int | str] | None:
+    def _row_for_key(self, key: str) -> dict[str, object] | None:
         for row in self._active_rows():
             row_key = str(row.get("key", row.get("label", ""))).strip()
             if row_key == key:

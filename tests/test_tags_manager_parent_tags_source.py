@@ -13,7 +13,8 @@ def test_parent_tags_are_rendered_as_their_folder_nodes() -> None:
     assert "if parts and exact_path_key in parent_node_path_keys:" in refresh
     assert "node.setData(0, Qt.UserRole + 2, label)" in refresh
     assert 'node.setText(0, f"{base_label} ({chart_count} {chart_word})")' in refresh
-    assert "node_chart_counts[path_key] = node_chart_counts.get(path_key, 0) + count" in refresh
+    assert "node_chart_memberships.setdefault(path_key, set()).update(chart_memberships)" in refresh
+    assert "chart_count = len(node_chart_memberships.get(key, set()))" in refresh
 
 
 def test_parent_tag_chart_results_distinguish_exact_and_child_matches() -> None:
@@ -56,3 +57,12 @@ def test_parent_tag_actions_include_the_exact_tag_and_its_children() -> None:
     assert "subtree_labels = self._tag_labels_in_subtree(old_label)" in delete
     assert "for subtree_label in self._tag_labels_in_subtree(label) or [label]:" in move
     assert 'suffix = subtree_label[len(label):]' in move
+
+
+def test_parent_counts_use_distinct_chart_uids() -> None:
+    load_usage = PROPERTY_MANAGER_SOURCE.split("def load_usage", 1)[1].split(
+        "def _collection_usage_rows", 1
+    )[0]
+
+    assert "uid_by_id = get_chart_uid_map" in load_usage
+    assert 'row["chart_uids"] = sorted(tag_chart_uids.get(label, set()))' in load_usage
