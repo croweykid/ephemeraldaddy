@@ -21,6 +21,17 @@ def test_traits_settings_ui_lives_outside_app_py():
     assert "_warm_trait_definitions(owner, {clean_name})" in settings_source
 
 
+def test_traits_settings_list_fills_available_window_height():
+    settings_source = (ROOT / "ephemeraldaddy" / "gui" / "features" / "settings" / "traits.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert '"Traits",\n        fill_available_height=True,' in settings_source
+    assert "setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)" in settings_source
+    assert "traits_section.addWidget(owner._traits_list_widget, 1)" in settings_source
+    assert "_traits_list_widget.setMaximumHeight" not in settings_source
+
+
 def test_trait_prediction_rendering_lives_outside_app_py():
     app_source = (ROOT / "ephemeraldaddy" / "gui" / "app.py").read_text(encoding="utf-8")
     predictions_source = (
