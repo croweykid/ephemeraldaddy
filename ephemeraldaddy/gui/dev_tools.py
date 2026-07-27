@@ -1499,7 +1499,7 @@ class ManageMetadataLabelsDialog(QDialog):
         split_layout.addWidget(self._list_widget, 2)
 
         right_panel = QVBoxLayout()
-        self._chart_names_heading = QLabel("Charts with selected property")
+        self._chart_names_heading = QLabel(self._chart_names_heading_text())
         right_panel.addWidget(self._chart_names_heading)
         self._chart_names_list = QListWidget(self)
         self._chart_names_list.setSelectionMode(QAbstractItemView.NoSelection)
@@ -1587,6 +1587,14 @@ class ManageMetadataLabelsDialog(QDialog):
     def _active_field(self) -> str:
         value = self._field_selector.currentData()
         return str(value or self.FIELD_SENTIMENTS)
+
+    def _chart_names_heading_text(self) -> str:
+        return {
+            self.FIELD_TAGS: "Charts with selected tag",
+            self.FIELD_COLLECTIONS: "Charts in selected collection",
+            self.FIELD_RELATIONSHIPS: "Charts with selected relationship",
+            self.FIELD_SENTIMENTS: "Charts with selected sentiment",
+        }.get(self._active_field(), "Charts")
 
     def _active_rows(self) -> list[dict[str, int | str]]:
         rows = list(self._usage_data.get(self._active_field(), []))
@@ -1749,7 +1757,7 @@ class ManageMetadataLabelsDialog(QDialog):
         if hasattr(self, "_chart_names_list"):
             self._chart_names_list.clear()
         if hasattr(self, "_chart_names_heading"):
-            self._chart_names_heading.setText("Charts with selected property")
+            self._chart_names_heading.setText(self._chart_names_heading_text())
         minimum_count = 0
         maximum_count = 0
         if rows:
@@ -2008,7 +2016,7 @@ class ManageMetadataLabelsDialog(QDialog):
             )
             self._chart_names_heading.setText(f"Charts with {display_tag}")
         else:
-            self._chart_names_heading.setText("Charts with selected property")
+            self._chart_names_heading.setText(self._chart_names_heading_text())
         try:
             chart_names = self._load_chart_names(self._active_field(), selected_label, selected_key)
         except Exception:

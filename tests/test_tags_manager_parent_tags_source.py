@@ -21,3 +21,10 @@ def test_parent_tag_chart_results_distinguish_exact_and_child_matches() -> None:
     assert "not bool(match[1])" in PROPERTY_MANAGER_SOURCE
     assert "font.setItalic(True)" in DEV_TOOLS_SOURCE
     assert 'self._chart_names_heading.setText(f"Charts with {display_tag}")' in DEV_TOOLS_SOURCE
+
+
+def test_each_property_manager_uses_a_field_specific_chart_heading() -> None:
+    assert 'self.FIELD_TAGS: "Charts with selected tag"' in DEV_TOOLS_SOURCE
+    assert 'self.FIELD_COLLECTIONS: "Charts in selected collection"' in DEV_TOOLS_SOURCE
+    assert 'self.FIELD_RELATIONSHIPS: "Charts with selected relationship"' in DEV_TOOLS_SOURCE
+    assert 'self.FIELD_SENTIMENTS: "Charts with selected sentiment"' in DEV_TOOLS_SOURCE
