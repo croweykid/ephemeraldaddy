@@ -53,6 +53,28 @@ def test_style_tokens_have_one_authoritative_assignment() -> None:
     assert assignments["CHART_DATA_HIGHLIGHT_COLOR"] == 1
     assert assignments["RELATIVE_YEAR_COLORS"] == 1
 
+    highlight_assignment_index = next(
+        index
+        for index, node in enumerate(tree.body)
+        if isinstance(node, ast.Assign)
+        and any(
+            isinstance(target, ast.Name)
+            and target.id == "CHART_DATA_HIGHLIGHT_COLOR"
+            for target in node.targets
+        )
+    )
+    first_highlight_load_index = next(
+        index
+        for index, node in enumerate(tree.body)
+        if any(
+            isinstance(descendant, ast.Name)
+            and isinstance(descendant.ctx, ast.Load)
+            and descendant.id == "CHART_DATA_HIGHLIGHT_COLOR"
+            for descendant in ast.walk(node)
+        )
+    )
+    assert highlight_assignment_index < first_highlight_load_index
+
 
 def test_search_options_are_imported_from_shared_controls() -> None:
     tree = _module("ephemeraldaddy/gui/app.py")
