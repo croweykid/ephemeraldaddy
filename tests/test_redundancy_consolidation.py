@@ -56,6 +56,14 @@ def test_style_tokens_have_one_authoritative_assignment() -> None:
 
 def test_search_options_are_imported_from_shared_controls() -> None:
     tree = _module("ephemeraldaddy/gui/app.py")
+    shared_imports = {
+        alias.name
+        for node in tree.body
+        if isinstance(node, ast.ImportFrom)
+        and node.module == "ephemeraldaddy.gui.widgets.search_controls"
+        for alias in node.names
+    }
+    assert "GENERATION_UNKNOWN_OPTION" in shared_imports
     locally_assigned = {
         target.id
         for node in tree.body
@@ -96,7 +104,7 @@ def test_human_design_circuit_compatibility_module_reexports_canonical_data() ->
         for alias in node.names
     }
     assert (
-        "ephemeraldaddy.analysis.human_design_reference",
+        "ephemeraldaddy.analysis.human_design_circuits",
         "HD_CIRCUIT_GROUPS",
     ) in imports
     assert not any(
@@ -107,6 +115,21 @@ def test_human_design_circuit_compatibility_module_reexports_canonical_data() ->
         )
         for node in tree.body
     )
+
+
+def test_human_design_circuit_reference_is_gui_independent() -> None:
+    import sys
+
+    sys.modules.pop("ephemeraldaddy.analysis.hd_circuits_reference", None)
+    sys.modules.pop("ephemeraldaddy.analysis.human_design_circuits", None)
+    before = set(sys.modules)
+
+    from ephemeraldaddy.analysis import hd_circuits_reference
+
+    imported = set(sys.modules) - before
+    assert hd_circuits_reference.HD_ALL_CHANNELS
+    assert not any(name.startswith("ephemeraldaddy.gui") for name in imported)
+    assert not any(name.startswith("PySide6") for name in imported)
 
 
 def test_startup_entrypoints_share_one_animation_renderer() -> None:
