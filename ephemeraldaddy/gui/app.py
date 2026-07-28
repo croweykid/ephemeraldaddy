@@ -26532,6 +26532,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 chart_2_uid=chart_uid_map.get(compared_chart_id) if compared_chart_id is not None else None,
                 user_reported_accuracy=score,
                 not_applicable=not_applicable,
+                algorithm_mode=getattr(match, "algorithm_mode", None),
+                predicted_percent=float(getattr(match, "score", 0.0)) * 100.0,
+                ranking_position=getattr(match, "rank", None),
             )
         except Exception:
             logger.exception("Failed to save Similar Charts perceived similarity relationship.")

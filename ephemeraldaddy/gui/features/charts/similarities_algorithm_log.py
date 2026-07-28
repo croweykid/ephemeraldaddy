@@ -30,6 +30,74 @@ def resolve_similarities_algorithm_log_path(path: str | os.PathLike[str] | None 
     return Path.home() / ".ephemeraldaddy" / SIMILARITIES_ALGORITHM_LOG_FILENAME
 
 
+def aggregate_similarity_algorithm_accuracy(
+    relationship_path: str | os.PathLike[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Rank algorithms by mean predicted-vs-perceived accuracy.
+
+    An observation is the score an algorithm assigned to a chart pair when the
+    user recorded their perceived score.  Keeping observations on the pair
+    record avoids recalculating historical rankings after settings change.
+    """
+    from ephemeraldaddy.gui.features.charts.chart_similarity_relationships import (
+        resolve_chart_similarity_relationships_path,
+    )
+
+    path = resolve_chart_similarity_relationships_path(relationship_path)
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    relationships = payload.get("relationships", {}) if isinstance(payload, Mapping) else {}
+    totals: dict[str, list[float]] = {}
+    if not isinstance(relationships, Mapping):
+        return []
+    for relationship in relationships.values():
+        if not isinstance(relationship, Mapping) or bool(relationship.get("not_applicable", False)):
+            continue
+        try:
+            perceived = float(relationship.get("user_reported_accuracy"))
+        except (TypeError, ValueError):
+            continue
+        if not 0.0 <= perceived <= 100.0:
+            continue
+        observations = relationship.get("algorithm_observations", {})
+        if not isinstance(observations, Mapping):
+            continue
+        for raw_mode, observation in observations.items():
+            if not isinstance(observation, Mapping):
+                continue
+            try:
+                predicted = float(observation.get("predicted_percent"))
+            except (TypeError, ValueError):
+                continue
+            if not 0.0 <= predicted <= 100.0:
+                continue
+            mode = normalize_similar_charts_algorithm_mode(raw_mode)
+            totals.setdefault(mode, []).append(max(0.0, 100.0 - abs(predicted - perceived)))
+    ranked = [
+        {"algorithm_mode": mode, "average_accuracy": sum(scores) / len(scores), "sample_count": len(scores)}
+        for mode, scores in totals.items()
+    ]
+    return sorted(ranked, key=lambda row: (-row["average_accuracy"], -row["sample_count"], row["algorithm_mode"]))
+
+
+def format_similarity_algorithm_accuracy_ranking(
+    rows: list[Mapping[str, Any]] | None = None,
+) -> str:
+    """Return concise Research-tab text for aggregate algorithm results."""
+    ranked = aggregate_similarity_algorithm_accuracy() if rows is None else rows
+    if not ranked:
+        return "Algorithm accuracy ranking\nNo algorithm-linked accuracy scores have been recorded yet."
+    lines = ["Algorithm accuracy ranking", "Average accuracy across recorded chart-pair rankings:"]
+    for index, row in enumerate(ranked, start=1):
+        mode = str(row.get("algorithm_mode", "unknown")).replace("_", " ").title()
+        average = float(row.get("average_accuracy", 0.0))
+        count = int(row.get("sample_count", 0))
+        lines.append(f"{index}. {mode} — {average:.1f}% average (n={count})")
+    return "\n".join(lines)
+
+
 def _settings_payload(settings: SimilarityCalculatorSettings | Mapping[str, Any] | None) -> dict[str, Any]:
     if isinstance(settings, SimilarityCalculatorSettings):
         payload = asdict(settings)
