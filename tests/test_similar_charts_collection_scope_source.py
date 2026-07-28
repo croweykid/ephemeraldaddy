@@ -63,3 +63,26 @@ def test_replaced_popout_is_destroyed_when_collection_change_closes_it():
     builder = POPOUT_SOURCE.split("def build_similar_charts_popout_dialog(", 1)[1]
 
     assert "dialog.setAttribute(Qt.WA_DeleteOnClose, True)" in builder
+
+
+def test_collection_change_closes_old_dialog_only_after_replacement_succeeds():
+    method = APP_SOURCE.split(
+        "    def _on_similar_chart_popout_collection_changed", 1
+    )[1].split("    def _load_custom_collections_from_settings", 1)[0]
+
+    replacement_position = method.index("replacement = self._show_similar_charts_popout(")
+    success_position = method.index("if replacement is not None:")
+    close_position = method.index("dialog.close()")
+    assert replacement_position < success_position < close_position
+    assert "QSignalBlocker(collection_dropdown)" in method
+    assert "collection_dropdown.setCurrentIndex(previous_index)" in method
+
+
+def test_collection_membership_loading_uses_normal_individual_fallback():
+    source = _show_popout_source()
+    membership_loader = source.split("collection_candidates = load_similar_chart_candidates(", 1)[1].split(
+        "collection_charts_by_id = dict(collection_candidates)", 1
+    )[0]
+
+    assert "load_chart_by_id=load_chart" in membership_loader
+    assert "load_charts_by_ids=load_charts" in membership_loader

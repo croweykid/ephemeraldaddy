@@ -26638,14 +26638,25 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         opened_from_database_view = bool(
             getattr(dialog, "_similar_chart_popout_opened_from_database_view", False)
         )
-        dialog.close()
-        self._show_similar_charts_popout(
+        replacement = self._show_similar_charts_popout(
             self,
             chart_override=chart,
             subject_chart_id_override=subject_chart_id,
             opened_from_database_view=opened_from_database_view,
             collection_id=normalized_id,
         )
+        if replacement is not None:
+            dialog.close()
+            return
+        collection_dropdown = getattr(dialog, "_similar_chart_popout_collection_dropdown", None)
+        if isinstance(collection_dropdown, QComboBox):
+            blocker = QSignalBlocker(collection_dropdown)
+            previous_index = collection_dropdown.findData(
+                getattr(dialog, "_similar_chart_popout_collection_id", DEFAULT_COLLECTION_ALL)
+            )
+            if previous_index >= 0:
+                collection_dropdown.setCurrentIndex(previous_index)
+            del blocker
 
     def _load_custom_collections_from_settings(self) -> dict[str, CustomCollection]:
         raw_value = self._settings.value("manage_charts/custom_collections", "[]")
@@ -27347,7 +27358,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         subject_chart_id_override: int | None = None,
         opened_from_database_view: bool | None = None,
         collection_id: str = DEFAULT_COLLECTION_ALL,
-    ) -> None:
+    ) -> QDialog | None:
         manage_dialog = self._manage_charts_dialog
         database_view_active = (
             requester is not self
@@ -27429,7 +27440,15 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             self._custom_collections = self._load_custom_collections_from_settings()
             collection_row_ids = [int(row[0]) for row in chart_rows]
             collection_uids_by_id = get_chart_uid_map(collection_row_ids)
-            collection_charts_by_id = load_charts(collection_row_ids)
+            # Reuse the normal candidate loader's batch-to-individual fallback:
+            # one malformed imported chart must not break the entire scope.
+            collection_candidates = load_similar_chart_candidates(
+                rows=chart_rows,
+                current_chart_id=subject_chart_id,
+                load_chart_by_id=load_chart,
+                load_charts_by_ids=load_charts,
+            )
+            collection_charts_by_id = dict(collection_candidates)
             collection_charts_by_uid = {
                 collection_uids_by_id[chart_id]: candidate_chart
                 for chart_id, candidate_chart in collection_charts_by_id.items()
@@ -27888,6 +27907,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             dialog.show()
             keep_similar_charts_popout_foreground_until_outside_click(dialog)
             update_similar_charts_loading_progress(progress, "Long lost astro twins found.", 100)
+            return dialog
         except OperationCanceled:
             return
         finally:
