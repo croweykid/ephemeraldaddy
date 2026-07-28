@@ -1405,6 +1405,10 @@ class ManageMetadataLabelsDialog(QDialog):
         self._label_limit = max(1, label_limit)
         self._usage_data: dict[str, list[dict[str, object]]] = {}
         self._refreshing_label_views = False
+        self._pending_usage_reload: tuple[bool, str] | None = None
+        self._usage_reload_timer = QTimer(self)
+        self._usage_reload_timer.setSingleShot(True)
+        self._usage_reload_timer.timeout.connect(self._run_queued_usage_reload)
         self._tag_category_display_names: dict[str, str] = {
             prefix.casefold(): name for name, prefix in TAG_CATEGORY_OPTIONS
         }
@@ -1564,6 +1568,40 @@ class ManageMetadataLabelsDialog(QDialog):
 
     def refresh_usage(self) -> None:
         self._reload_usage()
+
+    def _queue_usage_reload(
+        self,
+        *,
+        refresh_chart_context: bool = False,
+        keep_selection_label: str = "",
+    ) -> None:
+        """Reload tree models after the current Qt item-view signal unwinds.
+
+        Parent-tag operations replace several tree items at once.  Rebuilding
+        either tree directly from a clicked/double-clicked/drop callback can
+        invalidate indexes that Qt still uses while finishing that callback,
+        which can cause a native (non-Python) crash.  Coalesce requests and let
+        the event loop finish the active item-view operation first.
+        """
+        pending_refresh, pending_selection = self._pending_usage_reload or (False, "")
+        self._pending_usage_reload = (
+            pending_refresh or refresh_chart_context,
+            keep_selection_label or pending_selection,
+        )
+        if self._usage_reload_timer.isActive():
+            return
+        self._usage_reload_timer.start(0)
+
+    def _run_queued_usage_reload(self) -> None:
+        pending = self._pending_usage_reload
+        self._pending_usage_reload = None
+        if pending is None:
+            return
+        refresh_chart_context, keep_selection_label = pending
+        self._reload_usage(
+            refresh_chart_context=refresh_chart_context,
+            keep_selection_label=keep_selection_label,
+        )
 
     def _load_tag_category_display_names(self) -> None:
         settings = getattr(self, "_settings", None)
@@ -2024,7 +2062,7 @@ class ManageMetadataLabelsDialog(QDialog):
             f"Updated {changed_count} tags across {total_rows} chart(s), "
             f"touching {total_occurrences} tag occurrence(s).",
         )
-        self._reload_usage(refresh_chart_context=True)
+        self._queue_usage_reload(refresh_chart_context=True)
 
     def _row_for_key(self, key: str) -> dict[str, object] | None:
         for row in self._active_rows():
@@ -2150,7 +2188,7 @@ class ManageMetadataLabelsDialog(QDialog):
             "Delete complete",
             f"Removed {total_occurrences} occurrences across {total_rows} chart updates.",
         )
-        self._reload_usage(refresh_chart_context=True)
+        self._queue_usage_reload(refresh_chart_context=True)
 
     def _rename_tag_category_display_name(self, item: QTreeWidgetItem, _column: int) -> None:
         if self._active_field() != self.FIELD_TAGS or item is None or item.childCount() <= 0:
@@ -2173,7 +2211,7 @@ class ManageMetadataLabelsDialog(QDialog):
         if new_name:
             self._tag_category_display_names[prefix.casefold()] = new_name
             self._save_tag_category_display_names()
-            self._refresh_list()
+            self._queue_usage_reload()
 
     def _rename_selected(self) -> None:
         if self._active_field() == self.FIELD_COLLECTIONS:
@@ -2220,7 +2258,10 @@ class ManageMetadataLabelsDialog(QDialog):
             f"Updated {summary.get('occurrences_updated', 0)} occurrences across "
             f"{summary.get('rows_updated', 0)} chart(s).",
         )
-        self._reload_usage(refresh_chart_context=True, keep_selection_label=new_label)
+        self._queue_usage_reload(
+            refresh_chart_context=True,
+            keep_selection_label=new_label,
+        )
 
     def _rename_selected_tag_category(self, old_prefix: str) -> None:
         cleaned_old_prefix = str(old_prefix or "").strip().strip(".")
@@ -2299,14 +2340,14 @@ class ManageMetadataLabelsDialog(QDialog):
             f"Updated {len(affected_labels)} tags across {total_rows} chart(s), "
             f"touching {total_occurrences} tag occurrence(s).",
         )
-        self._reload_usage(refresh_chart_context=True)
+        self._queue_usage_reload(refresh_chart_context=True)
 
     def _create_collection(self) -> None:
         action = self._collection_actions.get("create")
         if not callable(action):
             return
         action()
-        self._reload_usage(refresh_chart_context=True)
+        self._queue_usage_reload(refresh_chart_context=True)
 
     def _rename_selected_collection(self) -> None:
         key = self._selected_key()
@@ -2314,7 +2355,7 @@ class ManageMetadataLabelsDialog(QDialog):
         if not key or not callable(action):
             return
         action(key)
-        self._reload_usage(refresh_chart_context=True)
+        self._queue_usage_reload(refresh_chart_context=True)
 
     def _delete_selected_collection(self) -> None:
         key = self._selected_key()
@@ -2322,7 +2363,7 @@ class ManageMetadataLabelsDialog(QDialog):
         if not key or not callable(action):
             return
         action(key)
-        self._reload_usage(refresh_chart_context=True)
+        self._queue_usage_reload(refresh_chart_context=True)
 
     def _add_selected_to_collection(self) -> None:
         key = self._selected_key()
@@ -2330,7 +2371,7 @@ class ManageMetadataLabelsDialog(QDialog):
         if not key or not callable(action):
             return
         action(key)
-        self._reload_usage(refresh_chart_context=True)
+        self._queue_usage_reload(refresh_chart_context=True)
 
     def _remove_selected_from_collection(self) -> None:
         key = self._selected_key()
@@ -2338,7 +2379,7 @@ class ManageMetadataLabelsDialog(QDialog):
         if not key or not callable(action):
             return
         action(key)
-        self._reload_usage(refresh_chart_context=True)
+        self._queue_usage_reload(refresh_chart_context=True)
 
     # def _delete_selected(self) -> None:
     #     old_label = self._selected_label()
@@ -2417,7 +2458,10 @@ class ManageMetadataLabelsDialog(QDialog):
             f"Updated {summary.get('occurrences_updated', 0)} occurrences across "
             f"{summary.get('rows_updated', 0)} chart(s).",
         )
-        self._reload_usage(refresh_chart_context=True, keep_selection_label=into_label)
+        self._queue_usage_reload(
+            refresh_chart_context=True,
+            keep_selection_label=into_label,
+        )
 
 ENNEAGRAM_CATEGORY_FACTOR_ROWS: tuple[tuple[str, str], ...] = (
     ("signs", "Signs"),
