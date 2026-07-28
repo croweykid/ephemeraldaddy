@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QRadioButton,
     QSplitter,
+    QTabBar,
     QTabWidget,
     #QSizePolicy,
     QTextBrowser,
@@ -42,9 +43,9 @@ from ephemeraldaddy.gui.tooltips import TooltipHelpLabel
 from ephemeraldaddy.gui.tag_categories import TAG_CATEGORY_OPTIONS, TAG_CATEGORY_PREFIXES
 from ephemeraldaddy.gui.style import (
     apply_shared_dropdown_style,
-    DATABASE_VIEW_HEADER_COLOR,
     CHART_DATA_HIGHLIGHT_COLOR,
     INACTIVE_ACTION_BUTTON_STYLE,
+    SETTINGS_TAB_STYLE,
     similarity_gradient_rgb_for_range,
 )
 
@@ -557,6 +558,7 @@ def build_similarity_calculator_settings_section(
     threshold_rows: tuple[tuple[str, str], ...],
 ) -> dict[str, object]:
     tabs = QTabWidget()
+    tabs.setStyleSheet(SETTINGS_TAB_STYLE)
     algorithm_tab = QWidget()
     algorithm_layout = QVBoxLayout(algorithm_tab)
     algorithm_layout.setContentsMargins(8, 8, 8, 8)
@@ -1452,15 +1454,12 @@ class ManageMetadataLabelsDialog(QDialog):
         layout = QVBoxLayout(self)
 
         self._field_selector = QComboBox(self)
-        field_options = sorted(
-            [
-                ("Collections Manager", self.FIELD_COLLECTIONS),
-                ("Relationships Manager", self.FIELD_RELATIONSHIPS),
-                ("Sentiments Manager", self.FIELD_SENTIMENTS),
-                ("Tags Manager", self.FIELD_TAGS),
-            ],
-            key=lambda option: option[0].casefold(),
-        )
+        field_options = [
+            ("Relationships", self.FIELD_RELATIONSHIPS),
+            ("Sentiments", self.FIELD_SENTIMENTS),
+            ("Collections", self.FIELD_COLLECTIONS),
+            ("Tags", self.FIELD_TAGS),
+        ]
         for label, field_value in field_options:
             self._field_selector.addItem(label, field_value)
         self._field_selector.currentIndexChanged.connect(self._refresh_list)
@@ -1468,28 +1467,14 @@ class ManageMetadataLabelsDialog(QDialog):
         self._field_selector.setVisible(False)
 
         if not lock_field:
-            self._field_button_group = QButtonGroup(self)
-            self._field_button_group.setExclusive(True)
-            field_button_row = QHBoxLayout()
-            field_button_row.setContentsMargins(0, 0, 0, 0)
-            field_button_row.setSpacing(6)
-            field_button_style = (
-                "QPushButton { padding: 3px 10px; min-height: 24px; font-weight: 700; }"
-                "QPushButton:checked { color: "
-                + DATABASE_VIEW_HEADER_COLOR
-                + "; border: 1px solid "
-                + DATABASE_VIEW_HEADER_COLOR
-                + "; }"
-            )
-            for index, (label, _field_value) in enumerate(field_options):
-                button = QPushButton(label, self)
-                button.setCheckable(True)
-                button.setStyleSheet(field_button_style)
-                self._field_button_group.addButton(button, index)
-                field_button_row.addWidget(button)
-            field_button_row.addStretch(1)
-            self._field_button_group.idClicked.connect(self._field_selector.setCurrentIndex)
-            layout.addLayout(field_button_row)
+            self._field_tabs = QTabBar(self)
+            self._field_tabs.setStyleSheet(SETTINGS_TAB_STYLE)
+            self._field_tabs.setDrawBase(False)
+            self._field_tabs.setExpanding(False)
+            for label, _field_value in field_options:
+                self._field_tabs.addTab(label)
+            self._field_tabs.currentChanged.connect(self._field_selector.setCurrentIndex)
+            layout.addWidget(self._field_tabs)
 
         header_row = QHBoxLayout()
         header_row.setContentsMargins(0, 0, 0, 0)
@@ -1595,11 +1580,9 @@ class ManageMetadataLabelsDialog(QDialog):
         QTimer.singleShot(0, self._reload_usage)
 
     def _sync_field_button_selection(self) -> None:
-        if not hasattr(self, "_field_button_group"):
+        if not hasattr(self, "_field_tabs"):
             return
-        active_button = self._field_button_group.button(self._field_selector.currentIndex())
-        if active_button is not None:
-            active_button.setChecked(True)
+        self._field_tabs.setCurrentIndex(self._field_selector.currentIndex())
 
     def refresh_usage(self) -> None:
         self._reload_usage()

@@ -1109,6 +1109,42 @@ COLLAPSIBLE_SECTION_STATIC_HEADER_STYLE = (
 SETTINGS_COLLAPSIBLE_TOGGLE_STYLE = DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE
 SETTINGS_SECTION_SUBHEADER_STYLE = "font-weight: 700;"
 
+# Settings tab style
+#
+# Keep nested Settings pages visually consistent with the Astro Twin
+# Calculator's Algorithm / Calibration / Research tabs.  This stylesheet is
+# intentionally valid for both a complete QTabWidget and a standalone QTabBar
+# used to switch a shared settings panel.
+SETTINGS_TAB_STYLE = (
+    "QTabWidget::pane {"
+    f"background-color: {COLOR_BG_PANEL};"
+    f"border: 1px solid {COLOR_BORDER_SUBTLE};"
+    "border-radius: 6px;"
+    "top: -1px;"
+    "}"
+    "QTabBar::tab {"
+    f"background-color: {COLOR_BG_SURFACE};"
+    f"color: {COLOR_TEXT_SECONDARY};"
+    f"border: 1px solid {COLOR_BORDER_SUBTLE};"
+    "border-bottom: 0;"
+    "border-top-left-radius: 6px;"
+    "border-top-right-radius: 6px;"
+    "font-weight: 700;"
+    "padding: 7px 14px;"
+    "margin-right: 2px;"
+    "}"
+    "QTabBar::tab:hover {"
+    f"color: {COLOR_TEXT_PRIMARY};"
+    f"background-color: {COLOR_BG_PANEL};"
+    "}"
+    "QTabBar::tab:selected {"
+    f"background-color: {COLOR_BG_PANEL};"
+    f"color: {COLOR_ACCENT_PRIMARY};"
+    f"border-color: {COLOR_ACCENT_PRIMARY};"
+    "border-bottom: 1px solid " + COLOR_BG_PANEL + ";"
+    "}"
+)
+
 SETTINGS_TAB_HEADER_STYLE = (
     f"background-color: {COLOR_BG_PANEL};"
     f"border: 1px solid {COLOR_BORDER_SUBTLE};"
