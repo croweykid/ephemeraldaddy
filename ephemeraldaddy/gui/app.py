@@ -1267,6 +1267,9 @@ from ephemeraldaddy.gui.features.controllers.main_window import (
     EphemerisPrefetchController,
     RetconDialogController,
 )
+from ephemeraldaddy.gui.features.charts.section_availability import (
+    is_chart_analysis_section_available,
+)
 from ephemeraldaddy.gui.features.controllers.chart_view_window import (
     apply_chart_view_middle_panel_typography,
     build_chart_view_left_panel,
@@ -25920,7 +25923,12 @@ class MainWindow(QMainWindow):
         QTimer.singleShot(75, schedule_expanded_section_render)
 
     def _is_chart_analysis_section_visible(self, section_key: str) -> bool:
-        return self._chart_analysis_section_visible.get(section_key, True)
+        configured_visible = self._chart_analysis_section_visible.get(section_key, True)
+        return configured_visible and is_chart_analysis_section_available(
+            section_key,
+            getattr(self, "_latest_chart", None),
+            uses_houses=_chart_uses_houses,
+        )
 
     def _set_chart_analysis_section_visible(self, section_key: str, visible: bool) -> None:
         self._chart_analysis_section_visible[section_key] = visible
@@ -35822,6 +35830,9 @@ class MainWindow(QMainWindow):
         refresh_time_sensitivity: bool = True,
     ) -> None:
         self._latest_chart = chart
+        # Birth-time and rectified-time edits can change house availability on
+        # the current chart without rebuilding the right panel.
+        self._sync_chart_analysis_section_visibility()
         time_sensitivity_panel = getattr(self, "time_sensitivity_panel", None)
         active_right_tab = getattr(getattr(self, "_chart_right_panel_state", None), "active_tab", None)
         if (
@@ -36222,7 +36233,7 @@ class MainWindow(QMainWindow):
             return False
         if not allow_collapsed and not self._chart_analysis_section_expanded.get(section_key, True):
             return False
-        if section_key in {"planet_dynamics", "anagrams", "gender_guesser"} and not self._is_chart_analysis_section_visible(section_key):
+        if not self._is_chart_analysis_section_visible(section_key):
             return False
         return True
 
