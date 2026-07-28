@@ -68,3 +68,19 @@ def test_parent_counts_use_distinct_chart_uids() -> None:
 
     assert "uid_by_id = get_chart_uid_map" in load_usage
     assert 'row["chart_uids"] = sorted(tag_chart_uids.get(label, set()))' in load_usage
+
+
+def test_parent_tag_mutations_defer_tree_rebuild_until_qt_signal_finishes() -> None:
+    queue_reload = DEV_TOOLS_SOURCE.split("def _queue_usage_reload", 1)[1].split(
+        "def _run_queued_usage_reload", 1
+    )[0]
+    assign = DEV_TOOLS_SOURCE.split("def _assign_tags_to_category", 1)[1].split(
+        "def _row_for_key", 1
+    )[0]
+    rename = DEV_TOOLS_SOURCE.split("def _rename_selected_tag_category", 1)[1].split(
+        "def _create_collection", 1
+    )[0]
+
+    assert "self._usage_reload_timer.start(0)" in queue_reload
+    assert "self._queue_usage_reload(refresh_chart_context=True)" in assign
+    assert "self._queue_usage_reload(refresh_chart_context=True)" in rename
