@@ -1169,15 +1169,15 @@ HD_CHANNELS = {
     },
 
     "16-48": {
-        "name": "Channel of Talent",
-        "aliases": ("Channel of the Wavelength",),
+        "name": "Channel of the Wavelength",
         "gates": (16, 48),
         "centers": ("Throat", "Spleen"),
         "circuit": "Collective / Logic",
         "explanation": (
-            "Intuitive depth combined with repetition, refinement, and practiced expression. "
-            "This is less instant genius than professional skill developed through immersion: "
-            "depth becomes talent when it is repeatedly tested, expressed, and improved."
+            "Talent achieved through practice and refinement, when skills are repeatedly tested, expressed, and improved. "
+            "Gate 48 supplies depth and instinctive recognition of what is inadequate; "
+            "Gate 16 develops and expresses skill through experimentation and repetition."
+            "This is less instant genius than professional skill developed through immersion."
         ),
     },
 
