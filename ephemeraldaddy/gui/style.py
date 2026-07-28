@@ -37,6 +37,7 @@ from ephemeraldaddy.core.interpretations import (
     NAKSHATRA_PLANET_COLOR,
     PLANET_COLORS,
     SIGN_COLORS,
+    blend_hex_colors,
 )
 
 
@@ -282,7 +283,6 @@ GENDER_GUESSER_COLORS = {
 
 MIDDLE_PANEL_ACCENT_COLOR = COLOR_ACCENT_PRIMARY
 CHART_DATA_HIGHLIGHT_COLOR = MIDDLE_PANEL_ACCENT_COLOR
-
 CHART_INFO_POSITIVE_WEIGHT_COLOR = "#39ff6a"
 CHART_INFO_NEGATIVE_WEIGHT_COLOR = "#ff4d4d"
 
@@ -1069,7 +1069,6 @@ COLLAPSIBLE_NESTED_SECTION_CONTENT_STYLE = (
 DATABASE_VIEW_PANEL_HEADER_STYLE = (
     f"font-weight: bold; font-size: 14.5px; color: {DATABASE_VIEW_HEADER_COLOR};"
 )
-CHART_DATA_HIGHLIGHT_COLOR = MIDDLE_PANEL_ACCENT_COLOR
 COLLAPSIBLE_SECTION_HEADER_WIGGLE_DURATION_MS = 220
 COLLAPSIBLE_SECTION_HEADER_WIGGLE_OFFSET_PX = 4
 COLLAPSIBLE_STATIC_HEADER_LEFT_ALIGNMENT_STYLE = "text-align: left;"
@@ -1594,29 +1593,3 @@ STANDARD_NCV_POPOUT_LAYOUT = {
     "info_stretch": 1,
     "info_placeholder": "ⓘ Click a label to view detailed information.",
 }
-
-RELATIVE_YEAR_COLORS = {
-    "current":"#66ffff",
-    "next":"#99ff99",
-    "year after next":"#ffff66",
-    "other":"#ffffff"
-}
-
-#hex color blender
-def blend_hex_colors(hex_a, hex_b, weight_a=0.5):
-    """
-    Blend two hex colors.
-    weight_a = share of first color.
-    """
-    hex_a = hex_a.lstrip("#")
-    hex_b = hex_b.lstrip("#")
-
-    rgb_a = tuple(int(hex_a[i:i+2], 16) for i in (0, 2, 4))
-    rgb_b = tuple(int(hex_b[i:i+2], 16) for i in (0, 2, 4))
-
-    rgb = tuple(
-        round(a * weight_a + b * (1 - weight_a))
-        for a, b in zip(rgb_a, rgb_b)
-    )
-
-    return "#{:02x}{:02x}{:02x}".format(*rgb)

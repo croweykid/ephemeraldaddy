@@ -17,6 +17,7 @@ from ephemeraldaddy.analysis.bazi_getter import (
     normalize_bazi_sign_value,
 )
 from ephemeraldaddy.core.aspects import ASPECT_DEFS
+from ephemeraldaddy.core.astrology import sign_for_longitude
 from ephemeraldaddy.core.chart import chart_uses_houses as default_chart_uses_houses
 from ephemeraldaddy.core.interpretations import (
     ASPECT_SCORE_WEIGHTS,
@@ -83,11 +84,6 @@ HD_AUTHORITY_ALIASES = {
 CANONICAL_FACTOR_NAMES = tuple(dict.fromkeys([*PLANET_ORDER, *ZODIAC_NAMES, "AS", "DS", "IC", "MC"]))
 CANONICAL_FACTOR_LOOKUP = {name.casefold(): name for name in CANONICAL_FACTOR_NAMES}
 HOUSE_DEPENDENT_FACTORS = frozenset({"AS", "DS", "IC", "MC"})
-
-
-def sign_for_longitude(lon: float) -> str:
-    sign_index = int((lon % 360.0) // 30) % 12
-    return ZODIAC_NAMES[sign_index]
 
 
 def house_for_longitude(cusps: list[float] | None, lon: float) -> int | None:

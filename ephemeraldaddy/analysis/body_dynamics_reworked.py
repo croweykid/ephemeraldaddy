@@ -1,4 +1,5 @@
 from ephemeraldaddy.core.chart import chart_uses_houses
+from ephemeraldaddy.core.astrology import sign_for_longitude
 from ephemeraldaddy.core.interpretations import (
     ASPECT_FRICTION,
     ASPECT_SCORE_WEIGHTS,
@@ -143,11 +144,6 @@ PAIR_TYPE_DISTRIBUTION = {
 
 #to add:
 #the scoring gist is something like: aspect_score = pair_polarity_sign * orb_weight * aspect_base_weight * sqrt(dom_a * dom_b)
-
-
-def sign_for_longitude(lon: float) -> str:
-    sign_index = int((lon % 360.0) // 30) % 12
-    return ZODIAC_NAMES[sign_index]
 
 
 def house_for_longitude(cusps: list[float] | None, lon: float) -> int | None:

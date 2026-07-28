@@ -56,10 +56,12 @@ SETTINGS_KEY_DEFAULT_TRAITS_SOURCE_MONITOR = "developer_tools/default_traits_sou
 
 SETTINGS_KEY_DATABASE_VIEW_ROW_INFO = "manage_charts/database_view_row_info"
 SETTINGS_KEY_HIDE_HYPOTHETICAL_CHARTS = "manage_charts/hide_hypothetical_charts"
-SETTINGS_KEY_HIDE_PLACEHOLDER_CHARTS_FILTER = "manage_charts/hide_placeholder_charts_filter"
-SETTINGS_KEY_HIDDEN_CHARTS_FILTER_MODE = "manage_charts/hidden_charts_filter_mode"
-SETTINGS_KEY_SHOW_HIDDEN_CHARTS = "manage_charts/show_hidden_charts"
-SETTINGS_KEY_HIDDEN_CHART_UIDS = "manage_charts/hidden_chart_uids"
+from ephemeraldaddy.gui.settings_keys import (
+    SETTINGS_KEY_HIDDEN_CHARTS_FILTER_MODE,
+    SETTINGS_KEY_HIDDEN_CHART_UIDS,
+    SETTINGS_KEY_HIDE_PLACEHOLDER_CHARTS_FILTER,
+    SETTINGS_KEY_SHOW_HIDDEN_CHARTS,
+)
 DATABASE_VIEW_ROW_INFO_OPTIONS: tuple[tuple[str, str], ...] = (
     ("name", "Name"),
     ("alias", "Alias"),
@@ -889,14 +891,7 @@ from ephemeraldaddy.gui.features.charts.collections import (
     normalize_collection_id,
     sanitize_collection_name,
 )
-from ephemeraldaddy.gui.features.charts.popout_aspects import (
-    build_popout_left_panel as _build_popout_left_panel_widget,
-    collect_aspect_category_totals as _collect_aspect_category_totals,
-    collect_aspect_type_counts as _collect_aspect_type_counts,
-    draw_popout_aspect_distribution_chart as _draw_popout_aspect_distribution_chart,
-    extract_aspect_weight as _extract_aspect_weight,
-    normalize_aspect_type as _normalize_aspect_type,
-)
+from ephemeraldaddy.gui.features.charts.aspect_popout_mixin import AspectPopoutMixin
 from ephemeraldaddy.gui.features.charts.duplicate_detection import (
     DuplicateLikelihood,
     build_duplicate_save_warning,
@@ -1368,14 +1363,13 @@ CHART_RENDER_BACKGROUND_DELAY_MS = 25
 
 DATABASE_METRICS_PERSISTENT_CACHE_VERSION = 2
 DATABASE_METRICS_PERSISTENT_CACHE_FILENAME = ".database_metrics_cache.json"
-GENERATION_UNKNOWN_OPTION = "unknown"
-GENERATION_FILTER_OPTIONS: tuple[str, ...] = tuple(
-    [
-        cohort["name"]
-        for cohort in GENERATIONAL_COHORTS
-        if isinstance(cohort.get("name"), str)
-    ]
-    + [GENERATION_UNKNOWN_OPTION]
+from ephemeraldaddy.gui.widgets.search_controls import (
+    GENERATION_FILTER_OPTIONS,
+    GENERATION_UNKNOWN_OPTION,
+    SEARCH_GENDER_GUESSED_OPTIONS,
+    SEARCH_GENDER_OPTIONS,
+    SEARCH_RELATIONSHIP_TYPE_OPTIONS,
+    SEARCH_SENTIMENT_OPTIONS,
 )
 
 # Explicit startup validation to avoid hidden import-time side effects.
@@ -1737,8 +1731,6 @@ def _sentiment_label_color(label: str) -> str | None:
     return SENTIMENT_COLORS.get((label or "").strip().lower())
 
 
-
-
 class AlignmentEmojiSlider(QSlider):
     """Horizontal alignment slider with an emoji marker that tracks thresholds."""
 
@@ -1805,19 +1797,7 @@ class AlignmentEmojiSlider(QSlider):
         self._emoji_marker.move(x, y)
 
 
-SEARCH_SENTIMENT_OPTIONS = ["none", *SENTIMENT_OPTIONS]
-SEARCH_RELATIONSHIP_TYPE_OPTIONS = ["none", *RELATION_TYPE]
-SEARCH_GENDER_OPTIONS = ["none", *GENDER_OPTIONS]
 SEARCH_GENDER_BLANK_ALIASES = {"", "none", "unknown", "blank", "undefined", "__blank__"}
-SEARCH_GENDER_GUESSED_OPTIONS = [
-    ("Any", ""),
-    ("Masculine", "masculine"),
-    ("Androgynous", "androgynous"),
-    ("Feminine", "feminine"),
-]
-
-
-
 
 
 def _font_supports_codepoints(font_path: str, codepoints: set[int]) -> bool:
@@ -2052,8 +2032,6 @@ def _get_qapp():
     return app
 
 
-
-
 def _apply_global_dropdown_and_menu_styles(app: QApplication) -> None:
     """Apply appwide dark controls, menu, dropdown, and scrollbar styling."""
     global_rules = (
@@ -2099,12 +2077,7 @@ def _autosize_chart_view_nav_button(button: QPushButton) -> None:
     )
     button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
 
-def _get_share_icon_path() -> str | None:
-    module_root = Path(__file__).resolve().parents[1]
-    icon_path = module_root / "graphics" / "share_icon2.png"
-    if icon_path.exists():
-        return str(icon_path)
-    return None
+from ephemeraldaddy.gui.icons import get_share_icon_path as _get_share_icon_path
 
 def _configure_similarities_export_button(
     button: QPushButton,
@@ -2191,13 +2164,6 @@ def _should_run_startup_dependency_check(settings: QSettings) -> bool:
 def _mark_startup_dependency_check_complete(settings: QSettings) -> None:
     settings.setValue("startup/dependency_check_stamp", STARTUP_DEPENDENCY_CHECK_STAMP)
     settings.sync()
-
-
-
-
-
-
-
 
 
 def _chart_list_item_raw_name(item: QListWidgetItem) -> str:
@@ -2290,7 +2256,7 @@ class ChartListWidget(QListWidget):
         return _handle_list_letter_jump(self, event)
 
 # Database View / Manage Charts Window
-class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDialog):
+class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDialog):
     _DATABASE_VIEW_PANEL_WIDTH_RATIOS: tuple[float, float, float] = (0.276, 0.447, 0.277)
     _DATABASE_VIEW_FALLBACK_SPLITTER_SIZES: tuple[int, int, int] = (387, 627, 388)
 
@@ -5688,84 +5654,6 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
             else None
         )
 
-    def _normalize_aspect_type(self, raw_aspect: Any) -> str:
-        return _normalize_aspect_type(raw_aspect)
-
-    def _extract_aspect_weight(self, aspect_entry: Any) -> float:
-        return _extract_aspect_weight(aspect_entry)
-
-    def _collect_aspect_type_counts(
-        self,
-        aspect_entries: list[Any],
-        *,
-        weighted: bool = False,
-        weighted_score_for_entry: Callable[[Any], float] | None = None,
-    ) -> OrderedDict[str, float]:
-        return _collect_aspect_type_counts(
-            aspect_entries,
-            weighted=weighted,
-            weighted_score_for_entry=weighted_score_for_entry,
-        )
-
-    def _collect_aspect_category_totals(
-        self,
-        aspect_counts: OrderedDict[str, float],
-        *,
-        categories: dict[str, dict[str, Any]],
-    ) -> OrderedDict[str, float]:
-        return _collect_aspect_category_totals(aspect_counts, categories=categories)
-
-    def _draw_popout_aspect_distribution_chart(
-        self,
-        analytics_ax: Any,
-        *,
-        mode: str,
-        aspect_counts: OrderedDict[str, float],
-        weighted_aspect_counts: OrderedDict[str, float],
-        type_totals: OrderedDict[str, float],
-        weighted_type_totals: OrderedDict[str, float],
-        friction_totals: OrderedDict[str, float],
-        weighted_friction_totals: OrderedDict[str, float],
-    ) -> None:
-        _draw_popout_aspect_distribution_chart(
-            analytics_ax,
-            mode=mode,
-            aspect_counts=aspect_counts,
-            weighted_aspect_counts=weighted_aspect_counts,
-            type_totals=type_totals,
-            weighted_type_totals=weighted_type_totals,
-            friction_totals=friction_totals,
-            weighted_friction_totals=weighted_friction_totals,
-        )
-
-    def _build_popout_left_panel(
-        self,
-        layout: QHBoxLayout,
-        *,
-        chart_info_placeholder: str,
-        aspect_entries: list[Any],
-        export_file_stem: str,
-        weighted_score_for_entry: Callable[[Any], float] | None = None,
-        aspect_subheader: str | None = None,
-        show_aspect_distribution: bool = True,
-        awareness_stream_entries: list[dict[str, Any]] | None = None,
-        circuit_entries: list[dict[str, Any]] | None = None,
-        hd_placement_contexts: list[tuple[str, Chart]] | None = None,
-    ) -> QPlainTextEdit:
-        return _build_popout_left_panel_widget(
-            layout,
-            parent=self,
-            chart_info_placeholder=chart_info_placeholder,
-            aspect_entries=aspect_entries,
-            export_file_stem=export_file_stem,
-            get_share_icon_path=_get_share_icon_path,
-            weighted_score_for_entry=weighted_score_for_entry,
-            aspect_subheader=aspect_subheader,
-            show_aspect_distribution=show_aspect_distribution,
-            awareness_stream_entries=awareness_stream_entries,
-            circuit_entries=circuit_entries,
-            hd_placement_contexts=hd_placement_contexts,
-        )
 
     def _sort_popout_aspects(
         self,
@@ -13661,7 +13549,6 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         layout.addWidget(alignment_section)
 
 
-
         layout.addWidget(build_batch_similarity_section(self, add_collapsible_section))
         layout.addWidget(build_batch_bio_section(self, add_collapsible_section, SOURCE_OPTIONS, GENDER_OPTIONS, QuadStateSlider))
 
@@ -16646,7 +16533,6 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
         if hasattr(self, "_batch_metric_lucygoosey"):
             for metric_key in ("positive_sentiment_intensity", "negative_sentiment_intensity", "familiarity", "year_first_encountered", "matched_expectations"):
                 self._set_batch_metric_lucygoosey_state(metric_key, False)
-
 
 
     def _default_content_splitter_sizes(self) -> list[int]:
@@ -24499,7 +24385,7 @@ class ManageChartsDialog(RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDial
 #Familiarity Calculator Window
 
 #Main Window Begins
-class MainWindow(QMainWindow):
+class MainWindow(AspectPopoutMixin, QMainWindow):
     _update_sentiment_tally = ManageChartsDialog._update_sentiment_tally
 
     def __init__(self):
@@ -30142,7 +30028,6 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Chart action", f"Unknown chart action: {action_name}")
 
 
-
     def _command_palette_actions(self) -> list[CommandPaletteAction]:
         """Return Chart View quick-switcher commands."""
 
@@ -30217,7 +30102,6 @@ class MainWindow(QMainWindow):
                 subtitle="Switch to Database View",
             ),
         ]
-
 
 
     def _default_gemstone_chartwheel_filename(self, chart: Chart) -> str:
@@ -37715,84 +37599,6 @@ class MainWindow(QMainWindow):
         if summary_label is not None:
             self.dnd_prediction_top_three_label = summary_label
 
-    def _normalize_aspect_type(self, raw_aspect: Any) -> str:
-        return _normalize_aspect_type(raw_aspect)
-
-    def _extract_aspect_weight(self, aspect_entry: Any) -> float:
-        return _extract_aspect_weight(aspect_entry)
-
-    def _collect_aspect_type_counts(
-        self,
-        aspect_entries: list[Any],
-        *,
-        weighted: bool = False,
-        weighted_score_for_entry: Callable[[Any], float] | None = None,
-    ) -> OrderedDict[str, float]:
-        return _collect_aspect_type_counts(
-            aspect_entries,
-            weighted=weighted,
-            weighted_score_for_entry=weighted_score_for_entry,
-        )
-
-    def _collect_aspect_category_totals(
-        self,
-        aspect_counts: OrderedDict[str, float],
-        *,
-        categories: dict[str, dict[str, Any]],
-    ) -> OrderedDict[str, float]:
-        return _collect_aspect_category_totals(aspect_counts, categories=categories)
-
-    def _draw_popout_aspect_distribution_chart(
-        self,
-        analytics_ax: Any,
-        *,
-        mode: str,
-        aspect_counts: OrderedDict[str, float],
-        weighted_aspect_counts: OrderedDict[str, float],
-        type_totals: OrderedDict[str, float],
-        weighted_type_totals: OrderedDict[str, float],
-        friction_totals: OrderedDict[str, float],
-        weighted_friction_totals: OrderedDict[str, float],
-    ) -> None:
-        _draw_popout_aspect_distribution_chart(
-            analytics_ax,
-            mode=mode,
-            aspect_counts=aspect_counts,
-            weighted_aspect_counts=weighted_aspect_counts,
-            type_totals=type_totals,
-            weighted_type_totals=weighted_type_totals,
-            friction_totals=friction_totals,
-            weighted_friction_totals=weighted_friction_totals,
-        )
-
-    def _build_popout_left_panel(
-        self,
-        layout: QHBoxLayout,
-        *,
-        chart_info_placeholder: str,
-        aspect_entries: list[Any],
-        export_file_stem: str,
-        weighted_score_for_entry: Callable[[Any], float] | None = None,
-        aspect_subheader: str | None = None,
-        show_aspect_distribution: bool = True,
-        awareness_stream_entries: list[dict[str, Any]] | None = None,
-        circuit_entries: list[dict[str, Any]] | None = None,
-        hd_placement_contexts: list[tuple[str, Chart]] | None = None,
-    ) -> QPlainTextEdit:
-        return _build_popout_left_panel_widget(
-            layout,
-            parent=self,
-            chart_info_placeholder=chart_info_placeholder,
-            aspect_entries=aspect_entries,
-            export_file_stem=export_file_stem,
-            get_share_icon_path=_get_share_icon_path,
-            weighted_score_for_entry=weighted_score_for_entry,
-            aspect_subheader=aspect_subheader,
-            show_aspect_distribution=show_aspect_distribution,
-            awareness_stream_entries=awareness_stream_entries,
-            circuit_entries=circuit_entries,
-            hd_placement_contexts=hd_placement_contexts,
-        )
 
     def on_popout_chart(self) -> None:
         if self._latest_chart is None:

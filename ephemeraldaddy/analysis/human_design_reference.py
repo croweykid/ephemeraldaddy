@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import re
+from typing import Dict
 
-from ephemeraldaddy.gui.style import blend_hex_colors
-from ephemeraldaddy.core.interpretations import SIGN_COLORS
+from ephemeraldaddy.core.interpretations import SIGN_COLORS, blend_hex_colors
+
 
 LINE_ARCHETYPES: dict[int, str] = {
     1: "Investigator: feels data-unequipped so seeks knowledge.",
@@ -1167,14 +1168,16 @@ HD_CHANNELS = {
         ),
     },
 
-    "16-48": { #not showing up
+    "16-48": {
         "name": "Channel of Talent",
+        "aliases": ("Channel of the Wavelength",),
         "gates": (16, 48),
         "centers": ("Throat", "Spleen"),
         "circuit": "Collective / Logic",
         "explanation": (
-            "Skill developed through repetition, depth, and refinement. "
-            "This is less 'instant genius' and more mastery through immersion and practice."
+            "Intuitive depth combined with repetition, refinement, and practiced expression. "
+            "This is less instant genius than professional skill developed through immersion: "
+            "depth becomes talent when it is repeatedly tested, expressed, and improved."
         ),
     },
 
@@ -1215,17 +1218,6 @@ HD_CHANNELS = {
     # COLLECTIVE CIRCUITRY
     # ABSTRACT / SENSING
     # =========================
-
-    "48-16": {
-        "name": "Channel of the Wavelength",
-        "gates": (48, 16),
-        "centers": ("Spleen", "Ajna"),
-        "circuit": "Collective / Abstract",
-        "explanation": (
-            "Combined intuitive depth with a capacity for repeittion to develop professional skill."
-            "Achieving mastery in any logical process."
-        ),
-    },
 
     "64-47": {
         "name": "Channel of Abstraction",
@@ -1405,11 +1397,86 @@ HD_CHANNELS = {
 
 }
 
+# Human Design circuitry reference. This models the three main circuit groups
+# (Individual, Collective, and Tribal) and the seven commonly named
+# subcircuits/channel groups (Integration, Knowing, Centering, Logic,
+# Abstract, Ego, and Defense). Integration is sometimes described as a
+# channel group rather than a full subcircuit, but is retained because it is
+# commonly treated as a subcircuit by software and teaching references.
 HD_CIRCUIT_GROUPS: Dict[str, dict] = {
-    'Individual': {'aliases': ['Empowerment', 'Mutation', 'Transformation'], 'subcircuits': {'Integration': {'aliases': ['Integration Channel Group', 'Integration / Unifying'], 'channels': [('10-20', 'Awakening', (10, 20)), ('20-34', 'Charisma', (20, 34)), ('10-57', 'Perfected Form', (10, 57)), ('34-57', 'Power', (34, 57))], 'gates': (10, 20, 34, 57), 'channel_count': 4}, 'Knowing': {'aliases': ['Knowing / Gnostic'], 'channels': [('1-8', 'Inspiration', (1, 8)), ('2-14', 'The Beat', (2, 14)), ('3-60', 'Mutation', (3, 60)), ('28-38', 'Struggle', (28, 38)), ('20-57', 'Brainwave', (20, 57)), ('39-55', 'Emoting', (39, 55)), ('12-22', 'Openness', (12, 22)), ('43-23', 'Structuring', (43, 23)), ('61-24', 'Awareness', (61, 24))], 'gates': (1, 2, 3, 8, 12, 14, 20, 22, 23, 24, 28, 38, 39, 43, 55, 57, 60, 61), 'channel_count': 9}, 'Centering': {'aliases': ['Centring', 'Centering / Calibration'], 'channels': [('25-51', 'Initiation', (25, 51)), ('10-34', 'Exploration', (10, 34))], 'gates': (10, 25, 34, 51), 'channel_count': 2}}, 'gates': (1, 2, 3, 8, 10, 12, 14, 20, 22, 23, 24, 25, 28, 34, 38, 39, 43, 51, 55, 57, 60, 61), 'channel_count': 15}, 
-    'Collective': {'aliases': ['Sharing', 'Synergy', 'Change'], 'subcircuits': {'Logic': {'aliases': ['Understanding', 'Logic / Understanding', 'Logic / Pattern'], 'channels': [('63-4', 'Logic', (63, 4)), ('17-62', 'Acceptance', (17, 62)), ('16-48', 'Talent', (16, 48)), ('18-58', 'Judgment', (18, 58)), ('52-9', 'Concentration', (52, 9)), ('15-5', 'Rhythm', (15, 5)), ('31-7', 'The Alpha', (31, 7))], 'gates': (4, 5, 7, 9, 15, 16, 17, 18, 31, 48, 52, 58, 62, 63), 'channel_count': 7}, 'Abstract': {'aliases': ['Sensing', 'Abstract / Sensing', 'Sensing / Miracle'], 'channels': [('64-47', 'Abstraction', (64, 47)), ('11-56', 'Curiosity', (11, 56)), ('35-36', 'Transitoriness', (35, 36)), ('41-30', 'Recognition', (41, 30)), ('42-53', 'Maturation', (42, 53)), ('46-29', 'Discovery', (46, 29)), ('33-13', 'The Prodigal', (33, 13))], 'gates': (11, 13, 29, 30, 33, 35, 36, 41, 42, 46, 47, 53, 56, 64), 'channel_count': 7}}, 'gates': (4, 5, 7, 9, 11, 13, 15, 16, 17, 18, 29, 30, 31, 33, 35, 36, 41, 42, 46, 47, 48, 52, 53, 56, 58, 62, 63, 64), 'channel_count': 14}, 
+    'Individual': {'aliases': ['Empowerment', 'Mutation', 'Transformation'], 'subcircuits': {'Integration': {'aliases': ['Integration Channel Group', 'Integration / Unifying'], 'channels': [('10-20', 'Awakening', (10, 20)), ('20-34', 'Charisma', (20, 34)), ('10-57', 'Perfected Form', (10, 57)), ('34-57', 'Power', (34, 57))], 'gates': (10, 20, 34, 57), 'channel_count': 4}, 'Knowing': {'aliases': ['Knowing / Gnostic'], 'channels': [('1-8', 'Inspiration', (1, 8)), ('2-14', 'The Beat', (2, 14)), ('3-60', 'Mutation', (3, 60)), ('28-38', 'Struggle', (28, 38)), ('20-57', 'Brainwave', (20, 57)), ('39-55', 'Emoting', (39, 55)), ('12-22', 'Openness', (12, 22)), ('43-23', 'Structuring', (43, 23)), ('61-24', 'Awareness', (61, 24))], 'gates': (1, 2, 3, 8, 12, 14, 20, 22, 23, 24, 28, 38, 39, 43, 55, 57, 60, 61), 'channel_count': 9}, 'Centering': {'aliases': ['Centring', 'Centering / Calibration'], 'channels': [('25-51', 'Initiation', (25, 51)), ('10-34', 'Exploration', (10, 34))], 'gates': (10, 25, 34, 51), 'channel_count': 2}}, 'gates': (1, 2, 3, 8, 10, 12, 14, 20, 22, 23, 24, 25, 28, 34, 38, 39, 43, 51, 55, 57, 60, 61), 'channel_count': 15},
+    'Collective': {'aliases': ['Sharing', 'Synergy', 'Change'], 'subcircuits': {'Logic': {'aliases': ['Understanding', 'Logic / Understanding', 'Logic / Pattern'], 'channels': [('63-4', 'Logic', (63, 4)), ('17-62', 'Acceptance', (17, 62)), ('16-48', 'Talent', (16, 48)), ('18-58', 'Judgment', (18, 58)), ('52-9', 'Concentration', (52, 9)), ('15-5', 'Rhythm', (15, 5)), ('31-7', 'The Alpha', (31, 7))], 'gates': (4, 5, 7, 9, 15, 16, 17, 18, 31, 48, 52, 58, 62, 63), 'channel_count': 7}, 'Abstract': {'aliases': ['Sensing', 'Abstract / Sensing', 'Sensing / Miracle'], 'channels': [('64-47', 'Abstraction', (64, 47)), ('11-56', 'Curiosity', (11, 56)), ('35-36', 'Transitoriness', (35, 36)), ('41-30', 'Recognition', (41, 30)), ('42-53', 'Maturation', (42, 53)), ('46-29', 'Discovery', (46, 29)), ('33-13', 'The Prodigal', (33, 13))], 'gates': (11, 13, 29, 30, 33, 35, 36, 41, 42, 46, 47, 53, 56, 64), 'channel_count': 7}}, 'gates': (4, 5, 7, 9, 11, 13, 15, 16, 17, 18, 29, 30, 31, 33, 35, 36, 41, 42, 46, 47, 48, 52, 53, 56, 58, 62, 63, 64), 'channel_count': 14},
     'Tribal': {'aliases': ['Support', 'Sustainability', 'Tradition'], 'subcircuits': {'Ego': {'aliases': ['Ego Circuit Group', 'Ego / Economic'], 'channels': [('32-54', 'Transformation', (32, 54)), ('44-26', 'Surrender', (44, 26)), ('19-49', 'Synthesis', (19, 49)), ('40-37', 'Community', (40, 37)), ('21-45', 'Money', (21, 45))], 'gates': (19, 21, 26, 32, 37, 40, 44, 45, 49, 54), 'channel_count': 5}, 'Defense': {'aliases': ['Defense / Nurture'], 'channels': [('50-27', 'Preservation', (50, 27)), ('59-6', 'Mating', (59, 6))], 'gates': (6, 27, 50, 59), 'channel_count': 2}}, 'gates': (6, 19, 21, 26, 27, 32, 37, 40, 44, 45, 49, 50, 54, 59), 'channel_count': 7}
 }
+
+
+HD_ALL_CHANNELS: list[dict] = [
+    {
+        "group": group_name,
+        "subcircuit": subcircuit_name,
+        "channel": channel,
+        "name": name,
+        "gates": gates,
+    }
+    for group_name, group_data in HD_CIRCUIT_GROUPS.items()
+    for subcircuit_name, subcircuit_data in group_data["subcircuits"].items()
+    for channel, name, gates in subcircuit_data["channels"]
+]
+
+HD_ALL_GATES: tuple[int, ...] = tuple(
+    sorted({gate for channel in HD_ALL_CHANNELS for gate in channel["gates"]})
+)
+
+HD_SUBCIRCUIT_INDEX: dict[str, dict] = {
+    sub_name: sub_data
+    for group_data in HD_CIRCUIT_GROUPS.values()
+    for sub_name, sub_data in group_data["subcircuits"].items()
+}
+
+HD_CHANNEL_TO_CIRCUIT: dict[str, dict] = {
+    item["channel"]: item
+    for item in HD_ALL_CHANNELS
+}
+
+
+def get_group(name: str) -> dict | None:
+    """Return a main circuit group by exact name."""
+    return HD_CIRCUIT_GROUPS.get(name)
+
+
+def get_subcircuit(name: str) -> dict | None:
+    """Return a subcircuit by exact canonical name."""
+    return HD_SUBCIRCUIT_INDEX.get(name)
+
+
+def get_channel(channel: str) -> dict | None:
+    """
+    Return metadata for a channel key like '34-57' or '57-34'.
+    """
+    if channel in HD_CHANNEL_TO_CIRCUIT:
+        return HD_CHANNEL_TO_CIRCUIT[channel]
+    a, b = channel.split("-")
+    flipped = f"{b}-{a}"
+    return HD_CHANNEL_TO_CIRCUIT.get(flipped)
+
+
+def find_subcircuits_for_gate(gate: int) -> list[str]:
+    """Return canonical subcircuit names containing a gate."""
+    return [
+        sub_name
+        for sub_name, sub_data in HD_SUBCIRCUIT_INDEX.items()
+        if gate in sub_data["gates"]
+    ]
+
+
+def find_groups_for_gate(gate: int) -> list[str]:
+    """Return main circuit groups containing a gate."""
+    return [
+        group_name
+        for group_name, group_data in HD_CIRCUIT_GROUPS.items()
+        if gate in group_data["gates"]
+    ]
+
 
 HD_AUTHORITIES = {
     "emotional": (

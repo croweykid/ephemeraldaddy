@@ -10,8 +10,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-SETTINGS_KEY_HIDE_PLACEHOLDER_CHARTS_FILTER = "manage_charts/hide_placeholder_charts_filter"
-SETTINGS_KEY_HIDDEN_CHARTS_FILTER_MODE = "manage_charts/hidden_charts_filter_mode"
+from ephemeraldaddy.gui.settings_keys import (
+    SETTINGS_KEY_HIDDEN_CHARTS_FILTER_MODE,
+    SETTINGS_KEY_HIDE_PLACEHOLDER_CHARTS_FILTER,
+)
 
 from ephemeraldaddy.core.interpretations import (
     JONES_PLANETS,
