@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QRadioButton,
     QSplitter,
+    QTabWidget,
     #QSizePolicy,
     QTextBrowser,
     QTextEdit,
@@ -44,7 +45,6 @@ from ephemeraldaddy.gui.style import (
     DATABASE_VIEW_HEADER_COLOR,
     CHART_DATA_HIGHLIGHT_COLOR,
     INACTIVE_ACTION_BUTTON_STYLE,
-    create_divider,
     similarity_gradient_rgb_for_range,
 )
 
@@ -551,12 +551,31 @@ def build_similarity_calculator_settings_section(
     on_calibrate_clicked: Callable[[], None],
     on_save_thresholds_clicked: Callable[[], None],
     on_reset_thresholds_clicked: Callable[[], None],
+    perceived_accuracy_controls_enabled: bool,
+    on_perceived_accuracy_controls_toggled: Callable[[bool], None],
+    on_show_high_similarity_clicked: Callable[[], None],
     threshold_rows: tuple[tuple[str, str], ...],
 ) -> dict[str, object]:
+    tabs = QTabWidget()
+    algorithm_tab = QWidget()
+    algorithm_layout = QVBoxLayout(algorithm_tab)
+    algorithm_layout.setContentsMargins(8, 8, 8, 8)
+    calibration_tab = QWidget()
+    calibration_layout = QVBoxLayout(calibration_tab)
+    calibration_layout.setContentsMargins(8, 8, 8, 8)
+    research_tab = QWidget()
+    research_layout = QVBoxLayout(research_tab)
+    research_layout.setContentsMargins(8, 8, 8, 8)
+    tabs.addTab(algorithm_tab, "Algorithm")
+    tabs.addTab(calibration_tab, "Calibration")
+    tabs.addTab(research_tab, "Research")
+    tabs.setCurrentIndex(0)
+    section_layout.addWidget(tabs)
+
     similar_charts_algo_label = QLabel("Astro Twin Calculator")
     similar_charts_algo_label.setStyleSheet(subheader_style)
-    section_layout.addWidget(similar_charts_algo_label)
-    section_layout.addWidget(
+    algorithm_layout.addWidget(similar_charts_algo_label)
+    algorithm_layout.addWidget(
         QLabel(
             "Choose which matching algorithm powers Similar Charts results."
         )
@@ -585,10 +604,10 @@ def build_similarity_calculator_settings_section(
     big_3_radio.toggled.connect(on_mode_big_3_toggled)
     custom_radio.toggled.connect(on_mode_custom_toggled)
     database_distinction_radio.toggled.connect(on_mode_database_distinction_toggled)
-    section_layout.addWidget(default_radio)
-    section_layout.addWidget(generic_astro_radio)
-    section_layout.addWidget(comprehensive_radio)
-    section_layout.addWidget(all_or_nothing_radio)
+    algorithm_layout.addWidget(default_radio)
+    algorithm_layout.addWidget(generic_astro_radio)
+    algorithm_layout.addWidget(comprehensive_radio)
+    algorithm_layout.addWidget(all_or_nothing_radio)
 
     all_or_nothing_fields_frame = QFrame()
     all_or_nothing_fields_frame.setFrameShape(QFrame.StyledPanel)
@@ -617,16 +636,16 @@ def build_similarity_calculator_settings_section(
     )
     apply_shared_dropdown_style(all_or_nothing_criterion_combo)
     all_or_nothing_fields_layout.addWidget(all_or_nothing_criterion_combo)
-    section_layout.addWidget(all_or_nothing_fields_frame)
-    section_layout.addWidget(big_3_radio)
-    section_layout.addWidget(custom_radio)
-    section_layout.addWidget(database_distinction_radio)
+    algorithm_layout.addWidget(all_or_nothing_fields_frame)
+    algorithm_layout.addWidget(big_3_radio)
+    algorithm_layout.addWidget(custom_radio)
+    algorithm_layout.addWidget(database_distinction_radio)
     database_distinction_help = QLabel(
         "Database distinction scan matches charts sharing the selected chart’s ≥2σ traits, "
         "concentration flags, and repeated Human Design gates."
     )
     database_distinction_help.setWordWrap(True)
-    section_layout.addWidget(database_distinction_help)
+    algorithm_layout.addWidget(database_distinction_help)
 
     demographic_match_row = QHBoxLayout()
     demographic_match_row.addWidget(QLabel("Match preference"))
@@ -652,7 +671,7 @@ def build_similarity_calculator_settings_section(
         demographic_match_buttons[mode] = button
     demographic_match_buttons["none"].setChecked(True)
     demographic_match_row.addStretch(1)
-    section_layout.addLayout(demographic_match_row)
+    algorithm_layout.addLayout(demographic_match_row)
 
     custom_fields_frame = QFrame()
     custom_fields_frame.setFrameShape(QFrame.StyledPanel)
@@ -745,21 +764,20 @@ def build_similarity_calculator_settings_section(
     #reset_granular_row.addStretch(1)
     #reset_granular_row.addWidget(granular_explanations_checkbox, alignment=Qt.AlignRight)
     #custom_fields_layout.addLayout(reset_granular_row)
-    section_layout.addWidget(custom_fields_frame)
-
-    section_layout.addWidget(create_divider())
+    algorithm_layout.addWidget(custom_fields_frame)
+    algorithm_layout.addStretch(1)
 
     calibrate_similarity_button = QPushButton("Calibrate Similarity Norms")
     calibrate_similarity_button.setToolTip(
         "Compute min/max/avg/median/mode/standard-deviation similarity across saved chart pairs and save thresholds."
     )
     calibrate_similarity_button.clicked.connect(on_calibrate_clicked)
-    section_layout.addWidget(calibrate_similarity_button)
+    calibration_layout.addWidget(calibrate_similarity_button)
 
     similarity_thresholds_label = QLabel("Similarity Thresholds (%)")
     similarity_thresholds_label.setStyleSheet(subheader_style)
-    section_layout.addWidget(similarity_thresholds_label)
-    section_layout.addWidget(
+    calibration_layout.addWidget(similarity_thresholds_label)
+    calibration_layout.addWidget(
         QLabel(
             "Manual override for band cutoffs (q20/q40/q60/q80). "
             "Values are auto-sorted and saved systemwide."
@@ -782,7 +800,7 @@ def build_similarity_calculator_settings_section(
         thresholds_grid.addWidget(label, row_index, 0)
         thresholds_grid.addWidget(spinbox, row_index, 1)
         threshold_spinboxes[key] = spinbox
-    section_layout.addLayout(thresholds_grid)
+    calibration_layout.addLayout(thresholds_grid)
 
     thresholds_button_row = QHBoxLayout()
     thresholds_save_button = QPushButton("Save Threshold Overrides")
@@ -792,7 +810,22 @@ def build_similarity_calculator_settings_section(
     thresholds_button_row.addWidget(thresholds_save_button)
     thresholds_button_row.addWidget(thresholds_reset_button)
     thresholds_button_row.addStretch(1)
-    section_layout.addLayout(thresholds_button_row)
+    calibration_layout.addLayout(thresholds_button_row)
+    calibration_layout.addStretch(1)
+
+    perceived_accuracy_checkbox = add_similarity_perceived_accuracy_controls_setting(
+        section_layout=research_layout,
+        is_enabled=perceived_accuracy_controls_enabled,
+        on_toggled=on_perceived_accuracy_controls_toggled,
+    )
+    show_high_similarity_button = QPushButton("Show 90-100% similarities")
+    show_high_similarity_button.setToolTip(
+        "Calculate database-wide Astro Twin scores with the current calculator mode and list chart pairs "
+        "whose similarity is between 90% and 100%. Each listed chart name opens in Chart View."
+    )
+    show_high_similarity_button.clicked.connect(on_show_high_similarity_clicked)
+    research_layout.addWidget(show_high_similarity_button, alignment=Qt.AlignLeft)
+    research_layout.addStretch(1)
 
     return {
         "default_radio": default_radio,
@@ -811,6 +844,8 @@ def build_similarity_calculator_settings_section(
         "all_or_nothing_criterion_combo": all_or_nothing_criterion_combo,
         "demographic_match_buttons": demographic_match_buttons,
         "threshold_spinboxes": threshold_spinboxes,
+        "perceived_accuracy_checkbox": perceived_accuracy_checkbox,
+        "tabs": tabs,
     }
 
 
