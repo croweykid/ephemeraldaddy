@@ -938,6 +938,20 @@ SIGN_COLORS = {
 }
 
 
+def blend_hex_colors(hex_a: str, hex_b: str, weight_a: float = 0.5) -> str:
+    """Blend two hexadecimal colors, weighting the first by ``weight_a``."""
+    first = hex_a.lstrip("#")
+    second = hex_b.lstrip("#")
+    rgb = (
+        round(
+            int(first[index : index + 2], 16) * weight_a
+            + int(second[index : index + 2], 16) * (1 - weight_a)
+        )
+        for index in (0, 2, 4)
+    )
+    return "#{:02x}{:02x}{:02x}".format(*rgb)
+
+
 SIGN_WHEELS = {
     "Aries": "ephemeraldaddy/graphics/chartwheel_components/aries.png",
     "Taurus": "ephemeraldaddy/graphics/chartwheel_components/taurus.png",

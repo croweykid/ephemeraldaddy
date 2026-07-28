@@ -95,26 +95,7 @@ def test_sign_for_longitude_wraps_and_observes_cusps() -> None:
     assert sign_for_longitude(-30) == "Pisces"
 
 
-def test_human_design_circuit_compatibility_module_reexports_canonical_data() -> None:
-    tree = _module("ephemeraldaddy/analysis/hd_circuits_reference.py")
-    imports = {
-        (node.module, alias.name)
-        for node in tree.body
-        if isinstance(node, ast.ImportFrom)
-        for alias in node.names
-    }
-    assert (
-        "ephemeraldaddy.analysis.human_design_reference",
-        "HD_CIRCUIT_GROUPS",
-    ) in imports
-    assert not any(
-        isinstance(node, (ast.Assign, ast.AnnAssign))
-        and any(
-            isinstance(target, ast.Name) and target.id == "HD_CIRCUIT_GROUPS"
-            for target in (node.targets if isinstance(node, ast.Assign) else [node.target])
-        )
-        for node in tree.body
-    )
+def test_human_design_circuit_data_has_one_complete_canonical_source() -> None:
     canonical_tree = _module("ephemeraldaddy/analysis/human_design_reference.py")
     canonical_assignments = {
         node.target.id
@@ -129,6 +110,7 @@ def test_human_design_circuit_compatibility_module_reexports_canonical_data() ->
         "HD_CHANNEL_TO_CIRCUIT",
     } <= canonical_assignments
     assert not (REPO_ROOT / "ephemeraldaddy/analysis/human_design_circuits.py").exists()
+    assert not (REPO_ROOT / "ephemeraldaddy/analysis/hd_circuits_reference.py").exists()
 
 
 def test_core_human_design_channel_topology_comes_from_reference() -> None:
@@ -149,16 +131,39 @@ def test_core_human_design_channel_topology_comes_from_reference() -> None:
 def test_human_design_circuit_reference_is_gui_independent() -> None:
     import sys
 
-    sys.modules.pop("ephemeraldaddy.analysis.hd_circuits_reference", None)
     sys.modules.pop("ephemeraldaddy.analysis.human_design_reference", None)
     before = set(sys.modules)
 
-    from ephemeraldaddy.analysis import hd_circuits_reference
+    from ephemeraldaddy.analysis import human_design_reference
 
     imported = set(sys.modules) - before
-    assert hd_circuits_reference.HD_ALL_CHANNELS
+    assert human_design_reference.HD_ALL_CHANNELS
     assert not any(name.startswith("ephemeraldaddy.gui") for name in imported)
     assert not any(name.startswith("PySide6") for name in imported)
+
+
+def test_human_design_channel_records_preserve_all_circuit_topology_and_metadata() -> None:
+    from ephemeraldaddy.analysis.human_design_reference import (
+        HD_CHANNELS,
+        HD_CIRCUIT_GROUPS,
+    )
+
+    detailed_pairs = {
+        tuple(sorted(channel["gates"])) for channel in HD_CHANNELS.values()
+    }
+    circuit_pairs = {
+        tuple(sorted(gates))
+        for group in HD_CIRCUIT_GROUPS.values()
+        for subcircuit in group["subcircuits"].values()
+        for _channel, _name, gates in subcircuit["channels"]
+    }
+    assert detailed_pairs == circuit_pairs
+    assert len(HD_CHANNELS) == len(detailed_pairs) == 36
+    assert all(
+        {"name", "gates", "centers", "circuit", "explanation"} <= record.keys()
+        for record in HD_CHANNELS.values()
+    )
+    assert HD_CHANNELS["16-48"]["aliases"] == ("Channel of the Wavelength",)
 
 
 def test_startup_entrypoints_share_one_animation_renderer() -> None:

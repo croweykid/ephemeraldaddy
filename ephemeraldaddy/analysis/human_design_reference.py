@@ -5,21 +5,7 @@ from __future__ import annotations
 import re
 from typing import Dict
 
-from ephemeraldaddy.core.interpretations import SIGN_COLORS
-
-
-def _blend_hex_colors(hex_a: str, hex_b: str, weight_a: float = 0.5) -> str:
-    """Blend two hex colors without importing the GUI style layer."""
-    first = hex_a.lstrip("#")
-    second = hex_b.lstrip("#")
-    rgb = (
-        round(
-            int(first[index : index + 2], 16) * weight_a
-            + int(second[index : index + 2], 16) * (1 - weight_a)
-        )
-        for index in (0, 2, 4)
-    )
-    return "#{:02x}{:02x}{:02x}".format(*rgb)
+from ephemeraldaddy.core.interpretations import SIGN_COLORS, blend_hex_colors
 
 
 LINE_ARCHETYPES: dict[int, str] = {
@@ -330,19 +316,19 @@ HD_ENVIRONMENTS = {
 GATE_COLORS = {
     1: SIGN_COLORS["Scorpio"],
     2: SIGN_COLORS["Taurus"],
-    3: _blend_hex_colors(SIGN_COLORS["Aries"], SIGN_COLORS["Taurus"], 29 / 45),
+    3: blend_hex_colors(SIGN_COLORS["Aries"], SIGN_COLORS["Taurus"], 29 / 45),
     4: SIGN_COLORS["Leo"],
     5: SIGN_COLORS["Sagittarius"],
     6: SIGN_COLORS["Virgo"],
     7: SIGN_COLORS["Leo"],
-    8: _blend_hex_colors(SIGN_COLORS["Taurus"], SIGN_COLORS["Gemini"], 44 / 45),
+    8: blend_hex_colors(SIGN_COLORS["Taurus"], SIGN_COLORS["Gemini"], 44 / 45),
     9: SIGN_COLORS["Sagittarius"],
-    10: _blend_hex_colors(SIGN_COLORS["Sagittarius"], SIGN_COLORS["Capricorn"], 14 / 45),
+    10: blend_hex_colors(SIGN_COLORS["Sagittarius"], SIGN_COLORS["Capricorn"], 14 / 45),
     11: SIGN_COLORS["Sagittarius"],
     12: SIGN_COLORS["Gemini"],
     13: SIGN_COLORS["Aquarius"],
-    14: _blend_hex_colors(SIGN_COLORS["Scorpio"], SIGN_COLORS["Sagittarius"], 44 / 45),
-    15: _blend_hex_colors(SIGN_COLORS["Gemini"], SIGN_COLORS["Cancer"], 14 / 45),
+    14: blend_hex_colors(SIGN_COLORS["Scorpio"], SIGN_COLORS["Sagittarius"], 44 / 45),
+    15: blend_hex_colors(SIGN_COLORS["Gemini"], SIGN_COLORS["Cancer"], 14 / 45),
     16: SIGN_COLORS["Gemini"],
     17: SIGN_COLORS["Aries"],
     18: SIGN_COLORS["Libra"],
@@ -352,12 +338,12 @@ GATE_COLORS = {
     22: SIGN_COLORS["Pisces"],
     23: SIGN_COLORS["Taurus"],
     24: SIGN_COLORS["Taurus"],
-    25: _blend_hex_colors(SIGN_COLORS["Aries"], SIGN_COLORS["Pisces"], 31 / 45),
+    25: blend_hex_colors(SIGN_COLORS["Aries"], SIGN_COLORS["Pisces"], 31 / 45),
     26: SIGN_COLORS["Sagittarius"],
     27: SIGN_COLORS["Taurus"],
     28: SIGN_COLORS["Scorpio"],
-    29: _blend_hex_colors(SIGN_COLORS["Leo"], SIGN_COLORS["Virgo"], 44 / 45),
-    30: _blend_hex_colors(SIGN_COLORS["Aquarius"], SIGN_COLORS["Pisces"], 44 / 45),
+    29: blend_hex_colors(SIGN_COLORS["Leo"], SIGN_COLORS["Virgo"], 44 / 45),
+    30: blend_hex_colors(SIGN_COLORS["Aquarius"], SIGN_COLORS["Pisces"], 44 / 45),
     31: SIGN_COLORS["Leo"],
     32: SIGN_COLORS["Libra"],
     33: SIGN_COLORS["Leo"],
@@ -373,21 +359,21 @@ GATE_COLORS = {
     43: SIGN_COLORS["Scorpio"],
     44: SIGN_COLORS["Scorpio"],
     45: SIGN_COLORS["Gemini"],
-    46: _blend_hex_colors(SIGN_COLORS["Virgo"], SIGN_COLORS["Libra"], 14 / 45),
+    46: blend_hex_colors(SIGN_COLORS["Virgo"], SIGN_COLORS["Libra"], 14 / 45),
     47: SIGN_COLORS["Virgo"],
     48: SIGN_COLORS["Libra"],
     49: SIGN_COLORS["Aquarius"],
-    50: _blend_hex_colors(SIGN_COLORS["Libra"], SIGN_COLORS["Scorpio"], 29 / 45),
+    50: blend_hex_colors(SIGN_COLORS["Libra"], SIGN_COLORS["Scorpio"], 29 / 45),
     51: SIGN_COLORS["Aries"],
     52: SIGN_COLORS["Cancer"],
     53: SIGN_COLORS["Cancer"],
     54: SIGN_COLORS["Capricorn"],
     55: SIGN_COLORS["Pisces"],
-    56: _blend_hex_colors(SIGN_COLORS["Cancer"], SIGN_COLORS["Leo"], 29 / 45),
+    56: blend_hex_colors(SIGN_COLORS["Cancer"], SIGN_COLORS["Leo"], 29 / 45),
     57: SIGN_COLORS["Libra"],
     58: SIGN_COLORS["Capricorn"],
     59: SIGN_COLORS["Virgo"],
-    60: _blend_hex_colors(SIGN_COLORS["Capricorn"], SIGN_COLORS["Aquarius"], 29 / 45),
+    60: blend_hex_colors(SIGN_COLORS["Capricorn"], SIGN_COLORS["Aquarius"], 29 / 45),
     61: SIGN_COLORS["Capricorn"],
     62: SIGN_COLORS["Cancer"],
     63: SIGN_COLORS["Pisces"],
@@ -1182,14 +1168,16 @@ HD_CHANNELS = {
         ),
     },
 
-    "16-48": { #not showing up
+    "16-48": {
         "name": "Channel of Talent",
+        "aliases": ("Channel of the Wavelength",),
         "gates": (16, 48),
         "centers": ("Throat", "Spleen"),
         "circuit": "Collective / Logic",
         "explanation": (
-            "Skill developed through repetition, depth, and refinement. "
-            "This is less 'instant genius' and more mastery through immersion and practice."
+            "Intuitive depth combined with repetition, refinement, and practiced expression. "
+            "This is less instant genius than professional skill developed through immersion: "
+            "depth becomes talent when it is repeatedly tested, expressed, and improved."
         ),
     },
 
@@ -1230,17 +1218,6 @@ HD_CHANNELS = {
     # COLLECTIVE CIRCUITRY
     # ABSTRACT / SENSING
     # =========================
-
-    "48-16": {
-        "name": "Channel of the Wavelength",
-        "gates": (48, 16),
-        "centers": ("Spleen", "Ajna"),
-        "circuit": "Collective / Abstract",
-        "explanation": (
-            "Combined intuitive depth with a capacity for repeittion to develop professional skill."
-            "Achieving mastery in any logical process."
-        ),
-    },
 
     "64-47": {
         "name": "Channel of Abstraction",
@@ -1420,6 +1397,12 @@ HD_CHANNELS = {
 
 }
 
+# Human Design circuitry reference. This models the three main circuit groups
+# (Individual, Collective, and Tribal) and the seven commonly named
+# subcircuits/channel groups (Integration, Knowing, Centering, Logic,
+# Abstract, Ego, and Defense). Integration is sometimes described as a
+# channel group rather than a full subcircuit, but is retained because it is
+# commonly treated as a subcircuit by software and teaching references.
 HD_CIRCUIT_GROUPS: Dict[str, dict] = {
     'Individual': {'aliases': ['Empowerment', 'Mutation', 'Transformation'], 'subcircuits': {'Integration': {'aliases': ['Integration Channel Group', 'Integration / Unifying'], 'channels': [('10-20', 'Awakening', (10, 20)), ('20-34', 'Charisma', (20, 34)), ('10-57', 'Perfected Form', (10, 57)), ('34-57', 'Power', (34, 57))], 'gates': (10, 20, 34, 57), 'channel_count': 4}, 'Knowing': {'aliases': ['Knowing / Gnostic'], 'channels': [('1-8', 'Inspiration', (1, 8)), ('2-14', 'The Beat', (2, 14)), ('3-60', 'Mutation', (3, 60)), ('28-38', 'Struggle', (28, 38)), ('20-57', 'Brainwave', (20, 57)), ('39-55', 'Emoting', (39, 55)), ('12-22', 'Openness', (12, 22)), ('43-23', 'Structuring', (43, 23)), ('61-24', 'Awareness', (61, 24))], 'gates': (1, 2, 3, 8, 12, 14, 20, 22, 23, 24, 28, 38, 39, 43, 55, 57, 60, 61), 'channel_count': 9}, 'Centering': {'aliases': ['Centring', 'Centering / Calibration'], 'channels': [('25-51', 'Initiation', (25, 51)), ('10-34', 'Exploration', (10, 34))], 'gates': (10, 25, 34, 51), 'channel_count': 2}}, 'gates': (1, 2, 3, 8, 10, 12, 14, 20, 22, 23, 24, 25, 28, 34, 38, 39, 43, 51, 55, 57, 60, 61), 'channel_count': 15},
     'Collective': {'aliases': ['Sharing', 'Synergy', 'Change'], 'subcircuits': {'Logic': {'aliases': ['Understanding', 'Logic / Understanding', 'Logic / Pattern'], 'channels': [('63-4', 'Logic', (63, 4)), ('17-62', 'Acceptance', (17, 62)), ('16-48', 'Talent', (16, 48)), ('18-58', 'Judgment', (18, 58)), ('52-9', 'Concentration', (52, 9)), ('15-5', 'Rhythm', (15, 5)), ('31-7', 'The Alpha', (31, 7))], 'gates': (4, 5, 7, 9, 15, 16, 17, 18, 31, 48, 52, 58, 62, 63), 'channel_count': 7}, 'Abstract': {'aliases': ['Sensing', 'Abstract / Sensing', 'Sensing / Miracle'], 'channels': [('64-47', 'Abstraction', (64, 47)), ('11-56', 'Curiosity', (11, 56)), ('35-36', 'Transitoriness', (35, 36)), ('41-30', 'Recognition', (41, 30)), ('42-53', 'Maturation', (42, 53)), ('46-29', 'Discovery', (46, 29)), ('33-13', 'The Prodigal', (33, 13))], 'gates': (11, 13, 29, 30, 33, 35, 36, 41, 42, 46, 47, 53, 56, 64), 'channel_count': 7}}, 'gates': (4, 5, 7, 9, 11, 13, 15, 16, 17, 18, 29, 30, 31, 33, 35, 36, 41, 42, 46, 47, 48, 52, 53, 56, 58, 62, 63, 64), 'channel_count': 14},
