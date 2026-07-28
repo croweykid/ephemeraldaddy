@@ -27420,6 +27420,28 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             QMessageBox.warning(self, "Similar Charts", f"Could not read saved charts:\n{exc}")
             return
         chart_rows = self._similar_charts_visible_candidate_rows(chart_rows)
+        collection_id = normalize_collection_id(collection_id)
+        if collection_id != DEFAULT_COLLECTION_ALL:
+            if not hasattr(self, "_custom_collections") or not isinstance(self._custom_collections, dict):
+                self._custom_collections = self._load_custom_collections_from_settings()
+            collection_row_ids = [int(row[0]) for row in chart_rows]
+            collection_uids_by_id = get_chart_uid_map(collection_row_ids)
+            collection_charts_by_id = load_charts(collection_row_ids)
+            collection_charts_by_uid = {
+                collection_uids_by_id[chart_id]: candidate_chart
+                for chart_id, candidate_chart in collection_charts_by_id.items()
+                if collection_uids_by_id.get(chart_id)
+            }
+            allowed_collection_uids = chart_uids_in_collection(
+                collection_id,
+                charts_by_uid=collection_charts_by_uid,
+                custom_collections=self._custom_collections,
+            )
+            chart_rows = [
+                row
+                for row in chart_rows
+                if collection_uids_by_id.get(int(row[0])) in allowed_collection_uids
+            ]
         chart_row_ids = [int(row[0]) for row in chart_rows]
         chart_uids_by_id = get_chart_uid_map([
             chart_id
@@ -27755,32 +27777,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                     least_similar_matches=least_similar_matches,
                     row_signatures=row_signatures,
                 )
-            collection_id = normalize_collection_id(collection_id)
-            if collection_id != DEFAULT_COLLECTION_ALL:
-                ranked_chart_ids = {
-                    int(match.chart_id) for match in [*most_similar_matches, *least_similar_matches]
-                }
-                ranked_charts = load_charts(ranked_chart_ids)
-                charts_by_uid = {
-                    chart_uids_by_id[chart_id]: candidate_chart
-                    for chart_id, candidate_chart in ranked_charts.items()
-                    if chart_uids_by_id.get(chart_id)
-                }
-                allowed_uids = chart_uids_in_collection(
-                    collection_id,
-                    charts_by_uid=charts_by_uid,
-                    custom_collections=getattr(self, "_custom_collections", {}),
-                )
-                most_similar_matches = [
-                    match
-                    for match in most_similar_matches
-                    if chart_uids_by_id.get(int(match.chart_id)) in allowed_uids
-                ]
-                least_similar_matches = [
-                    match
-                    for match in least_similar_matches
-                    if chart_uids_by_id.get(int(match.chart_id)) in allowed_uids
-                ]
             subject_name = str(getattr(chart, "name", "") or "Current chart").strip()
             popout_reasoning_by_target = {}
             popout_reasoning_by_target.update(
