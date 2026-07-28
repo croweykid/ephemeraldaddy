@@ -25018,6 +25018,24 @@ class MainWindow(QMainWindow):
         self.birth_year_edit.textChanged.connect(self._mark_lucygoosey)
         self._set_birth_date_fields_from_qdate(QDate(1990, 1, 1))
 
+        def _labeled_birth_date_field(label_text: str, field: QLineEdit) -> QWidget:
+            container = QWidget()
+            layout = QVBoxLayout()
+            layout.setContentsMargins(0, 0, 0, 0)
+            # Keep the captions in place while allowing the edits to sit directly
+            # beneath them; the surrounding row aligns its other inputs to these.
+            layout.setSpacing(0)
+            label = QLabel(label_text)
+            label.setAlignment(Qt.AlignHCenter)
+            layout.addWidget(label, 0, Qt.AlignHCenter)
+            layout.addWidget(field, 0, Qt.AlignHCenter)
+            container.setLayout(layout)
+            return container
+
+        birth_month_widget = _labeled_birth_date_field("MM", self.birth_month_edit)
+        birth_day_widget = _labeled_birth_date_field("DD", self.birth_day_edit)
+        birth_year_widget = _labeled_birth_date_field("YYYY", self.birth_year_edit)
+
         # Birth place: line edit + Search button
         place_row = QHBoxLayout()
         #place_row.setContentsMargins(0, 0, 0, 0)
@@ -25104,11 +25122,11 @@ class MainWindow(QMainWindow):
         self.random_birth_date_button.clicked.connect(self._on_random_birth_date_clicked)
         birth_time_row.addWidget(self.random_birth_date_button, 0, Qt.AlignBottom)
         birth_time_row.addWidget(QLabel("🐣Date"), 0, Qt.AlignBottom)
-        birth_time_row.addWidget(self.birth_month_edit, 0, Qt.AlignBottom)
+        birth_time_row.addWidget(birth_month_widget, 0)
         #birth_time_row.addWidget(QLabel("."), 0)
-        birth_time_row.addWidget(self.birth_day_edit, 0, Qt.AlignBottom)
+        birth_time_row.addWidget(birth_day_widget, 0)
         #birth_time_row.addWidget(QLabel("."), 0)
-        birth_time_row.addWidget(self.birth_year_edit, 0, Qt.AlignBottom)
+        birth_time_row.addWidget(birth_year_widget, 0)
         birth_time_row.addWidget(self.deceased_checkbox, 0, Qt.AlignBottom)
         birth_time_row.addSpacing(14)
         birth_time_row.addWidget(QLabel("🐣Time:"), 0, Qt.AlignBottom)
