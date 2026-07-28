@@ -281,8 +281,6 @@ GENDER_GUESSER_COLORS = {
 }
 
 MIDDLE_PANEL_ACCENT_COLOR = COLOR_ACCENT_PRIMARY
-CHART_DATA_HIGHLIGHT_COLOR = MIDDLE_PANEL_ACCENT_COLOR
-
 CHART_INFO_POSITIVE_WEIGHT_COLOR = "#39ff6a"
 CHART_INFO_NEGATIVE_WEIGHT_COLOR = "#ff4d4d"
 
@@ -1593,13 +1591,6 @@ STANDARD_NCV_POPOUT_LAYOUT = {
     "chart_stretch": 2,
     "info_stretch": 1,
     "info_placeholder": "ⓘ Click a label to view detailed information.",
-}
-
-RELATIVE_YEAR_COLORS = {
-    "current":"#66ffff",
-    "next":"#99ff99",
-    "year after next":"#ffff66",
-    "other":"#ffffff"
 }
 
 #hex color blender

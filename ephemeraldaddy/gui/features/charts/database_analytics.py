@@ -1343,66 +1343,8 @@ class DatabaseAnalyticsChartsMixin:
         canvas.installEventFilter(self)
 
     @staticmethod
-    def _clean_database_analytics_label(label: object) -> str:
-        text = str(label or "").strip()
-        text = re.sub(r"^\([^)]*\)\s*", "", text)
-        text = re.sub(r"\s+", " ", text)
-        return text or "this category"
 
     @staticmethod
-    def _tag_database_analytics_pick_targets(figure: Figure) -> None:
-        """Make Database Analytics bars and labels clickable in copied popout figures."""
-        for ax in figure.axes:
-            y_tick_lookup = [
-                (
-                    float(tick),
-                    DatabaseAnalyticsChartsMixin._clean_database_analytics_label(
-                        label.get_text()
-                    ),
-                )
-                for tick, label in zip(ax.get_yticks(), ax.get_yticklabels())
-                if str(label.get_text()).strip()
-            ]
-            x_tick_lookup = [
-                (
-                    float(tick),
-                    DatabaseAnalyticsChartsMixin._clean_database_analytics_label(
-                        label.get_text()
-                    ),
-                )
-                for tick, label in zip(ax.get_xticks(), ax.get_xticklabels())
-                if str(label.get_text()).strip()
-                and not str(label.get_text()).strip().endswith("%")
-            ]
-            for patch in ax.patches:
-                try:
-                    width = float(patch.get_width())
-                    height = float(patch.get_height())
-                except (TypeError, ValueError):
-                    continue
-                if abs(width) < 1e-12 and abs(height) < 1e-12:
-                    continue
-                horizontal = abs(width) >= abs(height)
-                if horizontal and y_tick_lookup:
-                    center = float(patch.get_y()) + (height / 2.0)
-                    label = min(y_tick_lookup, key=lambda item: abs(item[0] - center))[1]
-                    left_edge = float(patch.get_x())
-                    value = -abs(width) if left_edge < 0.0 else width
-                elif x_tick_lookup:
-                    center = float(patch.get_x()) + (width / 2.0)
-                    label = min(x_tick_lookup, key=lambda item: abs(item[0] - center))[1]
-                    value = height
-                else:
-                    continue
-                patch.set_picker(True)
-                patch.set_gid(f"database_analytics_bar:{label}:{value:.8g}")
-            for tick_label in [*ax.get_yticklabels(), *ax.get_xticklabels()]:
-                label_text = DatabaseAnalyticsChartsMixin._clean_database_analytics_label(
-                    tick_label.get_text()
-                )
-                if label_text and label_text != "this category":
-                    tick_label.set_picker(True)
-                    tick_label.set_gid(f"database_analytics_label:{label_text}")
 
     @staticmethod
     def _database_analytics_candidate_keys(chart_key: str) -> list[str]:
@@ -1414,19 +1356,6 @@ class DatabaseAnalyticsChartsMixin:
             ])
         return candidate_keys
 
-    def _database_analytics_canvas_for_key(self, chart_key: str) -> FigureCanvas | None:
-        for key in self._database_analytics_candidate_keys(chart_key):
-            layout = getattr(self, "_database_metrics_chart_layouts", {}).get(key)
-            if layout is None:
-                continue
-            for index in range(layout.count()):
-                item = layout.itemAt(index)
-                widget = item.widget() if item is not None else None
-                if isinstance(widget, FigureCanvas) and widget.isVisible():
-                    return widget
-                if isinstance(widget, FigureCanvas):
-                    return widget
-        return None
 
     def _database_analytics_chart_key_for_canvas(
         self,
@@ -1466,20 +1395,6 @@ class DatabaseAnalyticsChartsMixin:
         return False
 
     @staticmethod
-    def _enneagram_type_for_database_label(label: str) -> int | None:
-        clean_label = DatabaseAnalyticsChartsMixin._clean_database_analytics_label(label)
-        match = re.search(r"\btype\s+([1-9])\b", clean_label, flags=re.IGNORECASE)
-        if match:
-            return int(match.group(1))
-        if clean_label.isdigit():
-            enneagram_type = int(clean_label)
-            if 1 <= enneagram_type <= 9:
-                return enneagram_type
-        for enneagram_type, type_data in ENNEAGRAM.items():
-            type_name = str(type_data.get("name", "")).strip()
-            if type_name and type_name.casefold() in clean_label.casefold():
-                return int(enneagram_type)
-        return None
 
     @staticmethod
     def _database_analytics_color_for_label(label: str, chart_title: str = "") -> str:
@@ -1546,37 +1461,6 @@ class DatabaseAnalyticsChartsMixin:
         return "Database analytics category"
 
     @staticmethod
-    def _database_analytics_definition_for_label(label: str, chart_title: str) -> str:
-        clean_label = DatabaseAnalyticsChartsMixin._clean_database_analytics_label(label)
-        title_key = str(chart_title or "").casefold()
-        label_key = clean_label.casefold()
-        if clean_label in ZODIAC_NAMES:
-            return f"{clean_label} is a zodiac sign category; this bar compares its share in the selected charts against the comparison database."
-        if clean_label in PLANET_COLORS:
-            return f"{clean_label} is an astrological body or point; this bar compares how often it is the measured or dominant factor."
-        if clean_label in HOUSE_COLORS or re.fullmatch(r"house\s+(1[0-2]|[1-9])", label_key):
-            return f"This bar compares how often placements or dominance lands in {clean_label} for the chart(s) selected."
-        if clean_label in ELEMENT_COLORS:
-            return f"{clean_label} is an elemental category; this bar compares that element's share in the analytics."
-        if MODE_COLORS.get(label_key):
-            return f"{clean_label} is a mode/modality category; this bar compares how often Cardinal, Fixed, or Mutable emphasis appears."
-        if clean_label in {str(name) for name, *_ in NAKSHATRA_RANGES}:
-            return f"This bar compares how often placement or dominance falls in the lunar mansion of {clean_label} for the chart(s) currently selected. Note: Nakshatras are calculated tropically in EphemeralDaddy, despite Vedic astrological tradition being primarily sidereal. Some contemporaries find this a more effective method."
-        if clean_label in RELATION_TYPE:
-            return f"{clean_label} is a relationship classification assigned to charts; this bar compares its frequency."
-        if clean_label in SENTIMENT_COLORS or "sentiment" in title_key:
-            return f"{clean_label} is a sentiment/tone category; this bar compares how often that tone appears in chart metadata."
-        if clean_label in BAZI_ZODIAC or "bazi" in title_key:
-            return f"{clean_label} is a BaZi / Chinese astrology category; this bar compares how often it appears."
-        if DatabaseAnalyticsChartsMixin._enneagram_type_for_database_label(clean_label) is not None or "enneagram" in title_key:
-            return f"{clean_label} is an Enneagram type category; this bar compares how often that predicted or assigned type appears."
-        if clean_label in AGE_BRACKETS or "age" in title_key:
-            return f"{clean_label} is an age bucket; this bar compares how many charts fall in that age range."
-        if "birth" in title_key:
-            return f"{clean_label} is a birth-data category; this bar compares how many charts share that birth timing or place attribute."
-        if "tag" in title_key:
-            return f"{clean_label} is a saved tag/category label; this bar compares how often it is attached to charts."
-        return f"{clean_label} is the category represented by this row; this bar compares its frequency or score in the current Database View analytics."
 
     @staticmethod
     def _database_analytics_incarnation_cross_info_html(label: str) -> str | None:
@@ -1673,222 +1557,7 @@ class DatabaseAnalyticsChartsMixin:
             return description or None
         return None
 
-    def _build_database_analytics_popout_info_html(
-        self,
-        *,
-        chart_title: str,
-        label: str,
-        value: float | None,
-    ) -> str:
-        clean_title = self._clean_database_analytics_label(chart_title)
-        clean_label = self._clean_database_analytics_label(label)
-        chart_analytics_html = self._build_database_analytics_chart_analytics_info_html(
-            chart_title=clean_title,
-            label=clean_label,
-        )
-        if chart_analytics_html:
-            return chart_analytics_html
-        if "incarnation" in clean_title.casefold() and "cross" in clean_title.casefold():
-            cross_html = self._database_analytics_incarnation_cross_info_html(clean_label)
-            if cross_html:
-                return cross_html
-        enneagram_type = self._enneagram_type_for_database_label(clean_label)
-        if enneagram_type is not None and "enneagram" in clean_title.casefold():
-            return build_enneagram_popout_info_html(
-                enneagram_type,
-                enneagram=ENNEAGRAM,
-                chart_theme_colors=CHART_THEME_COLORS,
-                highlight_color=CHART_DATA_HIGHLIGHT_COLOR,
-                debug_math_enabled=False,
-                chart=None,
-                calculate_type_weights=None,
-            )
-        trait_description = None
-        if "trait" in clean_title.casefold():
-            trait_description = self._database_analytics_trait_description_for_label(clean_label)
-        definition = self._database_analytics_definition_for_label(clean_label, clean_title)
-        value_line = ""
-        if value is not None and math.isfinite(float(value)):
-            if abs(float(value)) <= 1.0:
-                value_text = _format_percent(abs(float(value)))
-            else:
-                value_text = f"{float(value):,.2f}".rstrip("0").rstrip(".")
-            direction = (
-                "above the comparison baseline"
-                if float(value) > 0
-                else "below the comparison baseline"
-            )
-            if abs(float(value)) < 1e-12:
-                direction = "at the comparison baseline"
-            value_line = (
-                f"<p><b>Bar reading:</b> about {html.escape(value_text)} {html.escape(direction)}. "
-                "In selection-vs-database charts, rightward bars mean the selected charts contain more of this category than the database baseline, and leftward bars mean less.</p>"
-            )
-        std_dev_line = ""
-        if self._standard_deviation_indicators_visible():
-            std_dev_line = (
-                "<p><b>Standard deviation / SE guide lines:</b> The red dashed lines mark about one and two standard errors away from the baseline. "
-                "A bar inside the first pair is usually ordinary noise; reaching the ±1 line is a mild signal; reaching or passing the ±2 line is a stronger clue that the selection genuinely differs from raw probability.</p>"
-            )
-        label_color = self._database_analytics_color_for_label(clean_label, clean_title)
-        category_name = self._database_analytics_category_name(clean_label, clean_title)
-        description_line = ""
-        if trait_description:
-            description_line = (
-                f'<p><i>{html.escape(trait_description)}</i></p>'
-            )
-        return (
-            f'<h3 style="color:{html.escape(label_color)}; font-weight:800;">{html.escape(clean_label)}</h3>'
-            f"{description_line}"
-            f'<p><b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">Category:</b> {html.escape(category_name)}</p>'
-            f'<p><b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">What this measures:</b> {html.escape(definition)}</p>'
-            f'<p><b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">Where it appears:</b> <i>{html.escape(clean_title)}</i>.</p>'
-            f"{value_line}"
-            f"{std_dev_line}"
-        )
 
-    def _show_database_analytics_popout(self, chart_key: str, chart_title: str) -> None:
-        source_canvas = self._database_analytics_canvas_for_key(chart_key)
-        if source_canvas is None:
-            QMessageBox.information(
-                self,
-                "No chart available",
-                "Expand this Database Analytics section and load chart data before opening the popout.",
-            )
-            return
-        figure = copy.deepcopy(source_canvas.figure)
-        self._tag_database_analytics_pick_targets(figure)
-        source_width, source_height = source_canvas.figure.get_size_inches()
-        figure.set_size_inches(
-            max(9.5, float(source_width)),
-            max(6.2, float(source_height)),
-            forward=True,
-        )
-        figure.patch.set_facecolor(self._database_analytics_figure_facecolor())
-        for ax in figure.axes:
-            ax.set_facecolor(self._database_analytics_axes_facecolor())
-        dialog = QDialog(self)
-        dialog.setWindowTitle(f"{chart_title} — Database Analytics")
-        dialog.setAttribute(Qt.WA_DeleteOnClose)
-        dialog.setMinimumSize(820, 620)
-        layout = QVBoxLayout()
-        layout.setContentsMargins(12, 12, 12, 12)
-        dialog.setLayout(layout)
-        popout_canvas = FigureCanvas(figure)
-        canvas_height = max(1, int(figure.get_figheight() * figure.dpi))
-        popout_canvas.setMinimumSize(QSize(1, canvas_height))
-        popout_canvas.setMinimumHeight(canvas_height)
-        popout_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-
-        chart_scroll = DatabaseAnalyticsPopoutScrollArea(dialog)
-        chart_scroll.setWidget(popout_canvas)
-        chart_scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-
-        info_panel = QTextEdit()
-        info_panel.setReadOnly(True)
-        info_panel.setPlaceholderText(
-            "Click any bar or label to see a plain-English definition."
-        )
-        info_panel.setMinimumHeight(150)
-        dialog.installEventFilter(chart_scroll)
-        info_panel.installEventFilter(chart_scroll)
-        info_panel.viewport().installEventFilter(chart_scroll)
-        layout.addWidget(chart_scroll, 3)
-        layout.addWidget(info_panel, 1)
-
-        def _on_pick(event: Any) -> None:
-            artist = getattr(event, "artist", None)
-            artist_gid = (
-                artist.get_gid()
-                if artist is not None and hasattr(artist, "get_gid")
-                else None
-            )
-            if not isinstance(artist_gid, str):
-                return
-            value: float | None = None
-            label = ""
-            if artist_gid.startswith("database_analytics_bar:"):
-                payload = artist_gid.removeprefix("database_analytics_bar:")
-                label, _separator, raw_value = payload.rpartition(":")
-                try:
-                    value = float(raw_value)
-                except ValueError:
-                    value = None
-            elif artist_gid.startswith("database_analytics_label:"):
-                _prefix, label = artist_gid.split(":", 1)
-            else:
-                return
-            info_panel.setHtml(
-                self._build_database_analytics_popout_info_html(
-                    chart_title=chart_title,
-                    label=label,
-                    value=value,
-                )
-            )
-
-        def _show_info_for_pick_target(label: str, value: float | None) -> None:
-            info_panel.setHtml(
-                self._build_database_analytics_popout_info_html(
-                    chart_title=chart_title,
-                    label=label,
-                    value=value,
-                )
-            )
-
-        def _on_click(event: Any) -> None:
-            if getattr(event, "inaxes", None) is None:
-                return
-            mouse_event = getattr(event, "guiEvent", None) or event
-            for artist in [*getattr(event.inaxes, "patches", [])]:
-                artist_gid = artist.get_gid() if hasattr(artist, "get_gid") else None
-                if (
-                    not isinstance(artist_gid, str)
-                    or not artist_gid.startswith("database_analytics_bar:")
-                ):
-                    continue
-                contains, _details = artist.contains(mouse_event)
-                if not contains:
-                    continue
-                payload = artist_gid.removeprefix("database_analytics_bar:")
-                label, _separator, raw_value = payload.rpartition(":")
-                try:
-                    value = float(raw_value)
-                except ValueError:
-                    value = None
-                _show_info_for_pick_target(label, value)
-                return
-            for tick_label in [
-                *event.inaxes.get_yticklabels(),
-                *event.inaxes.get_xticklabels(),
-            ]:
-                artist_gid = tick_label.get_gid() if hasattr(tick_label, "get_gid") else None
-                if (
-                    not isinstance(artist_gid, str)
-                    or not artist_gid.startswith("database_analytics_label:")
-                ):
-                    continue
-                contains, _details = tick_label.contains(mouse_event)
-                if contains:
-                    _prefix, label = artist_gid.split(":", 1)
-                    _show_info_for_pick_target(label, None)
-                    return
-
-        popout_canvas.mpl_connect("pick_event", _on_pick)
-        popout_canvas.mpl_connect("button_press_event", _on_click)
-        if hasattr(self, "_register_popout_shortcuts"):
-            self._register_popout_shortcuts(dialog)
-        dialog.resize(980, 720)
-        dialog.show()
-        popout_dialogs = getattr(self, "_database_analytics_popout_dialogs", None)
-        if popout_dialogs is None:
-            self._database_analytics_popout_dialogs = []
-            popout_dialogs = self._database_analytics_popout_dialogs
-        popout_dialogs.append(dialog)
-        dialog.destroyed.connect(
-            lambda _=None, dialog=dialog: popout_dialogs.remove(dialog)
-            if dialog in popout_dialogs
-            else None
-        )
 
     @staticmethod
     def _clean_database_analytics_label(label: object) -> str:

@@ -9,6 +9,7 @@ from typing import Any
 
 from matplotlib import font_manager as mpl_font_manager
 
+from ephemeraldaddy.core.astrology import sign_for_longitude
 from ephemeraldaddy.core.hd import get_channels_for_gate, get_line
 from ephemeraldaddy.core.interpretations import (
     NAKSHATRA_PLANET_COLOR,
@@ -73,11 +74,6 @@ def format_transit_range(
     if start_truncated_to_scope or end_truncated_to_scope:
         range_label += " (scope-limited)"
     return range_label
-
-
-def sign_for_longitude(lon: float) -> str:
-    sign_index = int((lon % 360.0) // 30) % 12
-    return ZODIAC_NAMES[sign_index]
 
 
 def sign_degrees(sign: str, deg: int, minutes: int) -> float:
