@@ -101,7 +101,7 @@ def aggregate_similarity_algorithm_accuracy(
     except OSError:
         return []
     relationship_scores = _current_relationship_scores(relationship_path)
-    observations: dict[tuple[str, str], float | None] = {}
+    observations: dict[tuple[str, str], tuple[float | None, float | None]] = {}
     decoder = json.JSONDecoder()
     cursor = 0
     active_mode: str | None = None
@@ -124,12 +124,14 @@ def aggregate_similarity_algorithm_accuracy(
         not_applicable = bool(payload.get("not_applicable", False))
         if not_applicable:
             perceived: float | None = None
+            predicted: float | None = None
         else:
             try:
                 perceived = float(payload.get("user_reported_accuracy"))
+                predicted = float(payload.get("predicted_percent"))
             except (TypeError, ValueError):
                 continue
-            if not 0.0 <= perceived <= 100.0:
+            if not (0.0 <= perceived <= 100.0 and 0.0 <= predicted <= 100.0):
                 continue
         raw_mode = payload.get("algorithm_mode") or payload.get("ranking_algorithm") or active_mode
         if not str(raw_mode or "").strip():
@@ -139,13 +141,12 @@ def aggregate_similarity_algorithm_accuracy(
         if pair_key and pair_key in relationship_scores:
             perceived = relationship_scores[pair_key]
         observation_key = pair_key or f"legacy-offset:{marker_index}"
-        observations[(mode, observation_key)] = (
-            None if not_applicable else perceived
-        )
+        observations[(mode, observation_key)] = (perceived, predicted)
     totals: dict[str, list[float]] = {}
-    for (mode, _pair_key), perceived in observations.items():
-        if perceived is not None:
-            totals.setdefault(mode, []).append(perceived)
+    for (mode, _pair_key), (perceived, predicted) in observations.items():
+        if perceived is not None and predicted is not None:
+            accuracy = max(0.0, 100.0 - abs(predicted - perceived))
+            totals.setdefault(mode, []).append(accuracy)
     ranked = [
         {"algorithm_mode": mode, "average_accuracy": sum(scores) / len(scores), "sample_count": len(scores)}
         for mode, scores in totals.items()

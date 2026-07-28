@@ -31,10 +31,10 @@ def test_algorithm_accuracy_aggregates_existing_algorithm_log(tmp_path):
     rows = aggregate_similarity_algorithm_accuracy(path)
 
     assert rows == [
-        {"algorithm_mode": "default", "average_accuracy": 85.0, "sample_count": 2},
-        {"algorithm_mode": "big_3", "average_accuracy": 65.0, "sample_count": 2},
+        {"algorithm_mode": "big_3", "average_accuracy": 80.0, "sample_count": 2},
+        {"algorithm_mode": "default", "average_accuracy": 77.5, "sample_count": 2},
     ]
-    assert "1. Default — 85.0% average (n=2)" in format_similarity_algorithm_accuracy_ranking(rows)
+    assert "1. Big 3 — 80.0% average (n=2)" in format_similarity_algorithm_accuracy_ranking(rows)
 
 
 def test_algorithm_accuracy_reads_mixed_historical_log(tmp_path):
@@ -50,8 +50,7 @@ def test_algorithm_accuracy_reads_mixed_historical_log(tmp_path):
     _append(path, "default", 50, None, not_applicable=True)
 
     assert aggregate_similarity_algorithm_accuracy(path) == [
-        {"algorithm_mode": "comprehensive", "average_accuracy": 90.0, "sample_count": 1},
-        {"algorithm_mode": "default", "average_accuracy": 70.0, "sample_count": 1},
+        {"algorithm_mode": "comprehensive", "average_accuracy": 98.0, "sample_count": 1}
     ]
 
 
@@ -70,6 +69,17 @@ def test_algorithm_accuracy_empty_state():
     assert "No algorithm-linked accuracy scores" in format_similarity_algorithm_accuracy_ranking([])
 
 
+def test_algorithm_accuracy_uses_prediction_error_not_raw_perceived_score(tmp_path):
+    path = tmp_path / "similarities_algorithm_log.txt"
+    _append(path, "default", 90, 90)
+    _append(path, "big_3", 10, 90)
+
+    assert aggregate_similarity_algorithm_accuracy(path) == [
+        {"algorithm_mode": "default", "average_accuracy": 100.0, "sample_count": 1},
+        {"algorithm_mode": "big_3", "average_accuracy": 20.0, "sample_count": 1},
+    ]
+
+
 def test_legacy_payload_inherits_preceding_algorithm_mode(tmp_path):
     path = tmp_path / "similarities_algorithm_log.txt"
     legacy_payload = {
@@ -77,6 +87,7 @@ def test_legacy_payload_inherits_preceding_algorithm_mode(tmp_path):
             "chart_1": {"id": 12},
             "chart_2": {"id": 4},
         },
+        "predicted_percent": 75,
         "user_reported_accuracy": 77,
         "not_applicable": False,
     }
@@ -87,7 +98,7 @@ def test_legacy_payload_inherits_preceding_algorithm_mode(tmp_path):
     )
 
     assert aggregate_similarity_algorithm_accuracy(path) == [
-        {"algorithm_mode": "comprehensive", "average_accuracy": 77.0, "sample_count": 1}
+        {"algorithm_mode": "comprehensive", "average_accuracy": 98.0, "sample_count": 1}
     ]
 
 
@@ -100,6 +111,7 @@ def test_relationship_log_supplies_latest_score_without_recalculation(tmp_path):
             "chart_2": {"id": 4},
         },
         "algorithm_mode": "default",
+        "predicted_percent": 70,
         "user_reported_accuracy": 40,
         "not_applicable": False,
     }
@@ -122,4 +134,4 @@ def test_relationship_log_supplies_latest_score_without_recalculation(tmp_path):
 
     assert aggregate_similarity_algorithm_accuracy(
         algorithm_path, relationship_path=relationship_path
-    ) == [{"algorithm_mode": "default", "average_accuracy": 88.0, "sample_count": 1}]
+    ) == [{"algorithm_mode": "default", "average_accuracy": 82.0, "sample_count": 1}]
