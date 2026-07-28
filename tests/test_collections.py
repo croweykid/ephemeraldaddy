@@ -5,7 +5,9 @@ from ephemeraldaddy.gui.features.charts.collections import (
     CustomCollection,
     DEFAULT_COLLECTION_HYPOTHETICAL,
     DEFAULT_COLLECTION_OPTIONS,
+    chart_uids_in_collection,
     chart_belongs_to_collection,
+    collection_filter_options,
 )
 from ephemeraldaddy.gui.features.charts.selection_header import (
     SelectionSummaryCounts,
@@ -71,3 +73,29 @@ def test_custom_collection_membership_prefers_chart_uids():
         custom_collections={"favorites": collection},
         chart_id=1,
     )
+
+
+def test_collection_filter_options_put_all_first_and_sort_custom_names():
+    custom = {
+        "friends": CustomCollection("friends", "Friends", frozenset(), frozenset()),
+        "celebs": CustomCollection("celebs", "Celebrities", frozenset(), frozenset()),
+    }
+
+    options = collection_filter_options(custom)
+
+    assert options[0] == ("All collections", "all")
+    assert options[-2:] == [("Celebrities", "celebs"), ("Friends", "friends")]
+
+
+def test_chart_uids_in_collection_uses_stable_uid_membership():
+    collection = CustomCollection(
+        "friends", "Friends", frozenset({999}), frozenset({"FRIEND-UID"})
+    )
+    charts = {
+        "FRIEND-UID": SimpleNamespace(source=SOURCE_PERSONAL),
+        "OTHER-UID": SimpleNamespace(source=SOURCE_PERSONAL),
+    }
+
+    assert chart_uids_in_collection(
+        "friends", charts_by_uid=charts, custom_collections={"friends": collection}
+    ) == {"FRIEND-UID"}

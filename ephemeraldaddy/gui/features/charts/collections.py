@@ -52,6 +52,41 @@ class CustomCollection:
     chart_uids: frozenset[str] = frozenset()
 
 
+def collection_filter_options(
+    custom_collections: dict[str, CustomCollection] | None = None,
+) -> list[tuple[str, str]]:
+    """Build the collection selector choices, with custom names sorted for scanning."""
+    options = [("All collections", DEFAULT_COLLECTION_ALL)]
+    options.extend(DEFAULT_COLLECTION_OPTIONS[1:])
+    options.extend(
+        (collection.name, collection.collection_id)
+        for collection in sorted(
+            (custom_collections or {}).values(), key=lambda item: item.name.casefold()
+        )
+    )
+    return options
+
+
+def chart_uids_in_collection(
+    collection_id: str,
+    *,
+    charts_by_uid: dict[str, Chart],
+    custom_collections: dict[str, CustomCollection] | None = None,
+) -> set[str]:
+    """Return candidate Chart UIDs belonging to a collection."""
+    return {
+        chart_uid
+        for chart_uid, chart in charts_by_uid.items()
+        if chart_belongs_to_collection(
+            collection_id,
+            chart=chart,
+            source=getattr(chart, "source", None),
+            custom_collections=custom_collections,
+            chart_uid=chart_uid,
+        )
+    }
+
+
 def sanitize_collection_name(name: object, *, fallback: str = "Untitled Collection") -> str:
     text = str(name or "").strip()
     return text or fallback
