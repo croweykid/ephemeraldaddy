@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
+from typing import Iterable
 
 from ephemeraldaddy.core.chart import Chart
 from ephemeraldaddy.gui.features.charts.provenance import (
@@ -50,6 +52,67 @@ class CustomCollection:
     name: str
     chart_ids: frozenset[int]
     chart_uids: frozenset[str] = frozenset()
+
+
+def collection_filter_options(
+    custom_collections: dict[str, CustomCollection] | None = None,
+) -> list[tuple[str, str]]:
+    """Build usable Similar Charts scopes, with custom names sorted for scanning."""
+    options = [("All collections", DEFAULT_COLLECTION_ALL)]
+    # The Similar Charts candidate pipeline intentionally excludes hypothetical
+    # rows as non-aggregable, so exposing that default scope would guarantee an
+    # empty result. Keep the collection available elsewhere in the application.
+    options.extend(
+        (label, collection_id)
+        for label, collection_id in DEFAULT_COLLECTION_OPTIONS[1:]
+        if collection_id != DEFAULT_COLLECTION_HYPOTHETICAL
+    )
+    options.extend(
+        (collection.name, collection.collection_id)
+        for collection in sorted(
+            (custom_collections or {}).values(), key=lambda item: item.name.casefold()
+        )
+    )
+    return options
+
+
+def chart_uids_in_collection(
+    collection_id: str,
+    *,
+    charts_by_uid: dict[str, Chart],
+    custom_collections: dict[str, CustomCollection] | None = None,
+) -> set[str]:
+    """Return candidate Chart UIDs belonging to a collection."""
+    return {
+        chart_uid
+        for chart_uid, chart in charts_by_uid.items()
+        if chart_belongs_to_collection(
+            collection_id,
+            chart=chart,
+            source=getattr(chart, "source", None),
+            custom_collections=custom_collections,
+            chart_uid=chart_uid,
+        )
+    }
+
+
+def collection_scope_cache_signature(
+    collection_id: str,
+    chart_uids: Iterable[object],
+) -> str:
+    """Identify a scoped candidate population using stable Chart UIDs only."""
+    normalized_id = normalize_collection_id(collection_id)
+    if normalized_id == DEFAULT_COLLECTION_ALL:
+        return DEFAULT_COLLECTION_ALL
+    normalized_uids = sorted(
+        {
+            str(chart_uid or "").strip().upper()
+            for chart_uid in chart_uids
+            if str(chart_uid or "").strip()
+        }
+    )
+    membership_digest = hashlib.sha256("\n".join(normalized_uids).encode("utf-8")).hexdigest()
+    return f"{normalized_id}:{membership_digest}"
 
 
 def sanitize_collection_name(name: object, *, fallback: str = "Untitled Collection") -> str:

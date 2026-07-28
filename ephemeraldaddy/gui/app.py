@@ -886,7 +886,10 @@ from ephemeraldaddy.gui.features.charts.collections import (
     DEFAULT_COLLECTION_OPTIONS,
     DEFAULT_COLLECTION_POSSIBLE_DUPLICATES,
     CustomCollection,
+    chart_uids_in_collection,
     chart_belongs_to_collection,
+    collection_filter_options,
+    collection_scope_cache_signature,
     normalize_collection_id,
     sanitize_collection_name,
 )
@@ -26174,6 +26177,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         algorithm_mode: str,
         rows: list[tuple[Any, ...]],
         subject_chart_uid: str | None = None,
+        collection_scope_signature: str = DEFAULT_COLLECTION_ALL,
     ) -> tuple[str, str, str, str]:
         # Do not include the whole database signature in the lookup key. The
         # payload stores per-chart row signatures and incrementally refreshes only
@@ -26186,7 +26190,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             ),
             "incremental-db-v1",
             self._similar_charts_popout_settings_signature(algorithm_mode),
-            "top-bottom-all-v3",
+            f"top-bottom-scope-v4:{collection_scope_signature}",
         )
 
     def _get_cached_similar_charts_popout_payload(
@@ -26606,6 +26610,44 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             "Collection Created",
             f"Created collection '{collection_name}' with {len(chart_ids)} similar charts.",
         )
+
+    def _similar_chart_collection_options(self) -> list[tuple[str, str]]:
+        """Return stable default and user-created collection choices for the popout."""
+        # The Database View manager owns a separate in-memory collection map.
+        # Reload its persisted edits so names and memberships never go stale in
+        # a later Similar Charts popout opened during the same session.
+        self._custom_collections = self._load_custom_collections_from_settings()
+        return collection_filter_options(self._custom_collections)
+
+    def _on_similar_chart_popout_collection_changed(self, dialog: QDialog, collection_id: str) -> None:
+        """Reopen the result window with its candidates restricted to one collection."""
+        normalized_id = normalize_collection_id(collection_id)
+        if normalized_id == getattr(dialog, "_similar_chart_popout_collection_id", DEFAULT_COLLECTION_ALL):
+            return
+        chart = getattr(dialog, "_similar_chart_popout_subject_chart", None)
+        subject_chart_id = getattr(dialog, "_similar_chart_popout_subject_chart_id", None)
+        opened_from_database_view = bool(
+            getattr(dialog, "_similar_chart_popout_opened_from_database_view", False)
+        )
+        replacement = self._show_similar_charts_popout(
+            self,
+            chart_override=chart,
+            subject_chart_id_override=subject_chart_id,
+            opened_from_database_view=opened_from_database_view,
+            collection_id=normalized_id,
+        )
+        if replacement is not None:
+            dialog.close()
+            return
+        collection_dropdown = getattr(dialog, "_similar_chart_popout_collection_dropdown", None)
+        if isinstance(collection_dropdown, QComboBox):
+            blocker = QSignalBlocker(collection_dropdown)
+            previous_index = collection_dropdown.findData(
+                getattr(dialog, "_similar_chart_popout_collection_id", DEFAULT_COLLECTION_ALL)
+            )
+            if previous_index >= 0:
+                collection_dropdown.setCurrentIndex(previous_index)
+            del blocker
 
     def _load_custom_collections_from_settings(self) -> dict[str, CustomCollection]:
         raw_value = self._settings.value("manage_charts/custom_collections", "[]")
@@ -27306,7 +27348,8 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         chart_override: Chart | None = None,
         subject_chart_id_override: int | None = None,
         opened_from_database_view: bool | None = None,
-    ) -> None:
+        collection_id: str = DEFAULT_COLLECTION_ALL,
+    ) -> QDialog | None:
         manage_dialog = self._manage_charts_dialog
         database_view_active = (
             requester is not self
@@ -27381,6 +27424,37 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             QMessageBox.warning(self, "Similar Charts", f"Could not read saved charts:\n{exc}")
             return
         chart_rows = self._similar_charts_visible_candidate_rows(chart_rows)
+        collection_id = normalize_collection_id(collection_id)
+        if collection_id != DEFAULT_COLLECTION_ALL:
+            # Collection membership may have been edited in Manage Charts since
+            # the preceding popout was rendered.
+            self._custom_collections = self._load_custom_collections_from_settings()
+            collection_row_ids = [int(row[0]) for row in chart_rows]
+            collection_uids_by_id = get_chart_uid_map(collection_row_ids)
+            # Reuse the normal candidate loader's batch-to-individual fallback:
+            # one malformed imported chart must not break the entire scope.
+            collection_candidates = load_similar_chart_candidates(
+                rows=chart_rows,
+                current_chart_id=subject_chart_id,
+                load_chart_by_id=load_chart,
+                load_charts_by_ids=load_charts,
+            )
+            collection_charts_by_id = dict(collection_candidates)
+            collection_charts_by_uid = {
+                collection_uids_by_id[chart_id]: candidate_chart
+                for chart_id, candidate_chart in collection_charts_by_id.items()
+                if collection_uids_by_id.get(chart_id)
+            }
+            allowed_collection_uids = chart_uids_in_collection(
+                collection_id,
+                charts_by_uid=collection_charts_by_uid,
+                custom_collections=self._custom_collections,
+            )
+            chart_rows = [
+                row
+                for row in chart_rows
+                if collection_uids_by_id.get(int(row[0])) in allowed_collection_uids
+            ]
         chart_row_ids = [int(row[0]) for row in chart_rows]
         chart_uids_by_id = get_chart_uid_map([
             chart_id
@@ -27415,6 +27489,10 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             include_gender=self._similar_charts_demographic_match_enabled(),
         )
         chart_names_by_id = self._similar_charts_popout_chart_names_by_id(chart_rows)
+        scope_cache_signature = collection_scope_cache_signature(
+            collection_id,
+            row_signatures.keys(),
+        )
         candidates: list[tuple[int, Chart]] | None = None
         cache_key = self._similar_charts_popout_cache_key(
             chart=chart,
@@ -27422,6 +27500,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             algorithm_mode=algorithm_mode,
             rows=chart_rows,
             subject_chart_uid=subject_chart_uid,
+            collection_scope_signature=scope_cache_signature,
         )
         cached_payload = self._get_cached_similar_charts_popout_payload(cache_key)
         cached_row_signatures = {
@@ -27785,6 +27864,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 configure_splitter=configure_splitter_handle_resize_cursor,
                 on_analysis_mode_changed=self._on_similar_chart_popout_analysis_mode_changed,
                 on_make_collection_clicked=self._on_similar_chart_popout_make_collection_clicked,
+                collection_options=self._similar_chart_collection_options(),
+                selected_collection_id=collection_id,
+                on_collection_changed=self._on_similar_chart_popout_collection_changed,
                 on_export_clicked=self._export_similar_charts_popout_share,
                 share_icon_path=_get_share_icon_path(),
                 show_perceived_accuracy_controls=show_perceived_accuracy_controls,
@@ -27802,6 +27884,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             dialog._similar_chart_popout_subject_name = subject_name
             dialog._similar_chart_popout_subject_chart = chart
             dialog._similar_chart_popout_subject_chart_id = subject_chart_id
+            dialog._similar_chart_popout_collection_id = collection_id
             dialog._similar_chart_popout_reasoning_by_target = popout_reasoning_by_target
             dialog._similar_chart_popout_most_similar_matches = list(most_similar_matches)
             dialog._similar_chart_popout_least_similar_matches = list(least_similar_matches)
@@ -27820,6 +27903,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             dialog.show()
             keep_similar_charts_popout_foreground_until_outside_click(dialog)
             update_similar_charts_loading_progress(progress, "Long lost astro twins found.", 100)
+            return dialog
         except OperationCanceled:
             return
         finally:

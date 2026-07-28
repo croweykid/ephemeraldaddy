@@ -3291,6 +3291,9 @@ def build_similar_charts_popout_dialog(
     configure_splitter: Callable[[QSplitter], None] | None = None,
     on_analysis_mode_changed: Callable[[QDialog], None] | None = None,
     on_make_collection_clicked: Callable[[QDialog], None] | None = None,
+    collection_options: list[tuple[str, str]] | None = None,
+    selected_collection_id: str = "all",
+    on_collection_changed: Callable[[QDialog, str], None] | None = None,
     on_export_clicked: Callable[[QDialog], None] | None = None,
     share_icon_path: str | None = None,
     show_perceived_accuracy_controls: bool = False,
@@ -3300,6 +3303,10 @@ def build_similar_charts_popout_dialog(
     on_chart_info_target_requested: Callable[[QDialog, str], None] | None = None,
 ) -> QDialog:
     dialog = QDialog(parent)
+    # Collection changes replace this non-modal window. Delete on close so the
+    # old widgets and complete ranking payload do not remain parent-owned and
+    # retained for the rest of the application session.
+    dialog.setAttribute(Qt.WA_DeleteOnClose, True)
     dialog.setWindowTitle(f"Astro Twins — {subject_name}")
     dialog.setModal(False)
     dialog.resize(860, 700)
@@ -3323,12 +3330,6 @@ def build_similar_charts_popout_dialog(
         subject_chart_link.setCursor(Qt.ArrowCursor)
     top_row.addWidget(subject_chart_link, 0, Qt.AlignLeft)
     top_row.addStretch(1)
-    make_collection_button = QPushButton("make collection") #make collection from these similar charts
-    apply_button_cursor(make_collection_button)
-    make_collection_button.setVisible(on_make_collection_clicked is not None)
-    if on_make_collection_clicked is not None:
-        make_collection_button.clicked.connect(lambda _checked=False: on_make_collection_clicked(dialog))
-    top_row.addWidget(make_collection_button, 0, Qt.AlignRight)
     perceived_accuracy_tally_label = QLabel(format_perceived_similarity_accuracy_tally(None))
     perceived_accuracy_tally_label.setStyleSheet("font-size: 10px; color: #f5f5f5; padding: 0 6px;")
     perceived_accuracy_tally_label.setVisible(bool(show_perceived_accuracy_controls))
@@ -3336,6 +3337,25 @@ def build_similar_charts_popout_dialog(
         "Perceived accuracy tally: enter perceived compatibility scores; n/a rows are excluded."
     )
     top_row.addWidget(perceived_accuracy_tally_label, 0, Qt.AlignRight)
+    collection_dropdown = QComboBox()
+    collection_dropdown.setStyleSheet(DEFAULT_DROPDOWN_STYLE)
+    collection_dropdown.setToolTip("Limit Astro Twin results to charts in this collection.")
+    for collection_label, collection_id in collection_options or [("All collections", "all")]:
+        collection_dropdown.addItem(str(collection_label), str(collection_id))
+    selected_index = collection_dropdown.findData(str(selected_collection_id or "all"))
+    collection_dropdown.setCurrentIndex(max(0, selected_index))
+    collection_dropdown.setVisible(on_collection_changed is not None)
+    if on_collection_changed is not None:
+        collection_dropdown.currentIndexChanged.connect(
+            lambda _index: on_collection_changed(dialog, str(collection_dropdown.currentData() or "all"))
+        )
+    top_row.addWidget(collection_dropdown, 0, Qt.AlignRight)
+    make_collection_button = QPushButton("make collection") #make collection from these similar charts
+    apply_button_cursor(make_collection_button)
+    make_collection_button.setVisible(on_make_collection_clicked is not None)
+    if on_make_collection_clicked is not None:
+        make_collection_button.clicked.connect(lambda _checked=False: on_make_collection_clicked(dialog))
+    top_row.addWidget(make_collection_button, 0, Qt.AlignRight)
     export_button = QToolButton()
     if share_icon_path:
         export_button.setIcon(QIcon(share_icon_path))
@@ -3417,6 +3437,7 @@ def build_similar_charts_popout_dialog(
     dialog._similar_chart_popout_info_output = info_output
     dialog._similar_chart_popout_chart_info_output = chart_info_output
     dialog._similar_chart_popout_make_collection_button = make_collection_button
+    dialog._similar_chart_popout_collection_dropdown = collection_dropdown
     dialog._similar_chart_popout_perceived_accuracy_tally_label = perceived_accuracy_tally_label
     dialog._similar_chart_popout_export_button = export_button
     dialog._similar_chart_popout_subject_link = subject_chart_link
