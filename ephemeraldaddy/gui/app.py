@@ -26622,8 +26622,10 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
 
     def _similar_chart_collection_options(self) -> list[tuple[str, str]]:
         """Return stable default and user-created collection choices for the popout."""
-        if not hasattr(self, "_custom_collections") or not isinstance(self._custom_collections, dict):
-            self._custom_collections = self._load_custom_collections_from_settings()
+        # The Database View manager owns a separate in-memory collection map.
+        # Reload its persisted edits so names and memberships never go stale in
+        # a later Similar Charts popout opened during the same session.
+        self._custom_collections = self._load_custom_collections_from_settings()
         return collection_filter_options(self._custom_collections)
 
     def _on_similar_chart_popout_collection_changed(self, dialog: QDialog, collection_id: str) -> None:
@@ -27422,8 +27424,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         chart_rows = self._similar_charts_visible_candidate_rows(chart_rows)
         collection_id = normalize_collection_id(collection_id)
         if collection_id != DEFAULT_COLLECTION_ALL:
-            if not hasattr(self, "_custom_collections") or not isinstance(self._custom_collections, dict):
-                self._custom_collections = self._load_custom_collections_from_settings()
+            # Collection membership may have been edited in Manage Charts since
+            # the preceding popout was rendered.
+            self._custom_collections = self._load_custom_collections_from_settings()
             collection_row_ids = [int(row[0]) for row in chart_rows]
             collection_uids_by_id = get_chart_uid_map(collection_row_ids)
             collection_charts_by_id = load_charts(collection_row_ids)

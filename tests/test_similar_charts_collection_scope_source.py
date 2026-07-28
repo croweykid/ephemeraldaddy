@@ -2,6 +2,7 @@ from pathlib import Path
 
 
 APP_SOURCE = Path("ephemeraldaddy/gui/app.py").read_text()
+POPOUT_SOURCE = Path("ephemeraldaddy/gui/features/charts/similar_charts_popout.py").read_text()
 
 
 def _show_popout_source() -> str:
@@ -37,3 +38,28 @@ def test_collection_scope_is_not_a_post_ranking_slice():
     first_scoring_position = source.index("most_similar_matches = find_astro_twins(")
 
     assert "allowed_collection_uids" not in source[first_scoring_position:]
+
+
+def test_custom_collection_membership_is_reloaded_before_scoping_candidates():
+    source = _show_popout_source()
+    reload_position = source.index(
+        "self._custom_collections = self._load_custom_collections_from_settings()"
+    )
+    membership_position = source.index("allowed_collection_uids = chart_uids_in_collection(")
+
+    assert reload_position < membership_position
+
+
+def test_collection_selector_options_reload_manage_charts_edits():
+    method = APP_SOURCE.split("    def _similar_chart_collection_options(", 1)[1].split(
+        "    def _on_similar_chart_popout_collection_changed", 1
+    )[0]
+
+    assert "if not hasattr" not in method
+    assert "self._custom_collections = self._load_custom_collections_from_settings()" in method
+
+
+def test_replaced_popout_is_destroyed_when_collection_change_closes_it():
+    builder = POPOUT_SOURCE.split("def build_similar_charts_popout_dialog(", 1)[1]
+
+    assert "dialog.setAttribute(Qt.WA_DeleteOnClose, True)" in builder

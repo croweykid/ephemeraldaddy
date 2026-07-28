@@ -3303,6 +3303,10 @@ def build_similar_charts_popout_dialog(
     on_chart_info_target_requested: Callable[[QDialog, str], None] | None = None,
 ) -> QDialog:
     dialog = QDialog(parent)
+    # Collection changes replace this non-modal window. Delete on close so the
+    # old widgets and complete ranking payload do not remain parent-owned and
+    # retained for the rest of the application session.
+    dialog.setAttribute(Qt.WA_DeleteOnClose, True)
     dialog.setWindowTitle(f"Astro Twins — {subject_name}")
     dialog.setModal(False)
     dialog.resize(860, 700)
