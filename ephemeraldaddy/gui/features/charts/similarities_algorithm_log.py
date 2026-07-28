@@ -31,22 +31,87 @@ def resolve_similarities_algorithm_log_path(path: str | os.PathLike[str] | None 
     return Path.home() / ".ephemeraldaddy" / SIMILARITIES_ALGORITHM_LOG_FILENAME
 
 
+def _accuracy_pair_key(payload: Mapping[str, Any]) -> str | None:
+    uids = payload.get("chart_uids")
+    if isinstance(uids, list) and len(uids) >= 2 and all(str(uid or "").strip() for uid in uids[:2]):
+        return "|".join(f"uid:{uid}" for uid in sorted(str(uid).strip().upper() for uid in uids[:2]))
+    pair = payload.get("chart_1_compared_with_chart_2")
+    if isinstance(pair, Mapping):
+        ids = []
+        for name in ("chart_1", "chart_2"):
+            chart = pair.get(name)
+            if not isinstance(chart, Mapping):
+                return None
+            try:
+                ids.append(int(chart.get("id")))
+            except (TypeError, ValueError):
+                return None
+        return "|".join(f"id:{chart_id}" for chart_id in sorted(ids))
+    return None
+
+
+def _current_relationship_scores(
+    relationship_path: str | os.PathLike[str] | None,
+) -> dict[str, float | None]:
+    from ephemeraldaddy.gui.features.charts.chart_similarity_relationships import (
+        resolve_chart_similarity_relationships_path,
+    )
+
+    try:
+        payload = json.loads(
+            resolve_chart_similarity_relationships_path(relationship_path).read_text(encoding="utf-8")
+        )
+    except (OSError, json.JSONDecodeError):
+        return {}
+    relationships = payload.get("relationships", {}) if isinstance(payload, Mapping) else {}
+    scores: dict[str, float | None] = {}
+    if not isinstance(relationships, Mapping):
+        return scores
+    for record in relationships.values():
+        if not isinstance(record, Mapping):
+            continue
+        pair_keys: list[str] = []
+        uids = record.get("chart_uids")
+        if isinstance(uids, list) and len(uids) >= 2 and all(str(uid or "").strip() for uid in uids[:2]):
+            pair_keys.append("|".join(f"uid:{uid}" for uid in sorted(str(uid).strip().upper() for uid in uids[:2])))
+        ids = record.get("chart_ids")
+        if isinstance(ids, list) and len(ids) >= 2:
+            try:
+                pair_keys.append("|".join(f"id:{chart_id}" for chart_id in sorted(int(value) for value in ids[:2])))
+            except (TypeError, ValueError):
+                pass
+        try:
+            score = None if bool(record.get("not_applicable", False)) else float(record.get("user_reported_accuracy"))
+        except (TypeError, ValueError):
+            score = None
+        for pair_key in pair_keys:
+            scores[pair_key] = score if score is None or 0.0 <= score <= 100.0 else None
+    return scores
+
+
 def aggregate_similarity_algorithm_accuracy(
     path: str | os.PathLike[str] | None = None,
+    *,
+    relationship_path: str | os.PathLike[str] | None = None,
 ) -> list[dict[str, Any]]:
-    """Rank algorithms from perceived-accuracy payloads in the algorithm log."""
+    """Rank algorithms while retrofitting legacy log and relationship data in memory."""
     log_path = resolve_similarities_algorithm_log_path(path)
     try:
         content = log_path.read_text(encoding="utf-8")
     except OSError:
         return []
-    totals: dict[str, list[float]] = {}
+    relationship_scores = _current_relationship_scores(relationship_path)
+    observations: dict[tuple[str, str], float | None] = {}
     decoder = json.JSONDecoder()
     cursor = 0
+    active_mode: str | None = None
     while True:
         marker_index = content.find(_ACCURACY_PAYLOAD_MARKER, cursor)
         if marker_index < 0:
             break
+        mode_lines = re.findall(r"^Algorithm mode:\s*(\S.*?)\s*$", content[cursor:marker_index], re.MULTILINE)
+        if mode_lines:
+            active_mode = normalize_similar_charts_algorithm_mode(mode_lines[-1])
         payload_start = marker_index + len(_ACCURACY_PAYLOAD_MARKER)
         try:
             payload, end_offset = decoder.raw_decode(content[payload_start:])
@@ -54,19 +119,33 @@ def aggregate_similarity_algorithm_accuracy(
             cursor = payload_start
             continue
         cursor = payload_start + end_offset
-        if not isinstance(payload, Mapping) or bool(payload.get("not_applicable", False)):
+        if not isinstance(payload, Mapping):
             continue
-        try:
-            perceived = float(payload.get("user_reported_accuracy"))
-        except (TypeError, ValueError):
-            continue
-        if not 0.0 <= perceived <= 100.0:
-            continue
-        raw_mode = payload.get("algorithm_mode")
+        not_applicable = bool(payload.get("not_applicable", False))
+        if not_applicable:
+            perceived: float | None = None
+        else:
+            try:
+                perceived = float(payload.get("user_reported_accuracy"))
+            except (TypeError, ValueError):
+                continue
+            if not 0.0 <= perceived <= 100.0:
+                continue
+        raw_mode = payload.get("algorithm_mode") or payload.get("ranking_algorithm") or active_mode
         if not str(raw_mode or "").strip():
             continue
         mode = normalize_similar_charts_algorithm_mode(raw_mode)
-        totals.setdefault(mode, []).append(perceived)
+        pair_key = _accuracy_pair_key(payload)
+        if pair_key and pair_key in relationship_scores:
+            perceived = relationship_scores[pair_key]
+        observation_key = pair_key or f"legacy-offset:{marker_index}"
+        observations[(mode, observation_key)] = (
+            None if not_applicable else perceived
+        )
+    totals: dict[str, list[float]] = {}
+    for (mode, _pair_key), perceived in observations.items():
+        if perceived is not None:
+            totals.setdefault(mode, []).append(perceived)
     ranked = [
         {"algorithm_mode": mode, "average_accuracy": sum(scores) / len(scores), "sample_count": len(scores)}
         for mode, scores in totals.items()
