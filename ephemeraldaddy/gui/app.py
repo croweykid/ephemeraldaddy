@@ -572,7 +572,6 @@ from ephemeraldaddy.gui.dev_tools import (
     add_distinguishing_factors_scoring_debug_setting,
     add_enneagram_predictions_debug_setting,
     add_predictions_thread_debug_setting,
-    add_similarity_perceived_accuracy_controls_setting,
     build_similarity_calculator_settings_section,
     build_predictions_settings_section,
     load_batch_tagging_terminal_debug_enabled,
@@ -21993,20 +21992,6 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             on_toggled=self._on_distinguishing_factors_scoring_debug_toggled,
         )
 
-        self._similarity_perceived_accuracy_controls_checkbox = (
-            add_similarity_perceived_accuracy_controls_setting(
-                section_layout=dev_tools_section,
-                is_enabled=bool(
-                    getattr(
-                        self,
-                        "_similarity_perceived_accuracy_controls_enabled",
-                        SIMILARITY_PERCEIVED_ACCURACY_CONTROLS_DEFAULT,
-                    )
-                ),
-                on_toggled=self._on_similarity_perceived_accuracy_controls_toggled,
-            )
-        )
-
         refresh_similar_charts_cache_button = QPushButton("Refresh Similar Charts cache")
         refresh_similar_charts_cache_button.setToolTip(
             "Clears cached Similar Charts popout rankings, including developer perceived-accuracy "
@@ -22051,8 +22036,20 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             on_calibrate_clicked=self._calibrate_similarity_norms,
             on_save_thresholds_clicked=self._save_similarity_threshold_overrides,
             on_reset_thresholds_clicked=self._reset_similarity_threshold_defaults,
+            perceived_accuracy_controls_enabled=bool(
+                getattr(
+                    self,
+                    "_similarity_perceived_accuracy_controls_enabled",
+                    SIMILARITY_PERCEIVED_ACCURACY_CONTROLS_DEFAULT,
+                )
+            ),
+            on_perceived_accuracy_controls_toggled=self._on_similarity_perceived_accuracy_controls_toggled,
+            on_show_high_similarity_clicked=self._show_high_similarity_chart_pairs,
             threshold_rows=SIMILARITY_THRESHOLD_EDITOR_ROWS,
         )
+        self._similarity_perceived_accuracy_controls_checkbox = similarity_controls[
+            "perceived_accuracy_checkbox"
+        ]
         self._similar_charts_algo_default_radio = similarity_controls["default_radio"]
         self._similar_charts_algo_generic_astro_radio = similarity_controls["generic_astro_radio"]
         self._similar_charts_algo_comprehensive_radio = similarity_controls["comprehensive_radio"]
@@ -22072,14 +22069,6 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._set_similar_charts_algorithm_mode(self._similar_charts_algorithm_mode)
         self._load_similarity_calculator_controls()
         self._load_similarity_thresholds_into_controls()
-
-        show_high_similarity_button = QPushButton("Show 90-100% similarities")
-        show_high_similarity_button.setToolTip(
-            "Calculate database-wide Astro Twin scores with the current calculator mode and list chart pairs "
-            "whose similarity is between 90% and 100%. Each listed chart name opens in Chart View."
-        )
-        show_high_similarity_button.clicked.connect(self._show_high_similarity_chart_pairs)
-        similarity_calculator_section.addWidget(show_high_similarity_button, alignment=Qt.AlignLeft)
 
         enneagram_section = self._add_settings_collapsible_section(content_layout, "Predictions")
         enneagram_controls = build_predictions_settings_section(
