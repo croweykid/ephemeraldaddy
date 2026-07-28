@@ -57,9 +57,16 @@ class CustomCollection:
 def collection_filter_options(
     custom_collections: dict[str, CustomCollection] | None = None,
 ) -> list[tuple[str, str]]:
-    """Build the collection selector choices, with custom names sorted for scanning."""
+    """Build usable Similar Charts scopes, with custom names sorted for scanning."""
     options = [("All collections", DEFAULT_COLLECTION_ALL)]
-    options.extend(DEFAULT_COLLECTION_OPTIONS[1:])
+    # The Similar Charts candidate pipeline intentionally excludes hypothetical
+    # rows as non-aggregable, so exposing that default scope would guarantee an
+    # empty result. Keep the collection available elsewhere in the application.
+    options.extend(
+        (label, collection_id)
+        for label, collection_id in DEFAULT_COLLECTION_OPTIONS[1:]
+        if collection_id != DEFAULT_COLLECTION_HYPOTHETICAL
+    )
     options.extend(
         (collection.name, collection.collection_id)
         for collection in sorted(

@@ -85,6 +85,7 @@ def test_collection_filter_options_put_all_first_and_sort_custom_names():
     options = collection_filter_options(custom)
 
     assert options[0] == ("All collections", "all")
+    assert ("Hypothetical", DEFAULT_COLLECTION_HYPOTHETICAL) not in options
     assert options[-2:] == [("Celebrities", "celebs"), ("Friends", "friends")]
 
 
