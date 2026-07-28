@@ -345,9 +345,6 @@ def save_chart_similarity_relationship(
     chart_2_uid: str | None = None,
     user_reported_accuracy: int | None = None,
     not_applicable: bool,
-    algorithm_mode: str | None = None,
-    predicted_percent: float | None = None,
-    ranking_position: int | None = None,
     path: str | os.PathLike[str] | None = None,
     timestamp: _datetime.datetime | None = None,
 ) -> Path:
@@ -387,24 +384,6 @@ def save_chart_similarity_relationship(
     timestamp_text = _utc_timestamp(timestamp)
     user_knows_similarity = bool(score is not None and not not_applicable)
 
-    previous_record = relationships.get(key, {})
-    previous_observations = (
-        previous_record.get("algorithm_observations", {})
-        if isinstance(previous_record, Mapping)
-        else {}
-    )
-    algorithm_observations = (
-        dict(previous_observations) if isinstance(previous_observations, Mapping) else {}
-    )
-    normalized_algorithm_mode = str(algorithm_mode or "").strip().lower().replace(" ", "_")
-    if normalized_algorithm_mode and predicted_percent is not None:
-        predicted_value = max(0.0, min(100.0, float(predicted_percent)))
-        algorithm_observations[normalized_algorithm_mode] = {
-            "predicted_percent": predicted_value,
-            "ranking_position": int(ranking_position) if ranking_position is not None else None,
-            "recorded_at_utc": timestamp_text,
-        }
-
     record = {
         "relationship_key": key,
         "chart_uids": [first_uid, second_uid] if first_uid and second_uid else [],
@@ -413,7 +392,6 @@ def save_chart_similarity_relationship(
         "user_perceived_similarity_score": score,
         "user_reported_accuracy": score,
         "not_applicable": bool(not_applicable),
-        "algorithm_observations": algorithm_observations,
         "updated_at_utc": timestamp_text,
     }
     relationships[key] = record

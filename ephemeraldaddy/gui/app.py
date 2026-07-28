@@ -640,6 +640,7 @@ from ephemeraldaddy.gui.features.charts.personal_transit_popout import (
     resolve_personal_transit_location,
 )
 from ephemeraldaddy.gui.features.charts.similarities_algorithm_log import (
+    append_similarity_accuracy_observation,
     append_similarity_algorithm_change_log,
     build_similarity_algorithm_snapshot,
     similarity_algorithm_snapshots_changed,
@@ -26532,8 +26533,14 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 chart_2_uid=chart_uid_map.get(compared_chart_id) if compared_chart_id is not None else None,
                 user_reported_accuracy=score,
                 not_applicable=not_applicable,
+            )
+            append_similarity_accuracy_observation(
                 algorithm_mode=getattr(match, "algorithm_mode", None),
                 predicted_percent=float(getattr(match, "score", 0.0)) * 100.0,
+                user_reported_accuracy=score,
+                not_applicable=not_applicable,
+                chart_1_uid=chart_uid_map.get(subject_chart_id),
+                chart_2_uid=chart_uid_map.get(compared_chart_id),
                 ranking_position=getattr(match, "rank", None),
             )
         except Exception:

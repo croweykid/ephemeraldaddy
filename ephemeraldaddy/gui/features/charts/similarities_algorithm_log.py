@@ -18,6 +18,7 @@ from ephemeraldaddy.analysis.get_astro_twin import (
 SIMILARITIES_ALGORITHM_LOG_PATH_ENV = "EPHEMERALDADDY_SIMILARITIES_ALGORITHM_LOG_PATH"
 SIMILARITIES_ALGORITHM_LOG_FILENAME = "similarities_algorithm_log.txt"
 _LOG_ENTRY_HEADER_RE = re.compile(r"^=== Similarities Algorithm Change #\d+ ===$", re.MULTILINE)
+_ACCURACY_PAYLOAD_MARKER = "Perceived accuracy payload:\n"
 
 
 def resolve_similarities_algorithm_log_path(path: str | os.PathLike[str] | None = None) -> Path:
@@ -31,55 +32,81 @@ def resolve_similarities_algorithm_log_path(path: str | os.PathLike[str] | None 
 
 
 def aggregate_similarity_algorithm_accuracy(
-    relationship_path: str | os.PathLike[str] | None = None,
+    path: str | os.PathLike[str] | None = None,
 ) -> list[dict[str, Any]]:
-    """Rank algorithms by mean predicted-vs-perceived accuracy.
-
-    An observation is the score an algorithm assigned to a chart pair when the
-    user recorded their perceived score.  Keeping observations on the pair
-    record avoids recalculating historical rankings after settings change.
-    """
-    from ephemeraldaddy.gui.features.charts.chart_similarity_relationships import (
-        resolve_chart_similarity_relationships_path,
-    )
-
-    path = resolve_chart_similarity_relationships_path(relationship_path)
+    """Rank algorithms from perceived-accuracy payloads in the algorithm log."""
+    log_path = resolve_similarities_algorithm_log_path(path)
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+        content = log_path.read_text(encoding="utf-8")
+    except OSError:
         return []
-    relationships = payload.get("relationships", {}) if isinstance(payload, Mapping) else {}
     totals: dict[str, list[float]] = {}
-    if not isinstance(relationships, Mapping):
-        return []
-    for relationship in relationships.values():
-        if not isinstance(relationship, Mapping) or bool(relationship.get("not_applicable", False)):
+    decoder = json.JSONDecoder()
+    cursor = 0
+    while True:
+        marker_index = content.find(_ACCURACY_PAYLOAD_MARKER, cursor)
+        if marker_index < 0:
+            break
+        payload_start = marker_index + len(_ACCURACY_PAYLOAD_MARKER)
+        try:
+            payload, end_offset = decoder.raw_decode(content[payload_start:])
+        except json.JSONDecodeError:
+            cursor = payload_start
+            continue
+        cursor = payload_start + end_offset
+        if not isinstance(payload, Mapping) or bool(payload.get("not_applicable", False)):
             continue
         try:
-            perceived = float(relationship.get("user_reported_accuracy"))
+            perceived = float(payload.get("user_reported_accuracy"))
         except (TypeError, ValueError):
             continue
         if not 0.0 <= perceived <= 100.0:
             continue
-        observations = relationship.get("algorithm_observations", {})
-        if not isinstance(observations, Mapping):
+        raw_mode = payload.get("algorithm_mode")
+        if not str(raw_mode or "").strip():
             continue
-        for raw_mode, observation in observations.items():
-            if not isinstance(observation, Mapping):
-                continue
-            try:
-                predicted = float(observation.get("predicted_percent"))
-            except (TypeError, ValueError):
-                continue
-            if not 0.0 <= predicted <= 100.0:
-                continue
-            mode = normalize_similar_charts_algorithm_mode(raw_mode)
-            totals.setdefault(mode, []).append(max(0.0, 100.0 - abs(predicted - perceived)))
+        mode = normalize_similar_charts_algorithm_mode(raw_mode)
+        totals.setdefault(mode, []).append(perceived)
     ranked = [
         {"algorithm_mode": mode, "average_accuracy": sum(scores) / len(scores), "sample_count": len(scores)}
         for mode, scores in totals.items()
     ]
     return sorted(ranked, key=lambda row: (-row["average_accuracy"], -row["sample_count"], row["algorithm_mode"]))
+
+
+def append_similarity_accuracy_observation(
+    *,
+    algorithm_mode: object,
+    predicted_percent: float,
+    user_reported_accuracy: int | None,
+    not_applicable: bool,
+    chart_1_uid: str | None,
+    chart_2_uid: str | None,
+    ranking_position: int | None = None,
+    path: str | os.PathLike[str] | None = None,
+    timestamp: _datetime.datetime | None = None,
+) -> Path:
+    """Append one algorithm-linked perceived-accuracy result to the existing log."""
+    log_path = resolve_similarities_algorithm_log_path(path)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    timestamp = timestamp or _datetime.datetime.now(_datetime.timezone.utc)
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=_datetime.timezone.utc)
+    payload = {
+        "timestamp_utc": timestamp.astimezone(_datetime.timezone.utc).isoformat(timespec="seconds"),
+        "chart_uids": [str(chart_1_uid or ""), str(chart_2_uid or "")],
+        "algorithm_mode": normalize_similar_charts_algorithm_mode(algorithm_mode),
+        "predicted_percent": max(0.0, min(100.0, float(predicted_percent))),
+        "ranking_position": int(ranking_position) if ranking_position is not None else None,
+        "user_reported_accuracy": user_reported_accuracy,
+        "not_applicable": bool(not_applicable),
+    }
+    with log_path.open("a", encoding="utf-8") as handle:
+        handle.write("=== Similarity Perceived Accuracy ===\n")
+        handle.write(_ACCURACY_PAYLOAD_MARKER)
+        handle.write(json.dumps(payload, indent=2, sort_keys=True))
+        handle.write("\n\n")
+    return log_path
 
 
 def format_similarity_algorithm_accuracy_ranking(
