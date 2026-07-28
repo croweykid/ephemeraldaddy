@@ -890,6 +890,7 @@ from ephemeraldaddy.gui.features.charts.collections import (
     chart_uids_in_collection,
     chart_belongs_to_collection,
     collection_filter_options,
+    collection_scope_cache_signature,
     normalize_collection_id,
     sanitize_collection_name,
 )
@@ -26187,6 +26188,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         algorithm_mode: str,
         rows: list[tuple[Any, ...]],
         subject_chart_uid: str | None = None,
+        collection_scope_signature: str = DEFAULT_COLLECTION_ALL,
     ) -> tuple[str, str, str, str]:
         # Do not include the whole database signature in the lookup key. The
         # payload stores per-chart row signatures and incrementally refreshes only
@@ -26199,7 +26201,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             ),
             "incremental-db-v1",
             self._similar_charts_popout_settings_signature(algorithm_mode),
-            "top-bottom-all-v3",
+            f"top-bottom-scope-v4:{collection_scope_signature}",
         )
 
     def _get_cached_similar_charts_popout_payload(
@@ -27498,6 +27500,10 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             include_gender=self._similar_charts_demographic_match_enabled(),
         )
         chart_names_by_id = self._similar_charts_popout_chart_names_by_id(chart_rows)
+        scope_cache_signature = collection_scope_cache_signature(
+            collection_id,
+            row_signatures.keys(),
+        )
         candidates: list[tuple[int, Chart]] | None = None
         cache_key = self._similar_charts_popout_cache_key(
             chart=chart,
@@ -27505,6 +27511,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             algorithm_mode=algorithm_mode,
             rows=chart_rows,
             subject_chart_uid=subject_chart_uid,
+            collection_scope_signature=scope_cache_signature,
         )
         cached_payload = self._get_cached_similar_charts_popout_payload(cache_key)
         cached_row_signatures = {

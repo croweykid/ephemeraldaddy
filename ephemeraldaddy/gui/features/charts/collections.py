@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
+from typing import Iterable
 
 from ephemeraldaddy.core.chart import Chart
 from ephemeraldaddy.gui.features.charts.provenance import (
@@ -85,6 +87,25 @@ def chart_uids_in_collection(
             chart_uid=chart_uid,
         )
     }
+
+
+def collection_scope_cache_signature(
+    collection_id: str,
+    chart_uids: Iterable[object],
+) -> str:
+    """Identify a scoped candidate population using stable Chart UIDs only."""
+    normalized_id = normalize_collection_id(collection_id)
+    if normalized_id == DEFAULT_COLLECTION_ALL:
+        return DEFAULT_COLLECTION_ALL
+    normalized_uids = sorted(
+        {
+            str(chart_uid or "").strip().upper()
+            for chart_uid in chart_uids
+            if str(chart_uid or "").strip()
+        }
+    )
+    membership_digest = hashlib.sha256("\n".join(normalized_uids).encode("utf-8")).hexdigest()
+    return f"{normalized_id}:{membership_digest}"
 
 
 def sanitize_collection_name(name: object, *, fallback: str = "Untitled Collection") -> str:

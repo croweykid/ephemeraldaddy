@@ -86,3 +86,16 @@ def test_collection_membership_loading_uses_normal_individual_fallback():
 
     assert "load_chart_by_id=load_chart" in membership_loader
     assert "load_charts_by_ids=load_charts" in membership_loader
+
+
+def test_collection_scope_is_part_of_ranking_cache_identity():
+    source = _show_popout_source()
+    signature_position = source.index("scope_cache_signature = collection_scope_cache_signature(")
+    key_position = source.index("cache_key = self._similar_charts_popout_cache_key(")
+
+    assert signature_position < key_position
+    assert "collection_scope_signature=scope_cache_signature" in source[key_position:]
+    cache_key_method = APP_SOURCE.split("    def _similar_charts_popout_cache_key(", 1)[1].split(
+        "    def _get_cached_similar_charts_popout_payload", 1
+    )[0]
+    assert "top-bottom-scope-v4:{collection_scope_signature}" in cache_key_method

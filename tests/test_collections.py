@@ -8,6 +8,7 @@ from ephemeraldaddy.gui.features.charts.collections import (
     chart_uids_in_collection,
     chart_belongs_to_collection,
     collection_filter_options,
+    collection_scope_cache_signature,
 )
 from ephemeraldaddy.gui.features.charts.selection_header import (
     SelectionSummaryCounts,
@@ -99,3 +100,12 @@ def test_chart_uids_in_collection_uses_stable_uid_membership():
     assert chart_uids_in_collection(
         "friends", charts_by_uid=charts, custom_collections={"friends": collection}
     ) == {"FRIEND-UID"}
+
+
+def test_collection_scope_cache_signature_uses_collection_and_stable_uids():
+    first = collection_scope_cache_signature("friends", ["uid-b", "uid-a"])
+
+    assert first == collection_scope_cache_signature("friends", ["UID-A", "UID-B"])
+    assert first != collection_scope_cache_signature("celebrities", ["UID-A", "UID-B"])
+    assert first != collection_scope_cache_signature("friends", ["UID-A"])
+    assert collection_scope_cache_signature("all", ["UID-A"]) == "all"
