@@ -104,7 +104,7 @@ def test_human_design_circuit_compatibility_module_reexports_canonical_data() ->
         for alias in node.names
     }
     assert (
-        "ephemeraldaddy.analysis.human_design_circuits",
+        "ephemeraldaddy.analysis.human_design_reference",
         "HD_CIRCUIT_GROUPS",
     ) in imports
     assert not any(
@@ -115,13 +115,42 @@ def test_human_design_circuit_compatibility_module_reexports_canonical_data() ->
         )
         for node in tree.body
     )
+    canonical_tree = _module("ephemeraldaddy/analysis/human_design_reference.py")
+    canonical_assignments = {
+        node.target.id
+        for node in canonical_tree.body
+        if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name)
+    }
+    assert {
+        "HD_CIRCUIT_GROUPS",
+        "HD_ALL_CHANNELS",
+        "HD_ALL_GATES",
+        "HD_SUBCIRCUIT_INDEX",
+        "HD_CHANNEL_TO_CIRCUIT",
+    } <= canonical_assignments
+    assert not (REPO_ROOT / "ephemeraldaddy/analysis/human_design_circuits.py").exists()
+
+
+def test_core_human_design_channel_topology_comes_from_reference() -> None:
+    tree = _module("ephemeraldaddy/core/hd.py")
+    imports = {
+        (node.module, alias.name, alias.asname)
+        for node in tree.body
+        if isinstance(node, ast.ImportFrom)
+        for alias in node.names
+    }
+    assert (
+        "ephemeraldaddy.analysis.human_design_reference",
+        "HD_CHANNELS",
+        "HD_CHANNEL_REFERENCE",
+    ) in imports
 
 
 def test_human_design_circuit_reference_is_gui_independent() -> None:
     import sys
 
     sys.modules.pop("ephemeraldaddy.analysis.hd_circuits_reference", None)
-    sys.modules.pop("ephemeraldaddy.analysis.human_design_circuits", None)
+    sys.modules.pop("ephemeraldaddy.analysis.human_design_reference", None)
     before = set(sys.modules)
 
     from ephemeraldaddy.analysis import hd_circuits_reference

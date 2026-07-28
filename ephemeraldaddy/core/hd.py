@@ -4,20 +4,22 @@ from __future__ import annotations
 
 from typing import Iterable
 
+from ephemeraldaddy.analysis.human_design_reference import HD_CHANNELS as HD_CHANNEL_REFERENCE
+
 TOTAL_DEGREES = 360.0
 NUM_GATES = 64
 GATE_SIZE = TOTAL_DEGREES / NUM_GATES  # 5.625 degrees per gate
 LINES_PER_GATE = 6
 LINE_SIZE = GATE_SIZE / LINES_PER_GATE  # 0.9375 degrees per line
 
-# Canonical Human Design channels as gate pairs.
-HD_CHANNELS: tuple[tuple[int, int], ...] = (
-    (1, 8), (2, 14), (3, 60), (4, 63), (5, 15), (6, 59),
-    (7, 31), (9, 52), (10, 20), (10, 34), (10, 57), (11, 56),
-    (12, 22), (13, 33), (16, 48), (17, 62), (18, 58), (19, 49),
-    (20, 34), (20, 57), (21, 45), (23, 43), (24, 61), (25, 51),
-    (26, 44), (27, 50), (28, 38), (29, 46), (30, 41), (32, 54),
-    (34, 57), (35, 36), (37, 40), (39, 55), (42, 53), (47, 64),
+# Compact topology is derived from the metadata-rich canonical reference.
+HD_CHANNELS: tuple[tuple[int, int], ...] = tuple(
+    sorted(
+        {
+            tuple(sorted(channel["gates"]))
+            for channel in HD_CHANNEL_REFERENCE.values()
+        }
+    )
 )
 
 
