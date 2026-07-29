@@ -919,7 +919,9 @@ def build_similarity_calculator_settings_section(
     def save_current_custom_preset() -> None:
         preset_name = str(preset_state.get("name") or "")
         update_current = False
-        if bool(preset_state["preset_in_use"]) and preset_name:
+        # Keep the loaded preset identity even after its controls become dirty,
+        # so edited presets can still update their source record.
+        if preset_name:
             choice_dialog = QMessageBox(dialog)
             choice_dialog.setWindowTitle("Save as Preset")
             choice_dialog.setText("Do you want to update the current preset or save this as new preset?")

@@ -73,3 +73,8 @@ def test_saving_loaded_preset_offers_exact_update_or_new_choices():
     assert 'choice_dialog.addButton(f"Update \'{preset_name}\'", QMessageBox.AcceptRole)' in SECTION
     assert 'choice_dialog.addButton("Save as new", QMessageBox.ActionRole)' in SECTION
     assert "update_custom_astro_twin_preset(preset_name, current_custom_settings())" in SECTION
+    save_handler = SECTION.split("def save_current_custom_preset", 1)[1].split(
+        "save_custom_preset_button.clicked.connect", 1
+    )[0]
+    assert "if preset_name:" in save_handler
+    assert 'if bool(preset_state["preset_in_use"]) and preset_name:' not in save_handler

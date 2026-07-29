@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from ephemeraldaddy.analysis.get_astro_twin import (
+    SIMILARITY_COMPONENT_KEYS,
     SimilarityCalculatorSettings,
     normalize_similar_charts_algorithm_mode,
 )
@@ -325,21 +326,17 @@ def build_similarity_algorithm_snapshot(
 ) -> dict[str, Any]:
     """Build a stable, comparable snapshot of Similar Charts scoring settings."""
     payload = _settings_payload(settings)
-    enabled_components: dict[str, bool] = {}
-    weights_by_component: dict[str, float] = {}
-    for key, value in payload.items():
-        if key.startswith("use_"):
-            enabled_components[key.removeprefix("use_")] = bool(value)
-        elif key.startswith("weight_"):
-            weights_by_component[key.removeprefix("weight_")] = round(float(value), 6)
-    component_keys = sorted(set(enabled_components) | set(weights_by_component))
+    # The combined-dominance fields are constructor compatibility inputs only;
+    # scoring consumes the four granular dominance components instead.
+    payload.pop("use_combined_dominance", None)
+    payload.pop("weight_combined_dominance", None)
     selected_factors = [
         {
             "factor": key,
-            "enabled": bool(enabled_components.get(key, False)),
-            "weight": round(float(weights_by_component.get(key, 0.0)), 6),
+            "enabled": bool(payload.get(f"use_{key}", False)),
+            "weight": round(float(payload.get(f"weight_{key}", 0.0)), 6),
         }
-        for key in component_keys
+        for key in SIMILARITY_COMPONENT_KEYS
     ]
     selected_total = round(
         sum(row["weight"] for row in selected_factors if row["enabled"]),

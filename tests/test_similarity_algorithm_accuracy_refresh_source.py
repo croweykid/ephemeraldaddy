@@ -39,6 +39,8 @@ def test_saved_observation_refreshes_open_accuracy_ranking():
     )[1].split("def _on_similar_chart_popout_make_collection_clicked", 1)[0]
     assert "append_similarity_accuracy_observation(" in save_method
     assert "self._refresh_similarity_algorithm_accuracy_label()" in save_method
+    assert 'getattr(match, "algorithm_settings_snapshot", None)' in save_method
+    assert 'getattr(self, "_similarity_calculator_settings", None)' not in save_method
 
 
 def test_accuracy_ranking_label_is_retained_by_settings_owner():

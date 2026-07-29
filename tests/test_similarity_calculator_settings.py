@@ -702,3 +702,25 @@ def test_find_astro_twins_no_preference_preserves_unfiltered_results(monkeypatch
     )
 
     assert [match.chart_name for match in matches] == ["Female", "Male"]
+
+
+def test_find_astro_twins_retains_settings_that_produced_each_match(monkeypatch):
+    monkeypatch.setattr(
+        get_astro_twin,
+        "chart_similarity_score_custom",
+        lambda _query, _candidate, _settings: (0.5, {"placement": 0.5}),
+    )
+    settings = SimilarityCalculatorSettings(weight_placement=0.41)
+    query = SimpleNamespace(name="Query", positions={"Sun": 0.0}, is_placeholder=False)
+    candidate = SimpleNamespace(name="Candidate", positions={"Sun": 1.0}, is_placeholder=False)
+
+    match = find_astro_twins(
+        query,
+        [(1, candidate)],
+        top_k=1,
+        algorithm_mode="custom",
+        custom_settings=settings,
+    )[0]
+    settings.weight_placement = 0.99
+
+    assert match.algorithm_settings_snapshot["weight_placement"] == 0.41

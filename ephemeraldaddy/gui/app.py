@@ -26691,7 +26691,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 algorithm_mode=getattr(match, "algorithm_mode", None),
                 algorithm_snapshot=build_similarity_algorithm_snapshot(
                     getattr(match, "algorithm_mode", None),
-                    getattr(self, "_similarity_calculator_settings", None),
+                    getattr(match, "algorithm_settings_snapshot", None),
                 ),
                 predicted_percent=float(getattr(match, "score", 0.0)) * 100.0,
                 user_reported_accuracy=score,
