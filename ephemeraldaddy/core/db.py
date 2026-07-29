@@ -23,6 +23,7 @@ from ephemeraldaddy.core.chart import (
     chart_uses_houses,
     compute_unknown_sign_positions,
 )
+from ephemeraldaddy.core.chart_data_fields import require_nonastral_data_fields
 from ephemeraldaddy.core.ephemeris import get_lilith_calculation_mode
 from ephemeraldaddy.core.interpretations import JONES_PLANETS, RELATION_TYPE, SENTIMENT_OPTIONS
 from ephemeraldaddy.analysis import body_dynamics_reworked
@@ -2739,6 +2740,7 @@ def add_tag_to_charts_by_uid(
     tag_value: str,
 ) -> set[str]:
     """Add one tag using a single transaction and return changed chart UIDs."""
+    require_nonastral_data_fields("tags")
     normalized_tag = str(tag_value or "").strip()
     if not normalized_tag:
         return set()
@@ -2804,6 +2806,7 @@ def remove_tag_from_charts_by_uid(
     tag_value: str,
 ) -> set[str]:
     """Remove one tag without loading charts or rewriting derived metadata."""
+    require_nonastral_data_fields("tags")
     normalized_tag_key = str(tag_value or "").strip().casefold()
     normalized_uids = sorted(
         {
@@ -5949,6 +5952,7 @@ def update_chart_subjective_list_by_uid(
     Keeping this deliberately narrow also prevents a checkbox edit from invoking
     the full-chart update path (HD, BaZi, body dynamics, and derived caches).
     """
+    require_nonastral_data_fields(field)
     serializers = {
         "sentiments": _serialize_sentiments,
         "relationship_types": _serialize_relationship_types,

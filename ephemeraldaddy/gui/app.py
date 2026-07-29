@@ -776,6 +776,7 @@ from ephemeraldaddy.core.db import (
     save_duplicate_exclusions_by_uids,
     delete_charts_by_uids,
 )
+from ephemeraldaddy.core.chart_data_fields import astro_data_recalculation_token
 
 from ephemeraldaddy.data.age_distribution_estimator import discrete_age_distribution
 from ephemeraldaddy.data.genpop import (
@@ -36168,36 +36169,12 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         analytics should only be dirtied when birth data, place, birth-time /
         rectified-time state, or the derived chart_uses_houses flag changes.
         """
-        if chart is None:
-            return ()
-        dt_value = getattr(chart, "dt", None)
-        dt_token = dt_value.isoformat() if dt_value is not None else None
-        retcon_hour = getattr(chart, "retcon_hour", None)
-        retcon_minute = getattr(chart, "retcon_minute", None)
-        retcon_time_token = (
-            (int(retcon_hour), int(retcon_minute))
-            if retcon_hour is not None and retcon_minute is not None
-            else None
-        )
-        range_token = (
-            bool(getattr(chart, "rectification_range_used", False)),
-            getattr(chart, "rectification_range_start_minute", None),
-            getattr(chart, "rectification_range_end_minute", None),
-        )
-        return (
-            dt_token,
-            (
-                birth_place
-                if birth_place is not None
-                else getattr(chart, "birth_place", None) or ""
+        return astro_data_recalculation_token(
+            chart,
+            birth_place=birth_place,
+            chart_uses_houses_value=(
+                bool(chart_uses_houses(chart)) if chart is not None else None
             ),
-            round(float(getattr(chart, "lat", 0.0) or 0.0), 6),
-            round(float(getattr(chart, "lon", 0.0) or 0.0), 6),
-            bool(getattr(chart, "birthtime_unknown", False)),
-            bool(getattr(chart, "retcon_time_used", False)),
-            retcon_time_token,
-            range_token,
-            bool(chart_uses_houses(chart)),
         )
 
     @staticmethod
