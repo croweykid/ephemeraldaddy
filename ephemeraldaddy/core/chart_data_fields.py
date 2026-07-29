@@ -40,6 +40,7 @@ ASTRO_DATA_INPUT_FIELDS = frozenset(
         "death_hour",
         "death_minute",
         "death_place",
+        "lilith_calculation_mode",
     }
 )
 
@@ -73,6 +74,18 @@ ASTRO_DATA_DERIVED_FIELDS = frozenset(
         "bazi_month_element",
         "bazi_day_element",
         "bazi_hour_element",
+        "derived_birth_data_signature",
+        "derived_positions",
+        "derived_retrogrades",
+        "derived_houses",
+        "derived_houses_po",
+        "derived_aspects",
+        "enneagram_type_weights",
+        "dominant_enneagram_type",
+        "top_three_enneagram_types",
+        "weirdness_score",
+        "weirdness_formula_version",
+        "weirdness_norm_signature",
     }
 )
 
@@ -81,6 +94,7 @@ ASTRO_DATA = ASTRO_DATA_INPUT_FIELDS | ASTRO_DATA_DERIVED_FIELDS
 NONASTRAL_DATA = frozenset(
     {
         "chart_uid",
+        "id",
         "name",
         "alias",
         "from_whence",
@@ -101,7 +115,6 @@ NONASTRAL_DATA = frozenset(
         "familiarity",
         "alignment_score",
         "sexiness_score",
-        "weirdness_score",
         "matched_expectations",
         "familiarity_factors",
         "age_when_first_met",
@@ -119,6 +132,9 @@ NONASTRAL_DATA = frozenset(
         "predicted_traits_above_avg",
         "predicted_traits_below_avg",
         "predicted_trait_deviations",
+        "profile_pic",
+        "created_at",
+        "is_current",
     }
 )
 

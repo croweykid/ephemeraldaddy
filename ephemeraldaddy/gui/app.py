@@ -36188,7 +36188,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         }
 
     @staticmethod
-    def _chart_birth_data_recalculation_token(
+    def _chart_astro_data_recalculation_token(
         chart: Chart | None,
         birth_place: str | None = None,
     ) -> tuple:
@@ -36218,8 +36218,8 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             return None
         changed_fields: set[str] = set()
         if (
-            MainWindow._chart_birth_data_recalculation_token(previous_chart)
-            != MainWindow._chart_birth_data_recalculation_token(chart, birth_place)
+            MainWindow._chart_astro_data_recalculation_token(previous_chart)
+            != MainWindow._chart_astro_data_recalculation_token(chart, birth_place)
         ):
             changed_fields.add("birth_data")
         previous_chart_type = _normalize_gui_source(
@@ -36261,33 +36261,15 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
 
     def _chart_analytics_cache_token(self, chart: Chart) -> str:
         chart_id = self.current_chart_id
-        dt_value = getattr(chart, "dt", None)
-        dt_token = dt_value.isoformat() if dt_value is not None else "nodt"
-        birthtime_unknown_token = int(bool(getattr(chart, "birthtime_unknown", False)))
-        retcon_enabled_token = int(bool(getattr(chart, "retcon_time_used", False)))
-        retcon_hour = getattr(chart, "retcon_hour", None)
-        retcon_minute = getattr(chart, "retcon_minute", None)
-        retcon_time_token = (
-            f"{int(retcon_hour):02d}:{int(retcon_minute):02d}"
-            if retcon_hour is not None and retcon_minute is not None
-            else "none"
+        astro_data_token = astro_data_recalculation_token(
+            chart,
+            chart_uses_houses_value=chart_uses_houses(chart),
         )
-        range_enabled_token = int(bool(getattr(chart, "rectification_range_used", False)))
-        range_start_token = getattr(chart, "rectification_range_start_minute", None)
-        range_end_token = getattr(chart, "rectification_range_end_minute", None)
-        chart_uses_houses_token = int(bool(chart_uses_houses(chart)))
-        timing_token = (
-            f"dt:{dt_token}|birthtime_unknown:{birthtime_unknown_token}|"
-            f"retcon_enabled:{retcon_enabled_token}|retcon_time:{retcon_time_token}|"
-            f"range_enabled:{range_enabled_token}|range_start:{range_start_token}|range_end:{range_end_token}|"
-            f"chart_uses_houses:{chart_uses_houses_token}"
-        )
-        place_token = f"lat:{getattr(chart, 'lat', 0.0):.6f}|lon:{getattr(chart, 'lon', 0.0):.6f}"
         chart_scope_token = f"id:{int(chart_id)}" if chart_id is not None else "draft"
         demographic_token = ""
         if self._similar_charts_demographic_match_enabled():
             demographic_token = f"|gender:{str(getattr(chart, 'gender', None) or '').strip()}"
-        return f"{chart_scope_token}|{place_token}|{timing_token}{demographic_token}"
+        return f"{chart_scope_token}|astro_data:{astro_data_token!r}{demographic_token}"
 
     def _mark_chart_analytics_sections_lucy_goosey(self, sections: set[str] | None = None) -> None:
         if sections is None:

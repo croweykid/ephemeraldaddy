@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+import sqlite3
 
 import pytest
 
@@ -43,6 +44,26 @@ def test_master_field_categories_are_disjoint_and_explicit():
     assert {"dt", "birth_place", "lat", "lon", "birthtime_unknown"} <= ASTRO_DATA_INPUT_FIELDS
     assert {"human_design_type", "bazi_day_pillar", "positions"} <= ASTRO_DATA_DERIVED_FIELDS
     assert {"name", "alias", "from_whence", "chart_type", "data_rating"} <= NONASTRAL_DATA
+    assert {
+        "derived_positions",
+        "enneagram_type_weights",
+        "weirdness_score",
+    } <= ASTRO_DATA_DERIVED_FIELDS
+    assert {"profile_pic", "created_at", "is_current"} <= NONASTRAL_DATA
+
+
+def test_every_persisted_chart_column_has_one_master_classification():
+    from ephemeraldaddy.core import db
+
+    connection = sqlite3.connect(":memory:")
+    try:
+        db._create_charts_table(connection)
+        persisted_fields = {
+            str(row[1]) for row in connection.execute("PRAGMA table_info(charts)")
+        }
+    finally:
+        connection.close()
+    assert persisted_fields <= ASTRO_DATA | NONASTRAL_DATA
 
 
 def test_nonastral_edits_do_not_change_astro_recalculation_token():
