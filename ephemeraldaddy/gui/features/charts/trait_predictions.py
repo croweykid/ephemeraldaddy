@@ -73,29 +73,11 @@ from ephemeraldaddy.gui.features.charts.prediction_loading_labels import (
     start_prediction_loading_blink,
     stop_prediction_loading_blink,
 )
-try:
-    from ephemeraldaddy.gui.style import (
-        apply_chart_info_link_cursor,
-        set_chart_info_html,
-        similarity_gradient_rgb_for_range,
-    )
-except Exception:  # pragma: no cover - headless tests may not import Qt-backed style module
-    def apply_chart_info_link_cursor(_widget: Any) -> None:
-        return None
-
-    def set_chart_info_html(widget: Any, content: str) -> None:
-        if hasattr(widget, "setHtml"):
-            widget.setHtml(content)
-        elif hasattr(widget, "setPlainText"):
-            widget.setPlainText(content)
-
-    def similarity_gradient_rgb_for_range(value: float, minimum: float, maximum: float) -> tuple[int, int, int]:
-        if maximum > minimum:
-            ratio = (float(value) - float(minimum)) / (float(maximum) - float(minimum))
-        else:
-            ratio = 0.0
-        clamped = max(0.0, min(1.0, ratio))
-        return (int(round(140 * (1.0 - clamped))), int(round(255 * clamped)), 0)
+from ephemeraldaddy.gui.style import (
+    apply_chart_info_link_cursor,
+    appwide_red_green_rgb_for_range,
+    set_chart_info_html,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -152,10 +134,10 @@ class _TraitPredictionRowsModel(QAbstractTableModel):
             if column == 0:
                 return QColor(str(row.get("color") or DEFAULT_TRAIT_COLOR))
             if column == 1:
-                red, green, blue = similarity_gradient_rgb_for_range(float(row.get("likelihood", 0.0)), 0.0, 100.0)
+                red, green, blue = appwide_red_green_rgb_for_range(float(row.get("likelihood", 0.0)), 0.0, 100.0)
                 return QColor(red, green, blue)
             if column == 2:
-                red, green, blue = similarity_gradient_rgb_for_range(float(row.get("deviation", 0.0)), -100.0, 100.0)
+                red, green, blue = appwide_red_green_rgb_for_range(float(row.get("deviation", 0.0)), -100.0, 100.0)
                 return QColor(red, green, blue)
             return QColor("#f5f5f5")
         if role == Qt.ToolTipRole and column == 0:
@@ -307,7 +289,7 @@ def _predictions_debug(owner: Any, message: str, *args: object) -> None:
 
 
 def _percentage_color(value: float, minimum: float, maximum: float) -> str:
-    red, green, blue = similarity_gradient_rgb_for_range(value, minimum, maximum)
+    red, green, blue = appwide_red_green_rgb_for_range(value, minimum, maximum)
     return f"#{red:02x}{green:02x}{blue:02x}"
 
 

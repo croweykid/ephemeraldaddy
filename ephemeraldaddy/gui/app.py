@@ -1493,7 +1493,7 @@ from ephemeraldaddy.gui.style import (
     SIMILARITY_CALCULATE_BUTTON_ACTIVE_STYLE,
     SIMILARITY_CALCULATE_BUTTON_INACTIVE_STYLE,
     alignment_score_to_rgb,
-    similarity_gradient_rgb_for_range,
+    appwide_red_green_rgb_for_range,
     configure_collapsible_header_toggle,
     configure_static_collapsible_header_label,
     create_divider,
@@ -37001,7 +37001,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         numeric_values = [float(value) for value in baseline_values if isinstance(value, (int, float))]
         if not numeric_values:
             return None
-        rgb = similarity_gradient_rgb_for_range(float(metric_value), min(numeric_values), max(numeric_values))
+        rgb = appwide_red_green_rgb_for_range(float(metric_value), min(numeric_values), max(numeric_values))
         return f"#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}"
 
     def _render_house_tally(self, chart: Chart) -> None:

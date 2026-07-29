@@ -33,7 +33,7 @@ from ephemeraldaddy.gui.style import (
     CHART_DATA_HIGHLIGHT_COLOR,
     apply_shared_dropdown_style,
     create_divider,
-    similarity_gradient_rgb_for_range,
+    appwide_red_green_rgb_for_range,
 )
 from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import (
     prediction_norms_snapshot_path,
@@ -57,7 +57,7 @@ def _rgb_to_hex(rgb: tuple[int, int, int]) -> str:
 
 
 def _value_color_for_range(value: float, minimum: float, maximum: float) -> str:
-    return _rgb_to_hex(similarity_gradient_rgb_for_range(float(value), float(minimum), float(maximum)))
+    return _rgb_to_hex(appwide_red_green_rgb_for_range(float(value), float(minimum), float(maximum)))
 
 
 def _highlight_label(label: str) -> str:
