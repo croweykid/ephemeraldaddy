@@ -22,6 +22,7 @@ from ephemeraldaddy.gui.features.retcon.workers import SwissEphemerisPrefetchWor
 from ephemeraldaddy.gui.style import (
     apply_button_cursor,
     COLLAPSIBLE_SECTION_CONTENT_STYLE,
+    COLLAPSIBLE_SECTION_SUBHEADER_STYLE,
     DATABASE_ANALYTICS_CHART_CONTENT_MARGINS,
     DATABASE_ANALYTICS_CHART_CONTAINER_DEBUG_STYLE,
     DATABASE_ANALYTICS_CONTENT_DEBUG_STYLE,
@@ -266,7 +267,7 @@ class ChartAnalysisSectionsController:
         self._owner._chart_analysis_section_expanded[section_key] = expanded
 
         subtitle = QLabel(subtitle_text)
-        subtitle_style = DATABASE_ANALYTICS_SUBHEADER_STYLE
+        subtitle_style = COLLAPSIBLE_SECTION_SUBHEADER_STYLE
         if DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS:
             subtitle_style = f"{subtitle_style} {DATABASE_ANALYTICS_SUBTITLE_DEBUG_STYLE}"
         subtitle.setStyleSheet(subtitle_style)

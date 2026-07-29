@@ -1931,7 +1931,10 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         section_key="gender_guesser",
         section_title="Gender Guesser",
         header_title="Gender Guesser",
-        subtitle_text="For the hell of it, just curious.",
+        subtitle_text=(
+            "Examines the canonically yang and yin coded aspects of the astrological "
+            "chart and displays the theoretical femininity vs masculinity based on that."
+        ),
         default_filename="ephemeraldaddy_chart_gender_guesser",
         chart_container_attr="gender_guesser_container",
         chart_layout_attr="gender_guesser_container_layout",
