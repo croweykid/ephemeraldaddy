@@ -635,17 +635,12 @@ def build_similarity_calculator_settings_section(
     demographic_match_group = QButtonGroup(dialog)
     demographic_match_group.setExclusive(True)
     demographic_match_buttons: dict[str, QRadioButton] = {}
-    for mode, label_text, tooltip in (
-        ("none", "No preference", "Use the current Astro Twin behavior; do not filter by gender or sex metadata."),
-        (
-            "gender",
-            "Gender match",
-            "Filter candidates to compatible gender categories before calculating Astro Twin scores.",
-        ),
-        ("sex", "Sex match", "Filter candidates to compatible sex-group categories before calculating Astro Twin scores."),
+    for mode, label_text in (
+        ("none", "Include everyone (default)"),
+        ("sex", "Match assigned sex"),
+        ("gender", "Match gender identity"),
     ):
         button = QRadioButton(label_text)
-        button.setToolTip(tooltip)
         demographic_match_group.addButton(button)
         button.toggled.connect(
             lambda checked, selected_mode=mode: checked and on_demographic_match_mode_changed(selected_mode)

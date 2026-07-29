@@ -23,6 +23,19 @@ def test_demographic_matching_precedes_scoring_methods_and_has_divider():
     assert 'QLabel("Astro Twin Calculator")' not in SECTION
 
 
+def test_demographic_matching_labels_order_and_no_tooltips():
+    include_everyone = SECTION.index('("none", "Include everyone (default)")')
+    assigned_sex = SECTION.index('("sex", "Match assigned sex")')
+    gender_identity = SECTION.index('("gender", "Match gender identity")')
+    demographic_loop = SECTION[include_everyone:SECTION.index('demographic_match_buttons["none"]', include_everyone)]
+
+    assert include_everyone < assigned_sex < gender_identity
+    assert "setToolTip" not in demographic_loop
+    assert '"No preference"' not in SECTION
+    assert '"Gender match"' not in SECTION
+    assert '"Sex match"' not in SECTION
+
+
 def test_database_distinction_precedes_custom_as_final_scoring_option():
     database_widget = SECTION.index("algorithm_layout.addWidget(database_distinction_radio)")
     custom_widget = SECTION.index("algorithm_layout.addWidget(custom_radio)")
