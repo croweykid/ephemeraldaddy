@@ -8,9 +8,6 @@ from typing import Any, Callable
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QComboBox, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QVBoxLayout, QWidget
 
-from ephemeraldaddy.core.db import load_chart, update_chart
-
-
 def build_batch_bio_section(
     owner: Any,
     add_collapsible_section: Callable[[str], tuple[QWidget, QVBoxLayout]],
@@ -99,8 +96,8 @@ def clear_batch_from_whence_state(owner: Any) -> None:
 
 def apply_batch_from_whence(owner: Any) -> None:
     """Apply the Batch Editor Bio From value to all selected charts."""
-    chart_ids = owner._selected_local_row_ids()
-    if not chart_ids:
+    chart_uids = owner._selected_chart_uids()
+    if not chart_uids:
         QMessageBox.information(
             owner,
             "No charts selected",
@@ -110,7 +107,7 @@ def apply_batch_from_whence(owner: Any) -> None:
         return
 
     from_value = owner.batch_from_whence_input.text().strip()
-    selected_count = len(chart_ids)
+    selected_count = len(chart_uids)
     display_value = from_value or "blank"
     action_label = f"Set From to '{display_value}' for"
     if not owner._confirm_batch_edit(action_label, selected_count):
@@ -118,15 +115,10 @@ def apply_batch_from_whence(owner: Any) -> None:
         return
 
     try:
-        for chart_id in chart_ids:
-            chart = load_chart(chart_id)
-            chart.from_whence = from_value or None
-            update_chart(
-                chart_id,
-                chart,
-                retcon_time_used=getattr(chart, "retcon_time_used", False),
-            )
-            owner._chart_cache[chart_id] = chart
+        changed_ids = owner._apply_batch_nonastral_patch(
+            chart_uids,
+            {"from_whence": from_value or None},
+        )
     except Exception as exc:
         QMessageBox.critical(
             owner,
@@ -135,6 +127,5 @@ def apply_batch_from_whence(owner: Any) -> None:
         )
         return
 
-    changed_ids = set(chart_ids)
     owner._update_batch_edit_state()
     owner._refresh_filters_after_batch_edit(changed_ids)

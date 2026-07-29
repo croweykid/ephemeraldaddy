@@ -23,6 +23,10 @@ from ephemeraldaddy.core.chart import (
     chart_uses_houses,
     compute_unknown_sign_positions,
 )
+from ephemeraldaddy.core.chart_data_fields import (
+    NonastralPatch,
+    require_nonastral_data_fields,
+)
 from ephemeraldaddy.core.ephemeris import get_lilith_calculation_mode
 from ephemeraldaddy.core.interpretations import JONES_PLANETS, RELATION_TYPE, SENTIMENT_OPTIONS
 from ephemeraldaddy.analysis import body_dynamics_reworked
@@ -2734,31 +2738,36 @@ def list_recognized_tags() -> list[str]:
                 deduped[key] = tag
     return sorted(deduped.values(), key=lambda value: value.casefold())
 
-def add_tag_to_charts(chart_ids: Iterable[int], tag_value: str) -> set[str]:
-    """Add one tag to many charts and return UIDs that actually changed.
-
-    ``chart_ids`` remains a legacy compatibility input while Database View
-    selection is still backed by local row ids.  Callers should treat the
-    returned stable chart UIDs as the durable identity for downstream work.
-    """
+def add_tag_to_charts_by_uid(
+    chart_uids: Iterable[str | None],
+    tag_value: str,
+) -> set[str]:
+    """Add one tag using a single transaction and return changed chart UIDs."""
+    require_nonastral_data_fields("tags")
     normalized_tag = str(tag_value or "").strip()
     if not normalized_tag:
         return set()
 
-    normalized_ids = sorted({int(chart_id) for chart_id in chart_ids})
-    if not normalized_ids:
+    normalized_uids = sorted(
+        {
+            normalized_uid
+            for chart_uid in chart_uids
+            if (normalized_uid := _normalize_chart_uid(chart_uid)) is not None
+        }
+    )
+    if not normalized_uids:
         return set()
 
     changed_uids: set[str] = set()
     normalized_key = normalized_tag.casefold()
 
-    def _apply_for_ids(conn: sqlite3.Connection, target_ids: list[int]) -> None:
-        if not target_ids:
+    def _apply_for_uids(conn: sqlite3.Connection, target_uids: list[str]) -> None:
+        if not target_uids:
             return
-        placeholders = ", ".join("?" for _ in target_ids)
+        placeholders = ", ".join("?" for _ in target_uids)
         rows = conn.execute(
-            f"SELECT chart_uid, tags FROM charts WHERE id IN ({placeholders})",
-            tuple(target_ids),
+            f"SELECT chart_uid, tags FROM charts WHERE chart_uid IN ({placeholders})",
+            tuple(target_uids),
         ).fetchall()
         for chart_uid, raw_tags in rows:
             normalized_uid = _normalize_chart_uid(chart_uid)
@@ -2777,13 +2786,71 @@ def add_tag_to_charts(chart_ids: Iterable[int], tag_value: str) -> set[str]:
     sqlite_variable_limit = 900
     with _get_conn() as conn:
         _ensure_chart_uids(conn)
-        if len(normalized_ids) <= sqlite_variable_limit:
-            _apply_for_ids(conn, normalized_ids)
+        if len(normalized_uids) <= sqlite_variable_limit:
+            _apply_for_uids(conn, normalized_uids)
             return changed_uids
 
-        for start in range(0, len(normalized_ids), sqlite_variable_limit):
-            _apply_for_ids(conn, normalized_ids[start:start + sqlite_variable_limit])
+        for start in range(0, len(normalized_uids), sqlite_variable_limit):
+            _apply_for_uids(
+                conn,
+                normalized_uids[start:start + sqlite_variable_limit],
+            )
     return changed_uids
+
+
+def add_tag_to_charts(chart_ids: Iterable[int], tag_value: str) -> set[str]:
+    """Compatibility wrapper for callers that still hold local row IDs."""
+    chart_uid_map = get_chart_uid_map(chart_ids)
+    return add_tag_to_charts_by_uid(chart_uid_map.values(), tag_value)
+
+
+def remove_tag_from_charts_by_uid(
+    chart_uids: Iterable[str | None],
+    tag_value: str,
+) -> set[str]:
+    """Remove one tag without loading charts or rewriting derived metadata."""
+    require_nonastral_data_fields("tags")
+    normalized_tag_key = str(tag_value or "").strip().casefold()
+    normalized_uids = sorted(
+        {
+            normalized_uid
+            for chart_uid in chart_uids
+            if (normalized_uid := _normalize_chart_uid(chart_uid)) is not None
+        }
+    )
+    if not normalized_tag_key or not normalized_uids:
+        return set()
+
+    changed_uids: set[str] = set()
+    sqlite_variable_limit = 900
+    with _get_conn() as conn:
+        _ensure_chart_uids(conn)
+        for start in range(0, len(normalized_uids), sqlite_variable_limit):
+            target_uids = normalized_uids[start:start + sqlite_variable_limit]
+            placeholders = ", ".join("?" for _ in target_uids)
+            rows = conn.execute(
+                f"SELECT chart_uid, tags FROM charts WHERE chart_uid IN ({placeholders})",
+                tuple(target_uids),
+            ).fetchall()
+            for chart_uid, raw_tags in rows:
+                existing_tags = parse_tags(raw_tags)
+                updated_tags = [
+                    tag
+                    for tag in existing_tags
+                    if tag.casefold() != normalized_tag_key
+                ]
+                if len(updated_tags) == len(existing_tags):
+                    continue
+                normalized_uid = _normalize_chart_uid(chart_uid)
+                if normalized_uid is None:
+                    continue
+                conn.execute(
+                    "UPDATE charts SET tags = ? WHERE chart_uid = ?",
+                    (_serialize_tags(updated_tags), normalized_uid),
+                )
+                changed_uids.add(normalized_uid)
+    return changed_uids
+
 
 def get_metadata_label_usage() -> dict[str, list[dict[str, int | str]]]:
     """Return sentiment, relationship, and tag labels with usage counts.
@@ -5875,6 +5942,177 @@ def _chart_from_row(chart_id: int, row):
         chart.use_birth_time_data = chart_uses_houses(chart)
         _persist_chart_derived_cache(int(chart_id), chart)
     return chart
+
+
+def update_chart_subjective_list_by_uid(
+    chart_uid: str,
+    field: str,
+    values: Iterable[str],
+) -> None:
+    """Persist one subjective list without touching derived chart metadata.
+
+    Sentiments and relationship types cannot affect astronomical calculations.
+    Keeping this deliberately narrow also prevents a checkbox edit from invoking
+    the full-chart update path (HD, BaZi, body dynamics, and derived caches).
+    """
+    require_nonastral_data_fields(field)
+    serializers = {
+        "sentiments": _serialize_sentiments,
+        "relationship_types": _serialize_relationship_types,
+    }
+    try:
+        serializer = serializers[field]
+    except KeyError as exc:
+        raise ValueError(f"Unsupported subjective chart field: {field}") from exc
+
+    normalized_uid = str(chart_uid or "").strip().upper()
+    if not normalized_uid:
+        raise ValueError("A chart UID is required")
+
+    conn = _get_conn()
+    try:
+        with conn:
+            _ensure_chart_uids(conn)
+            cursor = conn.execute(
+                f"UPDATE charts SET {field} = ? WHERE UPPER(chart_uid) = ?",
+                (serializer(list(values)), normalized_uid),
+            )
+            if cursor.rowcount != 1:
+                raise ValueError(f"No chart found for UID {normalized_uid}")
+    finally:
+        conn.close()
+
+
+def update_charts_nonastral_fields_by_uid(
+    chart_uids: Iterable[str | None],
+    values: NonastralPatch,
+) -> set[str]:
+    """Patch nonastral fields for many charts without loading or recalculating them."""
+    patch = dict(values)
+    if not patch:
+        return set()
+    require_nonastral_data_fields(set(patch))
+    normalized_uids = sorted(
+        {
+            normalized_uid
+            for chart_uid in chart_uids
+            if (normalized_uid := _normalize_chart_uid(chart_uid)) is not None
+        }
+    )
+    if not normalized_uids:
+        return set()
+
+    serializers = {
+        "sentiments": _serialize_sentiments,
+        "relationship_types": _serialize_relationship_types,
+        "tags": _serialize_tags,
+        "quotes": _serialize_quotes,
+        "familiarity_factors": _serialize_familiarity_factors,
+    }
+    boolean_fields = {"is_placeholder", "is_deceased", "is_current"}
+    protected_fields = {"id", "chart_uid", "created_at", "is_current"}
+
+    conn = _get_conn()
+    try:
+        with conn:
+            _ensure_chart_uids(conn)
+            persisted_fields = _table_columns(conn, "charts")
+            invalid_fields = set(patch) - persisted_fields
+            protected_requested = set(patch) & protected_fields
+            if invalid_fields or protected_requested:
+                rejected = sorted(invalid_fields | protected_requested)
+                raise ValueError(
+                    "Unsupported nonastral chart patch fields: " + ", ".join(rejected)
+                )
+            columns = sorted(patch)
+            serialized_values = [
+                (
+                    serializers[field](patch[field])
+                    if field in serializers
+                    else int(bool(patch[field]))
+                    if field in boolean_fields
+                    else patch[field]
+                )
+                for field in columns
+            ]
+            assignments = ", ".join(f"{field} = ?" for field in columns)
+            existing_uids: set[str] = set()
+            uid_chunk_size = max(1, 900 - len(serialized_values))
+            for start in range(0, len(normalized_uids), uid_chunk_size):
+                uid_chunk = normalized_uids[start:start + uid_chunk_size]
+                placeholders = ", ".join("?" for _ in uid_chunk)
+                existing_uids.update(
+                    str(row[0])
+                    for row in conn.execute(
+                        f"SELECT chart_uid FROM charts WHERE chart_uid IN ({placeholders})",
+                        tuple(uid_chunk),
+                    ).fetchall()
+                )
+                conn.execute(
+                    f"UPDATE charts SET {assignments} "
+                    f"WHERE chart_uid IN ({placeholders})",
+                    serialized_values + uid_chunk,
+                )
+            return existing_uids
+    finally:
+        conn.close()
+
+
+def update_charts_nonastral_patches_by_uid(
+    patches_by_uid: Mapping[str, NonastralPatch],
+) -> set[str]:
+    """Apply UID-specific nonastral patches in one transaction."""
+    normalized_patches = {
+        normalized_uid: dict(patch)
+        for raw_uid, patch in patches_by_uid.items()
+        if (normalized_uid := _normalize_chart_uid(raw_uid)) is not None and patch
+    }
+    if not normalized_patches:
+        return set()
+    for patch in normalized_patches.values():
+        require_nonastral_data_fields(set(patch))
+
+    serializers = {
+        "sentiments": _serialize_sentiments,
+        "relationship_types": _serialize_relationship_types,
+        "tags": _serialize_tags,
+        "quotes": _serialize_quotes,
+        "familiarity_factors": _serialize_familiarity_factors,
+    }
+    boolean_fields = {"is_placeholder", "is_deceased"}
+    protected_fields = {"id", "chart_uid", "created_at", "is_current"}
+    changed_uids: set[str] = set()
+    conn = _get_conn()
+    try:
+        with conn:
+            _ensure_chart_uids(conn)
+            persisted_fields = _table_columns(conn, "charts")
+            for chart_uid, patch in normalized_patches.items():
+                invalid = (set(patch) - persisted_fields) | (set(patch) & protected_fields)
+                if invalid:
+                    raise ValueError(
+                        "Unsupported nonastral chart patch fields: "
+                        + ", ".join(sorted(invalid))
+                    )
+                columns = sorted(patch)
+                assignments = ", ".join(f"{field} = ?" for field in columns)
+                serialized_values = [
+                    serializers[field](patch[field])
+                    if field in serializers
+                    else int(bool(patch[field]))
+                    if field in boolean_fields
+                    else patch[field]
+                    for field in columns
+                ]
+                cursor = conn.execute(
+                    f"UPDATE charts SET {assignments} WHERE chart_uid = ?",
+                    serialized_values + [chart_uid],
+                )
+                if cursor.rowcount == 1:
+                    changed_uids.add(chart_uid)
+        return changed_uids
+    finally:
+        conn.close()
 
 
 def load_chart_rows_for_ids(chart_ids: Iterable[int]) -> dict[int, sqlite3.Row]:
