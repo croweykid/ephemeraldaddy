@@ -1421,6 +1421,7 @@ from ephemeraldaddy.gui.style import (
     CHART_VIEW_TIME_OVERWRITE_ENABLED,
     COLLAPSIBLE_SECTION_CONTENT_STYLE,
     COLLAPSIBLE_NESTED_SECTION_CONTENT_STYLE,
+    COLLAPSIBLE_SECTION_SUBHEADER_STYLE,
     COLLAPSIBLE_SECTION_STATIC_HEADER_STYLE,
     CRASH_MESSAGE,
     DATABASE_ANALYTICS_CHART_CONTENT_MARGINS,
@@ -25269,6 +25270,18 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._update_time_input_visibility()
         self._update_time_input_text_colors()
 
+    def _update_observations_relationship_subheaders(self, _text: str = "") -> None:
+        """Keep Observations relationship copy aligned with the active chart name."""
+        chart_name = self.name_edit.text().strip() or "this entity"
+        self.sentiment_types_subheader.setText(
+            "Your present (and/or historic) feelings about "
+            f"{chart_name}."
+        )
+        self.relationship_types_subheader.setText(
+            "Your present and/or historic relationship to "
+            f"{chart_name}."
+        )
+
 #Most of Chart View's righthand Chart Analytics panel is defined here; but it should all be consolidated into its own separate cv_chart_analytics.py file for better organization ASAP. Some of it is scattered elsewhere in the file directory, as well. Needs to all get bundled in one place & app.py is NOT the place for it...
         # Sentiment selection panel (checkbox grid).
         self.sentiment_checkboxes = {}
@@ -25278,6 +25291,16 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         sentiment_options = SENTIMENT_OPTIONS
         sentiment_columns = 2
         sentiment_rows = (len(sentiment_options) + sentiment_columns - 1) // sentiment_columns
+        self.sentiment_types_subheader = QLabel()
+        self.sentiment_types_subheader.setWordWrap(True)
+        self.sentiment_types_subheader.setStyleSheet(COLLAPSIBLE_SECTION_SUBHEADER_STYLE)
+        sentiment_layout.addWidget(
+            self.sentiment_types_subheader,
+            0,
+            0,
+            1,
+            sentiment_columns,
+        )
         for idx, label in enumerate(sentiment_options):
             checkbox = QCheckBox(label)
             sentiment_color = _sentiment_label_color(label)
@@ -25287,7 +25310,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             self.sentiment_checkboxes[label] = checkbox
             row = idx % sentiment_rows
             col = idx // sentiment_rows
-            sentiment_layout.addWidget(checkbox, row, col)
+            sentiment_layout.addWidget(checkbox, row + 1, col)
         sentiment_widget.setLayout(sentiment_layout)
         
         # Relationship selection panel (checkbox grid).
@@ -25297,14 +25320,26 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         #relationship_layout.setContentsMargins(0, 0, 0, 0)
         relationship_columns = 2
         relationship_rows = (len(RELATION_TYPE) + relationship_columns - 1) // relationship_columns
+        self.relationship_types_subheader = QLabel()
+        self.relationship_types_subheader.setWordWrap(True)
+        self.relationship_types_subheader.setStyleSheet(COLLAPSIBLE_SECTION_SUBHEADER_STYLE)
+        relationship_layout.addWidget(
+            self.relationship_types_subheader,
+            0,
+            0,
+            1,
+            relationship_columns,
+        )
         for idx, label in enumerate(RELATION_TYPE):
             checkbox = QCheckBox(label)
             checkbox.toggled.connect(self._on_relationship_type_toggled)
             self.relationship_type_checkboxes[label] = checkbox
             row = idx % relationship_rows
             col = idx // relationship_rows
-            relationship_layout.addWidget(checkbox, row, col)
+            relationship_layout.addWidget(checkbox, row + 1, col)
         relationship_widget.setLayout(relationship_layout)
+        self._update_observations_relationship_subheaders()
+        self.name_edit.textChanged.connect(self._update_observations_relationship_subheaders)
 
         self.sentiment_relation_row_widget = QWidget()
         self.sentiment_relation_row_widget.setSizePolicy(
