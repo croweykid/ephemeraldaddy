@@ -955,7 +955,7 @@ DATABASE_ANALYTICS_EXPORT_BUTTON_SIZE = (20, 20)
 # Official appwide style for explanatory copy immediately below a collapsible
 # section header. Feature-specific styles should compose this token rather than
 # redefining the typography locally.
-COLLAPSIBLE_SECTION_SUBHEADER_STYLE = "font-style: italic;"
+COLLAPSIBLE_SECTION_SUBHEADER_STYLE = "font-style: italic; color: #b8b8b8;"
 DATABASE_ANALYTICS_SUBHEADER_STYLE = (
     f"{COLLAPSIBLE_SECTION_SUBHEADER_STYLE} margin-bottom: 0px;"
 )
