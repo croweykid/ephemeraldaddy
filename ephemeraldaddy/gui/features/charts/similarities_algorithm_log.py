@@ -52,6 +52,30 @@ def _accuracy_pair_key(payload: Mapping[str, Any]) -> str | None:
     return None
 
 
+def similarity_custom_scoring_signature(snapshot: Mapping[str, Any]) -> str:
+    """Return identity from only the settings consumed by Custom scoring."""
+    factors = snapshot.get("selected_factors")
+    canonical_factors = []
+    if isinstance(factors, list):
+        canonical_factors = [
+            {
+                "factor": str(factor.get("factor", "")),
+                "enabled": bool(factor.get("enabled", False)),
+                "weight": round(float(factor.get("weight", 0.0)), 6),
+            }
+            for factor in factors
+            if isinstance(factor, Mapping)
+        ]
+    return json.dumps(
+        {
+            "placement_weighting_mode": str(snapshot.get("placement_weighting_mode", "")),
+            "selected_factors": canonical_factors,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+
+
 def _current_relationship_scores(
     relationship_path: str | os.PathLike[str] | None,
 ) -> dict[str, float | None]:
@@ -104,7 +128,7 @@ def aggregate_similarity_algorithm_accuracy(
         return []
     relationship_scores = _current_relationship_scores(relationship_path)
     observations: dict[tuple[str, str, str], tuple[float | None, float | None, dict[str, Any] | None]] = {}
-    latest_observation_by_pair: dict[str, tuple[str, str, str]] = {}
+    observations_by_pair: dict[str, set[tuple[str, str, str]]] = {}
     custom_variant_order: dict[str, int] = {}
     decoder = json.JSONDecoder()
     cursor = 0
@@ -147,7 +171,7 @@ def aggregate_similarity_algorithm_accuracy(
         # signature therefore forms part of the observation identity.
         variant_key = ""
         if mode == "custom" and snapshot is not None:
-            variant_key = json.dumps(snapshot, sort_keys=True, separators=(",", ":"))
+            variant_key = similarity_custom_scoring_signature(snapshot)
         if mode == "custom" and variant_key not in custom_variant_order:
             custom_variant_order[variant_key] = len(custom_variant_order) + 1
         pair_key = _accuracy_pair_key(payload)
@@ -155,15 +179,18 @@ def aggregate_similarity_algorithm_accuracy(
         composite_key = (mode, variant_key, observation_key)
         observations[composite_key] = (perceived, predicted, snapshot)
         if pair_key:
-            latest_observation_by_pair[pair_key] = composite_key
-    # The relationship store has one current score per chart pair, not one per
-    # algorithm variant. Apply it only to the pair's latest logged observation;
-    # older experiments retain the perceived score recorded in their payload.
-    for pair_key, composite_key in latest_observation_by_pair.items():
-        if pair_key not in relationship_scores or composite_key not in observations:
+            observations_by_pair.setdefault(pair_key, set()).add(composite_key)
+    # Perceived similarity belongs to the chart pair, independently of the
+    # algorithm that predicted it. Its current relationship score therefore
+    # replaces the cached payload value for every prediction of that pair.
+    for pair_key, composite_keys in observations_by_pair.items():
+        if pair_key not in relationship_scores:
             continue
-        _perceived, predicted, snapshot = observations[composite_key]
-        observations[composite_key] = (relationship_scores[pair_key], predicted, snapshot)
+        for composite_key in composite_keys:
+            if composite_key not in observations:
+                continue
+            _perceived, predicted, snapshot = observations[composite_key]
+            observations[composite_key] = (relationship_scores[pair_key], predicted, snapshot)
     totals: dict[tuple[str, str], list[float]] = {}
     snapshots: dict[tuple[str, str], dict[str, Any] | None] = {}
     for (mode, variant_key, _pair_key), (perceived, predicted, snapshot) in observations.items():

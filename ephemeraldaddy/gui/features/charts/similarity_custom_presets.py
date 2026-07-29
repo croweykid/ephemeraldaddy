@@ -115,6 +115,7 @@ def build_custom_astro_twin_preset_manager_rows(
     from ephemeraldaddy.gui.features.charts.similarities_algorithm_log import (
         aggregate_similarity_algorithm_accuracy,
         build_similarity_algorithm_snapshot,
+        similarity_custom_scoring_signature,
     )
 
     preset_records = load_custom_astro_twin_presets() if presets is None else presets
@@ -126,20 +127,13 @@ def build_custom_astro_twin_preset_manager_rows(
         if not name or not isinstance(settings, Mapping):
             continue
         snapshot = build_similarity_algorithm_snapshot("custom", settings)
-        snapshot_key = (
-            snapshot.get("placement_weighting_mode"),
-            snapshot.get("selected_factors"),
-        )
+        snapshot_key = similarity_custom_scoring_signature(snapshot)
         data_points = sum(
             int(result.get("sample_count", 0) or 0)
             for result in ranked
             if result.get("algorithm_mode") == "custom"
             and isinstance(result.get("algorithm_snapshot"), Mapping)
-            and (
-                result["algorithm_snapshot"].get("placement_weighting_mode"),
-                result["algorithm_snapshot"].get("selected_factors"),
-            )
-            == snapshot_key
+            and similarity_custom_scoring_signature(result["algorithm_snapshot"]) == snapshot_key
         )
         factors = [
             f"{str(factor['factor']).replace('_', ' ').title()}: {float(factor['weight']):g}"

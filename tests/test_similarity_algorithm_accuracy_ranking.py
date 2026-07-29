@@ -93,7 +93,7 @@ def test_custom_settings_are_ranked_as_numbered_distinct_algorithms(tmp_path):
     assert all(row["sample_count"] == 1 for row in rows)
 
 
-def test_relationship_override_only_updates_latest_custom_variant_for_pair(tmp_path):
+def test_relationship_override_updates_perception_for_every_prediction_of_pair(tmp_path):
     algorithm_path = tmp_path / "similarities_algorithm_log.txt"
     relationship_path = tmp_path / "chart_similarity_relationships.json"
     first = build_similarity_algorithm_snapshot("custom", {"use_placement": True, "weight_placement": 0.7})
@@ -128,7 +128,44 @@ def test_relationship_override_only_updates_latest_custom_variant_for_pair(tmp_p
     )
 
     assert len(rows) == 2
-    assert all(row["average_accuracy"] == 100.0 for row in rows)
+    assert sorted(row["average_accuracy"] for row in rows) == [30.0, 100.0]
+
+
+def test_custom_variant_identity_excludes_unrelated_all_or_nothing_setting(tmp_path):
+    path = tmp_path / "similarities_algorithm_log.txt"
+    base = build_similarity_algorithm_snapshot(
+        "custom",
+        {
+            "use_placement": True,
+            "weight_placement": 1.0,
+            "all_or_nothing_component": "aspect",
+        },
+    )
+    changed_unrelated = build_similarity_algorithm_snapshot(
+        "custom",
+        {
+            "use_placement": True,
+            "weight_placement": 1.0,
+            "all_or_nothing_component": "big_3",
+        },
+    )
+    for pair, snapshot in (("AB", base), ("AC", changed_unrelated)):
+        append_similarity_accuracy_observation(
+            algorithm_mode="custom",
+            algorithm_snapshot=snapshot,
+            predicted_percent=80,
+            user_reported_accuracy=80,
+            not_applicable=False,
+            chart_1_uid=pair[0] * 14,
+            chart_2_uid=pair[1] * 14,
+            path=path,
+        )
+
+    rows = aggregate_similarity_algorithm_accuracy(path)
+
+    assert len(rows) == 1
+    assert rows[0]["display_name"] == "Custom 1"
+    assert rows[0]["sample_count"] == 2
 
 
 def test_accuracy_ranking_html_has_highlight_header_links_and_expanded_weights():
