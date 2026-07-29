@@ -30,7 +30,15 @@ def test_database_search_top_categories_are_nested_sections():
 
 
 def test_database_search_subsections_use_standard_section_background():
-    for title in ("🪐Positions", "🪐Decans", "💭Sentiment", "🕰️Lifespan", "💭Notes"):
+    for title in (
+        "🪐Positions",
+        "🪐Decans",
+        "💭Sentiment Types",
+        "💭Relationship Types",
+        "💭Personal Relevance",
+        "🕰️Lifespan",
+        "💭Notes",
+    ):
         assert f'add_collapsible_section("{title}", nested=True)' not in SEARCH_SOURCE
         assert f'add_collapsible_section("{title}")' in SEARCH_SOURCE
     assert 'nested=True' in SEARCH_SOURCE
