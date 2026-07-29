@@ -762,7 +762,8 @@ from ephemeraldaddy.core.db import (
     update_chart_weirdness_score,
     set_current_chart_by_uid,
     parse_relationship_types,
-    add_tag_to_charts,
+    add_tag_to_charts_by_uid,
+    remove_tag_from_charts_by_uid,
     backup_database,
     restore_database,
     SOURCE_HYPOTHETICAL,
@@ -14297,7 +14298,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         if not tag_value:
             return
 
-        chart_ids = self._selected_local_row_ids()
+        chart_uids = self._selected_chart_uids()
+        chart_ids = self._local_row_ids_for_uids(chart_uids)
         self._batch_tagging_debug_log(
             "tag_click_start tag=%r selected_ids=%s",
             tag_value,
@@ -14319,7 +14321,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             return
 
         try:
-            changed_uids = add_tag_to_charts(chart_ids, tag_value)
+            changed_uids = add_tag_to_charts_by_uid(chart_uids, tag_value)
             self._batch_tagging_debug_log(
                 "tag_click_saved tag=%r changed_uids=%s",
                 tag_value,
@@ -14344,8 +14346,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
         self._batch_tags_lucygoosey = False
         self.batch_tags_input.setText(tag_value)
-        changed_ids_by_uid = get_chart_ids_by_uid(changed_uids)
-        changed_ids = set(changed_ids_by_uid.values())
+        changed_ids = set(self._local_row_ids_for_uids(changed_uids))
         normalized_key = tag_value.casefold()
         for chart_id in changed_ids:
             cached_chart = self._get_chart_for_filter(chart_id)
@@ -14467,8 +14468,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         if not tag_to_remove:
             return
 
-        chart_ids = self._selected_local_row_ids()
-        if not chart_ids:
+        chart_uids = self._selected_chart_uids()
+        if not chart_uids:
             QMessageBox.information(
                 self,
                 "No charts selected",
@@ -14477,28 +14478,14 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             self._update_batch_edit_state()
             return
 
-        selected_count = len(chart_ids)
+        selected_count = len(chart_uids)
         action_label = f"Remove tag '{tag_to_remove}' from"
         if not self._confirm_batch_edit(action_label, selected_count):
             self._update_batch_edit_state()
             return
 
         try:
-            normalized_remove_key = tag_to_remove.casefold()
-            for chart_id in chart_ids:
-                chart = load_chart(chart_id)
-                existing_tags = normalize_tag_list(getattr(chart, "tags", []))
-                chart.tags = [
-                    tag
-                    for tag in existing_tags
-                    if tag.casefold() != normalized_remove_key
-                ]
-                update_chart(
-                    chart_id,
-                    chart,
-                    retcon_time_used=getattr(chart, "retcon_time_used", False),
-                )
-                self._chart_cache[chart_id] = chart
+            changed_uids = remove_tag_from_charts_by_uid(chart_uids, tag_to_remove)
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -14508,7 +14495,18 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             return
 
         self._batch_tags_lucygoosey = False
-        changed_ids = set(chart_ids)
+        changed_ids = set(self._local_row_ids_for_uids(changed_uids))
+        normalized_remove_key = tag_to_remove.casefold()
+        for chart_id in changed_ids:
+            cached_chart = self._get_chart_for_filter(chart_id)
+            if cached_chart is None:
+                continue
+            cached_chart.tags = [
+                tag
+                for tag in normalize_tag_list(getattr(cached_chart, "tags", []))
+                if tag.casefold() != normalized_remove_key
+            ]
+            self._chart_cache[chart_id] = cached_chart
         self._finalize_batch_tag_updates(changed_ids)
 
     def _finalize_batch_tag_updates(
@@ -15138,7 +15136,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._set_batch_metric_lucygoosey_state(field_key, True)
 
     def _on_batch_tags_apply(self) -> None:
-        chart_ids = self._selected_local_row_ids()
+        chart_uids = self._selected_chart_uids()
+        chart_ids = self._local_row_ids_for_uids(chart_uids)
         self._batch_tagging_debug_log(
             "tag_apply_start selected_ids=%s raw_input=%r",
             sorted(set(chart_ids)),
@@ -15177,7 +15176,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             return
 
         try:
-            changed_uids = add_tag_to_charts(chart_ids, tag_to_add)
+            changed_uids = add_tag_to_charts_by_uid(chart_uids, tag_to_add)
             self._batch_tagging_debug_log(
                 "tag_apply_saved tag=%r changed_uids=%s",
                 tag_to_add,
@@ -15202,8 +15201,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
         self._batch_tags_lucygoosey = False
         self.batch_tags_input.setText(tag_to_add)
-        changed_ids_by_uid = get_chart_ids_by_uid(changed_uids)
-        changed_ids = set(changed_ids_by_uid.values())
+        changed_ids = set(self._local_row_ids_for_uids(changed_uids))
         normalized_key = tag_to_add.casefold()
         for chart_id in changed_ids:
             cached_chart = self._get_chart_for_filter(chart_id)

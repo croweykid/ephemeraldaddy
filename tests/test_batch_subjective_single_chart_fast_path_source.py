@@ -53,3 +53,39 @@ def test_subjective_db_writer_is_narrow_and_uid_based():
     assert "WHERE UPPER(chart_uid) = ?" in method
     assert "update_chart(" not in method
     assert "_persist_chart_derived_cache" not in method
+
+
+def test_batch_tag_additions_use_uid_only_metadata_writer():
+    for method_name, next_name in (
+        ("_on_batch_tag_item_clicked", "_parse_integer_filter_text"),
+        ("_on_batch_tags_apply", "_update_batch_alignment_score_label"),
+    ):
+        method = _method_source(method_name, next_name)
+        assert "self._selected_chart_uids()" in method
+        assert "add_tag_to_charts_by_uid" in method
+        assert "update_chart(" not in method
+        assert "_calculate_dominant_sign_weights" not in method
+
+
+def test_batch_tag_removal_never_loads_or_recalculates_charts():
+    method = _method_source(
+        "_on_batch_tag_remove_link_clicked", "_finalize_batch_tag_updates"
+    )
+    assert "self._selected_chart_uids()" in method
+    assert "remove_tag_from_charts_by_uid" in method
+    assert "load_chart(" not in method
+    assert "update_chart(" not in method
+    assert "_calculate_dominant_sign_weights" not in method
+
+
+def test_tag_database_writers_only_update_tags_column():
+    for function_name in (
+        "add_tag_to_charts_by_uid",
+        "remove_tag_from_charts_by_uid",
+    ):
+        start = DB_SOURCE.index(f"def {function_name}")
+        end = DB_SOURCE.index("\ndef ", start + 5)
+        method = DB_SOURCE[start:end]
+        assert "UPDATE charts SET tags = ? WHERE chart_uid = ?" in method
+        assert "_persist_chart_derived_cache" not in method
+        assert "update_chart(" not in method

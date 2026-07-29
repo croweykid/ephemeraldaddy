@@ -2734,31 +2734,35 @@ def list_recognized_tags() -> list[str]:
                 deduped[key] = tag
     return sorted(deduped.values(), key=lambda value: value.casefold())
 
-def add_tag_to_charts(chart_ids: Iterable[int], tag_value: str) -> set[str]:
-    """Add one tag to many charts and return UIDs that actually changed.
-
-    ``chart_ids`` remains a legacy compatibility input while Database View
-    selection is still backed by local row ids.  Callers should treat the
-    returned stable chart UIDs as the durable identity for downstream work.
-    """
+def add_tag_to_charts_by_uid(
+    chart_uids: Iterable[str | None],
+    tag_value: str,
+) -> set[str]:
+    """Add one tag using a single transaction and return changed chart UIDs."""
     normalized_tag = str(tag_value or "").strip()
     if not normalized_tag:
         return set()
 
-    normalized_ids = sorted({int(chart_id) for chart_id in chart_ids})
-    if not normalized_ids:
+    normalized_uids = sorted(
+        {
+            normalized_uid
+            for chart_uid in chart_uids
+            if (normalized_uid := _normalize_chart_uid(chart_uid)) is not None
+        }
+    )
+    if not normalized_uids:
         return set()
 
     changed_uids: set[str] = set()
     normalized_key = normalized_tag.casefold()
 
-    def _apply_for_ids(conn: sqlite3.Connection, target_ids: list[int]) -> None:
-        if not target_ids:
+    def _apply_for_uids(conn: sqlite3.Connection, target_uids: list[str]) -> None:
+        if not target_uids:
             return
-        placeholders = ", ".join("?" for _ in target_ids)
+        placeholders = ", ".join("?" for _ in target_uids)
         rows = conn.execute(
-            f"SELECT chart_uid, tags FROM charts WHERE id IN ({placeholders})",
-            tuple(target_ids),
+            f"SELECT chart_uid, tags FROM charts WHERE chart_uid IN ({placeholders})",
+            tuple(target_uids),
         ).fetchall()
         for chart_uid, raw_tags in rows:
             normalized_uid = _normalize_chart_uid(chart_uid)
@@ -2777,13 +2781,70 @@ def add_tag_to_charts(chart_ids: Iterable[int], tag_value: str) -> set[str]:
     sqlite_variable_limit = 900
     with _get_conn() as conn:
         _ensure_chart_uids(conn)
-        if len(normalized_ids) <= sqlite_variable_limit:
-            _apply_for_ids(conn, normalized_ids)
+        if len(normalized_uids) <= sqlite_variable_limit:
+            _apply_for_uids(conn, normalized_uids)
             return changed_uids
 
-        for start in range(0, len(normalized_ids), sqlite_variable_limit):
-            _apply_for_ids(conn, normalized_ids[start:start + sqlite_variable_limit])
+        for start in range(0, len(normalized_uids), sqlite_variable_limit):
+            _apply_for_uids(
+                conn,
+                normalized_uids[start:start + sqlite_variable_limit],
+            )
     return changed_uids
+
+
+def add_tag_to_charts(chart_ids: Iterable[int], tag_value: str) -> set[str]:
+    """Compatibility wrapper for callers that still hold local row IDs."""
+    chart_uid_map = get_chart_uid_map(chart_ids)
+    return add_tag_to_charts_by_uid(chart_uid_map.values(), tag_value)
+
+
+def remove_tag_from_charts_by_uid(
+    chart_uids: Iterable[str | None],
+    tag_value: str,
+) -> set[str]:
+    """Remove one tag without loading charts or rewriting derived metadata."""
+    normalized_tag_key = str(tag_value or "").strip().casefold()
+    normalized_uids = sorted(
+        {
+            normalized_uid
+            for chart_uid in chart_uids
+            if (normalized_uid := _normalize_chart_uid(chart_uid)) is not None
+        }
+    )
+    if not normalized_tag_key or not normalized_uids:
+        return set()
+
+    changed_uids: set[str] = set()
+    sqlite_variable_limit = 900
+    with _get_conn() as conn:
+        _ensure_chart_uids(conn)
+        for start in range(0, len(normalized_uids), sqlite_variable_limit):
+            target_uids = normalized_uids[start:start + sqlite_variable_limit]
+            placeholders = ", ".join("?" for _ in target_uids)
+            rows = conn.execute(
+                f"SELECT chart_uid, tags FROM charts WHERE chart_uid IN ({placeholders})",
+                tuple(target_uids),
+            ).fetchall()
+            for chart_uid, raw_tags in rows:
+                existing_tags = parse_tags(raw_tags)
+                updated_tags = [
+                    tag
+                    for tag in existing_tags
+                    if tag.casefold() != normalized_tag_key
+                ]
+                if len(updated_tags) == len(existing_tags):
+                    continue
+                normalized_uid = _normalize_chart_uid(chart_uid)
+                if normalized_uid is None:
+                    continue
+                conn.execute(
+                    "UPDATE charts SET tags = ? WHERE chart_uid = ?",
+                    (_serialize_tags(updated_tags), normalized_uid),
+                )
+                changed_uids.add(normalized_uid)
+    return changed_uids
+
 
 def get_metadata_label_usage() -> dict[str, list[dict[str, int | str]]]:
     """Return sentiment, relationship, and tag labels with usage counts.
