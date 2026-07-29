@@ -1,8 +1,13 @@
-"""Regression contract for Chart View save/autosave integrity.
+"""Static regression contract for Chart View save/autosave integrity.
 
 These checks intentionally keep the PR #1890/#1893 save-path guarantees together
 so later GUI refactors cannot silently turn subjective edits into full chart
 recalculations or make the two autosave timers race each other.
+
+This module reads Python source as text; it does *not* launch Qt, wait for real
+timers, or reopen a chart from a real database.  See
+``docs/chart_view_save_integrity_regressions.md`` for the exact guarantees,
+limitations, command-line usage, and complementary manual GUI procedure.
 """
 
 from pathlib import Path
