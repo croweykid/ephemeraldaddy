@@ -14,6 +14,17 @@ CUSTOM_ASTRO_TWIN_PRESETS_PATH_ENV = "EPHEMERALDADDY_CUSTOM_ASTRO_TWIN_PRESETS_P
 _NUMBERED_CUSTOM_NAME_RE = re.compile(r"^Custom (\d+)$")
 
 
+def _write_custom_astro_twin_presets(path: Path, records: list[dict[str, Any]]) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path = path.with_name(f".{path.name}.tmp")
+    temporary_path.write_text(
+        json.dumps({"version": 1, "presets": records}, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    temporary_path.replace(path)
+    return path
+
+
 def resolve_custom_astro_twin_presets_path(
     path: str | os.PathLike[str] | None = None,
 ) -> Path:
@@ -74,11 +85,23 @@ def save_custom_astro_twin_preset(
     preset_path = resolve_custom_astro_twin_presets_path(path)
     records = load_custom_astro_twin_presets(preset_path)
     records.append({"name": clean_name, "settings": dict(settings)})
-    preset_path.parent.mkdir(parents=True, exist_ok=True)
-    temporary_path = preset_path.with_name(f".{preset_path.name}.tmp")
-    temporary_path.write_text(
-        json.dumps({"version": 1, "presets": records}, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
-    temporary_path.replace(preset_path)
-    return preset_path
+    return _write_custom_astro_twin_presets(preset_path, records)
+
+
+def update_custom_astro_twin_preset(
+    name: str,
+    settings: Mapping[str, Any],
+    *,
+    path: str | os.PathLike[str] | None = None,
+) -> Path:
+    """Replace the named preset's settings while preserving its list position."""
+    clean_name = str(name).strip()
+    preset_path = resolve_custom_astro_twin_presets_path(path)
+    records = load_custom_astro_twin_presets(preset_path)
+    for index, record in enumerate(records):
+        if str(record.get("name", "")).strip() == clean_name:
+            records[index] = {"name": clean_name, "settings": dict(settings)}
+            break
+    else:
+        raise KeyError(clean_name)
+    return _write_custom_astro_twin_presets(preset_path, records)

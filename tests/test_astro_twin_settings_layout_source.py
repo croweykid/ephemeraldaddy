@@ -41,3 +41,22 @@ def test_custom_subpanel_has_visual_cues_and_preset_button_at_bottom():
     assert custom_fields < accent < reset_button < save_button < attach_to_layout
     assert 'save_custom_preset_button.setToolTip("save current weights as preset")' in SECTION
     assert '"save_custom_preset_button": save_custom_preset_button' in SECTION
+
+
+def test_custom_preset_selector_and_in_use_state_are_wired():
+    assert 'select_preset_label = QLabel("Select Preset")' in SECTION
+    assert "resolve_custom_astro_twin_presets_path().is_file()" in SECTION
+    assert "select_preset_combo.currentIndexChanged.connect(apply_selected_preset)" in SECTION
+    assert "preset_state[\"preset_in_use\"] = True" in SECTION
+    assert "preset_state[\"preset_in_use\"] = False" in SECTION
+    assert 'f"\'{preset_name}\' preset applied!"' in SECTION
+    assert 'f"\'{preset_name}\' in use{suffix}"' in SECTION
+    assert 'suffix = " (modified*)" if modified else ""' in SECTION
+    assert 'font_style = "font-style: italic;" if modified else ""' in SECTION
+
+
+def test_saving_loaded_preset_offers_exact_update_or_new_choices():
+    assert '"Do you want to update the current preset or save this as new preset?"' in SECTION
+    assert 'choice_dialog.addButton(f"Update \'{preset_name}\'", QMessageBox.AcceptRole)' in SECTION
+    assert 'choice_dialog.addButton("Save as new", QMessageBox.ActionRole)' in SECTION
+    assert "update_custom_astro_twin_preset(preset_name, current_custom_settings())" in SECTION

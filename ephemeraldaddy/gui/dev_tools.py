@@ -45,6 +45,7 @@ from ephemeraldaddy.gui.tag_categories import TAG_CATEGORY_OPTIONS, TAG_CATEGORY
 from ephemeraldaddy.gui.style import (
     apply_shared_dropdown_style,
     CHART_DATA_HIGHLIGHT_COLOR,
+    COLOR_ACCENT_SUCCESS,
     COLOR_BG_ELEVATED,
     INACTIVE_ACTION_BUTTON_STYLE,
     SETTINGS_TAB_STYLE,
@@ -57,7 +58,9 @@ from ephemeraldaddy.gui.features.charts.similarities_algorithm_log import (
 from ephemeraldaddy.gui.features.charts.similarity_custom_presets import (
     load_custom_astro_twin_presets,
     next_custom_astro_twin_preset_name,
+    resolve_custom_astro_twin_presets_path,
     save_custom_astro_twin_preset,
+    update_custom_astro_twin_preset,
 )
 
 SETTINGS_KEY_BATCH_TAGGING_TERMINAL_DEBUG = "dev_tools/batch_tagging_terminal_debug"
@@ -749,6 +752,15 @@ def build_similarity_calculator_settings_section(
     custom_fields_frame.setVisible(False)
     custom_radio.toggled.connect(custom_fields_frame.setVisible)
 
+    preset_status_label = QLabel()
+    preset_status_label.setVisible(False)
+    custom_fields_layout.addWidget(preset_status_label)
+    preset_state: dict[str, object] = {
+        "name": None,
+        "preset_in_use": False,
+        "applying": False,
+    }
+
     calculator_checkboxes: dict[str, QCheckBox] = {}
     calculator_weights: dict[str, QDoubleSpinBox] = {}
     calculator_grid = QGridLayout()
@@ -823,10 +835,83 @@ def build_similarity_calculator_settings_section(
     reset_similarity_weights_button.clicked.connect(on_reset_weights_clicked)
     custom_fields_layout.addWidget(reset_similarity_weights_button, alignment=Qt.AlignLeft)
 
+    def current_custom_settings() -> dict[str, object]:
+        settings: dict[str, object] = {
+            "placement_weighting_mode": str(weighting_mode_combo.currentData() or "chart_defined")
+        }
+        for key, checkbox in calculator_checkboxes.items():
+            settings[f"use_{key}"] = checkbox.isChecked()
+            settings[f"weight_{key}"] = float(calculator_weights[key].value())
+        return settings
+
+    def show_preset_status(*, modified: bool = False) -> None:
+        preset_name = str(preset_state.get("name") or "")
+        if not preset_name:
+            preset_status_label.setVisible(False)
+            return
+        suffix = " (modified*)" if modified else ""
+        preset_status_label.setText(f"'{preset_name}' in use{suffix}")
+        font_style = "font-style: italic;" if modified else ""
+        preset_status_label.setStyleSheet(f"color: {COLOR_ACCENT_SUCCESS}; {font_style}")
+        preset_status_label.setVisible(True)
+
+    def mark_loaded_preset_modified(*_args) -> None:
+        if bool(preset_state["applying"]) or not bool(preset_state["preset_in_use"]):
+            return
+        preset_state["preset_in_use"] = False
+        show_preset_status(modified=True)
+
+    for checkbox in calculator_checkboxes.values():
+        checkbox.toggled.connect(mark_loaded_preset_modified)
+    for spinbox in calculator_weights.values():
+        spinbox.valueChanged.connect(mark_loaded_preset_modified)
+    weighting_mode_combo.currentIndexChanged.connect(mark_loaded_preset_modified)
+
     save_custom_preset_button = QPushButton("Save as Preset")
     save_custom_preset_button.setToolTip("save current weights as preset")
+    select_preset_label = QLabel("Select Preset")
+    select_preset_combo = QComboBox()
+    apply_shared_dropdown_style(select_preset_combo)
 
-    def save_current_custom_preset() -> None:
+    def refresh_preset_dropdown() -> None:
+        preset_state["applying"] = True
+        select_preset_combo.clear()
+        for preset in load_custom_astro_twin_presets():
+            select_preset_combo.addItem(str(preset["name"]), dict(preset["settings"]))
+        select_preset_combo.setCurrentIndex(-1)
+        preset_state["applying"] = False
+        is_local_file_available = resolve_custom_astro_twin_presets_path().is_file()
+        select_preset_label.setVisible(is_local_file_available)
+        select_preset_combo.setVisible(is_local_file_available)
+
+    def apply_selected_preset(index: int) -> None:
+        if index < 0 or bool(preset_state["applying"]):
+            return
+        settings = select_preset_combo.itemData(index)
+        if not isinstance(settings, dict):
+            return
+        preset_state["applying"] = True
+        for key, checkbox in calculator_checkboxes.items():
+            enabled_key = f"use_{key}"
+            weight_key = f"weight_{key}"
+            if enabled_key in settings:
+                checkbox.setChecked(bool(settings[enabled_key]))
+            if weight_key in settings:
+                calculator_weights[key].setValue(float(settings[weight_key]))
+        placement_index = weighting_mode_combo.findData(settings.get("placement_weighting_mode"))
+        if placement_index >= 0:
+            weighting_mode_combo.setCurrentIndex(placement_index)
+        preset_state["applying"] = False
+        preset_name = select_preset_combo.itemText(index)
+        preset_state["name"] = preset_name
+        preset_state["preset_in_use"] = True
+        show_preset_status()
+        QMessageBox.information(dialog, "Select Preset", f"'{preset_name}' preset applied!")
+
+    select_preset_combo.currentIndexChanged.connect(apply_selected_preset)
+    refresh_preset_dropdown()
+
+    def prompt_for_new_preset_name() -> str | None:
         default_name = next_custom_astro_twin_preset_name(load_custom_astro_twin_presets())
         preset_name, accepted = QInputDialog.getText(
             dialog,
@@ -834,21 +919,49 @@ def build_similarity_calculator_settings_section(
             "Preset name:",
             text=default_name,
         )
-        if not accepted or not preset_name.strip():
+        return preset_name.strip() if accepted and preset_name.strip() else None
+
+    def save_current_custom_preset() -> None:
+        preset_name = str(preset_state.get("name") or "")
+        update_current = False
+        if bool(preset_state["preset_in_use"]) and preset_name:
+            choice_dialog = QMessageBox(dialog)
+            choice_dialog.setWindowTitle("Save as Preset")
+            choice_dialog.setText("Do you want to update the current preset or save this as new preset?")
+            update_button = choice_dialog.addButton(f"Update '{preset_name}'", QMessageBox.AcceptRole)
+            save_new_button = choice_dialog.addButton("Save as new", QMessageBox.ActionRole)
+            choice_dialog.exec()
+            clicked_button = choice_dialog.clickedButton()
+            if clicked_button is update_button:
+                update_current = True
+            elif clicked_button is save_new_button:
+                preset_name = prompt_for_new_preset_name() or ""
+            else:
+                return
+        else:
+            preset_name = prompt_for_new_preset_name() or ""
+        if not preset_name:
             return
-        settings: dict[str, object] = {
-            "placement_weighting_mode": str(weighting_mode_combo.currentData() or "chart_defined")
-        }
-        for key, checkbox in calculator_checkboxes.items():
-            settings[f"use_{key}"] = checkbox.isChecked()
-            settings[f"weight_{key}"] = float(calculator_weights[key].value())
         try:
-            save_custom_astro_twin_preset(preset_name, settings)
-        except OSError as exc:
+            if update_current:
+                update_custom_astro_twin_preset(preset_name, current_custom_settings())
+            else:
+                save_custom_astro_twin_preset(preset_name, current_custom_settings())
+        except (KeyError, OSError) as exc:
             QMessageBox.warning(dialog, "Save as Preset", f"Could not save preset: {exc}")
+            return
+        preset_state["name"] = preset_name
+        preset_state["preset_in_use"] = True
+        show_preset_status()
+        refresh_preset_dropdown()
 
     save_custom_preset_button.clicked.connect(save_current_custom_preset)
-    custom_fields_layout.addWidget(save_custom_preset_button, alignment=Qt.AlignLeft)
+    preset_action_row = QHBoxLayout()
+    preset_action_row.addWidget(save_custom_preset_button)
+    preset_action_row.addWidget(select_preset_label)
+    preset_action_row.addWidget(select_preset_combo)
+    preset_action_row.addStretch(1)
+    custom_fields_layout.addLayout(preset_action_row)
 
     #reset_granular_row = QHBoxLayout()
     #reset_granular_row.addWidget(reset_similarity_weights_button, alignment=Qt.AlignLeft)
@@ -936,6 +1049,9 @@ def build_similarity_calculator_settings_section(
         "calculator_weights": calculator_weights,
         "calculator_total_label": total_weight_value_label,
         "save_custom_preset_button": save_custom_preset_button,
+        "select_preset_combo": select_preset_combo,
+        "preset_status_label": preset_status_label,
+        "preset_state": preset_state,
         "placement_weighting_mode_combo": weighting_mode_combo,
         "all_or_nothing_criterion_combo": all_or_nothing_criterion_combo,
         "demographic_match_buttons": demographic_match_buttons,

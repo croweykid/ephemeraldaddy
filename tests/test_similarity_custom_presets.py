@@ -5,6 +5,7 @@ from ephemeraldaddy.gui.features.charts.similarity_custom_presets import (
     load_custom_astro_twin_presets,
     next_custom_astro_twin_preset_name,
     save_custom_astro_twin_preset,
+    update_custom_astro_twin_preset,
 )
 
 
@@ -37,3 +38,16 @@ def test_save_custom_preset_uses_extensionless_local_file_and_preserves_weights(
         {"name": "My weights", "settings": {"weight_big_3": 0.75}},
     ]
     assert json.loads(path.read_text(encoding="utf-8"))["version"] == 1
+
+
+def test_update_custom_preset_replaces_settings_without_appending(tmp_path):
+    path = tmp_path / CUSTOM_ASTRO_TWIN_PRESETS_FILENAME
+    save_custom_astro_twin_preset("Custom 1", {"weight_placement": 0.2}, path=path)
+    save_custom_astro_twin_preset("Custom 2", {"weight_placement": 0.3}, path=path)
+
+    update_custom_astro_twin_preset("Custom 1", {"weight_placement": 0.9}, path=path)
+
+    assert load_custom_astro_twin_presets(path) == [
+        {"name": "Custom 1", "settings": {"weight_placement": 0.9}},
+        {"name": "Custom 2", "settings": {"weight_placement": 0.3}},
+    ]
