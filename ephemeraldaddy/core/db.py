@@ -6115,6 +6115,49 @@ def update_charts_nonastral_patches_by_uid(
         conn.close()
 
 
+def update_charts_mortality_by_uid(
+    chart_uids: Iterable[str | None],
+    is_deceased: bool,
+) -> set[str]:
+    """Set mortality while preserving the invariant for an unentered death time."""
+    normalized_uids = sorted(
+        {
+            normalized_uid
+            for chart_uid in chart_uids
+            if (normalized_uid := _normalize_chart_uid(chart_uid)) is not None
+        }
+    )
+    if not normalized_uids:
+        return set()
+
+    changed_uids: set[str] = set()
+    conn = _get_conn()
+    try:
+        with conn:
+            _ensure_chart_uids(conn)
+            for start in range(0, len(normalized_uids), 898):
+                uid_chunk = normalized_uids[start : start + 898]
+                placeholders = ", ".join("?" for _ in uid_chunk)
+                changed_uids.update(
+                    str(row[0])
+                    for row in conn.execute(
+                        f"SELECT chart_uid FROM charts WHERE chart_uid IN ({placeholders})",
+                        uid_chunk,
+                    ).fetchall()
+                )
+                conn.execute(
+                    "UPDATE charts SET is_deceased = ?, "
+                    "deathtime_unknown = CASE "
+                    "WHEN ? AND (death_hour IS NULL OR death_minute IS NULL) THEN 1 "
+                    "ELSE deathtime_unknown END "
+                    f"WHERE chart_uid IN ({placeholders})",
+                    [int(is_deceased), int(is_deceased), *uid_chunk],
+                )
+        return changed_uids
+    finally:
+        conn.close()
+
+
 def load_chart_rows_for_ids(chart_ids: Iterable[int]) -> dict[int, sqlite3.Row]:
     """Load raw chart rows for many chart IDs using one database query."""
     unique_ids = list(dict.fromkeys(int(chart_id) for chart_id in chart_ids))

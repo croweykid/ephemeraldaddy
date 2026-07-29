@@ -75,3 +75,65 @@ def test_general_nonastral_patch_rejects_astro_and_protected_fields(tmp_path, mo
         db.update_charts_nonastral_fields_by_uid(
             {"NONASTRAL0000001"}, {"chart_uid": "REPLACEMENT00001"}
         )
+
+
+def test_general_nonastral_patch_chunks_large_uid_selection(tmp_path, monkeypatch):
+    path = _database(tmp_path, monkeypatch)
+    uids = {f"MISSING{index:09d}" for index in range(1_100)}
+    uids.add("NONASTRAL0000001")
+
+    changed = db.update_charts_nonastral_fields_by_uid(uids, {"gender": "female"})
+
+    assert changed == {"NONASTRAL0000001"}
+    with sqlite3.connect(path) as connection:
+        assert connection.execute(
+            "SELECT gender FROM charts WHERE chart_uid = ?",
+            ("NONASTRAL0000001",),
+        ).fetchone() == ("female",)
+
+
+def test_mortality_writer_marks_new_death_time_unknown(tmp_path, monkeypatch):
+    path = _database(tmp_path, monkeypatch)
+
+    changed = db.update_charts_mortality_by_uid({"NONASTRAL0000001"}, True)
+
+    assert changed == {"NONASTRAL0000001"}
+    with sqlite3.connect(path) as connection:
+        assert connection.execute(
+            "SELECT is_deceased, deathtime_unknown FROM charts WHERE chart_uid = ?",
+            ("NONASTRAL0000001",),
+        ).fetchone() == (1, 1)
+
+
+def test_mortality_writer_does_not_clear_unknown_state_when_marking_living(
+    tmp_path, monkeypatch
+):
+    path = _database(tmp_path, monkeypatch)
+    with sqlite3.connect(path) as connection, connection:
+        connection.execute("UPDATE charts SET is_deceased = 1, deathtime_unknown = 1")
+
+    db.update_charts_mortality_by_uid({"NONASTRAL0000001"}, False)
+
+    with sqlite3.connect(path) as connection:
+        assert connection.execute(
+            "SELECT is_deceased, deathtime_unknown FROM charts WHERE chart_uid = ?",
+            ("NONASTRAL0000001",),
+        ).fetchone() == (0, 1)
+
+
+def test_mortality_writer_preserves_known_stored_death_time(tmp_path, monkeypatch):
+    path = _database(tmp_path, monkeypatch)
+    with sqlite3.connect(path) as connection, connection:
+        connection.execute(
+            "UPDATE charts SET is_deceased = 1, deathtime_unknown = 0, "
+            "death_hour = 7, death_minute = 42"
+        )
+
+    db.update_charts_mortality_by_uid({"NONASTRAL0000001"}, True)
+
+    with sqlite3.connect(path) as connection:
+        assert connection.execute(
+            "SELECT is_deceased, deathtime_unknown, death_hour, death_minute "
+            "FROM charts WHERE chart_uid = ?",
+            ("NONASTRAL0000001",),
+        ).fetchone() == (1, 0, 7, 42)

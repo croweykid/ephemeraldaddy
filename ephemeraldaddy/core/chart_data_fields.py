@@ -8,7 +8,11 @@ is descriptive/user metadata and must never trigger them.
 
 from __future__ import annotations
 
+import logging
 from typing import Any, TypedDict
+
+
+logger = logging.getLogger(__name__)
 
 
 class NonastralPatch(TypedDict, total=False):
@@ -188,9 +192,17 @@ def require_nonastral_data_fields(fields: str | set[str] | frozenset[str]) -> No
     requested = {fields} if isinstance(fields, str) else set(fields)
     invalid = requested - NONASTRAL_DATA
     if invalid:
+        invalid_text = ", ".join(sorted(invalid))
+        logger.error(
+            "Refusing a narrow nonastral save for unclassified or ASTRO_DATA "
+            "field(s): %s. Classify new persisted fields in chart_data_fields.py; "
+            "route ASTRO_DATA inputs through the Chart View calculation path, or "
+            "add descriptive metadata to NONASTRAL_DATA.",
+            invalid_text,
+        )
         raise ValueError(
             "Narrow nonastral update received unclassified/ASTRO_DATA fields: "
-            + ", ".join(sorted(invalid))
+            + invalid_text
         )
 
 
