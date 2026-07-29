@@ -302,6 +302,56 @@ def test_legacy_observation_uses_preceding_not_future_custom_snapshot(tmp_path):
     assert rows[0]["algorithm_snapshot"] == first
 
 
+def test_legacy_fixed_mode_recovers_the_actual_scorer_not_custom_sliders(tmp_path):
+    path = tmp_path / "similarities_algorithm_log.txt"
+    sliders = build_similarity_algorithm_snapshot(
+        "big_3", {"use_placement": True, "weight_placement": 0.73}
+    )
+    observation = {
+        "algorithm_mode": "big_3",
+        "chart_uids": ["A" * 14, "B" * 14],
+        "predicted_percent": 75,
+        "perceived_similarity_score": 77,
+        "perceived_similarity_not_applicable": False,
+    }
+    path.write_text(
+        "Current settings upon close:\n" + json.dumps(sliders) + "\n"
+        "Perceived accuracy payload:\n" + json.dumps(observation) + "\n",
+        encoding="utf-8",
+    )
+
+    rows = aggregate_similarity_algorithm_accuracy(path)
+    recovered = rows[0]["algorithm_snapshot"]
+
+    factors = {row["factor"]: row for row in recovered["selected_factors"]}
+    assert factors["big_3"] == {"factor": "big_3", "enabled": True, "weight": 1.0}
+    assert factors["placement"] == {"factor": "placement", "enabled": False, "weight": 0.0}
+
+
+def test_legacy_fixed_scorer_does_not_claim_custom_weights(tmp_path):
+    path = tmp_path / "similarities_algorithm_log.txt"
+    sliders = build_similarity_algorithm_snapshot(
+        "generic_astro", {"use_placement": True, "weight_placement": 0.73}
+    )
+    observation = {
+        "algorithm_mode": "generic_astro",
+        "chart_uids": ["A" * 14, "B" * 14],
+        "predicted_percent": 75,
+        "perceived_similarity_score": 77,
+        "perceived_similarity_not_applicable": False,
+    }
+    path.write_text(
+        "Current settings upon close:\n" + json.dumps(sliders) + "\n"
+        "Perceived accuracy payload:\n" + json.dumps(observation) + "\n",
+        encoding="utf-8",
+    )
+
+    recovered = aggregate_similarity_algorithm_accuracy(path)[0]["algorithm_snapshot"]
+
+    assert recovered["details_available"] is False
+    assert "fixed scorer" in recovered["details_unavailable_reason"]
+
+
 def test_relationship_log_supplies_latest_score_without_recalculation(tmp_path):
     algorithm_path = tmp_path / "similarities_algorithm_log.txt"
     relationship_path = tmp_path / "chart_similarity_relationships.json"

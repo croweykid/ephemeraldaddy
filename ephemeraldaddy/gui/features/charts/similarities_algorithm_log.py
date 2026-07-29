@@ -15,6 +15,7 @@ from ephemeraldaddy.analysis.get_astro_twin import (
     SIMILARITY_COMPONENT_KEYS,
     SimilarityCalculatorSettings,
     normalize_similar_charts_algorithm_mode,
+    similarity_algorithm_settings_snapshot,
 )
 from ephemeraldaddy.core.feedback_prediction_fields import (
     perceived_similarity_feedback,
@@ -69,6 +70,37 @@ def _snapshot_preceding_observation(
         if snapshot_offset < observation_offset
     ]
     return preceding[-1] if preceding else None
+
+
+def _scorer_snapshot_from_logged_settings(
+    mode: str,
+    logged_snapshot: Mapping[str, Any] | None,
+) -> dict[str, Any] | None:
+    """Convert a Settings-dialog snapshot into the scorer a mode actually used."""
+    if logged_snapshot is None:
+        return None
+    if mode in {"default", "custom"}:
+        return dict(logged_snapshot)
+
+    raw_settings = logged_snapshot.get("settings")
+    settings_values = dict(raw_settings) if isinstance(raw_settings, Mapping) else {}
+    if not settings_values:
+        settings_values["placement_weighting_mode"] = logged_snapshot.get(
+            "placement_weighting_mode", ""
+        )
+        for factor in logged_snapshot.get("selected_factors", []):
+            if not isinstance(factor, Mapping):
+                continue
+            key = str(factor.get("factor", ""))
+            if key:
+                settings_values[f"use_{key}"] = bool(factor.get("enabled", False))
+                settings_values[f"weight_{key}"] = float(factor.get("weight", 0.0))
+    known_fields = SimilarityCalculatorSettings.__dataclass_fields__
+    settings = SimilarityCalculatorSettings(
+        **{key: value for key, value in settings_values.items() if key in known_fields}
+    )
+    scorer_settings = similarity_algorithm_settings_snapshot(mode, settings)
+    return build_similarity_algorithm_snapshot(mode, scorer_settings)
 
 
 def resolve_similarities_algorithm_log_path(path: str | os.PathLike[str] | None = None) -> Path:
@@ -222,7 +254,14 @@ def aggregate_similarity_algorithm_accuracy(
             # matching settings that preceded this observation, never a later
             # revision of the same mode.  The user's perceived score is handled
             # separately below and intentionally *does* follow later edits.
-            snapshot = _snapshot_preceding_observation(logged_snapshots, mode, marker_index)
+            logged_snapshot = _snapshot_preceding_observation(
+                logged_snapshots, mode, marker_index
+            )
+            # Settings-close records captured the editable slider model, not
+            # necessarily the selected mode's scorer. Normalize fixed and
+            # derived modes exactly as the calculation path does (for example,
+            # Big 3 is exclusively Big 3 at weight 1.0).
+            snapshot = _scorer_snapshot_from_logged_settings(mode, logged_snapshot)
         # Custom is an experiment rather than one stable algorithm. Its settings
         # signature therefore forms part of the observation identity.
         variant_key = ""
