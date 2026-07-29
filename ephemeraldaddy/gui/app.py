@@ -21587,7 +21587,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
     def _refresh_similarity_algorithm_accuracy_label(self) -> None:
         label = getattr(self, "_similarity_algorithm_accuracy_label", None)
-        if isinstance(label, QLabel):
+        refresh = getattr(label, "refresh_ranking", None)
+        if callable(refresh):
+            refresh()
+        elif isinstance(label, QLabel):
             label.setText(format_similarity_algorithm_accuracy_ranking())
 
     def _ensure_settings_dialog(self) -> QDialog:
@@ -26686,6 +26689,10 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             )
             append_similarity_accuracy_observation(
                 algorithm_mode=getattr(match, "algorithm_mode", None),
+                algorithm_snapshot=build_similarity_algorithm_snapshot(
+                    getattr(match, "algorithm_mode", None),
+                    getattr(self, "_similarity_calculator_settings", None),
+                ),
                 predicted_percent=float(getattr(match, "score", 0.0)) * 100.0,
                 user_reported_accuracy=score,
                 not_applicable=not_applicable,

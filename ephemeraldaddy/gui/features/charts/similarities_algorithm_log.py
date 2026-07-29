@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as _datetime
+import html
 import json
 import os
 import re
@@ -101,7 +102,8 @@ def aggregate_similarity_algorithm_accuracy(
     except OSError:
         return []
     relationship_scores = _current_relationship_scores(relationship_path)
-    observations: dict[tuple[str, str], tuple[float | None, float | None]] = {}
+    observations: dict[tuple[str, str, str], tuple[float | None, float | None, dict[str, Any] | None]] = {}
+    custom_variant_order: dict[str, int] = {}
     decoder = json.JSONDecoder()
     cursor = 0
     active_mode: str | None = None
@@ -137,21 +139,45 @@ def aggregate_similarity_algorithm_accuracy(
         if not str(raw_mode or "").strip():
             continue
         mode = normalize_similar_charts_algorithm_mode(raw_mode)
+        snapshot_value = payload.get("algorithm_snapshot")
+        snapshot = dict(snapshot_value) if isinstance(snapshot_value, Mapping) else None
+        # Custom is an experiment rather than one stable algorithm. Its settings
+        # signature therefore forms part of the observation identity.
+        variant_key = ""
+        if mode == "custom" and snapshot is not None:
+            variant_key = json.dumps(snapshot, sort_keys=True, separators=(",", ":"))
+        if mode == "custom" and variant_key not in custom_variant_order:
+            custom_variant_order[variant_key] = len(custom_variant_order) + 1
         pair_key = _accuracy_pair_key(payload)
         if pair_key and pair_key in relationship_scores:
             perceived = relationship_scores[pair_key]
         observation_key = pair_key or f"legacy-offset:{marker_index}"
-        observations[(mode, observation_key)] = (perceived, predicted)
-    totals: dict[str, list[float]] = {}
-    for (mode, _pair_key), (perceived, predicted) in observations.items():
+        observations[(mode, variant_key, observation_key)] = (perceived, predicted, snapshot)
+    totals: dict[tuple[str, str], list[float]] = {}
+    snapshots: dict[tuple[str, str], dict[str, Any] | None] = {}
+    for (mode, variant_key, _pair_key), (perceived, predicted, snapshot) in observations.items():
         if perceived is not None and predicted is not None:
             accuracy = max(0.0, 100.0 - abs(predicted - perceived))
-            totals.setdefault(mode, []).append(accuracy)
+            key = (mode, variant_key)
+            totals.setdefault(key, []).append(accuracy)
+            if snapshot is not None:
+                snapshots[key] = snapshot
     ranked = [
-        {"algorithm_mode": mode, "average_accuracy": sum(scores) / len(scores), "sample_count": len(scores)}
-        for mode, scores in totals.items()
+        {
+            "algorithm_mode": mode,
+            "average_accuracy": sum(scores) / len(scores),
+            "sample_count": len(scores),
+            **({"algorithm_snapshot": snapshots[(mode, variant_key)]} if (mode, variant_key) in snapshots else {}),
+            "_variant_key": variant_key,
+        }
+        for (mode, variant_key), scores in totals.items()
     ]
-    return sorted(ranked, key=lambda row: (-row["average_accuracy"], -row["sample_count"], row["algorithm_mode"]))
+    ranked.sort(key=lambda row: (-row["average_accuracy"], -row["sample_count"], row["algorithm_mode"], row["_variant_key"]))
+    for row in ranked:
+        if row["algorithm_mode"] == "custom":
+            row["display_name"] = f"Custom {custom_variant_order[row['_variant_key']]}"
+        row.pop("_variant_key", None)
+    return ranked
 
 
 def append_similarity_accuracy_observation(
@@ -163,6 +189,7 @@ def append_similarity_accuracy_observation(
     chart_1_uid: str | None,
     chart_2_uid: str | None,
     ranking_position: int | None = None,
+    algorithm_snapshot: Mapping[str, Any] | None = None,
     path: str | os.PathLike[str] | None = None,
     timestamp: _datetime.datetime | None = None,
 ) -> Path:
@@ -180,6 +207,7 @@ def append_similarity_accuracy_observation(
         "ranking_position": int(ranking_position) if ranking_position is not None else None,
         "user_reported_accuracy": user_reported_accuracy,
         "not_applicable": bool(not_applicable),
+        "algorithm_snapshot": dict(algorithm_snapshot) if algorithm_snapshot is not None else None,
     }
     with log_path.open("a", encoding="utf-8") as handle:
         handle.write("=== Similarity Perceived Accuracy ===\n")
@@ -198,11 +226,62 @@ def format_similarity_algorithm_accuracy_ranking(
         return "Algorithm accuracy ranking\nNo algorithm-linked accuracy scores have been recorded yet."
     lines = ["Algorithm accuracy ranking", "Average accuracy across recorded chart-pair rankings:"]
     for index, row in enumerate(ranked, start=1):
-        mode = str(row.get("algorithm_mode", "unknown")).replace("_", " ").title()
+        mode = str(row.get("display_name") or row.get("algorithm_mode", "unknown")).replace("_", " ").title()
         average = float(row.get("average_accuracy", 0.0))
         count = int(row.get("sample_count", 0))
         lines.append(f"{index}. {mode} — {average:.1f}% average (n={count})")
     return "\n".join(lines)
+
+
+def format_similarity_algorithm_accuracy_ranking_html(
+    rows: list[Mapping[str, Any]] | None = None,
+    *,
+    expanded_rows: set[int] | None = None,
+    highlight_color: str,
+) -> str:
+    """Return the interactive Research ranking as compact, safe rich text."""
+    ranked = aggregate_similarity_algorithm_accuracy() if rows is None else rows
+    expanded_rows = expanded_rows or set()
+    parts = [
+        f'<div style="font-weight:600; color:{html.escape(highlight_color)}; font-size:14px;">'
+        "Algorithm accuracy ranking</div>"
+    ]
+    if not ranked:
+        parts.append("<div>No algorithm-linked accuracy scores have been recorded yet.</div>")
+        return "".join(parts)
+    parts.append("<div>Average accuracy across recorded chart-pair rankings:</div>")
+    for index, row in enumerate(ranked, start=1):
+        name = str(row.get("display_name") or row.get("algorithm_mode", "unknown")).replace("_", " ").title()
+        average = float(row.get("average_accuracy", 0.0))
+        count = int(row.get("sample_count", 0))
+        parts.append(
+            f'<div style="margin-top:4px;">{index}. <a href="algorithm:{index - 1}">{html.escape(name)}</a>'
+            f" — {average:.1f}% average (n={count})</div>"
+        )
+        if index - 1 not in expanded_rows:
+            continue
+        snapshot = row.get("algorithm_snapshot")
+        detail_lines: list[str] = []
+        if isinstance(snapshot, Mapping):
+            placement = str(snapshot.get("placement_weighting_mode", "") or "").replace("_", " ").title()
+            if placement:
+                detail_lines.append(f"Placement weighting: {placement}")
+            factors = snapshot.get("selected_factors")
+            if isinstance(factors, list):
+                for factor in factors:
+                    if isinstance(factor, Mapping):
+                        state = "on" if bool(factor.get("enabled", False)) else "off"
+                        label = str(factor.get("factor", "")).replace("_", " ").title()
+                        detail_lines.append(f"{label}: {float(factor.get('weight', 0.0)):g} ({state})")
+        if not detail_lines:
+            detail_lines.append("Exact settings unavailable for this legacy observation.")
+        parts.append(
+            '<div style="margin:3px 0 5px 18px; padding:5px 7px; border-left:2px solid '
+            f'{html.escape(highlight_color)}; font-size:11px;">'
+            + "<br>".join(html.escape(line) for line in detail_lines)
+            + "</div>"
+        )
+    return "".join(parts)
 
 
 def _settings_payload(settings: SimilarityCalculatorSettings | Mapping[str, Any] | None) -> dict[str, Any]:

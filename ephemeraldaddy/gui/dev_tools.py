@@ -49,7 +49,8 @@ from ephemeraldaddy.gui.style import (
     similarity_gradient_rgb_for_range,
 )
 from ephemeraldaddy.gui.features.charts.similarities_algorithm_log import (
-    format_similarity_algorithm_accuracy_ranking,
+    aggregate_similarity_algorithm_accuracy,
+    format_similarity_algorithm_accuracy_ranking_html,
 )
 
 SETTINGS_KEY_BATCH_TAGGING_TERMINAL_DEBUG = "dev_tools/batch_tagging_terminal_debug"
@@ -64,6 +65,46 @@ SETTINGS_KEY_SIMILARITY_PERCEIVED_ACCURACY_CONTROLS = "dev_tools/similarity_perc
 SIMILARITY_PERCEIVED_ACCURACY_CONTROLS_DEFAULT = False
 SETTINGS_KEY_DEMO_MODE = "dev_tools/demo_mode"
 DEMO_MODE_DEFAULT = False
+
+
+class SimilarityAlgorithmAccuracyBrowser(QTextBrowser):
+    """Collapsible algorithm ranking used by the Astro Twin Research settings."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._expanded_rows: set[int] = set()
+        self.setOpenLinks(False)
+        self.setOpenExternalLinks(False)
+        self.setFrameShape(QFrame.NoFrame)
+        self.setStyleSheet("QTextBrowser { background: transparent; border: none; }")
+        self.setMinimumHeight(100)
+        self.setMaximumHeight(360)
+        self.anchorClicked.connect(self._toggle_algorithm_details)
+        self.refresh_ranking()
+
+    def refresh_ranking(self) -> None:
+        rows = aggregate_similarity_algorithm_accuracy()
+        self._expanded_rows.intersection_update(range(len(rows)))
+        self.setHtml(
+            format_similarity_algorithm_accuracy_ranking_html(
+                rows,
+                expanded_rows=self._expanded_rows,
+                highlight_color=CHART_DATA_HIGHLIGHT_COLOR,
+            )
+        )
+
+    def _toggle_algorithm_details(self, url) -> None:
+        if url.scheme() != "algorithm":
+            return
+        try:
+            row_index = int(url.path())
+        except ValueError:
+            return
+        if row_index in self._expanded_rows:
+            self._expanded_rows.remove(row_index)
+        else:
+            self._expanded_rows.add(row_index)
+        self.refresh_ranking()
 
 
 def _build_settings_help_label(text: str) -> QLabel:
@@ -823,9 +864,7 @@ def build_similarity_calculator_settings_section(
         is_enabled=perceived_accuracy_controls_enabled,
         on_toggled=on_perceived_accuracy_controls_toggled,
     )
-    algorithm_accuracy_label = QLabel(format_similarity_algorithm_accuracy_ranking())
-    algorithm_accuracy_label.setWordWrap(True)
-    algorithm_accuracy_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+    algorithm_accuracy_label = SimilarityAlgorithmAccuracyBrowser()
     algorithm_accuracy_label.setVisible(perceived_accuracy_controls_enabled)
     perceived_accuracy_checkbox.toggled.connect(algorithm_accuracy_label.setVisible)
     research_layout.addWidget(algorithm_accuracy_label)
