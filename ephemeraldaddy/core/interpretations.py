@@ -4314,27 +4314,29 @@ RELATION_TYPE = [
     "self", #it's just you
     "ride or die", #structurally intertwined, Heavenly Creatures type stuff
     "core posse", #inseparable, bosom chum
+    "accomplice", #your concrete goals are mutually intertwined
     "homie", #your chum
     "mentor", #helps you understand who/what you could be, and how
     "ward", #a human in your care; you look after them as their caregiver/provider
+    "fascination", #dw, you're just stalking them
     "lover", #ya hooked up
     "frenemy", #it's complicated
     "minor foe", #we're not cool
     "nemesis", #big problem
-    "fascination", #dw, you're just stalking them
     "kin by marriage", #married into fam
     "kin by blood", #ancestors, cousins & siblings
-    "colleague", #work with
+    "business", #work with
     "authority", #power dynamic
     "acquaintance", #just seem em around, kinda know about them a little
     "friend of family", #(they're just around)
     "friend of friend", #(they're just around)
     "family of friend", #(they're just around)
+    "neighbor", #(they're just around)
     "your lover's ex", #(self-explanatory; here cos most people have feelings about it)
     "your friend's ex", #(self-explanatory; here cos some people have feelings about it)
     "pet", #a nonhuman creature in your care
     "only talk online", #you've only met online
-    "never met", #maybe a friend of a friend you only know by reputation
+    "parasocial", #maybe a friend of a friend you only know by reputation
     "public figure", #icon, subject to projections
     "place", #why does this require explanation? don't get philosophical on me.
     "event", #aren't we all an event, in a sense? NO. EVENTS ARE EVENTS. jk do whatever you're gonna, ya freak
