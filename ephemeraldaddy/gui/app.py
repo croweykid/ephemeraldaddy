@@ -13511,7 +13511,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         layout.addWidget(tagging_section)
 
 
-        sentiment_section, sentiment_section_layout = add_collapsible_section("💭Sentiment") #user sentiment
+        sentiment_section, sentiment_section_layout = add_collapsible_section("💭Sentiment Types") #user sentiment
         self.batch_sentiment_section = sentiment_section
 
         self.batch_sentiment_checkboxes = {}
@@ -13536,7 +13536,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         sentiment_section_layout.addWidget(sentiment_widget)
         layout.addWidget(sentiment_section)
 
-        relationship_section, relationship_section_layout = add_collapsible_section("💭Relationships") #user relationships
+        relationship_section, relationship_section_layout = add_collapsible_section("💭Relationship Types") #user relationships
         self.batch_relationship_section = relationship_section
 
         self.batch_relationship_type_checkboxes = {}
@@ -13559,6 +13559,12 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         relationship_widget.setLayout(relationship_layout)
         relationship_section_layout.addWidget(relationship_widget)
         layout.addWidget(relationship_section)
+
+        personal_relevance_section, personal_relevance_section_layout = add_collapsible_section(
+            "💭Personal Relevance"
+        )
+        self.batch_personal_relevance_section = personal_relevance_section
+        layout.addWidget(personal_relevance_section)
 
         alignment_section, alignment_section_layout = add_collapsible_section("💭Perceived Alignment")
         self.batch_alignment_section = alignment_section
@@ -13744,11 +13750,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         )
 
         sentiment_metrics_widget.setLayout(sentiment_metrics_layout)
-        sentiment_section_layout.addWidget(create_divider())
-        sentiment_metrics_subheader = QLabel("Personal Relevance")
-        sentiment_metrics_subheader.setStyleSheet("font-weight: 600;")
-        sentiment_section_layout.addWidget(sentiment_metrics_subheader)
-        sentiment_section_layout.addWidget(sentiment_metrics_widget)
+        personal_relevance_section_layout.addWidget(sentiment_metrics_widget)
 
 
         layout.addStretch(1)
@@ -22724,10 +22726,12 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             "search_sentiment_section",
             "search_alignment_section",
             "search_relationship_section",
+            "search_personal_relevance_section",
             "search_predictability_section",
             "search_notes_section",
             "batch_sentiment_section",
             "batch_relationship_section",
+            "batch_personal_relevance_section",
             "batch_alignment_section",
             "batch_predictability_section",
         ):
@@ -32944,10 +32948,12 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             "search_sentiment_section",
             "search_alignment_section",
             "search_relationship_section",
+            "search_personal_relevance_section",
             "search_predictability_section",
             "search_notes_section",
             "batch_sentiment_section",
             "batch_relationship_section",
+            "batch_personal_relevance_section",
             "batch_alignment_section",
             "batch_predictability_section",
         ):

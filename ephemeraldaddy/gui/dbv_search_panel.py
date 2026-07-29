@@ -2763,10 +2763,10 @@ def build_dbv_search_panel(window) -> "QWidget":
     hd_defined_centers_row.addWidget(window._human_design_defined_center_filter_or)
     human_design_group_layout.addLayout(hd_defined_centers_row)
 
-    #Search: year first encountered
-    year_first_encountered_section, year_first_encountered_group_layout = add_collapsible_section(
-        "💭Year 1st Encountered", #year user first encountered
-    )
+    # Search: personal relevance
+    personal_relevance_section, personal_relevance_group_layout = add_collapsible_section("💭Personal Relevance")
+    window.search_personal_relevance_section = personal_relevance_section
+    personal_relevance_group_layout.addWidget(QLabel("💭Year 1st Encountered"))
     year_first_encountered_range_row = QHBoxLayout()
     year_first_encountered_range_row.addWidget(QLabel("Earliest"))
     window._year_first_encountered_earliest_input = QLineEdit()
@@ -2790,17 +2790,16 @@ def build_dbv_search_panel(window) -> "QWidget":
     window._year_first_encountered_latest_input.textChanged.connect(window._on_filter_changed)
     year_first_encountered_range_row.addWidget(window._year_first_encountered_latest_input)
     year_first_encountered_range_row.addStretch(1)
-    year_first_encountered_group_layout.addLayout(year_first_encountered_range_row)
+    personal_relevance_group_layout.addLayout(year_first_encountered_range_row)
 
     year_first_encountered_blank_row = QHBoxLayout()
     window._year_first_encountered_blank_checkbox = QuadStateSlider("blank")
     window._year_first_encountered_blank_checkbox.modeChanged.connect(window._on_filter_changed)
     year_first_encountered_blank_row.addWidget(window._year_first_encountered_blank_checkbox)
     year_first_encountered_blank_row.addStretch(1)
-    year_first_encountered_group_layout.addLayout(year_first_encountered_blank_row)
-    interactions_category_layout.addWidget(year_first_encountered_section)
+    personal_relevance_group_layout.addLayout(year_first_encountered_blank_row)
 
-    sentiment_section, sentiment_group_layout = add_collapsible_section("💭Sentiment")
+    sentiment_section, sentiment_group_layout = add_collapsible_section("💭Sentiment Types")
     window.search_sentiment_section = sentiment_section
 
     #Search: Sentiments section
@@ -2868,7 +2867,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     window._negative_sentiment_intensity_max_input.textChanged.connect(window._on_filter_changed)
     sentiment_intensity_row.addWidget(window._negative_sentiment_intensity_max_input)
     sentiment_intensity_row.addStretch(1)
-    sentiment_group_layout.addLayout(sentiment_intensity_row)
+    personal_relevance_group_layout.addLayout(sentiment_intensity_row)
 
     familiarity_row = QHBoxLayout()
     familiarity_row.addWidget(QLabel("Familiarity"))
@@ -2888,7 +2887,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     window._familiarity_max_input.textChanged.connect(window._on_filter_changed)
     familiarity_row.addWidget(window._familiarity_max_input)
     familiarity_row.addStretch(1)
-    sentiment_group_layout.addLayout(familiarity_row)
+    personal_relevance_group_layout.addLayout(familiarity_row)
 
     interactions_category_layout.addWidget(sentiment_section)
 
@@ -2921,9 +2920,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     interactions_category_layout.addWidget(alignment_section)
 
     #Search: relationship types section
-    relationship_section, relationship_group_layout = add_collapsible_section(
-        "💭Relationships",
-    )
+    relationship_section, relationship_group_layout = add_collapsible_section("💭Relationship Types")
     window.search_relationship_section = relationship_section
     relationship_mode_layout = QHBoxLayout()
     relationship_mode_layout.addWidget(QLabel("Relationship type"))
@@ -2953,6 +2950,7 @@ def build_dbv_search_panel(window) -> "QWidget":
         relationship_layout.addWidget(checkbox, row, col)
     relationship_group_layout.addLayout(relationship_layout)
     interactions_category_layout.addWidget(relationship_section)
+    interactions_category_layout.addWidget(personal_relevance_section)
 
     #Search: Fantasy RPG section
     dnd_species_section, dnd_species_group_layout = add_collapsible_section(
