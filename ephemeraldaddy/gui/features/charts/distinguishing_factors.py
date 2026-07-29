@@ -15,6 +15,7 @@ from typing import Any, Callable, Iterable
 from ephemeraldaddy.analysis.human_design import build_human_design_result
 from ephemeraldaddy.analysis.human_design_reference import GATE_COLORS, HD_LINE_COLORS
 from ephemeraldaddy.core.chart import Chart, chart_uses_houses
+from ephemeraldaddy.core.chart_data_fields import astro_data_recalculation_token
 from ephemeraldaddy.core.interpretations import (
     ELEMENT_COLORS,
     HOUSE_COLORS,
@@ -50,16 +51,10 @@ WEIRDNESS_FACTOR_COUNT_WEIGHT = 0.08
 
 def chart_essential_astro_signature(chart: Chart) -> str:
     """Return the narrow ESSENTIAL_ASTRO signature used to invalidate derived astro caches."""
-    dt_value = getattr(chart, "dt", None)
-    payload = {
-        "dt": dt_value.isoformat() if dt_value is not None else None,
-        "lat": round(float(getattr(chart, "lat", 0.0) or 0.0), 8),
-        "lon": round(float(getattr(chart, "lon", 0.0) or 0.0), 8),
-        "birthtime_unknown": bool(getattr(chart, "birthtime_unknown", False)),
-        "retcon_time_used": bool(getattr(chart, "retcon_time_used", False)),
-        "retcon_hour": getattr(chart, "retcon_hour", None),
-        "retcon_minute": getattr(chart, "retcon_minute", None),
-    }
+    payload = astro_data_recalculation_token(
+        chart,
+        chart_uses_houses_value=chart_uses_houses(chart),
+    )
     return json.dumps(payload, default=str, sort_keys=True, separators=(",", ":"))
 
 

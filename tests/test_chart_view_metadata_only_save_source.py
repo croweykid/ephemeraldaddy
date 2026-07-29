@@ -5,6 +5,7 @@ APP_SOURCE = Path("ephemeraldaddy/gui/app.py").read_text()
 
 def test_chart_view_has_metadata_only_save_guard():
     assert "def _saved_chart_birth_inputs_match_form" in APP_SOURCE
+    assert "def _chart_astro_data_recalculation_token" in APP_SOURCE
     assert "descriptive metadata such as alias" in APP_SOURCE
     assert "persisted_chart_for_change is not None" in APP_SOURCE
     assert "self._saved_chart_birth_inputs_match_form(persisted_chart_for_change)" in APP_SOURCE

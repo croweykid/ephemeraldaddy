@@ -757,11 +757,16 @@ from ephemeraldaddy.core.db import (
     invalidate_all_dominant_weight_caches,
     update_chart,
     update_chart_lightweight_metadata,
+    update_chart_subjective_list_by_uid,
+    update_charts_nonastral_fields_by_uid,
+    update_charts_nonastral_patches_by_uid,
+    update_chart_mortality_by_uids,
     update_chart_dominant_sign_weights,
     update_chart_weirdness_score,
     set_current_chart_by_uid,
     parse_relationship_types,
-    add_tag_to_charts,
+    add_tag_to_charts_by_uid,
+    remove_tag_from_charts_by_uid,
     backup_database,
     restore_database,
     SOURCE_HYPOTHETICAL,
@@ -773,6 +778,10 @@ from ephemeraldaddy.core.db import (
     list_duplicate_exclusions,
     save_duplicate_exclusions_by_uids,
     delete_charts_by_uids,
+)
+from ephemeraldaddy.core.chart_data_fields import (
+    NonastralPatch,
+    astro_data_recalculation_token,
 )
 
 from ephemeraldaddy.data.age_distribution_estimator import discrete_age_distribution
@@ -2582,6 +2591,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._deferred_database_metrics_changed_uids: set[str] = set()
         self._deferred_database_metrics_sections: set[str] = set()
         self._deferred_database_metrics_force_full_refresh = False
+        self._deferred_database_metrics_update_similarities = False
         self._database_metrics_background_preload_scheduled = False
         self._database_metrics_background_preload_sections: list[str] = []
         self._database_metrics_preloaded_sections: set[str] = set()
@@ -14296,7 +14306,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         if not tag_value:
             return
 
-        chart_ids = self._selected_local_row_ids()
+        chart_uids = self._selected_chart_uids()
+        chart_ids = self._local_row_ids_for_uids(chart_uids)
         self._batch_tagging_debug_log(
             "tag_click_start tag=%r selected_ids=%s",
             tag_value,
@@ -14318,7 +14329,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             return
 
         try:
-            changed_uids = add_tag_to_charts(chart_ids, tag_value)
+            changed_uids = add_tag_to_charts_by_uid(chart_uids, tag_value)
             self._batch_tagging_debug_log(
                 "tag_click_saved tag=%r changed_uids=%s",
                 tag_value,
@@ -14343,8 +14354,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
         self._batch_tags_lucygoosey = False
         self.batch_tags_input.setText(tag_value)
-        changed_ids_by_uid = get_chart_ids_by_uid(changed_uids)
-        changed_ids = set(changed_ids_by_uid.values())
+        changed_ids = set(self._local_row_ids_for_uids(changed_uids))
         normalized_key = tag_value.casefold()
         for chart_id in changed_ids:
             cached_chart = self._get_chart_for_filter(chart_id)
@@ -14466,8 +14476,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         if not tag_to_remove:
             return
 
-        chart_ids = self._selected_local_row_ids()
-        if not chart_ids:
+        chart_uids = self._selected_chart_uids()
+        if not chart_uids:
             QMessageBox.information(
                 self,
                 "No charts selected",
@@ -14476,28 +14486,14 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             self._update_batch_edit_state()
             return
 
-        selected_count = len(chart_ids)
+        selected_count = len(chart_uids)
         action_label = f"Remove tag '{tag_to_remove}' from"
         if not self._confirm_batch_edit(action_label, selected_count):
             self._update_batch_edit_state()
             return
 
         try:
-            normalized_remove_key = tag_to_remove.casefold()
-            for chart_id in chart_ids:
-                chart = load_chart(chart_id)
-                existing_tags = normalize_tag_list(getattr(chart, "tags", []))
-                chart.tags = [
-                    tag
-                    for tag in existing_tags
-                    if tag.casefold() != normalized_remove_key
-                ]
-                update_chart(
-                    chart_id,
-                    chart,
-                    retcon_time_used=getattr(chart, "retcon_time_used", False),
-                )
-                self._chart_cache[chart_id] = chart
+            changed_uids = remove_tag_from_charts_by_uid(chart_uids, tag_to_remove)
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -14507,7 +14503,18 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             return
 
         self._batch_tags_lucygoosey = False
-        changed_ids = set(chart_ids)
+        changed_ids = set(self._local_row_ids_for_uids(changed_uids))
+        normalized_remove_key = tag_to_remove.casefold()
+        for chart_id in changed_ids:
+            cached_chart = self._get_chart_for_filter(chart_id)
+            if cached_chart is None:
+                continue
+            cached_chart.tags = [
+                tag
+                for tag in normalize_tag_list(getattr(cached_chart, "tags", []))
+                if tag.casefold() != normalized_remove_key
+            ]
+            self._chart_cache[chart_id] = cached_chart
         self._finalize_batch_tag_updates(changed_ids)
 
     def _finalize_batch_tag_updates(
@@ -14778,25 +14785,45 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             self._update_batch_edit_state()
             return
 
+        if selected_count == 1:
+            chart_id = chart_ids[0]
+            chart_uid = self._normalized_chart_uid_key(get_chart_uid(chart_id))
+            chart = self._get_chart_for_filter(chart_id)
+            if chart_uid and chart is not None:
+                sentiments = list(getattr(chart, "sentiments", []) or [])
+                if checked and sentiment not in sentiments:
+                    sentiments.append(sentiment)
+                elif not checked:
+                    sentiments = [value for value in sentiments if value != sentiment]
+                try:
+                    update_chart_subjective_list_by_uid(chart_uid, "sentiments", sentiments)
+                except Exception as exc:
+                    QMessageBox.critical(
+                        self,
+                        "Batch edit error",
+                        f"Could not update selected chart:\n{exc}",
+                    )
+                    return
+                chart.sentiments = sentiments
+                self._chart_cache[chart_id] = chart
+                self._finalize_single_chart_subjective_batch_edit(
+                    chart_id, chart_uid, "sentiments"
+                )
+                return
+
         try:
-            for chart_id in chart_ids:
-                chart = load_chart(chart_id)
+            patches_by_uid: dict[str, dict[str, Any]] = {}
+            for chart_uid in self._selected_chart_uids():
+                chart = self._get_chart_for_filter_by_uid(chart_uid)
+                if chart is None:
+                    continue
                 sentiments = list(getattr(chart, "sentiments", []) or [])
                 if checked and sentiment not in sentiments:
                     sentiments.append(sentiment)
                 if not checked:
                     sentiments = [value for value in sentiments if value != sentiment]
-                chart.sentiments = sentiments
-                chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
-                chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
-                chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
-                update_chart(
-                    chart_id,
-                    chart,
-                    sentiments=sentiments,
-                    retcon_time_used=getattr(chart, "retcon_time_used", False),
-                )
-                self._chart_cache[chart_id] = chart
+                patches_by_uid[chart_uid] = {"sentiments": sentiments}
+            self._apply_batch_nonastral_patches(patches_by_uid)
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -14855,9 +14882,42 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             self._update_batch_edit_state()
             return
 
+        if selected_count == 1:
+            chart_id = chart_ids[0]
+            chart_uid = self._normalized_chart_uid_key(get_chart_uid(chart_id))
+            chart = self._get_chart_for_filter(chart_id)
+            if chart_uid and chart is not None:
+                relationship_types = list(getattr(chart, "relationship_types", []) or [])
+                if checked and relationship_type not in relationship_types:
+                    relationship_types.append(relationship_type)
+                elif not checked:
+                    relationship_types = [
+                        value for value in relationship_types if value != relationship_type
+                    ]
+                try:
+                    update_chart_subjective_list_by_uid(
+                        chart_uid, "relationship_types", relationship_types
+                    )
+                except Exception as exc:
+                    QMessageBox.critical(
+                        self,
+                        "Batch edit error",
+                        f"Could not update selected chart:\n{exc}",
+                    )
+                    return
+                chart.relationship_types = relationship_types
+                self._chart_cache[chart_id] = chart
+                self._finalize_single_chart_subjective_batch_edit(
+                    chart_id, chart_uid, "relationship_types"
+                )
+                return
+
         try:
-            for chart_id in chart_ids:
-                chart = load_chart(chart_id)
+            patches_by_uid: dict[str, dict[str, Any]] = {}
+            for chart_uid in self._selected_chart_uids():
+                chart = self._get_chart_for_filter_by_uid(chart_uid)
+                if chart is None:
+                    continue
                 relationship_types = list(
                     getattr(chart, "relationship_types", []) or []
                 )
@@ -14869,17 +14929,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                         for value in relationship_types
                         if value != relationship_type
                     ]
-                chart.relationship_types = relationship_types
-                chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
-                chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
-                chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
-                update_chart(
-                    chart_id,
-                    chart,
-                    relationship_types=relationship_types,
-                    retcon_time_used=getattr(chart, "retcon_time_used", False),
-                )
-                self._chart_cache[chart_id] = chart
+                patches_by_uid[chart_uid] = {
+                    "relationship_types": relationship_types,
+                }
+            self._apply_batch_nonastral_patches(patches_by_uid)
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -14896,6 +14949,72 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         )
         self._update_batch_edit_state()
         self._refresh_filters_after_batch_edit(changed_ids)
+
+    def _finalize_single_chart_subjective_batch_edit(
+        self,
+        chart_id: int,
+        chart_uid: str,
+        changed_field: str,
+    ) -> None:
+        """Finish a one-chart checkbox edit without scheduling heavyweight work."""
+        changed_ids = {chart_id}
+        affected_sections = set(
+            database_metrics_sections_for_changed_fields({changed_field})
+        )
+        self._database_metrics_lucy_goosey_ids.update(changed_ids)
+        self._database_metrics_preloaded_sections.difference_update(affected_sections)
+        owner = self._owner_window()
+        if owner is not None and hasattr(owner, "_invalidate_chart_view_navigation_cache"):
+            owner._invalidate_chart_view_navigation_cache({chart_uid})
+        expanded_affected_sections = {
+            section_key
+            for section_key in affected_sections
+            if self._is_database_metrics_section_expanded(section_key)
+            and self._is_database_metrics_section_visible(section_key)
+        }
+        if expanded_affected_sections:
+            self._show_database_analytics_pending_indicator(True)
+            self._schedule_deferred_database_metrics_refresh(
+                changed_uids={chart_uid},
+                sections_to_refresh=expanded_affected_sections,
+                update_similarities=False,
+            )
+        self._update_selection_header()
+        self._update_batch_edit_state()
+        self._flash_batch_updated_rows(changed_ids)
+        collection_membership_may_change = (
+            changed_field == "relationship_types"
+            and self._active_collection_id
+            in {DEFAULT_COLLECTION_PERSONAL, DEFAULT_COLLECTION_PARASOCIAL}
+        )
+        if changed_field == "relationship_types":
+            # Collection switches filter _chart_rows rather than _chart_cache.
+            # Keep its relationship column current even when no immediate list
+            # rebuild is needed (for example, while viewing All).
+            cached_chart = self._chart_cache.get(chart_id)
+            relationship_types = list(
+                getattr(cached_chart, "relationship_types", []) or []
+            )
+            for row_index, row in enumerate(self._chart_rows):
+                normalized_row = self._normalize_chart_row(row)
+                if normalized_row is None or int(normalized_row[0]) != chart_id:
+                    continue
+                mutable_row = list(row)
+                if len(mutable_row) > 24:
+                    mutable_row[24] = ", ".join(relationship_types)
+                    self._chart_rows[row_index] = tuple(mutable_row)
+                break
+        # With no active filters, the cached row already contains everything the
+        # Database View needs.  Most rapid checkbox edits therefore schedule no
+        # timer at all.  If a filter can remove this row, coalesce only the cheap
+        # list refresh and explicitly exclude analytics/selection recomputation.
+        if self._has_active_chart_filters() or collection_membership_may_change:
+            self._refresh_filters_after_batch_edit(
+                changed_ids,
+                chart_uids={chart_uid},
+                refresh_metrics=False,
+                refresh_selection_state=False,
+            )
 
     def _score_familiarity_from_factors(self, familiarity_factors: list[str]) -> int:
         selected_set = set(familiarity_factors)
@@ -14918,8 +15037,58 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             return []
         return list(getattr(selected_chart, "familiarity_factors", []) or [])
 
+    def _apply_batch_nonastral_patch(
+        self,
+        chart_uids: Iterable[str],
+        values: NonastralPatch,
+    ) -> set[int]:
+        """Persist a nonastral batch patch and synchronize only metadata caches."""
+        normalized_uids = {
+            chart_uid
+            for raw_uid in chart_uids
+            if (chart_uid := self._normalized_chart_uid_key(raw_uid))
+        }
+        changed_uids = update_charts_nonastral_fields_by_uid(normalized_uids, values)
+        changed_ids = set(self._local_row_ids_for_uids(changed_uids))
+        for chart_id in changed_ids:
+            cached_chart = self._chart_cache.get(chart_id)
+            if cached_chart is None:
+                continue
+            for field, value in values.items():
+                setattr(cached_chart, field, value)
+            self._chart_cache[chart_id] = cached_chart
+        owner = self._owner_window()
+        if owner is not None and hasattr(owner, "_invalidate_chart_view_navigation_cache"):
+            owner._invalidate_chart_view_navigation_cache(changed_uids)
+        return changed_ids
+
+    def _apply_batch_nonastral_patches(
+        self,
+        patches_by_uid: Mapping[str, NonastralPatch],
+    ) -> set[int]:
+        """Persist per-chart nonastral patches and synchronize loaded caches."""
+        changed_uids = update_charts_nonastral_patches_by_uid(patches_by_uid)
+        changed_ids = set(self._local_row_ids_for_uids(changed_uids))
+        ids_by_uid = {
+            self._normalized_chart_uid_key(uid): chart_id
+            for chart_id, uid in get_chart_uid_map(changed_ids).items()
+        }
+        for chart_uid in changed_uids:
+            chart_id = ids_by_uid.get(self._normalized_chart_uid_key(chart_uid))
+            cached_chart = self._chart_cache.get(chart_id) if chart_id is not None else None
+            if cached_chart is None:
+                continue
+            patch = patches_by_uid.get(chart_uid, {})
+            for field, value in patch.items():
+                setattr(cached_chart, field, value)
+        owner = self._owner_window()
+        if owner is not None and hasattr(owner, "_invalidate_chart_view_navigation_cache"):
+            owner._invalidate_chart_view_navigation_cache(changed_uids)
+        return changed_ids
+
     def _open_batch_familiarity_calculator(self) -> None:
-        chart_ids = self._selected_local_row_ids()
+        chart_uids = self._selected_chart_uids()
+        chart_ids = self._local_row_ids_for_uids(chart_uids)
         if not chart_ids:
             QMessageBox.information(
                 self,
@@ -14939,19 +15108,13 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 ", ".join(familiarity_factors) if familiarity_factors else ""
             )
             try:
-                for chart_id in chart_ids:
-                    chart = load_chart(chart_id)
-                    chart.familiarity_factors = list(familiarity_factors)
-                    chart.familiarity = familiarity_value
-                    chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
-                    chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
-                    chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
-                    update_chart(
-                        chart_id,
-                        chart,
-                        retcon_time_used=getattr(chart, "retcon_time_used", False),
-                    )
-                    self._chart_cache[chart_id] = chart
+                self._apply_batch_nonastral_patch(
+                    chart_uids,
+                    {
+                        "familiarity_factors": list(familiarity_factors),
+                        "familiarity": familiarity_value,
+                    },
+                )
             except Exception as exc:
                 QMessageBox.critical(
                     self,
@@ -14998,7 +15161,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         metric_label: str,
         value: int | None,
     ) -> None:
-        chart_ids = self._selected_local_row_ids()
+        chart_uids = self._selected_chart_uids()
+        chart_ids = self._local_row_ids_for_uids(chart_uids)
         if not chart_ids:
             QMessageBox.information(
                 self,
@@ -15016,18 +15180,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             return
 
         try:
-            for chart_id in chart_ids:
-                chart = load_chart(chart_id)
-                setattr(chart, metric_attr, value)
-                chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
-                chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
-                chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
-                update_chart(
-                    chart_id,
-                    chart,
-                    retcon_time_used=getattr(chart, "retcon_time_used", False),
-                )
-                self._chart_cache[chart_id] = chart
+            self._apply_batch_nonastral_patch(chart_uids, {metric_attr: value})
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -15053,7 +15206,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._set_batch_metric_lucygoosey_state(field_key, True)
 
     def _on_batch_tags_apply(self) -> None:
-        chart_ids = self._selected_local_row_ids()
+        chart_uids = self._selected_chart_uids()
+        chart_ids = self._local_row_ids_for_uids(chart_uids)
         self._batch_tagging_debug_log(
             "tag_apply_start selected_ids=%s raw_input=%r",
             sorted(set(chart_ids)),
@@ -15092,7 +15246,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             return
 
         try:
-            changed_uids = add_tag_to_charts(chart_ids, tag_to_add)
+            changed_uids = add_tag_to_charts_by_uid(chart_uids, tag_to_add)
             self._batch_tagging_debug_log(
                 "tag_apply_saved tag=%r changed_uids=%s",
                 tag_to_add,
@@ -15117,8 +15271,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
         self._batch_tags_lucygoosey = False
         self.batch_tags_input.setText(tag_to_add)
-        changed_ids_by_uid = get_chart_ids_by_uid(changed_uids)
-        changed_ids = set(changed_ids_by_uid.values())
+        changed_ids = set(self._local_row_ids_for_uids(changed_uids))
         normalized_key = tag_to_add.casefold()
         for chart_id in changed_ids:
             cached_chart = self._get_chart_for_filter(chart_id)
@@ -15152,7 +15305,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         )
 
     def _on_batch_alignment_apply(self) -> None:
-        chart_ids = self._selected_local_row_ids()
+        chart_uids = self._selected_chart_uids()
+        chart_ids = self._local_row_ids_for_uids(chart_uids)
         if not chart_ids:
             QMessageBox.information(
                 self,
@@ -15170,18 +15324,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             return
 
         try:
-            for chart_id in chart_ids:
-                chart = load_chart(chart_id)
-                chart.alignment_score = alignment_value
-                chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
-                chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
-                chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
-                update_chart(
-                    chart_id,
-                    chart,
-                    retcon_time_used=getattr(chart, "retcon_time_used", False),
-                )
-                self._chart_cache[chart_id] = chart
+            self._apply_batch_nonastral_patch(
+                chart_uids,
+                {"alignment_score": alignment_value},
+            )
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -15278,7 +15424,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         source = self.batch_source_combo.itemData(index)
         if not source:
             return
-        chart_ids = self._selected_local_row_ids()
+        chart_uids = self._selected_chart_uids()
+        chart_ids = self._local_row_ids_for_uids(chart_uids)
         if not chart_ids:
             QMessageBox.information(
                 self,
@@ -15298,20 +15445,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             return
 
         try:
-            for chart_id in chart_ids:
-                chart = load_chart(chart_id)
-                chart.source = source
-                chart.chart_type = source
-                chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
-                chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
-                chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
-                update_chart(
-                    chart_id,
-                    chart,
-                    chart_type=source,
-                    retcon_time_used=getattr(chart, "retcon_time_used", False),
-                )
-                self._chart_cache[chart_id] = chart
+            self._apply_batch_nonastral_patch(
+                chart_uids,
+                {"source": source, "chart_type": source},
+            )
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -15324,7 +15461,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._update_sentiment_tally(
             show_progress=True,
             changed_ids=changed_ids,
-            changed_fields={"birth_data"},
+            changed_fields={"chart_type"},
         )
         self._update_batch_edit_state()
         self._refresh_filters_after_batch_edit(changed_ids)
@@ -15334,7 +15471,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         if gender == "":
             return
         resolved_gender = None if gender == "__blank__" else gender
-        chart_ids = self._selected_local_row_ids()
+        chart_uids = self._selected_chart_uids()
+        chart_ids = self._local_row_ids_for_uids(chart_uids)
         if not chart_ids:
             QMessageBox.information(
                 self,
@@ -15355,18 +15493,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             return
 
         try:
-            for chart_id in chart_ids:
-                chart = load_chart(chart_id)
-                chart.gender = resolved_gender
-                chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
-                chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
-                chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
-                update_chart(
-                    chart_id,
-                    chart,
-                    retcon_time_used=getattr(chart, "retcon_time_used", False),
-                )
-                self._chart_cache[chart_id] = chart
+            self._apply_batch_nonastral_patch(
+                chart_uids,
+                {"gender": resolved_gender},
+            )
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -15448,7 +15578,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         if state == QuadStateSlider.MODE_MIXED:
             return
         checked = state == QuadStateSlider.MODE_TRUE
-        chart_ids = self._selected_local_row_ids()
+        chart_uids = self._selected_chart_uids()
+        chart_ids = self._local_row_ids_for_uids(chart_uids)
         if not chart_ids:
             QMessageBox.information(
                 self,
@@ -15465,19 +15596,20 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             return
 
         try:
-            for chart_id in chart_ids:
-                chart = load_chart(chart_id)
-                chart.is_deceased = checked
+            changed_uids = update_chart_mortality_by_uids(
+                chart_uids,
+                is_deceased=checked,
+            )
+            for chart_id in self._local_row_ids_for_uids(changed_uids):
+                cached_chart = self._chart_cache.get(chart_id)
+                if cached_chart is None:
+                    continue
+                cached_chart.is_deceased = checked
                 if checked:
-                    chart.deathtime_unknown = True
-                update_chart(
-                    chart_id,
-                    chart,
-                    is_deceased=checked,
-                    deathtime_unknown=getattr(chart, "deathtime_unknown", False),
-                    retcon_time_used=getattr(chart, "retcon_time_used", False),
-                )
-                self._chart_cache[chart_id] = chart
+                    cached_chart.deathtime_unknown = True
+            owner = self._owner_window()
+            if owner is not None and hasattr(owner, "_invalidate_chart_view_navigation_cache"):
+                owner._invalidate_chart_view_navigation_cache(changed_uids)
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -15490,7 +15622,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._update_sentiment_tally(
             show_progress=True,
             changed_ids=changed_ids,
-            changed_fields={"birth_data"},
+            changed_fields=set(),
         )
         self._update_batch_edit_state()
         self._refresh_filters_after_batch_edit(changed_ids)
@@ -16706,6 +16838,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._database_metrics_background_preload_sections.clear()
         self._database_metrics_background_preload_scheduled = False
         self._deferred_database_metrics_refresh_scheduled = False
+        self._deferred_database_metrics_update_similarities = False
         self._incremental_metrics_refresh_scheduled = False
         self._save_database_metrics_persistent_cache()
         save_traits_cache = getattr(self, "_save_traits_distribution_likelihood_cache", None)
@@ -17535,17 +17668,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             return
 
         try:
-            chart = load_chart(int(chart_id))
-            chart.name = new_name
-            chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
-            chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
-            chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
-            update_chart(
-                int(chart_id),
-                chart,
-                retcon_time_used=getattr(chart, "retcon_time_used", False),
-            )
-            self._chart_cache[int(chart_id)] = chart
+            chart_uid = get_chart_uid(int(chart_id))
+            if not chart_uid:
+                raise ValueError("The selected chart has no UID")
+            self._apply_batch_nonastral_patch({chart_uid}, {"name": new_name})
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -19106,13 +19232,15 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         changed_ids: set[int] | None = None,
         sections_to_refresh: set[str] | frozenset[str] | None = None,
         force_full_refresh: bool = False,
+        update_similarities: bool = True,
     ) -> None:
         section_scope = set(sections_to_refresh) if sections_to_refresh is not None else None
         if self._should_use_incremental_metrics_refresh():
-            self._update_sentiment_tally(
-                update_database_metrics=False,
-                update_similarities=True,
-            )
+            if update_similarities:
+                self._update_sentiment_tally(
+                    update_database_metrics=False,
+                    update_similarities=True,
+                )
             self._schedule_incremental_metrics_refresh(
                 changed_ids=changed_ids,
                 sections_to_refresh=section_scope,
@@ -19123,6 +19251,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 force_full_refresh=force_full_refresh,
                 changed_ids=changed_ids,
                 sections_to_refresh=section_scope,
+                update_similarities=update_similarities,
             )
 
     def _schedule_deferred_database_metrics_refresh(
@@ -19132,6 +19261,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         changed_ids: set[int] | None = None,
         sections_to_refresh: set[str] | frozenset[str] | None = None,
         force_full_refresh: bool = False,
+        update_similarities: bool = True,
     ) -> None:
         normalized_changed_uids = {
             chart_uid
@@ -19147,6 +19277,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._deferred_database_metrics_force_full_refresh = (
             self._deferred_database_metrics_force_full_refresh or force_full_refresh
         )
+        self._deferred_database_metrics_update_similarities = bool(
+            self._deferred_database_metrics_update_similarities or update_similarities
+        )
         if self._deferred_database_metrics_refresh_scheduled:
             return
         self._deferred_database_metrics_refresh_scheduled = True
@@ -19158,18 +19291,22 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             self._deferred_database_metrics_changed_uids.clear()
             self._deferred_database_metrics_sections.clear()
             self._deferred_database_metrics_force_full_refresh = False
+            self._deferred_database_metrics_update_similarities = False
             return
         changed_uids = set(self._deferred_database_metrics_changed_uids)
         changed_ids = set(self._local_row_ids_for_uids(changed_uids)) or None
         sections_to_refresh = set(self._deferred_database_metrics_sections) or None
         force_full_refresh = self._deferred_database_metrics_force_full_refresh
+        update_similarities = self._deferred_database_metrics_update_similarities
         self._deferred_database_metrics_changed_uids.clear()
         self._deferred_database_metrics_sections.clear()
         self._deferred_database_metrics_force_full_refresh = False
+        self._deferred_database_metrics_update_similarities = False
         self._run_database_metrics_refresh(
             changed_ids=changed_ids,
             sections_to_refresh=sections_to_refresh,
             force_full_refresh=force_full_refresh,
+            update_similarities=update_similarities,
         )
         if not self._incremental_metrics_refresh_scheduled:
             self._show_database_analytics_pending_indicator(False)
@@ -36053,7 +36190,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         }
 
     @staticmethod
-    def _chart_birth_data_recalculation_token(
+    def _chart_astro_data_recalculation_token(
         chart: Chart | None,
         birth_place: str | None = None,
     ) -> tuple:
@@ -36063,36 +36200,12 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         analytics should only be dirtied when birth data, place, birth-time /
         rectified-time state, or the derived chart_uses_houses flag changes.
         """
-        if chart is None:
-            return ()
-        dt_value = getattr(chart, "dt", None)
-        dt_token = dt_value.isoformat() if dt_value is not None else None
-        retcon_hour = getattr(chart, "retcon_hour", None)
-        retcon_minute = getattr(chart, "retcon_minute", None)
-        retcon_time_token = (
-            (int(retcon_hour), int(retcon_minute))
-            if retcon_hour is not None and retcon_minute is not None
-            else None
-        )
-        range_token = (
-            bool(getattr(chart, "rectification_range_used", False)),
-            getattr(chart, "rectification_range_start_minute", None),
-            getattr(chart, "rectification_range_end_minute", None),
-        )
-        return (
-            dt_token,
-            (
-                birth_place
-                if birth_place is not None
-                else getattr(chart, "birth_place", None) or ""
+        return astro_data_recalculation_token(
+            chart,
+            birth_place=birth_place,
+            chart_uses_houses_value=(
+                bool(chart_uses_houses(chart)) if chart is not None else None
             ),
-            round(float(getattr(chart, "lat", 0.0) or 0.0), 6),
-            round(float(getattr(chart, "lon", 0.0) or 0.0), 6),
-            bool(getattr(chart, "birthtime_unknown", False)),
-            bool(getattr(chart, "retcon_time_used", False)),
-            retcon_time_token,
-            range_token,
-            bool(chart_uses_houses(chart)),
         )
 
     @staticmethod
@@ -36107,8 +36220,8 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             return None
         changed_fields: set[str] = set()
         if (
-            MainWindow._chart_birth_data_recalculation_token(previous_chart)
-            != MainWindow._chart_birth_data_recalculation_token(chart, birth_place)
+            MainWindow._chart_astro_data_recalculation_token(previous_chart)
+            != MainWindow._chart_astro_data_recalculation_token(chart, birth_place)
         ):
             changed_fields.add("birth_data")
         previous_chart_type = _normalize_gui_source(
@@ -36150,33 +36263,15 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
 
     def _chart_analytics_cache_token(self, chart: Chart) -> str:
         chart_id = self.current_chart_id
-        dt_value = getattr(chart, "dt", None)
-        dt_token = dt_value.isoformat() if dt_value is not None else "nodt"
-        birthtime_unknown_token = int(bool(getattr(chart, "birthtime_unknown", False)))
-        retcon_enabled_token = int(bool(getattr(chart, "retcon_time_used", False)))
-        retcon_hour = getattr(chart, "retcon_hour", None)
-        retcon_minute = getattr(chart, "retcon_minute", None)
-        retcon_time_token = (
-            f"{int(retcon_hour):02d}:{int(retcon_minute):02d}"
-            if retcon_hour is not None and retcon_minute is not None
-            else "none"
+        astro_data_token = astro_data_recalculation_token(
+            chart,
+            chart_uses_houses_value=chart_uses_houses(chart),
         )
-        range_enabled_token = int(bool(getattr(chart, "rectification_range_used", False)))
-        range_start_token = getattr(chart, "rectification_range_start_minute", None)
-        range_end_token = getattr(chart, "rectification_range_end_minute", None)
-        chart_uses_houses_token = int(bool(chart_uses_houses(chart)))
-        timing_token = (
-            f"dt:{dt_token}|birthtime_unknown:{birthtime_unknown_token}|"
-            f"retcon_enabled:{retcon_enabled_token}|retcon_time:{retcon_time_token}|"
-            f"range_enabled:{range_enabled_token}|range_start:{range_start_token}|range_end:{range_end_token}|"
-            f"chart_uses_houses:{chart_uses_houses_token}"
-        )
-        place_token = f"lat:{getattr(chart, 'lat', 0.0):.6f}|lon:{getattr(chart, 'lon', 0.0):.6f}"
         chart_scope_token = f"id:{int(chart_id)}" if chart_id is not None else "draft"
         demographic_token = ""
         if self._similar_charts_demographic_match_enabled():
             demographic_token = f"|gender:{str(getattr(chart, 'gender', None) or '').strip()}"
-        return f"{chart_scope_token}|{place_token}|{timing_token}{demographic_token}"
+        return f"{chart_scope_token}|astro_data:{astro_data_token!r}{demographic_token}"
 
     def _mark_chart_analytics_sections_lucy_goosey(self, sections: set[str] | None = None) -> None:
         if sections is None:
