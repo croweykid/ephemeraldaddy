@@ -18100,7 +18100,18 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         manager_widget = coordinator.create_widget(parent=self._settings_dialog or self, embedded=True)
         manager_widget.finished.connect(lambda _result: coordinator.refresh_after_close())
         manager_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self._settings_property_manager_widget = manager_widget
         section_layout.addWidget(manager_widget)
+
+    def _show_settings_astro_twin_presets_manager(self) -> None:
+        tab_index = getattr(self, "_settings_section_title_to_index", {}).get("Property Manager")
+        tab_stack = getattr(self, "_settings_tab_stack", None)
+        if isinstance(tab_stack, QStackedWidget) and tab_index is not None:
+            tab_stack.setCurrentIndex(int(tab_index))
+        manager_widget = getattr(self, "_settings_property_manager_widget", None)
+        if isinstance(manager_widget, ManageMetadataLabelsDialog):
+            manager_widget.refresh_usage()
+            manager_widget.select_field(ManageMetadataLabelsDialog.FIELD_ASTRO_TWIN_PRESETS)
 
     def _on_custom_db_export(self) -> None:
         open_custom_db_export_dialog(self)
@@ -22195,6 +22206,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             ),
             on_perceived_accuracy_controls_toggled=self._on_similarity_perceived_accuracy_controls_toggled,
             on_show_high_similarity_clicked=self._show_high_similarity_chart_pairs,
+            on_manage_presets_clicked=self._show_settings_astro_twin_presets_manager,
             threshold_rows=SIMILARITY_THRESHOLD_EDITOR_ROWS,
         )
         self._similarity_perceived_accuracy_controls_checkbox = similarity_controls[

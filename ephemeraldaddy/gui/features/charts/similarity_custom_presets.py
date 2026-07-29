@@ -105,3 +105,54 @@ def update_custom_astro_twin_preset(
     else:
         raise KeyError(clean_name)
     return _write_custom_astro_twin_presets(preset_path, records)
+
+
+def build_custom_astro_twin_preset_manager_rows(
+    presets: list[Mapping[str, Any]] | None = None,
+    ranked_results: list[Mapping[str, Any]] | None = None,
+) -> list[dict[str, object]]:
+    """Build Property Manager rows for saved presets and logged usage."""
+    from ephemeraldaddy.gui.features.charts.similarities_algorithm_log import (
+        aggregate_similarity_algorithm_accuracy,
+        build_similarity_algorithm_snapshot,
+    )
+
+    preset_records = load_custom_astro_twin_presets() if presets is None else presets
+    ranked = aggregate_similarity_algorithm_accuracy() if ranked_results is None else ranked_results
+    rows: list[dict[str, object]] = []
+    for preset in preset_records:
+        name = str(preset.get("name", "")).strip()
+        settings = preset.get("settings")
+        if not name or not isinstance(settings, Mapping):
+            continue
+        snapshot = build_similarity_algorithm_snapshot("custom", settings)
+        snapshot_key = (
+            snapshot.get("placement_weighting_mode"),
+            snapshot.get("selected_factors"),
+        )
+        data_points = sum(
+            int(result.get("sample_count", 0) or 0)
+            for result in ranked
+            if result.get("algorithm_mode") == "custom"
+            and isinstance(result.get("algorithm_snapshot"), Mapping)
+            and (
+                result["algorithm_snapshot"].get("placement_weighting_mode"),
+                result["algorithm_snapshot"].get("selected_factors"),
+            )
+            == snapshot_key
+        )
+        factors = [
+            f"{str(factor['factor']).replace('_', ' ').title()}: {float(factor['weight']):g}"
+            for factor in snapshot["selected_factors"]
+            if bool(factor.get("enabled"))
+        ]
+        rows.append(
+            {
+                "label": name,
+                "key": name,
+                "count": data_points,
+                "algorithm": "\n".join(factors),
+                "editable": False,
+            }
+        )
+    return rows

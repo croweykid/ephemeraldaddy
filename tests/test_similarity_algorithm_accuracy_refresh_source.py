@@ -49,3 +49,11 @@ def test_accuracy_ranking_label_is_retained_by_settings_owner():
         '            "algorithm_accuracy_label"\n'
         "        ]"
     ) in SOURCE
+
+
+def test_manage_presets_navigates_to_property_manager_preset_field():
+    method = SOURCE.split("def _show_settings_astro_twin_presets_manager", 1)[1].split(
+        "def _on_custom_db_export", 1
+    )[0]
+    assert 'get("Property Manager")' in method
+    assert "ManageMetadataLabelsDialog.FIELD_ASTRO_TWIN_PRESETS" in method

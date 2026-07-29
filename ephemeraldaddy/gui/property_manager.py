@@ -22,6 +22,9 @@ from ephemeraldaddy.gui.features.charts.collections import (
     chart_belongs_to_collection,
     normalize_collection_id,
 )
+from ephemeraldaddy.gui.features.charts.similarity_custom_presets import (
+    build_custom_astro_twin_preset_manager_rows,
+)
 
 
 class PropertyManagerCoordinator:
@@ -149,7 +152,11 @@ class PropertyManagerCoordinator:
             label = str(row.get("label", "")).strip().casefold()
             row["chart_uids"] = sorted(tag_chart_uids.get(label, set()))
         usage[ManageMetadataLabelsDialog.FIELD_COLLECTIONS] = self._collection_usage_rows()
+        usage[ManageMetadataLabelsDialog.FIELD_ASTRO_TWIN_PRESETS] = self._astro_twin_preset_rows()
         return usage
+
+    def _astro_twin_preset_rows(self) -> list[dict[str, object]]:
+        return build_custom_astro_twin_preset_manager_rows()
 
     def _collection_usage_rows(self) -> list[dict[str, int | str]]:
         rows = [

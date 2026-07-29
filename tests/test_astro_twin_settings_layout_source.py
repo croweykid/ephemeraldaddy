@@ -78,3 +78,13 @@ def test_saving_loaded_preset_offers_exact_update_or_new_choices():
     )[0]
     assert "if preset_name:" in save_handler
     assert 'if bool(preset_state["preset_in_use"]) and preset_name:' not in save_handler
+
+
+def test_manage_presets_button_is_file_gated_and_right_of_selector():
+    selector = SECTION.index("preset_action_row.addWidget(select_preset_combo)")
+    manager = SECTION.index("preset_action_row.addWidget(manage_presets_button)")
+
+    assert selector < manager
+    assert 'manage_presets_button = QPushButton("Manage Presets")' in SECTION
+    assert "manage_presets_button.setVisible(is_local_file_available)" in SECTION
+    assert "manage_presets_button.clicked.connect(on_manage_presets_clicked)" in SECTION

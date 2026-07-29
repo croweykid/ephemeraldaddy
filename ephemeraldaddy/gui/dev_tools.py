@@ -44,6 +44,7 @@ from ephemeraldaddy.gui.tooltips import TooltipHelpLabel
 from ephemeraldaddy.gui.tag_categories import TAG_CATEGORY_OPTIONS, TAG_CATEGORY_PREFIXES
 from ephemeraldaddy.gui.style import (
     apply_shared_dropdown_style,
+    CHART_DATA_INFO_LABEL_STYLE,
     CHART_DATA_HIGHLIGHT_COLOR,
     COLOR_ACCENT_SUCCESS,
     COLOR_BG_ELEVATED,
@@ -609,6 +610,7 @@ def build_similarity_calculator_settings_section(
     perceived_accuracy_controls_enabled: bool,
     on_perceived_accuracy_controls_toggled: Callable[[bool], None],
     on_show_high_similarity_clicked: Callable[[], None],
+    on_manage_presets_clicked: Callable[[], None],
     threshold_rows: tuple[tuple[str, str], ...],
 ) -> dict[str, object]:
     tabs = QTabWidget()
@@ -867,6 +869,8 @@ def build_similarity_calculator_settings_section(
     select_preset_label = QLabel("Select Preset")
     select_preset_combo = QComboBox()
     apply_shared_dropdown_style(select_preset_combo)
+    manage_presets_button = QPushButton("Manage Presets")
+    manage_presets_button.clicked.connect(on_manage_presets_clicked)
 
     def refresh_preset_dropdown() -> None:
         preset_state["applying"] = True
@@ -878,6 +882,7 @@ def build_similarity_calculator_settings_section(
         is_local_file_available = resolve_custom_astro_twin_presets_path().is_file()
         select_preset_label.setVisible(is_local_file_available)
         select_preset_combo.setVisible(is_local_file_available)
+        manage_presets_button.setVisible(is_local_file_available)
 
     def apply_selected_preset(index: int) -> None:
         if index < 0 or bool(preset_state["applying"]):
@@ -957,6 +962,7 @@ def build_similarity_calculator_settings_section(
     preset_action_row.addWidget(save_custom_preset_button)
     preset_action_row.addWidget(select_preset_label)
     preset_action_row.addWidget(select_preset_combo)
+    preset_action_row.addWidget(manage_presets_button)
     preset_action_row.addStretch(1)
     custom_fields_layout.addLayout(preset_action_row)
 
@@ -1049,6 +1055,7 @@ def build_similarity_calculator_settings_section(
         "select_preset_combo": select_preset_combo,
         "preset_status_label": preset_status_label,
         "preset_state": preset_state,
+        "manage_presets_button": manage_presets_button,
         "placement_weighting_mode_combo": weighting_mode_combo,
         "all_or_nothing_criterion_combo": all_or_nothing_criterion_combo,
         "demographic_match_buttons": demographic_match_buttons,
@@ -1616,6 +1623,7 @@ class ManageMetadataLabelsDialog(QDialog):
     FIELD_COLLECTIONS = "collections"
     FIELD_RELATIONSHIPS = "relationship_types"
     FIELD_SENTIMENTS = "sentiments"
+    FIELD_ASTRO_TWIN_PRESETS = "astro_twin_presets"
 
     SORT_FREQUENCY = "frequency"
     SORT_ALPHABETICAL = "alphabetical"
@@ -1667,6 +1675,7 @@ class ManageMetadataLabelsDialog(QDialog):
             ("Sentiments", self.FIELD_SENTIMENTS),
             ("Collections", self.FIELD_COLLECTIONS),
             ("Tags", self.FIELD_TAGS),
+            ("Astro Twin Presets", self.FIELD_ASTRO_TWIN_PRESETS),
         ]
         for label, field_value in field_options:
             self._field_selector.addItem(label, field_value)
@@ -1721,6 +1730,19 @@ class ManageMetadataLabelsDialog(QDialog):
         self._unsorted_panel.addWidget(self._unsorted_list_widget, 1)
         split_layout.addWidget(self._unsorted_panel_widget, 1)
 
+        middle_panel_widget = QWidget(self)
+        middle_panel = QVBoxLayout(middle_panel_widget)
+        middle_panel.setContentsMargins(0, 0, 0, 0)
+        self._astro_twin_presets_header = QLabel("Astro Twin Presets Manager")
+        self._astro_twin_presets_header.setStyleSheet(CHART_DATA_INFO_LABEL_STYLE)
+        self._astro_twin_presets_header.setVisible(False)
+        middle_panel.addWidget(self._astro_twin_presets_header)
+        self._astro_twin_algorithm_placeholder = QLabel(
+            "select a preset to see its algorithmic weights"
+        )
+        self._astro_twin_algorithm_placeholder.setStyleSheet("font-style: italic;")
+        self._astro_twin_algorithm_placeholder.setVisible(False)
+        middle_panel.addWidget(self._astro_twin_algorithm_placeholder)
         self._list_widget = _TagHierarchyTree(
             self,
             self._active_field,
@@ -1731,15 +1753,18 @@ class ManageMetadataLabelsDialog(QDialog):
             lambda _current, _previous: self._on_selection_changed(self._list_widget)
         )
         self._list_widget.itemDoubleClicked.connect(self._rename_tag_category_display_name)
-        split_layout.addWidget(self._list_widget, 2)
+        middle_panel.addWidget(self._list_widget, 1)
+        split_layout.addWidget(middle_panel_widget, 2)
 
-        right_panel = QVBoxLayout()
+        self._right_panel_widget = QWidget(self)
+        right_panel = QVBoxLayout(self._right_panel_widget)
+        right_panel.setContentsMargins(0, 0, 0, 0)
         self._chart_names_heading = QLabel(self._chart_names_heading_text())
         right_panel.addWidget(self._chart_names_heading)
         self._chart_names_list = QListWidget(self)
         self._chart_names_list.setSelectionMode(QAbstractItemView.NoSelection)
         right_panel.addWidget(self._chart_names_list, 1)
-        split_layout.addLayout(right_panel, 1)
+        split_layout.addWidget(self._right_panel_widget, 1)
         layout.addLayout(split_layout, 1)
 
         if initial_field in {
@@ -1747,6 +1772,7 @@ class ManageMetadataLabelsDialog(QDialog):
             self.FIELD_RELATIONSHIPS,
             self.FIELD_TAGS,
             self.FIELD_COLLECTIONS,
+            self.FIELD_ASTRO_TWIN_PRESETS,
         }:
             index = self._field_selector.findData(initial_field)
             if index >= 0:
@@ -1794,6 +1820,13 @@ class ManageMetadataLabelsDialog(QDialog):
 
     def refresh_usage(self) -> None:
         self._reload_usage()
+
+    def select_field(self, field: str) -> None:
+        """Switch the manager to a specific property subpanel."""
+        index = self._field_selector.findData(field)
+        if index >= 0:
+            self._field_selector.setCurrentIndex(index)
+            self._sync_field_button_selection()
 
     def _queue_usage_reload(
         self,
@@ -1861,6 +1894,7 @@ class ManageMetadataLabelsDialog(QDialog):
             self.FIELD_COLLECTIONS: "Charts in selected collection",
             self.FIELD_RELATIONSHIPS: "Charts with selected relationship",
             self.FIELD_SENTIMENTS: "Charts with selected sentiment",
+            self.FIELD_ASTRO_TWIN_PRESETS: "Algorithm",
         }.get(self._active_field(), "Charts")
 
     def _selected_chart_names_heading_text(self, selected_label: str) -> str:
@@ -1929,6 +1963,7 @@ class ManageMetadataLabelsDialog(QDialog):
             return
         selected_count = len(self._selected_labels())
         is_collections = self._active_field() == self.FIELD_COLLECTIONS
+        is_astro_twin_presets = self._active_field() == self.FIELD_ASTRO_TWIN_PRESETS
         selected_key = self._selected_key()
         selected_row = self._row_for_key(selected_key)
         can_edit_selected = selected_row is not None and bool(selected_row.get("editable", True))
@@ -1950,6 +1985,8 @@ class ManageMetadataLabelsDialog(QDialog):
         self._delete_button.setEnabled(delete_enabled)
         self._rename_button.setStyleSheet("" if rename_enabled else INACTIVE_ACTION_BUTTON_STYLE)
         self._delete_button.setStyleSheet("" if delete_enabled else INACTIVE_ACTION_BUTTON_STYLE)
+        self._rename_button.setVisible(not is_astro_twin_presets)
+        self._delete_button.setVisible(not is_astro_twin_presets)
 
         if not hasattr(self, "_merge_button"):
             return
@@ -1985,6 +2022,7 @@ class ManageMetadataLabelsDialog(QDialog):
                 self.FIELD_RELATIONSHIPS: [],
                 self.FIELD_TAGS: [],
                 self.FIELD_COLLECTIONS: [],
+                self.FIELD_ASTRO_TWIN_PRESETS: [],
             }
         self._refresh_list()
         if keep_selection_label:
@@ -2144,7 +2182,26 @@ class ManageMetadataLabelsDialog(QDialog):
             for item in uncategorized_items:
                 self._unsorted_list_widget.addTopLevelItem(item.clone())
                 self._list_widget.addTopLevelItem(item)
+        elif self._active_field() == self.FIELD_ASTRO_TWIN_PRESETS:
+            self._list_widget.setColumnCount(3)
+            self._list_widget.setHeaderLabels(["Preset Name", "Algorithm", "Data Points"])
+            self._list_widget.setHeaderHidden(False)
+            for row in rows:
+                label = str(row.get("label", "")).strip()
+                count = int(row.get("count", 0) or 0)
+                item = QTreeWidgetItem([label, "", str(count)])
+                item.setData(0, Qt.UserRole, label)
+                item.setData(0, Qt.UserRole + 1, str(row.get("key", label)))
+                item.setData(0, Qt.UserRole + 2, label)
+                item.setData(1, Qt.UserRole, str(row.get("algorithm", "")))
+                self._list_widget.addTopLevelItem(item)
+            self._list_widget.header().setStretchLastSection(False)
+            self._list_widget.setColumnWidth(0, 180)
+            self._list_widget.setColumnWidth(1, 430)
+            self._list_widget.setColumnWidth(2, 90)
         else:
+            self._list_widget.setColumnCount(1)
+            self._list_widget.setHeaderHidden(True)
             for row in rows:
                 label = str(row.get("label", "")).strip()
                 count = int(row.get("count", 0) or 0)
@@ -2160,12 +2217,19 @@ class ManageMetadataLabelsDialog(QDialog):
                 item.setForeground(0, QColor(red, green, blue))
                 self._list_widget.addTopLevelItem(item)
         tags_mode = self._active_field() == self.FIELD_TAGS
+        presets_mode = self._active_field() == self.FIELD_ASTRO_TWIN_PRESETS
+        if not presets_mode:
+            self._list_widget.setColumnCount(1)
+            self._list_widget.setHeaderHidden(True)
         if hasattr(self, "_unsorted_panel_widget"):
             # Only Tags has an uncategorized column. Hiding its containing
             # widget removes that column from the layout entirely, allowing
             # both remaining columns to use the full width in the other
             # managers while preserving Tags' 1:2:1 column proportions.
             self._unsorted_panel_widget.setVisible(tags_mode)
+        self._right_panel_widget.setVisible(not presets_mode)
+        self._astro_twin_presets_header.setVisible(presets_mode)
+        self._astro_twin_algorithm_placeholder.setVisible(presets_mode)
         for tree in self._selection_trees():
             tree.blockSignals(False)
         self._refreshing_label_views = False
@@ -2323,6 +2387,18 @@ class ManageMetadataLabelsDialog(QDialog):
                     tree.setCurrentItem(None)
                     tree.blockSignals(False)
         self._sync_action_buttons()
+        if self._active_field() == self.FIELD_ASTRO_TWIN_PRESETS:
+            for row_index in range(self._list_widget.topLevelItemCount()):
+                row_item = self._list_widget.topLevelItem(row_index)
+                if row_item is not None:
+                    row_item.setText(1, "")
+            item = self._current_selection_item()
+            if item is not None:
+                item.setText(1, str(item.data(1, Qt.UserRole) or ""))
+                self._astro_twin_algorithm_placeholder.setVisible(False)
+            else:
+                self._astro_twin_algorithm_placeholder.setVisible(True)
+            return
         self._refresh_chart_names()
 
     def _refresh_chart_names(self) -> None:
