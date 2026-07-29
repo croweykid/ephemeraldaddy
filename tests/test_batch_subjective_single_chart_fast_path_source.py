@@ -44,6 +44,21 @@ def test_single_chart_finalize_does_not_queue_analytics_refresh():
     assert "_update_sentiment_tally" not in method
 
 
+def test_relationship_fast_path_keeps_collection_membership_current():
+    method = _method_source(
+        "_finalize_single_chart_subjective_batch_edit",
+        "_score_familiarity_from_factors",
+    )
+    assert 'changed_field == "relationship_types"' in method
+    assert "DEFAULT_COLLECTION_PERSONAL, DEFAULT_COLLECTION_PARASOCIAL" in method
+    assert "mutable_row[24]" in method
+    assert "self._chart_rows[row_index] = tuple(mutable_row)" in method
+    assert (
+        "self._has_active_chart_filters() or collection_membership_may_change"
+        in method
+    )
+
+
 def test_subjective_db_writer_is_narrow_and_uid_based():
     start = DB_SOURCE.index("def update_chart_subjective_list_by_uid")
     end = DB_SOURCE.index("\ndef ", start + 5)

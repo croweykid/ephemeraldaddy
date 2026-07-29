@@ -14968,11 +14968,33 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._update_selection_header()
         self._update_batch_edit_state()
         self._flash_batch_updated_rows(changed_ids)
+        collection_membership_may_change = (
+            changed_field == "relationship_types"
+            and self._active_collection_id
+            in {DEFAULT_COLLECTION_PERSONAL, DEFAULT_COLLECTION_PARASOCIAL}
+        )
+        if changed_field == "relationship_types":
+            # Collection switches filter _chart_rows rather than _chart_cache.
+            # Keep its relationship column current even when no immediate list
+            # rebuild is needed (for example, while viewing All).
+            cached_chart = self._chart_cache.get(chart_id)
+            relationship_types = list(
+                getattr(cached_chart, "relationship_types", []) or []
+            )
+            for row_index, row in enumerate(self._chart_rows):
+                normalized_row = self._normalize_chart_row(row)
+                if normalized_row is None or int(normalized_row[0]) != chart_id:
+                    continue
+                mutable_row = list(row)
+                if len(mutable_row) > 24:
+                    mutable_row[24] = ", ".join(relationship_types)
+                    self._chart_rows[row_index] = tuple(mutable_row)
+                break
         # With no active filters, the cached row already contains everything the
         # Database View needs.  Most rapid checkbox edits therefore schedule no
         # timer at all.  If a filter can remove this row, coalesce only the cheap
         # list refresh and explicitly exclude analytics/selection recomputation.
-        if self._has_active_chart_filters():
+        if self._has_active_chart_filters() or collection_membership_may_change:
             self._refresh_filters_after_batch_edit(
                 changed_ids,
                 chart_uids={chart_uid},
