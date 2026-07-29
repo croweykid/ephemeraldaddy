@@ -15601,7 +15601,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 cached_chart = self._chart_cache.get(chart_id)
                 if cached_chart is not None:
                     cached_chart.is_deceased = checked
-                    if checked:
+                    if checked and (
+                        getattr(cached_chart, "death_hour", None) is None
+                        or getattr(cached_chart, "death_minute", None) is None
+                    ):
                         cached_chart.deathtime_unknown = True
             owner = self._owner_window()
             if owner is not None and hasattr(

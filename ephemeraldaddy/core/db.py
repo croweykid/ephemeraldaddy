@@ -6147,7 +6147,9 @@ def update_charts_mortality_by_uid(
                 )
                 conn.execute(
                     "UPDATE charts SET is_deceased = ?, "
-                    "deathtime_unknown = CASE WHEN ? THEN 1 ELSE deathtime_unknown END "
+                    "deathtime_unknown = CASE "
+                    "WHEN ? AND (death_hour IS NULL OR death_minute IS NULL) THEN 1 "
+                    "ELSE deathtime_unknown END "
                     f"WHERE chart_uid IN ({placeholders})",
                     [int(is_deceased), int(is_deceased), *uid_chunk],
                 )

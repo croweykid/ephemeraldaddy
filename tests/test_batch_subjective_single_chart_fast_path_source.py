@@ -132,6 +132,8 @@ def test_batch_mortality_uses_coupled_uid_writer():
     )
     assert "update_charts_mortality_by_uid(chart_uids, checked)" in method
     assert "cached_chart.deathtime_unknown = True" in method
+    assert 'getattr(cached_chart, "death_hour", None) is None' in method
+    assert 'getattr(cached_chart, "death_minute", None) is None' in method
     assert "update_chart(" not in method
 
 

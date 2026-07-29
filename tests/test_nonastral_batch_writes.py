@@ -119,3 +119,21 @@ def test_mortality_writer_does_not_clear_unknown_state_when_marking_living(
             "SELECT is_deceased, deathtime_unknown FROM charts WHERE chart_uid = ?",
             ("NONASTRAL0000001",),
         ).fetchone() == (0, 1)
+
+
+def test_mortality_writer_preserves_known_stored_death_time(tmp_path, monkeypatch):
+    path = _database(tmp_path, monkeypatch)
+    with sqlite3.connect(path) as connection, connection:
+        connection.execute(
+            "UPDATE charts SET is_deceased = 1, deathtime_unknown = 0, "
+            "death_hour = 7, death_minute = 42"
+        )
+
+    db.update_charts_mortality_by_uid({"NONASTRAL0000001"}, True)
+
+    with sqlite3.connect(path) as connection:
+        assert connection.execute(
+            "SELECT is_deceased, deathtime_unknown, death_hour, death_minute "
+            "FROM charts WHERE chart_uid = ?",
+            ("NONASTRAL0000001",),
+        ).fetchone() == (1, 0, 7, 42)
