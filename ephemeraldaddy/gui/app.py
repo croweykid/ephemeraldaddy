@@ -2585,6 +2585,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._deferred_database_metrics_changed_uids: set[str] = set()
         self._deferred_database_metrics_sections: set[str] = set()
         self._deferred_database_metrics_force_full_refresh = False
+        self._deferred_database_metrics_update_similarities = False
         self._database_metrics_background_preload_scheduled = False
         self._database_metrics_background_preload_sections: list[str] = []
         self._database_metrics_preloaded_sections: set[str] = set()
@@ -14966,6 +14967,22 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         )
         self._database_metrics_lucy_goosey_ids.update(changed_ids)
         self._database_metrics_preloaded_sections.difference_update(affected_sections)
+        owner = self._owner_window()
+        if owner is not None and hasattr(owner, "_invalidate_chart_view_navigation_cache"):
+            owner._invalidate_chart_view_navigation_cache({chart_uid})
+        expanded_affected_sections = {
+            section_key
+            for section_key in affected_sections
+            if self._is_database_metrics_section_expanded(section_key)
+            and self._is_database_metrics_section_visible(section_key)
+        }
+        if expanded_affected_sections:
+            self._show_database_analytics_pending_indicator(True)
+            self._schedule_deferred_database_metrics_refresh(
+                changed_uids={chart_uid},
+                sections_to_refresh=expanded_affected_sections,
+                update_similarities=False,
+            )
         self._update_selection_header()
         self._update_batch_edit_state()
         self._flash_batch_updated_rows(changed_ids)
@@ -16812,6 +16829,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._database_metrics_background_preload_sections.clear()
         self._database_metrics_background_preload_scheduled = False
         self._deferred_database_metrics_refresh_scheduled = False
+        self._deferred_database_metrics_update_similarities = False
         self._incremental_metrics_refresh_scheduled = False
         self._save_database_metrics_persistent_cache()
         save_traits_cache = getattr(self, "_save_traits_distribution_likelihood_cache", None)
@@ -19212,13 +19230,15 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         changed_ids: set[int] | None = None,
         sections_to_refresh: set[str] | frozenset[str] | None = None,
         force_full_refresh: bool = False,
+        update_similarities: bool = True,
     ) -> None:
         section_scope = set(sections_to_refresh) if sections_to_refresh is not None else None
         if self._should_use_incremental_metrics_refresh():
-            self._update_sentiment_tally(
-                update_database_metrics=False,
-                update_similarities=True,
-            )
+            if update_similarities:
+                self._update_sentiment_tally(
+                    update_database_metrics=False,
+                    update_similarities=True,
+                )
             self._schedule_incremental_metrics_refresh(
                 changed_ids=changed_ids,
                 sections_to_refresh=section_scope,
@@ -19229,6 +19249,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 force_full_refresh=force_full_refresh,
                 changed_ids=changed_ids,
                 sections_to_refresh=section_scope,
+                update_similarities=update_similarities,
             )
 
     def _schedule_deferred_database_metrics_refresh(
@@ -19238,6 +19259,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         changed_ids: set[int] | None = None,
         sections_to_refresh: set[str] | frozenset[str] | None = None,
         force_full_refresh: bool = False,
+        update_similarities: bool = True,
     ) -> None:
         normalized_changed_uids = {
             chart_uid
@@ -19253,6 +19275,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._deferred_database_metrics_force_full_refresh = (
             self._deferred_database_metrics_force_full_refresh or force_full_refresh
         )
+        self._deferred_database_metrics_update_similarities = bool(
+            self._deferred_database_metrics_update_similarities or update_similarities
+        )
         if self._deferred_database_metrics_refresh_scheduled:
             return
         self._deferred_database_metrics_refresh_scheduled = True
@@ -19264,18 +19289,22 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             self._deferred_database_metrics_changed_uids.clear()
             self._deferred_database_metrics_sections.clear()
             self._deferred_database_metrics_force_full_refresh = False
+            self._deferred_database_metrics_update_similarities = False
             return
         changed_uids = set(self._deferred_database_metrics_changed_uids)
         changed_ids = set(self._local_row_ids_for_uids(changed_uids)) or None
         sections_to_refresh = set(self._deferred_database_metrics_sections) or None
         force_full_refresh = self._deferred_database_metrics_force_full_refresh
+        update_similarities = self._deferred_database_metrics_update_similarities
         self._deferred_database_metrics_changed_uids.clear()
         self._deferred_database_metrics_sections.clear()
         self._deferred_database_metrics_force_full_refresh = False
+        self._deferred_database_metrics_update_similarities = False
         self._run_database_metrics_refresh(
             changed_ids=changed_ids,
             sections_to_refresh=sections_to_refresh,
             force_full_refresh=force_full_refresh,
+            update_similarities=update_similarities,
         )
         if not self._incremental_metrics_refresh_scheduled:
             self._show_database_analytics_pending_indicator(False)

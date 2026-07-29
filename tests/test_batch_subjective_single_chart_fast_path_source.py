@@ -42,6 +42,10 @@ def test_single_chart_finalize_does_not_queue_analytics_refresh():
     assert "refresh_metrics=False" in method
     assert "refresh_selection_state=False" in method
     assert "_update_sentiment_tally" not in method
+    assert "owner._invalidate_chart_view_navigation_cache({chart_uid})" in method
+    assert "expanded_affected_sections" in method
+    assert "sections_to_refresh=expanded_affected_sections" in method
+    assert "update_similarities=False" in method
 
 
 def test_relationship_fast_path_keeps_collection_membership_current():
