@@ -108,3 +108,38 @@ def test_tag_database_writers_only_update_tags_column():
         assert "UPDATE charts SET tags = ? WHERE chart_uid = ?" in method
         assert "_persist_chart_derived_cache" not in method
         assert "update_chart(" not in method
+
+
+def test_remaining_batch_nonastral_handlers_use_general_uid_patch():
+    handler_pairs = (
+        ("_open_batch_familiarity_calculator", "_open_chart_familiarity_calculator"),
+        ("_on_batch_sentiment_metric_assign", "_on_batch_metric_field_lucygoosey"),
+        ("_on_batch_alignment_apply", "_batch_metric_widget_for_key"),
+        ("_on_batch_source_selected", "_on_batch_gender_selected"),
+        ("_on_batch_gender_selected", "_on_batch_birthtime_unknown_toggled"),
+        ("_on_batch_deceased_toggled", "_on_batch_mortality_state_changed"),
+    )
+    for method_name, next_name in handler_pairs:
+        method = _method_source(method_name, next_name)
+        assert "_apply_batch_nonastral_patch" in method
+        assert "_calculate_dominant_sign_weights" not in method
+        assert "update_chart(" not in method
+
+
+def test_birthtime_batch_handler_retains_astro_recalculation_path():
+    method = _method_source(
+        "_on_batch_birthtime_unknown_toggled",
+        "_on_batch_birthtime_unknown_state_changed",
+    )
+    assert "update_chart(" in method
+    assert "_calculate_dominant_sign_weights" in method
+    assert 'changed_fields={"birth_data"}' in method
+
+
+def test_batch_from_whence_uses_general_nonastral_patch():
+    source = Path("ephemeraldaddy/gui/dbv_batch_bio.py").read_text()
+    method = source[source.index("def apply_batch_from_whence"):]
+    assert "owner._selected_chart_uids()" in method
+    assert "owner._apply_batch_nonastral_patch" in method
+    assert "load_chart(" not in method
+    assert "update_chart(" not in method

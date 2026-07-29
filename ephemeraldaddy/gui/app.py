@@ -758,6 +758,7 @@ from ephemeraldaddy.core.db import (
     update_chart,
     update_chart_lightweight_metadata,
     update_chart_subjective_list_by_uid,
+    update_charts_nonastral_fields_by_uid,
     update_chart_dominant_sign_weights,
     update_chart_weirdness_score,
     set_current_chart_by_uid,
@@ -15041,8 +15042,34 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             return []
         return list(getattr(selected_chart, "familiarity_factors", []) or [])
 
+    def _apply_batch_nonastral_patch(
+        self,
+        chart_uids: Iterable[str],
+        values: Mapping[str, Any],
+    ) -> set[int]:
+        """Persist a nonastral batch patch and synchronize only metadata caches."""
+        normalized_uids = {
+            chart_uid
+            for raw_uid in chart_uids
+            if (chart_uid := self._normalized_chart_uid_key(raw_uid))
+        }
+        changed_uids = update_charts_nonastral_fields_by_uid(normalized_uids, values)
+        changed_ids = set(self._local_row_ids_for_uids(changed_uids))
+        for chart_id in changed_ids:
+            cached_chart = self._chart_cache.get(chart_id)
+            if cached_chart is None:
+                continue
+            for field, value in values.items():
+                setattr(cached_chart, field, value)
+            self._chart_cache[chart_id] = cached_chart
+        owner = self._owner_window()
+        if owner is not None and hasattr(owner, "_invalidate_chart_view_navigation_cache"):
+            owner._invalidate_chart_view_navigation_cache(changed_uids)
+        return changed_ids
+
     def _open_batch_familiarity_calculator(self) -> None:
-        chart_ids = self._selected_local_row_ids()
+        chart_uids = self._selected_chart_uids()
+        chart_ids = self._local_row_ids_for_uids(chart_uids)
         if not chart_ids:
             QMessageBox.information(
                 self,
@@ -15062,19 +15089,13 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 ", ".join(familiarity_factors) if familiarity_factors else ""
             )
             try:
-                for chart_id in chart_ids:
-                    chart = load_chart(chart_id)
-                    chart.familiarity_factors = list(familiarity_factors)
-                    chart.familiarity = familiarity_value
-                    chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
-                    chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
-                    chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
-                    update_chart(
-                        chart_id,
-                        chart,
-                        retcon_time_used=getattr(chart, "retcon_time_used", False),
-                    )
-                    self._chart_cache[chart_id] = chart
+                self._apply_batch_nonastral_patch(
+                    chart_uids,
+                    {
+                        "familiarity_factors": list(familiarity_factors),
+                        "familiarity": familiarity_value,
+                    },
+                )
             except Exception as exc:
                 QMessageBox.critical(
                     self,
@@ -15121,7 +15142,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         metric_label: str,
         value: int | None,
     ) -> None:
-        chart_ids = self._selected_local_row_ids()
+        chart_uids = self._selected_chart_uids()
+        chart_ids = self._local_row_ids_for_uids(chart_uids)
         if not chart_ids:
             QMessageBox.information(
                 self,
@@ -15139,18 +15161,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             return
 
         try:
-            for chart_id in chart_ids:
-                chart = load_chart(chart_id)
-                setattr(chart, metric_attr, value)
-                chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
-                chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
-                chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
-                update_chart(
-                    chart_id,
-                    chart,
-                    retcon_time_used=getattr(chart, "retcon_time_used", False),
-                )
-                self._chart_cache[chart_id] = chart
+            self._apply_batch_nonastral_patch(chart_uids, {metric_attr: value})
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -15275,7 +15286,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         )
 
     def _on_batch_alignment_apply(self) -> None:
-        chart_ids = self._selected_local_row_ids()
+        chart_uids = self._selected_chart_uids()
+        chart_ids = self._local_row_ids_for_uids(chart_uids)
         if not chart_ids:
             QMessageBox.information(
                 self,
@@ -15293,18 +15305,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             return
 
         try:
-            for chart_id in chart_ids:
-                chart = load_chart(chart_id)
-                chart.alignment_score = alignment_value
-                chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
-                chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
-                chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
-                update_chart(
-                    chart_id,
-                    chart,
-                    retcon_time_used=getattr(chart, "retcon_time_used", False),
-                )
-                self._chart_cache[chart_id] = chart
+            self._apply_batch_nonastral_patch(
+                chart_uids,
+                {"alignment_score": alignment_value},
+            )
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -15401,7 +15405,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         source = self.batch_source_combo.itemData(index)
         if not source:
             return
-        chart_ids = self._selected_local_row_ids()
+        chart_uids = self._selected_chart_uids()
+        chart_ids = self._local_row_ids_for_uids(chart_uids)
         if not chart_ids:
             QMessageBox.information(
                 self,
@@ -15421,20 +15426,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             return
 
         try:
-            for chart_id in chart_ids:
-                chart = load_chart(chart_id)
-                chart.source = source
-                chart.chart_type = source
-                chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
-                chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
-                chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
-                update_chart(
-                    chart_id,
-                    chart,
-                    chart_type=source,
-                    retcon_time_used=getattr(chart, "retcon_time_used", False),
-                )
-                self._chart_cache[chart_id] = chart
+            self._apply_batch_nonastral_patch(
+                chart_uids,
+                {"source": source, "chart_type": source},
+            )
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -15447,7 +15442,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._update_sentiment_tally(
             show_progress=True,
             changed_ids=changed_ids,
-            changed_fields={"birth_data"},
+            changed_fields={"chart_type"},
         )
         self._update_batch_edit_state()
         self._refresh_filters_after_batch_edit(changed_ids)
@@ -15457,7 +15452,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         if gender == "":
             return
         resolved_gender = None if gender == "__blank__" else gender
-        chart_ids = self._selected_local_row_ids()
+        chart_uids = self._selected_chart_uids()
+        chart_ids = self._local_row_ids_for_uids(chart_uids)
         if not chart_ids:
             QMessageBox.information(
                 self,
@@ -15478,18 +15474,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             return
 
         try:
-            for chart_id in chart_ids:
-                chart = load_chart(chart_id)
-                chart.gender = resolved_gender
-                chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
-                chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
-                chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
-                update_chart(
-                    chart_id,
-                    chart,
-                    retcon_time_used=getattr(chart, "retcon_time_used", False),
-                )
-                self._chart_cache[chart_id] = chart
+            self._apply_batch_nonastral_patch(
+                chart_uids,
+                {"gender": resolved_gender},
+            )
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -15571,7 +15559,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         if state == QuadStateSlider.MODE_MIXED:
             return
         checked = state == QuadStateSlider.MODE_TRUE
-        chart_ids = self._selected_local_row_ids()
+        chart_uids = self._selected_chart_uids()
+        chart_ids = self._local_row_ids_for_uids(chart_uids)
         if not chart_ids:
             QMessageBox.information(
                 self,
@@ -15588,19 +15577,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             return
 
         try:
-            for chart_id in chart_ids:
-                chart = load_chart(chart_id)
-                chart.is_deceased = checked
-                if checked:
-                    chart.deathtime_unknown = True
-                update_chart(
-                    chart_id,
-                    chart,
-                    is_deceased=checked,
-                    deathtime_unknown=getattr(chart, "deathtime_unknown", False),
-                    retcon_time_used=getattr(chart, "retcon_time_used", False),
-                )
-                self._chart_cache[chart_id] = chart
+            self._apply_batch_nonastral_patch(
+                chart_uids,
+                {"is_deceased": checked},
+            )
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -15613,7 +15593,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._update_sentiment_tally(
             show_progress=True,
             changed_ids=changed_ids,
-            changed_fields={"birth_data"},
+            changed_fields=set(),
         )
         self._update_batch_edit_state()
         self._refresh_filters_after_batch_edit(changed_ids)
@@ -17659,17 +17639,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             return
 
         try:
-            chart = load_chart(int(chart_id))
-            chart.name = new_name
-            chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
-            chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
-            chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
-            update_chart(
-                int(chart_id),
-                chart,
-                retcon_time_used=getattr(chart, "retcon_time_used", False),
-            )
-            self._chart_cache[int(chart_id)] = chart
+            chart_uid = get_chart_uid(int(chart_id))
+            if not chart_uid:
+                raise ValueError("The selected chart has no UID")
+            self._apply_batch_nonastral_patch({chart_uid}, {"name": new_name})
         except Exception as exc:
             QMessageBox.critical(
                 self,

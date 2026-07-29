@@ -5980,6 +5980,77 @@ def update_chart_subjective_list_by_uid(
         conn.close()
 
 
+def update_charts_nonastral_fields_by_uid(
+    chart_uids: Iterable[str | None],
+    values: Mapping[str, Any],
+) -> set[str]:
+    """Patch nonastral fields for many charts without loading or recalculating them."""
+    patch = dict(values)
+    if not patch:
+        return set()
+    require_nonastral_data_fields(set(patch))
+    normalized_uids = sorted(
+        {
+            normalized_uid
+            for chart_uid in chart_uids
+            if (normalized_uid := _normalize_chart_uid(chart_uid)) is not None
+        }
+    )
+    if not normalized_uids:
+        return set()
+
+    serializers = {
+        "sentiments": _serialize_sentiments,
+        "relationship_types": _serialize_relationship_types,
+        "tags": _serialize_tags,
+        "quotes": _serialize_quotes,
+        "familiarity_factors": _serialize_familiarity_factors,
+    }
+    boolean_fields = {"is_placeholder", "is_deceased", "is_current"}
+    protected_fields = {"id", "chart_uid", "created_at", "is_current"}
+
+    conn = _get_conn()
+    try:
+        with conn:
+            _ensure_chart_uids(conn)
+            persisted_fields = _table_columns(conn, "charts")
+            invalid_fields = set(patch) - persisted_fields
+            protected_requested = set(patch) & protected_fields
+            if invalid_fields or protected_requested:
+                rejected = sorted(invalid_fields | protected_requested)
+                raise ValueError(
+                    "Unsupported nonastral chart patch fields: " + ", ".join(rejected)
+                )
+            columns = sorted(patch)
+            serialized_values = [
+                (
+                    serializers[field](patch[field])
+                    if field in serializers
+                    else int(bool(patch[field]))
+                    if field in boolean_fields
+                    else patch[field]
+                )
+                for field in columns
+            ]
+            assignments = ", ".join(f"{field} = ?" for field in columns)
+            placeholders = ", ".join("?" for _ in normalized_uids)
+            existing_uids = {
+                str(row[0])
+                for row in conn.execute(
+                    f"SELECT chart_uid FROM charts WHERE chart_uid IN ({placeholders})",
+                    tuple(normalized_uids),
+                ).fetchall()
+            }
+            if existing_uids:
+                conn.executemany(
+                    f"UPDATE charts SET {assignments} WHERE chart_uid = ?",
+                    [serialized_values + [chart_uid] for chart_uid in sorted(existing_uids)],
+                )
+            return existing_uids
+    finally:
+        conn.close()
+
+
 def load_chart_rows_for_ids(chart_ids: Iterable[int]) -> dict[int, sqlite3.Row]:
     """Load raw chart rows for many chart IDs using one database query."""
     unique_ids = list(dict.fromkeys(int(chart_id) for chart_id in chart_ids))
