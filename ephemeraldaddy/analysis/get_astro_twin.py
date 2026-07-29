@@ -626,6 +626,36 @@ def normalize_similar_charts_algorithm_mode(value: object) -> str:
     return SIMILAR_CHARTS_ALGORITHM_DEFAULT
 
 
+def similarity_algorithm_settings_snapshot(
+    algorithm_mode: object,
+    custom_settings: SimilarityCalculatorSettings,
+) -> dict[str, object]:
+    """Return settings that describe the scorer actually used by a mode."""
+    mode = normalize_similar_charts_algorithm_mode(algorithm_mode)
+    if mode in {SIMILAR_CHARTS_ALGORITHM_DEFAULT, SIMILAR_CHARTS_ALGORITHM_CUSTOM}:
+        return asdict(custom_settings)
+    if mode == SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING:
+        return asdict(all_or_nothing_similarity_settings(custom_settings))
+    if mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
+        comprehensive = SimilarityCalculatorSettings.defaults_from_comprehensive()
+        comprehensive.placement_weighting_mode = custom_settings.normalized_placement_weighting_mode()
+        return asdict(comprehensive)
+    if mode == SIMILAR_CHARTS_ALGORITHM_BIG_3:
+        return {
+            "use_big_3": True,
+            "weight_big_3": 1.0,
+            "placement_weighting_mode": "not_applicable",
+        }
+    fixed_name = "Generic Astro" if mode == SIMILAR_CHARTS_ALGORITHM_GENERIC_ASTRO else "Database Distinction"
+    return {
+        "details_available": False,
+        "details_unavailable_reason": (
+            f"{fixed_name} uses a fixed scorer that does not expose custom factor weights."
+        ),
+        "placement_weighting_mode": "not_applicable",
+    }
+
+
 def normalize_astro_twin_demographic_match_mode(value: object) -> str:
     normalized = str(value or "").strip().lower().replace("-", "_").replace(" ", "_")
     if normalized in {"no_preference", "none", "off", "false", "0"}:
@@ -1846,7 +1876,10 @@ def find_astro_twins(
     normalized_custom_settings = custom_settings or SimilarityCalculatorSettings.defaults_for_default_mode()
     if use_all_or_nothing:
         normalized_custom_settings = all_or_nothing_similarity_settings(normalized_custom_settings)
-    algorithm_settings_snapshot = asdict(normalized_custom_settings)
+    algorithm_settings_snapshot = similarity_algorithm_settings_snapshot(
+        normalized_mode,
+        normalized_custom_settings,
+    )
     placement_weighting_mode = normalized_custom_settings.normalized_placement_weighting_mode()
     demographic_match_mode = normalized_custom_settings.normalized_demographic_match_mode()
     hidden_ids = {int(chart_id) for chart_id in (hidden_chart_ids or set())}

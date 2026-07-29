@@ -12,6 +12,7 @@ from ephemeraldaddy.analysis.get_astro_twin import (
     chart_similarity_score_custom,
     find_astro_twins,
     normalize_similar_charts_algorithm_mode,
+    similarity_algorithm_settings_snapshot,
 )
 
 
@@ -724,3 +725,24 @@ def test_find_astro_twins_retains_settings_that_produced_each_match(monkeypatch)
     settings.weight_placement = 0.99
 
     assert match.algorithm_settings_snapshot["weight_placement"] == 0.41
+
+
+def test_mode_specific_snapshots_describe_the_selected_scorer():
+    custom = SimilarityCalculatorSettings.defaults_for_default_mode()
+
+    big_3 = similarity_algorithm_settings_snapshot("big_3", custom)
+    comprehensive = similarity_algorithm_settings_snapshot("comprehensive", custom)
+    generic = similarity_algorithm_settings_snapshot("generic_astro", custom)
+    distinction = similarity_algorithm_settings_snapshot("database_distinction", custom)
+
+    assert big_3 == {
+        "use_big_3": True,
+        "weight_big_3": 1.0,
+        "placement_weighting_mode": "not_applicable",
+    }
+    assert comprehensive["weight_placement"] == 0.33
+    assert comprehensive["weight_human_design_gates"] == 0.18
+    assert generic["details_available"] is False
+    assert "Generic Astro" in generic["details_unavailable_reason"]
+    assert distinction["details_available"] is False
+    assert "Database Distinction" in distinction["details_unavailable_reason"]

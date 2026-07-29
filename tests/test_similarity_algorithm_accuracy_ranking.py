@@ -93,6 +93,44 @@ def test_custom_settings_are_ranked_as_numbered_distinct_algorithms(tmp_path):
     assert all(row["sample_count"] == 1 for row in rows)
 
 
+def test_relationship_override_only_updates_latest_custom_variant_for_pair(tmp_path):
+    algorithm_path = tmp_path / "similarities_algorithm_log.txt"
+    relationship_path = tmp_path / "chart_similarity_relationships.json"
+    first = build_similarity_algorithm_snapshot("custom", {"use_placement": True, "weight_placement": 0.7})
+    second = build_similarity_algorithm_snapshot("custom", {"use_placement": True, "weight_placement": 0.4})
+    for snapshot, predicted, perceived in ((first, 90, 90), (second, 20, 20)):
+        append_similarity_accuracy_observation(
+            algorithm_mode="custom",
+            algorithm_snapshot=snapshot,
+            predicted_percent=predicted,
+            user_reported_accuracy=perceived,
+            not_applicable=False,
+            chart_1_uid="A" * 14,
+            chart_2_uid="B" * 14,
+            path=algorithm_path,
+        )
+    relationship_path.write_text(
+        json.dumps({
+            "relationships": {
+                "pair": {
+                    "chart_uids": ["A" * 14, "B" * 14],
+                    "user_reported_accuracy": 20,
+                    "not_applicable": False,
+                }
+            }
+        }),
+        encoding="utf-8",
+    )
+
+    rows = aggregate_similarity_algorithm_accuracy(
+        algorithm_path,
+        relationship_path=relationship_path,
+    )
+
+    assert len(rows) == 2
+    assert all(row["average_accuracy"] == 100.0 for row in rows)
+
+
 def test_accuracy_ranking_html_has_highlight_header_links_and_expanded_weights():
     snapshot = build_similarity_algorithm_snapshot(
         "big_3", {"use_big_3": True, "weight_big_3": 1.0}
@@ -111,6 +149,25 @@ def test_accuracy_ranking_html_has_highlight_header_links_and_expanded_weights()
     assert "font-weight:600; color:#abcdef" in html
     assert 'href="algorithm:0">Big 3</a>' in html
     assert "Big 3: 1 (on)" in html
+
+
+def test_accuracy_ranking_html_marks_fixed_scorer_details_unavailable():
+    html = format_similarity_algorithm_accuracy_ranking_html(
+        [{
+            "algorithm_mode": "generic_astro",
+            "average_accuracy": 90.0,
+            "sample_count": 2,
+            "algorithm_snapshot": {
+                "details_available": False,
+                "details_unavailable_reason": "Generic Astro uses fixed weights.",
+            },
+        }],
+        expanded_rows={0},
+        highlight_color="#abcdef",
+    )
+
+    assert "Generic Astro uses fixed weights." in html
+    assert "Placement: " not in html
 
 
 def test_algorithm_accuracy_uses_prediction_error_not_raw_perceived_score(tmp_path):

@@ -104,6 +104,7 @@ def aggregate_similarity_algorithm_accuracy(
         return []
     relationship_scores = _current_relationship_scores(relationship_path)
     observations: dict[tuple[str, str, str], tuple[float | None, float | None, dict[str, Any] | None]] = {}
+    latest_observation_by_pair: dict[str, tuple[str, str, str]] = {}
     custom_variant_order: dict[str, int] = {}
     decoder = json.JSONDecoder()
     cursor = 0
@@ -150,10 +151,19 @@ def aggregate_similarity_algorithm_accuracy(
         if mode == "custom" and variant_key not in custom_variant_order:
             custom_variant_order[variant_key] = len(custom_variant_order) + 1
         pair_key = _accuracy_pair_key(payload)
-        if pair_key and pair_key in relationship_scores:
-            perceived = relationship_scores[pair_key]
         observation_key = pair_key or f"legacy-offset:{marker_index}"
-        observations[(mode, variant_key, observation_key)] = (perceived, predicted, snapshot)
+        composite_key = (mode, variant_key, observation_key)
+        observations[composite_key] = (perceived, predicted, snapshot)
+        if pair_key:
+            latest_observation_by_pair[pair_key] = composite_key
+    # The relationship store has one current score per chart pair, not one per
+    # algorithm variant. Apply it only to the pair's latest logged observation;
+    # older experiments retain the perceived score recorded in their payload.
+    for pair_key, composite_key in latest_observation_by_pair.items():
+        if pair_key not in relationship_scores or composite_key not in observations:
+            continue
+        _perceived, predicted, snapshot = observations[composite_key]
+        observations[composite_key] = (relationship_scores[pair_key], predicted, snapshot)
     totals: dict[tuple[str, str], list[float]] = {}
     snapshots: dict[tuple[str, str], dict[str, Any] | None] = {}
     for (mode, variant_key, _pair_key), (perceived, predicted, snapshot) in observations.items():
@@ -264,16 +274,21 @@ def format_similarity_algorithm_accuracy_ranking_html(
         snapshot = row.get("algorithm_snapshot")
         detail_lines: list[str] = []
         if isinstance(snapshot, Mapping):
-            placement = str(snapshot.get("placement_weighting_mode", "") or "").replace("_", " ").title()
-            if placement:
-                detail_lines.append(f"Placement weighting: {placement}")
-            factors = snapshot.get("selected_factors")
-            if isinstance(factors, list):
-                for factor in factors:
-                    if isinstance(factor, Mapping):
-                        state = "on" if bool(factor.get("enabled", False)) else "off"
-                        label = str(factor.get("factor", "")).replace("_", " ").title()
-                        detail_lines.append(f"{label}: {float(factor.get('weight', 0.0)):g} ({state})")
+            if not bool(snapshot.get("details_available", True)):
+                detail_lines.append(
+                    str(snapshot.get("details_unavailable_reason") or "Exact factor weights are unavailable.")
+                )
+            else:
+                placement = str(snapshot.get("placement_weighting_mode", "") or "").replace("_", " ").title()
+                if placement and placement != "Not Applicable":
+                    detail_lines.append(f"Placement weighting: {placement}")
+                factors = snapshot.get("selected_factors")
+                if isinstance(factors, list):
+                    for factor in factors:
+                        if isinstance(factor, Mapping):
+                            state = "on" if bool(factor.get("enabled", False)) else "off"
+                            label = str(factor.get("factor", "")).replace("_", " ").title()
+                            detail_lines.append(f"{label}: {float(factor.get('weight', 0.0)):g} ({state})")
         if not detail_lines:
             detail_lines.append("Exact settings unavailable for this legacy observation.")
         parts.append(
@@ -326,6 +341,8 @@ def build_similarity_algorithm_snapshot(
 ) -> dict[str, Any]:
     """Build a stable, comparable snapshot of Similar Charts scoring settings."""
     payload = _settings_payload(settings)
+    details_available = bool(payload.pop("details_available", True))
+    details_unavailable_reason = str(payload.pop("details_unavailable_reason", "") or "")
     # The combined-dominance fields are constructor compatibility inputs only;
     # scoring consumes the four granular dominance components instead.
     payload.pop("use_combined_dominance", None)
@@ -348,6 +365,8 @@ def build_similarity_algorithm_snapshot(
         "selected_total": selected_total,
         "selected_factors": selected_factors,
         "settings": payload,
+        "details_available": details_available,
+        "details_unavailable_reason": details_unavailable_reason,
     }
 
 
