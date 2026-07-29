@@ -870,6 +870,7 @@ from ephemeraldaddy.gui.features.charts.delegates import (
 from ephemeraldaddy.gui.features.charts.provenance import (
     SOURCE_EVENT,
     SOURCE_OPTIONS,
+    SOURCE_PARASOCIAL,
     SOURCE_PERSONAL,
     SOURCE_PUBLIC_DB,
     chart_is_non_aggregable as _chart_is_non_aggregable,
@@ -884,9 +885,17 @@ from ephemeraldaddy.gui.features.charts.provenance import (
 )
 from ephemeraldaddy.gui.features.charts.collections import (
     DEFAULT_COLLECTION_ALL,
+    DEFAULT_COLLECTION_EVENT,
+    DEFAULT_COLLECTION_HYPOTHETICAL,
     DEFAULT_COLLECTION_IDS,
+    DEFAULT_COLLECTION_NONHUMAN_ENTITY,
     DEFAULT_COLLECTION_OPTIONS,
+    DEFAULT_COLLECTION_PARASOCIAL,
+    DEFAULT_COLLECTION_PERSONAL,
+    DEFAULT_COLLECTION_PERSONAL_TRANSIT,
     DEFAULT_COLLECTION_POSSIBLE_DUPLICATES,
+    DEFAULT_COLLECTION_PUBLIC,
+    DEFAULT_COLLECTION_SYNASTRY,
     CustomCollection,
     chart_uids_in_collection,
     chart_belongs_to_collection,
