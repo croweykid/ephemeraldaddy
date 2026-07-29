@@ -16,6 +16,9 @@ from ephemeraldaddy.analysis.get_astro_twin import (
     SimilarityCalculatorSettings,
     normalize_similar_charts_algorithm_mode,
 )
+from ephemeraldaddy.core.feedback_prediction_fields import (
+    require_classified_similarity_accuracy_observation,
+)
 
 SIMILARITIES_ALGORITHM_LOG_PATH_ENV = "EPHEMERALDADDY_SIMILARITIES_ALGORITHM_LOG_PATH"
 SIMILARITIES_ALGORITHM_LOG_FILENAME = "similarities_algorithm_log.txt"
@@ -231,12 +234,14 @@ def aggregate_similarity_algorithm_accuracy(
         observations[composite_key] = (perceived, predicted, snapshot)
         if pair_key:
             observations_by_pair.setdefault(pair_key, set()).add(composite_key)
-    # Perceived similarity belongs to the chart pair, independently of every
+    # USER_FEEDBACK belongs to the chart pair, independently of every
     # algorithm prediction.  It is the user's current ground truth: if they
     # revise A/B from 80% to 65%, all historical predictions must be evaluated
     # against 65%.  The relationship score therefore replaces the cached
     # payload value for every algorithm and settings variant that predicted the
-    # pair; only each prediction and its snapshot remain fixed in history.
+    # pair. APP_PREDICTIONS (the percentage and its snapshot) remain fixed in
+    # history. Keep these formal provenance classes separate when this schema
+    # grows; their distinction is more important than their shared log record.
     for pair_key, composite_keys in observations_by_pair.items():
         if pair_key not in relationship_scores:
             continue
@@ -301,6 +306,7 @@ def append_similarity_accuracy_observation(
         "not_applicable": bool(not_applicable),
         "algorithm_snapshot": dict(algorithm_snapshot) if algorithm_snapshot is not None else None,
     }
+    require_classified_similarity_accuracy_observation(payload)
     with log_path.open("a", encoding="utf-8") as handle:
         handle.write("=== Similarity Perceived Accuracy ===\n")
         handle.write(_ACCURACY_PAYLOAD_MARKER)
