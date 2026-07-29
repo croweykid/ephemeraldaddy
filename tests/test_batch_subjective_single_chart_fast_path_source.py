@@ -118,13 +118,21 @@ def test_remaining_batch_nonastral_handlers_use_general_uid_patch():
         ("_on_batch_alignment_apply", "_batch_metric_widget_for_key"),
         ("_on_batch_source_selected", "_on_batch_gender_selected"),
         ("_on_batch_gender_selected", "_on_batch_birthtime_unknown_toggled"),
-        ("_on_batch_deceased_toggled", "_on_batch_mortality_state_changed"),
     )
     for method_name, next_name in handler_pairs:
         method = _method_source(method_name, next_name)
         assert "_apply_batch_nonastral_patch" in method
         assert "_calculate_dominant_sign_weights" not in method
         assert "update_chart(" not in method
+
+
+def test_batch_mortality_uses_coupled_uid_writer():
+    method = _method_source(
+        "_on_batch_deceased_toggled", "_on_batch_mortality_state_changed"
+    )
+    assert "update_charts_mortality_by_uid(chart_uids, checked)" in method
+    assert "cached_chart.deathtime_unknown = True" in method
+    assert "update_chart(" not in method
 
 
 def test_birthtime_batch_handler_retains_astro_recalculation_path():

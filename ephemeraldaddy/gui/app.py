@@ -760,6 +760,7 @@ from ephemeraldaddy.core.db import (
     update_chart_subjective_list_by_uid,
     update_charts_nonastral_fields_by_uid,
     update_charts_nonastral_patches_by_uid,
+    update_charts_mortality_by_uid,
     update_chart_dominant_sign_weights,
     update_chart_weirdness_score,
     set_current_chart_by_uid,
@@ -15595,10 +15596,18 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             return
 
         try:
-            self._apply_batch_nonastral_patch(
-                chart_uids,
-                {"is_deceased": checked},
-            )
+            changed_uids = update_charts_mortality_by_uid(chart_uids, checked)
+            for chart_id in self._local_row_ids_for_uids(changed_uids):
+                cached_chart = self._chart_cache.get(chart_id)
+                if cached_chart is not None:
+                    cached_chart.is_deceased = checked
+                    if checked:
+                        cached_chart.deathtime_unknown = True
+            owner = self._owner_window()
+            if owner is not None and hasattr(
+                owner, "_invalidate_chart_view_navigation_cache"
+            ):
+                owner._invalidate_chart_view_navigation_cache(changed_uids)
         except Exception as exc:
             QMessageBox.critical(
                 self,
