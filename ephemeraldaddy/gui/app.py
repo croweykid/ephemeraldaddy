@@ -1411,6 +1411,7 @@ from ephemeraldaddy.gui.settings_widgets import (
 
 from ephemeraldaddy.gui.style import (
     APPWIDE_DARK_THEME_STYLESHEET,
+    COLOR_ACCENT_SUCCESS,
     build_tag_chip_html,
     configure_tag_chip_label,
     CHART_VIEW_RECTIFIED_GROUP_LEFT_SPACER,
@@ -23085,7 +23086,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
         total_label = getattr(self, "_similarity_calculator_total_label", None)
         if isinstance(total_label, QLabel):
-            total_label.setText(f"{checked_total:.2f} / 1.00 ({checked_total * 100.0:.1f}%)")
+            total_text = f"{checked_total:.2f}/1.00"
+            if abs(checked_total - 1.0) < 0.000_001:
+                total_text += f'<br><span style="color: {COLOR_ACCENT_SUCCESS};">100%</span>'
+            total_label.setText(total_text)
 
     def _current_similarity_calculator_demographic_match_mode(self) -> str:
         buttons = getattr(self, "_similarity_calculator_demographic_match_buttons", {})

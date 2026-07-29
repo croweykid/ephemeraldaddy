@@ -4,6 +4,9 @@ from pathlib import Path
 SOURCE = (Path(__file__).resolve().parents[1] / "ephemeraldaddy/gui/dev_tools.py").read_text(
     encoding="utf-8"
 )
+APP_SOURCE = (Path(__file__).resolve().parents[1] / "ephemeraldaddy/gui/app.py").read_text(
+    encoding="utf-8"
+)
 SECTION = SOURCE.split("def build_similarity_calculator_settings_section", 1)[1].split(
     "def build_predictions_settings_section", 1
 )[0]
@@ -47,13 +50,43 @@ def test_database_distinction_precedes_custom_as_final_scoring_option():
 def test_custom_subpanel_has_visual_cues_and_preset_button_at_bottom():
     custom_fields = SECTION.index("custom_fields_frame = QFrame()")
     accent = SECTION.index('border-left: 3px solid {CHART_DATA_HIGHLIGHT_COLOR}', custom_fields)
-    reset_button = SECTION.index('QPushButton("Reset Weights to Defaults")', custom_fields)
+    reset_button = SECTION.index('QPushButton("Reset Weights to Default")', custom_fields)
     save_button = SECTION.index('QPushButton("Save as Preset")', custom_fields)
     attach_to_layout = SECTION.index("algorithm_layout.addWidget(custom_fields_frame)", custom_fields)
 
     assert custom_fields < accent < reset_button < save_button < attach_to_layout
     assert 'save_custom_preset_button.setToolTip("save current weights as preset")' in SECTION
     assert '"save_custom_preset_button": save_custom_preset_button' in SECTION
+
+
+def test_custom_weight_grid_uses_centered_renamed_headers_and_compact_columns():
+    assert 'criterion_header = QLabel("Criterion")' in SECTION
+    assert 'total_header = QLabel("Total")' in SECTION
+    assert 'header.setAlignment(Qt.AlignCenter)' in SECTION
+    assert 'weight_column_width = character_width * 8' in SECTION
+    assert 'total_column_width = character_width * 12' in SECTION
+    assert 'calculator_grid.setColumnStretch(1, 1)' in SECTION
+    assert 'weight_spinbox.setFixedWidth(weight_column_width)' in SECTION
+
+
+def test_reset_weights_button_shares_placement_weighting_row():
+    combo = SECTION.index("weighting_mode_row.addWidget(weighting_mode_combo)")
+    reset = SECTION.index("weighting_mode_row.addWidget(reset_similarity_weights_button)")
+    attach = SECTION.index("custom_fields_layout.addLayout(weighting_mode_row)")
+
+    assert combo < reset < attach
+
+
+def test_selected_scoring_method_uses_chart_data_highlight_color():
+    assert 'QRadioButton:checked {{ color: {CHART_DATA_HIGHLIGHT_COLOR}; }}' in SECTION
+    assert "scoring_method_radio.setStyleSheet(scoring_method_selected_style)" in SECTION
+
+
+def test_total_only_shows_green_completion_percentage_at_one():
+    assert 'total_weight_value_label = QLabel("0.00/1.00")' in SECTION
+    assert 'total_text = f"{checked_total:.2f}/1.00"' in APP_SOURCE
+    assert "if abs(checked_total - 1.0) < 0.000_001:" in APP_SOURCE
+    assert 'color: {COLOR_ACCENT_SUCCESS};">100%</span>' in APP_SOURCE
 
 
 def test_custom_preset_selector_and_in_use_state_are_wired():

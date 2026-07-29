@@ -672,6 +672,19 @@ def build_similarity_calculator_settings_section(
     big_3_radio = QRadioButton("use Big 3")
     custom_radio = QRadioButton("use custom")
     database_distinction_radio = QRadioButton("use database distinction scan")
+    scoring_method_selected_style = (
+        f"QRadioButton:checked {{ color: {CHART_DATA_HIGHLIGHT_COLOR}; }}"
+    )
+    for scoring_method_radio in (
+        default_radio,
+        generic_astro_radio,
+        comprehensive_radio,
+        all_or_nothing_radio,
+        big_3_radio,
+        custom_radio,
+        database_distinction_radio,
+    ):
+        scoring_method_radio.setStyleSheet(scoring_method_selected_style)
     similar_charts_algo_group = QButtonGroup(dialog)
     similar_charts_algo_group.setExclusive(True)
     similar_charts_algo_group.addButton(default_radio)
@@ -764,11 +777,23 @@ def build_similarity_calculator_settings_section(
     calculator_grid.setContentsMargins(0, 0, 0, 0)
     calculator_grid.setHorizontalSpacing(8)
     calculator_grid.setVerticalSpacing(6)
-    calculator_grid.addWidget(QLabel("Factor"), 0, 1)
-    calculator_grid.addWidget(QLabel("Weight"), 0, 2)
-    calculator_grid.addWidget(QLabel("Selected Total"), 0, 3)
-    total_weight_value_label = QLabel("0.00 / 1.00 (0.0%)")
-    total_weight_value_label.setAlignment(Qt.AlignRight | Qt.AlignTop)
+    criterion_header = QLabel("Criterion")
+    weight_header = QLabel("Weight")
+    total_header = QLabel("Total")
+    for header in (criterion_header, weight_header, total_header):
+        header.setAlignment(Qt.AlignCenter)
+    calculator_grid.addWidget(criterion_header, 0, 1)
+    calculator_grid.addWidget(weight_header, 0, 2)
+    calculator_grid.addWidget(total_header, 0, 3)
+    character_width = weight_header.fontMetrics().horizontalAdvance("0")
+    weight_column_width = character_width * 8
+    total_column_width = character_width * 12
+    calculator_grid.setColumnStretch(1, 1)
+    calculator_grid.setColumnMinimumWidth(2, weight_column_width)
+    calculator_grid.setColumnMinimumWidth(3, total_column_width)
+    total_weight_value_label = QLabel("0.00/1.00")
+    total_weight_value_label.setFixedWidth(total_column_width)
+    total_weight_value_label.setAlignment(Qt.AlignCenter | Qt.AlignTop)
     calculator_grid.addWidget(
         total_weight_value_label,
         1,
@@ -798,6 +823,7 @@ def build_similarity_calculator_settings_section(
         weight_spinbox.setDecimals(2)
         weight_spinbox.setRange(0.0, 1.0)
         weight_spinbox.setSingleStep(0.01)
+        weight_spinbox.setFixedWidth(weight_column_width)
         weight_spinbox.setAlignment(Qt.AlignRight)
         weight_spinbox.valueChanged.connect(
             lambda _value, row_key=key, spinbox=weight_spinbox: on_weight_changed(
@@ -824,13 +850,11 @@ def build_similarity_calculator_settings_section(
     apply_shared_dropdown_style(weighting_mode_combo)
     weighting_mode_row.addWidget(weighting_mode_label)
     weighting_mode_row.addWidget(weighting_mode_combo)
+    reset_similarity_weights_button = QPushButton("Reset Weights to Default")
+    reset_similarity_weights_button.clicked.connect(on_reset_weights_clicked)
+    weighting_mode_row.addWidget(reset_similarity_weights_button)
     weighting_mode_row.addStretch(1)
     custom_fields_layout.addLayout(weighting_mode_row)
-
-
-    reset_similarity_weights_button = QPushButton("Reset Weights to Defaults")
-    reset_similarity_weights_button.clicked.connect(on_reset_weights_clicked)
-    custom_fields_layout.addWidget(reset_similarity_weights_button, alignment=Qt.AlignLeft)
 
     def current_custom_settings() -> dict[str, object]:
         settings: dict[str, object] = {
