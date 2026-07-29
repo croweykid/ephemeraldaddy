@@ -643,6 +643,7 @@ from ephemeraldaddy.gui.features.charts.similarities_algorithm_log import (
     append_similarity_accuracy_observation,
     append_similarity_algorithm_change_log,
     build_similarity_algorithm_snapshot,
+    format_similarity_algorithm_accuracy_ranking,
     similarity_algorithm_snapshots_changed,
 )
 from ephemeraldaddy.gui.features.charts.chart_similarity_relationships import (
@@ -2630,6 +2631,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._batch_tagging_terminal_debug_checkbox: QCheckBox | None = None
         self._astrotwin_granular_explanation_checkbox: QCheckBox | None = None
         self._similarity_perceived_accuracy_controls_checkbox: QCheckBox | None = None
+        self._similarity_algorithm_accuracy_label: QLabel | None = None
         self._settings_section_expanded_session: dict[str, bool] = {}
         self._settings_db_info_label: QLabel | None = None
         self._database_weight_norms: dict[str, Any] = {}
@@ -21447,6 +21449,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
     def _ensure_settings_dialog(self) -> QDialog:
         if self._settings_dialog is not None:
+            self._refresh_similarity_algorithm_accuracy_label()
             if isinstance(self._astrotwin_granular_explanation_checkbox, QCheckBox):
                 blocker = QSignalBlocker(self._astrotwin_granular_explanation_checkbox)
                 self._astrotwin_granular_explanation_checkbox.setChecked(
@@ -22050,6 +22053,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         )
         self._similarity_perceived_accuracy_controls_checkbox = similarity_controls[
             "perceived_accuracy_checkbox"
+        ]
+        self._similarity_algorithm_accuracy_label = similarity_controls[
+            "algorithm_accuracy_label"
         ]
         self._similar_charts_algo_default_radio = similarity_controls["default_radio"]
         self._similar_charts_algo_generic_astro_radio = similarity_controls["generic_astro_radio"]
@@ -26543,12 +26549,18 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 chart_2_uid=chart_uid_map.get(compared_chart_id),
                 ranking_position=getattr(match, "rank", None),
             )
+            self._refresh_similarity_algorithm_accuracy_label()
         except Exception:
             logger.exception("Failed to save Similar Charts perceived similarity relationship.")
             return False
         else:
             logger.info("Saved Similar Charts perceived similarity relationship to %s", relationship_path)
             return True
+
+    def _refresh_similarity_algorithm_accuracy_label(self) -> None:
+        label = getattr(self, "_similarity_algorithm_accuracy_label", None)
+        if isinstance(label, QLabel):
+            label.setText(format_similarity_algorithm_accuracy_ranking())
 
     def _on_similar_chart_popout_make_collection_clicked(self, dialog: QDialog) -> None:
         subject_name = str(getattr(dialog, "_similar_chart_popout_subject_name", "") or "").strip()
