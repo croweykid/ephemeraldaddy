@@ -4580,7 +4580,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
         def add_database_subheader(text: str = "") -> QLabel:
             subheader = QLabel(text)
-            subheader_style = DATABASE_ANALYTICS_SUBHEADER_STYLE
+            subheader_style = COLLAPSIBLE_SECTION_SUBHEADER_STYLE
             if DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS:
                 subheader_style = f"{subheader_style} {DATABASE_ANALYTICS_SUBTITLE_DEBUG_STYLE}"
             subheader.setStyleSheet(subheader_style)

@@ -267,10 +267,10 @@ from ephemeraldaddy.gui.style import (
     CHART_AXES_STYLE,
     CHART_DATA_HIGHLIGHT_COLOR,
     CHART_THEME_COLORS,
+    COLLAPSIBLE_SECTION_SUBHEADER_STYLE,
     DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS,
     DATABASE_ANALYTICS_GRAPH_AREA_DEBUG_COLOR,
     DATABASE_ANALYTICS_GRAPH_LABEL_REGION_DEBUG_COLOR,
-    DATABASE_ANALYTICS_SUBHEADER_STYLE,
     DATABASE_ANALYTICS_SUBTITLE_DEBUG_STYLE,
     DND_STAT_EARTHTONE_COLORS,
     DATABASE_VIEW_SUBHEADER_WORD_WRAP,
@@ -734,7 +734,7 @@ class DatabaseAnalyticsChartsMixin:
 
     def _build_database_subheader_label(self, text: str = "") -> QLabel:
         subheader = QLabel(text)
-        subheader_style = DATABASE_ANALYTICS_SUBHEADER_STYLE
+        subheader_style = COLLAPSIBLE_SECTION_SUBHEADER_STYLE
         if DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS:
             subheader_style = f"{subheader_style} {DATABASE_ANALYTICS_SUBTITLE_DEBUG_STYLE}"
         subheader.setStyleSheet(subheader_style)
