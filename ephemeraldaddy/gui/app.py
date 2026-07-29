@@ -2669,6 +2669,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._restore_visibility_preferences()
 
         layout = QVBoxLayout()
+        # Keep the Database View toolbar close to the window-chrome menu while
+        # retaining a small visual separation between the two rows.
+        layout.setContentsMargins(0, 4, 0, 0)
         self.setLayout(layout)
         configure_manage_dialog_chrome(self, layout)
 
@@ -3028,6 +3031,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self.list_panel.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         list_layout = QVBoxLayout()
         list_layout.setContentsMargins(0, 0, 0, 0)
+        # Search and list-filter controls are a single compact header area.
+        list_layout.setSpacing(4)
         self.list_panel.setLayout(list_layout)
         list_header_row = QWidget()
         list_header_row.setStyleSheet(f"background-color: {DATABASE_VIEW_LIST_PANEL_BACKGROUND};")
