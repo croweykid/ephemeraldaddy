@@ -240,6 +240,38 @@ def test_legacy_payload_inherits_preceding_algorithm_mode(tmp_path):
     ]
 
 
+def test_legacy_observation_recovers_exact_settings_from_change_log(tmp_path):
+    path = tmp_path / "similarities_algorithm_log.txt"
+    snapshot = build_similarity_algorithm_snapshot(
+        "custom", {"use_placement": True, "weight_placement": 0.73}
+    )
+    legacy_payload = {
+        "algorithm_mode": "custom",
+        "chart_uids": ["A" * 14, "B" * 14],
+        "predicted_percent": 75,
+        "user_reported_accuracy": 77,
+        "not_applicable": False,
+    }
+    path.write_text(
+        "=== Similarities Algorithm Change #1 ===\n"
+        "Algorithm mode: custom\n"
+        "Opening snapshot:\n" + json.dumps(snapshot) + "\n"
+        "Current settings upon close:\n" + json.dumps(snapshot) + "\n\n"
+        "=== Similarity Perceived Accuracy ===\n"
+        "Perceived accuracy payload:\n" + json.dumps(legacy_payload) + "\n",
+        encoding="utf-8",
+    )
+
+    rows = aggregate_similarity_algorithm_accuracy(path)
+
+    assert rows[0]["algorithm_snapshot"] == snapshot
+    expanded = format_similarity_algorithm_accuracy_ranking_html(
+        rows, expanded_rows={0}, highlight_color="#abcdef"
+    )
+    assert "Placement: 0.73 (on)" in expanded
+    assert "Exact settings unavailable" not in expanded
+
+
 def test_relationship_log_supplies_latest_score_without_recalculation(tmp_path):
     algorithm_path = tmp_path / "similarities_algorithm_log.txt"
     relationship_path = tmp_path / "chart_similarity_relationships.json"

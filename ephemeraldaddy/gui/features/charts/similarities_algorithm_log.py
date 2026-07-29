@@ -21,6 +21,36 @@ SIMILARITIES_ALGORITHM_LOG_PATH_ENV = "EPHEMERALDADDY_SIMILARITIES_ALGORITHM_LOG
 SIMILARITIES_ALGORITHM_LOG_FILENAME = "similarities_algorithm_log.txt"
 _LOG_ENTRY_HEADER_RE = re.compile(r"^=== Similarities Algorithm Change #\d+ ===$", re.MULTILINE)
 _ACCURACY_PAYLOAD_MARKER = "Perceived accuracy payload:\n"
+_CURRENT_SETTINGS_MARKER = "Current settings upon close:\n"
+
+
+def _logged_algorithm_snapshots(content: str) -> dict[str, dict[str, Any]]:
+    """Return the latest complete settings snapshot logged for each mode.
+
+    Accuracy observations written before ``algorithm_snapshot`` was added to
+    their payload still share this file with the Settings close records.  Those
+    records contain the exact snapshot, so they are a better compatibility
+    source than treating every older observation as unknowable.
+    """
+    snapshots: dict[str, dict[str, Any]] = {}
+    decoder = json.JSONDecoder()
+    cursor = 0
+    while True:
+        marker_index = content.find(_CURRENT_SETTINGS_MARKER, cursor)
+        if marker_index < 0:
+            break
+        payload_start = marker_index + len(_CURRENT_SETTINGS_MARKER)
+        try:
+            value, end_offset = decoder.raw_decode(content[payload_start:])
+        except json.JSONDecodeError:
+            cursor = payload_start
+            continue
+        cursor = payload_start + end_offset
+        if not isinstance(value, Mapping):
+            continue
+        mode = normalize_similar_charts_algorithm_mode(value.get("algorithm_mode"))
+        snapshots[mode] = dict(value)
+    return snapshots
 
 
 def resolve_similarities_algorithm_log_path(path: str | os.PathLike[str] | None = None) -> Path:
@@ -127,6 +157,7 @@ def aggregate_similarity_algorithm_accuracy(
     except OSError:
         return []
     relationship_scores = _current_relationship_scores(relationship_path)
+    logged_snapshots = _logged_algorithm_snapshots(content)
     observations: dict[tuple[str, str, str], tuple[float | None, float | None, dict[str, Any] | None]] = {}
     observations_by_pair: dict[str, set[tuple[str, str, str]]] = {}
     custom_variant_order: dict[str, int] = {}
@@ -167,6 +198,8 @@ def aggregate_similarity_algorithm_accuracy(
         mode = normalize_similar_charts_algorithm_mode(raw_mode)
         snapshot_value = payload.get("algorithm_snapshot")
         snapshot = dict(snapshot_value) if isinstance(snapshot_value, Mapping) else None
+        if snapshot is None:
+            snapshot = logged_snapshots.get(mode)
         # Custom is an experiment rather than one stable algorithm. Its settings
         # signature therefore forms part of the observation identity.
         variant_key = ""
