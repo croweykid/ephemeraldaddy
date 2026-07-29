@@ -16,7 +16,21 @@ from __future__ import annotations
 from typing import Any, Mapping
 
 
-USER_FEEDBACK = frozenset({"user_reported_accuracy", "not_applicable"})
+USER_FEEDBACK = frozenset(
+    {
+        "perceived_similarity_score",
+        "perceived_similarity_not_applicable",
+        "trait_accuracy_score",
+    }
+)
+
+# Read-only compatibility names from before feedback types were distinguished.
+# ``not_applicable`` meant that the user could not meaningfully assess the
+# chart pair; it was feedback state, not an algorithm result. New records use
+# the domain-specific name above so it cannot be confused with future feedback.
+LEGACY_USER_FEEDBACK_FIELDS = frozenset(
+    {"user_reported_accuracy", "user_perceived_similarity_score", "not_applicable"}
+)
 
 APP_PREDICTIONS = frozenset(
     {
@@ -37,10 +51,10 @@ OBSERVATION_CONTEXT = frozenset(
 )
 
 SIMILARITY_ACCURACY_OBSERVATION_FIELDS = (
-    USER_FEEDBACK | APP_PREDICTIONS | OBSERVATION_CONTEXT
+    USER_FEEDBACK | LEGACY_USER_FEEDBACK_FIELDS | APP_PREDICTIONS | OBSERVATION_CONTEXT
 )
 
-if USER_FEEDBACK & APP_PREDICTIONS:
+if (USER_FEEDBACK | LEGACY_USER_FEEDBACK_FIELDS) & APP_PREDICTIONS:
     raise RuntimeError("Fields cannot be both USER_FEEDBACK and APP_PREDICTIONS")
 
 
@@ -54,3 +68,19 @@ def require_classified_similarity_accuracy_observation(payload: Mapping[str, Any
             f"{names}. Classify them as USER_FEEDBACK, APP_PREDICTIONS, or "
             "OBSERVATION_CONTEXT in feedback_prediction_fields.py."
         )
+
+
+def perceived_similarity_feedback(payload: Mapping[str, Any]) -> tuple[Any, bool]:
+    """Return canonical perceived-similarity feedback from any log generation."""
+    score = payload.get("perceived_similarity_score")
+    if score is None:
+        score = payload.get("user_perceived_similarity_score")
+    if score is None:
+        score = payload.get("user_reported_accuracy")
+    unavailable = bool(
+        payload.get(
+            "perceived_similarity_not_applicable",
+            payload.get("not_applicable", False),
+        )
+    )
+    return score, unavailable

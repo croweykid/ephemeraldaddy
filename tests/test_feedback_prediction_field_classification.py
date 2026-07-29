@@ -2,6 +2,7 @@ import pytest
 
 from ephemeraldaddy.core.feedback_prediction_fields import (
     APP_PREDICTIONS,
+    LEGACY_USER_FEEDBACK_FIELDS,
     OBSERVATION_CONTEXT,
     SIMILARITY_ACCURACY_OBSERVATION_FIELDS,
     USER_FEEDBACK,
@@ -11,11 +12,16 @@ from ephemeraldaddy.core.feedback_prediction_fields import (
 
 def test_feedback_and_prediction_provenance_is_disjoint_and_explicit():
     assert not USER_FEEDBACK.intersection(APP_PREDICTIONS)
-    assert {"user_reported_accuracy", "not_applicable"} <= USER_FEEDBACK
+    assert {
+        "perceived_similarity_score",
+        "perceived_similarity_not_applicable",
+        "trait_accuracy_score",
+    } <= USER_FEEDBACK
+    assert {"user_reported_accuracy", "not_applicable"} <= LEGACY_USER_FEEDBACK_FIELDS
     assert {"predicted_percent", "algorithm_snapshot", "algorithm_mode"} <= APP_PREDICTIONS
     assert {"chart_uids", "timestamp_utc"} <= OBSERVATION_CONTEXT
     assert SIMILARITY_ACCURACY_OBSERVATION_FIELDS == (
-        USER_FEEDBACK | APP_PREDICTIONS | OBSERVATION_CONTEXT
+        USER_FEEDBACK | LEGACY_USER_FEEDBACK_FIELDS | APP_PREDICTIONS | OBSERVATION_CONTEXT
     )
 
 

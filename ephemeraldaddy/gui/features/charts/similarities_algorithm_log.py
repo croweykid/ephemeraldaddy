@@ -17,6 +17,7 @@ from ephemeraldaddy.analysis.get_astro_twin import (
     normalize_similar_charts_algorithm_mode,
 )
 from ephemeraldaddy.core.feedback_prediction_fields import (
+    perceived_similarity_feedback,
     require_classified_similarity_accuracy_observation,
 )
 
@@ -153,8 +154,9 @@ def _current_relationship_scores(
                 pair_keys.append("|".join(f"id:{chart_id}" for chart_id in sorted(int(value) for value in ids[:2])))
             except (TypeError, ValueError):
                 pass
+        raw_score, unavailable = perceived_similarity_feedback(record)
         try:
-            score = None if bool(record.get("not_applicable", False)) else float(record.get("user_reported_accuracy"))
+            score = None if unavailable else float(raw_score)
         except (TypeError, ValueError):
             score = None
         for pair_key in pair_keys:
@@ -197,13 +199,13 @@ def aggregate_similarity_algorithm_accuracy(
         cursor = payload_start + end_offset
         if not isinstance(payload, Mapping):
             continue
-        not_applicable = bool(payload.get("not_applicable", False))
+        raw_perceived, not_applicable = perceived_similarity_feedback(payload)
         if not_applicable:
             perceived: float | None = None
             predicted: float | None = None
         else:
             try:
-                perceived = float(payload.get("user_reported_accuracy"))
+                perceived = float(raw_perceived)
                 predicted = float(payload.get("predicted_percent"))
             except (TypeError, ValueError):
                 continue
@@ -281,8 +283,10 @@ def append_similarity_accuracy_observation(
     *,
     algorithm_mode: object,
     predicted_percent: float,
-    user_reported_accuracy: int | None,
-    not_applicable: bool,
+    perceived_similarity_score: int | None = None,
+    perceived_similarity_not_applicable: bool | None = None,
+    user_reported_accuracy: int | None = None,
+    not_applicable: bool | None = None,
     chart_1_uid: str | None,
     chart_2_uid: str | None,
     ranking_position: int | None = None,
@@ -296,14 +300,18 @@ def append_similarity_accuracy_observation(
     timestamp = timestamp or _datetime.datetime.now(_datetime.timezone.utc)
     if timestamp.tzinfo is None:
         timestamp = timestamp.replace(tzinfo=_datetime.timezone.utc)
+    if perceived_similarity_score is None:
+        perceived_similarity_score = user_reported_accuracy
+    if perceived_similarity_not_applicable is None:
+        perceived_similarity_not_applicable = bool(not_applicable)
     payload = {
         "timestamp_utc": timestamp.astimezone(_datetime.timezone.utc).isoformat(timespec="seconds"),
         "chart_uids": [str(chart_1_uid or ""), str(chart_2_uid or "")],
         "algorithm_mode": normalize_similar_charts_algorithm_mode(algorithm_mode),
         "predicted_percent": max(0.0, min(100.0, float(predicted_percent))),
         "ranking_position": int(ranking_position) if ranking_position is not None else None,
-        "user_reported_accuracy": user_reported_accuracy,
-        "not_applicable": bool(not_applicable),
+        "perceived_similarity_score": perceived_similarity_score,
+        "perceived_similarity_not_applicable": bool(perceived_similarity_not_applicable),
         "algorithm_snapshot": dict(algorithm_snapshot) if algorithm_snapshot is not None else None,
     }
     require_classified_similarity_accuracy_observation(payload)

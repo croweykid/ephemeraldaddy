@@ -14,8 +14,8 @@ def _append(path, mode, predicted, perceived, *, not_applicable=False, pair="AB"
     append_similarity_accuracy_observation(
         algorithm_mode=mode,
         predicted_percent=predicted,
-        user_reported_accuracy=perceived,
-        not_applicable=not_applicable,
+        perceived_similarity_score=perceived,
+        perceived_similarity_not_applicable=not_applicable,
         chart_1_uid=pair[0] * 14,
         chart_2_uid=pair[1] * 14,
         path=path,
@@ -64,6 +64,9 @@ def test_accuracy_observation_is_appended_to_shared_algorithm_log(tmp_path):
     assert "Perceived accuracy payload:" in content
     assert '"algorithm_mode": "big_3"' in content
     assert '"predicted_percent": 61.5' in content
+    assert '"perceived_similarity_score": 70' in content
+    assert '"perceived_similarity_not_applicable": false' in content
+    assert '"user_reported_accuracy"' not in content
     assert '"chart_uids"' in content
 
 
