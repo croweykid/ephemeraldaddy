@@ -28,6 +28,11 @@ APP_TOOLTIP_BACKGROUND_COLOR = "#252525"
 APP_TOOLTIP_TEXT_COLOR = "#f5f5f5"
 APP_TOOLTIP_WRAP_COLUMN = 42
 
+DATABASE_DISTINCTION_SCAN_TOOLTIP = (
+    "Database distinction scan matches charts sharing the selected chart’s ≥2σ traits, "
+    "concentration flags, and repeated Human Design gates."
+)
+
 APP_TOOLTIP_STYLE = (
     "QToolTip {"
     f"background-color: {APP_TOOLTIP_BACKGROUND_COLOR};"
