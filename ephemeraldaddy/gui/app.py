@@ -759,6 +759,7 @@ from ephemeraldaddy.core.db import (
     update_chart_lightweight_metadata,
     update_chart_subjective_list_by_uid,
     update_charts_nonastral_fields_by_uid,
+    update_charts_nonastral_patches_by_uid,
     update_chart_dominant_sign_weights,
     update_chart_weirdness_score,
     set_current_chart_by_uid,
@@ -777,7 +778,10 @@ from ephemeraldaddy.core.db import (
     save_duplicate_exclusions_by_uids,
     delete_charts_by_uids,
 )
-from ephemeraldaddy.core.chart_data_fields import astro_data_recalculation_token
+from ephemeraldaddy.core.chart_data_fields import (
+    NonastralPatch,
+    astro_data_recalculation_token,
+)
 
 from ephemeraldaddy.data.age_distribution_estimator import discrete_age_distribution
 from ephemeraldaddy.data.genpop import (
@@ -14807,24 +14811,18 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 return
 
         try:
-            for chart_id in chart_ids:
-                chart = load_chart(chart_id)
+            patches_by_uid: dict[str, dict[str, Any]] = {}
+            for chart_uid in self._selected_chart_uids():
+                chart = self._get_chart_for_filter_by_uid(chart_uid)
+                if chart is None:
+                    continue
                 sentiments = list(getattr(chart, "sentiments", []) or [])
                 if checked and sentiment not in sentiments:
                     sentiments.append(sentiment)
                 if not checked:
                     sentiments = [value for value in sentiments if value != sentiment]
-                chart.sentiments = sentiments
-                chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
-                chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
-                chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
-                update_chart(
-                    chart_id,
-                    chart,
-                    sentiments=sentiments,
-                    retcon_time_used=getattr(chart, "retcon_time_used", False),
-                )
-                self._chart_cache[chart_id] = chart
+                patches_by_uid[chart_uid] = {"sentiments": sentiments}
+            self._apply_batch_nonastral_patches(patches_by_uid)
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -14914,8 +14912,11 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 return
 
         try:
-            for chart_id in chart_ids:
-                chart = load_chart(chart_id)
+            patches_by_uid: dict[str, dict[str, Any]] = {}
+            for chart_uid in self._selected_chart_uids():
+                chart = self._get_chart_for_filter_by_uid(chart_uid)
+                if chart is None:
+                    continue
                 relationship_types = list(
                     getattr(chart, "relationship_types", []) or []
                 )
@@ -14927,17 +14928,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                         for value in relationship_types
                         if value != relationship_type
                     ]
-                chart.relationship_types = relationship_types
-                chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
-                chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
-                chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
-                update_chart(
-                    chart_id,
-                    chart,
-                    relationship_types=relationship_types,
-                    retcon_time_used=getattr(chart, "retcon_time_used", False),
-                )
-                self._chart_cache[chart_id] = chart
+                patches_by_uid[chart_uid] = {
+                    "relationship_types": relationship_types,
+                }
+            self._apply_batch_nonastral_patches(patches_by_uid)
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -15045,7 +15039,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
     def _apply_batch_nonastral_patch(
         self,
         chart_uids: Iterable[str],
-        values: Mapping[str, Any],
+        values: NonastralPatch,
     ) -> set[int]:
         """Persist a nonastral batch patch and synchronize only metadata caches."""
         normalized_uids = {
@@ -15062,6 +15056,30 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             for field, value in values.items():
                 setattr(cached_chart, field, value)
             self._chart_cache[chart_id] = cached_chart
+        owner = self._owner_window()
+        if owner is not None and hasattr(owner, "_invalidate_chart_view_navigation_cache"):
+            owner._invalidate_chart_view_navigation_cache(changed_uids)
+        return changed_ids
+
+    def _apply_batch_nonastral_patches(
+        self,
+        patches_by_uid: Mapping[str, NonastralPatch],
+    ) -> set[int]:
+        """Persist per-chart nonastral patches and synchronize loaded caches."""
+        changed_uids = update_charts_nonastral_patches_by_uid(patches_by_uid)
+        changed_ids = set(self._local_row_ids_for_uids(changed_uids))
+        ids_by_uid = {
+            self._normalized_chart_uid_key(uid): chart_id
+            for chart_id, uid in get_chart_uid_map(changed_ids).items()
+        }
+        for chart_uid in changed_uids:
+            chart_id = ids_by_uid.get(self._normalized_chart_uid_key(chart_uid))
+            cached_chart = self._chart_cache.get(chart_id) if chart_id is not None else None
+            if cached_chart is None:
+                continue
+            patch = patches_by_uid.get(chart_uid, {})
+            for field, value in patch.items():
+                setattr(cached_chart, field, value)
         owner = self._owner_window()
         if owner is not None and hasattr(owner, "_invalidate_chart_view_navigation_cache"):
             owner._invalidate_chart_view_navigation_cache(changed_uids)

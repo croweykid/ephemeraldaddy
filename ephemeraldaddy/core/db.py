@@ -23,7 +23,10 @@ from ephemeraldaddy.core.chart import (
     chart_uses_houses,
     compute_unknown_sign_positions,
 )
-from ephemeraldaddy.core.chart_data_fields import require_nonastral_data_fields
+from ephemeraldaddy.core.chart_data_fields import (
+    NonastralPatch,
+    require_nonastral_data_fields,
+)
 from ephemeraldaddy.core.ephemeris import get_lilith_calculation_mode
 from ephemeraldaddy.core.interpretations import JONES_PLANETS, RELATION_TYPE, SENTIMENT_OPTIONS
 from ephemeraldaddy.analysis import body_dynamics_reworked
@@ -5982,7 +5985,7 @@ def update_chart_subjective_list_by_uid(
 
 def update_charts_nonastral_fields_by_uid(
     chart_uids: Iterable[str | None],
-    values: Mapping[str, Any],
+    values: NonastralPatch,
 ) -> set[str]:
     """Patch nonastral fields for many charts without loading or recalculating them."""
     patch = dict(values)
@@ -6033,20 +6036,81 @@ def update_charts_nonastral_fields_by_uid(
                 for field in columns
             ]
             assignments = ", ".join(f"{field} = ?" for field in columns)
-            placeholders = ", ".join("?" for _ in normalized_uids)
-            existing_uids = {
-                str(row[0])
-                for row in conn.execute(
-                    f"SELECT chart_uid FROM charts WHERE chart_uid IN ({placeholders})",
-                    tuple(normalized_uids),
-                ).fetchall()
-            }
-            if existing_uids:
-                conn.executemany(
-                    f"UPDATE charts SET {assignments} WHERE chart_uid = ?",
-                    [serialized_values + [chart_uid] for chart_uid in sorted(existing_uids)],
+            existing_uids: set[str] = set()
+            uid_chunk_size = max(1, 900 - len(serialized_values))
+            for start in range(0, len(normalized_uids), uid_chunk_size):
+                uid_chunk = normalized_uids[start:start + uid_chunk_size]
+                placeholders = ", ".join("?" for _ in uid_chunk)
+                existing_uids.update(
+                    str(row[0])
+                    for row in conn.execute(
+                        f"SELECT chart_uid FROM charts WHERE chart_uid IN ({placeholders})",
+                        tuple(uid_chunk),
+                    ).fetchall()
+                )
+                conn.execute(
+                    f"UPDATE charts SET {assignments} "
+                    f"WHERE chart_uid IN ({placeholders})",
+                    serialized_values + uid_chunk,
                 )
             return existing_uids
+    finally:
+        conn.close()
+
+
+def update_charts_nonastral_patches_by_uid(
+    patches_by_uid: Mapping[str, NonastralPatch],
+) -> set[str]:
+    """Apply UID-specific nonastral patches in one transaction."""
+    normalized_patches = {
+        normalized_uid: dict(patch)
+        for raw_uid, patch in patches_by_uid.items()
+        if (normalized_uid := _normalize_chart_uid(raw_uid)) is not None and patch
+    }
+    if not normalized_patches:
+        return set()
+    for patch in normalized_patches.values():
+        require_nonastral_data_fields(set(patch))
+
+    serializers = {
+        "sentiments": _serialize_sentiments,
+        "relationship_types": _serialize_relationship_types,
+        "tags": _serialize_tags,
+        "quotes": _serialize_quotes,
+        "familiarity_factors": _serialize_familiarity_factors,
+    }
+    boolean_fields = {"is_placeholder", "is_deceased"}
+    protected_fields = {"id", "chart_uid", "created_at", "is_current"}
+    changed_uids: set[str] = set()
+    conn = _get_conn()
+    try:
+        with conn:
+            _ensure_chart_uids(conn)
+            persisted_fields = _table_columns(conn, "charts")
+            for chart_uid, patch in normalized_patches.items():
+                invalid = (set(patch) - persisted_fields) | (set(patch) & protected_fields)
+                if invalid:
+                    raise ValueError(
+                        "Unsupported nonastral chart patch fields: "
+                        + ", ".join(sorted(invalid))
+                    )
+                columns = sorted(patch)
+                assignments = ", ".join(f"{field} = ?" for field in columns)
+                serialized_values = [
+                    serializers[field](patch[field])
+                    if field in serializers
+                    else int(bool(patch[field]))
+                    if field in boolean_fields
+                    else patch[field]
+                    for field in columns
+                ]
+                cursor = conn.execute(
+                    f"UPDATE charts SET {assignments} WHERE chart_uid = ?",
+                    serialized_values + [chart_uid],
+                )
+                if cursor.rowcount == 1:
+                    changed_uids.add(chart_uid)
+        return changed_uids
     finally:
         conn.close()
 

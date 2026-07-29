@@ -15,12 +15,13 @@ def test_single_sentiment_edit_uses_uid_lightweight_path():
     method = _method_source(
         "_on_batch_sentiment_toggled", "_on_batch_relationship_type_toggled"
     )
-    fast_path_end = method.index("        try:\n            for chart_id in chart_ids:")
-    fast_path = method[method.index("if selected_count == 1:"):fast_path_end]
+    fast_path_start = method.index("if selected_count == 1:")
+    fast_path_end = method.index("        try:\n            patches_by_uid", fast_path_start)
+    fast_path = method[fast_path_start:fast_path_end]
     assert "get_chart_uid(chart_id)" in fast_path
     assert "update_chart_subjective_list_by_uid" in fast_path
-    assert "_calculate_dominant_sign_weights" not in fast_path
-    assert "load_chart(" not in fast_path
+    assert "_calculate_dominant_sign_weights" not in method
+    assert "update_chart(" not in method
 
 
 def test_single_relationship_edit_uses_uid_lightweight_path():

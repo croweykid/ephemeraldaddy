@@ -8,7 +8,43 @@ is descriptive/user metadata and must never trigger them.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, TypedDict
+
+
+class NonastralPatch(TypedDict, total=False):
+    """Typed payload accepted by the general nonastral persistence path."""
+
+    name: str
+    alias: str | None
+    from_whence: str | None
+    gender: str | None
+    sentiments: list[str]
+    relationship_types: list[str]
+    tags: list[str]
+    reminds_me_of: str
+    comments: str
+    emoji_portrait: str
+    quotes: list[str]
+    rectification_notes: str
+    biography: str
+    chart_data_source: str
+    alternate_chart_uid: str | None
+    positive_sentiment_intensity: int | None
+    negative_sentiment_intensity: int | None
+    familiarity: int | None
+    alignment_score: int | None
+    sexiness_score: int
+    matched_expectations: int
+    familiarity_factors: list[str]
+    age_when_first_met: int
+    year_first_encountered: int | None
+    data_rating: str
+    social_score: int
+    chart_type: str
+    source: str
+    is_placeholder: bool
+    is_deceased: bool
+    profile_pic: str | None
 
 
 ASTRO_DATA_INPUT_FIELDS = frozenset(
