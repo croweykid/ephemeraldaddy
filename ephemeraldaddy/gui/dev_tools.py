@@ -40,7 +40,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 from ephemeraldaddy.gui.settings_widgets import SettingsHelpLabel
-from ephemeraldaddy.gui.tooltips import TooltipHelpLabel
+from ephemeraldaddy.gui.tooltips import (
+    DATABASE_DISTINCTION_SCAN_TOOLTIP,
+    TooltipHelpLabel,
+)
 from ephemeraldaddy.gui.tag_categories import TAG_CATEGORY_OPTIONS, TAG_CATEGORY_PREFIXES
 from ephemeraldaddy.gui.style import (
     apply_shared_dropdown_style,
@@ -672,6 +675,7 @@ def build_similarity_calculator_settings_section(
     big_3_radio = QRadioButton("use Big 3")
     custom_radio = QRadioButton("use custom")
     database_distinction_radio = QRadioButton("use database distinction scan")
+    database_distinction_radio.setToolTip(DATABASE_DISTINCTION_SCAN_TOOLTIP)
     scoring_method_selected_style = (
         f"QRadioButton:checked {{ color: {CHART_DATA_HIGHLIGHT_COLOR}; }}"
     )
@@ -736,12 +740,6 @@ def build_similarity_calculator_settings_section(
     algorithm_layout.addWidget(all_or_nothing_fields_frame)
     algorithm_layout.addWidget(big_3_radio)
     algorithm_layout.addWidget(database_distinction_radio)
-    database_distinction_help = QLabel(
-        "Database distinction scan matches charts sharing the selected chart’s ≥2σ traits, "
-        "concentration flags, and repeated Human Design gates."
-    )
-    database_distinction_help.setWordWrap(True)
-    algorithm_layout.addWidget(database_distinction_help)
     algorithm_layout.addWidget(custom_radio)
 
     custom_fields_frame = QFrame()

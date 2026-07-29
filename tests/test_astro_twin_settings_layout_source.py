@@ -47,6 +47,11 @@ def test_database_distinction_precedes_custom_as_final_scoring_option():
     assert database_widget < custom_widget < custom_fields
 
 
+def test_database_distinction_explanation_is_tooltip_only():
+    assert "database_distinction_radio.setToolTip(DATABASE_DISTINCTION_SCAN_TOOLTIP)" in SECTION
+    assert "database_distinction_help" not in SECTION
+
+
 def test_custom_subpanel_has_visual_cues_and_preset_button_at_bottom():
     custom_fields = SECTION.index("custom_fields_frame = QFrame()")
     accent = SECTION.index('border-left: 3px solid {CHART_DATA_HIGHLIGHT_COLOR}', custom_fields)
