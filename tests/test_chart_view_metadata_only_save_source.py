@@ -89,5 +89,14 @@ def test_metadata_only_saves_use_lightweight_db_update_path():
     update_end = APP_SOURCE.index("def _reset_new_chart_form", update_start)
     update_source = APP_SOURCE[update_start:update_end]
     assert "update_chart_lightweight_metadata" in APP_SOURCE
-    assert "if recalculate_chart:\n                update_chart(chart_id, chart, **save_kwargs)" in update_source
+    assert "if recalculation_event:\n                update_chart(chart_id, chart, **save_kwargs)" in update_source
     assert "else:\n                update_chart_lightweight_metadata(chart_id, chart)" in update_source
+
+
+def test_new_and_existing_chart_calculation_events_are_explicit():
+    update_start = APP_SOURCE.index("def on_update_chart")
+    update_end = APP_SOURCE.index("def _reset_new_chart_form", update_start)
+    update_source = APP_SOURCE[update_start:update_end]
+    assert "calculation_event = chart_id is None" in update_source
+    assert "recalculation_event = not calculation_event and recalculate_chart" in update_source
+    assert "is_new_chart = calculation_event" in update_source

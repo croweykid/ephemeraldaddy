@@ -34398,7 +34398,12 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 chart_id = None
                 self._orphan_current_chart_reference()
 
-        is_new_chart = chart_id is None
+        # A first save is a calculation event and deliberately bypasses the
+        # recalculation filter. Existing charts only enter the recalculation
+        # path when their canonical Chart View calculation inputs changed.
+        calculation_event = chart_id is None
+        recalculation_event = not calculation_event and recalculate_chart
+        is_new_chart = calculation_event
 
         relationship_types = list(getattr(chart, "relationship_types", []) or [])
         if any(value.lower() == "self" for value in relationship_types):
@@ -34460,7 +34465,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             chart_id = save_chart(chart, **save_kwargs)
             set_current_chart_by_uid(getattr(chart, "chart_uid", None) or get_chart_uid(chart_id))
         else:
-            if recalculate_chart:
+            if recalculation_event:
                 update_chart(chart_id, chart, **save_kwargs)
             else:
                 update_chart_lightweight_metadata(chart_id, chart)

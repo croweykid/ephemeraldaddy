@@ -85,9 +85,11 @@ def test_astro_input_edit_changes_recalculation_token():
     )
 
 
-def test_narrow_nonastral_guard_rejects_astro_and_unclassified_fields():
+def test_narrow_nonastral_guard_rejects_astro_and_unclassified_fields(caplog):
     require_nonastral_data_fields({"tags", "sentiments"})
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError), caplog.at_level("ERROR"):
         require_nonastral_data_fields("birth_place")
     with pytest.raises(ValueError):
         require_nonastral_data_fields("made_up_field")
+    assert "Classify new persisted fields in chart_data_fields.py" in caplog.text
+    assert "route ASTRO_DATA inputs through the Chart View calculation path" in caplog.text
