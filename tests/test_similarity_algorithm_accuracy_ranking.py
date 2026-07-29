@@ -272,6 +272,33 @@ def test_legacy_observation_recovers_exact_settings_from_change_log(tmp_path):
     assert "Exact settings unavailable" not in expanded
 
 
+def test_legacy_observation_uses_preceding_not_future_custom_snapshot(tmp_path):
+    path = tmp_path / "similarities_algorithm_log.txt"
+    first = build_similarity_algorithm_snapshot(
+        "custom", {"use_placement": True, "weight_placement": 0.73}
+    )
+    later = build_similarity_algorithm_snapshot(
+        "custom", {"use_placement": True, "weight_placement": 0.21}
+    )
+    observation = {
+        "algorithm_mode": "custom",
+        "chart_uids": ["A" * 14, "B" * 14],
+        "predicted_percent": 75,
+        "user_reported_accuracy": 77,
+        "not_applicable": False,
+    }
+    path.write_text(
+        "Current settings upon close:\n" + json.dumps(first) + "\n"
+        "Perceived accuracy payload:\n" + json.dumps(observation) + "\n"
+        "Current settings upon close:\n" + json.dumps(later) + "\n",
+        encoding="utf-8",
+    )
+
+    rows = aggregate_similarity_algorithm_accuracy(path)
+
+    assert rows[0]["algorithm_snapshot"] == first
+
+
 def test_relationship_log_supplies_latest_score_without_recalculation(tmp_path):
     algorithm_path = tmp_path / "similarities_algorithm_log.txt"
     relationship_path = tmp_path / "chart_similarity_relationships.json"

@@ -24,15 +24,15 @@ _ACCURACY_PAYLOAD_MARKER = "Perceived accuracy payload:\n"
 _CURRENT_SETTINGS_MARKER = "Current settings upon close:\n"
 
 
-def _logged_algorithm_snapshots(content: str) -> dict[str, dict[str, Any]]:
-    """Return the latest complete settings snapshot logged for each mode.
+def _logged_algorithm_snapshots(content: str) -> dict[str, list[tuple[int, dict[str, Any]]]]:
+    """Return complete settings snapshots, in log order, for each mode.
 
     Accuracy observations written before ``algorithm_snapshot`` was added to
     their payload still share this file with the Settings close records.  Those
     records contain the exact snapshot, so they are a better compatibility
     source than treating every older observation as unknowable.
     """
-    snapshots: dict[str, dict[str, Any]] = {}
+    snapshots: dict[str, list[tuple[int, dict[str, Any]]]] = {}
     decoder = json.JSONDecoder()
     cursor = 0
     while True:
@@ -49,8 +49,22 @@ def _logged_algorithm_snapshots(content: str) -> dict[str, dict[str, Any]]:
         if not isinstance(value, Mapping):
             continue
         mode = normalize_similar_charts_algorithm_mode(value.get("algorithm_mode"))
-        snapshots[mode] = dict(value)
+        snapshots.setdefault(mode, []).append((marker_index, dict(value)))
     return snapshots
+
+
+def _snapshot_preceding_observation(
+    snapshots: Mapping[str, list[tuple[int, dict[str, Any]]]],
+    mode: str,
+    observation_offset: int,
+) -> dict[str, Any] | None:
+    """Return the settings active when a legacy observation was recorded."""
+    preceding = [
+        snapshot
+        for snapshot_offset, snapshot in snapshots.get(mode, [])
+        if snapshot_offset < observation_offset
+    ]
+    return preceding[-1] if preceding else None
 
 
 def resolve_similarities_algorithm_log_path(path: str | os.PathLike[str] | None = None) -> Path:
@@ -199,7 +213,11 @@ def aggregate_similarity_algorithm_accuracy(
         snapshot_value = payload.get("algorithm_snapshot")
         snapshot = dict(snapshot_value) if isinstance(snapshot_value, Mapping) else None
         if snapshot is None:
-            snapshot = logged_snapshots.get(mode)
+            # The prediction and its scorer are historical facts: use the
+            # matching settings that preceded this observation, never a later
+            # revision of the same mode.  The user's perceived score is handled
+            # separately below and intentionally *does* follow later edits.
+            snapshot = _snapshot_preceding_observation(logged_snapshots, mode, marker_index)
         # Custom is an experiment rather than one stable algorithm. Its settings
         # signature therefore forms part of the observation identity.
         variant_key = ""
@@ -213,9 +231,12 @@ def aggregate_similarity_algorithm_accuracy(
         observations[composite_key] = (perceived, predicted, snapshot)
         if pair_key:
             observations_by_pair.setdefault(pair_key, set()).add(composite_key)
-    # Perceived similarity belongs to the chart pair, independently of the
-    # algorithm that predicted it. Its current relationship score therefore
-    # replaces the cached payload value for every prediction of that pair.
+    # Perceived similarity belongs to the chart pair, independently of every
+    # algorithm prediction.  It is the user's current ground truth: if they
+    # revise A/B from 80% to 65%, all historical predictions must be evaluated
+    # against 65%.  The relationship score therefore replaces the cached
+    # payload value for every algorithm and settings variant that predicted the
+    # pair; only each prediction and its snapshot remain fixed in history.
     for pair_key, composite_keys in observations_by_pair.items():
         if pair_key not in relationship_scores:
             continue
