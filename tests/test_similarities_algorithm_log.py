@@ -40,6 +40,18 @@ def test_similarity_algorithm_snapshot_detects_scoring_changes():
     assert {row["factor"]: row["weight"] for row in current["selected_factors"]}["placement"] == 0.5
 
 
+def test_similarity_algorithm_snapshot_excludes_legacy_combined_dominance_bucket():
+    snapshot = build_similarity_algorithm_snapshot(
+        "default", SimilarityCalculatorSettings.defaults_for_default_mode()
+    )
+    factors = {row["factor"]: row for row in snapshot["selected_factors"]}
+
+    assert "combined_dominance" not in factors
+    assert "use_combined_dominance" not in snapshot["settings"]
+    assert "weight_combined_dominance" not in snapshot["settings"]
+    assert snapshot["selected_total"] == 1.0
+
+
 def test_append_similarity_algorithm_change_log_writes_running_txt_log(tmp_path):
     log_path = tmp_path / "similarities_algorithm_log.txt"
     opening = build_similarity_algorithm_snapshot("custom", SimilarityCalculatorSettings())
