@@ -5877,6 +5877,44 @@ def _chart_from_row(chart_id: int, row):
     return chart
 
 
+def update_chart_subjective_list_by_uid(
+    chart_uid: str,
+    field: str,
+    values: Iterable[str],
+) -> None:
+    """Persist one subjective list without touching derived chart metadata.
+
+    Sentiments and relationship types cannot affect astronomical calculations.
+    Keeping this deliberately narrow also prevents a checkbox edit from invoking
+    the full-chart update path (HD, BaZi, body dynamics, and derived caches).
+    """
+    serializers = {
+        "sentiments": _serialize_sentiments,
+        "relationship_types": _serialize_relationship_types,
+    }
+    try:
+        serializer = serializers[field]
+    except KeyError as exc:
+        raise ValueError(f"Unsupported subjective chart field: {field}") from exc
+
+    normalized_uid = str(chart_uid or "").strip().upper()
+    if not normalized_uid:
+        raise ValueError("A chart UID is required")
+
+    conn = _get_conn()
+    try:
+        with conn:
+            _ensure_chart_uids(conn)
+            cursor = conn.execute(
+                f"UPDATE charts SET {field} = ? WHERE UPPER(chart_uid) = ?",
+                (serializer(list(values)), normalized_uid),
+            )
+            if cursor.rowcount != 1:
+                raise ValueError(f"No chart found for UID {normalized_uid}")
+    finally:
+        conn.close()
+
+
 def load_chart_rows_for_ids(chart_ids: Iterable[int]) -> dict[int, sqlite3.Row]:
     """Load raw chart rows for many chart IDs using one database query."""
     unique_ids = list(dict.fromkeys(int(chart_id) for chart_id in chart_ids))

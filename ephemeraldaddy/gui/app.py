@@ -757,6 +757,7 @@ from ephemeraldaddy.core.db import (
     invalidate_all_dominant_weight_caches,
     update_chart,
     update_chart_lightweight_metadata,
+    update_chart_subjective_list_by_uid,
     update_chart_dominant_sign_weights,
     update_chart_weirdness_score,
     set_current_chart_by_uid,
@@ -14778,6 +14779,32 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             self._update_batch_edit_state()
             return
 
+        if selected_count == 1:
+            chart_id = chart_ids[0]
+            chart_uid = self._normalized_chart_uid_key(get_chart_uid(chart_id))
+            chart = self._get_chart_for_filter(chart_id)
+            if chart_uid and chart is not None:
+                sentiments = list(getattr(chart, "sentiments", []) or [])
+                if checked and sentiment not in sentiments:
+                    sentiments.append(sentiment)
+                elif not checked:
+                    sentiments = [value for value in sentiments if value != sentiment]
+                try:
+                    update_chart_subjective_list_by_uid(chart_uid, "sentiments", sentiments)
+                except Exception as exc:
+                    QMessageBox.critical(
+                        self,
+                        "Batch edit error",
+                        f"Could not update selected chart:\n{exc}",
+                    )
+                    return
+                chart.sentiments = sentiments
+                self._chart_cache[chart_id] = chart
+                self._finalize_single_chart_subjective_batch_edit(
+                    chart_id, chart_uid, "sentiments"
+                )
+                return
+
         try:
             for chart_id in chart_ids:
                 chart = load_chart(chart_id)
@@ -14855,6 +14882,36 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             self._update_batch_edit_state()
             return
 
+        if selected_count == 1:
+            chart_id = chart_ids[0]
+            chart_uid = self._normalized_chart_uid_key(get_chart_uid(chart_id))
+            chart = self._get_chart_for_filter(chart_id)
+            if chart_uid and chart is not None:
+                relationship_types = list(getattr(chart, "relationship_types", []) or [])
+                if checked and relationship_type not in relationship_types:
+                    relationship_types.append(relationship_type)
+                elif not checked:
+                    relationship_types = [
+                        value for value in relationship_types if value != relationship_type
+                    ]
+                try:
+                    update_chart_subjective_list_by_uid(
+                        chart_uid, "relationship_types", relationship_types
+                    )
+                except Exception as exc:
+                    QMessageBox.critical(
+                        self,
+                        "Batch edit error",
+                        f"Could not update selected chart:\n{exc}",
+                    )
+                    return
+                chart.relationship_types = relationship_types
+                self._chart_cache[chart_id] = chart
+                self._finalize_single_chart_subjective_batch_edit(
+                    chart_id, chart_uid, "relationship_types"
+                )
+                return
+
         try:
             for chart_id in chart_ids:
                 chart = load_chart(chart_id)
@@ -14896,6 +14953,34 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         )
         self._update_batch_edit_state()
         self._refresh_filters_after_batch_edit(changed_ids)
+
+    def _finalize_single_chart_subjective_batch_edit(
+        self,
+        chart_id: int,
+        chart_uid: str,
+        changed_field: str,
+    ) -> None:
+        """Finish a one-chart checkbox edit without scheduling heavyweight work."""
+        changed_ids = {chart_id}
+        affected_sections = set(
+            database_metrics_sections_for_changed_fields({changed_field})
+        )
+        self._database_metrics_lucy_goosey_ids.update(changed_ids)
+        self._database_metrics_preloaded_sections.difference_update(affected_sections)
+        self._update_selection_header()
+        self._update_batch_edit_state()
+        self._flash_batch_updated_rows(changed_ids)
+        # With no active filters, the cached row already contains everything the
+        # Database View needs.  Most rapid checkbox edits therefore schedule no
+        # timer at all.  If a filter can remove this row, coalesce only the cheap
+        # list refresh and explicitly exclude analytics/selection recomputation.
+        if self._has_active_chart_filters():
+            self._refresh_filters_after_batch_edit(
+                changed_ids,
+                chart_uids={chart_uid},
+                refresh_metrics=False,
+                refresh_selection_state=False,
+            )
 
     def _score_familiarity_from_factors(self, familiarity_factors: list[str]) -> int:
         selected_set = set(familiarity_factors)
