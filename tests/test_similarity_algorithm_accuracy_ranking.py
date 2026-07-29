@@ -14,8 +14,8 @@ def _append(path, mode, predicted, perceived, *, not_applicable=False, pair="AB"
     append_similarity_accuracy_observation(
         algorithm_mode=mode,
         predicted_percent=predicted,
-        user_reported_accuracy=perceived,
-        not_applicable=not_applicable,
+        perceived_similarity_score=perceived,
+        perceived_similarity_not_applicable=not_applicable,
         chart_1_uid=pair[0] * 14,
         chart_2_uid=pair[1] * 14,
         path=path,
@@ -64,6 +64,9 @@ def test_accuracy_observation_is_appended_to_shared_algorithm_log(tmp_path):
     assert "Perceived accuracy payload:" in content
     assert '"algorithm_mode": "big_3"' in content
     assert '"predicted_percent": 61.5' in content
+    assert '"perceived_similarity_score": 70' in content
+    assert '"perceived_similarity_not_applicable": false' in content
+    assert '"user_reported_accuracy"' not in content
     assert '"chart_uids"' in content
 
 
@@ -238,6 +241,115 @@ def test_legacy_payload_inherits_preceding_algorithm_mode(tmp_path):
     assert aggregate_similarity_algorithm_accuracy(path) == [
         {"algorithm_mode": "comprehensive", "average_accuracy": 98.0, "sample_count": 1}
     ]
+
+
+def test_legacy_observation_recovers_exact_settings_from_change_log(tmp_path):
+    path = tmp_path / "similarities_algorithm_log.txt"
+    snapshot = build_similarity_algorithm_snapshot(
+        "custom", {"use_placement": True, "weight_placement": 0.73}
+    )
+    legacy_payload = {
+        "algorithm_mode": "custom",
+        "chart_uids": ["A" * 14, "B" * 14],
+        "predicted_percent": 75,
+        "user_reported_accuracy": 77,
+        "not_applicable": False,
+    }
+    path.write_text(
+        "=== Similarities Algorithm Change #1 ===\n"
+        "Algorithm mode: custom\n"
+        "Opening snapshot:\n" + json.dumps(snapshot) + "\n"
+        "Current settings upon close:\n" + json.dumps(snapshot) + "\n\n"
+        "=== Similarity Perceived Accuracy ===\n"
+        "Perceived accuracy payload:\n" + json.dumps(legacy_payload) + "\n",
+        encoding="utf-8",
+    )
+
+    rows = aggregate_similarity_algorithm_accuracy(path)
+
+    assert rows[0]["algorithm_snapshot"] == snapshot
+    expanded = format_similarity_algorithm_accuracy_ranking_html(
+        rows, expanded_rows={0}, highlight_color="#abcdef"
+    )
+    assert "Placement: 0.73 (on)" in expanded
+    assert "Exact settings unavailable" not in expanded
+
+
+def test_legacy_observation_uses_preceding_not_future_custom_snapshot(tmp_path):
+    path = tmp_path / "similarities_algorithm_log.txt"
+    first = build_similarity_algorithm_snapshot(
+        "custom", {"use_placement": True, "weight_placement": 0.73}
+    )
+    later = build_similarity_algorithm_snapshot(
+        "custom", {"use_placement": True, "weight_placement": 0.21}
+    )
+    observation = {
+        "algorithm_mode": "custom",
+        "chart_uids": ["A" * 14, "B" * 14],
+        "predicted_percent": 75,
+        "user_reported_accuracy": 77,
+        "not_applicable": False,
+    }
+    path.write_text(
+        "Current settings upon close:\n" + json.dumps(first) + "\n"
+        "Perceived accuracy payload:\n" + json.dumps(observation) + "\n"
+        "Current settings upon close:\n" + json.dumps(later) + "\n",
+        encoding="utf-8",
+    )
+
+    rows = aggregate_similarity_algorithm_accuracy(path)
+
+    assert rows[0]["algorithm_snapshot"] == first
+
+
+def test_legacy_fixed_mode_recovers_the_actual_scorer_not_custom_sliders(tmp_path):
+    path = tmp_path / "similarities_algorithm_log.txt"
+    sliders = build_similarity_algorithm_snapshot(
+        "big_3", {"use_placement": True, "weight_placement": 0.73}
+    )
+    observation = {
+        "algorithm_mode": "big_3",
+        "chart_uids": ["A" * 14, "B" * 14],
+        "predicted_percent": 75,
+        "perceived_similarity_score": 77,
+        "perceived_similarity_not_applicable": False,
+    }
+    path.write_text(
+        "Current settings upon close:\n" + json.dumps(sliders) + "\n"
+        "Perceived accuracy payload:\n" + json.dumps(observation) + "\n",
+        encoding="utf-8",
+    )
+
+    rows = aggregate_similarity_algorithm_accuracy(path)
+    recovered = rows[0]["algorithm_snapshot"]
+
+    factors = {row["factor"]: row for row in recovered["selected_factors"]}
+    assert factors["big_3"] == {"factor": "big_3", "enabled": True, "weight": 1.0}
+    assert factors["placement"] == {"factor": "placement", "enabled": False, "weight": 0.0}
+
+
+def test_legacy_fixed_scorer_does_not_claim_custom_weights(tmp_path):
+    path = tmp_path / "similarities_algorithm_log.txt"
+    sliders = build_similarity_algorithm_snapshot(
+        "generic_astro", {"use_placement": True, "weight_placement": 0.73}
+    )
+    observation = {
+        "algorithm_mode": "generic_astro",
+        "chart_uids": ["A" * 14, "B" * 14],
+        "predicted_percent": 75,
+        "perceived_similarity_score": 77,
+        "perceived_similarity_not_applicable": False,
+    }
+    path.write_text(
+        "Current settings upon close:\n" + json.dumps(sliders) + "\n"
+        "Perceived accuracy payload:\n" + json.dumps(observation) + "\n",
+        encoding="utf-8",
+    )
+
+    recovered = aggregate_similarity_algorithm_accuracy(path)[0]["algorithm_snapshot"]
+
+    assert recovered["details_available"] is False
+    assert "fixed scorer" in recovered["details_unavailable_reason"]
 
 
 def test_relationship_log_supplies_latest_score_without_recalculation(tmp_path):

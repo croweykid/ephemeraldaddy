@@ -15,12 +15,92 @@ from ephemeraldaddy.analysis.get_astro_twin import (
     SIMILARITY_COMPONENT_KEYS,
     SimilarityCalculatorSettings,
     normalize_similar_charts_algorithm_mode,
+    similarity_algorithm_settings_snapshot,
+)
+from ephemeraldaddy.core.feedback_prediction_fields import (
+    perceived_similarity_feedback,
+    require_classified_similarity_accuracy_observation,
 )
 
 SIMILARITIES_ALGORITHM_LOG_PATH_ENV = "EPHEMERALDADDY_SIMILARITIES_ALGORITHM_LOG_PATH"
 SIMILARITIES_ALGORITHM_LOG_FILENAME = "similarities_algorithm_log.txt"
 _LOG_ENTRY_HEADER_RE = re.compile(r"^=== Similarities Algorithm Change #\d+ ===$", re.MULTILINE)
 _ACCURACY_PAYLOAD_MARKER = "Perceived accuracy payload:\n"
+_CURRENT_SETTINGS_MARKER = "Current settings upon close:\n"
+
+
+def _logged_algorithm_snapshots(content: str) -> dict[str, list[tuple[int, dict[str, Any]]]]:
+    """Return complete settings snapshots, in log order, for each mode.
+
+    Accuracy observations written before ``algorithm_snapshot`` was added to
+    their payload still share this file with the Settings close records.  Those
+    records contain the exact snapshot, so they are a better compatibility
+    source than treating every older observation as unknowable.
+    """
+    snapshots: dict[str, list[tuple[int, dict[str, Any]]]] = {}
+    decoder = json.JSONDecoder()
+    cursor = 0
+    while True:
+        marker_index = content.find(_CURRENT_SETTINGS_MARKER, cursor)
+        if marker_index < 0:
+            break
+        payload_start = marker_index + len(_CURRENT_SETTINGS_MARKER)
+        try:
+            value, end_offset = decoder.raw_decode(content[payload_start:])
+        except json.JSONDecodeError:
+            cursor = payload_start
+            continue
+        cursor = payload_start + end_offset
+        if not isinstance(value, Mapping):
+            continue
+        mode = normalize_similar_charts_algorithm_mode(value.get("algorithm_mode"))
+        snapshots.setdefault(mode, []).append((marker_index, dict(value)))
+    return snapshots
+
+
+def _snapshot_preceding_observation(
+    snapshots: Mapping[str, list[tuple[int, dict[str, Any]]]],
+    mode: str,
+    observation_offset: int,
+) -> dict[str, Any] | None:
+    """Return the settings active when a legacy observation was recorded."""
+    preceding = [
+        snapshot
+        for snapshot_offset, snapshot in snapshots.get(mode, [])
+        if snapshot_offset < observation_offset
+    ]
+    return preceding[-1] if preceding else None
+
+
+def _scorer_snapshot_from_logged_settings(
+    mode: str,
+    logged_snapshot: Mapping[str, Any] | None,
+) -> dict[str, Any] | None:
+    """Convert a Settings-dialog snapshot into the scorer a mode actually used."""
+    if logged_snapshot is None:
+        return None
+    if mode in {"default", "custom"}:
+        return dict(logged_snapshot)
+
+    raw_settings = logged_snapshot.get("settings")
+    settings_values = dict(raw_settings) if isinstance(raw_settings, Mapping) else {}
+    if not settings_values:
+        settings_values["placement_weighting_mode"] = logged_snapshot.get(
+            "placement_weighting_mode", ""
+        )
+        for factor in logged_snapshot.get("selected_factors", []):
+            if not isinstance(factor, Mapping):
+                continue
+            key = str(factor.get("factor", ""))
+            if key:
+                settings_values[f"use_{key}"] = bool(factor.get("enabled", False))
+                settings_values[f"weight_{key}"] = float(factor.get("weight", 0.0))
+    known_fields = SimilarityCalculatorSettings.__dataclass_fields__
+    settings = SimilarityCalculatorSettings(
+        **{key: value for key, value in settings_values.items() if key in known_fields}
+    )
+    scorer_settings = similarity_algorithm_settings_snapshot(mode, settings)
+    return build_similarity_algorithm_snapshot(mode, scorer_settings)
 
 
 def resolve_similarities_algorithm_log_path(path: str | os.PathLike[str] | None = None) -> Path:
@@ -106,8 +186,9 @@ def _current_relationship_scores(
                 pair_keys.append("|".join(f"id:{chart_id}" for chart_id in sorted(int(value) for value in ids[:2])))
             except (TypeError, ValueError):
                 pass
+        raw_score, unavailable = perceived_similarity_feedback(record)
         try:
-            score = None if bool(record.get("not_applicable", False)) else float(record.get("user_reported_accuracy"))
+            score = None if unavailable else float(raw_score)
         except (TypeError, ValueError):
             score = None
         for pair_key in pair_keys:
@@ -127,6 +208,7 @@ def aggregate_similarity_algorithm_accuracy(
     except OSError:
         return []
     relationship_scores = _current_relationship_scores(relationship_path)
+    logged_snapshots = _logged_algorithm_snapshots(content)
     observations: dict[tuple[str, str, str], tuple[float | None, float | None, dict[str, Any] | None]] = {}
     observations_by_pair: dict[str, set[tuple[str, str, str]]] = {}
     custom_variant_order: dict[str, int] = {}
@@ -149,13 +231,13 @@ def aggregate_similarity_algorithm_accuracy(
         cursor = payload_start + end_offset
         if not isinstance(payload, Mapping):
             continue
-        not_applicable = bool(payload.get("not_applicable", False))
+        raw_perceived, not_applicable = perceived_similarity_feedback(payload)
         if not_applicable:
             perceived: float | None = None
             predicted: float | None = None
         else:
             try:
-                perceived = float(payload.get("user_reported_accuracy"))
+                perceived = float(raw_perceived)
                 predicted = float(payload.get("predicted_percent"))
             except (TypeError, ValueError):
                 continue
@@ -167,6 +249,19 @@ def aggregate_similarity_algorithm_accuracy(
         mode = normalize_similar_charts_algorithm_mode(raw_mode)
         snapshot_value = payload.get("algorithm_snapshot")
         snapshot = dict(snapshot_value) if isinstance(snapshot_value, Mapping) else None
+        if snapshot is None:
+            # The prediction and its scorer are historical facts: use the
+            # matching settings that preceded this observation, never a later
+            # revision of the same mode.  The user's perceived score is handled
+            # separately below and intentionally *does* follow later edits.
+            logged_snapshot = _snapshot_preceding_observation(
+                logged_snapshots, mode, marker_index
+            )
+            # Settings-close records captured the editable slider model, not
+            # necessarily the selected mode's scorer. Normalize fixed and
+            # derived modes exactly as the calculation path does (for example,
+            # Big 3 is exclusively Big 3 at weight 1.0).
+            snapshot = _scorer_snapshot_from_logged_settings(mode, logged_snapshot)
         # Custom is an experiment rather than one stable algorithm. Its settings
         # signature therefore forms part of the observation identity.
         variant_key = ""
@@ -180,9 +275,14 @@ def aggregate_similarity_algorithm_accuracy(
         observations[composite_key] = (perceived, predicted, snapshot)
         if pair_key:
             observations_by_pair.setdefault(pair_key, set()).add(composite_key)
-    # Perceived similarity belongs to the chart pair, independently of the
-    # algorithm that predicted it. Its current relationship score therefore
-    # replaces the cached payload value for every prediction of that pair.
+    # USER_FEEDBACK belongs to the chart pair, independently of every
+    # algorithm prediction.  It is the user's current ground truth: if they
+    # revise A/B from 80% to 65%, all historical predictions must be evaluated
+    # against 65%.  The relationship score therefore replaces the cached
+    # payload value for every algorithm and settings variant that predicted the
+    # pair. APP_PREDICTIONS (the percentage and its snapshot) remain fixed in
+    # history. Keep these formal provenance classes separate when this schema
+    # grows; their distinction is more important than their shared log record.
     for pair_key, composite_keys in observations_by_pair.items():
         if pair_key not in relationship_scores:
             continue
@@ -222,8 +322,10 @@ def append_similarity_accuracy_observation(
     *,
     algorithm_mode: object,
     predicted_percent: float,
-    user_reported_accuracy: int | None,
-    not_applicable: bool,
+    perceived_similarity_score: int | None = None,
+    perceived_similarity_not_applicable: bool | None = None,
+    user_reported_accuracy: int | None = None,
+    not_applicable: bool | None = None,
     chart_1_uid: str | None,
     chart_2_uid: str | None,
     ranking_position: int | None = None,
@@ -237,16 +339,21 @@ def append_similarity_accuracy_observation(
     timestamp = timestamp or _datetime.datetime.now(_datetime.timezone.utc)
     if timestamp.tzinfo is None:
         timestamp = timestamp.replace(tzinfo=_datetime.timezone.utc)
+    if perceived_similarity_score is None:
+        perceived_similarity_score = user_reported_accuracy
+    if perceived_similarity_not_applicable is None:
+        perceived_similarity_not_applicable = bool(not_applicable)
     payload = {
         "timestamp_utc": timestamp.astimezone(_datetime.timezone.utc).isoformat(timespec="seconds"),
         "chart_uids": [str(chart_1_uid or ""), str(chart_2_uid or "")],
         "algorithm_mode": normalize_similar_charts_algorithm_mode(algorithm_mode),
         "predicted_percent": max(0.0, min(100.0, float(predicted_percent))),
         "ranking_position": int(ranking_position) if ranking_position is not None else None,
-        "user_reported_accuracy": user_reported_accuracy,
-        "not_applicable": bool(not_applicable),
+        "perceived_similarity_score": perceived_similarity_score,
+        "perceived_similarity_not_applicable": bool(perceived_similarity_not_applicable),
         "algorithm_snapshot": dict(algorithm_snapshot) if algorithm_snapshot is not None else None,
     }
+    require_classified_similarity_accuracy_observation(payload)
     with log_path.open("a", encoding="utf-8") as handle:
         handle.write("=== Similarity Perceived Accuracy ===\n")
         handle.write(_ACCURACY_PAYLOAD_MARKER)
