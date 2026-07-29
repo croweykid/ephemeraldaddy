@@ -1421,6 +1421,7 @@ from ephemeraldaddy.gui.style import (
     CHART_VIEW_TIME_OVERWRITE_ENABLED,
     COLLAPSIBLE_SECTION_CONTENT_STYLE,
     COLLAPSIBLE_NESTED_SECTION_CONTENT_STYLE,
+    COLLAPSIBLE_SECTION_SUBHEADER_STYLE,
     COLLAPSIBLE_SECTION_STATIC_HEADER_STYLE,
     CRASH_MESSAGE,
     DATABASE_ANALYTICS_CHART_CONTENT_MARGINS,
@@ -4579,7 +4580,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
         def add_database_subheader(text: str = "") -> QLabel:
             subheader = QLabel(text)
-            subheader_style = DATABASE_ANALYTICS_SUBHEADER_STYLE
+            subheader_style = COLLAPSIBLE_SECTION_SUBHEADER_STYLE
             if DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS:
                 subheader_style = f"{subheader_style} {DATABASE_ANALYTICS_SUBTITLE_DEBUG_STYLE}"
             subheader.setStyleSheet(subheader_style)
@@ -25273,6 +25274,54 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._update_time_input_visibility()
         self._update_time_input_text_colors()
 
+    def _update_observations_relationship_subheaders(self, _text: str = "") -> None:
+        """Keep Chart View's contextual subheader copy aligned with the chart name."""
+        chart_name = self.name_edit.text().strip() or "this entity"
+        self.sentiment_types_subheader.setText(
+            "Your present (and/or historic) feelings about "
+            f"{chart_name}."
+        )
+        self.relationship_types_subheader.setText(
+            "Your present and/or historic relationship to "
+            f"{chart_name}."
+        )
+        person_name = self.name_edit.text().strip() or "this person"
+        prediction_name = self.name_edit.text().strip()
+        traits_subject = f"{prediction_name}'s" if prediction_name else "This chart's"
+        prediction_subject = prediction_name or "this chart"
+        contextual_copy = {
+            "traits_prediction_subheader": (
+                f"{traits_subject} predicted traits based on astrological data."
+            ),
+            "dnd_species_prediction_subheader": (
+                f"What fantasy creature {prediction_subject} would be, astrologically speaking, "
+                "based on the app developer's highly subjective interpretation."
+            ),
+            "dnd_class_prediction_subheader": (
+                f"What fantasy character type {prediction_subject} would be, astrologically "
+                "speaking, based on the app developer's highly subjective interpretation."
+            ),
+            "personal_relevance_subheader": (
+                f'"Sentiment Intensity" is how you feel about {person_name}, as a range from '
+                'best moments to worst. "Familiarity" is how confident you are that you know '
+                'them well enough to have an opinion on that. "1st encounter" refers to the '
+                f"year in which you first met {person_name}."
+            ),
+            "perceived_alignment_subheader": (
+                "How ruthlessly self-interested vs genuinely considerate you've observed "
+                f"(or suspect) {person_name} to be."
+            ),
+            "reminds_me_of_subheader": (
+                f"If {person_name} reminds you of someone else in the database, you can make "
+                "note of that here. May or may not be relevant. But in future app updates, "
+                "we will examine to see if there's any astrological correlation."
+            ),
+        }
+        for attribute_name, copy in contextual_copy.items():
+            label = getattr(self, attribute_name, None)
+            if label is not None:
+                label.setText(copy)
+
 #Most of Chart View's righthand Chart Analytics panel is defined here; but it should all be consolidated into its own separate cv_chart_analytics.py file for better organization ASAP. Some of it is scattered elsewhere in the file directory, as well. Needs to all get bundled in one place & app.py is NOT the place for it...
         # Sentiment selection panel (checkbox grid).
         self.sentiment_checkboxes = {}
@@ -25282,6 +25331,16 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         sentiment_options = SENTIMENT_OPTIONS
         sentiment_columns = 2
         sentiment_rows = (len(sentiment_options) + sentiment_columns - 1) // sentiment_columns
+        self.sentiment_types_subheader = QLabel()
+        self.sentiment_types_subheader.setWordWrap(True)
+        self.sentiment_types_subheader.setStyleSheet(COLLAPSIBLE_SECTION_SUBHEADER_STYLE)
+        sentiment_layout.addWidget(
+            self.sentiment_types_subheader,
+            0,
+            0,
+            1,
+            sentiment_columns,
+        )
         for idx, label in enumerate(sentiment_options):
             checkbox = QCheckBox(label)
             sentiment_color = _sentiment_label_color(label)
@@ -25291,7 +25350,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             self.sentiment_checkboxes[label] = checkbox
             row = idx % sentiment_rows
             col = idx // sentiment_rows
-            sentiment_layout.addWidget(checkbox, row, col)
+            sentiment_layout.addWidget(checkbox, row + 1, col)
         sentiment_widget.setLayout(sentiment_layout)
         
         # Relationship selection panel (checkbox grid).
@@ -25301,14 +25360,26 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         #relationship_layout.setContentsMargins(0, 0, 0, 0)
         relationship_columns = 2
         relationship_rows = (len(RELATION_TYPE) + relationship_columns - 1) // relationship_columns
+        self.relationship_types_subheader = QLabel()
+        self.relationship_types_subheader.setWordWrap(True)
+        self.relationship_types_subheader.setStyleSheet(COLLAPSIBLE_SECTION_SUBHEADER_STYLE)
+        relationship_layout.addWidget(
+            self.relationship_types_subheader,
+            0,
+            0,
+            1,
+            relationship_columns,
+        )
         for idx, label in enumerate(RELATION_TYPE):
             checkbox = QCheckBox(label)
             checkbox.toggled.connect(self._on_relationship_type_toggled)
             self.relationship_type_checkboxes[label] = checkbox
             row = idx % relationship_rows
             col = idx // relationship_rows
-            relationship_layout.addWidget(checkbox, row, col)
+            relationship_layout.addWidget(checkbox, row + 1, col)
         relationship_widget.setLayout(relationship_layout)
+        self._update_observations_relationship_subheaders()
+        self.name_edit.textChanged.connect(self._update_observations_relationship_subheaders)
 
         self.sentiment_relation_row_widget = QWidget()
         self.sentiment_relation_row_widget.setSizePolicy(
@@ -25466,6 +25537,10 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         reminds_me_of_content_layout.setContentsMargins(0, 0, 0, 0)
         reminds_me_of_content_layout.setSpacing(4)
         reminds_me_of_content_widget.setLayout(reminds_me_of_content_layout)
+        self.reminds_me_of_subheader = QLabel()
+        self.reminds_me_of_subheader.setWordWrap(True)
+        self.reminds_me_of_subheader.setStyleSheet(COLLAPSIBLE_SECTION_SUBHEADER_STYLE)
+        reminds_me_of_content_layout.addWidget(self.reminds_me_of_subheader)
         self.reminds_me_of_input = QLineEdit()
         self.reminds_me_of_input.setPlaceholderText("Existing chart name, alias, or UID")
         self.reminds_me_of_input.setToolTip(
@@ -25629,6 +25704,10 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         sentiment_metrics_layout.setAlignment(Qt.AlignTop)
         relevance_content_widget.setLayout(sentiment_metrics_layout)
         relevance_box_layout.addWidget(relevance_header)
+        self.personal_relevance_subheader = QLabel()
+        self.personal_relevance_subheader.setWordWrap(True)
+        self.personal_relevance_subheader.setStyleSheet(COLLAPSIBLE_SECTION_SUBHEADER_STYLE)
+        relevance_box_layout.addWidget(self.personal_relevance_subheader)
         relevance_content_widget.setVisible(True)
         relevance_box_layout.addWidget(relevance_content_widget)
         sentiment_metrics_container_layout.addWidget(relevance_box)

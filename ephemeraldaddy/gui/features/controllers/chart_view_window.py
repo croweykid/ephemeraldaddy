@@ -92,6 +92,7 @@ from ephemeraldaddy.gui.style import (
     ABC_PANEL_SECTION_FRAME_MARGINS,
     ABC_PANEL_SECTION_FRAME_SPACING,
     ABC_PANEL_SECTION_FRAME_STYLE,
+    COLLAPSIBLE_SECTION_SUBHEADER_STYLE,
     DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
     apply_button_cursor,
     apply_chart_info_link_cursor,
@@ -1395,7 +1396,7 @@ def setup_chart_view_emoji_portrait_section(owner: QWidget, layout: QVBoxLayout)
 def _populate_emoji_portrait_section(owner: QWidget, content_layout: QVBoxLayout) -> None:
     helper_label = QLabel("Up to 10 emojis, punctuation, or glyphs. Letters/numbers/spaces are ignored.")
     helper_label.setWordWrap(True)
-    helper_label.setStyleSheet("color: #b8b8b8;")
+    helper_label.setStyleSheet(COLLAPSIBLE_SECTION_SUBHEADER_STYLE)
     content_layout.addWidget(helper_label)
 
     owner.emoji_portrait_edit = QLineEdit()
@@ -1504,6 +1505,10 @@ def _build_subjective_notes_metric_section(
 
 
 def _populate_alignment_section(owner: QWidget, content_layout: QVBoxLayout) -> None:
+    owner.perceived_alignment_subheader = QLabel()
+    owner.perceived_alignment_subheader.setWordWrap(True)
+    owner.perceived_alignment_subheader.setStyleSheet(COLLAPSIBLE_SECTION_SUBHEADER_STYLE)
+    content_layout.addWidget(owner.perceived_alignment_subheader)
     content_layout.addWidget(QLabel("😈 Most evil   ⟷   Most altruistic 😇"))
     content_layout.addWidget(owner.alignment_slider)
     content_layout.addWidget(owner.alignment_score_label)
@@ -1784,6 +1789,17 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         if section_widget is not None:
             widgets[section_key] = section_widget
 
+    def add_prediction_subheader(
+        section_layout: QVBoxLayout,
+        attribute_name: str,
+    ) -> QLabel:
+        subheader = QLabel()
+        subheader.setWordWrap(True)
+        subheader.setStyleSheet(COLLAPSIBLE_SECTION_SUBHEADER_STYLE)
+        section_layout.addWidget(subheader)
+        setattr(owner, attribute_name, subheader)
+        return subheader
+
     traits_section_layout = owner._add_chart_analysis_collapsible_section(
         panel=panel,
         layout=layout,
@@ -1792,6 +1808,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     )
     register_prediction_section("traits", traits_section_layout)
     _install_prediction_header_action(owner, traits_section_layout, "traits")
+    add_prediction_subheader(traits_section_layout, "traits_prediction_subheader")
     traits_header_row = QWidget()
     traits_header_layout = QHBoxLayout()
     traits_header_layout.setContentsMargins(0, 0, 0, 0)
@@ -1877,6 +1894,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     )
     register_prediction_section("dnd_species", dnd_species_section_layout)
     _install_prediction_header_action(owner, dnd_species_section_layout, "dnd_species")
+    add_prediction_subheader(dnd_species_section_layout, "dnd_species_prediction_subheader")
     owner.dnd_prediction_species_label = _make_predictions_loading_label(
         "Loading Fantasy RPG species predictions…",  #for this UID
         alignment=Qt.AlignLeft | Qt.AlignTop,
@@ -1896,6 +1914,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     )
     register_prediction_section("dnd_class", dnd_class_section_layout)
     _install_prediction_header_action(owner, dnd_class_section_layout, "dnd_class")
+    add_prediction_subheader(dnd_class_section_layout, "dnd_class_prediction_subheader")
     owner.dnd_prediction_class_label = _make_predictions_loading_label(
         "Loading Fantasy RPG class predictions…",  #for this UID
         alignment=Qt.AlignLeft | Qt.AlignTop,
@@ -1915,6 +1934,14 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     )
     register_prediction_section("dnd_alignment", dnd_alignment_section_layout)
     _install_prediction_header_action(owner, dnd_alignment_section_layout, "dnd_alignment")
+    alignment_subheader = add_prediction_subheader(
+        dnd_alignment_section_layout,
+        "dnd_alignment_prediction_subheader",
+    )
+    alignment_subheader.setText(
+        "Predicts moral alignment classification based on astrological chart. Wowza. "
+        "Don't take it too seriously. Though the developer did literally base it on data sets."
+    )
     owner.dnd_alignment_chart_panel = QWidget()
     owner.dnd_alignment_chart_layout = QVBoxLayout()
     owner.dnd_alignment_chart_layout.setContentsMargins(0, 0, 0, 0)
@@ -1931,13 +1958,17 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         section_key="gender_guesser",
         section_title="Gender Guesser",
         header_title="Gender Guesser",
-        subtitle_text="For the hell of it, just curious.",
+        subtitle_text=(
+            "Examines the canonically yang and yin coded aspects of the astrological "
+            "chart and displays the theoretical femininity vs masculinity based on that."
+        ),
         default_filename="ephemeraldaddy_chart_gender_guesser",
         chart_container_attr="gender_guesser_container",
         chart_layout_attr="gender_guesser_container_layout",
         expanded=False,
         parent_layout=layout,
     )
+    owner._update_observations_relationship_subheaders()
     layout.addStretch(1)
     return panel
 
