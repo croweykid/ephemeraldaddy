@@ -618,9 +618,40 @@ def build_similarity_calculator_settings_section(
     tabs.setCurrentIndex(0)
     section_layout.addWidget(tabs)
 
-    similar_charts_algo_label = QLabel("Astro Twin Calculator")
-    similar_charts_algo_label.setStyleSheet(subheader_style)
-    algorithm_layout.addWidget(similar_charts_algo_label)
+    demographic_match_header = QLabel("Demographic Matching")
+    demographic_match_header.setStyleSheet(subheader_style)
+    algorithm_layout.addWidget(demographic_match_header)
+
+    demographic_match_group = QButtonGroup(dialog)
+    demographic_match_group.setExclusive(True)
+    demographic_match_buttons: dict[str, QRadioButton] = {}
+    for mode, label_text, tooltip in (
+        ("none", "No preference", "Use the current Astro Twin behavior; do not filter by gender or sex metadata."),
+        (
+            "gender",
+            "Gender match",
+            "Filter candidates to compatible gender categories before calculating Astro Twin scores.",
+        ),
+        ("sex", "Sex match", "Filter candidates to compatible sex-group categories before calculating Astro Twin scores."),
+    ):
+        button = QRadioButton(label_text)
+        button.setToolTip(tooltip)
+        demographic_match_group.addButton(button)
+        button.toggled.connect(
+            lambda checked, selected_mode=mode: checked and on_demographic_match_mode_changed(selected_mode)
+        )
+        algorithm_layout.addWidget(button)
+        demographic_match_buttons[mode] = button
+    demographic_match_buttons["none"].setChecked(True)
+
+    demographic_algorithm_divider = QFrame()
+    demographic_algorithm_divider.setFrameShape(QFrame.HLine)
+    demographic_algorithm_divider.setFrameShadow(QFrame.Sunken)
+    algorithm_layout.addWidget(demographic_algorithm_divider)
+
+    scoring_methods_header = QLabel("Scoring Methods")
+    scoring_methods_header.setStyleSheet(subheader_style)
+    algorithm_layout.addWidget(scoring_methods_header)
     algorithm_layout.addWidget(
         QLabel(
             "Choose which matching algorithm powers Similar Charts results."
@@ -684,7 +715,6 @@ def build_similarity_calculator_settings_section(
     all_or_nothing_fields_layout.addWidget(all_or_nothing_criterion_combo)
     algorithm_layout.addWidget(all_or_nothing_fields_frame)
     algorithm_layout.addWidget(big_3_radio)
-    algorithm_layout.addWidget(custom_radio)
     algorithm_layout.addWidget(database_distinction_radio)
     database_distinction_help = QLabel(
         "Database distinction scan matches charts sharing the selected chart’s ≥2σ traits, "
@@ -692,32 +722,7 @@ def build_similarity_calculator_settings_section(
     )
     database_distinction_help.setWordWrap(True)
     algorithm_layout.addWidget(database_distinction_help)
-
-    demographic_match_row = QHBoxLayout()
-    demographic_match_row.addWidget(QLabel("Match preference"))
-    demographic_match_group = QButtonGroup(dialog)
-    demographic_match_group.setExclusive(True)
-    demographic_match_buttons: dict[str, QRadioButton] = {}
-    for mode, label_text, tooltip in (
-        ("none", "No preference", "Use the current Astro Twin behavior; do not filter by gender or sex metadata."),
-        (
-            "gender",
-            "Gender match",
-            "Filter candidates to compatible gender categories before calculating Astro Twin scores.",
-        ),
-        ("sex", "Sex match", "Filter candidates to compatible sex-group categories before calculating Astro Twin scores."),
-    ):
-        button = QRadioButton(label_text)
-        button.setToolTip(tooltip)
-        demographic_match_group.addButton(button)
-        button.toggled.connect(
-            lambda checked, selected_mode=mode: checked and on_demographic_match_mode_changed(selected_mode)
-        )
-        demographic_match_row.addWidget(button)
-        demographic_match_buttons[mode] = button
-    demographic_match_buttons["none"].setChecked(True)
-    demographic_match_row.addStretch(1)
-    algorithm_layout.addLayout(demographic_match_row)
+    algorithm_layout.addWidget(custom_radio)
 
     custom_fields_frame = QFrame()
     custom_fields_frame.setFrameShape(QFrame.StyledPanel)
