@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QListWidget,
     QListWidgetItem,
@@ -44,6 +45,7 @@ from ephemeraldaddy.gui.tag_categories import TAG_CATEGORY_OPTIONS, TAG_CATEGORY
 from ephemeraldaddy.gui.style import (
     apply_shared_dropdown_style,
     CHART_DATA_HIGHLIGHT_COLOR,
+    COLOR_BG_ELEVATED,
     INACTIVE_ACTION_BUTTON_STYLE,
     SETTINGS_TAB_STYLE,
     similarity_gradient_rgb_for_range,
@@ -51,6 +53,11 @@ from ephemeraldaddy.gui.style import (
 from ephemeraldaddy.gui.features.charts.similarities_algorithm_log import (
     aggregate_similarity_algorithm_accuracy,
     format_similarity_algorithm_accuracy_ranking_html,
+)
+from ephemeraldaddy.gui.features.charts.similarity_custom_presets import (
+    load_custom_astro_twin_presets,
+    next_custom_astro_twin_preset_name,
+    save_custom_astro_twin_preset,
 )
 
 SETTINGS_KEY_BATCH_TAGGING_TERMINAL_DEBUG = "dev_tools/batch_tagging_terminal_debug"
@@ -725,10 +732,16 @@ def build_similarity_calculator_settings_section(
     algorithm_layout.addWidget(custom_radio)
 
     custom_fields_frame = QFrame()
+    custom_fields_frame.setObjectName("customAstroTwinSubpanel")
     custom_fields_frame.setFrameShape(QFrame.StyledPanel)
     custom_fields_frame.setFrameShadow(QFrame.Plain)
     custom_fields_frame.setStyleSheet(
-        "QFrame { border: 1px solid rgba(128, 128, 128, 70); border-radius: 6px; }"
+        "#customAstroTwinSubpanel {"
+        f" background-color: {COLOR_BG_ELEVATED};"
+        " border: 1px solid rgba(150, 150, 150, 85);"
+        f" border-left: 3px solid {CHART_DATA_HIGHLIGHT_COLOR};"
+        " border-radius: 6px;"
+        " }"
     )
     custom_fields_layout = QVBoxLayout(custom_fields_frame)
     custom_fields_layout.setContentsMargins(20, 8, 8, 8)
@@ -809,6 +822,33 @@ def build_similarity_calculator_settings_section(
     reset_similarity_weights_button = QPushButton("Reset Weights to Defaults")
     reset_similarity_weights_button.clicked.connect(on_reset_weights_clicked)
     custom_fields_layout.addWidget(reset_similarity_weights_button, alignment=Qt.AlignLeft)
+
+    save_custom_preset_button = QPushButton("Save as Preset")
+    save_custom_preset_button.setToolTip("save current weights as preset")
+
+    def save_current_custom_preset() -> None:
+        default_name = next_custom_astro_twin_preset_name(load_custom_astro_twin_presets())
+        preset_name, accepted = QInputDialog.getText(
+            dialog,
+            "Save as Preset",
+            "Preset name:",
+            text=default_name,
+        )
+        if not accepted or not preset_name.strip():
+            return
+        settings: dict[str, object] = {
+            "placement_weighting_mode": str(weighting_mode_combo.currentData() or "chart_defined")
+        }
+        for key, checkbox in calculator_checkboxes.items():
+            settings[f"use_{key}"] = checkbox.isChecked()
+            settings[f"weight_{key}"] = float(calculator_weights[key].value())
+        try:
+            save_custom_astro_twin_preset(preset_name, settings)
+        except OSError as exc:
+            QMessageBox.warning(dialog, "Save as Preset", f"Could not save preset: {exc}")
+
+    save_custom_preset_button.clicked.connect(save_current_custom_preset)
+    custom_fields_layout.addWidget(save_custom_preset_button, alignment=Qt.AlignLeft)
 
     #reset_granular_row = QHBoxLayout()
     #reset_granular_row.addWidget(reset_similarity_weights_button, alignment=Qt.AlignLeft)
@@ -895,6 +935,7 @@ def build_similarity_calculator_settings_section(
         "calculator_checkboxes": calculator_checkboxes,
         "calculator_weights": calculator_weights,
         "calculator_total_label": total_weight_value_label,
+        "save_custom_preset_button": save_custom_preset_button,
         "placement_weighting_mode_combo": weighting_mode_combo,
         "all_or_nothing_criterion_combo": all_or_nothing_criterion_combo,
         "demographic_match_buttons": demographic_match_buttons,

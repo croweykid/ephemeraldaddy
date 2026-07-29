@@ -30,3 +30,14 @@ def test_database_distinction_precedes_custom_as_final_scoring_option():
 
     assert database_widget < custom_widget < custom_fields
 
+
+def test_custom_subpanel_has_visual_cues_and_preset_button_at_bottom():
+    custom_fields = SECTION.index("custom_fields_frame = QFrame()")
+    accent = SECTION.index('border-left: 3px solid {CHART_DATA_HIGHLIGHT_COLOR}', custom_fields)
+    reset_button = SECTION.index('QPushButton("Reset Weights to Defaults")', custom_fields)
+    save_button = SECTION.index('QPushButton("Save as Preset")', custom_fields)
+    attach_to_layout = SECTION.index("algorithm_layout.addWidget(custom_fields_frame)", custom_fields)
+
+    assert custom_fields < accent < reset_button < save_button < attach_to_layout
+    assert 'save_custom_preset_button.setToolTip("save current weights as preset")' in SECTION
+    assert '"save_custom_preset_button": save_custom_preset_button' in SECTION
