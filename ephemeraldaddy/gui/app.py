@@ -21459,6 +21459,11 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             logger.info("Appended Similarities Algorithm settings change to %s", log_path)
         self._similarities_algorithm_settings_open_snapshot = current_snapshot
 
+    def _refresh_similarity_algorithm_accuracy_label(self) -> None:
+        label = getattr(self, "_similarity_algorithm_accuracy_label", None)
+        if isinstance(label, QLabel):
+            label.setText(format_similarity_algorithm_accuracy_ranking())
+
     def _ensure_settings_dialog(self) -> QDialog:
         if self._settings_dialog is not None:
             self._refresh_similarity_algorithm_accuracy_label()
@@ -26571,9 +26576,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             return True
 
     def _refresh_similarity_algorithm_accuracy_label(self) -> None:
-        label = getattr(self, "_similarity_algorithm_accuracy_label", None)
-        if isinstance(label, QLabel):
-            label.setText(format_similarity_algorithm_accuracy_ranking())
+        manage_dialog = getattr(self, "_manage_charts_dialog", None)
+        if isinstance(manage_dialog, ManageChartsDialog):
+            manage_dialog._refresh_similarity_algorithm_accuracy_label()
 
     def _on_similar_chart_popout_make_collection_clicked(self, dialog: QDialog) -> None:
         subject_name = str(getattr(dialog, "_similar_chart_popout_subject_name", "") or "").strip()
