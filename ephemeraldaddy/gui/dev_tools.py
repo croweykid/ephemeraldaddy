@@ -86,6 +86,8 @@ SETTINGS_KEY_SIMILARITY_PERCEIVED_ACCURACY_CONTROLS = "dev_tools/similarity_perc
 SIMILARITY_PERCEIVED_ACCURACY_CONTROLS_DEFAULT = False
 SETTINGS_KEY_DEMO_MODE = "dev_tools/demo_mode"
 DEMO_MODE_DEFAULT = False
+SETTINGS_KEY_PERFORMANCE_METRICS_LOGGING = "dev_tools/performance_metrics_logging"
+PERFORMANCE_METRICS_LOGGING_DEFAULT = False
 SETTINGS_KEY_PROPERTY_MANAGER_SPLITTER_SIZES = "property_manager/column_widths"
 SETTINGS_KEY_PROPERTY_MANAGER_PRESET_COLUMN_SIZES = "property_manager/preset_column_widths"
 
@@ -219,6 +221,38 @@ def add_batch_tagging_terminal_debug_setting(
     checkbox.setChecked(bool(is_enabled))
     checkbox.setToolTip(
         "When enabled, batch-tagging phase logs are emitted to the terminal to help debug post-update crashes."
+    )
+    checkbox.toggled.connect(on_toggled)
+    section_layout.addWidget(checkbox)
+    return checkbox
+
+
+def load_performance_metrics_logging_enabled(settings, *, fallback: bool = False) -> bool:
+    value = settings.value(SETTINGS_KEY_PERFORMANCE_METRICS_LOGGING, int(fallback))
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+    if isinstance(value, (int, float)):
+        return bool(value)
+    return bool(fallback)
+
+
+def add_performance_metrics_logging_setting(
+    *,
+    section_layout: QVBoxLayout,
+    is_enabled: bool,
+    on_toggled: Callable[[bool], None],
+) -> QCheckBox:
+    checkbox = QCheckBox("Enable Performance Metrics Logging")
+    checkbox.setChecked(bool(is_enabled))
+    checkbox.setToolTip(
+        "When enabled, 'performance metrics log' file will appear locally and in "
+        ".app/.ephemeraldaddy/ and track app performance for debugging."
     )
     checkbox.toggled.connect(on_toggled)
     section_layout.addWidget(checkbox)
