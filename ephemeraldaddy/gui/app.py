@@ -24571,6 +24571,11 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
     def __init__(self):
         super().__init__()
 
+        # The database view is opened immediately during startup.  Establish
+        # its lazy dialog slot before any widget setup can process events or
+        # invoke the startup callback.
+        self._manage_charts_dialog = None
+
         self.setWindowFlag(Qt.Window, True)
         self.setWindowFlag(Qt.WindowSystemMenuHint, True)
         self.setWindowFlag(Qt.WindowMinMaxButtonsHint, True)
@@ -26001,7 +26006,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.planet_dynamics_summary_label = None
         self.chart_type_label = None
         self._update_chart_ruler_footer(None)
-        self._manage_charts_dialog = None
         self._handle_database_health()
         self._configure_main_splitter()
         self._restore_window_settings()
@@ -35395,7 +35399,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._manage_charts_pending_changed_uids.clear()
 
     def _get_or_create_manage_charts_dialog(self) -> ManageChartsDialog:
-        if self._manage_charts_dialog is None:
+        # Be tolerant of partially initialized/restored MainWindow instances;
+        # startup must always be able to create the default database view.
+        if getattr(self, "_manage_charts_dialog", None) is None:
             self._manage_charts_dialog = ManageChartsDialog(self)
             self._manage_charts_dialog.setWindowModality(Qt.NonModal)
         return self._manage_charts_dialog
