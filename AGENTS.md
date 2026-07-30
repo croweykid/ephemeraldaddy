@@ -1,5 +1,13 @@
 # AGENTS.md
 
+## Active architecture direction
+- Before changing `ephemeraldaddy/gui/app.py` or relocating GUI features, read
+  `agents/app_py_refactor_manifesto.md`. It defines the approved naming,
+  package targets, UID-first prerequisites, performance requirements, and
+  regression gates for the ongoing `app.py` refactor.
+- Treat that document as the default architectural direction, but do not use it
+  as permission to perform unrelated broad refactors during a focused task.
+
 ## Repo map
 - app.py is the central GUI file.
 - Database Analytics live in gui/features/charts/database_analytics.py
