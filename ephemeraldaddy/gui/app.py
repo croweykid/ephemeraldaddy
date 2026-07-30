@@ -27410,7 +27410,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 similarity_average,
                 similarity_standard_deviation,
             )
-            z_score_html = f"; z={z_score:+.2f}" if z_score is not None else ""
             rank_label = (
                 f'<span style="font-weight: bold; color: {CHART_DATA_HIGHLIGHT_COLOR};">'
                 f"{rank}."
@@ -27423,7 +27422,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                     f'<a href="{make_similar_info_target(info_link_prefix="sim-info:panel", chart_id=int(match.chart_id))}">ⓘ</a>'
                     f'{display_note}<br>'
                     f'Similarity <span style="color: {band_color}; font-weight: 600;">'
-                    f"{similarity_percent:.1f}% ({band_label}{z_score_html})"
+                    f"{similarity_percent:.1f}% ({band_label})"
                     f"</span>"
                     f"{why_html}"
                 )

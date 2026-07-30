@@ -824,28 +824,24 @@ def build_similar_charts_export_lines(
         lines.append(f"# {subject_name}'s Astro Twins") #aka Similar Charts
         lines.append("")
         lines.append(
-            "| Rank | Chart UID | Chart | Similarity | Band | Z-score | Components |"
+            "| Rank | Chart UID | Chart | Similarity | Band | Components |"
         )
-        lines.append("|---:|---:|---|---:|---|---:|---|")
+        lines.append("|---:|---:|---|---:|---|---|")
         for row in rows:
-            z_score = row.get("similarity_z_score")
-            z_score_text = "" if z_score is None else f"{float(z_score):+.3f}"
             lines.append(
                 f"| {row['rank']} | {row.get('chart_uid', '')} | {row['chart_name']} | "
                 f"{row['similarity_percent']:.1f}% | {row.get('similarity_band', '')} | "
-                f"{z_score_text} | {row.get('component_summary', '')} |"
+                f"{row.get('component_summary', '')} |"
             )
         return lines
 
     lines.append(f"{subject_name}'s Astro Twins") #aka Similar Charts
     lines.append("")
     for row in rows:
-        z_score = row.get("similarity_z_score")
-        z_score_text = "" if z_score is None else f"; z={float(z_score):+.3f}"
         lines.append(
             f"{row['rank']}. {row.get('chart_uid', '')} — {row['chart_name']}: "
             f"Similarity {row['similarity_percent']:.1f}% "
-            f"[{row.get('similarity_band', 'unclassified')}{z_score_text}] "
+            f"[{row.get('similarity_band', 'unclassified')}] "
             f"({row.get('component_summary', 'no enabled criteria')})"
         )
     return lines
@@ -3035,12 +3031,6 @@ def render_similar_match_blocks(
             if why_expanded
             else f' - <a href="{why_target}" style="color: #ffffff; text-decoration: none;">why?</a>'
         )
-        z_score = similarity_z_score(
-            similarity_percent,
-            similarity_average,
-            similarity_standard_deviation,
-        )
-        z_score_html = f"; z={z_score:+.2f}" if z_score is not None else ""
         blocks.append(
             (
                 f'<span style="font-weight: bold; color: {highlight_color};">{rank}.</span> '
@@ -3048,7 +3038,7 @@ def render_similar_match_blocks(
                 f'<a href="{make_similar_info_target(info_link_prefix=info_link_prefix, chart_id=int(match.chart_id))}">ⓘ</a>'
                 f'{display_note}<br>'
                 f'Similarity <span style="color: {band_color}; font-weight: 600;">'
-                f"{similarity_percent:.1f}% ({band_label}{z_score_html})</span>"
+                f"{similarity_percent:.1f}% ({band_label})</span>"
                 f"{why_html}"
             )
         )

@@ -129,7 +129,7 @@ def _band_for_test(_percent):
     return "test band", "#ffffff"
 
 
-def test_similar_chart_export_rows_include_z_score():
+def test_similar_chart_exports_hide_internal_z_score():
     match = SimpleNamespace(
         chart_id=7,
         chart_uid="UIDTEST0000007",
@@ -161,11 +161,12 @@ def test_similar_chart_export_rows_include_z_score():
     assert "UIDTEST0000007" in markdown
     assert "UIDTEST0000007" in plain
     assert "#7" not in plain
-    assert "+2.000" in markdown
-    assert "z=+2.000" in plain
+    assert "Z-score" not in markdown
+    assert "+2.000" not in markdown
+    assert "z=" not in plain
 
 
-def test_similar_match_blocks_include_z_score():
+def test_similar_match_blocks_hide_internal_z_score():
     match = SimpleNamespace(
         chart_id=7,
         chart_name="Test Chart",
@@ -190,7 +191,8 @@ def test_similar_match_blocks_include_z_score():
         similarity_standard_deviation=6.0,
     )
 
-    assert "z=+2.00" in html
+    assert "82.0% (test band)" in html
+    assert "z=" not in html
 
 
 def test_similar_match_blocks_preserve_starting_rank_for_per_row_rendering():

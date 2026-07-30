@@ -334,31 +334,27 @@ def _markdown_table_cell(value: object) -> str:
 def _format_similar_chart_rows(rows: list[dict[str, Any]], *, markdown: bool) -> list[str]:
     if markdown:
         lines = [
-            "| Rank | Chart UID | Chart | Similarity | Band | Z-score | Components |",
-            "|---:|---:|---|---:|---|---:|---|",
+            "| Rank | Chart UID | Chart | Similarity | Band | Components |",
+            "|---:|---:|---|---:|---|---|",
         ]
         for row in rows:
-            z_score = row.get("similarity_z_score")
-            z_score_text = "" if z_score is None else f"{float(z_score):+.3f}"
             chart_name = _markdown_table_cell(row.get("chart_name", ""))
             band = _markdown_table_cell(row.get("similarity_band", ""))
             component_summary = _markdown_table_cell(row.get("component_summary", ""))
             lines.append(
                 f"| {row.get('rank', '')} | {row.get('chart_uid', '')} | {chart_name} | "
                 f"{float(row.get('similarity_percent', 0.0)):.1f}% | {band} | "
-                f"{z_score_text} | {component_summary} |"
+                f"{component_summary} |"
             )
         return lines
 
     lines: list[str] = []
     for row in rows:
-        z_score = row.get("similarity_z_score")
-        z_score_text = "" if z_score is None else f"; z={float(z_score):+.3f}"
         component_summary = row.get("component_summary") or "no enabled criteria"
         lines.append(
             f"{row.get('rank', '')}. {row.get('chart_uid', '')} — {row.get('chart_name', '')}: "
             f"Similarity {float(row.get('similarity_percent', 0.0)):.1f}% "
-            f"[{row.get('similarity_band', 'unclassified')}{z_score_text}] "
+            f"[{row.get('similarity_band', 'unclassified')}] "
             f"({component_summary})"
         )
     return lines or ["No similar charts available."]
