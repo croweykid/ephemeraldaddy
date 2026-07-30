@@ -31,3 +31,7 @@ def test_property_manager_column_widths_are_adjustable_and_persisted() -> None:
     assert "setSectionResizeMode(QHeaderView.Interactive)" in dialog_source
     assert "sectionResized.connect(" in dialog_source
     assert "self._restore_preset_column_widths()" in dialog_source
+    assert "setSectionResizeMode(0, QHeaderView.Stretch)" in dialog_source
+    assert "setTextElideMode(Qt.ElideNone)" in DEV_TOOLS_SOURCE
+    assert "def _fit_preset_columns_to_viewport(self)" in dialog_source
+    assert "setSectionResizeMode(2, QHeaderView.Stretch)" in dialog_source

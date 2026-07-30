@@ -1556,6 +1556,10 @@ class _TagHierarchyTree(QTreeWidget):
         self._on_drop_labels = on_drop_labels
         self._highlighted_category_item: QTreeWidgetItem | None = None
         self.setHeaderHidden(True)
+        # The tree is reused by managers with both one and several columns.
+        # Never retain a narrow first-column width from the presets table when
+        # returning to a single-column property list.
+        self.setTextElideMode(Qt.ElideNone)
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setDragEnabled(True)
         self.setAcceptDrops(True)
@@ -1955,6 +1959,10 @@ class ManageMetadataLabelsDialog(QDialog):
                 [self._list_widget.columnWidth(index) for index in range(3)],
             )
 
+    def _on_preset_column_resized(self, *_args) -> None:
+        self._save_preset_column_widths()
+        QTimer.singleShot(0, self._fit_preset_columns_to_viewport)
+
     def _restore_preset_column_widths(self) -> bool:
         settings = getattr(self, "_settings", None)
         if settings is None:
@@ -1969,6 +1977,24 @@ class ManageMetadataLabelsDialog(QDialog):
         for index, size in enumerate(sizes):
             self._list_widget.setColumnWidth(index, size)
         return True
+
+    def _fit_preset_columns_to_viewport(self) -> None:
+        """Keep the final presets column inside the tree's visible viewport."""
+        if self._active_field() != self.FIELD_ASTRO_TWIN_PRESETS:
+            return
+        header = self._list_widget.header()
+        viewport_width = self._list_widget.viewport().width()
+        if viewport_width <= 0:
+            return
+        data_points_width = max(header.sectionSizeHint(2), 90)
+        available_for_first_two = max(2, viewport_width - data_points_width)
+        first_two = [self._list_widget.columnWidth(index) for index in range(2)]
+        requested_width = sum(first_two)
+        if requested_width > available_for_first_two:
+            scale = available_for_first_two / requested_width
+            first_two = [max(1, round(width * scale)) for width in first_two]
+        self._list_widget.setColumnWidth(0, first_two[0])
+        self._list_widget.setColumnWidth(1, max(1, available_for_first_two - first_two[0]))
 
     def _active_field(self) -> str:
         value = self._field_selector.currentData()
@@ -2287,19 +2313,23 @@ class ManageMetadataLabelsDialog(QDialog):
                 self._list_widget.addTopLevelItem(item)
             self._list_widget.header().setStretchLastSection(False)
             self._list_widget.header().setSectionResizeMode(QHeaderView.Interactive)
+            # The last column stretches into the remaining viewport instead of
+            # extending beyond it when the saved/manual widths are too large.
+            self._list_widget.header().setSectionResizeMode(2, QHeaderView.Stretch)
             if not self._restore_preset_column_widths():
                 self._list_widget.setColumnWidth(0, 180)
                 self._list_widget.setColumnWidth(1, 430)
                 self._list_widget.setColumnWidth(2, 90)
             try:
                 self._list_widget.header().sectionResized.disconnect(
-                    self._save_preset_column_widths
+                    self._on_preset_column_resized
                 )
             except (RuntimeError, TypeError):
                 pass
             self._list_widget.header().sectionResized.connect(
-                self._save_preset_column_widths
+                self._on_preset_column_resized
             )
+            QTimer.singleShot(0, self._fit_preset_columns_to_viewport)
         else:
             self._list_widget.setColumnCount(1)
             self._list_widget.setHeaderHidden(True)
@@ -2322,6 +2352,12 @@ class ManageMetadataLabelsDialog(QDialog):
         if not presets_mode:
             self._list_widget.setColumnCount(1)
             self._list_widget.setHeaderHidden(True)
+            self._list_widget.header().setStretchLastSection(True)
+            self._list_widget.header().setSectionResizeMode(0, QHeaderView.Stretch)
+            self._unsorted_list_widget.header().setStretchLastSection(True)
+            self._unsorted_list_widget.header().setSectionResizeMode(
+                0, QHeaderView.Stretch
+            )
         if hasattr(self, "_unsorted_panel_widget"):
             # Only Tags has an uncategorized column. Hiding its containing
             # widget removes that column from the layout entirely, allowing
