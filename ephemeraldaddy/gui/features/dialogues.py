@@ -1,8 +1,10 @@
 """Shared dialog classes extracted from the legacy app module."""
-#Includes Rectification
+
+# Includes Rectification
 
 import datetime
 import html
+from enum import Enum
 from pathlib import Path
 
 from PySide6.QtCore import QDate, QThread, Qt
@@ -40,7 +42,7 @@ from ephemeraldaddy.core.interpretations import (
     max_familiarity_score,
     normalized_familiarity_score,
 )
-from ephemeraldaddy.core.retcon import RETCON_BODIES
+from ephemeraldaddy.core.retcon import RETCON_BODIES, RETCON_CRITERIA_BODIES
 from ephemeraldaddy.core.timeutils import localize_naive_datetime
 from ephemeraldaddy.gui.features.retcon.workers import RetconSearchWorker
 from ephemeraldaddy.io.geocode import LocationLookupError, geocode_location
@@ -70,6 +72,14 @@ def _get_share_icon_path() -> str | None:
     return None
 
 
+class RectificationView(Enum):
+    """The three formally supported visual states of Rectification Engine."""
+
+    CRITERIA = "criteria"
+    RESULTS = "results"
+    REFINEMENT = "refinement"
+
+
 class RetconEngineDialog(QDialog):
     _DEFINED_POSITION_STYLE = (
         "QComboBox {"
@@ -95,6 +105,7 @@ class RetconEngineDialog(QDialog):
         self._active_criteria: dict[str, str] = {}
         self._active_start_dt: datetime.datetime | None = None
         self._active_end_dt: datetime.datetime | None = None
+        self._view = RectificationView.CRITERIA
 
         root = QVBoxLayout(self)
 
@@ -105,7 +116,8 @@ class RetconEngineDialog(QDialog):
             label.setFont(bold_font)
             return label
 
-        # The window switches between the Criteria Input Panel and the search view.
+        # Criteria and Refinement share a panel; Results has its own page. The
+        # explicit state distinguishes all three supported visual views.
         self.view_stack = QStackedWidget()
         root.addWidget(self.view_stack)
 
@@ -126,15 +138,31 @@ class RetconEngineDialog(QDialog):
         self.start_date_edit.setDisplayFormat("yyyy-MM-dd")
         self.start_date_edit.setCalendarPopup(True)
         self.start_date_edit.setDateRange(
-            QDate(EPHEMERIS_MIN_DATE.year, EPHEMERIS_MIN_DATE.month, EPHEMERIS_MIN_DATE.day),
-            QDate(EPHEMERIS_MAX_DATE.year, EPHEMERIS_MAX_DATE.month, EPHEMERIS_MAX_DATE.day),
+            QDate(
+                EPHEMERIS_MIN_DATE.year,
+                EPHEMERIS_MIN_DATE.month,
+                EPHEMERIS_MIN_DATE.day,
+            ),
+            QDate(
+                EPHEMERIS_MAX_DATE.year,
+                EPHEMERIS_MAX_DATE.month,
+                EPHEMERIS_MAX_DATE.day,
+            ),
         )
         self.end_date_edit = QDateEdit()
         self.end_date_edit.setDisplayFormat("yyyy-MM-dd")
         self.end_date_edit.setCalendarPopup(True)
         self.end_date_edit.setDateRange(
-            QDate(EPHEMERIS_MIN_DATE.year, EPHEMERIS_MIN_DATE.month, EPHEMERIS_MIN_DATE.day),
-            QDate(EPHEMERIS_MAX_DATE.year, EPHEMERIS_MAX_DATE.month, EPHEMERIS_MAX_DATE.day),
+            QDate(
+                EPHEMERIS_MIN_DATE.year,
+                EPHEMERIS_MIN_DATE.month,
+                EPHEMERIS_MIN_DATE.day,
+            ),
+            QDate(
+                EPHEMERIS_MAX_DATE.year,
+                EPHEMERIS_MAX_DATE.month,
+                EPHEMERIS_MAX_DATE.day,
+            ),
         )
         top_row.addWidget(self.start_date_edit)
         top_row.addWidget(QLabel("to"))
@@ -147,21 +175,12 @@ class RetconEngineDialog(QDialog):
         options_time_row.addWidget(_make_bold_label("Search Options"))
         options_time_row.addWidget(QLabel("Step"))
         self.step_combo = QComboBox()
-        for label, minutes in [
-            ("1 min", 1),
-            ("5 min", 5),
-            ("10 min", 10),
-            ("20 min", 20),
-            ("60 min", 60),
-            ("4 hrs", 240),
-            ("12 hrs", 720),
-            ("1 day", 1440),
-        ]:
+        for label, minutes in [("12 hrs", 720), ("1 day", 1440)]:
             self.step_combo.addItem(label, minutes)
         options_time_row.addWidget(self.step_combo)
         step_hint_label = QLabel("ⓘ")
         step_hint_label.setToolTip(
-            '<i>Hint: Start with large steps and large spans of time; '
+            "<i>Hint: Start with large steps and large spans of time; "
             "then narrow search field with successive passes.</i>"
         )
         apply_chart_info_link_cursor(step_hint_label)
@@ -184,29 +203,20 @@ class RetconEngineDialog(QDialog):
 
         # Position Criteria subpanel: three columns keep every criterion above the fold.
         position_group = QGroupBox("Position Criteria")
-        position_layout = QGridLayout(position_group)
-        position_layout.setHorizontalSpacing(10)
+        self._position_layout = QGridLayout(position_group)
+        self._position_layout.setHorizontalSpacing(10)
         self._body_sign_combos: dict[str, QComboBox] = {}
-        sign_options = ["Any", *ZODIAC_NAMES]
-        rows_per_column = (len(RETCON_BODIES) + 2) // 3
-        for idx, body in enumerate(RETCON_BODIES):
-            label = QLabel(body)
-            label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            label.setStyleSheet(
-                "QLabel { background: transparent; "
-                f"color: {PLANET_COLORS.get(body, '#FFFFFF')}; padding-right: 6px; }}"
-            )
-            combo = QComboBox()
-            combo.addItems(sign_options)
-            combo.setMaxVisibleItems(len(sign_options))
-            combo.setMaximumWidth(combo.fontMetrics().horizontalAdvance("M" * 15) + 28)
-            combo.setStyleSheet("QComboBox, QComboBox QAbstractItemView { color: white; }")
-            combo.currentTextChanged.connect(self._update_defined_position_styles)
-            column = idx // rows_per_column
-            row = idx % rows_per_column
-            position_layout.addWidget(label, row, column * 2)
-            position_layout.addWidget(combo, row, column * 2 + 1)
-            self._body_sign_combos[body] = combo
+        self._body_house_combos: dict[str, QComboBox] = {}
+        self._refinement_widgets: list[QWidget] = []
+        self._angle_widgets: dict[str, list[QWidget]] = {}
+        self._rows_per_position_column = (len(RETCON_BODIES) + 2) // 3
+        for column in range(3):
+            header = QLabel("H")
+            header.setAlignment(Qt.AlignCenter)
+            self._position_layout.addWidget(header, 0, column * 3 + 2)
+            self._refinement_widgets.append(header)
+        for idx, body in enumerate(RETCON_CRITERIA_BODIES):
+            self._add_position_criterion(body, idx)
         criteria_panel_layout.addWidget(position_group, 1)
 
         # Criteria Input Panel button menu.
@@ -245,6 +255,9 @@ class RetconEngineDialog(QDialog):
         self.edit_criteria_button = QPushButton("Edit Criteria")
         self.edit_criteria_button.clicked.connect(self._show_criteria_panel)
         summary_buttons.addWidget(self.edit_criteria_button)
+        self.refine_houses_button = QPushButton("Refine by House Placement")
+        self.refine_houses_button.clicked.connect(self._show_refinement_panel)
+        summary_buttons.addWidget(self.refine_houses_button)
         summary_layout.addLayout(summary_buttons)
         search_page_layout.addWidget(self.summary_group)
 
@@ -264,20 +277,82 @@ class RetconEngineDialog(QDialog):
         status_row.addWidget(self.cancel_button)
         results_layout.addLayout(status_row)
         self.results_list = QListWidget()
-        self.results_list.itemDoubleClicked.connect(lambda _item: self._open_selected_match())
+        self.results_list.itemDoubleClicked.connect(
+            lambda _item: self._open_selected_match()
+        )
         results_layout.addWidget(self.results_list, 1)
         create_row = QHBoxLayout()
         self.create_chart_button = QPushButton("Create Chart from Selected Match")
         self.create_chart_button.setEnabled(False)
         self.create_chart_button.clicked.connect(self._open_selected_match)
-        create_row.addWidget(self.create_chart_button)
         create_row.addStretch(1)
+        create_row.addWidget(self.create_chart_button)
         results_layout.addLayout(create_row)
         search_page_layout.addWidget(self.results_group, 1)
         self.view_stack.addWidget(search_page)
 
         self._reset_criteria()
+        self._apply_view(RectificationView.CRITERIA)
         self._update_defined_position_styles()
+
+    def _add_position_criterion(self, body: str, index: int) -> None:
+        label = QLabel("Midhaven" if body == "MC" else body)
+        label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        label.setStyleSheet(
+            "QLabel { background: transparent; "
+            f"color: {PLANET_COLORS.get(body, '#FFFFFF')}; padding-right: 6px; }}"
+        )
+        sign_combo = QComboBox()
+        sign_combo.addItems(["Any", *ZODIAC_NAMES])
+        sign_combo.setMaxVisibleItems(len(ZODIAC_NAMES) + 1)
+        sign_combo.setMaximumWidth(
+            sign_combo.fontMetrics().horizontalAdvance("M" * 15) + 28
+        )
+        sign_combo.setStyleSheet(
+            "QComboBox, QComboBox QAbstractItemView { color: white; }"
+        )
+        sign_combo.currentTextChanged.connect(self._update_defined_position_styles)
+        house_combo = QComboBox()
+        house_combo.addItems(["Any", *[str(house) for house in range(1, 13)]])
+        house_combo.setFixedWidth(
+            house_combo.fontMetrics().horizontalAdvance("000") + 24
+        )
+        if body in {"Ascendant", "MC"}:
+            house_combo.setCurrentText("1" if body == "Ascendant" else "10")
+            house_combo.setEnabled(False)
+            house_combo.setStyleSheet(
+                "QComboBox { color: #aaaaaa; background: #444444; }"
+            )
+
+        column = index // self._rows_per_position_column
+        row = index % self._rows_per_position_column
+        self._position_layout.addWidget(label, row + 1, column * 3)
+        self._position_layout.addWidget(sign_combo, row + 1, column * 3 + 1)
+        self._position_layout.addWidget(house_combo, row + 1, column * 3 + 2)
+        self._body_sign_combos[body] = sign_combo
+        self._body_house_combos[body] = house_combo
+        self._refinement_widgets.append(house_combo)
+        if body in {"Ascendant", "MC"}:
+            self._angle_widgets[body] = [label, sign_combo, house_combo]
+
+    def _ensure_refinement_angle_widgets(self) -> None:
+        for body in ("Ascendant", "MC"):
+            if body not in self._angle_widgets:
+                self._add_position_criterion(body, RETCON_BODIES.index(body))
+                self._body_sign_combos[body].setCurrentText(
+                    self._active_criteria.get(body, "Any")
+                )
+
+    def _remove_refinement_angle_widgets(self) -> None:
+        for body, widgets in list(self._angle_widgets.items()):
+            self._body_sign_combos.pop(body, None)
+            self._body_house_combos.pop(body, None)
+            for widget in widgets:
+                if widget in self._refinement_widgets:
+                    self._refinement_widgets.remove(widget)
+                self._position_layout.removeWidget(widget)
+                widget.deleteLater()
+            del self._angle_widgets[body]
 
     def _update_defined_position_styles(self, *_args) -> None:
         for combo in self._body_sign_combos.values():
@@ -292,7 +367,11 @@ class RetconEngineDialog(QDialog):
         """Restore every Criteria Input Panel field to its initial value."""
         self.place_edit.clear()
         self.start_date_edit.setDate(
-            QDate(EPHEMERIS_MIN_DATE.year, EPHEMERIS_MIN_DATE.month, EPHEMERIS_MIN_DATE.day)
+            QDate(
+                EPHEMERIS_MIN_DATE.year,
+                EPHEMERIS_MIN_DATE.month,
+                EPHEMERIS_MIN_DATE.day,
+            )
         )
         self.end_date_edit.setDate(QDate.currentDate())
         self.start_time_edit.setTime(datetime.time(0, 0))
@@ -301,11 +380,65 @@ class RetconEngineDialog(QDialog):
         self.max_results_spin.setValue(100)
         for combo in self._body_sign_combos.values():
             combo.setCurrentText("Any")
+        for body, combo in self._body_house_combos.items():
+            combo.setCurrentText(
+                "1" if body == "Ascendant" else "10" if body == "MC" else "Any"
+            )
+        self._active_matches = []
+        self._active_criteria = {}
+        self._apply_view(RectificationView.CRITERIA)
         self._update_defined_position_styles()
 
     def _show_criteria_panel(self) -> None:
-        self.view_stack.setCurrentWidget(self.criteria_panel)
+        self._apply_view(RectificationView.CRITERIA)
         self.submit_button.setFocus()
+
+    def _show_refinement_panel(self) -> None:
+        if not self._active_matches:
+            return
+        self._apply_view(RectificationView.REFINEMENT)
+        self.submit_button.setFocus()
+
+    def _apply_view(self, view: RectificationView) -> None:
+        previous_view = self._view
+        if view is RectificationView.REFINEMENT:
+            self._ensure_refinement_angle_widgets()
+        elif view is RectificationView.CRITERIA:
+            self._remove_refinement_angle_widgets()
+        self._view = view
+        self.view_stack.setCurrentIndex(1 if view is RectificationView.RESULTS else 0)
+        refinement_visible = view is RectificationView.REFINEMENT
+        self.place_edit.setEnabled(not refinement_visible)
+        self.place_edit.setToolTip(
+            "Location is fixed to the current result set during refinement."
+            if refinement_visible
+            else ""
+        )
+        for widget in self._refinement_widgets:
+            widget.setVisible(refinement_visible)
+        self.criteria_panel.setTitle(
+            "Refine Criteria" if refinement_visible else "Criteria Input"
+        )
+        if view is RectificationView.REFINEMENT and previous_view is not view:
+            self._set_step_options(
+                [
+                    ("30 min", 30),
+                    ("15 min", 15),
+                    ("10 min", 10),
+                    ("5 min", 5),
+                    ("1 min", 1),
+                ]
+            )
+        elif view is RectificationView.CRITERIA and any(
+            int(self.step_combo.itemData(index) or 0) < 720
+            for index in range(self.step_combo.count())
+        ):
+            self._set_step_options([("12 hrs", 720), ("1 day", 1440)])
+
+    def _set_step_options(self, options: list[tuple[str, int]]) -> None:
+        self.step_combo.clear()
+        for label, minutes in options:
+            self.step_combo.addItem(label, minutes)
 
     def _criteria(self) -> dict[str, str]:
         criteria: dict[str, str] = {}
@@ -315,8 +448,19 @@ class RetconEngineDialog(QDialog):
                 criteria[body] = sign
         return criteria
 
+    def _house_criteria(self) -> dict[str, int]:
+        if self._view is not RectificationView.REFINEMENT:
+            return {}
+        return {
+            body: int(combo.currentText())
+            for body, combo in self._body_house_combos.items()
+            if combo.currentText() != "Any"
+        }
+
     def _on_submit(self) -> None:
         criteria = self._criteria()
+        refining = self._view is RectificationView.REFINEMENT
+        house_criteria = self._house_criteria()
         if not criteria:
             QMessageBox.information(
                 self,
@@ -326,15 +470,20 @@ class RetconEngineDialog(QDialog):
             return
 
         place = self.place_edit.text().strip() or "Chicago, IL, USA"
-        try:
-            lat, lon, label = geocode_location(place)
-        except LocationLookupError:
-            QMessageBox.warning(
-                self,
-                "Location not found",
-                "Could not geocode that location. Please try a more specific place.",
-            )
-            return
+        if refining and self._active_lat is not None and self._active_lon is not None:
+            lat = self._active_lat
+            lon = self._active_lon
+            label = self._active_location_label or place
+        else:
+            try:
+                lat, lon, label = geocode_location(place)
+            except LocationLookupError:
+                QMessageBox.warning(
+                    self,
+                    "Location not found",
+                    "Could not geocode that location. Please try a more specific place.",
+                )
+                return
 
         if label and label != place:
             self.place_edit.setText(label)
@@ -368,6 +517,21 @@ class RetconEngineDialog(QDialog):
             )
             return
 
+        refinement_windows = None
+        if refining:
+            refinement_windows = []
+            for match in self._active_matches:
+                match_start = match.get("range_start", match.get("datetime"))
+                match_end = match.get("range_end", match_start)
+                if not isinstance(match_start, datetime.datetime) or not isinstance(
+                    match_end, datetime.datetime
+                ):
+                    continue
+                window_start = max(match_start, start_dt)
+                window_end = min(match_end, end_dt)
+                if window_start <= window_end:
+                    refinement_windows.append((window_start, window_end))
+
         step_minutes = int(self.step_combo.currentData() or 720)
         max_results = self.max_results_spin.value()
 
@@ -387,9 +551,9 @@ class RetconEngineDialog(QDialog):
         self.edit_criteria_button.setEnabled(False)
         self.progress_bar.setValue(0)
         self.status_label.setText("Scanning ephemeris in background…")
-        #self.results_output.setPlainText("Search running in background. You can continue using other windows.")
+        # self.results_output.setPlainText("Search running in background. You can continue using other windows.")
         self.results_output.setHtml(self._build_results_html([], is_final=False))
-        self.view_stack.setCurrentIndex(1)
+        self._apply_view(RectificationView.RESULTS)
 
         self._thread = QThread(self)
         self._worker = RetconSearchWorker(
@@ -400,6 +564,8 @@ class RetconEngineDialog(QDialog):
             lon,
             step_minutes,
             max_results,
+            required_houses=house_criteria,
+            candidate_windows=refinement_windows,
         )
         self._worker.moveToThread(self._thread)
         self._thread.started.connect(self._worker.run)
@@ -427,8 +593,14 @@ class RetconEngineDialog(QDialog):
     def _format_match_line(self, idx: int, match: dict[str, object]) -> str:
         match_dt = match["datetime"]
         positions = match["positions"]
-        body_text = ", ".join(f"{body} {_format_longitude(positions[body])}" for body in sorted(positions))
-        return f"{idx:03d}. {match_dt.strftime('%Y-%m-%d %H:%M %Z')} — {body_text}"
+        body_text = ", ".join(
+            f"{body} {_format_longitude(positions[body])}" for body in sorted(positions)
+        )
+        range_end = match.get("range_end")
+        time_text = match_dt.strftime("%Y-%m-%d %H:%M %Z")
+        if isinstance(range_end, datetime.datetime) and range_end > match_dt:
+            time_text = f"{time_text} to {range_end.strftime('%Y-%m-%d %H:%M %Z')}"
+        return f"{idx:03d}. {time_text} — {body_text}"
 
     def _build_results_html(self, matches: list[dict], *, is_final: bool) -> str:
         location_label = self._active_location_label or self.place_edit.text().strip()
@@ -447,14 +619,18 @@ class RetconEngineDialog(QDialog):
             html.escape(location_text),
             html.escape(f"Criteria: {criteria_text}"),
             html.escape(f"Matches: {len(matches)}"),
-            #"",
+            # "",
         ]
         # for idx, match in enumerate(matches, 1):
         #     line = html.escape(self._format_match_line(idx, match))
         #     lines.append(line if is_final else f"<i>{line}</i>")
 
         if is_final and not matches:
-            lines.append(html.escape("No matches found in that range. Try wider dates or fewer constraints."))
+            lines.append(
+                html.escape(
+                    "No matches found in that range. Try wider dates or fewer constraints."
+                )
+            )
 
         return "<br>".join(lines)
 
@@ -462,7 +638,9 @@ class RetconEngineDialog(QDialog):
         self._active_matches.append(match)
         line = self._format_match_line(len(self._active_matches), match)
         self.results_list.addItem(line)
-        self.results_output.setHtml(self._build_results_html(self._active_matches, is_final=False))
+        self.results_output.setHtml(
+            self._build_results_html(self._active_matches, is_final=False)
+        )
         self.create_chart_button.setEnabled(bool(self._active_matches))
 
     def _cleanup_worker(self) -> None:
@@ -475,7 +653,9 @@ class RetconEngineDialog(QDialog):
         self.edit_criteria_button.setEnabled(True)
         self.export_button.setEnabled(bool(self._active_matches))
         self.status_label.setText("Search failed.")
-        QMessageBox.critical(self, "Rectification Engine error", f"Search failed:\n{error_message}")
+        QMessageBox.critical(
+            self, "Rectification Engine error", f"Search failed:\n{error_message}"
+        )
 
     def _on_finished(self, matches: list[dict]) -> None:
         self.submit_button.setEnabled(True)
@@ -500,7 +680,9 @@ class RetconEngineDialog(QDialog):
         self.results_output.setHtml(self._build_results_html(matches, is_final=True))
 
     def _export_payload(self) -> tuple[str, str]:
-        location_label = self._active_location_label or self.place_edit.text().strip() or "Unknown"
+        location_label = (
+            self._active_location_label or self.place_edit.text().strip() or "Unknown"
+        )
         lat = self._active_lat
         lon = self._active_lon
         location_text = (
@@ -515,9 +697,12 @@ class RetconEngineDialog(QDialog):
             )
         else:
             range_text = "Unknown"
-        criteria_text = ", ".join(
-            f"{body} in {sign}" for body, sign in self._active_criteria.items()
-        ) or "None"
+        criteria_text = (
+            ", ".join(
+                f"{body} in {sign}" for body, sign in self._active_criteria.items()
+            )
+            or "None"
+        )
         lines = [
             f"Location: {location_text}",
             f"Date & Time Range: {range_text}",
@@ -563,7 +748,9 @@ class RetconEngineDialog(QDialog):
         if not file_path:
             return
         txt_content, md_content = self._export_payload()
-        use_markdown = "Markdown" in selected_filter or file_path.lower().endswith(".md")
+        use_markdown = "Markdown" in selected_filter or file_path.lower().endswith(
+            ".md"
+        )
         if use_markdown and not file_path.lower().endswith(".md"):
             file_path = f"{file_path}.md"
         if not use_markdown and not file_path.lower().endswith(".txt"):
@@ -571,7 +758,9 @@ class RetconEngineDialog(QDialog):
         payload = md_content if use_markdown else txt_content
         with open(file_path, "w", encoding="utf-8") as export_file:
             export_file.write(payload)
-        QMessageBox.information(self, "Rectification Engine", f"Exported search results to:\n{file_path}")
+        QMessageBox.information(
+            self, "Rectification Engine", f"Exported search results to:\n{file_path}"
+        )
 
     def _open_selected_match(self) -> None:
         row = self.results_list.currentRow()
@@ -580,12 +769,19 @@ class RetconEngineDialog(QDialog):
         match = self._active_matches[row]
         parent = self.parent()
         if parent is None or not hasattr(parent, "open_chart_from_retcon_match"):
-            QMessageBox.warning(self, "Rectification Engine", "Unable to open the Chart Editor.")
+            QMessageBox.warning(
+                self, "Rectification Engine", "Unable to open the Chart Editor."
+            )
             return
-        location_label = self._active_location_label or self.place_edit.text().strip() or "Chicago, IL, USA"
+        location_label = (
+            self._active_location_label
+            or self.place_edit.text().strip()
+            or "Chicago, IL, USA"
+        )
         lat = self._active_lat
         lon = self._active_lon
         parent.open_chart_from_retcon_match(match, location_label, lat, lon)
+
 
 class FamiliarityCalculatorDialog(QDialog):
     def __init__(self, selected_labels: list[str], parent: QWidget | None = None):
@@ -650,4 +846,6 @@ class FamiliarityCalculatorDialog(QDialog):
 
     def calculated_score(self) -> int:
         max_total = max(1, max_familiarity_score(FAMILIARITY_INDEX))
-        return max(1, min(10, round(normalized_familiarity_score(self.selected_total()))))
+        return max(
+            1, min(10, round(normalized_familiarity_score(self.selected_total())))
+        )

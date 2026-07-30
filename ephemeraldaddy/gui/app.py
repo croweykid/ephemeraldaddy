@@ -34764,12 +34764,26 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             self.name_edit.setText(f"Rectified Candidate {match_dt.strftime('%Y-%m-%d %H:%M')}")
 
         self._set_birth_date_fields_from_qdate(QDate(match_dt.year, match_dt.month, match_dt.day))
+        range_start = match.get("range_start", match_dt)
+        range_end = match.get("range_end", match_dt + datetime.timedelta(minutes=1))
+        if not isinstance(range_start, datetime.datetime):
+            range_start = match_dt
+        if not isinstance(range_end, datetime.datetime) or range_end <= range_start:
+            range_end = range_start + datetime.timedelta(minutes=1)
+        # Chart Editor's range inputs describe one civil day. A coarse result
+        # that reaches the following day is capped at the selected date's end.
+        if range_end.date() != range_start.date():
+            range_end = range_start.replace(hour=23, minute=59)
+
         self.time_edit.setTime(QTime(match_dt.hour, match_dt.minute))
         self.retcon_time_edit.setTime(QTime(match_dt.hour, match_dt.minute))
-        self.time_unknown_checkbox.setChecked(False)
-        self.retcon_time_checkbox.setChecked(True)
-        self._birth_time_user_overridden = True
-        self._retcon_time_user_overridden = True
+        self.time_unknown_checkbox.setChecked(True)
+        self.retcon_time_checkbox.setChecked(False)
+        self.rectification_range_start_edit.setTime(QTime(range_start.hour, range_start.minute))
+        self.rectification_range_end_edit.setTime(QTime(range_end.hour, range_end.minute))
+        self.rectification_range_checkbox.setChecked(True)
+        self._birth_time_user_overridden = False
+        self._retcon_time_user_overridden = False
         self._update_time_input_text_colors()
 
         self.on_generate()
