@@ -91,30 +91,33 @@ class MetadataMigrationWorker(QObject):
     def __init__(
         self,
         *,
-        chart_ids: list[int],
+        chart_uids: list[str],
         action: str,
-        load_chart_by_id: Callable[[int], Any],
-        update_chart_by_id: Callable[[int, Any], None],
+        load_chart_by_uid: Callable[[str], Any],
+        update_nonastral_by_uid: Callable[[str, dict[str, Any]], None],
+        update_astro_by_uid: Callable[[str, Any], None],
         lookup_biography_by_name: Callable[[str], str] | None = None,
         lookup_location_label: Callable[[str], str | None] | None = None,
         random_delay_seconds_range: tuple[int, int] | None = None,
     ) -> None:
         super().__init__()
-        self._chart_ids = list(chart_ids)
+        self._chart_uids = list(chart_uids)
         self._action = action
-        self._load_chart_by_id = load_chart_by_id
-        self._update_chart_by_id = update_chart_by_id
+        self._load_chart_by_uid = load_chart_by_uid
+        self._update_nonastral_by_uid = update_nonastral_by_uid
+        self._update_astro_by_uid = update_astro_by_uid
         self._lookup_biography_by_name = lookup_biography_by_name
         self._lookup_location_label = lookup_location_label
         self._random_delay_seconds_range = random_delay_seconds_range
 
     def run(self) -> None:
         try:
-            outcome, changed_ids = run_metadata_migration(
-                chart_ids=self._chart_ids,
+            outcome, changed_uids = run_metadata_migration(
+                chart_uids=self._chart_uids,
                 action=self._action,
-                load_chart_by_id=self._load_chart_by_id,
-                update_chart_by_id=self._update_chart_by_id,
+                load_chart_by_uid=self._load_chart_by_uid,
+                update_nonastral_by_uid=self._update_nonastral_by_uid,
+                update_astro_by_uid=self._update_astro_by_uid,
                 lookup_biography_by_name=self._lookup_biography_by_name,
                 lookup_location_label=self._lookup_location_label,
                 random_delay_seconds_range=self._random_delay_seconds_range,
@@ -122,16 +125,17 @@ class MetadataMigrationWorker(QObject):
         except Exception as exc:
             self.failed.emit(str(exc))
             return
-        self.finished.emit(outcome, changed_ids)
+        self.finished.emit(outcome, changed_uids)
 
 
 def launch_metadata_migration_worker(
     *,
-    chart_ids: list[int],
+    chart_uids: list[str],
     action: str,
-    load_chart_by_id: Callable[[int], Any],
-    update_chart_by_id: Callable[[int, Any], None],
-    on_finished: Callable[[MetadataMigrationOutcome, set[int]], None],
+    load_chart_by_uid: Callable[[str], Any],
+    update_nonastral_by_uid: Callable[[str, dict[str, Any]], None],
+    update_astro_by_uid: Callable[[str, Any], None],
+    on_finished: Callable[[MetadataMigrationOutcome, set[str]], None],
     on_failed: Callable[[str], None],
     lookup_biography_by_name: Callable[[str], str] | None = None,
     lookup_location_label: Callable[[str], str | None] | None = None,
@@ -139,10 +143,11 @@ def launch_metadata_migration_worker(
 ) -> QThread:
     thread = QThread()
     worker = MetadataMigrationWorker(
-        chart_ids=chart_ids,
+        chart_uids=chart_uids,
         action=action,
-        load_chart_by_id=load_chart_by_id,
-        update_chart_by_id=update_chart_by_id,
+        load_chart_by_uid=load_chart_by_uid,
+        update_nonastral_by_uid=update_nonastral_by_uid,
+        update_astro_by_uid=update_astro_by_uid,
         lookup_biography_by_name=lookup_biography_by_name,
         lookup_location_label=lookup_location_label,
         random_delay_seconds_range=random_delay_seconds_range,
@@ -150,8 +155,8 @@ def launch_metadata_migration_worker(
     worker.moveToThread(thread)
     thread.started.connect(worker.run)
 
-    def _handle_finished(outcome: object, changed_ids: object) -> None:
-        on_finished(outcome, changed_ids)
+    def _handle_finished(outcome: object, changed_uids: object) -> None:
+        on_finished(outcome, changed_uids)
         thread.quit()
 
     def _handle_failed(message: str) -> None:
@@ -234,11 +239,11 @@ def import_biography_from_lookup(
     *,
     lookup_biography_by_name: Callable[[str], str],
 ) -> bool:
+    chart_name = str(getattr(chart, "name", "") or "").strip()
+    biography_text = lookup_biography_by_name(chart_name)
     existing_biography = str(getattr(chart, "biography", "") or getattr(chart, "bio", "") or "").strip()
     if biography_text.strip() == existing_biography:
         return False
-    chart_name = str(getattr(chart, "name", "") or "").strip()
-    biography_text = lookup_biography_by_name(chart_name)
     if hasattr(chart, "biography"):
         chart.biography = biography_text
     if hasattr(chart, "bio"):
@@ -398,24 +403,23 @@ def cleanup_birthplace_text(
 
 def run_metadata_migration(
     *,
-    chart_ids: list[int],
+    chart_uids: list[str],
     action: str,
-    load_chart_by_id: Callable[[int], Any],
-    update_chart_by_id: Callable[[int, Any], None],
+    load_chart_by_uid: Callable[[str], Any],
+    update_nonastral_by_uid: Callable[[str, dict[str, Any]], None],
+    update_astro_by_uid: Callable[[str, Any], None],
     lookup_biography_by_name: Callable[[str], str] | None = None,
     lookup_location_label: Callable[[str], str | None] | None = None,
     random_delay_seconds_range: tuple[int, int] | None = None,
-) -> tuple[MetadataMigrationOutcome, set[int]]:
-    # Legacy integer chart IDs are accepted here only because this worker is
-    # driven by selected SQLite rows. New metadata associations should resolve
-    # and persist chart_uid before crossing feature boundaries.
-    changed_chart_ids: set[int] = set()
+) -> tuple[MetadataMigrationOutcome, set[str]]:
+    """Run cleanup with narrow metadata writes or the astro recalculation path."""
+    changed_chart_uids: set[str] = set()
     changed_unit_count = 0
     error_count = 0
 
-    for chart_id in chart_ids:
+    for chart_uid in chart_uids:
         try:
-            chart = load_chart_by_id(int(chart_id))
+            chart = load_chart_by_uid(chart_uid)
             if chart is None:
                 error_count += 1
                 continue
@@ -423,15 +427,18 @@ def run_metadata_migration(
                 if not move_alias_to_from_whence(chart):
                     continue
                 changed_unit_count += 1
+                patch = {"alias": chart.alias, "from_whence": chart.from_whence}
             elif action == ACTION_COMMENTS_TO_SOURCE:
                 moved_url_count = migrate_comment_urls_to_source(chart)
                 if moved_url_count <= 0:
                     continue
                 changed_unit_count += moved_url_count
+                patch = {"comments": chart.comments, "chart_data_source": chart.chart_data_source}
             elif action == ACTION_CLEAN_BIOGRAPHY:
                 if not cleanup_biography_text(chart):
                     continue
                 changed_unit_count += 1
+                patch = {"biography": chart.biography}
             elif action == ACTION_GET_BIO:
                 if lookup_biography_by_name is None:
                     raise ValueError("lookup_biography_by_name callback is required for get_bio action")
@@ -441,6 +448,7 @@ def run_metadata_migration(
                 ):
                     continue
                 changed_unit_count += 1
+                patch = {"biography": chart.biography}
             elif action == ACTION_CLEAN_BIRTHPLACE:
                 if not cleanup_birthplace_text(
                     chart,
@@ -448,17 +456,21 @@ def run_metadata_migration(
                 ):
                     continue
                 changed_unit_count += 1
+                patch = None
             else:
                 raise ValueError(f"Unsupported metadata migration action: {action}")
 
-            update_chart_by_id(int(chart_id), chart)
-            changed_chart_ids.add(int(chart_id))
+            if action == ACTION_CLEAN_BIRTHPLACE:
+                update_astro_by_uid(chart_uid, chart)
+            else:
+                update_nonastral_by_uid(chart_uid, patch)
+            changed_chart_uids.add(chart_uid)
         except Exception:
             error_count += 1
         if (
             action == ACTION_GET_BIO
             and random_delay_seconds_range is not None
-            and chart_id != chart_ids[-1]
+            and chart_uid != chart_uids[-1]
         ):
             minimum_delay, maximum_delay = random_delay_seconds_range
             lower_bound = max(0, min(int(minimum_delay), int(maximum_delay)))
@@ -466,9 +478,9 @@ def run_metadata_migration(
             time.sleep(random.randint(lower_bound, upper_bound))
 
     outcome = MetadataMigrationOutcome(
-        selected_count=len(chart_ids),
-        updated_chart_count=len(changed_chart_ids),
+        selected_count=len(chart_uids),
+        updated_chart_count=len(changed_chart_uids),
         changed_unit_count=changed_unit_count,
         error_count=error_count,
     )
-    return outcome, changed_chart_ids
+    return outcome, changed_chart_uids
