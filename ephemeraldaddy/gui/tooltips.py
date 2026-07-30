@@ -310,7 +310,7 @@ EXACT_TEXT_TOOLTIP_OVERRIDES: dict[str, str] = {
     "nemesis": "big problem",
     "kin by marriage": "married into fam",
     "kin by blood": "ancestors, cousins & siblings",
-    "business": "colleague, known through business in some way",
+    "colleague": "known through business or school in some way",
     "authority": "in power; your fate is somehow in their hands",
     "acquaintance": "just seem em around, kinda know about them a little",
     "friend of family": "(they're just around)",

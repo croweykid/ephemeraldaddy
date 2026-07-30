@@ -4325,7 +4325,7 @@ RELATION_TYPE = [
     "nemesis", #big problem
     "kin by marriage", #married into fam
     "kin by blood", #ancestors, cousins & siblings
-    "business", #work with
+    "colleague", #work with
     "authority", #power dynamic
     "acquaintance", #just seem em around, kinda know about them a little
     "friend of family", #(they're just around)
