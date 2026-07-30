@@ -13025,26 +13025,16 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
     def _on_import_astrotheme_from_search_panel(self) -> None:
         raw_query = self.astrotheme_search_input.text().strip()
+        debug_id = _new_debug_action_id("astrotheme_import")
         if not raw_query:
             QMessageBox.information(self, "Astrotheme import", "Enter a name or Astrotheme profile URL.")
             return
+        logger.info("Astrotheme import started (id=%s query=%r).", debug_id, raw_query)
 
         parent = self._owner_window()
         if parent is None or not hasattr(parent, "_confirm_discard_or_save"):
             QMessageBox.warning(self, "Astrotheme import", "Unable to open chart editor.")
             return
-
-        # _manage_charts_dialog is initialized at the start of MainWindow.__init__
-        # so Database View can now exist before Chart View's editors do.  Defer
-        # the import rather than resetting that partially constructed form.
-        if not getattr(parent, "_chart_view_form_ready", False):
-            self._pending_astrotheme_import = True
-            logger.info("Astrotheme import deferred until Chart View setup completes (query=%r).", raw_query)
-            return
-
-        self._pending_astrotheme_import = False
-        debug_id = _new_debug_action_id("astrotheme_import")
-        logger.info("Astrotheme import started (id=%s query=%r).", debug_id, raw_query)
 
         if not parent._confirm_discard_or_save():
             return
@@ -24581,12 +24571,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
     def __init__(self):
         super().__init__()
 
-        # The database view is opened immediately during startup.  Establish
-        # its lazy dialog slot before any widget setup can process events or
-        # invoke the startup callback.
-        self._manage_charts_dialog = None
-        self._chart_view_form_ready = False
-
         self.setWindowFlag(Qt.Window, True)
         self.setWindowFlag(Qt.WindowSystemMenuHint, True)
         self.setWindowFlag(Qt.WindowMinMaxButtonsHint, True)
@@ -25290,54 +25274,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._update_time_input_visibility()
         self._update_time_input_text_colors()
 
-    def _update_observations_relationship_subheaders(self, _text: str = "") -> None:
-        """Keep Chart View's contextual subheader copy aligned with the chart name."""
-        chart_name = self.name_edit.text().strip() or "this entity"
-        self.sentiment_types_subheader.setText(
-            "Your present (and/or historic) feelings about "
-            f"{chart_name}."
-        )
-        self.relationship_types_subheader.setText(
-            "Your present and/or historic relationship to "
-            f"{chart_name}."
-        )
-        person_name = self.name_edit.text().strip() or "this person"
-        prediction_name = self.name_edit.text().strip()
-        traits_subject = f"{prediction_name}'s" if prediction_name else "This chart's"
-        prediction_subject = prediction_name or "this chart"
-        contextual_copy = {
-            "traits_prediction_subheader": (
-                f"{traits_subject} predicted traits based on astrological data."
-            ),
-            "dnd_species_prediction_subheader": (
-                f"What fantasy creature {prediction_subject} would be, astrologically speaking, "
-                "based on the app developer's highly subjective interpretation."
-            ),
-            "dnd_class_prediction_subheader": (
-                f"What fantasy character type {prediction_subject} would be, astrologically "
-                "speaking, based on the app developer's highly subjective interpretation."
-            ),
-            "personal_relevance_subheader": (
-                f'"Sentiment Intensity" is how you feel about {person_name}, as a range from '
-                'best moments to worst. "Familiarity" is how confident you are that you know '
-                'them well enough to have an opinion on that. "1st encounter" refers to the '
-                f"year in which you first met {person_name}."
-            ),
-            "perceived_alignment_subheader": (
-                "How ruthlessly self-interested vs genuinely considerate you've observed "
-                f"(or suspect) {person_name} to be."
-            ),
-            "reminds_me_of_subheader": (
-                f"If {person_name} reminds you of someone else in the database, you can make "
-                "note of that here. May or may not be relevant. But in future app updates, "
-                "we will examine to see if there's any astrological correlation."
-            ),
-        }
-        for attribute_name, copy in contextual_copy.items():
-            label = getattr(self, attribute_name, None)
-            if label is not None:
-                label.setText(copy)
-
 #Most of Chart View's righthand Chart Analytics panel is defined here; but it should all be consolidated into its own separate cv_chart_analytics.py file for better organization ASAP. Some of it is scattered elsewhere in the file directory, as well. Needs to all get bundled in one place & app.py is NOT the place for it...
         # Sentiment selection panel (checkbox grid).
         self.sentiment_checkboxes = {}
@@ -26017,6 +25953,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.planet_dynamics_summary_label = None
         self.chart_type_label = None
         self._update_chart_ruler_footer(None)
+        self._manage_charts_dialog = None
         self._handle_database_health()
         self._configure_main_splitter()
         self._restore_window_settings()
@@ -26025,13 +25962,54 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         apply_default_text_tooltips(self)
         self._suppress_lucygoosey = False
         self._set_lucygoosey(False)
-        self._chart_view_form_ready = True
 
-        manage_charts_dialog = self._manage_charts_dialog
-        if manage_charts_dialog is not None and getattr(
-            manage_charts_dialog, "_pending_astrotheme_import", False
-        ):
-            QTimer.singleShot(0, manage_charts_dialog._on_import_astrotheme_from_search_panel)
+    def _update_observations_relationship_subheaders(self, _text: str = "") -> None:
+        """Keep Chart View's contextual subheader copy aligned with the chart name."""
+        chart_name = self.name_edit.text().strip() or "this entity"
+        self.sentiment_types_subheader.setText(
+            "Your present (and/or historic) feelings about "
+            f"{chart_name}."
+        )
+        self.relationship_types_subheader.setText(
+            "Your present and/or historic relationship to "
+            f"{chart_name}."
+        )
+        person_name = self.name_edit.text().strip() or "this person"
+        prediction_name = self.name_edit.text().strip()
+        traits_subject = f"{prediction_name}'s" if prediction_name else "This chart's"
+        prediction_subject = prediction_name or "this chart"
+        contextual_copy = {
+            "traits_prediction_subheader": (
+                f"{traits_subject} predicted traits based on astrological data."
+            ),
+            "dnd_species_prediction_subheader": (
+                f"What fantasy creature {prediction_subject} would be, astrologically speaking, "
+                "based on the app developer's highly subjective interpretation."
+            ),
+            "dnd_class_prediction_subheader": (
+                f"What fantasy character type {prediction_subject} would be, astrologically "
+                "speaking, based on the app developer's highly subjective interpretation."
+            ),
+            "personal_relevance_subheader": (
+                f'"Sentiment Intensity" is how you feel about {person_name}, as a range from '
+                'best moments to worst. "Familiarity" is how confident you are that you know '
+                'them well enough to have an opinion on that. "1st encounter" refers to the '
+                f"year in which you first met {person_name}."
+            ),
+            "perceived_alignment_subheader": (
+                "How ruthlessly self-interested vs genuinely considerate you've observed "
+                f"(or suspect) {person_name} to be."
+            ),
+            "reminds_me_of_subheader": (
+                f"If {person_name} reminds you of someone else in the database, you can make "
+                "note of that here. May or may not be relevant. But in future app updates, "
+                "we will examine to see if there's any astrological correlation."
+            ),
+        }
+        for attribute_name, copy in contextual_copy.items():
+            label = getattr(self, attribute_name, None)
+            if label is not None:
+                label.setText(copy)
 
     def _decrease_chart_view_label_font_sizes(self) -> None:
         for label in self.findChildren(QLabel):
