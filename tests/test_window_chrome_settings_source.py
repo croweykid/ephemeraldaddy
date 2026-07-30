@@ -2,6 +2,7 @@ from pathlib import Path
 
 
 SOURCE_PATH = Path("ephemeraldaddy/gui/window_chrome.py")
+APP_SOURCE_PATH = Path("ephemeraldaddy/gui/app.py")
 
 
 def test_ephemeral_daddy_menu_has_settings_in_both_window_chrome_builders():
@@ -13,30 +14,31 @@ def test_ephemeral_daddy_menu_has_settings_in_both_window_chrome_builders():
     manage_source = source[manage_start:]
 
     assert 'app_menu = menu_bar.addMenu(APP_DISPLAY_NAME)' in main_source
-    assert '_add_settings_action(app_menu, window)' in main_source
+    assert '_bind_menu_callback(app_menu, "Settings", commands.open_settings)' in main_source
     assert 'app_menu = menu_bar.addMenu(APP_DISPLAY_NAME)' in manage_source
-    assert '_add_settings_action(app_menu, dialog)' in manage_source
+    assert '_bind_menu_callback(app_menu, "Settings", commands.open_settings)' in manage_source
 
 
-def test_settings_menu_action_can_resolve_database_view_owner_handlers():
+def test_shared_commands_do_not_resolve_handlers_from_window_attributes():
     source = SOURCE_PATH.read_text()
-    resolver_start = source.index("def _resolve_menu_handler")
-    binder_start = source.index("def _keep_action_in_window_menu", resolver_start)
-    resolver_source = source[resolver_start:binder_start]
+    commands_start = source.index("class WindowChromeCommands")
+    commands_end = source.index("def _show_about_close_sparkles", commands_start)
+    commands_source = source[commands_start:commands_end]
 
-    assert 'getattr(window, "_app_owner", None)' in resolver_source
-    assert 'getattr(window, "_owner_window", None)' in resolver_source
-    assert '"_on_open_settings", "on_open_settings"' in source
+    assert "open_settings: Callable[[], None]" in commands_source
+    assert "open_rectification_engine: Callable[[], None]" in commands_source
+    assert "getattr" not in commands_source
+    assert "_open_settings_from_window" not in source
 
 
 def test_settings_is_direct_action_not_preferences_submenu():
     source = SOURCE_PATH.read_text()
-    helper_start = source.index("def _add_settings_action")
+    helper_start = source.index("def _bind_menu_callback")
     helper_end = source.index("def _configure_menu_bar_visibility", helper_start)
     helper_source = source[helper_start:helper_end]
 
-    assert 'QAction("Settings", app_menu)' in helper_source
-    assert "_open_settings_from_window(owner)" in helper_source
+    assert "QAction(label, menu)" in helper_source
+    assert "action.triggered.connect(callback)" in helper_source
     assert 'addMenu("Preferences")' not in source
 
 
@@ -65,7 +67,7 @@ def test_window_chrome_actions_disable_qt_macos_menu_relocation_roles():
 def test_settings_action_disables_menu_role_before_insertion():
     source = SOURCE_PATH.read_text()
     bind_start = source.index("def _bind_menu_action")
-    bind_end = source.index("def _add_settings_action", bind_start)
+    bind_end = source.index("def _bind_menu_callback", bind_start)
     bind_source = source[bind_start:bind_end]
 
     assert "QAction(label, menu)" in bind_source
@@ -86,15 +88,15 @@ def test_sign_degrees_reference_circle_lives_in_help_menus():
     assert 'tools_menu, "🔘 Sign Degrees Reference Circle"' not in manage_source
 
 
-def test_chart_editor_rectification_engine_accepts_its_public_handler_name():
+def test_both_rectification_actions_use_the_explicit_command():
     source = SOURCE_PATH.read_text()
     main_start = source.index("def configure_main_window_chrome")
     manage_start = source.index("def configure_manage_dialog_chrome")
     main_source = source[main_start:manage_start]
+    manage_source = source[manage_start:]
 
-    rectification_binding = main_source[main_source.index('"🕗 Rectification Engine"'):]
-    assert '"_on_retcon_engine"' in rectification_binding
-    assert '"on_retcon_engine"' in rectification_binding
+    assert "commands.open_rectification_engine" in main_source
+    assert "commands.open_rectification_engine" in manage_source
 
 
 def test_chart_editor_help_about_uses_the_chart_editor_window():
@@ -107,12 +109,11 @@ def test_chart_editor_help_about_uses_the_chart_editor_window():
     assert '"_show_about_from_onboarding(dialog)"' not in main_source
 
 
-def test_chart_editor_settings_lazily_resolves_the_database_view_handler():
-    source = SOURCE_PATH.read_text()
-    helper_start = source.index("def _open_settings_from_window")
-    helper_end = source.index("def _configure_menu_bar_visibility", helper_start)
-    helper_source = source[helper_start:helper_end]
+def test_top_level_windows_supply_explicit_chrome_commands():
+    source = APP_SOURCE_PATH.read_text()
 
-    assert 'getattr(owner, "_get_or_create_manage_charts_dialog", None)' in helper_source
-    assert "database_view = get_database_view()" in helper_source
-    assert '"_on_open_settings"' in helper_source
+    assert "open_settings=self.open_settings" in source
+    assert "open_rectification_engine=self._on_retcon_engine" in source
+    assert "open_settings=self._open_settings_from_chart_editor" in source
+    assert "open_rectification_engine=self.on_retcon_engine" in source
+    assert "self._get_or_create_manage_charts_dialog().open_settings()" in source

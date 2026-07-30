@@ -615,6 +615,7 @@ from ephemeraldaddy.gui.property_manager import PropertyManagerCoordinator
 from ephemeraldaddy.gui.tooltips import apply_default_text_tooltips, install_app_tooltip_style
 from ephemeraldaddy.gui.window_chrome import (
     APP_DISPLAY_NAME,
+    WindowChromeCommands,
     configure_application_identity,
     configure_main_window_chrome,
     configure_manage_dialog_chrome,
@@ -2710,7 +2711,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         # retaining a small visual separation between the two rows.
         layout.setContentsMargins(0, 4, 0, 0)
         self.setLayout(layout)
-        configure_manage_dialog_chrome(self, layout)
+        configure_manage_dialog_chrome(self, layout, self._window_chrome_commands())
 
         self.todays_transits_panel_button = QPushButton("🌍") #Transit View
         self.todays_transits_panel_button.setObjectName("manage_toggle_transits_panel_button")
@@ -7042,6 +7043,13 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         if owner is not None:
             return owner
         return self.parent()
+
+    def _window_chrome_commands(self) -> WindowChromeCommands:
+        """Return Database View's explicit app-menu command boundary."""
+        return WindowChromeCommands(
+            open_settings=self.open_settings,
+            open_rectification_engine=self._on_retcon_engine,
+        )
 
     def __getattr__(self, name: str):
         if name == "_prediction_norm_metric_payloads":
@@ -21693,6 +21701,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         return dialog
 
     def _on_open_settings(self) -> None:
+        self.open_settings()
+
+    def open_settings(self) -> None:
+        """Open app Settings through Database View's current presenter."""
         dialog = self._ensure_settings_dialog()
         self._similarities_algorithm_settings_open_snapshot = self._current_similarity_algorithm_snapshot()
         dialog.show()
@@ -23893,10 +23905,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
     def _refresh_human_design_menu_visibility(self) -> None:
         layout = self.layout()
         if isinstance(layout, QVBoxLayout):
-            configure_manage_dialog_chrome(self, layout)
+            configure_manage_dialog_chrome(self, layout, self._window_chrome_commands())
         parent = self._owner_window()
         if isinstance(parent, MainWindow):
-            configure_main_window_chrome(parent)
+            configure_main_window_chrome(parent, parent._window_chrome_commands())
 
     def _set_popout_visibility(self, key: str, checked: bool) -> None:
         self._visibility.set(key, checked)
@@ -24729,6 +24741,17 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 class MainWindow(AspectPopoutMixin, QMainWindow):
     _update_sentiment_tally = ManageChartsDialog._update_sentiment_tally
 
+    def _window_chrome_commands(self) -> WindowChromeCommands:
+        """Return Chart Editor's explicit app-menu command boundary."""
+        return WindowChromeCommands(
+            open_settings=self._open_settings_from_chart_editor,
+            open_rectification_engine=self.on_retcon_engine,
+        )
+
+    def _open_settings_from_chart_editor(self) -> None:
+        """Route shared Settings until appwide window coordination owns it."""
+        self._get_or_create_manage_charts_dialog().open_settings()
+
     def __init__(self):
         super().__init__()
         # Install Chart View feature callbacks before any input widgets connect
@@ -24878,7 +24901,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         _set_enneagram_scoring_options(self._enneagram_scoring_options)
         _set_prediction_scoring_options(self._enneagram_scoring_options)
         set_lilith_calculation_mode(self._lilith_calculation_method)
-        configure_main_window_chrome(self)
+        configure_main_window_chrome(self, self._window_chrome_commands())
         self._feature_hub = FeatureEventHub()
         self._allow_app_exit_close = False
         self._applying_window_placement = False
