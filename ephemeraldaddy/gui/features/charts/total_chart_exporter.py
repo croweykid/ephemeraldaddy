@@ -378,7 +378,7 @@ def build_total_chart_similar_charts_section(
         similarity_settings=similarity_settings,
     )
     if markdown:
-        lines = ["# Similar Charts", "", "## 25 Most Similar", ""]
+        lines = ["# Astro Twin Calculator", "", "## 25 Most Similar", ""]
         lines.extend(_format_similar_chart_rows(most_rows, markdown=True))
         lines.extend(["", "## 25 Least Similar", ""])
         lines.extend(_format_similar_chart_rows(least_rows, markdown=True))
@@ -471,11 +471,11 @@ def build_total_chart_similar_charts_section_for_chart(
             similarity_settings=similarity_settings,
         )
     except Exception as exc:
-        heading = "# Astro Twins" if markdown else "ASTRO TWINS\n=============="
+        heading = "# Astro Twin" if markdown else "ASTRO TWIN\n=============="
         subheading = "## Chart Similarities Scoring Method" if markdown else "Chart Similarities Scoring Method"
         return (
             f"{heading}\n\n"
-            f"Astro Twins unavailable: {exc}\n\n"
+            f"Astro Twin unavailable: {exc}\n\n"
             f"{subheading}\n\n"
             f"Current Settings > Astro Twin Calculator scoring system: "
             f"{normalized_algorithm_mode.replace('_', ' ').title()}."

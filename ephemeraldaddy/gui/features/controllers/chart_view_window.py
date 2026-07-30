@@ -2757,16 +2757,16 @@ def _create_chart_analysis_sections(self, panel: QWidget) -> None:
 
 def _similar_charts_section_title(self) -> str:
     if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_GENERIC_ASTRO:
-        return "Astro Twin Finder ('generic astro' mode)"
+        return "Astro Twin Calculator ('generic astro' mode)"
     if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
-        return "Astro Twin Finder ('comprehensive' mode)"
+        return "Astro Twin Calculator ('comprehensive' mode)"
     if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING:
-        return "Astro Twin Finder ('all or nothing' mode)"
+        return "Astro Twin Calculator ('all or nothing' mode)"
     if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_BIG_3:
-        return "Similar Charts ('Big 3' mode)"
+        return "Astro Twin Calculator ('Big 3' mode)"
     if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_CUSTOM:
-        return "Astro Twin Finder ('custom' mode)"
-    return "Astro Twin Finder"
+        return "Astro Twin Calculator ('custom' mode)"
+    return "Astro Twin Calculator"
 
 def _refresh_similar_charts_section_title(self) -> None:
     section_widget = self._chart_analysis_section_widgets.get("similar_charts")

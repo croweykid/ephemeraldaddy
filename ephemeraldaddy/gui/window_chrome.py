@@ -55,7 +55,7 @@ def _resolve_current_chart_name(window: "QWidget") -> str:
 
 def update_main_window_title(window: "QMainWindow") -> None:
     chart_name = _resolve_current_chart_name(window)
-    window.setWindowTitle(f"{APP_DISPLAY_NAME} | Natal Chart of {chart_name}")
+    window.setWindowTitle(f"{APP_DISPLAY_NAME} | Chart Editor — {chart_name}")
 
 
 def _resolve_menu_handler(window: "QWidget", *handler_names: str) -> Callable[..., Any] | None:

@@ -2301,7 +2301,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         # MainWindow without forcing window-manager stacking/taskbar ownership.
         super().__init__(None)
         self._app_owner = parent
-        self.setWindowTitle("Ephemeral Daddy: Astro App | Charts Manager")
+        self.setWindowTitle("Ephemeral Daddy | Database View")
         self.setStyleSheet("QDialog { background-color: #000000; }")
         self.setWindowFlag(Qt.Window, True) #this makes the window come to the foreground
         self.setWindowFlag(Qt.WindowSystemMenuHint, True)
@@ -2767,7 +2767,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
         self.total_chart_export_button = QPushButton("Export chart analysis")
         self.total_chart_export_button.setObjectName("database_view_middle_total_chart_export_button")
-        self.total_chart_export_button.setToolTip("Export the selected chart's full Chart View, analytics, predictions, Human Design, and BaZi text")
+        self.total_chart_export_button.setToolTip("Export the selected chart's full Chart Editor, analytics, predictions, Human Design, and BaZi text")
 
         self.batch_export_selection_button = QPushButton("Export Selection to CSV")
         self.batch_export_selection_button.setObjectName("database_view_middle_export_selection_button")
@@ -16050,7 +16050,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 "New chart",
                 self._on_new_chart,
                 keywords=("create chart", "add chart", "birth data"),
-                subtitle="Switch to Chart View and start a new chart",
+                subtitle="Switch to Chart Editor and start a new chart",
             ),
             CommandPaletteAction(
                 "Open Human Design",
@@ -21847,7 +21847,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             "Show/Hide Modules",
         )
 
-        visibility_section.addWidget(self._build_settings_subheader_label("Chart Data (Chart View)"))
+        visibility_section.addWidget(self._build_settings_subheader_label("Chart Data (Chart Editor)"))
 
         cursedness_checkbox = QCheckBox("Show cursedness analysis")
         cursedness_checkbox.setChecked(self._visibility.get("chart_data.cursedness"))
@@ -21877,7 +21877,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
         visibility_section.addSpacing(8)
 
-        visibility_section.addWidget(self._build_settings_subheader_label("Chart Analytics (Chart View)"))
+        visibility_section.addWidget(self._build_settings_subheader_label("Chart Analytics (Chart Editor)"))
 
         planet_dynamics_checkbox = QCheckBox("Show Body Dynamics (Chart Analytics)")
         parent = self._owner_window()
@@ -21894,7 +21894,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         visibility_section.addWidget(planet_dynamics_checkbox)
 
         visibility_section.addSpacing(8)
-        visibility_section.addWidget(self._build_settings_subheader_label("Chart View"))
+        visibility_section.addWidget(self._build_settings_subheader_label("Chart Editor"))
 
         sexiness_checkbox = QCheckBox("Show Sexiness (Observations)")
         sexiness_checkbox.setChecked(self._visibility.get("chart_view.sexiness"))
@@ -22190,7 +22190,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             bool(getattr(self, "_similar_predictions_default_zero_for_unassigned_alignment", True))
         )
         predictions_default_zero_checkbox.setToolTip(
-            "When enabled, unassigned alignment values are treated as 0 in Similar Charts > Predictions."
+            "When enabled, unassigned alignment values are treated as 0 in Astro Twin Calculator > Predictions."
         )
         predictions_default_zero_checkbox.toggled.connect(self._on_predictions_default_zero_toggled)
         dev_tools_section.addWidget(predictions_default_zero_checkbox)
@@ -22265,10 +22265,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             on_toggled=self._on_distinguishing_factors_scoring_debug_toggled,
         )
 
-        refresh_similar_charts_cache_button = QPushButton("Refresh Similar Charts cache")
+        refresh_similar_charts_cache_button = QPushButton("Refresh Astro Twin Calculator cache")
         refresh_similar_charts_cache_button.setToolTip(
-            "Clears cached Similar Charts popout rankings, including developer perceived-accuracy "
-            "predicted scores. The next Similar Charts popout you open will recalculate on demand."
+            "Clears cached Astro Twin Calculator rankings, including developer perceived-accuracy "
+            "predicted scores. The next Astro Twin window you open will recalculate on demand."
         )
         refresh_similar_charts_cache_button.clicked.connect(
             self._on_refresh_similar_charts_popout_cache_requested
@@ -23037,12 +23037,12 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             cleared_count += parent._clear_similar_charts_popout_cache()
         QMessageBox.information(
             self,
-            "Astro Twin cache",
+            "Astro Twin Calculator cache",
             (
-                "Cleared cached Astro Twins rankings. "
-                "The next Similar Charts popout will recalculate on demand."
+                "Cleared cached Astro Twin rankings. "
+                "The next Astro Twin window will recalculate on demand."
                 if cleared_count
-                else "Astro Twin cache was already empty."
+                else "Astro Twin Calculator cache was already empty."
             ),
         )
 
@@ -23065,7 +23065,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             return False
         parent = self._owner_window()
         if parent is None or not hasattr(parent, "load_chart_by_uid"):
-            QMessageBox.warning(self, "Open chart", "Unable to open that chart in Chart View.")
+            QMessageBox.warning(self, "Open chart", "Unable to open that chart in Chart Editor.")
             return False
         if not parent.load_chart_by_uid(normalized_chart_uid, from_chart_link=True):
             return False
@@ -24561,8 +24561,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         if parent is None or not hasattr(parent, "on_retcon_engine"):
             QMessageBox.warning(
                 self,
-                "Retcon Engine",
-                "Unable to open Retcon Engine.",
+                "Rectification Engine",
+                "Unable to open Rectification Engine.",
             )
             return
         parent.on_retcon_engine()
@@ -24833,8 +24833,8 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._session_window_layout_adjusted = False
         _apply_minimum_screen_height(self)
 
-        # Chart Entry Window vs Chart Edit Window:
-        # - Chart Entry Window: current_chart_id is None (blank fields/new chart).
+        # Chart Editor Window vs Chart Edit Window:
+        # - Chart Editor Window: current_chart_id is None (blank fields/new chart).
         # - Chart Edit Window: current_chart_id is set (editing existing chart).
         self.current_chart_id = None
         self.current_chart_uid: str | None = None
@@ -24986,7 +24986,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.database_view_button = QPushButton("Database View")
         self.database_view_button.setObjectName("database_view_button")
         self.database_view_button.clicked.connect(self.on_manage_charts)
-        self.database_view_button.setToolTip("Close Chart View and return to Database View")
+        self.database_view_button.setToolTip("Close Chart Editor and return to Database View")
         _autosize_chart_view_nav_button(self.database_view_button)
         # Commented out per request: remove the top-row Chart View action buttons
         # and rely on window_chrome menus/actions instead.
@@ -25068,14 +25068,14 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._main_splitter.splitterMoved.connect(self._on_main_splitter_moved)
         root_layout.addWidget(self._main_splitter)
 
-        # Chart Entry/Edit Window: LEFT panel (chart preview interface).
+        # Chart Editor/Edit Window: LEFT panel (chart preview interface).
         build_chart_view_left_panel(
             self,
             main_splitter=self._main_splitter,
             apply_chart_data_highlighter=apply_chart_data_highlighter,
         )
 
-        # Chart Entry/Edit Window: MIDDLE panel (inputs + output).
+        # Chart Editor/Edit Window: MIDDLE panel (inputs + output).
         middle_panel = QWidget()
         middle_layout = QVBoxLayout()
         middle_layout.setContentsMargins(0, 0, 0, 0)
@@ -26718,7 +26718,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             subject_name = "Current chart"
         matches = list(getattr(dialog, "_similar_chart_popout_most_similar_matches", []) or [])
         if not matches:
-            QMessageBox.information(dialog, "Similar Charts", "No similar charts are available to collect yet.")
+            QMessageBox.information(dialog, "Astro Twin Calculator", "No similar charts are available to collect yet.")
             return
         if not hasattr(self, "_custom_collections") or not isinstance(self._custom_collections, dict):
             self._custom_collections = self._load_custom_collections_from_settings()
@@ -26753,7 +26753,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             if chart_id is not None:
                 chart_ids.add(chart_id)
         if not chart_ids:
-            QMessageBox.information(dialog, "Similar Charts", "No valid similar chart IDs were found.")
+            QMessageBox.information(dialog, "Astro Twin Calculator", "No valid similar chart IDs were found.")
             return
 
         self._custom_collections[candidate_id] = CustomCollection(
@@ -27545,14 +27545,14 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             if len(selected_chart_ids) < 1:
                 QMessageBox.information(
                     self,
-                    "Similar Charts",
+                    "Astro Twin Calculator",
                     "Please select a chart to see its similar charts! Thanksss",
                 )
                 return
             if len(selected_chart_ids) > 1:
                 QMessageBox.information(
                     self,
-                    "Similar Charts",
+                    "Astro Twin Calculator",
                     "Whoa. Please select just 1 chart to view its similar charts. Don't get nuts.",
                 )
                 return
@@ -27562,7 +27562,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             except Exception as exc:
                 QMessageBox.warning(
                     self,
-                    "Similar Charts",
+                    "Astro Twin Calculator",
                     f"Could not load the selected chart:\n{exc}",
                 )
                 return
@@ -27571,12 +27571,12 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             subject_chart_id = self.current_chart_id
 
         if chart is None:
-            QMessageBox.information(self, "Similar Charts", "Generate or load a chart first.")
+            QMessageBox.information(self, "Astro Twin Calculator", "Generate or load a chart first.")
             return
         if _chart_is_placeholder(chart):
             QMessageBox.information(
                 self,
-                "Similar Charts",
+                "Astro Twin Calculator",
                 "Similar chart matching is based on birth data, so doesn't work for placeholder charts.",
             )
             return
@@ -27589,7 +27589,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         try:
             chart_rows = list_charts()
         except Exception as exc:
-            QMessageBox.warning(self, "Similar Charts", f"Could not read saved charts:\n{exc}")
+            QMessageBox.warning(self, "Astro Twin Calculator", f"Could not read saved charts:\n{exc}")
             return
         chart_rows = self._similar_charts_visible_candidate_rows(chart_rows)
         collection_id = normalize_collection_id(collection_id)
@@ -27709,7 +27709,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 # # progress dialog and recalculating both Top/Bottom lists.
                 self._similar_charts_popout_last_cache_status = "hit"
                 # logger.debug("Similar Charts popout cache hit for subject_chart_id=%s", subject_chart_id)
-                update_similar_charts_loading_progress(progress, "Loading cached Similar Charts rankings…", 35)
+                update_similar_charts_loading_progress(progress, "Loading cached Astro Twin Calculator rankings…", 35)
                 most_similar_matches = self._refresh_similar_charts_match_display_names(
                     list(cached_payload.get("most_similar_matches") or []),
                     chart_names_by_id=chart_names_by_id,
@@ -27721,7 +27721,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 least_similar_matches.sort(key=lambda match: (float(match.score), int(match.chart_id)))
             elif incremental_refresh_supported:
                 self._similar_charts_popout_last_cache_status = "incremental-refresh"
-                update_similar_charts_loading_progress(progress, "Refreshing changed Similar Charts rankings…", 20)
+                update_similar_charts_loading_progress(progress, "Refreshing changed Astro Twin Calculator rankings…", 20)
                 # logger.debug(
                 #     "Similar Charts popout cache incrementally refreshing %s changed rows for subject_chart_id=%s",
                 #     len(changed_chart_ids),
@@ -27846,7 +27846,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                         close_similar_charts_loading_progress(progress)
                         QMessageBox.information(
                             self,
-                            "Similar Charts",
+                            "Astro Twin Calculator",
                             "Need at least one additional saved chart that is not placeholder/hypothetical.",
                         )
                         return
@@ -27937,7 +27937,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
 
                 most_similar_matches = [match for match in most_similar_matches if _is_not_linked_standard_match(match)]
                 least_similar_matches = [match for match in least_similar_matches if _is_not_linked_standard_match(match)]
-            update_similar_charts_loading_progress(progress, "Preparing Similar Charts window…", 92)
+            update_similar_charts_loading_progress(progress, "Preparing Astro Twin window…", 92)
             if algorithm_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
                 invalid_mode = any(
                     match.algorithm_mode != SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE
@@ -27950,7 +27950,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                     )
                     QMessageBox.warning(
                         self,
-                        "Similar Charts",
+                        "Astro Twin Calculator",
                         "Comprehensive mode returned fallback results. See terminal for details.",
                     )
                     close_similar_charts_loading_progress(progress)
@@ -28007,7 +28007,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 perceived_accuracy_states = None
                 perceived_accuracy_uid_by_chart_id = {}
                 all_accuracy_entries = []
-            update_similar_charts_loading_progress(progress, "Rendering Similar Charts window…", 98)
+            update_similar_charts_loading_progress(progress, "Rendering Astro Twin window…", 98)
             dialog = build_similar_charts_popout_dialog(
                 parent=self,
                 subject_name=subject_name,
@@ -28272,27 +28272,27 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         if is_markdown:
             lines.extend(build_similar_charts_export_lines(subject_name=subject_name, rows=[], is_markdown=True))
             lines.append("")
-            lines.append("## Top 25 Most Similar Charts")
+            lines.append("## Top 25 Most Similar")
             lines.append("")
             lines.extend(
                 build_similar_charts_export_lines(subject_name=subject_name, rows=most_rows, is_markdown=True)[2:]
             )
             lines.append("")
-            lines.append("## Top 25 Least Similar Charts")
+            lines.append("## Top 25 Least Similar")
             lines.append("")
             lines.extend(
                 build_similar_charts_export_lines(subject_name=subject_name, rows=least_rows, is_markdown=True)[2:]
             )
         else:
-            lines.append(f"{subject_name}'s Astro Twins")
+            lines.append(f"{subject_name}'s Astro Twin Results")
             lines.append("")
-            lines.append("Top 25 Most Similar Charts")
+            lines.append("Top 25 Most Similar")
             lines.append("")
             lines.extend(
                 build_similar_charts_export_lines(subject_name=subject_name, rows=most_rows, is_markdown=False)[2:]
             )
             lines.append("")
-            lines.append("Top 25 Least Similar Charts")
+            lines.append("Top 25 Least Similar")
             lines.append("")
             lines.extend(
                 build_similar_charts_export_lines(subject_name=subject_name, rows=least_rows, is_markdown=False)[2:]
@@ -30298,7 +30298,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 "New chart",
                 self.on_new_chart,
                 keywords=("create chart", "add chart", "birth data"),
-                subtitle="Clear Chart View inputs for a new chart",
+                subtitle="Clear Chart Editor inputs for a new chart",
             ),
             CommandPaletteAction(
                 "Open Human Design",
@@ -32542,7 +32542,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         dialog.setIcon(QMessageBox.Warning)
         dialog.setWindowTitle("Unsaved changes")
         dialog.setText(
-            "You have unsaved changes. Save them before leaving Chart View?"
+            "You have unsaved changes. Save them before leaving Chart Editor?"
         )
         dialog.setStandardButtons(
             QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel
@@ -35514,7 +35514,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._size_checker_popup.set_target(
             parent_window=self,
             splitter=self._main_splitter,
-            title="Size Checker • Natal Chart View",
+            title="Size Checker • Chart Editor",
         )
 
     def _retarget_size_checker_to_database_view(self) -> None:
@@ -37818,7 +37818,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             return
         dialog = QDialog(self)
         dialog.setAttribute(Qt.WA_DeleteOnClose)
-        dialog.setWindowTitle("Natal Chart View")
+        dialog.setWindowTitle("Chart Editor")
         dialog.setMinimumSize(780, 780)
         layout = QHBoxLayout()
         layout.setContentsMargins(12, 12, 12, 12)

@@ -160,7 +160,7 @@ class SimilaritiesController:
         self.configure_export_button(
             json_export_button,
             label="data",
-            tooltip="Export similarities analysis as Python",
+            tooltip="Export Similarities Analysis data as Python",
             share_icon_path=share_icon_path,
         )
         json_export_button.clicked.connect(self.host._export_similarities_analysis_json)

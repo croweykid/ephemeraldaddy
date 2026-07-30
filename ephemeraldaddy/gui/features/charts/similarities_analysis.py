@@ -709,7 +709,7 @@ def show_high_similarity_chart_pairs_dialog(
     else:
         lines = [
             "<h2>90-100% similarities</h2>",
-            "<p>Click a chart name to open it in Chart View.</p>",
+            "<p>Click a chart name to open it in Chart Editor.</p>",
             "<ol>",
         ]
         for percent, first_id, second_id in pairs:

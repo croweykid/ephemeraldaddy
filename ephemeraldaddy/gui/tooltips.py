@@ -245,9 +245,9 @@ DEFAULT_TOOLTIP_OVERRIDES: dict[str, str] = {
     "manage_toggle_search_panel_button": "Search",
     "manage_toggle_transits_panel_button": "Transit View",
     "manage_toggle_batch_edit_panel_button": "Batch Edit Panel",
-    # Natal Chart View controls
+    # Chart Editor controls
     "manage_button": "Back to Database View",
-    "database_view_button": "Close Chart View and return to Database View",
+    "database_view_button": "Close Chart Editor and return to Database View",
     "help_overlay_toggle": "Help",
     "chart_view_toggle_subjective_notes_panel_button": "Observations panel",
     "chart_view_toggle_abc_panel_button": "ABC panel",
@@ -265,7 +265,7 @@ EXACT_TEXT_TOOLTIP_OVERRIDES: dict[str, str] = {
     "OR": "could alternately include [associated factor]",
     "🚫": "exclude [associated factor]",
 
-    # Requested Chart View tooltips.
+    # Requested Chart Editor tooltips.
     "💀": "deceased?",
     "Use Rectified Time:": "birthtime is unknown or possibly incorrect; use speculated time for applicable calculations",
     "Use Rectified Range:": "exact birth time is unknown; use this speculated range for applicable calculations",

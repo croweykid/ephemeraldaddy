@@ -186,7 +186,7 @@ def add_demo_mode_setting(
     checkbox = QCheckBox("Private Mode: hide subjective/private notes") #formerly "demo mode"
     checkbox.setChecked(bool(is_enabled))
     checkbox.setToolTip(
-        "When enabled, hides Chart View Observations, Chart Info Notes, and subjective "
+        "When enabled, hides Chart Editor Observations, Chart Info Notes, and subjective "
         "ratings in Search and Batch Editor so the app can be shown without private notes."
     )
     checkbox.toggled.connect(on_toggled)
@@ -249,7 +249,7 @@ def add_similarity_perceived_accuracy_controls_setting(
     checkbox = QCheckBox("Astro Twin: show perceived-accuracy inputs")
     checkbox.setChecked(bool(is_enabled))
     checkbox.setToolTip(
-        "When enabled, the Top/Bottom 25 Astro Twins popout shows temporary beta controls "
+        "When enabled, the Top/Bottom 25 Astro Twin popout shows temporary beta controls "
         "for logging perceived match accuracy to the Similarities Algorithm log."
     )
     checkbox.toggled.connect(on_toggled)
@@ -313,7 +313,7 @@ def add_predictions_thread_debug_setting(
     checkbox = QCheckBox("Predictions panel: terminal step debug logging")
     checkbox.setChecked(bool(is_enabled))
     checkbox.setToolTip(
-        "When enabled, Chart View Predictions section steps, cache decisions, and background-thread lifecycle "
+        "When enabled, Chart Editor Predictions section steps, cache decisions, and background-thread lifecycle "
         "events are printed to the terminal."
     )
     checkbox.toggled.connect(on_toggled)
@@ -368,7 +368,7 @@ FILESYSTEM_INFOGRAPHIC_ITEMS: tuple[dict[str, object], ...] = (
             ("help/", "Help/reference materials shown or used by the app.", "User assistance content."),
         ),
     },
-    {"path": "ephemeraldaddy/gui/app.py", "plain": "The main control room: it assembles the big windows, switches between Database View and Chart View, and wires buttons to features.", "dev": "Central legacy GUI orchestrator; new work should be pushed into smaller gui modules when practical."},
+    {"path": "ephemeraldaddy/gui/app.py", "plain": "The main control room: it assembles the big windows, switches between Database View and Chart Editor, and wires buttons to features.", "dev": "Central legacy GUI orchestrator; new work should be pushed into smaller gui modules when practical."},
     {"path": "ephemeraldaddy/gui/dev_tools.py", "plain": "Developer tools and maintenance popups, including this file-system infographic.", "dev": "Settings > Developer Tools helpers and dialogs."},
     {"path": "ephemeraldaddy/gui/style.py", "plain": "The app-wide visual wardrobe: colors, spacing, button styling, and reusable look-and-feel helpers.", "dev": "Shared stylesheet constants and widget styling helpers."},
     {"path": "ephemeraldaddy/gui/dbv_search_panel.py", "plain": "The Database View search panel: helps users find and filter charts.", "dev": "Right-side DBV search UI and query controls."},
@@ -702,7 +702,7 @@ def build_similarity_calculator_settings_section(
     algorithm_layout.addWidget(scoring_methods_header)
     algorithm_layout.addWidget(
         QLabel(
-            "Choose which algorithm generates Astro Twin results:"
+            "Choose which algorithm generates Astro Twin Calculator results:"
         )
     )
 
@@ -762,7 +762,7 @@ def build_similarity_calculator_settings_section(
 
     all_or_nothing_criterion_combo = QComboBox()
     all_or_nothing_criterion_combo.setToolTip(
-        "Choose the one criterion that will exclusively rank Similar Charts when all-or-nothing mode is selected."
+        "Choose the one criterion that will exclusively rank charts when all-or-nothing mode is selected."
     )
     for key, label_text in SIMILARITY_CALCULATOR_FACTOR_ROWS:
         if key in {"defined_centers", "outer_planet_placement"}:
@@ -1088,7 +1088,7 @@ def build_similarity_calculator_settings_section(
     show_high_similarity_button = QPushButton("Show 90-100% similarities")
     show_high_similarity_button.setToolTip(
         "Calculate database-wide Astro Twin scores with the current calculator mode and list chart pairs "
-        "whose similarity is between 90% and 100%. Each listed chart name opens in Chart View."
+        "whose similarity is between 90% and 100%. Each listed chart name opens in Chart Editor."
     )
     show_high_similarity_button.clicked.connect(on_show_high_similarity_clicked)
     research_layout.addWidget(show_high_similarity_button, alignment=Qt.AlignLeft)
@@ -3023,7 +3023,7 @@ def build_predictions_settings_section(
 
     manual_recalculation_checkbox = QCheckBox("manual recalculation/refresh only (vs automatic)")
     manual_recalculation_checkbox.setToolTip(
-        "When enabled, Chart View Predictions always show the most recent saved results for the chart UID "
+        "When enabled, Chart Editor Predictions always show the most recent saved results for the chart UID "
         "and only refresh after you click Calculate/Recalculate."
     )
     if on_manual_recalculation_toggled is not None:
