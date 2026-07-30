@@ -4,6 +4,7 @@ import datetime as dt
 from typing import Callable
 
 from ephemeraldaddy.core.ephemeris import planetary_positions
+from ephemeraldaddy.core.houses import placidus_axes
 from ephemeraldaddy.core.interpretations import ZODIAC_NAMES
 
 RETCON_BODIES = [
@@ -23,7 +24,8 @@ RETCON_BODIES = [
     "Juno",
     "Vesta",
     "Rahu",
-    "Ketu",
+    "Ascendant",
+    "MC",
     "Lilith",
 ]
 
@@ -36,7 +38,6 @@ SLOW_RETCON_BODIES = {
     "Pluto",
     "Chiron",
     "Rahu",
-    "Ketu",
     "Lilith",
 }
 
@@ -44,6 +45,23 @@ SLOW_RETCON_BODIES = {
 def zodiac_sign_for_longitude(longitude: float) -> str:
     sign_idx = int((longitude % 360.0) // 30.0)
     return ZODIAC_NAMES[sign_idx]
+
+
+def _rectification_positions(
+    moment: dt.datetime,
+    lat: float,
+    lon: float,
+    required_bodies: set[str] | None = None,
+) -> dict[str, float]:
+    """Return searchable planets and location-dependent chart angles."""
+    positions = planetary_positions(moment, lat, lon)
+    if required_bodies is None or required_bodies & {"Ascendant", "MC"}:
+        axes = placidus_axes(moment, lat, lon)
+        if "AS" in axes:
+            positions["Ascendant"] = axes["AS"]
+        if "MC" in axes:
+            positions["MC"] = axes["MC"]
+    return positions
 
 
 def _build_decade_windows(start_dt: dt.datetime, end_dt: dt.datetime) -> list[tuple[dt.datetime, dt.datetime]]:
@@ -88,6 +106,7 @@ def _decade_window_matches_slow_criteria(
         return True
 
     matched: dict[str, bool] = {body: False for body in required_slow_signs}
+    required_bodies = set(required_slow_signs)
     current = window_start
     # monthly-ish samples are enough for slow-body pruning and much cheaper than full scans
     sample_step = dt.timedelta(days=30)
@@ -95,7 +114,7 @@ def _decade_window_matches_slow_criteria(
     while current <= window_end:
         if should_cancel_cb is not None and should_cancel_cb():
             return False
-        positions = planetary_positions(current, lat, lon)
+        positions = _rectification_positions(current, lat, lon, required_bodies)
         for body, expected_sign in required_slow_signs.items():
             lon_value = positions.get(body)
             if lon_value is None:
@@ -166,6 +185,7 @@ def search_retcon_candidates(
     }
     if not required:
         return []
+    required_bodies = set(required)
 
     search_windows = _candidate_search_windows(
         start_dt,
@@ -188,7 +208,7 @@ def search_retcon_candidates(
         while current <= window_end and len(results) < max_results:
             if should_cancel_cb is not None and should_cancel_cb():
                 return results
-            positions = planetary_positions(current, lat, lon)
+            positions = _rectification_positions(current, lat, lon, required_bodies)
             is_match = True
             matched_positions: dict[str, float] = {}
             for body, expected_sign in required.items():
