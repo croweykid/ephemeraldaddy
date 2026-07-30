@@ -841,7 +841,7 @@ def build_similar_charts_export_lines(
     lines.append("")
     for row in rows:
         z_score = row.get("similarity_z_score")
-        z_score_text = "" if z_score is None else f"; z={float(z_score):+.3f}"
+        z_score_text = "" if z_score is None else f"; standard deviation from db similarity norms: {float(z_score):+.3f}"
         lines.append(
             f"{row['rank']}. {row.get('chart_uid', '')} — {row['chart_name']}: "
             f"Similarity {row['similarity_percent']:.1f}% "
@@ -3040,7 +3040,7 @@ def render_similar_match_blocks(
             similarity_average,
             similarity_standard_deviation,
         )
-        z_score_html = f"; z={z_score:+.2f}" if z_score is not None else ""
+        z_score_html = f"; standard deviation from db similarity norms: {z_score:+.2f}" if z_score is not None else ""
         blocks.append(
             (
                 f'<span style="font-weight: bold; color: {highlight_color};">{rank}.</span> '

@@ -353,7 +353,7 @@ def _format_similar_chart_rows(rows: list[dict[str, Any]], *, markdown: bool) ->
     lines: list[str] = []
     for row in rows:
         z_score = row.get("similarity_z_score")
-        z_score_text = "" if z_score is None else f"; z={float(z_score):+.3f}"
+        z_score_text = "" if z_score is None else f"; standard deviation from db similarity norms: {float(z_score):+.3f}"
         component_summary = row.get("component_summary") or "no enabled criteria"
         lines.append(
             f"{row.get('rank', '')}. {row.get('chart_uid', '')} — {row.get('chart_name', '')}: "

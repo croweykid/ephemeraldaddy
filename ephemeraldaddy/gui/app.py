@@ -27410,7 +27410,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 similarity_average,
                 similarity_standard_deviation,
             )
-            z_score_html = f"; z={z_score:+.2f}" if z_score is not None else ""
+            z_score_html = f"; standard deviation from db similarity norms: {z_score:+.2f}" if z_score is not None else ""
             rank_label = (
                 f'<span style="font-weight: bold; color: {CHART_DATA_HIGHLIGHT_COLOR};">'
                 f"{rank}."
