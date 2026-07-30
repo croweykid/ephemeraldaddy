@@ -124,7 +124,37 @@ def _bind_menu_action(menu, label: str, window: "QWidget", *handler_names: str) 
 
 def _add_settings_action(app_menu, owner: "QWidget") -> None:
     """Attach Settings directly under Ephemeral Daddy in window_chrome menus."""
-    _bind_menu_action(app_menu, "Settings", owner, "_on_open_settings", "on_open_settings")
+    from PySide6.QtGui import QAction
+
+    action = QAction("Settings", app_menu)
+    _keep_action_in_window_menu(action)
+    action.triggered.connect(lambda: _open_settings_from_window(owner))
+    app_menu.addAction(action)
+
+
+def _open_settings_from_window(owner: "QWidget") -> None:
+    """Open the shared Settings dialog from either top-level window.
+
+    Settings currently belongs to Database View.  Chart Editor can exist
+    before its Database View dialog has been constructed, so resolving the
+    handler while its menu is being built leaves the action permanently
+    disabled.  Create that related window lazily only when Settings is chosen.
+    """
+    handler = _resolve_menu_handler(owner, "_on_open_settings", "on_open_settings")
+    if handler is not None:
+        handler()
+        return
+
+    get_database_view = getattr(owner, "_get_or_create_manage_charts_dialog", None)
+    if callable(get_database_view):
+        database_view = get_database_view()
+        handler = _resolve_menu_handler(
+            database_view,
+            "_on_open_settings",
+            "on_open_settings",
+        )
+        if handler is not None:
+            handler()
 
 
 def _configure_menu_bar_visibility(menu_bar) -> None:
@@ -347,7 +377,13 @@ def configure_main_window_chrome(window: "QMainWindow") -> None:
     _bind_menu_action(tools_menu, "💎 Create Gemstone Chart", window, "on_create_gemstone_chartwheel")
     _bind_menu_action(tools_menu, "🧓 Interpret Astro Age (alpha)", window, "on_interpret_astro_age")
     _bind_menu_action(tools_menu, "🎱 Chart Predictor Quiz (alpha)", window, "on_open_chart_predictor_quiz")
-    _bind_menu_action(tools_menu, "🕗 Rectification Engine", window, "_on_retcon_engine")
+    _bind_menu_action(
+        tools_menu,
+        "🕗 Rectification Engine",
+        window,
+        "_on_retcon_engine",
+        "on_retcon_engine",
+    )
 
     # view_menu = menu_bar.addMenu("View")
     # _bind_menu_action(view_menu, "Chart Analytics", window, "on_show_chart_analytics_panel")
@@ -357,7 +393,9 @@ def configure_main_window_chrome(window: "QMainWindow") -> None:
     _bind_menu_action(help_menu, "🔘 Sign Degrees Reference Circle", window, "_on_open_sign_degrees_reference_circle",
                       "on_open_sign_degrees_reference_circle")
     _bind_menu_action(help_menu, "Tutorial", window, "_on_manage_help_overlay", "on_manage_help_overlay", "_toggle_help_overlay")
-    _bind_menu_action(help_menu, "About", window, "_show_about_from_onboarding(dialog)")
+    _keep_action_in_window_menu(
+        help_menu.addAction("About", lambda: _show_about_from_onboarding(window))
+    )
 
 def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None:
     """Attach a Database View menu bar matching the requested hierarchy."""

@@ -35,7 +35,8 @@ def test_settings_is_direct_action_not_preferences_submenu():
     helper_end = source.index("def _configure_menu_bar_visibility", helper_start)
     helper_source = source[helper_start:helper_end]
 
-    assert '_bind_menu_action(app_menu, "Settings", owner' in helper_source
+    assert 'QAction("Settings", app_menu)' in helper_source
+    assert "_open_settings_from_window(owner)" in helper_source
     assert 'addMenu("Preferences")' not in source
 
 
@@ -83,3 +84,35 @@ def test_sign_degrees_reference_circle_lives_in_help_menus():
     assert 'tools_menu, "🔘 Sign Degrees Reference Circle"' not in main_source
     assert manage_source.index('help_menu = menu_bar.addMenu("HALP!")') < manage_source.index('"🔘 Sign Degrees Reference Circle"')
     assert 'tools_menu, "🔘 Sign Degrees Reference Circle"' not in manage_source
+
+
+def test_chart_editor_rectification_engine_accepts_its_public_handler_name():
+    source = SOURCE_PATH.read_text()
+    main_start = source.index("def configure_main_window_chrome")
+    manage_start = source.index("def configure_manage_dialog_chrome")
+    main_source = source[main_start:manage_start]
+
+    rectification_binding = main_source[main_source.index('"🕗 Rectification Engine"'):]
+    assert '"_on_retcon_engine"' in rectification_binding
+    assert '"on_retcon_engine"' in rectification_binding
+
+
+def test_chart_editor_help_about_uses_the_chart_editor_window():
+    source = SOURCE_PATH.read_text()
+    main_start = source.index("def configure_main_window_chrome")
+    manage_start = source.index("def configure_manage_dialog_chrome")
+    main_source = source[main_start:manage_start]
+
+    assert 'lambda: _show_about_from_onboarding(window)' in main_source
+    assert '"_show_about_from_onboarding(dialog)"' not in main_source
+
+
+def test_chart_editor_settings_lazily_resolves_the_database_view_handler():
+    source = SOURCE_PATH.read_text()
+    helper_start = source.index("def _open_settings_from_window")
+    helper_end = source.index("def _configure_menu_bar_visibility", helper_start)
+    helper_source = source[helper_start:helper_end]
+
+    assert 'getattr(owner, "_get_or_create_manage_charts_dialog", None)' in helper_source
+    assert "database_view = get_database_view()" in helper_source
+    assert '"_on_open_settings"' in helper_source
