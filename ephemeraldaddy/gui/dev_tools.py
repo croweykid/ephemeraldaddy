@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QDoubleSpinBox,
     QFrame,
     QGridLayout,
+    QHeaderView,
     QHBoxLayout,
     QInputDialog,
     QLabel,
@@ -79,6 +80,8 @@ SETTINGS_KEY_SIMILARITY_PERCEIVED_ACCURACY_CONTROLS = "dev_tools/similarity_perc
 SIMILARITY_PERCEIVED_ACCURACY_CONTROLS_DEFAULT = False
 SETTINGS_KEY_DEMO_MODE = "dev_tools/demo_mode"
 DEMO_MODE_DEFAULT = False
+SETTINGS_KEY_PROPERTY_MANAGER_SPLITTER_SIZES = "property_manager/column_widths"
+SETTINGS_KEY_PROPERTY_MANAGER_PRESET_COLUMN_SIZES = "property_manager/preset_column_widths"
 
 
 class SimilarityAlgorithmAccuracyBrowser(QTextBrowser):
@@ -1553,6 +1556,10 @@ class _TagHierarchyTree(QTreeWidget):
         self._on_drop_labels = on_drop_labels
         self._highlighted_category_item: QTreeWidgetItem | None = None
         self.setHeaderHidden(True)
+        # The tree is reused by managers with both one and several columns.
+        # Never retain a narrow first-column width from the presets table when
+        # returning to a single-column property list.
+        self.setTextElideMode(Qt.ElideNone)
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setDragEnabled(True)
         self.setAcceptDrops(True)
@@ -1737,7 +1744,10 @@ class ManageMetadataLabelsDialog(QDialog):
         header_row.addWidget(self._sort_selector)
         layout.addLayout(header_row)
 
-        split_layout = QHBoxLayout()
+        # A splitter, rather than a layout with fixed stretch factors, lets the
+        # user resize every visible Property Manager column.
+        self._column_splitter = QSplitter(Qt.Horizontal, self)
+        self._column_splitter.setChildrenCollapsible(False)
         self._unsorted_panel_widget = QWidget(self)
         self._unsorted_panel = QVBoxLayout(self._unsorted_panel_widget)
         self._unsorted_panel.setContentsMargins(0, 0, 0, 0)
@@ -1754,7 +1764,7 @@ class ManageMetadataLabelsDialog(QDialog):
             lambda _current, _previous: self._on_selection_changed(self._unsorted_list_widget)
         )
         self._unsorted_panel.addWidget(self._unsorted_list_widget, 1)
-        split_layout.addWidget(self._unsorted_panel_widget, 1)
+        self._column_splitter.addWidget(self._unsorted_panel_widget)
 
         middle_panel_widget = QWidget(self)
         middle_panel = QVBoxLayout(middle_panel_widget)
@@ -1780,7 +1790,7 @@ class ManageMetadataLabelsDialog(QDialog):
         )
         self._list_widget.itemDoubleClicked.connect(self._rename_tag_category_display_name)
         middle_panel.addWidget(self._list_widget, 1)
-        split_layout.addWidget(middle_panel_widget, 2)
+        self._column_splitter.addWidget(middle_panel_widget)
 
         self._right_panel_widget = QWidget(self)
         right_panel = QVBoxLayout(self._right_panel_widget)
@@ -1790,8 +1800,12 @@ class ManageMetadataLabelsDialog(QDialog):
         self._chart_names_list = QListWidget(self)
         self._chart_names_list.setSelectionMode(QAbstractItemView.NoSelection)
         right_panel.addWidget(self._chart_names_list, 1)
-        split_layout.addWidget(self._right_panel_widget, 1)
-        layout.addLayout(split_layout, 1)
+        self._column_splitter.addWidget(self._right_panel_widget)
+        self._column_splitter.setStretchFactor(0, 1)
+        self._column_splitter.setStretchFactor(1, 2)
+        self._column_splitter.setStretchFactor(2, 1)
+        self._column_splitter.splitterMoved.connect(self._save_column_widths)
+        layout.addWidget(self._column_splitter, 1)
 
         if initial_field in {
             self.FIELD_SENTIMENTS,
@@ -1909,6 +1923,78 @@ class ManageMetadataLabelsDialog(QDialog):
             SETTINGS_KEY_TAG_CATEGORY_DISPLAY_NAMES,
             dict(sorted(self._tag_category_display_names.items())),
         )
+
+    def _column_widths_key(self) -> str:
+        """Return a key per layout, since Tags has an additional column."""
+        return f"{SETTINGS_KEY_PROPERTY_MANAGER_SPLITTER_SIZES}/{self._active_field()}"
+
+    def _save_column_widths(self, *_args) -> None:
+        settings = getattr(self, "_settings", None)
+        splitter = getattr(self, "_column_splitter", None)
+        if settings is None or splitter is None:
+            return
+        settings.setValue(self._column_widths_key(), splitter.sizes())
+
+    def _restore_column_widths(self) -> None:
+        settings = getattr(self, "_settings", None)
+        if settings is None:
+            return
+        raw_sizes = settings.value(self._column_widths_key())
+        if not isinstance(raw_sizes, (list, tuple)) or len(raw_sizes) != 3:
+            return
+        try:
+            sizes = [max(0, int(size)) for size in raw_sizes]
+        except (TypeError, ValueError):
+            return
+        if any(sizes):
+            self._column_splitter.setSizes(sizes)
+
+    def _save_preset_column_widths(self, *_args) -> None:
+        if self._active_field() != self.FIELD_ASTRO_TWIN_PRESETS:
+            return
+        settings = getattr(self, "_settings", None)
+        if settings is not None:
+            settings.setValue(
+                SETTINGS_KEY_PROPERTY_MANAGER_PRESET_COLUMN_SIZES,
+                [self._list_widget.columnWidth(index) for index in range(3)],
+            )
+
+    def _on_preset_column_resized(self, *_args) -> None:
+        self._save_preset_column_widths()
+        QTimer.singleShot(0, self._fit_preset_columns_to_viewport)
+
+    def _restore_preset_column_widths(self) -> bool:
+        settings = getattr(self, "_settings", None)
+        if settings is None:
+            return False
+        raw_sizes = settings.value(SETTINGS_KEY_PROPERTY_MANAGER_PRESET_COLUMN_SIZES)
+        if not isinstance(raw_sizes, (list, tuple)) or len(raw_sizes) != 3:
+            return False
+        try:
+            sizes = [max(1, int(size)) for size in raw_sizes]
+        except (TypeError, ValueError):
+            return False
+        for index, size in enumerate(sizes):
+            self._list_widget.setColumnWidth(index, size)
+        return True
+
+    def _fit_preset_columns_to_viewport(self) -> None:
+        """Keep the final presets column inside the tree's visible viewport."""
+        if self._active_field() != self.FIELD_ASTRO_TWIN_PRESETS:
+            return
+        header = self._list_widget.header()
+        viewport_width = self._list_widget.viewport().width()
+        if viewport_width <= 0:
+            return
+        data_points_width = max(header.sectionSizeHint(2), 90)
+        available_for_first_two = max(2, viewport_width - data_points_width)
+        first_two = [self._list_widget.columnWidth(index) for index in range(2)]
+        requested_width = sum(first_two)
+        if requested_width > available_for_first_two:
+            scale = available_for_first_two / requested_width
+            first_two = [max(1, round(width * scale)) for width in first_two]
+        self._list_widget.setColumnWidth(0, first_two[0])
+        self._list_widget.setColumnWidth(1, max(1, available_for_first_two - first_two[0]))
 
     def _active_field(self) -> str:
         value = self._field_selector.currentData()
@@ -2226,9 +2312,24 @@ class ManageMetadataLabelsDialog(QDialog):
                 item.setData(1, Qt.UserRole, str(row.get("algorithm", "")))
                 self._list_widget.addTopLevelItem(item)
             self._list_widget.header().setStretchLastSection(False)
-            self._list_widget.setColumnWidth(0, 180)
-            self._list_widget.setColumnWidth(1, 430)
-            self._list_widget.setColumnWidth(2, 90)
+            self._list_widget.header().setSectionResizeMode(QHeaderView.Interactive)
+            # The last column stretches into the remaining viewport instead of
+            # extending beyond it when the saved/manual widths are too large.
+            self._list_widget.header().setSectionResizeMode(2, QHeaderView.Stretch)
+            if not self._restore_preset_column_widths():
+                self._list_widget.setColumnWidth(0, 180)
+                self._list_widget.setColumnWidth(1, 430)
+                self._list_widget.setColumnWidth(2, 90)
+            try:
+                self._list_widget.header().sectionResized.disconnect(
+                    self._on_preset_column_resized
+                )
+            except (RuntimeError, TypeError):
+                pass
+            self._list_widget.header().sectionResized.connect(
+                self._on_preset_column_resized
+            )
+            QTimer.singleShot(0, self._fit_preset_columns_to_viewport)
         else:
             self._list_widget.setColumnCount(1)
             self._list_widget.setHeaderHidden(True)
@@ -2251,6 +2352,12 @@ class ManageMetadataLabelsDialog(QDialog):
         if not presets_mode:
             self._list_widget.setColumnCount(1)
             self._list_widget.setHeaderHidden(True)
+            self._list_widget.header().setStretchLastSection(True)
+            self._list_widget.header().setSectionResizeMode(0, QHeaderView.Stretch)
+            self._unsorted_list_widget.header().setStretchLastSection(True)
+            self._unsorted_list_widget.header().setSectionResizeMode(
+                0, QHeaderView.Stretch
+            )
         if hasattr(self, "_unsorted_panel_widget"):
             # Only Tags has an uncategorized column. Hiding its containing
             # widget removes that column from the layout entirely, allowing
@@ -2258,6 +2365,9 @@ class ManageMetadataLabelsDialog(QDialog):
             # managers while preserving Tags' 1:2:1 column proportions.
             self._unsorted_panel_widget.setVisible(tags_mode)
         self._right_panel_widget.setVisible(not presets_mode)
+        # Visibility changes affect splitter geometry, so restore on the next
+        # event-loop pass after Qt has laid out the active manager columns.
+        QTimer.singleShot(0, self._restore_column_widths)
         self._astro_twin_presets_header.setVisible(presets_mode)
         self._astro_twin_algorithm_placeholder.setVisible(presets_mode)
         for tree in self._selection_trees():
