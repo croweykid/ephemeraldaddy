@@ -13025,16 +13025,26 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
     def _on_import_astrotheme_from_search_panel(self) -> None:
         raw_query = self.astrotheme_search_input.text().strip()
-        debug_id = _new_debug_action_id("astrotheme_import")
         if not raw_query:
             QMessageBox.information(self, "Astrotheme import", "Enter a name or Astrotheme profile URL.")
             return
-        logger.info("Astrotheme import started (id=%s query=%r).", debug_id, raw_query)
 
         parent = self._owner_window()
         if parent is None or not hasattr(parent, "_confirm_discard_or_save"):
             QMessageBox.warning(self, "Astrotheme import", "Unable to open chart editor.")
             return
+
+        # Database View becomes interactive while MainWindow is still building
+        # Chart View.  Defer the import rather than resetting a partially built
+        # form (whose tag, quote, and other editors do not exist yet).
+        if not getattr(parent, "_chart_view_form_ready", False):
+            self._pending_astrotheme_import = True
+            logger.info("Astrotheme import deferred until Chart View setup completes (query=%r).", raw_query)
+            return
+
+        self._pending_astrotheme_import = False
+        debug_id = _new_debug_action_id("astrotheme_import")
+        logger.info("Astrotheme import started (id=%s query=%r).", debug_id, raw_query)
 
         if not parent._confirm_discard_or_save():
             return
@@ -24575,6 +24585,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         # its lazy dialog slot before any widget setup can process events or
         # invoke the startup callback.
         self._manage_charts_dialog = None
+        self._chart_view_form_ready = False
 
         # Qt can dispatch Database View events while Chart View's widgets are
         # still being constructed.  Astrotheme import resets the Chart View
@@ -26021,6 +26032,13 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         apply_default_text_tooltips(self)
         self._suppress_lucygoosey = False
         self._set_lucygoosey(False)
+        self._chart_view_form_ready = True
+
+        manage_charts_dialog = self._manage_charts_dialog
+        if manage_charts_dialog is not None and getattr(
+            manage_charts_dialog, "_pending_astrotheme_import", False
+        ):
+            QTimer.singleShot(0, manage_charts_dialog._on_import_astrotheme_from_search_panel)
 
     def _decrease_chart_view_label_font_sizes(self) -> None:
         for label in self.findChildren(QLabel):
