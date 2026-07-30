@@ -30,6 +30,7 @@ from typing import Any, Callable, Iterable, Mapping
 from types import SimpleNamespace
 from pathlib import Path
 import re
+from time import perf_counter
 from importlib import resources as importlib_resources
 from zoneinfo import ZoneInfo
 
@@ -555,12 +556,18 @@ from ephemeraldaddy.gui.wikipedia_search import (
 )
 from ephemeraldaddy.gui.wikipedia_blurb_getter import populate_wikipedia_biography
 from ephemeraldaddy.analysis.traits import set_default_traits_source_monitor_enabled
+from ephemeraldaddy.core.performance_metrics import (
+    configure_performance_metrics_logging,
+    measure_performance,
+    record_performance_metric,
+)
 from ephemeraldaddy.gui.dev_tools import (
     BATCH_TAGGING_TERMINAL_DEBUG_DEFAULT,
     DEMO_MODE_DEFAULT,
     DISTINGUISHING_FACTORS_SCORING_DEBUG_DEFAULT,
     ENNEAGRAM_PREDICTIONS_DEBUG_DEFAULT,
     PREDICTIONS_THREAD_DEBUG_DEFAULT,
+    PERFORMANCE_METRICS_LOGGING_DEFAULT,
     SIMILARITY_PERCEIVED_ACCURACY_CONTROLS_DEFAULT,
     SETTINGS_KEY_BATCH_TAGGING_TERMINAL_DEBUG,
     SETTINGS_KEY_ERROR_REPORTING_MODE,
@@ -568,6 +575,7 @@ from ephemeraldaddy.gui.dev_tools import (
     SETTINGS_KEY_DISTINGUISHING_FACTORS_SCORING_DEBUG,
     SETTINGS_KEY_ENNEAGRAM_PREDICTIONS_DEBUG,
     SETTINGS_KEY_PREDICTIONS_THREAD_DEBUG,
+    SETTINGS_KEY_PERFORMANCE_METRICS_LOGGING,
     SETTINGS_KEY_SIMILARITY_PERCEIVED_ACCURACY_CONTROLS,
     FileSystemInfographicDialog,
     ManageMetadataLabelsDialog,
@@ -579,6 +587,7 @@ from ephemeraldaddy.gui.dev_tools import (
     add_distinguishing_factors_scoring_debug_setting,
     add_enneagram_predictions_debug_setting,
     add_predictions_thread_debug_setting,
+    add_performance_metrics_logging_setting,
     build_similarity_calculator_settings_section,
     build_predictions_settings_section,
     load_batch_tagging_terminal_debug_enabled,
@@ -587,6 +596,7 @@ from ephemeraldaddy.gui.dev_tools import (
     load_distinguishing_factors_scoring_debug_enabled,
     load_enneagram_predictions_debug_enabled,
     load_predictions_thread_debug_enabled,
+    load_performance_metrics_logging_enabled,
     load_similarity_perceived_accuracy_controls_enabled,
 )
 from ephemeraldaddy.gui.cleanup_metadata import (
@@ -2400,6 +2410,15 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             SETTINGS_KEY_BATCH_TAGGING_TERMINAL_DEBUG,
             int(self._batch_tagging_terminal_debug),
         )
+        self._performance_metrics_logging = load_performance_metrics_logging_enabled(
+            self._settings,
+            fallback=PERFORMANCE_METRICS_LOGGING_DEFAULT,
+        )
+        self._settings.setValue(
+            SETTINGS_KEY_PERFORMANCE_METRICS_LOGGING,
+            int(self._performance_metrics_logging),
+        )
+        configure_performance_metrics_logging(self._performance_metrics_logging)
         self._error_reporting_mode = load_error_reporting_mode(self._settings)
         self._settings.setValue(
             SETTINGS_KEY_ERROR_REPORTING_MODE,
@@ -22238,6 +22257,17 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             is_enabled=bool(getattr(self, "_batch_tagging_terminal_debug", BATCH_TAGGING_TERMINAL_DEBUG_DEFAULT)),
             on_toggled=self._on_batch_tagging_terminal_debug_toggled,
         )
+        add_performance_metrics_logging_setting(
+            section_layout=dev_tools_section,
+            is_enabled=bool(
+                getattr(
+                    self,
+                    "_performance_metrics_logging",
+                    PERFORMANCE_METRICS_LOGGING_DEFAULT,
+                )
+            ),
+            on_toggled=self._on_performance_metrics_logging_toggled,
+        )
         add_error_reporting_mode_setting(
             section_layout=dev_tools_section,
             mode=self._error_reporting_mode,
@@ -22911,6 +22941,23 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 self._error_reporting_mode.value,
             )
             parent._settings.sync()
+
+    def _on_performance_metrics_logging_toggled(self, checked: bool) -> None:
+        self._performance_metrics_logging = bool(checked)
+        self._settings.setValue(
+            SETTINGS_KEY_PERFORMANCE_METRICS_LOGGING,
+            int(self._performance_metrics_logging),
+        )
+        self._settings.sync()
+        parent = self._owner_window()
+        if isinstance(parent, MainWindow):
+            parent._performance_metrics_logging = self._performance_metrics_logging
+            parent._settings.setValue(
+                SETTINGS_KEY_PERFORMANCE_METRICS_LOGGING,
+                int(self._performance_metrics_logging),
+            )
+            parent._settings.sync()
+        configure_performance_metrics_logging(self._performance_metrics_logging)
 
     def _batch_tagging_debug_log(self, message: str, *args: object) -> None:
         if not bool(getattr(self, "_batch_tagging_terminal_debug", False)):
@@ -24770,6 +24817,15 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             int(self._default_traits_source_monitor_enabled),
         )
         set_default_traits_source_monitor_enabled(self._default_traits_source_monitor_enabled)
+        self._performance_metrics_logging = load_performance_metrics_logging_enabled(
+            self._settings,
+            fallback=PERFORMANCE_METRICS_LOGGING_DEFAULT,
+        )
+        self._settings.setValue(
+            SETTINGS_KEY_PERFORMANCE_METRICS_LOGGING,
+            int(self._performance_metrics_logging),
+        )
+        configure_performance_metrics_logging(self._performance_metrics_logging)
         self._enneagram_predictions_debug = load_enneagram_predictions_debug_enabled(
             self._settings,
             fallback=ENNEAGRAM_PREDICTIONS_DEBUG_DEFAULT,
@@ -34996,6 +35052,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             return False
         if not skip_unsaved_confirmation and not self._confirm_discard_or_save():
             return False
+        load_started_at = perf_counter()
         current_chart_uid = self._current_chart_uid_for_navigation()
         replacing_current_chart = (
             not skip_unsaved_confirmation
@@ -35029,7 +35086,11 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             self._chart_view_navigation_cache.move_to_end(normalized_chart_uid)
         else:
             try:
-                chart = load_chart_by_uid(normalized_chart_uid)
+                with measure_performance(
+                    "chart_editor.chart_record_load",
+                    {"chart_uid": normalized_chart_uid, "cache_hit": False},
+                ):
+                    chart = load_chart_by_uid(normalized_chart_uid)
             except Exception as e:
                 self._reveal_chart_right_panel_after_loading()
                 self._hide_chart_loading_overlay()
@@ -35224,7 +35285,15 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             self._clear_chart_displays(reset_anagrams=False)
             self._reveal_chart_right_panel_after_loading()
             self._hide_chart_loading_overlay()
+            record_performance_metric(
+                "chart_editor.load_to_visible",
+                (perf_counter() - load_started_at) * 1000.0,
+                chart_uid=normalized_chart_uid,
+                cache_hit=cached_chart is not None,
+                placeholder=True,
+            )
         else:
+            self._chart_load_timing = (normalized_chart_uid, load_started_at, cached_chart is not None)
             self._set_chart_right_panel("analytics")
             self._set_chart_right_panel_container_visible(True)
             self._schedule_chart_render(chart)
@@ -36090,6 +36159,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             return
 
         section_rendered_cleanly = True
+        section_started_at = perf_counter()
         if section == "summary":
             self._refresh_chart_summary(chart)
         elif section == "signs":
@@ -36118,6 +36188,12 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             self._render_similar_charts(chart)
         elif section == "anagrams":
             self._render_anagrams(chart)
+        record_performance_metric(
+            "chart_editor.render_section",
+            (perf_counter() - section_started_at) * 1000.0,
+            chart_uid=self._normalized_chart_uid_key(getattr(chart, "chart_uid", None)),
+            section=section,
+        )
         if (
             # A newer rectified-time/birth-time preview may have replaced the
             # shared queue while this section was rendering.  Do not let this
@@ -36151,6 +36227,17 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._reveal_chart_right_panel_after_loading()
         self._schedule_deferred_visible_metric_canvas_layout_refreshes()
         self._hide_chart_loading_overlay()
+        load_timing = getattr(self, "_chart_load_timing", None)
+        rendered_chart_uid = self._normalized_chart_uid_key(getattr(chart, "chart_uid", None))
+        if load_timing is not None and load_timing[0] == rendered_chart_uid:
+            record_performance_metric(
+                "chart_editor.load_to_visible",
+                (perf_counter() - load_timing[1]) * 1000.0,
+                chart_uid=rendered_chart_uid,
+                cache_hit=bool(load_timing[2]),
+                placeholder=False,
+            )
+            self._chart_load_timing = None
         active_right_tab = getattr(self._chart_right_panel_state, "active_tab", None)
         if active_right_tab == "predictions":
             self._schedule_chart_render_for_active_right_panel()
