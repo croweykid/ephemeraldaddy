@@ -13034,9 +13034,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             QMessageBox.warning(self, "Astrotheme import", "Unable to open chart editor.")
             return
 
-        # Database View becomes interactive while MainWindow is still building
-        # Chart View.  Defer the import rather than resetting a partially built
-        # form (whose tag, quote, and other editors do not exist yet).
+        # _manage_charts_dialog is initialized at the start of MainWindow.__init__
+        # so Database View can now exist before Chart View's editors do.  Defer
+        # the import rather than resetting that partially constructed form.
         if not getattr(parent, "_chart_view_form_ready", False):
             self._pending_astrotheme_import = True
             logger.info("Astrotheme import deferred until Chart View setup completes (query=%r).", raw_query)
@@ -24586,13 +24586,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         # invoke the startup callback.
         self._manage_charts_dialog = None
         self._chart_view_form_ready = False
-
-        # Qt can dispatch Database View events while Chart View's widgets are
-        # still being constructed.  Astrotheme import resets the Chart View
-        # form from one of those events, so selection state must exist before
-        # the corresponding checkbox panels are built.
-        self.sentiment_checkboxes = {}
-        self.relationship_type_checkboxes = {}
 
         self.setWindowFlag(Qt.Window, True)
         self.setWindowFlag(Qt.WindowSystemMenuHint, True)

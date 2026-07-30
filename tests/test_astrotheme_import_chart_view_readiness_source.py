@@ -26,3 +26,12 @@ def test_main_window_resumes_deferred_astrotheme_import_after_setup() -> None:
     ready = init.index("self._chart_view_form_ready = True")
     resume = init.index("QTimer.singleShot(0, manage_charts_dialog._on_import_astrotheme_from_search_panel)")
     assert ready < resume
+
+
+def test_main_window_does_not_fake_unbuilt_chart_view_widget_state() -> None:
+    init_start = APP_SOURCE.index("    def __init__(self):", APP_SOURCE.index("class MainWindow"))
+    widget_setup = APP_SOURCE.index("        self.setWindowFlag(Qt.Window, True)", init_start)
+    early_init = APP_SOURCE[init_start:widget_setup]
+
+    assert "self.sentiment_checkboxes = {}" not in early_init
+    assert "self.relationship_type_checkboxes = {}" not in early_init
