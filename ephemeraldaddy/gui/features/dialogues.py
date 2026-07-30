@@ -13,7 +13,6 @@ from PySide6.QtWidgets import (
     QDateEdit,
     QDialog,
     QFileDialog,
-    QFormLayout,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
@@ -25,6 +24,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSpinBox,
+    QStackedWidget,
     QTextEdit,
     QTimeEdit,
     QVBoxLayout,
@@ -74,10 +74,10 @@ class RetconEngineDialog(QDialog):
     _DEFINED_POSITION_STYLE = (
         "QComboBox {"
         f"background-color: {MIDDLE_PANEL_ACCENT_COLOR};"
-        "color: #111111;"
+        "color: white;"
         "border: 1px solid #555555;"
         "padding: 2px 6px;"
-        "}"
+        "} QComboBox QAbstractItemView { color: white; }"
     )
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -96,8 +96,7 @@ class RetconEngineDialog(QDialog):
         self._active_start_dt: datetime.datetime | None = None
         self._active_end_dt: datetime.datetime | None = None
 
-        root = QVBoxLayout()
-        self.setLayout(root)
+        root = QVBoxLayout(self)
 
         def _make_bold_label(text: str) -> QLabel:
             label = QLabel(text)
@@ -106,16 +105,22 @@ class RetconEngineDialog(QDialog):
             label.setFont(bold_font)
             return label
 
-        form = QFormLayout()
+        # The window switches between the Criteria Input Panel and the search view.
+        self.view_stack = QStackedWidget()
+        root.addWidget(self.view_stack)
+
+        self.criteria_panel = QGroupBox("Criteria Input")
+        criteria_panel_layout = QVBoxLayout(self.criteria_panel)
+
+        # Spacetime Criteria subpanel: location, date/time ranges, and search options.
+        spacetime_group = QGroupBox("Spacetime Criteria")
+        spacetime_layout = QVBoxLayout(spacetime_group)
         top_row = QHBoxLayout()
         top_row.setSpacing(12)
-
         top_row.addWidget(_make_bold_label("Location"))
         self.place_edit = QLineEdit()
         self.place_edit.setPlaceholderText("Chicago, IL, USA")
-        self.place_edit.setMinimumWidth(460)
         top_row.addWidget(self.place_edit, 2)
-
         top_row.addWidget(_make_bold_label("Date Range"))
         self.start_date_edit = QDateEdit()
         self.start_date_edit.setDisplayFormat("yyyy-MM-dd")
@@ -124,9 +129,6 @@ class RetconEngineDialog(QDialog):
             QDate(EPHEMERIS_MIN_DATE.year, EPHEMERIS_MIN_DATE.month, EPHEMERIS_MIN_DATE.day),
             QDate(EPHEMERIS_MAX_DATE.year, EPHEMERIS_MAX_DATE.month, EPHEMERIS_MAX_DATE.day),
         )
-        self.start_date_edit.setDate(QDate(EPHEMERIS_MIN_DATE.year, EPHEMERIS_MIN_DATE.month, EPHEMERIS_MIN_DATE.day))
-        top_row.addWidget(self.start_date_edit)
-        top_row.addWidget(QLabel("to"))
         self.end_date_edit = QDateEdit()
         self.end_date_edit.setDisplayFormat("yyyy-MM-dd")
         self.end_date_edit.setCalendarPopup(True)
@@ -134,29 +136,18 @@ class RetconEngineDialog(QDialog):
             QDate(EPHEMERIS_MIN_DATE.year, EPHEMERIS_MIN_DATE.month, EPHEMERIS_MIN_DATE.day),
             QDate(EPHEMERIS_MAX_DATE.year, EPHEMERIS_MAX_DATE.month, EPHEMERIS_MAX_DATE.day),
         )
-        self.end_date_edit.setDate(QDate.currentDate())
+        top_row.addWidget(self.start_date_edit)
+        top_row.addWidget(QLabel("to"))
         top_row.addWidget(self.end_date_edit)
-        top_row.addStretch(1)
-        form.addRow(top_row)
+        spacetime_layout.addLayout(top_row)
 
-        time_row = QHBoxLayout()
-        time_row.setSpacing(12)
-        time_row.addStretch(1)
-        time_row.addWidget(_make_bold_label("Time Range"))
-        self.start_time_edit = QTimeEdit()
-        self.start_time_edit.setDisplayFormat("HH:mm")
-        self.start_time_edit.setTime(datetime.time(0, 0))
-        time_row.addWidget(self.start_time_edit)
-        time_row.addWidget(QLabel("to"))
-        self.end_time_edit = QTimeEdit()
-        self.end_time_edit.setDisplayFormat("HH:mm")
-        self.end_time_edit.setTime(datetime.time(23, 59))
-        time_row.addWidget(self.end_time_edit)
-        form.addRow(time_row)
-
-        options_row = QHBoxLayout()
+        # Search Options stays left while Time Range is right-justified on this row.
+        options_time_row = QHBoxLayout()
+        options_time_row.setSpacing(10)
+        options_time_row.addWidget(_make_bold_label("Search Options"))
+        options_time_row.addWidget(QLabel("Step"))
         self.step_combo = QComboBox()
-        step_options = [
+        for label, minutes in [
             ("1 min", 1),
             ("5 min", 5),
             ("10 min", 10),
@@ -165,123 +156,156 @@ class RetconEngineDialog(QDialog):
             ("4 hrs", 240),
             ("12 hrs", 720),
             ("1 day", 1440),
-        ]
-        for label, minutes in step_options:
+        ]:
             self.step_combo.addItem(label, minutes)
-        self.step_combo.setCurrentText("12 hrs")
-        self.max_results_spin = QSpinBox()
-        self.max_results_spin.setRange(1, 10000)
-        self.max_results_spin.setValue(100)
-        options_row.addWidget(QLabel("Step (minutes)"))
-        options_row.addWidget(self.step_combo)
+        options_time_row.addWidget(self.step_combo)
         step_hint_label = QLabel("ⓘ")
         step_hint_label.setToolTip(
             '<i>Hint: Start with large steps and large spans of time; '
             "then narrow search field with successive passes.</i>"
         )
         apply_chart_info_link_cursor(step_hint_label)
-        options_row.addWidget(step_hint_label)
-        options_row.addSpacing(12)
-        options_row.addWidget(_make_bold_label("Max Results"))
-        options_row.addWidget(self.max_results_spin)
-        options_row.addStretch(1)
-        form.addRow(_make_bold_label("Search Options"), options_row)
+        options_time_row.addWidget(step_hint_label)
+        options_time_row.addWidget(QLabel("Max Results"))
+        self.max_results_spin = QSpinBox()
+        self.max_results_spin.setRange(1, 10000)
+        options_time_row.addWidget(self.max_results_spin)
+        options_time_row.addStretch(1)
+        options_time_row.addWidget(_make_bold_label("Time Range"))
+        self.start_time_edit = QTimeEdit()
+        self.start_time_edit.setDisplayFormat("HH:mm")
+        self.end_time_edit = QTimeEdit()
+        self.end_time_edit.setDisplayFormat("HH:mm")
+        options_time_row.addWidget(self.start_time_edit)
+        options_time_row.addWidget(QLabel("to"))
+        options_time_row.addWidget(self.end_time_edit)
+        spacetime_layout.addLayout(options_time_row)
+        criteria_panel_layout.addWidget(spacetime_group)
 
-        root.addLayout(form)
-
-        selectors_group = QGroupBox("Sign Criteria")
-        selectors_group.setStyleSheet("QGroupBox { font-weight: bold; }")
-        selectors_layout = QGridLayout()
-        selectors_layout.setHorizontalSpacing(10)
+        # Position Criteria subpanel: three columns keep every criterion above the fold.
+        position_group = QGroupBox("Position Criteria")
+        position_layout = QGridLayout(position_group)
+        position_layout.setHorizontalSpacing(10)
         self._body_sign_combos: dict[str, QComboBox] = {}
         sign_options = ["Any", *ZODIAC_NAMES]
-        half_count = (len(RETCON_BODIES) + 1) // 2
+        rows_per_column = (len(RETCON_BODIES) + 2) // 3
         for idx, body in enumerate(RETCON_BODIES):
             label = QLabel(body)
             label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            label_color = PLANET_COLORS.get(body, "#FFFFFF")
             label.setStyleSheet(
-                "QLabel { "
-                f"background: transparent; color: {label_color}; padding-right: 6px;"
-                " }"
+                "QLabel { background: transparent; "
+                f"color: {PLANET_COLORS.get(body, '#FFFFFF')}; padding-right: 6px; }}"
             )
             combo = QComboBox()
             combo.addItems(sign_options)
-            combo.setCurrentText("Any")
+            combo.setMaxVisibleItems(len(sign_options))
+            combo.setMaximumWidth(combo.fontMetrics().horizontalAdvance("M" * 15) + 28)
+            combo.setStyleSheet("QComboBox, QComboBox QAbstractItemView { color: white; }")
             combo.currentTextChanged.connect(self._update_defined_position_styles)
-            if idx < half_count:
-                row = idx
-                col = 0
-            else:
-                row = idx - half_count
-                col = 2
-            selectors_layout.addWidget(label, row, col)
-            selectors_layout.addWidget(combo, row, col + 1)
+            column = idx // rows_per_column
+            row = idx % rows_per_column
+            position_layout.addWidget(label, row, column * 2)
+            position_layout.addWidget(combo, row, column * 2 + 1)
             self._body_sign_combos[body] = combo
-        selectors_group.setLayout(selectors_layout)
+        criteria_panel_layout.addWidget(position_group, 1)
 
-        selectors_scroll = QScrollArea()
-        selectors_scroll.setWidgetResizable(True)
-        selectors_scroll.setWidget(selectors_group)
-        selectors_scroll.setMinimumHeight(360)
-        root.addWidget(selectors_scroll, 1)
-
-        controls_row = QHBoxLayout()
-        controls_row.addStretch(1)
+        # Criteria Input Panel button menu.
+        criteria_buttons = QHBoxLayout()
+        criteria_buttons.addStretch(1)
+        self.reset_button = QPushButton("Reset Criteria")
+        self.reset_button.clicked.connect(self._reset_criteria)
+        criteria_buttons.addWidget(self.reset_button)
         self.submit_button = QPushButton("Submit")
+        self.submit_button.setDefault(True)
         self.submit_button.clicked.connect(self._on_submit)
-        controls_row.addWidget(self.submit_button, 0, Qt.AlignRight)
-        self.cancel_button = QPushButton("Cancel search")
-        self.cancel_button.setEnabled(False)
-        self.cancel_button.clicked.connect(self._on_cancel)
-        controls_row.addWidget(self.cancel_button, 0, Qt.AlignRight)
-        root.addLayout(controls_row)
+        criteria_buttons.addWidget(self.submit_button)
+        criteria_panel_layout.addLayout(criteria_buttons)
+        self.view_stack.addWidget(self.criteria_panel)
 
-        status_row = QHBoxLayout()
-        self.status_label = QLabel("Ready.")
-        status_row.addWidget(self.status_label)
-        status_row.addStretch(1)
+        search_page = QWidget()
+        search_page_layout = QVBoxLayout(search_page)
+
+        # Search Summary panel records the submitted spacetime and position criteria.
+        self.summary_group = QGroupBox("Search Summary")
+        summary_layout = QVBoxLayout(self.summary_group)
+        self.results_output = QTextEdit()
+        self.results_output.setReadOnly(True)
+        summary_layout.addWidget(self.results_output)
+        summary_buttons = QHBoxLayout()
         self.export_button = QPushButton()
-        share_icon_path = _get_share_icon_path()
         configure_share_export_icon_button(
             self.export_button,
-            share_icon_path=share_icon_path,
+            share_icon_path=_get_share_icon_path(),
             tooltip="Export Rectification results as TXT or Markdown",
         )
         self.export_button.setEnabled(False)
         self.export_button.clicked.connect(self._on_export_results)
-        status_row.addWidget(self.export_button, 0, Qt.AlignRight)
-        root.addLayout(status_row)
+        summary_buttons.addWidget(self.export_button)
+        summary_buttons.addStretch(1)
+        self.edit_criteria_button = QPushButton("Edit Criteria")
+        self.edit_criteria_button.clicked.connect(self._show_criteria_panel)
+        summary_buttons.addWidget(self.edit_criteria_button)
+        summary_layout.addLayout(summary_buttons)
+        search_page_layout.addWidget(self.summary_group)
+
+        # Search Results panel owns progress, cancellation, matches, and chart creation.
+        self.results_group = QGroupBox("Search Results")
+        results_layout = QVBoxLayout(self.results_group)
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
-        self.progress_bar.setValue(0)
-        root.addWidget(self.progress_bar)
-
-        self.results_output = QTextEdit()
-        self.results_output.setReadOnly(True)
-        self.results_output.setPlaceholderText(
-            "Rectification matches will appear here after you press Submit."
-        )
-        root.addWidget(self.results_output, 1)
-
+        results_layout.addWidget(self.progress_bar)
+        status_row = QHBoxLayout()
+        self.status_label = QLabel("")
+        status_row.addWidget(self.status_label)
+        status_row.addStretch(1)
+        self.cancel_button = QPushButton("Cancel Search")
+        self.cancel_button.setEnabled(False)
+        self.cancel_button.clicked.connect(self._on_cancel)
+        status_row.addWidget(self.cancel_button)
+        results_layout.addLayout(status_row)
         self.results_list = QListWidget()
         self.results_list.itemDoubleClicked.connect(lambda _item: self._open_selected_match())
-        root.addWidget(self.results_list, 1)
-
+        results_layout.addWidget(self.results_list, 1)
         create_row = QHBoxLayout()
         self.create_chart_button = QPushButton("Create Chart from Selected Match")
         self.create_chart_button.setEnabled(False)
         self.create_chart_button.clicked.connect(self._open_selected_match)
-        create_row.addWidget(self.create_chart_button, 0, Qt.AlignLeft)
+        create_row.addWidget(self.create_chart_button)
         create_row.addStretch(1)
-        root.addLayout(create_row)
+        results_layout.addLayout(create_row)
+        search_page_layout.addWidget(self.results_group, 1)
+        self.view_stack.addWidget(search_page)
 
+        self._reset_criteria()
         self._update_defined_position_styles()
 
     def _update_defined_position_styles(self, *_args) -> None:
         for combo in self._body_sign_combos.values():
             is_defined = combo.currentText() != "Any"
-            combo.setStyleSheet(self._DEFINED_POSITION_STYLE if is_defined else "")
+            combo.setStyleSheet(
+                self._DEFINED_POSITION_STYLE
+                if is_defined
+                else "QComboBox, QComboBox QAbstractItemView { color: white; }"
+            )
+
+    def _reset_criteria(self) -> None:
+        """Restore every Criteria Input Panel field to its initial value."""
+        self.place_edit.clear()
+        self.start_date_edit.setDate(
+            QDate(EPHEMERIS_MIN_DATE.year, EPHEMERIS_MIN_DATE.month, EPHEMERIS_MIN_DATE.day)
+        )
+        self.end_date_edit.setDate(QDate.currentDate())
+        self.start_time_edit.setTime(datetime.time(0, 0))
+        self.end_time_edit.setTime(datetime.time(23, 59))
+        self.step_combo.setCurrentText("12 hrs")
+        self.max_results_spin.setValue(100)
+        for combo in self._body_sign_combos.values():
+            combo.setCurrentText("Any")
+        self._update_defined_position_styles()
+
+    def _show_criteria_panel(self) -> None:
+        self.view_stack.setCurrentWidget(self.criteria_panel)
+        self.submit_button.setFocus()
 
     def _criteria(self) -> dict[str, str]:
         criteria: dict[str, str] = {}
@@ -360,10 +384,12 @@ class RetconEngineDialog(QDialog):
 
         self.submit_button.setEnabled(False)
         self.cancel_button.setEnabled(True)
+        self.edit_criteria_button.setEnabled(False)
         self.progress_bar.setValue(0)
         self.status_label.setText("Scanning ephemeris in background…")
         #self.results_output.setPlainText("Search running in background. You can continue using other windows.")
         self.results_output.setHtml(self._build_results_html([], is_final=False))
+        self.view_stack.setCurrentIndex(1)
 
         self._thread = QThread(self)
         self._worker = RetconSearchWorker(
@@ -446,6 +472,7 @@ class RetconEngineDialog(QDialog):
     def _on_failed(self, error_message: str) -> None:
         self.submit_button.setEnabled(True)
         self.cancel_button.setEnabled(False)
+        self.edit_criteria_button.setEnabled(True)
         self.export_button.setEnabled(bool(self._active_matches))
         self.status_label.setText("Search failed.")
         QMessageBox.critical(self, "Rectification Engine error", f"Search failed:\n{error_message}")
@@ -453,12 +480,15 @@ class RetconEngineDialog(QDialog):
     def _on_finished(self, matches: list[dict]) -> None:
         self.submit_button.setEnabled(True)
         self.cancel_button.setEnabled(False)
+        self.edit_criteria_button.setEnabled(True)
 
         if self._worker is not None and self._worker.is_cancelled():
             self.status_label.setText("Search canceled.")
             self.progress_bar.setValue(0)
+        else:
             self.progress_bar.setValue(100)
-        self.status_label.setText(f"Search complete: {len(matches)} match(es).")
+            noun = "match" if len(matches) == 1 else "matches"
+            self.status_label.setText(f"Search complete: {len(matches)} {noun}.")
 
         self._active_matches = matches
         self.results_list.clear()
