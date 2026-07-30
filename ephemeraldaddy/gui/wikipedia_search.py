@@ -3,8 +3,9 @@ from __future__ import annotations
 import datetime
 import json
 import re
+from collections.abc import Mapping
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
 WIKIPEDIA_API_URL = "https://en.wikipedia.org/w/api.php"
@@ -17,6 +18,11 @@ def _wikipedia_http_get_json(url: str) -> dict[str, Any]:
     with urlopen(request, timeout=WIKIPEDIA_HTTP_TIMEOUT_SECONDS) as response:
         payload = response.read()
     return json.loads(payload.decode("utf-8", errors="replace"))
+
+
+def _wikipedia_api_query(params: Mapping[str, Any]) -> dict[str, Any]:
+    """Call the shared Wikipedia endpoint with EphemeralDaddy's HTTP policy."""
+    return _wikipedia_http_get_json(f"{WIKIPEDIA_API_URL}?{urlencode(params)}")
 
 
 def _wikipedia_http_get_text(url: str) -> str:
@@ -55,49 +61,6 @@ def _search_wikipedia_titles(search_query: str, limit: int = 10) -> list[str]:
         if title and title not in titles:
             titles.append(title)
     return titles
-
-def _fetch_wikipedia_intro_text(title: str) -> str:
-    url = (
-        f"{WIKIPEDIA_API_URL}?action=query&format=json&redirects=1&prop=extracts&"
-        f"exintro=1&explaintext=1&titles={quote(title)}"
-    )
-    data = _wikipedia_http_get_json(url)
-    pages = data.get("query", {}).get("pages", {})
-    if not isinstance(pages, dict):
-        return ""
-    for page in pages.values():
-        if not isinstance(page, dict):
-            continue
-        extract = str(page.get("extract", "") or "").strip()
-        if extract:
-            return extract.split("\n", 1)[0].strip()
-    return ""
-
-
-def _fetch_wikipedia_page_html(title: str) -> str:
-    url = f"{WIKIPEDIA_API_URL}?action=parse&format=json&prop=text&page={quote(title)}"
-    data = _wikipedia_http_get_json(url)
-    parse_node = data.get("parse", {})
-    if not isinstance(parse_node, dict):
-        return ""
-    text_node = parse_node.get("text", {})
-    if not isinstance(text_node, dict):
-        return ""
-    return str(text_node.get("*", "") or "")
-
-
-def _strip_html(fragment: str) -> str:
-    cleaned = re.sub(
-        r"<sup[^>]*class=[\"'][^\"']*reference[^\"']*[\"'][^>]*>.*?</sup>",
-        " ",
-        fragment,
-        flags=re.IGNORECASE | re.DOTALL,
-    )
-    cleaned = re.sub(r"<[^>]+>", " ", cleaned)
-    cleaned = re.sub(r"\s+\[\d+\]\s*", " ", cleaned)
-    cleaned = re.sub(r"\s+", " ", cleaned).strip()
-    return cleaned
-
 
 def resolve_wikipedia_page_options(search_query: str) -> dict[str, Any]:
     pages = _query_pages_for_title(search_query)
@@ -149,37 +112,11 @@ def parse_wikipedia_birth_data(page_title: str) -> dict[str, Any]:
         birth_place = re.sub(r"<[^>]+>", " ", raw_place)
         birth_place = re.sub(r"\s+", " ", birth_place).strip(" ,")
 
-
-    biography = ""
-    content_match = re.search(
-        r'<div[^>]*class=["\'][^"\']*\bmw-parser-output\b[^"\']*["\'][^>]*>(.*?)</div>',
-        html_text,
-        flags=re.IGNORECASE | re.DOTALL,
-    )
-    content_html = content_match.group(1) if content_match else html_text
-    for paragraph_html in re.findall(
-        r"<p[^>]*>(.*?)</p>",
-        content_html,
-        flags=re.IGNORECASE | re.DOTALL,
-    ):
-        cleaned = re.sub(
-            r"<sup[^>]*class=[\"'][^\"']*reference[^\"']*[\"'][^>]*>.*?</sup>",
-            " ",
-            paragraph_html,
-            flags=re.IGNORECASE | re.DOTALL,
-        )
-        cleaned = re.sub(r"<[^>]+>", " ", cleaned)
-        cleaned = re.sub(r"\s+", " ", cleaned).strip()
-        if cleaned:
-            biography = cleaned
-            break
-
     return {
         "name": page_title,
         "birth_year": year,
         "birth_month": month,
         "birth_day": day,
         "birth_place": birth_place,
-        "biography": biography,
         "source_url": page_url,
     }

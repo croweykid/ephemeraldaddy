@@ -549,6 +549,7 @@ from ephemeraldaddy.gui.wikipedia_search import (
     parse_wikipedia_birth_data,
     resolve_wikipedia_page_options,
 )
+from ephemeraldaddy.gui.wikipedia_blurb_getter import populate_wikipedia_biography
 from ephemeraldaddy.analysis.traits import set_default_traits_source_monitor_enabled
 from ephemeraldaddy.gui.dev_tools import (
     BATCH_TAGGING_TERMINAL_DEBUG_DEFAULT,
@@ -13042,6 +13043,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
         query = raw_query
         profile_data: dict[str, Any] | None = None
+        imported_from_astrotheme = False
         try:
             if raw_query.lower().startswith(("http://", "https://")):
                 query = raw_query
@@ -13051,6 +13053,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                     raise ValueError("No matching Astrotheme profile was found.")
                 query = resolved_url
             profile_data = parse_astrotheme_profile(query)
+            imported_from_astrotheme = True
         except Exception as exc:
             if not self._wikipedia_backup_search_enabled:
                 logger.exception(
@@ -13191,6 +13194,28 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 "biography": str(wiki_data.get("biography", "") or ""),
                 "profile_url": str(wiki_data.get("source_url", "")),
             }
+
+            try:
+                populate_wikipedia_biography(profile_data, page_title=selected_title)
+            except Exception as wikipedia_bio_exc:
+                logger.warning(
+                    "Wikipedia biography import failed (id=%s title=%r): %s",
+                    debug_id,
+                    selected_title,
+                    wikipedia_bio_exc,
+                )
+
+        if profile_data is not None and imported_from_astrotheme:
+            try:
+                populate_wikipedia_biography(profile_data)
+            except Exception as wikipedia_bio_exc:
+                logger.warning(
+                    "Astrotheme import could not add a Wikipedia biography "
+                    "(id=%s name=%r): %s",
+                    debug_id,
+                    profile_data.get("name"),
+                    wikipedia_bio_exc,
+                )
 
         if profile_data is None:
             QMessageBox.warning(

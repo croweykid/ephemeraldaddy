@@ -1,15 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from collections.abc import Callable, Mapping, MutableMapping
 from typing import Any
 from urllib.parse import unquote, urlparse
 
-import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
-
-
-WIKIPEDIA_API = "https://en.wikipedia.org/w/api.php"
+from ephemeraldaddy.gui.wikipedia_search import _wikipedia_api_query
 
 
 class WikipediaError(RuntimeError):
@@ -61,41 +57,11 @@ def _title_from_name_or_url(value: str) -> str:
     return unquote(value).replace("_", " ").strip()
 
 
-def _make_session() -> requests.Session:
-    retry_policy = Retry(
-        total=4,
-        connect=4,
-        read=4,
-        status=4,
-        backoff_factor=0.6,
-        status_forcelist=(429, 500, 502, 503, 504),
-        allowed_methods=frozenset({"GET"}),
-        respect_retry_after_header=True,
-    )
-
-    session = requests.Session()
-    session.mount(
-        "https://",
-        HTTPAdapter(max_retries=retry_policy),
-    )
-
-    # Replace this with your app's actual name and contact/project page.
-    session.headers.update({
-        "User-Agent": (
-            "EphemeralDaddy/1.0 "
-            "(Wikipedia biography retriever; contact: your-email@example.com)"
-        )
-    })
-
-    return session
-
-
 def fetch_wikipedia_blurb(
     person: str,
     *,
     paragraph_limit: int = 3,
-    timeout: float = 12.0,
-    session: requests.Session | None = None,
+    api_query: Callable[[Mapping[str, Any]], dict[str, Any]] = _wikipedia_api_query,
 ) -> WikipediaBlurb:
     """
     Retrieve the introductory paragraphs from an English Wikipedia article.
@@ -107,8 +73,6 @@ def fetch_wikipedia_blurb(
         raise ValueError("paragraph_limit must be at least 1.")
 
     requested_title = _title_from_name_or_url(person)
-    http = session or _make_session()
-
     params: dict[str, Any] = {
         "action": "query",
         "format": "json",
@@ -129,20 +93,10 @@ def fetch_wikipedia_blurb(
     }
 
     try:
-        response = http.get(
-            WIKIPEDIA_API,
-            params=params,
-            timeout=timeout,
-        )
-        response.raise_for_status()
-        payload = response.json()
-    except requests.RequestException as exc:
+        payload = api_query(params)
+    except Exception as exc:
         raise WikipediaError(
             f"Wikipedia request failed for {requested_title!r}."
-        ) from exc
-    except ValueError as exc:
-        raise WikipediaError(
-            "Wikipedia returned invalid JSON."
         ) from exc
 
     pages = payload.get("query", {}).get("pages", [])
@@ -158,6 +112,9 @@ def fetch_wikipedia_blurb(
         raise WikipediaPageNotFound(
             f"No Wikipedia article exists under {requested_title!r}."
         )
+
+    if not isinstance(page, dict):
+        raise WikipediaError("Wikipedia returned an invalid page record.")
 
     pageprops = page.get("pageprops", {})
 
@@ -177,17 +134,31 @@ def fetch_wikipedia_blurb(
     ]
 
     return WikipediaBlurb(
-        title=page["title"],
+        title=str(page.get("title") or requested_title),
         paragraphs=paragraphs[:paragraph_limit],
-        page_url=page["fullurl"],
-        page_id=page["pageid"],
+        page_url=str(page.get("fullurl") or ""),
+        page_id=int(page.get("pageid") or 0),
     )
 
-# Sample usage:
-# blurb = fetch_wikipedia_blurb(
-# "https://en.wikipedia.org/wiki/Frances_Willard",
-# paragraph_limit=3,
-# )
-# print(blurb.title)
-# print(blurb.text)
-# print(blurb.page_url)
+
+def populate_wikipedia_biography(
+    profile_data: MutableMapping[str, Any],
+    *,
+    page_title: str | None = None,
+    paragraph_limit: int = 3,
+) -> WikipediaBlurb:
+    """Populate EphemeralDaddy's biography metadata from a Wikipedia lead.
+
+    ``page_title`` should be supplied when the import flow has already resolved
+    a specific Wikipedia result.  Otherwise the imported chart name is used,
+    allowing Wikipedia to handle ordinary redirects without introducing a
+    second, potentially inconsistent search-selection step.
+    """
+    lookup_title = str(page_title or profile_data.get("name") or "").strip()
+    if not lookup_title:
+        raise ValueError("A chart name or resolved Wikipedia title is required.")
+
+    blurb = fetch_wikipedia_blurb(lookup_title, paragraph_limit=paragraph_limit)
+    if blurb.text:
+        profile_data["biography"] = blurb.text
+    return blurb
