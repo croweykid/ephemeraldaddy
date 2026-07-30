@@ -275,23 +275,48 @@ def search_retcon_candidates(
 
         return matched_positions if is_match else None
 
+    def matching_range_end(
+        range_start: dt.datetime,
+        proposed_end: dt.datetime,
+    ) -> dt.datetime | None:
+        """Find a minute-usable matching boundary without discarding a partial hit."""
+        if proposed_end <= range_start:
+            return None
+        boundary = proposed_end - dt.timedelta(microseconds=1)
+        midpoint = range_start + (proposed_end - range_start) / 2
+        if match_at(midpoint) is not None and match_at(boundary) is not None:
+            return proposed_end
+
+        matched = range_start
+        unmatched = proposed_end
+        resolution = dt.timedelta(minutes=1)
+        while unmatched - matched > resolution:
+            midpoint = matched + (unmatched - matched) / 2
+            if match_at(midpoint) is not None:
+                matched = midpoint
+            else:
+                unmatched = midpoint
+        # Chart Editor stores rectification endpoints to minute precision.
+        minute_end = matched.replace(second=0, microsecond=0)
+        return minute_end if minute_end > range_start else None
+
     for window_start, window_end in search_windows:
         current = window_start
-        while current <= window_end:
+        # Windows are half-open [start, end): a shared endpoint belongs to the
+        # following window, so adjacent refinement ranges cannot emit duplicates.
+        while current < window_end:
             if len(results) >= max_results:
                 return results
             if should_cancel_cb is not None and should_cancel_cb():
                 return results
             matched_positions = match_at(current)
-            range_end = min(current + step, window_end, end_dt)
-            if matched_positions is not None and range_end > current:
-                midpoint = current + (range_end - current) / 2
-                boundary = range_end - dt.timedelta(microseconds=1)
-                # A reported range is a guarantee, not merely the gap between
-                # samples: validate its midpoint and far boundary as well.
-                if match_at(midpoint) is None or match_at(boundary) is None:
-                    matched_positions = None
-            if matched_positions is not None:
+            proposed_end = min(current + step, window_end, end_dt)
+            range_end = (
+                matching_range_end(current, proposed_end)
+                if matched_positions is not None
+                else None
+            )
+            if matched_positions is not None and range_end is not None:
                 match = {
                     "datetime": current,
                     "positions": matched_positions,

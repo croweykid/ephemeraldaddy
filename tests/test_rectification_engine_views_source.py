@@ -15,8 +15,10 @@ def test_rectification_engine_codifies_all_three_views():
 def test_house_refinement_is_scoped_to_current_results():
     assert 'QPushButton("Refine by House Placement")' in DIALOGUES_SOURCE
     assert 'header = QLabel("H")' in DIALOGUES_SOURCE
-    assert 'display_body = "Midhaven" if body == "MC" else body' in DIALOGUES_SOURCE
+    assert 'QLabel("Midhaven" if body == "MC" else body)' in DIALOGUES_SOURCE
     assert "candidate_windows=refinement_windows" in DIALOGUES_SOURCE
+    assert "self._ensure_refinement_angle_widgets()" in DIALOGUES_SOURCE
+    assert "self._remove_refinement_angle_widgets()" in DIALOGUES_SOURCE
     assert '[("12 hrs", 720), ("1 day", 1440)]' in DIALOGUES_SOURCE
     for option in [
         '("30 min", 30)',

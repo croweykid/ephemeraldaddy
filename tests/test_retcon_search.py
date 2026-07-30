@@ -11,6 +11,7 @@ def test_rectification_bodies_replace_ketu_with_chart_angles():
 
 def test_search_can_match_ascendant_and_midheaven(monkeypatch):
     moment = dt.datetime(2000, 1, 1, tzinfo=dt.timezone.utc)
+    end = moment + dt.timedelta(minutes=1)
     monkeypatch.setattr(retcon, "planetary_positions", lambda *_args: {"Sun": 5.0})
     monkeypatch.setattr(
         retcon,
@@ -21,7 +22,7 @@ def test_search_can_match_ascendant_and_midheaven(monkeypatch):
     matches = retcon.search_retcon_candidates(
         {"Ascendant": "Taurus", "MC": "Capricorn"},
         moment,
-        moment,
+        end,
         41.8,
         -87.6,
     )
@@ -32,6 +33,7 @@ def test_search_can_match_ascendant_and_midheaven(monkeypatch):
 
 def test_planet_only_search_skips_chart_angle_calculation(monkeypatch):
     moment = dt.datetime(2000, 1, 1, tzinfo=dt.timezone.utc)
+    end = moment + dt.timedelta(minutes=1)
     monkeypatch.setattr(retcon, "planetary_positions", lambda *_args: {"Sun": 5.0})
 
     def unexpected_axes(*_args):
@@ -40,7 +42,7 @@ def test_planet_only_search_skips_chart_angle_calculation(monkeypatch):
     monkeypatch.setattr(retcon, "placidus_axes", unexpected_axes)
 
     matches = retcon.search_retcon_candidates(
-        {"Sun": "Aries"}, moment, moment, 41.8, -87.6
+        {"Sun": "Aries"}, moment, end, 41.8, -87.6
     )
 
     assert len(matches) == 1
@@ -147,3 +149,53 @@ def test_broad_candidate_generation_remains_lazy(monkeypatch):
 
     assert len(matches) == 1
     assert calls == 3
+
+
+def test_partial_matching_interval_is_shortened_instead_of_discarded(monkeypatch):
+    start = dt.datetime(2000, 1, 1, tzinfo=dt.timezone.utc)
+    transition = start + dt.timedelta(hours=3)
+    end = start + dt.timedelta(hours=12)
+    monkeypatch.setattr(
+        retcon,
+        "planetary_positions",
+        lambda moment, *_args: {"Sun": 5.0 if moment < transition else 35.0},
+    )
+
+    matches = retcon.search_retcon_candidates(
+        {"Sun": "Aries"}, start, end, 41.8, -87.6, step_minutes=720
+    )
+
+    assert len(matches) == 1
+    assert start < matches[0]["range_end"] <= transition
+
+
+def test_adjacent_refinement_windows_do_not_duplicate_shared_endpoint(monkeypatch):
+    start = dt.datetime(2000, 1, 1, tzinfo=dt.timezone.utc)
+    shared = start + dt.timedelta(minutes=30)
+    end = shared + dt.timedelta(minutes=30)
+    monkeypatch.setattr(retcon, "planetary_positions", lambda *_args: {"Sun": 5.0})
+
+    matches = retcon.search_retcon_candidates(
+        {"Sun": "Aries"},
+        start,
+        end,
+        41.8,
+        -87.6,
+        step_minutes=30,
+        candidate_windows=[(start, shared), (shared, end)],
+    )
+
+    assert [match["datetime"] for match in matches] == [start, shared]
+
+
+def test_terminal_sample_does_not_create_zero_width_range(monkeypatch):
+    start = dt.datetime(2000, 1, 1, tzinfo=dt.timezone.utc)
+    end = start + dt.timedelta(minutes=30)
+    monkeypatch.setattr(retcon, "planetary_positions", lambda *_args: {"Sun": 5.0})
+
+    matches = retcon.search_retcon_candidates(
+        {"Sun": "Aries"}, start, end, 41.8, -87.6, step_minutes=30
+    )
+
+    assert len(matches) == 1
+    assert matches[0]["range_start"] < matches[0]["range_end"]

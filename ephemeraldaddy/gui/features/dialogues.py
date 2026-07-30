@@ -203,55 +203,20 @@ class RetconEngineDialog(QDialog):
 
         # Position Criteria subpanel: three columns keep every criterion above the fold.
         position_group = QGroupBox("Position Criteria")
-        position_layout = QGridLayout(position_group)
-        position_layout.setHorizontalSpacing(10)
+        self._position_layout = QGridLayout(position_group)
+        self._position_layout.setHorizontalSpacing(10)
         self._body_sign_combos: dict[str, QComboBox] = {}
         self._body_house_combos: dict[str, QComboBox] = {}
         self._refinement_widgets: list[QWidget] = []
-        sign_options = ["Any", *ZODIAC_NAMES]
-        rows_per_column = (len(RETCON_BODIES) + 2) // 3
-        for idx, body in enumerate(RETCON_BODIES):
-            display_body = "Midhaven" if body == "MC" else body
-            label = QLabel(display_body)
-            label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            label.setStyleSheet(
-                "QLabel { background: transparent; "
-                f"color: {PLANET_COLORS.get(body, '#FFFFFF')}; padding-right: 6px; }}"
-            )
-            combo = QComboBox()
-            combo.addItems(sign_options)
-            combo.setMaxVisibleItems(len(sign_options))
-            combo.setMaximumWidth(combo.fontMetrics().horizontalAdvance("M" * 15) + 28)
-            combo.setStyleSheet(
-                "QComboBox, QComboBox QAbstractItemView { color: white; }"
-            )
-            combo.currentTextChanged.connect(self._update_defined_position_styles)
-            house_combo = QComboBox()
-            house_combo.addItems(["Any", *[str(house) for house in range(1, 13)]])
-            house_combo.setFixedWidth(
-                house_combo.fontMetrics().horizontalAdvance("000") + 24
-            )
-            if body in {"Ascendant", "MC"}:
-                house_combo.setCurrentText("1" if body == "Ascendant" else "10")
-                house_combo.setEnabled(False)
-                house_combo.setStyleSheet(
-                    "QComboBox { color: #aaaaaa; background: #444444; }"
-                )
-            column = idx // rows_per_column
-            row = idx % rows_per_column
-            if row == 0:
-                header = QLabel("H")
-                header.setAlignment(Qt.AlignCenter)
-                position_layout.addWidget(header, 0, column * 3 + 2)
-                self._refinement_widgets.append(header)
-            position_layout.addWidget(label, row + 1, column * 3)
-            position_layout.addWidget(combo, row + 1, column * 3 + 1)
-            position_layout.addWidget(house_combo, row + 1, column * 3 + 2)
-            self._body_sign_combos[body] = combo
-            self._body_house_combos[body] = house_combo
-            self._refinement_widgets.append(house_combo)
-            if body not in RETCON_CRITERIA_BODIES:
-                self._refinement_widgets.extend([label, combo])
+        self._angle_widgets: dict[str, list[QWidget]] = {}
+        self._rows_per_position_column = (len(RETCON_BODIES) + 2) // 3
+        for column in range(3):
+            header = QLabel("H")
+            header.setAlignment(Qt.AlignCenter)
+            self._position_layout.addWidget(header, 0, column * 3 + 2)
+            self._refinement_widgets.append(header)
+        for idx, body in enumerate(RETCON_CRITERIA_BODIES):
+            self._add_position_criterion(body, idx)
         criteria_panel_layout.addWidget(position_group, 1)
 
         # Criteria Input Panel button menu.
@@ -330,6 +295,65 @@ class RetconEngineDialog(QDialog):
         self._apply_view(RectificationView.CRITERIA)
         self._update_defined_position_styles()
 
+    def _add_position_criterion(self, body: str, index: int) -> None:
+        label = QLabel("Midhaven" if body == "MC" else body)
+        label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        label.setStyleSheet(
+            "QLabel { background: transparent; "
+            f"color: {PLANET_COLORS.get(body, '#FFFFFF')}; padding-right: 6px; }}"
+        )
+        sign_combo = QComboBox()
+        sign_combo.addItems(["Any", *ZODIAC_NAMES])
+        sign_combo.setMaxVisibleItems(len(ZODIAC_NAMES) + 1)
+        sign_combo.setMaximumWidth(
+            sign_combo.fontMetrics().horizontalAdvance("M" * 15) + 28
+        )
+        sign_combo.setStyleSheet(
+            "QComboBox, QComboBox QAbstractItemView { color: white; }"
+        )
+        sign_combo.currentTextChanged.connect(self._update_defined_position_styles)
+        house_combo = QComboBox()
+        house_combo.addItems(["Any", *[str(house) for house in range(1, 13)]])
+        house_combo.setFixedWidth(
+            house_combo.fontMetrics().horizontalAdvance("000") + 24
+        )
+        if body in {"Ascendant", "MC"}:
+            house_combo.setCurrentText("1" if body == "Ascendant" else "10")
+            house_combo.setEnabled(False)
+            house_combo.setStyleSheet(
+                "QComboBox { color: #aaaaaa; background: #444444; }"
+            )
+
+        column = index // self._rows_per_position_column
+        row = index % self._rows_per_position_column
+        self._position_layout.addWidget(label, row + 1, column * 3)
+        self._position_layout.addWidget(sign_combo, row + 1, column * 3 + 1)
+        self._position_layout.addWidget(house_combo, row + 1, column * 3 + 2)
+        self._body_sign_combos[body] = sign_combo
+        self._body_house_combos[body] = house_combo
+        self._refinement_widgets.append(house_combo)
+        if body in {"Ascendant", "MC"}:
+            self._angle_widgets[body] = [label, sign_combo, house_combo]
+
+    def _ensure_refinement_angle_widgets(self) -> None:
+        for body in ("Ascendant", "MC"):
+            if body not in self._angle_widgets:
+                self._add_position_criterion(body, RETCON_BODIES.index(body))
+                self._body_sign_combos[body].setCurrentText(
+                    self._active_criteria.get(body, "Any")
+                )
+
+    def _remove_refinement_angle_widgets(self) -> None:
+        for body, widgets in list(self._angle_widgets.items()):
+            self._body_sign_combos.pop(body, None)
+            self._body_house_combos.pop(body, None)
+            for widget in widgets:
+                if widget in self._refinement_widgets:
+                    self._refinement_widgets.remove(widget)
+                self._position_layout.removeWidget(widget)
+                widget.deleteLater()
+            del self._angle_widgets[body]
+
     def _update_defined_position_styles(self, *_args) -> None:
         for combo in self._body_sign_combos.values():
             is_defined = combo.currentText() != "Any"
@@ -377,6 +401,10 @@ class RetconEngineDialog(QDialog):
 
     def _apply_view(self, view: RectificationView) -> None:
         previous_view = self._view
+        if view is RectificationView.REFINEMENT:
+            self._ensure_refinement_angle_widgets()
+        elif view is RectificationView.CRITERIA:
+            self._remove_refinement_angle_widgets()
         self._view = view
         self.view_stack.setCurrentIndex(1 if view is RectificationView.RESULTS else 0)
         refinement_visible = view is RectificationView.REFINEMENT
