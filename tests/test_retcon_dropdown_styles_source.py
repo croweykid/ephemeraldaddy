@@ -31,3 +31,15 @@ def test_rectification_engine_uses_shared_dropdown_helpers():
 
 def test_rectification_house_headers_are_limited_to_one_text_line():
     assert "header.setMaximumHeight(header.fontMetrics().height())" in DIALOGUES_SOURCE
+
+
+def test_refinement_state_survives_results_view_and_stays_out_of_broad_searches():
+    assert "def _remove_refinement_angle_widgets" not in DIALOGUES_SOURCE
+    assert "if not self._refinement_candidate_matches:" in DIALOGUES_SOURCE
+    assert "for match in self._refinement_candidate_matches:" in DIALOGUES_SOURCE
+    assert "self._refinement_candidate_matches = list(matches)" in DIALOGUES_SOURCE
+    criteria_method = DIALOGUES_SOURCE.split("def _criteria", 1)[1].split(
+        "def _house_criteria", 1
+    )[0]
+    assert 'body in {"Ascendant", "MC"}' in criteria_method
+    assert "self._view is not RectificationView.REFINEMENT" in criteria_method
