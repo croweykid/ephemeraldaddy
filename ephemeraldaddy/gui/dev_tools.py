@@ -92,7 +92,6 @@ class SimilarityAlgorithmAccuracyBrowser(QTextBrowser):
         self.setFrameShape(QFrame.NoFrame)
         self.setStyleSheet("QTextBrowser { background: transparent; border: none; }")
         self.setMinimumHeight(100)
-        self.setMaximumHeight(360)
         self.anchorClicked.connect(self._toggle_algorithm_details)
         self.refresh_ranking()
 
@@ -1047,10 +1046,6 @@ def build_similarity_calculator_settings_section(
         is_enabled=perceived_accuracy_controls_enabled,
         on_toggled=on_perceived_accuracy_controls_toggled,
     )
-    algorithm_accuracy_label = SimilarityAlgorithmAccuracyBrowser()
-    algorithm_accuracy_label.setVisible(perceived_accuracy_controls_enabled)
-    perceived_accuracy_checkbox.toggled.connect(algorithm_accuracy_label.setVisible)
-    research_layout.addWidget(algorithm_accuracy_label)
     show_high_similarity_button = QPushButton("Show 90-100% similarities")
     show_high_similarity_button.setToolTip(
         "Calculate database-wide Astro Twin scores with the current calculator mode and list chart pairs "
@@ -1058,7 +1053,16 @@ def build_similarity_calculator_settings_section(
     )
     show_high_similarity_button.clicked.connect(on_show_high_similarity_clicked)
     research_layout.addWidget(show_high_similarity_button, alignment=Qt.AlignLeft)
-    research_layout.addStretch(1)
+
+    research_accuracy_divider = QFrame()
+    research_accuracy_divider.setFrameShape(QFrame.HLine)
+    research_accuracy_divider.setFrameShadow(QFrame.Sunken)
+    research_layout.addWidget(research_accuracy_divider)
+
+    algorithm_accuracy_label = SimilarityAlgorithmAccuracyBrowser()
+    algorithm_accuracy_label.setVisible(perceived_accuracy_controls_enabled)
+    perceived_accuracy_checkbox.toggled.connect(algorithm_accuracy_label.setVisible)
+    research_layout.addWidget(algorithm_accuracy_label, 1)
 
     return {
         "default_radio": default_radio,
