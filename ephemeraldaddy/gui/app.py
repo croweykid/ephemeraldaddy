@@ -27721,7 +27721,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 least_similar_matches.sort(key=lambda match: (float(match.score), int(match.chart_id)))
             elif incremental_refresh_supported:
                 self._similar_charts_popout_last_cache_status = "incremental-refresh"
-                update_similar_charts_loading_progress(progress, "Refreshing changed Astro Twin Calculator rankings…", 20)
+                update_similar_charts_loading_progress(progress, "Data changed. Refreshing changed Astro Twin rankings.", 20)
                 # logger.debug(
                 #     "Similar Charts popout cache incrementally refreshing %s changed rows for subject_chart_id=%s",
                 #     len(changed_chart_ids),
@@ -28272,27 +28272,27 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         if is_markdown:
             lines.extend(build_similar_charts_export_lines(subject_name=subject_name, rows=[], is_markdown=True))
             lines.append("")
-            lines.append("## Top 25 Most Similar")
+            lines.append("## Top 25 Most Similar Charts")
             lines.append("")
             lines.extend(
                 build_similar_charts_export_lines(subject_name=subject_name, rows=most_rows, is_markdown=True)[2:]
             )
             lines.append("")
-            lines.append("## Top 25 Least Similar")
+            lines.append("## Top 25 Least Similar Charts")
             lines.append("")
             lines.extend(
                 build_similar_charts_export_lines(subject_name=subject_name, rows=least_rows, is_markdown=True)[2:]
             )
         else:
-            lines.append(f"{subject_name}'s Astro Twin Results")
+            lines.append(f"{subject_name}'s Astro Twins")
             lines.append("")
-            lines.append("Top 25 Most Similar")
+            lines.append("Top 25 Most Similar Charts")
             lines.append("")
             lines.extend(
                 build_similar_charts_export_lines(subject_name=subject_name, rows=most_rows, is_markdown=False)[2:]
             )
             lines.append("")
-            lines.append("Top 25 Least Similar")
+            lines.append("Top 25 Least Similar Charts")
             lines.append("")
             lines.extend(
                 build_similar_charts_export_lines(subject_name=subject_name, rows=least_rows, is_markdown=False)[2:]

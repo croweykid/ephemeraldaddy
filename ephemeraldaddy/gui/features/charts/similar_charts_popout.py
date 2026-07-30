@@ -231,7 +231,7 @@ def show_similar_charts_loading_progress(
 ) -> object:
     progress = create_app_loading_progress(
         parent=parent,
-        title="Astro Twin",
+        title="Astro Twins",
         message=message,
         cancel_text="Stop that!",
     )
@@ -821,7 +821,7 @@ def build_similar_charts_export_lines(
 ) -> list[str]:
     lines: list[str] = []
     if is_markdown:
-        lines.append(f"# {subject_name}'s Astro Twin") #aka Similar Charts
+        lines.append(f"# {subject_name}'s Astro Twins") #aka Similar Charts
         lines.append("")
         lines.append(
             "| Rank | Chart UID | Chart | Similarity | Band | Z-score | Components |"
@@ -837,7 +837,7 @@ def build_similar_charts_export_lines(
             )
         return lines
 
-    lines.append(f"{subject_name}'s Astro Twin") #aka Similar Charts
+    lines.append(f"{subject_name}'s Astro Twins") #aka Similar Charts
     lines.append("")
     for row in rows:
         z_score = row.get("similarity_z_score")
@@ -3307,7 +3307,7 @@ def build_similar_charts_popout_dialog(
     # old widgets and complete ranking payload do not remain parent-owned and
     # retained for the rest of the application session.
     dialog.setAttribute(Qt.WA_DeleteOnClose, True)
-    dialog.setWindowTitle(f"Astro Twin — {subject_name}")
+    dialog.setWindowTitle(f"Astro Twins — {subject_name}")
     dialog.setModal(False)
     dialog.resize(860, 700)
     layout = QVBoxLayout(dialog)
@@ -3364,7 +3364,7 @@ def build_similar_charts_popout_dialog(
         export_button.setText("↗")
     export_button.setAutoRaise(True)
     apply_button_cursor(export_button)
-    export_button.setToolTip("Export the top and bottom 25 Astro Twin results (TXT or MD)")
+    export_button.setToolTip("Export the top and bottom 25 Astro Twin results (TXT or MD)") #top and bottom 25 Astro Twins
     export_button.setVisible(on_export_clicked is not None)
     if on_export_clicked is not None:
         export_button.clicked.connect(lambda _checked=False: on_export_clicked(dialog))

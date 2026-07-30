@@ -702,7 +702,7 @@ def build_similarity_calculator_settings_section(
     algorithm_layout.addWidget(scoring_methods_header)
     algorithm_layout.addWidget(
         QLabel(
-            "Choose which algorithm generates Astro Twin Calculator results:"
+            "Choose the metric by which Astro Twins are defined:"
         )
     )
 
