@@ -4,7 +4,7 @@ import datetime as dt
 from typing import Callable
 
 from ephemeraldaddy.core.ephemeris import planetary_positions
-from ephemeraldaddy.core.houses import placidus_axes
+from ephemeraldaddy.core.houses import placidus_axes, placidus_houses_and_axes
 from ephemeraldaddy.core.interpretations import ZODIAC_NAMES
 
 RETCON_BODIES = [
@@ -24,9 +24,16 @@ RETCON_BODIES = [
     "Juno",
     "Vesta",
     "Rahu",
+    "Lilith",
     "Ascendant",
     "MC",
-    "Lilith",
+]
+
+# Criteria View deliberately starts with planets/bodies only. Chart angles are
+# introduced later, in Refinement View, because their timing is substantially
+# more sensitive than ordinary sign-position criteria.
+RETCON_CRITERIA_BODIES = [
+    body for body in RETCON_BODIES if body not in {"Ascendant", "MC"}
 ]
 
 # Bodies that move slowly enough for decade-level pruning.
@@ -64,7 +71,26 @@ def _rectification_positions(
     return positions
 
 
-def _build_decade_windows(start_dt: dt.datetime, end_dt: dt.datetime) -> list[tuple[dt.datetime, dt.datetime]]:
+def house_for_longitude(cusps: list[float], longitude: float) -> int | None:
+    """Return the 1-based Placidus house containing ``longitude``."""
+    if len(cusps) < 12:
+        return None
+    longitude %= 360.0
+    for index in range(12):
+        start = cusps[index] % 360.0
+        end = cusps[(index + 1) % 12] % 360.0
+        if start <= end:
+            contains = start <= longitude < end
+        else:
+            contains = longitude >= start or longitude < end
+        if contains:
+            return index + 1
+    return None
+
+
+def _build_decade_windows(
+    start_dt: dt.datetime, end_dt: dt.datetime
+) -> list[tuple[dt.datetime, dt.datetime]]:
     windows: list[tuple[dt.datetime, dt.datetime]] = []
     decade_year = (start_dt.year // 10) * 10
     while decade_year <= end_dt.year:
@@ -137,7 +163,9 @@ def _candidate_search_windows(
     should_cancel_cb: Callable[[], bool] | None,
 ) -> list[tuple[dt.datetime, dt.datetime]]:
     slow_required = {
-        body: sign for body, sign in required_signs.items() if body in SLOW_RETCON_BODIES
+        body: sign
+        for body, sign in required_signs.items()
+        if body in SLOW_RETCON_BODIES
     }
     if not slow_required:
         return [(start_dt, end_dt)]
@@ -170,6 +198,8 @@ def search_retcon_candidates(
     progress_cb: Callable[[int, int], None] | None = None,
     match_cb: Callable[[dict[str, object]], None] | None = None,
     should_cancel_cb: Callable[[], bool] | None = None,
+    required_houses: dict[str, int] | None = None,
+    candidate_datetimes: list[dt.datetime] | None = None,
 ) -> list[dict[str, object]]:
     if start_dt.tzinfo is None or end_dt.tzinfo is None:
         raise ValueError("search_retcon_candidates expects timezone-aware datetimes")
@@ -187,52 +217,92 @@ def search_retcon_candidates(
         return []
     required_bodies = set(required)
 
-    search_windows = _candidate_search_windows(
-        start_dt,
-        end_dt,
-        required,
-        lat,
-        lon,
-        should_cancel_cb,
+    houses_required = {
+        body: int(house)
+        for body, house in (required_houses or {}).items()
+        if body in RETCON_BODIES and 1 <= int(house) <= 12
+    }
+    required_bodies.update(houses_required)
+
+    search_windows = (
+        []
+        if candidate_datetimes is not None
+        else _candidate_search_windows(
+            start_dt, end_dt, required, lat, lon, should_cancel_cb
+        )
     )
-    if not search_windows:
+    if candidate_datetimes is None and not search_windows:
         return []
 
     step = dt.timedelta(minutes=step_minutes)
-    total = sum(int((window_end - window_start) // step) + 1 for window_start, window_end in search_windows)
+    total = (
+        len(candidate_datetimes)
+        if candidate_datetimes is not None
+        else sum(
+            int((window_end - window_start) // step) + 1
+            for window_start, window_end in search_windows
+        )
+    )
 
     results: list[dict[str, object]] = []
     index = 0
-    for window_start, window_end in search_windows:
-        current = window_start
-        while current <= window_end and len(results) < max_results:
-            if should_cancel_cb is not None and should_cancel_cb():
-                return results
-            positions = _rectification_positions(current, lat, lon, required_bodies)
-            is_match = True
-            matched_positions: dict[str, float] = {}
-            for body, expected_sign in required.items():
+    moments = candidate_datetimes
+    if moments is None:
+        moments = []
+        for window_start, window_end in search_windows:
+            current = window_start
+            while current <= window_end:
+                moments.append(current)
+                current += step
+    for current in moments:
+        if len(results) >= max_results:
+            break
+        if should_cancel_cb is not None and should_cancel_cb():
+            return results
+        positions = _rectification_positions(current, lat, lon, required_bodies)
+        is_match = True
+        matched_positions: dict[str, float] = {}
+        for body, expected_sign in required.items():
+            lon_value = positions.get(body)
+            if lon_value is None:
+                is_match = False
+                break
+            if zodiac_sign_for_longitude(lon_value) != expected_sign:
+                is_match = False
+                break
+            matched_positions[body] = float(lon_value)
+
+        if is_match and houses_required:
+            cusps, axes = placidus_houses_and_axes(current, lat, lon)
+            positions.update(
+                {
+                    "Ascendant": axes.get("AS"),
+                    "MC": axes.get("MC"),
+                }
+            )
+            for body, expected_house in houses_required.items():
                 lon_value = positions.get(body)
-                if lon_value is None:
-                    is_match = False
-                    break
-                if zodiac_sign_for_longitude(lon_value) != expected_sign:
+                if (
+                    lon_value is None
+                    or house_for_longitude(cusps, float(lon_value)) != expected_house
+                ):
                     is_match = False
                     break
                 matched_positions[body] = float(lon_value)
 
-            if is_match:
-                match = {
-                    "datetime": current,
-                    "positions": matched_positions,
-                }
-                results.append(match)
-                if match_cb is not None:
-                    match_cb(match)
+        if is_match:
+            match = {
+                "datetime": current,
+                "positions": matched_positions,
+                "range_start": current,
+                "range_end": min(current + step, end_dt),
+            }
+            results.append(match)
+            if match_cb is not None:
+                match_cb(match)
 
-            index += 1
-            if progress_cb is not None and total > 0:
-                progress_cb(index, total)
-            current += step
+        index += 1
+        if progress_cb is not None and total > 0:
+            progress_cb(index, total)
 
     return results
