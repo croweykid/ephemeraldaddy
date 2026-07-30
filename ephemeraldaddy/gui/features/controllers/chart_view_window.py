@@ -12,7 +12,7 @@ from collections import Counter
 from types import MethodType
 from typing import Callable
 
-from PySide6.QtCore import QEvent, QRect, QSize, Qt, Signal
+from PySide6.QtCore import QEvent, QRect, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QColor, QDragEnterEvent, QDropEvent, QFont, QIcon, QKeySequence, QLinearGradient, QPainter, QPixmap, QShortcut
 from PySide6.QtWidgets import (
     QAbstractButton,
