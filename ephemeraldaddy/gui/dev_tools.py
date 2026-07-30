@@ -251,8 +251,8 @@ def add_performance_metrics_logging_setting(
     checkbox = QCheckBox("Enable Performance Metrics Logging")
     checkbox.setChecked(bool(is_enabled))
     checkbox.setToolTip(
-        "When enabled, 'performance metrics log' file will appear locally and in "
-        ".app/.ephemeraldaddy/ and track app performance for debugging."
+        "When enabled, 'performance_metrics_log.txt' file will appear locally and in "
+        "~/.ephemeraldaddy/ and track app performance for debugging."
     )
     checkbox.toggled.connect(on_toggled)
     section_layout.addWidget(checkbox)
