@@ -47,8 +47,9 @@ from ephemeraldaddy.core.timeutils import localize_naive_datetime
 from ephemeraldaddy.gui.features.retcon.workers import RetconSearchWorker
 from ephemeraldaddy.io.geocode import LocationLookupError, geocode_location
 from ephemeraldaddy.gui.style import (
-    MIDDLE_PANEL_ACCENT_COLOR,
     apply_chart_info_link_cursor,
+    apply_loud_selection_dropdown_menu,
+    apply_shared_dropdown_style,
     configure_share_export_icon_button,
 )
 
@@ -81,15 +82,6 @@ class RectificationView(Enum):
 
 
 class RetconEngineDialog(QDialog):
-    _DEFINED_POSITION_STYLE = (
-        "QComboBox {"
-        f"background-color: {MIDDLE_PANEL_ACCENT_COLOR};"
-        "color: white;"
-        "border: 1px solid #555555;"
-        "padding: 2px 6px;"
-        "} QComboBox QAbstractItemView { color: white; }"
-    )
-
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Ephemeral Daddy: Astro App | Rectification Engine")
@@ -177,6 +169,7 @@ class RetconEngineDialog(QDialog):
         self.step_combo = QComboBox()
         for label, minutes in [("12 hrs", 720), ("1 day", 1440)]:
             self.step_combo.addItem(label, minutes)
+        apply_shared_dropdown_style(self.step_combo)
         options_time_row.addWidget(self.step_combo)
         step_hint_label = QLabel("ⓘ")
         step_hint_label.setToolTip(
@@ -213,6 +206,7 @@ class RetconEngineDialog(QDialog):
         for column in range(3):
             header = QLabel("H")
             header.setAlignment(Qt.AlignCenter)
+            header.setMaximumHeight(header.fontMetrics().height())
             self._position_layout.addWidget(header, 0, column * 3 + 2)
             self._refinement_widgets.append(header)
         for idx, body in enumerate(RETCON_CRITERIA_BODIES):
@@ -293,7 +287,6 @@ class RetconEngineDialog(QDialog):
 
         self._reset_criteria()
         self._apply_view(RectificationView.CRITERIA)
-        self._update_defined_position_styles()
 
     def _add_position_criterion(self, body: str, index: int) -> None:
         label = QLabel("Midhaven" if body == "MC" else body)
@@ -304,25 +297,20 @@ class RetconEngineDialog(QDialog):
         )
         sign_combo = QComboBox()
         sign_combo.addItems(["Any", *ZODIAC_NAMES])
+        apply_loud_selection_dropdown_menu(sign_combo)
         sign_combo.setMaxVisibleItems(len(ZODIAC_NAMES) + 1)
         sign_combo.setMaximumWidth(
             sign_combo.fontMetrics().horizontalAdvance("M" * 15) + 28
         )
-        sign_combo.setStyleSheet(
-            "QComboBox, QComboBox QAbstractItemView { color: white; }"
-        )
-        sign_combo.currentTextChanged.connect(self._update_defined_position_styles)
         house_combo = QComboBox()
         house_combo.addItems(["Any", *[str(house) for house in range(1, 13)]])
+        apply_loud_selection_dropdown_menu(house_combo)
         house_combo.setFixedWidth(
             house_combo.fontMetrics().horizontalAdvance("000") + 24
         )
         if body in {"Ascendant", "MC"}:
             house_combo.setCurrentText("1" if body == "Ascendant" else "10")
             house_combo.setEnabled(False)
-            house_combo.setStyleSheet(
-                "QComboBox { color: #aaaaaa; background: #444444; }"
-            )
 
         column = index // self._rows_per_position_column
         row = index % self._rows_per_position_column
@@ -354,15 +342,6 @@ class RetconEngineDialog(QDialog):
                 widget.deleteLater()
             del self._angle_widgets[body]
 
-    def _update_defined_position_styles(self, *_args) -> None:
-        for combo in self._body_sign_combos.values():
-            is_defined = combo.currentText() != "Any"
-            combo.setStyleSheet(
-                self._DEFINED_POSITION_STYLE
-                if is_defined
-                else "QComboBox, QComboBox QAbstractItemView { color: white; }"
-            )
-
     def _reset_criteria(self) -> None:
         """Restore every Criteria Input Panel field to its initial value."""
         self.place_edit.clear()
@@ -387,7 +366,6 @@ class RetconEngineDialog(QDialog):
         self._active_matches = []
         self._active_criteria = {}
         self._apply_view(RectificationView.CRITERIA)
-        self._update_defined_position_styles()
 
     def _show_criteria_panel(self) -> None:
         self._apply_view(RectificationView.CRITERIA)
