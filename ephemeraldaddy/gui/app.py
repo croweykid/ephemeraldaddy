@@ -24576,6 +24576,13 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         # invoke the startup callback.
         self._manage_charts_dialog = None
 
+        # Qt can dispatch Database View events while Chart View's widgets are
+        # still being constructed.  Astrotheme import resets the Chart View
+        # form from one of those events, so selection state must exist before
+        # the corresponding checkbox panels are built.
+        self.sentiment_checkboxes = {}
+        self.relationship_type_checkboxes = {}
+
         self.setWindowFlag(Qt.Window, True)
         self.setWindowFlag(Qt.WindowSystemMenuHint, True)
         self.setWindowFlag(Qt.WindowMinMaxButtonsHint, True)
