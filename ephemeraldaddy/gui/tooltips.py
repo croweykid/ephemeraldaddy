@@ -240,14 +240,14 @@ DEFAULT_TOOLTIP_OVERRIDES: dict[str, str] = {
     "manage_toggle_collections_panel_button": "Collections",
     "manage_toggle_database_metrics_panel_button": "Database Metrics",
     "manage_toggle_gen_pop_norms_panel_button": "General Population Norms",
-    "manage_toggle_similarities_panel_button": "Chart Similarity",
+    "manage_toggle_similarities_panel_button": "Similarities Analysis",
     "manage_toggle_perceived_similarity_predictors_panel_button": "Predictor Feedback",
     "manage_toggle_search_panel_button": "Search",
     "manage_toggle_transits_panel_button": "Transit View",
     "manage_toggle_batch_edit_panel_button": "Batch Edit Panel",
-    # Chart Entry controls
+    # Chart Editor controls
     "manage_button": "Back to Database View",
-    "database_view_button": "Close Chart Entry and return to Database View",
+    "database_view_button": "Close Chart Editor and return to Database View",
     "help_overlay_toggle": "Help",
     "chart_view_toggle_subjective_notes_panel_button": "Observations panel",
     "chart_view_toggle_abc_panel_button": "ABC panel",
@@ -265,7 +265,7 @@ EXACT_TEXT_TOOLTIP_OVERRIDES: dict[str, str] = {
     "OR": "could alternately include [associated factor]",
     "🚫": "exclude [associated factor]",
 
-    # Requested Chart Entry tooltips.
+    # Requested Chart Editor tooltips.
     "💀": "deceased?",
     "Use Rectified Time:": "birthtime is unknown or possibly incorrect; use speculated time for applicable calculations",
     "Use Rectified Range:": "exact birth time is unknown; use this speculated range for applicable calculations",

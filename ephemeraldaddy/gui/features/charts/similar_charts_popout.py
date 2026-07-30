@@ -231,7 +231,7 @@ def show_similar_charts_loading_progress(
 ) -> object:
     progress = create_app_loading_progress(
         parent=parent,
-        title="Astro Twins",
+        title="Astro Twin",
         message=message,
         cancel_text="Stop that!",
     )
@@ -821,7 +821,7 @@ def build_similar_charts_export_lines(
 ) -> list[str]:
     lines: list[str] = []
     if is_markdown:
-        lines.append(f"# {subject_name}'s Astro Twins") #aka Similar Charts
+        lines.append(f"# {subject_name}'s Astro Twin") #aka Similar Charts
         lines.append("")
         lines.append(
             "| Rank | Chart UID | Chart | Similarity | Band | Z-score | Components |"
@@ -837,7 +837,7 @@ def build_similar_charts_export_lines(
             )
         return lines
 
-    lines.append(f"{subject_name}'s Astro Twins") #aka Similar Charts
+    lines.append(f"{subject_name}'s Astro Twin") #aka Similar Charts
     lines.append("")
     for row in rows:
         z_score = row.get("similarity_z_score")
@@ -3307,7 +3307,7 @@ def build_similar_charts_popout_dialog(
     # old widgets and complete ranking payload do not remain parent-owned and
     # retained for the rest of the application session.
     dialog.setAttribute(Qt.WA_DeleteOnClose, True)
-    dialog.setWindowTitle(f"Astro Twins — {subject_name}")
+    dialog.setWindowTitle(f"Astro Twin — {subject_name}")
     dialog.setModal(False)
     dialog.resize(860, 700)
     layout = QVBoxLayout(dialog)
@@ -3364,7 +3364,7 @@ def build_similar_charts_popout_dialog(
         export_button.setText("↗")
     export_button.setAutoRaise(True)
     apply_button_cursor(export_button)
-    export_button.setToolTip("Export top & bottom 25 Astro Twins (TXT or MD)")
+    export_button.setToolTip("Export the top and bottom 25 Astro Twin results (TXT or MD)")
     export_button.setVisible(on_export_clicked is not None)
     if on_export_clicked is not None:
         export_button.clicked.connect(lambda _checked=False: on_export_clicked(dialog))
@@ -3815,8 +3815,8 @@ def build_similar_charts_popout_dialog(
         panel_layout.addWidget(scroll, 1)
         return panel_widget
 
-    list_splitter.addWidget(_panel("Top 25 Most Similar charts", most_similar_matches, "most"))
-    list_splitter.addWidget(_panel("Top 25 Least Similar Charts", least_similar_matches, "least"))
+    list_splitter.addWidget(_panel("Top 25 Most Similar", most_similar_matches, "most"))
+    list_splitter.addWidget(_panel("Top 25 Least Similar", least_similar_matches, "least"))
     splitter.setSizes([320, 860])
     list_splitter.setSizes([430, 430])
     if show_perceived_accuracy_controls:

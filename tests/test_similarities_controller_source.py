@@ -14,7 +14,7 @@ def test_manage_charts_delegates_similarities_panel_construction_to_controller()
         "def _set_similarities_db_info_panel_visible", 1
     )[0]
     assert "return self.similarities_controller.build_panel()" in app_panel_method
-    assert "title = QLabel(\"Chart Similarity\")" in controller_source
+    assert "title = QLabel(\"Similarities Analysis\")" in controller_source
     assert "DBInfoPanel(panel)" in controller_source
 
 

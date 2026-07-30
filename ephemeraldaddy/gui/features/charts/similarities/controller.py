@@ -149,7 +149,7 @@ class SimilaritiesController:
         title_layout.setSpacing(6)
         title_row.setLayout(title_layout)
 
-        title = QLabel("Chart Similarity")
+        title = QLabel("Similarities Analysis")
         title.setStyleSheet(self.panel_header_style)
         title_layout.addWidget(title)
         title_layout.addStretch(1)
@@ -160,7 +160,7 @@ class SimilaritiesController:
         self.configure_export_button(
             json_export_button,
             label="data",
-            tooltip="Export Chart Similarity data as Python",
+            tooltip="Export Similarities Analysis data as Python",
             share_icon_path=share_icon_path,
         )
         json_export_button.clicked.connect(self.host._export_similarities_analysis_json)

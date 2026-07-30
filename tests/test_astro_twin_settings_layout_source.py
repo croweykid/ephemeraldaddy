@@ -16,7 +16,7 @@ def test_demographic_matching_precedes_scoring_methods_and_has_divider():
     demographic = SECTION.index('QLabel("Demographic Matching")')
     divider = SECTION.index("demographic_algorithm_divider = QFrame()")
     scoring = SECTION.index('QLabel("Scoring Methods")')
-    chooser = SECTION.index('"Choose which algorithm generates Chart Similarity results:"')
+    chooser = SECTION.index('"Choose which algorithm generates Astro Twin Calculator results:"')
 
     assert demographic < divider < scoring < chooser
     assert "demographic_match_header.setStyleSheet(subheader_style)" in SECTION

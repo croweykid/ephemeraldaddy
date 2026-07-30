@@ -1149,7 +1149,7 @@ def build_chart_view_middle_header_controls(
     button_specs.extend(
         [
             # Astro Twin
-            ("similar_charts", "👯", "Astro Twins", owner._show_similar_charts_popout),
+            ("similar_charts", "👯", "Astro Twin", owner._show_similar_charts_popout),
             # Create Gemstone Chart
             ("gemstone_chart", "💎", "Create Gemstone Chart", owner.on_create_gemstone_chartwheel),
             # Chart Predictor Quiz
@@ -2757,16 +2757,16 @@ def _create_chart_analysis_sections(self, panel: QWidget) -> None:
 
 def _similar_charts_section_title(self) -> str:
     if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_GENERIC_ASTRO:
-        return "Chart Similarity ('generic astro' mode)"
+        return "Astro Twin Calculator ('generic astro' mode)"
     if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
-        return "Chart Similarity ('comprehensive' mode)"
+        return "Astro Twin Calculator ('comprehensive' mode)"
     if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING:
-        return "Chart Similarity ('all or nothing' mode)"
+        return "Astro Twin Calculator ('all or nothing' mode)"
     if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_BIG_3:
-        return "Chart Similarity ('Big 3' mode)"
+        return "Astro Twin Calculator ('Big 3' mode)"
     if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_CUSTOM:
-        return "Chart Similarity ('custom' mode)"
-    return "Chart Similarity"
+        return "Astro Twin Calculator ('custom' mode)"
+    return "Astro Twin Calculator"
 
 def _refresh_similar_charts_section_title(self) -> None:
     section_widget = self._chart_analysis_section_widgets.get("similar_charts")

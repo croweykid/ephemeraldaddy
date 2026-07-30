@@ -48,7 +48,7 @@ But honestly, the haters were never going to take us seriously, anyway.
 
 ## 1) Where things are in the app
 
-### **A. Chart Entry**
+### **A. Chart Editor**
 This is where you create or edit one chart at a time.
 
 Key features:
@@ -115,7 +115,7 @@ Use it when you want:
 
 ## Chart Types
 - **Chart Type** is a classifier/tag for what a chart record is (for example: personal, public database import, event, synastry-generated contexts).
-- You set this manually in **Chart Entry** (Chart Entry/Edit).
+- You set this manually in **Chart Editor**.
 - The app also assigns defaults in some generation/import pathways.
 - In **Database View**, Chart Type is filterable, so you can separate personal notes from imported/public datasets.
 
@@ -151,7 +151,7 @@ If you’re doing real astro research, placeholders are your polite sticky note 
 
 ## Gates, Lines & Channels
 Human design elements: Gates, Lines & Channels
-For anyone familiar with the framework: in Chart Entry, G stands for gates, and L stands for lines, but currently the Human Design chart generation is in alpha phase.
+For anyone familiar with the framework: in Chart Editor, G stands for gates, and L stands for lines, but currently the Human Design chart generation is in alpha phase.
 
 ## Weird toy metrics (Fantasy RPG Species/Classes, Cursedness, Gender Guesser)
 These exist. They are fun. They are noncannonical to science and occultist lore alike.
@@ -183,7 +183,7 @@ Practical tip right now:
 ---
 
 ## 4) Suggested new-user workflow (fast start)
-1. Create your own chart in **Chart Entry**.
+1. Create your own chart in **Chart Editor**.
 2. Add 5–20 known people in **Database View**.
 3. Use **Chart Type** tags early (future-you will be grateful).
 4. Use placeholders for unknown birth-time/date cases.

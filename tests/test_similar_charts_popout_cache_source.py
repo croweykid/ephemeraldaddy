@@ -106,10 +106,10 @@ def test_developer_tools_exposes_manual_similar_charts_cache_refresh():
         "def _on_similarity_calculator_checkbox_toggled", 1
     )[0]
 
-    assert 'QPushButton("Refresh Chart Similarity cache")' in dev_tools_section
+    assert 'QPushButton("Refresh Astro Twin Calculator cache")' in dev_tools_section
     assert "_on_refresh_similar_charts_popout_cache_requested" in dev_tools_section
     assert "cache.clear()" in clear_method
-    assert "The next Astro Twins window will recalculate on demand." in refresh_method
+    assert "The next Astro Twin window will recalculate on demand." in refresh_method
 
 
 def test_full_recompute_refreshes_existing_similar_charts_cache_payload():

@@ -55,7 +55,7 @@ def _resolve_current_chart_name(window: "QWidget") -> str:
 
 def update_main_window_title(window: "QMainWindow") -> None:
     chart_name = _resolve_current_chart_name(window)
-    window.setWindowTitle(f"{APP_DISPLAY_NAME} | Chart Entry — {chart_name}")
+    window.setWindowTitle(f"{APP_DISPLAY_NAME} | Chart Editor — {chart_name}")
 
 
 def _resolve_menu_handler(window: "QWidget", *handler_names: str) -> Callable[..., Any] | None:
@@ -339,7 +339,7 @@ def configure_main_window_chrome(window: "QMainWindow") -> None:
     tools_menu = menu_bar.addMenu("Tools")
     _bind_menu_action(
         tools_menu,
-        "👯 Astro Twins",
+        "👯 Astro Twin",
         window,
         "_show_similar_charts_popout",
         "on_show_similar_charts_popout",
@@ -347,7 +347,7 @@ def configure_main_window_chrome(window: "QMainWindow") -> None:
     _bind_menu_action(tools_menu, "💎 Create Gemstone Chart", window, "on_create_gemstone_chartwheel")
     _bind_menu_action(tools_menu, "🧓 Interpret Astro Age (alpha)", window, "on_interpret_astro_age")
     _bind_menu_action(tools_menu, "🎱 Chart Predictor Quiz (alpha)", window, "on_open_chart_predictor_quiz")
-    _bind_menu_action(tools_menu, "🕗 Rectification", window, "_on_retcon_engine")
+    _bind_menu_action(tools_menu, "🕗 Rectification Engine", window, "_on_retcon_engine")
 
     # view_menu = menu_bar.addMenu("View")
     # _bind_menu_action(view_menu, "Chart Analytics", window, "on_show_chart_analytics_panel")
@@ -407,11 +407,11 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
     tools_menu = menu_bar.addMenu("Tools")
     _bind_menu_action(
         tools_menu,
-        "👯 Astro Twins",
+        "👯 Astro Twin",
         dialog,
         "_on_menu_see_similar_charts",
     )
-    _bind_menu_action(tools_menu, "🕗 Rectification", dialog, "_on_retcon_engine")
+    _bind_menu_action(tools_menu, "🕗 Rectification Engine", dialog, "_on_retcon_engine")
     _bind_menu_action(tools_menu, "🧓 Interpret Astro Age (alpha)", dialog, "_on_menu_interpret_astro_age")
     _bind_menu_action(tools_menu, "💎 Create Gemstone Chart", dialog, "_on_menu_create_gemstone_chart")
     #to do: add a link here to find charts most similar to the currently selected chart if one is selected, the text will say "Find Similar Charts"
@@ -425,7 +425,7 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
 
     view_menu = menu_bar.addMenu("View")
     _bind_menu_action(view_menu, "Database Analytics", dialog, "_show_database_analytics_panel")
-    _bind_menu_action(view_menu, "Chart Similarity", dialog, "_show_similarities_panel")
+    _bind_menu_action(view_menu, "Similarities Analysis", dialog, "_show_similarities_panel")
     _bind_menu_action(view_menu, "General Population Comparison", dialog, "_show_gen_pop_comparison_panel")
     _bind_menu_action(view_menu, "Manage Collections", dialog, "_show_manage_collections_panel")
     _bind_menu_action(view_menu, "Search Database", dialog, "_show_search_database_panel")

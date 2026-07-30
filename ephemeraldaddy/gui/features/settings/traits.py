@@ -75,7 +75,7 @@ def add_traits_settings_section(owner: Any, content_layout: Any) -> None:
     )
     traits_section.addWidget(
         owner._build_settings_help_label(
-            "Manage custom trait profiles exported from Chart Similarity. Uploaded traits are saved locally in ~/.ephemeraldaddy/traits and scored in Chart Entry > Predictions."
+            "Manage custom trait profiles exported from Similarities Analysis. Uploaded traits are saved locally in ~/.ephemeraldaddy/traits and scored in Chart Editor > Predictions."
         )
     )
     owner._traits_list_widget = QListWidget()
