@@ -34742,6 +34742,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         place_label: str,
         lat: float | None,
         lon: float | None,
+        time_range: tuple[QTime, QTime] | None = None,
     ) -> None:
         if not self._confirm_discard_or_save():
             return
@@ -34766,10 +34767,14 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._set_birth_date_fields_from_qdate(QDate(match_dt.year, match_dt.month, match_dt.day))
         self.time_edit.setTime(QTime(match_dt.hour, match_dt.minute))
         self.retcon_time_edit.setTime(QTime(match_dt.hour, match_dt.minute))
-        self.time_unknown_checkbox.setChecked(False)
-        self.retcon_time_checkbox.setChecked(True)
+        self.time_unknown_checkbox.setChecked(True)
+        self.retcon_time_checkbox.setChecked(False)
+        self.rectification_range_checkbox.setChecked(True)
+        if time_range is not None:
+            self.rectification_range_start_edit.setTime(time_range[0])
+            self.rectification_range_end_edit.setTime(time_range[1])
         self._birth_time_user_overridden = True
-        self._retcon_time_user_overridden = True
+        self._retcon_time_user_overridden = False
         self._update_time_input_text_colors()
 
         self.on_generate()

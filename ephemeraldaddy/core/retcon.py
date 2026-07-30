@@ -4,7 +4,7 @@ import datetime as dt
 from typing import Callable
 
 from ephemeraldaddy.core.ephemeris import planetary_positions
-from ephemeraldaddy.core.houses import placidus_axes
+from ephemeraldaddy.core.houses import placidus_axes, placidus_houses
 from ephemeraldaddy.core.interpretations import ZODIAC_NAMES
 
 RETCON_BODIES = [
@@ -29,6 +29,12 @@ RETCON_BODIES = [
     "Lilith",
 ]
 
+# Sign criteria deliberately exclude the lunar south node and chart angles.
+RETCON_CRITERIA_BODIES = [
+    body for body in RETCON_BODIES if body not in {"Ketu", "Ascendant", "MC"}
+]
+RETCON_REFINEMENT_BODIES = [*RETCON_CRITERIA_BODIES, "Ascendant", "Midhaven"]
+
 # Bodies that move slowly enough for decade-level pruning.
 SLOW_RETCON_BODIES = {
     "Jupiter",
@@ -45,6 +51,62 @@ SLOW_RETCON_BODIES = {
 def zodiac_sign_for_longitude(longitude: float) -> str:
     sign_idx = int((longitude % 360.0) // 30.0)
     return ZODIAC_NAMES[sign_idx]
+
+
+def house_for_longitude(longitude: float, cusps: list[float]) -> int | None:
+    """Return the 1-based house containing ``longitude``."""
+    if len(cusps) < 12:
+        return None
+    longitude %= 360.0
+    for index in range(12):
+        start = float(cusps[index]) % 360.0
+        end = float(cusps[(index + 1) % 12]) % 360.0
+        if end <= start:
+            end += 360.0
+        candidate = longitude + 360.0 if longitude < start else longitude
+        if start <= candidate < end:
+            return index + 1
+    return None
+
+
+def refine_retcon_candidates(
+    candidates: list[dict[str, object]],
+    required_houses: dict[str, int],
+    lat: float,
+    lon: float,
+) -> list[dict[str, object]]:
+    """Filter an existing result set by house without repeating its date scan."""
+    required = {
+        body: house
+        for body, house in required_houses.items()
+        if body in RETCON_REFINEMENT_BODIES and 1 <= house <= 12
+    }
+    if not required:
+        return list(candidates)
+
+    refined: list[dict[str, object]] = []
+    for candidate in candidates:
+        moment = candidate.get("datetime")
+        if not isinstance(moment, dt.datetime):
+            continue
+        positions = planetary_positions(moment, lat, lon)
+        cusps = placidus_houses(moment, lat, lon)
+        axes = placidus_axes(moment, lat, lon)
+        positions["Ascendant"] = axes.get("AS")
+        positions["Midhaven"] = axes.get("MC")
+        if all(
+            positions.get(body) is not None
+            and house_for_longitude(float(positions[body]), cusps) == house
+            for body, house in required.items()
+        ):
+            enriched = dict(candidate)
+            enriched["houses"] = {
+                body: house_for_longitude(float(value), cusps)
+                for body, value in positions.items()
+                if value is not None
+            }
+            refined.append(enriched)
+    return refined
 
 
 def _rectification_positions(
@@ -236,3 +298,5 @@ def search_retcon_candidates(
             current += step
 
     return results
+
+#cat bois forever
