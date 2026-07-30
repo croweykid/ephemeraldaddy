@@ -646,8 +646,18 @@ ALIGNMENT_SCORE_RANGE = (-10.0, 10.0)
 ALIGNMENT_NEGATIVE_RGB = (100, 0, 0)
 ALIGNMENT_POSITIVE_RGB = (0, 0, 100)
 ALIGNMENT_CUMULATIVE_SUBTITLE_WRAP_WIDTH = 44
-SIMILARITY_GRADIENT_MIN_RED = 140
-SIMILARITY_GRADIENT_MAX_GREEN = 255
+# Canonical app-wide quantitative colour scale.  Keep the endpoints here rather
+# than in individual panels so every "less -> more" comparison has the same
+# visual meaning: a dark, desaturated red at the low end and saturated lime at
+# the high end.
+APPWIDE_RED_GREEN_SCALE_LESS_RGB = (140, 48, 48)
+APPWIDE_RED_GREEN_SCALE_MORE_RGB = (124, 255, 0)
+
+# Subtle quantitative scale for displays where every item remains relevant and
+# colour should provide prioritization without implying that low values do not
+# matter. These endpoints are #6666ff (less) and #ff66ff (more).
+MORE_READABLE_COLOR_SCALE_LESS_RGB = (102, 102, 255)
+MORE_READABLE_COLOR_SCALE_MORE_RGB = (255, 102, 255)
 
 
 def _interpolate_rgb_channel(start: int, end: int, ratio: float) -> int:
@@ -698,31 +708,68 @@ def value_to_red_blue_rgb(
     return (red / 100.0, green / 100.0, blue / 100.0)
 
 
-def similarity_gradient_rgb_from_ratio(ratio: float) -> tuple[int, int, int]:
+def appwide_red_green_rgb_from_ratio(ratio: float) -> tuple[int, int, int]:
     """
-    Shared dark-red -> bright-green scale used by Similarities UI elements.
+    Return the app-wide dark-desaturated-red -> bright-lime scale colour.
 
     Ratio is clamped into [0.0, 1.0]:
-    - 0.0 => medium-dark red floor
-    - 1.0 => bright green
+    - 0.0 => dark, desaturated red (less)
+    - 1.0 => bright, saturated lime green (more)
     """
     clamped = max(0.0, min(1.0, float(ratio)))
-    red = int(round(SIMILARITY_GRADIENT_MIN_RED * (1.0 - clamped)))
-    green = int(round(SIMILARITY_GRADIENT_MAX_GREEN * clamped))
-    return (red, green, 0)
+    return (
+        _interpolate_rgb_channel(APPWIDE_RED_GREEN_SCALE_LESS_RGB[0], APPWIDE_RED_GREEN_SCALE_MORE_RGB[0], clamped),
+        _interpolate_rgb_channel(APPWIDE_RED_GREEN_SCALE_LESS_RGB[1], APPWIDE_RED_GREEN_SCALE_MORE_RGB[1], clamped),
+        _interpolate_rgb_channel(APPWIDE_RED_GREEN_SCALE_LESS_RGB[2], APPWIDE_RED_GREEN_SCALE_MORE_RGB[2], clamped),
+    )
 
 
-def similarity_gradient_rgb_for_range(
+def appwide_red_green_rgb_for_range(
     value: float,
     minimum: float,
     maximum: float,
 ) -> tuple[int, int, int]:
-    """Map a value in [minimum, maximum] onto the shared similarity red->green scale."""
+    """Map a numeric range onto the canonical app-wide less-to-more scale."""
     if maximum > minimum:
         ratio = (float(value) - float(minimum)) / (float(maximum) - float(minimum))
     else:
         ratio = 0.0
-    return similarity_gradient_rgb_from_ratio(ratio)
+    return appwide_red_green_rgb_from_ratio(ratio)
+
+
+def more_readable_color_scale_rgb_from_ratio(ratio: float) -> tuple[int, int, int]:
+    """Return the subtle blue-violet (less) -> pink-violet (more) scale colour."""
+    clamped = max(0.0, min(1.0, float(ratio)))
+    return (
+        _interpolate_rgb_channel(
+            MORE_READABLE_COLOR_SCALE_LESS_RGB[0],
+            MORE_READABLE_COLOR_SCALE_MORE_RGB[0],
+            clamped,
+        ),
+        _interpolate_rgb_channel(
+            MORE_READABLE_COLOR_SCALE_LESS_RGB[1],
+            MORE_READABLE_COLOR_SCALE_MORE_RGB[1],
+            clamped,
+        ),
+        _interpolate_rgb_channel(
+            MORE_READABLE_COLOR_SCALE_LESS_RGB[2],
+            MORE_READABLE_COLOR_SCALE_MORE_RGB[2],
+            clamped,
+        ),
+    )
+
+
+def more_readable_color_scale_rgb_for_range(
+    value: float,
+    minimum: float,
+    maximum: float,
+) -> tuple[int, int, int]:
+    """Map a numeric range onto the subtle app-wide readable colour scale."""
+    if maximum > minimum:
+        ratio = (float(value) - float(minimum)) / (float(maximum) - float(minimum))
+    else:
+        ratio = 0.0
+    return more_readable_color_scale_rgb_from_ratio(ratio)
 
 
 def format_chart_header(template_key: str, **kwargs: object) -> str:
