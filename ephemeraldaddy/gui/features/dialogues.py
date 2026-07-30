@@ -47,8 +47,9 @@ from ephemeraldaddy.core.timeutils import localize_naive_datetime
 from ephemeraldaddy.gui.features.retcon.workers import RetconSearchWorker
 from ephemeraldaddy.io.geocode import LocationLookupError, geocode_location
 from ephemeraldaddy.gui.style import (
-    MIDDLE_PANEL_ACCENT_COLOR,
     apply_chart_info_link_cursor,
+    apply_loud_selection_dropdown_menu,
+    apply_shared_dropdown_style,
     configure_share_export_icon_button,
 )
 
@@ -81,15 +82,6 @@ class RectificationView(Enum):
 
 
 class RetconEngineDialog(QDialog):
-    _DEFINED_POSITION_STYLE = (
-        "QComboBox {"
-        f"background-color: {MIDDLE_PANEL_ACCENT_COLOR};"
-        "color: white;"
-        "border: 1px solid #555555;"
-        "padding: 2px 6px;"
-        "} QComboBox QAbstractItemView { color: white; }"
-    )
-
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Ephemeral Daddy: Astro App | Rectification Engine")
@@ -102,6 +94,7 @@ class RetconEngineDialog(QDialog):
         self._active_lat: float | None = None
         self._active_lon: float | None = None
         self._active_matches: list[dict] = []
+        self._refinement_candidate_matches: list[dict] = []
         self._active_criteria: dict[str, str] = {}
         self._active_start_dt: datetime.datetime | None = None
         self._active_end_dt: datetime.datetime | None = None
@@ -177,6 +170,7 @@ class RetconEngineDialog(QDialog):
         self.step_combo = QComboBox()
         for label, minutes in [("12 hrs", 720), ("1 day", 1440)]:
             self.step_combo.addItem(label, minutes)
+        apply_shared_dropdown_style(self.step_combo)
         options_time_row.addWidget(self.step_combo)
         step_hint_label = QLabel("ⓘ")
         step_hint_label.setToolTip(
@@ -213,6 +207,7 @@ class RetconEngineDialog(QDialog):
         for column in range(3):
             header = QLabel("H")
             header.setAlignment(Qt.AlignCenter)
+            header.setMaximumHeight(header.fontMetrics().height())
             self._position_layout.addWidget(header, 0, column * 3 + 2)
             self._refinement_widgets.append(header)
         for idx, body in enumerate(RETCON_CRITERIA_BODIES):
@@ -293,7 +288,6 @@ class RetconEngineDialog(QDialog):
 
         self._reset_criteria()
         self._apply_view(RectificationView.CRITERIA)
-        self._update_defined_position_styles()
 
     def _add_position_criterion(self, body: str, index: int) -> None:
         label = QLabel("Midhaven" if body == "MC" else body)
@@ -304,25 +298,20 @@ class RetconEngineDialog(QDialog):
         )
         sign_combo = QComboBox()
         sign_combo.addItems(["Any", *ZODIAC_NAMES])
+        apply_loud_selection_dropdown_menu(sign_combo)
         sign_combo.setMaxVisibleItems(len(ZODIAC_NAMES) + 1)
         sign_combo.setMaximumWidth(
             sign_combo.fontMetrics().horizontalAdvance("M" * 15) + 28
         )
-        sign_combo.setStyleSheet(
-            "QComboBox, QComboBox QAbstractItemView { color: white; }"
-        )
-        sign_combo.currentTextChanged.connect(self._update_defined_position_styles)
         house_combo = QComboBox()
         house_combo.addItems(["Any", *[str(house) for house in range(1, 13)]])
+        apply_loud_selection_dropdown_menu(house_combo)
         house_combo.setFixedWidth(
             house_combo.fontMetrics().horizontalAdvance("000") + 24
         )
         if body in {"Ascendant", "MC"}:
             house_combo.setCurrentText("1" if body == "Ascendant" else "10")
             house_combo.setEnabled(False)
-            house_combo.setStyleSheet(
-                "QComboBox { color: #aaaaaa; background: #444444; }"
-            )
 
         column = index // self._rows_per_position_column
         row = index % self._rows_per_position_column
@@ -342,26 +331,6 @@ class RetconEngineDialog(QDialog):
                 self._body_sign_combos[body].setCurrentText(
                     self._active_criteria.get(body, "Any")
                 )
-
-    def _remove_refinement_angle_widgets(self) -> None:
-        for body, widgets in list(self._angle_widgets.items()):
-            self._body_sign_combos.pop(body, None)
-            self._body_house_combos.pop(body, None)
-            for widget in widgets:
-                if widget in self._refinement_widgets:
-                    self._refinement_widgets.remove(widget)
-                self._position_layout.removeWidget(widget)
-                widget.deleteLater()
-            del self._angle_widgets[body]
-
-    def _update_defined_position_styles(self, *_args) -> None:
-        for combo in self._body_sign_combos.values():
-            is_defined = combo.currentText() != "Any"
-            combo.setStyleSheet(
-                self._DEFINED_POSITION_STYLE
-                if is_defined
-                else "QComboBox, QComboBox QAbstractItemView { color: white; }"
-            )
 
     def _reset_criteria(self) -> None:
         """Restore every Criteria Input Panel field to its initial value."""
@@ -385,16 +354,16 @@ class RetconEngineDialog(QDialog):
                 "1" if body == "Ascendant" else "10" if body == "MC" else "Any"
             )
         self._active_matches = []
+        self._refinement_candidate_matches = []
         self._active_criteria = {}
         self._apply_view(RectificationView.CRITERIA)
-        self._update_defined_position_styles()
 
     def _show_criteria_panel(self) -> None:
         self._apply_view(RectificationView.CRITERIA)
         self.submit_button.setFocus()
 
     def _show_refinement_panel(self) -> None:
-        if not self._active_matches:
+        if not self._refinement_candidate_matches:
             return
         self._apply_view(RectificationView.REFINEMENT)
         self.submit_button.setFocus()
@@ -403,8 +372,6 @@ class RetconEngineDialog(QDialog):
         previous_view = self._view
         if view is RectificationView.REFINEMENT:
             self._ensure_refinement_angle_widgets()
-        elif view is RectificationView.CRITERIA:
-            self._remove_refinement_angle_widgets()
         self._view = view
         self.view_stack.setCurrentIndex(1 if view is RectificationView.RESULTS else 0)
         refinement_visible = view is RectificationView.REFINEMENT
@@ -443,6 +410,11 @@ class RetconEngineDialog(QDialog):
     def _criteria(self) -> dict[str, str]:
         criteria: dict[str, str] = {}
         for body, combo in self._body_sign_combos.items():
+            if (
+                body in {"Ascendant", "MC"}
+                and self._view is not RectificationView.REFINEMENT
+            ):
+                continue
             sign = combo.currentText()
             if sign != "Any":
                 criteria[body] = sign
@@ -520,7 +492,7 @@ class RetconEngineDialog(QDialog):
         refinement_windows = None
         if refining:
             refinement_windows = []
-            for match in self._active_matches:
+            for match in self._refinement_candidate_matches:
                 match_start = match.get("range_start", match.get("datetime"))
                 match_end = match.get("range_end", match_start)
                 if not isinstance(match_start, datetime.datetime) or not isinstance(
@@ -542,6 +514,9 @@ class RetconEngineDialog(QDialog):
         self._active_criteria = dict(criteria)
         self._active_start_dt = start_dt
         self._active_end_dt = end_dt
+        if not refining:
+            # A new broad search supersedes any previous refinement candidates.
+            self._refinement_candidate_matches = []
         self.results_list.clear()
         self.create_chart_button.setEnabled(False)
         self.export_button.setEnabled(False)
@@ -671,6 +646,12 @@ class RetconEngineDialog(QDialog):
             self.status_label.setText(f"Search complete: {len(matches)} {noun}.")
 
         self._active_matches = matches
+        if matches:
+            # Preserve the last successful result set independently of the live
+            # Results View collection.  Refinement submission clears that live
+            # collection while its worker runs, but users must still be able to
+            # return to their just-entered refinement criteria.
+            self._refinement_candidate_matches = list(matches)
         self.results_list.clear()
         for idx, match in enumerate(matches, 1):
             line = self._format_match_line(idx, match)

@@ -927,6 +927,16 @@ QComboBox QAbstractItemView::indicator {
 }
 """.replace("__COLOR_BG_SURFACE__", COLOR_BG_SURFACE).replace("__COLOR_BORDER_STRONG__", COLOR_BORDER_STRONG).replace("__CHART_DATA_HIGHLIGHT_COLOR__", CHART_DATA_HIGHLIGHT_COLOR)
 
+# Opt-in variant for filters and criteria whose non-default value should remain
+# conspicuous after the popup closes.  Popup behavior and every other visual
+# rule continue to come from the appwide dropdown standard above.
+LOUD_SELECTION_DROPDOWN_MENU_STYLE = DEFAULT_DROPDOWN_STYLE + """
+QComboBox[loudSelection="true"] {
+    background-color: __MIDDLE_PANEL_ACCENT_COLOR__;
+    color: white;
+}
+""".replace("__MIDDLE_PANEL_ACCENT_COLOR__", MIDDLE_PANEL_ACCENT_COLOR)
+
 WINDOW_CHROME_MENU_STYLE = """
 QMenu {
     background-color: __COLOR_BG_SURFACE__;
@@ -1597,6 +1607,26 @@ QListView::indicator {
 """.replace("__CHART_DATA_HIGHLIGHT_COLOR__", CHART_DATA_HIGHLIGHT_COLOR)
     )
     dropdown.setView(popup_view)
+
+
+def apply_loud_selection_dropdown_menu(
+    dropdown: QComboBox, *, default_value: str = "Any"
+) -> None:
+    """Apply the shared dropdown style and highlight a non-default selection."""
+    apply_shared_dropdown_style(dropdown)
+    dropdown.setStyleSheet(LOUD_SELECTION_DROPDOWN_MENU_STYLE)
+
+    def update_loud_selection(value: str) -> None:
+        is_loud = value != default_value
+        if dropdown.property("loudSelection") == is_loud:
+            return
+        dropdown.setProperty("loudSelection", is_loud)
+        dropdown.style().unpolish(dropdown)
+        dropdown.style().polish(dropdown)
+        dropdown.update()
+
+    dropdown.currentTextChanged.connect(update_loud_selection)
+    update_loud_selection(dropdown.currentText())
 
 
 def set_dropdown_item_text_color(dropdown: QComboBox, item_index: int, color: str) -> None:
