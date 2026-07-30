@@ -757,6 +757,7 @@ from ephemeraldaddy.core.db import (
     set_alternate_chart_uid,
     invalidate_all_dominant_weight_caches,
     update_chart,
+    update_chart_by_uid,
     update_chart_lightweight_metadata,
     update_chart_subjective_list_by_uid,
     update_charts_nonastral_fields_by_uid,
@@ -23955,7 +23956,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
     def _run_metadata_migration_action(self, action: str) -> None:
         action_label = MIGRATION_ACTION_LABELS.get(action, "Metadata Migration")
         chart_ids = self._resolve_metadata_target_chart_ids()
-        if not chart_ids:
+        chart_uids = list(get_chart_uid_map(chart_ids).values())
+        if not chart_uids:
             QMessageBox.information(
                 self,
                 action_label,
@@ -23964,22 +23966,25 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             return
 
         if action == ACTION_GET_BIO:
-            def _handle_finished(outcome, changed_ids) -> None:
+            def _handle_finished(outcome, changed_uids) -> None:
                 self._apply_metadata_migration_outcome(
                     action=action,
                     action_label=action_label,
                     outcome=outcome,
-                    changed_ids=changed_ids,
+                    changed_uids=changed_uids,
                 )
 
             def _handle_failed(message: str) -> None:
                 QMessageBox.warning(self, action_label, f"Metadata migration failed:\n{message}")
 
             thread = launch_metadata_migration_worker(
-                chart_ids=chart_ids,
+                chart_uids=chart_uids,
                 action=action,
-                load_chart_by_id=lambda chart_id: load_chart(int(chart_id)),
-                update_chart_by_id=lambda chart_id, chart: update_chart(int(chart_id), chart),
+                load_chart_by_uid=load_chart_by_uid,
+                update_nonastral_by_uid=lambda chart_uid, patch: update_charts_nonastral_patches_by_uid(
+                    {chart_uid: patch}
+                ),
+                update_astro_by_uid=update_chart_by_uid,
                 lookup_biography_by_name=fetch_astrotheme_biography_by_name,
                 random_delay_seconds_range=(1, 6) if len(chart_ids) > 1 else None,
                 on_finished=_handle_finished,
@@ -23989,18 +23994,21 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             thread.finished.connect(lambda: self._metadata_migration_threads.remove(thread) if thread in self._metadata_migration_threads else None)
             return
 
-        outcome, changed_ids = run_metadata_migration(
-            chart_ids=chart_ids,
+        outcome, changed_uids = run_metadata_migration(
+            chart_uids=chart_uids,
             action=action,
-            load_chart_by_id=lambda chart_id: load_chart(int(chart_id)),
-            update_chart_by_id=lambda chart_id, chart: update_chart(int(chart_id), chart),
+            load_chart_by_uid=load_chart_by_uid,
+            update_nonastral_by_uid=lambda chart_uid, patch: update_charts_nonastral_patches_by_uid(
+                {chart_uid: patch}
+            ),
+            update_astro_by_uid=update_chart_by_uid,
             lookup_location_label=lookup_gazetteer_label if action == ACTION_CLEAN_BIRTHPLACE else None,
         )
         self._apply_metadata_migration_outcome(
             action=action,
             action_label=action_label,
             outcome=outcome,
-            changed_ids=changed_ids,
+            changed_uids=changed_uids,
         )
 
     def _apply_metadata_migration_outcome(
@@ -24009,14 +24017,14 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         action: str,
         action_label: str,
         outcome,
-        changed_ids,
+        changed_uids,
     ) -> None:
-        if changed_ids:
-            self._refresh_charts(changed_ids=changed_ids)
+        if changed_uids:
+            self._refresh_charts(changed_uids=changed_uids)
             if (
                 action == ACTION_GET_BIO
                 and self.current_chart_id is not None
-                and int(self.current_chart_id) in changed_ids
+                and get_chart_uid(self.current_chart_id) in changed_uids
             ):
                 refreshed_chart = load_chart(int(self.current_chart_id))
                 biography_text = str(getattr(refreshed_chart, "biography", "") or "")
