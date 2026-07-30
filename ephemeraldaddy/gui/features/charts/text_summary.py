@@ -1388,7 +1388,7 @@ TRANSIT_HEADER_ALIASES: dict[str, tuple[str, ...]] = {
     "name": ("Name:",),
     "alias": ("Alias:",),
     "date": ("Birth date:", "Date:"),
-    "time": ("Birth time:", "Official Time:", "Time:"),
+    "time": ("Birth time:", "Official Time:", "Time:", "Rectified Time:"),
     "place": ("Birthplace:", "Place:", "Location:"),
 }
 
