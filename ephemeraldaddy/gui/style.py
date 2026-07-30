@@ -653,6 +653,12 @@ ALIGNMENT_CUMULATIVE_SUBTITLE_WRAP_WIDTH = 44
 APPWIDE_RED_GREEN_SCALE_LESS_RGB = (140, 48, 48)
 APPWIDE_RED_GREEN_SCALE_MORE_RGB = (124, 255, 0)
 
+# Subtle quantitative scale for displays where every item remains relevant and
+# colour should provide prioritization without implying that low values do not
+# matter. These endpoints are #6666ff (less) and #ff66ff (more).
+MORE_READABLE_COLOR_SCALE_LESS_RGB = (102, 102, 255)
+MORE_READABLE_COLOR_SCALE_MORE_RGB = (255, 102, 255)
+
 
 def _interpolate_rgb_channel(start: int, end: int, ratio: float) -> int:
     return int(round(start + ((end - start) * ratio)))
@@ -729,6 +735,41 @@ def appwide_red_green_rgb_for_range(
     else:
         ratio = 0.0
     return appwide_red_green_rgb_from_ratio(ratio)
+
+
+def more_readable_color_scale_rgb_from_ratio(ratio: float) -> tuple[int, int, int]:
+    """Return the subtle blue-violet (less) -> pink-violet (more) scale colour."""
+    clamped = max(0.0, min(1.0, float(ratio)))
+    return (
+        _interpolate_rgb_channel(
+            MORE_READABLE_COLOR_SCALE_LESS_RGB[0],
+            MORE_READABLE_COLOR_SCALE_MORE_RGB[0],
+            clamped,
+        ),
+        _interpolate_rgb_channel(
+            MORE_READABLE_COLOR_SCALE_LESS_RGB[1],
+            MORE_READABLE_COLOR_SCALE_MORE_RGB[1],
+            clamped,
+        ),
+        _interpolate_rgb_channel(
+            MORE_READABLE_COLOR_SCALE_LESS_RGB[2],
+            MORE_READABLE_COLOR_SCALE_MORE_RGB[2],
+            clamped,
+        ),
+    )
+
+
+def more_readable_color_scale_rgb_for_range(
+    value: float,
+    minimum: float,
+    maximum: float,
+) -> tuple[int, int, int]:
+    """Map a numeric range onto the subtle app-wide readable colour scale."""
+    if maximum > minimum:
+        ratio = (float(value) - float(minimum)) / (float(maximum) - float(minimum))
+    else:
+        ratio = 0.0
+    return more_readable_color_scale_rgb_from_ratio(ratio)
 
 
 def format_chart_header(template_key: str, **kwargs: object) -> str:

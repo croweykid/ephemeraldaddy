@@ -53,7 +53,7 @@ from ephemeraldaddy.gui.style import (
     COLOR_BG_ELEVATED,
     INACTIVE_ACTION_BUTTON_STYLE,
     SETTINGS_TAB_STYLE,
-    appwide_red_green_rgb_for_range,
+    more_readable_color_scale_rgb_for_range,
 )
 from ephemeraldaddy.gui.features.charts.similarities_algorithm_log import (
     aggregate_similarity_algorithm_accuracy,
@@ -2184,7 +2184,11 @@ class ManageMetadataLabelsDialog(QDialog):
                 item.setData(0, Qt.UserRole, display_label)
                 item.setData(0, Qt.UserRole + 1, str(row.get("key", label)))
                 item.setData(0, Qt.UserRole + 2, label)
-                red, green, blue = appwide_red_green_rgb_for_range(count, minimum_count, maximum_count)
+                red, green, blue = more_readable_color_scale_rgb_for_range(
+                    count,
+                    minimum_count,
+                    maximum_count,
+                )
                 item.setForeground(0, QColor(red, green, blue))
                 if len(parts) >= 2:
                     parent_parts = parts[:-1]
@@ -2231,7 +2235,7 @@ class ManageMetadataLabelsDialog(QDialog):
                 item.setData(0, Qt.UserRole, label)
                 item.setData(0, Qt.UserRole + 1, str(row.get("key", label)))
                 item.setData(0, Qt.UserRole + 2, label)
-                red, green, blue = appwide_red_green_rgb_for_range(
+                red, green, blue = more_readable_color_scale_rgb_for_range(
                     count,
                     minimum_count,
                     maximum_count,
