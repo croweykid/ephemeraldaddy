@@ -534,6 +534,7 @@ from matplotlib.figure import Figure
 from matplotlib.patches import Patch
 
 from ephemeraldaddy.core.deps import ensure_all_deps
+from ephemeraldaddy.core.diagnostics import configure_error_reporting
 # TEMP_RMO_RECIPROCITY_CLEANUP_REMOVE_AFTER_LOCAL_DB_MIGRATION:
 # Remove this import together with _on_ensure_reminds_me_of_reciprocity(), the
 # Dev Tools button below, and ephemeraldaddy/core/reminds_me_of_reciprocity_cleanup.py.
@@ -542,6 +543,9 @@ from ephemeraldaddy.core.reminds_me_of_reciprocity_cleanup import (
 )
 from ephemeraldaddy.io.geocode import geocode_location, LocationLookupError, search_locations
 from ephemeraldaddy.gui.astrotheme_search import (
+    AstrothemeNetworkError,
+    AstrothemeProfileFormatError,
+    AstrothemeProfileNotFoundError,
     parse_astrotheme_profile,
     search_astrotheme_profile_url,
 )
@@ -559,6 +563,7 @@ from ephemeraldaddy.gui.dev_tools import (
     PREDICTIONS_THREAD_DEBUG_DEFAULT,
     SIMILARITY_PERCEIVED_ACCURACY_CONTROLS_DEFAULT,
     SETTINGS_KEY_BATCH_TAGGING_TERMINAL_DEBUG,
+    SETTINGS_KEY_ERROR_REPORTING_MODE,
     SETTINGS_KEY_DEMO_MODE,
     SETTINGS_KEY_DISTINGUISHING_FACTORS_SCORING_DEBUG,
     SETTINGS_KEY_ENNEAGRAM_PREDICTIONS_DEBUG,
@@ -569,6 +574,7 @@ from ephemeraldaddy.gui.dev_tools import (
     MetadataMigrationPanel,
     SizeCheckerPopup,
     add_batch_tagging_terminal_debug_setting,
+    add_error_reporting_mode_setting,
     add_demo_mode_setting,
     add_distinguishing_factors_scoring_debug_setting,
     add_enneagram_predictions_debug_setting,
@@ -576,6 +582,7 @@ from ephemeraldaddy.gui.dev_tools import (
     build_similarity_calculator_settings_section,
     build_predictions_settings_section,
     load_batch_tagging_terminal_debug_enabled,
+    load_error_reporting_mode,
     load_demo_mode_enabled,
     load_distinguishing_factors_scoring_debug_enabled,
     load_enneagram_predictions_debug_enabled,
@@ -2393,6 +2400,12 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             SETTINGS_KEY_BATCH_TAGGING_TERMINAL_DEBUG,
             int(self._batch_tagging_terminal_debug),
         )
+        self._error_reporting_mode = load_error_reporting_mode(self._settings)
+        self._settings.setValue(
+            SETTINGS_KEY_ERROR_REPORTING_MODE,
+            self._error_reporting_mode.value,
+        )
+        configure_error_reporting(self._error_reporting_mode)
         self._enneagram_predictions_debug = load_enneagram_predictions_debug_enabled(
             self._settings,
             fallback=ENNEAGRAM_PREDICTIONS_DEBUG_DEFAULT,
@@ -13050,20 +13063,66 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 query = raw_query
             else:
                 resolved_url = search_astrotheme_profile_url(raw_query)
-                if not resolved_url:
-                    raise ValueError("No matching Astrotheme profile was found.")
                 query = resolved_url
             profile_data = parse_astrotheme_profile(query)
             imported_from_astrotheme = True
-        except Exception as exc:
+        except AstrothemeNetworkError as exc:
+            logger.warning(
+                "Astrotheme import network failure (id=%s query=%r): %s",
+                debug_id,
+                raw_query,
+                exc,
+            )
+            QMessageBox.warning(
+                self,
+                "Astrotheme import",
+                "Astrotheme could not be reached. Check your connection and try again. "
+                "No chart data was changed.",
+            )
+            return
+        except AstrothemeProfileFormatError as exc:
+            logger.warning(
+                "Astrotheme profile format unsupported (id=%s query=%r): %s",
+                debug_id,
+                raw_query,
+                exc,
+            )
             if not self._wikipedia_backup_search_enabled:
-                logger.exception(
-                    "Astrotheme import failed during lookup/parse (id=%s query=%r): %s",
-                    debug_id,
-                    raw_query,
-                    exc,
+                QMessageBox.warning(
+                    self,
+                    "Astrotheme import",
+                    f"Astrotheme returned profile data this version could not read:\n{exc}",
                 )
-                QMessageBox.warning(self, "Astrotheme import", f"Could not load Astrotheme profile:\n{exc}")
+                return
+            profile_data = None
+        except AstrothemeProfileNotFoundError as exc:
+            # A missing search result is expected and may use the configured
+            # Wikipedia fallback. Unexpected exceptions are handled separately.
+            logger.info(
+                "Astrotheme profile not found (id=%s query=%r): %s",
+                debug_id,
+                raw_query,
+                exc,
+            )
+            profile_data = None
+        except Exception as exc:
+            logger.exception(
+                "Unexpected Astrotheme import defect (id=%s query=%r): %s",
+                debug_id,
+                raw_query,
+                exc,
+            )
+            QMessageBox.warning(
+                self,
+                "Astrotheme import",
+                "The import stopped because of an unexpected internal error. "
+                "No chart data was changed; diagnostic details were recorded.",
+            )
+            return
+
+        if profile_data is None:
+            if not self._wikipedia_backup_search_enabled:
+                QMessageBox.warning(self, "Astrotheme import", "No matching Astrotheme profile was found.")
                 return
 
             wikipedia_prompt = QMessageBox(self)
@@ -22179,6 +22238,11 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             is_enabled=bool(getattr(self, "_batch_tagging_terminal_debug", BATCH_TAGGING_TERMINAL_DEBUG_DEFAULT)),
             on_toggled=self._on_batch_tagging_terminal_debug_toggled,
         )
+        add_error_reporting_mode_setting(
+            section_layout=dev_tools_section,
+            mode=self._error_reporting_mode,
+            on_changed=self._on_error_reporting_mode_changed,
+        )
         add_enneagram_predictions_debug_setting(
             section_layout=dev_tools_section,
             is_enabled=bool(getattr(self, "_enneagram_predictions_debug", ENNEAGRAM_PREDICTIONS_DEBUG_DEFAULT)),
@@ -22831,6 +22895,22 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             "debugger_enabled=%s",
             self._batch_tagging_terminal_debug,
         )
+
+    def _on_error_reporting_mode_changed(self, value: str) -> None:
+        self._error_reporting_mode = configure_error_reporting(value)
+        self._settings.setValue(
+            SETTINGS_KEY_ERROR_REPORTING_MODE,
+            self._error_reporting_mode.value,
+        )
+        self._settings.sync()
+        parent = self._owner_window()
+        if isinstance(parent, MainWindow):
+            parent._error_reporting_mode = self._error_reporting_mode
+            parent._settings.setValue(
+                SETTINGS_KEY_ERROR_REPORTING_MODE,
+                self._error_reporting_mode.value,
+            )
+            parent._settings.sync()
 
     def _batch_tagging_debug_log(self, message: str, *args: object) -> None:
         if not bool(getattr(self, "_batch_tagging_terminal_debug", False)):
@@ -38680,6 +38760,7 @@ def main(startup_loading: StartupProgress | QWidget | None = None):
         logger.debug("Bringing startup loading widget to front.")
         bring_window_to_front(startup_loading, use_topmost_pulse=False)
     settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
+    configure_error_reporting(load_error_reporting_mode(settings))
     if _should_run_startup_dependency_check(settings):
         startup_loading.update_status("Checking required dependencies…", 15)
         try:
