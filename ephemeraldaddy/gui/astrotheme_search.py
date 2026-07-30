@@ -5,6 +5,7 @@ import html
 import logging
 import re
 import unicodedata
+import urllib.error
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote_plus, unquote, urlparse
@@ -19,10 +20,29 @@ ASTROTHEME_HTTP_TIMEOUT_SECONDS = 10
 logger = logging.getLogger(__name__)
 
 
+class AstrothemeImportError(Exception):
+    """Base class for expected Astrotheme import failures."""
+
+
+class AstrothemeNetworkError(AstrothemeImportError):
+    """The remote service could not be reached or returned an HTTP failure."""
+
+
+class AstrothemeProfileNotFoundError(AstrothemeImportError):
+    """No sufficiently close Astrotheme profile was found."""
+
+
+class AstrothemeProfileFormatError(AstrothemeImportError):
+    """Astrotheme returned a page whose profile format is unsupported or invalid."""
+
+
 def _astrotheme_http_get(url: str) -> str:
     request = Request(url, headers={"User-Agent": ASTROTHEME_USER_AGENT})
-    with urlopen(request, timeout=ASTROTHEME_HTTP_TIMEOUT_SECONDS) as response:
-        payload = response.read()
+    try:
+        with urlopen(request, timeout=ASTROTHEME_HTTP_TIMEOUT_SECONDS) as response:
+            payload = response.read()
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        raise AstrothemeNetworkError(f"Could not reach Astrotheme while loading {url}") from exc
     return payload.decode("utf-8", errors="replace")
 
 
@@ -187,10 +207,14 @@ def _normalize_astrotheme_birth_place(raw_place: str) -> str:
 
     return f"{city}, {state_code}, US"
 
-def _astrotheme_profile_has_fiche_table(profile_url: str) -> bool:
+def _astrotheme_profile_has_fiche_table(
+    profile_url: str, network_errors: list[AstrothemeNetworkError] | None = None
+) -> bool:
     try:
         html_text = _astrotheme_http_get(profile_url)
-    except Exception:
+    except AstrothemeNetworkError as exc:
+        if network_errors is not None:
+            network_errors.append(exc)
         return False
     return bool(
         re.search(
@@ -320,21 +344,30 @@ def _candidate_score(query: str, candidate_name: str, url: str) -> int:
     return max(_score_name(candidate_norm, candidate_tokens), _score_name(slug_norm, slug_tokens))
 
 
-def _collect_astrotheme_search_candidates(search_query: str) -> list[tuple[str, str]]:
+def _collect_astrotheme_search_candidates(
+    search_query: str, network_errors: list[AstrothemeNetworkError] | None = None
+) -> tuple[list[tuple[str, str]], int]:
     candidates: list[tuple[str, str]] = []
+    successful_requests = 0
     for query_variant in _astrotheme_name_variants(search_query):
         for param_name in ("nom", "q"):
             search_url = f"{ASTROTHEME_SEARCH_URL}?{param_name}={quote_plus(query_variant)}"
             try:
                 html_text = _astrotheme_http_get(search_url)
-            except Exception:
+            except AstrothemeNetworkError as exc:
+                if network_errors is not None:
+                    network_errors.append(exc)
                 continue
+            successful_requests += 1
             candidates.extend(_extract_profile_candidates_from_html(html_text))
-    return candidates
+    return candidates, successful_requests
 
 
-def _collect_web_search_candidates(search_query: str) -> list[tuple[str, str]]:
+def _collect_web_search_candidates(
+    search_query: str, network_errors: list[AstrothemeNetworkError] | None = None
+) -> tuple[list[tuple[str, str]], int]:
     candidates: list[tuple[str, str]] = []
+    successful_requests = 0
     for query_variant in _astrotheme_name_variants(search_query):
         q = quote_plus(f'{query_variant} site:astrotheme.com/astrology')
         search_urls = [
@@ -344,22 +377,30 @@ def _collect_web_search_candidates(search_query: str) -> list[tuple[str, str]]:
         for url in search_urls:
             try:
                 html_text = _astrotheme_http_get(url)
-            except Exception:
+            except AstrothemeNetworkError as exc:
+                if network_errors is not None:
+                    network_errors.append(exc)
                 continue
+            successful_requests += 1
             candidates.extend(_extract_profile_candidates_from_html(html_text))
-    return candidates
+    return candidates, successful_requests
 
 
-def search_astrotheme_profile_url(search_query: str) -> str | None:
+def search_astrotheme_profile_url(search_query: str) -> str:
+    network_errors: list[AstrothemeNetworkError] = []
     for query_slug in _astrotheme_slug_variants(search_query):
         encoded_slug = quote_plus(query_slug).replace("+", "_")
         guessed_url = f"https://www.astrotheme.com/astrology/{encoded_slug}"
-        if _astrotheme_profile_has_fiche_table(guessed_url):
+        if _astrotheme_profile_has_fiche_table(guessed_url, network_errors):
             return guessed_url
 
     all_candidates: list[tuple[str, str]] = []
-    all_candidates.extend(_collect_astrotheme_search_candidates(search_query))
-    all_candidates.extend(_collect_web_search_candidates(search_query))
+    astrotheme_candidates, astrotheme_successes = _collect_astrotheme_search_candidates(
+        search_query, network_errors
+    )
+    web_candidates, web_successes = _collect_web_search_candidates(search_query, network_errors)
+    all_candidates.extend(astrotheme_candidates)
+    all_candidates.extend(web_candidates)
 
     best_url: str | None = None
     best_score = -1
@@ -375,7 +416,11 @@ def search_astrotheme_profile_url(search_query: str) -> str | None:
 
     if best_url and best_score >= 4_000:
         return best_url
-    return None
+    if network_errors and astrotheme_successes + web_successes == 0:
+        raise network_errors[-1]
+    raise AstrothemeProfileNotFoundError(
+        f"No matching Astrotheme profile was found for {search_query!r}."
+    )
 
 
 def parse_astrotheme_profile(profile_url: str) -> dict[str, Any]:
@@ -386,7 +431,7 @@ def parse_astrotheme_profile(profile_url: str) -> dict[str, Any]:
         flags=re.IGNORECASE | re.DOTALL,
     )
     if table_match is None:
-        raise ValueError("Could not find Astrotheme profile data table.")
+        raise AstrothemeProfileFormatError("Could not find Astrotheme profile data table.")
 
     table_html = table_match.group(0)
     born_match = re.search(
@@ -405,7 +450,7 @@ def parse_astrotheme_profile(profile_url: str) -> dict[str, Any]:
         flags=re.IGNORECASE | re.DOTALL,
     )
     if born_match is None:
-        raise ValueError("Could not parse born date from Astrotheme profile.")
+        raise AstrothemeProfileFormatError("Could not parse born date from Astrotheme profile.")
 
     born_text = _strip_html_text(born_match.group(1))
     place_text = _strip_html_text(place_match.group(1)) if place_match else ""
@@ -423,9 +468,14 @@ def parse_astrotheme_profile(profile_url: str) -> dict[str, Any]:
         flags=re.IGNORECASE,
     )
     if date_match is None:
-        raise ValueError(f"Could not parse Astrotheme birth date: {born_text}")
+        raise AstrothemeProfileFormatError(f"Could not parse Astrotheme birth date: {born_text}")
     month_name, day_raw, year_raw = date_match.groups()
-    month_number = datetime.datetime.strptime(month_name.title(), "%B").month
+    try:
+        month_number = datetime.datetime.strptime(month_name.title(), "%B").month
+    except ValueError as exc:
+        raise AstrothemeProfileFormatError(
+            f"Unsupported Astrotheme birth month: {month_name}"
+        ) from exc
     day_number = int(day_raw)
     year_number = int(year_raw)
 
@@ -451,7 +501,7 @@ def parse_astrotheme_profile(profile_url: str) -> dict[str, Any]:
 
     cleaned_place = _normalize_astrotheme_birth_place(place_text)
     if not cleaned_place:
-        raise ValueError("Could not parse Astrotheme birthplace.")
+        raise AstrothemeProfileFormatError("Could not parse Astrotheme birthplace.")
 
     data_rating = "blank"
     rodden_upper = rodden_text.upper()

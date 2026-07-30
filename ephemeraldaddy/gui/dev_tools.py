@@ -67,8 +67,14 @@ from ephemeraldaddy.gui.features.charts.similarity_custom_presets import (
     save_custom_astro_twin_preset,
     update_custom_astro_twin_preset,
 )
+from ephemeraldaddy.core.diagnostics import (
+    DEFAULT_ERROR_REPORTING_MODE,
+    ErrorReportingMode,
+    normalize_error_reporting_mode,
+)
 
 SETTINGS_KEY_BATCH_TAGGING_TERMINAL_DEBUG = "dev_tools/batch_tagging_terminal_debug"
+SETTINGS_KEY_ERROR_REPORTING_MODE = "dev_tools/error_reporting_mode"
 BATCH_TAGGING_TERMINAL_DEBUG_DEFAULT = False
 SETTINGS_KEY_ENNEAGRAM_PREDICTIONS_DEBUG = "dev_tools/enneagram_predictions_debug"
 ENNEAGRAM_PREDICTIONS_DEBUG_DEFAULT = False
@@ -125,6 +131,36 @@ class SimilarityAlgorithmAccuracyBrowser(QTextBrowser):
 
 def _build_settings_help_label(text: str) -> QLabel:
     return SettingsHelpLabel(text)
+
+
+def load_error_reporting_mode(settings) -> ErrorReportingMode:
+    return normalize_error_reporting_mode(
+        settings.value(SETTINGS_KEY_ERROR_REPORTING_MODE, DEFAULT_ERROR_REPORTING_MODE.value)
+    )
+
+
+def add_error_reporting_mode_setting(
+    *,
+    section_layout: QVBoxLayout,
+    mode: ErrorReportingMode | str,
+    on_changed: Callable[[str], None],
+) -> QComboBox:
+    label = QLabel("Error reporting mode")
+    combo = QComboBox()
+    combo.addItem("Just make it work", ErrorReportingMode.QUIET.value)
+    combo.addItem("Debug", ErrorReportingMode.DEBUG.value)
+    normalized = normalize_error_reporting_mode(mode)
+    combo.setCurrentIndex(max(0, combo.findData(normalized.value)))
+    combo.setToolTip(
+        "Both modes invalidate corrupt cached data and record unexpected failures to the local "
+        "diagnostics log. Debug also prints structured errors and tracebacks to the Terminal."
+    )
+    combo.currentIndexChanged.connect(
+        lambda _index: on_changed(str(combo.currentData() or ErrorReportingMode.QUIET.value))
+    )
+    section_layout.addWidget(label)
+    section_layout.addWidget(combo)
+    return combo
 
 def load_demo_mode_enabled(settings, *, fallback: bool = False) -> bool:
     value = settings.value(SETTINGS_KEY_DEMO_MODE, int(fallback))
