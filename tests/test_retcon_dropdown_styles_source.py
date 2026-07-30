@@ -22,6 +22,16 @@ def test_loud_dropdown_extends_appwide_dropdown_standard():
     assert 'default_value: str = "Any"' in loud_helper
 
 
+def test_shared_dropdown_preserves_disabled_state_styling():
+    default_style = STYLE_SOURCE.split(
+        'DEFAULT_DROPDOWN_STYLE = """', 1
+    )[1].split('""".replace', 1)[0]
+
+    assert "QComboBox:disabled" in default_style
+    assert "color: #aaaaaa" in default_style
+    assert "background: #444444" in default_style
+
+
 def test_rectification_engine_uses_shared_dropdown_helpers():
     assert "apply_shared_dropdown_style(self.step_combo)" in DIALOGUES_SOURCE
     assert "apply_loud_selection_dropdown_menu(sign_combo)" in DIALOGUES_SOURCE

@@ -888,6 +888,10 @@ QComboBox {
     min-height: 24px;
     combobox-popup: 1;
 }
+QComboBox:disabled {
+    color: #aaaaaa;
+    background: #444444;
+}
 QComboBox::drop-down {
     background-color: transparent;
     border: none;
