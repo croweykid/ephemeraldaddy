@@ -285,7 +285,7 @@ def _format_similarity_scoring_method(
         "custom": "Custom",
         "database_distinction": "Database Distinction Scan",
     }.get(mode, mode.replace("_", " ").title())
-    lines = [f"Current Settings > Astro Twin Calculator scoring system: {mode_label}."]
+    lines = [f"Current Settings > Chart Similarity scoring system: {mode_label}."]
 
     settings = similarity_settings
     if mode == "all_or_nothing":
@@ -378,7 +378,7 @@ def build_total_chart_similar_charts_section(
         similarity_settings=similarity_settings,
     )
     if markdown:
-        lines = ["# Similar Charts", "", "## 25 Most Similar", ""]
+        lines = ["# Chart Similarity", "", "## 25 Most Similar", ""]
         lines.extend(_format_similar_chart_rows(most_rows, markdown=True))
         lines.extend(["", "## 25 Least Similar", ""])
         lines.extend(_format_similar_chart_rows(least_rows, markdown=True))
@@ -477,7 +477,7 @@ def build_total_chart_similar_charts_section_for_chart(
             f"{heading}\n\n"
             f"Astro Twins unavailable: {exc}\n\n"
             f"{subheading}\n\n"
-            f"Current Settings > Astro Twin Calculator scoring system: "
+            f"Current Settings > Chart Similarity scoring system: "
             f"{normalized_algorithm_mode.replace('_', ' ').title()}."
         )
 

@@ -67,8 +67,14 @@ from ephemeraldaddy.gui.features.charts.similarity_custom_presets import (
     save_custom_astro_twin_preset,
     update_custom_astro_twin_preset,
 )
+from ephemeraldaddy.core.diagnostics import (
+    DEFAULT_ERROR_REPORTING_MODE,
+    ErrorReportingMode,
+    normalize_error_reporting_mode,
+)
 
 SETTINGS_KEY_BATCH_TAGGING_TERMINAL_DEBUG = "dev_tools/batch_tagging_terminal_debug"
+SETTINGS_KEY_ERROR_REPORTING_MODE = "dev_tools/error_reporting_mode"
 BATCH_TAGGING_TERMINAL_DEBUG_DEFAULT = False
 SETTINGS_KEY_ENNEAGRAM_PREDICTIONS_DEBUG = "dev_tools/enneagram_predictions_debug"
 ENNEAGRAM_PREDICTIONS_DEBUG_DEFAULT = False
@@ -126,6 +132,36 @@ class SimilarityAlgorithmAccuracyBrowser(QTextBrowser):
 def _build_settings_help_label(text: str) -> QLabel:
     return SettingsHelpLabel(text)
 
+
+def load_error_reporting_mode(settings) -> ErrorReportingMode:
+    return normalize_error_reporting_mode(
+        settings.value(SETTINGS_KEY_ERROR_REPORTING_MODE, DEFAULT_ERROR_REPORTING_MODE.value)
+    )
+
+
+def add_error_reporting_mode_setting(
+    *,
+    section_layout: QVBoxLayout,
+    mode: ErrorReportingMode | str,
+    on_changed: Callable[[str], None],
+) -> QComboBox:
+    label = QLabel("Error reporting mode")
+    combo = QComboBox()
+    combo.addItem("Just make it work", ErrorReportingMode.QUIET.value)
+    combo.addItem("Debug", ErrorReportingMode.DEBUG.value)
+    normalized = normalize_error_reporting_mode(mode)
+    combo.setCurrentIndex(max(0, combo.findData(normalized.value)))
+    combo.setToolTip(
+        "Both modes invalidate corrupt cached data and record unexpected failures to the local "
+        "diagnostics log. Debug also prints structured errors and tracebacks to the Terminal."
+    )
+    combo.currentIndexChanged.connect(
+        lambda _index: on_changed(str(combo.currentData() or ErrorReportingMode.QUIET.value))
+    )
+    section_layout.addWidget(label)
+    section_layout.addWidget(combo)
+    return combo
+
 def load_demo_mode_enabled(settings, *, fallback: bool = False) -> bool:
     value = settings.value(SETTINGS_KEY_DEMO_MODE, int(fallback))
     if isinstance(value, bool):
@@ -150,7 +186,7 @@ def add_demo_mode_setting(
     checkbox = QCheckBox("Private Mode: hide subjective/private notes") #formerly "demo mode"
     checkbox.setChecked(bool(is_enabled))
     checkbox.setToolTip(
-        "When enabled, hides Chart View Observations, Chart Info Notes, and subjective "
+        "When enabled, hides Chart Entry Observations, Chart Info Notes, and subjective "
         "ratings in Search and Batch Editor so the app can be shown without private notes."
     )
     checkbox.toggled.connect(on_toggled)
@@ -277,7 +313,7 @@ def add_predictions_thread_debug_setting(
     checkbox = QCheckBox("Predictions panel: terminal step debug logging")
     checkbox.setChecked(bool(is_enabled))
     checkbox.setToolTip(
-        "When enabled, Chart View Predictions section steps, cache decisions, and background-thread lifecycle "
+        "When enabled, Chart Entry Predictions section steps, cache decisions, and background-thread lifecycle "
         "events are printed to the terminal."
     )
     checkbox.toggled.connect(on_toggled)
@@ -332,7 +368,7 @@ FILESYSTEM_INFOGRAPHIC_ITEMS: tuple[dict[str, object], ...] = (
             ("help/", "Help/reference materials shown or used by the app.", "User assistance content."),
         ),
     },
-    {"path": "ephemeraldaddy/gui/app.py", "plain": "The main control room: it assembles the big windows, switches between Database View and Chart View, and wires buttons to features.", "dev": "Central legacy GUI orchestrator; new work should be pushed into smaller gui modules when practical."},
+    {"path": "ephemeraldaddy/gui/app.py", "plain": "The main control room: it assembles the big windows, switches between Database View and Chart Entry, and wires buttons to features.", "dev": "Central legacy GUI orchestrator; new work should be pushed into smaller gui modules when practical."},
     {"path": "ephemeraldaddy/gui/dev_tools.py", "plain": "Developer tools and maintenance popups, including this file-system infographic.", "dev": "Settings > Developer Tools helpers and dialogs."},
     {"path": "ephemeraldaddy/gui/style.py", "plain": "The app-wide visual wardrobe: colors, spacing, button styling, and reusable look-and-feel helpers.", "dev": "Shared stylesheet constants and widget styling helpers."},
     {"path": "ephemeraldaddy/gui/dbv_search_panel.py", "plain": "The Database View search panel: helps users find and filter charts.", "dev": "Right-side DBV search UI and query controls."},
@@ -666,7 +702,7 @@ def build_similarity_calculator_settings_section(
     algorithm_layout.addWidget(scoring_methods_header)
     algorithm_layout.addWidget(
         QLabel(
-            "Choose which algorithm generates Astro Twin results:"
+            "Choose which algorithm generates Chart Similarity results:"
         )
     )
 
@@ -726,7 +762,7 @@ def build_similarity_calculator_settings_section(
 
     all_or_nothing_criterion_combo = QComboBox()
     all_or_nothing_criterion_combo.setToolTip(
-        "Choose the one criterion that will exclusively rank Similar Charts when all-or-nothing mode is selected."
+        "Choose the one criterion that will exclusively rank charts when all-or-nothing mode is selected."
     )
     for key, label_text in SIMILARITY_CALCULATOR_FACTOR_ROWS:
         if key in {"defined_centers", "outer_planet_placement"}:
@@ -1052,7 +1088,7 @@ def build_similarity_calculator_settings_section(
     show_high_similarity_button = QPushButton("Show 90-100% similarities")
     show_high_similarity_button.setToolTip(
         "Calculate database-wide Astro Twin scores with the current calculator mode and list chart pairs "
-        "whose similarity is between 90% and 100%. Each listed chart name opens in Chart View."
+        "whose similarity is between 90% and 100%. Each listed chart name opens in Chart Entry."
     )
     show_high_similarity_button.clicked.connect(on_show_high_similarity_clicked)
     research_layout.addWidget(show_high_similarity_button, alignment=Qt.AlignLeft)
@@ -2987,7 +3023,7 @@ def build_predictions_settings_section(
 
     manual_recalculation_checkbox = QCheckBox("manual recalculation/refresh only (vs automatic)")
     manual_recalculation_checkbox.setToolTip(
-        "When enabled, Chart View Predictions always show the most recent saved results for the chart UID "
+        "When enabled, Chart Entry Predictions always show the most recent saved results for the chart UID "
         "and only refresh after you click Calculate/Recalculate."
     )
     if on_manual_recalculation_toggled is not None:

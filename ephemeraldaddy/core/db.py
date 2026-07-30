@@ -11,6 +11,8 @@ import sqlite3
 import sys
 import threading
 import uuid
+import logging
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -31,6 +33,9 @@ from ephemeraldaddy.core.ephemeris import get_lilith_calculation_mode
 from ephemeraldaddy.core.interpretations import JONES_PLANETS, RELATION_TYPE, SENTIMENT_OPTIONS
 from ephemeraldaddy.analysis import body_dynamics_reworked
 from ephemeraldaddy.analysis.bazi_getter import UNKNOWN_BAZI_VALUE, build_bazi_chart_data
+from ephemeraldaddy.core.diagnostics import report_recoverable_error
+
+logger = logging.getLogger(__name__)
 
 
 DB_DIR = Path.home() / ".ephemeraldaddy"
@@ -2240,24 +2245,32 @@ def _serialize_derived_payload(value: Any) -> str:
     return _json_dumps_stable(value if value is not None else {})
 
 
-def _parse_derived_mapping(value: str | None) -> dict[str, Any]:
+@dataclass(frozen=True)
+class _DerivedPayloadResult:
+    value: Any
+    valid: bool
+    reason: str | None = None
+    error: BaseException | None = None
+
+
+def _parse_derived_payload(value: str | None, expected_type: type) -> _DerivedPayloadResult:
     if not value:
-        return {}
+        return _DerivedPayloadResult(expected_type(), True)
     try:
         parsed = json.loads(value)
-    except json.JSONDecodeError:
-        return {}
-    return parsed if isinstance(parsed, dict) else {}
+    except (json.JSONDecodeError, TypeError) as exc:
+        return _DerivedPayloadResult(expected_type(), False, "malformed_json", exc)
+    if not isinstance(parsed, expected_type):
+        return _DerivedPayloadResult(expected_type(), False, "unexpected_payload_type")
+    return _DerivedPayloadResult(parsed, True)
+
+
+def _parse_derived_mapping(value: str | None) -> dict[str, Any]:
+    return _parse_derived_payload(value, dict).value
 
 
 def _parse_derived_list(value: str | None) -> list[Any]:
-    if not value:
-        return []
-    try:
-        parsed = json.loads(value)
-    except json.JSONDecodeError:
-        return []
-    return parsed if isinstance(parsed, list) else []
+    return _parse_derived_payload(value, list).value
 
 
 def _persist_chart_derived_cache(chart_id: int, chart: Any) -> None:
@@ -5819,11 +5832,32 @@ def _chart_from_row(chart_id: int, row):
         ),
         chart_uses_houses_value=(not bool(birthtime_unknown) or bool(retcon_time_used)),
     )
+    derived_payloads = {
+        "derived_positions": _parse_derived_payload(derived_positions, dict),
+        "derived_retrogrades": _parse_derived_payload(derived_retrogrades, dict),
+        "derived_houses": _parse_derived_payload(derived_houses, list),
+        "derived_houses_po": _parse_derived_payload(derived_houses_po, list),
+        "derived_aspects": _parse_derived_payload(derived_aspects, list),
+    }
+    invalid_payloads = {
+        field: result for field, result in derived_payloads.items() if not result.valid
+    }
+    for field, result in invalid_payloads.items():
+        report_recoverable_error(
+            logger,
+            "derived_cache_rejected",
+            exc=result.error,
+            chart_uid=str(chart_uid or ""),
+            field=field,
+            reason=result.reason,
+            action="invalidate_and_recalculate",
+        )
     can_hydrate_derived = bool(
         derived_birth_data_signature
         and str(derived_birth_data_signature) == expected_signature
         and derived_positions
         and derived_retrogrades
+        and not invalid_payloads
     )
     if can_hydrate_derived:
         chart = _new_chart_shell(
@@ -5926,11 +5960,11 @@ def _chart_from_row(chart_id: int, row):
     chart.death_minute = death_minute
     chart.death_place = death_place or ""
     if can_hydrate_derived:
-        chart.positions = _parse_derived_mapping(derived_positions)
-        chart.retrogrades = _parse_derived_mapping(derived_retrogrades)
-        chart.houses = _parse_derived_list(derived_houses)
-        chart.housesPo = _parse_derived_list(derived_houses_po)
-        chart.aspects = _parse_derived_list(derived_aspects)
+        chart.positions = derived_payloads["derived_positions"].value
+        chart.retrogrades = derived_payloads["derived_retrogrades"].value
+        chart.houses = derived_payloads["derived_houses"].value
+        chart.housesPo = derived_payloads["derived_houses_po"].value
+        chart.aspects = derived_payloads["derived_aspects"].value
         chart.use_birth_time_data = chart_uses_houses(chart)
         if not chart.use_birth_time_data:
             # Keep unknown-time charts accurate: cached payloads may include only

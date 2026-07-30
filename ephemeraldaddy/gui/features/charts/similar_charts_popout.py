@@ -231,7 +231,7 @@ def show_similar_charts_loading_progress(
 ) -> object:
     progress = create_app_loading_progress(
         parent=parent,
-        title="Astro Twin",
+        title="Astro Twins",
         message=message,
         cancel_text="Stop that!",
     )

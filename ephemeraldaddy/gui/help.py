@@ -54,7 +54,7 @@ If you treat it like a research workspace (not an omniscient oracle), you’ll h
         keywords=("why", "reasons", "privacy", "dark mode", "nakshatra"),
     ),
     HelpEntry(
-        title="Chart View (Chart Entry / Editor)",
+        title="Chart Entry",
         description=(
             """This is where you create or edit one chart at a time.
 
@@ -71,10 +71,10 @@ Use this window when you want to:
 - Mark a chart as a placeholder
 - Set chart classification manually"""
         ),
-        keywords=("chart view", "entry", "editor"),
+        keywords=("chart entry", "entry", "editor"),
     ),
     HelpEntry(
-        title="Database View (Manage Charts)",
+        title="Database View",
         description=(
             """This is mission control for your whole chart collection.
 
@@ -145,9 +145,9 @@ Use it when you want:
         description=(
             """Chart Types
 - Chart Type is a classifier/tag for what a chart record is (for example: personal, public database import, event, synastry-generated contexts).
-- You set this manually in Natal Chart View (Chart Entry/Edit).
+- You set this manually in Chart Entry.
 - The app also assigns defaults in some generation/import pathways.
-- In Manage Charts, Chart Type is filterable, so you can separate personal notes from imported/public datasets.
+- In Database View, Chart Type is filterable, so you can separate personal notes from imported/public datasets.
 
 Sign/Position descriptions (important reality check)
 Short version: useful as rough prompts, not gospel.
@@ -169,10 +169,10 @@ What they are:
 - A calculated chart type for experiments, rectification attempts, alternate times, or possible future events/people.
 
 What they’re good for:
-- Chart View calculations, wheels, Human Design, BaZi, notes, and future reference.
+- Chart Entry calculations, wheels, Human Design, BaZi, notes, and future reference.
 
 What they’re not used for:
-- Database Analytics, Similar Charts, Astro Twin Calculator, Astro Twin matching, or database averages."""
+- Database Analytics, Chart Similarity, Chart Similarity settings, Astro Twin results, or database averages."""
         ),
         keywords=("chart type", "placeholder", "hypothetical", "interpretation"),
     ),
@@ -185,7 +185,7 @@ What they’re not used for:
 - The author’s nakshatra notes are intentionally rough research notes, not a finished published doctrine.
 
 Human design elements: Gates, Lines & Channels
-For anyone familiar with the framework: in Chart View, G stands for gates, and L stands for lines, but currently the Human Design chart generation is in alpha phase.
+For anyone familiar with the framework: in Chart Entry, G stands for gates, and L stands for lines, but currently the Human Design chart generation is in alpha phase.
 
 Weird toy metrics (Fantasy RPG Species/Classes, Cursedness, Gender Guesser)
 These exist. They are fun. They are noncannonical to science and occultist lore alike."""
@@ -201,8 +201,8 @@ These exist. They are fun. They are noncannonical to science and occultist lore 
 - Use built-in import/export/backup tools for intentional migration or sharing.
 
 4) Suggested new-user workflow (fast start)
-1. Create your own chart in Natal Chart View.
-2. Add 5–20 known people in Manage Charts.
+1. Create your own chart in Chart Entry.
+2. Add 5–20 known people in Database View.
 3. Use Chart Type tags early (future-you will be grateful).
 4. Use placeholders for unknown birth-time/date cases.
 5. Run transit/composite tools for pattern exploration.
@@ -225,7 +225,7 @@ If you want a lively research cockpit with honest rough edges, you’re in exact
         keywords=("export", "json", "save"),
     ),
     HelpEntry(
-        title="Manage Charts",
+        title="Database View",
         description="Open the database/manager view where you can browse and edit saved charts.",
         keywords=("database", "list", "batch"),
     ),
@@ -261,25 +261,25 @@ _TOOLTIP_BY_OBJECT_NAME: dict[str, str] = {
     "help_overlay_toggle": "Toggle Help Overlay mode.",
     "new_chart_button": "Start a brand-new chart entry.",
     "export_chart_button": "Export the active chart as JSON.",
-    "manage_button": "Use the back arrow to return to the Manage Charts database view.",
-    "database_view_button": "Close Chart View and immediately reopen the Database View window.",
+    "manage_button": "Use the back arrow to return to Database View.",
+    "database_view_button": "Close Chart Entry and immediately reopen the Database View window.",
     "current_transits_button": "Open current transits for this chart and chosen location.",
     "place_search_button": "Search for a place and fill latitude/longitude.",
     "update_button": "Save this chart to the database.",
     "manage_help_overlay_toggle": "Open the Database View help overlay.",
-    "manage_new_chart_button": "Start a fresh chart entry and jump to Chart View.",
+    "manage_new_chart_button": "Start a fresh chart entry and jump to Chart Entry.",
     "manage_delete_chart_button": "Delete the selected chart(s) from the database list.",
     "manage_import_csv_button": "Import chart rows from a CSV file into the database.",
     "manage_export_selected_csv_button": "Export only the currently selected chart rows to CSV.",
     "manage_backup_database_button": "Create a full database backup file.",
     "manage_restore_database_button": "Restore charts from a previously exported database backup.",
     "manage_force_refresh_button": "Recompute all database analytics and refresh every metric panel.",
-    "manage_retcon_engine_button": "Open Retcon Engine tools for timeline/date experimentation.",
+    "manage_retcon_engine_button": "Open Rectification tools for timeline/date experimentation.",
     "manage_composite_chart_button": "Build a composite chart from two selected saved charts.",
     "manage_toggle_transits_panel_button": "Toggle the Transit panel in the left sidebar.",
     "manage_toggle_database_metrics_panel_button": "Toggle the Database Metrics panel in the left sidebar.",
     "manage_toggle_perceived_similarity_predictors_panel_button": "Toggle the Predictor Feedback panel in the left sidebar.",
-    "manage_toggle_similarities_panel_button": "Toggle the Similarities panel in the left sidebar.",
+    "manage_toggle_similarities_panel_button": "Toggle the Chart Similarity panel in the left sidebar.",
     "manage_toggle_batch_edit_panel_button": "Toggle the Batch Edit panel for multi-chart updates.",
     "manage_toggle_search_panel_button": "Toggle the Search/Filter panel on the right.",
     "manage_sort_button": "Sort the chart list (date, alphabetical, cursedness, age, birthdate, familiarity, time known, alignment, or social score).",
@@ -288,7 +288,7 @@ _TOOLTIP_BY_OBJECT_NAME: dict[str, str] = {
 _TOOLTIP_BY_TEXT: dict[str, str] = {
     "Name": "Primary label/name for the entity or event.",
     "Birth time": "Exact local birth time used for houses and rising sign.",
-    "Rectified Time": "Optional override used by Retcon workflows.",
+    "Rectified Time": "Optional override used by rectification workflows.",
     "Use rectified time": "Enable rectified time as the active time value.",
     "Delete Chart": "Delete the selected chart(s) from the database.",
 }

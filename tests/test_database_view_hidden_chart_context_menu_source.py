@@ -44,7 +44,7 @@ def test_context_menu_offers_single_chart_tool_actions():
     assert '("bazi", "See BaZi Chart")' in method
     assert '("human_design", "See Human Design Chart")' in method
     assert '("personal_transit", "See Transit Chart")' in method
-    assert '("similar_charts", "See Similar Charts")' in method
+    assert '("similar_charts", "Astro Twins")' in method
     assert "self._on_middle_panel_chart_tool(tool_actions[chosen_action])" in method
 
 

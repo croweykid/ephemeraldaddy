@@ -1,5 +1,5 @@
 """Shared dialog classes extracted from the legacy app module."""
-#Includes Retcon Engine
+#Includes Rectification
 
 import datetime
 import html
@@ -82,7 +82,7 @@ class RetconEngineDialog(QDialog):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Ephemeral Daddy: Astro App | Retcon Engine")
+        self.setWindowTitle("Ephemeral Daddy: Astro App | Rectification")
         self.setWindowFlag(Qt.Window, True)
         self.resize(780, 720)
 
@@ -246,7 +246,7 @@ class RetconEngineDialog(QDialog):
         configure_share_export_icon_button(
             self.export_button,
             share_icon_path=share_icon_path,
-            tooltip="Export Retcon results as TXT or Markdown",
+            tooltip="Export Rectification results as TXT or Markdown",
         )
         self.export_button.setEnabled(False)
         self.export_button.clicked.connect(self._on_export_results)
@@ -260,7 +260,7 @@ class RetconEngineDialog(QDialog):
         self.results_output = QTextEdit()
         self.results_output.setReadOnly(True)
         self.results_output.setPlaceholderText(
-            "Retcon matches will appear here after you press Submit."
+            "Rectification matches will appear here after you press Submit."
         )
         root.addWidget(self.results_output, 1)
 
@@ -296,7 +296,7 @@ class RetconEngineDialog(QDialog):
         if not criteria:
             QMessageBox.information(
                 self,
-                "Retcon Engine",
+                "Rectification",
                 "Pick at least one body/sign criterion before running search.",
             )
             return
@@ -339,7 +339,7 @@ class RetconEngineDialog(QDialog):
         if end_dt < start_dt:
             QMessageBox.warning(
                 self,
-                "Retcon Engine",
+                "Rectification",
                 "End date/time must be on or after start date/time.",
             )
             return
@@ -448,7 +448,7 @@ class RetconEngineDialog(QDialog):
         self.cancel_button.setEnabled(False)
         self.export_button.setEnabled(bool(self._active_matches))
         self.status_label.setText("Search failed.")
-        QMessageBox.critical(self, "Retcon Engine error", f"Search failed:\n{error_message}")
+        QMessageBox.critical(self, "Rectification error", f"Search failed:\n{error_message}")
 
     def _on_finished(self, matches: list[dict]) -> None:
         self.submit_button.setEnabled(True)
@@ -501,7 +501,7 @@ class RetconEngineDialog(QDialog):
         txt_content = "\n".join(lines)
 
         md_lines = [
-            "# Retcon Engine Search Export",
+            "# Rectification Search Export",
             "",
             f"- **Location:** {location_text}",
             f"- **Date & Time Range:** {range_text}",
@@ -520,14 +520,14 @@ class RetconEngineDialog(QDialog):
         if not self._active_matches:
             QMessageBox.information(
                 self,
-                "Retcon Engine",
+                "Rectification",
                 "No completed search results are available to export yet.",
             )
             return
         file_path, selected_filter = QFileDialog.getSaveFileName(
             self,
-            "Export Retcon Search Results",
-            "retcon-search-results.txt",
+            "Export Rectification Search Results",
+            "rectification-search-results.txt",
             "Text File (*.txt);;Markdown File (*.md)",
         )
         if not file_path:
@@ -541,7 +541,7 @@ class RetconEngineDialog(QDialog):
         payload = md_content if use_markdown else txt_content
         with open(file_path, "w", encoding="utf-8") as export_file:
             export_file.write(payload)
-        QMessageBox.information(self, "Retcon Engine", f"Exported search results to:\n{file_path}")
+        QMessageBox.information(self, "Rectification", f"Exported search results to:\n{file_path}")
 
     def _open_selected_match(self) -> None:
         row = self.results_list.currentRow()
@@ -550,7 +550,7 @@ class RetconEngineDialog(QDialog):
         match = self._active_matches[row]
         parent = self.parent()
         if parent is None or not hasattr(parent, "open_chart_from_retcon_match"):
-            QMessageBox.warning(self, "Retcon Engine", "Unable to open the chart view.")
+            QMessageBox.warning(self, "Rectification", "Unable to open the Chart Entry.")
             return
         location_label = self._active_location_label or self.place_edit.text().strip() or "Chicago, IL, USA"
         lat = self._active_lat

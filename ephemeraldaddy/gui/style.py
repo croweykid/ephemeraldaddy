@@ -628,7 +628,7 @@ def get_cycled_earthtone_colors(count: int) -> list[str]:
 
 CHART_HEADER_TEMPLATES = {
     "name_alias": "Name: {name} | Alias: {alias}",
-    "date_times": "Date: {date} | Official Time: {official_time} | Retcon Time: {retcon_time}",
+    "date_times": "Date: {date} | Official Time: {official_time} | Rectified Time: {retcon_time}",
     "place": "Place: {birth_place} | {lat:.4f}, {lon:.4f}",
     "when_where": "When/Where: {date} @ {time} {timezone} | {location}, {lat:.4f}, {lon:.4f}",
     "when_where_compact": "When/Where: {date_time} | {lat:.4f}, {lon:.4f}",
@@ -1275,7 +1275,7 @@ CHART_DATA_COMMON_LABELS = (
     "Time:",
     "Birth time:",
     "Official Time:",
-    "Retcon Time:",
+    "Rectified Time:",
     "Place:",
     "Chart UID:",
     "Birthplace:",

@@ -649,7 +649,7 @@ def show_similarities_loading_progress(
     message: str = "Calculating similarities analysis…",
 ) -> QProgressDialog:
     progress = QProgressDialog(message, "Stop that!", 0, 0, parent)
-    progress.setWindowTitle("Similarities Analysis")
+    progress.setWindowTitle("Chart Similarity")
     progress.setWindowModality(Qt.WindowModal)
     progress.setMinimumDuration(0)
     progress.setAutoClose(False)
@@ -709,7 +709,7 @@ def show_high_similarity_chart_pairs_dialog(
     else:
         lines = [
             "<h2>90-100% similarities</h2>",
-            "<p>Click a chart name to open it in Chart View.</p>",
+            "<p>Click a chart name to open it in Chart Entry.</p>",
             "<ol>",
         ]
         for percent, first_id, second_id in pairs:
