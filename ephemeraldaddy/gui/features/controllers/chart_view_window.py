@@ -12,7 +12,7 @@ from collections import Counter
 from types import MethodType
 from typing import Callable
 
-from PySide6.QtCore import QEvent, QRect, QSize, Qt, Signal
+from PySide6.QtCore import QEvent, QRect, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QColor, QDragEnterEvent, QDropEvent, QFont, QIcon, QKeySequence, QLinearGradient, QPainter, QPixmap, QShortcut
 from PySide6.QtWidgets import (
     QAbstractButton,
@@ -57,6 +57,7 @@ from ephemeraldaddy.core.photo_gallery import (
     set_profile_photo,
 )
 from ephemeraldaddy.gui.features.charts.presentation import sign_for_longitude
+from ephemeraldaddy.gui.features.charts.metrics import chart_uses_houses as _chart_uses_houses
 from ephemeraldaddy.core.ephemeris import planetary_positions
 from ephemeraldaddy.core.interpretations import (
     PLANET_COLORS,
@@ -85,6 +86,16 @@ from ephemeraldaddy.gui.features.charts.trait_predictions import (
     start_traits_prediction_calculation,
 )
 from ephemeraldaddy.gui.features.controllers.chart_right_panel import ChartRightPanelController
+from ephemeraldaddy.gui.features.charts.section_availability import (
+    is_chart_analysis_section_available,
+)
+from ephemeraldaddy.analysis.get_astro_twin import (
+    SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING,
+    SIMILAR_CHARTS_ALGORITHM_BIG_3,
+    SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE,
+    SIMILAR_CHARTS_ALGORITHM_CUSTOM,
+    SIMILAR_CHARTS_ALGORITHM_GENERIC_ASTRO,
+)
 from ephemeraldaddy.gui.style import (
     ABC_PANEL_BODY_LABEL_STYLE,
     ABC_PANEL_SECTION_CONTENT_MARGINS,
@@ -99,6 +110,7 @@ from ephemeraldaddy.gui.style import (
     build_tag_chip_html,
     configure_tag_chip_label,
     configure_collapsible_header_toggle,
+    set_collapsible_header_title,
     apply_shared_dropdown_style,
 )
 from ephemeraldaddy.gui.emoji_render import apply_emoji_png_to_button
@@ -2534,3 +2546,266 @@ def on_chart_view_tag_remove_link(owner: QWidget, link: str) -> None:
 
 def get_chart_view_tags(owner: QWidget) -> list[str]:
     return list(getattr(owner, "_chart_tags_current", []))
+
+
+# Chart View right-panel owner callbacks live beside the panel builder so the
+# application window only coordinates the feature.
+def _update_observations_relationship_subheaders(self, _text: str = "") -> None:
+    """Keep Chart View's contextual subheader copy aligned with the chart name."""
+    chart_name = self.name_edit.text().strip() or "this entity"
+    self.sentiment_types_subheader.setText(
+        "Your present (and/or historic) feelings about "
+        f"{chart_name}."
+    )
+    self.relationship_types_subheader.setText(
+        "Your present and/or historic relationship to "
+        f"{chart_name}."
+    )
+    person_name = self.name_edit.text().strip() or "this person"
+    prediction_name = self.name_edit.text().strip()
+    traits_subject = f"{prediction_name}'s" if prediction_name else "This chart's"
+    prediction_subject = prediction_name or "this chart"
+    contextual_copy = {
+        "traits_prediction_subheader": (
+            f"{traits_subject} predicted traits based on astrological data."
+        ),
+        "dnd_species_prediction_subheader": (
+            f"What fantasy creature {prediction_subject} would be, astrologically speaking, "
+            "based on the app developer's highly subjective interpretation."
+        ),
+        "dnd_class_prediction_subheader": (
+            f"What fantasy character type {prediction_subject} would be, astrologically "
+            "speaking, based on the app developer's highly subjective interpretation."
+        ),
+        "personal_relevance_subheader": (
+            f'"Sentiment Intensity" is how you feel about {person_name}, as a range from '
+            'best moments to worst. "Familiarity" is how confident you are that you know '
+            'them well enough to have an opinion on that. "1st encounter" refers to the '
+            f"year in which you first met {person_name}."
+        ),
+        "perceived_alignment_subheader": (
+            "How ruthlessly self-interested vs genuinely considerate you've observed "
+            f"(or suspect) {person_name} to be."
+        ),
+        "reminds_me_of_subheader": (
+            f"If {person_name} reminds you of someone else in the database, you can make "
+            "note of that here. May or may not be relevant. But in future app updates, "
+            "we will examine to see if there's any astrological correlation."
+        ),
+    }
+    for attribute_name, copy in contextual_copy.items():
+        label = getattr(self, attribute_name, None)
+        if label is not None:
+            label.setText(copy)
+
+def _decrease_chart_view_label_font_sizes(self) -> None:
+    for label in self.findChildren(QLabel):
+        font = QFont(label.font())
+        size = font.pointSizeF()
+        if size <= 0:
+            continue
+        font.setPointSizeF(max(1.0, size - 1.5))
+        label.setFont(font)
+
+def _mark_lucygoosey(self, *args, **kwargs) -> None:
+    if self._suppress_lucygoosey:
+        return
+    self._set_lucygoosey(True)
+
+def _create_chart_analysis_header(
+    self,
+    layout: QVBoxLayout,
+    title_text: str,
+    chart_key: str,
+    default_filename: str,
+    dropdown_options: list[tuple[str, str]] | None = None,
+) -> None:
+    self._chart_analysis_sections_controller.create_header(
+        layout=layout,
+        title_text=title_text,
+        chart_key=chart_key,
+        default_filename=default_filename,
+        dropdown_options=dropdown_options,
+    )
+
+def _update_chart_analysis_subtitle(self, chart_key: str) -> None:
+    self._chart_analysis_sections_controller.update_subtitle(chart_key)
+
+def _set_chart_analysis_section_expanded(self, section_key: str, expanded: bool) -> None:
+    self._chart_analysis_sections_controller.set_section_expanded(section_key, expanded)
+    if not expanded or self._latest_chart is None:
+        return
+    render_key = self._chart_analysis_render_key_for_section(section_key)
+    if render_key is None:
+        return
+
+    # Collapsed right-panel sections can have stale or zero child geometry at
+    # the instant their content widget becomes visible.  Queue the initial
+    # render until the next event-loop turn so canvases/text browsers measure
+    # the expanded scroll viewport, then re-check shortly afterward for Qt's
+    # stacked-panel settling pass.
+    chart = self._latest_chart
+
+    def schedule_expanded_section_render() -> None:
+        if self._latest_chart is not chart:
+            return
+        self._schedule_chart_render(
+            chart,
+            sections={render_key},
+            queue_priority="interactive",
+        )
+
+    QTimer.singleShot(0, schedule_expanded_section_render)
+    QTimer.singleShot(75, schedule_expanded_section_render)
+
+def _is_chart_analysis_section_visible(self, section_key: str) -> bool:
+    configured_visible = self._chart_analysis_section_visible.get(section_key, True)
+    return configured_visible and is_chart_analysis_section_available(
+        section_key,
+        getattr(self, "_latest_chart", None),
+        uses_houses=_chart_uses_houses,
+    )
+
+def _set_chart_analysis_section_visible(self, section_key: str, visible: bool) -> None:
+    self._chart_analysis_section_visible[section_key] = visible
+    self._visibility.set(f"chart_analytics.{section_key}", visible)
+    self._sync_chart_analysis_section_visibility()
+    if section_key == "anagrams" and visible and self._latest_chart is not None:
+        self._mark_chart_analytics_sections_lucy_goosey({"anagrams"})
+        self._schedule_chart_render(self._latest_chart, sections={"anagrams"})
+
+def _sync_chart_analysis_section_visibility(self) -> None:
+    for section_key, section_widget in self._chart_analysis_section_widgets.items():
+        section_widget.setVisible(self._is_chart_analysis_section_visible(section_key))
+
+def _sync_chart_view_sexiness_visibility(self) -> None:
+    sexiness_section = getattr(self, "sexiness_section_box", None)
+    if sexiness_section is not None:
+        sexiness_section.setVisible(self._visibility.get("chart_view.sexiness"))
+
+def _sync_predictability_visibility(self) -> None:
+    visible = self._visibility.get("chart_view.predictability")
+    for section_attr in ("batch_predictability_section", "predictability_section_box", "search_predictability_section"):
+        section = getattr(self, section_attr, None)
+        if section is not None:
+            section.setVisible(visible)
+
+def _sync_gender_guesser_visibility(self) -> None:
+    visible = self._visibility.get("chart_view.gender_guesser")
+    self._chart_analysis_section_visible["gender_guesser"] = visible
+    self._visibility.set("database_metrics_visibility.gender", visible)
+    self._sync_chart_analysis_section_visibility()
+    database_metrics_visible = getattr(self, "_database_metrics_section_visible", None)
+    if isinstance(database_metrics_visible, dict):
+        database_metrics_visible["gender"] = visible
+        sync_database_metrics = getattr(self, "_sync_database_metrics_section_visibility", None)
+        if callable(sync_database_metrics):
+            sync_database_metrics()
+
+def _add_chart_analysis_collapsible_section(
+    self,
+    panel: QWidget,
+    layout: QVBoxLayout,
+    title: str,
+    *,
+    expanded: bool = False,
+    on_toggled: Callable[[bool], None] | None = None,
+    section_key: str | None = None,
+) -> QVBoxLayout:
+    return self._chart_analysis_sections_controller.add_collapsible_section(
+        panel=panel,
+        layout=layout,
+        title=title,
+        expanded=expanded,
+        on_toggled=on_toggled,
+        section_key=section_key,
+    )
+
+def _add_chart_analysis_section(
+    self,
+    panel: QWidget,
+    *,
+    section_key: str,
+    section_title: str,
+    header_title: str,
+    subtitle_text: str,
+    default_filename: str,
+    chart_container_attr: str,
+    chart_layout_attr: str,
+    dropdown_options: list[tuple[str, str]] | None = None,
+    subtitle_by_mode: dict[str, str] | None = None,
+    expanded: bool = True,
+    parent_layout: QVBoxLayout | None = None,
+) -> None:
+    self._chart_analysis_sections_controller.add_section(
+        panel=panel,
+        section_key=section_key,
+        section_title=section_title,
+        header_title=header_title,
+        subtitle_text=subtitle_text,
+        default_filename=default_filename,
+        chart_container_attr=chart_container_attr,
+        chart_layout_attr=chart_layout_attr,
+        dropdown_options=dropdown_options,
+        subtitle_by_mode=subtitle_by_mode,
+        expanded=expanded,
+        parent_layout=parent_layout,
+    )
+
+def _create_chart_analysis_sections(self, panel: QWidget) -> None:
+    self._chart_analysis_sections_controller.create_sections(panel)
+
+def _similar_charts_section_title(self) -> str:
+    if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_GENERIC_ASTRO:
+        return "Astro Twin Finder ('generic astro' mode)"
+    if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
+        return "Astro Twin Finder ('comprehensive' mode)"
+    if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING:
+        return "Astro Twin Finder ('all or nothing' mode)"
+    if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_BIG_3:
+        return "Similar Charts ('Big 3' mode)"
+    if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_CUSTOM:
+        return "Astro Twin Finder ('custom' mode)"
+    return "Astro Twin Finder"
+
+def _refresh_similar_charts_section_title(self) -> None:
+    section_widget = self._chart_analysis_section_widgets.get("similar_charts")
+    if section_widget is None:
+        return
+    toggle = section_widget.findChild(QToolButton)
+    if toggle is None:
+        return
+    set_collapsible_header_title(toggle, self._similar_charts_section_title())
+
+def _collapse_similar_charts_section(self) -> None:
+    self._chart_analysis_section_expanded["similar_charts"] = False
+    section_widget = self._chart_analysis_section_widgets.get("similar_charts")
+    if section_widget is None:
+        return
+    for toggle in section_widget.findChildren(QToolButton):
+        if toggle.isCheckable():
+            toggle.setChecked(False)
+            return
+
+
+
+def install_chart_view_right_panel_callbacks(owner: QWidget) -> None:
+    """Attach the callbacks required by the right-panel builders to *owner*."""
+    owner._update_observations_relationship_subheaders = MethodType(_update_observations_relationship_subheaders, owner)
+    owner._decrease_chart_view_label_font_sizes = MethodType(_decrease_chart_view_label_font_sizes, owner)
+    owner._mark_lucygoosey = MethodType(_mark_lucygoosey, owner)
+    owner._create_chart_analysis_header = MethodType(_create_chart_analysis_header, owner)
+    owner._update_chart_analysis_subtitle = MethodType(_update_chart_analysis_subtitle, owner)
+    owner._set_chart_analysis_section_expanded = MethodType(_set_chart_analysis_section_expanded, owner)
+    owner._is_chart_analysis_section_visible = MethodType(_is_chart_analysis_section_visible, owner)
+    owner._set_chart_analysis_section_visible = MethodType(_set_chart_analysis_section_visible, owner)
+    owner._sync_chart_analysis_section_visibility = MethodType(_sync_chart_analysis_section_visibility, owner)
+    owner._sync_chart_view_sexiness_visibility = MethodType(_sync_chart_view_sexiness_visibility, owner)
+    owner._sync_predictability_visibility = MethodType(_sync_predictability_visibility, owner)
+    owner._sync_gender_guesser_visibility = MethodType(_sync_gender_guesser_visibility, owner)
+    owner._add_chart_analysis_collapsible_section = MethodType(_add_chart_analysis_collapsible_section, owner)
+    owner._add_chart_analysis_section = MethodType(_add_chart_analysis_section, owner)
+    owner._create_chart_analysis_sections = MethodType(_create_chart_analysis_sections, owner)
+    owner._similar_charts_section_title = MethodType(_similar_charts_section_title, owner)
+    owner._refresh_similar_charts_section_title = MethodType(_refresh_similar_charts_section_title, owner)
+    owner._collapse_similar_charts_section = MethodType(_collapse_similar_charts_section, owner)
