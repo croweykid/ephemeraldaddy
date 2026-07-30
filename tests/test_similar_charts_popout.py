@@ -227,7 +227,11 @@ def test_popout_chart_name_links_request_database_to_chart_view_transition():
     source = (Path(__file__).resolve().parents[1] / "ephemeraldaddy/gui/app.py").read_text()
     assert "transition_to_chart_view: bool = False" in source
     assert "_similar_chart_popout_opened_from_database_view = bool(database_view_active)" in source
-    assert "transition_to_chart_view=bool(" in source
+    link_handler = source.split("def _on_similar_chart_popout_link_activated", 1)[1].split(
+        "def _on_similar_chart_popout_chart_info_target_requested", 1
+    )[0]
+    assert "transition_to_chart_view=True" in link_handler
+    assert "_similar_chart_popout_opened_from_database_view" not in link_handler
     assert "activate=False" in source
     assert "manage_dialog.hide()" in source
     assert "lambda dialog=source_dialog: self._keep_similar_charts_popout_in_front(dialog)" in source

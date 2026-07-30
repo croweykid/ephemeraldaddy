@@ -26455,9 +26455,11 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._on_similar_chart_link_activated(
             normalized_target,
             source_dialog=dialog,
-            transition_to_chart_view=bool(
-                getattr(dialog, "_similar_chart_popout_opened_from_database_view", False)
-            ),
+            # A chart-name link is navigation to the full chart, not an update
+            # to whichever view happened to launch the popout.  Always request
+            # the Chart View transition; the transition helper is a no-op when
+            # Database View is not currently displayed.
+            transition_to_chart_view=True,
         )
 
 
