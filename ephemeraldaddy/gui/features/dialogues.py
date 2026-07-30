@@ -175,16 +175,7 @@ class RetconEngineDialog(QDialog):
         options_time_row.addWidget(_make_bold_label("Search Options"))
         options_time_row.addWidget(QLabel("Step"))
         self.step_combo = QComboBox()
-        for label, minutes in [
-            ("1 min", 1),
-            ("5 min", 5),
-            ("10 min", 10),
-            ("20 min", 20),
-            ("60 min", 60),
-            ("4 hrs", 240),
-            ("12 hrs", 720),
-            ("1 day", 1440),
-        ]:
+        for label, minutes in [("12 hrs", 720), ("1 day", 1440)]:
             self.step_combo.addItem(label, minutes)
         options_time_row.addWidget(self.step_combo)
         step_hint_label = QLabel("ⓘ")
@@ -385,6 +376,7 @@ class RetconEngineDialog(QDialog):
         self.submit_button.setFocus()
 
     def _apply_view(self, view: RectificationView) -> None:
+        previous_view = self._view
         self._view = view
         self.view_stack.setCurrentIndex(1 if view is RectificationView.RESULTS else 0)
         refinement_visible = view is RectificationView.REFINEMENT
@@ -393,6 +385,26 @@ class RetconEngineDialog(QDialog):
         self.criteria_panel.setTitle(
             "Refine Criteria" if refinement_visible else "Criteria Input"
         )
+        if view is RectificationView.REFINEMENT and previous_view is not view:
+            self._set_step_options(
+                [
+                    ("30 min", 30),
+                    ("15 min", 15),
+                    ("10 min", 10),
+                    ("5 min", 5),
+                    ("1 min", 1),
+                ]
+            )
+        elif view is RectificationView.CRITERIA and any(
+            int(self.step_combo.itemData(index) or 0) < 720
+            for index in range(self.step_combo.count())
+        ):
+            self._set_step_options([("12 hrs", 720), ("1 day", 1440)])
+
+    def _set_step_options(self, options: list[tuple[str, int]]) -> None:
+        self.step_combo.clear()
+        for label, minutes in options:
+            self.step_combo.addItem(label, minutes)
 
     def _criteria(self) -> dict[str, str]:
         criteria: dict[str, str] = {}
@@ -415,9 +427,6 @@ class RetconEngineDialog(QDialog):
         criteria = self._criteria()
         refining = self._view is RectificationView.REFINEMENT
         house_criteria = self._house_criteria()
-        refinement_candidates = (
-            [match["datetime"] for match in self._active_matches] if refining else None
-        )
         if not criteria:
             QMessageBox.information(
                 self,
@@ -469,6 +478,21 @@ class RetconEngineDialog(QDialog):
             )
             return
 
+        refinement_windows = None
+        if refining:
+            refinement_windows = []
+            for match in self._active_matches:
+                match_start = match.get("range_start", match.get("datetime"))
+                match_end = match.get("range_end", match_start)
+                if not isinstance(match_start, datetime.datetime) or not isinstance(
+                    match_end, datetime.datetime
+                ):
+                    continue
+                window_start = max(match_start, start_dt)
+                window_end = min(match_end, end_dt)
+                if window_start <= window_end:
+                    refinement_windows.append((window_start, window_end))
+
         step_minutes = int(self.step_combo.currentData() or 720)
         max_results = self.max_results_spin.value()
 
@@ -502,7 +526,7 @@ class RetconEngineDialog(QDialog):
             step_minutes,
             max_results,
             required_houses=house_criteria,
-            candidate_datetimes=refinement_candidates,
+            candidate_windows=refinement_windows,
         )
         self._worker.moveToThread(self._thread)
         self._thread.started.connect(self._worker.run)

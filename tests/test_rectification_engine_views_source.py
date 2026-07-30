@@ -16,7 +16,16 @@ def test_house_refinement_is_scoped_to_current_results():
     assert 'QPushButton("Refine by House Placement")' in DIALOGUES_SOURCE
     assert 'header = QLabel("H")' in DIALOGUES_SOURCE
     assert 'display_body = "Midhaven" if body == "MC" else body' in DIALOGUES_SOURCE
-    assert "candidate_datetimes=refinement_candidates" in DIALOGUES_SOURCE
+    assert "candidate_windows=refinement_windows" in DIALOGUES_SOURCE
+    assert '[("12 hrs", 720), ("1 day", 1440)]' in DIALOGUES_SOURCE
+    for option in [
+        '("30 min", 30)',
+        '("15 min", 15)',
+        '("10 min", 10)',
+        '("5 min", 5)',
+        '("1 min", 1)',
+    ]:
+        assert option in DIALOGUES_SOURCE
 
 
 def test_selected_match_opens_as_unknown_time_with_rectification_range():

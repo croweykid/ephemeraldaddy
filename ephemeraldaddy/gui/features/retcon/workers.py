@@ -61,7 +61,9 @@ class RetconSearchWorker(QObject):
         step_minutes: int,
         max_results: int,
         required_houses: dict[str, int] | None = None,
-        candidate_datetimes: list[datetime.datetime] | None = None,
+        candidate_windows: (
+            list[tuple[datetime.datetime, datetime.datetime]] | None
+        ) = None,
         search_fn: Callable[..., list[dict]] | None = None,
     ) -> None:
         super().__init__()
@@ -73,7 +75,7 @@ class RetconSearchWorker(QObject):
         self._step_minutes = step_minutes
         self._max_results = max_results
         self._required_houses = required_houses or {}
-        self._candidate_datetimes = candidate_datetimes
+        self._candidate_windows = candidate_windows
         self._search_fn = search_fn
         self._cancel_event = threading.Event()
 
@@ -104,7 +106,7 @@ class RetconSearchWorker(QObject):
                 match_cb=self.match_found.emit,
                 should_cancel_cb=self._cancel_event.is_set,
                 required_houses=self._required_houses,
-                candidate_datetimes=self._candidate_datetimes,
+                candidate_windows=self._candidate_windows,
             )
         except Exception as exc:
             self.failed.emit(str(exc))

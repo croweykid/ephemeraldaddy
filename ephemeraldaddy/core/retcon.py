@@ -199,7 +199,7 @@ def search_retcon_candidates(
     match_cb: Callable[[dict[str, object]], None] | None = None,
     should_cancel_cb: Callable[[], bool] | None = None,
     required_houses: dict[str, int] | None = None,
-    candidate_datetimes: list[dt.datetime] | None = None,
+    candidate_windows: list[tuple[dt.datetime, dt.datetime]] | None = None,
 ) -> list[dict[str, object]]:
     if start_dt.tzinfo is None or end_dt.tzinfo is None:
         raise ValueError("search_retcon_candidates expects timezone-aware datetimes")
@@ -224,42 +224,25 @@ def search_retcon_candidates(
     }
     required_bodies.update(houses_required)
 
-    search_windows = (
-        []
-        if candidate_datetimes is not None
-        else _candidate_search_windows(
+    search_windows = candidate_windows
+    if search_windows is None:
+        search_windows = _candidate_search_windows(
             start_dt, end_dt, required, lat, lon, should_cancel_cb
         )
-    )
-    if candidate_datetimes is None and not search_windows:
+    if not search_windows:
         return []
 
     step = dt.timedelta(minutes=step_minutes)
-    total = (
-        len(candidate_datetimes)
-        if candidate_datetimes is not None
-        else sum(
-            int((window_end - window_start) // step) + 1
-            for window_start, window_end in search_windows
-        )
+    total = sum(
+        int((window_end - window_start) // step) + 1
+        for window_start, window_end in search_windows
     )
 
     results: list[dict[str, object]] = []
     index = 0
-    moments = candidate_datetimes
-    if moments is None:
-        moments = []
-        for window_start, window_end in search_windows:
-            current = window_start
-            while current <= window_end:
-                moments.append(current)
-                current += step
-    for current in moments:
-        if len(results) >= max_results:
-            break
-        if should_cancel_cb is not None and should_cancel_cb():
-            return results
-        positions = _rectification_positions(current, lat, lon, required_bodies)
+
+    def match_at(moment: dt.datetime) -> dict[str, float] | None:
+        positions = _rectification_positions(moment, lat, lon, required_bodies)
         is_match = True
         matched_positions: dict[str, float] = {}
         for body, expected_sign in required.items():
@@ -273,7 +256,7 @@ def search_retcon_candidates(
             matched_positions[body] = float(lon_value)
 
         if is_match and houses_required:
-            cusps, axes = placidus_houses_and_axes(current, lat, lon)
+            cusps, axes = placidus_houses_and_axes(moment, lat, lon)
             positions.update(
                 {
                     "Ascendant": axes.get("AS"),
@@ -290,19 +273,38 @@ def search_retcon_candidates(
                     break
                 matched_positions[body] = float(lon_value)
 
-        if is_match:
-            match = {
-                "datetime": current,
-                "positions": matched_positions,
-                "range_start": current,
-                "range_end": min(current + step, end_dt),
-            }
-            results.append(match)
-            if match_cb is not None:
-                match_cb(match)
+        return matched_positions if is_match else None
 
-        index += 1
-        if progress_cb is not None and total > 0:
-            progress_cb(index, total)
+    for window_start, window_end in search_windows:
+        current = window_start
+        while current <= window_end:
+            if len(results) >= max_results:
+                return results
+            if should_cancel_cb is not None and should_cancel_cb():
+                return results
+            matched_positions = match_at(current)
+            range_end = min(current + step, window_end, end_dt)
+            if matched_positions is not None and range_end > current:
+                midpoint = current + (range_end - current) / 2
+                boundary = range_end - dt.timedelta(microseconds=1)
+                # A reported range is a guarantee, not merely the gap between
+                # samples: validate its midpoint and far boundary as well.
+                if match_at(midpoint) is None or match_at(boundary) is None:
+                    matched_positions = None
+            if matched_positions is not None:
+                match = {
+                    "datetime": current,
+                    "positions": matched_positions,
+                    "range_start": current,
+                    "range_end": range_end,
+                }
+                results.append(match)
+                if match_cb is not None:
+                    match_cb(match)
+
+            index += 1
+            if progress_cb is not None and total > 0:
+                progress_cb(index, total)
+            current += step
 
     return results
