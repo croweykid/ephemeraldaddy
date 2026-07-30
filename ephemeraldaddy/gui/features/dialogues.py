@@ -408,6 +408,12 @@ class RetconEngineDialog(QDialog):
         self._view = view
         self.view_stack.setCurrentIndex(1 if view is RectificationView.RESULTS else 0)
         refinement_visible = view is RectificationView.REFINEMENT
+        self.place_edit.setEnabled(not refinement_visible)
+        self.place_edit.setToolTip(
+            "Location is fixed to the current result set during refinement."
+            if refinement_visible
+            else ""
+        )
         for widget in self._refinement_widgets:
             widget.setVisible(refinement_visible)
         self.criteria_panel.setTitle(
@@ -464,15 +470,20 @@ class RetconEngineDialog(QDialog):
             return
 
         place = self.place_edit.text().strip() or "Chicago, IL, USA"
-        try:
-            lat, lon, label = geocode_location(place)
-        except LocationLookupError:
-            QMessageBox.warning(
-                self,
-                "Location not found",
-                "Could not geocode that location. Please try a more specific place.",
-            )
-            return
+        if refining and self._active_lat is not None and self._active_lon is not None:
+            lat = self._active_lat
+            lon = self._active_lon
+            label = self._active_location_label or place
+        else:
+            try:
+                lat, lon, label = geocode_location(place)
+            except LocationLookupError:
+                QMessageBox.warning(
+                    self,
+                    "Location not found",
+                    "Could not geocode that location. Please try a more specific place.",
+                )
+                return
 
         if label and label != place:
             self.place_edit.setText(label)

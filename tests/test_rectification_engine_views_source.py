@@ -30,6 +30,20 @@ def test_house_refinement_is_scoped_to_current_results():
         assert option in DIALOGUES_SOURCE
 
 
+def test_refinement_keeps_the_current_result_location():
+    assert "self.place_edit.setEnabled(not refinement_visible)" in DIALOGUES_SOURCE
+    assert (
+        "Location is fixed to the current result set during refinement."
+        in DIALOGUES_SOURCE
+    )
+    assert (
+        "if refining and self._active_lat is not None and self._active_lon is not None:"
+        in DIALOGUES_SOURCE
+    )
+    assert "lat = self._active_lat" in DIALOGUES_SOURCE
+    assert "lon = self._active_lon" in DIALOGUES_SOURCE
+
+
 def test_selected_match_opens_as_unknown_time_with_rectification_range():
     assert "self.time_unknown_checkbox.setChecked(True)" in APP_SOURCE
     assert "self.retcon_time_checkbox.setChecked(False)" in APP_SOURCE
