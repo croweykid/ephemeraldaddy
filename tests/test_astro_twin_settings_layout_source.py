@@ -126,3 +126,15 @@ def test_manage_presets_button_is_file_gated_and_right_of_selector():
     assert 'manage_presets_button = QPushButton("Manage Presets")' in SECTION
     assert "manage_presets_button.setVisible(is_local_file_available)" in SECTION
     assert "manage_presets_button.clicked.connect(on_manage_presets_clicked)" in SECTION
+
+
+def test_research_accuracy_ranking_fills_space_below_button_and_divider():
+    button = SECTION.index('QPushButton("Show 90-100% similarities")')
+    divider = SECTION.index("research_accuracy_divider = QFrame()")
+    ranking = SECTION.index("algorithm_accuracy_label = SimilarityAlgorithmAccuracyBrowser()")
+
+    assert button < divider < ranking
+    assert "research_accuracy_divider.setFrameShape(QFrame.HLine)" in SECTION
+    assert "research_layout.addWidget(algorithm_accuracy_label, 1)" in SECTION
+    assert "research_layout.addStretch(1)" not in SECTION
+    assert "self.setMaximumHeight(360)" not in SOURCE
