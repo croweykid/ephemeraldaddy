@@ -43,6 +43,7 @@ from PySide6.QtWidgets import (
 from ephemeraldaddy.gui.settings_widgets import SettingsHelpLabel
 from ephemeraldaddy.gui.tooltips import (
     DATABASE_DISTINCTION_SCAN_TOOLTIP,
+    PLACEMENT_WEIGHTING_MODE_TOOLTIPS,
     TooltipHelpLabel,
 )
 from ephemeraldaddy.gui.tag_categories import TAG_CATEGORY_OPTIONS, TAG_CATEGORY_PREFIXES
@@ -907,11 +908,11 @@ def build_similarity_calculator_settings_section(
     custom_fields_layout.addLayout(calculator_grid)
 
     weighting_mode_row = QHBoxLayout()
-    weighting_mode_label = QLabel("Placement-weight mode:")
+    weighting_mode_label = QLabel("Placement weighting mode")
     weighting_mode_combo = QComboBox()
-    weighting_mode_combo.addItem("Chart-defined weights", "chart_defined") #Tooltip: weighting the importance of body placements in a chart based on their significance in the individual chart. Example: "Sun signs are important, but this guy's Sun dominance (weight) is actually lower than his Moon dominance (weight), so in HIS case, we're going to emphasize Moon sign when matching with other charts, more than Sun signs."
-    weighting_mode_combo.addItem("Generic base weights", "generic") #Tooltip: weighting the importance of certain body placements as if they're universal, i.e. "Sun sign is the most important position, then Moon sign and Ascendant, then probably Midhaven, Imum Coeli, Mercury, Venus and Mars. Them's the rules."
-    weighting_mode_combo.addItem("Hybrid (generic + dominant body bonuses)", "hybrid") #Tooltip: the hybrid method establishes baselines to normalize (i.e. "Sun sign is always important, so is Moon sign, Pluto is never THAT important", then adjusts them according to the chart's unique weights--"Pluto sign still can't be more important than Sun sign, but if the chart is Scorpio Moon-Venus-Pluto stellium, with Scorpio in Pluto in the 8th house, we're going to acknowledge that matching Pluto signs might matter more than normal when comparing charts.")
+    weighting_mode_combo.addItem("Chart-defined weights", "chart_defined")
+    weighting_mode_combo.addItem("Generic base weights", "generic")
+    weighting_mode_combo.addItem("Hybrid (generic + dominant body bonuses)", "hybrid")
     weighting_mode_combo.currentIndexChanged.connect(
         lambda _index: on_placement_weighting_mode_changed(
             str(weighting_mode_combo.currentData() or "chart_defined")
