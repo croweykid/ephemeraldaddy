@@ -24990,6 +24990,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._metric_scroll_widgets: set[QWidget] = set()
         self._metric_canvas_layout_controller = MetricCanvasLayoutController(
             side_gutter_px=CHART_RIGHT_PANEL_GRAPH_SIDE_GUTTER_PX,
+            parent=self,
         )
         self._metric_chart_titles: dict[QWidget, str] = {}
         self._metric_popout_dialogs: list[QDialog] = []
@@ -28655,67 +28656,23 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._register_metric_chart_scroll_area(canvas)
         QTimer.singleShot(0, lambda metric_canvas=canvas: self._register_metric_chart_scroll_area(metric_canvas))
 
-    def _metric_canvas_is_alive(self, canvas: FigureCanvas) -> bool:
-        """Return False when a PySide wrapper points at a deleted C++ canvas."""
-        try:
-            return canvas.parentWidget() is not None
-        except RuntimeError:
-            self._unregister_metric_chart(canvas)
-            return False
-
-    def _refresh_metric_canvas_after_layout(self, canvas: FigureCanvas) -> None:
-        """Re-apply viewport sizing after Qt has settled stacked-panel layout."""
-        try:
-            if not self._metric_canvas_is_alive(canvas):
-                return
-            self._apply_metric_chart_sizing(canvas)
-            canvas.draw_idle()
-        except RuntimeError:
-            self._unregister_metric_chart(canvas)
-            return
-
-    def _schedule_metric_canvas_layout_refresh(self, canvas: FigureCanvas) -> None:
+    def _request_metric_canvas_layout(self, canvas: FigureCanvas) -> None:
         """Request one coalesced update from the viewport-layout owner."""
         self._metric_canvas_layout_controller.request(canvas)
 
-    def _schedule_deferred_metric_canvas_layout_refresh(
-        self,
-        canvas: FigureCanvas,
-        delays_ms: tuple[int, ...] = (),
-    ) -> None:
-        """Compatibility entry point; viewport events replaced timing guesses."""
-        del delays_ms
-        self._metric_canvas_layout_controller.request(canvas)
-
-    def _schedule_all_metric_canvas_layout_refreshes(self) -> None:
-        """Resize every registered right-panel metric canvas after layout churn."""
+    def _request_all_metric_canvas_layouts(self) -> None:
+        """Request layout for registered canvases; hidden ones stay dirty."""
         for canvas in list(self._metric_chart_titles):
             try:
                 canvas.parentWidget()
             except RuntimeError:
                 self._unregister_metric_chart(canvas)
                 continue
-            self._schedule_metric_canvas_layout_refresh(canvas)
+            self._request_metric_canvas_layout(canvas)
 
-    def _schedule_visible_metric_canvas_layout_refreshes(self) -> None:
+    def _request_visible_metric_canvas_layouts(self) -> None:
         """Resize visible metric canvases without recalculating right-panel sections."""
         self._metric_canvas_layout_controller.request_visible()
-
-    def _schedule_deferred_all_metric_canvas_layout_refreshes(
-        self,
-        delays_ms: tuple[int, ...] = (),
-    ) -> None:
-        """Compatibility entry point; coalesce without arbitrary delay chains."""
-        del delays_ms
-        self._schedule_all_metric_canvas_layout_refreshes()
-
-    def _schedule_deferred_visible_metric_canvas_layout_refreshes(
-        self,
-        delays_ms: tuple[int, ...] = (),
-    ) -> None:
-        """Compatibility entry point; visible viewport events own settling."""
-        del delays_ms
-        self._schedule_visible_metric_canvas_layout_refreshes()
 
     def _handle_metrics_wheel(self, event) -> bool:
         if self.metrics_scroll is None:
@@ -35855,7 +35812,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 parent.adjustSize()
                 parent.updateGeometry()
         if touched_layouts:
-            self._schedule_deferred_visible_metric_canvas_layout_refreshes()
+            self._request_visible_metric_canvas_layouts()
 
     def _refresh_chart_preview(self) -> None:
         if self._suppress_lucygoosey or self._latest_chart is None:
@@ -36147,7 +36104,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         # draw() is synchronous for chart/metric canvases, so overlay shutdown can
         # be tied to actual completion of the final render pass here.
         self._reveal_chart_right_panel_after_loading()
-        self._schedule_deferred_visible_metric_canvas_layout_refreshes()
+        self._request_visible_metric_canvas_layouts()
         self._hide_chart_loading_overlay()
         load_timing = getattr(self, "_chart_load_timing", None)
         rendered_chart_uid = self._normalized_chart_uid_key(getattr(chart, "chart_uid", None))
@@ -36460,7 +36417,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         # a newly replaced Predictions placeholder can remain visually blank until
         # a later layout timer or user-driven resize happens to flush the canvas.
         canvas.draw_idle()
-        self._schedule_deferred_metric_canvas_layout_refresh(canvas)
+        self._request_metric_canvas_layout(canvas)
 
     def _render_chart(self, chart: Chart) -> None:
         self._latest_chart = chart

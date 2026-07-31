@@ -1100,14 +1100,14 @@ def _finish_background_prediction_render(
             owner._render_enneagram_predictions(chart)
         if any(_prediction_section_visible(owner, key) for key in ("dnd_statblock", "dnd_species", "dnd_class", "dnd_alignment")):
             owner._render_dndification_predictions(chart)
-        schedule_metric_refreshes = getattr(owner, "_schedule_deferred_all_metric_canvas_layout_refreshes", None)
-        if not callable(schedule_metric_refreshes):
-            schedule_metric_refreshes = getattr(owner, "_schedule_deferred_visible_metric_canvas_layout_refreshes", None)
-        if callable(schedule_metric_refreshes):
+        request_metric_layouts = getattr(owner, "_request_all_metric_canvas_layouts", None)
+        if not callable(request_metric_layouts):
+            request_metric_layouts = getattr(owner, "_request_visible_metric_canvas_layouts", None)
+        if callable(request_metric_layouts):
             # The Chart Editor layout controller coalesces this request and
             # waits for visible viewport events. Never restore timer ladders:
             # they let stale hidden-page widths intermittently win the race.
-            schedule_metric_refreshes()
+            request_metric_layouts()
         if state is not None:
             state.last_render_chart_token = render_token
     _set_predictions_status(

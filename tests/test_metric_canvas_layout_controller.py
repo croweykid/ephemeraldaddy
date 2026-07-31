@@ -66,3 +66,27 @@ def test_canvas_resize_is_not_a_layout_input():
     ).getsource(MetricCanvasLayoutController.eventFilter)
     assert "watched is scroll_area or watched is scroll_area.viewport()" in source
     assert "watched is canvas" not in source
+
+
+def test_transient_missing_scroll_area_does_not_orphan_registered_canvas():
+    app = QApplication.instance() or QApplication([])
+    content = QWidget()
+    layout = QVBoxLayout(content)
+    canvas = FigureCanvas(Figure(figsize=(4, 2.4)))
+    layout.addWidget(canvas)
+    scroll = QScrollArea()
+    scroll.setWidgetResizable(True)
+    scroll.setWidget(content)
+    scroll.resize(420, 500)
+    scroll.show()
+    controller = MetricCanvasLayoutController(side_gutter_px=5, redraw=lambda _canvas: None)
+    controller.register(canvas, scroll)
+    _process_events(app)
+
+    controller.register(canvas, None)
+    scroll.resize(360, 500)
+    _process_events(app)
+
+    margins = layout.contentsMargins()
+    expected_width = scroll.viewport().width() - margins.left() - margins.right() - 10
+    assert canvas.width() == expected_width

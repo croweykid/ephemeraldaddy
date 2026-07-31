@@ -49,4 +49,4 @@ def test_rectified_time_canvas_reset_invalidates_layouts_before_preview_rebuild(
     assert "touched_layouts.append(layout)" in method
     assert "layout.invalidate()" in method
     assert "parent.adjustSize()" in method
-    assert "self._schedule_deferred_visible_metric_canvas_layout_refreshes()" in method
+    assert "self._request_visible_metric_canvas_layouts()" in method

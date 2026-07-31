@@ -110,7 +110,7 @@ def test_prediction_metric_canvases_redraw_after_stacked_panel_layout_settles():
     source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
     controller = _source("ephemeraldaddy/gui/features/chart_editor/metric_canvas_layout.py")
 
-    assert "def _schedule_metric_canvas_layout_refresh" in source
+    assert "def _request_metric_canvas_layout" in source
     assert "self._metric_canvas_layout_controller.request(canvas)" in source
     assert "QTimer.singleShot(0, self._flush)" in controller
     assert "QTimer.singleShot(50" not in controller

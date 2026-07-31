@@ -16,22 +16,22 @@ def test_prediction_finish_reschedules_all_metric_canvas_refreshes():
     method_start = RIGHT_PANEL_SOURCE.index("def _finish_background_prediction_render")
     method = RIGHT_PANEL_SOURCE[method_start : RIGHT_PANEL_SOURCE.index("def _retain_background_prediction_job", method_start)]
 
-    assert "_schedule_deferred_all_metric_canvas_layout_refreshes" in method
-    assert "_schedule_deferred_visible_metric_canvas_layout_refreshes" in method
-    assert "schedule_metric_refreshes()" in method
+    assert "_request_all_metric_canvas_layouts" in method
+    assert "_request_visible_metric_canvas_layouts" in method
+    assert "request_metric_layouts()" in method
     assert "timer ladders" in method
 
 
 def test_metric_canvas_refresh_defers_hidden_stacked_tabs():
-    assert "def _schedule_all_metric_canvas_layout_refreshes" in APP_SOURCE
+    assert "def _request_all_metric_canvas_layouts" in APP_SOURCE
     assert "if not self._is_authoritative_geometry_visible(canvas):" in LAYOUT_SOURCE
     assert "self._dirty_canvases.add(canvas)" in LAYOUT_SOURCE
-    assert "self._schedule_all_metric_canvas_layout_refreshes()" in APP_SOURCE
+    assert "self._request_all_metric_canvas_layouts()" not in APP_SOURCE
 
 
 def test_metric_chart_registration_tracks_scroll_area_and_viewport():
     register_start = APP_SOURCE.index("    def _register_metric_chart")
-    register_source = APP_SOURCE[register_start : APP_SOURCE.index("    def _metric_canvas_is_alive", register_start)]
+    register_source = APP_SOURCE[register_start : APP_SOURCE.index("    def _request_metric_canvas_layout", register_start)]
 
     assert "def _register_metric_chart_scroll_area" in register_source
     assert "scroll_area = self._metric_canvas_scroll_area(canvas)" in register_source

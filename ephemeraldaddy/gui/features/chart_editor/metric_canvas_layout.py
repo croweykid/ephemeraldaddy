@@ -26,8 +26,9 @@ class MetricCanvasLayoutController(QObject):
         *,
         side_gutter_px: int,
         redraw: Callable[[FigureCanvas], None] | None = None,
+        parent: QObject | None = None,
     ) -> None:
-        super().__init__()
+        super().__init__(parent)
         self._side_gutter_px = max(0, int(side_gutter_px))
         self._redraw = redraw or (lambda canvas: canvas.draw_idle())
         self._scroll_by_canvas: dict[FigureCanvas, QScrollArea] = {}
@@ -38,10 +39,19 @@ class MetricCanvasLayoutController(QObject):
 
     def register(self, canvas: FigureCanvas, scroll_area: QScrollArea | None) -> None:
         """Track *canvas* and its explicit owning scroll area."""
-        self.unregister(canvas)
         if scroll_area is None:
+            # Canvas construction precedes layout insertion in Chart Editor.
+            # Keep an already valid association if a transient re-check occurs
+            # while Qt is reparenting; replacing it with None could orphan the
+            # canvas until an unrelated resize happens.
+            if canvas in self._scroll_by_canvas:
+                return
             self._dirty_canvases.add(canvas)
             return
+        if self._scroll_by_canvas.get(canvas) is scroll_area:
+            self.request(canvas)
+            return
+        self.unregister(canvas)
         self._scroll_by_canvas[canvas] = scroll_area
         self._canvases_by_scroll.setdefault(scroll_area, set()).add(canvas)
         scroll_area.installEventFilter(self)
@@ -76,6 +86,8 @@ class MetricCanvasLayoutController(QObject):
             self.request(canvas)
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802 - Qt API
+        # Listen only to the owning scroll area and viewport. Canvas resize
+        # events are effects of apply_now(), never fresh layout evidence.
         if event.type() in (QEvent.Resize, QEvent.Show):
             for scroll_area, canvases in tuple(self._canvases_by_scroll.items()):
                 if watched is scroll_area or watched is scroll_area.viewport():

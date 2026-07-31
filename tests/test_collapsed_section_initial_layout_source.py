@@ -1,6 +1,8 @@
 from pathlib import Path
 
-APP_SOURCE = Path("ephemeraldaddy/gui/app.py").read_text()
+CHART_EDITOR_SOURCE = Path(
+    "ephemeraldaddy/gui/features/controllers/chart_view_window.py"
+).read_text()
 MAIN_WINDOW_SOURCE = Path(
     "ephemeraldaddy/gui/features/controllers/main_window.py"
 ).read_text()
@@ -10,9 +12,9 @@ TIME_SENSITIVITY_SOURCE = Path(
 
 
 def test_chart_analysis_expansion_defers_initial_render_until_geometry_settles():
-    start = APP_SOURCE.index("    def _set_chart_analysis_section_expanded")
-    end = APP_SOURCE.index("    def _is_chart_analysis_section_visible", start)
-    method = APP_SOURCE[start:end]
+    start = CHART_EDITOR_SOURCE.index("def _set_chart_analysis_section_expanded")
+    end = CHART_EDITOR_SOURCE.index("def _is_chart_analysis_section_visible", start)
+    method = CHART_EDITOR_SOURCE[start:end]
 
     assert (
         "Collapsed right-panel sections can have stale or zero child geometry" in method
@@ -26,8 +28,9 @@ def test_collapsible_metric_sections_refresh_visible_canvases_after_expansion():
     end = MAIN_WINDOW_SOURCE.index("    def add_section", start)
     method = MAIN_WINDOW_SOURCE[start:end]
 
-    assert "_schedule_deferred_visible_metric_canvas_layout_refreshes" in method
-    assert "QTimer.singleShot(0, refresh_visible_canvases)" in method
+    assert "_request_visible_metric_canvas_layouts" in method
+    assert "refresh_visible_canvases()" in method
+    assert "QTimer.singleShot(0, refresh_visible_canvases)" not in method
 
 
 def test_time_sensitivity_html_sections_remeasure_browser_after_expansion():
