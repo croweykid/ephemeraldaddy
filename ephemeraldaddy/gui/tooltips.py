@@ -33,6 +33,25 @@ DATABASE_DISTINCTION_SCAN_TOOLTIP = (
     "concentration flags, and repeated Human Design gates."
 )
 
+PLACEMENT_WEIGHTING_MODE_TOOLTIPS = {
+    "chart_defined": (
+        "Weights body placements according to their significance in the individual chart. "
+        "For example, although Sun signs are generally important, a chart with stronger Moon "
+        "dominance will emphasize the Moon sign more than the Sun sign when finding matches."
+    ),
+    "generic": (
+        "Uses the same universal importance for every chart: the Sun sign is most important; "
+        "the Moon sign and Ascendant follow; then the Midheaven, Imum Coeli, Mercury, Venus, "
+        "and Mars."
+    ),
+    "hybrid": (
+        "Starts with normalized universal baselines, then adjusts them for the chart's unique "
+        "dominance. For example, Pluto remains less important than the Sun, but matching Pluto "
+        "signs matters more than usual for a Scorpio Moon–Venus–Pluto stellium with Pluto in "
+        "the 8th house."
+    ),
+}
+
 APP_TOOLTIP_STYLE = (
     "QToolTip {"
     f"background-color: {APP_TOOLTIP_BACKGROUND_COLOR};"

@@ -43,6 +43,7 @@ from PySide6.QtWidgets import (
 from ephemeraldaddy.gui.settings_widgets import SettingsHelpLabel
 from ephemeraldaddy.gui.tooltips import (
     DATABASE_DISTINCTION_SCAN_TOOLTIP,
+    PLACEMENT_WEIGHTING_MODE_TOOLTIPS,
     TooltipHelpLabel,
 )
 from ephemeraldaddy.gui.tag_categories import TAG_CATEGORY_OPTIONS, TAG_CATEGORY_PREFIXES
@@ -909,9 +910,23 @@ def build_similarity_calculator_settings_section(
     weighting_mode_row = QHBoxLayout()
     weighting_mode_label = QLabel("Placement weighting mode")
     weighting_mode_combo = QComboBox()
-    weighting_mode_combo.addItem("Chart-defined weights", "chart_defined")
-    weighting_mode_combo.addItem("Generic base weights", "generic")
-    weighting_mode_combo.addItem("Hybrid (generic + dominant body bonuses)", "hybrid")
+    for mode_label, mode_key in (
+        ("Chart-defined weights", "chart_defined"),
+        ("Generic base weights", "generic"),
+        ("Hybrid (generic + dominant body bonuses)", "hybrid"),
+    ):
+        weighting_mode_combo.addItem(mode_label, mode_key)
+        weighting_mode_combo.setItemData(
+            weighting_mode_combo.count() - 1,
+            PLACEMENT_WEIGHTING_MODE_TOOLTIPS[mode_key],
+            Qt.ToolTipRole,
+        )
+    weighting_mode_combo.setToolTip(PLACEMENT_WEIGHTING_MODE_TOOLTIPS["chart_defined"])
+    weighting_mode_combo.currentIndexChanged.connect(
+        lambda index: weighting_mode_combo.setToolTip(
+            str(weighting_mode_combo.itemData(index, Qt.ToolTipRole) or "")
+        )
+    )
     weighting_mode_combo.currentIndexChanged.connect(
         lambda _index: on_placement_weighting_mode_changed(
             str(weighting_mode_combo.currentData() or "chart_defined")
