@@ -82,6 +82,14 @@ def test_reset_weights_button_shares_placement_weighting_row():
     assert combo < reset < attach
 
 
+def test_placement_weighting_modes_have_item_and_selected_tooltips():
+    assert "PLACEMENT_WEIGHTING_MODE_TOOLTIPS" in SECTION
+    assert "weighting_mode_combo.setItemData(" in SECTION
+    assert "Qt.ToolTipRole" in SECTION
+    assert "weighting_mode_combo.setToolTip(" in SECTION
+    assert "weighting_mode_combo.itemData(index, Qt.ToolTipRole)" in SECTION
+
+
 def test_selected_scoring_method_uses_chart_data_highlight_color():
     assert 'QRadioButton:checked {{ color: {CHART_DATA_HIGHLIGHT_COLOR}; }}' in SECTION
     assert "scoring_method_radio.setStyleSheet(scoring_method_selected_style)" in SECTION
