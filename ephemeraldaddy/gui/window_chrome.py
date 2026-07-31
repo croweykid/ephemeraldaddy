@@ -4,6 +4,7 @@ import os
 import re
 import sys
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from ephemeraldaddy.gui.about import ABOUT_ONBOARDING_MARKDOWN
@@ -23,6 +24,14 @@ APP_DISPLAY_NAME = "Ephemeral Daddy"
 
 
 _ACTIVE_ABOUT_SPARKLES: list[AboutCloseSparkleOverlay] = []
+
+
+@dataclass(frozen=True, slots=True)
+class WindowChromeCommands:
+    """Explicit app commands shared by both top-level window menus."""
+
+    open_settings: Callable[[], None]
+    open_rectification_engine: Callable[[], None]
 
 
 def _show_about_close_sparkles(target_rect) -> None:
@@ -122,9 +131,14 @@ def _bind_menu_action(menu, label: str, window: "QWidget", *handler_names: str) 
     menu.addAction(action)
 
 
-def _add_settings_action(app_menu, owner: "QWidget") -> None:
-    """Attach Settings directly under Ephemeral Daddy in window_chrome menus."""
-    _bind_menu_action(app_menu, "Settings", owner, "_on_open_settings", "on_open_settings")
+def _bind_menu_callback(menu, label: str, callback: Callable[[], None]) -> None:
+    """Attach an explicitly owned command without probing a window object."""
+    from PySide6.QtGui import QAction
+
+    action = QAction(label, menu)
+    _keep_action_in_window_menu(action)
+    action.triggered.connect(callback)
+    menu.addAction(action)
 
 
 def _configure_menu_bar_visibility(menu_bar) -> None:
@@ -297,7 +311,10 @@ def configure_application_identity(app: "QApplication") -> None:
     app.setOrganizationName(APP_DISPLAY_NAME)
 
 
-def configure_main_window_chrome(window: "QMainWindow") -> None:
+def configure_main_window_chrome(
+    window: "QMainWindow",
+    commands: WindowChromeCommands,
+) -> None:
     """Attach a top-level menu bar and app title for the main window."""
     update_main_window_title(window)
 
@@ -307,7 +324,7 @@ def configure_main_window_chrome(window: "QMainWindow") -> None:
     menu_bar.clear()
 
     app_menu = menu_bar.addMenu(APP_DISPLAY_NAME)
-    _add_settings_action(app_menu, window)
+    _bind_menu_callback(app_menu, "Settings", commands.open_settings)
     _keep_action_in_window_menu(app_menu.addAction("About", lambda: _show_about_from_onboarding(window)))
     _keep_action_in_window_menu(app_menu.addAction("Minimize", lambda: _minimize_window(window)))
     app_menu.addSeparator()
@@ -347,7 +364,11 @@ def configure_main_window_chrome(window: "QMainWindow") -> None:
     _bind_menu_action(tools_menu, "💎 Create Gemstone Chart", window, "on_create_gemstone_chartwheel")
     _bind_menu_action(tools_menu, "🧓 Interpret Astro Age (alpha)", window, "on_interpret_astro_age")
     _bind_menu_action(tools_menu, "🎱 Chart Predictor Quiz (alpha)", window, "on_open_chart_predictor_quiz")
-    _bind_menu_action(tools_menu, "🕗 Rectification Engine", window, "_on_retcon_engine")
+    _bind_menu_callback(
+        tools_menu,
+        "🕗 Rectification Engine",
+        commands.open_rectification_engine,
+    )
 
     # view_menu = menu_bar.addMenu("View")
     # _bind_menu_action(view_menu, "Chart Analytics", window, "on_show_chart_analytics_panel")
@@ -357,9 +378,15 @@ def configure_main_window_chrome(window: "QMainWindow") -> None:
     _bind_menu_action(help_menu, "🔘 Sign Degrees Reference Circle", window, "_on_open_sign_degrees_reference_circle",
                       "on_open_sign_degrees_reference_circle")
     _bind_menu_action(help_menu, "Tutorial", window, "_on_manage_help_overlay", "on_manage_help_overlay", "_toggle_help_overlay")
-    _bind_menu_action(help_menu, "About", window, "_show_about_from_onboarding(dialog)")
+    _keep_action_in_window_menu(
+        help_menu.addAction("About", lambda: _show_about_from_onboarding(window))
+    )
 
-def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None:
+def configure_manage_dialog_chrome(
+    dialog: "QWidget",
+    layout: "QLayout",
+    commands: WindowChromeCommands,
+) -> None:
     """Attach a Database View menu bar matching the requested hierarchy."""
     from PySide6.QtWidgets import QMenuBar
 
@@ -370,7 +397,7 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
     menu_bar.setStyleSheet(WINDOW_CHROME_MENU_STYLE)
 
     app_menu = menu_bar.addMenu(APP_DISPLAY_NAME)
-    _add_settings_action(app_menu, dialog)
+    _bind_menu_callback(app_menu, "Settings", commands.open_settings)
     _keep_action_in_window_menu(app_menu.addAction("Minimize", lambda: _minimize_window(dialog)))
     app_menu.addSeparator()
     _keep_action_in_window_menu(app_menu.addAction(f"Exit", _quit_application))
@@ -411,7 +438,11 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
         dialog,
         "_on_menu_see_similar_charts",
     )
-    _bind_menu_action(tools_menu, "🕗 Rectification Engine", dialog, "_on_retcon_engine")
+    _bind_menu_callback(
+        tools_menu,
+        "🕗 Rectification Engine",
+        commands.open_rectification_engine,
+    )
     _bind_menu_action(tools_menu, "🧓 Interpret Astro Age (alpha)", dialog, "_on_menu_interpret_astro_age")
     _bind_menu_action(tools_menu, "💎 Create Gemstone Chart", dialog, "_on_menu_create_gemstone_chart")
     #to do: add a link here to find charts most similar to the currently selected chart if one is selected, the text will say "Find Similar Charts"
