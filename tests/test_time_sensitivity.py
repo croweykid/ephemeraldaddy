@@ -805,6 +805,41 @@ def test_time_sensitivity_ascendant_info_uses_legacy_as_spans():
     assert "from n/a to n/a" not in text
 
 
+def test_time_sensitivity_ascendant_info_keeps_disjoint_midnight_spans():
+    import pytest
+
+    panel_module = pytest.importorskip(
+        "ephemeraldaddy.gui.features.charts.time_sensitivity_panel",
+        exc_type=ImportError,
+    )
+
+    result = TimeSensitivityResult(
+        chart_uid="CHARTUID",
+        chart_name="Example",
+        birth_date_key="01-01-2000",
+        algorithm_version="time-sensitivity-v8",
+        computed_at="2026-06-20T00:00:00Z",
+        config=TimeSensitivityConfig().__dict__,
+        sample_count=49,
+        baseline_time="12:00",
+        overall={
+            "categorical_value_spans": {
+                "Ascendant": {"Aries": ["00:00–00:21", "23:57–23:59"]}
+            }
+        },
+        numeric_ranges={},
+        human_design={},
+        stable=[],
+        variable=["Ascendant: Aries / Taurus"],
+        warnings=[],
+    )
+
+    text = panel_module.build_time_sensitivity_ascendant_sign_info_text(result, "Aries")
+
+    assert "from 00:00 to 00:21 and from 23:57 to 23:59" in text
+    assert "from 00:00 to 23:59" not in text
+
+
 def test_human_design_cache_invalidates_when_rectified_time_changes(monkeypatch):
     from datetime import datetime, timezone
     from types import SimpleNamespace
