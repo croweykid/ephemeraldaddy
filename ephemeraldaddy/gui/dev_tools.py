@@ -908,7 +908,7 @@ def build_similarity_calculator_settings_section(
     custom_fields_layout.addLayout(calculator_grid)
 
     weighting_mode_row = QHBoxLayout()
-    weighting_mode_label = QLabel("Placement weighting mode")
+    weighting_mode_label = QLabel("Placement-weight mode")
     weighting_mode_combo = QComboBox()
     weighting_mode_combo.addItem("Chart-defined weights", "chart_defined")
     weighting_mode_combo.addItem("Generic base weights", "generic")
