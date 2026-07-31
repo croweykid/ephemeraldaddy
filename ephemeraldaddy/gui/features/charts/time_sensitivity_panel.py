@@ -575,6 +575,18 @@ def time_sensitivity_categorical_spans(
     return []
 
 
+def _format_categorical_time_spans(spans: list[str]) -> str:
+    """Format sampled spans without joining separate parts of the day."""
+    formatted = []
+    for span in spans:
+        start, separator, end = str(span).partition("–")
+        if separator:
+            formatted.append(f"from {start.strip()} to {end.strip()}")
+        elif str(span).strip():
+            formatted.append(str(span).strip())
+    return " and ".join(formatted)
+
+
 def build_time_sensitivity_ascendant_sign_info_text(
     result: TimeSensitivityResult | None, sign_name: str
 ) -> str:
@@ -591,9 +603,7 @@ def build_time_sensitivity_ascendant_sign_info_text(
     ]
     spans = time_sensitivity_categorical_spans(result, "Ascendant", sign_key)
     if spans:
-        start = spans[0].split("–", 1)[0].strip()
-        end = spans[-1].split("–", 1)[-1].strip()
-        time_line = f"from {start} to {end}"
+        time_line = _format_categorical_time_spans(spans)
     else:
         time_line = "from n/a to n/a"
     lines = [
