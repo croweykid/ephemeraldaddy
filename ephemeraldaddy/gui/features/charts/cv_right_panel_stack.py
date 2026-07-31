@@ -1104,7 +1104,10 @@ def _finish_background_prediction_render(
         if not callable(schedule_metric_refreshes):
             schedule_metric_refreshes = getattr(owner, "_schedule_deferred_visible_metric_canvas_layout_refreshes", None)
         if callable(schedule_metric_refreshes):
-            schedule_metric_refreshes((0, 25, 75, 150, 300, 600))
+            # The Chart Editor layout controller coalesces this request and
+            # waits for visible viewport events. Never restore timer ladders:
+            # they let stale hidden-page widths intermittently win the race.
+            schedule_metric_refreshes()
         if state is not None:
             state.last_render_chart_token = render_token
     _set_predictions_status(

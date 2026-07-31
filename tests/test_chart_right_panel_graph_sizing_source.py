@@ -16,20 +16,28 @@ def test_chart_view_right_panel_scroll_areas_disallow_horizontal_overflow():
     )
 
 
-def test_metric_graphs_get_deferred_width_refreshes_after_render():
+def test_metric_graphs_delegate_to_single_viewport_layout_owner():
     source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
+    controller = (
+        REPO_ROOT
+        / "ephemeraldaddy/gui/features/chart_editor/metric_canvas_layout.py"
+    ).read_text()
 
-    assert "def _schedule_deferred_metric_canvas_layout_refresh" in source
-    assert "delays_ms: tuple[int, ...] = (0, 50, 150, 300)" in source
-    assert "self._schedule_deferred_metric_canvas_layout_refresh(canvas)" in source
+    assert "MetricCanvasLayoutController(" in source
+    assert "viewport_width = scroll_area.viewport().width()" in controller
+    assert "ancestor_width" not in controller
+    assert "delays_ms: tuple[int, ...] = (0, 50, 150, 300)" not in source
 
 
-def test_metric_canvas_width_clamps_to_live_scroll_area_during_retcon_rebuilds():
-    source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
+def test_hidden_metric_canvas_width_is_not_guessed_from_stale_geometry():
+    source = (
+        REPO_ROOT
+        / "ephemeraldaddy/gui/features/chart_editor/metric_canvas_layout.py"
+    ).read_text()
 
-    assert "scroll_area_width = scroll_area.width()" in source
-    assert "viewport_width = min(viewport_width, scroll_area_width)" in source
-    assert "stale viewport width" in source
+    assert "if not self._is_authoritative_geometry_visible(canvas):" in source
+    assert "self._dirty_canvases.add(canvas)" in source
+    assert "visible viewport resize event" in source
 
 
 def test_rectified_time_canvas_reset_invalidates_layouts_before_preview_rebuild():
