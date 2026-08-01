@@ -52,8 +52,6 @@ def test_hidden_canvas_waits_for_its_visible_viewport_before_accepting_width():
 
     stack.setCurrentWidget(pages[1])
     _process_events(app)
-    controller.request_visible()
-    _process_events(app)
 
     margins = canvases[1].parentWidget().layout().contentsMargins()
     expected_width = pages[1].viewport().width() - margins.left() - margins.right() - 10
@@ -65,7 +63,41 @@ def test_canvas_resize_is_not_a_layout_input():
         "inspect"
     ).getsource(MetricCanvasLayoutController.eventFilter)
     assert "watched is scroll_area or watched is scroll_area.viewport()" in source
-    assert "watched is canvas" not in source
+    assert "event.type() == QEvent.Show" in source
+    assert "and watched in self._scroll_by_canvas" in source
+    assert "event.type() == QEvent.Resize\n            and isinstance(watched, FigureCanvas)" not in source
+
+
+def test_collapsed_canvas_uses_current_viewport_width_when_revealed():
+    app = QApplication.instance() or QApplication([])
+    scroll_content = QWidget()
+    scroll_layout = QVBoxLayout(scroll_content)
+    section = QWidget()
+    section_layout = QVBoxLayout(section)
+    canvas = FigureCanvas(Figure(figsize=(4, 2.4)))
+    section_layout.addWidget(canvas)
+    scroll_layout.addWidget(section)
+    scroll = QScrollArea()
+    scroll.setWidgetResizable(True)
+    scroll.setWidget(scroll_content)
+    scroll.resize(420, 500)
+    scroll.show()
+    controller = MetricCanvasLayoutController(side_gutter_px=5, redraw=lambda _canvas: None)
+    controller.register(canvas, scroll)
+    _process_events(app)
+
+    section.hide()
+    scroll.resize(340, 500)
+    _process_events(app)
+    stale_width = canvas.width()
+
+    section.show()
+    _process_events(app)
+
+    margins = section_layout.contentsMargins()
+    expected_width = scroll.viewport().width() - margins.left() - margins.right() - 10
+    assert canvas.width() == expected_width
+    assert canvas.width() != stale_width
 
 
 def test_transient_missing_scroll_area_does_not_orphan_registered_canvas():

@@ -54,12 +54,21 @@ class MetricCanvasLayoutController(QObject):
         self.unregister(canvas)
         self._scroll_by_canvas[canvas] = scroll_area
         self._canvases_by_scroll.setdefault(scroll_area, set()).add(canvas)
+        # Show is the one canvas event that is authoritative: a previously
+        # collapsed graph has just become eligible to consume the current
+        # viewport width. Never subscribe to canvas Resize here; that would
+        # restore the resize -> redraw -> resize feedback loop.
+        canvas.installEventFilter(self)
         scroll_area.installEventFilter(self)
         scroll_area.viewport().installEventFilter(self)
         self.request(canvas)
 
     def unregister(self, canvas: FigureCanvas) -> None:
         scroll_area = self._scroll_by_canvas.pop(canvas, None)
+        try:
+            canvas.removeEventFilter(self)
+        except RuntimeError:
+            pass
         if scroll_area is not None:
             canvases = self._canvases_by_scroll.get(scroll_area)
             if canvases is not None:
@@ -86,8 +95,16 @@ class MetricCanvasLayoutController(QObject):
             self.request(canvas)
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802 - Qt API
-        # Listen only to the owning scroll area and viewport. Canvas resize
-        # events are effects of apply_now(), never fresh layout evidence.
+        # A canvas Show drains width dirtied while its section was collapsed.
+        # Canvas Resize remains deliberately ignored because it is an effect of
+        # apply_now(), not fresh layout evidence.
+        if (
+            event.type() == QEvent.Show
+            and isinstance(watched, FigureCanvas)
+            and watched in self._scroll_by_canvas
+        ):
+            self.request(watched)
+            return False
         if event.type() in (QEvent.Resize, QEvent.Show):
             for scroll_area, canvases in tuple(self._canvases_by_scroll.items()):
                 if watched is scroll_area or watched is scroll_area.viewport():

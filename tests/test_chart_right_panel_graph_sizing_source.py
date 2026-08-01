@@ -38,6 +38,9 @@ def test_hidden_metric_canvas_width_is_not_guessed_from_stale_geometry():
     assert "if not self._is_authoritative_geometry_visible(canvas):" in source
     assert "self._dirty_canvases.add(canvas)" in source
     assert "visible viewport resize event" in source
+    assert "event.type() == QEvent.Show" in source
+    assert "and watched in self._scroll_by_canvas" in source
+    assert "event.type() == QEvent.Resize\n            and isinstance(watched, FigureCanvas)" not in source
 
 
 def test_rectified_time_canvas_reset_invalidates_layouts_before_preview_rebuild():
