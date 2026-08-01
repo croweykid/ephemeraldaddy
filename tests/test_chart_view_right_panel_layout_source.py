@@ -23,24 +23,19 @@ def test_chart_analytics_layout_allows_canvases_to_fill_scroll_viewport():
 
 
 def test_metric_canvas_sizing_uses_expanding_width_not_ignored_zero_width():
-    source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
+    source = _source("ephemeraldaddy/gui/features/chart_editor/metric_canvas_layout.py")
 
-    assert "canvas.setMinimumWidth(1)" in source
-    assert "available_width = MainWindow._metric_canvas_available_layout_width(canvas)" in source
-    assert "CHART_RIGHT_PANEL_GRAPH_HEIGHT_PX = 240" in source
-    assert "canvas.draw_idle()" in source
     assert "canvas.setMinimumWidth(available_width)" in source
     assert "canvas.setMaximumWidth(available_width)" in source
-    assert "canvas.resize(available_width, current_height)" in source
+    assert "canvas.resize(available_width, display_height)" in source
     assert "canvas.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)" in source
-    assert "canvas.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)" not in source
+    assert "ancestor_width" not in _function_source(source, "apply_now")
 
 
 def test_metric_canvas_width_subtracts_scroll_content_margins():
-    source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
+    source = _source("ephemeraldaddy/gui/features/chart_editor/metric_canvas_layout.py")
 
-    assert "def _metric_canvas_available_layout_width" in source
-    assert "available_width = MainWindow._metric_canvas_scroll_viewport_width(canvas)" in source
+    assert "viewport_width = scroll_area.viewport().width()" in source
     assert "margins = parent_layout.contentsMargins()" in source
     assert "available_width -= margins.left() + margins.right()" in source
 
@@ -113,20 +108,20 @@ def test_dnd_stat_popout_evidence_imports_stat_predictors():
 
 def test_prediction_metric_canvases_redraw_after_stacked_panel_layout_settles():
     source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
+    controller = _source("ephemeraldaddy/gui/features/chart_editor/metric_canvas_layout.py")
 
-    assert "def _schedule_metric_canvas_layout_refresh" in source
-    assert "_pending_metric_canvas_layout_refreshes" in source
-    assert "QTimer.singleShot(0, _refresh_once)" in source
-    assert "QTimer.singleShot(50" not in source
-    assert "self._schedule_metric_canvas_layout_refresh(canvas)" in source
+    assert "def _request_metric_canvas_layout" in source
+    assert "self._metric_canvas_layout_controller.request(canvas)" in source
+    assert "QTimer.singleShot(0, self._flush)" in controller
+    assert "QTimer.singleShot(50" not in controller
 
 
 def test_metric_scroll_viewport_resize_refreshes_existing_canvases():
-    source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
+    source = _source("ephemeraldaddy/gui/features/chart_editor/metric_canvas_layout.py")
 
-    assert "def _schedule_visible_metric_canvas_layout_refreshes" in source
-    assert "if event.type() == QEvent.Resize:" in source
-    assert "self._schedule_visible_metric_canvas_layout_refreshes()" in source
+    assert "event.type() in (QEvent.Resize, QEvent.Show)" in source
+    assert "watched is scroll_area.viewport()" in source
+    assert "self.request(canvas)" in source
 
 
 def test_clear_chart_displays_resets_dnd_prediction_canvas_and_summary():
