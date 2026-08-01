@@ -3050,7 +3050,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     dnd_species_group_layout.addLayout(dnd_stat_grid)
     predictions_category_layout.addWidget(dnd_species_section)
 
-    timing_section, timing_section_layout = add_collapsible_section("🕰️Lifespan")
+    timing_section, timing_section_layout = add_collapsible_section("Lifespan")
 
     def add_birthdate_bound_row(
         row_label: str,
@@ -3136,7 +3136,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     timing_section_layout.addLayout(mortality_row)
 
     #Search: gender section
-    gender_section, gender_group_layout = add_collapsible_section("⚧️Gender")
+    gender_section, gender_group_layout = add_collapsible_section("Gender")
     gender_mode_layout = QHBoxLayout()
     gender_mode_layout.addWidget(QLabel("Gender"))
     gender_mode_layout.addStretch(1)
@@ -3178,7 +3178,7 @@ def build_dbv_search_panel(window) -> "QWidget":
 
 
     #Search: Locations section
-    locations_section, locations_group_layout = add_collapsible_section("📍Location")
+    locations_section, locations_group_layout = add_collapsible_section("Birthplace")
 
     country_row = QHBoxLayout()
     country_row.addWidget(QLabel("Country"))
