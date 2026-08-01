@@ -531,6 +531,9 @@ from ephemeraldaddy.gui.emoji_render import (
 
 from matplotlib import font_manager as mpl_font_manager
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+from ephemeraldaddy.gui.features.chart_editor.metric_canvas_layout import (
+    MetricCanvasLayoutController,
+)
 from matplotlib.figure import Figure
 from matplotlib.patches import Patch
 
@@ -24985,7 +24988,10 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.update_button = None
         self.delete_this_chart_button = None
         self._metric_scroll_widgets: set[QWidget] = set()
-        self._pending_metric_canvas_layout_refreshes: set[FigureCanvas] = set()
+        self._metric_canvas_layout_controller = MetricCanvasLayoutController(
+            side_gutter_px=CHART_RIGHT_PANEL_GRAPH_SIDE_GUTTER_PX,
+            parent=self,
+        )
         self._metric_chart_titles: dict[QWidget, str] = {}
         self._metric_popout_dialogs: list[QDialog] = []
         self._gemstone_chartwheel_popouts: list[QDialog] = []
@@ -28611,87 +28617,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             parent = parent.parentWidget()
         return None
 
-    @staticmethod
-    def _metric_canvas_scroll_viewport_width(canvas: FigureCanvas) -> int | None:
-        scroll_area = MainWindow._metric_canvas_scroll_area(canvas)
-        if scroll_area is None:
-            return None
-
-        # During prediction recalculations/rectified-time preview rebuilds, the
-        # scroll content can inherit stale width from the canvas that is being
-        # replaced. Measure visible pages from the scroll viewport, and always
-        # include ancestors outside the scroll area; hidden stacked pages use the
-        # live outer container chain instead of their stale scroll/content widths.
-        candidate_widths = []
-        if scroll_area.isVisible():
-            candidate_widths.extend([scroll_area.viewport().width(), scroll_area.width()])
-        ancestor = scroll_area.parentWidget()
-        while ancestor is not None:
-            ancestor_width = ancestor.width()
-            if ancestor_width > 0:
-                candidate_widths.append(ancestor_width)
-            ancestor = ancestor.parentWidget()
-        if not candidate_widths:
-            candidate_widths.extend([scroll_area.viewport().width(), scroll_area.width()])
-        positive_widths = [width for width in candidate_widths if width > 0]
-        if not positive_widths:
-            return None
-        return min(positive_widths)
-
-    @staticmethod
-    def _metric_canvas_available_layout_width(canvas: FigureCanvas) -> int | None:
-        """Return the width a metric canvas may occupy inside its scroll panel."""
-        parent = canvas.parentWidget()
-        available_width = MainWindow._metric_canvas_scroll_viewport_width(canvas)
-        if available_width is None:
-            return None
-
-        # Middle ground for hidden stacked tabs: size from the live scroll
-        # viewport/container chain gathered above, but do not clamp against the
-        # scroll-content child widgets here.  Hidden pages can retain stale child
-        # widths from a previous layout; using those widths would pin the canvas
-        # too narrowly until another manual resize.  Only subtract the content
-        # layout margins, which are stable style data rather than geometry.
-        if parent is not None:
-            parent_layout = parent.layout()
-            if parent_layout is not None:
-                margins = parent_layout.contentsMargins()
-                available_width -= margins.left() + margins.right()
-        return max(1, available_width)
-
-    @staticmethod
-    def _apply_metric_chart_sizing(canvas: FigureCanvas) -> None:
-        figure = canvas.figure
-        figure_width, figure_height = figure.get_size_inches()
-        display_height = canvas.property("metric_display_height")
-        if not isinstance(display_height, int) or display_height <= 0:
-            display_height = int(round(figure_height * figure.get_dpi()))
-        if display_height <= 0 and figure_width > 0:
-            display_height = int(round(figure_width * figure.get_dpi()))
-        if display_height > 0:
-            canvas.setFixedHeight(display_height)
-
-        # FigureCanvas reports a size hint derived from the Matplotlib figure's
-        # physical inches (often ~550 px wide here), which is wider than Chart
-        # View's narrow right panel.  Pin the widget to the current scroll
-        # viewport width minus a 5 px gutter on each side so every graph remains
-        # left-justified and cannot paint outside the right-hand column.
-        canvas.setMinimumWidth(1)
-        available_width = MainWindow._metric_canvas_available_layout_width(canvas)
-        if available_width is not None:
-            available_width = max(
-                1,
-                available_width - (CHART_RIGHT_PANEL_GRAPH_SIDE_GUTTER_PX * 2),
-            )
-            canvas.setMinimumWidth(available_width)
-            canvas.setMaximumWidth(available_width)
-            current_height = max(display_height, 1)
-            if canvas.width() != available_width or canvas.height() != current_height:
-                canvas.resize(available_width, current_height)
-        else:
-            canvas.setMaximumWidth(16777215)
-        canvas.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        canvas.updateGeometry()
+    def _apply_metric_chart_sizing(self, canvas: FigureCanvas) -> None:
+        """Delegate sizing to Chart Editor's single viewport-layout owner."""
+        self._metric_canvas_layout_controller.apply_now(canvas)
 
     def _register_metric_scroll_widget(self, widget: QWidget | None) -> None:
         if widget is None:
@@ -28708,7 +28636,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         """Forget a metric canvas that Qt has removed or deleted."""
         self._metric_chart_titles.pop(canvas, None)
         self._metric_scroll_widgets.discard(canvas)
-        self._pending_metric_canvas_layout_refreshes.discard(canvas)
+        self._metric_canvas_layout_controller.unregister(canvas)
 
     def _register_metric_chart_scroll_area(self, canvas: FigureCanvas) -> None:
         """Track the owning scroll area/viewport for panel-wide metric resizes."""
@@ -28719,6 +28647,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             return
         if scroll_area is not None:
             self._register_metric_scroll_widget(scroll_area)
+        self._metric_canvas_layout_controller.register(canvas, scroll_area)
 
     def _register_metric_chart(self, canvas: FigureCanvas, title: str) -> None:
         self._metric_chart_titles[canvas] = title
@@ -28727,95 +28656,23 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._register_metric_chart_scroll_area(canvas)
         QTimer.singleShot(0, lambda metric_canvas=canvas: self._register_metric_chart_scroll_area(metric_canvas))
 
-    def _metric_canvas_is_alive(self, canvas: FigureCanvas) -> bool:
-        """Return False when a PySide wrapper points at a deleted C++ canvas."""
-        try:
-            return canvas.parentWidget() is not None
-        except RuntimeError:
-            self._unregister_metric_chart(canvas)
-            return False
+    def _request_metric_canvas_layout(self, canvas: FigureCanvas) -> None:
+        """Request one coalesced update from the viewport-layout owner."""
+        self._metric_canvas_layout_controller.request(canvas)
 
-    def _refresh_metric_canvas_after_layout(self, canvas: FigureCanvas) -> None:
-        """Re-apply viewport sizing after Qt has settled stacked-panel layout."""
-        try:
-            if not self._metric_canvas_is_alive(canvas):
-                return
-            self._apply_metric_chart_sizing(canvas)
-            canvas.draw_idle()
-        except RuntimeError:
-            self._unregister_metric_chart(canvas)
-            return
-
-    def _schedule_metric_canvas_layout_refresh(self, canvas: FigureCanvas) -> None:
-        """Redraw a metric canvas once pending Qt geometry changes are applied."""
-        pending = getattr(self, "_pending_metric_canvas_layout_refreshes", None)
-        if pending is None:
-            pending = set()
-            self._pending_metric_canvas_layout_refreshes = pending
-        if canvas in pending:
-            return
-        pending.add(canvas)
-
-        def _refresh_once(metric_canvas: FigureCanvas = canvas) -> None:
-            pending.discard(metric_canvas)
-            self._refresh_metric_canvas_after_layout(metric_canvas)
-
-        QTimer.singleShot(0, _refresh_once)
-
-    def _schedule_deferred_metric_canvas_layout_refresh(
-        self,
-        canvas: FigureCanvas,
-        delays_ms: tuple[int, ...] = (0, 50, 150, 300),
-    ) -> None:
-        """Re-check one metric canvas through delayed right-panel layout settling."""
-        for delay_ms in delays_ms:
-            QTimer.singleShot(
-                max(0, int(delay_ms)),
-                lambda metric_canvas=canvas: self._schedule_metric_canvas_layout_refresh(metric_canvas),
-            )
-
-    def _schedule_all_metric_canvas_layout_refreshes(self) -> None:
-        """Resize every registered right-panel metric canvas after layout churn."""
+    def _request_all_metric_canvas_layouts(self) -> None:
+        """Request layout for registered canvases; hidden ones stay dirty."""
         for canvas in list(self._metric_chart_titles):
             try:
                 canvas.parentWidget()
             except RuntimeError:
                 self._unregister_metric_chart(canvas)
                 continue
-            self._schedule_metric_canvas_layout_refresh(canvas)
+            self._request_metric_canvas_layout(canvas)
 
-    def _schedule_visible_metric_canvas_layout_refreshes(self) -> None:
+    def _request_visible_metric_canvas_layouts(self) -> None:
         """Resize visible metric canvases without recalculating right-panel sections."""
-        for canvas in list(self._metric_chart_titles):
-            try:
-                is_visible = canvas.isVisible()
-            except RuntimeError:
-                self._unregister_metric_chart(canvas)
-                continue
-            if is_visible:
-                self._schedule_metric_canvas_layout_refresh(canvas)
-
-    def _schedule_deferred_all_metric_canvas_layout_refreshes(
-        self,
-        delays_ms: tuple[int, ...] = (0, 50, 150, 300),
-    ) -> None:
-        """Re-check all metric canvas sizing after stacked-panel redraw churn."""
-        for delay_ms in delays_ms:
-            QTimer.singleShot(
-                max(0, int(delay_ms)),
-                self._schedule_all_metric_canvas_layout_refreshes,
-            )
-
-    def _schedule_deferred_visible_metric_canvas_layout_refreshes(
-        self,
-        delays_ms: tuple[int, ...] = (0, 50, 150, 300),
-    ) -> None:
-        """Re-check visible metric canvas sizing after Qt finishes layout churn."""
-        for delay_ms in delays_ms:
-            QTimer.singleShot(
-                max(0, int(delay_ms)),
-                self._schedule_visible_metric_canvas_layout_refreshes,
-            )
+        self._metric_canvas_layout_controller.request_visible()
 
     def _handle_metrics_wheel(self, event) -> bool:
         if self.metrics_scroll is None:
@@ -31319,11 +31176,10 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 return self._handle_metrics_wheel(event)
             if event.type() == QEvent.KeyPress:
                 return self._handle_metrics_keypress(event)
-            if event.type() == QEvent.Resize and obj not in metric_chart_titles:
-                self._schedule_all_metric_canvas_layout_refreshes()
         if obj in metric_chart_titles:
-            if event.type() == QEvent.Resize:
-                self._schedule_metric_canvas_layout_refresh(obj)
+            # Canvas resizes are outputs of the viewport layout controller, not
+            # new layout inputs. Reacting here recreated the historical
+            # resize -> redraw -> resize feedback loop and must not return.
             if (
                 event.type() == QEvent.MouseButtonRelease
                 and event.button() == Qt.LeftButton
@@ -35956,7 +35812,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 parent.adjustSize()
                 parent.updateGeometry()
         if touched_layouts:
-            self._schedule_deferred_visible_metric_canvas_layout_refreshes()
+            self._request_visible_metric_canvas_layouts()
 
     def _refresh_chart_preview(self) -> None:
         if self._suppress_lucygoosey or self._latest_chart is None:
@@ -36248,7 +36104,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         # draw() is synchronous for chart/metric canvases, so overlay shutdown can
         # be tied to actual completion of the final render pass here.
         self._reveal_chart_right_panel_after_loading()
-        self._schedule_deferred_visible_metric_canvas_layout_refreshes()
+        self._request_visible_metric_canvas_layouts()
         self._hide_chart_loading_overlay()
         load_timing = getattr(self, "_chart_load_timing", None)
         rendered_chart_uid = self._normalized_chart_uid_key(getattr(chart, "chart_uid", None))
@@ -36561,7 +36417,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         # a newly replaced Predictions placeholder can remain visually blank until
         # a later layout timer or user-driven resize happens to flush the canvas.
         canvas.draw_idle()
-        self._schedule_deferred_metric_canvas_layout_refresh(canvas)
+        self._request_metric_canvas_layout(canvas)
 
     def _render_chart(self, chart: Chart) -> None:
         self._latest_chart = chart

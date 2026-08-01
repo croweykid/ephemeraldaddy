@@ -218,11 +218,11 @@ class ChartAnalysisSectionsController:
             if checked:
                 refresh_visible_canvases = getattr(
                     self._owner,
-                    "_schedule_deferred_visible_metric_canvas_layout_refreshes",
+                    "_request_visible_metric_canvas_layouts",
                     None,
                 )
                 if callable(refresh_visible_canvases):
-                    QTimer.singleShot(0, refresh_visible_canvases)
+                    refresh_visible_canvases()
             if on_toggled is not None:
                 on_toggled(checked)
 
