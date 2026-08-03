@@ -4458,6 +4458,36 @@ def update_chart_by_uid(chart_uid: str | None, chart, **kwargs: Any) -> None:
     update_chart(chart_id, chart, **kwargs)
 
 
+def list_human_design_synastry_candidates():
+    """Return UID-first, lightweight gate records for HD synastry ranking."""
+    from ephemeraldaddy.analysis.human_design_synastry import (
+        HumanDesignSynastryCandidate,
+        normalize_gates,
+    )
+
+    conn = _get_conn()
+    with conn:
+        _ensure_chart_uids(conn)
+    rows = conn.execute(
+        """
+        SELECT chart_uid, name, alias, human_design_gates
+        FROM charts
+        WHERE COALESCE(is_placeholder, 0) = 0
+          AND COALESCE(human_design_gates, '') != ''
+        """
+    ).fetchall()
+    return [
+        HumanDesignSynastryCandidate(
+            chart_uid=str(row[0] or "").strip().upper(),
+            name=str(row[1] or "Unnamed chart"),
+            alias=str(row[2]).strip() if row[2] else None,
+            gates=normalize_gates(_parse_int_list(row[3])),
+        )
+        for row in rows
+        if str(row[0] or "").strip()
+    ]
+
+
 def list_charts() -> List[
     Tuple[
         int,

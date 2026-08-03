@@ -180,6 +180,9 @@ class ChartRightPanelController:
                 schedule_chart_render(chart)
             return
         if active_panel == "predictions":
+            render_hd_synastry = getattr(self._owner, "_render_hd_synastry_predictions", None)
+            if callable(render_hd_synastry):
+                render_hd_synastry(chart)
             render_token = self._prediction_render_token(chart)
             if (
                 state is not None
