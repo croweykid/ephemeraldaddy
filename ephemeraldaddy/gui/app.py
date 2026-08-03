@@ -15887,6 +15887,11 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         if self._right_panel_visible and sizes[2] > 0:
             self._right_panel_sizes = list(sizes)
         self._settings.setValue("manage_charts/splitter_sizes", sizes)
+        if self._left_panel_visible and sizes[0] > 0:
+            # A database reload may have happened while Rankings was hidden by
+            # a zero-width splitter.  Its dirty guard makes this a no-op for
+            # ordinary splitter movements.
+            self._refresh_visible_rankings_sections()
 
     def _apply_content_splitter_layout(self, base_sizes: list[int]) -> None:
         normalized = self._normalize_content_splitter_sizes(base_sizes)
@@ -16003,7 +16008,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 baseline_changed=previous_database_metrics_baseline_mode != self._database_metrics_baseline_mode,
             )
         elif panel_name == "rankings":
-            self._refresh_rankings_panel()
+            self._refresh_visible_rankings_sections()
         elif panel_name == "similarities":
             self._update_sentiment_tally(
                 update_database_metrics=False,
@@ -18869,6 +18874,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 f"Couldn't list saved charts:\n{e}",
             )
             self._chart_rows = []
+        self._rankings_data_dirty = True
         if refresh_tag_completers:
             if progress_callback:
                 progress_callback("Refreshing Database filters…", 91)
@@ -18907,6 +18913,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             progress_callback=progress_callback,
             defer_metrics_refresh=defer_metrics_refresh,
         )
+        self._refresh_visible_rankings_sections()
 
     def _normalize_chart_row(
         self,
@@ -19423,7 +19430,6 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                     force_full_refresh=force_full_analysis_refresh,
                 )
         self._update_collection_membership_buttons()
-        self._refresh_visible_rankings_sections()
 
     def _run_database_metrics_refresh(
         self,

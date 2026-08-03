@@ -50,6 +50,10 @@ class RankingsPanelMixin:
         layout.addWidget(header)
 
         self._rankings_section_expanded = {"traits": True, "sign_dominance": True}
+        # Rankings are derived from the complete database row set rather than
+        # the filtered/ordered rows rendered by ``_populate_list``.  Keep the
+        # initial refresh pending until the panel is actually visible.
+        self._rankings_data_dirty = True
         traits_layout = self._add_left_panel_collapsible_section(
             panel,
             layout,
@@ -143,7 +147,9 @@ class RankingsPanelMixin:
         self._refresh_rankings_panel({section})
 
     def _refresh_visible_rankings_sections(self) -> None:
-        """Refresh expanded Rankings content after database rows become ready."""
+        """Refresh expanded Rankings content when changed data is visible."""
+        if not getattr(self, "_rankings_data_dirty", True):
+            return
         if getattr(self, "_active_left_panel", None) != "rankings":
             return
         if not getattr(self, "_left_panel_visible", False):
@@ -160,6 +166,7 @@ class RankingsPanelMixin:
         }
         if expanded:
             self._refresh_rankings_panel(expanded)
+            self._rankings_data_dirty = False
 
     @staticmethod
     def _normalize_rankings_chart_uid(raw_uid: object) -> str:
