@@ -8,6 +8,7 @@ import urllib.parse
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLabel
 
+from ephemeraldaddy.analysis.human_design import derive_human_design_profile
 from ephemeraldaddy.analysis.human_design_synastry import normalize_gates, rank_human_design_synastry
 from ephemeraldaddy.core.db import list_human_design_synastry_candidates
 from ephemeraldaddy.core.chart import chart_uses_houses
@@ -21,11 +22,39 @@ HD_SYNASTRY_SUBHEADER = (
 )
 
 
+def resolve_hd_synastry_gates(chart: object | None) -> frozenset[int]:
+    """Return cached gates, deriving them when an older chart has no HD cache."""
+    if chart is None:
+        return frozenset()
+    gates = normalize_gates(getattr(chart, "human_design_gates", None))
+    if gates:
+        return gates
+    try:
+        derived_gates, _lines, _channels, _hd_type = derive_human_design_profile(chart)
+    except Exception:
+        return frozenset()
+    gates = normalize_gates(derived_gates)
+    if gates:
+        setattr(chart, "human_design_gates", sorted(gates))
+    return gates
+
+
+def hd_synastry_subheader(chart: object | None) -> str:
+    """Add the required reliability warning for unknown or rectified times."""
+    if chart is None or not bool(getattr(chart, "birthtime_unknown", False)):
+        return HD_SYNASTRY_SUBHEADER
+    name = html.escape(str(getattr(chart, "name", "This chart") or "This chart"))
+    return (
+        HD_SYNASTRY_SUBHEADER
+        + f"<br><br>Since {name}'s birth time is hypothetical, results may be dodgier than usual."
+    )
+
+
 def hd_synastry_render_token(owner: object, chart: object | None) -> tuple[object, ...]:
     """Return the chart/database revision tuple that invalidates this ranking."""
     return (
         str(getattr(chart, "chart_uid", "") or "").strip().upper(),
-        tuple(sorted(normalize_gates(getattr(chart, "human_design_gates", None)))),
+        tuple(sorted(resolve_hd_synastry_gates(chart))),
         bool(chart is not None and chart_uses_houses(chart)),
         int(getattr(owner, "_database_metrics_cache_revision", 0) or 0),
     )
@@ -43,7 +72,10 @@ def render_hd_synastry_predictions(owner: object, chart: object | None) -> None:
     if getattr(owner, "_hd_synastry_last_render_token", None) == render_token:
         return
     chart_uid = str(getattr(chart, "chart_uid", "") or "").strip().upper()
-    gates = getattr(chart, "human_design_gates", None) or []
+    gates = resolve_hd_synastry_gates(chart)
+    subheader = getattr(owner, "hd_synastry_prediction_subheader", None)
+    if isinstance(subheader, QLabel):
+        subheader.setText(hd_synastry_subheader(chart))
     if not chart_uid or not gates:
         label.setText("Human Design gate data is unavailable for this chart.")
         setattr(owner, "_hd_synastry_last_render_token", render_token)

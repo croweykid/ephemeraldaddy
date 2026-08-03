@@ -1351,11 +1351,16 @@ class DatabaseAnalyticsChartsMixin:
         label: str,
         *,
         chart_mode: str | None = None,
+        chart_uids: Iterable[str] | None = None,
     ) -> list[tuple[str, str]]:
         """Return ``(chart_uid, name)`` pairs represented by an analytics bar."""
         selected_uid_method = getattr(self, "_selected_chart_uids", None)
         get_chart_by_uid = getattr(self, "_get_chart_for_filter_by_uid", None)
-        selected_uids = list(selected_uid_method() or []) if callable(selected_uid_method) else []
+        selected_uids = (
+            [str(chart_uid) for chart_uid in chart_uids]
+            if chart_uids is not None
+            else list(selected_uid_method() or []) if callable(selected_uid_method) else []
+        )
         selected_ids: list[int] = []
         if not selected_uids:
             selected_ids = self._exclude_placeholder_local_row_ids(self._selected_local_row_ids())
@@ -2159,6 +2164,7 @@ class DatabaseAnalyticsChartsMixin:
         bar_color: str | None = None,
         chart_mode: str | None = None,
         analytics_rows: Sequence[Sequence[Any]] | None = None,
+        chart_uids: Iterable[str] | None = None,
     ) -> str:
         clean_title = self._clean_database_analytics_label(chart_title)
         clean_label = self._clean_database_analytics_label(label)
@@ -2167,7 +2173,12 @@ class DatabaseAnalyticsChartsMixin:
             trait_description = self._database_analytics_trait_description_for_label(clean_label)
         label_color = bar_color or self._database_analytics_color_for_label(clean_label, clean_title)
         matches = (
-            self._analysis_matching_charts(chart_key, clean_label, chart_mode=chart_mode)
+            self._analysis_matching_charts(
+                chart_key,
+                clean_label,
+                chart_mode=chart_mode,
+                chart_uids=chart_uids,
+            )
             if chart_key
             else []
         )
@@ -2229,6 +2240,10 @@ class DatabaseAnalyticsChartsMixin:
         )
         frozen_analytics_rows = tuple(
             copy.deepcopy(getattr(self, "_analysis_chart_export_rows", {}).get(detail_chart_key, ()))
+        )
+        frozen_chart_uids = tuple(
+            getattr(self, "_analysis_population_chart_uids", ())
+            or self._selected_chart_uids()
         )
         figure = copy.deepcopy(source_canvas.figure)
         self._tag_database_analytics_pick_targets(figure)
@@ -2302,6 +2317,7 @@ class DatabaseAnalyticsChartsMixin:
                     chart_key=detail_chart_key,
                     chart_mode=frozen_chart_mode,
                     analytics_rows=frozen_analytics_rows,
+                    chart_uids=frozen_chart_uids,
                     bar_color=(
                         mpl_colors.to_hex(artist.get_facecolor())
                         if artist is not None and hasattr(artist, "get_facecolor")
@@ -2319,6 +2335,7 @@ class DatabaseAnalyticsChartsMixin:
                     chart_key=detail_chart_key,
                     chart_mode=frozen_chart_mode,
                     analytics_rows=frozen_analytics_rows,
+                    chart_uids=frozen_chart_uids,
                 )
             )
 
@@ -2329,7 +2346,11 @@ class DatabaseAnalyticsChartsMixin:
         def _on_click(event: Any) -> None:
             if getattr(event, "inaxes", None) is None:
                 return
-            mouse_event = getattr(event, "guiEvent", None) or event
+            # Matplotlib artists require the Matplotlib MouseEvent, whose x/y
+            # attributes are numeric display coordinates.  A Qt guiEvent has
+            # x()/y() methods instead, which causes Path.contains_point() to
+            # pass bound methods into Matplotlib's native point_in_path call.
+            mouse_event = event
             for artist in [*getattr(event.inaxes, "patches", [])]:
                 artist_gid = artist.get_gid() if hasattr(artist, "get_gid") else None
                 if (

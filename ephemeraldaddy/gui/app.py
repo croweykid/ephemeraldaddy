@@ -10609,6 +10609,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
             database_cache = self._database_metrics_cache or self._empty_database_metrics_cache()
             selection_cache = self._build_snapshot_totals(chart_ids)
+            analytics_population_ids = chart_ids if loaded_charts else database_cache["chart_ids"]
+            self._analysis_population_chart_uids = tuple(
+                get_chart_uid_map(analytics_population_ids).values()
+            )
             include_sentiment_placeholders = bool(
                 getattr(self, "include_placeholder_sentiment_checkbox", None)
                 and self.include_placeholder_sentiment_checkbox.isChecked()

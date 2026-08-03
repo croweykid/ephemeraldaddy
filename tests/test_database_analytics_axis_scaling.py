@@ -1,4 +1,5 @@
 import copy
+import inspect
 import sys
 import types
 
@@ -287,6 +288,15 @@ def test_incarnation_cross_popout_info_uses_standard_database_template():
     assert "Left Angle Cross of Education" in html
     assert "Associated charts:" in html
     assert "Bar reading" not in html
+
+
+def test_database_analytics_popout_click_uses_matplotlib_event_coordinates():
+    source = inspect.getsource(
+        DatabaseAnalyticsChartsMixin._show_database_analytics_popout
+    )
+
+    assert "mouse_event = event" in source
+    assert 'getattr(event, "guiEvent"' not in source
 
 
 def test_incarnation_cross_tick_label_tooltip_checks_labels_outside_axes(monkeypatch):
