@@ -570,10 +570,11 @@ class DatabaseAnalyticsChartsMixin:
 
         Name results grow with the database, so unlike the other compact analytics
         charts this intentionally has no minimum or maximum height.  The per-row
-        space matches the name charts' typography and leaves room for the axes.
+        space matches the name charts' typography, while the fixed axis space
+        keeps ticks and their labels inside the canvas for short distributions.
         """
         label_row_height = 0.32
-        axes_vertical_space = 0.8
+        axes_vertical_space = 2.48
         return (label_count * label_row_height) + axes_vertical_space
 
     def _render_name_distribution_section(

@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 
@@ -28,6 +29,11 @@ def test_name_chart_height_scales_with_every_rendered_label_without_a_cap():
     assert "min(" not in height_source
     assert "max(" not in height_source
     assert render_source.count("self._name_distribution_chart_height(len(labels))") == 2
+
+    row_height = float(re.search(r"label_row_height = ([\d.]+)", height_source).group(1))
+    axis_space = float(re.search(r"axes_vertical_space = ([\d.]+)", height_source).group(1))
+    assert axis_space + row_height >= 2.8
+    assert axis_space + (100 * row_height) > axis_space + (10 * row_height)
 
 
 def test_chart_view_classifies_name_and_alias_edits_for_metrics_refresh():
