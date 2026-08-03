@@ -997,6 +997,8 @@ class DatabaseAnalyticsChartsMixin:
         figure: Figure,
         *,
         top_gap_points: float = 12.0,
+        title_font_size_points: float = 0.0,
+        title_padding_points: float = 0.0,
         **adjustments: float,
     ) -> None:
         """Adjust axes while keeping the canvas-to-graph gap height-independent.
@@ -1011,9 +1013,19 @@ class DatabaseAnalyticsChartsMixin:
         Convert a font-sized physical gap to the fractional coordinate that
         Matplotlib requires.  Twelve points is constant at every chart height
         and remains within one-and-a-half lines of the panel's caption text.
+        Builders with an in-canvas title must also provide its font size and
+        padding so the fixed outer gap is retained without clipping the title.
         """
         figure_height_inches = max(float(figure.get_size_inches()[1]), 0.01)
-        top_gap_inches = max(0.0, float(top_gap_points)) / 72.0
+        reserved_top_points = sum(
+            max(0.0, float(value))
+            for value in (
+                top_gap_points,
+                title_font_size_points,
+                title_padding_points,
+            )
+        )
+        top_gap_inches = reserved_top_points / 72.0
         adjustments["top"] = max(
             0.0,
             min(1.0, 1.0 - (top_gap_inches / figure_height_inches)),
@@ -6660,7 +6672,12 @@ class DatabaseAnalyticsChartsMixin:
             tick_label.set_ha("right")
         self._apply_tight_layout(figure)
         self._subplots_adjust_with_fixed_top_gap(
-            figure, left=0.50, bottom=0.08, right=0.97
+            figure,
+            left=0.50,
+            bottom=0.08,
+            right=0.97,
+            title_font_size_points=8.0,
+            title_padding_points=6.0,
         )
         canvas = FigureCanvas(figure)
         self._configure_left_panel_canvas(canvas, figure)

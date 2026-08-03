@@ -81,6 +81,24 @@ def test_database_analytics_top_gap_is_at_most_one_and_a_half_caption_lines():
     assert gap_points <= 1.5 * 10.0
 
 
+def test_database_analytics_title_aware_top_gap_keeps_title_inside_canvas():
+    for height_inches in (3.0, 14.0):
+        figure = Figure(figsize=(4.0, height_inches), dpi=100)
+        canvas = FigureCanvasAgg(figure)
+        axis = figure.add_subplot(111)
+        axis.set_title("Tag category", fontsize=8, pad=6)
+
+        DatabaseAnalyticsChartsMixin._subplots_adjust_with_fixed_top_gap(
+            figure,
+            title_font_size_points=8.0,
+            title_padding_points=6.0,
+        )
+        canvas.draw()
+
+        title_bounds = axis.title.get_window_extent(canvas.get_renderer())
+        assert title_bounds.y1 < figure.bbox.y1
+
+
 def test_percent_difference_axis_scales_symmetrically_to_visible_dataset():
     figure = Figure()
     ax = figure.add_subplot(111)
