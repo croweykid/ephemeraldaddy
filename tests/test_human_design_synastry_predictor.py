@@ -56,3 +56,17 @@ def test_candidate_natal_channels_are_not_counted_as_synastry_completions():
 
 def test_normalize_gates_ignores_invalid_cache_values():
     assert normalize_gates(["1", 64, 0, 65, "oops", None]) == frozenset({1, 64})
+
+
+def test_right_panel_checks_synastry_revision_before_reranking():
+    from pathlib import Path
+
+    source = Path("ephemeraldaddy/gui/features/controllers/chart_right_panel.py").read_text()
+    predictions_branch = source.split('if active_panel == "predictions":', 1)[1].split(
+        'if active_panel == "time_sensitivity":', 1
+    )[0]
+
+    stale_check = predictions_branch.index("hd_synastry_predictions_are_current")
+    render_call = predictions_branch.index("render_hd_synastry(chart)")
+    assert stale_check < render_call
+    assert "if predictions_are_current and hd_synastry_is_current:" in predictions_branch

@@ -8,7 +8,7 @@ import urllib.parse
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLabel
 
-from ephemeraldaddy.analysis.human_design_synastry import rank_human_design_synastry
+from ephemeraldaddy.analysis.human_design_synastry import normalize_gates, rank_human_design_synastry
 from ephemeraldaddy.core.db import list_human_design_synastry_candidates
 from ephemeraldaddy.core.chart import chart_uses_houses
 from ephemeraldaddy.gui.style import apply_chart_info_link_cursor, houses_unknown_note_html
@@ -21,14 +21,32 @@ HD_SYNASTRY_SUBHEADER = (
 )
 
 
+def hd_synastry_render_token(owner: object, chart: object | None) -> tuple[object, ...]:
+    """Return the chart/database revision tuple that invalidates this ranking."""
+    return (
+        str(getattr(chart, "chart_uid", "") or "").strip().upper(),
+        tuple(sorted(normalize_gates(getattr(chart, "human_design_gates", None)))),
+        bool(chart is not None and chart_uses_houses(chart)),
+        int(getattr(owner, "_database_metrics_cache_revision", 0) or 0),
+    )
+
+
+def hd_synastry_predictions_are_current(owner: object, chart: object | None) -> bool:
+    return getattr(owner, "_hd_synastry_last_render_token", None) == hd_synastry_render_token(owner, chart)
+
+
 def render_hd_synastry_predictions(owner: object, chart: object | None) -> None:
     label = getattr(owner, "hd_synastry_prediction_label", None)
     if not isinstance(label, QLabel) or chart is None:
+        return
+    render_token = hd_synastry_render_token(owner, chart)
+    if getattr(owner, "_hd_synastry_last_render_token", None) == render_token:
         return
     chart_uid = str(getattr(chart, "chart_uid", "") or "").strip().upper()
     gates = getattr(chart, "human_design_gates", None) or []
     if not chart_uid or not gates:
         label.setText("Human Design gate data is unavailable for this chart.")
+        setattr(owner, "_hd_synastry_last_render_token", render_token)
         return
     matches = rank_human_design_synastry(
         chart_uid,
@@ -37,6 +55,7 @@ def render_hd_synastry_predictions(owner: object, chart: object | None) -> None:
     )
     if not matches:
         label.setText("No other charts with Human Design gate data are available.")
+        setattr(owner, "_hd_synastry_last_render_token", render_token)
         return
     lines = []
     if not chart_uses_houses(chart):
@@ -57,6 +76,7 @@ def render_hd_synastry_predictions(owner: object, chart: object | None) -> None:
             f"{match.defined_centers} defined centers)</span>"
         )
     label.setText("<br>".join(lines))
+    setattr(owner, "_hd_synastry_last_render_token", render_token)
 
 
 def on_hd_synastry_link_activated(owner: object, href: str) -> None:

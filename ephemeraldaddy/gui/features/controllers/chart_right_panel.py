@@ -8,6 +8,7 @@ from typing import Literal
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QAbstractButton, QScrollArea, QWidget
 
+from ephemeraldaddy.gui.features.predictions.hd_synastry import hd_synastry_predictions_are_current
 from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import (
     ChartRightPanelStack,
     build_chart_right_panel_stack,
@@ -180,17 +181,21 @@ class ChartRightPanelController:
                 schedule_chart_render(chart)
             return
         if active_panel == "predictions":
-            render_hd_synastry = getattr(self._owner, "_render_hd_synastry_predictions", None)
-            if callable(render_hd_synastry):
-                render_hd_synastry(chart)
             render_token = self._prediction_render_token(chart)
-            if (
+            predictions_are_current = bool(
                 state is not None
                 and state.last_render_chart_token == render_token
                 and _predictions_panel_has_rendered_content(self._owner)
-            ):
+            )
+            hd_synastry_is_current = hd_synastry_predictions_are_current(self._owner, chart)
+            if predictions_are_current and hd_synastry_is_current:
                 return
-            QTimer.singleShot(0, lambda: schedule_chart_render_for_active_right_panel(self._owner))
+            if not hd_synastry_is_current:
+                render_hd_synastry = getattr(self._owner, "_render_hd_synastry_predictions", None)
+                if callable(render_hd_synastry):
+                    render_hd_synastry(chart)
+            if not predictions_are_current:
+                QTimer.singleShot(0, lambda: schedule_chart_render_for_active_right_panel(self._owner))
             return
         if active_panel == "time_sensitivity":
             time_sensitivity_panel = getattr(self._owner, "time_sensitivity_panel", None)
