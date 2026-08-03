@@ -1,6 +1,9 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 import copy
 import inspect
+=======
+>>>>>>> parent of 495d7923 (Preserve analytics top gaps in popouts)
 =======
 >>>>>>> parent of 495d7923 (Preserve analytics top gaps in popouts)
 import sys
