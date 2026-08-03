@@ -893,6 +893,14 @@ from ephemeraldaddy.core.interpretations import (
 )
 from ephemeraldaddy.core.decans import ZODIAC_DECANS
 from ephemeraldaddy.analysis.enneagram import ENNEAGRAM
+from ephemeraldaddy.analysis.human_design_synastry import (
+    HD_SYNASTRY_GENDER_METHOD_IDENTITY,
+    HD_SYNASTRY_GENDER_METHOD_SEX,
+)
+from ephemeraldaddy.gui.features.predictions.hd_synastry import (
+    load_gendered_results_method,
+    on_gendered_results_method_changed,
+)
 
 from ephemeraldaddy.gui.features.charts.delegates import (
     CHART_ROW_OPEN_FEEDBACK_ROLE,
@@ -21953,6 +21961,41 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             "Show/Hide Modules",
         )
 
+        visibility_section.addWidget(self._build_settings_subheader_label("Database View"))
+        database_view_help = self._build_settings_help_label(
+            "Choose which details appear in the middle-panel chart list. "
+            "Uncheck any field you want hidden from every Database View row."
+        )
+        visibility_section.addWidget(database_view_help)
+        self._database_view_row_info_checkboxes = {}
+        for row_info_key, row_info_label in DATABASE_VIEW_ROW_INFO_OPTIONS:
+            checkbox = QCheckBox(f"Show {row_info_label}")
+            checkbox.setChecked(
+                bool(
+                    self._database_view_row_info_visibility.get(
+                        row_info_key,
+                        DATABASE_VIEW_ROW_INFO_DEFAULTS.get(row_info_key, True),
+                    )
+                )
+            )
+            checkbox.toggled.connect(
+                lambda checked, key=row_info_key: self._set_database_view_row_info_visibility(
+                    key,
+                    checked,
+                )
+            )
+            self._database_view_row_info_checkboxes[row_info_key] = checkbox
+            visibility_section.addWidget(checkbox)
+
+        show_hidden_checkbox = QCheckBox("Show Hidden Charts")
+        show_hidden_checkbox.setChecked(bool(getattr(self, "_show_hidden_charts", False)))
+        show_hidden_checkbox.setToolTip(
+            "Show charts hidden from the Database View middle-panel list."
+        )
+        show_hidden_checkbox.toggled.connect(self._on_show_hidden_charts_toggled)
+        visibility_section.addWidget(show_hidden_checkbox)
+
+        visibility_section.addSpacing(8)
         visibility_section.addWidget(self._build_settings_subheader_label("Chart Data (Chart Editor)"))
 
         cursedness_checkbox = QCheckBox("Show cursedness analysis")
@@ -22136,48 +22179,31 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         visibility_section.addWidget(granular_explanations_checkbox)
         self._astrotwin_granular_explanation_checkbox = granular_explanations_checkbox
 
-        database_view_section = self._add_settings_collapsible_section(
-            content_layout,
-            "Database View",
-        )
-        database_view_help = self._build_settings_help_label(
-            "Choose which details appear in the middle-panel chart list. "
-            "Uncheck any field you want hidden from every Database View row."
-        )
-        #database_view_help.setWordWrap(True)
-        database_view_section.addWidget(database_view_help)
-        self._database_view_row_info_checkboxes = {}
-        for row_info_key, row_info_label in DATABASE_VIEW_ROW_INFO_OPTIONS:
-            checkbox = QCheckBox(f"Show {row_info_label}")
-            checkbox.setChecked(
-                bool(
-                    self._database_view_row_info_visibility.get(
-                        row_info_key,
-                        DATABASE_VIEW_ROW_INFO_DEFAULTS.get(row_info_key, True),
-                    )
-                )
-            )
-            checkbox.toggled.connect(
-                lambda checked, key=row_info_key: self._set_database_view_row_info_visibility(
-                    key,
-                    checked,
-                )
-            )
-            self._database_view_row_info_checkboxes[row_info_key] = checkbox
-            database_view_section.addWidget(checkbox)
-
-        show_hidden_checkbox = QCheckBox("Show Hidden Charts")
-        show_hidden_checkbox.setChecked(bool(getattr(self, "_show_hidden_charts", False)))
-        show_hidden_checkbox.setToolTip(
-            "Show charts hidden from the Database View middle-panel list."
-        )
-        show_hidden_checkbox.toggled.connect(self._on_show_hidden_charts_toggled)
-        database_view_section.addWidget(show_hidden_checkbox)
-
         chart_calculation_section = self._add_settings_collapsible_section(
             content_layout,
             "Chart Calculation Methods",
         )
+        gendered_results_row = QHBoxLayout()
+        gendered_results_row.addWidget(QLabel("For gendered results, use:"))
+        gendered_results_group = QButtonGroup(dialog)
+        gendered_results_group.setExclusive(True)
+        gendered_results_method = load_gendered_results_method()
+        for label, method in (
+            ("Assigned-at-birth sex", HD_SYNASTRY_GENDER_METHOD_SEX),
+            ("Gender identity", HD_SYNASTRY_GENDER_METHOD_IDENTITY),
+        ):
+            radio = QRadioButton(label)
+            radio.setChecked(method == gendered_results_method)
+            radio.toggled.connect(
+                lambda checked, selected=method: on_gendered_results_method_changed(
+                    self._owner_window(), selected, checked
+                )
+            )
+            gendered_results_group.addButton(radio)
+            gendered_results_row.addWidget(radio)
+        gendered_results_row.addStretch(1)
+        chart_calculation_section.addLayout(gendered_results_row)
+
         chart_calculation_section.addWidget(
             self._build_settings_help_label("Select which Lilith ephemeris model to display.")
         )
@@ -22205,12 +22231,11 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         chart_calculation_section.addWidget(lilith_mean_radio)
         chart_calculation_section.addWidget(lilith_true_radio)
 
-
-        data_visualization_section = self._add_settings_collapsible_section(
-            content_layout,
-            "Data Visualization",
+        chart_calculation_section.addSpacing(8)
+        chart_calculation_section.addWidget(
+            self._build_settings_subheader_label("Data Visualization")
         )
-        data_visualization_section.addWidget(
+        chart_calculation_section.addWidget(
             self._build_settings_help_label(
                 "Controls graph overlays and statistical-significance handling for Database View analytics."
             )
@@ -22235,13 +22260,12 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         significance_row.addWidget(significance_label)
         significance_row.addWidget(significance_combo)
         significance_row.addStretch(1)
-        data_visualization_section.addLayout(significance_row)
+        chart_calculation_section.addLayout(significance_row)
         significance_help_label = self._build_settings_help_label(
             "Category charts use a selection-vs-database proportion z-test; dashed red guides show "
             "typical ±1/±2 standard-error noise bands when a selection is active."
         )
-        #significance_help_label.setWordWrap(True)
-        data_visualization_section.addWidget(significance_help_label)
+        chart_calculation_section.addWidget(significance_help_label)
         self._settings_significance_correction_combo = significance_combo
 
         dev_tools_section = self._add_settings_collapsible_section(content_layout, "Developer Tools")

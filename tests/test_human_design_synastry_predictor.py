@@ -1,5 +1,8 @@
 from ephemeraldaddy.analysis.human_design_synastry import (
+    HD_SYNASTRY_GENDER_METHOD_IDENTITY,
+    HD_SYNASTRY_GENDER_METHOD_SEX,
     HumanDesignSynastryCandidate,
+    filter_hd_synastry_candidates,
     normalize_gates,
     rank_human_design_synastry,
 )
@@ -16,6 +19,10 @@ def _hd_synastry_module():
 
 def candidate(uid, gates, name="Candidate"):
     return HumanDesignSynastryCandidate(uid, name, None, frozenset(gates))
+
+
+def gendered_candidate(uid, gender):
+    return HumanDesignSynastryCandidate(uid, uid, None, frozenset({47}), gender=gender)
 
 
 def test_rank_prioritizes_new_completed_channels_then_center_bonus():
@@ -101,6 +108,68 @@ def test_synastry_known_time_uses_standard_subheader():
     assert hd_synastry.hd_synastry_subheader(chart) == hd_synastry.HD_SYNASTRY_SUBHEADER
 
 
+def test_synastry_gender_filter_can_group_by_assigned_sex_or_gender_identity():
+    candidates = [
+        gendered_candidate("MALE", "M"),
+        gendered_candidate("FEMALE", "female"),
+        gendered_candidate("AMAB_F", "AMAB-F"),
+        gendered_candidate("AFAB_M", "AFAB-M"),
+        gendered_candidate("AFAB_NB", "AFAB-NB"),
+        gendered_candidate("AMAB_NB", "AMAB-NB"),
+        gendered_candidate("BLANK", None),
+    ]
+
+    assert [
+        item.chart_uid
+        for item in filter_hd_synastry_candidates(
+            candidates, "male", HD_SYNASTRY_GENDER_METHOD_SEX
+        )
+    ] == ["MALE", "AMAB_F", "AMAB_NB"]
+    assert [
+        item.chart_uid
+        for item in filter_hd_synastry_candidates(
+            candidates, "female", HD_SYNASTRY_GENDER_METHOD_SEX
+        )
+    ] == ["FEMALE", "AFAB_M", "AFAB_NB"]
+    assert [
+        item.chart_uid
+        for item in filter_hd_synastry_candidates(
+            candidates, "male", HD_SYNASTRY_GENDER_METHOD_IDENTITY
+        )
+    ] == ["MALE", "AFAB_M"]
+    assert [
+        item.chart_uid
+        for item in filter_hd_synastry_candidates(
+            candidates, "female", HD_SYNASTRY_GENDER_METHOD_IDENTITY
+        )
+    ] == ["FEMALE", "AMAB_F"]
+    assert filter_hd_synastry_candidates(candidates, "all") == candidates
+
+
+def test_synastry_gender_filter_defaults_to_assigned_at_birth_sex():
+    candidates = [
+        gendered_candidate("MALE", "M"),
+        gendered_candidate("AMAB_F", "AMAB-F"),
+        gendered_candidate("AFAB_M", "AFAB-M"),
+    ]
+
+    assert [item.chart_uid for item in filter_hd_synastry_candidates(candidates, "male")] == [
+        "MALE",
+        "AMAB_F",
+    ]
+
+
+def test_synastry_gender_filter_is_part_of_render_token():
+    hd_synastry = _hd_synastry_module()
+    chart = type("Chart", (), {"chart_uid": "UID", "human_design_gates": [47]})()
+    owner = type("Owner", (), {"hd_synastry_gender_filter": "all"})()
+    all_token = hd_synastry.hd_synastry_render_token(owner, chart)
+
+    owner.hd_synastry_gender_filter = "female"
+
+    assert hd_synastry.hd_synastry_render_token(owner, chart) != all_token
+
+
 def test_right_panel_checks_synastry_revision_before_reranking():
     from pathlib import Path
 
@@ -113,3 +182,73 @@ def test_right_panel_checks_synastry_revision_before_reranking():
     render_call = predictions_branch.index("render_hd_synastry(chart)")
     assert stale_check < render_call
     assert "if predictions_are_current and hd_synastry_is_current:" in predictions_branch
+
+
+def test_predicted_synastry_builds_gender_radios_with_refresh_callback():
+    from pathlib import Path
+
+    source = Path("ephemeraldaddy/gui/features/controllers/chart_view_window.py").read_text()
+    synastry_branch = source.split('title="Predicted Synastry"', 1)[1].split(
+        'title="Traits"', 1
+    )[0]
+
+    assert '(("All", "all"), ("Male", "male"), ("Female", "female"))' in synastry_branch
+    assert "QRadioButton(label)" in synastry_branch
+    assert "on_hd_synastry_gender_filter_changed(owner, selected, checked)" in synastry_branch
+
+
+def test_chart_calculation_settings_builds_gender_method_radios():
+    from pathlib import Path
+
+    source = Path("ephemeraldaddy/gui/app.py").read_text()
+    settings_branch = source.split('"Chart Calculation Methods"', 1)[1].split(
+        '"Data Visualization"', 1
+    )[0]
+
+    assert 'QLabel("For gendered results, use:")' in settings_branch
+    assert '"Assigned-at-birth sex"' in settings_branch
+    assert '"Gender identity"' in settings_branch
+    assert "on_gendered_results_method_changed(\n                    self._owner_window()" in settings_branch
+
+
+def test_synastry_filtered_empty_state_is_distinct_from_empty_database():
+    from pathlib import Path
+
+    source = Path("ephemeraldaddy/gui/features/predictions/hd_synastry.py").read_text()
+    render_branch = source.split("def render_hd_synastry_predictions", 1)[1].split(
+        "def on_hd_synastry_gender_filter_changed", 1
+    )[0]
+
+    filter_empty_index = render_branch.index('if gender_filter != "all" and other_candidates_are_available:')
+    generic_empty_index = render_branch.index(
+        'label.setText("No other charts with Human Design gate data are available.")'
+    )
+    assert filter_empty_index < generic_empty_index
+    assert "No charts matching the {html.escape(gender_filter.title())} filter" in render_branch
+
+
+def test_settings_consolidates_database_and_visualization_controls():
+    from pathlib import Path
+
+    source = Path("ephemeraldaddy/gui/app.py").read_text()
+    settings_source = source.split("def _ensure_settings_dialog", 1)[1].split(
+        "def _refresh_settings_footer_note", 1
+    )[0]
+
+    show_hide_index = settings_source.index('"Show/Hide Modules"')
+    database_header_index = settings_source.index(
+        'self._build_settings_subheader_label("Database View")', show_hide_index
+    )
+    chart_data_header_index = settings_source.index(
+        'self._build_settings_subheader_label("Chart Data (Chart Editor)")', show_hide_index
+    )
+    assert show_hide_index < database_header_index < chart_data_header_index
+    assert 'content_layout,\n            "Database View"' not in settings_source
+
+    chart_methods_index = settings_source.index('"Chart Calculation Methods"')
+    visualization_header_index = settings_source.index(
+        'self._build_settings_subheader_label("Data Visualization")', chart_methods_index
+    )
+    significance_index = settings_source.index('QLabel("Significance correction:")')
+    assert chart_methods_index < visualization_header_index < significance_index
+    assert 'content_layout,\n            "Data Visualization"' not in settings_source

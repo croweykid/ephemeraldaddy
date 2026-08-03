@@ -5,14 +5,26 @@ from __future__ import annotations
 import html
 import urllib.parse
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import QLabel
 
 from ephemeraldaddy.analysis.human_design import derive_human_design_profile
-from ephemeraldaddy.analysis.human_design_synastry import normalize_gates, rank_human_design_synastry
+from ephemeraldaddy.analysis.human_design_synastry import (
+    HD_SYNASTRY_GENDER_METHOD_IDENTITY,
+    HD_SYNASTRY_GENDER_METHOD_SEX,
+    filter_hd_synastry_candidates,
+    normalize_gates,
+    normalize_hd_synastry_gender_filter,
+    rank_human_design_synastry,
+)
 from ephemeraldaddy.core.db import list_human_design_synastry_candidates
 from ephemeraldaddy.core.chart import chart_uses_houses
-from ephemeraldaddy.gui.style import apply_chart_info_link_cursor, houses_unknown_note_html
+from ephemeraldaddy.gui.style import (
+    SETTINGS_APP,
+    SETTINGS_ORG,
+    apply_chart_info_link_cursor,
+    houses_unknown_note_html,
+)
 
 
 HD_SYNASTRY_SUBHEADER = (
@@ -21,6 +33,31 @@ HD_SYNASTRY_SUBHEADER = (
     "or other lifestyle factors."
 )
 
+SETTINGS_KEY_GENDERED_RESULTS_METHOD = "chart_calculation/gendered_results_method"
+
+
+def normalize_gendered_results_method(value: object) -> str:
+    """Normalize the appwide gender grouping preference."""
+    return (
+        HD_SYNASTRY_GENDER_METHOD_IDENTITY
+        if str(value or "").strip().casefold() == HD_SYNASTRY_GENDER_METHOD_IDENTITY
+        else HD_SYNASTRY_GENDER_METHOD_SEX
+    )
+
+
+def load_gendered_results_method() -> str:
+    """Load the appwide gender grouping preference, defaulting to assigned sex."""
+    settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
+    return normalize_gendered_results_method(
+        settings.value(SETTINGS_KEY_GENDERED_RESULTS_METHOD, HD_SYNASTRY_GENDER_METHOD_SEX)
+    )
+
+
+def save_gendered_results_method(value: object) -> str:
+    """Persist and return the normalized appwide gender grouping preference."""
+    normalized = normalize_gendered_results_method(value)
+    QSettings(SETTINGS_ORG, SETTINGS_APP).setValue(SETTINGS_KEY_GENDERED_RESULTS_METHOD, normalized)
+    return normalized
 
 def resolve_hd_synastry_gates(chart: object | None) -> frozenset[int]:
     """Return cached gates, deriving them when an older chart has no HD cache."""
@@ -56,6 +93,8 @@ def hd_synastry_render_token(owner: object, chart: object | None) -> tuple[objec
         str(getattr(chart, "chart_uid", "") or "").strip().upper(),
         tuple(sorted(resolve_hd_synastry_gates(chart))),
         bool(chart is not None and chart_uses_houses(chart)),
+        normalize_hd_synastry_gender_filter(getattr(owner, "hd_synastry_gender_filter", "all")),
+        load_gendered_results_method(),
         int(getattr(owner, "_database_metrics_cache_revision", 0) or 0),
     )
 
@@ -80,13 +119,32 @@ def render_hd_synastry_predictions(owner: object, chart: object | None) -> None:
         label.setText("Human Design gate data is unavailable for this chart.")
         setattr(owner, "_hd_synastry_last_render_token", render_token)
         return
+    gender_filter = normalize_hd_synastry_gender_filter(
+        getattr(owner, "hd_synastry_gender_filter", "all")
+    )
+    available_candidates = list_human_design_synastry_candidates()
+    candidates = filter_hd_synastry_candidates(
+        available_candidates,
+        gender_filter,
+        load_gendered_results_method(),
+    )
     matches = rank_human_design_synastry(
         chart_uid,
         gates,
-        list_human_design_synastry_candidates(),
+        candidates,
     )
     if not matches:
-        label.setText("No other charts with Human Design gate data are available.")
+        other_candidates_are_available = any(
+            str(candidate.chart_uid or "").strip().upper() != chart_uid
+            for candidate in available_candidates
+        )
+        if gender_filter != "all" and other_candidates_are_available:
+            label.setText(
+                f"No charts matching the {html.escape(gender_filter.title())} filter "
+                "have Human Design gate data."
+            )
+        else:
+            label.setText("No other charts with Human Design gate data are available.")
         setattr(owner, "_hd_synastry_last_render_token", render_token)
         return
     lines = []
@@ -109,6 +167,28 @@ def render_hd_synastry_predictions(owner: object, chart: object | None) -> None:
         )
     label.setText("<br>".join(lines))
     setattr(owner, "_hd_synastry_last_render_token", render_token)
+
+
+def on_hd_synastry_gender_filter_changed(owner: object, gender_filter: str, checked: bool) -> None:
+    """Refresh the current top-ten ranking when a gender radio is selected."""
+    if not checked:
+        return
+    setattr(owner, "hd_synastry_gender_filter", normalize_hd_synastry_gender_filter(gender_filter))
+    setattr(owner, "_hd_synastry_last_render_token", None)
+    chart = getattr(owner, "_latest_chart", None) or getattr(owner, "current_chart", None)
+    if chart is not None:
+        render_hd_synastry_predictions(owner, chart)
+
+
+def on_gendered_results_method_changed(owner: object, gender_method: str, checked: bool) -> None:
+    """Persist the calculation preference and refresh visible Synastry Predictions."""
+    if not checked:
+        return
+    save_gendered_results_method(gender_method)
+    setattr(owner, "_hd_synastry_last_render_token", None)
+    chart = getattr(owner, "_latest_chart", None) or getattr(owner, "current_chart", None)
+    if chart is not None:
+        render_hd_synastry_predictions(owner, chart)
 
 
 def on_hd_synastry_link_activated(owner: object, href: str) -> None:

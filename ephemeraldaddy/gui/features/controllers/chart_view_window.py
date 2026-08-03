@@ -31,6 +31,8 @@ from PySide6.QtWidgets import (
     QMenu,
     QPlainTextEdit,
     QPushButton,
+    QButtonGroup,
+    QRadioButton,
     QToolButton,
     QSlider,
     QStackedWidget,
@@ -83,6 +85,7 @@ from ephemeraldaddy.gui.features.charts.prediction_loading_labels import start_p
 from ephemeraldaddy.gui.features.predictions.hd_synastry import (
     HD_SYNASTRY_SUBHEADER,
     configure_hd_synastry_label,
+    on_hd_synastry_gender_filter_changed,
     render_hd_synastry_predictions,
 )
 from ephemeraldaddy.gui.features.charts.time_sensitivity_panel import TimeSensitivityPanel
@@ -1824,6 +1827,23 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         expanded=True,
     )
     register_prediction_section("hd_synastry", hd_synastry_section_layout)
+    hd_synastry_gender_row = QWidget()
+    hd_synastry_gender_layout = QHBoxLayout(hd_synastry_gender_row)
+    hd_synastry_gender_layout.setContentsMargins(0, 0, 0, 0)
+    hd_synastry_gender_layout.setSpacing(10)
+    hd_synastry_gender_layout.addWidget(QLabel("Results:"))
+    owner.hd_synastry_gender_filter = "all"
+    owner.hd_synastry_gender_filter_group = QButtonGroup(owner)
+    for label, value in (("All", "all"), ("Male", "male"), ("Female", "female")):
+        button = QRadioButton(label)
+        button.setChecked(value == "all")
+        button.toggled.connect(
+            lambda checked, selected=value: on_hd_synastry_gender_filter_changed(owner, selected, checked)
+        )
+        owner.hd_synastry_gender_filter_group.addButton(button)
+        hd_synastry_gender_layout.addWidget(button)
+    hd_synastry_gender_layout.addStretch(1)
+    hd_synastry_section_layout.addWidget(hd_synastry_gender_row)
     hd_synastry_mode_combo = QComboBox()
     apply_shared_dropdown_style(hd_synastry_mode_combo)
     hd_synastry_mode_combo.addItem("🪷HD Synastry", "hd_synastry")
