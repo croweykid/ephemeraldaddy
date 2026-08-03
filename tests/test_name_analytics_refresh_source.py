@@ -16,6 +16,20 @@ def test_name_alignment_chart_uses_full_signed_scale_and_signed_labels():
     assert "axis.axvline(" in render_source
 
 
+def test_name_chart_height_scales_with_every_rendered_label_without_a_cap():
+    height_source = ANALYTICS_SOURCE.split(
+        "def _name_distribution_chart_height", 1
+    )[1].split("def _render_name_distribution_section", 1)[0]
+    render_source = ANALYTICS_SOURCE.split(
+        "def _render_name_distribution_section", 1
+    )[1].split("DATABASE_ANALYTICS_CATEGORY_TITLES", 1)[0]
+
+    assert "label_count * label_row_height" in height_source
+    assert "min(" not in height_source
+    assert "max(" not in height_source
+    assert render_source.count("self._name_distribution_chart_height(len(labels))") == 2
+
+
 def test_chart_view_classifies_name_and_alias_edits_for_metrics_refresh():
     classifier = APP_SOURCE.split("def _chart_metadata_changed_fields", 1)[1].split(
         "def _chart_analytics_cache_token", 1
