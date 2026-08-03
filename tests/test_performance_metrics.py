@@ -1,8 +1,18 @@
 from __future__ import annotations
 
+import ast
 from pathlib import Path
 
 from ephemeraldaddy.core import performance_metrics
+
+
+def _main_window_method_source(method_name: str) -> str:
+    source = Path("ephemeraldaddy/gui/app.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == method_name:
+            return ast.get_source_segment(source, node) or ""
+    raise AssertionError(f"Could not find method {method_name!r}")
 
 
 def test_metrics_are_only_exported_while_enabled(tmp_path: Path, monkeypatch) -> None:
@@ -56,3 +66,33 @@ def test_developer_tools_exposes_requested_performance_setting_and_tooltip() -> 
         in source
     )
     assert ".app/.ephemeraldaddy/ and track app performance for debugging." in source
+
+
+def test_chart_editor_load_records_phase_boundaries() -> None:
+    load_source = _main_window_method_source("load_chart_by_uid")
+
+    for operation in (
+        "chart_editor.load.confirm_and_prepare",
+        "chart_editor.load.record",
+        "chart_editor.load.related_choice_snapshot",
+        "chart_editor.load.material_facts",
+        "chart_editor.load.form_hydration",
+        "chart_editor.load.panel_activation",
+        "chart_editor.load.visible",
+    ):
+        assert operation in load_source
+
+    assert 'completer="reminds_me_of"' in load_source
+    assert 'completer="alternate_chart"' in load_source
+    assert "cache_hit=cached_chart is not None" in load_source
+
+
+def test_chart_editor_render_queue_records_first_visible_phases() -> None:
+    flush_source = _main_window_method_source("_flush_scheduled_chart_render")
+    material_facts_source = _main_window_method_source("_load_material_facts_for_chart")
+
+    assert "chart_editor.load.queue_wait" in flush_source
+    assert 'f"chart_editor.load.{section}"' in flush_source
+    assert 'section in {"summary", "wheel"}' in flush_source
+    assert "chart_editor.load.visible" in flush_source
+    assert "chart_editor.load.photo_gallery" in material_facts_source
