@@ -247,6 +247,36 @@ def test_associated_chart_matching_uses_frozen_popout_mode():
     ) == [("UID-MODE", "Gate Holder")]
 
 
+def test_associated_chart_matching_can_use_database_population_when_none_selected():
+    class Chart:
+        def __init__(self, uid, name):
+            self.chart_uid = uid
+            self.name = name
+
+    charts = {
+        "UID-RONALDO": Chart("UID-RONALDO", "Cristiano Ronaldo"),
+        "UID-OTHER": Chart("UID-OTHER", "Ada Lovelace"),
+    }
+
+    class Analytics(_FakeAnalytics):
+        def _selected_chart_uids(self):
+            return []
+
+        def _get_chart_for_filter_by_uid(self, chart_uid):
+            return charts[chart_uid]
+
+    html = Analytics()._build_database_analytics_popout_info_html(
+        chart_title="Names",
+        label="Ronaldo",
+        value=1.0,
+        chart_key="name_distribution",
+        chart_uids=charts,
+    )
+
+    assert '<a href="chart:UID-RONALDO">Cristiano Ronaldo</a>' in html
+    assert "Ada Lovelace" not in html
+
+
 def test_dominant_house_matching_preserves_label_for_multiple_charts(monkeypatch):
     class Chart:
         def __init__(self, uid):
