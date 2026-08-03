@@ -41,9 +41,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ephemeraldaddy.gui.features.charts.dnd_predictions import DND_STAT_KEYS
 from ephemeraldaddy.gui.features.charts.database_norms_cache import analytical_mapping_signature
+from ephemeraldaddy.gui.features.charts.dnd_predictions import DND_STAT_KEYS
 from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import trait_snapshot_averages
+from ephemeraldaddy.gui.features.database_view.analytics.name_search import analyze_names
 
 DATABASE_METRICS_SECTION_ORDER: tuple[str, ...] = (
     "planetary_sign_prevalence",
@@ -62,6 +63,7 @@ DATABASE_METRICS_SECTION_ORDER: tuple[str, ...] = (
     "age",
     "birth_month",
     "birthplace",
+    "name_distribution",
     "tag_distribution",
     "traits_distribution",
     "gender",
@@ -95,10 +97,12 @@ DATABASE_METRICS_BIRTH_DATA_SECTIONS: frozenset[str] = frozenset(
 DATABASE_METRICS_SUBJECTIVE_SECTION_DEPENDENCIES: dict[str, frozenset[str]] = {
     "sentiments": frozenset({"sentiment_prevalence"}),
     "relationship_types": frozenset({"relationship_prevalence"}),
-    "alignment": frozenset({"alignment_summary"}),
     "matched_expectations": frozenset({"matched_expectations_summary"}),
     "gender": frozenset({"gender"}),
     "tags": frozenset({"tag_distribution"}),
+    "name": frozenset({"name_distribution"}),
+    "alias": frozenset({"name_distribution"}),
+    "alignment": frozenset({"alignment_summary", "name_distribution"}),
     "traits": frozenset({"traits_distribution"}),
 }
 
@@ -554,6 +558,126 @@ def render_nakshatras_chart(
 
 
 class DatabaseAnalyticsChartsMixin:
+
+    def _render_name_distribution_section(
+        self,
+        *,
+        chart_ids: list[int] | set[int],
+        database_chart_ids: list[int] | set[int],
+        loaded_charts: int,
+        should_refresh: Callable[[str], bool],
+    ) -> list[tuple[str, float, float, float, int, int, float]]:
+        """Render name frequency or Alignment statistics from UID-keyed results."""
+        if not should_refresh("name_distribution"):
+            return getattr(self, "_analysis_chart_export_rows", {}).get("name_distribution", [])
+
+        def _charts(row_ids: Iterable[int]) -> list[Any]:
+            return [
+                chart
+                for row_id in row_ids
+                if (chart := self._get_chart_for_filter(int(row_id))) is not None
+            ]
+
+        selection_stats = analyze_names(_charts(chart_ids))
+        database_stats = analyze_names(_charts(database_chart_ids))
+        selection_by_name = {item.name.casefold(): item for item in selection_stats}
+        database_by_name = {item.name.casefold(): item for item in database_stats}
+        source = selection_stats if loaded_charts else database_stats
+        mode = str(getattr(self, "_name_distribution_mode", "frequency"))
+        labels: list[str] = []
+        selection_values: list[float] = []
+        database_values: list[float] = []
+        selection_counts: list[int] = []
+        database_counts: list[int] = []
+        for statistic in source:
+            selection_stat = selection_by_name.get(statistic.name.casefold())
+            database_stat = database_by_name.get(statistic.name.casefold())
+            display_stat = selection_stat if loaded_charts else database_stat
+            value = display_stat.value_for(mode) if display_stat is not None else None
+            if value is None:
+                continue
+            labels.append(statistic.name)
+            selection_values.append(
+                float(selection_stat.value_for(mode) or 0.0) if selection_stat else 0.0
+            )
+            database_values.append(
+                float(database_stat.value_for(mode) or 0.0) if database_stat else 0.0
+            )
+            selection_counts.append(selection_stat.frequency if selection_stat else 0)
+            database_counts.append(database_stat.frequency if database_stat else 0)
+
+        order = sorted(
+            range(len(labels)),
+            key=lambda index: (
+                -(selection_values if loaded_charts else database_values)[index],
+                labels[index].casefold(),
+            ),
+        )
+        labels = [labels[index] for index in order]
+        selection_values = [selection_values[index] for index in order]
+        database_values = [database_values[index] for index in order]
+        selection_counts = [selection_counts[index] for index in order]
+        database_counts = [database_counts[index] for index in order]
+
+        self._clear_layout(self.name_distribution_chart_layout)
+        if not labels:
+            self.name_distribution_chart_layout.addWidget(
+                QLabel("No names occur in at least four charts with data for this metric.")
+            )
+        elif mode == "frequency":
+            self.name_distribution_chart_layout.addWidget(
+                self._build_count_distribution_chart(
+                    labels=labels,
+                    selection_counts=selection_counts,
+                    database_counts=database_counts,
+                    loaded_charts=loaded_charts,
+                    auto_height=True,
+                )
+            )
+        else:
+            values = selection_values if loaded_charts else database_values
+            figure = Figure(figsize=(1.5, max(2.8, min(12.0, len(labels) * 0.32 + 0.8))))
+            figure.patch.set_facecolor(self._database_analytics_figure_facecolor())
+            axis = figure.add_subplot(111)
+            axis.set_facecolor(self._database_analytics_axes_facecolor())
+            positions = list(range(len(labels)))
+            bars = axis.barh(
+                positions,
+                values,
+                color=CHART_DATA_HIGHLIGHT_COLOR,
+                height=0.55,
+            )
+            axis.set_yticks(positions, labels=labels)
+            axis.invert_yaxis()
+            axis.set_xlim(0, max(10.0, max(values, default=0.0) * 1.12))
+            for bar, value in zip(bars, values):
+                axis.text(
+                    value + 0.08,
+                    bar.get_y() + bar.get_height() / 2,
+                    f"{value:g}",
+                    va="center",
+                    fontsize=7.5,
+                    color=CHART_THEME_COLORS["text"],
+                )
+            axis.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"])
+            axis.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
+            for spine in axis.spines.values():
+                spine.set_color(CHART_THEME_COLORS["spine"])
+            self._apply_tight_layout(figure)
+            canvas = FigureCanvas(figure)
+            self._configure_left_panel_canvas(canvas, figure)
+            canvas.draw_idle()
+            self.name_distribution_chart_layout.addWidget(canvas)
+
+        return self._build_analysis_export_rows(
+            labels=labels,
+            selection_values=selection_values,
+            database_values=database_values,
+            selection_counts=selection_counts,
+            database_counts=database_counts,
+            loaded_charts=loaded_charts,
+            include_significance=False,
+        )
 
     DATABASE_ANALYTICS_CATEGORY_TITLES: tuple[tuple[str, str], ...] = (
         ("astro", "🪐Astro"),

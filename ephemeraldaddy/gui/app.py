@@ -2622,6 +2622,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._analysis_chart_export_rows: dict[str, list[tuple[Any, ...]]] = {}
         self._analysis_chart_filenames: dict[str, str] = {}
         self._analysis_chart_dropdowns: dict[str, QComboBox] = {}
+        self._name_distribution_mode = "frequency"
         self._database_metrics_section_expanded: dict[str, bool] = {}
         self._database_metrics_section_visible: dict[str, bool] = {}
         self._incremental_metrics_refresh_sections: list[str] = []
@@ -3210,6 +3211,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             "birth_month": self._birth_month_mode,
             "birthplace": self._birthplace_mode,
             "tag_distribution": self._tag_distribution_mode,
+            "name_distribution": self._name_distribution_mode,
             "traits_distribution": self._traits_distribution_mode,
             "gender": self._gender_mode,
             "human_design": self._human_design_mode,
@@ -3945,6 +3947,17 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         subheader.setText("Distribution of Fantasy RPG species/classes in database")
 
     def _on_analysis_chart_dropdown_changed(self, chart_key: str) -> None:
+        if chart_key == "name_distribution":
+            dropdown = self._analysis_chart_dropdowns.get(chart_key)
+            if dropdown is not None and isinstance(dropdown.currentData(), str):
+                self._name_distribution_mode = dropdown.currentData()
+            self._update_sentiment_tally(
+                update_database_metrics=True,
+                update_similarities=False,
+                sections_to_refresh={chart_key},
+            )
+            return
+
         if chart_key == "species_distribution":
             dropdown = self._analysis_chart_dropdowns.get(chart_key)
             if dropdown is not None:
@@ -5279,6 +5292,42 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             self.birthplace_chart_layout,
         ) = self._create_database_analytics_chart_container()
         self._database_metrics_chart_layouts["birthplace"] = self.birthplace_chart_layout
+
+        name_section_layout = self._add_left_panel_collapsible_section(
+            panel,
+            demographics_category_layout,
+            "👤Names",
+            section_key="name_distribution",
+            expanded=self._is_database_metrics_section_expanded("name_distribution"),
+            on_toggled=lambda checked: self._set_database_metrics_section_expanded(
+                "name_distribution", checked
+            ),
+        )
+        self._create_analysis_chart_header(
+            name_section_layout,
+            "👤Names",
+            "name_distribution",
+            "name_distribution",
+            dropdown_options=[
+                ("Frequency", "frequency"),
+                ("Mean Alignment", "mean_alignment"),
+                ("Median Alignment", "median_alignment"),
+                ("Mode Alignment", "mode_alignment"),
+            ],
+            show_title=False,
+        )
+        name_subheader = add_database_subheader(
+            "Whitespace-delimited names and aliases found in at least four charts."
+        )
+        name_section_layout.addWidget(name_subheader)
+        (
+            self.name_distribution_chart_container,
+            self.name_distribution_chart_layout,
+        ) = self._create_database_analytics_chart_container()
+        self._database_metrics_chart_layouts["name_distribution"] = (
+            self.name_distribution_chart_layout
+        )
+        name_section_layout.addWidget(self.name_distribution_chart_container)
         birth_place_section_layout.addWidget(self.birthplace_chart_container)
 
         # Keep the usual Tags section un-nested at the bottom of Database Analytics.
@@ -12720,6 +12769,14 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 database_chart_ids=database_cache["chart_ids"],
                 loaded_charts=loaded_charts,
                 should_refresh=_should_refresh_database_metric_section,
+            )
+            self._analysis_chart_export_rows["name_distribution"] = (
+                self._render_name_distribution_section(
+                    chart_ids=chart_ids,
+                    database_chart_ids=database_cache["chart_ids"],
+                    loaded_charts=loaded_charts,
+                    should_refresh=_should_refresh_database_metric_section,
+                )
             )
             if _should_refresh_database_metric_section("traits_distribution"):
                 self._render_traits_distribution_section(
