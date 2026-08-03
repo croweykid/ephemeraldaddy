@@ -49,11 +49,15 @@ class RankingsPanelMixin:
         header.setStyleSheet("font-weight: 700; color: #f5f5f5; font-size: 12pt;")
         layout.addWidget(header)
 
+        self._rankings_section_expanded = {"traits": True, "sign_dominance": True}
         traits_layout = self._add_left_panel_collapsible_section(
             panel,
             layout,
             "🧬Traits",
             expanded=True,
+            on_toggled=lambda expanded: self._on_rankings_section_toggled(
+                "traits", expanded
+            ),
         )
         trait_row = QWidget()
         trait_row_layout = QHBoxLayout(trait_row)
@@ -66,7 +70,7 @@ class RankingsPanelMixin:
         self.rankings_trait_combo.setMinimumContentsLength(22)
         self.rankings_trait_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
         self.rankings_trait_combo.currentIndexChanged.connect(
-            lambda _index: self._refresh_rankings_panel()
+            lambda _index: self._refresh_rankings_panel({"traits"})
         )
         trait_row_layout.addWidget(self.rankings_trait_combo, 1)
         traits_layout.addWidget(trait_row)
@@ -86,6 +90,9 @@ class RankingsPanelMixin:
             layout,
             "♏ Sign Dominance",
             expanded=True,
+            on_toggled=lambda expanded: self._on_rankings_section_toggled(
+                "sign_dominance", expanded
+            ),
         )
         sign_row = QWidget()
         sign_row_layout = QHBoxLayout(sign_row)
@@ -97,7 +104,7 @@ class RankingsPanelMixin:
         self.rankings_sign_combo = QComboBox()
         self.rankings_sign_combo.addItems(list(ZODIAC_NAMES))
         self.rankings_sign_combo.currentIndexChanged.connect(
-            lambda _index: self._refresh_rankings_panel()
+            lambda _index: self._refresh_rankings_panel({"sign_dominance"})
         )
         sign_row_layout.addWidget(self.rankings_sign_combo, 1)
         signs_layout.addWidget(sign_row)
@@ -120,6 +127,39 @@ class RankingsPanelMixin:
         signs_layout.addWidget(self.rankings_signs_label)
         layout.addStretch(1)
         return panel
+
+    def _on_rankings_section_toggled(self, section: str, expanded: bool) -> None:
+        """Refresh a Rankings section only when it becomes visible."""
+        self._rankings_section_expanded[section] = expanded
+        if not expanded:
+            return
+        if getattr(self, "_active_left_panel", None) != "rankings":
+            return
+        if not getattr(self, "_left_panel_visible", False):
+            return
+        is_collapsed = getattr(self, "_is_left_panel_collapsed", None)
+        if callable(is_collapsed) and is_collapsed():
+            return
+        self._refresh_rankings_panel({section})
+
+    def _refresh_visible_rankings_sections(self) -> None:
+        """Refresh expanded Rankings content after database rows become ready."""
+        if getattr(self, "_active_left_panel", None) != "rankings":
+            return
+        if not getattr(self, "_left_panel_visible", False):
+            return
+        is_collapsed = getattr(self, "_is_left_panel_collapsed", None)
+        if callable(is_collapsed) and is_collapsed():
+            return
+        expanded = {
+            section
+            for section, is_expanded in getattr(
+                self, "_rankings_section_expanded", {}
+            ).items()
+            if is_expanded
+        }
+        if expanded:
+            self._refresh_rankings_panel(expanded)
 
     @staticmethod
     def _normalize_rankings_chart_uid(raw_uid: object) -> str:
@@ -317,11 +357,23 @@ class RankingsPanelMixin:
             return False
         return True
 
-    def _refresh_rankings_panel(self) -> None:
+    def _refresh_rankings_panel(self, sections: set[str] | None = None) -> None:
         if not hasattr(self, "rankings_traits_label"):
+            return
+        requested_sections = sections or {"traits", "sign_dominance"}
+        expanded_sections = getattr(self, "_rankings_section_expanded", {})
+        requested_sections = {
+            section
+            for section in requested_sections
+            if expanded_sections.get(section, False)
+        }
+        if not requested_sections:
             return
         database_chart_uids = self._rankings_database_chart_uids()
         database_chart_ids = self._rankings_database_legacy_chart_ids(database_chart_uids)
+        if "traits" not in requested_sections:
+            self._refresh_sign_dominance_rankings(database_chart_ids)
+            return
         selected_trait_name = self._sync_rankings_trait_combo()
         trait_items = list_traits(active_only=True)
         trait_signature = self._traits_distribution_signature(trait_items)
@@ -388,7 +440,8 @@ class RankingsPanelMixin:
                 parsed_percent=parsed_percent,
             )
         )
-        self._refresh_sign_dominance_rankings(database_chart_ids)
+        if "sign_dominance" in requested_sections:
+            self._refresh_sign_dominance_rankings(database_chart_ids)
 
 
     @staticmethod

@@ -19423,6 +19423,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                     force_full_refresh=force_full_analysis_refresh,
                 )
         self._update_collection_membership_buttons()
+        self._refresh_visible_rankings_sections()
 
     def _run_database_metrics_refresh(
         self,
