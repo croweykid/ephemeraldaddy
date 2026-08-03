@@ -1,6 +1,7 @@
 import sys
 import types
 
+import pytest
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
 from matplotlib.backend_bases import MouseEvent
@@ -53,6 +54,31 @@ sys.modules.setdefault("PySide6.QtWidgets", qtwidgets)
 sys.modules.setdefault("PySide6.QtGui", qtgui)
 
 from ephemeraldaddy.gui.features.charts.database_analytics import DatabaseAnalyticsChartsMixin
+
+
+def test_database_analytics_top_gap_is_constant_when_figure_height_changes():
+    gap_pixels = []
+    for height_inches in (2.0, 12.0):
+        figure = Figure(figsize=(4.0, height_inches), dpi=100)
+        figure.add_subplot(111)
+
+        DatabaseAnalyticsChartsMixin._subplots_adjust_with_fixed_top_gap(figure)
+
+        axes_top = figure.axes[0].get_position().y1
+        gap_pixels.append((1.0 - axes_top) * height_inches * figure.dpi)
+
+    assert gap_pixels[0] == pytest.approx(gap_pixels[1])
+    assert gap_pixels[0] == pytest.approx(100 / 6)  # 12 points at 100 dpi.
+
+
+def test_database_analytics_top_gap_is_at_most_one_and_a_half_caption_lines():
+    figure = Figure(figsize=(4.0, 8.0), dpi=100)
+    figure.add_subplot(111)
+
+    DatabaseAnalyticsChartsMixin._subplots_adjust_with_fixed_top_gap(figure)
+
+    gap_points = (1.0 - figure.axes[0].get_position().y1) * 8.0 * 72.0
+    assert gap_points <= 1.5 * 10.0
 
 
 def test_percent_difference_axis_scales_symmetrically_to_visible_dataset():
