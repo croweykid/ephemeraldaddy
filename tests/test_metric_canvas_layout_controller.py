@@ -122,3 +122,31 @@ def test_transient_missing_scroll_area_does_not_orphan_registered_canvas():
     margins = layout.contentsMargins()
     expected_width = scroll.viewport().width() - margins.left() - margins.right() - 10
     assert canvas.width() == expected_width
+
+
+def test_same_width_refresh_resynchronizes_reused_figure_pixel_bounds():
+    app = QApplication.instance() or QApplication([])
+    content = QWidget()
+    layout = QVBoxLayout(content)
+    canvas = FigureCanvas(Figure(figsize=(4, 2.4), dpi=100))
+    layout.addWidget(canvas)
+    scroll = QScrollArea()
+    scroll.setWidgetResizable(True)
+    scroll.setWidget(content)
+    scroll.resize(420, 500)
+    scroll.show()
+    controller = MetricCanvasLayoutController(side_gutter_px=5, redraw=lambda _canvas: None)
+    controller.register(canvas, scroll)
+    _process_events(app)
+
+    expected_width = canvas.width()
+    expected_height = canvas.height()
+    # Metric renderers reset the logical figsize without forwarding a widget
+    # resize.  This used to leave a large render surface behind when the Qt
+    # canvas already had the target dimensions.
+    canvas.figure.set_size_inches(12, 6, forward=False)
+    controller.apply_now(canvas)
+
+    figure_width, figure_height = canvas.figure.get_size_inches() * canvas.figure.get_dpi()
+    assert round(figure_width) == expected_width
+    assert round(figure_height) == expected_height
