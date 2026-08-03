@@ -15,7 +15,7 @@ class _FakeAnalytics(DatabaseAnalyticsChartsMixin):
         return False
 
 
-def test_database_analytics_popout_info_colors_signs_and_highlighted_subheaders():
+def test_database_analytics_popout_info_uses_focused_standard_template():
     html = _FakeAnalytics()._build_database_analytics_popout_info_html(
         chart_title="Dominant Signs",
         label="Aries",
@@ -23,10 +23,12 @@ def test_database_analytics_popout_info_colors_signs_and_highlighted_subheaders(
     )
 
     assert f'color:{SIGN_COLORS["Aries"]}' in html
-    assert f'<b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">Category:</b>' in html
-    assert "Zodiac sign" in html
-    assert "What this measures:" in html
-    assert "Where it appears:" in html
+    assert f'<b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">Associated charts:</b>' in html
+    assert "Database deviation: unavailable" in html
+    assert "Category:" not in html
+    assert "What this measures:" not in html
+    assert "Where it appears:" not in html
+    assert "Bar reading:" not in html
 
 
 def test_database_analytics_popout_info_colors_elements_modes_and_nakshatras():
@@ -49,11 +51,8 @@ def test_database_analytics_popout_info_colors_elements_modes_and_nakshatras():
     )
 
     assert f'color:{ELEMENT_COLORS["Fire"]}' in element_html
-    assert "Element" in element_html
     assert f'color:{MODE_COLORS["cardinal"]}' in mode_html
-    assert "Mode / modality" in mode_html
     assert f'color:{NAKSHATRA_PLANET_COLOR["Ashwini"][1]}' in nakshatra_html
-    assert "Nakshatra" in nakshatra_html
 
 class _FakeChartAnalyticsOwner:
     _latest_chart = object()
@@ -80,21 +79,33 @@ class _FakeAnalyticsWithOwner(_FakeAnalytics):
         self._app_owner = _FakeChartAnalyticsOwner()
 
 
-def test_database_analytics_popout_info_reuses_chart_analytics_astro_explainers():
+def test_database_analytics_popout_info_always_uses_database_template():
     analytics = _FakeAnalyticsWithOwner()
 
-    assert analytics._build_database_analytics_popout_info_html(
+    assert "Associated charts:" in analytics._build_database_analytics_popout_info_html(
         chart_title="Dominant Bodies", label="Venus", value=1.0
-    ) == "body explainer: Venus"
-    assert analytics._build_database_analytics_popout_info_html(
+    )
+    assert "Associated charts:" in analytics._build_database_analytics_popout_info_html(
         chart_title="Dominant Signs", label="Aries", value=1.0
-    ) == "sign explainer: Aries"
-    assert analytics._build_database_analytics_popout_info_html(
+    )
+    assert "Associated charts:" in analytics._build_database_analytics_popout_info_html(
         chart_title="Dominant Houses", label="House 7", value=1.0
-    ) == "house explainer: 7"
-    assert analytics._build_database_analytics_popout_info_html(
+    )
+    assert "Associated charts:" in analytics._build_database_analytics_popout_info_html(
         chart_title="Nakshatras", label="Ashwini", value=1.0
-    ) == "nakshatra explainer: Ashwini"
+    )
+
+
+def test_database_analytics_enneagram_preserves_specific_popout_details():
+    result = _FakeAnalytics()._build_database_analytics_popout_info_html(
+        chart_title="Enneagram Predictions",
+        label="Type 2",
+        value=1.0,
+    )
+
+    assert "Associated charts:" in result
+    assert "Enneagram Type 2" in result
+    assert "Motivation:" in result
 
 
 def test_database_analytics_popout_info_includes_trait_description(monkeypatch):
@@ -118,5 +129,202 @@ def test_database_analytics_popout_info_includes_trait_description(monkeypatch):
 
     title_index = html.index("Creative Spark")
     description_index = html.index("<p><i>Finds patterns in unusual places.</i></p>")
-    category_index = html.index("Category:")
-    assert title_index < description_index < category_index
+    associated_index = html.index("Associated charts:")
+    assert title_index < description_index < associated_index
+
+
+def test_birthday_popout_lists_uid_links_and_database_deviation():
+    class Chart:
+        chart_uid = "UID-123"
+        name = "Ada Lovelace"
+        birth_month = 12
+        birth_day = 10
+        dt = None
+
+    class BirthdayAnalytics(_FakeAnalytics):
+        _analysis_chart_export_rows = {
+            "birth_month": [("12-10", 2, 3, 0, 2, 3, 0, 0.1, 1.75)]
+        }
+
+        def _selected_chart_uids(self):
+            return ["UID-123"]
+
+        def _get_chart_for_filter_by_uid(self, chart_uid):
+            assert chart_uid == "UID-123"
+            return Chart()
+
+    result = BirthdayAnalytics()._build_database_analytics_popout_info_html(
+        chart_title="Birthday",
+        label="12-10",
+        value=0.2,
+        chart_key="birth_month",
+        bar_color="#123456",
+    )
+
+    assert '<h3 style="color:#123456' in result
+    assert '<a href="chart:UID-123">Ada Lovelace</a>' in result
+    assert "1.75 standard deviations above the database norm" in result
+
+
+def test_associated_chart_matching_supports_common_analytics_keys(monkeypatch):
+    class Chart:
+        chart_uid = "UID-ALL"
+        name = "Included Person"
+        sentiments = ["trusted"]
+        relationship_types = ["Friend"]
+        tags = ["Important"]
+        gender = "F"
+        positions = {"Sun": 5.0}
+        birth_month = 1
+        birth_day = 2
+
+    class Analytics(_FakeAnalytics):
+        _sign_distribution_mode = "Sun"
+        _human_design_mode = "hd_gates"
+        _prevalence_mode = "sign_prevalence"
+        _dominant_factors_mode = "top3_signs"
+
+        def _selected_chart_uids(self):
+            return ["UID-ALL"]
+
+        def _get_chart_for_filter_by_uid(self, _chart_uid):
+            return Chart()
+
+        def _normalize_gender_value(self, value):
+            return value
+
+        def _split_tag_category(self, tag):
+            return "Uncategorized", tag
+
+        def _is_placeholder_chart(self, _chart):
+            return False
+
+    monkeypatch.setattr(
+        "ephemeraldaddy.gui.features.charts.database_analytics._calculate_dominant_sign_weights",
+        lambda _chart: {"Aries": 10.0, "Taurus": 1.0},
+    )
+    analytics = Analytics()
+
+    cases = [
+        ("sentiment_prevalence", "trusted", None),
+        ("relationship_prevalence", "Friend", None),
+        ("tag_distribution", "Important", None),
+        ("gender", "F", "actual_gender"),
+        ("sign_prevalence", "Aries", "sign_prevalence"),
+        ("dominant_signs", "Aries", "top3_signs"),
+        ("traits_distribution", "Any computed trait", "trait_predictions"),
+        ("birth_month", "01-02", "birthday_distribution"),
+    ]
+    for chart_key, label, chart_mode in cases:
+        assert analytics._analysis_matching_charts(
+            chart_key,
+            label,
+            chart_mode=chart_mode,
+        ) == [("UID-ALL", "Included Person")]
+
+
+def test_associated_chart_matching_uses_frozen_popout_mode():
+    class Chart:
+        chart_uid = "UID-MODE"
+        name = "Gate Holder"
+
+    class Analytics(_FakeAnalytics):
+        _human_design_mode = "hd_types"
+
+        def _selected_chart_uids(self):
+            return ["UID-MODE"]
+
+        def _get_chart_for_filter_by_uid(self, _chart_uid):
+            return Chart()
+
+        def _extract_human_design_profile(self, _chart):
+            return [12], [], [], [], "Generator", "Sacral"
+
+    assert Analytics()._analysis_matching_charts(
+        "human_design",
+        "12",
+        chart_mode="hd_gates",
+    ) == [("UID-MODE", "Gate Holder")]
+
+
+def test_dominant_house_matching_preserves_label_for_multiple_charts(monkeypatch):
+    class Chart:
+        def __init__(self, uid):
+            self.chart_uid = uid
+            self.name = uid
+
+    class Analytics(_FakeAnalytics):
+        def _selected_chart_uids(self):
+            return ["UID-1", "UID-2"]
+
+        def _get_chart_for_filter_by_uid(self, chart_uid):
+            return Chart(chart_uid)
+
+    monkeypatch.setattr(
+        "ephemeraldaddy.gui.features.charts.database_analytics._calculate_dominant_house_weights",
+        lambda _chart: {7: 10.0},
+    )
+
+    assert Analytics()._analysis_matching_charts(
+        "dominant_signs",
+        "House 7",
+        chart_mode="top3_houses",
+    ) == [("UID-1", "UID-1"), ("UID-2", "UID-2")]
+
+
+def test_house_prevalence_matching_uses_prevalence_counts(monkeypatch):
+    class Chart:
+        chart_uid = "UID-HOUSE"
+        name = "House Contributor"
+        positions = {}
+
+    class Analytics(_FakeAnalytics):
+        def _selected_chart_uids(self):
+            return ["UID-HOUSE"]
+
+        def _get_chart_for_filter_by_uid(self, _chart_uid):
+            return Chart()
+
+    monkeypatch.setattr(
+        "ephemeraldaddy.gui.features.charts.database_analytics._calculate_house_prevalence_counts",
+        lambda _chart: {4: 1.0},
+    )
+    monkeypatch.setattr(
+        "ephemeraldaddy.gui.features.charts.database_analytics._calculate_dominant_house_weights",
+        lambda _chart: {5: 99.0},
+    )
+
+    analytics = Analytics()
+    assert analytics._analysis_matching_charts(
+        "sign_prevalence", "4", chart_mode="house_prevalence"
+    ) == [("UID-HOUSE", "House Contributor")]
+    assert analytics._analysis_matching_charts(
+        "sign_prevalence", "5", chart_mode="house_prevalence"
+    ) == []
+
+
+def test_species_matching_uses_ranked_family_for_selected_mode():
+    class Chart:
+        chart_uid = "UID-SPECIES"
+        name = "Elf Chart"
+
+    class Analytics(_FakeAnalytics):
+        def _selected_chart_uids(self):
+            return ["UID-SPECIES"]
+
+        def _get_chart_for_filter_by_uid(self, _chart_uid):
+            return Chart()
+
+        def _dnd_species_class_payload_for_chart(self, _chart):
+            return {"species": [{"family": "Elf"}, {"family": "Dwarf"}]}
+
+    analytics = Analytics()
+    assert analytics._analysis_matching_charts(
+        "species_distribution", "Elf", chart_mode="top_species"
+    ) == [("UID-SPECIES", "Elf Chart")]
+    assert analytics._analysis_matching_charts(
+        "species_distribution", "Dwarf", chart_mode="top_species"
+    ) == []
+    assert analytics._analysis_matching_charts(
+        "species_distribution", "Dwarf", chart_mode="top_three_species"
+    ) == [("UID-SPECIES", "Elf Chart")]

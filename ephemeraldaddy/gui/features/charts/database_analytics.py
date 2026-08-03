@@ -3,11 +3,12 @@
 
 from __future__ import annotations
 
+import calendar
 import copy
-import hashlib
 import datetime
 import csv
 import html
+import hashlib
 import json
 import logging
 import math
@@ -20,6 +21,7 @@ import warnings
 from collections import Counter
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
+from matplotlib import colors as mpl_colors
 from matplotlib import font_manager as mpl_font_manager
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
@@ -35,7 +37,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QSizePolicy,
-    QTextEdit,
+    QTextBrowser,
     QToolTip,
     QVBoxLayout,
     QWidget,
@@ -49,6 +51,9 @@ from ephemeraldaddy.gui.features.database_view.analytics.name_search import (
     analyze_names,
     chart_has_name_token,
     load_name_suppressions,
+)
+from ephemeraldaddy.gui.features.database_view.analytics.popout_chart_info import (
+    build_database_analytics_popout_chart_info_html,
 )
 
 DATABASE_METRICS_SECTION_ORDER: tuple[str, ...] = (
@@ -226,6 +231,12 @@ from ephemeraldaddy.analysis.hd_incarnation_crosses import (
     get_cross_type_description,
 )
 from ephemeraldaddy.analysis.bazi_getter import build_bazi_chart_data
+from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
+    DND_CLASSES,
+    DnDClassScorer,
+    score_class_axes,
+    score_dnd_statblock,
+)
 from ephemeraldaddy.core.chart import chart_uses_houses
 from ephemeraldaddy.analysis.human_design_reference import (
     HD_AUTHORITIES,
@@ -259,13 +270,18 @@ from ephemeraldaddy.analysis.traits import (
 )
 from ephemeraldaddy.core import db
 from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
-    build_enneagram_popout_info_html,
     calculate_enneagram_type_weights as _calculate_enneagram_type_weights,
 )
 from ephemeraldaddy.gui.features.charts.metrics import (
+    calculate_dominant_element_weights as _calculate_dominant_element_weights,
     calculate_dominant_house_weights as _calculate_dominant_house_weights,
+    calculate_dominant_nakshatra_weights as _calculate_dominant_nakshatra_weights,
     calculate_dominant_planet_weights as _calculate_dominant_planet_weights,
     calculate_dominant_sign_weights as _calculate_dominant_sign_weights,
+    calculate_gender_prevalence_score as _calculate_gender_prevalence_score,
+    calculate_gender_weight_score as _calculate_gender_weight_score,
+    calculate_house_prevalence_counts as _calculate_house_prevalence_counts,
+    calculate_mode_weights as _calculate_mode_weights,
 )
 from ephemeraldaddy.gui.features.charts.bazi_window import (
     resolve_bazi_birth_datetime,
@@ -1272,7 +1288,14 @@ class DatabaseAnalyticsChartsMixin:
         chart_name = str(getattr(chart, "name", "") or "").strip() if chart is not None else ""
         return chart_name or f"Chart {int(chart_id)}"
 
-    def _analysis_matching_chart_names(self, chart_key: str, label: str) -> str:
+    def _analysis_matching_charts(
+        self,
+        chart_key: str,
+        label: str,
+        *,
+        chart_mode: str | None = None,
+    ) -> list[tuple[str, str]]:
+        """Return ``(chart_uid, name)`` pairs represented by an analytics bar."""
         selected_uid_method = getattr(self, "_selected_chart_uids", None)
         get_chart_by_uid = getattr(self, "_get_chart_for_filter_by_uid", None)
         selected_uids = list(selected_uid_method() or []) if callable(selected_uid_method) else []
@@ -1280,8 +1303,8 @@ class DatabaseAnalyticsChartsMixin:
         if not selected_uids:
             selected_ids = self._exclude_placeholder_local_row_ids(self._selected_local_row_ids())
         if not selected_uids and not selected_ids:
-            return ""
-        matching_names: list[str] = []
+            return []
+        matching_charts: list[tuple[str, str]] = []
         label_text = str(label).strip()
         name_stopwords = (
             DEFAULT_NAME_STOPWORDS | load_name_suppressions()
@@ -1298,12 +1321,12 @@ class DatabaseAnalyticsChartsMixin:
                 continue
             include = False
             if chart_key == "planetary_sign_prevalence":
-                body = str(self._sign_distribution_mode or "").strip()
+                body = str(chart_mode or self._sign_distribution_mode or "").strip()
                 lon = chart.positions.get(body) if getattr(chart, "positions", None) else None
                 include = lon is not None and self._sign_from_longitude(float(lon)) == label_text
             elif chart_key == "human_design":
                 hd_gates, hd_lines, hd_channels, hd_centers, hd_type, hd_authority = self._extract_human_design_profile(chart)
-                mode = str(getattr(self, "_human_design_mode", "hd_gates") or "hd_gates").strip()
+                mode = str(chart_mode or getattr(self, "_human_design_mode", "hd_gates") or "hd_gates").strip()
                 if mode == "hd_gates":
                     include = label_text.isdigit() and int(label_text) in set(hd_gates)
                 elif mode == "hd_channels":
@@ -1344,13 +1367,226 @@ class DatabaseAnalyticsChartsMixin:
                     label_text,
                     stopwords=name_stopwords,
                 )
-            if include:
-                if selected_uids:
-                    chart_name = str(getattr(chart, "name", "") or "").strip()
-                    matching_names.append(chart_name or str(chart_key_value))
+            elif chart_key == "birth_month":
+                month_value = getattr(chart, "birth_month", None)
+                day_value = getattr(chart, "birth_day", None)
+                dt_value = getattr(chart, "dt", None)
+                if not isinstance(month_value, int) and isinstance(dt_value, datetime.datetime):
+                    month_value = int(dt_value.month)
+                if not isinstance(day_value, int) and isinstance(dt_value, datetime.datetime):
+                    day_value = int(dt_value.day)
+                date_match = re.fullmatch(r"(\d{2})-(\d{2})", label_text)
+                if date_match:
+                    include = (month_value, day_value) == tuple(map(int, date_match.groups()))
+                elif isinstance(month_value, int) and 1 <= month_value <= 12:
+                    include = calendar.month_name[month_value].casefold() == label_text.casefold()
+            elif chart_key == "sentiment_prevalence":
+                sentiments = {str(item).strip() for item in (getattr(chart, "sentiments", None) or [])}
+                if label_text == "POSITIVE TOTAL":
+                    negative_start = list(SENTIMENT_COLORS).index("can't trust") if "can't trust" in SENTIMENT_COLORS else len(SENTIMENT_COLORS)
+                    include = bool(sentiments & set(list(SENTIMENT_COLORS)[:negative_start]))
+                elif label_text == "NEGATIVE TOTAL":
+                    negative_start = list(SENTIMENT_COLORS).index("can't trust") if "can't trust" in SENTIMENT_COLORS else len(SENTIMENT_COLORS)
+                    include = bool(sentiments & set(list(SENTIMENT_COLORS)[negative_start:]))
                 else:
-                    matching_names.append(self._display_name_for_chart_id(int(chart_key_value)))
-        return ", ".join(matching_names)
+                    include = label_text in sentiments
+            elif chart_key == "relationship_prevalence":
+                include = label_text in {
+                    str(item).strip() for item in (getattr(chart, "relationship_types", None) or [])
+                }
+            elif chart_key == "tag_distribution":
+                include = any(
+                    self._split_tag_category(tag)[1].casefold() == label_text.casefold()
+                    for tag in normalize_tag_list(getattr(chart, "tags", None) or [])
+                )
+            elif chart_key == "gender":
+                mode = str(chart_mode or getattr(self, "_gender_mode", "actual_gender"))
+                if mode == "actual_gender":
+                    normalized = self._normalize_gender_value(getattr(chart, "gender", None))
+                    include = (normalized or "blank").casefold() == label_text.casefold()
+                else:
+                    score = (
+                        _calculate_gender_weight_score(chart)
+                        if mode == "guessed_weight"
+                        else _calculate_gender_prevalence_score(chart)
+                    )
+                    include = self._classify_guessed_gender(score).casefold() == label_text.casefold()
+            elif chart_key == "sign_prevalence":
+                mode = str(chart_mode or getattr(self, "_prevalence_mode", "sign_prevalence"))
+                positions = getattr(chart, "positions", None) or {}
+                signs = [self._sign_from_longitude(float(lon)) for lon in positions.values()]
+                if mode == "elemental_prevalence":
+                    element_signs = {
+                        "Fire": {"Aries", "Leo", "Sagittarius"},
+                        "Earth": {"Taurus", "Virgo", "Capricorn"},
+                        "Air": {"Gemini", "Libra", "Aquarius"},
+                        "Water": {"Cancer", "Scorpio", "Pisces"},
+                    }
+                    include = bool(set(signs) & element_signs.get(label_text, set()))
+                elif mode == "nakshatra_prevalence":
+                    include = any(str(get_nakshatra(float(lon))).strip() == label_text for lon in positions.values())
+                elif mode == "house_prevalence":
+                    house_counts = _calculate_house_prevalence_counts(chart)
+                    include = label_text.removeprefix("House ").isdigit() and float(
+                        house_counts.get(int(label_text.removeprefix("House ")), 0.0)
+                    ) > 0
+                else:
+                    include = label_text in signs
+            elif chart_key in {"dominant_signs", "cumulativedom_factors"}:
+                mode = str(chart_mode or (
+                    getattr(self, "_dominant_factors_mode", "top3_signs")
+                    if chart_key == "dominant_signs"
+                    else getattr(self, "_cumulativedom_factors_mode", "cumulative_signs")
+                ))
+                cumulative = mode.startswith("cumulative_")
+                if mode.endswith("planets"):
+                    weights = _calculate_dominant_planet_weights(chart)
+                elif mode.endswith("houses"):
+                    weights = _calculate_dominant_house_weights(chart)
+                    house_label = label_text.removeprefix("House ")
+                    lookup_label: str | int = int(house_label) if house_label.isdigit() else house_label
+                elif mode.endswith("nakshatras"):
+                    weights = _calculate_dominant_nakshatra_weights(chart)
+                elif mode in {"top_element", "cumulative_elements"}:
+                    weights = _calculate_dominant_element_weights(chart)
+                elif mode in {"top_mode", "cumulative_modes"}:
+                    weights = _calculate_mode_weights(chart)
+                else:
+                    weights = _calculate_dominant_sign_weights(chart)
+                    lookup_label = label_text
+                if not mode.endswith("houses"):
+                    lookup_label = label_text
+                if cumulative:
+                    include = float(weights.get(lookup_label, 0.0)) > 0
+                else:
+                    ranked = sorted(weights, key=lambda item: float(weights.get(item, 0.0)), reverse=True)[:3]
+                    include = lookup_label in ranked
+            elif chart_key == "traits_distribution":
+                include = not self._is_placeholder_chart(chart)
+            elif chart_key == "bazi":
+                metadata = self._extract_bazi_metadata_for_analytics(chart) or {}
+                mode = str(chart_mode or getattr(self, "_bazi_mode", "all"))
+                pillar_keys = ("year", "month", "day", "hour")
+                raw_values = [metadata.get(key, "") for key in pillar_keys] if mode == "all" else [metadata.get(mode, "")]
+                if mode == "elements":
+                    raw_values = [metadata.get(key, "") for key in ("year_element", "month_element", "day_element", "hour_element")]
+                elif mode == "animals":
+                    raw_values = [
+                        str(metadata.get(key, ""))[1]
+                        for key in pillar_keys
+                        if len(str(metadata.get(key, ""))) == 2
+                    ]
+                include = any(
+                    self._bazi_label_with_english(str(raw), mode=mode) == label_text
+                    for raw in raw_values if raw
+                )
+            elif chart_key == "decans":
+                body = str(chart_mode or getattr(self, "_decans_mode", "Sun"))
+                longitude = (getattr(chart, "positions", None) or {}).get(body)
+                decan_match = re.fullmatch(r"Decan ([1-3])", label_text)
+                include = (
+                    longitude is not None
+                    and decan_match is not None
+                    and int(float(longitude) % 30 // 10) + 1 == int(decan_match.group(1))
+                )
+            elif chart_key == "nakshatras":
+                body = str(chart_mode or getattr(self, "_nakshatras_mode", "Moon"))
+                longitude = (getattr(chart, "positions", None) or {}).get(body)
+                include = longitude is not None and str(get_nakshatra(float(longitude))).strip() == label_text
+            elif chart_key in {
+                "alignment_summary",
+                "social_score_summary",
+                "matched_expectations_summary",
+            }:
+                attribute = {
+                    "alignment_summary": "alignment_score",
+                    "social_score_summary": "social_score",
+                    "matched_expectations_summary": "matched_expectations",
+                }[chart_key]
+                include = getattr(chart, attribute, None) is not None
+            elif chart_key == "species_distribution":
+                mode = str(chart_mode or getattr(self, "_species_distribution_mode", "top_species"))
+                if mode in {"top_species", "top_three_species"}:
+                    payload = self._dnd_species_class_payload_for_chart(chart)
+                    species = payload.get("species", []) if isinstance(payload, dict) else []
+                    limit = 1 if mode == "top_species" else 3
+                    include = label_text in {
+                        str(entry.get("family", "") or "").strip()
+                        for entry in species[:limit]
+                        if isinstance(entry, dict)
+                    }
+                elif mode in {"top_class", "top_three_classes"}:
+                    try:
+                        class_scores = DnDClassScorer().score_classes(score_class_axes(chart))
+                        ranked_classes = sorted(
+                            class_scores.items(),
+                            key=lambda item: item[1].score,
+                            reverse=True,
+                        )
+                    except Exception:
+                        ranked_classes = []
+                    if mode == "top_class" and ranked_classes:
+                        top_score = float(ranked_classes[0][1].score)
+                        second_score = float(ranked_classes[1][1].score) if len(ranked_classes) > 1 else 0.0
+                        ranked_classes = ranked_classes[:1] if top_score > 1e-6 and top_score - second_score > 1e-6 else []
+                    else:
+                        ranked_classes = ranked_classes[:3]
+                    include = label_text in {
+                        DND_CLASSES[key].display_name if key in DND_CLASSES else key
+                        for key, _score in ranked_classes
+                    }
+                elif mode == "stat_block":
+                    try:
+                        include = score_dnd_statblock(chart) is not None
+                    except Exception:
+                        include = False
+            elif chart_key == "enneagram":
+                include = not self._is_placeholder_chart(chart)
+            elif chart_key == "birth_time":
+                include = isinstance(getattr(chart, "dt", None), datetime.datetime) and chart_uses_houses(chart)
+            elif chart_key == "age":
+                mode = str(chart_mode or getattr(self, "_age_mode", "age_distribution"))
+                birth_year = getattr(chart, "birth_year", None)
+                if not isinstance(birth_year, int) and isinstance(getattr(chart, "dt", None), datetime.datetime):
+                    birth_year = int(chart.dt.year)
+                if mode == "time_known_distribution":
+                    year_first = getattr(chart, "year_first_encountered", None)
+                    years_match = re.match(r"(\d+)\s+years", label_text)
+                    include = isinstance(year_first, int) and years_match is not None and (
+                        datetime.datetime.now(datetime.timezone.utc).year - year_first
+                    ) == int(years_match.group(1))
+                elif isinstance(birth_year, int):
+                    if mode == "generation_distribution":
+                        include = self._generation_for_birth_year(birth_year) == label_text
+                    else:
+                        age = datetime.datetime.now(datetime.timezone.utc).year - birth_year
+                        include = self._bucket_age_value(age) == label_text
+            elif chart_key == "birthplace":
+                mode = str(chart_mode or getattr(self, "_birthplace_mode", "countries"))
+                birthplace = str(getattr(chart, "birth_place", "") or "").strip()
+                city, state, country = self._extract_birthplace_components(birthplace)
+                if mode == "countries":
+                    include = normalize_country(country or "") == label_text
+                elif mode == "towns":
+                    include = normalize_city(city or "", country) == label_text
+                else:
+                    include = normalize_us_state(state or birthplace) == label_text
+            if include:
+                chart_uid = str(getattr(chart, "chart_uid", "") or "").strip()
+                if not chart_uid and selected_uids:
+                    chart_uid = str(chart_key_value).strip()
+                if not chart_uid:
+                    uid_map = db.get_chart_uid_map({int(chart_key_value)})
+                    chart_uid = str(uid_map.get(int(chart_key_value), "") or "").strip()
+                chart_name = str(getattr(chart, "name", "") or "").strip()
+                if not chart_name and not selected_uids:
+                    chart_name = self._display_name_for_chart_id(int(chart_key_value))
+                if chart_uid:
+                    matching_charts.append((chart_uid, chart_name or chart_uid))
+        return matching_charts
+
+    def _analysis_matching_chart_names(self, chart_key: str, label: str) -> str:
+        return ", ".join(name for _chart_uid, name in self._analysis_matching_charts(chart_key, label))
 
     def _export_database_analysis_chart_csv(self, chart_key: str, chart_title: str) -> None:
         rows = self._analysis_chart_export_rows.get(chart_key) or []
@@ -1862,74 +2098,60 @@ class DatabaseAnalyticsChartsMixin:
         chart_title: str,
         label: str,
         value: float | None,
+        chart_key: str = "",
+        bar_color: str | None = None,
+        chart_mode: str | None = None,
+        analytics_rows: Sequence[Sequence[Any]] | None = None,
     ) -> str:
         clean_title = self._clean_database_analytics_label(chart_title)
         clean_label = self._clean_database_analytics_label(label)
-        chart_analytics_html = self._build_database_analytics_chart_analytics_info_html(
-            chart_title=clean_title,
-            label=clean_label,
-        )
-        if chart_analytics_html:
-            return chart_analytics_html
-        if "incarnation" in clean_title.casefold() and "cross" in clean_title.casefold():
-            cross_html = self._database_analytics_incarnation_cross_info_html(clean_label)
-            if cross_html:
-                return cross_html
-        enneagram_type = self._enneagram_type_for_database_label(clean_label)
-        if enneagram_type is not None and "enneagram" in clean_title.casefold():
-            return build_enneagram_popout_info_html(
-                enneagram_type,
-                enneagram=ENNEAGRAM,
-                chart_theme_colors=CHART_THEME_COLORS,
-                highlight_color=CHART_DATA_HIGHLIGHT_COLOR,
-                debug_math_enabled=False,
-                chart=None,
-                calculate_type_weights=None,
-            )
         trait_description = None
         if "trait" in clean_title.casefold():
             trait_description = self._database_analytics_trait_description_for_label(clean_label)
-        definition = self._database_analytics_definition_for_label(clean_label, clean_title)
-        value_line = ""
-        if value is not None and math.isfinite(float(value)):
-            if abs(float(value)) <= 1.0:
-                value_text = _format_percent(abs(float(value)))
-            else:
-                value_text = f"{float(value):,.2f}".rstrip("0").rstrip(".")
-            direction = (
-                "above the comparison baseline"
-                if float(value) > 0
-                else "below the comparison baseline"
-            )
-            if abs(float(value)) < 1e-12:
-                direction = "at the comparison baseline"
-            value_line = (
-                f"<p><b>Bar reading:</b> about {html.escape(value_text)} {html.escape(direction)}. "
-                "In selection-vs-database charts, rightward bars mean the selected charts contain more of this category than the database baseline, and leftward bars mean less.</p>"
-            )
-        std_dev_line = ""
-        if self._standard_deviation_indicators_visible():
-            std_dev_line = (
-                "<p><b>Standard deviation / SE guide lines:</b> The red dashed lines mark about one and two standard errors away from the baseline. "
-                "A bar inside the first pair is usually ordinary noise; reaching the ±1 line is a mild signal; reaching or passing the ±2 line is a stronger clue that the selection may genuinely differ from the database, though it is still not proof by itself.</p>"
-            )
-        label_color = self._database_analytics_color_for_label(clean_label, clean_title)
-        category_name = self._database_analytics_category_name(clean_label, clean_title)
-        description_line = ""
-        if trait_description:
-            description_line = (
-                f'<p><b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">Description:</b> '
-                f"{html.escape(trait_description)}</p>"
-            )
-        return (
-            f'<h3 style="color:{html.escape(label_color)}; font-weight:800;">{html.escape(clean_label)}</h3>'
-            f'<p><b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">Category:</b> {html.escape(category_name)}</p>'
-            f'<p><b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">What this measures:</b> {html.escape(definition)}</p>'
-            f"{description_line}"
-            f'<p><b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">Where it appears:</b> <i>{html.escape(clean_title)}</i>.</p>'
-            f"{value_line}"
-            f"{std_dev_line}"
+        label_color = bar_color or self._database_analytics_color_for_label(clean_label, clean_title)
+        matches = (
+            self._analysis_matching_charts(chart_key, clean_label, chart_mode=chart_mode)
+            if chart_key
+            else []
         )
+        z_score = None
+        rows = (
+            analytics_rows
+            if analytics_rows is not None
+            else getattr(self, "_analysis_chart_export_rows", {}).get(chart_key, ())
+        )
+        for row in rows:
+            if row and self._clean_database_analytics_label(row[0]) == clean_label and len(row) > 8:
+                try:
+                    z_score = float(row[8])
+                except (TypeError, ValueError):
+                    pass
+                break
+        return build_database_analytics_popout_chart_info_html(
+            chart_title=clean_title,
+            label=clean_label,
+            label_color=label_color,
+            associated_charts=matches,
+            z_score=z_score,
+            trait_description=trait_description,
+            enneagram_type=self._enneagram_type_for_database_label(clean_label),
+        )
+
+    def _on_database_analytics_chart_link_activated(self, target: str) -> None:
+        """Open an associated chart link in Chart Editor view."""
+        chart_uid = str(target or "").strip()
+        if chart_uid.startswith("chart:"):
+            chart_uid = chart_uid.split(":", 1)[1].strip()
+        if not chart_uid:
+            return
+        owner = self._owner_window() if hasattr(self, "_owner_window") else getattr(self, "_app_owner", None)
+        open_link = getattr(owner, "_on_similar_chart_link_activated", None)
+        if callable(open_link):
+            open_link(chart_uid, transition_to_chart_view=True)
+            return
+        load_chart_by_uid = getattr(owner, "load_chart_by_uid", None)
+        if callable(load_chart_by_uid):
+            load_chart_by_uid(chart_uid, from_chart_link=True)
 
     def _show_database_analytics_popout(self, chart_key: str, chart_title: str) -> None:
         source_canvas = self._database_analytics_canvas_for_key(chart_key)
@@ -1940,6 +2162,17 @@ class DatabaseAnalyticsChartsMixin:
                 "Expand this Database Analytics section and load chart data before opening the popout.",
             )
             return
+        source_dropdown = getattr(self, "_analysis_chart_dropdowns", {}).get(chart_key)
+        source_mode = source_dropdown.currentData() if source_dropdown is not None else None
+        frozen_chart_mode = str(source_mode) if source_mode is not None else None
+        detail_chart_key = (
+            "social_score_summary"
+            if chart_key == "alignment_summary" and frozen_chart_mode == "social_score"
+            else chart_key
+        )
+        frozen_analytics_rows = tuple(
+            copy.deepcopy(getattr(self, "_analysis_chart_export_rows", {}).get(detail_chart_key, ()))
+        )
         figure = copy.deepcopy(source_canvas.figure)
         self._tag_database_analytics_pick_targets(figure)
         source_width, source_height = source_canvas.figure.get_size_inches()
@@ -1968,10 +2201,11 @@ class DatabaseAnalyticsChartsMixin:
         chart_scroll.setWidget(popout_canvas)
         chart_scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
-        info_panel = QTextEdit()
+        info_panel = QTextBrowser()
         info_panel.setReadOnly(True)
+        info_panel.setOpenLinks(False)
         info_panel.setPlaceholderText(
-            "Click any bar or label to see a plain-English definition."
+            "Click any bar or label to see its associated charts."
         )
         info_panel.setMinimumHeight(150)
         dialog.installEventFilter(chart_scroll)
@@ -2007,6 +2241,14 @@ class DatabaseAnalyticsChartsMixin:
                     chart_title=chart_title,
                     label=label,
                     value=value,
+                    chart_key=detail_chart_key,
+                    chart_mode=frozen_chart_mode,
+                    analytics_rows=frozen_analytics_rows,
+                    bar_color=(
+                        mpl_colors.to_hex(artist.get_facecolor())
+                        if artist is not None and hasattr(artist, "get_facecolor")
+                        else None
+                    ),
                 )
             )
 
@@ -2016,8 +2258,15 @@ class DatabaseAnalyticsChartsMixin:
                     chart_title=chart_title,
                     label=label,
                     value=value,
+                    chart_key=detail_chart_key,
+                    chart_mode=frozen_chart_mode,
+                    analytics_rows=frozen_analytics_rows,
                 )
             )
+
+        info_panel.anchorClicked.connect(
+            lambda target: self._on_database_analytics_chart_link_activated(target.toString())
+        )
 
         def _on_click(event: Any) -> None:
             if getattr(event, "inaxes", None) is None:
