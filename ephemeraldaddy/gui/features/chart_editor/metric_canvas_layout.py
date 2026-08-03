@@ -145,6 +145,21 @@ class MetricCanvasLayoutController(QObject):
         canvas.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         if canvas.size().width() != available_width or canvas.size().height() != display_height:
             canvas.resize(available_width, display_height)
+        # Render functions reuse figures and restore their logical ``figsize``
+        # with ``forward=False`` before repopulating the axes.  When the canvas
+        # widget is already the correct size, ``resize()`` above is skipped and
+        # Matplotlib therefore receives no Qt resize event to put the figure
+        # back in sync.  The next draw would then paint the larger logical
+        # figure into the unchanged widget, presenting as a right-shifted or
+        # cropped graph until the application window was manually resized.
+        # Keep the figure's pixel bounds synchronized even on same-size graph
+        # refreshes; the viewport remains the sole width authority.
+        figure_dpi = canvas.figure.get_dpi()
+        canvas.figure.set_size_inches(
+            available_width / figure_dpi,
+            display_height / figure_dpi,
+            forward=False,
+        )
         canvas.updateGeometry()
         self._dirty_canvases.discard(canvas)
         self._redraw(canvas)
