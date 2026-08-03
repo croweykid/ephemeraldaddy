@@ -1,1 +1,1 @@
-"""Database View workflow features."""
+"""Database View workflow components."""
