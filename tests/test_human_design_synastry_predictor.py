@@ -5,6 +5,15 @@ from ephemeraldaddy.analysis.human_design_synastry import (
 )
 
 
+def _hd_synastry_module():
+    import pytest
+
+    return pytest.importorskip(
+        "ephemeraldaddy.gui.features.predictions.hd_synastry",
+        exc_type=ImportError,
+    )
+
+
 def candidate(uid, gates, name="Candidate"):
     return HumanDesignSynastryCandidate(uid, name, None, frozenset(gates))
 
@@ -56,6 +65,40 @@ def test_candidate_natal_channels_are_not_counted_as_synastry_completions():
 
 def test_normalize_gates_ignores_invalid_cache_values():
     assert normalize_gates(["1", 64, 0, 65, "oops", None]) == frozenset({1, 64})
+
+
+def test_synastry_derives_missing_gate_cache(monkeypatch):
+    hd_synastry = _hd_synastry_module()
+    chart = type("Chart", (), {"human_design_gates": []})()
+    monkeypatch.setattr(
+        hd_synastry,
+        "derive_human_design_profile",
+        lambda _chart: ([64, 47], [1], ["47-64"], "Projector"),
+    )
+
+    assert hd_synastry.resolve_hd_synastry_gates(chart) == frozenset({47, 64})
+    assert chart.human_design_gates == [47, 64]
+
+
+def test_synastry_hypothetical_warning_includes_chart_name():
+    hd_synastry = _hd_synastry_module()
+    chart = type(
+        "Chart",
+        (),
+        {"name": "A & B", "birthtime_unknown": True, "retcon_time_used": True},
+    )()
+
+    subheader = hd_synastry.hd_synastry_subheader(chart)
+
+    assert "Since A &amp; B's birth time is hypothetical" in subheader
+    assert "results may be dodgier than usual" in subheader
+
+
+def test_synastry_known_time_uses_standard_subheader():
+    hd_synastry = _hd_synastry_module()
+    chart = type("Chart", (), {"name": "Known", "birthtime_unknown": False})()
+
+    assert hd_synastry.hd_synastry_subheader(chart) == hd_synastry.HD_SYNASTRY_SUBHEADER
 
 
 def test_right_panel_checks_synastry_revision_before_reranking():
