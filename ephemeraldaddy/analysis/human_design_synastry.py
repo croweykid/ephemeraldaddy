@@ -21,6 +21,7 @@ class HumanDesignSynastryCandidate:
     name: str
     alias: str | None
     gates: frozenset[int]
+    uses_houses: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,6 +31,7 @@ class HumanDesignSynastryMatch:
     alias: str | None
     completed_channels: int
     defined_centers: int
+    uses_houses: bool = True
 
 
 def normalize_gates(values: Iterable[object] | None) -> frozenset[int]:
@@ -69,10 +71,15 @@ def rank_human_design_synastry(
         candidate_uid = str(candidate.chart_uid or "").strip().upper()
         if not candidate_uid or candidate_uid == normalized_uid:
             continue
-        combined_gates = source_gates | normalize_gates(candidate.gates)
+        candidate_gates = normalize_gates(candidate.gates)
+        candidate_channels = {
+            tuple(sorted((gate_a, gate_b)))
+            for gate_a, gate_b, _center_a, _center_b in defined_channels_from_active_gates(candidate_gates)
+        }
+        combined_gates = source_gates | candidate_gates
         combined_channels = defined_channels_from_active_gates(combined_gates)
         completed_channels = sum(
-            tuple(sorted((gate_a, gate_b))) not in source_channels
+            tuple(sorted((gate_a, gate_b))) not in source_channels | candidate_channels
             for gate_a, gate_b, _center_a, _center_b in combined_channels
         )
         matches.append(
@@ -82,6 +89,7 @@ def rank_human_design_synastry(
                 alias=str(candidate.alias).strip() if candidate.alias else None,
                 completed_channels=completed_channels,
                 defined_centers=len(defined_centers_from_active_gates(combined_gates)),
+                uses_houses=bool(candidate.uses_houses),
             )
         )
     matches.sort(

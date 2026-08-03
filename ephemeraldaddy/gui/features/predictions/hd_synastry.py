@@ -10,7 +10,8 @@ from PySide6.QtWidgets import QLabel
 
 from ephemeraldaddy.analysis.human_design_synastry import rank_human_design_synastry
 from ephemeraldaddy.core.db import list_human_design_synastry_candidates
-from ephemeraldaddy.gui.style import apply_chart_info_link_cursor
+from ephemeraldaddy.core.chart import chart_uses_houses
+from ephemeraldaddy.gui.style import apply_chart_info_link_cursor, houses_unknown_note_html
 
 
 HD_SYNASTRY_SUBHEADER = (
@@ -38,14 +39,20 @@ def render_hd_synastry_predictions(owner: object, chart: object | None) -> None:
         label.setText("No other charts with Human Design gate data are available.")
         return
     lines = []
+    if not chart_uses_houses(chart):
+        lines.append(
+            "Ranked using this chart's default hypothetical time "
+            + houses_unknown_note_html()
+        )
     for index, match in enumerate(matches, 1):
         display_name = match.name
         if match.alias and match.alias.casefold() != match.name.casefold():
             display_name += f" ({match.alias})"
         href = "chart-uid:" + urllib.parse.quote(match.chart_uid, safe="")
+        uncertainty_html = " " + houses_unknown_note_html() if not match.uses_houses else ""
         lines.append(
             f'{index}. <a href="{href}" style="color: #cdb7ff;">'
-            f"{html.escape(display_name)}</a> "
+            f"{html.escape(display_name)}</a>{uncertainty_html} "
             f'<span style="color: #aaa;">({match.completed_channels} completed channels, '
             f"{match.defined_centers} defined centers)</span>"
         )

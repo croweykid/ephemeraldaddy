@@ -4470,7 +4470,8 @@ def list_human_design_synastry_candidates():
         _ensure_chart_uids(conn)
     rows = conn.execute(
         """
-        SELECT chart_uid, name, alias, human_design_gates
+        SELECT chart_uid, name, alias, human_design_gates,
+               birthtime_unknown, retcon_time_used
         FROM charts
         WHERE COALESCE(is_placeholder, 0) = 0
           AND COALESCE(human_design_gates, '') != ''
@@ -4482,6 +4483,7 @@ def list_human_design_synastry_candidates():
             name=str(row[1] or "Unnamed chart"),
             alias=str(row[2]).strip() if row[2] else None,
             gates=normalize_gates(_parse_int_list(row[3])),
+            uses_houses=not bool(row[4]) or bool(row[5]),
         )
         for row in rows
         if str(row[0] or "").strip()

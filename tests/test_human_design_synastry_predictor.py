@@ -39,5 +39,20 @@ def test_rank_excludes_source_and_is_deterministic_for_ties():
     assert [match.chart_uid for match in results] == ["A", "B"]
 
 
+def test_candidate_natal_channels_are_not_counted_as_synastry_completions():
+    results = rank_human_design_synastry(
+        "SOURCE",
+        {64},
+        [
+            candidate("NATAL", {61, 24, 17, 62}, "Unrelated natal channels"),
+            candidate("CROSS", {47}, "Cross-chart completion"),
+        ],
+    )
+
+    assert [match.chart_uid for match in results] == ["CROSS", "NATAL"]
+    assert results[0].completed_channels == 1
+    assert results[1].completed_channels == 0
+
+
 def test_normalize_gates_ignores_invalid_cache_values():
     assert normalize_gates(["1", 64, 0, 65, "oops", None]) == frozenset({1, 64})
