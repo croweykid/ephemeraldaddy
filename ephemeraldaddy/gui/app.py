@@ -10609,6 +10609,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
             database_cache = self._database_metrics_cache or self._empty_database_metrics_cache()
             selection_cache = self._build_snapshot_totals(chart_ids)
+            loaded_charts = int(selection_cache["loaded_charts"])
             analytics_population_ids = chart_ids if loaded_charts else database_cache["chart_ids"]
             self._analysis_population_chart_uids = tuple(
                 get_chart_uid_map(analytics_population_ids).values()
@@ -10701,7 +10702,6 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             )
             
         if update_database_metrics:
-            loaded_charts = int(selection_cache["loaded_charts"])
             selected_chart_count = len(chart_ids)
             database_loaded_charts = int(database_cache["loaded_charts"])
             self._update_dominant_factors_subheader(use_selection_scope=loaded_charts > 0)
