@@ -52,6 +52,9 @@ from ephemeraldaddy.gui.features.database_view.analytics.name_search import (
     chart_has_name_token,
     load_name_suppressions,
 )
+from ephemeraldaddy.gui.features.database_view.analytics.popout_chart_info import (
+    build_database_analytics_popout_chart_info_html,
+)
 
 DATABASE_METRICS_SECTION_ORDER: tuple[str, ...] = (
     "planetary_sign_prevalence",
@@ -1881,10 +1884,6 @@ class DatabaseAnalyticsChartsMixin:
             trait_description = self._database_analytics_trait_description_for_label(clean_label)
         label_color = bar_color or self._database_analytics_color_for_label(clean_label, clean_title)
         matches = self._analysis_matching_charts(chart_key, clean_label) if chart_key else []
-        associated_html = ", ".join(
-            f'<a href="chart:{html.escape(chart_uid, quote=True)}">{html.escape(name)}</a>'
-            for chart_uid, name in matches
-        ) or "None"
         z_score = None
         for row in getattr(self, "_analysis_chart_export_rows", {}).get(chart_key, ()):
             if row and self._clean_database_analytics_label(row[0]) == clean_label and len(row) > 8:
@@ -1893,23 +1892,14 @@ class DatabaseAnalyticsChartsMixin:
                 except (TypeError, ValueError):
                     pass
                 break
-        if z_score is None or not math.isfinite(z_score):
-            deviation_html = "Database deviation: unavailable"
-        else:
-            deviation_color = "#70d68a" if z_score > 0 else "#ff7b7b" if z_score < 0 else "#d0d0d0"
-            direction = "above" if z_score > 0 else "below" if z_score < 0 else "at"
-            deviation_html = (
-                f'Database deviation: <b style="color:{deviation_color};">'
-                f'{abs(z_score):.2f} standard deviations {direction} the database norm</b>'
-            )
-        description_line = ""
-        if trait_description:
-            description_line = f"<p><i>{html.escape(trait_description)}</i></p>"
-        return (
-            f'<h3 style="color:{html.escape(label_color)}; font-weight:800;">{html.escape(clean_label)}</h3>'
-            f"{description_line}"
-            f'<p><b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">Associated charts:</b> {associated_html}</p>'
-            f"<p>{deviation_html}</p>"
+        return build_database_analytics_popout_chart_info_html(
+            chart_title=clean_title,
+            label=clean_label,
+            label_color=label_color,
+            associated_charts=matches,
+            z_score=z_score,
+            trait_description=trait_description,
+            enneagram_type=self._enneagram_type_for_database_label(clean_label),
         )
 
     def _on_database_analytics_chart_link_activated(self, target: str) -> None:

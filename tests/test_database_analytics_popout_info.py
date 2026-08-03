@@ -96,6 +96,18 @@ def test_database_analytics_popout_info_always_uses_database_template():
     )
 
 
+def test_database_analytics_enneagram_preserves_specific_popout_details():
+    result = _FakeAnalytics()._build_database_analytics_popout_info_html(
+        chart_title="Enneagram Predictions",
+        label="Type 2",
+        value=1.0,
+    )
+
+    assert "Associated charts:" in result
+    assert "Enneagram Type 2" in result
+    assert "Motivation:" in result
+
+
 def test_database_analytics_popout_info_includes_trait_description(monkeypatch):
     monkeypatch.setattr(
         "ephemeraldaddy.gui.features.charts.database_analytics.list_traits",
