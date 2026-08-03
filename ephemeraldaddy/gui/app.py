@@ -5307,7 +5307,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         )
         self._create_analysis_chart_header(
             name_section_layout,
-            "👤Names",
+            "Names",
             "name_distribution",
             "name_distribution",
             dropdown_options=[
