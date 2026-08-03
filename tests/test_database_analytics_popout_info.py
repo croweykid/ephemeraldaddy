@@ -245,3 +245,86 @@ def test_associated_chart_matching_uses_frozen_popout_mode():
         "12",
         chart_mode="hd_gates",
     ) == [("UID-MODE", "Gate Holder")]
+
+
+def test_dominant_house_matching_preserves_label_for_multiple_charts(monkeypatch):
+    class Chart:
+        def __init__(self, uid):
+            self.chart_uid = uid
+            self.name = uid
+
+    class Analytics(_FakeAnalytics):
+        def _selected_chart_uids(self):
+            return ["UID-1", "UID-2"]
+
+        def _get_chart_for_filter_by_uid(self, chart_uid):
+            return Chart(chart_uid)
+
+    monkeypatch.setattr(
+        "ephemeraldaddy.gui.features.charts.database_analytics._calculate_dominant_house_weights",
+        lambda _chart: {7: 10.0},
+    )
+
+    assert Analytics()._analysis_matching_charts(
+        "dominant_signs",
+        "House 7",
+        chart_mode="top3_houses",
+    ) == [("UID-1", "UID-1"), ("UID-2", "UID-2")]
+
+
+def test_house_prevalence_matching_uses_prevalence_counts(monkeypatch):
+    class Chart:
+        chart_uid = "UID-HOUSE"
+        name = "House Contributor"
+        positions = {}
+
+    class Analytics(_FakeAnalytics):
+        def _selected_chart_uids(self):
+            return ["UID-HOUSE"]
+
+        def _get_chart_for_filter_by_uid(self, _chart_uid):
+            return Chart()
+
+    monkeypatch.setattr(
+        "ephemeraldaddy.gui.features.charts.database_analytics._calculate_house_prevalence_counts",
+        lambda _chart: {4: 1.0},
+    )
+    monkeypatch.setattr(
+        "ephemeraldaddy.gui.features.charts.database_analytics._calculate_dominant_house_weights",
+        lambda _chart: {5: 99.0},
+    )
+
+    analytics = Analytics()
+    assert analytics._analysis_matching_charts(
+        "sign_prevalence", "4", chart_mode="house_prevalence"
+    ) == [("UID-HOUSE", "House Contributor")]
+    assert analytics._analysis_matching_charts(
+        "sign_prevalence", "5", chart_mode="house_prevalence"
+    ) == []
+
+
+def test_species_matching_uses_ranked_family_for_selected_mode():
+    class Chart:
+        chart_uid = "UID-SPECIES"
+        name = "Elf Chart"
+
+    class Analytics(_FakeAnalytics):
+        def _selected_chart_uids(self):
+            return ["UID-SPECIES"]
+
+        def _get_chart_for_filter_by_uid(self, _chart_uid):
+            return Chart()
+
+        def _dnd_species_class_payload_for_chart(self, _chart):
+            return {"species": [{"family": "Elf"}, {"family": "Dwarf"}]}
+
+    analytics = Analytics()
+    assert analytics._analysis_matching_charts(
+        "species_distribution", "Elf", chart_mode="top_species"
+    ) == [("UID-SPECIES", "Elf Chart")]
+    assert analytics._analysis_matching_charts(
+        "species_distribution", "Dwarf", chart_mode="top_species"
+    ) == []
+    assert analytics._analysis_matching_charts(
+        "species_distribution", "Dwarf", chart_mode="top_three_species"
+    ) == [("UID-SPECIES", "Elf Chart")]

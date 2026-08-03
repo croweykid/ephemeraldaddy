@@ -231,6 +231,12 @@ from ephemeraldaddy.analysis.hd_incarnation_crosses import (
     get_cross_type_description,
 )
 from ephemeraldaddy.analysis.bazi_getter import build_bazi_chart_data
+from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
+    DND_CLASSES,
+    DnDClassScorer,
+    score_class_axes,
+    score_dnd_statblock,
+)
 from ephemeraldaddy.core.chart import chart_uses_houses
 from ephemeraldaddy.analysis.human_design_reference import (
     HD_AUTHORITIES,
@@ -274,6 +280,7 @@ from ephemeraldaddy.gui.features.charts.metrics import (
     calculate_dominant_sign_weights as _calculate_dominant_sign_weights,
     calculate_gender_prevalence_score as _calculate_gender_prevalence_score,
     calculate_gender_weight_score as _calculate_gender_weight_score,
+    calculate_house_prevalence_counts as _calculate_house_prevalence_counts,
     calculate_mode_weights as _calculate_mode_weights,
 )
 from ephemeraldaddy.gui.features.charts.bazi_window import (
@@ -1404,9 +1411,9 @@ class DatabaseAnalyticsChartsMixin:
                 elif mode == "nakshatra_prevalence":
                     include = any(str(get_nakshatra(float(lon))).strip() == label_text for lon in positions.values())
                 elif mode == "house_prevalence":
-                    house_weights = _calculate_dominant_house_weights(chart)
+                    house_counts = _calculate_house_prevalence_counts(chart)
                     include = label_text.removeprefix("House ").isdigit() and float(
-                        house_weights.get(int(label_text.removeprefix("House ")), 0.0)
+                        house_counts.get(int(label_text.removeprefix("House ")), 0.0)
                     ) > 0
                 else:
                     include = label_text in signs
@@ -1421,8 +1428,8 @@ class DatabaseAnalyticsChartsMixin:
                     weights = _calculate_dominant_planet_weights(chart)
                 elif mode.endswith("houses"):
                     weights = _calculate_dominant_house_weights(chart)
-                    label_text = label_text.removeprefix("House ")
-                    label_text = int(label_text) if label_text.isdigit() else label_text
+                    house_label = label_text.removeprefix("House ")
+                    lookup_label: str | int = int(house_label) if house_label.isdigit() else house_label
                 elif mode.endswith("nakshatras"):
                     weights = _calculate_dominant_nakshatra_weights(chart)
                 elif mode in {"top_element", "cumulative_elements"}:
@@ -1431,11 +1438,14 @@ class DatabaseAnalyticsChartsMixin:
                     weights = _calculate_mode_weights(chart)
                 else:
                     weights = _calculate_dominant_sign_weights(chart)
+                    lookup_label = label_text
+                if not mode.endswith("houses"):
+                    lookup_label = label_text
                 if cumulative:
-                    include = float(weights.get(label_text, 0.0)) > 0
+                    include = float(weights.get(lookup_label, 0.0)) > 0
                 else:
                     ranked = sorted(weights, key=lambda item: float(weights.get(item, 0.0)), reverse=True)[:3]
-                    include = label_text in ranked
+                    include = lookup_label in ranked
             elif chart_key == "traits_distribution":
                 include = not self._is_placeholder_chart(chart)
             elif chart_key == "bazi":
@@ -1479,7 +1489,43 @@ class DatabaseAnalyticsChartsMixin:
                     "matched_expectations_summary": "matched_expectations",
                 }[chart_key]
                 include = getattr(chart, attribute, None) is not None
-            elif chart_key in {"enneagram", "species_distribution"}:
+            elif chart_key == "species_distribution":
+                mode = str(chart_mode or getattr(self, "_species_distribution_mode", "top_species"))
+                if mode in {"top_species", "top_three_species"}:
+                    payload = self._dnd_species_class_payload_for_chart(chart)
+                    species = payload.get("species", []) if isinstance(payload, dict) else []
+                    limit = 1 if mode == "top_species" else 3
+                    include = label_text in {
+                        str(entry.get("family", "") or "").strip()
+                        for entry in species[:limit]
+                        if isinstance(entry, dict)
+                    }
+                elif mode in {"top_class", "top_three_classes"}:
+                    try:
+                        class_scores = DnDClassScorer().score_classes(score_class_axes(chart))
+                        ranked_classes = sorted(
+                            class_scores.items(),
+                            key=lambda item: item[1].score,
+                            reverse=True,
+                        )
+                    except Exception:
+                        ranked_classes = []
+                    if mode == "top_class" and ranked_classes:
+                        top_score = float(ranked_classes[0][1].score)
+                        second_score = float(ranked_classes[1][1].score) if len(ranked_classes) > 1 else 0.0
+                        ranked_classes = ranked_classes[:1] if top_score > 1e-6 and top_score - second_score > 1e-6 else []
+                    else:
+                        ranked_classes = ranked_classes[:3]
+                    include = label_text in {
+                        DND_CLASSES[key].display_name if key in DND_CLASSES else key
+                        for key, _score in ranked_classes
+                    }
+                elif mode == "stat_block":
+                    try:
+                        include = score_dnd_statblock(chart) is not None
+                    except Exception:
+                        include = False
+            elif chart_key == "enneagram":
                 include = not self._is_placeholder_chart(chart)
             elif chart_key == "birth_time":
                 include = isinstance(getattr(chart, "dt", None), datetime.datetime) and chart_uses_houses(chart)
@@ -2104,8 +2150,13 @@ class DatabaseAnalyticsChartsMixin:
         source_dropdown = getattr(self, "_analysis_chart_dropdowns", {}).get(chart_key)
         source_mode = source_dropdown.currentData() if source_dropdown is not None else None
         frozen_chart_mode = str(source_mode) if source_mode is not None else None
+        detail_chart_key = (
+            "social_score_summary"
+            if chart_key == "alignment_summary" and frozen_chart_mode == "social_score"
+            else chart_key
+        )
         frozen_analytics_rows = tuple(
-            copy.deepcopy(getattr(self, "_analysis_chart_export_rows", {}).get(chart_key, ()))
+            copy.deepcopy(getattr(self, "_analysis_chart_export_rows", {}).get(detail_chart_key, ()))
         )
         figure = copy.deepcopy(source_canvas.figure)
         self._tag_database_analytics_pick_targets(figure)
@@ -2175,7 +2226,7 @@ class DatabaseAnalyticsChartsMixin:
                     chart_title=chart_title,
                     label=label,
                     value=value,
-                    chart_key=chart_key,
+                    chart_key=detail_chart_key,
                     chart_mode=frozen_chart_mode,
                     analytics_rows=frozen_analytics_rows,
                     bar_color=(
@@ -2192,7 +2243,7 @@ class DatabaseAnalyticsChartsMixin:
                     chart_title=chart_title,
                     label=label,
                     value=value,
-                    chart_key=chart_key,
+                    chart_key=detail_chart_key,
                     chart_mode=frozen_chart_mode,
                     analytics_rows=frozen_analytics_rows,
                 )
