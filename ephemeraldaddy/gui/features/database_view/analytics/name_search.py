@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import json
 import math
+import os
 import statistics
 import unicodedata
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Iterable, Literal
 
 NameMetric = Literal["frequency", "mean_alignment", "median_alignment", "mode_alignment"]
@@ -22,6 +25,60 @@ DEFAULT_NAME_STOPWORDS = frozenset(
         "partner", "roommate", "sister", "son", "spouse", "the", "uncle", "wife",
     }
 )
+NAME_SUPPRESSIONS_PATH_ENV = "EPHEMERALDADDY_NAME_SUPPRESSIONS_PATH"
+NAME_SUPPRESSIONS_FILENAME = "name_suppressions.json"
+
+
+def resolve_name_suppressions_path(path: str | os.PathLike[str] | None = None) -> Path:
+    """Return the user-writable file holding manually suppressed name tokens."""
+    if path is not None:
+        return Path(path).expanduser()
+    env_path = os.environ.get(NAME_SUPPRESSIONS_PATH_ENV)
+    if env_path:
+        return Path(env_path).expanduser()
+    return Path.home() / ".ephemeraldaddy" / NAME_SUPPRESSIONS_FILENAME
+
+
+def load_name_suppressions(
+    path: str | os.PathLike[str] | None = None,
+) -> frozenset[str]:
+    """Load normalized user suppressions, tolerating absent or damaged files."""
+    try:
+        payload = json.loads(resolve_name_suppressions_path(path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return frozenset()
+    values = payload.get("suppressed_names", []) if isinstance(payload, dict) else []
+    if not isinstance(values, list):
+        return frozenset()
+    return frozenset(
+        str(value).strip().casefold() for value in values if str(value).strip()
+    )
+
+
+def suppress_name_tokens(
+    names: Iterable[str],
+    path: str | os.PathLike[str] | None = None,
+) -> int:
+    """Persist name tokens as suppressed and return the number newly added."""
+    destination = resolve_name_suppressions_path(path)
+    existing = set(load_name_suppressions(destination))
+    requested = {str(name).strip().casefold() for name in names if str(name).strip()}
+    updated = existing | requested
+    added = len(updated - existing)
+    if not added:
+        return 0
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_suffix(f"{destination.suffix}.tmp")
+    temporary.write_text(
+        json.dumps(
+            {"schema_version": 1, "suppressed_names": sorted(updated)},
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    temporary.replace(destination)
+    return added
 
 
 @dataclass(frozen=True)
@@ -94,11 +151,16 @@ def analyze_names(
     charts: Iterable[Any],
     *,
     minimum_frequency: int = 4,
-    stopwords: Iterable[str] = DEFAULT_NAME_STOPWORDS,
+    stopwords: Iterable[str] | None = None,
 ) -> list[NameStatistic]:
     """Aggregate tokens by distinct chart UID, retaining canonical spelling."""
     if minimum_frequency < 1:
         raise ValueError("minimum_frequency must be at least 1")
+    effective_stopwords = (
+        DEFAULT_NAME_STOPWORDS | load_name_suppressions()
+        if stopwords is None
+        else frozenset(stopwords)
+    )
     display_by_key: dict[str, str] = {}
     uids_by_key: dict[str, set[str]] = {}
     alignments_by_key: dict[str, list[float]] = {}
@@ -108,7 +170,9 @@ def analyze_names(
             continue
         alignment = _alignment_value(chart)
         for token in extract_name_tokens(
-            getattr(chart, "name", ""), getattr(chart, "alias", ""), stopwords=stopwords
+            getattr(chart, "name", ""),
+            getattr(chart, "alias", ""),
+            stopwords=effective_stopwords,
         ):
             key = token.casefold()
             members = uids_by_key.setdefault(key, set())

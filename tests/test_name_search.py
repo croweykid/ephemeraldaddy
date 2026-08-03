@@ -5,11 +5,21 @@ import pytest
 from ephemeraldaddy.gui.features.database_view.analytics.name_search import (
     analyze_names,
     extract_name_tokens,
+    load_name_suppressions,
+    suppress_name_tokens,
 )
 
 
 def chart(uid, name, alias="", alignment=None):
     return SimpleNamespace(chart_uid=uid, name=name, alias=alias, alignment_score=alignment)
+
+
+@pytest.fixture(autouse=True)
+def isolated_name_suppressions(monkeypatch, tmp_path):
+    monkeypatch.setenv(
+        "EPHEMERALDADDY_NAME_SUPPRESSIONS_PATH",
+        str(tmp_path / "name_suppressions.json"),
+    )
 
 
 def test_extracts_whitespace_tokens_without_substring_matching():
@@ -52,3 +62,21 @@ def test_multimodal_alignment_has_no_single_mode_value():
 def test_rejects_invalid_minimum_frequency():
     with pytest.raises(ValueError):
         analyze_names([], minimum_frequency=0)
+
+
+def test_persisted_suppression_removes_name_without_editing_charts(tmp_path):
+    path = tmp_path / "suppressions.json"
+    charts = [chart(str(index), "Sam") for index in range(4)]
+    assert suppress_name_tokens(["SAM"], path) == 1
+    assert suppress_name_tokens(["sam"], path) == 0
+    assert load_name_suppressions(path) == frozenset({"sam"})
+    assert analyze_names(charts, stopwords=load_name_suppressions(path)) == []
+
+
+def test_suppression_file_is_versioned_and_sorted(tmp_path):
+    path = tmp_path / "suppressions.json"
+    suppress_name_tokens(["Zed", "Amy"], path)
+    assert path.read_text(encoding="utf-8") == (
+        '{\n  "schema_version": 1,\n  "suppressed_names": [\n'
+        '    "amy",\n    "zed"\n  ]\n}\n'
+    )
