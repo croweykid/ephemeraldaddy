@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ephemeraldaddy.gui.features.database_view.performance import DatabaseViewOpenTiming
 from ephemeraldaddy.gui.features.retcon.workers import SwissEphemerisPrefetchWorker
 from ephemeraldaddy.gui.style import (
     apply_button_cursor,
@@ -536,7 +537,7 @@ class ChartsController:
         self._get_pending_changed_refreshes = get_pending_changed_refreshes
         self._clear_pending_changed_refreshes = clear_pending_changed_refreshes
 
-    def open_manage_charts(
+    def confirm_manage_charts_open(
         self,
         progress_callback: Callable[[str, int], None] | None = None,
     ) -> bool:
@@ -545,6 +546,14 @@ class ChartsController:
         if not self._confirm_discard_or_save():
             logger.debug("Cancelled Database View open due to unsaved-change prompt.")
             return False
+        return True
+
+    def open_manage_charts(
+        self,
+        *,
+        open_timing: DatabaseViewOpenTiming,
+        progress_callback: Callable[[str, int], None] | None = None,
+    ) -> bool:
         if progress_callback:
             progress_callback("Preparing Database View shell…", 72)
         dialog = self._get_or_create_manage_dialog()
@@ -555,15 +564,18 @@ class ChartsController:
             pending_lightweight_ids = set()
         pending_ids = set(pending_metric_ids) | set(pending_lightweight_ids)
         pending_refresh_metrics = bool(pending_metric_ids)
+        was_visible = dialog.isVisible()
         logger.debug(
             "Opening Database View dialog (visible=%s pending_changed_ids=%s pending_metric_ids=%s).",
-            dialog.isVisible(),
+            was_visible,
             len(pending_ids),
             len(pending_metric_ids),
         )
 
         refresh_after_show: Callable[[], None] | None = None
+        refresh_reason = "none"
         if pending_ids:
+            refresh_reason = "pending_changes"
             def refresh_after_show() -> None:
                 dialog._refresh_charts(
                     refresh_metrics=pending_refresh_metrics,
@@ -572,6 +584,7 @@ class ChartsController:
                     refresh_tag_completers=pending_refresh_metrics,
                 )
         elif not getattr(dialog, "_chart_rows", None):
+            refresh_reason = "initial_population"
             # First-open row/metric population is the slowest Database View step.
             # Defer it until after the startup widget can close, so launch does
             # not sit frozen around 90% while the database list is built.
@@ -585,7 +598,7 @@ class ChartsController:
             self._clear_pending_changed_ids()
         apply_launch_window_policy = getattr(dialog, "apply_launch_window_policy", None)
         use_launch_pulse = not bool(getattr(dialog, "_launch_foreground_completed", False))
-        if dialog.isVisible():
+        if was_visible:
             if callable(apply_launch_window_policy):
                 apply_launch_window_policy(use_topmost_pulse=use_launch_pulse)
             self._raise_manage_dialog()
@@ -609,14 +622,46 @@ class ChartsController:
                 app = QApplication.instance()
                 if app is not None:
                     app.processEvents()
-                refresh_after_show()
-                if app is not None:
-                    app.processEvents()
+                try:
+                    refresh_after_show()
+                    if app is not None:
+                        app.processEvents()
+                except BaseException:
+                    open_timing.complete(
+                        was_visible=was_visible,
+                        refresh_reason=refresh_reason,
+                        status="error",
+                    )
+                    raise
+                open_timing.complete(
+                    was_visible=was_visible,
+                    refresh_reason=refresh_reason,
+                )
                 progress_callback("Database View is ready.", 99)
             else:
                 # Non-startup transitions still defer the expensive refresh until
                 # after the dialog has painted, preserving interactive snappiness.
-                QTimer.singleShot(0, refresh_after_show)
+                def refresh_and_record() -> None:
+                    try:
+                        refresh_after_show()
+                    except BaseException:
+                        open_timing.complete(
+                            was_visible=was_visible,
+                            refresh_reason=refresh_reason,
+                            status="error",
+                        )
+                        raise
+                    open_timing.complete(
+                        was_visible=was_visible,
+                        refresh_reason=refresh_reason,
+                    )
+
+                QTimer.singleShot(0, refresh_and_record)
+        else:
+            open_timing.complete(
+                was_visible=was_visible,
+                refresh_reason=refresh_reason,
+            )
 
         logger.debug(
             "Database View dialog foreground request complete (topmost_pulse=%s).",
