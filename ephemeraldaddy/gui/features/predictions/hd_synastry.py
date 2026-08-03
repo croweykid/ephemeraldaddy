@@ -119,9 +119,13 @@ def render_hd_synastry_predictions(owner: object, chart: object | None) -> None:
         label.setText("Human Design gate data is unavailable for this chart.")
         setattr(owner, "_hd_synastry_last_render_token", render_token)
         return
+    gender_filter = normalize_hd_synastry_gender_filter(
+        getattr(owner, "hd_synastry_gender_filter", "all")
+    )
+    available_candidates = list_human_design_synastry_candidates()
     candidates = filter_hd_synastry_candidates(
-        list_human_design_synastry_candidates(),
-        getattr(owner, "hd_synastry_gender_filter", "all"),
+        available_candidates,
+        gender_filter,
         load_gendered_results_method(),
     )
     matches = rank_human_design_synastry(
@@ -130,7 +134,17 @@ def render_hd_synastry_predictions(owner: object, chart: object | None) -> None:
         candidates,
     )
     if not matches:
-        label.setText("No other charts with Human Design gate data are available.")
+        other_candidates_are_available = any(
+            str(candidate.chart_uid or "").strip().upper() != chart_uid
+            for candidate in available_candidates
+        )
+        if gender_filter != "all" and other_candidates_are_available:
+            label.setText(
+                f"No charts matching the {html.escape(gender_filter.title())} filter "
+                "have Human Design gate data."
+            )
+        else:
+            label.setText("No other charts with Human Design gate data are available.")
         setattr(owner, "_hd_synastry_last_render_token", render_token)
         return
     lines = []

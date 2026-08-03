@@ -22196,7 +22196,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             radio.setChecked(method == gendered_results_method)
             radio.toggled.connect(
                 lambda checked, selected=method: on_gendered_results_method_changed(
-                    self, selected, checked
+                    self._owner_window(), selected, checked
                 )
             )
             gendered_results_group.addButton(radio)

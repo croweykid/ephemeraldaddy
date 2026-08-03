@@ -208,7 +208,23 @@ def test_chart_calculation_settings_builds_gender_method_radios():
     assert 'QLabel("For gendered results, use:")' in settings_branch
     assert '"Assigned-at-birth sex"' in settings_branch
     assert '"Gender identity"' in settings_branch
-    assert "on_gendered_results_method_changed" in settings_branch
+    assert "on_gendered_results_method_changed(\n                    self._owner_window()" in settings_branch
+
+
+def test_synastry_filtered_empty_state_is_distinct_from_empty_database():
+    from pathlib import Path
+
+    source = Path("ephemeraldaddy/gui/features/predictions/hd_synastry.py").read_text()
+    render_branch = source.split("def render_hd_synastry_predictions", 1)[1].split(
+        "def on_hd_synastry_gender_filter_changed", 1
+    )[0]
+
+    filter_empty_index = render_branch.index('if gender_filter != "all" and other_candidates_are_available:')
+    generic_empty_index = render_branch.index(
+        'label.setText("No other charts with Human Design gate data are available.")'
+    )
+    assert filter_empty_index < generic_empty_index
+    assert "No charts matching the {html.escape(gender_filter.title())} filter" in render_branch
 
 
 def test_settings_consolidates_database_and_visualization_controls():
