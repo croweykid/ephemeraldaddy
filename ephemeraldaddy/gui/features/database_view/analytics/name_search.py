@@ -136,6 +136,31 @@ def extract_name_tokens(
     return tuple(tokens)
 
 
+def chart_has_name_token(
+    chart: Any,
+    token: str,
+    *,
+    stopwords: Iterable[str] | None = None,
+) -> bool:
+    """Return whether a chart's name or alias contains an exact name token."""
+    effective_stopwords = (
+        DEFAULT_NAME_STOPWORDS | load_name_suppressions()
+        if stopwords is None
+        else frozenset(stopwords)
+    )
+    target = str(token or "").strip().casefold()
+    if not target:
+        return False
+    return target in {
+        name_token.casefold()
+        for name_token in extract_name_tokens(
+            getattr(chart, "name", ""),
+            getattr(chart, "alias", ""),
+            stopwords=effective_stopwords,
+        )
+    }
+
+
 def _alignment_value(chart: Any) -> float | None:
     value = getattr(chart, "alignment_score", None)
     if value is None or isinstance(value, bool):

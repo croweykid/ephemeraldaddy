@@ -4,6 +4,7 @@ import pytest
 
 from ephemeraldaddy.gui.features.database_view.analytics.name_search import (
     analyze_names,
+    chart_has_name_token,
     extract_name_tokens,
     load_name_suppressions,
     suppress_name_tokens,
@@ -30,6 +31,13 @@ def test_extracts_whitespace_tokens_without_substring_matching():
 
 def test_filters_alias_detritus_and_deduplicates_each_chart_case_insensitively():
     assert extract_name_tokens("Bob Bob", "mom and BOB") == ("Bob",)
+
+
+def test_chart_name_token_match_uses_exact_shared_extraction_rules():
+    subject = chart("uid", "Barbara", "Danny, Daniel Dan-the-man")
+    assert chart_has_name_token(subject, "Danny")
+    assert chart_has_name_token(subject, "dan-the-man")
+    assert not chart_has_name_token(subject, "Barb")
 
 
 def test_aggregates_distinct_uid_frequency_and_alignment_statistics():

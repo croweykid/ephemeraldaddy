@@ -44,7 +44,12 @@ from PySide6.QtWidgets import (
 from ephemeraldaddy.gui.features.charts.database_norms_cache import analytical_mapping_signature
 from ephemeraldaddy.gui.features.charts.dnd_predictions import DND_STAT_KEYS
 from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import trait_snapshot_averages
-from ephemeraldaddy.gui.features.database_view.analytics.name_search import analyze_names
+from ephemeraldaddy.gui.features.database_view.analytics.name_search import (
+    DEFAULT_NAME_STOPWORDS,
+    analyze_names,
+    chart_has_name_token,
+    load_name_suppressions,
+)
 
 DATABASE_METRICS_SECTION_ORDER: tuple[str, ...] = (
     "planetary_sign_prevalence",
@@ -562,8 +567,8 @@ class DatabaseAnalyticsChartsMixin:
     def _render_name_distribution_section(
         self,
         *,
-        chart_ids: list[int] | set[int],
-        database_chart_ids: list[int] | set[int],
+        chart_uids: Iterable[str],
+        database_chart_uids: Iterable[str],
         loaded_charts: int,
         should_refresh: Callable[[str], bool],
     ) -> list[tuple[str, float, float, float, int, int, float]]:
@@ -571,15 +576,17 @@ class DatabaseAnalyticsChartsMixin:
         if not should_refresh("name_distribution"):
             return getattr(self, "_analysis_chart_export_rows", {}).get("name_distribution", [])
 
-        def _charts(row_ids: Iterable[int]) -> list[Any]:
+        def _charts(uids: Iterable[str]) -> list[Any]:
             return [
                 chart
-                for row_id in row_ids
-                if (chart := self._get_chart_for_filter(int(row_id))) is not None
+                for chart_uid in uids
+                if (
+                    chart := self._get_chart_for_filter_by_uid(str(chart_uid))
+                ) is not None
             ]
 
-        selection_stats = analyze_names(_charts(chart_ids))
-        database_stats = analyze_names(_charts(database_chart_ids))
+        selection_stats = analyze_names(_charts(chart_uids))
+        database_stats = analyze_names(_charts(database_chart_uids))
         selection_by_name = {item.name.casefold(): item for item in selection_stats}
         database_by_name = {item.name.casefold(): item for item in database_stats}
         source = selection_stats if loaded_charts else database_stats
@@ -1261,6 +1268,11 @@ class DatabaseAnalyticsChartsMixin:
             return ""
         matching_names: list[str] = []
         label_text = str(label).strip()
+        name_stopwords = (
+            DEFAULT_NAME_STOPWORDS | load_name_suppressions()
+            if chart_key == "name_distribution"
+            else frozenset()
+        )
         chart_keys: Iterable[str | int] = selected_uids or selected_ids
         for chart_key_value in chart_keys:
             if selected_uids and callable(get_chart_by_uid):
@@ -1311,6 +1323,12 @@ class DatabaseAnalyticsChartsMixin:
                         str(getattr(hd_result, "incarnation_cross", "")).strip()
                     )
                     include = cross_label == label_text
+            elif chart_key == "name_distribution":
+                include = chart_has_name_token(
+                    chart,
+                    label_text,
+                    stopwords=name_stopwords,
+                )
             if include:
                 if selected_uids:
                     chart_name = str(getattr(chart, "name", "") or "").strip()

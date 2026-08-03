@@ -1394,6 +1394,7 @@ GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS: frozenset[str] = frozenset(
         "age",
         "birth_month",
         "birthplace",
+        "name_distribution",
         "tag_distribution",
         "traits_distribution",
         "human_design",
@@ -12772,8 +12773,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             )
             self._analysis_chart_export_rows["name_distribution"] = (
                 self._render_name_distribution_section(
-                    chart_ids=chart_ids,
-                    database_chart_ids=database_cache["chart_ids"],
+                    chart_uids=get_chart_uid_map(chart_ids).values(),
+                    database_chart_uids=get_chart_uid_map(
+                        database_cache["chart_ids"]
+                    ).values(),
                     loaded_charts=loaded_charts,
                     should_refresh=_should_refresh_database_metric_section,
                 )

@@ -28,7 +28,7 @@ from ephemeraldaddy.gui.features.charts.similarity_custom_presets import (
 from ephemeraldaddy.gui.features.database_view.analytics.name_search import (
     DEFAULT_NAME_STOPWORDS,
     analyze_names,
-    extract_name_tokens,
+    chart_has_name_token,
     load_name_suppressions,
     suppress_name_tokens,
 )
@@ -162,8 +162,10 @@ class PropertyManagerCoordinator:
         usage[ManageMetadataLabelsDialog.FIELD_ASTRO_TWIN_PRESETS] = self._astro_twin_preset_rows()
         charts = [
             chart
-            for row in rows
-            if (chart := self._host._get_chart_for_filter(row[0])) is not None
+            for chart_uid in uid_by_id.values()
+            if (
+                chart := self._host._get_chart_for_filter_by_uid(str(chart_uid))
+            ) is not None
         ]
         usage[ManageMetadataLabelsDialog.FIELD_NAMES] = [
             {
@@ -249,12 +251,25 @@ class PropertyManagerCoordinator:
                 return ""
 
         matches: list[str | tuple[str, bool]] = []
-        effective_name_stopwords = DEFAULT_NAME_STOPWORDS | load_name_suppressions()
         rows = [
             normalized
             for row in self._host._chart_rows
             if (normalized := self._host._normalize_chart_row(row)) is not None
         ]
+        if field == ManageMetadataLabelsDialog.FIELD_NAMES:
+            uid_by_id = get_chart_uid_map(row[0] for row in rows)
+            name_stopwords = DEFAULT_NAME_STOPWORDS | load_name_suppressions()
+            for chart_uid in uid_by_id.values():
+                chart = self._host._get_chart_for_filter_by_uid(str(chart_uid))
+                if chart is None or not chart_has_name_token(
+                    chart,
+                    label,
+                    stopwords=name_stopwords,
+                ):
+                    continue
+                chart_name = str(getattr(chart, "name", "") or chart_uid).strip()
+                matches.append(chart_name)
+            return sorted(matches, key=lambda match: str(match).casefold())
         for row in rows:
             chart_id = row[0]
             chart_name = str(row[1] or row[2] or f"Chart {chart_id}")
@@ -293,17 +308,6 @@ class PropertyManagerCoordinator:
                     custom_collections=self._host._custom_collections,
                     chart_id=chart_id,
                 ):
-                    matches.append(chart_name)
-            elif field == ManageMetadataLabelsDialog.FIELD_NAMES:
-                tokens = {
-                    token.casefold()
-                    for token in extract_name_tokens(
-                        getattr(chart, "name", ""),
-                        getattr(chart, "alias", ""),
-                        stopwords=effective_name_stopwords,
-                    )
-                }
-                if label.casefold() in tokens:
                     matches.append(chart_name)
         if field == ManageMetadataLabelsDialog.FIELD_TAGS:
             return sorted(

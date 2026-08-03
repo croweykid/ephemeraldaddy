@@ -26,3 +26,26 @@ def test_chart_view_classifies_name_and_alias_edits_for_metrics_refresh():
     for field in ("name", "alias"):
         assert f'"{field}": lambda value:' in classifier
         assert f'"{field}",' in refresh_gate
+
+
+def test_name_analytics_interface_and_export_matching_are_uid_first():
+    render_source = ANALYTICS_SOURCE.split(
+        "def _render_name_distribution_section", 1
+    )[1].split("DATABASE_ANALYTICS_CATEGORY_TITLES", 1)[0]
+    matching_source = ANALYTICS_SOURCE.split(
+        "def _analysis_matching_chart_names", 1
+    )[1].split("def _export_database_analysis_chart_csv", 1)[0]
+    assert "chart_uids: Iterable[str]" in render_source
+    assert "database_chart_uids: Iterable[str]" in render_source
+    assert "_get_chart_for_filter_by_uid" in render_source
+    assert "_get_chart_for_filter(int(" not in render_source
+    assert 'chart_key == "name_distribution"' in matching_source
+    assert "chart_has_name_token(" in matching_source
+    assert "stopwords=name_stopwords" in matching_source
+
+
+def test_name_distribution_is_hidden_from_gen_pop_without_a_name_baseline():
+    hidden_sections = APP_SOURCE.split(
+        "GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS", 1
+    )[1].split("SIMILAR_CHARTS_EXPORT_FORMAT_KEY", 1)[0]
+    assert '"name_distribution"' in hidden_sections
