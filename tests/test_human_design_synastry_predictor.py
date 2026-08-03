@@ -1,4 +1,6 @@
 from ephemeraldaddy.analysis.human_design_synastry import (
+    HD_SYNASTRY_GENDER_METHOD_IDENTITY,
+    HD_SYNASTRY_GENDER_METHOD_SEX,
     HumanDesignSynastryCandidate,
     filter_hd_synastry_candidates,
     normalize_gates,
@@ -106,7 +108,7 @@ def test_synastry_known_time_uses_standard_subheader():
     assert hd_synastry.hd_synastry_subheader(chart) == hd_synastry.HD_SYNASTRY_SUBHEADER
 
 
-def test_synastry_gender_filter_only_accepts_explicit_male_or_female():
+def test_synastry_gender_filter_can_group_by_assigned_sex_or_gender_identity():
     candidates = [
         gendered_candidate("MALE", "M"),
         gendered_candidate("FEMALE", "female"),
@@ -117,9 +119,44 @@ def test_synastry_gender_filter_only_accepts_explicit_male_or_female():
         gendered_candidate("BLANK", None),
     ]
 
-    assert [item.chart_uid for item in filter_hd_synastry_candidates(candidates, "male")] == ["MALE"]
-    assert [item.chart_uid for item in filter_hd_synastry_candidates(candidates, "female")] == ["FEMALE"]
+    assert [
+        item.chart_uid
+        for item in filter_hd_synastry_candidates(
+            candidates, "male", HD_SYNASTRY_GENDER_METHOD_SEX
+        )
+    ] == ["MALE", "AMAB_F", "AMAB_NB"]
+    assert [
+        item.chart_uid
+        for item in filter_hd_synastry_candidates(
+            candidates, "female", HD_SYNASTRY_GENDER_METHOD_SEX
+        )
+    ] == ["FEMALE", "AFAB_M", "AFAB_NB"]
+    assert [
+        item.chart_uid
+        for item in filter_hd_synastry_candidates(
+            candidates, "male", HD_SYNASTRY_GENDER_METHOD_IDENTITY
+        )
+    ] == ["MALE", "AFAB_M"]
+    assert [
+        item.chart_uid
+        for item in filter_hd_synastry_candidates(
+            candidates, "female", HD_SYNASTRY_GENDER_METHOD_IDENTITY
+        )
+    ] == ["FEMALE", "AMAB_F"]
     assert filter_hd_synastry_candidates(candidates, "all") == candidates
+
+
+def test_synastry_gender_filter_defaults_to_assigned_at_birth_sex():
+    candidates = [
+        gendered_candidate("MALE", "M"),
+        gendered_candidate("AMAB_F", "AMAB-F"),
+        gendered_candidate("AFAB_M", "AFAB-M"),
+    ]
+
+    assert [item.chart_uid for item in filter_hd_synastry_candidates(candidates, "male")] == [
+        "MALE",
+        "AMAB_F",
+    ]
 
 
 def test_synastry_gender_filter_is_part_of_render_token():
@@ -158,3 +195,17 @@ def test_predicted_synastry_builds_gender_radios_with_refresh_callback():
     assert '(("All", "all"), ("Male", "male"), ("Female", "female"))' in synastry_branch
     assert "QRadioButton(label)" in synastry_branch
     assert "on_hd_synastry_gender_filter_changed(owner, selected, checked)" in synastry_branch
+
+
+def test_chart_calculation_settings_builds_gender_method_radios():
+    from pathlib import Path
+
+    source = Path("ephemeraldaddy/gui/app.py").read_text()
+    settings_branch = source.split('"Chart Calculation Methods"', 1)[1].split(
+        '"Data Visualization"', 1
+    )[0]
+
+    assert 'QLabel("For gendered results, use:")' in settings_branch
+    assert '"Assigned-at-birth sex"' in settings_branch
+    assert '"Gender identity"' in settings_branch
+    assert "on_gendered_results_method_changed" in settings_branch

@@ -893,6 +893,14 @@ from ephemeraldaddy.core.interpretations import (
 )
 from ephemeraldaddy.core.decans import ZODIAC_DECANS
 from ephemeraldaddy.analysis.enneagram import ENNEAGRAM
+from ephemeraldaddy.analysis.human_design_synastry import (
+    HD_SYNASTRY_GENDER_METHOD_IDENTITY,
+    HD_SYNASTRY_GENDER_METHOD_SEX,
+)
+from ephemeraldaddy.gui.features.predictions.hd_synastry import (
+    load_gendered_results_method,
+    on_gendered_results_method_changed,
+)
 
 from ephemeraldaddy.gui.features.charts.delegates import (
     CHART_ROW_OPEN_FEEDBACK_ROLE,
@@ -22178,6 +22186,27 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             content_layout,
             "Chart Calculation Methods",
         )
+        gendered_results_row = QHBoxLayout()
+        gendered_results_row.addWidget(QLabel("For gendered results, use:"))
+        gendered_results_group = QButtonGroup(dialog)
+        gendered_results_group.setExclusive(True)
+        gendered_results_method = load_gendered_results_method()
+        for label, method in (
+            ("Assigned-at-birth sex", HD_SYNASTRY_GENDER_METHOD_SEX),
+            ("Gender identity", HD_SYNASTRY_GENDER_METHOD_IDENTITY),
+        ):
+            radio = QRadioButton(label)
+            radio.setChecked(method == gendered_results_method)
+            radio.toggled.connect(
+                lambda checked, selected=method: on_gendered_results_method_changed(
+                    self, selected, checked
+                )
+            )
+            gendered_results_group.addButton(radio)
+            gendered_results_row.addWidget(radio)
+        gendered_results_row.addStretch(1)
+        chart_calculation_section.addLayout(gendered_results_row)
+
         chart_calculation_section.addWidget(
             self._build_settings_help_label("Select which Lilith ephemeris model to display.")
         )

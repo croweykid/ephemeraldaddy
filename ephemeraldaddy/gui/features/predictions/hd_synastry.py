@@ -5,11 +5,13 @@ from __future__ import annotations
 import html
 import urllib.parse
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import QLabel
 
 from ephemeraldaddy.analysis.human_design import derive_human_design_profile
 from ephemeraldaddy.analysis.human_design_synastry import (
+    HD_SYNASTRY_GENDER_METHOD_IDENTITY,
+    HD_SYNASTRY_GENDER_METHOD_SEX,
     filter_hd_synastry_candidates,
     normalize_gates,
     normalize_hd_synastry_gender_filter,
@@ -17,7 +19,12 @@ from ephemeraldaddy.analysis.human_design_synastry import (
 )
 from ephemeraldaddy.core.db import list_human_design_synastry_candidates
 from ephemeraldaddy.core.chart import chart_uses_houses
-from ephemeraldaddy.gui.style import apply_chart_info_link_cursor, houses_unknown_note_html
+from ephemeraldaddy.gui.style import (
+    SETTINGS_APP,
+    SETTINGS_ORG,
+    apply_chart_info_link_cursor,
+    houses_unknown_note_html,
+)
 
 
 HD_SYNASTRY_SUBHEADER = (
@@ -25,6 +32,32 @@ HD_SYNASTRY_SUBHEADER = (
     "channel/center synastry alone. This says nothing of shared values, means "
     "or other lifestyle factors."
 )
+
+SETTINGS_KEY_GENDERED_RESULTS_METHOD = "chart_calculation/gendered_results_method"
+
+
+def normalize_gendered_results_method(value: object) -> str:
+    """Normalize the appwide gender grouping preference."""
+    return (
+        HD_SYNASTRY_GENDER_METHOD_IDENTITY
+        if str(value or "").strip().casefold() == HD_SYNASTRY_GENDER_METHOD_IDENTITY
+        else HD_SYNASTRY_GENDER_METHOD_SEX
+    )
+
+
+def load_gendered_results_method() -> str:
+    """Load the appwide gender grouping preference, defaulting to assigned sex."""
+    settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
+    return normalize_gendered_results_method(
+        settings.value(SETTINGS_KEY_GENDERED_RESULTS_METHOD, HD_SYNASTRY_GENDER_METHOD_SEX)
+    )
+
+
+def save_gendered_results_method(value: object) -> str:
+    """Persist and return the normalized appwide gender grouping preference."""
+    normalized = normalize_gendered_results_method(value)
+    QSettings(SETTINGS_ORG, SETTINGS_APP).setValue(SETTINGS_KEY_GENDERED_RESULTS_METHOD, normalized)
+    return normalized
 
 def resolve_hd_synastry_gates(chart: object | None) -> frozenset[int]:
     """Return cached gates, deriving them when an older chart has no HD cache."""
@@ -61,6 +94,7 @@ def hd_synastry_render_token(owner: object, chart: object | None) -> tuple[objec
         tuple(sorted(resolve_hd_synastry_gates(chart))),
         bool(chart is not None and chart_uses_houses(chart)),
         normalize_hd_synastry_gender_filter(getattr(owner, "hd_synastry_gender_filter", "all")),
+        load_gendered_results_method(),
         int(getattr(owner, "_database_metrics_cache_revision", 0) or 0),
     )
 
@@ -88,6 +122,7 @@ def render_hd_synastry_predictions(owner: object, chart: object | None) -> None:
     candidates = filter_hd_synastry_candidates(
         list_human_design_synastry_candidates(),
         getattr(owner, "hd_synastry_gender_filter", "all"),
+        load_gendered_results_method(),
     )
     matches = rank_human_design_synastry(
         chart_uid,
@@ -125,6 +160,17 @@ def on_hd_synastry_gender_filter_changed(owner: object, gender_filter: str, chec
     if not checked:
         return
     setattr(owner, "hd_synastry_gender_filter", normalize_hd_synastry_gender_filter(gender_filter))
+    setattr(owner, "_hd_synastry_last_render_token", None)
+    chart = getattr(owner, "_latest_chart", None) or getattr(owner, "current_chart", None)
+    if chart is not None:
+        render_hd_synastry_predictions(owner, chart)
+
+
+def on_gendered_results_method_changed(owner: object, gender_method: str, checked: bool) -> None:
+    """Persist the calculation preference and refresh visible Synastry Predictions."""
+    if not checked:
+        return
+    save_gendered_results_method(gender_method)
     setattr(owner, "_hd_synastry_last_render_token", None)
     chart = getattr(owner, "_latest_chart", None) or getattr(owner, "current_chart", None)
     if chart is not None:

@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable
 
+from ephemeraldaddy.analysis.get_astro_twin import normalize_astro_twin_gender_category
 from ephemeraldaddy.core.human_design_system import (
     defined_centers_from_active_gates,
     defined_channels_from_active_gates,
@@ -36,6 +37,8 @@ class HumanDesignSynastryMatch:
 
 
 HD_SYNASTRY_GENDER_FILTERS = frozenset({"all", "male", "female"})
+HD_SYNASTRY_GENDER_METHOD_SEX = "sex"
+HD_SYNASTRY_GENDER_METHOD_IDENTITY = "gender"
 
 
 def normalize_hd_synastry_gender_filter(value: object) -> str:
@@ -47,17 +50,29 @@ def normalize_hd_synastry_gender_filter(value: object) -> str:
 def filter_hd_synastry_candidates(
     candidates: Iterable[HumanDesignSynastryCandidate],
     gender_filter: object,
+    gender_method: object = HD_SYNASTRY_GENDER_METHOD_SEX,
 ) -> list[HumanDesignSynastryCandidate]:
-    """Filter to explicitly male/female charts without grouping trans or NB labels."""
+    """Filter candidates by either assigned-at-birth sex or gender identity."""
     candidate_list = list(candidates)
     normalized_filter = normalize_hd_synastry_gender_filter(gender_filter)
     if normalized_filter == "all":
         return candidate_list
-    accepted_values = {normalized_filter, normalized_filter[0]}
+    normalized_method = str(gender_method or "").strip().casefold()
+    if normalized_method == HD_SYNASTRY_GENDER_METHOD_IDENTITY:
+        accepted_categories = {
+            "male": frozenset({"male", "afab-m"}),
+            "female": frozenset({"female", "amab-f"}),
+        }
+    else:
+        accepted_categories = {
+            "male": frozenset({"male", "amab-f", "amab-nb"}),
+            "female": frozenset({"female", "afab-m", "afab-nb"}),
+        }
     return [
         candidate
         for candidate in candidate_list
-        if str(candidate.gender or "").strip().casefold() in accepted_values
+        if normalize_astro_twin_gender_category(candidate.gender)
+        in accepted_categories[normalized_filter]
     ]
 
 
