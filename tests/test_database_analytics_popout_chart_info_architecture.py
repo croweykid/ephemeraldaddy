@@ -13,3 +13,7 @@ def test_popout_chart_info_presentation_lives_in_database_view_workflow_package(
     assert "build_enneagram_popout_info_html(" in presentation_source
     assert "build_database_analytics_popout_chart_info_html(" in legacy_source
     assert "Database deviation: unavailable" not in legacy_source
+    assert "frozen_chart_mode =" in legacy_source
+    assert "chart_mode=frozen_chart_mode" in legacy_source
+    assert "frozen_analytics_rows =" in legacy_source
+    assert "analytics_rows=frozen_analytics_rows" in legacy_source

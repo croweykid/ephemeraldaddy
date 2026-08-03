@@ -164,3 +164,84 @@ def test_birthday_popout_lists_uid_links_and_database_deviation():
     assert '<h3 style="color:#123456' in result
     assert '<a href="chart:UID-123">Ada Lovelace</a>' in result
     assert "1.75 standard deviations above the database norm" in result
+
+
+def test_associated_chart_matching_supports_common_analytics_keys(monkeypatch):
+    class Chart:
+        chart_uid = "UID-ALL"
+        name = "Included Person"
+        sentiments = ["trusted"]
+        relationship_types = ["Friend"]
+        tags = ["Important"]
+        gender = "F"
+        positions = {"Sun": 5.0}
+        birth_month = 1
+        birth_day = 2
+
+    class Analytics(_FakeAnalytics):
+        _sign_distribution_mode = "Sun"
+        _human_design_mode = "hd_gates"
+        _prevalence_mode = "sign_prevalence"
+        _dominant_factors_mode = "top3_signs"
+
+        def _selected_chart_uids(self):
+            return ["UID-ALL"]
+
+        def _get_chart_for_filter_by_uid(self, _chart_uid):
+            return Chart()
+
+        def _normalize_gender_value(self, value):
+            return value
+
+        def _split_tag_category(self, tag):
+            return "Uncategorized", tag
+
+        def _is_placeholder_chart(self, _chart):
+            return False
+
+    monkeypatch.setattr(
+        "ephemeraldaddy.gui.features.charts.database_analytics._calculate_dominant_sign_weights",
+        lambda _chart: {"Aries": 10.0, "Taurus": 1.0},
+    )
+    analytics = Analytics()
+
+    cases = [
+        ("sentiment_prevalence", "trusted", None),
+        ("relationship_prevalence", "Friend", None),
+        ("tag_distribution", "Important", None),
+        ("gender", "F", "actual_gender"),
+        ("sign_prevalence", "Aries", "sign_prevalence"),
+        ("dominant_signs", "Aries", "top3_signs"),
+        ("traits_distribution", "Any computed trait", "trait_predictions"),
+        ("birth_month", "01-02", "birthday_distribution"),
+    ]
+    for chart_key, label, chart_mode in cases:
+        assert analytics._analysis_matching_charts(
+            chart_key,
+            label,
+            chart_mode=chart_mode,
+        ) == [("UID-ALL", "Included Person")]
+
+
+def test_associated_chart_matching_uses_frozen_popout_mode():
+    class Chart:
+        chart_uid = "UID-MODE"
+        name = "Gate Holder"
+
+    class Analytics(_FakeAnalytics):
+        _human_design_mode = "hd_types"
+
+        def _selected_chart_uids(self):
+            return ["UID-MODE"]
+
+        def _get_chart_for_filter_by_uid(self, _chart_uid):
+            return Chart()
+
+        def _extract_human_design_profile(self, _chart):
+            return [12], [], [], [], "Generator", "Sacral"
+
+    assert Analytics()._analysis_matching_charts(
+        "human_design",
+        "12",
+        chart_mode="hd_gates",
+    ) == [("UID-MODE", "Gate Holder")]
