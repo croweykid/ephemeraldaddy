@@ -1025,12 +1025,28 @@ class DatabaseAnalyticsChartsMixin:
                 title_padding_points,
             )
         )
+        figure._database_analytics_reserved_top_points = reserved_top_points
         top_gap_inches = reserved_top_points / 72.0
         adjustments["top"] = max(
             0.0,
             min(1.0, 1.0 - (top_gap_inches / figure_height_inches)),
         )
         figure.subplots_adjust(**adjustments)
+
+    @staticmethod
+    def _reapply_fixed_top_gap_after_resize(figure: Figure) -> None:
+        """Restore a copied analytics figure's physical top gap after resizing."""
+        reserved_top_points = getattr(
+            figure,
+            "_database_analytics_reserved_top_points",
+            None,
+        )
+        if reserved_top_points is None:
+            return
+        DatabaseAnalyticsChartsMixin._subplots_adjust_with_fixed_top_gap(
+            figure,
+            top_gap_points=float(reserved_top_points),
+        )
 
     @staticmethod
     def _set_x_limits_with_padding(
@@ -2221,6 +2237,7 @@ class DatabaseAnalyticsChartsMixin:
             max(6.2, float(source_height)),
             forward=True,
         )
+        self._reapply_fixed_top_gap_after_resize(figure)
         figure.patch.set_facecolor(self._database_analytics_figure_facecolor())
         for ax in figure.axes:
             ax.set_facecolor(self._database_analytics_axes_facecolor())
