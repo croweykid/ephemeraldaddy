@@ -80,6 +80,11 @@ from ephemeraldaddy.gui.features.charts.euphonics import (
 )
 from ephemeraldaddy.gui.features.charts.loading_overlay import ChartLoadingOverlay
 from ephemeraldaddy.gui.features.charts.prediction_loading_labels import start_prediction_loading_blink
+from ephemeraldaddy.gui.features.predictions.hd_synastry import (
+    HD_SYNASTRY_SUBHEADER,
+    configure_hd_synastry_label,
+    render_hd_synastry_predictions,
+)
 from ephemeraldaddy.gui.features.charts.time_sensitivity_panel import TimeSensitivityPanel
 from ephemeraldaddy.gui.features.charts.trait_predictions import (
     configure_traits_prediction_table,
@@ -1811,6 +1816,31 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         section_layout.addWidget(subheader)
         setattr(owner, attribute_name, subheader)
         return subheader
+
+    hd_synastry_section_layout = owner._add_chart_analysis_collapsible_section(
+        panel=panel,
+        layout=layout,
+        title="Predicted Synastry",
+        expanded=True,
+    )
+    register_prediction_section("hd_synastry", hd_synastry_section_layout)
+    hd_synastry_mode_combo = QComboBox()
+    apply_shared_dropdown_style(hd_synastry_mode_combo)
+    hd_synastry_mode_combo.addItem("🪷HD Synastry", "hd_synastry")
+    hd_synastry_section_layout.addWidget(hd_synastry_mode_combo)
+    hd_synastry_subheader = add_prediction_subheader(
+        hd_synastry_section_layout,
+        "hd_synastry_prediction_subheader",
+    )
+    hd_synastry_subheader.setText(HD_SYNASTRY_SUBHEADER)
+    owner.hd_synastry_prediction_label = QLabel("Open Predictions to calculate rankings.")
+    configure_hd_synastry_label(owner, owner.hd_synastry_prediction_label)
+    hd_synastry_section_layout.addWidget(owner.hd_synastry_prediction_label)
+    owner.hd_synastry_prediction_mode_combo = hd_synastry_mode_combo
+    owner._render_hd_synastry_predictions = MethodType(
+        lambda self, chart: render_hd_synastry_predictions(self, chart),
+        owner,
+    )
 
     traits_section_layout = owner._add_chart_analysis_collapsible_section(
         panel=panel,

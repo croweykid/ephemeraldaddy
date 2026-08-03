@@ -48,6 +48,17 @@ APP_CHART_INFO_LINK_CURSOR = Qt.WhatsThisCursor
 APP_POPOUT_CURSOR = Qt.PointingHandCursor
 APP_BUTTON_CURSOR = Qt.PointingHandCursor
 
+# Reusable uncertainty motif for charts calculated from a default or
+# hypothetical time rather than reliable house data.
+HOUSES_UNKNOWN_NOTE_STYLE = (
+    "font-size: 10px; color: #ffffff; font-variant: small-caps;"
+)
+
+
+def houses_unknown_note_html(text: str = "(houses unknown)") -> str:
+    """Return the shared rich-text marker for unavailable house data."""
+    return f'<span style="{HOUSES_UNKNOWN_NOTE_STYLE}">{html.escape(text)}</span>'
+
 APPWIDE_AFFIRMATIVE_BUTTON_TONE = "affirmative"
 APPWIDE_NEGATION_BUTTON_TONE = "negation"
 
