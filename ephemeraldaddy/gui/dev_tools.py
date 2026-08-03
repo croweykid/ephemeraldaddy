@@ -1780,7 +1780,7 @@ class ManageMetadataLabelsDialog(QDialog):
             ("Sentiments", self.FIELD_SENTIMENTS),
             ("Collections", self.FIELD_COLLECTIONS),
             ("Tags", self.FIELD_TAGS),
-            ("Names", self.FIELD_NAMES),
+            ("Name Manager", self.FIELD_NAMES),
             ("Astro Twin Presets", self.FIELD_ASTRO_TWIN_PRESETS),
         ]
         for label, field_value in field_options:
