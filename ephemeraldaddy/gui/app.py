@@ -1395,6 +1395,7 @@ GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS: frozenset[str] = frozenset(
         "age",
         "birth_month",
         "birthplace",
+        "name_distribution",
         "tag_distribution",
         "traits_distribution",
         "human_design",
@@ -2623,6 +2624,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._analysis_chart_export_rows: dict[str, list[tuple[Any, ...]]] = {}
         self._analysis_chart_filenames: dict[str, str] = {}
         self._analysis_chart_dropdowns: dict[str, QComboBox] = {}
+        self._name_distribution_mode = "frequency"
         self._database_metrics_section_expanded: dict[str, bool] = {}
         self._database_metrics_section_visible: dict[str, bool] = {}
         self._incremental_metrics_refresh_sections: list[str] = []
@@ -3211,6 +3213,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             "birth_month": self._birth_month_mode,
             "birthplace": self._birthplace_mode,
             "tag_distribution": self._tag_distribution_mode,
+            "name_distribution": self._name_distribution_mode,
             "traits_distribution": self._traits_distribution_mode,
             "gender": self._gender_mode,
             "human_design": self._human_design_mode,
@@ -3946,6 +3949,17 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         subheader.setText("Distribution of Fantasy RPG species/classes in database")
 
     def _on_analysis_chart_dropdown_changed(self, chart_key: str) -> None:
+        if chart_key == "name_distribution":
+            dropdown = self._analysis_chart_dropdowns.get(chart_key)
+            if dropdown is not None and isinstance(dropdown.currentData(), str):
+                self._name_distribution_mode = dropdown.currentData()
+            self._update_sentiment_tally(
+                update_database_metrics=True,
+                update_similarities=False,
+                sections_to_refresh={chart_key},
+            )
+            return
+
         if chart_key == "species_distribution":
             dropdown = self._analysis_chart_dropdowns.get(chart_key)
             if dropdown is not None:
@@ -5280,6 +5294,42 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             self.birthplace_chart_layout,
         ) = self._create_database_analytics_chart_container()
         self._database_metrics_chart_layouts["birthplace"] = self.birthplace_chart_layout
+
+        name_section_layout = self._add_left_panel_collapsible_section(
+            panel,
+            demographics_category_layout,
+            "👤Names",
+            section_key="name_distribution",
+            expanded=self._is_database_metrics_section_expanded("name_distribution"),
+            on_toggled=lambda checked: self._set_database_metrics_section_expanded(
+                "name_distribution", checked
+            ),
+        )
+        self._create_analysis_chart_header(
+            name_section_layout,
+            "👤Names",
+            "name_distribution",
+            "name_distribution",
+            dropdown_options=[
+                ("Frequency", "frequency"),
+                ("Mean Alignment", "mean_alignment"),
+                ("Median Alignment", "median_alignment"),
+                ("Mode Alignment", "mode_alignment"),
+            ],
+            show_title=False,
+        )
+        name_subheader = add_database_subheader(
+            "Whitespace-delimited names and aliases found in at least four charts."
+        )
+        name_section_layout.addWidget(name_subheader)
+        (
+            self.name_distribution_chart_container,
+            self.name_distribution_chart_layout,
+        ) = self._create_database_analytics_chart_container()
+        self._database_metrics_chart_layouts["name_distribution"] = (
+            self.name_distribution_chart_layout
+        )
+        name_section_layout.addWidget(self.name_distribution_chart_container)
         birth_place_section_layout.addWidget(self.birthplace_chart_container)
 
         # Keep the usual Tags section un-nested at the bottom of Database Analytics.
@@ -12721,6 +12771,16 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 database_chart_ids=database_cache["chart_ids"],
                 loaded_charts=loaded_charts,
                 should_refresh=_should_refresh_database_metric_section,
+            )
+            self._analysis_chart_export_rows["name_distribution"] = (
+                self._render_name_distribution_section(
+                    chart_uids=get_chart_uid_map(chart_ids).values(),
+                    database_chart_uids=get_chart_uid_map(
+                        database_cache["chart_ids"]
+                    ).values(),
+                    loaded_charts=loaded_charts,
+                    should_refresh=_should_refresh_database_metric_section,
+                )
             )
             if _should_refresh_database_metric_section("traits_distribution"):
                 self._render_traits_distribution_section(
@@ -24959,6 +25019,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._latest_chart = None
         self._sync_chart_right_panel_placeholder_state(None)
         self._pending_render_chart: Chart | None = None
+        self._chart_load_queue_timing: tuple[str, float] | None = None
         self._chart_render_queue_state = ChartRenderQueueState()
         # Chart preview updates can schedule a newer chart while the previous
         # timer-driven flush is still unwinding.  This monotonically increasing
@@ -34078,10 +34139,17 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             self._set_material_fact_text("material_facts_websites_edit", identifiers.get("websites", ""))
             self._set_material_fact_text("material_facts_phone_numbers_edit", identifiers.get("phone_numbers", ""))
             self._set_material_fact_text("material_facts_unlisted_relatives_edit", identifiers.get("unlisted_relatives", ""))
-            self._set_material_relative_uids(load_linked_relative_uids_by_uid(get_chart_uid(chart_id)))
+            chart_uid = get_chart_uid(chart_id)
+            self._set_material_relative_uids(load_linked_relative_uids_by_uid(chart_uid))
             refresh_photo_gallery = getattr(self, "_refresh_photo_gallery_for_chart", None)
             if callable(refresh_photo_gallery):
+                photo_gallery_started_at = perf_counter()
                 refresh_photo_gallery(chart_id)
+                record_performance_metric(
+                    "chart_editor.load.photo_gallery",
+                    (perf_counter() - photo_gallery_started_at) * 1000.0,
+                    chart_uid=chart_uid,
+                )
         finally:
             self._suppress_lucygoosey = previous_suppress_lucygoosey
 
@@ -34933,6 +35001,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         if not skip_unsaved_confirmation and not self._confirm_discard_or_save():
             return False
         load_started_at = perf_counter()
+        prepare_started_at = load_started_at
         current_chart_uid = self._current_chart_uid_for_navigation()
         replacing_current_chart = (
             not skip_unsaved_confirmation
@@ -34961,6 +35030,14 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             self._sync_chart_right_panel_placeholder_state(None)
             self._show_chart_loading_overlay()
             QApplication.processEvents()
+        record_performance_metric(
+            "chart_editor.load.confirm_and_prepare",
+            (perf_counter() - prepare_started_at) * 1000.0,
+            chart_uid=normalized_chart_uid,
+            from_chart_link=from_chart_link,
+            same_chart=is_same_chart_request,
+        )
+        record_started_at = perf_counter()
         if cached_chart is not None:
             chart = cached_chart
             self._chart_view_navigation_cache.move_to_end(normalized_chart_uid)
@@ -34981,6 +35058,12 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 )
                 return False
             self._cache_chart_view_navigation_entry(normalized_chart_uid, chart)
+        record_performance_metric(
+            "chart_editor.load.record",
+            (perf_counter() - record_started_at) * 1000.0,
+            chart_uid=normalized_chart_uid,
+            cache_hit=cached_chart is not None,
+        )
 
         chart_id = int(getattr(chart, "id", 0) or 0)
         if chart_id <= 0:
@@ -35010,6 +35093,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._set_current_chart_identity(chart_id, chart, normalized_chart_uid)
 
         # Update input fields from loaded chart
+        form_hydration_started_at = perf_counter()
         self._suppress_lucygoosey = True
         self.name_edit.setText(chart.name or "")
         self.alias_edit.setText(getattr(chart, "alias", "") or "")
@@ -35027,9 +35111,23 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             getattr(chart, "relationship_types", []),
         )
         self._set_chart_tags_state(normalize_tag_list(getattr(chart, "tags", [])))
+        related_choices_started_at = perf_counter()
         self._update_reminds_me_of_completer()
+        record_performance_metric(
+            "chart_editor.load.related_choice_snapshot",
+            (perf_counter() - related_choices_started_at) * 1000.0,
+            chart_uid=normalized_chart_uid,
+            completer="reminds_me_of",
+        )
         self._set_reminds_me_of_state(parse_reminds_me_of_uids(getattr(chart, "reminds_me_of", None)))
+        related_choices_started_at = perf_counter()
         self._update_alternate_chart_completer()
+        record_performance_metric(
+            "chart_editor.load.related_choice_snapshot",
+            (perf_counter() - related_choices_started_at) * 1000.0,
+            chart_uid=normalized_chart_uid,
+            completer="alternate_chart",
+        )
         self._set_alternate_chart_state(getattr(chart, "alternate_chart_uid", ""))
         self.comments_edit.setPlainText(getattr(chart, "comments", "") or "")
         set_chart_view_emoji_portrait_state(self, getattr(chart, "emoji_portrait", "") or "")
@@ -35037,7 +35135,13 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.rectification_edit.setPlainText(getattr(chart, "rectification_notes", "") or "")
         self.biography_edit.setPlainText(getattr(chart, "biography", "") or "")
         self.source_edit.setPlainText(getattr(chart, "chart_data_source", "") or "")
+        material_facts_started_at = perf_counter()
         self._load_material_facts_for_chart(chart_id)
+        record_performance_metric(
+            "chart_editor.load.material_facts",
+            (perf_counter() - material_facts_started_at) * 1000.0,
+            chart_uid=normalized_chart_uid,
+        )
         loaded_positive_sentiment = getattr(chart, "positive_sentiment_intensity", 0)
         loaded_negative_sentiment = getattr(chart, "negative_sentiment_intensity", 0)
         self.positive_sentiment_intensity_spin.setValue(
@@ -35147,8 +35251,14 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._loaded_lat = chart.lat
         self._loaded_lon = chart.lon
         self.update_button.setText("Update Chart")
+        record_performance_metric(
+            "chart_editor.load.form_hydration",
+            (perf_counter() - form_hydration_started_at) * 1000.0,
+            chart_uid=normalized_chart_uid,
+        )
 
         # Update the text summary
+        panel_activation_started_at = perf_counter()
         self._latest_chart = chart
         if not is_same_chart_request:
             self._refresh_anagrams_for_chart(chart, reset_to_chart_name=True)
@@ -35165,9 +35275,17 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             self._clear_chart_displays(reset_anagrams=False)
             self._reveal_chart_right_panel_after_loading()
             self._hide_chart_loading_overlay()
+            visible_elapsed_ms = (perf_counter() - load_started_at) * 1000.0
             record_performance_metric(
                 "chart_editor.load_to_visible",
-                (perf_counter() - load_started_at) * 1000.0,
+                visible_elapsed_ms,
+                chart_uid=normalized_chart_uid,
+                cache_hit=cached_chart is not None,
+                placeholder=True,
+            )
+            record_performance_metric(
+                "chart_editor.load.visible",
+                visible_elapsed_ms,
                 chart_uid=normalized_chart_uid,
                 cache_hit=cached_chart is not None,
                 placeholder=True,
@@ -35177,6 +35295,13 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             self._set_chart_right_panel("analytics")
             self._set_chart_right_panel_container_visible(True)
             self._schedule_chart_render(chart)
+            self._chart_load_queue_timing = (normalized_chart_uid, perf_counter())
+        record_performance_metric(
+            "chart_editor.load.panel_activation",
+            (perf_counter() - panel_activation_started_at) * 1000.0,
+            chart_uid=normalized_chart_uid,
+            placeholder=bool(getattr(chart, "is_placeholder", False)),
+        )
         return True
 
     def _on_chart_view_back_requested(self) -> None:
@@ -35291,7 +35416,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
     def _database_refresh_requires_metrics(changed_fields: set[str] | frozenset[str] | None) -> bool:
         """Return whether a Chart View save must refresh Database analytics.
 
-        Lightweight descriptive edits such as alias, From, biography, comments,
+        Lightweight descriptive edits such as From, biography, comments,
         quotes, rectification notes, source text, death details, and material
         facts only need the visible Database rows reloaded.  They do not affect
         analytics charts, prediction norms, similarity baselines, or tag
@@ -35307,6 +35432,8 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             "tags",
             "gender",
             "alignment",
+            "name",
+            "alias",
             "matched_expectations",
             "chart_type",
             "aggregation_scope",
@@ -36023,6 +36150,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._chart_render_queue_state.clear()
         if self._render_flush_timer.isActive():
             self._render_flush_timer.stop()
+        self._chart_load_queue_timing = None
         self._hide_chart_loading_overlay()
 
     def _flush_scheduled_chart_render(self) -> None:
@@ -36042,6 +36170,16 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
 
         section_rendered_cleanly = True
         section_started_at = perf_counter()
+        rendered_chart_uid = self._normalized_chart_uid_key(getattr(chart, "chart_uid", None))
+        queue_timing = getattr(self, "_chart_load_queue_timing", None)
+        if queue_timing is not None and queue_timing[0] == rendered_chart_uid:
+            record_performance_metric(
+                "chart_editor.load.queue_wait",
+                (section_started_at - queue_timing[1]) * 1000.0,
+                chart_uid=rendered_chart_uid,
+                first_section=section,
+            )
+            self._chart_load_queue_timing = None
         if section == "summary":
             self._refresh_chart_summary(chart)
         elif section == "signs":
@@ -36070,12 +36208,19 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             self._render_similar_charts(chart)
         elif section == "anagrams":
             self._render_anagrams(chart)
+        section_elapsed_ms = (perf_counter() - section_started_at) * 1000.0
         record_performance_metric(
             "chart_editor.render_section",
-            (perf_counter() - section_started_at) * 1000.0,
+            section_elapsed_ms,
             chart_uid=self._normalized_chart_uid_key(getattr(chart, "chart_uid", None)),
             section=section,
         )
+        if section in {"summary", "wheel"} and getattr(self, "_chart_load_timing", None) is not None:
+            record_performance_metric(
+                f"chart_editor.load.{section}",
+                section_elapsed_ms,
+                chart_uid=rendered_chart_uid,
+            )
         if (
             # A newer rectified-time/birth-time preview may have replaced the
             # shared queue while this section was rendering.  Do not let this
@@ -36112,9 +36257,17 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         load_timing = getattr(self, "_chart_load_timing", None)
         rendered_chart_uid = self._normalized_chart_uid_key(getattr(chart, "chart_uid", None))
         if load_timing is not None and load_timing[0] == rendered_chart_uid:
+            visible_elapsed_ms = (perf_counter() - load_timing[1]) * 1000.0
             record_performance_metric(
                 "chart_editor.load_to_visible",
-                (perf_counter() - load_timing[1]) * 1000.0,
+                visible_elapsed_ms,
+                chart_uid=rendered_chart_uid,
+                cache_hit=bool(load_timing[2]),
+                placeholder=False,
+            )
+            record_performance_metric(
+                "chart_editor.load.visible",
+                visible_elapsed_ms,
                 chart_uid=rendered_chart_uid,
                 cache_hit=bool(load_timing[2]),
                 placeholder=False,
@@ -36228,6 +36381,8 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             changed_fields.add("aggregation_scope")
 
         comparisons = {
+            "name": lambda value: str(getattr(value, "name", "") or "").strip(),
+            "alias": lambda value: str(getattr(value, "alias", "") or "").strip(),
             "sentiments": lambda value: tuple(
                 sorted(
                     str(item).casefold()

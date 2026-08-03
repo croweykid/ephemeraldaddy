@@ -396,15 +396,17 @@ def on_trait_archive_clicked(owner: Any) -> None:
         QMessageBox.information(dialog_parent, "Default trait protected", "Bundled default traits cannot be archived.")
         return
     archived = bool(item.data(Qt.UserRole + 2))
+    trait_name = _trait_display_name(item)
     try:
         set_trait_archived(item.data(Qt.UserRole), not archived)
     except Exception as exc:
         action = "reactivated" if archived else "archived"
         QMessageBox.warning(dialog_parent, "Trait update failed", f"Trait could not be {action}: {exc}")
         return
-    _mark_trait_definitions_changed(owner, trait_names={_trait_display_name(item)})
     refresh_traits_settings_list(owner)
-    _refresh_trait_predictions(owner)
+    refresh_ranking_traits = getattr(owner, "_refresh_rankings_trait_choices_after_archive", None)
+    if callable(refresh_ranking_traits):
+        refresh_ranking_traits(trait_name=trait_name, archived=not archived)
 
 
 def on_trait_description_clicked(owner: Any) -> None:

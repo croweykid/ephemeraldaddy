@@ -217,6 +217,44 @@ class RankingsPanelMixin:
         finally:
             combo.blockSignals(False)
 
+    def _refresh_rankings_trait_choices_after_archive(
+        self,
+        *,
+        trait_name: str,
+        archived: bool,
+    ) -> None:
+        """Splice an archived Trait choice without touching ranking caches."""
+        combo = getattr(self, "rankings_trait_combo", None)
+        if not isinstance(combo, QComboBox):
+            return
+        if not archived:
+            self._sync_rankings_trait_combo()
+            return
+
+        trait_index = combo.findData(str(trait_name or "").strip())
+        if trait_index < 0:
+            return
+        archived_trait_was_selected = combo.currentIndex() == trait_index
+        combo.blockSignals(True)
+        try:
+            combo.removeItem(trait_index)
+            if archived_trait_was_selected:
+                combo.setCurrentIndex(0 if combo.count() else -1)
+                self._rankings_trait_name = ""
+        finally:
+            combo.blockSignals(False)
+        if not archived_trait_was_selected or not hasattr(self, "rankings_traits_label"):
+            return
+        self.rankings_traits_label.setText(
+            self._render_traits_distribution_rankings_html(
+                None,
+                [],
+                scope_label="the database",
+                cache_warmed=True,
+                parsed_percent=100.0,
+            )
+        )
+
     def _rankings_trait_likelihood_cache_complete(
         self,
         *,
