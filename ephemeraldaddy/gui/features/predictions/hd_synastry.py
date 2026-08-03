@@ -9,7 +9,12 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLabel
 
 from ephemeraldaddy.analysis.human_design import derive_human_design_profile
-from ephemeraldaddy.analysis.human_design_synastry import normalize_gates, rank_human_design_synastry
+from ephemeraldaddy.analysis.human_design_synastry import (
+    filter_hd_synastry_candidates,
+    normalize_gates,
+    normalize_hd_synastry_gender_filter,
+    rank_human_design_synastry,
+)
 from ephemeraldaddy.core.db import list_human_design_synastry_candidates
 from ephemeraldaddy.core.chart import chart_uses_houses
 from ephemeraldaddy.gui.style import apply_chart_info_link_cursor, houses_unknown_note_html
@@ -20,7 +25,6 @@ HD_SYNASTRY_SUBHEADER = (
     "channel/center synastry alone. This says nothing of shared values, means "
     "or other lifestyle factors."
 )
-
 
 def resolve_hd_synastry_gates(chart: object | None) -> frozenset[int]:
     """Return cached gates, deriving them when an older chart has no HD cache."""
@@ -56,6 +60,7 @@ def hd_synastry_render_token(owner: object, chart: object | None) -> tuple[objec
         str(getattr(chart, "chart_uid", "") or "").strip().upper(),
         tuple(sorted(resolve_hd_synastry_gates(chart))),
         bool(chart is not None and chart_uses_houses(chart)),
+        normalize_hd_synastry_gender_filter(getattr(owner, "hd_synastry_gender_filter", "all")),
         int(getattr(owner, "_database_metrics_cache_revision", 0) or 0),
     )
 
@@ -80,10 +85,14 @@ def render_hd_synastry_predictions(owner: object, chart: object | None) -> None:
         label.setText("Human Design gate data is unavailable for this chart.")
         setattr(owner, "_hd_synastry_last_render_token", render_token)
         return
+    candidates = filter_hd_synastry_candidates(
+        list_human_design_synastry_candidates(),
+        getattr(owner, "hd_synastry_gender_filter", "all"),
+    )
     matches = rank_human_design_synastry(
         chart_uid,
         gates,
-        list_human_design_synastry_candidates(),
+        candidates,
     )
     if not matches:
         label.setText("No other charts with Human Design gate data are available.")
@@ -109,6 +118,17 @@ def render_hd_synastry_predictions(owner: object, chart: object | None) -> None:
         )
     label.setText("<br>".join(lines))
     setattr(owner, "_hd_synastry_last_render_token", render_token)
+
+
+def on_hd_synastry_gender_filter_changed(owner: object, gender_filter: str, checked: bool) -> None:
+    """Refresh the current top-ten ranking when a gender radio is selected."""
+    if not checked:
+        return
+    setattr(owner, "hd_synastry_gender_filter", normalize_hd_synastry_gender_filter(gender_filter))
+    setattr(owner, "_hd_synastry_last_render_token", None)
+    chart = getattr(owner, "_latest_chart", None) or getattr(owner, "current_chart", None)
+    if chart is not None:
+        render_hd_synastry_predictions(owner, chart)
 
 
 def on_hd_synastry_link_activated(owner: object, href: str) -> None:

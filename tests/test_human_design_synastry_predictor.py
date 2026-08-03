@@ -1,5 +1,6 @@
 from ephemeraldaddy.analysis.human_design_synastry import (
     HumanDesignSynastryCandidate,
+    filter_hd_synastry_candidates,
     normalize_gates,
     rank_human_design_synastry,
 )
@@ -16,6 +17,10 @@ def _hd_synastry_module():
 
 def candidate(uid, gates, name="Candidate"):
     return HumanDesignSynastryCandidate(uid, name, None, frozenset(gates))
+
+
+def gendered_candidate(uid, gender):
+    return HumanDesignSynastryCandidate(uid, uid, None, frozenset({47}), gender=gender)
 
 
 def test_rank_prioritizes_new_completed_channels_then_center_bonus():
@@ -101,6 +106,33 @@ def test_synastry_known_time_uses_standard_subheader():
     assert hd_synastry.hd_synastry_subheader(chart) == hd_synastry.HD_SYNASTRY_SUBHEADER
 
 
+def test_synastry_gender_filter_only_accepts_explicit_male_or_female():
+    candidates = [
+        gendered_candidate("MALE", "M"),
+        gendered_candidate("FEMALE", "female"),
+        gendered_candidate("AMAB_F", "AMAB-F"),
+        gendered_candidate("AFAB_M", "AFAB-M"),
+        gendered_candidate("AFAB_NB", "AFAB-NB"),
+        gendered_candidate("AMAB_NB", "AMAB-NB"),
+        gendered_candidate("BLANK", None),
+    ]
+
+    assert [item.chart_uid for item in filter_hd_synastry_candidates(candidates, "male")] == ["MALE"]
+    assert [item.chart_uid for item in filter_hd_synastry_candidates(candidates, "female")] == ["FEMALE"]
+    assert filter_hd_synastry_candidates(candidates, "all") == candidates
+
+
+def test_synastry_gender_filter_is_part_of_render_token():
+    hd_synastry = _hd_synastry_module()
+    chart = type("Chart", (), {"chart_uid": "UID", "human_design_gates": [47]})()
+    owner = type("Owner", (), {"hd_synastry_gender_filter": "all"})()
+    all_token = hd_synastry.hd_synastry_render_token(owner, chart)
+
+    owner.hd_synastry_gender_filter = "female"
+
+    assert hd_synastry.hd_synastry_render_token(owner, chart) != all_token
+
+
 def test_right_panel_checks_synastry_revision_before_reranking():
     from pathlib import Path
 
@@ -113,3 +145,16 @@ def test_right_panel_checks_synastry_revision_before_reranking():
     render_call = predictions_branch.index("render_hd_synastry(chart)")
     assert stale_check < render_call
     assert "if predictions_are_current and hd_synastry_is_current:" in predictions_branch
+
+
+def test_predicted_synastry_builds_gender_radios_with_refresh_callback():
+    from pathlib import Path
+
+    source = Path("ephemeraldaddy/gui/features/controllers/chart_view_window.py").read_text()
+    synastry_branch = source.split('title="Predicted Synastry"', 1)[1].split(
+        'title="Traits"', 1
+    )[0]
+
+    assert '(("All", "all"), ("Male", "male"), ("Female", "female"))' in synastry_branch
+    assert "QRadioButton(label)" in synastry_branch
+    assert "on_hd_synastry_gender_filter_changed(owner, selected, checked)" in synastry_branch

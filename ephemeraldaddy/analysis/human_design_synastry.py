@@ -22,6 +22,7 @@ class HumanDesignSynastryCandidate:
     alias: str | None
     gates: frozenset[int]
     uses_houses: bool = True
+    gender: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,6 +33,32 @@ class HumanDesignSynastryMatch:
     completed_channels: int
     defined_centers: int
     uses_houses: bool = True
+
+
+HD_SYNASTRY_GENDER_FILTERS = frozenset({"all", "male", "female"})
+
+
+def normalize_hd_synastry_gender_filter(value: object) -> str:
+    """Return a supported candidate-gender filter, defaulting to all."""
+    normalized = str(value or "").strip().casefold()
+    return normalized if normalized in HD_SYNASTRY_GENDER_FILTERS else "all"
+
+
+def filter_hd_synastry_candidates(
+    candidates: Iterable[HumanDesignSynastryCandidate],
+    gender_filter: object,
+) -> list[HumanDesignSynastryCandidate]:
+    """Filter to explicitly male/female charts without grouping trans or NB labels."""
+    candidate_list = list(candidates)
+    normalized_filter = normalize_hd_synastry_gender_filter(gender_filter)
+    if normalized_filter == "all":
+        return candidate_list
+    accepted_values = {normalized_filter, normalized_filter[0]}
+    return [
+        candidate
+        for candidate in candidate_list
+        if str(candidate.gender or "").strip().casefold() in accepted_values
+    ]
 
 
 def normalize_gates(values: Iterable[object] | None) -> frozenset[int]:
