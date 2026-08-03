@@ -35347,7 +35347,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
     def _database_refresh_requires_metrics(changed_fields: set[str] | frozenset[str] | None) -> bool:
         """Return whether a Chart View save must refresh Database analytics.
 
-        Lightweight descriptive edits such as alias, From, biography, comments,
+        Lightweight descriptive edits such as From, biography, comments,
         quotes, rectification notes, source text, death details, and material
         facts only need the visible Database rows reloaded.  They do not affect
         analytics charts, prediction norms, similarity baselines, or tag
@@ -35363,6 +35363,8 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             "tags",
             "gender",
             "alignment",
+            "name",
+            "alias",
             "matched_expectations",
             "chart_type",
             "aggregation_scope",
@@ -36282,6 +36284,8 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             changed_fields.add("aggregation_scope")
 
         comparisons = {
+            "name": lambda value: str(getattr(value, "name", "") or "").strip(),
+            "alias": lambda value: str(getattr(value, "alias", "") or "").strip(),
             "sentiments": lambda value: tuple(
                 sorted(
                     str(item).casefold()

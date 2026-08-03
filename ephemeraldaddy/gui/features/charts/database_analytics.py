@@ -649,13 +649,23 @@ class DatabaseAnalyticsChartsMixin:
             )
             axis.set_yticks(positions, labels=labels)
             axis.invert_yaxis()
-            axis.set_xlim(0, max(10.0, max(values, default=0.0) * 1.12))
+            # Alignment is a signed -10..10 score.  Keep both halves visible so
+            # negatively aligned recurring names are not clipped at zero.
+            axis.set_xlim(-10.8, 10.8)
+            axis.axvline(
+                0.0,
+                color=CHART_THEME_COLORS["spine"],
+                linewidth=1.0,
+                zorder=1,
+            )
             for bar, value in zip(bars, values):
+                label_offset = 0.12 if value >= 0 else -0.12
                 axis.text(
-                    value + 0.08,
+                    value + label_offset,
                     bar.get_y() + bar.get_height() / 2,
                     f"{value:g}",
                     va="center",
+                    ha="left" if value >= 0 else "right",
                     fontsize=7.5,
                     color=CHART_THEME_COLORS["text"],
                 )
