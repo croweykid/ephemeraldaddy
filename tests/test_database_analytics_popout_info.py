@@ -15,7 +15,7 @@ class _FakeAnalytics(DatabaseAnalyticsChartsMixin):
         return False
 
 
-def test_database_analytics_popout_info_colors_signs_and_highlighted_subheaders():
+def test_database_analytics_popout_info_uses_focused_standard_template():
     html = _FakeAnalytics()._build_database_analytics_popout_info_html(
         chart_title="Dominant Signs",
         label="Aries",
@@ -23,10 +23,12 @@ def test_database_analytics_popout_info_colors_signs_and_highlighted_subheaders(
     )
 
     assert f'color:{SIGN_COLORS["Aries"]}' in html
-    assert f'<b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">Category:</b>' in html
-    assert "Zodiac sign" in html
-    assert "What this measures:" in html
-    assert "Where it appears:" in html
+    assert f'<b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">Associated charts:</b>' in html
+    assert "Database deviation: unavailable" in html
+    assert "Category:" not in html
+    assert "What this measures:" not in html
+    assert "Where it appears:" not in html
+    assert "Bar reading:" not in html
 
 
 def test_database_analytics_popout_info_colors_elements_modes_and_nakshatras():
@@ -49,11 +51,8 @@ def test_database_analytics_popout_info_colors_elements_modes_and_nakshatras():
     )
 
     assert f'color:{ELEMENT_COLORS["Fire"]}' in element_html
-    assert "Element" in element_html
     assert f'color:{MODE_COLORS["cardinal"]}' in mode_html
-    assert "Mode / modality" in mode_html
     assert f'color:{NAKSHATRA_PLANET_COLOR["Ashwini"][1]}' in nakshatra_html
-    assert "Nakshatra" in nakshatra_html
 
 class _FakeChartAnalyticsOwner:
     _latest_chart = object()
@@ -80,21 +79,21 @@ class _FakeAnalyticsWithOwner(_FakeAnalytics):
         self._app_owner = _FakeChartAnalyticsOwner()
 
 
-def test_database_analytics_popout_info_reuses_chart_analytics_astro_explainers():
+def test_database_analytics_popout_info_always_uses_database_template():
     analytics = _FakeAnalyticsWithOwner()
 
-    assert analytics._build_database_analytics_popout_info_html(
+    assert "Associated charts:" in analytics._build_database_analytics_popout_info_html(
         chart_title="Dominant Bodies", label="Venus", value=1.0
-    ) == "body explainer: Venus"
-    assert analytics._build_database_analytics_popout_info_html(
+    )
+    assert "Associated charts:" in analytics._build_database_analytics_popout_info_html(
         chart_title="Dominant Signs", label="Aries", value=1.0
-    ) == "sign explainer: Aries"
-    assert analytics._build_database_analytics_popout_info_html(
+    )
+    assert "Associated charts:" in analytics._build_database_analytics_popout_info_html(
         chart_title="Dominant Houses", label="House 7", value=1.0
-    ) == "house explainer: 7"
-    assert analytics._build_database_analytics_popout_info_html(
+    )
+    assert "Associated charts:" in analytics._build_database_analytics_popout_info_html(
         chart_title="Nakshatras", label="Ashwini", value=1.0
-    ) == "nakshatra explainer: Ashwini"
+    )
 
 
 def test_database_analytics_popout_info_includes_trait_description(monkeypatch):
@@ -118,5 +117,38 @@ def test_database_analytics_popout_info_includes_trait_description(monkeypatch):
 
     title_index = html.index("Creative Spark")
     description_index = html.index("<p><i>Finds patterns in unusual places.</i></p>")
-    category_index = html.index("Category:")
-    assert title_index < description_index < category_index
+    associated_index = html.index("Associated charts:")
+    assert title_index < description_index < associated_index
+
+
+def test_birthday_popout_lists_uid_links_and_database_deviation():
+    class Chart:
+        chart_uid = "UID-123"
+        name = "Ada Lovelace"
+        birth_month = 12
+        birth_day = 10
+        dt = None
+
+    class BirthdayAnalytics(_FakeAnalytics):
+        _analysis_chart_export_rows = {
+            "birth_month": [("12-10", 2, 3, 0, 2, 3, 0, 0.1, 1.75)]
+        }
+
+        def _selected_chart_uids(self):
+            return ["UID-123"]
+
+        def _get_chart_for_filter_by_uid(self, chart_uid):
+            assert chart_uid == "UID-123"
+            return Chart()
+
+    result = BirthdayAnalytics()._build_database_analytics_popout_info_html(
+        chart_title="Birthday",
+        label="12-10",
+        value=0.2,
+        chart_key="birth_month",
+        bar_color="#123456",
+    )
+
+    assert '<h3 style="color:#123456' in result
+    assert '<a href="chart:UID-123">Ada Lovelace</a>' in result
+    assert "1.75 standard deviations above the database norm" in result

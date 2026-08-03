@@ -3,11 +3,12 @@
 
 from __future__ import annotations
 
+import calendar
 import copy
-import hashlib
 import datetime
 import csv
 import html
+import hashlib
 import json
 import logging
 import math
@@ -20,6 +21,7 @@ import warnings
 from collections import Counter
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
+from matplotlib import colors as mpl_colors
 from matplotlib import font_manager as mpl_font_manager
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
@@ -35,7 +37,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QSizePolicy,
-    QTextEdit,
+    QTextBrowser,
     QToolTip,
     QVBoxLayout,
     QWidget,
@@ -259,7 +261,6 @@ from ephemeraldaddy.analysis.traits import (
 )
 from ephemeraldaddy.core import db
 from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
-    build_enneagram_popout_info_html,
     calculate_enneagram_type_weights as _calculate_enneagram_type_weights,
 )
 from ephemeraldaddy.gui.features.charts.metrics import (
@@ -1257,7 +1258,8 @@ class DatabaseAnalyticsChartsMixin:
         chart_name = str(getattr(chart, "name", "") or "").strip() if chart is not None else ""
         return chart_name or f"Chart {int(chart_id)}"
 
-    def _analysis_matching_chart_names(self, chart_key: str, label: str) -> str:
+    def _analysis_matching_charts(self, chart_key: str, label: str) -> list[tuple[str, str]]:
+        """Return ``(chart_uid, name)`` pairs represented by an analytics bar."""
         selected_uid_method = getattr(self, "_selected_chart_uids", None)
         get_chart_by_uid = getattr(self, "_get_chart_for_filter_by_uid", None)
         selected_uids = list(selected_uid_method() or []) if callable(selected_uid_method) else []
@@ -1265,8 +1267,8 @@ class DatabaseAnalyticsChartsMixin:
         if not selected_uids:
             selected_ids = self._exclude_placeholder_local_row_ids(self._selected_local_row_ids())
         if not selected_uids and not selected_ids:
-            return ""
-        matching_names: list[str] = []
+            return []
+        matching_charts: list[tuple[str, str]] = []
         label_text = str(label).strip()
         name_stopwords = (
             DEFAULT_NAME_STOPWORDS | load_name_suppressions()
@@ -1329,13 +1331,35 @@ class DatabaseAnalyticsChartsMixin:
                     label_text,
                     stopwords=name_stopwords,
                 )
+            elif chart_key == "birth_month":
+                month_value = getattr(chart, "birth_month", None)
+                day_value = getattr(chart, "birth_day", None)
+                dt_value = getattr(chart, "dt", None)
+                if not isinstance(month_value, int) and isinstance(dt_value, datetime.datetime):
+                    month_value = int(dt_value.month)
+                if not isinstance(day_value, int) and isinstance(dt_value, datetime.datetime):
+                    day_value = int(dt_value.day)
+                date_match = re.fullmatch(r"(\d{2})-(\d{2})", label_text)
+                if date_match:
+                    include = (month_value, day_value) == tuple(map(int, date_match.groups()))
+                elif isinstance(month_value, int) and 1 <= month_value <= 12:
+                    include = calendar.month_name[month_value].casefold() == label_text.casefold()
             if include:
-                if selected_uids:
-                    chart_name = str(getattr(chart, "name", "") or "").strip()
-                    matching_names.append(chart_name or str(chart_key_value))
-                else:
-                    matching_names.append(self._display_name_for_chart_id(int(chart_key_value)))
-        return ", ".join(matching_names)
+                chart_uid = str(getattr(chart, "chart_uid", "") or "").strip()
+                if not chart_uid and selected_uids:
+                    chart_uid = str(chart_key_value).strip()
+                if not chart_uid:
+                    uid_map = db.get_chart_uid_map({int(chart_key_value)})
+                    chart_uid = str(uid_map.get(int(chart_key_value), "") or "").strip()
+                chart_name = str(getattr(chart, "name", "") or "").strip()
+                if not chart_name and not selected_uids:
+                    chart_name = self._display_name_for_chart_id(int(chart_key_value))
+                if chart_uid:
+                    matching_charts.append((chart_uid, chart_name or chart_uid))
+        return matching_charts
+
+    def _analysis_matching_chart_names(self, chart_key: str, label: str) -> str:
+        return ", ".join(name for _chart_uid, name in self._analysis_matching_charts(chart_key, label))
 
     def _export_database_analysis_chart_csv(self, chart_key: str, chart_title: str) -> None:
         rows = self._analysis_chart_export_rows.get(chart_key) or []
@@ -1847,74 +1871,62 @@ class DatabaseAnalyticsChartsMixin:
         chart_title: str,
         label: str,
         value: float | None,
+        chart_key: str = "",
+        bar_color: str | None = None,
     ) -> str:
         clean_title = self._clean_database_analytics_label(chart_title)
         clean_label = self._clean_database_analytics_label(label)
-        chart_analytics_html = self._build_database_analytics_chart_analytics_info_html(
-            chart_title=clean_title,
-            label=clean_label,
-        )
-        if chart_analytics_html:
-            return chart_analytics_html
-        if "incarnation" in clean_title.casefold() and "cross" in clean_title.casefold():
-            cross_html = self._database_analytics_incarnation_cross_info_html(clean_label)
-            if cross_html:
-                return cross_html
-        enneagram_type = self._enneagram_type_for_database_label(clean_label)
-        if enneagram_type is not None and "enneagram" in clean_title.casefold():
-            return build_enneagram_popout_info_html(
-                enneagram_type,
-                enneagram=ENNEAGRAM,
-                chart_theme_colors=CHART_THEME_COLORS,
-                highlight_color=CHART_DATA_HIGHLIGHT_COLOR,
-                debug_math_enabled=False,
-                chart=None,
-                calculate_type_weights=None,
-            )
         trait_description = None
         if "trait" in clean_title.casefold():
             trait_description = self._database_analytics_trait_description_for_label(clean_label)
-        definition = self._database_analytics_definition_for_label(clean_label, clean_title)
-        value_line = ""
-        if value is not None and math.isfinite(float(value)):
-            if abs(float(value)) <= 1.0:
-                value_text = _format_percent(abs(float(value)))
-            else:
-                value_text = f"{float(value):,.2f}".rstrip("0").rstrip(".")
-            direction = (
-                "above the comparison baseline"
-                if float(value) > 0
-                else "below the comparison baseline"
+        label_color = bar_color or self._database_analytics_color_for_label(clean_label, clean_title)
+        matches = self._analysis_matching_charts(chart_key, clean_label) if chart_key else []
+        associated_html = ", ".join(
+            f'<a href="chart:{html.escape(chart_uid, quote=True)}">{html.escape(name)}</a>'
+            for chart_uid, name in matches
+        ) or "None"
+        z_score = None
+        for row in getattr(self, "_analysis_chart_export_rows", {}).get(chart_key, ()):
+            if row and self._clean_database_analytics_label(row[0]) == clean_label and len(row) > 8:
+                try:
+                    z_score = float(row[8])
+                except (TypeError, ValueError):
+                    pass
+                break
+        if z_score is None or not math.isfinite(z_score):
+            deviation_html = "Database deviation: unavailable"
+        else:
+            deviation_color = "#70d68a" if z_score > 0 else "#ff7b7b" if z_score < 0 else "#d0d0d0"
+            direction = "above" if z_score > 0 else "below" if z_score < 0 else "at"
+            deviation_html = (
+                f'Database deviation: <b style="color:{deviation_color};">'
+                f'{abs(z_score):.2f} standard deviations {direction} the database norm</b>'
             )
-            if abs(float(value)) < 1e-12:
-                direction = "at the comparison baseline"
-            value_line = (
-                f"<p><b>Bar reading:</b> about {html.escape(value_text)} {html.escape(direction)}. "
-                "In selection-vs-database charts, rightward bars mean the selected charts contain more of this category than the database baseline, and leftward bars mean less.</p>"
-            )
-        std_dev_line = ""
-        if self._standard_deviation_indicators_visible():
-            std_dev_line = (
-                "<p><b>Standard deviation / SE guide lines:</b> The red dashed lines mark about one and two standard errors away from the baseline. "
-                "A bar inside the first pair is usually ordinary noise; reaching the ±1 line is a mild signal; reaching or passing the ±2 line is a stronger clue that the selection may genuinely differ from the database, though it is still not proof by itself.</p>"
-            )
-        label_color = self._database_analytics_color_for_label(clean_label, clean_title)
-        category_name = self._database_analytics_category_name(clean_label, clean_title)
         description_line = ""
         if trait_description:
-            description_line = (
-                f'<p><b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">Description:</b> '
-                f"{html.escape(trait_description)}</p>"
-            )
+            description_line = f"<p><i>{html.escape(trait_description)}</i></p>"
         return (
             f'<h3 style="color:{html.escape(label_color)}; font-weight:800;">{html.escape(clean_label)}</h3>'
-            f'<p><b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">Category:</b> {html.escape(category_name)}</p>'
-            f'<p><b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">What this measures:</b> {html.escape(definition)}</p>'
             f"{description_line}"
-            f'<p><b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">Where it appears:</b> <i>{html.escape(clean_title)}</i>.</p>'
-            f"{value_line}"
-            f"{std_dev_line}"
+            f'<p><b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">Associated charts:</b> {associated_html}</p>'
+            f"<p>{deviation_html}</p>"
         )
+
+    def _on_database_analytics_chart_link_activated(self, target: str) -> None:
+        """Open an associated chart link in Chart Editor view."""
+        chart_uid = str(target or "").strip()
+        if chart_uid.startswith("chart:"):
+            chart_uid = chart_uid.split(":", 1)[1].strip()
+        if not chart_uid:
+            return
+        owner = self._owner_window() if hasattr(self, "_owner_window") else getattr(self, "_app_owner", None)
+        open_link = getattr(owner, "_on_similar_chart_link_activated", None)
+        if callable(open_link):
+            open_link(chart_uid, transition_to_chart_view=True)
+            return
+        load_chart_by_uid = getattr(owner, "load_chart_by_uid", None)
+        if callable(load_chart_by_uid):
+            load_chart_by_uid(chart_uid, from_chart_link=True)
 
     def _show_database_analytics_popout(self, chart_key: str, chart_title: str) -> None:
         source_canvas = self._database_analytics_canvas_for_key(chart_key)
@@ -1953,10 +1965,11 @@ class DatabaseAnalyticsChartsMixin:
         chart_scroll.setWidget(popout_canvas)
         chart_scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
-        info_panel = QTextEdit()
+        info_panel = QTextBrowser()
         info_panel.setReadOnly(True)
+        info_panel.setOpenLinks(False)
         info_panel.setPlaceholderText(
-            "Click any bar or label to see a plain-English definition."
+            "Click any bar or label to see its associated charts."
         )
         info_panel.setMinimumHeight(150)
         dialog.installEventFilter(chart_scroll)
@@ -1992,6 +2005,12 @@ class DatabaseAnalyticsChartsMixin:
                     chart_title=chart_title,
                     label=label,
                     value=value,
+                    chart_key=chart_key,
+                    bar_color=(
+                        mpl_colors.to_hex(artist.get_facecolor())
+                        if artist is not None and hasattr(artist, "get_facecolor")
+                        else None
+                    ),
                 )
             )
 
@@ -2001,8 +2020,13 @@ class DatabaseAnalyticsChartsMixin:
                     chart_title=chart_title,
                     label=label,
                     value=value,
+                    chart_key=chart_key,
                 )
             )
+
+        info_panel.anchorClicked.connect(
+            lambda target: self._on_database_analytics_chart_link_activated(target.toString())
+        )
 
         def _on_click(event: Any) -> None:
             if getattr(event, "inaxes", None) is None:
