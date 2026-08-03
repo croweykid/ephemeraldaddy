@@ -564,6 +564,19 @@ def render_nakshatras_chart(
 
 class DatabaseAnalyticsChartsMixin:
 
+    @staticmethod
+    def _name_distribution_chart_height(label_count: int) -> float:
+        """Return enough figure height for every name label to remain legible.
+
+        Name results grow with the database, so unlike the other compact analytics
+        charts this intentionally has no minimum or maximum height.  The per-row
+        space matches the name charts' typography, while the fixed axis space
+        keeps ticks and their labels inside the canvas for short distributions.
+        """
+        label_row_height = 0.32
+        axes_vertical_space = 2.48
+        return (label_count * label_row_height) + axes_vertical_space
+
     def _render_name_distribution_section(
         self,
         *,
@@ -638,12 +651,14 @@ class DatabaseAnalyticsChartsMixin:
                     selection_counts=selection_counts,
                     database_counts=database_counts,
                     loaded_charts=loaded_charts,
-                    auto_height=True,
+                    figure_height=self._name_distribution_chart_height(len(labels)),
                 )
             )
         else:
             values = selection_values if loaded_charts else database_values
-            figure = Figure(figsize=(1.5, max(2.8, min(12.0, len(labels) * 0.32 + 0.8))))
+            figure = Figure(
+                figsize=(1.5, self._name_distribution_chart_height(len(labels)))
+            )
             figure.patch.set_facecolor(self._database_analytics_figure_facecolor())
             axis = figure.add_subplot(111)
             axis.set_facecolor(self._database_analytics_axes_facecolor())
@@ -6114,11 +6129,18 @@ class DatabaseAnalyticsChartsMixin:
         database_counts: list[int],
         loaded_charts: int,
         auto_height: bool = False,
+        figure_height: float | None = None,
         use_earthtone_cycle: bool = False,
         bar_colors: list[str] | None = None,
         emoji_label_font_family: list[str] | None = None,
     ) -> FigureCanvas:
-        chart_height = max(2.8, min(12.0, (len(labels) * 0.32) + 0.8)) if auto_height else 2.8
+        chart_height = (
+            figure_height
+            if figure_height is not None
+            else max(2.8, min(12.0, (len(labels) * 0.32) + 0.8))
+            if auto_height
+            else 2.8
+        )
         figure = Figure(figsize=(1.5, chart_height))
         figure.patch.set_facecolor(self._database_analytics_figure_facecolor())
         ax = figure.add_subplot(111)
