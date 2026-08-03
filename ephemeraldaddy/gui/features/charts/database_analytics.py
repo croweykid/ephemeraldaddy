@@ -2271,7 +2271,11 @@ class DatabaseAnalyticsChartsMixin:
         def _on_click(event: Any) -> None:
             if getattr(event, "inaxes", None) is None:
                 return
-            mouse_event = getattr(event, "guiEvent", None) or event
+            # Matplotlib artists require the Matplotlib MouseEvent, whose x/y
+            # attributes are numeric display coordinates.  A Qt guiEvent has
+            # x()/y() methods instead, which causes Path.contains_point() to
+            # pass bound methods into Matplotlib's native point_in_path call.
+            mouse_event = event
             for artist in [*getattr(event.inaxes, "patches", [])]:
                 artist_gid = artist.get_gid() if hasattr(artist, "get_gid") else None
                 if (
