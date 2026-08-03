@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable
 
+from ephemeraldaddy.analysis.get_astro_twin import normalize_astro_twin_gender_category
 from ephemeraldaddy.core.human_design_system import (
     defined_centers_from_active_gates,
     defined_channels_from_active_gates,
@@ -22,6 +23,7 @@ class HumanDesignSynastryCandidate:
     alias: str | None
     gates: frozenset[int]
     uses_houses: bool = True
+    gender: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,6 +34,46 @@ class HumanDesignSynastryMatch:
     completed_channels: int
     defined_centers: int
     uses_houses: bool = True
+
+
+HD_SYNASTRY_GENDER_FILTERS = frozenset({"all", "male", "female"})
+HD_SYNASTRY_GENDER_METHOD_SEX = "sex"
+HD_SYNASTRY_GENDER_METHOD_IDENTITY = "gender"
+
+
+def normalize_hd_synastry_gender_filter(value: object) -> str:
+    """Return a supported candidate-gender filter, defaulting to all."""
+    normalized = str(value or "").strip().casefold()
+    return normalized if normalized in HD_SYNASTRY_GENDER_FILTERS else "all"
+
+
+def filter_hd_synastry_candidates(
+    candidates: Iterable[HumanDesignSynastryCandidate],
+    gender_filter: object,
+    gender_method: object = HD_SYNASTRY_GENDER_METHOD_SEX,
+) -> list[HumanDesignSynastryCandidate]:
+    """Filter candidates by either assigned-at-birth sex or gender identity."""
+    candidate_list = list(candidates)
+    normalized_filter = normalize_hd_synastry_gender_filter(gender_filter)
+    if normalized_filter == "all":
+        return candidate_list
+    normalized_method = str(gender_method or "").strip().casefold()
+    if normalized_method == HD_SYNASTRY_GENDER_METHOD_IDENTITY:
+        accepted_categories = {
+            "male": frozenset({"male", "afab-m"}),
+            "female": frozenset({"female", "amab-f"}),
+        }
+    else:
+        accepted_categories = {
+            "male": frozenset({"male", "amab-f", "amab-nb"}),
+            "female": frozenset({"female", "afab-m", "afab-nb"}),
+        }
+    return [
+        candidate
+        for candidate in candidate_list
+        if normalize_astro_twin_gender_category(candidate.gender)
+        in accepted_categories[normalized_filter]
+    ]
 
 
 def normalize_gates(values: Iterable[object] | None) -> frozenset[int]:

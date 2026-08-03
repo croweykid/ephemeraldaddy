@@ -1,11 +1,5 @@
-<<<<<<< HEAD
-<<<<<<< HEAD
 import copy
 import inspect
-=======
->>>>>>> parent of 495d7923 (Preserve analytics top gaps in popouts)
-=======
->>>>>>> parent of 495d7923 (Preserve analytics top gaps in popouts)
 import sys
 import types
 
@@ -89,6 +83,21 @@ def test_database_analytics_top_gap_is_at_most_one_and_a_half_caption_lines():
     assert gap_points <= 1.5 * 10.0
 
 
+def test_compact_bar_limits_keep_first_bar_next_to_top_of_axes():
+    figure = Figure(figsize=(4.0, 14.0), dpi=100)
+    canvas = FigureCanvasAgg(figure)
+    axis = figure.add_subplot(111)
+    bars = axis.barh(range(34), [1.0] * 34, height=0.55)
+    axis.invert_yaxis()
+
+    DatabaseAnalyticsChartsMixin._set_compact_barh_y_limits(axis, 34, 0.55)
+    canvas.draw()
+
+    first_bar_top = axis.transData.transform((0.0, bars[0].get_y()))[1]
+    internal_top_gap_pixels = axis.bbox.y1 - first_bar_top
+    assert internal_top_gap_pixels < 4.0
+
+
 def test_database_analytics_title_aware_top_gap_keeps_title_inside_canvas():
     for height_inches in (3.0, 14.0):
         figure = Figure(figsize=(4.0, height_inches), dpi=100)
@@ -105,6 +114,39 @@ def test_database_analytics_title_aware_top_gap_keeps_title_inside_canvas():
 
         title_bounds = axis.title.get_window_extent(canvas.get_renderer())
         assert title_bounds.y1 < figure.bbox.y1
+
+
+@pytest.mark.parametrize(
+    ("gap_options", "expected_gap_points"),
+    [
+        ({}, 12.0),
+        (
+            {
+                "title_font_size_points": 8.0,
+                "title_padding_points": 6.0,
+            },
+            26.0,
+        ),
+    ],
+)
+def test_database_analytics_popout_resize_reapplies_fixed_top_gap(
+    gap_options,
+    expected_gap_points,
+):
+    source_figure = Figure(figsize=(4.0, 2.8), dpi=100)
+    source_figure.add_subplot(111)
+    DatabaseAnalyticsChartsMixin._subplots_adjust_with_fixed_top_gap(
+        source_figure,
+        **gap_options,
+    )
+
+    popout_figure = copy.deepcopy(source_figure)
+    popout_figure.set_size_inches(9.5, 6.2, forward=True)
+    DatabaseAnalyticsChartsMixin._reapply_fixed_top_gap_after_resize(popout_figure)
+
+    axes_top = popout_figure.axes[0].get_position().y1
+    gap_points = (1.0 - axes_top) * popout_figure.get_figheight() * 72.0
+    assert gap_points == pytest.approx(expected_gap_points)
 
 
 def test_percent_difference_axis_scales_symmetrically_to_visible_dataset():
