@@ -1728,6 +1728,7 @@ class ManageMetadataLabelsDialog(QDialog):
     FIELD_RELATIONSHIPS = "relationship_types"
     FIELD_SENTIMENTS = "sentiments"
     FIELD_ASTRO_TWIN_PRESETS = "astro_twin_presets"
+    FIELD_NAMES = "names"
 
     SORT_FREQUENCY = "frequency"
     SORT_ALPHABETICAL = "alphabetical"
@@ -1779,6 +1780,7 @@ class ManageMetadataLabelsDialog(QDialog):
             ("Sentiments", self.FIELD_SENTIMENTS),
             ("Collections", self.FIELD_COLLECTIONS),
             ("Tags", self.FIELD_TAGS),
+            ("Names", self.FIELD_NAMES),
             ("Astro Twin Presets", self.FIELD_ASTRO_TWIN_PRESETS),
         ]
         for label, field_value in field_options:
@@ -1884,6 +1886,7 @@ class ManageMetadataLabelsDialog(QDialog):
             self.FIELD_TAGS,
             self.FIELD_COLLECTIONS,
             self.FIELD_ASTRO_TWIN_PRESETS,
+            self.FIELD_NAMES,
         }:
             index = self._field_selector.findData(initial_field)
             if index >= 0:
@@ -2078,6 +2081,7 @@ class ManageMetadataLabelsDialog(QDialog):
             self.FIELD_RELATIONSHIPS: "Charts with selected relationship",
             self.FIELD_SENTIMENTS: "Charts with selected sentiment",
             self.FIELD_ASTRO_TWIN_PRESETS: "Algorithm",
+            self.FIELD_NAMES: "Charts with selected name or alias",
         }.get(self._active_field(), "Charts")
 
     def _selected_chart_names_heading_text(self, selected_label: str) -> str:
@@ -2147,11 +2151,14 @@ class ManageMetadataLabelsDialog(QDialog):
         selected_count = len(self._selected_labels())
         is_collections = self._active_field() == self.FIELD_COLLECTIONS
         is_astro_twin_presets = self._active_field() == self.FIELD_ASTRO_TWIN_PRESETS
+        is_names = self._active_field() == self.FIELD_NAMES
         selected_key = self._selected_key()
         selected_row = self._row_for_key(selected_key)
         can_edit_selected = selected_row is not None and bool(selected_row.get("editable", True))
         tag_category_selected = bool(self._selected_category_prefix())
         rename_enabled = (selected_count == 1 and can_edit_selected) or tag_category_selected
+        if is_names:
+            rename_enabled = False
         delete_enabled = selected_count >= 1
         if selected_count == 1 and not can_edit_selected:
             delete_enabled = False
@@ -2206,6 +2213,7 @@ class ManageMetadataLabelsDialog(QDialog):
                 self.FIELD_TAGS: [],
                 self.FIELD_COLLECTIONS: [],
                 self.FIELD_ASTRO_TWIN_PRESETS: [],
+                self.FIELD_NAMES: [],
             }
         self._refresh_list()
         if keep_selection_label:
@@ -2401,6 +2409,26 @@ class ManageMetadataLabelsDialog(QDialog):
                 self._on_preset_column_resized
             )
             QTimer.singleShot(0, self._fit_preset_columns_to_viewport)
+        elif self._active_field() == self.FIELD_NAMES:
+            self._list_widget.setColumnCount(2)
+            self._list_widget.setHeaderLabels(["Name", "Frequency"])
+            self._list_widget.setHeaderHidden(False)
+            for row in rows:
+                label = str(row.get("label", "")).strip()
+                count = int(row.get("count", 0) or 0)
+                item = QTreeWidgetItem([label, str(count)])
+                item.setData(0, Qt.UserRole, label)
+                item.setData(0, Qt.UserRole + 1, str(row.get("key", label)))
+                item.setData(0, Qt.UserRole + 2, label)
+                red, green, blue = more_readable_color_scale_rgb_for_range(
+                    count, minimum_count, maximum_count
+                )
+                item.setForeground(0, QColor(red, green, blue))
+                item.setForeground(1, QColor(red, green, blue))
+                self._list_widget.addTopLevelItem(item)
+            self._list_widget.header().setStretchLastSection(False)
+            self._list_widget.header().setSectionResizeMode(0, QHeaderView.Stretch)
+            self._list_widget.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
         else:
             self._list_widget.setColumnCount(1)
             self._list_widget.setHeaderHidden(True)
@@ -2420,7 +2448,8 @@ class ManageMetadataLabelsDialog(QDialog):
                 self._list_widget.addTopLevelItem(item)
         tags_mode = self._active_field() == self.FIELD_TAGS
         presets_mode = self._active_field() == self.FIELD_ASTRO_TWIN_PRESETS
-        if not presets_mode:
+        names_mode = self._active_field() == self.FIELD_NAMES
+        if not presets_mode and not names_mode:
             self._list_widget.setColumnCount(1)
             self._list_widget.setHeaderHidden(True)
             self._list_widget.header().setStretchLastSection(True)
@@ -2657,6 +2686,37 @@ class ManageMetadataLabelsDialog(QDialog):
             old_labels = list(dict.fromkeys(expanded_labels))
         if not old_labels:
             QMessageBox.information(self, "Manage metadata", "Select one or more labels to delete.")
+            return
+        if self._active_field() == self.FIELD_NAMES:
+            preview = ", ".join(old_labels[:6])
+            if len(old_labels) > 6:
+                preview += f", +{len(old_labels) - 6} more"
+            confirm = QMessageBox.question(
+                self,
+                "Suppress names",
+                "Stop treating the selected value(s) as names?\n\n"
+                f"{preview}\n\nChart names and aliases will not be edited.",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.Yes,
+            )
+            if confirm != QMessageBox.Yes:
+                return
+            suppressed = 0
+            for old_label in old_labels:
+                summary = self._apply_change(
+                    field=self.FIELD_NAMES,
+                    old_label=old_label,
+                    new_label="",
+                    create_backup=False,
+                )
+                suppressed += int(summary.get("occurrences_updated", 0) or 0)
+            QMessageBox.information(
+                self,
+                "Names suppressed",
+                f"Suppressed {suppressed} name {'value' if suppressed == 1 else 'values'}. "
+                "Chart metadata was not changed.",
+            )
+            self._queue_usage_reload(refresh_chart_context=True)
             return
         if len(old_labels) == 1:
             confirm_message = (
