@@ -292,6 +292,7 @@ from ephemeraldaddy.gui.style import (
     CHART_AXES_STYLE,
     CHART_DATA_HIGHLIGHT_COLOR,
     CHART_THEME_COLORS,
+    COLLAPSIBLE_HEADER_LEVEL_PARENT,
     COLLAPSIBLE_SECTION_SUBHEADER_STYLE,
     DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS,
     DATABASE_ANALYTICS_GRAPH_AREA_DEBUG_COLOR,
@@ -747,6 +748,7 @@ class DatabaseAnalyticsChartsMixin:
                 layout,
                 title,
                 nested=True,
+                hierarchy_level=COLLAPSIBLE_HEADER_LEVEL_PARENT,
             )
             for key, title in self.DATABASE_ANALYTICS_CATEGORY_TITLES
         }

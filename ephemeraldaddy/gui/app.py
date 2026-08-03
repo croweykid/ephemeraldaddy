@@ -1447,6 +1447,7 @@ from ephemeraldaddy.gui.style import (
     CHART_VIEW_TIME_OVERWRITE_ENABLED,
     COLLAPSIBLE_SECTION_CONTENT_STYLE,
     COLLAPSIBLE_NESTED_SECTION_CONTENT_STYLE,
+    COLLAPSIBLE_HEADER_LEVEL_SUBSECTION,
     COLLAPSIBLE_SECTION_SUBHEADER_STYLE,
     COLLAPSIBLE_SECTION_STATIC_HEADER_STYLE,
     CRASH_MESSAGE,
@@ -3279,6 +3280,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         on_toggled: Callable[[bool], None] | None = None,
         section_key: str | None = None,
         nested: bool = False,
+        hierarchy_level: str = COLLAPSIBLE_HEADER_LEVEL_SUBSECTION,
     ) -> QVBoxLayout:
         section = QWidget()
         section_layout = QVBoxLayout()
@@ -3294,6 +3296,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             title=title,
             expanded=expanded,
             style_sheet=DATABASE_ANALYTICS_COLLAPSIBLE_TOGGLE_STYLE,
+            hierarchy_level=hierarchy_level,
         )
 
         content = QWidget()
@@ -13670,9 +13673,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self.batch_tags_toggle = QToolButton()
         configure_collapsible_header_toggle(
             self.batch_tags_toggle,
-            title="🏷️Tags",
+            title="Tags",
             expanded=False,
             style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
+            hierarchy_level=COLLAPSIBLE_HEADER_LEVEL_SUBSECTION,
         )
         tagging_section_layout.addWidget(self.batch_tags_toggle)
         self.batch_tags_list_widget = QListWidget()
