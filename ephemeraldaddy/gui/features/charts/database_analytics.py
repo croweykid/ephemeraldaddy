@@ -687,6 +687,7 @@ class DatabaseAnalyticsChartsMixin:
             )
             axis.set_yticks(positions, labels=labels)
             axis.invert_yaxis()
+            self._set_compact_barh_y_limits(axis, len(labels), 0.55)
             # Alignment is a signed -10..10 score.  Keep both halves visible so
             # negatively aligned recurring names are not clipped at zero.
             axis.set_xlim(-10.8, 10.8)
@@ -991,6 +992,62 @@ class DatabaseAnalyticsChartsMixin:
                 category=UserWarning,
             )
             figure.tight_layout()
+
+    @staticmethod
+    def _subplots_adjust_with_fixed_top_gap(
+        figure: Figure,
+        *,
+        top_gap_points: float = 12.0,
+        title_font_size_points: float = 0.0,
+        title_padding_points: float = 0.0,
+        **adjustments: float,
+    ) -> None:
+        """Adjust axes while keeping the canvas-to-graph gap height-independent.
+
+        ``subplots_adjust(top=...)`` normally expresses the top edge as a
+        fraction of figure height.  A value such as ``0.98`` therefore turns a
+        nominal two-percent gap into progressively more empty space as an
+        auto-height chart grows.  Database Analytics captions live outside the
+        Matplotlib canvas, so that proportional whitespace appears between the
+        caption and its graph.
+
+        Convert a font-sized physical gap to the fractional coordinate that
+        Matplotlib requires.  Twelve points is constant at every chart height
+        and remains within one-and-a-half lines of the panel's caption text.
+        Builders with an in-canvas title must also provide its font size and
+        padding so the fixed outer gap is retained without clipping the title.
+        """
+        figure_height_inches = max(float(figure.get_size_inches()[1]), 0.01)
+        reserved_top_points = sum(
+            max(0.0, float(value))
+            for value in (
+                top_gap_points,
+                title_font_size_points,
+                title_padding_points,
+            )
+        )
+        figure._database_analytics_reserved_top_points = reserved_top_points
+        top_gap_inches = reserved_top_points / 72.0
+        adjustments["top"] = max(
+            0.0,
+            min(1.0, 1.0 - (top_gap_inches / figure_height_inches)),
+        )
+        figure.subplots_adjust(**adjustments)
+
+    @staticmethod
+    def _reapply_fixed_top_gap_after_resize(figure: Figure) -> None:
+        """Restore a copied analytics figure's physical top gap after resizing."""
+        reserved_top_points = getattr(
+            figure,
+            "_database_analytics_reserved_top_points",
+            None,
+        )
+        if reserved_top_points is None:
+            return
+        DatabaseAnalyticsChartsMixin._subplots_adjust_with_fixed_top_gap(
+            figure,
+            top_gap_points=float(reserved_top_points),
+        )
 
     @staticmethod
     def _set_x_limits_with_padding(
@@ -2181,6 +2238,7 @@ class DatabaseAnalyticsChartsMixin:
             max(6.2, float(source_height)),
             forward=True,
         )
+        self._reapply_fixed_top_gap_after_resize(figure)
         figure.patch.set_facecolor(self._database_analytics_figure_facecolor())
         for ax in figure.axes:
             ax.set_facecolor(self._database_analytics_axes_facecolor())
@@ -2884,7 +2942,9 @@ class DatabaseAnalyticsChartsMixin:
             tick_label.set_ha("right")
         self._apply_tight_layout(relationship_figure)
         
-        relationship_figure.subplots_adjust(left=0.51, bottom=0.12, right=0.97, top=0.98)
+        self._subplots_adjust_with_fixed_top_gap(
+            relationship_figure, left=0.51, bottom=0.12, right=0.97
+        )
         #relationship_figure.subplots_adjust(**CHART_AXES_STYLE["barh_adjust"])
 
         relationship_canvas = FigureCanvas(relationship_figure)
@@ -3030,7 +3090,9 @@ class DatabaseAnalyticsChartsMixin:
         self._apply_tight_layout(figure)
         # DB View's lefthand panel's graph margins.
         # Lower the top bound to reserve space for the title.
-        figure.subplots_adjust(left=0.51, bottom=0.12, right=0.97, top=0.98)
+        self._subplots_adjust_with_fixed_top_gap(
+            figure, left=0.51, bottom=0.12, right=0.97
+        )
 
         canvas = FigureCanvas(figure)
         self._configure_left_panel_canvas(canvas, figure)
@@ -3151,7 +3213,9 @@ class DatabaseAnalyticsChartsMixin:
         for tick_label in sign_ax.get_yticklabels():
             tick_label.set_ha("right")
         self._apply_tight_layout(sign_figure)
-        sign_figure.subplots_adjust(left=0.51, bottom=0.12, right=0.97, top=0.98)
+        self._subplots_adjust_with_fixed_top_gap(
+            sign_figure, left=0.51, bottom=0.12, right=0.97
+        )
 
         sign_canvas = FigureCanvas(sign_figure)
         self._configure_left_panel_canvas(sign_canvas, sign_figure)
@@ -3279,7 +3343,9 @@ class DatabaseAnalyticsChartsMixin:
         for tick_label in dominant_ax.get_yticklabels():
             tick_label.set_ha("right")
         self._apply_tight_layout(dominant_figure)
-        dominant_figure.subplots_adjust(left=0.51, bottom=0.12, right=0.97, top=0.98)
+        self._subplots_adjust_with_fixed_top_gap(
+            dominant_figure, left=0.51, bottom=0.12, right=0.97
+        )
 
         dominant_canvas = FigureCanvas(dominant_figure)
         self._configure_left_panel_canvas(dominant_canvas, dominant_figure)
@@ -3435,7 +3501,9 @@ class DatabaseAnalyticsChartsMixin:
             if label_colors is not None and index < len(colors):
                 tick_label.set_color(colors[index])
         self._apply_tight_layout(figure)
-        figure.subplots_adjust(left=0.51, bottom=scaled_bottom_margin, right=0.97, top=0.98)
+        self._subplots_adjust_with_fixed_top_gap(
+            figure, left=0.51, bottom=scaled_bottom_margin, right=0.97
+        )
         canvas = FigureCanvas(figure)
         self._attach_database_analytics_tick_label_tooltips(canvas, figure, label_tooltips)
         self._configure_left_panel_canvas(canvas, figure)
@@ -3576,7 +3644,9 @@ class DatabaseAnalyticsChartsMixin:
         for tick_label in ax.get_yticklabels():
             tick_label.set_ha("right")
         self._apply_tight_layout(figure)
-        figure.subplots_adjust(left=0.51, bottom=0.12, right=0.97, top=0.98)
+        self._subplots_adjust_with_fixed_top_gap(
+            figure, left=0.51, bottom=0.12, right=0.97
+        )
 
         canvas = FigureCanvas(figure)
         self._configure_left_panel_canvas(canvas, figure)
@@ -3720,7 +3790,9 @@ class DatabaseAnalyticsChartsMixin:
         for tick_label in ax.get_yticklabels():
             tick_label.set_ha("right")
         self._apply_tight_layout(figure)
-        figure.subplots_adjust(left=0.51, bottom=0.12, right=0.97, top=0.98)
+        self._subplots_adjust_with_fixed_top_gap(
+            figure, left=0.51, bottom=0.12, right=0.97
+        )
 
         canvas = FigureCanvas(figure)
         self._configure_left_panel_canvas(canvas, figure)
@@ -3900,7 +3972,9 @@ class DatabaseAnalyticsChartsMixin:
             tick_label.set_ha("right")
         # Manual margins are explicitly set for this chart; skip tight_layout to avoid
         # benign "cannot be made large enough" warnings with long axis labels.
-        figure.subplots_adjust(left=0.51, bottom=0.12, right=0.97, top=0.98)
+        self._subplots_adjust_with_fixed_top_gap(
+            figure, left=0.51, bottom=0.12, right=0.97
+        )
 
         canvas = FigureCanvas(figure)
         self._configure_left_panel_canvas(canvas, figure)
@@ -4036,7 +4110,9 @@ class DatabaseAnalyticsChartsMixin:
         for spine in ax.spines.values():
             spine.set_visible(False)
 
-        figure.subplots_adjust(left=0.08, right=0.98, top=0.94, bottom=0.34)
+        self._subplots_adjust_with_fixed_top_gap(
+            figure, left=0.08, right=0.98, bottom=0.34
+        )
         canvas = FigureCanvas(figure)
         self._configure_left_panel_canvas(canvas, figure)
         canvas.draw_idle()
@@ -6343,6 +6419,7 @@ class DatabaseAnalyticsChartsMixin:
         bars = ax.barh(positions, [display_value], color="#6fa8dc", height=0.55)
         ax.set_xlim(0, 24 * 60)
         ax.set_yticks(positions, labels=labels)
+        self._set_compact_barh_y_limits(ax, len(labels), 0.55)
         ax.tick_params(axis="y", labelsize=8, colors=CHART_THEME_COLORS["text"], pad=6)
         ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
         ax.set_xticks([0, 360, 720, 1080, 1439])
@@ -6365,7 +6442,9 @@ class DatabaseAnalyticsChartsMixin:
             tick_label.set_ha("right")
 
         self._apply_tight_layout(figure)
-        figure.subplots_adjust(left=0.51, bottom=0.24, right=0.97, top=0.98)
+        self._subplots_adjust_with_fixed_top_gap(
+            figure, left=0.51, bottom=0.24, right=0.97
+        )
         canvas = FigureCanvas(figure)
         self._configure_left_panel_canvas(canvas, figure)
         canvas.draw_idle()
@@ -6493,7 +6572,9 @@ class DatabaseAnalyticsChartsMixin:
                 tick_label.set_fontfamily(emoji_label_font_family)
 
         self._apply_tight_layout(figure)
-        figure.subplots_adjust(left=0.36, bottom=0.10, right=0.97, top=0.97)
+        self._subplots_adjust_with_fixed_top_gap(
+            figure, left=0.36, bottom=0.10, right=0.97
+        )
         canvas = FigureCanvas(figure)
         self._configure_left_panel_canvas(canvas, figure)
         canvas.draw_idle()
@@ -6600,6 +6681,8 @@ class DatabaseAnalyticsChartsMixin:
                     fontsize=7.2,
                 )
         ax.set_yticks(positions, labels=display_labels)
+        ax.invert_yaxis()
+        self._set_compact_barh_y_limits(ax, len(labels), 0.55)
         ax.tick_params(axis="y", labelsize=7.2, colors=CHART_THEME_COLORS["text"], pad=6)
         ax.tick_params(axis="x", labelsize=7.2, colors=CHART_THEME_COLORS["muted_text"])
         ax.set_title(str(category_label), color=CHART_THEME_COLORS["text"], fontsize=8, pad=6)
@@ -6609,7 +6692,14 @@ class DatabaseAnalyticsChartsMixin:
         for tick_label in ax.get_yticklabels():
             tick_label.set_ha("right")
         self._apply_tight_layout(figure)
-        figure.subplots_adjust(left=0.50, bottom=0.08, right=0.97, top=0.92)
+        self._subplots_adjust_with_fixed_top_gap(
+            figure,
+            left=0.50,
+            bottom=0.08,
+            right=0.97,
+            title_font_size_points=8.0,
+            title_padding_points=6.0,
+        )
         canvas = FigureCanvas(figure)
         self._configure_left_panel_canvas(canvas, figure)
         canvas.draw_idle()
