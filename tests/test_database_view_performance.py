@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from ephemeraldaddy.gui.features.database_view import performance
 
 
@@ -40,3 +42,17 @@ def test_database_view_open_timing_only_records_once(monkeypatch) -> None:
     timing.complete(was_visible=True, refresh_reason="none")
 
     assert recorded == ["database_view.open_to_visible"]
+
+
+def test_database_view_timer_starts_before_cold_dialog_construction() -> None:
+    app_source = Path("ephemeraldaddy/gui/app.py").read_text(encoding="utf-8")
+    method = app_source.split("    def on_manage_charts(", 1)[1].split(
+        "    def _hide_chart_view_while_database_view_is_open", 1
+    )[0]
+
+    confirmation = method.index("confirm_manage_charts_open")
+    timing_start = method.index("database_view_open_timing = DatabaseViewOpenTiming()")
+    dialog_construction = method.index("self._get_or_create_manage_charts_dialog()")
+    controller_handoff = method.index("open_timing=database_view_open_timing")
+
+    assert confirmation < timing_start < dialog_construction < controller_handoff

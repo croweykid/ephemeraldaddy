@@ -537,7 +537,7 @@ class ChartsController:
         self._get_pending_changed_refreshes = get_pending_changed_refreshes
         self._clear_pending_changed_refreshes = clear_pending_changed_refreshes
 
-    def open_manage_charts(
+    def confirm_manage_charts_open(
         self,
         progress_callback: Callable[[str, int], None] | None = None,
     ) -> bool:
@@ -546,7 +546,14 @@ class ChartsController:
         if not self._confirm_discard_or_save():
             logger.debug("Cancelled Database View open due to unsaved-change prompt.")
             return False
-        open_timing = DatabaseViewOpenTiming()
+        return True
+
+    def open_manage_charts(
+        self,
+        *,
+        open_timing: DatabaseViewOpenTiming,
+        progress_callback: Callable[[str, int], None] | None = None,
+    ) -> bool:
         if progress_callback:
             progress_callback("Preparing Database View shell…", 72)
         dialog = self._get_or_create_manage_dialog()

@@ -1307,6 +1307,7 @@ from ephemeraldaddy.gui.features.controllers.main_window import (
     EphemerisPrefetchController,
     RetconDialogController,
 )
+from ephemeraldaddy.gui.features.database_view.performance import DatabaseViewOpenTiming
 from ephemeraldaddy.gui.features.charts.section_availability import (
     is_chart_analysis_section_available,
 )
@@ -35534,8 +35535,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             self.isVisible(),
             self.current_chart_id,
         )
-        if startup_progress is None and not self._confirm_discard_or_save():
+        if not self._charts_controller.confirm_manage_charts_open(startup_progress):
             return False
+        database_view_open_timing = DatabaseViewOpenTiming()
         self._cancel_pending_chart_render()
         self._flush_pending_metadata_save()
         self._flush_pending_sentiment_metrics_save()
@@ -35550,6 +35552,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         manage_dialog = self._get_or_create_manage_charts_dialog()
         manage_dialog.adopt_window_placement(self)
         opened = self._charts_controller.open_manage_charts(
+            open_timing=database_view_open_timing,
             progress_callback=startup_progress,
         )
         if not opened:
