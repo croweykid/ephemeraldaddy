@@ -209,3 +209,30 @@ def test_chart_calculation_settings_builds_gender_method_radios():
     assert '"Assigned-at-birth sex"' in settings_branch
     assert '"Gender identity"' in settings_branch
     assert "on_gendered_results_method_changed" in settings_branch
+
+
+def test_settings_consolidates_database_and_visualization_controls():
+    from pathlib import Path
+
+    source = Path("ephemeraldaddy/gui/app.py").read_text()
+    settings_source = source.split("def _ensure_settings_dialog", 1)[1].split(
+        "def _refresh_settings_footer_note", 1
+    )[0]
+
+    show_hide_index = settings_source.index('"Show/Hide Modules"')
+    database_header_index = settings_source.index(
+        'self._build_settings_subheader_label("Database View")', show_hide_index
+    )
+    chart_data_header_index = settings_source.index(
+        'self._build_settings_subheader_label("Chart Data (Chart Editor)")', show_hide_index
+    )
+    assert show_hide_index < database_header_index < chart_data_header_index
+    assert 'content_layout,\n            "Database View"' not in settings_source
+
+    chart_methods_index = settings_source.index('"Chart Calculation Methods"')
+    visualization_header_index = settings_source.index(
+        'self._build_settings_subheader_label("Data Visualization")', chart_methods_index
+    )
+    significance_index = settings_source.index('QLabel("Significance correction:")')
+    assert chart_methods_index < visualization_header_index < significance_index
+    assert 'content_layout,\n            "Data Visualization"' not in settings_source
