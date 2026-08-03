@@ -25,6 +25,13 @@ from ephemeraldaddy.gui.features.charts.collections import (
 from ephemeraldaddy.gui.features.charts.similarity_custom_presets import (
     build_custom_astro_twin_preset_manager_rows,
 )
+from ephemeraldaddy.gui.features.database_view.analytics.name_search import (
+    DEFAULT_NAME_STOPWORDS,
+    analyze_names,
+    chart_has_name_token,
+    load_name_suppressions,
+    suppress_name_tokens,
+)
 
 
 class PropertyManagerCoordinator:
@@ -52,7 +59,7 @@ class PropertyManagerCoordinator:
         dialog = ManageMetadataLabelsDialog(
             parent=parent or self._host,
             load_usage=self.load_usage,
-            apply_change=apply_metadata_label_change,
+            apply_change=self.apply_change,
             label_limit=32767,
             load_chart_names=self.chart_names,
             # The Property Manager can rename/delete labels while Qt item views in
@@ -153,7 +160,45 @@ class PropertyManagerCoordinator:
             row["chart_uids"] = sorted(tag_chart_uids.get(label, set()))
         usage[ManageMetadataLabelsDialog.FIELD_COLLECTIONS] = self._collection_usage_rows()
         usage[ManageMetadataLabelsDialog.FIELD_ASTRO_TWIN_PRESETS] = self._astro_twin_preset_rows()
+        charts = [
+            chart
+            for chart_uid in uid_by_id.values()
+            if (
+                chart := self._host._get_chart_for_filter_by_uid(str(chart_uid))
+            ) is not None
+        ]
+        usage[ManageMetadataLabelsDialog.FIELD_NAMES] = [
+            {
+                "label": statistic.name,
+                "key": statistic.name.casefold(),
+                "count": statistic.frequency,
+                "chart_uids": list(statistic.chart_uids),
+                "editable": True,
+            }
+            for statistic in analyze_names(charts)
+        ]
         return usage
+
+    def apply_change(
+        self,
+        *,
+        field: str,
+        old_label: str,
+        new_label: str,
+        create_backup: bool = True,
+    ) -> dict[str, int]:
+        """Route Name Manager deletion to suppression without editing chart metadata."""
+        if field != ManageMetadataLabelsDialog.FIELD_NAMES:
+            return apply_metadata_label_change(
+                field=field,
+                old_label=old_label,
+                new_label=new_label,
+                create_backup=create_backup,
+            )
+        if str(new_label or "").strip():
+            raise ValueError("Names can be suppressed, but not renamed.")
+        added = suppress_name_tokens([old_label])
+        return {"occurrences_updated": added, "rows_updated": added}
 
     def _astro_twin_preset_rows(self) -> list[dict[str, object]]:
         return build_custom_astro_twin_preset_manager_rows()
@@ -211,6 +256,20 @@ class PropertyManagerCoordinator:
             for row in self._host._chart_rows
             if (normalized := self._host._normalize_chart_row(row)) is not None
         ]
+        if field == ManageMetadataLabelsDialog.FIELD_NAMES:
+            uid_by_id = get_chart_uid_map(row[0] for row in rows)
+            name_stopwords = DEFAULT_NAME_STOPWORDS | load_name_suppressions()
+            for chart_uid in uid_by_id.values():
+                chart = self._host._get_chart_for_filter_by_uid(str(chart_uid))
+                if chart is None or not chart_has_name_token(
+                    chart,
+                    label,
+                    stopwords=name_stopwords,
+                ):
+                    continue
+                chart_name = str(getattr(chart, "name", "") or chart_uid).strip()
+                matches.append(chart_name)
+            return sorted(matches, key=lambda match: str(match).casefold())
         for row in rows:
             chart_id = row[0]
             chart_name = str(row[1] or row[2] or f"Chart {chart_id}")
