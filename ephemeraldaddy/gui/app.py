@@ -34078,7 +34078,8 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             self._set_material_fact_text("material_facts_websites_edit", identifiers.get("websites", ""))
             self._set_material_fact_text("material_facts_phone_numbers_edit", identifiers.get("phone_numbers", ""))
             self._set_material_fact_text("material_facts_unlisted_relatives_edit", identifiers.get("unlisted_relatives", ""))
-            self._set_material_relative_uids(load_linked_relative_uids_by_uid(get_chart_uid(chart_id)))
+            chart_uid = get_chart_uid(chart_id)
+            self._set_material_relative_uids(load_linked_relative_uids_by_uid(chart_uid))
             refresh_photo_gallery = getattr(self, "_refresh_photo_gallery_for_chart", None)
             if callable(refresh_photo_gallery):
                 photo_gallery_started_at = perf_counter()
@@ -34086,7 +34087,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 record_performance_metric(
                     "chart_editor.load.photo_gallery",
                     (perf_counter() - photo_gallery_started_at) * 1000.0,
-                    chart_uid=get_chart_uid(chart_id),
+                    chart_uid=chart_uid,
                 )
         finally:
             self._suppress_lucygoosey = previous_suppress_lucygoosey
@@ -35213,16 +35214,17 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             self._clear_chart_displays(reset_anagrams=False)
             self._reveal_chart_right_panel_after_loading()
             self._hide_chart_loading_overlay()
+            visible_elapsed_ms = (perf_counter() - load_started_at) * 1000.0
             record_performance_metric(
                 "chart_editor.load_to_visible",
-                (perf_counter() - load_started_at) * 1000.0,
+                visible_elapsed_ms,
                 chart_uid=normalized_chart_uid,
                 cache_hit=cached_chart is not None,
                 placeholder=True,
             )
             record_performance_metric(
                 "chart_editor.load.visible",
-                (perf_counter() - load_started_at) * 1000.0,
+                visible_elapsed_ms,
                 chart_uid=normalized_chart_uid,
                 cache_hit=cached_chart is not None,
                 placeholder=True,
@@ -36141,16 +36143,17 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             self._render_similar_charts(chart)
         elif section == "anagrams":
             self._render_anagrams(chart)
+        section_elapsed_ms = (perf_counter() - section_started_at) * 1000.0
         record_performance_metric(
             "chart_editor.render_section",
-            (perf_counter() - section_started_at) * 1000.0,
+            section_elapsed_ms,
             chart_uid=self._normalized_chart_uid_key(getattr(chart, "chart_uid", None)),
             section=section,
         )
         if section in {"summary", "wheel"} and getattr(self, "_chart_load_timing", None) is not None:
             record_performance_metric(
                 f"chart_editor.load.{section}",
-                (perf_counter() - section_started_at) * 1000.0,
+                section_elapsed_ms,
                 chart_uid=rendered_chart_uid,
             )
         if (
@@ -36189,16 +36192,17 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         load_timing = getattr(self, "_chart_load_timing", None)
         rendered_chart_uid = self._normalized_chart_uid_key(getattr(chart, "chart_uid", None))
         if load_timing is not None and load_timing[0] == rendered_chart_uid:
+            visible_elapsed_ms = (perf_counter() - load_timing[1]) * 1000.0
             record_performance_metric(
                 "chart_editor.load_to_visible",
-                (perf_counter() - load_timing[1]) * 1000.0,
+                visible_elapsed_ms,
                 chart_uid=rendered_chart_uid,
                 cache_hit=bool(load_timing[2]),
                 placeholder=False,
             )
             record_performance_metric(
                 "chart_editor.load.visible",
-                (perf_counter() - load_timing[1]) * 1000.0,
+                visible_elapsed_ms,
                 chart_uid=rendered_chart_uid,
                 cache_hit=bool(load_timing[2]),
                 placeholder=False,

@@ -96,3 +96,22 @@ def test_chart_editor_render_queue_records_first_visible_phases() -> None:
     assert 'section in {"summary", "wheel"}' in flush_source
     assert "chart_editor.load.visible" in flush_source
     assert "chart_editor.load.photo_gallery" in material_facts_source
+
+
+def test_chart_editor_visible_aliases_reuse_one_elapsed_sample() -> None:
+    load_source = _main_window_method_source("load_chart_by_uid")
+    flush_source = _main_window_method_source("_flush_scheduled_chart_render")
+
+    assert load_source.count("visible_elapsed_ms =") == 1
+    assert flush_source.count("visible_elapsed_ms =") == 1
+    assert load_source.count("visible_elapsed_ms,") == 2
+    assert flush_source.count("visible_elapsed_ms,") == 2
+
+
+def test_material_facts_reuses_resolved_uid_for_photo_metric() -> None:
+    material_facts_source = _main_window_method_source("_load_material_facts_for_chart")
+
+    assert material_facts_source.count("get_chart_uid(chart_id)") == 1
+    assert "chart_uid = get_chart_uid(chart_id)" in material_facts_source
+    assert "load_linked_relative_uids_by_uid(chart_uid)" in material_facts_source
+    assert "chart_uid=chart_uid" in material_facts_source
