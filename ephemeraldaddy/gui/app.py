@@ -4999,7 +4999,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         alignment_section_layout = self._add_left_panel_collapsible_section(
             panel,
             subjective_notes_category_layout,
-            "💭Alignment && Social Score",
+            "💭Alignment & Social Score",
             section_key="alignment_summary",
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
                 "alignment_summary",
@@ -5009,7 +5009,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._database_metrics_section_expanded["alignment_summary"] = self._is_database_metrics_section_expanded("alignment_summary")
         self._create_analysis_chart_header(
             alignment_section_layout,
-            "💭Alignment && Social Score",
+            "💭Alignment & Social Score",
             "alignment_summary",
             "alignment_summary",
             dropdown_options=[
@@ -5233,7 +5233,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         birth_month_section_layout = self._add_left_panel_collapsible_section(
             panel,
             demographics_category_layout,
-            "Birth Day", #birthday
+            "Birthday", #birthday
             section_key="birth_month",
             expanded=self._is_database_metrics_section_expanded("birth_month"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
