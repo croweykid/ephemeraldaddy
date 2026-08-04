@@ -897,7 +897,7 @@ from ephemeraldaddy.analysis.human_design_synastry import (
     HD_SYNASTRY_GENDER_METHOD_IDENTITY,
     HD_SYNASTRY_GENDER_METHOD_SEX,
 )
-from ephemeraldaddy.gui.features.predictions.hd_synastry import (
+from ephemeraldaddy.gui.features.predictions.hd_electrochemistry import (
     load_gendered_results_method,
     on_gendered_results_method_changed,
 )

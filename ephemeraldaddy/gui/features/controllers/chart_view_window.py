@@ -82,11 +82,11 @@ from ephemeraldaddy.gui.features.charts.euphonics import (
 )
 from ephemeraldaddy.gui.features.charts.loading_overlay import ChartLoadingOverlay
 from ephemeraldaddy.gui.features.charts.prediction_loading_labels import start_prediction_loading_blink
-from ephemeraldaddy.gui.features.predictions.hd_synastry import (
-    HD_SYNASTRY_SUBHEADER,
-    configure_hd_synastry_label,
-    on_hd_synastry_gender_filter_changed,
-    render_hd_synastry_predictions,
+from ephemeraldaddy.gui.features.predictions.hd_electrochemistry import (
+    HD_ELECTROCHEMISTRY_SUBHEADER,
+    configure_hd_electrochemistry_label,
+    on_hd_electrochemistry_gender_filter_changed,
+    render_hd_electrochemistry_predictions,
 )
 from ephemeraldaddy.gui.features.charts.time_sensitivity_panel import TimeSensitivityPanel
 from ephemeraldaddy.gui.features.charts.trait_predictions import (
@@ -1820,45 +1820,45 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         setattr(owner, attribute_name, subheader)
         return subheader
 
-    hd_synastry_section_layout = owner._add_chart_analysis_collapsible_section(
+    hd_electrochemistry_section_layout = owner._add_chart_analysis_collapsible_section(
         panel=panel,
         layout=layout,
         title="Predicted Synastry",
         expanded=True,
     )
-    register_prediction_section("hd_synastry", hd_synastry_section_layout)
-    hd_synastry_gender_row = QWidget()
-    hd_synastry_gender_layout = QHBoxLayout(hd_synastry_gender_row)
-    hd_synastry_gender_layout.setContentsMargins(0, 0, 0, 0)
-    hd_synastry_gender_layout.setSpacing(10)
-    hd_synastry_gender_layout.addWidget(QLabel("Results:"))
-    owner.hd_synastry_gender_filter = "all"
-    owner.hd_synastry_gender_filter_group = QButtonGroup(owner)
+    register_prediction_section("hd_electrochemistry", hd_electrochemistry_section_layout)
+    hd_electrochemistry_gender_row = QWidget()
+    hd_electrochemistry_gender_layout = QHBoxLayout(hd_electrochemistry_gender_row)
+    hd_electrochemistry_gender_layout.setContentsMargins(0, 0, 0, 0)
+    hd_electrochemistry_gender_layout.setSpacing(10)
+    hd_electrochemistry_gender_layout.addWidget(QLabel("Results:"))
+    owner.hd_electrochemistry_gender_filter = "all"
+    owner.hd_electrochemistry_gender_filter_group = QButtonGroup(owner)
     for label, value in (("All", "all"), ("Male", "male"), ("Female", "female")):
         button = QRadioButton(label)
         button.setChecked(value == "all")
         button.toggled.connect(
-            lambda checked, selected=value: on_hd_synastry_gender_filter_changed(owner, selected, checked)
+            lambda checked, selected=value: on_hd_electrochemistry_gender_filter_changed(owner, selected, checked)
         )
-        owner.hd_synastry_gender_filter_group.addButton(button)
-        hd_synastry_gender_layout.addWidget(button)
-    hd_synastry_gender_layout.addStretch(1)
-    hd_synastry_section_layout.addWidget(hd_synastry_gender_row)
-    hd_synastry_mode_combo = QComboBox()
-    apply_shared_dropdown_style(hd_synastry_mode_combo)
-    hd_synastry_mode_combo.addItem("🪷HD Synastry", "hd_synastry")
-    hd_synastry_section_layout.addWidget(hd_synastry_mode_combo)
-    hd_synastry_subheader = add_prediction_subheader(
-        hd_synastry_section_layout,
-        "hd_synastry_prediction_subheader",
+        owner.hd_electrochemistry_gender_filter_group.addButton(button)
+        hd_electrochemistry_gender_layout.addWidget(button)
+    hd_electrochemistry_gender_layout.addStretch(1)
+    hd_electrochemistry_section_layout.addWidget(hd_electrochemistry_gender_row)
+    hd_electrochemistry_mode_combo = QComboBox()
+    apply_shared_dropdown_style(hd_electrochemistry_mode_combo)
+    hd_electrochemistry_mode_combo.addItem("🪷HD Electrochemistry", "hd_electrochemistry")
+    hd_electrochemistry_section_layout.addWidget(hd_electrochemistry_mode_combo)
+    hd_electrochemistry_subheader = add_prediction_subheader(
+        hd_electrochemistry_section_layout,
+        "hd_electrochemistry_prediction_subheader",
     )
-    hd_synastry_subheader.setText(HD_SYNASTRY_SUBHEADER)
-    owner.hd_synastry_prediction_label = QLabel("Open Predictions to calculate rankings.")
-    configure_hd_synastry_label(owner, owner.hd_synastry_prediction_label)
-    hd_synastry_section_layout.addWidget(owner.hd_synastry_prediction_label)
-    owner.hd_synastry_prediction_mode_combo = hd_synastry_mode_combo
-    owner._render_hd_synastry_predictions = MethodType(
-        lambda self, chart: render_hd_synastry_predictions(self, chart),
+    hd_electrochemistry_subheader.setText(HD_ELECTROCHEMISTRY_SUBHEADER)
+    owner.hd_electrochemistry_prediction_label = QLabel("Open Predictions to calculate rankings.")
+    configure_hd_electrochemistry_label(owner, owner.hd_electrochemistry_prediction_label)
+    hd_electrochemistry_section_layout.addWidget(owner.hd_electrochemistry_prediction_label)
+    owner.hd_electrochemistry_prediction_mode_combo = hd_electrochemistry_mode_combo
+    owner._render_hd_electrochemistry_predictions = MethodType(
+        lambda self, chart: render_hd_electrochemistry_predictions(self, chart),
         owner,
     )
 

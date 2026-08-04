@@ -8,7 +8,7 @@ from typing import Literal
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QAbstractButton, QScrollArea, QWidget
 
-from ephemeraldaddy.gui.features.predictions.hd_synastry import hd_synastry_predictions_are_current
+from ephemeraldaddy.gui.features.predictions.hd_electrochemistry import hd_electrochemistry_predictions_are_current
 from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import (
     ChartRightPanelStack,
     build_chart_right_panel_stack,
@@ -187,13 +187,13 @@ class ChartRightPanelController:
                 and state.last_render_chart_token == render_token
                 and _predictions_panel_has_rendered_content(self._owner)
             )
-            hd_synastry_is_current = hd_synastry_predictions_are_current(self._owner, chart)
-            if predictions_are_current and hd_synastry_is_current:
+            hd_electrochemistry_is_current = hd_electrochemistry_predictions_are_current(self._owner, chart)
+            if predictions_are_current and hd_electrochemistry_is_current:
                 return
-            if not hd_synastry_is_current:
-                render_hd_synastry = getattr(self._owner, "_render_hd_synastry_predictions", None)
-                if callable(render_hd_synastry):
-                    render_hd_synastry(chart)
+            if not hd_electrochemistry_is_current:
+                render_hd_electrochemistry = getattr(self._owner, "_render_hd_electrochemistry_predictions", None)
+                if callable(render_hd_electrochemistry):
+                    render_hd_electrochemistry(chart)
             if not predictions_are_current:
                 QTimer.singleShot(0, lambda: schedule_chart_render_for_active_right_panel(self._owner))
             return
