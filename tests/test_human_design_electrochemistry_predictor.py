@@ -26,7 +26,7 @@ def gendered_candidate(uid, gender):
     return HumanDesignSynastryCandidate(uid, uid, None, frozenset({47}), gender=gender)
 
 
-def test_rank_prioritizes_new_completed_channels_then_center_bonus():
+def test_rank_uses_summed_channel_and_center_score():
     # Gate 64 can be completed by 47; gate 61 can be completed by 24.
     results = rank_human_design_synastry(
         "SOURCE",
@@ -40,16 +40,29 @@ def test_rank_prioritizes_new_completed_channels_then_center_bonus():
     assert [match.chart_uid for match in results] == ["TWO", "ONE"]
     assert results[0].completed_channels == 2
     assert results[0].defined_centers == 2
+    assert results[0].score == 4
 
 
-def test_electrochemistry_score_counts_only_cross_chart_channel_completions():
+def test_electrochemistry_score_sums_cross_chart_channels_and_combined_centers():
     score, maximum = human_design_electrochemistry_score(
         {64, 61, 24},
         {47},
     )
 
-    assert score == 1
-    assert maximum == 36
+    assert score == 3
+    assert maximum == 37
+
+
+def test_rank_reports_population_median_and_empirical_percentile():
+    results = rank_human_design_synastry(
+        "SOURCE",
+        {64, 61},
+        [candidate("ONE", {47}), candidate("TWO", {47, 24})],
+    )
+
+    assert [match.score for match in results] == [4, 3]
+    assert all(match.population_median == 3.5 for match in results)
+    assert [match.percentile for match in results] == [100.0, 50.0]
 
 
 def test_rank_excludes_source_and_is_deterministic_for_ties():

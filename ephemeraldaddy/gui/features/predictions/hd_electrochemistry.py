@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QLabel
 
 from ephemeraldaddy.analysis.human_design import derive_human_design_profile
 from ephemeraldaddy.analysis.human_design_synastry import (
+    HD_ELECTROCHEMISTRY_MAX_SCORE,
     HD_SYNASTRY_GENDER_METHOD_IDENTITY as HD_ELECTROCHEMISTRY_GENDER_METHOD_IDENTITY,
     HD_SYNASTRY_GENDER_METHOD_SEX as HD_ELECTROCHEMISTRY_GENDER_METHOD_SEX,
     filter_hd_synastry_candidates as filter_hd_electrochemistry_candidates,
@@ -161,11 +162,16 @@ def render_hd_electrochemistry_predictions(owner: object, chart: object | None) 
             display_name += f" ({match.alias})"
         href = "chart-uid:" + urllib.parse.quote(match.chart_uid, safe="")
         uncertainty_html = " " + houses_unknown_note_html() if not match.uses_houses else ""
+        top_decile = " · top 10%" if match.percentile >= 90.0 else ""
         lines.append(
             f'{index}. <a href="{href}" style="color: #cdb7ff;">'
             f"{html.escape(display_name)}</a>{uncertainty_html} "
-            f'<span style="color: #aaa;">({match.completed_channels} completed channels, '
-            f"{match.defined_centers} defined centers)</span>"
+            f'<span style="color: #aaa;">(score {match.score}/{HD_ELECTROCHEMISTRY_MAX_SCORE}: '
+            f"{match.completed_channels} cross-chart channels + "
+            f"{match.defined_centers} combined defined centers; "
+            f"selected-population median {match.population_median:g}, "
+            f"{match.percentile:.0f}th percentile"
+            f"{top_decile})</span>"
         )
     label.setText("<br>".join(lines))
     setattr(owner, "_hd_electrochemistry_last_render_token", render_token)

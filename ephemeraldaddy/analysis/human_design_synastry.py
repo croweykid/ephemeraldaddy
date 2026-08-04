@@ -7,11 +7,11 @@ sets of gates.  It is not a general relationship compatibility model.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from statistics import median
 from typing import Iterable
 
 from ephemeraldaddy.analysis.get_astro_twin import normalize_astro_twin_gender_category
 from ephemeraldaddy.core.human_design_system import (
-    CHANNELS,
     defined_centers_from_active_gates,
     defined_channels_from_active_gates,
 )
@@ -34,14 +34,22 @@ class HumanDesignSynastryMatch:
     alias: str | None
     completed_channels: int
     defined_centers: int
+    score: int
+    population_median: float
+    percentile: float
     uses_houses: bool = True
 
 
 HD_SYNASTRY_GENDER_FILTERS = frozenset({"all", "male", "female"})
 HD_SYNASTRY_GENDER_METHOD_SEX = "sex"
 HD_SYNASTRY_GENDER_METHOD_IDENTITY = "gender"
-HD_ELECTROCHEMISTRY_MAX_SCORE = len(
-    {tuple(sorted((gate_a, gate_b))) for gate_a, gate_b, _center_a, _center_b in CHANNELS}
+# With 26 unique gates available to each chart, at most 28 channels can be
+# completed *between* the charts (24 isolated pairs plus four integration
+# channels).  A combined bodygraph can define all nine centers.
+HD_ELECTROCHEMISTRY_MAX_CROSS_CHANNELS = 28
+HD_ELECTROCHEMISTRY_MAX_DEFINED_CENTERS = 9
+HD_ELECTROCHEMISTRY_MAX_SCORE = (
+    HD_ELECTROCHEMISTRY_MAX_CROSS_CHANNELS + HD_ELECTROCHEMISTRY_MAX_DEFINED_CENTERS
 )
 
 
@@ -97,7 +105,16 @@ def human_design_electrochemistry_score(
     gates_a: Iterable[object] | None,
     gates_b: Iterable[object] | None,
 ) -> tuple[int, int]:
-    """Return cross-chart channel completions and the system-wide maximum."""
+    """Return cross-chart channel completions plus combined defined centers."""
+    completed_channels, defined_centers = human_design_electrochemistry_components(gates_a, gates_b)
+    return completed_channels + defined_centers, HD_ELECTROCHEMISTRY_MAX_SCORE
+
+
+def human_design_electrochemistry_components(
+    gates_a: Iterable[object] | None,
+    gates_b: Iterable[object] | None,
+) -> tuple[int, int]:
+    """Return new cross-chart channels and centers defined by the union."""
     normalized_a = normalize_gates(gates_a)
     normalized_b = normalize_gates(gates_b)
     channels_a = {
@@ -114,7 +131,10 @@ def human_design_electrochemistry_score(
             normalized_a | normalized_b
         )
     }
-    return len(combined_channels - channels_a - channels_b), HD_ELECTROCHEMISTRY_MAX_SCORE
+    return (
+        len(combined_channels - channels_a - channels_b),
+        len(defined_centers_from_active_gates(normalized_a | normalized_b)),
+    )
 
 
 def rank_human_design_synastry(
@@ -124,33 +144,17 @@ def rank_human_design_synastry(
     *,
     limit: int = 10,
 ) -> list[HumanDesignSynastryMatch]:
-    """Rank candidates by new union channels, then union-defined centers.
-
-    Channel completion is the primary criterion.  Center definition is a
-    lexicographic bonus rather than a separate database pass, so it cannot let
-    a candidate with fewer completed channels outrank one with more.
-    """
+    """Rank candidates by summed electrochemistry score for this population."""
     normalized_uid = str(chart_uid or "").strip().upper()
     source_gates = normalize_gates(gates)
-    source_channels = {
-        tuple(sorted((gate_a, gate_b)))
-        for gate_a, gate_b, _center_a, _center_b in defined_channels_from_active_gates(source_gates)
-    }
     matches: list[HumanDesignSynastryMatch] = []
     for candidate in candidates:
         candidate_uid = str(candidate.chart_uid or "").strip().upper()
         if not candidate_uid or candidate_uid == normalized_uid:
             continue
         candidate_gates = normalize_gates(candidate.gates)
-        candidate_channels = {
-            tuple(sorted((gate_a, gate_b)))
-            for gate_a, gate_b, _center_a, _center_b in defined_channels_from_active_gates(candidate_gates)
-        }
-        combined_gates = source_gates | candidate_gates
-        combined_channels = defined_channels_from_active_gates(combined_gates)
-        completed_channels = sum(
-            tuple(sorted((gate_a, gate_b))) not in source_channels | candidate_channels
-            for gate_a, gate_b, _center_a, _center_b in combined_channels
+        completed_channels, defined_centers = human_design_electrochemistry_components(
+            source_gates, candidate_gates
         )
         matches.append(
             HumanDesignSynastryMatch(
@@ -158,14 +162,35 @@ def rank_human_design_synastry(
                 name=str(candidate.name or "Unnamed chart").strip() or "Unnamed chart",
                 alias=str(candidate.alias).strip() if candidate.alias else None,
                 completed_channels=completed_channels,
-                defined_centers=len(defined_centers_from_active_gates(combined_gates)),
+                defined_centers=defined_centers,
+                score=completed_channels + defined_centers,
+                population_median=0.0,
+                percentile=0.0,
                 uses_houses=bool(candidate.uses_houses),
             )
         )
+    if matches:
+        scores = [match.score for match in matches]
+        population_median = float(median(scores))
+        population_size = len(scores)
+        matches = [
+            HumanDesignSynastryMatch(
+                chart_uid=match.chart_uid,
+                name=match.name,
+                alias=match.alias,
+                completed_channels=match.completed_channels,
+                defined_centers=match.defined_centers,
+                score=match.score,
+                population_median=population_median,
+                percentile=100.0 * sum(score <= match.score for score in scores) / population_size,
+                uses_houses=match.uses_houses,
+            )
+            for match in matches
+        ]
     matches.sort(
         key=lambda match: (
+            -match.score,
             -match.completed_channels,
-            -match.defined_centers,
             match.name.casefold(),
             match.chart_uid,
         )
