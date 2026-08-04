@@ -184,6 +184,59 @@ def test_synastry_gender_filter_is_part_of_render_token():
     assert hd_electrochemistry.hd_electrochemistry_render_token(owner, chart) != all_token
 
 
+def test_synastry_collection_filter_is_part_of_render_token():
+    hd_electrochemistry = _hd_electrochemistry_module()
+    chart = type("Chart", (), {"chart_uid": "UID", "human_design_gates": [47]})()
+    owner = type(
+        "Owner",
+        (),
+        {"hd_electrochemistry_gender_filter": "all", "hd_electrochemistry_collection_filter": "all"},
+    )()
+    all_token = hd_electrochemistry.hd_electrochemistry_render_token(owner, chart)
+
+    owner.hd_electrochemistry_collection_filter = "personal"
+
+    assert hd_electrochemistry.hd_electrochemistry_render_token(owner, chart) != all_token
+
+
+def test_synastry_custom_collection_membership_is_part_of_render_token():
+    from ephemeraldaddy.gui.features.charts.collections import CustomCollection
+
+    hd_electrochemistry = _hd_electrochemistry_module()
+    chart = type("Chart", (), {"chart_uid": "UID", "human_design_gates": [47]})()
+    memberships = {"UID-A"}
+
+    class Owner:
+        hd_electrochemistry_gender_filter = "all"
+        hd_electrochemistry_collection_filter = "favorites"
+
+        def _load_custom_collections_from_settings(self):
+            return {
+                "favorites": CustomCollection(
+                    "favorites", "Favorites", frozenset(), frozenset(memberships)
+                )
+            }
+
+    owner = Owner()
+    first_token = hd_electrochemistry.hd_electrochemistry_render_token(owner, chart)
+    memberships.add("UID-B")
+
+    assert hd_electrochemistry.hd_electrochemistry_render_token(owner, chart) != first_token
+
+
+def test_collection_refresh_reloads_options_and_invalidates_ranking_source():
+    from pathlib import Path
+
+    source = Path("ephemeraldaddy/gui/features/predictions/hd_electrochemistry.py").read_text()
+    refresh_branch = source.split("def refresh_hd_electrochemistry_collections", 1)[1].split(
+        "def normalize_gendered_results_method", 1
+    )[0]
+
+    assert "reload_hd_electrochemistry_custom_collections(owner)" in refresh_branch
+    assert "populate_hd_electrochemistry_collection_combo(owner, combo)" in refresh_branch
+    assert 'setattr(owner, "_hd_electrochemistry_last_render_token", None)' in refresh_branch
+
+
 def test_right_panel_checks_synastry_revision_before_reranking():
     from pathlib import Path
 
@@ -211,6 +264,18 @@ def test_predicted_synastry_builds_gender_radios_with_refresh_callback():
     assert '(("All", "all"), ("Male", "male"), ("Female", "female"))' in synastry_branch
     assert "QRadioButton(label)" in synastry_branch
     assert "on_hd_electrochemistry_gender_filter_changed(owner, selected, checked)" in synastry_branch
+    assert 'QLabel("Collection:")' in synastry_branch
+    assert "populate_hd_electrochemistry_collection_combo" in synastry_branch
+    assert "on_hd_electrochemistry_collection_changed" in synastry_branch
+
+
+def test_synastry_candidates_carry_collection_metadata():
+    item = HumanDesignSynastryCandidate(
+        "UID", "Name", None, frozenset({47}), source="public", chart_type="public"
+    )
+
+    assert item.source == "public"
+    assert item.chart_type == "public"
 
 
 def test_chart_calculation_settings_builds_gender_method_radios():

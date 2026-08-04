@@ -5,8 +5,8 @@ from __future__ import annotations
 import html
 import urllib.parse
 
-from PySide6.QtCore import QSettings, Qt
-from PySide6.QtWidgets import QLabel
+from PySide6.QtCore import QSettings, QSignalBlocker, Qt
+from PySide6.QtWidgets import QComboBox, QLabel
 
 from ephemeraldaddy.analysis.human_design import derive_human_design_profile
 from ephemeraldaddy.analysis.human_design_synastry import (
@@ -21,6 +21,14 @@ from ephemeraldaddy.core.db import (
     list_human_design_synastry_candidates as list_human_design_electrochemistry_candidates,
 )
 from ephemeraldaddy.core.chart import chart_uses_houses
+from ephemeraldaddy.gui.features.charts.collections import (
+    DEFAULT_COLLECTION_ALL,
+    DEFAULT_COLLECTION_OPTIONS,
+    CustomCollection,
+    chart_belongs_to_collection,
+    collection_scope_cache_signature,
+    normalize_collection_id,
+)
 from ephemeraldaddy.gui.style import (
     SETTINGS_APP,
     SETTINGS_ORG,
@@ -36,6 +44,64 @@ HD_ELECTROCHEMISTRY_SUBHEADER = (
 )
 
 SETTINGS_KEY_GENDERED_RESULTS_METHOD = "chart_calculation/gendered_results_method"
+
+
+def reload_hd_electrochemistry_custom_collections(
+    owner: object,
+) -> dict[str, CustomCollection]:
+    """Reload the Chart Editor's collection snapshot from shared settings."""
+    loader = getattr(owner, "_load_custom_collections_from_settings", None)
+    if callable(loader):
+        custom_collections = loader()
+        setattr(owner, "_custom_collections", custom_collections)
+    else:
+        custom_collections = getattr(owner, "_custom_collections", {}) or {}
+    return custom_collections
+
+
+def hd_electrochemistry_collection_options(owner: object) -> list[tuple[str, str]]:
+    """Return built-in and current custom collection choices, with All first."""
+    custom_collections = reload_hd_electrochemistry_custom_collections(owner)
+    return list(DEFAULT_COLLECTION_OPTIONS) + [
+        (collection.name, collection.collection_id)
+        for collection in sorted(custom_collections.values(), key=lambda item: item.name.casefold())
+    ]
+
+
+def populate_hd_electrochemistry_collection_combo(owner: object, combo: QComboBox) -> None:
+    """Populate the collection selector while preserving its UID-first scope."""
+    selected = normalize_collection_id(
+        getattr(owner, "hd_electrochemistry_collection_filter", DEFAULT_COLLECTION_ALL)
+    )
+    blocker = QSignalBlocker(combo)
+    try:
+        combo.clear()
+        for label, collection_id in hd_electrochemistry_collection_options(owner):
+            combo.addItem(label, collection_id)
+        index = combo.findData(selected)
+        combo.setCurrentIndex(index if index >= 0 else 0)
+    finally:
+        del blocker
+    setattr(
+        owner,
+        "hd_electrochemistry_collection_filter",
+        combo.currentData() or DEFAULT_COLLECTION_ALL,
+    )
+
+
+def refresh_hd_electrochemistry_collections(owner: object) -> None:
+    """Refresh collection choices/membership and invalidate the visible ranking."""
+    combo = getattr(owner, "hd_electrochemistry_collection_combo", None)
+    if isinstance(combo, QComboBox):
+        populate_hd_electrochemistry_collection_combo(owner, combo)
+    else:
+        reload_hd_electrochemistry_custom_collections(owner)
+    setattr(owner, "_hd_electrochemistry_last_render_token", None)
+    chart = getattr(owner, "_latest_chart", None) or getattr(owner, "current_chart", None)
+    if chart is not None and isinstance(
+        getattr(owner, "hd_electrochemistry_prediction_label", None), QLabel
+    ):
+        render_hd_electrochemistry_predictions(owner, chart)
 
 
 def normalize_gendered_results_method(value: object) -> str:
@@ -91,12 +157,22 @@ def hd_electrochemistry_subheader(chart: object | None) -> str:
 
 def hd_electrochemistry_render_token(owner: object, chart: object | None) -> tuple[object, ...]:
     """Return the chart/database revision tuple that invalidates this ranking."""
+    collection_id = normalize_collection_id(
+        getattr(owner, "hd_electrochemistry_collection_filter", DEFAULT_COLLECTION_ALL)
+    )
+    custom_collections = reload_hd_electrochemistry_custom_collections(owner)
+    selected_custom_collection = custom_collections.get(collection_id)
+    collection_signature = collection_scope_cache_signature(
+        collection_id,
+        getattr(selected_custom_collection, "chart_uids", ()),
+    )
     return (
         str(getattr(chart, "chart_uid", "") or "").strip().upper(),
         tuple(sorted(resolve_hd_electrochemistry_gates(chart))),
         bool(chart is not None and chart_uses_houses(chart)),
         normalize_hd_electrochemistry_gender_filter(getattr(owner, "hd_electrochemistry_gender_filter", "all")),
         load_gendered_results_method(),
+        collection_signature,
         int(getattr(owner, "_database_metrics_cache_revision", 0) or 0),
     )
 
@@ -125,6 +201,22 @@ def render_hd_electrochemistry_predictions(owner: object, chart: object | None) 
         getattr(owner, "hd_electrochemistry_gender_filter", "all")
     )
     available_candidates = list_human_design_electrochemistry_candidates()
+    collection_id = normalize_collection_id(
+        getattr(owner, "hd_electrochemistry_collection_filter", DEFAULT_COLLECTION_ALL)
+    )
+    custom_collections = getattr(owner, "_custom_collections", {}) or {}
+    if collection_id != DEFAULT_COLLECTION_ALL:
+        available_candidates = [
+            candidate
+            for candidate in available_candidates
+            if chart_belongs_to_collection(
+                collection_id,
+                chart=candidate,
+                source=candidate.source,
+                custom_collections=custom_collections,
+                chart_uid=candidate.chart_uid,
+            )
+        ]
     candidates = filter_hd_electrochemistry_candidates(
         available_candidates,
         gender_filter,
@@ -176,6 +268,19 @@ def on_hd_electrochemistry_gender_filter_changed(owner: object, gender_filter: s
     if not checked:
         return
     setattr(owner, "hd_electrochemistry_gender_filter", normalize_hd_electrochemistry_gender_filter(gender_filter))
+    setattr(owner, "_hd_electrochemistry_last_render_token", None)
+    chart = getattr(owner, "_latest_chart", None) or getattr(owner, "current_chart", None)
+    if chart is not None:
+        render_hd_electrochemistry_predictions(owner, chart)
+
+
+def on_hd_electrochemistry_collection_changed(owner: object, collection_id: object) -> None:
+    """Rerank the open chart against the selected collection."""
+    setattr(
+        owner,
+        "hd_electrochemistry_collection_filter",
+        normalize_collection_id(collection_id),
+    )
     setattr(owner, "_hd_electrochemistry_last_render_token", None)
     chart = getattr(owner, "_latest_chart", None) or getattr(owner, "current_chart", None)
     if chart is not None:
