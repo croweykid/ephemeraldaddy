@@ -18598,10 +18598,13 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._update_sort_button_label()
         self._settings.setValue("manage_charts/sort_mode", self._sort_mode)
         self._settings.setValue("manage_charts/sort_descending", int(self._sort_descending))
-        self._populate_list(selected_ids=selected_ids or None)
-        self._on_selection_changed(
+        # Sorting changes presentation order only.  Keep it off the broader
+        # database-refresh path: neither analytics inputs, collection scope,
+        # tool options, nor the UID-first logical selection changed.
+        self._populate_list(
+            selected_ids=selected_ids or None,
             refresh_metrics=False,
-            sync_persistent_selection=False,
+            refresh_external_controls=False,
         )
 
     @staticmethod
@@ -19036,6 +19039,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         force_full_analysis_refresh: bool = False,
         progress_callback: Callable[[str, int], None] | None = None,
         defer_metrics_refresh: bool = False,
+        refresh_external_controls: bool = True,
     ) -> None:
         if selected_ids is not None:
             self._replace_persistent_selection_by_local_row_ids(selected_ids)
@@ -19044,8 +19048,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         selected_ids = set(getattr(self, "_selected_local_row_ids_set", set()))
         if progress_callback:
             progress_callback("Syncing chart tools…", 93)
-        self._refresh_personal_transit_chart_options()
-        self._refresh_similarities_chart_options()
+        if refresh_external_controls:
+            self._refresh_personal_transit_chart_options()
+            self._refresh_similarities_chart_options()
         list_signal_blocker = QSignalBlocker(self.list_widget)
         self.list_widget.clear()
         visible_chart_ids: set[int] = set()
