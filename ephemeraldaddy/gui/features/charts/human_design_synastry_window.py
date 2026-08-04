@@ -141,10 +141,9 @@ def create_human_design_synastry_dialog(
         "<br>".join(
             [
                 "🪷 Human Design Synastry",
-                f'<span style="color:{SYNASTRY_PRIMARY_COLOR};">{html.escape(str(chart_a.name))}</span>',
-                f'<span style="color:{SYNASTRY_SECONDARY_COLOR};">{html.escape(str(chart_b.name))}</span>',
+                f'<span style="color:{SYNASTRY_PRIMARY_COLOR};">{html.escape(str(chart_a.name))}</span> x <span style="color:{SYNASTRY_SECONDARY_COLOR};">{html.escape(str(chart_b.name))}</span>',
                 f"Electrochemistry Score: {electrochemistry_score}/{electrochemistry_max_score}",
-                "Shared gates are drawn as striped segments.",
+                #"Shared gates are drawn as striped segments.",
             ]
         )
     )

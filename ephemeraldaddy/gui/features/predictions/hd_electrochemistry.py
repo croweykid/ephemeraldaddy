@@ -30,9 +30,8 @@ from ephemeraldaddy.gui.style import (
 
 
 HD_ELECTROCHEMISTRY_SUBHEADER = (
-    "Top 10 charts ranked as 'theoretically most compatible' by Human Design "
-    "channel/center synastry alone. This says nothing of shared values, means "
-    "or other lifestyle factors."
+    "Top 10 charts ranked by Human Design channel/center synastry alone. This says nothing of shared values, means "
+    "or other lifestyle factors. Canonical HD lore even explicitly states that 'Authority' (gut hunch) is superior. lol"
 )
 
 SETTINGS_KEY_GENDERED_RESULTS_METHOD = "chart_calculation/gendered_results_method"
