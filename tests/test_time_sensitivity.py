@@ -664,6 +664,50 @@ def test_time_sensitivity_popout_charts_include_all_numeric_factor_click_targets
     assert "_install_factor_click(ax, clickable_artists, on_factor_click)" in source
 
 
+def test_time_sensitivity_weight_bars_float_between_sampled_minimum_and_maximum():
+    import pytest
+    from matplotlib.figure import Figure
+
+    panel_module = pytest.importorskip(
+        "ephemeraldaddy.gui.features.charts.time_sensitivity_panel",
+        exc_type=ImportError,
+    )
+
+    result = TimeSensitivityResult(
+        chart_uid="CHARTUID",
+        chart_name="Example",
+        birth_date_key="01-01-2000",
+        algorithm_version="time-sensitivity-v1",
+        computed_at="2026-08-04T00:00:00Z",
+        config=TimeSensitivityConfig().__dict__,
+        sample_count=2,
+        baseline_time="12:00",
+        overall={},
+        numeric_ranges={
+            "dominant_planet_weights": {
+                "Sun": {"min": 3.0, "max": 8.0},
+                "Moon": {"min": 0.0, "max": 4.0},
+            }
+        },
+        human_design={},
+        stable=[],
+        variable=[],
+        warnings=[],
+    )
+    ax = Figure().subplots()
+
+    panel_module._draw_likelihood_chart(
+        ax, result, "dominant_planet_weights"
+    )
+
+    bars = ax.containers[0]
+    assert [(bar.get_y(), bar.get_height()) for bar in bars] == [
+        (3.0, 5.0),
+        (0.0, 4.0),
+    ]
+    assert len(ax.containers) == 1
+
+
 def test_time_sensitivity_chart_canvases_forward_wheel_events_to_parent_scroll_area():
     from pathlib import Path
 

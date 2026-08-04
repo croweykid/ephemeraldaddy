@@ -10,6 +10,7 @@ from ephemeraldaddy.core.performance_metrics import record_performance_metric
 
 
 DATABASE_VIEW_OPEN_TO_VISIBLE_METRIC = "database_view.open_to_visible"
+DATABASE_VIEW_OPEN_PHASE_METRIC = "database_view.open_phase"
 
 
 @dataclass(slots=True)
@@ -23,6 +24,22 @@ class DatabaseViewOpenTiming:
     started_at: float = field(default_factory=lambda: perf_counter())
     recorder: Callable[..., None] = record_performance_metric
     _completed: bool = field(default=False, init=False)
+    _phase_started_at: float = field(init=False)
+
+    def __post_init__(self) -> None:
+        self._phase_started_at = self.started_at
+
+    def phase(self, name: str, **details: object) -> None:
+        """Record one transition phase and begin timing the next phase."""
+
+        now = perf_counter()
+        self.recorder(
+            DATABASE_VIEW_OPEN_PHASE_METRIC,
+            (now - self._phase_started_at) * 1000.0,
+            phase=name,
+            **details,
+        )
+        self._phase_started_at = now
 
     def complete(
         self,

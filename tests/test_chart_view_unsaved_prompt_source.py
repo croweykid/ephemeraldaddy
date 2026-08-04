@@ -35,13 +35,15 @@ def test_unsaved_prompt_marks_modal_state_only_while_prompt_is_open():
     assert method.index("dialog.exec()") < method.index("self._leaving_chart_view_prompt_open = False")
 
 
-def test_timed_autosaves_keep_existing_save_and_dirty_state_defaults():
+def test_timed_autosaves_only_clear_dirty_state_after_a_successful_save():
     autosave_method = _method_source("_autosave_checkbox_state")
     metric_method = _method_source("_flush_pending_sentiment_metrics_save")
     assert "self.on_update_chart(show_dialog=False, recalculate_chart=recalculate_chart)" in autosave_method
-    assert "self._set_lucygoosey(False)" in autosave_method
+    assert "self._set_lucygoosey(False)" not in autosave_method
+    assert "if self._lucygoosey and recalculate_chart:" in autosave_method
+    assert "self._metadata_autosave_requires_recalculation = True" in autosave_method
     assert "subjective_notes_autosave=True" in metric_method
-    assert "self._set_lucygoosey(False)" in metric_method
+    assert "self._set_lucygoosey(False)" not in metric_method
     assert "if self.on_update_chart(show_dialog=False, recalculate_chart=False):" not in autosave_method
     assert "if self.on_update_chart(show_dialog=False, recalculate_chart=False):" not in metric_method
 

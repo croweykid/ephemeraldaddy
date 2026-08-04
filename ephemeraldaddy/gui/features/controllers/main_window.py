@@ -557,6 +557,7 @@ class ChartsController:
         if progress_callback:
             progress_callback("Preparing Database View shell…", 72)
         dialog = self._get_or_create_manage_dialog()
+        open_timing.phase("dialog_shell")
         if self._get_pending_changed_refreshes is not None:
             pending_metric_ids, pending_lightweight_ids = self._get_pending_changed_refreshes()
         else:
@@ -608,6 +609,11 @@ class ChartsController:
             else:
                 dialog.show()
             self._raise_manage_dialog()
+        open_timing.phase(
+            "show_shell",
+            was_visible=was_visible,
+            refresh_reason=refresh_reason,
+        )
         if refresh_after_show is not None:
             if progress_callback:
                 # During application startup, keep the loading widget alive until
@@ -633,6 +639,7 @@ class ChartsController:
                         status="error",
                     )
                     raise
+                open_timing.phase("refresh", refresh_reason=refresh_reason)
                 open_timing.complete(
                     was_visible=was_visible,
                     refresh_reason=refresh_reason,
@@ -651,6 +658,7 @@ class ChartsController:
                             status="error",
                         )
                         raise
+                    open_timing.phase("refresh", refresh_reason=refresh_reason)
                     open_timing.complete(
                         was_visible=was_visible,
                         refresh_reason=refresh_reason,
