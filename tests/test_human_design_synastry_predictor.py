@@ -3,6 +3,7 @@ from ephemeraldaddy.analysis.human_design_synastry import (
     HD_SYNASTRY_GENDER_METHOD_SEX,
     HumanDesignSynastryCandidate,
     filter_hd_synastry_candidates,
+    human_design_electrochemistry_score,
     normalize_gates,
     rank_human_design_synastry,
 )
@@ -39,6 +40,16 @@ def test_rank_prioritizes_new_completed_channels_then_center_bonus():
     assert [match.chart_uid for match in results] == ["TWO", "ONE"]
     assert results[0].completed_channels == 2
     assert results[0].defined_centers == 2
+
+
+def test_electrochemistry_score_counts_only_cross_chart_channel_completions():
+    score, maximum = human_design_electrochemistry_score(
+        {64, 61, 24},
+        {47},
+    )
+
+    assert score == 1
+    assert maximum == 36
 
 
 def test_rank_excludes_source_and_is_deterministic_for_ties():
@@ -188,9 +199,11 @@ def test_predicted_synastry_builds_gender_radios_with_refresh_callback():
     from pathlib import Path
 
     source = Path("ephemeraldaddy/gui/features/controllers/chart_view_window.py").read_text()
-    synastry_branch = source.split('title="Predicted Synastry"', 1)[1].split(
+    synastry_branch = source.split('title="Predicted Electrochemistry"', 1)[1].split(
         'title="Traits"', 1
     )[0]
+
+    assert 'addItem("🪷HD Electrochemistry", "hd_synastry")' in synastry_branch
 
     assert '(("All", "all"), ("Male", "male"), ("Female", "female"))' in synastry_branch
     assert "QRadioButton(label)" in synastry_branch

@@ -11,6 +11,7 @@ from typing import Iterable
 
 from ephemeraldaddy.analysis.get_astro_twin import normalize_astro_twin_gender_category
 from ephemeraldaddy.core.human_design_system import (
+    CHANNELS,
     defined_centers_from_active_gates,
     defined_channels_from_active_gates,
 )
@@ -39,6 +40,9 @@ class HumanDesignSynastryMatch:
 HD_SYNASTRY_GENDER_FILTERS = frozenset({"all", "male", "female"})
 HD_SYNASTRY_GENDER_METHOD_SEX = "sex"
 HD_SYNASTRY_GENDER_METHOD_IDENTITY = "gender"
+HD_ELECTROCHEMISTRY_MAX_SCORE = len(
+    {tuple(sorted((gate_a, gate_b))) for gate_a, gate_b, _center_a, _center_b in CHANNELS}
+)
 
 
 def normalize_hd_synastry_gender_filter(value: object) -> str:
@@ -87,6 +91,30 @@ def normalize_gates(values: Iterable[object] | None) -> frozenset[int]:
         if 1 <= gate <= 64:
             gates.add(gate)
     return frozenset(gates)
+
+
+def human_design_electrochemistry_score(
+    gates_a: Iterable[object] | None,
+    gates_b: Iterable[object] | None,
+) -> tuple[int, int]:
+    """Return cross-chart channel completions and the system-wide maximum."""
+    normalized_a = normalize_gates(gates_a)
+    normalized_b = normalize_gates(gates_b)
+    channels_a = {
+        tuple(sorted((gate_a, gate_b)))
+        for gate_a, gate_b, _center_a, _center_b in defined_channels_from_active_gates(normalized_a)
+    }
+    channels_b = {
+        tuple(sorted((gate_a, gate_b)))
+        for gate_a, gate_b, _center_a, _center_b in defined_channels_from_active_gates(normalized_b)
+    }
+    combined_channels = {
+        tuple(sorted((gate_a, gate_b)))
+        for gate_a, gate_b, _center_a, _center_b in defined_channels_from_active_gates(
+            normalized_a | normalized_b
+        )
+    }
+    return len(combined_channels - channels_a - channels_b), HD_ELECTROCHEMISTRY_MAX_SCORE
 
 
 def rank_human_design_synastry(

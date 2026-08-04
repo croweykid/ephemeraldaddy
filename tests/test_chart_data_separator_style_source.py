@@ -66,6 +66,13 @@ def test_human_design_chart_data_outputs_use_shared_table_widget():
     assert "build_human_design_synastry_data_output(" in HD_SYNASTRY_SOURCE
 
 
+def test_human_design_synastry_header_shows_electrochemistry_score_before_gate_note():
+    score = HD_SYNASTRY_SOURCE.index("Electrochemistry Score:")
+    shared_gate_note = HD_SYNASTRY_SOURCE.index("Shared gates are drawn as striped segments.")
+
+    assert score < shared_gate_note
+
+
 def test_chart_data_separator_skips_padded_table_headers():
     assert '"Body",' in CHART_DATA_OUTPUT_SOURCE
     assert '"Sign(s)",' in CHART_DATA_OUTPUT_SOURCE

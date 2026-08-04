@@ -1823,7 +1823,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     hd_synastry_section_layout = owner._add_chart_analysis_collapsible_section(
         panel=panel,
         layout=layout,
-        title="Predicted Synastry",
+        title="Predicted Electrochemistry",
         expanded=True,
     )
     register_prediction_section("hd_synastry", hd_synastry_section_layout)
@@ -1846,7 +1846,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     hd_synastry_section_layout.addWidget(hd_synastry_gender_row)
     hd_synastry_mode_combo = QComboBox()
     apply_shared_dropdown_style(hd_synastry_mode_combo)
-    hd_synastry_mode_combo.addItem("🪷HD Synastry", "hd_synastry")
+    hd_synastry_mode_combo.addItem("🪷HD Electrochemistry", "hd_synastry")
     hd_synastry_section_layout.addWidget(hd_synastry_mode_combo)
     hd_synastry_subheader = add_prediction_subheader(
         hd_synastry_section_layout,

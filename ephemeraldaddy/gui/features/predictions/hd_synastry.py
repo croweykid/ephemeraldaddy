@@ -28,9 +28,9 @@ from ephemeraldaddy.gui.style import (
 
 
 HD_SYNASTRY_SUBHEADER = (
-    "Top 10 charts ranked as 'theoretically most compatible' by Human Design "
-    "channel/center synastry alone. This says nothing of shared values, means "
-    "or other lifestyle factors."
+    "Top 10 charts ranked by Human Design electrochemistry (cross-chart channel "
+    "completions, with defined centers as a tie-breaker). Electrochemistry is only "
+    "one part of synastry and is separate from overall compatibility."
 )
 
 SETTINGS_KEY_GENDERED_RESULTS_METHOD = "chart_calculation/gendered_results_method"
@@ -162,7 +162,7 @@ def render_hd_synastry_predictions(owner: object, chart: object | None) -> None:
         lines.append(
             f'{index}. <a href="{href}" style="color: #cdb7ff;">'
             f"{html.escape(display_name)}</a>{uncertainty_html} "
-            f'<span style="color: #aaa;">({match.completed_channels} completed channels, '
+            f'<span style="color: #aaa;">(electrochemistry score: {match.completed_channels}, '
             f"{match.defined_centers} defined centers)</span>"
         )
     label.setText("<br>".join(lines))
