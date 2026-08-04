@@ -11,7 +11,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Literal
 
-NameMetric = Literal["frequency", "mean_alignment", "median_alignment", "mode_alignment"]
+NameMetric = Literal[
+    "frequency",
+    "mean_alignment",
+    "median_alignment",
+    "mode_alignment",
+    "mean_social_score",
+    "median_social_score",
+    "mode_social_score",
+]
 
 # Relationship words and conversational alias detritus are deliberately excluded.
 # Internal apostrophes and hyphens remain part of a token; only surrounding
@@ -83,7 +91,7 @@ def suppress_name_tokens(
 
 @dataclass(frozen=True)
 class NameStatistic:
-    """One name token's chart membership and optional Alignment summary."""
+    """One name token's chart membership and optional score summaries."""
 
     name: str
     chart_uids: tuple[str, ...]
@@ -92,6 +100,10 @@ class NameStatistic:
     mean_alignment: float | None
     median_alignment: float | None
     mode_alignment: tuple[float, ...]
+    social_score_count: int
+    mean_social_score: float | None
+    median_social_score: float | None
+    mode_social_score: tuple[float, ...]
 
     def value_for(self, metric: NameMetric) -> float | None:
         if metric == "frequency":
@@ -102,6 +114,12 @@ class NameStatistic:
             return self.median_alignment
         if metric == "mode_alignment":
             return self.mode_alignment[0] if len(self.mode_alignment) == 1 else None
+        if metric == "mean_social_score":
+            return self.mean_social_score
+        if metric == "median_social_score":
+            return self.median_social_score
+        if metric == "mode_social_score":
+            return self.mode_social_score[0] if len(self.mode_social_score) == 1 else None
         raise ValueError(f"Unsupported name metric: {metric}")
 
 
@@ -161,8 +179,8 @@ def chart_has_name_token(
     }
 
 
-def _alignment_value(chart: Any) -> float | None:
-    value = getattr(chart, "alignment_score", None)
+def _score_value(chart: Any, attribute: str) -> float | None:
+    value = getattr(chart, attribute, None)
     if value is None or isinstance(value, bool):
         return None
     try:
@@ -189,11 +207,13 @@ def analyze_names(
     display_by_key: dict[str, str] = {}
     uids_by_key: dict[str, set[str]] = {}
     alignments_by_key: dict[str, list[float]] = {}
+    social_scores_by_key: dict[str, list[float]] = {}
     for chart in charts:
         chart_uid = str(getattr(chart, "chart_uid", "") or "").strip().upper()
         if not chart_uid:
             continue
-        alignment = _alignment_value(chart)
+        alignment = _score_value(chart, "alignment_score")
+        social_score = _score_value(chart, "social_score")
         for token in extract_name_tokens(
             getattr(chart, "name", ""),
             getattr(chart, "alias", ""),
@@ -207,6 +227,8 @@ def analyze_names(
             members.add(chart_uid)
             if alignment is not None:
                 alignments_by_key.setdefault(key, []).append(alignment)
+            if social_score is not None:
+                social_scores_by_key.setdefault(key, []).append(social_score)
 
     results: list[NameStatistic] = []
     for key, chart_uids in uids_by_key.items():
@@ -214,6 +236,12 @@ def analyze_names(
             continue
         values = alignments_by_key.get(key, [])
         modes = tuple(float(value) for value in statistics.multimode(values)) if values else ()
+        social_values = social_scores_by_key.get(key, [])
+        social_modes = (
+            tuple(float(value) for value in statistics.multimode(social_values))
+            if social_values
+            else ()
+        )
         results.append(
             NameStatistic(
                 name=display_by_key[key],
@@ -223,6 +251,12 @@ def analyze_names(
                 mean_alignment=statistics.fmean(values) if values else None,
                 median_alignment=float(statistics.median(values)) if values else None,
                 mode_alignment=modes,
+                social_score_count=len(social_values),
+                mean_social_score=statistics.fmean(social_values) if social_values else None,
+                median_social_score=(
+                    float(statistics.median(social_values)) if social_values else None
+                ),
+                mode_social_score=social_modes,
             )
         )
     return sorted(results, key=lambda item: (-item.frequency, item.name.casefold()))

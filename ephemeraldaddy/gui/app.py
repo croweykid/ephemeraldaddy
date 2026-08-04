@@ -900,6 +900,7 @@ from ephemeraldaddy.analysis.human_design_synastry import (
 from ephemeraldaddy.gui.features.predictions.hd_electrochemistry import (
     load_gendered_results_method,
     on_gendered_results_method_changed,
+    refresh_hd_electrochemistry_collections,
 )
 
 from ephemeraldaddy.gui.features.charts.delegates import (
@@ -4479,6 +4480,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             for collection in self._custom_collections.values()
         ]
         self._settings.setValue("manage_charts/custom_collections", json.dumps(payload))
+        owner = self._owner_window()
+        if owner is not None:
+            refresh_hd_electrochemistry_collections(owner)
 
 
     @staticmethod
@@ -5323,9 +5327,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             "name_distribution",
             dropdown_options=[
                 ("Frequency", "frequency"),
-                ("Mean Alignment", "mean_alignment"),
-                ("Median Alignment", "median_alignment"),
-                ("Mode Alignment", "mode_alignment"),
+                ("Alignment Score", "alignment_score"),
+                ("Social Score", "social_score"),
             ],
             show_title=False,
         )
@@ -12548,6 +12551,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                         auto_height=True,
                         use_earthtone_cycle=(age_mode == "time_known_distribution"),
                         bar_colors=age_chart_bar_colors,
+                        show_selection_database_share=True,
                     )
                     self.age_chart_layout.addWidget(age_canvas, 0)
                 else:
@@ -15329,7 +15333,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             self._update_sentiment_tally(
                 show_progress=True,
                 changed_ids=changed_ids,
-                changed_fields=set(),
+                changed_fields={"familiarity"},
             )
             self._update_batch_edit_state()
             self._refresh_filters_after_batch_edit(changed_ids)
@@ -15392,7 +15396,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             return
 
         changed_ids = set(chart_ids)
-        metric_sections = {"matched_expectations"} if metric_attr == "matched_expectations" else set()
+        metric_sections = {metric_attr}
         self._update_sentiment_tally(
             show_progress=True,
             changed_ids=changed_ids,
@@ -27052,6 +27056,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             if isinstance(collection, CustomCollection)
         ]
         self._settings.setValue("manage_charts/custom_collections", json.dumps(payload))
+        refresh_hd_electrochemistry_collections(self)
 
 
     @staticmethod
@@ -35471,6 +35476,10 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             "tags",
             "gender",
             "alignment",
+            "social_score",
+            "positive_sentiment_intensity",
+            "negative_sentiment_intensity",
+            "familiarity",
             "name",
             "alias",
             "matched_expectations",
@@ -36440,6 +36449,13 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             ),
             "gender": lambda value: getattr(value, "gender", None),
             "alignment": lambda value: getattr(value, "alignment_score", None),
+            "positive_sentiment_intensity": lambda value: getattr(
+                value, "positive_sentiment_intensity", None
+            ),
+            "negative_sentiment_intensity": lambda value: getattr(
+                value, "negative_sentiment_intensity", None
+            ),
+            "familiarity": lambda value: getattr(value, "familiarity", None),
             "matched_expectations": lambda value: getattr(value, "matched_expectations", None),
         }
         for field, getter in comparisons.items():

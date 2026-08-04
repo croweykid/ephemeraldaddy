@@ -24,7 +24,12 @@ from ephemeraldaddy.analysis.human_design import (
     build_human_design_synastry_data_output,
 )
 from ephemeraldaddy.analysis.human_design_reference import HD_CENTERS
-from ephemeraldaddy.analysis.human_design_synastry import human_design_electrochemistry_score
+from ephemeraldaddy.analysis.human_design_synastry import (
+    HD_ELECTROCHEMISTRY_MAX_CROSS_CHANNELS,
+    HD_ELECTROCHEMISTRY_MAX_DEFINED_CENTERS,
+    human_design_electrochemistry_components,
+    human_design_electrochemistry_score,
+)
 from ephemeraldaddy.core.human_design_system import defined_centers_from_active_gates
 from ephemeraldaddy.core.chart import Chart
 from ephemeraldaddy.gui.features.charts.chart_data_output import (
@@ -101,6 +106,10 @@ def create_human_design_synastry_dialog(
         chart_a_gate_set,
         chart_b_gate_set,
     )
+    completed_channels, combined_center_count = human_design_electrochemistry_components(
+        chart_a_gate_set,
+        chart_b_gate_set,
+    )
     aggregate_defined_centers = set(defined_centers_from_active_gates(aggregate_gate_set))
     awareness_stream_entries = build_awareness_stream_completion(aggregate_gate_set)
     circuit_entries = build_circuit_group_completion(aggregate_gate_set)
@@ -143,6 +152,9 @@ def create_human_design_synastry_dialog(
                 "🪷 Human Design Synastry",
                 f'<span style="color:{SYNASTRY_PRIMARY_COLOR};">{html.escape(str(chart_a.name))}</span> x <span style="color:{SYNASTRY_SECONDARY_COLOR};">{html.escape(str(chart_b.name))}</span>',
                 f"Electrochemistry Score: {electrochemistry_score}/{electrochemistry_max_score}",
+                f"Cross-chart channels: {completed_channels}/"
+                f"{HD_ELECTROCHEMISTRY_MAX_CROSS_CHANNELS} · Combined defined centers: "
+                f"{combined_center_count}/{HD_ELECTROCHEMISTRY_MAX_DEFINED_CENTERS}",
                 #"Shared gates are drawn as striped segments.",
             ]
         )

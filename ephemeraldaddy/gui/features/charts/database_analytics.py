@@ -113,6 +113,14 @@ DATABASE_METRICS_SUBJECTIVE_SECTION_DEPENDENCIES: dict[str, frozenset[str]] = {
     "name": frozenset({"name_distribution"}),
     "alias": frozenset({"name_distribution"}),
     "alignment": frozenset({"alignment_summary", "name_distribution"}),
+    "social_score": frozenset({"alignment_summary", "name_distribution"}),
+    "positive_sentiment_intensity": frozenset(
+        {"alignment_summary", "name_distribution"}
+    ),
+    "negative_sentiment_intensity": frozenset(
+        {"alignment_summary", "name_distribution"}
+    ),
+    "familiarity": frozenset({"alignment_summary", "name_distribution"}),
     "traits": frozenset({"traits_distribution"}),
 }
 
@@ -602,7 +610,7 @@ class DatabaseAnalyticsChartsMixin:
         loaded_charts: int,
         should_refresh: Callable[[str], bool],
     ) -> list[tuple[str, float, float, float, int, int, float]]:
-        """Render name frequency or Alignment statistics from UID-keyed results."""
+        """Render name frequency or grouped score statistics from UID-keyed results."""
         if not should_refresh("name_distribution"):
             return getattr(self, "_analysis_chart_export_rows", {}).get("name_distribution", [])
 
@@ -621,6 +629,11 @@ class DatabaseAnalyticsChartsMixin:
         database_by_name = {item.name.casefold(): item for item in database_stats}
         source = selection_stats if loaded_charts else database_stats
         mode = str(getattr(self, "_name_distribution_mode", "frequency"))
+        # Persisted values from the former three-chart UI open the combined graph.
+        if mode in {"mean_alignment", "median_alignment", "mode_alignment"}:
+            mode = "alignment_score"
+        score_prefix = "social_score" if mode == "social_score" else "alignment"
+        sort_metric = f"mean_{score_prefix}"
         labels: list[str] = []
         selection_values: list[float] = []
         database_values: list[float] = []
@@ -630,15 +643,16 @@ class DatabaseAnalyticsChartsMixin:
             selection_stat = selection_by_name.get(statistic.name.casefold())
             database_stat = database_by_name.get(statistic.name.casefold())
             display_stat = selection_stat if loaded_charts else database_stat
-            value = display_stat.value_for(mode) if display_stat is not None else None
+            metric = "frequency" if mode == "frequency" else sort_metric
+            value = display_stat.value_for(metric) if display_stat is not None else None
             if value is None:
                 continue
             labels.append(statistic.name)
             selection_values.append(
-                float(selection_stat.value_for(mode) or 0.0) if selection_stat else 0.0
+                float(selection_stat.value_for(metric) or 0.0) if selection_stat else 0.0
             )
             database_values.append(
-                float(database_stat.value_for(mode) or 0.0) if database_stat else 0.0
+                float(database_stat.value_for(metric) or 0.0) if database_stat else 0.0
             )
             selection_counts.append(selection_stat.frequency if selection_stat else 0)
             database_counts.append(database_stat.frequency if database_stat else 0)
@@ -672,7 +686,12 @@ class DatabaseAnalyticsChartsMixin:
                 )
             )
         else:
-            values = selection_values if loaded_charts else database_values
+            displayed_by_name = selection_by_name if loaded_charts else database_by_name
+            metric_names = (
+                (f"mean_{score_prefix}", "Mean", "#6fa8dc"),
+                (f"median_{score_prefix}", "Median", "#f4d35e"),
+                (f"mode_{score_prefix}", "Mode", "#b07aa1"),
+            )
             figure = Figure(
                 figsize=(1.5, self._name_distribution_chart_height(len(labels)))
             )
@@ -680,35 +699,49 @@ class DatabaseAnalyticsChartsMixin:
             axis = figure.add_subplot(111)
             axis.set_facecolor(self._database_analytics_axes_facecolor())
             positions = list(range(len(labels)))
-            bars = axis.barh(
-                positions,
-                values,
-                color=CHART_DATA_HIGHLIGHT_COLOR,
-                height=0.55,
-            )
+            bar_height = 0.2
+            offsets = (-bar_height, 0.0, bar_height)
+            for (metric_name, metric_label, color), offset in zip(metric_names, offsets):
+                values = [
+                    displayed_by_name[label.casefold()].value_for(metric_name)
+                    for label in labels
+                ]
+                visible = [value is not None for value in values]
+                plotted_values = [float(value or 0.0) for value in values]
+                bars = axis.barh(
+                    [position + offset for position in positions],
+                    plotted_values,
+                    color=color,
+                    height=bar_height,
+                    label=metric_label,
+                )
+                for bar, value, is_visible in zip(bars, plotted_values, visible):
+                    if not is_visible:
+                        bar.set_visible(False)
+                        continue
+                    label_offset = 0.12 if value >= 0 else -0.12
+                    axis.text(
+                        value + label_offset,
+                        bar.get_y() + bar.get_height() / 2,
+                        f"{value:g}",
+                        va="center",
+                        ha="left" if value >= 0 else "right",
+                        fontsize=7,
+                        color=CHART_THEME_COLORS["text"],
+                    )
             axis.set_yticks(positions, labels=labels)
             axis.invert_yaxis()
-            self._set_compact_barh_y_limits(axis, len(labels), 0.55)
-            # Alignment is a signed -10..10 score.  Keep both halves visible so
-            # negatively aligned recurring names are not clipped at zero.
-            axis.set_xlim(-10.8, 10.8)
+            self._set_compact_barh_y_limits(axis, len(labels), 0.6)
+            if mode == "alignment_score":
+                # Alignment is a signed -10..10 score.
+                axis.set_xlim(-10.8, 10.8)
             axis.axvline(
                 0.0,
                 color=CHART_THEME_COLORS["spine"],
                 linewidth=1.0,
                 zorder=1,
             )
-            for bar, value in zip(bars, values):
-                label_offset = 0.12 if value >= 0 else -0.12
-                axis.text(
-                    value + label_offset,
-                    bar.get_y() + bar.get_height() / 2,
-                    f"{value:g}",
-                    va="center",
-                    ha="left" if value >= 0 else "right",
-                    fontsize=7.5,
-                    color=CHART_THEME_COLORS["text"],
-                )
+            axis.legend(loc="lower right", fontsize=7, frameon=False, ncols=3)
             axis.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"])
             axis.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
             for spine in axis.spines.values():
@@ -719,12 +752,60 @@ class DatabaseAnalyticsChartsMixin:
             canvas.draw_idle()
             self.name_distribution_chart_layout.addWidget(canvas)
 
+        export_labels = labels
+        export_selection_values = selection_values
+        export_database_values = database_values
+        export_selection_counts = selection_counts
+        export_database_counts = database_counts
+        if mode != "frequency":
+            export_labels = []
+            export_selection_values = []
+            export_database_values = []
+            export_selection_counts = []
+            export_database_counts = []
+            count_attribute = (
+                "social_score_count" if mode == "social_score" else "alignment_count"
+            )
+            for label in labels:
+                selection_stat = selection_by_name.get(label.casefold())
+                database_stat = database_by_name.get(label.casefold())
+                display_stat = selection_stat if loaded_charts else database_stat
+                for metric_name, metric_label, _color in metric_names:
+                    display_value = (
+                        display_stat.value_for(metric_name)
+                        if display_stat is not None
+                        else None
+                    )
+                    if display_value is None:
+                        continue
+                    export_labels.append(f"{label} — {metric_label}")
+                    export_selection_values.append(
+                        float(selection_stat.value_for(metric_name) or 0.0)
+                        if selection_stat is not None
+                        else 0.0
+                    )
+                    export_database_values.append(
+                        float(database_stat.value_for(metric_name) or 0.0)
+                        if database_stat is not None
+                        else 0.0
+                    )
+                    export_selection_counts.append(
+                        int(getattr(selection_stat, count_attribute, 0))
+                        if selection_stat is not None
+                        else 0
+                    )
+                    export_database_counts.append(
+                        int(getattr(database_stat, count_attribute, 0))
+                        if database_stat is not None
+                        else 0
+                    )
+
         return self._build_analysis_export_rows(
-            labels=labels,
-            selection_values=selection_values,
-            database_values=database_values,
-            selection_counts=selection_counts,
-            database_counts=database_counts,
+            labels=export_labels,
+            selection_values=export_selection_values,
+            database_values=export_database_values,
+            selection_counts=export_selection_counts,
+            database_counts=export_database_counts,
             loaded_charts=loaded_charts,
             include_significance=False,
         )
@@ -1175,6 +1256,28 @@ class DatabaseAnalyticsChartsMixin:
             ax.set_xticklabels([_format_percent(value, decimals=percent_decimals) for value in ticks])
         return 0.0, axis_max
 
+    @classmethod
+    def _configure_selection_share_axis(cls, ax, values: list[float]) -> float:
+        """Scale a selection/database share axis without hiding tiny shares."""
+        max_value = max((max(0.0, float(value)) for value in values), default=0.0)
+        axis_max = cls._nice_symmetric_axis_limit(
+            [max_value],
+            minimum_limit=0.0001,
+            maximum_limit=1.0,
+            padding_ratio=1.12,
+        )
+        ticks = [(axis_max * index) / 4.0 for index in range(5)]
+        decimals = cls._graph_label_decimal_places(
+            axis_max * 100.0,
+            preferred_decimals=2,
+        )
+        ax.set_xlim(0.0, axis_max)
+        ax.set_xticks(ticks)
+        ax.set_xticklabels(
+            [_format_percent(value, decimals=decimals) for value in ticks]
+        )
+        return axis_max
+
     @staticmethod
     def _clear_layout(layout: QLayout) -> None:
         while layout.count():
@@ -1426,6 +1529,7 @@ class DatabaseAnalyticsChartsMixin:
                     )
                     include = cross_label == label_text
             elif chart_key == "name_distribution":
+                label_text = re.sub(r"\s+—\s+(?:Mean|Median|Mode)$", "", label_text)
                 include = chart_has_name_token(
                     chart,
                     label_text,
@@ -2442,8 +2546,13 @@ class DatabaseAnalyticsChartsMixin:
             database_text = f"{int(round(database_count)):,.0f}"
         database_count_value = float(database_count)
         selected_count_value = float(selected_count)
+        share = selected_count_value / database_count_value if database_count_value else 0.0
+        percent_decimals = self._graph_label_decimal_places(
+            share * 100.0,
+            preferred_decimals=2,
+        )
         percent_text = (
-            _format_percent(selected_count_value / database_count_value)
+            _format_percent(share, decimals=percent_decimals)
             if database_count_value
             else "0%"
         )
@@ -4354,7 +4463,7 @@ class DatabaseAnalyticsChartsMixin:
         return tag_export_rows
 
     def _create_tags_database_analytics_section(self, panel: Any, layout: QVBoxLayout) -> None:
-        """Create the un-nested Tags section at the bottom of Database Analytics."""
+        """Create the parent-level Tags section at the bottom of Database Analytics."""
         tag_distribution_section_layout = self._add_left_panel_collapsible_section(
             panel,
             layout,
@@ -4365,6 +4474,8 @@ class DatabaseAnalyticsChartsMixin:
                 "tag_distribution",
                 checked,
             ),
+            nested=True,
+            hierarchy_level=COLLAPSIBLE_HEADER_LEVEL_PARENT,
         )
         self._database_metrics_section_expanded["tag_distribution"] = self._is_database_metrics_section_expanded("tag_distribution")
         self._create_analysis_chart_header(
@@ -6484,6 +6595,7 @@ class DatabaseAnalyticsChartsMixin:
         use_earthtone_cycle: bool = False,
         bar_colors: list[str] | None = None,
         emoji_label_font_family: list[str] | None = None,
+        show_selection_database_share: bool = False,
     ) -> FigureCanvas:
         chart_height = (
             figure_height
@@ -6526,6 +6638,31 @@ class DatabaseAnalyticsChartsMixin:
                     bar.get_width() + 0.06,
                     bar.get_y() + (bar.get_height() / 2),
                     str(value),
+                    va="center",
+                    ha="left",
+                    color=CHART_THEME_COLORS["text"],
+                    fontsize=7.5,
+                )
+        elif show_selection_database_share:
+            shares = [
+                (float(selection_count) / float(database_count))
+                if database_count > 0
+                else 0.0
+                for selection_count, database_count in zip(selection_counts, database_counts)
+            ]
+            bars = ax.barh(positions, shares, color=colors, height=0.55, zorder=2)
+            axis_max = self._configure_selection_share_axis(ax, shares)
+            label_decimals = self._graph_label_decimal_places(
+                max((value * 100.0 for value in shares), default=0.0),
+                preferred_decimals=2,
+            )
+            for bar, share in zip(bars, shares):
+                if share <= 0:
+                    continue
+                ax.text(
+                    min(share + (axis_max * 0.015), axis_max * 0.985),
+                    bar.get_y() + (bar.get_height() / 2),
+                    _format_percent(share, decimals=label_decimals),
                     va="center",
                     ha="left",
                     color=CHART_THEME_COLORS["text"],
