@@ -716,7 +716,9 @@ def build_similarity_calculator_settings_section(
     for mode, label_text in (
         ("none", "Include everyone (default)"),
         ("sex", "Match assigned sex"),
+        ("opposite_sex", "Opposite assigned sex"),
         ("gender", "Match gender identity"),
+        ("opposite_gender", "Opposite gender identity"),
     ):
         button = QRadioButton(label_text)
         demographic_match_group.addButton(button)

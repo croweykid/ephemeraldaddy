@@ -29,10 +29,12 @@ def test_demographic_matching_precedes_scoring_methods_and_has_divider():
 def test_demographic_matching_labels_order_and_no_tooltips():
     include_everyone = SECTION.index('("none", "Include everyone (default)")')
     assigned_sex = SECTION.index('("sex", "Match assigned sex")')
+    opposite_assigned_sex = SECTION.index('("opposite_sex", "Opposite assigned sex")')
     gender_identity = SECTION.index('("gender", "Match gender identity")')
+    opposite_gender_identity = SECTION.index('("opposite_gender", "Opposite gender identity")')
     demographic_loop = SECTION[include_everyone:SECTION.index('demographic_match_buttons["none"]', include_everyone)]
 
-    assert include_everyone < assigned_sex < gender_identity
+    assert include_everyone < assigned_sex < opposite_assigned_sex < gender_identity < opposite_gender_identity
     assert "setToolTip" not in demographic_loop
     assert '"No preference"' not in SECTION
     assert '"Gender match"' not in SECTION
