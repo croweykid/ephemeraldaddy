@@ -26,6 +26,10 @@ LINE_NICKNAMES: dict[int, dict[str, str]] = {
     6: {"name":"Veteran","color":"","emoji":"🧌"},
 }
 
+HD_HARMONIC_LINES = { #resonance is with line matches, harmonics are with the following:
+    1:4,2:5,3:6,4:1,5:2,6:3
+}
+
 HD_COLORS = {
     1:{"name":"caves","motivation":"fear","color":"red"},
     2:{"name":"markets","motivation":"hope","color":"orange"},
