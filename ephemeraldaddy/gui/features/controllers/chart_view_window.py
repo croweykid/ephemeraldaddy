@@ -86,6 +86,8 @@ from ephemeraldaddy.gui.features.predictions.hd_electrochemistry import (
     HD_ELECTROCHEMISTRY_SUBHEADER,
     configure_hd_electrochemistry_label,
     on_hd_electrochemistry_gender_filter_changed,
+    on_hd_electrochemistry_collection_changed,
+    populate_hd_electrochemistry_collection_combo,
     render_hd_electrochemistry_predictions,
 )
 from ephemeraldaddy.gui.features.charts.time_sensitivity_panel import TimeSensitivityPanel
@@ -1856,6 +1858,22 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     owner.hd_electrochemistry_prediction_label = QLabel("Open Predictions to calculate rankings.")
     configure_hd_electrochemistry_label(owner, owner.hd_electrochemistry_prediction_label)
     hd_electrochemistry_section_layout.addWidget(owner.hd_electrochemistry_prediction_label)
+    hd_electrochemistry_collection_row = QWidget()
+    hd_electrochemistry_collection_layout = QHBoxLayout(hd_electrochemistry_collection_row)
+    hd_electrochemistry_collection_layout.setContentsMargins(0, 0, 0, 0)
+    hd_electrochemistry_collection_layout.setSpacing(6)
+    hd_electrochemistry_collection_layout.addWidget(QLabel("Collection:"))
+    owner.hd_electrochemistry_collection_filter = "all"
+    owner.hd_electrochemistry_collection_combo = QComboBox()
+    apply_shared_dropdown_style(owner.hd_electrochemistry_collection_combo)
+    populate_hd_electrochemistry_collection_combo(owner, owner.hd_electrochemistry_collection_combo)
+    owner.hd_electrochemistry_collection_combo.currentIndexChanged.connect(
+        lambda _index: on_hd_electrochemistry_collection_changed(
+            owner, owner.hd_electrochemistry_collection_combo.currentData()
+        )
+    )
+    hd_electrochemistry_collection_layout.addWidget(owner.hd_electrochemistry_collection_combo, 1)
+    hd_electrochemistry_section_layout.addWidget(hd_electrochemistry_collection_row)
     owner.hd_electrochemistry_prediction_mode_combo = hd_electrochemistry_mode_combo
     owner._render_hd_electrochemistry_predictions = MethodType(
         lambda self, chart: render_hd_electrochemistry_predictions(self, chart),

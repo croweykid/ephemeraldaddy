@@ -4354,7 +4354,7 @@ class DatabaseAnalyticsChartsMixin:
         return tag_export_rows
 
     def _create_tags_database_analytics_section(self, panel: Any, layout: QVBoxLayout) -> None:
-        """Create the un-nested Tags section at the bottom of Database Analytics."""
+        """Create the parent-level Tags section at the bottom of Database Analytics."""
         tag_distribution_section_layout = self._add_left_panel_collapsible_section(
             panel,
             layout,
@@ -4365,6 +4365,8 @@ class DatabaseAnalyticsChartsMixin:
                 "tag_distribution",
                 checked,
             ),
+            nested=True,
+            hierarchy_level=COLLAPSIBLE_HEADER_LEVEL_PARENT,
         )
         self._database_metrics_section_expanded["tag_distribution"] = self._is_database_metrics_section_expanded("tag_distribution")
         self._create_analysis_chart_header(

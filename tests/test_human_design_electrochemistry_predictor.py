@@ -184,6 +184,21 @@ def test_synastry_gender_filter_is_part_of_render_token():
     assert hd_electrochemistry.hd_electrochemistry_render_token(owner, chart) != all_token
 
 
+def test_synastry_collection_filter_is_part_of_render_token():
+    hd_electrochemistry = _hd_electrochemistry_module()
+    chart = type("Chart", (), {"chart_uid": "UID", "human_design_gates": [47]})()
+    owner = type(
+        "Owner",
+        (),
+        {"hd_electrochemistry_gender_filter": "all", "hd_electrochemistry_collection_filter": "all"},
+    )()
+    all_token = hd_electrochemistry.hd_electrochemistry_render_token(owner, chart)
+
+    owner.hd_electrochemistry_collection_filter = "personal"
+
+    assert hd_electrochemistry.hd_electrochemistry_render_token(owner, chart) != all_token
+
+
 def test_right_panel_checks_synastry_revision_before_reranking():
     from pathlib import Path
 
@@ -211,6 +226,18 @@ def test_predicted_synastry_builds_gender_radios_with_refresh_callback():
     assert '(("All", "all"), ("Male", "male"), ("Female", "female"))' in synastry_branch
     assert "QRadioButton(label)" in synastry_branch
     assert "on_hd_electrochemistry_gender_filter_changed(owner, selected, checked)" in synastry_branch
+    assert 'QLabel("Collection:")' in synastry_branch
+    assert "populate_hd_electrochemistry_collection_combo" in synastry_branch
+    assert "on_hd_electrochemistry_collection_changed" in synastry_branch
+
+
+def test_synastry_candidates_carry_collection_metadata():
+    item = HumanDesignSynastryCandidate(
+        "UID", "Name", None, frozenset({47}), source="public", chart_type="public"
+    )
+
+    assert item.source == "public"
+    assert item.chart_type == "public"
 
 
 def test_chart_calculation_settings_builds_gender_method_radios():
