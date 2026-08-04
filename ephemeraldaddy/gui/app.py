@@ -32641,7 +32641,12 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         recalculate_chart = bool(self._metadata_autosave_requires_recalculation)
         self._metadata_autosave_requires_recalculation = False
         self.on_update_chart(show_dialog=False, recalculate_chart=recalculate_chart)
-        self._set_lucygoosey(False)
+        if self._lucygoosey and recalculate_chart:
+            # Validation or persistence returned before on_update_chart reached
+            # its successful-save dirty reset.  Preserve both the draft and its
+            # recalculation requirement so navigation still presents the leave
+            # prompt rather than silently discarding the invalid/unsaved input.
+            self._metadata_autosave_requires_recalculation = True
 
     def _queue_subjective_notes_autosave(self) -> None:
         """Debounce Subjective Notes writes through one lightweight save timer."""
@@ -32749,7 +32754,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             recalculate_chart=False,
             subjective_notes_autosave=True,
         )
-        self._set_lucygoosey(False)
 
     def _clear_event_metadata_fields(self) -> None:
         # Event chart type intentionally removes sentiment/relationship metadata.
