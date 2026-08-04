@@ -655,6 +655,51 @@ def test_sex_match_categories_follow_requested_rules():
     assert astro_twin_allowed_demographic_categories("AMAB-F", "sex") == amab_group
 
 
+def test_opposite_gender_categories_invert_binary_identity_and_exclude_nonbinary_candidates():
+    female_identity_group = frozenset({"female", "amab-f"})
+    male_identity_group = frozenset({"male", "afab-m"})
+
+    assert astro_twin_allowed_demographic_categories("Male", "opposite_gender") == female_identity_group
+    assert astro_twin_allowed_demographic_categories("AFAB-M", "opposite_gender") == female_identity_group
+    assert astro_twin_allowed_demographic_categories("Female", "opposite_gender") == male_identity_group
+    assert astro_twin_allowed_demographic_categories("AMAB-F", "opposite_gender") == male_identity_group
+
+
+def test_opposite_assigned_sex_categories_invert_birth_sex():
+    afab_group = frozenset({"female", "afab-m", "afab-nb"})
+    amab_group = frozenset({"male", "amab-f", "amab-nb"})
+
+    assert astro_twin_allowed_demographic_categories("Male", "opposite_sex") == afab_group
+    assert astro_twin_allowed_demographic_categories("AMAB-F", "opposite_sex") == afab_group
+    assert astro_twin_allowed_demographic_categories("Female", "opposite_sex") == amab_group
+    assert astro_twin_allowed_demographic_categories("AFAB-NB", "opposite_sex") == amab_group
+
+
+def test_opposite_gender_prefilter_matches_requested_example(monkeypatch):
+    monkeypatch.setattr(
+        get_astro_twin,
+        "chart_similarity_score_custom",
+        lambda _query, _candidate, _settings: (0.5, {"placement": 0.5}),
+    )
+    query = SimpleNamespace(name="Little Timmy", gender="Male", positions={"Sun": 0.0}, is_placeholder=False)
+    candidates = [
+        (1, SimpleNamespace(name="Rafael", gender="AMAB-F", positions={"Sun": 1.0}, is_placeholder=False)),
+        (2, SimpleNamespace(name="Flora", gender="Female", positions={"Sun": 2.0}, is_placeholder=False)),
+        (3, SimpleNamespace(name="Luz", gender="AFAB-NB", positions={"Sun": 3.0}, is_placeholder=False)),
+        (4, SimpleNamespace(name="Joe Peschi", gender="Male", positions={"Sun": 4.0}, is_placeholder=False)),
+    ]
+
+    matches = find_astro_twins(
+        query,
+        candidates,
+        top_k=4,
+        algorithm_mode="default",
+        custom_settings=SimilarityCalculatorSettings(demographic_match_mode="opposite_gender"),
+    )
+
+    assert [match.chart_name for match in matches] == ["Rafael", "Flora"]
+
+
 def test_find_astro_twins_prefilters_demographic_matches_before_scoring(monkeypatch):
     scored_names = []
 

@@ -61,6 +61,8 @@ PLACEMENT_WEIGHTING_MODE_HYBRID = "hybrid"
 ASTRO_TWIN_DEMOGRAPHIC_MATCH_NONE = "none"
 ASTRO_TWIN_DEMOGRAPHIC_MATCH_GENDER = "gender"
 ASTRO_TWIN_DEMOGRAPHIC_MATCH_SEX = "sex"
+ASTRO_TWIN_DEMOGRAPHIC_OPPOSITE_GENDER = "opposite_gender"
+ASTRO_TWIN_DEMOGRAPHIC_OPPOSITE_SEX = "opposite_sex"
 HYBRID_LUMINARY_BONUS_BY_SIGN_MATCHES: dict[int, float] = {
     0: 0.82,
     1: 0.92,
@@ -664,6 +666,10 @@ def normalize_astro_twin_demographic_match_mode(value: object) -> str:
         return ASTRO_TWIN_DEMOGRAPHIC_MATCH_GENDER
     if normalized in {"sex", "sex_match"}:
         return ASTRO_TWIN_DEMOGRAPHIC_MATCH_SEX
+    if normalized in {"opposite_gender", "opposite_gender_identity"}:
+        return ASTRO_TWIN_DEMOGRAPHIC_OPPOSITE_GENDER
+    if normalized in {"opposite_sex", "opposite_assigned_sex"}:
+        return ASTRO_TWIN_DEMOGRAPHIC_OPPOSITE_SEX
     return ASTRO_TWIN_DEMOGRAPHIC_MATCH_NONE
 
 
@@ -708,22 +714,29 @@ def astro_twin_allowed_demographic_categories(subject_gender: object, mode: obje
     subject_category = normalize_astro_twin_gender_category(subject_gender)
     if subject_category is None:
         return None
-    if normalized_mode == ASTRO_TWIN_DEMOGRAPHIC_MATCH_GENDER:
+    if normalized_mode in {
+        ASTRO_TWIN_DEMOGRAPHIC_MATCH_GENDER,
+        ASTRO_TWIN_DEMOGRAPHIC_OPPOSITE_GENDER,
+    }:
+        opposite = normalized_mode == ASTRO_TWIN_DEMOGRAPHIC_OPPOSITE_GENDER
         if subject_category == "female":
-            return frozenset({"female"})
+            return frozenset({"male", "afab-m"}) if opposite else frozenset({"female"})
         if subject_category == "male":
-            return frozenset({"male"})
+            return frozenset({"female", "amab-f"}) if opposite else frozenset({"male"})
         if subject_category == "amab-f":
-            return frozenset({"female", "amab-f"})
+            return frozenset({"male", "afab-m"}) if opposite else frozenset({"female", "amab-f"})
         if subject_category == "afab-m":
-            return frozenset({"male", "afab-m"})
+            return frozenset({"female", "amab-f"}) if opposite else frozenset({"male", "afab-m"})
         if subject_category in {"amab-nb", "afab-nb"}:
             return None
         return frozenset({subject_category})
-    if subject_category in {"female", "afab-m", "afab-nb"}:
-        return frozenset({"female", "afab-m", "afab-nb"})
-    if subject_category in {"male", "amab-f", "amab-nb"}:
-        return frozenset({"male", "amab-f", "amab-nb"})
+    afab_group = frozenset({"female", "afab-m", "afab-nb"})
+    amab_group = frozenset({"male", "amab-f", "amab-nb"})
+    opposite = normalized_mode == ASTRO_TWIN_DEMOGRAPHIC_OPPOSITE_SEX
+    if subject_category in afab_group:
+        return amab_group if opposite else afab_group
+    if subject_category in amab_group:
+        return afab_group if opposite else amab_group
     return None
 
 
