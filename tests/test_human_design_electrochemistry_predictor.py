@@ -454,7 +454,7 @@ def test_settings_consolidates_database_and_visualization_controls():
         'self._build_settings_subheader_label("Database View")', show_hide_index
     )
     chart_data_header_index = settings_source.index(
-        'self._build_settings_subheader_label("Chart Data (Chart Editor)")', show_hide_index
+        'self._build_settings_subheader_label("Chart Editor")', show_hide_index
     )
     assert show_hide_index < database_header_index < chart_data_header_index
     assert 'content_layout,\n            "Database View"' not in settings_source
