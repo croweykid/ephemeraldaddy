@@ -1535,6 +1535,7 @@ def configure_collapsible_header_toggle(
     style_sheet: str,
     title_alignment: Qt.AlignmentFlag | Qt.Alignment = Qt.AlignLeft,
     hierarchy_level: str = COLLAPSIBLE_HEADER_LEVEL_PARENT,
+    title_color: str | None = None,
 ) -> None:
     """Apply default shared behavior for collapsible/expandable section headers."""
     toggle.setCheckable(True)
@@ -1552,7 +1553,7 @@ def configure_collapsible_header_toggle(
     font_size = (
         COLLAPSIBLE_PARENT_FONT_SIZE_PX if is_parent else COLLAPSIBLE_SUBSECTION_FONT_SIZE_PX
     )
-    base_title_color = (
+    base_title_color = title_color or (
         COLLAPSIBLE_PARENT_TEXT_COLOR if is_parent else COLLAPSIBLE_SUBSECTION_TEXT_COLOR
     )
     text_align = "center" if title_alignment == Qt.AlignCenter else "left"

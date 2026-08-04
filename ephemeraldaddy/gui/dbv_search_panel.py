@@ -1886,6 +1886,7 @@ def build_dbv_search_panel(window) -> "QWidget":
         expanded: bool = False,
         style_sheet: str = DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
         hierarchy_level: str = COLLAPSIBLE_HEADER_LEVEL_SUBSECTION,
+        title_color: str | None = None,
     ) -> tuple[QWidget, QVBoxLayout]:
         if title in {
             "🪐Astro",
@@ -1907,6 +1908,7 @@ def build_dbv_search_panel(window) -> "QWidget":
             expanded=expanded,
             style_sheet=style_sheet,
             hierarchy_level=hierarchy_level,
+            title_color=title_color,
         )
 
         content = QWidget()
@@ -1954,6 +1956,7 @@ def build_dbv_search_panel(window) -> "QWidget":
         expanded=False,
         style_sheet=chart_type_header_style,
         hierarchy_level=COLLAPSIBLE_HEADER_LEVEL_PARENT,
+        title_color="#b56cff",
     )
 
     chart_type_layout = QGridLayout()
