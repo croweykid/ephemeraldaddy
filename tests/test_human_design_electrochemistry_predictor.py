@@ -9,11 +9,11 @@ from ephemeraldaddy.analysis.human_design_synastry import (
 )
 
 
-def _hd_synastry_module():
+def _hd_electrochemistry_module():
     import pytest
 
     return pytest.importorskip(
-        "ephemeraldaddy.gui.features.predictions.hd_synastry",
+        "ephemeraldaddy.gui.features.predictions.hd_electrochemistry",
         exc_type=ImportError,
     )
 
@@ -86,37 +86,40 @@ def test_normalize_gates_ignores_invalid_cache_values():
 
 
 def test_synastry_derives_missing_gate_cache(monkeypatch):
-    hd_synastry = _hd_synastry_module()
+    hd_electrochemistry = _hd_electrochemistry_module()
     chart = type("Chart", (), {"human_design_gates": []})()
     monkeypatch.setattr(
-        hd_synastry,
+        hd_electrochemistry,
         "derive_human_design_profile",
         lambda _chart: ([64, 47], [1], ["47-64"], "Projector"),
     )
 
-    assert hd_synastry.resolve_hd_synastry_gates(chart) == frozenset({47, 64})
+    assert hd_electrochemistry.resolve_hd_electrochemistry_gates(chart) == frozenset({47, 64})
     assert chart.human_design_gates == [47, 64]
 
 
 def test_synastry_hypothetical_warning_includes_chart_name():
-    hd_synastry = _hd_synastry_module()
+    hd_electrochemistry = _hd_electrochemistry_module()
     chart = type(
         "Chart",
         (),
         {"name": "A & B", "birthtime_unknown": True, "retcon_time_used": True},
     )()
 
-    subheader = hd_synastry.hd_synastry_subheader(chart)
+    subheader = hd_electrochemistry.hd_electrochemistry_subheader(chart)
 
     assert "Since A &amp; B's birth time is hypothetical" in subheader
     assert "results may be dodgier than usual" in subheader
 
 
 def test_synastry_known_time_uses_standard_subheader():
-    hd_synastry = _hd_synastry_module()
+    hd_electrochemistry = _hd_electrochemistry_module()
     chart = type("Chart", (), {"name": "Known", "birthtime_unknown": False})()
 
-    assert hd_synastry.hd_synastry_subheader(chart) == hd_synastry.HD_SYNASTRY_SUBHEADER
+    assert (
+        hd_electrochemistry.hd_electrochemistry_subheader(chart)
+        == hd_electrochemistry.HD_ELECTROCHEMISTRY_SUBHEADER
+    )
 
 
 def test_synastry_gender_filter_can_group_by_assigned_sex_or_gender_identity():
@@ -171,14 +174,14 @@ def test_synastry_gender_filter_defaults_to_assigned_at_birth_sex():
 
 
 def test_synastry_gender_filter_is_part_of_render_token():
-    hd_synastry = _hd_synastry_module()
+    hd_electrochemistry = _hd_electrochemistry_module()
     chart = type("Chart", (), {"chart_uid": "UID", "human_design_gates": [47]})()
-    owner = type("Owner", (), {"hd_synastry_gender_filter": "all"})()
-    all_token = hd_synastry.hd_synastry_render_token(owner, chart)
+    owner = type("Owner", (), {"hd_electrochemistry_gender_filter": "all"})()
+    all_token = hd_electrochemistry.hd_electrochemistry_render_token(owner, chart)
 
-    owner.hd_synastry_gender_filter = "female"
+    owner.hd_electrochemistry_gender_filter = "female"
 
-    assert hd_synastry.hd_synastry_render_token(owner, chart) != all_token
+    assert hd_electrochemistry.hd_electrochemistry_render_token(owner, chart) != all_token
 
 
 def test_right_panel_checks_synastry_revision_before_reranking():
@@ -189,25 +192,25 @@ def test_right_panel_checks_synastry_revision_before_reranking():
         'if active_panel == "time_sensitivity":', 1
     )[0]
 
-    stale_check = predictions_branch.index("hd_synastry_predictions_are_current")
-    render_call = predictions_branch.index("render_hd_synastry(chart)")
+    stale_check = predictions_branch.index("hd_electrochemistry_predictions_are_current")
+    render_call = predictions_branch.index("render_hd_electrochemistry(chart)")
     assert stale_check < render_call
-    assert "if predictions_are_current and hd_synastry_is_current:" in predictions_branch
+    assert "if predictions_are_current and hd_electrochemistry_is_current:" in predictions_branch
 
 
 def test_predicted_synastry_builds_gender_radios_with_refresh_callback():
     from pathlib import Path
 
     source = Path("ephemeraldaddy/gui/features/controllers/chart_view_window.py").read_text()
-    synastry_branch = source.split('title="Predicted Electrochemistry"', 1)[1].split(
+    synastry_branch = source.split('title="Predicted Synastry"', 1)[1].split(
         'title="Traits"', 1
     )[0]
 
-    assert 'addItem("🪷HD Electrochemistry", "hd_synastry")' in synastry_branch
+    assert 'addItem("🪷HD Electrochemistry", "hd_electrochemistry")' in synastry_branch
 
     assert '(("All", "all"), ("Male", "male"), ("Female", "female"))' in synastry_branch
     assert "QRadioButton(label)" in synastry_branch
-    assert "on_hd_synastry_gender_filter_changed(owner, selected, checked)" in synastry_branch
+    assert "on_hd_electrochemistry_gender_filter_changed(owner, selected, checked)" in synastry_branch
 
 
 def test_chart_calculation_settings_builds_gender_method_radios():
@@ -227,9 +230,9 @@ def test_chart_calculation_settings_builds_gender_method_radios():
 def test_synastry_filtered_empty_state_is_distinct_from_empty_database():
     from pathlib import Path
 
-    source = Path("ephemeraldaddy/gui/features/predictions/hd_synastry.py").read_text()
-    render_branch = source.split("def render_hd_synastry_predictions", 1)[1].split(
-        "def on_hd_synastry_gender_filter_changed", 1
+    source = Path("ephemeraldaddy/gui/features/predictions/hd_electrochemistry.py").read_text()
+    render_branch = source.split("def render_hd_electrochemistry_predictions", 1)[1].split(
+        "def on_hd_electrochemistry_gender_filter_changed", 1
     )[0]
 
     filter_empty_index = render_branch.index('if gender_filter != "all" and other_candidates_are_available:')
