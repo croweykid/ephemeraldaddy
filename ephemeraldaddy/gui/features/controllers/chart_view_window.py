@@ -85,6 +85,7 @@ from ephemeraldaddy.gui.features.charts.prediction_loading_labels import start_p
 from ephemeraldaddy.gui.features.predictions.hd_electrochemistry import (
     HD_ELECTROCHEMISTRY_SUBHEADER,
     configure_hd_electrochemistry_label,
+    make_hd_electrochemistry_matches_collection,
     on_hd_electrochemistry_gender_filter_changed,
     on_hd_electrochemistry_collection_changed,
     populate_hd_electrochemistry_collection_combo,
@@ -1874,6 +1875,15 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     )
     hd_electrochemistry_collection_layout.addWidget(owner.hd_electrochemistry_collection_combo, 1)
     hd_electrochemistry_section_layout.addWidget(hd_electrochemistry_collection_row)
+    owner.hd_electrochemistry_make_collection_button = QPushButton(
+        "Make collection from matches"
+    )
+    owner.hd_electrochemistry_make_collection_button.clicked.connect(
+        lambda: make_hd_electrochemistry_matches_collection(owner)
+    )
+    hd_electrochemistry_section_layout.addWidget(
+        owner.hd_electrochemistry_make_collection_button
+    )
     owner.hd_electrochemistry_prediction_mode_combo = hd_electrochemistry_mode_combo
     owner._render_hd_electrochemistry_predictions = MethodType(
         lambda self, chart: render_hd_electrochemistry_predictions(self, chart),

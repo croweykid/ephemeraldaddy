@@ -260,6 +260,22 @@ def test_collection_refresh_reloads_options_and_invalidates_ranking_source():
     assert 'setattr(owner, "_hd_electrochemistry_last_render_token", None)' in refresh_branch
 
 
+def test_match_collection_updates_existing_database_view_state_source():
+    from pathlib import Path
+
+    source = Path("ephemeraldaddy/gui/features/predictions/hd_electrochemistry.py").read_text()
+    create_branch = source.split(
+        "def make_hd_electrochemistry_matches_collection", 1
+    )[1].split("def on_gendered_results_method_changed", 1)[0]
+
+    copy_index = create_branch.index(
+        "manage_dialog._custom_collections = dict(custom_collections)"
+    )
+    refresh_index = create_branch.index("dialog_refresh_controls()")
+    populate_index = create_branch.index("populate_list()")
+    assert copy_index < refresh_index < populate_index
+
+
 def test_right_panel_checks_synastry_revision_before_reranking():
     from pathlib import Path
 
@@ -290,6 +306,89 @@ def test_predicted_synastry_builds_gender_radios_with_refresh_callback():
     assert 'QLabel("Collection:")' in synastry_branch
     assert "populate_hd_electrochemistry_collection_combo" in synastry_branch
     assert "on_hd_electrochemistry_collection_changed" in synastry_branch
+    assert '"Make collection from matches"' in synastry_branch
+    assert "make_hd_electrochemistry_matches_collection(owner)" in synastry_branch
+
+
+def test_match_collection_combines_top_ten_from_both_gender_groups(monkeypatch):
+    hd_electrochemistry = _hd_electrochemistry_module()
+    candidates = [
+        gendered_candidate(f"M{index:02}", "M") for index in range(12)
+    ] + [
+        gendered_candidate(f"F{index:02}", "F") for index in range(12)
+    ]
+    monkeypatch.setattr(
+        hd_electrochemistry,
+        "list_human_design_electrochemistry_candidates",
+        lambda: candidates,
+    )
+    monkeypatch.setattr(
+        hd_electrochemistry,
+        "load_gendered_results_method",
+        lambda: HD_SYNASTRY_GENDER_METHOD_SEX,
+    )
+    owner = type("Owner", (), {"hd_electrochemistry_collection_filter": "all"})()
+    chart = type("Chart", (), {"chart_uid": "SOURCE", "human_design_gates": [64]})()
+
+    chart_uids = hd_electrochemistry.hd_electrochemistry_match_collection_uids(
+        owner, chart
+    )
+
+    assert len(chart_uids) == 20
+    assert len([uid for uid in chart_uids if uid.startswith("M")]) == 10
+    assert len([uid for uid in chart_uids if uid.startswith("F")]) == 10
+
+
+def test_match_collection_synchronizes_existing_database_view_dialog(monkeypatch):
+    hd_electrochemistry = _hd_electrochemistry_module()
+
+    class ManageDialog:
+        def __init__(self):
+            self._custom_collections = {}
+            self.refresh_count = 0
+            self.populate_count = 0
+
+        def _refresh_collection_controls(self):
+            self.refresh_count += 1
+
+        def _populate_list(self):
+            self.populate_count += 1
+
+    class Owner:
+        def __init__(self):
+            self._latest_chart = object()
+            self._custom_collections = {}
+            self._manage_charts_dialog = ManageDialog()
+            self.save_count = 0
+
+        def _load_custom_collections_from_settings(self):
+            return dict(self._custom_collections)
+
+        def _save_custom_collections_to_settings(self):
+            self.save_count += 1
+
+    owner = Owner()
+    monkeypatch.setattr(
+        hd_electrochemistry,
+        "hd_electrochemistry_match_collection_uids",
+        lambda _owner, _chart: frozenset({"M01", "F01"}),
+    )
+    monkeypatch.setattr(
+        hd_electrochemistry.QInputDialog,
+        "getText",
+        lambda *_args: ("Best Matches", True),
+    )
+
+    hd_electrochemistry.make_hd_electrochemistry_matches_collection(owner)
+
+    dialog = owner._manage_charts_dialog
+    assert owner.save_count == 1
+    assert dialog._custom_collections == owner._custom_collections
+    assert dialog._custom_collections["best_matches"].chart_uids == frozenset(
+        {"M01", "F01"}
+    )
+    assert dialog.refresh_count == 1
+    assert dialog.populate_count == 1
 
 
 def test_synastry_candidates_carry_collection_metadata():
