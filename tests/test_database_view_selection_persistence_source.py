@@ -23,8 +23,12 @@ def test_selection_changed_can_skip_persistent_selection_sync_for_programmatic_r
 def test_sort_refresh_preserves_hidden_persistent_selection():
     method = _method_source("_set_sort_mode")
 
-    assert "self._populate_list(selected_ids=selected_ids or None)" in method
-    assert "sync_persistent_selection=False" in method
+    assert "selected_ids=selected_ids or None" in method
+    assert "refresh_metrics=False" in method
+    assert "_on_selection_changed" not in method
+    assert method.index("self._cancel_inline_chart_rename()") < method.index(
+        "self._populate_list("
+    )
 
 
 def test_hide_hypothetical_refresh_preserves_hidden_persistent_selection():

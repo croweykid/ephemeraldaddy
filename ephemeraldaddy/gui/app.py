@@ -18598,10 +18598,15 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._update_sort_button_label()
         self._settings.setValue("manage_charts/sort_mode", self._sort_mode)
         self._settings.setValue("manage_charts/sort_descending", int(self._sort_descending))
-        self._populate_list(selected_ids=selected_ids or None)
-        self._on_selection_changed(
+        # Sorting changes presentation order only.  Keep it off the broader
+        # database-refresh path: neither analytics inputs, collection scope,
+        # tool options, nor the UID-first logical selection changed.
+        # Dispose any active inline editor before clearing its list item so the
+        # rename state cannot retain references to deleted PySide objects.
+        self._cancel_inline_chart_rename()
+        self._populate_list(
+            selected_ids=selected_ids or None,
             refresh_metrics=False,
-            sync_persistent_selection=False,
         )
 
     @staticmethod
@@ -18899,6 +18904,11 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             if progress_callback:
                 progress_callback("Refreshing Database filters…", 91)
             self._update_tag_completers_if_needed()
+        # These options describe saved database rows, not their current list
+        # order, collection, filter, or display treatment. Refresh them only
+        # on the database hydration path rather than every list repaint.
+        self._refresh_personal_transit_chart_options()
+        self._refresh_similarities_chart_options()
 
         malformed_rows = [row for row in self._chart_rows if self._normalize_chart_row(row) is None]
         if malformed_rows:
@@ -19044,8 +19054,6 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         selected_ids = set(getattr(self, "_selected_local_row_ids_set", set()))
         if progress_callback:
             progress_callback("Syncing chart tools…", 93)
-        self._refresh_personal_transit_chart_options()
-        self._refresh_similarities_chart_options()
         list_signal_blocker = QSignalBlocker(self.list_widget)
         self.list_widget.clear()
         visible_chart_ids: set[int] = set()
