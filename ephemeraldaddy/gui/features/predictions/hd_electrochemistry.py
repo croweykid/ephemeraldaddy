@@ -441,6 +441,17 @@ def make_hd_electrochemistry_matches_collection(owner: object) -> None:
     refresh_controls = getattr(owner, "_refresh_collection_controls", None)
     if callable(refresh_controls):
         refresh_controls()
+    manage_dialog = getattr(owner, "_manage_charts_dialog", None)
+    if manage_dialog is not None and manage_dialog is not owner:
+        manage_dialog._custom_collections = dict(custom_collections)
+        dialog_refresh_controls = getattr(
+            manage_dialog, "_refresh_collection_controls", None
+        )
+        if callable(dialog_refresh_controls):
+            dialog_refresh_controls()
+        populate_list = getattr(manage_dialog, "_populate_list", None)
+        if callable(populate_list):
+            populate_list()
 
 
 def on_gendered_results_method_changed(owner: object, gender_method: str, checked: bool) -> None:
