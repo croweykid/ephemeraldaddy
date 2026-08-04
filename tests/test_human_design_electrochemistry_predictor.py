@@ -256,6 +256,17 @@ def test_synastry_filtered_empty_state_is_distinct_from_empty_database():
     assert "No charts matching the {html.escape(gender_filter.title())} filter" in render_branch
 
 
+def test_electrochemistry_copy_distinguishes_chart_and_database_percentiles():
+    from pathlib import Path
+
+    source = Path("ephemeraldaddy/gui/features/predictions/hd_electrochemistry.py").read_text()
+
+    assert "th percentile for this chart" in source
+    assert "top 10% for this chart" in source
+    assert "database-wide {norms.percentile_for_score(match.score):.0f}th percentile" in source
+    assert "Database-wide norms are being calculated in the background." in source
+
+
 def test_settings_consolidates_database_and_visualization_controls():
     from pathlib import Path
 

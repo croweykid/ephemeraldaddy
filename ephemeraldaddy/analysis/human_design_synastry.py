@@ -6,6 +6,7 @@ sets of gates.  It is not a general relationship compatibility model.
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
 from statistics import median
 from typing import Iterable
@@ -25,6 +26,7 @@ class HumanDesignSynastryCandidate:
     gates: frozenset[int]
     uses_houses: bool = True
     gender: str | None = None
+    astro_data_signature: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -173,6 +175,12 @@ def rank_human_design_synastry(
         scores = [match.score for match in matches]
         population_median = float(median(scores))
         population_size = len(scores)
+        score_counts = Counter(scores)
+        cumulative_count = 0
+        percentile_by_score: dict[int, float] = {}
+        for score in sorted(score_counts):
+            cumulative_count += score_counts[score]
+            percentile_by_score[score] = 100.0 * cumulative_count / population_size
         matches = [
             HumanDesignSynastryMatch(
                 chart_uid=match.chart_uid,
@@ -182,7 +190,7 @@ def rank_human_design_synastry(
                 defined_centers=match.defined_centers,
                 score=match.score,
                 population_median=population_median,
-                percentile=100.0 * sum(score <= match.score for score in scores) / population_size,
+                percentile=percentile_by_score[match.score],
                 uses_houses=match.uses_houses,
             )
             for match in matches

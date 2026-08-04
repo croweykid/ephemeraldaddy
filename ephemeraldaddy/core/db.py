@@ -4471,7 +4471,8 @@ def list_human_design_synastry_candidates():
     rows = conn.execute(
         """
         SELECT chart_uid, name, alias, human_design_gates,
-               birthtime_unknown, retcon_time_used, gender
+               birthtime_unknown, retcon_time_used, gender,
+               derived_birth_data_signature
         FROM charts
         WHERE COALESCE(is_placeholder, 0) = 0
           AND COALESCE(human_design_gates, '') != ''
@@ -4485,6 +4486,7 @@ def list_human_design_synastry_candidates():
             gates=normalize_gates(_parse_int_list(row[3])),
             uses_houses=not bool(row[4]) or bool(row[5]),
             gender=str(row[6]).strip() if row[6] else None,
+            astro_data_signature=str(row[7]).strip() if row[7] else None,
         )
         for row in rows
         if str(row[0] or "").strip()
