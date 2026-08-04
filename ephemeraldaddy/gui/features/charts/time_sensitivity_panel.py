@@ -218,15 +218,16 @@ def _draw_likelihood_chart(
         return
 
     x_positions = list(range(len(rows)))
+    heights = [maximum - minimum for minimum, maximum in zip(minimums, maximums)]
     bars = ax.bar(
         x_positions,
-        maximums,
+        heights,
+        bottom=minimums,
         color=colors,
         alpha=0.72,
         edgecolor="#f5f5f5",
         linewidth=0.25,
     )
-    ax.bar(x_positions, minimums, color="#111111", alpha=0.50, edgecolor="none")
     hover_payloads = []
     scatter_payloads = []
     clickable_artists = []
