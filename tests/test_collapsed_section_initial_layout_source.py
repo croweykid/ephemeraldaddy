@@ -59,3 +59,28 @@ def test_time_sensitivity_collapsed_html_sections_defer_html_and_height_work():
     assert "if not toggle.isChecked():\n                return" in method
     assert "if not content.isVisible():\n                return" not in method
     assert "if expanded:\n            schedule_browser_height_adjustments()" in method
+
+
+def test_time_sensitivity_human_design_section_starts_expanded():
+    render_start = TIME_SENSITIVITY_SOURCE.index("    def _render_weight_sections")
+    render_end = TIME_SENSITIVITY_SOURCE.index(
+        "    def _show_likelihood_popout", render_start
+    )
+    method = TIME_SENSITIVITY_SOURCE[render_start:render_end]
+
+    assert (
+        '"human_design", "Human Design", _human_design_html(result), expanded=True'
+        in method
+    )
+
+
+def test_predictions_gender_guesser_section_starts_expanded():
+    build_start = CHART_EDITOR_SOURCE.index("def _build_predictions_panel")
+    build_end = CHART_EDITOR_SOURCE.index(
+        "def _ensure_photo_gallery_chart_uid", build_start
+    )
+    method = CHART_EDITOR_SOURCE[build_start:build_end]
+    gender_start = method.index('section_key="gender_guesser"')
+    gender_section = method[gender_start:]
+
+    assert "expanded=True" in gender_section

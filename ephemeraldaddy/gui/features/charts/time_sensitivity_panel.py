@@ -1642,7 +1642,7 @@ class TimeSensitivityPanel(QWidget):
                 self._chart_canvases[group_key] = canvas
             self._chart_sections[group_key] = section
         self._add_html_section(
-            "human_design", "Human Design", _human_design_html(result), expanded=False
+            "human_design", "Human Design", _human_design_html(result), expanded=True
         )
 
     def _show_likelihood_popout(self, group_key: str) -> None:
