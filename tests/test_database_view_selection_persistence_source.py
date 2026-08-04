@@ -25,7 +25,6 @@ def test_sort_refresh_preserves_hidden_persistent_selection():
 
     assert "selected_ids=selected_ids or None" in method
     assert "refresh_metrics=False" in method
-    assert "refresh_external_controls=False" in method
     assert "_on_selection_changed" not in method
     assert method.index("self._cancel_inline_chart_rename()") < method.index(
         "self._populate_list("

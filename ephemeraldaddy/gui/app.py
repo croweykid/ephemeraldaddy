@@ -18607,7 +18607,6 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._populate_list(
             selected_ids=selected_ids or None,
             refresh_metrics=False,
-            refresh_external_controls=False,
         )
 
     @staticmethod
@@ -18905,6 +18904,11 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             if progress_callback:
                 progress_callback("Refreshing Database filters…", 91)
             self._update_tag_completers_if_needed()
+        # These options describe saved database rows, not their current list
+        # order, collection, filter, or display treatment. Refresh them only
+        # on the database hydration path rather than every list repaint.
+        self._refresh_personal_transit_chart_options()
+        self._refresh_similarities_chart_options()
 
         malformed_rows = [row for row in self._chart_rows if self._normalize_chart_row(row) is None]
         if malformed_rows:
@@ -19042,7 +19046,6 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         force_full_analysis_refresh: bool = False,
         progress_callback: Callable[[str, int], None] | None = None,
         defer_metrics_refresh: bool = False,
-        refresh_external_controls: bool = True,
     ) -> None:
         if selected_ids is not None:
             self._replace_persistent_selection_by_local_row_ids(selected_ids)
@@ -19051,9 +19054,6 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         selected_ids = set(getattr(self, "_selected_local_row_ids_set", set()))
         if progress_callback:
             progress_callback("Syncing chart tools…", 93)
-        if refresh_external_controls:
-            self._refresh_personal_transit_chart_options()
-            self._refresh_similarities_chart_options()
         list_signal_blocker = QSignalBlocker(self.list_widget)
         self.list_widget.clear()
         visible_chart_ids: set[int] = set()
