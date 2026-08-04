@@ -1037,7 +1037,6 @@ from ephemeraldaddy.gui.dbv_search_panel import (
     update_tag_completers,
     update_tag_completers_if_needed,
     reset_body_dynamics_filters,
-    scalar_value_matches_tri_state_filters,
     weight_is_at_least_triple_next_highest,
 )
 from ephemeraldaddy.gui.features.charts.transit_workers import (
@@ -17504,10 +17503,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 (self._human_design_type_filter_and, self._human_design_type_filter_or),
                 (self._human_design_profile_filter_and, self._human_design_profile_filter_or),
             ):
-                if and_button is not None:
-                    and_button.setChecked(False)
                 if or_button is not None:
-                    or_button.setChecked(True)
+                    or_button.setChecked(False)
+                if and_button is not None:
+                    and_button.setChecked(True)
             for filters in self._search_body_filters:
                 filters["body"].setCurrentIndex(0)
                 filters["sign"].setCurrentIndex(0)
@@ -21104,27 +21103,37 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             if or_filters and not any(gate_line_filter_matches(filters) for filters in or_filters):
                 return False
 
-        if not scalar_value_matches_tri_state_filters(
-            self._chart_human_design_type(chart),
-            included=selected_human_design_types,
-            excluded=excluded_human_design_types,
-            require_all=bool(
-                self._human_design_type_filter_and
-                and self._human_design_type_filter_and.isChecked()
-            ),
-        ):
-            return False
+        if selected_human_design_types or excluded_human_design_types:
+            chart_human_design_type = self._chart_human_design_type(chart)
+            if chart_human_design_type in excluded_human_design_types:
+                return False
+            if selected_human_design_types:
+                if (
+                    self._human_design_type_filter_and is not None
+                    and self._human_design_type_filter_and.isChecked()
+                ):
+                    if not selected_human_design_types.issubset(
+                        {chart_human_design_type}
+                    ):
+                        return False
+                elif chart_human_design_type not in selected_human_design_types:
+                    return False
 
-        if not scalar_value_matches_tri_state_filters(
-            self._chart_human_design_profile(chart),
-            included=selected_human_design_profiles,
-            excluded=excluded_human_design_profiles,
-            require_all=bool(
-                self._human_design_profile_filter_and
-                and self._human_design_profile_filter_and.isChecked()
-            ),
-        ):
-            return False
+        if selected_human_design_profiles or excluded_human_design_profiles:
+            chart_human_design_profile = self._chart_human_design_profile(chart)
+            if chart_human_design_profile in excluded_human_design_profiles:
+                return False
+            if selected_human_design_profiles:
+                if (
+                    self._human_design_profile_filter_and is not None
+                    and self._human_design_profile_filter_and.isChecked()
+                ):
+                    if not selected_human_design_profiles.issubset(
+                        {chart_human_design_profile}
+                    ):
+                        return False
+                elif chart_human_design_profile not in selected_human_design_profiles:
+                    return False
 
         if selected_human_design_defined_centers:
             chart_defined_centers = self._chart_human_design_defined_centers(chart)

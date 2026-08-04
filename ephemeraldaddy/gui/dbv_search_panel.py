@@ -140,28 +140,6 @@ def matched_expectations_value_for_chart(chart) -> int:
     return max(-10, min(10, parsed_value))
 
 
-def scalar_value_matches_tri_state_filters(
-    value: str,
-    *,
-    included: set[str],
-    excluded: set[str],
-    require_all: bool,
-) -> bool:
-    """Match one categorical value against tri-state include/exclude filters.
-
-    Exclusions are always enforced.  Included values use the section's AND/OR
-    toggle; AND is intentionally strict even though Human Design Type and
-    Profile are single-valued fields, while OR provides the useful multi-value
-    search behavior.
-    """
-    if value in excluded:
-        return False
-    if not included:
-        return True
-    matches = (value == selected for selected in included)
-    return all(matches) if require_all else any(matches)
-
-
 def build_birthdate_filter_date(
     *,
     month: int | None,
@@ -2766,7 +2744,7 @@ def build_dbv_search_panel(window) -> "QWidget":
         operator_group.setExclusive(True)
         operator_group.addButton(and_button)
         operator_group.addButton(or_button)
-        or_button.setChecked(True)
+        and_button.setChecked(True)
         operator_group.buttonClicked.connect(window._on_filter_changed)
         operator_row.addWidget(and_button)
         operator_row.addWidget(or_button)
