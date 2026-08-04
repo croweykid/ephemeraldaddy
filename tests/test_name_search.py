@@ -11,8 +11,14 @@ from ephemeraldaddy.gui.features.database_view.analytics.name_search import (
 )
 
 
-def chart(uid, name, alias="", alignment=None):
-    return SimpleNamespace(chart_uid=uid, name=name, alias=alias, alignment_score=alignment)
+def chart(uid, name, alias="", alignment=None, social_score=None):
+    return SimpleNamespace(
+        chart_uid=uid,
+        name=name,
+        alias=alias,
+        alignment_score=alignment,
+        social_score=social_score,
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -65,6 +71,23 @@ def test_multimodal_alignment_has_no_single_mode_value():
     )[0]
     assert result.mode_alignment == (1.0, 2.0)
     assert result.value_for("mode_alignment") is None
+
+
+def test_aggregates_social_score_statistics_for_the_same_name_ranking():
+    result = analyze_names(
+        [
+            chart("a", "Sam", social_score=2),
+            chart("b", "Sam", social_score=4),
+            chart("c", "Sam", social_score=4),
+            chart("d", "Sam", social_score=None),
+        ]
+    )[0]
+
+    assert result.social_score_count == 3
+    assert result.mean_social_score == pytest.approx(10 / 3)
+    assert result.median_social_score == 4
+    assert result.mode_social_score == (4.0,)
+    assert result.value_for("mode_social_score") == 4.0
 
 
 def test_rejects_invalid_minimum_frequency():

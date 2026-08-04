@@ -113,6 +113,7 @@ DATABASE_METRICS_SUBJECTIVE_SECTION_DEPENDENCIES: dict[str, frozenset[str]] = {
     "name": frozenset({"name_distribution"}),
     "alias": frozenset({"name_distribution"}),
     "alignment": frozenset({"alignment_summary", "name_distribution"}),
+    "social_score": frozenset({"alignment_summary", "name_distribution"}),
     "traits": frozenset({"traits_distribution"}),
 }
 
@@ -602,7 +603,7 @@ class DatabaseAnalyticsChartsMixin:
         loaded_charts: int,
         should_refresh: Callable[[str], bool],
     ) -> list[tuple[str, float, float, float, int, int, float]]:
-        """Render name frequency or Alignment statistics from UID-keyed results."""
+        """Render name frequency or grouped score statistics from UID-keyed results."""
         if not should_refresh("name_distribution"):
             return getattr(self, "_analysis_chart_export_rows", {}).get("name_distribution", [])
 
@@ -621,6 +622,11 @@ class DatabaseAnalyticsChartsMixin:
         database_by_name = {item.name.casefold(): item for item in database_stats}
         source = selection_stats if loaded_charts else database_stats
         mode = str(getattr(self, "_name_distribution_mode", "frequency"))
+        # Persisted values from the former three-chart UI open the combined graph.
+        if mode in {"mean_alignment", "median_alignment", "mode_alignment"}:
+            mode = "alignment_score"
+        score_prefix = "social_score" if mode == "social_score" else "alignment"
+        sort_metric = f"mean_{score_prefix}"
         labels: list[str] = []
         selection_values: list[float] = []
         database_values: list[float] = []
@@ -630,15 +636,16 @@ class DatabaseAnalyticsChartsMixin:
             selection_stat = selection_by_name.get(statistic.name.casefold())
             database_stat = database_by_name.get(statistic.name.casefold())
             display_stat = selection_stat if loaded_charts else database_stat
-            value = display_stat.value_for(mode) if display_stat is not None else None
+            metric = "frequency" if mode == "frequency" else sort_metric
+            value = display_stat.value_for(metric) if display_stat is not None else None
             if value is None:
                 continue
             labels.append(statistic.name)
             selection_values.append(
-                float(selection_stat.value_for(mode) or 0.0) if selection_stat else 0.0
+                float(selection_stat.value_for(metric) or 0.0) if selection_stat else 0.0
             )
             database_values.append(
-                float(database_stat.value_for(mode) or 0.0) if database_stat else 0.0
+                float(database_stat.value_for(metric) or 0.0) if database_stat else 0.0
             )
             selection_counts.append(selection_stat.frequency if selection_stat else 0)
             database_counts.append(database_stat.frequency if database_stat else 0)
@@ -672,7 +679,12 @@ class DatabaseAnalyticsChartsMixin:
                 )
             )
         else:
-            values = selection_values if loaded_charts else database_values
+            displayed_by_name = selection_by_name if loaded_charts else database_by_name
+            metric_names = (
+                (f"mean_{score_prefix}", "Mean", "#6fa8dc"),
+                (f"median_{score_prefix}", "Median", "#f4d35e"),
+                (f"mode_{score_prefix}", "Mode", "#b07aa1"),
+            )
             figure = Figure(
                 figsize=(1.5, self._name_distribution_chart_height(len(labels)))
             )
@@ -680,35 +692,49 @@ class DatabaseAnalyticsChartsMixin:
             axis = figure.add_subplot(111)
             axis.set_facecolor(self._database_analytics_axes_facecolor())
             positions = list(range(len(labels)))
-            bars = axis.barh(
-                positions,
-                values,
-                color=CHART_DATA_HIGHLIGHT_COLOR,
-                height=0.55,
-            )
+            bar_height = 0.2
+            offsets = (-bar_height, 0.0, bar_height)
+            for (metric_name, metric_label, color), offset in zip(metric_names, offsets):
+                values = [
+                    displayed_by_name[label.casefold()].value_for(metric_name)
+                    for label in labels
+                ]
+                visible = [value is not None for value in values]
+                plotted_values = [float(value or 0.0) for value in values]
+                bars = axis.barh(
+                    [position + offset for position in positions],
+                    plotted_values,
+                    color=color,
+                    height=bar_height,
+                    label=metric_label,
+                )
+                for bar, value, is_visible in zip(bars, plotted_values, visible):
+                    if not is_visible:
+                        bar.set_visible(False)
+                        continue
+                    label_offset = 0.12 if value >= 0 else -0.12
+                    axis.text(
+                        value + label_offset,
+                        bar.get_y() + bar.get_height() / 2,
+                        f"{value:g}",
+                        va="center",
+                        ha="left" if value >= 0 else "right",
+                        fontsize=7,
+                        color=CHART_THEME_COLORS["text"],
+                    )
             axis.set_yticks(positions, labels=labels)
             axis.invert_yaxis()
-            self._set_compact_barh_y_limits(axis, len(labels), 0.55)
-            # Alignment is a signed -10..10 score.  Keep both halves visible so
-            # negatively aligned recurring names are not clipped at zero.
-            axis.set_xlim(-10.8, 10.8)
+            self._set_compact_barh_y_limits(axis, len(labels), 0.6)
+            if mode == "alignment_score":
+                # Alignment is a signed -10..10 score.
+                axis.set_xlim(-10.8, 10.8)
             axis.axvline(
                 0.0,
                 color=CHART_THEME_COLORS["spine"],
                 linewidth=1.0,
                 zorder=1,
             )
-            for bar, value in zip(bars, values):
-                label_offset = 0.12 if value >= 0 else -0.12
-                axis.text(
-                    value + label_offset,
-                    bar.get_y() + bar.get_height() / 2,
-                    f"{value:g}",
-                    va="center",
-                    ha="left" if value >= 0 else "right",
-                    fontsize=7.5,
-                    color=CHART_THEME_COLORS["text"],
-                )
+            axis.legend(loc="lower right", fontsize=7, frameon=False, ncols=3)
             axis.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"])
             axis.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
             for spine in axis.spines.values():

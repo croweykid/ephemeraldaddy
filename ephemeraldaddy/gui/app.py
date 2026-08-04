@@ -5323,9 +5323,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             "name_distribution",
             dropdown_options=[
                 ("Frequency", "frequency"),
-                ("Mean Alignment", "mean_alignment"),
-                ("Median Alignment", "median_alignment"),
-                ("Mode Alignment", "mode_alignment"),
+                ("Alignment Score", "alignment_score"),
+                ("Social Score", "social_score"),
             ],
             show_title=False,
         )
