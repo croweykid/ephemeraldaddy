@@ -1682,6 +1682,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     from ephemeraldaddy.gui.emoji_render import apply_emoji_png_to_button, apply_emoji_pngs_to_label
     from ephemeraldaddy.gui.features.charts.presentation import abbreviate_body_label, abbreviate_nakshatra_label
     from ephemeraldaddy.gui.style import (
+        COLLAPSIBLE_HEADER_LEVEL_PARENT, COLLAPSIBLE_HEADER_LEVEL_SUBSECTION,
         COLLAPSIBLE_NESTED_SECTION_CONTENT_STYLE, COLLAPSIBLE_SECTION_CONTENT_STYLE,
         DATABASE_ANALYTICS_CONTENT_DEBUG_STYLE, DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS,
         DATABASE_ANALYTICS_SUBHEADER_STYLE, DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
@@ -1884,7 +1885,17 @@ def build_dbv_search_panel(window) -> "QWidget":
         nested: bool = False,
         expanded: bool = False,
         style_sheet: str = DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
+        hierarchy_level: str = COLLAPSIBLE_HEADER_LEVEL_SUBSECTION,
+        title_color: str | None = None,
     ) -> tuple[QWidget, QVBoxLayout]:
+        if title in {
+            "🪐Astro",
+            "🪷Human Design",
+            "💭Observations",
+            "🔮Predictions",
+            "👥Demographics",
+        }:
+            hierarchy_level = COLLAPSIBLE_HEADER_LEVEL_PARENT
         section = QWidget()
         section_layout = QVBoxLayout()
         section_layout.setContentsMargins(0, 0, 0, 0)
@@ -1896,6 +1907,8 @@ def build_dbv_search_panel(window) -> "QWidget":
             title=title,
             expanded=expanded,
             style_sheet=style_sheet,
+            hierarchy_level=hierarchy_level,
+            title_color=title_color,
         )
 
         content = QWidget()
@@ -1942,6 +1955,8 @@ def build_dbv_search_panel(window) -> "QWidget":
         "Chart Type",
         expanded=False,
         style_sheet=chart_type_header_style,
+        hierarchy_level=COLLAPSIBLE_HEADER_LEVEL_PARENT,
+        title_color="#b56cff",
     )
 
     chart_type_layout = QGridLayout()
