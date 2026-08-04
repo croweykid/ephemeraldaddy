@@ -12547,6 +12547,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                         auto_height=True,
                         use_earthtone_cycle=(age_mode == "time_known_distribution"),
                         bar_colors=age_chart_bar_colors,
+                        show_selection_database_share=True,
                     )
                     self.age_chart_layout.addWidget(age_canvas, 0)
                 else:

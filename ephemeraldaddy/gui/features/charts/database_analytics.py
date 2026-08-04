@@ -1256,6 +1256,28 @@ class DatabaseAnalyticsChartsMixin:
             ax.set_xticklabels([_format_percent(value, decimals=percent_decimals) for value in ticks])
         return 0.0, axis_max
 
+    @classmethod
+    def _configure_selection_share_axis(cls, ax, values: list[float]) -> float:
+        """Scale a selection/database share axis without hiding tiny shares."""
+        max_value = max((max(0.0, float(value)) for value in values), default=0.0)
+        axis_max = cls._nice_symmetric_axis_limit(
+            [max_value],
+            minimum_limit=0.0001,
+            maximum_limit=1.0,
+            padding_ratio=1.12,
+        )
+        ticks = [(axis_max * index) / 4.0 for index in range(5)]
+        decimals = cls._graph_label_decimal_places(
+            axis_max * 100.0,
+            preferred_decimals=2,
+        )
+        ax.set_xlim(0.0, axis_max)
+        ax.set_xticks(ticks)
+        ax.set_xticklabels(
+            [_format_percent(value, decimals=decimals) for value in ticks]
+        )
+        return axis_max
+
     @staticmethod
     def _clear_layout(layout: QLayout) -> None:
         while layout.count():
@@ -2524,8 +2546,13 @@ class DatabaseAnalyticsChartsMixin:
             database_text = f"{int(round(database_count)):,.0f}"
         database_count_value = float(database_count)
         selected_count_value = float(selected_count)
+        share = selected_count_value / database_count_value if database_count_value else 0.0
+        percent_decimals = self._graph_label_decimal_places(
+            share * 100.0,
+            preferred_decimals=2,
+        )
         percent_text = (
-            _format_percent(selected_count_value / database_count_value)
+            _format_percent(share, decimals=percent_decimals)
             if database_count_value
             else "0%"
         )
@@ -6566,6 +6593,7 @@ class DatabaseAnalyticsChartsMixin:
         use_earthtone_cycle: bool = False,
         bar_colors: list[str] | None = None,
         emoji_label_font_family: list[str] | None = None,
+        show_selection_database_share: bool = False,
     ) -> FigureCanvas:
         chart_height = (
             figure_height
@@ -6608,6 +6636,31 @@ class DatabaseAnalyticsChartsMixin:
                     bar.get_width() + 0.06,
                     bar.get_y() + (bar.get_height() / 2),
                     str(value),
+                    va="center",
+                    ha="left",
+                    color=CHART_THEME_COLORS["text"],
+                    fontsize=7.5,
+                )
+        elif show_selection_database_share:
+            shares = [
+                (float(selection_count) / float(database_count))
+                if database_count > 0
+                else 0.0
+                for selection_count, database_count in zip(selection_counts, database_counts)
+            ]
+            bars = ax.barh(positions, shares, color=colors, height=0.55, zorder=2)
+            axis_max = self._configure_selection_share_axis(ax, shares)
+            label_decimals = self._graph_label_decimal_places(
+                max((value * 100.0 for value in shares), default=0.0),
+                preferred_decimals=2,
+            )
+            for bar, share in zip(bars, shares):
+                if share <= 0:
+                    continue
+                ax.text(
+                    min(share + (axis_max * 0.015), axis_max * 0.985),
+                    bar.get_y() + (bar.get_height() / 2),
+                    _format_percent(share, decimals=label_decimals),
                     va="center",
                     ha="left",
                     color=CHART_THEME_COLORS["text"],
