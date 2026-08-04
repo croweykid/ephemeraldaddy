@@ -199,6 +199,44 @@ def test_synastry_collection_filter_is_part_of_render_token():
     assert hd_electrochemistry.hd_electrochemistry_render_token(owner, chart) != all_token
 
 
+def test_synastry_custom_collection_membership_is_part_of_render_token():
+    from ephemeraldaddy.gui.features.charts.collections import CustomCollection
+
+    hd_electrochemistry = _hd_electrochemistry_module()
+    chart = type("Chart", (), {"chart_uid": "UID", "human_design_gates": [47]})()
+    memberships = {"UID-A"}
+
+    class Owner:
+        hd_electrochemistry_gender_filter = "all"
+        hd_electrochemistry_collection_filter = "favorites"
+
+        def _load_custom_collections_from_settings(self):
+            return {
+                "favorites": CustomCollection(
+                    "favorites", "Favorites", frozenset(), frozenset(memberships)
+                )
+            }
+
+    owner = Owner()
+    first_token = hd_electrochemistry.hd_electrochemistry_render_token(owner, chart)
+    memberships.add("UID-B")
+
+    assert hd_electrochemistry.hd_electrochemistry_render_token(owner, chart) != first_token
+
+
+def test_collection_refresh_reloads_options_and_invalidates_ranking_source():
+    from pathlib import Path
+
+    source = Path("ephemeraldaddy/gui/features/predictions/hd_electrochemistry.py").read_text()
+    refresh_branch = source.split("def refresh_hd_electrochemistry_collections", 1)[1].split(
+        "def normalize_gendered_results_method", 1
+    )[0]
+
+    assert "reload_hd_electrochemistry_custom_collections(owner)" in refresh_branch
+    assert "populate_hd_electrochemistry_collection_combo(owner, combo)" in refresh_branch
+    assert 'setattr(owner, "_hd_electrochemistry_last_render_token", None)' in refresh_branch
+
+
 def test_right_panel_checks_synastry_revision_before_reranking():
     from pathlib import Path
 
