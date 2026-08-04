@@ -4,6 +4,7 @@ import ast
 from pathlib import Path
 
 from ephemeraldaddy.core import performance_metrics
+from ephemeraldaddy.gui.features.database_view.performance import DatabaseViewOpenTiming
 
 
 def _main_window_method_source(method_name: str) -> str:
@@ -115,3 +116,34 @@ def test_material_facts_reuses_resolved_uid_for_photo_metric() -> None:
     assert "chart_uid = get_chart_uid(chart_id)" in material_facts_source
     assert "load_linked_relative_uids_by_uid(chart_uid)" in material_facts_source
     assert "chart_uid=chart_uid" in material_facts_source
+
+
+def test_database_view_timing_records_named_phases_once() -> None:
+    records: list[tuple[str, float, dict[str, object]]] = []
+    timing = DatabaseViewOpenTiming(
+        recorder=lambda operation, elapsed_ms, **details: records.append(
+            (operation, elapsed_ms, details)
+        )
+    )
+
+    timing.phase("dialog_shell")
+    timing.complete(was_visible=False, refresh_reason="initial_population")
+    timing.complete(was_visible=False, refresh_reason="duplicate")
+
+    assert records[0][0] == "database_view.open_phase"
+    assert records[0][2]["phase"] == "dialog_shell"
+    assert [record[0] for record in records].count("database_view.open_to_visible") == 1
+
+
+def test_chart_links_and_chart_type_use_central_navigation_and_autosave() -> None:
+    load_source = _main_window_method_source("load_chart_by_uid")
+    chart_type_source = _main_window_method_source("_on_chart_type_changed")
+    confirmation_source = _main_window_method_source("_confirm_discard_or_save")
+    similar_link_source = _main_window_method_source("_on_similar_chart_link_activated")
+
+    assert "from_chart_link and not skip_unsaved_confirmation" in load_source
+    assert "self._chart_view_history.append(normalized_chart_uid)" in load_source
+    assert "else 2000" in chart_type_source
+    assert "self._metadata_autosave_timer.start(delay_ms)" in chart_type_source
+    assert "self._flush_pending_metadata_save()" in confirmation_source
+    assert "self._chart_view_history.append" not in similar_link_source

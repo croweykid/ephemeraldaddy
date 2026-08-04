@@ -26698,20 +26698,8 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 self._transition_database_view_chart_link_to_chart_view(source_dialog=source_dialog)
             return
 
-        previous_history = list(self._chart_view_history)
-        previous_index = self._chart_view_history_index
-        if current_chart_uid is not None:
-            if not self._chart_view_history:
-                self._chart_view_history = [current_chart_uid]
-                self._chart_view_history_index = 0
-            else:
-                self._chart_view_history = self._chart_view_history[: self._chart_view_history_index + 1]
-            self._chart_view_history.append(target_chart_uid)
-            self._chart_view_history_index = len(self._chart_view_history) - 1
         loaded = self.load_chart_by_uid(target_chart_uid, from_chart_link=True)
         if not loaded:
-            self._chart_view_history = previous_history
-            self._chart_view_history_index = previous_index
             return
         if database_transition_dialog is not None:
             self._transition_database_view_chart_link_to_chart_view(source_dialog=source_dialog)
@@ -32576,6 +32564,11 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         return line_segments
 
     def _confirm_discard_or_save(self) -> bool:
+        # Debounced metadata changes (including Chart Type) are automatic
+        # lucygoosey saves.  Flush them before deciding whether a manual-save
+        # prompt is necessary when the user navigates immediately.
+        if self._metadata_autosave_timer.isActive():
+            self._flush_pending_metadata_save()
         if not self._lucygoosey:
             return True
 
@@ -32648,7 +32641,12 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         recalculate_chart = bool(self._metadata_autosave_requires_recalculation)
         self._metadata_autosave_requires_recalculation = False
         self.on_update_chart(show_dialog=False, recalculate_chart=recalculate_chart)
-        self._set_lucygoosey(False)
+        if self._lucygoosey and recalculate_chart:
+            # Validation or persistence returned before on_update_chart reached
+            # its successful-save dirty reset.  Preserve both the draft and its
+            # recalculation requirement so navigation still presents the leave
+            # prompt rather than silently discarding the invalid/unsaved input.
+            self._metadata_autosave_requires_recalculation = True
 
     def _queue_subjective_notes_autosave(self) -> None:
         """Debounce Subjective Notes writes through one lightweight save timer."""
@@ -32756,7 +32754,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             recalculate_chart=False,
             subjective_notes_autosave=True,
         )
-        self._set_lucygoosey(False)
 
     def _clear_event_metadata_fields(self) -> None:
         # Event chart type intentionally removes sentiment/relationship metadata.
@@ -32909,6 +32906,12 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._chart_type_previous_index = index
         self._apply_chart_type_ui_state(chart_type_value)
         self._mark_lucygoosey()
+        # Chart Type is persisted metadata, not an astronomical input.  Queue
+        # the same lightweight debounced save used by other lucygoosey fields
+        # so leaving Chart Editor never requires a manual save for this alone.
+        if self._can_autosave_current_chart():
+            delay_ms = 2500 if self._metadata_autosave_requires_recalculation else 2000
+            self._metadata_autosave_timer.start(delay_ms)
 
     def _configure_main_splitter(self) -> None:
         base_left = 366
@@ -35346,6 +35349,20 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             chart_uid=normalized_chart_uid,
             placeholder=bool(getattr(chart, "is_placeholder", False)),
         )
+        if from_chart_link and not skip_unsaved_confirmation and not is_same_chart_request:
+            # Every in-editor chart link participates in one UID-first history
+            # path.  Keeping this at the load boundary covers Predictions,
+            # Material Facts, analytics, and future chart-link surfaces.
+            if current_chart_uid is not None:
+                if not self._chart_view_history:
+                    self._chart_view_history = [current_chart_uid]
+                    self._chart_view_history_index = 0
+                else:
+                    self._chart_view_history = self._chart_view_history[
+                        : self._chart_view_history_index + 1
+                    ]
+                self._chart_view_history.append(normalized_chart_uid)
+                self._chart_view_history_index = len(self._chart_view_history) - 1
         return True
 
     def _on_chart_view_back_requested(self) -> None:
@@ -35583,15 +35600,22 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             self.isVisible(),
             self.current_chart_id,
         )
-        if not self._charts_controller.confirm_manage_charts_open(startup_progress):
-            return False
         database_view_open_timing = DatabaseViewOpenTiming()
+        if not self._charts_controller.confirm_manage_charts_open(startup_progress):
+            database_view_open_timing.complete(
+                was_visible=False,
+                refresh_reason="cancelled_unsaved_changes",
+                status="cancelled",
+            )
+            return False
+        database_view_open_timing.phase("confirm_unsaved_changes")
         self._cancel_pending_chart_render()
         self._flush_pending_metadata_save()
         self._flush_pending_sentiment_metrics_save()
         if self._should_flush_predictions_before_database_view():
             self._flush_stale_predictions_before_chart_exit()
             self._chart_view_prediction_flush_pending = False
+        database_view_open_timing.phase("chart_editor_flush")
         self._chart_view_history.clear()
         self._chart_view_history_index = -1
         self._settings.setValue("app/last_view", "database")
