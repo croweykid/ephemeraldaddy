@@ -413,7 +413,7 @@ def build_custom_db_export_widget(
 
 def open_custom_db_export_dialog(parent: QWidget) -> None:
     dialog = QDialog(parent)
-    dialog.setWindowTitle("Custom DB Export")
+    dialog.setWindowTitle("Export Database")
     dialog.setMinimumSize(520, 600)
     layout = QVBoxLayout(dialog)
     layout.setContentsMargins(0, 0, 0, 0)

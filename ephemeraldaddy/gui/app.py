@@ -22012,9 +22012,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         visibility_section.addWidget(show_hidden_checkbox)
 
         visibility_section.addSpacing(8)
-        visibility_section.addWidget(self._build_settings_subheader_label("Chart Editor"))
+        visibility_section.addWidget(self._build_settings_header_label("Chart Editor"))
+        visibility_section.addWidget(self._build_settings_subheader_label("Chart Data Output"))
 
-        cursedness_checkbox = QCheckBox("Show cursedness analysis")
+        cursedness_checkbox = QCheckBox("Show 'Cursedness' score")
         cursedness_checkbox.setChecked(self._visibility.get("chart_data.cursedness"))
         cursedness_checkbox.toggled.connect(
             lambda checked: self._set_chart_data_visibility("chart_data.cursedness", checked)
@@ -22098,7 +22099,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         visibility_section.addWidget(predictability_checkbox)
 
         visibility_section.addSpacing(8)
-        visibility_section.addWidget(self._build_settings_subheader_label("Predictions (popout chart)"))
+        visibility_section.addWidget(self._build_settings_subheader_label("Predictions (Chart Editor)"))
 
         prediction_section_options = (
             ("traits", "Show Traits predictions"),
@@ -22249,15 +22250,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
         chart_calculation_section.addSpacing(8)
         chart_calculation_section.addWidget(
-            self._build_settings_subheader_label("Data Visualization")
-        )
-        chart_calculation_section.addWidget(
-            self._build_settings_help_label(
-                "Controls graph overlays and statistical-significance handling for Database View analytics."
-            )
+            self._build_settings_subheader_label("Statistics")
         )
         significance_row = QHBoxLayout()
-        significance_label = QLabel("Significance correction:")
+        significance_label = QLabel("Choose statistical-significance handling for analytics:")
         significance_combo = QComboBox()
         for correction_key, correction_label in SIGNIFICANCE_CORRECTION_LABELS.items():
             significance_combo.addItem(correction_label, correction_key)
@@ -22593,7 +22589,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
         custom_db_export_section = self._add_settings_collapsible_section(
             content_layout,
-            "Custom DB Export",
+            "Export Database",
         )
         self._populate_settings_custom_db_export_section(custom_db_export_section)
         content_layout.addStretch(1)
