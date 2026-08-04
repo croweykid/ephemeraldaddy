@@ -5,11 +5,12 @@ from __future__ import annotations
 import html
 import urllib.parse
 
-from PySide6.QtCore import QSettings, QSignalBlocker, Qt
+from PySide6.QtCore import QSettings, QSignalBlocker, QTimer, Qt
 from PySide6.QtWidgets import QComboBox, QLabel
 
 from ephemeraldaddy.analysis.human_design import derive_human_design_profile
 from ephemeraldaddy.analysis.human_design_synastry import (
+    HD_ELECTROCHEMISTRY_MAX_SCORE,
     HD_SYNASTRY_GENDER_METHOD_IDENTITY as HD_ELECTROCHEMISTRY_GENDER_METHOD_IDENTITY,
     HD_SYNASTRY_GENDER_METHOD_SEX as HD_ELECTROCHEMISTRY_GENDER_METHOD_SEX,
     filter_hd_synastry_candidates as filter_hd_electrochemistry_candidates,
@@ -34,6 +35,11 @@ from ephemeraldaddy.gui.style import (
     SETTINGS_ORG,
     apply_chart_info_link_cursor,
     houses_unknown_note_html,
+)
+from ephemeraldaddy.gui.features.predictions.hd_electrochemistry_norms import (
+    current_human_design_electrochemistry_norms,
+    human_design_electrochemistry_norms_are_building,
+    request_human_design_electrochemistry_norms,
 )
 
 
@@ -181,6 +187,60 @@ def hd_electrochemistry_predictions_are_current(owner: object, chart: object | N
     return getattr(owner, "_hd_electrochemistry_last_render_token", None) == hd_electrochemistry_render_token(owner, chart)
 
 
+def _format_hd_electrochemistry_matches(matches: tuple, warning_lines: tuple[str, ...]) -> str:
+    """Format source-relative rankings alongside persistent database-wide norms."""
+    norms = current_human_design_electrochemistry_norms()
+    lines = list(warning_lines)
+    if norms is None:
+        lines.append("Database-wide norms are being calculated in the background.")
+    else:
+        lines.append(
+            f"Database-wide norms: {norms.sample_size:,} unique chart pairs; "
+            f"median score {norms.median:g}/{HD_ELECTROCHEMISTRY_MAX_SCORE}."
+        )
+    for index, match in enumerate(matches, 1):
+        display_name = match.name
+        if match.alias and match.alias.casefold() != match.name.casefold():
+            display_name += f" ({match.alias})"
+        href = "chart-uid:" + urllib.parse.quote(match.chart_uid, safe="")
+        uncertainty_html = " " + houses_unknown_note_html() if not match.uses_houses else ""
+        chart_top_decile = " · top 10% for this chart" if match.percentile >= 90.0 else ""
+        database_norms = ""
+        if norms is not None and norms.sample_size:
+            database_norms = (
+                f"; database-wide {norms.percentile_for_score(match.score):.0f}th percentile"
+            )
+        lines.append(
+            f'{index}. <a href="{href}" style="color: #cdb7ff;">'
+            f"{html.escape(display_name)}</a>{uncertainty_html} "
+            f'<span style="color: #aaa;">(score {match.score}/{HD_ELECTROCHEMISTRY_MAX_SCORE}: '
+            f"{match.completed_channels} cross-chart channels + "
+            f"{match.defined_centers} combined defined centers; "
+            f"candidate median {match.population_median:g}, "
+            f"{match.percentile:.0f}th percentile for this chart"
+            f"{chart_top_decile}{database_norms})</span>"
+        )
+    return "<br>".join(lines)
+
+
+def _poll_hd_electrochemistry_norms(
+    label: QLabel,
+    matches: tuple,
+    warning_lines: tuple[str, ...],
+    poll_token: str,
+) -> None:
+    """Refresh only the originating label after its background norms build."""
+    if str(label.property("hdNormsPollToken") or "") != poll_token:
+        return
+    if human_design_electrochemistry_norms_are_building():
+        QTimer.singleShot(
+            250,
+            lambda: _poll_hd_electrochemistry_norms(label, matches, warning_lines, poll_token),
+        )
+        return
+    label.setText(_format_hd_electrochemistry_matches(matches, warning_lines))
+
+
 def render_hd_electrochemistry_predictions(owner: object, chart: object | None) -> None:
     label = getattr(owner, "hd_electrochemistry_prediction_label", None)
     if not isinstance(label, QLabel) or chart is None:
@@ -222,6 +282,8 @@ def render_hd_electrochemistry_predictions(owner: object, chart: object | None) 
         gender_filter,
         load_gendered_results_method(),
     )
+    database_revision = int(getattr(owner, "_database_metrics_cache_revision", 0) or 0)
+    request_human_design_electrochemistry_norms(database_revision)
     matches = rank_human_design_electrochemistry(
         chart_uid,
         gates,
@@ -241,25 +303,27 @@ def render_hd_electrochemistry_predictions(owner: object, chart: object | None) 
             label.setText("No other charts with Human Design gate data are available.")
         setattr(owner, "_hd_electrochemistry_last_render_token", render_token)
         return
-    lines = []
+    warning_lines = []
     if not chart_uses_houses(chart):
-        lines.append(
+        warning_lines.append(
             "Ranked using this chart's default hypothetical time "
             + houses_unknown_note_html()
         )
-    for index, match in enumerate(matches, 1):
-        display_name = match.name
-        if match.alias and match.alias.casefold() != match.name.casefold():
-            display_name += f" ({match.alias})"
-        href = "chart-uid:" + urllib.parse.quote(match.chart_uid, safe="")
-        uncertainty_html = " " + houses_unknown_note_html() if not match.uses_houses else ""
-        lines.append(
-            f'{index}. <a href="{href}" style="color: #cdb7ff;">'
-            f"{html.escape(display_name)}</a>{uncertainty_html} "
-            f'<span style="color: #aaa;">({match.completed_channels} completed channels, '
-            f"{match.defined_centers} defined centers)</span>"
+    matches_tuple = tuple(matches)
+    warning_lines_tuple = tuple(warning_lines)
+    poll_token = repr(render_token)
+    label.setProperty("hdNormsPollToken", poll_token)
+    label.setText(_format_hd_electrochemistry_matches(matches_tuple, warning_lines_tuple))
+    if human_design_electrochemistry_norms_are_building():
+        QTimer.singleShot(
+            250,
+            lambda: _poll_hd_electrochemistry_norms(
+                label,
+                matches_tuple,
+                warning_lines_tuple,
+                poll_token,
+            ),
         )
-    label.setText("<br>".join(lines))
     setattr(owner, "_hd_electrochemistry_last_render_token", render_token)
 
 
