@@ -140,6 +140,28 @@ def matched_expectations_value_for_chart(chart) -> int:
     return max(-10, min(10, parsed_value))
 
 
+def scalar_value_matches_tri_state_filters(
+    value: str,
+    *,
+    included: set[str],
+    excluded: set[str],
+    require_all: bool,
+) -> bool:
+    """Match one categorical value against tri-state include/exclude filters.
+
+    Exclusions are always enforced.  Included values use the section's AND/OR
+    toggle; AND is intentionally strict even though Human Design Type and
+    Profile are single-valued fields, while OR provides the useful multi-value
+    search behavior.
+    """
+    if value in excluded:
+        return False
+    if not included:
+        return True
+    matches = (value == selected for selected in included)
+    return all(matches) if require_all else any(matches)
+
+
 def build_birthdate_filter_date(
     *,
     month: int | None,
@@ -928,15 +950,13 @@ def has_active_chart_filters(window) -> bool:
         if str(filters["gate"].currentData()) != "Any"
         or str(filters["line"].currentData()) != "Any"
     }
-    selected_human_design_type = (
-        str(window._human_design_type_filter_combo.currentData())
-        if window._human_design_type_filter_combo is not None
-        else "Any"
+    active_human_design_types = any(
+        checkbox.mode() != QuadStateSlider.MODE_EMPTY
+        for checkbox in getattr(window, "_human_design_type_filter_checkboxes", {}).values()
     )
-    selected_human_design_profile = (
-        str(window._human_design_profile_filter_combo.currentData())
-        if window._human_design_profile_filter_combo is not None
-        else "Any"
+    active_human_design_profiles = any(
+        checkbox.mode() != QuadStateSlider.MODE_EMPTY
+        for checkbox in getattr(window, "_human_design_profile_filter_checkboxes", {}).values()
     )
     selected_human_design_defined_centers = {
         str(combo.currentData())
@@ -1045,8 +1065,8 @@ def has_active_chart_filters(window) -> bool:
         and not notes_source_active
         and not selected_human_design_channels
         and not selected_human_design_gates
-        and selected_human_design_type == "Any"
-        and selected_human_design_profile == "Any"
+        and not active_human_design_types
+        and not active_human_design_profiles
         and not selected_human_design_defined_centers
         and not database_search_text_is_active(window.search_text_input.text())
         and (
@@ -2728,31 +2748,52 @@ def build_dbv_search_panel(window) -> "QWidget":
             window._human_design_gate_filter_and = gate_filter_and
             window._human_design_gate_filter_or = gate_filter_or
 
-    hd_type_row = QHBoxLayout()
-    hd_type_row.addWidget(QLabel("Type"))
-    window._human_design_type_filter_combo = QComboBox()
-    apply_default_dropdown_style(window._human_design_type_filter_combo)
-    window._human_design_type_filter_combo.addItem("Any", "Any")
-    window._human_design_type_filter_combo.addItem("Manifestor", "Manifestor")
-    window._human_design_type_filter_combo.addItem("Generator", "Generator")
-    window._human_design_type_filter_combo.addItem("Manifesting Generator", "Manifesting Generator")
-    window._human_design_type_filter_combo.addItem("Projector", "Projector")
-    set_dropdown_width_chars(window._human_design_type_filter_combo, 22)
-    window._human_design_type_filter_combo.currentIndexChanged.connect(window._on_filter_changed)
-    hd_type_row.addWidget(window._human_design_type_filter_combo)
-    human_design_group_layout.addLayout(hd_type_row)
+    def add_hd_tri_state_filter(label, options, attribute_prefix, columns):
+        section_layout = QGridLayout()
+        section_layout.addWidget(QLabel(label), 0, 0, 1, columns)
+        checkboxes = {}
+        for index, option in enumerate(options):
+            checkbox = QuadStateSlider(option)
+            checkbox.modeChanged.connect(window._on_filter_changed)
+            checkboxes[option] = checkbox
+            section_layout.addWidget(checkbox, 1 + index // columns, index % columns)
 
-    hd_profile_row = QHBoxLayout()
-    hd_profile_row.addWidget(QLabel("Profile"))
-    window._human_design_profile_filter_combo = QComboBox()
-    apply_default_dropdown_style(window._human_design_profile_filter_combo)
-    window._human_design_profile_filter_combo.addItem("Any", "Any")
-    for profile_label in getattr(window, "HD_STANDARD_PROFILES", ()):
-        window._human_design_profile_filter_combo.addItem(profile_label, profile_label)
-    set_dropdown_width_chars(window._human_design_profile_filter_combo, 6)
-    window._human_design_profile_filter_combo.currentIndexChanged.connect(window._on_filter_changed)
-    hd_profile_row.addWidget(window._human_design_profile_filter_combo)
-    human_design_group_layout.addLayout(hd_profile_row)
+        operator_row = QHBoxLayout()
+        operator_row.addStretch(1)
+        and_button = QRadioButton("&&")
+        or_button = QRadioButton("OR")
+        operator_group = QButtonGroup(window)
+        operator_group.setExclusive(True)
+        operator_group.addButton(and_button)
+        operator_group.addButton(or_button)
+        or_button.setChecked(True)
+        operator_group.buttonClicked.connect(window._on_filter_changed)
+        operator_row.addWidget(and_button)
+        operator_row.addWidget(or_button)
+        section_layout.addLayout(
+            operator_row,
+            1 + (len(options) + columns - 1) // columns,
+            0,
+            1,
+            columns,
+        )
+        setattr(window, f"_{attribute_prefix}_filter_checkboxes", checkboxes)
+        setattr(window, f"_{attribute_prefix}_filter_and", and_button)
+        setattr(window, f"_{attribute_prefix}_filter_or", or_button)
+        human_design_group_layout.addLayout(section_layout)
+
+    add_hd_tri_state_filter(
+        "Type",
+        ("Manifestor", "Generator", "Manifesting Generator", "Projector", "Reflector"),
+        "human_design_type",
+        2,
+    )
+    add_hd_tri_state_filter(
+        "Profile",
+        tuple(getattr(window, "HD_STANDARD_PROFILES", ())),
+        "human_design_profile",
+        4,
+    )
 
     hd_defined_centers_row = QHBoxLayout()
     hd_defined_centers_row.addWidget(QLabel("Defined:"))
