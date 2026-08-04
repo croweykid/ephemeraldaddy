@@ -290,6 +290,37 @@ def test_predicted_synastry_builds_gender_radios_with_refresh_callback():
     assert 'QLabel("Collection:")' in synastry_branch
     assert "populate_hd_electrochemistry_collection_combo" in synastry_branch
     assert "on_hd_electrochemistry_collection_changed" in synastry_branch
+    assert '"Make collection from matches"' in synastry_branch
+    assert "make_hd_electrochemistry_matches_collection(owner)" in synastry_branch
+
+
+def test_match_collection_combines_top_ten_from_both_gender_groups(monkeypatch):
+    hd_electrochemistry = _hd_electrochemistry_module()
+    candidates = [
+        gendered_candidate(f"M{index:02}", "M") for index in range(12)
+    ] + [
+        gendered_candidate(f"F{index:02}", "F") for index in range(12)
+    ]
+    monkeypatch.setattr(
+        hd_electrochemistry,
+        "list_human_design_electrochemistry_candidates",
+        lambda: candidates,
+    )
+    monkeypatch.setattr(
+        hd_electrochemistry,
+        "load_gendered_results_method",
+        lambda: HD_SYNASTRY_GENDER_METHOD_SEX,
+    )
+    owner = type("Owner", (), {"hd_electrochemistry_collection_filter": "all"})()
+    chart = type("Chart", (), {"chart_uid": "SOURCE", "human_design_gates": [64]})()
+
+    chart_uids = hd_electrochemistry.hd_electrochemistry_match_collection_uids(
+        owner, chart
+    )
+
+    assert len(chart_uids) == 20
+    assert len([uid for uid in chart_uids if uid.startswith("M")]) == 10
+    assert len([uid for uid in chart_uids if uid.startswith("F")]) == 10
 
 
 def test_synastry_candidates_carry_collection_metadata():

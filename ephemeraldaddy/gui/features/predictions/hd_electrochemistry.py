@@ -6,7 +6,7 @@ import html
 import urllib.parse
 
 from PySide6.QtCore import QSettings, QSignalBlocker, QTimer, Qt
-from PySide6.QtWidgets import QComboBox, QLabel
+from PySide6.QtWidgets import QComboBox, QInputDialog, QLabel, QMessageBox
 
 from ephemeraldaddy.analysis.human_design import derive_human_design_profile
 from ephemeraldaddy.analysis.human_design_synastry import (
@@ -24,11 +24,13 @@ from ephemeraldaddy.core.db import (
 from ephemeraldaddy.core.chart import chart_uses_houses
 from ephemeraldaddy.gui.features.charts.collections import (
     DEFAULT_COLLECTION_ALL,
+    DEFAULT_COLLECTION_IDS,
     DEFAULT_COLLECTION_OPTIONS,
     CustomCollection,
     chart_belongs_to_collection,
     collection_scope_cache_signature,
     normalize_collection_id,
+    sanitize_collection_name,
 )
 from ephemeraldaddy.gui.style import (
     SETTINGS_APP,
@@ -348,6 +350,97 @@ def on_hd_electrochemistry_collection_changed(owner: object, collection_id: obje
     chart = getattr(owner, "_latest_chart", None) or getattr(owner, "current_chart", None)
     if chart is not None:
         render_hd_electrochemistry_predictions(owner, chart)
+
+
+def _collection_scoped_hd_electrochemistry_candidates(owner: object) -> list:
+    """Return HD candidates in the collection selected by the Predictions panel."""
+    candidates = list_human_design_electrochemistry_candidates()
+    collection_id = normalize_collection_id(
+        getattr(owner, "hd_electrochemistry_collection_filter", DEFAULT_COLLECTION_ALL)
+    )
+    if collection_id == DEFAULT_COLLECTION_ALL:
+        return candidates
+    custom_collections = reload_hd_electrochemistry_custom_collections(owner)
+    return [
+        candidate
+        for candidate in candidates
+        if chart_belongs_to_collection(
+            collection_id,
+            chart=candidate,
+            source=candidate.source,
+            custom_collections=custom_collections,
+            chart_uid=candidate.chart_uid,
+        )
+    ]
+
+
+def hd_electrochemistry_match_collection_uids(
+    owner: object, chart: object | None
+) -> frozenset[str]:
+    """Return the top ten male and top ten female match UIDs for the selected scope."""
+    chart_uid = str(getattr(chart, "chart_uid", "") or "").strip().upper()
+    gates = resolve_hd_electrochemistry_gates(chart)
+    if not chart_uid or not gates:
+        return frozenset()
+    candidates = _collection_scoped_hd_electrochemistry_candidates(owner)
+    gender_method = load_gendered_results_method()
+    ranked_uids: set[str] = set()
+    for gender_filter in ("male", "female"):
+        matches = rank_human_design_electrochemistry(
+            chart_uid,
+            gates,
+            filter_hd_electrochemistry_candidates(
+                candidates, gender_filter, gender_method
+            ),
+            limit=10,
+        )
+        ranked_uids.update(
+            str(match.chart_uid or "").strip().upper()
+            for match in matches
+            if str(match.chart_uid or "").strip()
+        )
+    return frozenset(ranked_uids)
+
+
+def make_hd_electrochemistry_matches_collection(owner: object) -> None:
+    """Prompt for a name and persist both gender groups' top-ten matches."""
+    chart = getattr(owner, "_latest_chart", None) or getattr(owner, "current_chart", None)
+    chart_uids = hd_electrochemistry_match_collection_uids(owner, chart)
+    if not chart_uids:
+        QMessageBox.information(
+            owner,
+            "Make Collection from Matches",
+            "No male or female Human Design matches are available in this collection.",
+        )
+        return
+    name, accepted = QInputDialog.getText(
+        owner,
+        "Make Collection from Matches",
+        "Collection name:",
+    )
+    if not accepted:
+        return
+    clean_name = sanitize_collection_name(name)
+    custom_collections = reload_hd_electrochemistry_custom_collections(owner)
+    base_id = normalize_collection_id(clean_name.replace(" ", "_"))
+    collection_id = base_id
+    suffix = 2
+    while collection_id in DEFAULT_COLLECTION_IDS or collection_id in custom_collections:
+        collection_id = f"{base_id}_{suffix}"
+        suffix += 1
+    custom_collections[collection_id] = CustomCollection(
+        collection_id=collection_id,
+        name=clean_name,
+        chart_ids=frozenset(),
+        chart_uids=chart_uids,
+    )
+    setattr(owner, "_custom_collections", custom_collections)
+    save = getattr(owner, "_save_custom_collections_to_settings", None)
+    if callable(save):
+        save()
+    refresh_controls = getattr(owner, "_refresh_collection_controls", None)
+    if callable(refresh_controls):
+        refresh_controls()
 
 
 def on_gendered_results_method_changed(owner: object, gender_method: str, checked: bool) -> None:
