@@ -65,6 +65,16 @@ def test_rank_reports_population_median_and_empirical_percentile():
     assert [match.percentile for match in results] == [100.0, 50.0]
 
 
+def test_rank_percentiles_use_one_cumulative_score_pass():
+    from inspect import getsource
+
+    ranking_source = getsource(rank_human_design_synastry)
+
+    assert "score_counts = Counter(scores)" in ranking_source
+    assert "percentile_by_score[match.score]" in ranking_source
+    assert "sum(score <= match.score" not in ranking_source
+
+
 def test_rank_excludes_source_and_is_deterministic_for_ties():
     results = rank_human_design_synastry(
         "source",
