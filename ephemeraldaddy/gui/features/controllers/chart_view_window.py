@@ -2045,7 +2045,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         default_filename="ephemeraldaddy_chart_gender_guesser",
         chart_container_attr="gender_guesser_container",
         chart_layout_attr="gender_guesser_container_layout",
-        expanded=False,
+        expanded=True,
         parent_layout=layout,
     )
     owner._update_observations_relationship_subheaders()
