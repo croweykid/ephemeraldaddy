@@ -44,8 +44,20 @@ def test_time_sensitivity_html_sections_remeasure_browser_after_expansion():
     assert "except RuntimeError:" in method
     assert "finally:" in method
     assert "adjusting_browser_height = False" in method
-    assert "for delay_ms in (0, 50, 150, 300):" in method
-    assert "QTimer.singleShot(delay_ms, adjust_browser_height)" in method
+    assert "height_adjustment_pending = False" in method
+    assert "if height_adjustment_pending:" in method
+    assert "QTimer.singleShot(0, adjust_browser_height)" in method
+    assert "recursively created an expanding" in method
+
+
+def test_time_sensitivity_height_changes_keep_bottom_section_in_view():
+    start = TIME_SENSITIVITY_SOURCE.index("    def _add_html_section")
+    end = TIME_SENSITIVITY_SOURCE.index("    def _render_weight_sections", start)
+    method = TIME_SENSITIVITY_SOURCE[start:end]
+
+    assert "def containing_scroll_area" in method
+    assert "scrollbar.maximum() - scrollbar.value()" in method
+    assert "lambda bar=scrollbar: bar.setValue(bar.maximum())" in method
 
 
 def test_time_sensitivity_collapsed_html_sections_defer_html_and_height_work():

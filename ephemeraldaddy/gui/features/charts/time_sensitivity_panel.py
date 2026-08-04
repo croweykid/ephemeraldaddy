@@ -1498,6 +1498,15 @@ class TimeSensitivityPanel(QWidget):
         max_height = 16777215 if section_key == "human_design" else 700
 
         adjusting_browser_height = False
+        height_adjustment_pending = False
+
+        def containing_scroll_area() -> QAbstractScrollArea | None:
+            parent = section.parentWidget()
+            while parent is not None:
+                if isinstance(parent, QAbstractScrollArea):
+                    return parent
+                parent = parent.parentWidget()
+            return None
 
         def ensure_browser_html_loaded() -> None:
             nonlocal html_loaded
@@ -1507,7 +1516,8 @@ class TimeSensitivityPanel(QWidget):
             html_loaded = True
 
         def adjust_browser_height() -> None:
-            nonlocal adjusting_browser_height
+            nonlocal adjusting_browser_height, height_adjustment_pending
+            height_adjustment_pending = False
             if adjusting_browser_height:
                 return
             try:
@@ -1517,6 +1527,17 @@ class TimeSensitivityPanel(QWidget):
                 return
             adjusting_browser_height = True
             try:
+                scroll_area = containing_scroll_area()
+                scrollbar = (
+                    scroll_area.verticalScrollBar()
+                    if scroll_area is not None
+                    else None
+                )
+                keep_at_bottom = bool(
+                    scrollbar is not None
+                    and scrollbar.maximum() - scrollbar.value()
+                    <= max(16, scrollbar.pageStep() // 20)
+                )
                 document = browser.document()
                 text_width = max(1, browser.viewport().width())
                 if int(document.textWidth()) != text_width:
@@ -1526,21 +1547,32 @@ class TimeSensitivityPanel(QWidget):
                 fixed_height = max(min_height, min(max_height, height))
                 if browser.height() != fixed_height:
                     browser.setFixedHeight(fixed_height)
+                    if keep_at_bottom and scrollbar is not None:
+                        # The Human Design section is the last item in this
+                        # panel. Keep a user who scrolled to it pinned to the
+                        # bottom while Qt applies the new document height.
+                        QTimer.singleShot(
+                            0, lambda bar=scrollbar: bar.setValue(bar.maximum())
+                        )
             except RuntimeError:
                 return
             finally:
                 adjusting_browser_height = False
 
         def schedule_browser_height_adjustments() -> None:
+            nonlocal height_adjustment_pending
             # QTextDocument wrapping depends on the QTextBrowser viewport width,
-            # which is often stale while a collapsed section is first expanding.
-            # Re-measure over a few event-loop turns so initially hidden rich text
-            # does not stay clipped or over-tall after the user expands it.
+            # which can be stale while a section first expands. Coalesce document
+            # size notifications into one event-loop callback: scheduling several
+            # callbacks from documentSizeChanged recursively created an expanding
+            # timer queue, blocking the GUI about a second after expansion.
             if not toggle.isChecked():
                 return
             ensure_browser_html_loaded()
-            for delay_ms in (0, 50, 150, 300):
-                QTimer.singleShot(delay_ms, adjust_browser_height)
+            if height_adjustment_pending:
+                return
+            height_adjustment_pending = True
+            QTimer.singleShot(0, adjust_browser_height)
 
         def toggle_section(checked: bool) -> None:
             content.setVisible(checked)
