@@ -31,6 +31,8 @@ def test_name_score_dropdown_combines_mean_median_and_mode_series():
     assert '(f"median_{score_prefix}", "Median",' in render_source
     assert '(f"mode_{score_prefix}", "Mode",' in render_source
     assert 'axis.legend(' in render_source
+    assert 'export_labels.append(f"{label} — {metric_label}")' in render_source
+    assert "for metric_name, metric_label, _color in metric_names" in render_source
 
 
 def test_name_chart_height_scales_with_every_rendered_label_without_a_cap():
@@ -87,8 +89,46 @@ def test_name_distribution_is_hidden_from_gen_pop_without_a_name_baseline():
     assert '"name_distribution"' in hidden_sections
 
 
-def test_social_score_edits_refresh_the_name_ranking():
+def test_social_score_inputs_refresh_the_name_ranking():
     dependencies = ANALYTICS_SOURCE.split(
         "DATABASE_METRICS_SUBJECTIVE_SECTION_DEPENDENCIES", 1
     )[1].split("def database_metrics_sections_for_changed_fields", 1)[0]
-    assert '"social_score": frozenset({"alignment_summary", "name_distribution"})' in dependencies
+    for field in (
+        "social_score",
+        "positive_sentiment_intensity",
+        "negative_sentiment_intensity",
+        "familiarity",
+    ):
+        assert re.search(
+            rf'"{field}": frozenset\(\s*'
+            r'\{"alignment_summary", "name_distribution"\}\s*\)',
+            dependencies,
+        )
+
+
+def test_chart_and_batch_edit_paths_emit_social_score_input_changes():
+    classifier = APP_SOURCE.split("def _chart_metadata_changed_fields", 1)[1].split(
+        "def _chart_analytics_cache_token", 1
+    )[0]
+    batch_assign = APP_SOURCE.split(
+        "def _on_batch_sentiment_metric_assign", 1
+    )[1].split("def _on_batch_metric_field_lucygoosey", 1)[0]
+    refresh_gate = APP_SOURCE.split(
+        "def _database_refresh_requires_metrics", 1
+    )[1].split("def _refresh_manage_charts_in_background", 1)[0]
+    for field in (
+        "positive_sentiment_intensity",
+        "negative_sentiment_intensity",
+        "familiarity",
+    ):
+        assert f'"{field}": lambda value:' in classifier
+        assert f'"{field}",' in refresh_gate
+    assert "metric_sections = {metric_attr}" in batch_assign
+    assert 'changed_fields={"familiarity"}' in APP_SOURCE
+
+
+def test_grouped_export_labels_still_match_the_base_name_token():
+    matching_source = ANALYTICS_SOURCE.split(
+        "def _analysis_matching_charts", 1
+    )[1].split("def _analysis_matching_chart_names", 1)[0]
+    assert 'r"\\s+—\\s+(?:Mean|Median|Mode)$"' in matching_source

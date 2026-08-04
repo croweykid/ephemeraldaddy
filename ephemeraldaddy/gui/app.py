@@ -15328,7 +15328,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             self._update_sentiment_tally(
                 show_progress=True,
                 changed_ids=changed_ids,
-                changed_fields=set(),
+                changed_fields={"familiarity"},
             )
             self._update_batch_edit_state()
             self._refresh_filters_after_batch_edit(changed_ids)
@@ -15391,7 +15391,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             return
 
         changed_ids = set(chart_ids)
-        metric_sections = {"matched_expectations"} if metric_attr == "matched_expectations" else set()
+        metric_sections = {metric_attr}
         self._update_sentiment_tally(
             show_progress=True,
             changed_ids=changed_ids,
@@ -35470,6 +35470,10 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             "tags",
             "gender",
             "alignment",
+            "social_score",
+            "positive_sentiment_intensity",
+            "negative_sentiment_intensity",
+            "familiarity",
             "name",
             "alias",
             "matched_expectations",
@@ -36439,6 +36443,13 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             ),
             "gender": lambda value: getattr(value, "gender", None),
             "alignment": lambda value: getattr(value, "alignment_score", None),
+            "positive_sentiment_intensity": lambda value: getattr(
+                value, "positive_sentiment_intensity", None
+            ),
+            "negative_sentiment_intensity": lambda value: getattr(
+                value, "negative_sentiment_intensity", None
+            ),
+            "familiarity": lambda value: getattr(value, "familiarity", None),
             "matched_expectations": lambda value: getattr(value, "matched_expectations", None),
         }
         for field, getter in comparisons.items():

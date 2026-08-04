@@ -114,6 +114,13 @@ DATABASE_METRICS_SUBJECTIVE_SECTION_DEPENDENCIES: dict[str, frozenset[str]] = {
     "alias": frozenset({"name_distribution"}),
     "alignment": frozenset({"alignment_summary", "name_distribution"}),
     "social_score": frozenset({"alignment_summary", "name_distribution"}),
+    "positive_sentiment_intensity": frozenset(
+        {"alignment_summary", "name_distribution"}
+    ),
+    "negative_sentiment_intensity": frozenset(
+        {"alignment_summary", "name_distribution"}
+    ),
+    "familiarity": frozenset({"alignment_summary", "name_distribution"}),
     "traits": frozenset({"traits_distribution"}),
 }
 
@@ -745,12 +752,60 @@ class DatabaseAnalyticsChartsMixin:
             canvas.draw_idle()
             self.name_distribution_chart_layout.addWidget(canvas)
 
+        export_labels = labels
+        export_selection_values = selection_values
+        export_database_values = database_values
+        export_selection_counts = selection_counts
+        export_database_counts = database_counts
+        if mode != "frequency":
+            export_labels = []
+            export_selection_values = []
+            export_database_values = []
+            export_selection_counts = []
+            export_database_counts = []
+            count_attribute = (
+                "social_score_count" if mode == "social_score" else "alignment_count"
+            )
+            for label in labels:
+                selection_stat = selection_by_name.get(label.casefold())
+                database_stat = database_by_name.get(label.casefold())
+                display_stat = selection_stat if loaded_charts else database_stat
+                for metric_name, metric_label, _color in metric_names:
+                    display_value = (
+                        display_stat.value_for(metric_name)
+                        if display_stat is not None
+                        else None
+                    )
+                    if display_value is None:
+                        continue
+                    export_labels.append(f"{label} — {metric_label}")
+                    export_selection_values.append(
+                        float(selection_stat.value_for(metric_name) or 0.0)
+                        if selection_stat is not None
+                        else 0.0
+                    )
+                    export_database_values.append(
+                        float(database_stat.value_for(metric_name) or 0.0)
+                        if database_stat is not None
+                        else 0.0
+                    )
+                    export_selection_counts.append(
+                        int(getattr(selection_stat, count_attribute, 0))
+                        if selection_stat is not None
+                        else 0
+                    )
+                    export_database_counts.append(
+                        int(getattr(database_stat, count_attribute, 0))
+                        if database_stat is not None
+                        else 0
+                    )
+
         return self._build_analysis_export_rows(
-            labels=labels,
-            selection_values=selection_values,
-            database_values=database_values,
-            selection_counts=selection_counts,
-            database_counts=database_counts,
+            labels=export_labels,
+            selection_values=export_selection_values,
+            database_values=export_database_values,
+            selection_counts=export_selection_counts,
+            database_counts=export_database_counts,
             loaded_charts=loaded_charts,
             include_significance=False,
         )
@@ -1452,6 +1507,7 @@ class DatabaseAnalyticsChartsMixin:
                     )
                     include = cross_label == label_text
             elif chart_key == "name_distribution":
+                label_text = re.sub(r"\s+—\s+(?:Mean|Median|Mode)$", "", label_text)
                 include = chart_has_name_token(
                     chart,
                     label_text,
