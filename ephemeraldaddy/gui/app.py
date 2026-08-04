@@ -534,6 +534,7 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from ephemeraldaddy.gui.features.chart_editor.metric_canvas_layout import (
     MetricCanvasLayoutController,
 )
+from ephemeraldaddy.gui.features.chart_editor.controller import ChartEditorController
 from matplotlib.figure import Figure
 from matplotlib.patches import Patch
 
@@ -25037,6 +25038,13 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._alignment_score_assigned = False
         self._alignment_programmatic_update = False
         self._lucygoosey = False
+        self._chart_editor_controller = ChartEditorController(
+            is_change_tracking_suppressed=lambda: self._suppress_lucygoosey,
+            mark_draft_dirty=lambda: self._set_lucygoosey(True),
+            queue_lightweight_autosave=self._queue_subjective_notes_autosave,
+            is_draft_dirty=lambda: self._lucygoosey,
+            current_chart_uid=lambda: self.current_chart_uid,
+        )
         self._leaving_chart_view_prompt_open = False
         self._sentiment_metrics_autosave_timer = QTimer(self)
         self._sentiment_metrics_autosave_timer.setSingleShot(True)
@@ -25859,7 +25867,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
 
         self.comments_edit = QTextEdit()
         self.comments_edit.setPlaceholderText("Comments: your personal thoughts/observations")
-        self.comments_edit.textChanged.connect(self._on_lightweight_metadata_changed)
+        self.comments_edit.textChanged.connect(
+            self._chart_editor_controller.on_lightweight_metadata_changed
+        )
         self.comments_edit.setMinimumHeight(140)
         self.chart_info_content_stack.addWidget(self.comments_edit)
 
@@ -25893,7 +25903,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
 
         self.rectification_edit = QTextEdit()
         self.rectification_edit.setPlaceholderText("Rectification Notes: if birth data/time is unknown, any notes about what dates/time(s) it might be & why can go here.")
-        self.rectification_edit.textChanged.connect(self._on_lightweight_metadata_changed)
+        self.rectification_edit.textChanged.connect(
+            self._chart_editor_controller.on_lightweight_metadata_changed
+        )
         self.rectification_edit.setMinimumHeight(140)
         self.chart_info_content_stack.addWidget(self.rectification_edit)
 
@@ -25904,7 +25916,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.biography_panel_widget.setLayout(biography_panel_layout)
         self.biography_edit = QTextEdit()
         self.biography_edit.setPlaceholderText("Biography: their backstory")
-        self.biography_edit.textChanged.connect(self._on_lightweight_metadata_changed)
+        self.biography_edit.textChanged.connect(
+            self._chart_editor_controller.on_lightweight_metadata_changed
+        )
         self.biography_edit.textChanged.connect(self._update_get_bio_button_visibility)
         self.biography_edit.setMinimumHeight(140)
         biography_panel_layout.addWidget(self.biography_edit, 1)
@@ -25920,7 +25934,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.chart_info_content_stack.addWidget(self.biography_panel_widget)
         self.source_edit = QTextEdit()
         self.source_edit.setPlaceholderText("Source: where your data about this person came from")
-        self.source_edit.textChanged.connect(self._on_lightweight_metadata_changed)
+        self.source_edit.textChanged.connect(
+            self._chart_editor_controller.on_lightweight_metadata_changed
+        )
         self.source_edit.setMinimumHeight(140)
         self.chart_info_content_stack.addWidget(self.source_edit)
         install_chart_info_panel_content_observers(self)
@@ -32643,11 +32659,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         recalculate_chart = bool(self._metadata_autosave_requires_recalculation)
         self._metadata_autosave_requires_recalculation = False
         self.on_update_chart(show_dialog=False, recalculate_chart=recalculate_chart)
-        if self._lucygoosey:
-            logger.warning(
-                "Chart Editor metadata autosave did not complete; leaving draft dirty "
-                "so the save prompt remains available."
-            )
+        self._chart_editor_controller.report_incomplete_autosave("metadata")
         if self._lucygoosey and recalculate_chart:
             # Validation or persistence returned before on_update_chart reached
             # its successful-save dirty reset.  Preserve both the draft and its
@@ -32659,13 +32671,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         """Debounce Subjective Notes writes through one lightweight save timer."""
         if self._should_auto_update_sentiments():
             self._sentiment_metrics_autosave_timer.start(2000)
-
-    def _on_lightweight_metadata_changed(self) -> None:
-        """Mark flavor text dirty and queue its lightweight metadata update."""
-        if self._suppress_lucygoosey:
-            return
-        self._set_lucygoosey(True)
-        self._queue_subjective_notes_autosave()
 
     def _on_sentiment_toggled(self, checked: bool) -> None:
         if self._suppress_lucygoosey:
@@ -32768,11 +32773,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             recalculate_chart=False,
             subjective_notes_autosave=True,
         )
-        if self._lucygoosey:
-            logger.warning(
-                "Chart Editor lightweight autosave did not complete; leaving draft "
-                "dirty so the save prompt remains available."
-            )
+        self._chart_editor_controller.report_incomplete_autosave(
+            "lightweight metadata"
+        )
 
     def _clear_event_metadata_fields(self) -> None:
         # Event chart type intentionally removes sentiment/relationship metadata.

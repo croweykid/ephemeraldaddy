@@ -104,7 +104,6 @@ def test_subjective_checkbox_autosaves_use_batched_subjective_timer():
 
 
 def test_flavor_text_fields_queue_lightweight_autosaves():
-    handler = _method_source("_on_lightweight_metadata_changed")
     for field_name in (
         "comments_edit",
         "rectification_edit",
@@ -113,10 +112,9 @@ def test_flavor_text_fields_queue_lightweight_autosaves():
     ):
         assert (
             f"self.{field_name}.textChanged.connect("
-            "self._on_lightweight_metadata_changed)"
+            "\n            self._chart_editor_controller.on_lightweight_metadata_changed"
         ) in APP_SOURCE
-    assert "self._set_lucygoosey(True)" in handler
-    assert "self._queue_subjective_notes_autosave()" in handler
+    assert "def _on_lightweight_metadata_changed" not in APP_SOURCE
 
 
 def test_leave_check_flushes_lightweight_autosave_before_prompting():
@@ -132,10 +130,15 @@ def test_leave_check_flushes_lightweight_autosave_before_prompting():
 def test_failed_timed_autosaves_are_reported_to_terminal():
     metadata_method = _method_source("_autosave_checkbox_state")
     lightweight_method = _method_source("_flush_pending_sentiment_metrics_save")
-    assert 'logger.warning(' in metadata_method
-    assert '"Chart Editor metadata autosave did not complete;' in metadata_method
-    assert 'logger.warning(' in lightweight_method
-    assert '"Chart Editor lightweight autosave did not complete;' in lightweight_method
+    assert (
+        'self._chart_editor_controller.report_incomplete_autosave("metadata")'
+        in metadata_method
+    )
+    assert (
+        "self._chart_editor_controller.report_incomplete_autosave("
+        in lightweight_method
+    )
+    assert '"lightweight metadata"' in lightweight_method
 
 
 def test_retcon_time_edits_defer_autosave_so_leave_prompt_can_win():
