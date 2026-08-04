@@ -16,6 +16,9 @@ def test_sort_only_rebuilds_database_rows_without_external_refreshes():
     assert "refresh_metrics=False" in method
     assert "refresh_external_controls=False" in method
     assert "_on_selection_changed" not in method
+    assert method.index("self._cancel_inline_chart_rename()") < method.index(
+        "self._populate_list("
+    )
 
 
 def test_list_population_can_skip_unrelated_chart_tool_options():

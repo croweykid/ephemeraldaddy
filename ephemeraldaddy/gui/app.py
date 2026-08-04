@@ -18601,6 +18601,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         # Sorting changes presentation order only.  Keep it off the broader
         # database-refresh path: neither analytics inputs, collection scope,
         # tool options, nor the UID-first logical selection changed.
+        # Dispose any active inline editor before clearing its list item so the
+        # rename state cannot retain references to deleted PySide objects.
+        self._cancel_inline_chart_rename()
         self._populate_list(
             selected_ids=selected_ids or None,
             refresh_metrics=False,
