@@ -27,6 +27,9 @@ class HumanDesignSynastryCandidate:
     uses_houses: bool = True
     gender: str | None = None
     astro_data_signature: str | None = None
+    source: str | None = None
+    chart_type: str | None = None
+    relationship_types: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

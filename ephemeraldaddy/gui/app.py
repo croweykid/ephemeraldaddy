@@ -900,6 +900,7 @@ from ephemeraldaddy.analysis.human_design_synastry import (
 from ephemeraldaddy.gui.features.predictions.hd_electrochemistry import (
     load_gendered_results_method,
     on_gendered_results_method_changed,
+    refresh_hd_electrochemistry_collections,
 )
 
 from ephemeraldaddy.gui.features.charts.delegates import (
@@ -4479,6 +4480,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             for collection in self._custom_collections.values()
         ]
         self._settings.setValue("manage_charts/custom_collections", json.dumps(payload))
+        owner = self._owner_window()
+        if owner is not None:
+            refresh_hd_electrochemistry_collections(owner)
 
 
     @staticmethod
@@ -12547,6 +12551,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                         auto_height=True,
                         use_earthtone_cycle=(age_mode == "time_known_distribution"),
                         bar_colors=age_chart_bar_colors,
+                        show_selection_database_share=True,
                     )
                     self.age_chart_layout.addWidget(age_canvas, 0)
                 else:
@@ -27051,6 +27056,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             if isinstance(collection, CustomCollection)
         ]
         self._settings.setValue("manage_charts/custom_collections", json.dumps(payload))
+        refresh_hd_electrochemistry_collections(self)
 
 
     @staticmethod
