@@ -25041,6 +25041,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._chart_editor_controller = ChartEditorController(
             is_change_tracking_suppressed=lambda: self._suppress_lucygoosey,
             mark_draft_dirty=lambda: self._set_lucygoosey(True),
+            mark_recalculation_required=lambda: setattr(
+                self, "_metadata_autosave_requires_recalculation", True
+            ),
             queue_lightweight_autosave=self._queue_subjective_notes_autosave,
             is_draft_dirty=lambda: self._lucygoosey,
             current_chart_uid=lambda: self.current_chart_uid,
@@ -25381,7 +25384,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.birth_month_edit.setFixedWidth(31)
         self.birth_month_edit.setValidator(QIntValidator(1, 12, self))
         self.birth_month_edit.textChanged.connect(self._on_birth_date_field_changed)
-        self.birth_month_edit.textChanged.connect(self._mark_lucygoosey)
 
         self.birth_day_edit = QLineEdit()
         self.birth_day_edit.setPlaceholderText("DD")
@@ -25389,7 +25391,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.birth_day_edit.setFixedWidth(31)
         self.birth_day_edit.setValidator(QIntValidator(1, 31, self))
         self.birth_day_edit.textChanged.connect(self._on_birth_date_field_changed)
-        self.birth_day_edit.textChanged.connect(self._mark_lucygoosey)
 
         self.birth_year_edit = QLineEdit()
         self.birth_year_edit.setPlaceholderText("YYYY")
@@ -25397,7 +25398,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.birth_year_edit.setFixedWidth(49)
         self.birth_year_edit.setValidator(QIntValidator(NATAL_CHART_MIN_YEAR, NATAL_CHART_MAX_YEAR, self))
         self.birth_year_edit.textChanged.connect(self._on_birth_date_field_changed)
-        self.birth_year_edit.textChanged.connect(self._mark_lucygoosey)
         self._set_birth_date_fields_from_qdate(QDate(1990, 1, 1))
 
         def _labeled_birth_date_field(label_text: str, field: QLineEdit) -> QWidget:
@@ -32583,10 +32583,12 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         # Debounced metadata changes (including Chart Type) are automatic
         # lucygoosey saves.  Flush them before deciding whether a manual-save
         # prompt is necessary when the user navigates immediately.
-        if self._metadata_autosave_timer.isActive():
-            self._flush_pending_metadata_save()
         if self._sentiment_metrics_autosave_timer.isActive():
             self._flush_pending_sentiment_metrics_save()
+        # A lightweight flush can promote itself when an authoritative field is
+        # also dirty. Flush that promoted save before deciding to prompt.
+        if self._metadata_autosave_timer.isActive():
+            self._flush_pending_metadata_save()
         if not self._lucygoosey:
             return True
 
@@ -33233,7 +33235,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
 
     def _on_place_text_changed(self, _text: str) -> None:
         self._clear_searched_birth_place()
-        self._mark_lucygoosey()
+        self._chart_editor_controller.on_authoritative_metadata_changed()
 
     def on_search_place(self):
         """Search for location candidates and let the user pick one."""
@@ -35800,7 +35802,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
     def _on_birth_date_field_changed(self, _value: str) -> None:
         # Avoid validating/computing on every keystroke in birth-date fields.
         # Date compliance is checked when the user saves/updates.
-        return
+        self._chart_editor_controller.on_authoritative_metadata_changed()
 
     def _set_birth_date_fields_from_qdate(self, qdate: QDate) -> None:
         self.birth_month_edit.setText(f"{qdate.month():02d}")

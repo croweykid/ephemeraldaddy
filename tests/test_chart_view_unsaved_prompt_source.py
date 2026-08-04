@@ -125,6 +125,20 @@ def test_leave_check_flushes_lightweight_autosave_before_prompting():
     assert timer_check in method
     assert flush in method
     assert method.index(timer_check) < method.index(flush) < method.index(dirty_check)
+    assert method.index(flush) < method.index("self._flush_pending_metadata_save()")
+
+
+def test_authoritative_birth_inputs_are_protected_from_lightweight_autosave():
+    birth_handler = _method_source("_on_birth_date_field_changed")
+    place_handler = _method_source("_on_place_text_changed")
+    assert (
+        "self._chart_editor_controller.on_authoritative_metadata_changed()"
+        in birth_handler
+    )
+    assert (
+        "self._chart_editor_controller.on_authoritative_metadata_changed()"
+        in place_handler
+    )
 
 
 def test_failed_timed_autosaves_are_reported_to_terminal():
