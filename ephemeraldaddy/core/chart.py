@@ -231,6 +231,8 @@ class Chart:
         self.bazi_hour_element = ""
         self.age_when_first_met = 0
         self.year_first_encountered = None
+        self.current_relationship = True
+        self.last_encounter = None
         self.data_rating = "blank"
         self.chart_type = "personal"
         self.name = name
@@ -341,6 +343,8 @@ class Chart:
             "trait_likelihoods": dict(getattr(self, "trait_likelihoods", {}) or {}),
             "age_when_first_met": self.age_when_first_met,
             "year_first_encountered": self.year_first_encountered,
+            "current_relationship": self.current_relationship,
+            "last_encounter": self.last_encounter,
             "data_rating": self.data_rating,
             "positions": self.positions,
             "retrogrades": self.retrogrades,
