@@ -80,3 +80,10 @@ def test_chart_data_separator_skips_padded_table_headers():
     assert '"G.L",' in CHART_DATA_OUTPUT_SOURCE
     assert 're.split(r"\\s{2,}", stripped)' in CHART_DATA_OUTPUT_SOURCE
     assert 'return all(token.strip() in known_header_tokens for token in header_tokens)' in CHART_DATA_OUTPUT_SOURCE
+
+
+def test_human_design_advanced_plugin_supplement_uses_graphic_divider():
+    assert "CHART_INFO_GRAPHIC_DIVIDER_HTML = (" in STYLE_SOURCE
+    assert "CHART_INFO_GRAPHIC_DIVIDER_HTML," in APP_SOURCE
+    assert 'cursor.insertText("\\n", plain_fmt)\n            cursor.insertHtml(CHART_INFO_GRAPHIC_DIVIDER_HTML)\n            cursor.insertText("\\n", plain_fmt)' in APP_SOURCE
+    assert 'cursor.insertText("\\n\\n", plain_fmt)\n            cursor.insertText(CHART_DATA_DIVIDER, header_fmt)' not in APP_SOURCE
