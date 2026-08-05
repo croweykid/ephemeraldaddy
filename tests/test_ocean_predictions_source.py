@@ -49,3 +49,26 @@ def test_ocean_scores_to_mbti_rules_are_encoded():
     assert "abs(score) <= 3.0" in source
     assert "letter.lower()" in source
     assert "MBTI:" in source
+
+
+def test_ocean_metric_popout_is_registered_and_pickable():
+    ocean_source = Path("ephemeraldaddy/gui/features/predictions/ocean.py").read_text()
+    registry_source = Path("ephemeraldaddy/gui/features/charts/metric_popout_registry.py").read_text()
+    app_source = Path("ephemeraldaddy/gui/app.py").read_text()
+
+    assert "OCEAN_POP_OUT_TITLE" in ocean_source
+    assert 'set_gid(f"ocean:{trait}")' in ocean_source
+    assert "build_ocean_trait_popout_info" in ocean_source
+    assert 'title="OCEAN Personality Predictor"' in registry_source
+    assert 'draw=_call_draw("_draw_ocean_predictions")' in registry_source
+    assert "configure_info=_configure_ocean" in registry_source
+    assert "def _draw_ocean_predictions" in app_source
+    assert "def _build_ocean_popout_info" in app_source
+
+
+def test_ocean_layout_is_cleared_with_chart_displays():
+    source = Path("ephemeraldaddy/gui/app.py").read_text()
+
+    assert "self.ocean_prediction_chart_layout" in source
+    assert "self.ocean_prediction_canvas = None" in source
+    assert "Generate or load a chart to view OCEAN predictions." in source
