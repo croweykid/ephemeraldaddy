@@ -2119,11 +2119,7 @@ def _configure_qt_input_scaling() -> None:
         pass
 
 def _get_app_icon_path() -> str | None:
-    module_root = Path(__file__).resolve().parents[1]
-    icon_path = module_root / "graphics" / "ephemeraldaddy.png"
-    if icon_path.exists():
-        return str(icon_path)
-    return None
+    return _get_shared_app_icon_path()
 
 
 def _autosize_chart_view_nav_button(button: QPushButton) -> None:
@@ -2140,7 +2136,10 @@ def _autosize_chart_view_nav_button(button: QPushButton) -> None:
     )
     button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
 
-from ephemeraldaddy.gui.icons import get_share_icon_path as _get_share_icon_path
+from ephemeraldaddy.gui.icons import (
+    get_app_icon_path as _get_shared_app_icon_path,
+    get_share_icon_path as _get_share_icon_path,
+)
 
 def _configure_similarities_export_button(
     button: QPushButton,
@@ -17035,20 +17034,19 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             self._session_window_layout_adjusted = True
 
     def _flush_pending_database_metrics_before_close(self) -> None:
-        """Finish queued Database Analytics refreshes before persisting cache."""
-        has_deferred_work = bool(
-            self._deferred_database_metrics_refresh_scheduled
-            or self._deferred_database_metrics_changed_uids
-            or self._deferred_database_metrics_sections
-            or self._deferred_database_metrics_force_full_refresh
-        )
-        if has_deferred_work:
-            self._run_deferred_database_metrics_refresh()
-        while self._incremental_metrics_refresh_scheduled:
-            pending_sections = list(getattr(self, "_incremental_metrics_refresh_sections", []))
-            self._run_incremental_metrics_refresh_step()
-            if not pending_sections:
-                break
+        """Cancel queued Database Analytics refresh work before close.
+
+        Database Analytics already persists the latest completed cache.  Closing
+        should not convert deferred startup/panel refreshes into synchronous
+        UI-thread work, because that makes users pay both a slow close and a
+        slow next boot.
+        """
+        self._deferred_database_metrics_changed_uids.clear()
+        self._deferred_database_metrics_sections.clear()
+        self._deferred_database_metrics_force_full_refresh = False
+        self._incremental_metrics_refresh_sections.clear()
+        self._incremental_metrics_refresh_changed_uids.clear()
+        self._incremental_metrics_force_full_refresh = False
 
     def closeEvent(self, event) -> None:
         self._flush_pending_database_metrics_before_close()
@@ -39038,8 +39036,13 @@ def main(startup_loading: StartupProgress | QWidget | None = None):
     _configure_matplotlib_info_marker_font()
 
     app = _get_qapp()
+    early_icon_path = _get_app_icon_path()
+    if early_icon_path:
+        app.setWindowIcon(QIcon(early_icon_path))
     if startup_loading is None:
         startup_loading = StartupLoadingWidget()
+        if early_icon_path:
+            startup_loading.setWindowIcon(QIcon(early_icon_path))
         startup_loading.show()
     # Launch-only focus assist: keep the load bar in the foreground while the
     # app initializes, but avoid repeated focus hacks after startup.
