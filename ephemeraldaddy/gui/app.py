@@ -1485,7 +1485,7 @@ from ephemeraldaddy.gui.style import (
     CHART_INFO_EVIDENCE_LABEL_BOLD,
     CHART_INFO_SPECIES_DESCRIPTION_ITALIC,
     CHART_INFO_SPECIES_HEADER_COLOR,
-    CHART_DATA_DIVIDER,
+    CHART_INFO_GRAPHIC_DIVIDER_HTML,
     CHART_DATA_HIGHLIGHT_COLOR,
     CHART_DATA_MONOSPACE_FONT_FAMILY,
     CHART_DATA_SECTION_HEADERS,
@@ -31861,8 +31861,11 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
 
         supplement_lines = humdes_gate_line_supplement_lines(gate_number, line_number, fixing, fixing_body)
         if supplement_lines:
-            cursor.insertText("\n\n", plain_fmt)
-            cursor.insertText(CHART_DATA_DIVIDER, header_fmt)
+            # Use a real rich-text divider between app-native Gate info and the
+            # optional local plugin supplement. The legacy text divider token is
+            # intentionally empty, so inserting it here only produced blank space.
+            cursor.insertText("\n", plain_fmt)
+            cursor.insertHtml(CHART_INFO_GRAPHIC_DIVIDER_HTML)
             cursor.insertText("\n", plain_fmt)
             for index, supplement_line in enumerate(supplement_lines):
                 if index > 0:
