@@ -11,10 +11,10 @@ else:
     QLabel = Any
 
 from ephemeraldaddy.analysis.oceanpredictor import (
-    OCEAN_BODIES,
-    OCEAN_HOUSES,
-    OCEAN_NAKSHATRAS,
-    OCEAN_SIGNS,
+    OCEAN_BODIES_THEORY,
+    OCEAN_HOUSES_THEORY,
+    OCEAN_NAKSHATRAS_THEORY,
+    OCEAN_SIGNS_THEORY,
 )
 from ephemeraldaddy.core.chart import chart_uses_houses
 from ephemeraldaddy.gui.features.charts.metrics import (
@@ -150,21 +150,21 @@ def calculate_ocean_scores(chart: Any | None) -> dict[str, float]:
     category_scores = [
         _weighted_trait_average(
             getattr(chart, "dominant_sign_weights", None) or calculate_dominant_sign_weights(chart),
-            OCEAN_SIGNS,
+            OCEAN_SIGNS_THEORY,
         ),
         _weighted_trait_average(
             getattr(chart, "dominant_planet_weights", None) or calculate_dominant_planet_weights(chart),
-            OCEAN_BODIES,
+            OCEAN_BODIES_THEORY,
         ),
     ]
     category_scores.append(
         _weighted_trait_average(
             getattr(chart, "dominant_nakshatra_weights", None) or calculate_dominant_nakshatra_weights(chart),
-            OCEAN_NAKSHATRAS,
+            OCEAN_NAKSHATRAS_THEORY,
         )
     )
     if chart_uses_houses(chart):
-        category_scores.append(_weighted_trait_average(calculate_dominant_house_weights(chart), OCEAN_HOUSES))
+        category_scores.append(_weighted_trait_average(calculate_dominant_house_weights(chart), OCEAN_HOUSES_THEORY))
     averaged = {
         trait: sum(category[trait] for category in category_scores) / max(1, len(category_scores))
         for trait in OCEAN_TRAITS

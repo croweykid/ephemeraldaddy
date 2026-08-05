@@ -7,7 +7,7 @@ def test_ocean_predictions_respect_chart_uses_houses_and_axes():
     assert "chart_uses_houses(chart)" in source
     assert "calculate_dominant_house_weights(chart)" in source
     assert "calculate_dominant_nakshatra_weights(chart)" in source
-    assert "OCEAN_NAKSHATRAS" in source
+    assert "OCEAN_NAKSHATRAS_THEORY" in source
     assert '"O", "C", "E", "A", "N"' in source
     assert "OCEAN_MIN_SCORE = -10.0" in source
     assert "OCEAN_MAX_SCORE = 10.0" in source
