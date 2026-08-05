@@ -237,5 +237,10 @@ def populate_optional_modules_section(
         "Show Predictability",
         config.visibility.get("chart_view.predictability"),
         config.set_predictability_visibility,
+        tooltip=(
+            "Shows the user's quantified reaction to Predictions in Database View "
+            "Batch Editor/Search and Chart Editor Observations. This is not the "
+            "Predictions module."
+        ),
     )
     return checkboxes
