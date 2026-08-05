@@ -22054,7 +22054,6 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         visibility_section.addWidget(show_hidden_checkbox)
 
         visibility_section.addSpacing(8)
-        visibility_section.addWidget(self._build_settings_header_label("Chart Editor"))
         visibility_section.addWidget(self._build_settings_subheader_label("Chart Data Output"))
 
         cursedness_checkbox = QCheckBox("Show 'Cursedness' score")

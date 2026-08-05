@@ -454,15 +454,44 @@ def test_settings_consolidates_database_and_visualization_controls():
         'self._build_settings_subheader_label("Database View")', show_hide_index
     )
     chart_data_header_index = settings_source.index(
-        'self._build_settings_subheader_label("Chart Editor")', show_hide_index
+        'self._build_settings_subheader_label("Chart Data Output")', show_hide_index
     )
     assert show_hide_index < database_header_index < chart_data_header_index
+    assert "_build_settings_header_label" not in settings_source
     assert 'content_layout,\n            "Database View"' not in settings_source
 
     chart_methods_index = settings_source.index('"Chart Calculation Methods"')
-    visualization_header_index = settings_source.index(
-        'self._build_settings_subheader_label("Data Visualization")', chart_methods_index
+    statistics_header_index = settings_source.index(
+        'self._build_settings_subheader_label("Statistics")', chart_methods_index
     )
-    significance_index = settings_source.index('QLabel("Significance correction:")')
-    assert chart_methods_index < visualization_header_index < significance_index
+    significance_index = settings_source.index(
+        'QLabel("Choose statistical-significance handling for analytics:")'
+    )
+    assert chart_methods_index < statistics_header_index < significance_index
     assert 'content_layout,\n            "Data Visualization"' not in settings_source
+
+
+def test_settings_builder_call_sites_are_defined():
+    import ast
+    from pathlib import Path
+
+    source = Path("ephemeraldaddy/gui/app.py").read_text()
+    tree = ast.parse(source)
+
+    settings_builder_calls = {
+        node.attr
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Attribute)
+        and isinstance(node.value, ast.Name)
+        and node.value.id == "self"
+        and node.attr.startswith("_build_settings")
+    }
+    settings_builder_definitions = {
+        node.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef)
+        and node.name.startswith("_build_settings")
+    }
+
+    assert settings_builder_calls <= settings_builder_definitions
+    assert "_build_settings_header_label" not in settings_builder_calls
