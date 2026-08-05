@@ -989,6 +989,19 @@ from ephemeraldaddy.gui.dbv_search_panel import (
     snapshot_human_design_search_selections,
     weight_is_at_least_triple_next_highest,
 )
+from ephemeraldaddy.gui.features.chart_editor.personal_relevance import (
+    add_chart_editor_personal_relevance_rows,
+    apply_chart_editor_last_encounter_metadata,
+    configure_chart_editor_personal_relevance_controls,
+    load_chart_editor_last_encounter_controls,
+    parse_last_encounter_text,
+    reset_chart_editor_last_encounter_controls,
+)
+from ephemeraldaddy.gui.features.database_view.batch_editor.personal_relevance import (
+    build_batch_last_encounter_controls,
+    reset_batch_last_encounter_state,
+    set_batch_last_encounter_state,
+)
 from ephemeraldaddy.gui.features.charts.transit_workers import (
     ManagedTransitPopoutDialog,
     TransitAspectWindowRelay,
@@ -13819,36 +13832,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         )
         sentiment_metrics_layout.addWidget(batch_year_first_encountered_button, 3, 2)
 
-        self.batch_current_relationship_checkbox = QCheckBox("ongoing")
-        self.batch_current_relationship_checkbox.setChecked(True)
-        self.batch_current_relationship_checkbox.toggled.connect(
-            self._on_batch_last_encounter_ongoing_toggled
-        )
-        self.batch_current_relationship_checkbox.toggled.connect(
-            lambda _checked: self._on_batch_metric_field_lucygoosey("last_encounter")
-        )
-        self.batch_last_encounter_edit = QLineEdit()
-        self.batch_last_encounter_edit.setPlaceholderText("blank")
-        self.batch_last_encounter_edit.setMaxLength(4)
-        self.batch_last_encounter_edit.setFixedWidth(56)
-        self.batch_last_encounter_edit.setValidator(QIntValidator(1900, 2100, self))
-        self.batch_last_encounter_edit.setVisible(False)
-        self.batch_last_encounter_edit.textEdited.connect(
-            lambda _text: self._on_batch_metric_field_lucygoosey("last_encounter")
-        )
-        batch_last_encounter_button = QPushButton("Apply")
-        batch_last_encounter_button.clicked.connect(self._on_batch_last_encounter_apply)
-        batch_last_encounter_widget = QWidget()
-        batch_last_encounter_layout = QHBoxLayout()
-        batch_last_encounter_layout.setContentsMargins(0, 0, 0, 0)
-        batch_last_encounter_layout.setSpacing(6)
-        batch_last_encounter_layout.addWidget(self.batch_current_relationship_checkbox)
-        batch_last_encounter_layout.addWidget(self.batch_last_encounter_edit)
-        batch_last_encounter_layout.addStretch(1)
-        batch_last_encounter_widget.setLayout(batch_last_encounter_layout)
-        sentiment_metrics_layout.addWidget(QLabel("💭Last Encounter"), 4, 0)
-        sentiment_metrics_layout.addWidget(batch_last_encounter_widget, 4, 1)
-        sentiment_metrics_layout.addWidget(batch_last_encounter_button, 4, 2)
+        build_batch_last_encounter_controls(self, sentiment_metrics_layout, row=4)
 
         self.batch_positive_sentiment_intensity_spin = QSpinBox()
         self.batch_positive_sentiment_intensity_spin.setRange(0, 10)
@@ -13946,7 +13930,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._bind_batch_enter_apply(self.batch_negative_sentiment_intensity_spin, batch_negative_button.click)
         self._bind_batch_enter_apply(self.batch_familiarity_spin, batch_familiarity_button.click)
         self._bind_batch_enter_apply(self.batch_year_first_encountered_edit, batch_year_first_encountered_button.click)
-        self._bind_batch_enter_apply(self.batch_last_encounter_edit, batch_last_encounter_button.click)
+        self._bind_batch_enter_apply(self.batch_last_encounter_edit, self.batch_last_encounter_apply_button.click)
         self.batch_year_first_encountered_edit.textEdited.connect(
             lambda _text: self._on_batch_metric_field_lucygoosey("year_first_encountered")
         )
@@ -14189,7 +14173,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             year_first_encountered_values,
             preserve_lucygoosey=preserve_lucygoosey_metrics,
         )
-        self._set_batch_last_encounter_state(
+        set_batch_last_encounter_state(
+            self,
             current_relationship_values,
             last_encounter_values,
             preserve_lucygoosey=preserve_lucygoosey_metrics,
@@ -14456,13 +14441,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
     @staticmethod
     def _parse_last_encounter_text(raw_value: str | None) -> int | None:
-        parsed = parse_year_first_encountered_text(raw_value)
-        if parsed is None or not 1900 <= parsed <= 2100:
-            return None
-        return parsed
-
-    def _on_last_encounter_ongoing_toggled(self, checked: bool) -> None:
-        self.last_encounter_edit.setVisible(not checked)
+        return parse_last_encounter_text(raw_value)
 
     def _apply_location_completer(self, line_edit: QLineEdit | None, choices: list[str]) -> None:
         apply_search_location_completer(self, line_edit, choices)
@@ -14646,43 +14625,6 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         else:
             line_edit.setToolTip("")
 
-
-    def _set_batch_last_encounter_state(
-        self,
-        current_values: list[bool],
-        last_values: list[int | None],
-        *,
-        preserve_lucygoosey: bool = False,
-    ) -> None:
-        if not current_values:
-            self.batch_current_relationship_checkbox.setChecked(True)
-            self.batch_last_encounter_edit.setText("")
-            self.batch_last_encounter_edit.setVisible(False)
-            self._set_batch_metric_lucygoosey_state("last_encounter", False)
-            return
-        if preserve_lucygoosey and self._batch_metric_lucygoosey.get("last_encounter", False):
-            return
-        first_current = bool(current_values[0])
-        first_last = last_values[0] if last_values else None
-        self._batch_metric_programmatic_update = True
-        self.batch_current_relationship_checkbox.blockSignals(True)
-        self.batch_last_encounter_edit.blockSignals(True)
-        self.batch_current_relationship_checkbox.setChecked(first_current)
-        self.batch_last_encounter_edit.setText("" if first_last is None else str(first_last))
-        self.batch_last_encounter_edit.setVisible(not first_current)
-        self.batch_last_encounter_edit.blockSignals(False)
-        self.batch_current_relationship_checkbox.blockSignals(False)
-        self._batch_metric_programmatic_update = False
-        self._set_batch_metric_lucygoosey_state("last_encounter", False)
-        if len(set(current_values)) > 1 or len({value for value in last_values}) > 1:
-            tooltip = "Selected charts have mixed last encounter values. Applying will overwrite all selected charts."
-        else:
-            tooltip = ""
-        self.batch_current_relationship_checkbox.setToolTip(tooltip)
-        self.batch_last_encounter_edit.setToolTip(tooltip)
-
-    def _on_batch_last_encounter_ongoing_toggled(self, checked: bool) -> None:
-        self.batch_last_encounter_edit.setVisible(not checked)
 
     def _set_batch_tags_state(
         self,
@@ -15467,50 +15409,6 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._update_batch_edit_state()
         self._refresh_filters_after_batch_edit(changed_ids)
 
-
-    def _on_batch_last_encounter_apply(self) -> None:
-        current_relationship = self.batch_current_relationship_checkbox.isChecked()
-        last_encounter = (
-            None
-            if current_relationship
-            else self._parse_last_encounter_text(self.batch_last_encounter_edit.text())
-        )
-        patch = {
-            "current_relationship": current_relationship,
-            "last_encounter": last_encounter,
-        }
-        display_value = "ongoing" if current_relationship else (last_encounter or "blank")
-        chart_uids = self._selected_chart_uids()
-        chart_ids = self._local_row_ids_for_uids(chart_uids)
-        if not chart_ids:
-            QMessageBox.information(
-                self,
-                "No charts selected",
-                "Psst...Select one or more charts before applying batch edits.",
-            )
-            self._update_batch_edit_state()
-            return
-        if not self._confirm_batch_edit(f"Set last encounter to {display_value} for", len(chart_ids)):
-            self._update_batch_edit_state()
-            return
-        try:
-            self._apply_batch_nonastral_patch(chart_uids, patch)
-        except Exception as exc:
-            QMessageBox.critical(
-                self,
-                "Batch edit error",
-                f"*sepukkus* Couldn't update the selected charts:\n{exc}",
-            )
-            return
-        changed_ids = set(chart_ids)
-        self._update_sentiment_tally(
-            show_progress=True,
-            changed_ids=changed_ids,
-            changed_fields={"current_relationship", "last_encounter"},
-        )
-        self._set_batch_metric_lucygoosey_state("last_encounter", False)
-        self._update_batch_edit_state()
-        self._refresh_filters_after_batch_edit(changed_ids)
 
     def _on_batch_metric_field_lucygoosey(self, field_key: str) -> None:
         if self._batch_metric_programmatic_update:
@@ -16981,10 +16879,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self.batch_matched_expectations_slider.setToolTip("")
         self.batch_year_first_encountered_edit.setText("")
         self.batch_year_first_encountered_edit.setToolTip("")
-        self.batch_current_relationship_checkbox.setChecked(True)
-        self.batch_last_encounter_edit.setText("")
-        self.batch_last_encounter_edit.setToolTip("")
-        self.batch_last_encounter_edit.setVisible(False)
+        reset_batch_last_encounter_state(self)
         if hasattr(self, "batch_tags_input"):
             self.batch_tags_input.setText("")
             self.batch_tags_input.setToolTip("")
@@ -25532,27 +25427,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.rectification_range_start_edit.timeChanged.connect(self._on_rectification_range_changed)
         self.rectification_range_end_edit.timeChanged.connect(self._on_rectification_range_changed)
         self.rectification_range_to_label = QLabel("to")
-        self.year_first_encountered_edit = QLineEdit()
-        self.year_first_encountered_edit.setMaxLength(4)
-        self.year_first_encountered_edit.setPlaceholderText("Year 1st Encountered")
-        self.year_first_encountered_edit.setFixedWidth(56)
-        self.year_first_encountered_edit.setValidator(
-            QRegularExpressionValidator(QRegularExpression(r"^\d{0,4}$"), self)
-        )
-        self.year_first_encountered_edit.textChanged.connect(self._on_sentiment_metric_changed)
-        self.current_relationship_checkbox = QCheckBox("ongoing")
-        self.current_relationship_checkbox.setChecked(True)
-        self.current_relationship_checkbox.toggled.connect(self._on_last_encounter_ongoing_toggled)
-        self.current_relationship_checkbox.toggled.connect(self._on_sentiment_metric_changed)
-        self.last_encounter_edit = QLineEdit()
-        self.last_encounter_edit.setMaxLength(4)
-        self.last_encounter_edit.setPlaceholderText("YYYY")
-        self.last_encounter_edit.setFixedWidth(56)
-        self.last_encounter_edit.setValidator(
-            QIntValidator(1900, 2100, self)
-        )
-        self.last_encounter_edit.textChanged.connect(self._on_sentiment_metric_changed)
-        self.last_encounter_edit.setVisible(False)
+        configure_chart_editor_personal_relevance_controls(self)
 
         self.deceased_checkbox = QCheckBox("💀")
         self.deceased_checkbox.setToolTip("Mark this chart as deceased")
@@ -26140,34 +26015,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             2,
             1,
         )
-        sentiment_metrics_layout.addWidget(
-            QLabel("1st Encounter:"),
-            3,
-            0,
-        )
-        sentiment_metrics_layout.addWidget(
-            self.year_first_encountered_edit,
-            3,
-            1,
-        )
-        last_encounter_row_widget = QWidget()
-        last_encounter_row_layout = QHBoxLayout()
-        last_encounter_row_layout.setContentsMargins(0, 0, 0, 0)
-        last_encounter_row_layout.setSpacing(6)
-        last_encounter_row_layout.addWidget(self.current_relationship_checkbox)
-        last_encounter_row_layout.addWidget(self.last_encounter_edit)
-        last_encounter_row_layout.addStretch(1)
-        last_encounter_row_widget.setLayout(last_encounter_row_layout)
-        sentiment_metrics_layout.addWidget(
-            QLabel("Last Encounter:"),
-            4,
-            0,
-        )
-        sentiment_metrics_layout.addWidget(
-            last_encounter_row_widget,
-            4,
-            1,
-        )
+        add_chart_editor_personal_relevance_rows(self, sentiment_metrics_layout, first_row=3)
         setup_chart_view_emoji_portrait_section(
             self,
             sentiment_metrics_container_layout,
@@ -32890,9 +32738,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.familiarity_spin.setToolTip("")
         self._chart_familiarity_factors = []
         self.year_first_encountered_edit.setText("")
-        self.current_relationship_checkbox.setChecked(True)
-        self.last_encounter_edit.setText("")
-        self.last_encounter_edit.setVisible(False)
+        reset_chart_editor_last_encounter_controls(self)
         self.data_rating_combo.setCurrentIndex(0)
 
     def _apply_chart_type_ui_state(self, chart_type: str | None) -> None:
@@ -33635,8 +33481,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         placeholder.sexiness_score = self.sexiness_slider.value()
         placeholder.familiarity_factors = list(getattr(self, "_chart_familiarity_factors", []))
         placeholder.year_first_encountered = self._parse_year_first_encountered_text(self.year_first_encountered_edit.text())
-        placeholder.current_relationship = self.current_relationship_checkbox.isChecked()
-        placeholder.last_encounter = None if placeholder.current_relationship else self._parse_last_encounter_text(self.last_encounter_edit.text())
+        apply_chart_editor_last_encounter_metadata(self, placeholder, is_event_chart=False)
         placeholder.data_rating = str(self.data_rating_combo.currentData() or "blank")
         placeholder.age_when_first_met = 0
         placeholder.sentiment_confidence = placeholder.familiarity
@@ -33822,8 +33667,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             )
         if hasattr(chart, "age_when_first_met"):
             chart.year_first_encountered = None if is_event_chart else self._parse_year_first_encountered_text(self.year_first_encountered_edit.text())
-            chart.current_relationship = True if is_event_chart else self.current_relationship_checkbox.isChecked()
-            chart.last_encounter = None if (is_event_chart or chart.current_relationship) else self._parse_last_encounter_text(self.last_encounter_edit.text())
+            apply_chart_editor_last_encounter_metadata(self, chart, is_event_chart=is_event_chart)
             chart.age_when_first_met = 0
         if hasattr(chart, "data_rating"):
             chart.data_rating = "blank" if is_event_chart else str(self.data_rating_combo.currentData() or "blank")
@@ -33925,13 +33769,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
 
     @staticmethod
     def _parse_last_encounter_text(raw_value: str | None) -> int | None:
-        parsed = parse_year_first_encountered_text(raw_value)
-        if parsed is None or not 1900 <= parsed <= 2100:
-            return None
-        return parsed
-
-    def _on_last_encounter_ongoing_toggled(self, checked: bool) -> None:
-        self.last_encounter_edit.setVisible(not checked)
+        return parse_last_encounter_text(raw_value)
 
     def _on_deceased_toggled(self, checked: bool) -> None:
         if hasattr(self, "death_row_widget"):
@@ -34522,8 +34360,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                     chart.sexiness_score = 0 if is_event_chart else self.sexiness_slider.value()
                 chart.familiarity_factors = [] if is_event_chart else list(getattr(self, "_chart_familiarity_factors", []))
                 chart.year_first_encountered = None if is_event_chart else self._parse_year_first_encountered_text(self.year_first_encountered_edit.text())
-                chart.current_relationship = True if is_event_chart else self.current_relationship_checkbox.isChecked()
-                chart.last_encounter = None if (is_event_chart or chart.current_relationship) else self._parse_last_encounter_text(self.last_encounter_edit.text())
+                apply_chart_editor_last_encounter_metadata(self, chart, is_event_chart=is_event_chart)
                 chart.data_rating = "blank" if is_event_chart else str(self.data_rating_combo.currentData() or "blank")
                 chart.age_when_first_met = 0
                 chart.source = chart_type_value
@@ -35358,12 +35195,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.year_first_encountered_edit.setText(
             "" if getattr(chart, "year_first_encountered", None) is None else str(getattr(chart, "year_first_encountered"))
         )
-        current_relationship = bool(getattr(chart, "current_relationship", True))
-        self.current_relationship_checkbox.setChecked(current_relationship)
-        self.last_encounter_edit.setText(
-            "" if getattr(chart, "last_encounter", None) is None else str(getattr(chart, "last_encounter"))
-        )
-        self.last_encounter_edit.setVisible(not current_relationship)
+        load_chart_editor_last_encounter_controls(self, chart)
         data_rating_value = str(getattr(chart, "data_rating", "blank") or "blank")
         data_rating_index = self.data_rating_combo.findData(data_rating_value)
         self.data_rating_combo.setCurrentIndex(max(0, data_rating_index))
