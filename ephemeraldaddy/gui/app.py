@@ -17033,23 +17033,35 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         if self.isVisible() and not getattr(self, "_applying_window_placement", False):
             self._session_window_layout_adjusted = True
 
-    def _flush_pending_database_metrics_before_close(self) -> None:
+    def _cancel_pending_database_metrics_before_close(self) -> bool:
         """Cancel queued Database Analytics refresh work before close.
 
-        Database Analytics already persists the latest completed cache.  Closing
-        should not convert deferred startup/panel refreshes into synchronous
-        UI-thread work, because that makes users pay both a slow close and a
-        slow next boot.
+        Returns True when pending work means the in-memory Database Analytics
+        cache may be stale for the current chart rows.  In that case closeEvent
+        must not persist the old cache under a fresh rows token; leaving the
+        previous on-disk token in place lets the next launch detect the edited
+        chart UIDs as stale and refresh normally.
         """
+        had_pending_refresh = bool(
+            self._deferred_database_metrics_refresh_scheduled
+            or self._deferred_database_metrics_changed_uids
+            or self._deferred_database_metrics_sections
+            or self._deferred_database_metrics_force_full_refresh
+            or self._incremental_metrics_refresh_scheduled
+            or self._incremental_metrics_refresh_sections
+            or self._incremental_metrics_refresh_changed_uids
+            or self._incremental_metrics_force_full_refresh
+        )
         self._deferred_database_metrics_changed_uids.clear()
         self._deferred_database_metrics_sections.clear()
         self._deferred_database_metrics_force_full_refresh = False
         self._incremental_metrics_refresh_sections.clear()
         self._incremental_metrics_refresh_changed_uids.clear()
         self._incremental_metrics_force_full_refresh = False
+        return had_pending_refresh
 
     def closeEvent(self, event) -> None:
-        self._flush_pending_database_metrics_before_close()
+        skip_metrics_cache_save = self._cancel_pending_database_metrics_before_close()
         self._is_closing = True
         self._database_metrics_preload_enabled = False
         self._database_metrics_background_preload_sections.clear()
@@ -17057,7 +17069,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._deferred_database_metrics_refresh_scheduled = False
         self._deferred_database_metrics_update_similarities = False
         self._incremental_metrics_refresh_scheduled = False
-        self._save_database_metrics_persistent_cache()
+        if not skip_metrics_cache_save:
+            self._save_database_metrics_persistent_cache()
         save_traits_cache = getattr(self, "_save_traits_distribution_likelihood_cache", None)
         if callable(save_traits_cache) and getattr(self, "_traits_distribution_likelihood_cache_dirty", False):
             save_traits_cache()
