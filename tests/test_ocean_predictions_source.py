@@ -9,11 +9,15 @@ def test_ocean_predictions_respect_chart_uses_houses_and_axes():
     assert "calculate_dominant_nakshatra_weights(chart)" in source
     assert "OCEAN_NAKSHATRAS" in source
     assert '"O", "C", "E", "A", "N"' in source
-    assert "Open" in source and "Conservative" in source
-    assert "Conscientious" in source and "Slack" in source
-    assert "Extraverted" in source and "Introverted" in source
-    assert "Agreeable" in source and "Disagreeable" in source
-    assert "Neurotic" in source and "Stable" in source
+    assert "OCEAN_MIN_SCORE = -10.0" in source
+    assert "OCEAN_MAX_SCORE = 10.0" in source
+    assert "barh" in source
+    assert "axvline(0" in source
+    assert "Openness" in source and "Conventionality" in source
+    assert "Conscientiousness" in source and "Casualness" in source
+    assert "Extraversion" in source and "Introversion" in source
+    assert "Agreeableness" in source and "Abrasiveness" in source
+    assert "Neuroticism" in source and "Stability" in source
 
 
 def test_chart_editor_predictions_panel_registers_ocean_section():
