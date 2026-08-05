@@ -8,6 +8,7 @@ as a service locator.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ephemeraldaddy.gui.settings_keys import (
@@ -33,6 +34,52 @@ BODY_DYNAMICS_ROLE_OPTIONS: tuple[tuple[str, str], ...] = (
 # Lowering that requirement by 15% keeps the filter selective while allowing
 # near-isolated dominance profiles to surface in Database View searches.
 ISOLATED_DOMINANCE_NEXT_HIGHEST_MULTIPLIER = 3.0 * 0.85
+
+
+@dataclass(frozen=True)
+class HumanDesignSearchSelectionSnapshot:
+    """Normalized Human Design scalar selections for one Database View refresh."""
+
+    included_types: frozenset[str]
+    excluded_types: frozenset[str]
+    included_profiles: frozenset[str]
+    excluded_profiles: frozenset[str]
+    require_all_types: bool
+    require_all_profiles: bool
+
+
+def snapshot_human_design_search_selections(window) -> HumanDesignSearchSelectionSnapshot:
+    """Read Type/Profile widgets once before evaluating Database View rows."""
+    from ephemeraldaddy.gui.widgets.quad_state import QuadStateSlider
+
+    type_checkboxes = getattr(window, "_human_design_type_filter_checkboxes", {})
+    profile_checkboxes = getattr(window, "_human_design_profile_filter_checkboxes", {})
+    type_modes = {value: checkbox.mode() for value, checkbox in type_checkboxes.items()}
+    profile_modes = {
+        value: checkbox.mode() for value, checkbox in profile_checkboxes.items()
+    }
+    type_and = getattr(window, "_human_design_type_filter_and", None)
+    profile_and = getattr(window, "_human_design_profile_filter_and", None)
+    return HumanDesignSearchSelectionSnapshot(
+        included_types=frozenset(
+            value for value, mode in type_modes.items() if mode == QuadStateSlider.MODE_TRUE
+        ),
+        excluded_types=frozenset(
+            value for value, mode in type_modes.items() if mode == QuadStateSlider.MODE_FALSE
+        ),
+        included_profiles=frozenset(
+            value
+            for value, mode in profile_modes.items()
+            if mode == QuadStateSlider.MODE_TRUE
+        ),
+        excluded_profiles=frozenset(
+            value
+            for value, mode in profile_modes.items()
+            if mode == QuadStateSlider.MODE_FALSE
+        ),
+        require_all_types=bool(type_and is not None and type_and.isChecked()),
+        require_all_profiles=bool(profile_and is not None and profile_and.isChecked()),
+    )
 
 def weight_is_at_least_triple_next_highest(
     weights: dict[str, float] | None,
@@ -928,15 +975,13 @@ def has_active_chart_filters(window) -> bool:
         if str(filters["gate"].currentData()) != "Any"
         or str(filters["line"].currentData()) != "Any"
     }
-    selected_human_design_type = (
-        str(window._human_design_type_filter_combo.currentData())
-        if window._human_design_type_filter_combo is not None
-        else "Any"
+    active_human_design_types = any(
+        checkbox.mode() != QuadStateSlider.MODE_EMPTY
+        for checkbox in getattr(window, "_human_design_type_filter_checkboxes", {}).values()
     )
-    selected_human_design_profile = (
-        str(window._human_design_profile_filter_combo.currentData())
-        if window._human_design_profile_filter_combo is not None
-        else "Any"
+    active_human_design_profiles = any(
+        checkbox.mode() != QuadStateSlider.MODE_EMPTY
+        for checkbox in getattr(window, "_human_design_profile_filter_checkboxes", {}).values()
     )
     selected_human_design_defined_centers = {
         str(combo.currentData())
@@ -1045,8 +1090,8 @@ def has_active_chart_filters(window) -> bool:
         and not notes_source_active
         and not selected_human_design_channels
         and not selected_human_design_gates
-        and selected_human_design_type == "Any"
-        and selected_human_design_profile == "Any"
+        and not active_human_design_types
+        and not active_human_design_profiles
         and not selected_human_design_defined_centers
         and not database_search_text_is_active(window.search_text_input.text())
         and (
@@ -2728,31 +2773,52 @@ def build_dbv_search_panel(window) -> "QWidget":
             window._human_design_gate_filter_and = gate_filter_and
             window._human_design_gate_filter_or = gate_filter_or
 
-    hd_type_row = QHBoxLayout()
-    hd_type_row.addWidget(QLabel("Type"))
-    window._human_design_type_filter_combo = QComboBox()
-    apply_default_dropdown_style(window._human_design_type_filter_combo)
-    window._human_design_type_filter_combo.addItem("Any", "Any")
-    window._human_design_type_filter_combo.addItem("Manifestor", "Manifestor")
-    window._human_design_type_filter_combo.addItem("Generator", "Generator")
-    window._human_design_type_filter_combo.addItem("Manifesting Generator", "Manifesting Generator")
-    window._human_design_type_filter_combo.addItem("Projector", "Projector")
-    set_dropdown_width_chars(window._human_design_type_filter_combo, 22)
-    window._human_design_type_filter_combo.currentIndexChanged.connect(window._on_filter_changed)
-    hd_type_row.addWidget(window._human_design_type_filter_combo)
-    human_design_group_layout.addLayout(hd_type_row)
+    def add_hd_tri_state_filter(label, options, attribute_prefix, columns):
+        section_layout = QGridLayout()
+        section_layout.addWidget(QLabel(label), 0, 0, 1, columns)
+        checkboxes = {}
+        for index, option in enumerate(options):
+            checkbox = QuadStateSlider(option)
+            checkbox.modeChanged.connect(window._on_filter_changed)
+            checkboxes[option] = checkbox
+            section_layout.addWidget(checkbox, 1 + index // columns, index % columns)
 
-    hd_profile_row = QHBoxLayout()
-    hd_profile_row.addWidget(QLabel("Profile"))
-    window._human_design_profile_filter_combo = QComboBox()
-    apply_default_dropdown_style(window._human_design_profile_filter_combo)
-    window._human_design_profile_filter_combo.addItem("Any", "Any")
-    for profile_label in getattr(window, "HD_STANDARD_PROFILES", ()):
-        window._human_design_profile_filter_combo.addItem(profile_label, profile_label)
-    set_dropdown_width_chars(window._human_design_profile_filter_combo, 6)
-    window._human_design_profile_filter_combo.currentIndexChanged.connect(window._on_filter_changed)
-    hd_profile_row.addWidget(window._human_design_profile_filter_combo)
-    human_design_group_layout.addLayout(hd_profile_row)
+        operator_row = QHBoxLayout()
+        operator_row.addStretch(1)
+        and_button = QRadioButton("&&")
+        or_button = QRadioButton("OR")
+        operator_group = QButtonGroup(window)
+        operator_group.setExclusive(True)
+        operator_group.addButton(and_button)
+        operator_group.addButton(or_button)
+        and_button.setChecked(True)
+        operator_group.buttonClicked.connect(window._on_filter_changed)
+        operator_row.addWidget(and_button)
+        operator_row.addWidget(or_button)
+        section_layout.addLayout(
+            operator_row,
+            1 + (len(options) + columns - 1) // columns,
+            0,
+            1,
+            columns,
+        )
+        setattr(window, f"_{attribute_prefix}_filter_checkboxes", checkboxes)
+        setattr(window, f"_{attribute_prefix}_filter_and", and_button)
+        setattr(window, f"_{attribute_prefix}_filter_or", or_button)
+        human_design_group_layout.addLayout(section_layout)
+
+    add_hd_tri_state_filter(
+        "Type",
+        ("Manifestor", "Generator", "Manifesting Generator", "Projector", "Reflector"),
+        "human_design_type",
+        2,
+    )
+    add_hd_tri_state_filter(
+        "Profile",
+        tuple(getattr(window, "HD_STANDARD_PROFILES", ())),
+        "human_design_profile",
+        4,
+    )
 
     hd_defined_centers_row = QHBoxLayout()
     hd_defined_centers_row.addWidget(QLabel("Defined:"))

@@ -1020,6 +1020,7 @@ from ephemeraldaddy.gui.dbv_search_panel import (
     dnd_species_class_payload_for_chart,
     dominant_enneagram_types_for_search,
     focus_database_search_input,
+    HumanDesignSearchSelectionSnapshot,
     has_active_chart_filters,
     has_active_search_tag_filters,
     chart_matches_trait_filters,
@@ -1038,6 +1039,7 @@ from ephemeraldaddy.gui.dbv_search_panel import (
     update_tag_completers,
     update_tag_completers_if_needed,
     reset_body_dynamics_filters,
+    snapshot_human_design_search_selections,
     weight_is_at_least_triple_next_highest,
 )
 from ephemeraldaddy.gui.features.charts.transit_workers import (
@@ -2530,8 +2532,12 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._human_design_channel_filters = []
         self._human_design_gate_filters = []
         self._human_design_gate_line_filters = []
-        self._human_design_type_filter_combo = None
-        self._human_design_profile_filter_combo = None
+        self._human_design_type_filter_checkboxes = {}
+        self._human_design_profile_filter_checkboxes = {}
+        self._human_design_type_filter_and = None
+        self._human_design_type_filter_or = None
+        self._human_design_profile_filter_and = None
+        self._human_design_profile_filter_or = None
         self._human_design_defined_center_filters = []
         self._human_design_channel_filter_and = None
         self._human_design_channel_filter_or = None
@@ -17492,10 +17498,18 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 self._human_design_defined_center_filter_or.setChecked(False)
             if self._human_design_defined_center_filter_and is not None:
                 self._human_design_defined_center_filter_and.setChecked(True)
-            if self._human_design_type_filter_combo is not None:
-                self._human_design_type_filter_combo.setCurrentIndex(0)
-            if self._human_design_profile_filter_combo is not None:
-                self._human_design_profile_filter_combo.setCurrentIndex(0)
+            for checkbox in self._human_design_type_filter_checkboxes.values():
+                checkbox.setMode(QuadStateSlider.MODE_EMPTY)
+            for checkbox in self._human_design_profile_filter_checkboxes.values():
+                checkbox.setMode(QuadStateSlider.MODE_EMPTY)
+            for and_button, or_button in (
+                (self._human_design_type_filter_and, self._human_design_type_filter_or),
+                (self._human_design_profile_filter_and, self._human_design_profile_filter_or),
+            ):
+                if or_button is not None:
+                    or_button.setChecked(False)
+                if and_button is not None:
+                    and_button.setChecked(True)
             for filters in self._search_body_filters:
                 filters["body"].setCurrentIndex(0)
                 filters["sign"].setCurrentIndex(0)
@@ -19149,6 +19163,11 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             DATABASE_VIEW_ROW_INFO_DEFAULTS,
         )
         has_active_chart_filters = self._has_active_chart_filters()
+        human_design_search_selections = (
+            snapshot_human_design_search_selections(self)
+            if has_active_chart_filters
+            else None
+        )
         if has_active_chart_filters or row_info_visibility.get("sign_glyphs", True):
             # Hydrate only the rows that survived collection/hidden filtering.
             # This preserves fast batch loading for visible chart glyphs and
@@ -19196,7 +19215,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             ) in rows:
                 if has_active_chart_filters:
                     try:
-                        matches_filters = self._chart_matches_filters(cid)
+                        matches_filters = self._chart_matches_filters(
+                            cid,
+                            human_design_search_selections=human_design_search_selections,
+                        )
                     except Exception:
                         matches_filters = False
                     if not matches_filters:
@@ -19698,7 +19720,14 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
     def _cached_top_three_species_for_filter(self, chart) -> list[tuple[str, str]]:
         return cached_top_three_species_for_filter(self, chart)
 
-    def _chart_matches_filters(self, chart_id: int) -> bool:
+    def _chart_matches_filters(
+        self,
+        chart_id: int,
+        *,
+        human_design_search_selections: HumanDesignSearchSelectionSnapshot | None = None,
+    ) -> bool:
+        if human_design_search_selections is None:
+            human_design_search_selections = snapshot_human_design_search_selections(self)
         incomplete_birthdate_state = self.incomplete_birthdate_checkbox.mode()
         hidden_charts_state = (
             self.hidden_charts_checkbox.mode()
@@ -19905,16 +19934,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             for combo in self._human_design_gate_filters
             if str(combo.currentData()) != "Any"
         }
-        selected_human_design_type = (
-            str(self._human_design_type_filter_combo.currentData())
-            if self._human_design_type_filter_combo is not None
-            else "Any"
-        )
-        selected_human_design_profile = (
-            str(self._human_design_profile_filter_combo.currentData())
-            if self._human_design_profile_filter_combo is not None
-            else "Any"
-        )
+        selected_human_design_types = human_design_search_selections.included_types
+        excluded_human_design_types = human_design_search_selections.excluded_types
+        selected_human_design_profiles = human_design_search_selections.included_profiles
+        excluded_human_design_profiles = human_design_search_selections.excluded_profiles
         selected_human_design_defined_centers = {
             str(combo.currentData())
             for combo in self._human_design_defined_center_filters
@@ -21090,13 +21113,31 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             if or_filters and not any(gate_line_filter_matches(filters) for filters in or_filters):
                 return False
 
-        if selected_human_design_type != "Any":
-            if self._chart_human_design_type(chart) != selected_human_design_type:
+        if selected_human_design_types or excluded_human_design_types:
+            chart_human_design_type = self._chart_human_design_type(chart)
+            if chart_human_design_type in excluded_human_design_types:
                 return False
+            if selected_human_design_types:
+                if human_design_search_selections.require_all_types:
+                    if not selected_human_design_types.issubset(
+                        {chart_human_design_type}
+                    ):
+                        return False
+                elif chart_human_design_type not in selected_human_design_types:
+                    return False
 
-        if selected_human_design_profile != "Any":
-            if self._chart_human_design_profile(chart) != selected_human_design_profile:
+        if selected_human_design_profiles or excluded_human_design_profiles:
+            chart_human_design_profile = self._chart_human_design_profile(chart)
+            if chart_human_design_profile in excluded_human_design_profiles:
                 return False
+            if selected_human_design_profiles:
+                if human_design_search_selections.require_all_profiles:
+                    if not selected_human_design_profiles.issubset(
+                        {chart_human_design_profile}
+                    ):
+                        return False
+                elif chart_human_design_profile not in selected_human_design_profiles:
+                    return False
 
         if selected_human_design_defined_centers:
             chart_defined_centers = self._chart_human_design_defined_centers(chart)
