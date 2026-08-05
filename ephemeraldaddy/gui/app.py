@@ -55,7 +55,6 @@ SETTINGS_KEY_WIKIPEDIA_BACKUP_SEARCH = "astrotheme/wikipedia_backup_search_enabl
 SETTINGS_KEY_CHART_DATA_SHOW_CHART_UID = "developer_tools/chart_data_show_chart_uid"
 SETTINGS_KEY_DEFAULT_TRAITS_SOURCE_MONITOR = "developer_tools/default_traits_source_monitor"
 
-SETTINGS_KEY_DATABASE_VIEW_ROW_INFO = "manage_charts/database_view_row_info"
 SETTINGS_KEY_HIDE_HYPOTHETICAL_CHARTS = "manage_charts/hide_hypothetical_charts"
 from ephemeraldaddy.gui.settings_keys import (
     SETTINGS_KEY_HIDDEN_CHARTS_FILTER_MODE,
@@ -63,62 +62,6 @@ from ephemeraldaddy.gui.settings_keys import (
     SETTINGS_KEY_HIDE_PLACEHOLDER_CHARTS_FILTER,
     SETTINGS_KEY_SHOW_HIDDEN_CHARTS,
 )
-DATABASE_VIEW_ROW_INFO_OPTIONS: tuple[tuple[str, str], ...] = (
-    ("name", "Name"),
-    ("alias", "Alias"),
-    ("from_whence", "From"),
-    ("birth_date", "Birth date"),
-    ("birth_time", "Birth time"),
-    ("birth_place", "Birth place"),
-    ("current_age", "Current age"),
-    ("sign_glyphs", "Sun/Moon/Rising sign glyphs"),
-    ("human_design_profile", "HD profile"),
-    ("gender", "Gender glyph"),
-)
-
-
-def _load_predictions_manual_recalculation_only(settings: QSettings, *, fallback: bool = True) -> bool:
-    value = settings.value(SETTINGS_KEY_PREDICTIONS_MANUAL_RECALCULATION_ONLY, int(fallback))
-    if isinstance(value, str):
-        return value.strip().lower() in {"1", "true", "yes", "on", "checked"}
-    return bool(value)
-DATABASE_VIEW_ROW_INFO_DEFAULTS: dict[str, bool] = {
-    key: True for key, _label in DATABASE_VIEW_ROW_INFO_OPTIONS
-}
-
-
-def _settings_bool(value: object, fallback: bool) -> bool:
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        normalized = value.strip().lower()
-        if normalized in {"1", "true", "yes", "on"}:
-            return True
-        if normalized in {"0", "false", "no", "off"}:
-            return False
-    if isinstance(value, (int, float)):
-        return bool(value)
-    return bool(fallback)
-
-
-def _load_database_view_row_info_visibility(settings) -> dict[str, bool]:
-    payload = settings.value(SETTINGS_KEY_DATABASE_VIEW_ROW_INFO, {})
-    if not isinstance(payload, dict):
-        payload = {}
-    return {
-        key: _settings_bool(payload.get(key, default), default)
-        for key, default in DATABASE_VIEW_ROW_INFO_DEFAULTS.items()
-    }
-
-
-def _save_database_view_row_info_visibility(settings, visibility: dict[str, bool]) -> None:
-    settings.setValue(
-        SETTINGS_KEY_DATABASE_VIEW_ROW_INFO,
-        {
-            key: bool(visibility.get(key, default))
-            for key, default in DATABASE_VIEW_ROW_INFO_DEFAULTS.items()
-        },
-    )
 
 
 def _load_chart_data_show_chart_uid(settings, *, fallback: bool = False) -> bool:
@@ -1450,6 +1393,18 @@ from ephemeraldaddy.gui.settings_widgets import (
     SettingsHeaderFlowLayout,
     SettingsHelpLabel,
     configure_settings_help_label,
+)
+from ephemeraldaddy.gui.settings.core import (
+    DATABASE_VIEW_ROW_INFO_DEFAULTS,
+    load_database_view_row_info_visibility as _load_database_view_row_info_visibility,
+    save_database_view_row_info_visibility as _save_database_view_row_info_visibility,
+    settings_bool as _settings_bool,
+)
+from ephemeraldaddy.gui.settings.modules.display_preferences import (
+    DisplayPreferencesConfig,
+    OptionalModulesConfig,
+    populate_display_preferences_section,
+    populate_optional_modules_section,
 )
 
 from ephemeraldaddy.gui.style import (
@@ -22058,220 +22013,70 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             content_layout,
             "Display Preferences",
         )
-
-        display_preferences_section.addWidget(self._build_settings_subheader_label("Database View"))
-        display_preferences_section.addWidget(
-            self._build_settings_subheader_label(
-                "Database Analytics & Similarities Analysis (lefthand) Panels"
-            )
+        display_preference_checkboxes = populate_display_preferences_section(
+            display_preferences_section,
+            DisplayPreferencesConfig(
+                visibility=self._visibility,
+                row_info_visibility=self._database_view_row_info_visibility,
+                show_hidden_charts=bool(getattr(self, "_show_hidden_charts", False)),
+                astrotwin_granular_explanation=bool(
+                    getattr(self, "_astrotwin_granular_explanation", False)
+                ),
+                build_subheader_label=self._build_settings_subheader_label,
+                build_help_label=self._build_settings_help_label,
+                set_row_info_visibility=self._set_database_view_row_info_visibility,
+                set_show_hidden_charts=self._on_show_hidden_charts_toggled,
+                set_chart_data_visibility=self._set_chart_data_visibility,
+                set_standard_deviation_indicators=(
+                    self._set_standard_deviation_indicator_visibility_from_settings
+                ),
+                set_astrotwin_granular_explanation=(
+                    self._on_astrotwin_granular_explanation_toggled
+                ),
+            ),
         )
-        standard_deviation_checkbox = QCheckBox("Show standard deviation indicator lines")
-        standard_deviation_checkbox.setChecked(
-            self._visibility.get("charts.standard_deviation_indicators")
+        self._database_view_row_info_checkboxes = {
+            key: checkbox
+            for key, checkbox in display_preference_checkboxes.items()
+            if key in DATABASE_VIEW_ROW_INFO_DEFAULTS
+        }
+        self._astrotwin_granular_explanation_checkbox = display_preference_checkboxes.get(
+            "astrotwin_granular_explanation"
         )
-        standard_deviation_checkbox.toggled.connect(
-            self._set_standard_deviation_indicator_visibility_from_settings
-        )
-        display_preferences_section.addWidget(standard_deviation_checkbox)
-
-        display_preferences_section.addWidget(
-            self._build_settings_subheader_label("Database (middle) Panel")
-        )
-        database_view_help = self._build_settings_help_label(
-            "Choose which details appear in the middle-panel chart list. "
-            "HD profile is shown only for charts whose chart_uses_houses flag is TRUE."
-        )
-        display_preferences_section.addWidget(database_view_help)
-        self._database_view_row_info_checkboxes = {}
-        for row_info_key, row_info_label in DATABASE_VIEW_ROW_INFO_OPTIONS:
-            checkbox = QCheckBox(f"Show {row_info_label}")
-            checkbox.setChecked(
-                bool(
-                    self._database_view_row_info_visibility.get(
-                        row_info_key,
-                        DATABASE_VIEW_ROW_INFO_DEFAULTS.get(row_info_key, True),
-                    )
-                )
-            )
-            checkbox.toggled.connect(
-                lambda checked, key=row_info_key: self._set_database_view_row_info_visibility(
-                    key,
-                    checked,
-                )
-            )
-            self._database_view_row_info_checkboxes[row_info_key] = checkbox
-            display_preferences_section.addWidget(checkbox)
-
-        show_hidden_checkbox = QCheckBox("Show Hidden Charts")
-        show_hidden_checkbox.setChecked(bool(getattr(self, "_show_hidden_charts", False)))
-        show_hidden_checkbox.setToolTip(
-            "Show charts hidden from the Database View middle-panel list."
-        )
-        show_hidden_checkbox.toggled.connect(self._on_show_hidden_charts_toggled)
-        display_preferences_section.addWidget(show_hidden_checkbox)
-
-        display_preferences_section.addSpacing(8)
-        display_preferences_section.addWidget(self._build_settings_subheader_label("Chart Editor"))
-        display_preferences_section.addWidget(
-            self._build_settings_subheader_label("Chart Data Output Panel")
-        )
-        human_design_alpha_checkbox = QCheckBox("Show Human Design gates/lines")
-        human_design_alpha_checkbox.setChecked(
-            self._visibility.get("chart_data.human_design")
-        )
-        human_design_alpha_checkbox.toggled.connect(
-            lambda checked: self._set_chart_data_visibility(
-                "chart_data.human_design",
-                checked,
-            )
-        )
-        display_preferences_section.addWidget(human_design_alpha_checkbox)
-
-        display_preferences_section.addSpacing(8)
-        display_preferences_section.addWidget(self._build_settings_subheader_label("Popout Windows"))
-        granular_explanations_checkbox = QCheckBox(
-            "Astro Twin: show granular algorithmic breakdowns"
-        )
-        granular_explanations_checkbox.setChecked(
-            bool(getattr(self, "_astrotwin_granular_explanation", False))
-        )
-        granular_explanations_checkbox.toggled.connect(
-            self._on_astrotwin_granular_explanation_toggled
-        )
-        display_preferences_section.addWidget(granular_explanations_checkbox)
-        self._astrotwin_granular_explanation_checkbox = granular_explanations_checkbox
 
         optional_modules_section = self._add_settings_collapsible_section(
             content_layout,
             "Optional Modules",
         )
-        parent = self._owner_window()
-        optional_modules_section.addWidget(self._build_settings_subheader_label("Predictions"))
-
-        cursedness_checkbox = QCheckBox("Show Cursedness Score")
-        cursedness_checkbox.setChecked(self._visibility.get("chart_data.cursedness"))
-        cursedness_checkbox.toggled.connect(
-            lambda checked: self._set_chart_data_visibility("chart_data.cursedness", checked)
+        optional_module_checkboxes = populate_optional_modules_section(
+            optional_modules_section,
+            OptionalModulesConfig(
+                visibility=self._visibility,
+                chart_analytics_section_visible=self._settings_chart_analytics_section_visible,
+                database_metric_section_visible=self._is_database_metrics_section_visible,
+                build_subheader_label=self._build_settings_subheader_label,
+                set_chart_data_visibility=self._set_chart_data_visibility,
+                set_prediction_section_visibility=(
+                    self._set_prediction_section_visibility_from_settings
+                ),
+                set_gender_predictor_visibility=(
+                    self._set_gender_guesser_visibility_from_settings
+                ),
+                set_chart_analytics_visibility=(
+                    self._set_chart_analytics_visibility_from_settings
+                ),
+                set_database_metric_visibility=(
+                    self._set_database_metric_section_visibility_from_settings
+                ),
+                set_popout_visibility=self._set_popout_visibility,
+                set_dnd_statblock_explainer_visibility=(
+                    self._set_dnd_statblock_explainer_visibility_from_settings
+                ),
+                set_sexiness_visibility=self._set_chart_view_sexiness_visibility_from_settings,
+                set_predictability_visibility=self._set_predictability_visibility_from_settings,
+            ),
         )
-        optional_modules_section.addWidget(cursedness_checkbox)
-
-        dnd_species_checkbox = QCheckBox("Show Fantasy RPG Card")
-        dnd_species_checkbox.setChecked(self._visibility.get("chart_data.dnd_output"))
-        dnd_species_checkbox.toggled.connect(
-            lambda checked: self._set_chart_data_visibility("chart_data.dnd_output", checked)
-        )
-        optional_modules_section.addWidget(dnd_species_checkbox)
-
-        prediction_section_options = (
-            ("traits", "Show Traits predictions"),
-            ("ocean", "Show OCEAN Personality predictions"),
-            ("enneagram", "Show Enneagram Predictor"),
-            ("dnd_statblock", "Show Fantasy RPG Stat Block"),
-            ("dnd_species", "Show Fantasy RPG Species"),
-            ("dnd_class", "Show Fantasy RPG Class"),
-            ("dnd_alignment", "Show Fantasy RPG Alignment"),
-        )
-        for prediction_section_key, prediction_section_label in prediction_section_options:
-            prediction_section_checkbox = QCheckBox(prediction_section_label)
-            prediction_section_checkbox.setChecked(
-                self._visibility.get(f"predictions.{prediction_section_key}")
-            )
-            prediction_section_checkbox.toggled.connect(
-                lambda checked, key=prediction_section_key: self._set_prediction_section_visibility_from_settings(
-                    key,
-                    checked,
-                )
-            )
-            optional_modules_section.addWidget(prediction_section_checkbox)
-
-        gender_guesser_checkbox = QCheckBox("Show Gender Predictor")
-        gender_guesser_checkbox.setChecked(self._visibility.get("chart_view.gender_guesser"))
-        gender_guesser_checkbox.toggled.connect(
-            self._set_gender_guesser_visibility_from_settings
-        )
-        optional_modules_section.addWidget(gender_guesser_checkbox)
-
-        planet_dynamics_checkbox = QCheckBox("Show Body Dynamics")
-        planet_dynamics_checkbox.setChecked(
-            isinstance(parent, MainWindow)
-            and parent._is_chart_analysis_section_visible("planet_dynamics")
-        )
-        planet_dynamics_checkbox.toggled.connect(
-            lambda checked: self._set_chart_analytics_visibility_from_settings(
-                "planet_dynamics",
-                checked,
-            )
-        )
-        optional_modules_section.addWidget(planet_dynamics_checkbox)
-
-        bazi_checkbox = QCheckBox("Show BaZi")
-        bazi_checkbox.setChecked(self._is_database_metrics_section_visible("bazi"))
-        bazi_checkbox.toggled.connect(
-            lambda checked: self._set_database_metric_section_visibility_from_settings(
-                "bazi",
-                checked,
-            )
-        )
-        optional_modules_section.addWidget(bazi_checkbox)
-
-        synastry_aspect_weights_checkbox = QCheckBox("Show Synastry Aspect Weights")
-        synastry_aspect_weights_checkbox.setChecked(self._visibility.get("popout.synastry_aspect_weights"))
-        synastry_aspect_weights_checkbox.toggled.connect(
-            lambda checked: self._set_popout_visibility("popout.synastry_aspect_weights", checked)
-        )
-        optional_modules_section.addWidget(synastry_aspect_weights_checkbox)
-
-        dnd_statblock_explainers_checkbox = QCheckBox("Show Fantasy RPG Stat Block explainers")
-        dnd_statblock_explainers_checkbox.setChecked(
-            self._visibility.get("analytics.dnd_statblock_explainers")
-        )
-        dnd_statblock_explainers_checkbox.toggled.connect(
-            self._set_dnd_statblock_explainer_visibility_from_settings
-        )
-        optional_modules_section.addWidget(dnd_statblock_explainers_checkbox)
-
-        species_distribution_checkbox = QCheckBox("Show Fantasy RPG Typing")
-        species_distribution_checkbox.setChecked(
-            self._is_database_metrics_section_visible("species_distribution")
-        )
-        species_distribution_checkbox.toggled.connect(
-            lambda checked: self._set_database_metric_section_visibility_from_settings(
-                "species_distribution",
-                checked,
-            )
-        )
-        optional_modules_section.addWidget(species_distribution_checkbox)
-
-        optional_modules_section.addSpacing(8)
-        optional_modules_section.addWidget(self._build_settings_subheader_label("Observations & Misc"))
-
-        sexiness_checkbox = QCheckBox("Show Sexiness")
-        sexiness_checkbox.setChecked(self._visibility.get("chart_view.sexiness"))
-        sexiness_checkbox.toggled.connect(
-            self._set_chart_view_sexiness_visibility_from_settings
-        )
-        optional_modules_section.addWidget(sexiness_checkbox)
-
-        anagrams_checkbox = QCheckBox("Show Anagrams")
-        anagrams_checkbox.setChecked(
-            isinstance(parent, MainWindow)
-            and parent._is_chart_analysis_section_visible("anagrams")
-        )
-        anagrams_checkbox.toggled.connect(
-            lambda checked: self._set_chart_analytics_visibility_from_settings(
-                "anagrams",
-                checked,
-            )
-        )
-        optional_modules_section.addWidget(anagrams_checkbox)
-
-        predictability_checkbox = QCheckBox("Show Predictability")
-        predictability_checkbox.setChecked(self._visibility.get("chart_view.predictability"))
-        predictability_checkbox.toggled.connect(
-            self._set_predictability_visibility_from_settings
-        )
-        self._predictability_module_checkbox = predictability_checkbox
-        optional_modules_section.addWidget(predictability_checkbox)
+        self._predictability_module_checkbox = optional_module_checkboxes.get("predictability")
 
         chart_calculation_section = self._add_settings_collapsible_section(
             content_layout,
@@ -24101,6 +23906,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
     def _set_popout_visibility(self, key: str, checked: bool) -> None:
         self._visibility.set(key, checked)
+
+    def _settings_chart_analytics_section_visible(self, section_key: str) -> bool:
+        parent = self._owner_window()
+        return isinstance(parent, MainWindow) and parent._is_chart_analysis_section_visible(section_key)
 
     def _set_chart_analytics_visibility_from_settings(self, section_key: str, checked: bool) -> None:
         parent = self._owner_window()
