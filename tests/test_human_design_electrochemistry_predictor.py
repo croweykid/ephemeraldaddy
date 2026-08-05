@@ -55,6 +55,21 @@ def test_ideal_rank_adds_profile_bonus_to_score_and_tiebreaking():
     assert results[0].profile_bonus == 2
     assert results[0].score == results[1].score + 2
 
+
+def test_ideal_rank_accepts_one_pass_candidate_iterables():
+    results = rank_human_design_synastry_ideal(
+        "SOURCE",
+        {64},
+        (
+            candidate(uid, {47}, uid.title(), profile=profile)
+            for uid, profile in (("PLAIN", "3/6"), ("HARMONIC", "5/1"))
+        ),
+        source_profile="2/4",
+    )
+
+    assert results[0].chart_uid == "HARMONIC"
+    assert results[0].profile_bonus == 2
+
 def test_rank_uses_summed_channel_and_center_score():
     # Gate 64 can be completed by 47; gate 61 can be completed by 24.
     results = rank_human_design_synastry(
@@ -547,6 +562,16 @@ def test_synastry_filtered_empty_state_is_distinct_from_empty_database():
     assert "No charts matching the {html.escape(gender_filter.title())} filter" in render_branch
 
 
+
+def test_electrochemistry_display_keeps_database_norms_on_unboosted_score():
+    from pathlib import Path
+
+    source = Path("ephemeraldaddy/gui/features/predictions/hd_electrochemistry.py").read_text()
+
+    assert "score {match.score}/{score_maximum}" in source
+    assert "norms.percentile_for_score(electrochemistry_score)" in source
+    assert "percentile before profile bonus" in source
+
 def test_electrochemistry_copy_distinguishes_chart_and_database_percentiles():
     from pathlib import Path
 
@@ -554,7 +579,7 @@ def test_electrochemistry_copy_distinguishes_chart_and_database_percentiles():
 
     assert "th percentile for this chart" in source
     assert "top 10% for this chart" in source
-    assert "database-wide {norms.percentile_for_score(match.score):.0f}th percentile" in source
+    assert "norms.percentile_for_score(electrochemistry_score)" in source
     assert "Database-wide norms are being calculated in the background." in source
 
 

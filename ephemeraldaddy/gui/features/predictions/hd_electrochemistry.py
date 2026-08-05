@@ -199,6 +199,7 @@ def hd_electrochemistry_render_token(owner: object, chart: object | None) -> tup
         str(getattr(chart, "chart_uid", "") or "").strip().upper(),
         tuple(sorted(resolve_hd_electrochemistry_gates(chart))),
         bool(chart is not None and chart_uses_houses(chart)),
+        str(getattr(chart, "human_design_profile", "") or "").strip(),
         normalize_hd_electrochemistry_gender_filter(getattr(owner, "hd_electrochemistry_gender_filter", "all")),
         load_gendered_results_method(),
         normalize_hd_electrochemistry_mode(
@@ -231,21 +232,25 @@ def _format_hd_electrochemistry_matches(matches: tuple, warning_lines: tuple[str
         href = "chart-uid:" + urllib.parse.quote(match.chart_uid, safe="")
         uncertainty_html = " " + houses_unknown_note_html() if not match.uses_houses else ""
         chart_top_decile = " · top 10% for this chart" if match.percentile >= 90.0 else ""
+        profile_bonus = max(0, int(getattr(match, "profile_bonus", 0) or 0))
+        electrochemistry_score = max(0, int(match.score) - profile_bonus)
+        score_maximum = HD_ELECTROCHEMISTRY_MAX_SCORE + (2 if profile_bonus else 0)
         profile_reason = ""
-        if getattr(match, "profile_bonus", 0):
+        if profile_bonus:
             profile_reason = (
-                f" + {int(match.profile_bonus)} profile bonus "
+                f" + {profile_bonus} profile bonus "
                 f"({html.escape(str(match.profile_match or 'HD profile match'))})"
             )
         database_norms = ""
         if norms is not None and norms.sample_size:
             database_norms = (
-                f"; database-wide {norms.percentile_for_score(match.score):.0f}th percentile"
+                f"; database-wide {norms.percentile_for_score(electrochemistry_score):.0f}th "
+                "percentile before profile bonus"
             )
         lines.append(
             f'{index}. <a href="{href}" style="color: #cdb7ff;">'
             f"{html.escape(display_name)}</a>{uncertainty_html} "
-            f'<span style="color: #aaa;">(score {match.score}/{HD_ELECTROCHEMISTRY_MAX_SCORE}: '
+            f'<span style="color: #aaa;">(score {match.score}/{score_maximum}: '
             f"{match.completed_channels} cross-chart channels + "
             f"{match.defined_centers} combined defined centers"
             f"{profile_reason}; "

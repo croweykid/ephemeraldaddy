@@ -270,15 +270,16 @@ def rank_human_design_synastry_ideal(
     then prefers candidates that complete the most cross-chart channels. Nine
     centers are intentionally not treated as perfect for this mode.
     """
+    candidate_list = list(candidates)
     base_matches = rank_human_design_synastry(
         chart_uid,
         gates,
-        candidates,
+        candidate_list,
         limit=10**9,
     )
     candidate_profiles = {
         str(candidate.chart_uid or "").strip().upper(): candidate.profile
-        for candidate in candidates
+        for candidate in candidate_list
     }
     matches = []
     for match in base_matches:
