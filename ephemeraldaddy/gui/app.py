@@ -893,6 +893,12 @@ from ephemeraldaddy.gui.features.charts.collections import (
     normalize_collection_id,
     sanitize_collection_name,
 )
+from ephemeraldaddy.gui.features.database_view.collections import (
+    CollectionsListWidget,
+    chart_drag_mime_data,
+    prompt_chart_selection_for_collection_add,
+    show_collection_confirmation,
+)
 from ephemeraldaddy.gui.features.charts.aspect_popout_mixin import AspectPopoutMixin
 from ephemeraldaddy.gui.features.charts.duplicate_detection import (
     DuplicateLikelihood,
@@ -2244,21 +2250,7 @@ class ChartListWidget(QListWidget):
         self.setDragEnabled(True)
 
     def mimeData(self, items: list[QListWidgetItem]):
-        mime_data = super().mimeData(items)
-        chart_uids: list[str] = []
-        chart_ids: list[str] = []
-        for item in items:
-            chart_uid = str(item.data(Qt.UserRole + 2) or item.data(Qt.UserRole) or "").strip().upper()
-            chart_id = item.data(Qt.UserRole + 3)
-            if chart_uid:
-                chart_uids.append(chart_uid)
-            if chart_id is not None:
-                chart_ids.append(str(chart_id))
-        if chart_uids:
-            mime_data.setData("application/x-ephemeraldaddy-chart-uids", "\n".join(chart_uids).encode("utf-8"))
-        if chart_ids:
-            mime_data.setData("application/x-ephemeraldaddy-chart-ids", "\n".join(chart_ids).encode("utf-8"))
-        return mime_data
+        return chart_drag_mime_data(super().mimeData(items), items)
 
     def keyPressEvent(self, event) -> None:
         if self._handle_letter_jump(event):
@@ -2308,55 +2300,6 @@ class ChartListWidget(QListWidget):
 
     def _handle_letter_jump(self, event) -> bool:
         return _handle_list_letter_jump(self, event)
-
-
-class CollectionsListWidget(QListWidget):
-    """Collection list that accepts Database View chart drags."""
-
-    def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self.drop_chart_uids_on_collection: Callable[[str, list[str]], None] | None = None
-        self.setAcceptDrops(True)
-        self.setDropIndicatorShown(True)
-
-    def dragEnterEvent(self, event) -> None:
-        if event.mimeData().hasFormat("application/x-ephemeraldaddy-chart-uids"):
-            event.acceptProposedAction()
-            return
-        super().dragEnterEvent(event)
-
-    def dragMoveEvent(self, event) -> None:
-        item = self.itemAt(event.position().toPoint())
-        collection_id = self._custom_collection_id_for_item(item)
-        if collection_id:
-            self.setCurrentItem(item)
-            event.acceptProposedAction()
-            return
-        event.ignore()
-
-    def dropEvent(self, event) -> None:
-        item = self.itemAt(event.position().toPoint())
-        collection_id = self._custom_collection_id_for_item(item)
-        if not collection_id:
-            event.ignore()
-            return
-        raw_uids = bytes(event.mimeData().data("application/x-ephemeraldaddy-chart-uids")).decode("utf-8")
-        chart_uids = [uid.strip().upper() for uid in raw_uids.splitlines() if uid.strip()]
-        if chart_uids and callable(self.drop_chart_uids_on_collection):
-            self.setCurrentItem(item)
-            self.drop_chart_uids_on_collection(collection_id, chart_uids)
-            event.acceptProposedAction()
-            return
-        event.ignore()
-
-    @staticmethod
-    def _custom_collection_id_for_item(item: QListWidgetItem | None) -> str | None:
-        if item is None:
-            return None
-        collection_id = normalize_collection_id(item.data(Qt.UserRole))
-        if collection_id and collection_id not in DEFAULT_COLLECTION_IDS:
-            return collection_id
-        return None
 
 # Database View / Manage Charts Window
 class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalyticsChartsMixin, QDialog):
@@ -16531,15 +16474,6 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             self.collections_list_widget.clearSelection()
             self.collections_list_widget.setCurrentRow(-1)
 
-    def _show_collection_confirmation(self, message: str) -> None:
-        prompt = QMessageBox(self)
-        prompt.setWindowTitle("Collections")
-        prompt.setIcon(QMessageBox.Information)
-        prompt.setText(message)
-        cool_button = prompt.addButton("cool", QMessageBox.AcceptRole)
-        prompt.setDefaultButton(cool_button)
-        prompt.exec()
-
     def _update_collection_membership_buttons(self) -> None:
         selected_count = len(self._selected_local_row_ids()) if hasattr(self, "list_widget") else 0
         selected_collection_id = self._selected_custom_collection_id()
@@ -16789,7 +16723,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._save_custom_collections_to_settings()
         self._refresh_collection_controls()
         self._populate_list()
-        self._show_collection_confirmation(
+        show_collection_confirmation(
+            self,
             f"{len(chart_ids)} charts were added to '{collection.name}'!"
         )
 
@@ -16835,7 +16770,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._save_custom_collections_to_settings()
         self._refresh_collection_controls()
         self._populate_list()
-        self._show_collection_confirmation(
+        show_collection_confirmation(
+            self,
             f"{removed_count} charts were removed from '{collection.name}'!"
         )
 
@@ -16845,7 +16781,11 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             QMessageBox.information(self, "Collections", "Select a custom collection first.")
             return
         collection = self._custom_collections[collection_id]
-        selected_chart = self._prompt_chart_selection_for_collection_add(collection.name)
+        selected_chart = prompt_chart_selection_for_collection_add(
+            self,
+            collection_name=collection.name,
+            chart_rows=list_charts(),
+        )
         if selected_chart is None:
             return
         chart_id, chart_name = selected_chart
@@ -16862,7 +16802,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._save_custom_collections_to_settings()
         self._refresh_collection_controls()
         self._populate_list()
-        self._show_collection_confirmation(f"{chart_name} was added to '{collection.name}'!")
+        show_collection_confirmation(self, f"{chart_name} was added to '{collection.name}'!")
 
     def _on_drop_chart_uids_on_collection(self, collection_id: str, chart_uids: list[str]) -> None:
         if collection_id not in self._custom_collections:
@@ -16885,85 +16825,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._save_custom_collections_to_settings()
         self._refresh_collection_controls()
         self._populate_list()
-        self._show_collection_confirmation(
+        show_collection_confirmation(
+            self,
             f"{len(chart_ids_by_uid)} charts were added to '{collection.name}'!"
         )
-
-    def _prompt_chart_selection_for_collection_add(self, collection_name: str) -> tuple[int, str] | None:
-        dialog = QDialog(self)
-        dialog.setWindowTitle(f"Search Chart to Add • {collection_name}")
-        dialog.setModal(True)
-
-        layout = QVBoxLayout(dialog)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(8)
-
-        helper_label = QLabel("Search for a chart, then add it to this collection.")
-        helper_label.setWordWrap(True)
-        layout.addWidget(helper_label)
-
-        chart_lookup: dict[str, tuple[int, str]] = {}
-        labels: list[str] = []
-        for row in list_charts():
-            chart_id, name, alias, *_rest = row
-            display_name = name.strip() if isinstance(name, str) and name.strip() else f"Chart {chart_id}"
-            if alias:
-                display_name = f"{display_name} ({alias})"
-            label = f"{display_name}  [#{chart_id}]"
-            labels.append(label)
-            chart_lookup[label] = (int(chart_id), display_name)
-
-        chart_input = QLineEdit(dialog)
-        chart_input.setPlaceholderText("Search chart name")
-        completer = QCompleter(labels, chart_input)
-        completer.setCaseSensitivity(Qt.CaseInsensitive)
-        completer.setFilterMode(Qt.MatchContains)
-        chart_input.setCompleter(completer)
-        layout.addWidget(chart_input)
-
-        buttons_row = QHBoxLayout()
-        buttons_row.addStretch(1)
-        cancel_button = QPushButton("Never mind", dialog)
-        add_button = QPushButton(f"Add to {collection_name}", dialog)
-        buttons_row.addWidget(cancel_button)
-        buttons_row.addWidget(add_button)
-        layout.addLayout(buttons_row)
-
-        selected_chart: tuple[int, str] | None = None
-
-        def _resolve_chart(raw_value: str) -> tuple[int, str] | None:
-            query = raw_value.strip()
-            if not query:
-                return None
-            direct_match = chart_lookup.get(query)
-            if direct_match is not None:
-                return direct_match
-            for label, chart in chart_lookup.items():
-                if query.lower() == label.lower():
-                    return chart
-            return None
-
-        def _submit() -> None:
-            nonlocal selected_chart
-            chart = _resolve_chart(chart_input.text())
-            if chart is None:
-                QMessageBox.warning(
-                    dialog,
-                    "Collections",
-                    "Select a saved chart from autocomplete before adding.",
-                )
-                return
-            selected_chart = chart
-            dialog.accept()
-
-        add_button.clicked.connect(_submit)
-        cancel_button.clicked.connect(dialog.reject)
-        chart_input.returnPressed.connect(_submit)
-        QTimer.singleShot(0, chart_input.setFocus)
-
-        if dialog.exec() != QDialog.Accepted:
-            return None
-        return selected_chart
 
     def _clear_batch_edits(self) -> None:
         if hasattr(self, "_batch_last_selection_uids"):
