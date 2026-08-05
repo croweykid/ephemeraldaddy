@@ -137,6 +137,16 @@ class ChartAnalysisSectionsController:
     def set_section_expanded(self, section_key: str, expanded: bool) -> None:
         self._owner._chart_analysis_section_expanded[section_key] = expanded
 
+    def set_section_checked(self, section_key: str, expanded: bool) -> None:
+        """Set a chart-analysis collapsible section state through its header toggle."""
+        widgets = getattr(self._owner, "_chart_analysis_section_widgets", {})
+        section = widgets.get(section_key) if isinstance(widgets, dict) else None
+        toggle = section.findChild(QToolButton) if isinstance(section, QWidget) else None
+        if isinstance(toggle, QToolButton):
+            toggle.setChecked(expanded)
+        else:
+            self.set_section_expanded(section_key, expanded)
+
     def add_collapsible_section(
         self,
         *,

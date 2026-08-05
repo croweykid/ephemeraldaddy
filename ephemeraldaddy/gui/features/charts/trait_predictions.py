@@ -19,7 +19,7 @@ except Exception:  # pragma: no cover - headless test environments may omit QtGu
     QColor = None  # type: ignore[assignment]
     QPalette = None  # type: ignore[assignment]
 try:
-    from PySide6.QtWidgets import QLabel, QComboBox, QHeaderView, QStyledItemDelegate, QTableView, QWidget
+    from PySide6.QtWidgets import QLabel, QComboBox, QHeaderView, QMessageBox, QStyledItemDelegate, QTableView, QWidget
 except Exception:  # pragma: no cover - headless test environments may omit Qt widget libs
     class _MissingQtWidget:
         def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -41,6 +41,11 @@ except Exception:  # pragma: no cover - headless test environments may omit Qt w
     class QTableView:  # type: ignore[no-redef]
         SelectRows = 1
         SingleSelection = 1
+
+    class QMessageBox:  # type: ignore[no-redef]
+        @staticmethod
+        def information(*args: Any, **kwargs: Any) -> None:
+            return None
 
     class QStyledItemDelegate:  # type: ignore[no-redef]
         def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -1599,9 +1604,71 @@ def _trait_render_signatures(owner: Any, chart: Any, traits: list[dict[str, Any]
     }
 
 
-def start_traits_prediction_calculation(owner: Any) -> None:
-    """Start the existing Traits prediction calculation flow from external UI controls."""
+def _traits_pending_cached_metadata(owner: Any) -> dict[str, Any] | None:
+    chart = getattr(owner, "_traits_prediction_pending_chart", None)
+    traits = getattr(owner, "_traits_prediction_pending_traits", None)
+    signatures = getattr(owner, "_traits_prediction_pending_signatures", None)
+    if chart is None or not isinstance(traits, list) or not traits or not isinstance(signatures, dict):
+        return None
+    cached_metadata = trait_metadata_for_chart(
+        owner,
+        chart,
+        cached_only=True,
+        traits=traits,
+        trait_signature=signatures.get("trait_signature"),
+        legacy_trait_signature=signatures.get("legacy_trait_signature"),
+        norm_signature=signatures.get("norm_signature"),
+        chart_signature=signatures.get("chart_signature"),
+    )
+    return cached_metadata if isinstance(cached_metadata, dict) else None
+
+
+def _traits_pending_cache_is_up_to_date(owner: Any) -> bool:
+    cached_metadata = _traits_pending_cached_metadata(owner)
+    return isinstance(cached_metadata, dict) and not bool(cached_metadata.get("stale"))
+
+
+def start_traits_prediction_calculation(owner: Any, *, user_initiated: bool = False) -> None:
+    """Start Traits prediction calculation unless the current chart cache is fresh."""
+    if _traits_pending_cache_is_up_to_date(owner):
+        if user_initiated:
+            parent = owner if isinstance(owner, QWidget) else None
+            QMessageBox.information(
+                parent,
+                "Traits",
+                "Traits up to date! No recalculation necessary.",
+            )
+        return
     _start_traits_prediction_calculation(owner)
+
+
+def sync_traits_prediction_section_expansion(owner: Any, expanded: bool) -> None:
+    """Apply Chart Editor Predictions-specific Traits expansion/calculation rules."""
+    expanded_by_key = getattr(owner, "_chart_analysis_section_expanded", None)
+    if isinstance(expanded_by_key, dict):
+        expanded_by_key["traits"] = expanded
+    if not expanded:
+        return
+    if _traits_pending_cached_metadata(owner) is None:
+        QTimer.singleShot(0, lambda owner=owner: start_traits_prediction_calculation(owner))
+
+
+def _set_traits_prediction_section_expanded(owner: Any, expanded: bool) -> None:
+    controller = getattr(owner, "_chart_analysis_sections_controller", None)
+    set_checked = getattr(controller, "set_section_checked", None)
+    if callable(set_checked):
+        set_checked("traits", expanded)
+        return
+    expanded_by_key = getattr(owner, "_chart_analysis_section_expanded", None)
+    if isinstance(expanded_by_key, dict):
+        expanded_by_key["traits"] = expanded
+
+
+def _traits_prediction_section_expanded(owner: Any) -> bool:
+    expanded_by_key = getattr(owner, "_chart_analysis_section_expanded", None)
+    if isinstance(expanded_by_key, dict):
+        return bool(expanded_by_key.get("traits", False))
+    return False
 
 
 def _start_traits_prediction_calculation(owner: Any) -> None:
@@ -2050,6 +2117,7 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
         owner._traits_prediction_pending_traits = traits
         owner._traits_prediction_pending_cache_key = cache_key or ""
         owner._traits_prediction_pending_signatures = signatures
+        _set_traits_prediction_section_expanded(owner, True)
         if bool(cached_metadata.get("stale")):
             _set_traits_header_action(owner, "recalculate")
             if _predictions_manual_recalculation_only(owner):
@@ -2076,11 +2144,14 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
     owner._traits_prediction_pending_traits = traits
     owner._traits_prediction_pending_cache_key = cache_key or ""
     owner._traits_prediction_pending_signatures = signatures
+    _set_traits_prediction_section_expanded(owner, False)
     _set_traits_header_action(owner, "calculate")
     if _predictions_manual_recalculation_only(owner):
-        _predictions_debug(owner, "Trait render found no persisted trait metadata; waiting for manual calculate cache_key=%s", (cache_key or "")[:12])
+        _predictions_debug(owner, "Trait render found no persisted trait metadata; waiting for expansion/header calculate cache_key=%s", (cache_key or "")[:12])
         prompt_html = _traits_calculate_prompt_html()
         _apply_traits_prediction_view(owner, prompt_html, prompt_html)
+        if _traits_prediction_section_expanded(owner):
+            QTimer.singleShot(0, lambda owner=owner: start_traits_prediction_calculation(owner))
     else:
         message = "● Loading fresh trait predictions for this UID… ●"
         _predictions_debug(owner, "Trait render found no persisted trait metadata; auto-loading fresh traits cache_key=%s", (cache_key or "")[:12])

@@ -98,6 +98,7 @@ from ephemeraldaddy.gui.features.charts.time_sensitivity_panel import TimeSensit
 from ephemeraldaddy.gui.features.charts.trait_predictions import (
     configure_traits_prediction_table,
     start_traits_prediction_calculation,
+    sync_traits_prediction_section_expansion,
 )
 from ephemeraldaddy.gui.features.controllers.chart_right_panel import ChartRightPanelController
 from ephemeraldaddy.gui.features.charts.section_availability import (
@@ -1728,7 +1729,7 @@ def _build_distinguishing_factors_section(owner: QWidget, panel: QWidget, layout
 def _calculate_prediction_section_from_header(owner: QWidget, section_key: str) -> None:
     """Dispatch a Predictions header action to the section's existing calculator."""
     if section_key == "traits":
-        start_traits_prediction_calculation(owner)
+        start_traits_prediction_calculation(owner, user_initiated=True)
         return
     calculate = getattr(owner, "_calculate_predictions_on_demand", None)
     if callable(calculate):
@@ -1773,7 +1774,7 @@ def _set_prediction_header_action(owner: QWidget, section_key: str, state: str) 
         return
     if state == "up_to_date":
         button.setText("✅")
-        button.setEnabled(False)
+        button.setEnabled(section_key == "traits")
         button.setToolTip("calculations are up to date!")
     elif state == "recalculate":
         button.setText("♻️")
@@ -1904,7 +1905,9 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         panel=panel,
         layout=layout,
         title="Traits",
-        expanded=True,
+        expanded=False,
+        on_toggled=lambda expanded: sync_traits_prediction_section_expansion(owner, expanded),
+        section_key="traits",
     )
     register_prediction_section("traits", traits_section_layout)
     _install_prediction_header_action(owner, traits_section_layout, "traits")
@@ -2745,6 +2748,8 @@ def _update_chart_analysis_subtitle(self, chart_key: str) -> None:
 
 def _set_chart_analysis_section_expanded(self, section_key: str, expanded: bool) -> None:
     self._chart_analysis_sections_controller.set_section_expanded(section_key, expanded)
+    if section_key == "traits":
+        sync_traits_prediction_section_expansion(self, expanded)
     if not expanded or self._latest_chart is None:
         return
     render_key = self._chart_analysis_render_key_for_section(section_key)
