@@ -448,9 +448,9 @@ def build_chart_right_panel_stack(
     # they are persisted in panel state and routing maps, but the user-facing
     # panel is now the Linguistics panel. It contains the Anagrams and
     # Euphonics linguistic analyses formerly surfaced as the ABC panel.
-    abc_button = _AbcPanelButton("Linguistics")
+    abc_button = _AbcPanelButton("ABC")
     abc_button.setObjectName("chart_view_toggle_abc_panel_button")
-    abc_button.setToolTip("Linguistics panel: Anagrams and Euphonics")
+    abc_button.setToolTip("Linguistics panel")
     abc_button.setStyleSheet("padding: 1px 5px; font-size: 11px; font-weight: 700; color: #c7e8ff;")
     abc_button.clicked.connect(on_show_abc)
     material_facts_button = QPushButton("🗒️")
