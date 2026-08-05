@@ -1096,14 +1096,14 @@ def _summary_html(result: TimeSensitivityResult) -> str:
     html_lines: list[str] = [
         # f"<div><strong>Overall stability:</strong> {float(overall.get('stability_percent', 0)):.0f}%</div>",
         f"<div><strong>Max possible change from {escape(baseline_label)}:</strong> {float(overall.get('max_total_change_from_baseline_percent', 0)):.0f}%</div>",
-        "<div><strong>Most sensitive:</strong> "
-        + _color_code_text(", ".join(overall.get("most_sensitive", []) or ["n/a"]))
-        + "</div>",
-        "<div><strong>Least sensitive:</strong> "
-        + _color_code_text(", ".join(overall.get("least_sensitive", []) or ["n/a"]))
-        + "</div>",
+        #"<div><strong>Most sensitive:</strong> "
+        #+ _color_code_text(", ".join(overall.get("most_sensitive", []) or ["n/a"]))
+        #+ "</div>",
+        #"<div><strong>Least sensitive:</strong> "
+        #+ _color_code_text(", ".join(overall.get("least_sensitive", []) or ["n/a"]))
+        #+ "</div>",
         f"<div><strong>Samples:</strong> {result.sample_count} hypothetical standard charts + {result.sample_count} Human Design charts</div>",
-        _header_html("Highly Stable:"),
+        _header_html("Definite:"),
     ]
     html_lines.append(
         _list_html(

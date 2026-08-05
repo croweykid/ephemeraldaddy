@@ -780,7 +780,7 @@ def compute_time_sensitivity(
         for values in [categorical_values.get(label, [])]
     }
     stable = [
-        f"{key}: stable all day ({values[0]})"
+        f"{key}: {values[0]} all day"
         for key, values in categorical_values.items()
         if values and len(set(values)) == 1 and values[0]
     ]
