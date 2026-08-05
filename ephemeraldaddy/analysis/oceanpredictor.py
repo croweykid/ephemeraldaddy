@@ -7,7 +7,7 @@
 
 OCEAN_SIGNS_THEORY = {
     "Aries": {
-        "O": -5, "C": 0, "E": 10, "A":-10, "N": 5, #hesitant on assigning Aries less openness, because they ARE often receptive to factual explanations, if presented in terms they respect. "WHY ARE YOU LIKE THAT?!" they might demand, seeming conservative. But then, if you actually explain in terms they respect, they'll usually accept it and respect your frankness, then take you as you are.
+        "O": -5, "C": 0, "E": 10, "A":-5, "N": -10, #hesitant on assigning Aries less openness, because they ARE often receptive to factual explanations, if presented in terms they respect. "WHY ARE YOU LIKE THAT?!" they might demand, seeming conservative. But then, if you actually explain in terms they respect, they'll usually accept it and respect your frankness, then take you as you are.
         "description": "pioneering, direct, competitive, courageous, impatient",
     },
     "Taurus": {
@@ -23,11 +23,11 @@ OCEAN_SIGNS_THEORY = {
         "description": "protective, receptive, cautious, attached, changeable",
     },
     "Leo": {
-        "O": 0, "C": 5, "E": 10, "A": 5, "N": 0, #wants/needs to be liked, so moderately high Agreeable, but also (unless mitigated by other elements) bossy af, so not TOO agreeable.
+        "O": 0, "C": 5, "E": 10, "A": 5, "N": -5, #wants/needs to be liked, so moderately high Agreeable, but also (unless mitigated by other elements) bossy af, so not TOO agreeable.
         "description": "expressive, confident, proud, generous, theatrical",
     },
     "Virgo": {
-        "O": 0, "C": 10, "E":-10, "A": 0, "N": 10, #not sure about agreeableness for Virgo. They DO want to be useful. They ARE persnicketty.
+        "O": 0, "C": 10, "E":-10, "A": 5, "N": 10, #not sure about agreeableness for Virgo. They DO want to be useful. They ARE persnicketty.
         "description": "analytical, discriminating, methodical, helpful, worried",
     },
     "Libra": {
@@ -35,7 +35,7 @@ OCEAN_SIGNS_THEORY = {
         "description": "social, diplomatic, aesthetic, cooperative, indecisive",
     },
     "Scorpio": {
-        "O": 0, "C": 5, "E":-10, "A":-10, "N": 10, #Lots of scorpios are super S not N. Re: "Agreeableness". Most Scorpios aren't aggro, they just want sovereignty. But I looked at the list of Scorpio dom & those are NOT agreeable people.
+        "O": 0, "C": 5, "E":-10, "A":-10, "N": 0, #Lots of scorpios are super S not N. Re: "Agreeableness". Most Scorpios aren't aggro, they just want sovereignty. But I looked at the list of Scorpio dom & those are NOT agreeable people.
         "description": "probing, private, persistent, controlling, intense",
     },
     "Sagittarius": {
