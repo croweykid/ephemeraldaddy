@@ -2169,17 +2169,19 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
             _apply_traits_prediction_metadata(owner, traits, cached_metadata)
         return
 
+    was_expanded = _traits_prediction_section_expanded(owner)
     owner._traits_prediction_pending_chart = chart
     owner._traits_prediction_pending_traits = traits
     owner._traits_prediction_pending_cache_key = cache_key or ""
     owner._traits_prediction_pending_signatures = signatures
-    _set_traits_prediction_section_expanded(owner, False)
+    if not was_expanded:
+        _set_traits_prediction_section_expanded(owner, False)
     _set_traits_header_action(owner, "calculate")
     if _predictions_manual_recalculation_only(owner):
         _predictions_debug(owner, "Trait render found no persisted trait metadata; waiting for expansion/header calculate cache_key=%s", (cache_key or "")[:12])
         prompt_html = _traits_calculate_prompt_html()
         _apply_traits_prediction_view(owner, prompt_html, prompt_html)
-        if _traits_prediction_section_expanded(owner):
+        if was_expanded or _traits_prediction_section_expanded(owner):
             QTimer.singleShot(0, lambda owner=owner: start_traits_prediction_calculation(owner))
     else:
         message = "● Loading fresh trait predictions for this UID… ●"
