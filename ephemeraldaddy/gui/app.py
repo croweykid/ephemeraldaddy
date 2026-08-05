@@ -22168,7 +22168,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
         chart_calculation_section = self._add_settings_collapsible_section(
             content_layout,
-            "Astrological Methods",
+            "Astrology",
         )
         gendered_results_row = QHBoxLayout()
         gendered_results_row.addWidget(QLabel("For gendered results, use:"))

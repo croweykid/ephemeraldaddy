@@ -27,7 +27,7 @@ LINE_NICKNAMES: dict[int, dict[str, str]] = {
 }
 
 HD_HARMONIC_LINES = { #resonance is with line matches, harmonics are with the following:
-    1:4,2:5,3:6,4:1,5:2,6:3
+    1:4,2:5,3:6,4:1,5:2,6:3 #This is theoretical. As a 1/3, my personal finding was that my favorite people are 1/3s ('full resonance') and 3/6s ('resonant harmonic').
 }
 
 HD_COLORS = {
