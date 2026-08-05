@@ -1,4 +1,4 @@
-"""Widgets and dialogs for the Database View Collections panel.
+"""Widgets and dialogs for the Database View Collection Manager panel.
 
 This module owns collection-panel-only UI behavior so ``app.py`` can remain a
 thin coordinator while Database View collection interactions move toward the
@@ -28,25 +28,18 @@ from ephemeraldaddy.gui.features.charts.collections import (
 )
 
 CHART_UIDS_MIME_TYPE = "application/x-ephemeraldaddy-chart-uids"
-CHART_IDS_MIME_TYPE = "application/x-ephemeraldaddy-chart-ids"
 
 
 def chart_drag_mime_data(mime_data, items: list[QListWidgetItem]):
     """Add UID-first Database View chart identity to a Qt drag payload."""
 
     chart_uids: list[str] = []
-    chart_ids: list[str] = []
     for item in items:
         chart_uid = str(item.data(Qt.UserRole + 2) or item.data(Qt.UserRole) or "").strip().upper()
-        chart_id = item.data(Qt.UserRole + 3)
         if chart_uid:
             chart_uids.append(chart_uid)
-        if chart_id is not None:
-            chart_ids.append(str(chart_id))
     if chart_uids:
         mime_data.setData(CHART_UIDS_MIME_TYPE, "\n".join(chart_uids).encode("utf-8"))
-    if chart_ids:
-        mime_data.setData(CHART_IDS_MIME_TYPE, "\n".join(chart_ids).encode("utf-8"))
     return mime_data
 
 
@@ -110,12 +103,14 @@ class CollectionsListWidget(QListWidget):
             return collection_id
         return None
 
+
 def prompt_chart_selection_for_collection_add(
     parent: QWidget,
     *,
     collection_name: str,
     chart_rows,
-) -> tuple[int, str] | None:
+    chart_uid_by_local_id: dict[int, str],
+) -> tuple[str, str] | None:
     """Prompt for one saved chart to add to the selected collection."""
 
     dialog = QDialog(parent)
@@ -130,16 +125,20 @@ def prompt_chart_selection_for_collection_add(
     helper_label.setWordWrap(True)
     layout.addWidget(helper_label)
 
-    chart_lookup: dict[str, tuple[int, str]] = {}
+    chart_lookup: dict[str, tuple[str, str]] = {}
     labels: list[str] = []
     for row in chart_rows:
         chart_id, name, alias, *_rest = row
-        display_name = name.strip() if isinstance(name, str) and name.strip() else f"Chart {chart_id}"
+        local_id = int(chart_id)
+        chart_uid = str(chart_uid_by_local_id.get(local_id) or "").strip().upper()
+        if not chart_uid:
+            continue
+        display_name = name.strip() if isinstance(name, str) and name.strip() else f"Chart {chart_uid}"
         if alias:
             display_name = f"{display_name} ({alias})"
-        label = f"{display_name}  [#{chart_id}]"
+        label = f"{display_name}  [{chart_uid}]"
         labels.append(label)
-        chart_lookup[label] = (int(chart_id), display_name)
+        chart_lookup[label] = (chart_uid, display_name)
 
     chart_input = QLineEdit(dialog)
     chart_input.setPlaceholderText("Search chart name")
@@ -157,9 +156,9 @@ def prompt_chart_selection_for_collection_add(
     buttons_row.addWidget(add_button)
     layout.addLayout(buttons_row)
 
-    selected_chart: tuple[int, str] | None = None
+    selected_chart: tuple[str, str] | None = None
 
-    def _resolve_chart(raw_value: str) -> tuple[int, str] | None:
+    def _resolve_chart(raw_value: str) -> tuple[str, str] | None:
         query = raw_value.strip()
         if not query:
             return None

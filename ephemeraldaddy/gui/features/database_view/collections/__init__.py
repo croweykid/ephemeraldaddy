@@ -1,7 +1,6 @@
 """Database View collection panel helpers."""
 
-from .panel_widgets import (
-    CHART_IDS_MIME_TYPE,
+from .collection_manager_panel import (
     CHART_UIDS_MIME_TYPE,
     CollectionsListWidget,
     chart_drag_mime_data,
@@ -10,7 +9,6 @@ from .panel_widgets import (
 )
 
 __all__ = [
-    "CHART_IDS_MIME_TYPE",
     "CHART_UIDS_MIME_TYPE",
     "CollectionsListWidget",
     "chart_drag_mime_data",
