@@ -581,16 +581,21 @@ class ChartsController:
                 dialog._refresh_charts(
                     refresh_metrics=pending_refresh_metrics,
                     changed_ids=pending_ids,
-                    defer_metrics_refresh=pending_refresh_metrics,
+                    defer_metrics_refresh=pending_refresh_metrics and progress_callback is None,
                     refresh_tag_completers=pending_refresh_metrics,
+                    progress_callback=progress_callback,
                 )
         elif not getattr(dialog, "_chart_rows", None):
             refresh_reason = "initial_population"
             # First-open row/metric population is the slowest Database View step.
-            # Defer it until after the startup widget can close, so launch does
-            # not sit frozen around 90% while the database list is built.
+            # During application startup, keep it inside the loading-bar
+            # interval so Database Analytics does not begin after 100%.
             def refresh_after_show() -> None:
-                dialog._refresh_charts(refresh_metrics=True, defer_metrics_refresh=True)
+                dialog._refresh_charts(
+                    refresh_metrics=True,
+                    defer_metrics_refresh=progress_callback is None,
+                    progress_callback=progress_callback,
+                )
         if progress_callback:
             progress_callback("Showing Database View shell…", 88)
         if self._clear_pending_changed_refreshes is not None:

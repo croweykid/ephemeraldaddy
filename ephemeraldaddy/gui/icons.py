@@ -3,6 +3,11 @@
 from pathlib import Path
 
 
+def get_app_icon_path() -> str | None:
+    icon_path = Path(__file__).resolve().parents[1] / "graphics" / "ephemeraldaddy.png"
+    return str(icon_path) if icon_path.exists() else None
+
+
 def get_share_icon_path() -> str | None:
     icon_path = Path(__file__).resolve().parents[1] / "graphics" / "share_icon2.png"
     return str(icon_path) if icon_path.exists() else None

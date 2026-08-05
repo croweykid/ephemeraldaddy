@@ -2119,11 +2119,7 @@ def _configure_qt_input_scaling() -> None:
         pass
 
 def _get_app_icon_path() -> str | None:
-    module_root = Path(__file__).resolve().parents[1]
-    icon_path = module_root / "graphics" / "ephemeraldaddy.png"
-    if icon_path.exists():
-        return str(icon_path)
-    return None
+    return _get_shared_app_icon_path()
 
 
 def _autosize_chart_view_nav_button(button: QPushButton) -> None:
@@ -2140,7 +2136,10 @@ def _autosize_chart_view_nav_button(button: QPushButton) -> None:
     )
     button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
 
-from ephemeraldaddy.gui.icons import get_share_icon_path as _get_share_icon_path
+from ephemeraldaddy.gui.icons import (
+    get_app_icon_path as _get_shared_app_icon_path,
+    get_share_icon_path as _get_share_icon_path,
+)
 
 def _configure_similarities_export_button(
     button: QPushButton,
@@ -17034,24 +17033,35 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         if self.isVisible() and not getattr(self, "_applying_window_placement", False):
             self._session_window_layout_adjusted = True
 
-    def _flush_pending_database_metrics_before_close(self) -> None:
-        """Finish queued Database Analytics refreshes before persisting cache."""
-        has_deferred_work = bool(
+    def _cancel_pending_database_metrics_before_close(self) -> bool:
+        """Cancel queued Database Analytics refresh work before close.
+
+        Returns True when pending work means the in-memory Database Analytics
+        cache may be stale for the current chart rows.  In that case closeEvent
+        must not persist the old cache under a fresh rows token; leaving the
+        previous on-disk token in place lets the next launch detect the edited
+        chart UIDs as stale and refresh normally.
+        """
+        had_pending_refresh = bool(
             self._deferred_database_metrics_refresh_scheduled
             or self._deferred_database_metrics_changed_uids
             or self._deferred_database_metrics_sections
             or self._deferred_database_metrics_force_full_refresh
+            or self._incremental_metrics_refresh_scheduled
+            or self._incremental_metrics_refresh_sections
+            or self._incremental_metrics_refresh_changed_uids
+            or self._incremental_metrics_force_full_refresh
         )
-        if has_deferred_work:
-            self._run_deferred_database_metrics_refresh()
-        while self._incremental_metrics_refresh_scheduled:
-            pending_sections = list(getattr(self, "_incremental_metrics_refresh_sections", []))
-            self._run_incremental_metrics_refresh_step()
-            if not pending_sections:
-                break
+        self._deferred_database_metrics_changed_uids.clear()
+        self._deferred_database_metrics_sections.clear()
+        self._deferred_database_metrics_force_full_refresh = False
+        self._incremental_metrics_refresh_sections.clear()
+        self._incremental_metrics_refresh_changed_uids.clear()
+        self._incremental_metrics_force_full_refresh = False
+        return had_pending_refresh
 
     def closeEvent(self, event) -> None:
-        self._flush_pending_database_metrics_before_close()
+        skip_metrics_cache_save = self._cancel_pending_database_metrics_before_close()
         self._is_closing = True
         self._database_metrics_preload_enabled = False
         self._database_metrics_background_preload_sections.clear()
@@ -17059,7 +17069,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._deferred_database_metrics_refresh_scheduled = False
         self._deferred_database_metrics_update_similarities = False
         self._incremental_metrics_refresh_scheduled = False
-        self._save_database_metrics_persistent_cache()
+        if not skip_metrics_cache_save:
+            self._save_database_metrics_persistent_cache()
         save_traits_cache = getattr(self, "_save_traits_distribution_likelihood_cache", None)
         if callable(save_traits_cache) and getattr(self, "_traits_distribution_likelihood_cache_dirty", False):
             save_traits_cache()
@@ -39038,8 +39049,13 @@ def main(startup_loading: StartupProgress | QWidget | None = None):
     _configure_matplotlib_info_marker_font()
 
     app = _get_qapp()
+    early_icon_path = _get_app_icon_path()
+    if early_icon_path:
+        app.setWindowIcon(QIcon(early_icon_path))
     if startup_loading is None:
         startup_loading = StartupLoadingWidget()
+        if early_icon_path:
+            startup_loading.setWindowIcon(QIcon(early_icon_path))
         startup_loading.show()
     # Launch-only focus assist: keep the load bar in the foreground while the
     # app initializes, but avoid repeated focus hacks after startup.
