@@ -53,3 +53,11 @@ def test_chart_summary_does_not_wake_predictions_during_timing_preview():
     assert "_suppress_right_panel_refresh_for_timing_preview = False" in method
     assert "else:" in method
     assert "_schedule_chart_render_for_active_right_panel()" in method
+
+
+def test_timing_edit_switches_open_predictions_panel_to_analytics():
+    method = _method_source("_queue_timing_preview_update")
+
+    assert 'getattr(state, "active_tab", None) == "predictions"' in method
+    assert 'self._set_chart_right_panel("analytics")' in method
+    assert method.index('getattr(state, "active_tab", None) == "predictions"') < method.index('self._timing_preview_update_timer.start')

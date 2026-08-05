@@ -35984,7 +35984,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             self._time_input_text_colors["retcon"] = retcon_time_color
 
     def _queue_timing_preview_update(self) -> None:
-        """Mark timing edits dirty without forcing live recalculation while typing."""
+        """Debounce live Chart Data Output recalculation for timing edits."""
         if self._suppress_lucygoosey:
             return
         # Birth-time, rectified-time, and rectified-range edits change core
@@ -35995,6 +35995,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         # background while the user is still editing HH:mm values.
         self._metadata_autosave_requires_recalculation = True
         self._mark_chart_analytics_sections_lucy_goosey()
+        state = getattr(self, "_chart_right_panel_state", None)
+        if getattr(state, "active_tab", None) == "predictions":
+            self._set_chart_right_panel("analytics")
         self._timing_preview_update_timer.start(CHART_VIEW_TIMING_PREVIEW_DEBOUNCE_MS)
 
     def _flush_timing_preview_update(self) -> None:

@@ -62,4 +62,5 @@ def test_timing_preview_debounce_waits_for_real_editing_pause():
     method = _method_source("_queue_timing_preview_update", end="_flush_timing_preview_update")
     assert "preview rebuild only the live Chart Data Output" in method
     assert "self._metadata_autosave_requires_recalculation = True" in method
+    assert 'self._set_chart_right_panel("analytics")' in method
     assert "self._metadata_autosave_timer.start(2500)" not in method
