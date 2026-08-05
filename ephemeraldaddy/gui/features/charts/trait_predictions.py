@@ -19,7 +19,7 @@ except Exception:  # pragma: no cover - headless test environments may omit QtGu
     QColor = None  # type: ignore[assignment]
     QPalette = None  # type: ignore[assignment]
 try:
-    from PySide6.QtWidgets import QLabel, QComboBox, QHeaderView, QStyledItemDelegate, QTableView, QWidget
+    from PySide6.QtWidgets import QLabel, QComboBox, QHeaderView, QMessageBox, QStyledItemDelegate, QTableView, QWidget
 except Exception:  # pragma: no cover - headless test environments may omit Qt widget libs
     class _MissingQtWidget:
         def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -41,6 +41,11 @@ except Exception:  # pragma: no cover - headless test environments may omit Qt w
     class QTableView:  # type: ignore[no-redef]
         SelectRows = 1
         SingleSelection = 1
+
+    class QMessageBox:  # type: ignore[no-redef]
+        @staticmethod
+        def information(*args: Any, **kwargs: Any) -> None:
+            return None
 
     class QStyledItemDelegate:  # type: ignore[no-redef]
         def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -562,7 +567,9 @@ def _chart_trait_metadata_signature(chart: Any) -> str:
     """Fingerprint only the birth-data inputs that should invalidate predictions.
 
     Trait/Fantasy RPG/Enneagram Predictions are persisted per permanent chart UID and
-    should remain instantly reusable across Chart View opens.  Derived astrology
+    should remain instantly reusable across Chart View opens.  This is the full
+    staleness boundary for chart edits: only astro-data inputs belong here;
+    nonastral/subjective metadata must not invalidate Traits.  Derived astrology
     payloads (positions, aspects, HD/BaZi weights, etc.) are intentionally not
     part of this signature: those values are recalculated from the essential
     birth data elsewhere, and including them here makes harmless serialization or
@@ -782,6 +789,8 @@ def _metadata_from_vectors(
     stale_trait_definition: bool = False,
     stale_db_baseline: bool = False,
     updated_at: str = "",
+    stale_trait_names: set[str] | None = None,
+    full_staleness_reasons: list[str] | None = None,
 ) -> dict[str, Any]:
     deviations = {
         name: float(pct) - float(database_averages[name])
@@ -790,7 +799,18 @@ def _metadata_from_vectors(
     }
     above = {name for name, deviation in deviations.items() if deviation >= TRAIT_DEVIATION_ASSIGNMENT_THRESHOLD}
     below = {name for name, deviation in deviations.items() if deviation <= -TRAIT_DEVIATION_ASSIGNMENT_THRESHOLD}
-    stale = bool(stale_chart_vector or stale_trait_definition or stale_db_baseline)
+    stale = bool(stale_chart_vector or stale_trait_definition or stale_db_baseline or stale_trait_names)
+    stale_trait_names = set(stale_trait_names or set())
+    full_staleness_reasons = list(full_staleness_reasons or [])
+    if stale_chart_vector and "astro_data" not in full_staleness_reasons:
+        full_staleness_reasons.append("astro_data")
+    if stale_db_baseline and "database_norms" not in full_staleness_reasons:
+        full_staleness_reasons.append("database_norms")
+    if stale_trait_definition and not stale_trait_names and "all_traits" not in full_staleness_reasons:
+        full_staleness_reasons.append("all_traits")
+    staleness_kind = "fresh"
+    if stale:
+        staleness_kind = "full" if full_staleness_reasons else "partial"
     metadata: dict[str, Any] = {
         "above": above,
         "below": below,
@@ -800,6 +820,9 @@ def _metadata_from_vectors(
         "stale_chart_vector": bool(stale_chart_vector),
         "stale_trait_definition": bool(stale_trait_definition),
         "stale_db_baseline": bool(stale_db_baseline),
+        "staleness_kind": staleness_kind,
+        "stale_trait_names": sorted(stale_trait_names),
+        "full_staleness_reasons": full_staleness_reasons,
     }
     if stale:
         metadata["stale"] = True
@@ -1224,6 +1247,8 @@ def trait_metadata_for_chart(
     baseline_is_complete = bool(active_trait_names) and set(snapshot_database_averages) == active_trait_names
     cached_rows_by_name: dict[str, dict[str, Any]] = {}
     stale_rows_by_name: dict[str, dict[str, Any]] = {}
+    stale_chart_rows_by_name: dict[str, dict[str, Any]] = {}
+    stale_norm_rows_by_name: dict[str, dict[str, Any]] = {}
     cached_likelihood_rows_by_name: dict[str, dict[str, Any]] = {}
     stale_likelihood_rows_by_name: dict[str, dict[str, Any]] = {}
     stale_trait_definition_rows_by_name: dict[str, dict[str, Any]] = {}
@@ -1330,10 +1355,14 @@ def trait_metadata_for_chart(
                 cached_rows_by_name[name] = row
             elif valid_trait_signature:
                 # cached_only callers are trying to paint *something* immediately.
-                # If either chart birth data or DB norms changed, the row is stale,
-                # but it is still a better cached result than a misleading "no data"
-                # placeholder while the explicit recalculation path remains available.
+                # If either chart astro-data or DB norms changed, the row is fully
+                # stale, but it is still a better cached result than a misleading
+                # "no data" placeholder while explicit recalculation remains available.
                 stale_rows_by_name[name] = row
+                if str(row.get("chart_signature", "")) != chart_signature:
+                    stale_chart_rows_by_name[name] = row
+                if str(row.get("norm_signature", "")) != norm_signature:
+                    stale_norm_rows_by_name[name] = row
         if active_trait_names and set(cached_rows_by_name) == active_trait_names:
             _predictions_debug(owner, "Trait metadata DB row cache hit chart_uid=%s traits=%s", chart_uid, len(active_trait_names))
             above = {name for name, row in cached_rows_by_name.items() if row.get("direction") == "above"}
@@ -1382,16 +1411,21 @@ def trait_metadata_for_chart(
                 (str(row.get("updated_at", "") or "") for row in display_rows_by_name.values()),
                 default="",
             )
-            metadata = {
-                "above": above,
-                "below": below,
-                "deviations": {name: float(row.get("deviation", 0.0)) for name, row in display_rows_by_name.items()},
-                "likelihoods": {name: float(row.get("likelihood", 0.0)) for name, row in display_rows_by_name.items()},
-                "database_averages": {name: float(row.get("db_average", 0.0)) for name, row in display_rows_by_name.items()},
-                "updated_at": latest_updated_at,
-            }
-            if display_is_stale:
-                metadata["stale"] = True
+            stale_trait_names = active_trait_names - set(cached_rows_by_name)
+            full_reasons: list[str] = []
+            if active_trait_names and set(stale_chart_rows_by_name) >= active_trait_names:
+                full_reasons.append("astro_data")
+                stale_trait_names = set()
+            if active_trait_names and set(stale_norm_rows_by_name) >= active_trait_names:
+                full_reasons.append("database_norms")
+                stale_trait_names = set()
+            metadata = _metadata_from_vectors(
+                likelihoods={name: float(row.get("likelihood", 0.0)) for name, row in display_rows_by_name.items()},
+                database_averages={name: float(row.get("db_average", 0.0)) for name, row in display_rows_by_name.items()},
+                updated_at=latest_updated_at,
+                stale_trait_names=stale_trait_names if display_is_stale else set(),
+                full_staleness_reasons=full_reasons,
+            )
             return metadata
 
     if cached_only:
@@ -1599,9 +1633,71 @@ def _trait_render_signatures(owner: Any, chart: Any, traits: list[dict[str, Any]
     }
 
 
-def start_traits_prediction_calculation(owner: Any) -> None:
-    """Start the existing Traits prediction calculation flow from external UI controls."""
+def _traits_pending_cached_metadata(owner: Any) -> dict[str, Any] | None:
+    chart = getattr(owner, "_traits_prediction_pending_chart", None)
+    traits = getattr(owner, "_traits_prediction_pending_traits", None)
+    signatures = getattr(owner, "_traits_prediction_pending_signatures", None)
+    if chart is None or not isinstance(traits, list) or not traits or not isinstance(signatures, dict):
+        return None
+    cached_metadata = trait_metadata_for_chart(
+        owner,
+        chart,
+        cached_only=True,
+        traits=traits,
+        trait_signature=signatures.get("trait_signature"),
+        legacy_trait_signature=signatures.get("legacy_trait_signature"),
+        norm_signature=signatures.get("norm_signature"),
+        chart_signature=signatures.get("chart_signature"),
+    )
+    return cached_metadata if isinstance(cached_metadata, dict) else None
+
+
+def _traits_pending_cache_is_up_to_date(owner: Any) -> bool:
+    cached_metadata = _traits_pending_cached_metadata(owner)
+    return isinstance(cached_metadata, dict) and not bool(cached_metadata.get("stale"))
+
+
+def start_traits_prediction_calculation(owner: Any, *, user_initiated: bool = False) -> None:
+    """Start Traits prediction calculation unless the current chart cache is fresh."""
+    if _traits_pending_cache_is_up_to_date(owner):
+        if user_initiated:
+            parent = owner if isinstance(owner, QWidget) else None
+            QMessageBox.information(
+                parent,
+                "Traits",
+                "Traits up to date! No recalculation necessary.",
+            )
+        return
     _start_traits_prediction_calculation(owner)
+
+
+def sync_traits_prediction_section_expansion(owner: Any, expanded: bool) -> None:
+    """Apply Chart Editor Predictions-specific Traits expansion/calculation rules."""
+    expanded_by_key = getattr(owner, "_chart_analysis_section_expanded", None)
+    if isinstance(expanded_by_key, dict):
+        expanded_by_key["traits"] = expanded
+    if not expanded:
+        return
+    if _traits_pending_cached_metadata(owner) is None:
+        QTimer.singleShot(0, lambda owner=owner: start_traits_prediction_calculation(owner))
+
+
+def _set_traits_prediction_section_expanded(owner: Any, expanded: bool) -> None:
+    controller = getattr(owner, "_chart_analysis_sections_controller", None)
+    set_checked = getattr(controller, "set_section_checked", None)
+    if callable(set_checked):
+        set_checked("traits", expanded)
+        return
+    expanded_by_key = getattr(owner, "_chart_analysis_section_expanded", None)
+    if isinstance(expanded_by_key, dict):
+        expanded_by_key["traits"] = expanded
+
+
+def _traits_prediction_section_expanded(owner: Any) -> bool:
+    expanded_by_key = getattr(owner, "_chart_analysis_section_expanded", None)
+    if isinstance(expanded_by_key, dict):
+        return bool(expanded_by_key.get("traits", False))
+    return False
 
 
 def _start_traits_prediction_calculation(owner: Any) -> None:
@@ -2050,6 +2146,7 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
         owner._traits_prediction_pending_traits = traits
         owner._traits_prediction_pending_cache_key = cache_key or ""
         owner._traits_prediction_pending_signatures = signatures
+        _set_traits_prediction_section_expanded(owner, True)
         if bool(cached_metadata.get("stale")):
             _set_traits_header_action(owner, "recalculate")
             if _predictions_manual_recalculation_only(owner):
@@ -2072,15 +2169,20 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
             _apply_traits_prediction_metadata(owner, traits, cached_metadata)
         return
 
+    was_expanded = _traits_prediction_section_expanded(owner)
     owner._traits_prediction_pending_chart = chart
     owner._traits_prediction_pending_traits = traits
     owner._traits_prediction_pending_cache_key = cache_key or ""
     owner._traits_prediction_pending_signatures = signatures
+    if not was_expanded:
+        _set_traits_prediction_section_expanded(owner, False)
     _set_traits_header_action(owner, "calculate")
     if _predictions_manual_recalculation_only(owner):
-        _predictions_debug(owner, "Trait render found no persisted trait metadata; waiting for manual calculate cache_key=%s", (cache_key or "")[:12])
+        _predictions_debug(owner, "Trait render found no persisted trait metadata; waiting for expansion/header calculate cache_key=%s", (cache_key or "")[:12])
         prompt_html = _traits_calculate_prompt_html()
         _apply_traits_prediction_view(owner, prompt_html, prompt_html)
+        if was_expanded or _traits_prediction_section_expanded(owner):
+            QTimer.singleShot(0, lambda owner=owner: start_traits_prediction_calculation(owner))
     else:
         message = "● Loading fresh trait predictions for this UID… ●"
         _predictions_debug(owner, "Trait render found no persisted trait metadata; auto-loading fresh traits cache_key=%s", (cache_key or "")[:12])
