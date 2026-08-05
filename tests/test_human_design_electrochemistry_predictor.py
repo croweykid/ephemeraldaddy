@@ -469,3 +469,29 @@ def test_settings_consolidates_database_and_visualization_controls():
     )
     assert chart_methods_index < statistics_header_index < significance_index
     assert 'content_layout,\n            "Data Visualization"' not in settings_source
+
+
+def test_settings_builder_call_sites_are_defined():
+    import ast
+    from pathlib import Path
+
+    source = Path("ephemeraldaddy/gui/app.py").read_text()
+    tree = ast.parse(source)
+
+    settings_builder_calls = {
+        node.attr
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Attribute)
+        and isinstance(node.value, ast.Name)
+        and node.value.id == "self"
+        and node.attr.startswith("_build_settings")
+    }
+    settings_builder_definitions = {
+        node.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef)
+        and node.name.startswith("_build_settings")
+    }
+
+    assert settings_builder_calls <= settings_builder_definitions
+    assert "_build_settings_header_label" not in settings_builder_calls
