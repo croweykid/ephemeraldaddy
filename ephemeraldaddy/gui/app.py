@@ -577,6 +577,10 @@ from ephemeraldaddy.gui.features.controllers.db_info import (
 )
 from ephemeraldaddy.gui.features.transits import TransitPanelController
 from ephemeraldaddy.gui.features.transits.export import build_transit_chart_export_text
+from ephemeraldaddy.gui.features.chart_editor.exit_performance import (
+    should_block_database_view_open_for_prediction_flush,
+    should_defer_prediction_flush_until_prediction_view,
+)
 from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import (
     apply_mode_pick_metadata,
     _chart_right_panel_prediction_render_token,
@@ -35588,13 +35592,22 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
     def _should_flush_predictions_before_database_view(self) -> bool:
         """Return whether Chart View exit should synchronously refresh Predictions caches.
 
-        Lightweight metadata edits (alias/from/notes/tags/etc.) should not make
-        the Database View button wait for Fantasy RPG/Enneagram prediction cache writes.
-        The dirty bit is accumulated across the whole open-chart session, so a
-        later lightweight autosave cannot erase an earlier structural edit that
-        still needs one final prediction cache flush.
+        Prediction metadata writes are intentionally demand-driven on Chart
+        Editor exit.  Recent performance logs show ``chart_editor_flush`` taking
+        34–38 seconds when this path eagerly refreshes Fantasy RPG/Enneagram
+        caches before Database View can open.  Preserve the stale-cache marker,
+        but only block navigation for an unclassifiable save while the user is
+        actively looking at Predictions.
         """
-        return bool(getattr(self, "_chart_view_prediction_flush_pending", False))
+        state = getattr(self, "_chart_right_panel_state", None)
+        active_panel = getattr(state, "active_tab", None)
+        return should_block_database_view_open_for_prediction_flush(
+            pending_prediction_flush=bool(
+                getattr(self, "_chart_view_prediction_flush_pending", False)
+            ),
+            changed_fields=getattr(self, "_last_chart_save_changed_fields", None),
+            active_right_panel=active_panel,
+        )
 
     def on_manage_charts(
         self,
@@ -35620,6 +35633,15 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         if self._should_flush_predictions_before_database_view():
             self._flush_stale_predictions_before_chart_exit()
             self._chart_view_prediction_flush_pending = False
+        elif should_defer_prediction_flush_until_prediction_view(
+            pending_prediction_flush=bool(
+                getattr(self, "_chart_view_prediction_flush_pending", False)
+            ),
+            changed_fields=getattr(self, "_last_chart_save_changed_fields", None),
+        ):
+            logger.info(
+                "Deferred Chart Editor prediction cache flush until Predictions are requested."
+            )
         database_view_open_timing.phase("chart_editor_flush")
         self._chart_view_history.clear()
         self._chart_view_history_index = -1
