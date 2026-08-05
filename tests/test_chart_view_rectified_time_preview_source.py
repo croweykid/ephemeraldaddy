@@ -28,13 +28,22 @@ def test_chart_render_can_skip_time_sensitivity_refresh_for_live_timing_preview(
     assert "refresh_time_sensitivity" in method.split("time_sensitivity_panel.refresh_for_current_chart()", 1)[0]
 
 
-def test_timing_preview_marks_analytics_stale_without_live_chart_rebuild():
+def test_timing_preview_flush_keeps_live_chart_data_output_rebuild():
     method = _method_source("_flush_timing_preview_update")
 
-    assert "_refresh_chart_preview()" not in method
-    assert "_mark_chart_analytics_sections_lucy_goosey()" in method
-    assert "_update_unknown_positions_summary" in method
+    assert "_refresh_chart_preview()" in method
     assert "_reset_metric_canvases_for_retcon_timing_update" not in method
+
+
+def test_timing_preview_completion_does_not_wake_right_panel_peripherals():
+    method = _method_source("_flush_scheduled_chart_render")
+
+    marker = "if not timing_preview_render:"
+    assert "timing_preview_render = bool(" in method
+    assert marker in method
+    gated_block = method[method.index(marker):]
+    assert "self._schedule_chart_render_for_active_right_panel()" in gated_block
+    assert "self._schedule_passive_chart_analysis_preload_if_current" in gated_block
 
 
 def test_chart_summary_does_not_wake_predictions_during_timing_preview():

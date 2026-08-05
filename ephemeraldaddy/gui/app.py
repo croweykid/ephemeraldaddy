@@ -35988,11 +35988,11 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         if self._suppress_lucygoosey:
             return
         # Birth-time, rectified-time, and rectified-range edits change core
-        # calculated chart data, but rebuilding the chart while a user is still
-        # entering HH:mm values is the freeze path called out in the recent
-        # performance logs.  Keep the save/prompt state authoritative and leave
-        # the expensive rebuild for an explicit save, the leave prompt's Save
-        # choice, or a later on-demand render after the user asks for chart data.
+        # calculated chart data. Keep the save/prompt state authoritative, but
+        # let the debounced preview rebuild only the live Chart Data Output /
+        # wheel path. Right-panel peripherals are gated when that preview render
+        # completes so hidden Predictions/Analytics work cannot wake in the
+        # background while the user is still editing HH:mm values.
         self._metadata_autosave_requires_recalculation = True
         self._mark_chart_analytics_sections_lucy_goosey()
         self._timing_preview_update_timer.start(CHART_VIEW_TIMING_PREVIEW_DEBOUNCE_MS)
@@ -36000,8 +36000,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
     def _flush_timing_preview_update(self) -> None:
         if self._suppress_lucygoosey:
             return
-        self._mark_chart_analytics_sections_lucy_goosey()
-        self._update_unknown_positions_summary(getattr(self, "_latest_chart", None))
+        self._refresh_chart_preview()
 
     def _reset_metric_canvases_for_retcon_timing_update(self) -> None:
         """Reset only Chart View metric canvases affected by retcon timing edits."""
@@ -36348,6 +36347,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             self._render_flush_timer.start(CHART_RENDER_BACKGROUND_DELAY_MS)
             return
 
+        timing_preview_render = bool(
+            getattr(self, "_suppress_right_panel_refresh_for_timing_preview", False)
+        )
         self._suppress_right_panel_refresh_for_timing_preview = False
         self._pending_render_chart = None
         # draw() is synchronous for chart/metric canvases, so overlay shutdown can
@@ -36375,19 +36377,20 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             )
             self._chart_load_timing = None
         active_right_tab = getattr(self._chart_right_panel_state, "active_tab", None)
-        if active_right_tab == "predictions":
-            self._schedule_chart_render_for_active_right_panel()
-        elif active_right_tab == "analytics" and bool(
-            getattr(self, "_chart_analytics_distinguishing_factors_expanded", False)
-        ):
-            self._render_distinguishing_factors(chart)
-        preload_delay_ms = 700 if bool(getattr(self, "_chart_right_panel_fade_in_progress", False)) else 0
-        QTimer.singleShot(
-            preload_delay_ms,
-            lambda chart_snapshot=chart: self._schedule_passive_chart_analysis_preload_if_current(
-                chart_snapshot
-            ),
-        )
+        if not timing_preview_render:
+            if active_right_tab == "predictions":
+                self._schedule_chart_render_for_active_right_panel()
+            elif active_right_tab == "analytics" and bool(
+                getattr(self, "_chart_analytics_distinguishing_factors_expanded", False)
+            ):
+                self._render_distinguishing_factors(chart)
+            preload_delay_ms = 700 if bool(getattr(self, "_chart_right_panel_fade_in_progress", False)) else 0
+            QTimer.singleShot(
+                preload_delay_ms,
+                lambda chart_snapshot=chart: self._schedule_passive_chart_analysis_preload_if_current(
+                    chart_snapshot
+                ),
+            )
 
     def _chart_analysis_render_key_for_section(self, section_key: str) -> str | None:
         return {
