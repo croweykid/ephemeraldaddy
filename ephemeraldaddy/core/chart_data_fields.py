@@ -42,6 +42,8 @@ class NonastralPatch(TypedDict, total=False):
     familiarity_factors: list[str]
     age_when_first_met: int
     year_first_encountered: int | None
+    current_relationship: bool
+    last_encounter: int | None
     data_rating: str
     social_score: int
     chart_type: str
@@ -159,6 +161,8 @@ NONASTRAL_DATA = frozenset(
         "familiarity_factors",
         "age_when_first_met",
         "year_first_encountered",
+        "current_relationship",
+        "last_encounter",
         "data_rating",
         "social_score",
         "chart_type",

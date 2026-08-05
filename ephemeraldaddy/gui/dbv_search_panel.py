@@ -837,6 +837,26 @@ def has_active_chart_filters(window) -> bool:
         if window._year_first_encountered_blank_checkbox is not None
         else QuadStateSlider.MODE_EMPTY
     )
+    current_relationship_state = (
+        window._current_relationship_filter_checkbox.mode()
+        if getattr(window, "_current_relationship_filter_checkbox", None) is not None
+        else QuadStateSlider.MODE_EMPTY
+    )
+    last_encounter_earliest = (
+        window._last_encounter_earliest_input.text().strip()
+        if getattr(window, "_last_encounter_earliest_input", None) is not None
+        else ""
+    )
+    last_encounter_latest = (
+        window._last_encounter_latest_input.text().strip()
+        if getattr(window, "_last_encounter_latest_input", None) is not None
+        else ""
+    )
+    last_encounter_blank_state = (
+        window._last_encounter_blank_checkbox.mode()
+        if getattr(window, "_last_encounter_blank_checkbox", None) is not None
+        else QuadStateSlider.MODE_EMPTY
+    )
     guessed_gender_filter = str(window.gender_guessed_filter_combo.currentData() or "")
     positive_sentiment_intensity_min = window._parse_integer_filter_text(
         window._positive_sentiment_intensity_min_input.text()
@@ -1042,6 +1062,10 @@ def has_active_chart_filters(window) -> bool:
         and not year_first_encountered_earliest
         and not year_first_encountered_latest
         and year_first_encountered_blank_state == QuadStateSlider.MODE_EMPTY
+        and current_relationship_state == QuadStateSlider.MODE_EMPTY
+        and not last_encounter_earliest
+        and not last_encounter_latest
+        and last_encounter_blank_state == QuadStateSlider.MODE_EMPTY
         and not selected_chart_types
         and not excluded_chart_types
         and not selected_data_ratings
@@ -2879,6 +2903,43 @@ def build_dbv_search_panel(window) -> "QWidget":
     year_first_encountered_blank_row.addWidget(window._year_first_encountered_blank_checkbox)
     year_first_encountered_blank_row.addStretch(1)
     personal_relevance_group_layout.addLayout(year_first_encountered_blank_row)
+
+
+    personal_relevance_group_layout.addWidget(QLabel("💭Last Encounter"))
+    current_relationship_row = QHBoxLayout()
+    window._current_relationship_filter_checkbox = QuadStateSlider("ongoing")
+    window._current_relationship_filter_checkbox.modeChanged.connect(window._on_filter_changed)
+    current_relationship_row.addWidget(window._current_relationship_filter_checkbox)
+    current_relationship_row.addStretch(1)
+    personal_relevance_group_layout.addLayout(current_relationship_row)
+
+    last_encounter_range_row = QHBoxLayout()
+    last_encounter_range_row.addWidget(QLabel("Earliest"))
+    window._last_encounter_earliest_input = QLineEdit()
+    window._last_encounter_earliest_input.setMaxLength(4)
+    window._last_encounter_earliest_input.setFixedWidth(56)
+    window._last_encounter_earliest_input.setPlaceholderText("YYYY")
+    window._last_encounter_earliest_input.setValidator(QIntValidator(1900, 2100, window))
+    window._last_encounter_earliest_input.textChanged.connect(window._on_filter_changed)
+    last_encounter_range_row.addWidget(window._last_encounter_earliest_input)
+    last_encounter_range_row.addSpacing(10)
+    last_encounter_range_row.addWidget(QLabel("Latest"))
+    window._last_encounter_latest_input = QLineEdit()
+    window._last_encounter_latest_input.setMaxLength(4)
+    window._last_encounter_latest_input.setFixedWidth(56)
+    window._last_encounter_latest_input.setPlaceholderText("YYYY")
+    window._last_encounter_latest_input.setValidator(QIntValidator(1900, 2100, window))
+    window._last_encounter_latest_input.textChanged.connect(window._on_filter_changed)
+    last_encounter_range_row.addWidget(window._last_encounter_latest_input)
+    last_encounter_range_row.addStretch(1)
+    personal_relevance_group_layout.addLayout(last_encounter_range_row)
+
+    last_encounter_blank_row = QHBoxLayout()
+    window._last_encounter_blank_checkbox = QuadStateSlider("blank")
+    window._last_encounter_blank_checkbox.modeChanged.connect(window._on_filter_changed)
+    last_encounter_blank_row.addWidget(window._last_encounter_blank_checkbox)
+    last_encounter_blank_row.addStretch(1)
+    personal_relevance_group_layout.addLayout(last_encounter_blank_row)
 
     sentiment_section, sentiment_group_layout = add_collapsible_section("💭Sentiment Types")
     window.search_sentiment_section = sentiment_section

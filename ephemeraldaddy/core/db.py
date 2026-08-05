@@ -126,6 +126,8 @@ CHART_EXPORT_DEFAULTS: dict[str, Any] = {
     "familiarity_factors": "",
     "age_when_first_met": 0,
     "year_first_encountered": None,
+    "current_relationship": 1,
+    "last_encounter": None,
     "data_rating": "blank",
     "social_score": 0,
     "birthtime_unknown": 0,
@@ -540,6 +542,8 @@ def _create_charts_table(conn: sqlite3.Connection) -> None:
             familiarity_factors TEXT,
             age_when_first_met INTEGER NOT NULL DEFAULT 0,
             year_first_encountered INTEGER,
+            current_relationship INTEGER NOT NULL DEFAULT 1,
+            last_encounter INTEGER,
             data_rating TEXT NOT NULL DEFAULT 'blank',
             social_score INTEGER NOT NULL DEFAULT 0,
             birthtime_unknown INTEGER NOT NULL DEFAULT 0,
@@ -1481,6 +1485,20 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
             """
         )
         added_year_first_encountered = True
+    if "current_relationship" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE charts
+            ADD COLUMN current_relationship INTEGER NOT NULL DEFAULT 1
+            """
+        )
+    if "last_encounter" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE charts
+            ADD COLUMN last_encounter INTEGER
+            """
+        )
     if "data_rating" not in columns:
         conn.execute(
             """
@@ -2603,6 +2621,18 @@ def _normalize_year_first_encountered(value: Optional[int]) -> Optional[int]:
         return parsed
     return None
 
+
+def _normalize_last_encounter(value: Optional[int]) -> Optional[int]:
+    if value is None:
+        return None
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    if 1900 <= parsed <= 2100:
+        return parsed
+    return None
+
 def _normalize_optional_sentiment_metric(value: Optional[int]) -> Optional[int]:
     if value is None:
         return None
@@ -3572,7 +3602,7 @@ def append_database(source: Path) -> dict[str, Any]:
                         (id, chart_uid, name, alias, from_whence, gender, birth_place, datetime_iso, tz_name,
                          lat, lon, used_utc_fallback, sentiments, relationship_types, tags, reminds_me_of, comments, emoji_portrait, quotes, rectification_notes, biography, chart_data_source, alternate_chart_uid,
                          positive_sentiment_intensity, negative_sentiment_intensity, familiarity,
-                         alignment_score, sexiness_score, matched_expectations, familiarity_factors, age_when_first_met, year_first_encountered, data_rating,
+                         alignment_score, sexiness_score, matched_expectations, familiarity_factors, age_when_first_met, year_first_encountered, current_relationship, last_encounter, data_rating,
                          social_score, birthtime_unknown, signs_unknown, unknown_signs, retcon_time_used, retcon_hour, retcon_minute,
                          rectification_range_used, rectification_range_start_minute, rectification_range_end_minute,
                          dominant_sign_weights, dominant_planet_weights, dominant_nakshatra_weights, dominant_element_weights, dominant_mode, modal_distribution,
@@ -3585,7 +3615,7 @@ def append_database(source: Path) -> dict[str, Any]:
                          is_placeholder, is_deceased, birth_month, birth_day, birth_year,
                          death_month, death_day, death_year, deathtime_unknown, death_hour, death_minute, death_place,
                          created_at, is_current)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         new_chart_id,
@@ -3620,6 +3650,8 @@ def append_database(source: Path) -> dict[str, Any]:
                         _row_value("familiarity_factors"),
                         max(0, int(_row_value("age_when_first_met") or 0)),
                         _normalize_year_first_encountered(_row_value("year_first_encountered")),
+                        1 if int(_row_value("current_relationship", 1) or 0) else 0,
+                        _normalize_last_encounter(_row_value("last_encounter")),
                         str(_row_value("data_rating") or "blank"),
                         int(social_score),
                         int(_row_value("birthtime_unknown") or 0),
@@ -3810,7 +3842,7 @@ def save_chart(
                  chart_data_source,
                  alternate_chart_uid,
                  positive_sentiment_intensity, negative_sentiment_intensity,
-                 familiarity, alignment_score, sexiness_score, weirdness_score, matched_expectations, familiarity_factors, age_when_first_met, year_first_encountered, data_rating, social_score,
+                 familiarity, alignment_score, sexiness_score, weirdness_score, matched_expectations, familiarity_factors, age_when_first_met, year_first_encountered, current_relationship, last_encounter, data_rating, social_score,
                  birthtime_unknown,
                  signs_unknown, unknown_signs,
                  retcon_time_used, retcon_hour, retcon_minute,
@@ -3836,7 +3868,7 @@ def save_chart(
                  death_minute,
                  death_place,
                  created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 chart.name,
@@ -3892,6 +3924,8 @@ def save_chart(
                 ),
                 max(0, int(getattr(chart, "age_when_first_met", 0) or 0)),
                 _normalize_year_first_encountered(getattr(chart, "year_first_encountered", None)),
+                1 if bool(getattr(chart, "current_relationship", True)) else 0,
+                _normalize_last_encounter(getattr(chart, "last_encounter", None)),
                 str(getattr(chart, "data_rating", "blank") or "blank"),
                 calculate_social_score(
                     getattr(chart, "positive_sentiment_intensity", None),
@@ -4143,6 +4177,8 @@ def update_chart(
                 familiarity_factors = ?,
                 age_when_first_met = ?,
                 year_first_encountered = ?,
+                current_relationship = ?,
+                last_encounter = ?,
                 data_rating = ?,
                 social_score = ?,
                 birthtime_unknown = ?,
@@ -4247,6 +4283,8 @@ def update_chart(
                 ),
                 max(0, int(getattr(chart, "age_when_first_met", 0) or 0)),
                 _normalize_year_first_encountered(getattr(chart, "year_first_encountered", None)),
+                1 if bool(getattr(chart, "current_relationship", True)) else 0,
+                _normalize_last_encounter(getattr(chart, "last_encounter", None)),
                 str(getattr(chart, "data_rating", "blank") or "blank"),
                 calculate_social_score(
                     getattr(chart, "positive_sentiment_intensity", None),
@@ -4381,6 +4419,8 @@ def update_chart_lightweight_metadata(chart_id: int, chart) -> None:
                 familiarity_factors = ?,
                 age_when_first_met = ?,
                 year_first_encountered = ?,
+                current_relationship = ?,
+                last_encounter = ?,
                 data_rating = ?,
                 social_score = ?,
                 chart_type = ?,
@@ -4421,6 +4461,8 @@ def update_chart_lightweight_metadata(chart_id: int, chart) -> None:
                 _serialize_familiarity_factors(getattr(chart, "familiarity_factors", [])),
                 max(0, int(getattr(chart, "age_when_first_met", 0) or 0)),
                 _normalize_year_first_encountered(getattr(chart, "year_first_encountered", None)),
+                1 if bool(getattr(chart, "current_relationship", True)) else 0,
+                _normalize_last_encounter(getattr(chart, "last_encounter", None)),
                 str(getattr(chart, "data_rating", "blank") or "blank"),
                 calculate_social_score(
                     getattr(chart, "positive_sentiment_intensity", None),
@@ -5544,6 +5586,8 @@ def _new_chart_shell(
     chart.bazi_hour_element = ""
     chart.age_when_first_met = 0
     chart.year_first_encountered = None
+    chart.current_relationship = True
+    chart.last_encounter = None
     chart.data_rating = "blank"
     chart.chart_type = "personal"
     chart.name = name
@@ -5621,12 +5665,20 @@ def _chart_row_projection(columns: set[str]) -> str:
     emoji_portrait_projection = "emoji_portrait" if "emoji_portrait" in columns else "NULL AS emoji_portrait"
     quotes_projection = "quotes" if "quotes" in columns else "NULL AS quotes"
     profile_pic_projection = "profile_pic" if "profile_pic" in columns else "NULL AS profile_pic"
+    current_relationship_projection = (
+        "current_relationship"
+        if "current_relationship" in columns
+        else "1 AS current_relationship"
+    )
+    last_encounter_projection = (
+        "last_encounter" if "last_encounter" in columns else "NULL AS last_encounter"
+    )
     return f"""
         chart_uid, name, alias, from_whence, gender, birth_place, datetime_iso, tz_name, lat, lon,
                used_utc_fallback, sentiments, relationship_types,
                tags, reminds_me_of, comments, {emoji_portrait_projection}, {quotes_projection}, rectification_notes, biography, chart_data_source, alternate_chart_uid,
                positive_sentiment_intensity, negative_sentiment_intensity,
-               familiarity, alignment_score, sexiness_score, {"weirdness_score" if "weirdness_score" in columns else "NULL AS weirdness_score"}, matched_expectations, {familiarity_factors_projection}, age_when_first_met, year_first_encountered, data_rating, birthtime_unknown, signs_unknown, unknown_signs,
+               familiarity, alignment_score, sexiness_score, {"weirdness_score" if "weirdness_score" in columns else "NULL AS weirdness_score"}, matched_expectations, {familiarity_factors_projection}, age_when_first_met, year_first_encountered, {current_relationship_projection}, {last_encounter_projection}, data_rating, birthtime_unknown, signs_unknown, unknown_signs,
                retcon_time_used, retcon_hour, retcon_minute,
                rectification_range_used, rectification_range_start_minute, rectification_range_end_minute,
                {derived_birth_data_signature_projection}, {derived_positions_projection}, {derived_retrogrades_projection},
@@ -5679,6 +5731,8 @@ def _chart_from_row(chart_id: int, row):
         familiarity_factors,
         age_when_first_met,
         year_first_encountered,
+        current_relationship,
+        last_encounter,
         data_rating,
         birthtime_unknown,
         signs_unknown,
@@ -5942,6 +5996,8 @@ def _chart_from_row(chart_id: int, row):
     )
     chart.age_when_first_met = max(0, int(age_when_first_met or 0))
     chart.year_first_encountered = _normalize_year_first_encountered(year_first_encountered)
+    chart.current_relationship = bool(current_relationship)
+    chart.last_encounter = _normalize_last_encounter(last_encounter)
     chart.data_rating = str(data_rating or "blank")
     chart.birthtime_unknown = bool(birthtime_unknown)
     chart.signs_unknown = bool(signs_unknown)

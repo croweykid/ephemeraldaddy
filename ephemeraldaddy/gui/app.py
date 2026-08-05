@@ -989,6 +989,19 @@ from ephemeraldaddy.gui.dbv_search_panel import (
     snapshot_human_design_search_selections,
     weight_is_at_least_triple_next_highest,
 )
+from ephemeraldaddy.gui.features.chart_editor.personal_relevance import (
+    add_chart_editor_personal_relevance_rows,
+    apply_chart_editor_last_encounter_metadata,
+    configure_chart_editor_personal_relevance_controls,
+    load_chart_editor_last_encounter_controls,
+    parse_last_encounter_text,
+    reset_chart_editor_last_encounter_controls,
+)
+from ephemeraldaddy.gui.features.database_view.batch_editor.personal_relevance import (
+    build_batch_last_encounter_controls,
+    reset_batch_last_encounter_state,
+    set_batch_last_encounter_state,
+)
 from ephemeraldaddy.gui.features.charts.transit_workers import (
     ManagedTransitPopoutDialog,
     TransitAspectWindowRelay,
@@ -2508,6 +2521,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._year_first_encountered_earliest_input = None
         self._year_first_encountered_latest_input = None
         self._year_first_encountered_blank_checkbox = None
+        self._current_relationship_filter_checkbox = None
+        self._last_encounter_earliest_input = None
+        self._last_encounter_latest_input = None
+        self._last_encounter_blank_checkbox = None
         self.data_rating_filter_checkboxes: dict[str, QuadStateSlider] = {}
         self._positive_sentiment_intensity_min_input = None
         self._positive_sentiment_intensity_max_input = None
@@ -13788,6 +13805,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             "negative_sentiment_intensity": False,
             "familiarity": False,
             "year_first_encountered": False,
+            "last_encounter": False,
             "matched_expectations": False,
         }
         self._batch_tags_lucygoosey = False
@@ -13813,6 +13831,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             1,
         )
         sentiment_metrics_layout.addWidget(batch_year_first_encountered_button, 3, 2)
+
+        build_batch_last_encounter_controls(self, sentiment_metrics_layout, row=4)
 
         self.batch_positive_sentiment_intensity_spin = QSpinBox()
         self.batch_positive_sentiment_intensity_spin.setRange(0, 10)
@@ -13909,7 +13929,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._bind_batch_enter_apply(self.batch_positive_sentiment_intensity_spin, batch_positive_button.click)
         self._bind_batch_enter_apply(self.batch_negative_sentiment_intensity_spin, batch_negative_button.click)
         self._bind_batch_enter_apply(self.batch_familiarity_spin, batch_familiarity_button.click)
-        self._bind_batch_enter_apply(self.batch_year_first_encountered_edit, batch_year_first_encountered_button.click) 
+        self._bind_batch_enter_apply(self.batch_year_first_encountered_edit, batch_year_first_encountered_button.click)
+        self._bind_batch_enter_apply(self.batch_last_encounter_edit, self.batch_last_encounter_apply_button.click)
         self.batch_year_first_encountered_edit.textEdited.connect(
             lambda _text: self._on_batch_metric_field_lucygoosey("year_first_encountered")
         )
@@ -14003,6 +14024,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         tag_counts: dict[str, int] = {}
         gender_values: list[str] = []
         year_first_encountered_values: list[int | None] = []
+        current_relationship_values: list[bool] = []
+        last_encounter_values: list[int | None] = []
         from_whence_values: list[str] = []
         for chart_id, chart in resolved_items:
             sentiments = set(getattr(chart, "sentiments", []) or [])
@@ -14048,6 +14071,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             year_first_encountered_values.append(
                 self._parse_year_first_encountered_text(str(getattr(chart, "year_first_encountered", "") or ""))
             )
+            current_relationship_values.append(bool(getattr(chart, "current_relationship", True)))
+            last_encounter_values.append(self._parse_last_encounter_text(str(getattr(chart, "last_encounter", "") or "")))
             from_whence_values.append(str(getattr(chart, "from_whence", "") or ""))
 
 
@@ -14146,6 +14171,12 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             "year_first_encountered",
             self.batch_year_first_encountered_edit,
             year_first_encountered_values,
+            preserve_lucygoosey=preserve_lucygoosey_metrics,
+        )
+        set_batch_last_encounter_state(
+            self,
+            current_relationship_values,
+            last_encounter_values,
             preserve_lucygoosey=preserve_lucygoosey_metrics,
         )
         self._set_batch_tags_state(
@@ -14408,6 +14439,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
     def _parse_year_first_encountered_text(raw_value: str | None) -> int | None:
         return parse_year_first_encountered_text(raw_value)
 
+    @staticmethod
+    def _parse_last_encounter_text(raw_value: str | None) -> int | None:
+        return parse_last_encounter_text(raw_value)
+
     def _apply_location_completer(self, line_edit: QLineEdit | None, choices: list[str]) -> None:
         apply_search_location_completer(self, line_edit, choices)
 
@@ -14589,6 +14624,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             )
         else:
             line_edit.setToolTip("")
+
 
     def _set_batch_tags_state(
         self,
@@ -15373,6 +15409,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._update_batch_edit_state()
         self._refresh_filters_after_batch_edit(changed_ids)
 
+
     def _on_batch_metric_field_lucygoosey(self, field_key: str) -> None:
         if self._batch_metric_programmatic_update:
             return
@@ -15525,6 +15562,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             "familiarity": self.batch_familiarity_spin,
             "matched_expectations": self.batch_matched_expectations_slider,
             "year_first_encountered": self.batch_year_first_encountered_edit,
+            "last_encounter": self.batch_last_encounter_edit,
         }
         return mapping.get(field_key)
 
@@ -16841,6 +16879,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self.batch_matched_expectations_slider.setToolTip("")
         self.batch_year_first_encountered_edit.setText("")
         self.batch_year_first_encountered_edit.setToolTip("")
+        reset_batch_last_encounter_state(self)
         if hasattr(self, "batch_tags_input"):
             self.batch_tags_input.setText("")
             self.batch_tags_input.setToolTip("")
@@ -16856,7 +16895,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._update_batch_alignment_score_label(0)
         self.batch_alignment_slider.setToolTip("")
         if hasattr(self, "_batch_metric_lucygoosey"):
-            for metric_key in ("positive_sentiment_intensity", "negative_sentiment_intensity", "familiarity", "year_first_encountered", "matched_expectations"):
+            for metric_key in ("positive_sentiment_intensity", "negative_sentiment_intensity", "familiarity", "year_first_encountered", "last_encounter", "matched_expectations"):
                 self._set_batch_metric_lucygoosey_state(metric_key, False)
 
 
@@ -17557,6 +17596,14 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 self._year_first_encountered_latest_input.setText("")
             if self._year_first_encountered_blank_checkbox is not None:
                 self._year_first_encountered_blank_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
+            if self._current_relationship_filter_checkbox is not None:
+                self._current_relationship_filter_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
+            if self._last_encounter_earliest_input is not None:
+                self._last_encounter_earliest_input.setText("")
+            if self._last_encounter_latest_input is not None:
+                self._last_encounter_latest_input.setText("")
+            if self._last_encounter_blank_checkbox is not None:
+                self._last_encounter_blank_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             for filters in self._dominant_element_filters:
                 filters["element"].setCurrentIndex(0)
                 filters["or"].setChecked(False)
@@ -20028,6 +20075,26 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             if self._year_first_encountered_blank_checkbox is not None
             else QuadStateSlider.MODE_EMPTY
         )
+        current_relationship_state = (
+            self._current_relationship_filter_checkbox.mode()
+            if self._current_relationship_filter_checkbox is not None
+            else QuadStateSlider.MODE_EMPTY
+        )
+        last_encounter_earliest = self._parse_last_encounter_text(
+            self._last_encounter_earliest_input.text()
+            if self._last_encounter_earliest_input is not None
+            else ""
+        )
+        last_encounter_latest = self._parse_last_encounter_text(
+            self._last_encounter_latest_input.text()
+            if self._last_encounter_latest_input is not None
+            else ""
+        )
+        last_encounter_blank_state = (
+            self._last_encounter_blank_checkbox.mode()
+            if self._last_encounter_blank_checkbox is not None
+            else QuadStateSlider.MODE_EMPTY
+        )
         positive_sentiment_intensity_min = self._parse_integer_filter_text(
             self._positive_sentiment_intensity_min_input.text()
             if self._positive_sentiment_intensity_min_input is not None
@@ -20530,6 +20597,26 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         elif year_first_encountered_blank_state == QuadStateSlider.MODE_FALSE:
             if chart_year_first_encountered is None:
                 return False
+
+        chart_current_relationship = bool(getattr(chart, "current_relationship", True))
+        if current_relationship_state == QuadStateSlider.MODE_TRUE and not chart_current_relationship:
+            return False
+        if current_relationship_state == QuadStateSlider.MODE_FALSE and chart_current_relationship:
+            return False
+
+        chart_last_encounter = self._parse_last_encounter_text(str(getattr(chart, "last_encounter", "") or ""))
+        if last_encounter_earliest is not None and (
+            chart_last_encounter is None or chart_last_encounter < last_encounter_earliest
+        ):
+            return False
+        if last_encounter_latest is not None and (
+            chart_last_encounter is None or chart_last_encounter > last_encounter_latest
+        ):
+            return False
+        if last_encounter_blank_state == QuadStateSlider.MODE_TRUE and chart_last_encounter is not None:
+            return False
+        if last_encounter_blank_state == QuadStateSlider.MODE_FALSE and chart_last_encounter is None:
+            return False
 
         chart_positive_sentiment_intensity = self._normalized_batch_sentiment_metric_optional(
             getattr(chart, "positive_sentiment_intensity", None)
@@ -25360,14 +25447,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.rectification_range_start_edit.timeChanged.connect(self._on_rectification_range_changed)
         self.rectification_range_end_edit.timeChanged.connect(self._on_rectification_range_changed)
         self.rectification_range_to_label = QLabel("to")
-        self.year_first_encountered_edit = QLineEdit()
-        self.year_first_encountered_edit.setMaxLength(4)
-        self.year_first_encountered_edit.setPlaceholderText("Year 1st Encountered")
-        self.year_first_encountered_edit.setFixedWidth(56)
-        self.year_first_encountered_edit.setValidator(
-            QRegularExpressionValidator(QRegularExpression(r"^\d{0,4}$"), self)
-        )
-        self.year_first_encountered_edit.textChanged.connect(self._on_sentiment_metric_changed)
+        configure_chart_editor_personal_relevance_controls(self)
 
         self.deceased_checkbox = QCheckBox("💀")
         self.deceased_checkbox.setToolTip("Mark this chart as deceased")
@@ -25955,16 +26035,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             2,
             1,
         )
-        sentiment_metrics_layout.addWidget(
-            QLabel("1st Encounter:"),
-            3,
-            0,
-        )
-        sentiment_metrics_layout.addWidget(
-            self.year_first_encountered_edit,
-            3,
-            1,
-        )
+        add_chart_editor_personal_relevance_rows(self, sentiment_metrics_layout, first_row=3)
         setup_chart_view_emoji_portrait_section(
             self,
             sentiment_metrics_container_layout,
@@ -26013,6 +26084,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             self.familiarity_spin,
             self.alignment_slider,
             self.year_first_encountered_edit,
+            self.last_encounter_edit,
             self.chart_source_combo,
         ):
             self._bind_enter_update(widget, self.update_button.click)
@@ -32686,6 +32758,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.familiarity_spin.setToolTip("")
         self._chart_familiarity_factors = []
         self.year_first_encountered_edit.setText("")
+        reset_chart_editor_last_encounter_controls(self)
         self.data_rating_combo.setCurrentIndex(0)
 
     def _apply_chart_type_ui_state(self, chart_type: str | None) -> None:
@@ -33428,6 +33501,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         placeholder.sexiness_score = self.sexiness_slider.value()
         placeholder.familiarity_factors = list(getattr(self, "_chart_familiarity_factors", []))
         placeholder.year_first_encountered = self._parse_year_first_encountered_text(self.year_first_encountered_edit.text())
+        apply_chart_editor_last_encounter_metadata(self, placeholder, is_event_chart=False)
         placeholder.data_rating = str(self.data_rating_combo.currentData() or "blank")
         placeholder.age_when_first_met = 0
         placeholder.sentiment_confidence = placeholder.familiarity
@@ -33613,6 +33687,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             )
         if hasattr(chart, "age_when_first_met"):
             chart.year_first_encountered = None if is_event_chart else self._parse_year_first_encountered_text(self.year_first_encountered_edit.text())
+            apply_chart_editor_last_encounter_metadata(self, chart, is_event_chart=is_event_chart)
             chart.age_when_first_met = 0
         if hasattr(chart, "data_rating"):
             chart.data_rating = "blank" if is_event_chart else str(self.data_rating_combo.currentData() or "blank")
@@ -33711,6 +33786,10 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
     @staticmethod
     def _parse_year_first_encountered_text(raw_value: str | None) -> int | None:
         return parse_year_first_encountered_text(raw_value)
+
+    @staticmethod
+    def _parse_last_encounter_text(raw_value: str | None) -> int | None:
+        return parse_last_encounter_text(raw_value)
 
     def _on_deceased_toggled(self, checked: bool) -> None:
         if hasattr(self, "death_row_widget"):
@@ -34301,6 +34380,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                     chart.sexiness_score = 0 if is_event_chart else self.sexiness_slider.value()
                 chart.familiarity_factors = [] if is_event_chart else list(getattr(self, "_chart_familiarity_factors", []))
                 chart.year_first_encountered = None if is_event_chart else self._parse_year_first_encountered_text(self.year_first_encountered_edit.text())
+                apply_chart_editor_last_encounter_metadata(self, chart, is_event_chart=is_event_chart)
                 chart.data_rating = "blank" if is_event_chart else str(self.data_rating_combo.currentData() or "blank")
                 chart.age_when_first_met = 0
                 chart.source = chart_type_value
@@ -35135,6 +35215,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.year_first_encountered_edit.setText(
             "" if getattr(chart, "year_first_encountered", None) is None else str(getattr(chart, "year_first_encountered"))
         )
+        load_chart_editor_last_encounter_controls(self, chart)
         data_rating_value = str(getattr(chart, "data_rating", "blank") or "blank")
         data_rating_index = self.data_rating_combo.findData(data_rating_value)
         self.data_rating_combo.setCurrentIndex(max(0, data_rating_index))
