@@ -898,6 +898,10 @@ from ephemeraldaddy.analysis.human_design_synastry import (
     HD_SYNASTRY_GENDER_METHOD_IDENTITY,
     HD_SYNASTRY_GENDER_METHOD_SEX,
 )
+from ephemeraldaddy.gui.features.predictions.ocean import (
+    OceanPredictionPanelAdapter,
+    build_ocean_popout_info_html,
+)
 from ephemeraldaddy.gui.features.predictions.hd_electrochemistry import (
     load_gendered_results_method,
     on_gendered_results_method_changed,
@@ -22144,6 +22148,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
         prediction_section_options = (
             ("traits", "Show Traits predictions"),
+            ("ocean", "Show OCEAN Personality predictions"),
             ("enneagram", "Show Enneagram predictions"),
             ("dnd_statblock", "Show Fantasy RPG Statblock predictions"),
             ("dnd_species", "Show Fantasy RPG Species predictions"),
@@ -26308,6 +26313,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.nakshatra_wordcloud_canvas = None
         self.modal_distribution_canvas = None
         self.gender_guesser_canvas = None
+        self.ocean_prediction_canvas = None
         self.planet_dynamics_canvas = None
         self.enneagram_prediction_canvas = None
         self.dnd_prediction_statblock_canvas = None
@@ -35631,6 +35637,11 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             and state.last_render_chart_token == render_token
         )
         try:
+            if self._visibility.get("predictions.ocean"):
+                self._render_ocean_predictions(chart)
+        except Exception:
+            logger.warning("Failed to flush OCEAN Predictions before leaving Chart View.", exc_info=True)
+        try:
             if self._visibility.get("predictions.enneagram"):
                 self._cache_enneagram_prediction_metadata(chart)
         except Exception:
@@ -36055,6 +36066,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             ("modal_distribution_canvas", "modal_distribution_container_layout"),
             ("gender_guesser_canvas", "gender_guesser_container_layout"),
             ("planet_dynamics_canvas", "planet_dynamics_container_layout"),
+            ("ocean_prediction_canvas", "ocean_prediction_chart_layout"),
             ("enneagram_prediction_canvas", "enneagram_prediction_chart_layout"),
             ("dnd_prediction_statblock_canvas", "dnd_predictions_chart_layout"),
             ("dnd_prediction_alignment_canvas", "dnd_alignment_chart_layout"),
@@ -36808,6 +36820,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.nakshatra_wordcloud_canvas = None
         self.modal_distribution_canvas = None
         self.gender_guesser_canvas = None
+        self.ocean_prediction_canvas = None
         self.planet_dynamics_canvas = None
         self.enneagram_prediction_canvas = None
         self.dnd_prediction_statblock_canvas = None
@@ -38017,6 +38030,23 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
 
     def _render_enneagram_predictions(self, chart: Chart | None) -> None:
         self._enneagram_prediction_adapter().render(chart, self._render_metric_panel)
+
+    def _ocean_prediction_adapter(self) -> OceanPredictionPanelAdapter:
+        return OceanPredictionPanelAdapter(
+            chart_layout=getattr(self, "ocean_prediction_chart_layout", None),
+            label=getattr(self, "ocean_prediction_label", None),
+            chart_theme_colors=CHART_THEME_COLORS,
+            is_placeholder_chart=self._is_placeholder_chart,
+        )
+
+    def _draw_ocean_predictions(self, ax, chart: Chart) -> None:
+        self._ocean_prediction_adapter().draw(ax, chart)
+
+    def _build_ocean_popout_info(self, *, chart: Chart | None = None, trait: str | None = None) -> str:
+        return build_ocean_popout_info_html(chart or self._latest_chart, trait)
+
+    def _render_ocean_predictions(self, chart: Chart | None) -> None:
+        self._ocean_prediction_adapter().render(chart, self._render_metric_panel)
 
     def _render_traits_predictions(self, chart: Chart | None) -> None:
         _render_traits_predictions(self, chart)

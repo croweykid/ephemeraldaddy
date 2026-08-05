@@ -101,6 +101,12 @@ def _configure_enneagram(owner: Owner, canvas: Canvas, info_panel: InfoPanel, ch
     )
 
 
+def _configure_ocean(owner: Owner, canvas: Canvas, info_panel: InfoPanel, chart: Chart) -> None:
+    from ephemeraldaddy.gui.features.predictions.ocean import connect_ocean_popout_pick_handler
+
+    connect_ocean_popout_pick_handler(canvas, info_panel, chart=chart)
+
+
 def _configure_dnd(owner: Owner, canvas: Canvas, info_panel: InfoPanel, chart: Chart) -> None:
     from ephemeraldaddy.gui.features.charts.dnd_predictions import connect_dnd_statblock_popout_pick_handler
 
@@ -189,6 +195,15 @@ METRIC_PANEL_SPECS: tuple[MetricPanelSpec, ...] = (
         placeholder="Click an Enneagram bar to view type motivation and interpretation details.",
         configure_info=_configure_enneagram,
     ),
+    MetricPanelSpec(
+        key="ocean",
+        title="OCEAN Personality Predictor",
+        draw=_call_draw("_draw_ocean_predictions"),
+        popout_size=(8.5, 5.0),
+        placeholder="Click an OCEAN spectrum bar or axis label to view score interpretation details.",
+        configure_info=_configure_ocean,
+    ),
+
     MetricPanelSpec(
         key="dnd_statblock",
         title="Fantasy RPG Statblock",

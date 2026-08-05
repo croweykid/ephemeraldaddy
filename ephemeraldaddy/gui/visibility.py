@@ -21,6 +21,7 @@ CHART_DATA_KEYS: dict[str, bool] = { #visibility toggles are here
     "charts.standard_deviation_indicators": True,
     "analytics.dnd_statblock_explainers": False,
     "predictions.traits": True,
+    "predictions.ocean": True,
     "predictions.enneagram": False,
     "predictions.dnd_statblock": False,
     "predictions.dnd_species": True,
