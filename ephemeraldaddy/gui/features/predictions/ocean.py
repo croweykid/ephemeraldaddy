@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any, Callable
 
-from PySide6.QtWidgets import QLabel
+if TYPE_CHECKING:
+    from PySide6.QtWidgets import QLabel
+else:
+    QLabel = Any
 
 from ephemeraldaddy.analysis.oceanpredictor import (
     OCEAN_BODIES,
@@ -117,6 +120,30 @@ def calculate_ocean_scores(chart: Any | None) -> dict[str, float]:
     return {trait: max(OCEAN_MIN_SCORE, min(OCEAN_MAX_SCORE, averaged[trait])) for trait in OCEAN_TRAITS}
 
 
+def ocean_scores_to_mbti(scores: dict[str, float]) -> str:
+    """Translate OCEAN spectra into an MBTI-style four-letter code."""
+    axes = (
+        ("E", "E", "I"),
+        ("O", "N", "S"),
+        ("A", "F", "T"),
+        ("C", "J", "P"),
+    )
+    letters: list[str] = []
+    for trait, high_letter, low_letter in axes:
+        try:
+            score = float(scores.get(trait, 0.0))
+        except (TypeError, ValueError):
+            score = 0.0
+        if score == 0.0:
+            letters.append("x")
+            continue
+        letter = high_letter if score > 0.0 else low_letter
+        if abs(score) <= 3.0:
+            letter = letter.lower()
+        letters.append(letter)
+    return "".join(letters)
+
+
 class OceanPredictionPanelAdapter:
     """Render Chart Editor OCEAN predictions as horizontal spectrum bars."""
 
@@ -202,8 +229,12 @@ class OceanPredictionPanelAdapter:
                 if chart is not None and chart_uses_houses(chart)
                 else "excluding house weights"
             )
+            mbti = ocean_scores_to_mbti(calculate_ocean_scores(chart))
             self.label.setText(
+                f"<b>MBTI: {mbti}</b><br>"
                 f"OCEAN dominance predictor ({houses_text}). Horizontal spectra run from -10 to +10 "
                 "with 0 as neutral: Openness/Conventionality, Conscientiousness/Casualness, "
-                "Extraversion/Introversion, Agreeableness/Abrasiveness, Neuroticism/Stability."
+                "Extraversion/Introversion, Agreeableness/Abrasiveness, Neuroticism/Stability. "
+                "MBTI translation uses E→E/I, O→N/S, A→F/T, and C→J/P; exact neutral is x, "
+                "and scores within 3 points of neutral are lowercase."
             )

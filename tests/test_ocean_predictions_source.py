@@ -35,3 +35,17 @@ def test_ocean_predictions_are_visible_and_rendered_with_predictions_panel():
 
     assert '"predictions.ocean": True' in visibility_source
     assert 'getattr(owner, "_render_ocean_predictions", None)' in right_panel_source
+
+
+def test_ocean_scores_to_mbti_rules_are_encoded():
+    source = Path("ephemeraldaddy/gui/features/predictions/ocean.py").read_text()
+
+    assert "def ocean_scores_to_mbti" in source
+    assert '("E", "E", "I")' in source
+    assert '("O", "N", "S")' in source
+    assert '("A", "F", "T")' in source
+    assert '("C", "J", "P")' in source
+    assert 'letters.append("x")' in source
+    assert "abs(score) <= 3.0" in source
+    assert "letter.lower()" in source
+    assert "MBTI:" in source
