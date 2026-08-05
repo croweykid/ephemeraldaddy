@@ -982,6 +982,7 @@ def _predictions_panel_has_rendered_content(owner: object) -> bool:
     has_prediction_canvas = any(
         getattr(owner, attr, None) is not None
         for attr in (
+            "gender_guesser_canvas",
             "enneagram_prediction_canvas",
             "dnd_prediction_statblock_canvas",
             "dnd_prediction_alignment_canvas",
@@ -1349,6 +1350,20 @@ def schedule_chart_render_for_active_right_panel(owner: object) -> None:
             owner._render_enneagram_predictions(chart)
         if any(_prediction_section_visible(owner, key) for key in ("dnd_statblock", "dnd_species", "dnd_class", "dnd_alignment")):
             owner._render_dndification_predictions(chart)
+        is_chart_analytics_section_renderable = getattr(
+            owner,
+            "_is_chart_analytics_section_renderable",
+            None,
+        )
+        if (
+            callable(is_chart_analytics_section_renderable)
+            and is_chart_analytics_section_renderable("gender")
+        ):
+            owner._schedule_chart_render(
+                chart,
+                sections={"gender"},
+                queue_priority="interactive",
+            )
         if state is not None:
             state.last_render_chart_token = render_token
         _set_predictions_status(

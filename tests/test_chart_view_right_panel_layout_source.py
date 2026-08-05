@@ -210,6 +210,16 @@ def test_predictions_refresh_uses_token_gated_right_panel_scheduler():
     assert "self._render_dndification_predictions(chart)" not in method
 
 
+def test_predictions_scheduler_queues_expanded_gender_guesser_graph():
+    source = _source("ephemeraldaddy/gui/features/charts/cv_right_panel_stack.py")
+    scheduler = _function_source(source, "schedule_chart_render_for_active_right_panel")
+    content_check = _function_source(source, "_predictions_panel_has_rendered_content")
+
+    assert '"gender_guesser_canvas"' in content_check
+    assert 'is_chart_analytics_section_renderable("gender")' in scheduler
+    assert 'sections={"gender"}' in scheduler
+
+
 def test_saved_chart_metadata_updates_do_not_dirty_right_panel_sections():
     source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
     save_start = source.index("    def on_update_chart")
