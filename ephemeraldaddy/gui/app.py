@@ -35984,23 +35984,24 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             self._time_input_text_colors["retcon"] = retcon_time_color
 
     def _queue_timing_preview_update(self) -> None:
-        """Debounce expensive chart recalculation while time fields are edited."""
+        """Mark timing edits dirty without forcing live recalculation while typing."""
         if self._suppress_lucygoosey:
             return
-        # Rectified-time, rectified-range, and known birthtime edits change core
-        # calculated chart data. Rebuild once after a real editing pause instead of on
-        # each digit/checkbox signal.  The chart rebuild can take long enough to
-        # block typing, so keep this delay aligned with recalculating autosave
-        # instead of firing midway through manual HH:mm entry.
+        # Birth-time, rectified-time, and rectified-range edits change core
+        # calculated chart data, but rebuilding the chart while a user is still
+        # entering HH:mm values is the freeze path called out in the recent
+        # performance logs.  Keep the save/prompt state authoritative and leave
+        # the expensive rebuild for an explicit save, the leave prompt's Save
+        # choice, or a later on-demand render after the user asks for chart data.
+        self._metadata_autosave_requires_recalculation = True
+        self._mark_chart_analytics_sections_lucy_goosey()
         self._timing_preview_update_timer.start(CHART_VIEW_TIMING_PREVIEW_DEBOUNCE_MS)
-        if self._can_autosave_current_chart():
-            self._metadata_autosave_requires_recalculation = True
-            self._metadata_autosave_timer.start(2500)
 
     def _flush_timing_preview_update(self) -> None:
         if self._suppress_lucygoosey:
             return
-        self._refresh_chart_preview()
+        self._mark_chart_analytics_sections_lucy_goosey()
+        self._update_unknown_positions_summary(getattr(self, "_latest_chart", None))
 
     def _reset_metric_canvases_for_retcon_timing_update(self) -> None:
         """Reset only Chart View metric canvases affected by retcon timing edits."""
