@@ -8,10 +8,14 @@ from __future__ import annotations
 
 import sys
 
+if sys.platform == "win32":
+    import ctypes
+
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtGui import QGuiApplication, QIcon
 from PySide6.QtWidgets import QApplication
 
+from ephemeraldaddy.gui.icons import get_app_icon_path
 from ephemeraldaddy.gui.startup import StartupLoadingWidget
 
 
@@ -25,11 +29,25 @@ def main() -> None:
         # Best-effort guard for older Qt/PySide versions.
         pass
 
+    if sys.platform == "win32":
+        try:
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(  # type: ignore[attr-defined]
+                "ephemeraldaddy.desktop"
+            )
+        except Exception:
+            pass
+
     app = QApplication.instance()
     if app is None:
         app = QApplication(sys.argv)
 
+    icon_path = get_app_icon_path()
+    if icon_path:
+        app.setWindowIcon(QIcon(icon_path))
+
     loading = StartupLoadingWidget()
+    if icon_path:
+        loading.setWindowIcon(QIcon(icon_path))
     loading.show()
     loading.update_status("Loading application modules…", 15)
 
