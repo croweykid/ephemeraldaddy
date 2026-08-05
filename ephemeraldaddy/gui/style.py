@@ -1264,6 +1264,10 @@ ABC_PANEL_SECTION_CONTENT_SPACING = 4
 ABC_PANEL_BODY_LABEL_STYLE = f"color: {COLOR_TEXT_PRIMARY}; padding: 4px 0 8px 0;"
 CHART_DATA_MONOSPACE_FONT_FAMILY = "Courier New"
 DIVIDER_STYLE = "color: #2f2f2f; background-color: #2f2f2f; max-height: 1px;"
+CHART_INFO_GRAPHIC_DIVIDER_HTML = (
+    '<hr style="border: 0; height: 1px; margin: 0; '
+    'background-color: #2f2f2f; color: #2f2f2f;" />'
+)
 CHART_DATA_DIVIDER = ""
 
 
