@@ -898,7 +898,10 @@ from ephemeraldaddy.analysis.human_design_synastry import (
     HD_SYNASTRY_GENDER_METHOD_IDENTITY,
     HD_SYNASTRY_GENDER_METHOD_SEX,
 )
-from ephemeraldaddy.gui.features.predictions.ocean import OceanPredictionPanelAdapter
+from ephemeraldaddy.gui.features.predictions.ocean import (
+    OceanPredictionPanelAdapter,
+    build_ocean_trait_popout_info,
+)
 from ephemeraldaddy.gui.features.predictions.hd_electrochemistry import (
     load_gendered_results_method,
     on_gendered_results_method_changed,
@@ -36798,6 +36801,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             self.enneagram_prediction_chart_layout,
             self.dnd_predictions_chart_layout,
             self.dnd_alignment_chart_layout,
+            self.ocean_prediction_chart_layout,
         ):
             self._clear_layout_widgets(layout)
         self._pending_render_chart = None
@@ -36845,6 +36849,8 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.planet_dynamics_summary_label = None
         if getattr(self, "enneagram_prediction_tritype_label", None) is not None:
             self.enneagram_prediction_tritype_label.setText("<b>Predicted Tritype:</b> —")
+        if getattr(self, "ocean_prediction_label", None) is not None:
+            self.ocean_prediction_label.setText("Generate or load a chart to view OCEAN predictions.")
         if self._similar_charts_list_label is not None:
             self._similar_charts_list_label.setText(
                 "Generate or load a chart to search for matches."
@@ -38049,6 +38055,12 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
 
     def _render_ocean_predictions(self, chart: Chart | None) -> None:
         self._ocean_prediction_adapter().render(chart, self._render_metric_panel)
+
+    def _draw_ocean_predictions(self, ax: Any, chart: Chart | None) -> None:
+        self._ocean_prediction_adapter().draw(ax, chart)
+
+    def _build_ocean_popout_info(self, chart: Chart | None, trait: str) -> str:
+        return build_ocean_trait_popout_info(chart, trait)
 
     def _render_traits_predictions(self, chart: Chart | None) -> None:
         _render_traits_predictions(self, chart)

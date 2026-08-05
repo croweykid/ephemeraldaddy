@@ -142,6 +142,21 @@ def _configure_body_dynamics(owner: Owner, canvas: Canvas, info_panel: InfoPanel
     canvas.mpl_connect("pick_event", _on_pick)
 
 
+def _configure_ocean(owner: Owner, canvas: Canvas, info_panel: InfoPanel, chart: Chart) -> None:
+    from ephemeraldaddy.gui.features.predictions.ocean import build_ocean_summary_popout_info
+
+    info_panel.setHtml(build_ocean_summary_popout_info(chart))
+
+    def _on_pick(event: object) -> None:
+        artist_gid = _artist_gid(event)
+        if artist_gid is None or not artist_gid.startswith("ocean:"):
+            return
+        _, trait = artist_gid.split(":", 1)
+        info_panel.setHtml(owner._build_ocean_popout_info(chart, trait))
+
+    canvas.mpl_connect("pick_event", _on_pick)
+
+
 METRIC_PANEL_SPECS: tuple[MetricPanelSpec, ...] = (
     MetricPanelSpec(
         key="signs",
@@ -267,6 +282,14 @@ METRIC_PANEL_SPECS: tuple[MetricPanelSpec, ...] = (
         placeholder="Click a bar section to view a plain-English score breakdown.",
         configure_info=_configure_body_dynamics,
         cache_key="chart-analysis:body_dynamics",
+    ),
+    MetricPanelSpec(
+        key="ocean_personality",
+        title="OCEAN Personality Predictor",
+        draw=_call_draw("_draw_ocean_predictions"),
+        popout_size=(8.5, 4.6),
+        placeholder="Click an OCEAN bar or axis label to view trait-specific interpretation details.",
+        configure_info=_configure_ocean,
     ),
 )
 

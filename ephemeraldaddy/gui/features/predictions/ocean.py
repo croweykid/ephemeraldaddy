@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from html import escape
 from typing import TYPE_CHECKING, Any, Callable
 
 if TYPE_CHECKING:
@@ -36,6 +37,57 @@ OCEAN_GRAPH_HEIGHT_PX = 320
 OCEAN_MIN_SCORE = -10.0
 OCEAN_MAX_SCORE = 10.0
 LEGACY_OCEAN_NEUTRAL_SCORE = 5.0
+OCEAN_POP_OUT_TITLE = "OCEAN Personality Predictor"
+
+OCEAN_TRAIT_NAMES = {
+    "O": "Openness",
+    "C": "Conscientiousness",
+    "E": "Extraversion",
+    "A": "Agreeableness",
+    "N": "Neuroticism",
+}
+OCEAN_TRAIT_EXPLAINERS = {
+    "O": (
+        "Openness tracks appetite for novelty, symbolism, complexity, aesthetic play, "
+        "and imaginative range."
+    ),
+    "C": (
+        "Conscientiousness tracks structure, follow-through, duty, precision, and preference "
+        "for ordered plans."
+    ),
+    "E": (
+        "Extraversion tracks outward activation, expressiveness, social charge, and comfort "
+        "with direct engagement."
+    ),
+    "A": (
+        "Agreeableness tracks cooperation, warmth, accommodation, softness, and relational "
+        "ease."
+    ),
+    "N": (
+        "Neuroticism tracks emotional sensitivity, volatility, threat scanning, and nervous "
+        "system reactivity."
+    ),
+}
+
+
+def _score_band(score: float) -> str:
+    magnitude = abs(score)
+    if magnitude >= 7.0:
+        return "strong"
+    if magnitude >= 3.0:
+        return "moderate"
+    if magnitude > 0.0:
+        return "subtle"
+    return "neutral"
+
+
+def _score_direction(trait: str, score: float) -> str:
+    negative_label, positive_label = OCEAN_AXIS_LABELS.get(trait, ("Low pole", "High pole"))
+    if score > 0:
+        return positive_label
+    if score < 0:
+        return negative_label
+    return "Neutral"
 
 
 def _factor_table_uses_centered_scores(factors: dict[Any, dict[str, Any]]) -> bool:
@@ -144,6 +196,123 @@ def ocean_scores_to_mbti(scores: dict[str, float]) -> str:
     return "".join(letters)
 
 
+def draw_ocean_prediction_bars(
+    ax: Any,
+    chart: Any | None,
+    *,
+    chart_theme_colors: dict[str, str],
+) -> None:
+    """Draw OCEAN horizontal spectrum bars with pickable trait artists."""
+    ax.clear()
+    ax.set_facecolor(chart_theme_colors.get("background", "#111111"))
+    scores = calculate_ocean_scores(chart)
+    labels = list(OCEAN_TRAITS)
+    values = [scores[trait] for trait in labels]
+    colors = ["#34d399" if value >= 0 else "#f87171" for value in values]
+    bars = ax.barh(labels, values, color=colors)
+    for bar, trait in zip(bars, labels, strict=True):
+        bar.set_gid(f"ocean:{trait}")
+        bar.set_picker(True)
+    ax.axvline(0, color="#d8c8ff", linewidth=1.2)
+    ax.set_xlim(OCEAN_MIN_SCORE, OCEAN_MAX_SCORE)
+    ax.set_xlabel("Spectrum score")
+    ax.tick_params(colors=chart_theme_colors.get("text", "#eeeeee"))
+    ax.xaxis.label.set_color(chart_theme_colors.get("text", "#eeeeee"))
+    ax.grid(axis="x", color="#5b4b7a", alpha=0.35, linewidth=0.6)
+    for spine in ax.spines.values():
+        spine.set_color("#5b4b7a")
+    for tick_label, trait in zip(ax.get_yticklabels(), labels, strict=True):
+        tick_label.set_gid(f"ocean:{trait}")
+        tick_label.set_picker(True)
+    for index, trait in enumerate(labels):
+        negative_label, positive_label = OCEAN_AXIS_LABELS[trait]
+        left_label = ax.text(
+            OCEAN_MIN_SCORE,
+            index,
+            negative_label,
+            ha="left",
+            va="center",
+            color="#fca5a5",
+            fontsize=8,
+        )
+        left_label.set_gid(f"ocean:{trait}")
+        left_label.set_picker(True)
+        right_label = ax.text(
+            OCEAN_MAX_SCORE,
+            index,
+            positive_label,
+            ha="right",
+            va="center",
+            color="#86efac",
+            fontsize=8,
+        )
+        right_label.set_gid(f"ocean:{trait}")
+        right_label.set_picker(True)
+        value = values[index]
+        ha = "left" if value >= 0 else "right"
+        x = value + (0.35 if value >= 0 else -0.35)
+        value_label = ax.text(
+            x,
+            index,
+            f"{value:+.2f}",
+            ha=ha,
+            va="center",
+            color=chart_theme_colors.get("text", "#eeeeee"),
+            fontsize=8,
+            fontweight="bold",
+        )
+        value_label.set_gid(f"ocean:{trait}")
+        value_label.set_picker(True)
+    ax.figure.tight_layout()
+
+
+def build_ocean_trait_popout_info(chart: Any | None, trait: str) -> str:
+    """Return the popout Chart Info explainer for one OCEAN bar."""
+    trait_key = str(trait or "").strip().upper()
+    if trait_key not in OCEAN_TRAITS:
+        return build_ocean_summary_popout_info(chart)
+    scores = calculate_ocean_scores(chart)
+    score = float(scores.get(trait_key, 0.0))
+    negative_label, positive_label = OCEAN_AXIS_LABELS[trait_key]
+    direction = _score_direction(trait_key, score)
+    band = _score_band(score)
+    mbti = ocean_scores_to_mbti(scores)
+    houses_text = "included" if chart is not None and chart_uses_houses(chart) else "excluded"
+    return (
+        f"<h2>{escape(OCEAN_TRAIT_NAMES[trait_key])} ({trait_key})</h2>"
+        f"<p><b>Score:</b> {score:+.2f} / 10 — {escape(band)} lean toward "
+        f"<b>{escape(direction)}</b>.</p>"
+        f"<p><b>Axis:</b> {escape(negative_label)} ← 0 → {escape(positive_label)}</p>"
+        f"<p>{escape(OCEAN_TRAIT_EXPLAINERS[trait_key])}</p>"
+        f"<p><b>Interpretation:</b> Positive bars emphasize {escape(positive_label.lower())}; "
+        f"negative bars emphasize {escape(negative_label.lower())}; near-zero bars imply a flexible "
+        "or context-dependent expression rather than a fixed trait signature.</p>"
+        f"<p><b>MBTI bridge:</b> Current translation is <b>{escape(mbti)}</b>. "
+        "O maps to N/S, C to J/P, E to E/I, and A to F/T. Scores within 3 points "
+        "of neutral are shown lowercase.</p>"
+        f"<p><b>Inputs:</b> Sign, body, and nakshatra dominance weights are used; house weights are "
+        f"{escape(houses_text)} according to this chart's chart_uses_houses value.</p>"
+    )
+
+
+def build_ocean_summary_popout_info(chart: Any | None) -> str:
+    """Return the default OCEAN popout explainer before a specific bar is picked."""
+    scores = calculate_ocean_scores(chart)
+    mbti = ocean_scores_to_mbti(scores)
+    rows = "".join(
+        f"<li><b>{trait}</b>: {scores[trait]:+.2f} toward {escape(_score_direction(trait, scores[trait]))}</li>"
+        for trait in OCEAN_TRAITS
+    )
+    houses_text = "included" if chart is not None and chart_uses_houses(chart) else "excluded"
+    return (
+        "<h2>OCEAN Personality Predictor</h2>"
+        f"<p><b>MBTI translation:</b> {escape(mbti)}</p>"
+        "<p>Click any bar or axis label for a trait-specific interpretation.</p>"
+        f"<ul>{rows}</ul>"
+        f"<p>House weights are {escape(houses_text)} for this chart.</p>"
+    )
+
+
 class OceanPredictionPanelAdapter:
     """Render Chart Editor OCEAN predictions as horizontal spectrum bars."""
 
@@ -161,54 +330,7 @@ class OceanPredictionPanelAdapter:
         self.is_placeholder_chart = is_placeholder_chart
 
     def draw(self, ax: Any, chart: Any | None) -> None:
-        ax.clear()
-        ax.set_facecolor(self.chart_theme_colors.get("background", "#111111"))
-        scores = calculate_ocean_scores(chart)
-        labels = list(OCEAN_TRAITS)
-        values = [scores[trait] for trait in labels]
-        colors = ["#34d399" if value >= 0 else "#f87171" for value in values]
-        ax.barh(labels, values, color=colors)
-        ax.axvline(0, color="#d8c8ff", linewidth=1.2)
-        ax.set_xlim(OCEAN_MIN_SCORE, OCEAN_MAX_SCORE)
-        ax.set_xlabel("Spectrum score")
-        ax.tick_params(colors=self.chart_theme_colors.get("text", "#eeeeee"))
-        ax.xaxis.label.set_color(self.chart_theme_colors.get("text", "#eeeeee"))
-        ax.grid(axis="x", color="#5b4b7a", alpha=0.35, linewidth=0.6)
-        for spine in ax.spines.values():
-            spine.set_color("#5b4b7a")
-        for index, trait in enumerate(labels):
-            negative_label, positive_label = OCEAN_AXIS_LABELS[trait]
-            ax.text(
-                OCEAN_MIN_SCORE,
-                index,
-                negative_label,
-                ha="left",
-                va="center",
-                color="#fca5a5",
-                fontsize=8,
-            )
-            ax.text(
-                OCEAN_MAX_SCORE,
-                index,
-                positive_label,
-                ha="right",
-                va="center",
-                color="#86efac",
-                fontsize=8,
-            )
-            value = values[index]
-            ha = "left" if value >= 0 else "right"
-            x = value + (0.35 if value >= 0 else -0.35)
-            ax.text(
-                x,
-                index,
-                f"{value:+.2f}",
-                ha=ha,
-                va="center",
-                color=self.chart_theme_colors.get("text", "#eeeeee"),
-                fontsize=8,
-                fontweight="bold",
-            )
+        draw_ocean_prediction_bars(ax, chart, chart_theme_colors=self.chart_theme_colors)
 
     def render(self, chart: Any | None, metric_panel_renderer: Callable[..., Any]) -> None:
         if self.chart_layout is None:
@@ -217,7 +339,7 @@ class OceanPredictionPanelAdapter:
             canvas_attr="ocean_prediction_canvas",
             container_layout=self.chart_layout,
             figsize=(5.5, 2.8),
-            title="OCEAN Personality Predictor",
+            title=OCEAN_POP_OUT_TITLE,
             draw_fn=self.draw,
             chart=chart,
             display_height=OCEAN_GRAPH_HEIGHT_PX,
