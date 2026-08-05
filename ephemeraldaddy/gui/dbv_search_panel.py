@@ -8,6 +8,7 @@ as a service locator.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ephemeraldaddy.gui.settings_keys import (
@@ -33,6 +34,52 @@ BODY_DYNAMICS_ROLE_OPTIONS: tuple[tuple[str, str], ...] = (
 # Lowering that requirement by 15% keeps the filter selective while allowing
 # near-isolated dominance profiles to surface in Database View searches.
 ISOLATED_DOMINANCE_NEXT_HIGHEST_MULTIPLIER = 3.0 * 0.85
+
+
+@dataclass(frozen=True)
+class HumanDesignSearchSelectionSnapshot:
+    """Normalized Human Design scalar selections for one Database View refresh."""
+
+    included_types: frozenset[str]
+    excluded_types: frozenset[str]
+    included_profiles: frozenset[str]
+    excluded_profiles: frozenset[str]
+    require_all_types: bool
+    require_all_profiles: bool
+
+
+def snapshot_human_design_search_selections(window) -> HumanDesignSearchSelectionSnapshot:
+    """Read Type/Profile widgets once before evaluating Database View rows."""
+    from ephemeraldaddy.gui.widgets.quad_state import QuadStateSlider
+
+    type_checkboxes = getattr(window, "_human_design_type_filter_checkboxes", {})
+    profile_checkboxes = getattr(window, "_human_design_profile_filter_checkboxes", {})
+    type_modes = {value: checkbox.mode() for value, checkbox in type_checkboxes.items()}
+    profile_modes = {
+        value: checkbox.mode() for value, checkbox in profile_checkboxes.items()
+    }
+    type_and = getattr(window, "_human_design_type_filter_and", None)
+    profile_and = getattr(window, "_human_design_profile_filter_and", None)
+    return HumanDesignSearchSelectionSnapshot(
+        included_types=frozenset(
+            value for value, mode in type_modes.items() if mode == QuadStateSlider.MODE_TRUE
+        ),
+        excluded_types=frozenset(
+            value for value, mode in type_modes.items() if mode == QuadStateSlider.MODE_FALSE
+        ),
+        included_profiles=frozenset(
+            value
+            for value, mode in profile_modes.items()
+            if mode == QuadStateSlider.MODE_TRUE
+        ),
+        excluded_profiles=frozenset(
+            value
+            for value, mode in profile_modes.items()
+            if mode == QuadStateSlider.MODE_FALSE
+        ),
+        require_all_types=bool(type_and is not None and type_and.isChecked()),
+        require_all_profiles=bool(profile_and is not None and profile_and.isChecked()),
+    )
 
 def weight_is_at_least_triple_next_highest(
     weights: dict[str, float] | None,

@@ -1019,6 +1019,7 @@ from ephemeraldaddy.gui.dbv_search_panel import (
     dnd_species_class_payload_for_chart,
     dominant_enneagram_types_for_search,
     focus_database_search_input,
+    HumanDesignSearchSelectionSnapshot,
     has_active_chart_filters,
     has_active_search_tag_filters,
     chart_matches_trait_filters,
@@ -1037,6 +1038,7 @@ from ephemeraldaddy.gui.dbv_search_panel import (
     update_tag_completers,
     update_tag_completers_if_needed,
     reset_body_dynamics_filters,
+    snapshot_human_design_search_selections,
     weight_is_at_least_triple_next_highest,
 )
 from ephemeraldaddy.gui.features.charts.transit_workers import (
@@ -19152,6 +19154,11 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             DATABASE_VIEW_ROW_INFO_DEFAULTS,
         )
         has_active_chart_filters = self._has_active_chart_filters()
+        human_design_search_selections = (
+            snapshot_human_design_search_selections(self)
+            if has_active_chart_filters
+            else None
+        )
         if has_active_chart_filters or row_info_visibility.get("sign_glyphs", True):
             # Hydrate only the rows that survived collection/hidden filtering.
             # This preserves fast batch loading for visible chart glyphs and
@@ -19199,7 +19206,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             ) in rows:
                 if has_active_chart_filters:
                     try:
-                        matches_filters = self._chart_matches_filters(cid)
+                        matches_filters = self._chart_matches_filters(
+                            cid,
+                            human_design_search_selections=human_design_search_selections,
+                        )
                     except Exception:
                         matches_filters = False
                     if not matches_filters:
@@ -19701,7 +19711,14 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
     def _cached_top_three_species_for_filter(self, chart) -> list[tuple[str, str]]:
         return cached_top_three_species_for_filter(self, chart)
 
-    def _chart_matches_filters(self, chart_id: int) -> bool:
+    def _chart_matches_filters(
+        self,
+        chart_id: int,
+        *,
+        human_design_search_selections: HumanDesignSearchSelectionSnapshot | None = None,
+    ) -> bool:
+        if human_design_search_selections is None:
+            human_design_search_selections = snapshot_human_design_search_selections(self)
         incomplete_birthdate_state = self.incomplete_birthdate_checkbox.mode()
         hidden_charts_state = (
             self.hidden_charts_checkbox.mode()
@@ -19908,26 +19925,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             for combo in self._human_design_gate_filters
             if str(combo.currentData()) != "Any"
         }
-        selected_human_design_types = {
-            value
-            for value, checkbox in self._human_design_type_filter_checkboxes.items()
-            if checkbox.mode() == QuadStateSlider.MODE_TRUE
-        }
-        excluded_human_design_types = {
-            value
-            for value, checkbox in self._human_design_type_filter_checkboxes.items()
-            if checkbox.mode() == QuadStateSlider.MODE_FALSE
-        }
-        selected_human_design_profiles = {
-            value
-            for value, checkbox in self._human_design_profile_filter_checkboxes.items()
-            if checkbox.mode() == QuadStateSlider.MODE_TRUE
-        }
-        excluded_human_design_profiles = {
-            value
-            for value, checkbox in self._human_design_profile_filter_checkboxes.items()
-            if checkbox.mode() == QuadStateSlider.MODE_FALSE
-        }
+        selected_human_design_types = human_design_search_selections.included_types
+        excluded_human_design_types = human_design_search_selections.excluded_types
+        selected_human_design_profiles = human_design_search_selections.included_profiles
+        excluded_human_design_profiles = human_design_search_selections.excluded_profiles
         selected_human_design_defined_centers = {
             str(combo.currentData())
             for combo in self._human_design_defined_center_filters
@@ -21108,10 +21109,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             if chart_human_design_type in excluded_human_design_types:
                 return False
             if selected_human_design_types:
-                if (
-                    self._human_design_type_filter_and is not None
-                    and self._human_design_type_filter_and.isChecked()
-                ):
+                if human_design_search_selections.require_all_types:
                     if not selected_human_design_types.issubset(
                         {chart_human_design_type}
                     ):
@@ -21124,10 +21122,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             if chart_human_design_profile in excluded_human_design_profiles:
                 return False
             if selected_human_design_profiles:
-                if (
-                    self._human_design_profile_filter_and is not None
-                    and self._human_design_profile_filter_and.isChecked()
-                ):
+                if human_design_search_selections.require_all_profiles:
                     if not selected_human_design_profiles.issubset(
                         {chart_human_design_profile}
                     ):
