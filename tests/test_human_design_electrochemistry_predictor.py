@@ -682,3 +682,31 @@ def test_candidate_loader_tolerates_legacy_database_without_hd_profile(monkeypat
     assert candidates[0].chart_uid == "0123456789ABCDEF"
     assert candidates[0].gates == frozenset({1, 2, 3})
     assert candidates[0].profile is None
+
+
+def test_database_persists_human_design_profile(monkeypatch, tmp_path):
+    from datetime import datetime, timezone
+
+    from ephemeraldaddy.core import db
+    from ephemeraldaddy.core.chart import Chart
+
+    database_path = tmp_path / "charts.db"
+    monkeypatch.setattr(db, "DB_PATH", database_path)
+    monkeypatch.setattr(db, "_SCHEMA_READY", False)
+    monkeypatch.setattr(db, "_SCHEMA_READY_DB_PATH", None)
+    db._TABLE_COLUMNS_CACHE.clear()
+    db.init_db_once(force=True)
+
+    chart = Chart("Profiled", datetime(2000, 1, 1, tzinfo=timezone.utc), 0.0, 0.0)
+    chart.human_design_type = "Generator"
+    chart.human_design_authority = "Sacral"
+    chart.human_design_profile = "2/4"
+    chart_id = db.save_chart(chart, birth_place="Null Island")
+
+    loaded = db.load_chart(chart_id)
+    assert loaded.human_design_profile == "2/4"
+
+    loaded.human_design_profile = "5/1"
+    db.update_chart(chart_id, loaded)
+
+    assert db.load_chart(chart_id).human_design_profile == "5/1"
