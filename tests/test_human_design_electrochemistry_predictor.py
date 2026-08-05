@@ -4,6 +4,7 @@ from ephemeraldaddy.analysis.human_design_synastry import (
     HumanDesignSynastryCandidate,
     filter_hd_synastry_candidates,
     human_design_electrochemistry_score,
+    human_design_profile_relation,
     normalize_gates,
     rank_human_design_synastry,
     rank_human_design_synastry_ideal,
@@ -19,13 +20,40 @@ def _hd_electrochemistry_module():
     )
 
 
-def candidate(uid, gates, name="Candidate"):
-    return HumanDesignSynastryCandidate(uid, name, None, frozenset(gates))
+def candidate(uid, gates, name="Candidate", profile=None):
+    return HumanDesignSynastryCandidate(uid, name, None, frozenset(gates), profile=profile)
 
 
 def gendered_candidate(uid, gender):
     return HumanDesignSynastryCandidate(uid, uid, None, frozenset({47}), gender=gender)
 
+
+
+def test_profile_relation_classifies_resonance_and_harmonics():
+    assert human_design_profile_relation("2/4", "2/4") == ("fully resonant profile", 2)
+    assert human_design_profile_relation("2/4", "5/1") == ("fully harmonic profile", 2)
+    assert human_design_profile_relation("2/4", "5/4") == ("resonant & harmonic profile", 2)
+    assert human_design_profile_relation("2/4", "2/6") == ("partially resonant profile", 1)
+    assert human_design_profile_relation("2/4", "3/1") == ("partially harmonic profile", 1)
+    assert human_design_profile_relation("2/4", "3/6") == (None, 0)
+
+
+def test_ideal_rank_adds_profile_bonus_to_score_and_tiebreaking():
+    source_gates = {64}
+    results = rank_human_design_synastry_ideal(
+        "SOURCE",
+        source_gates,
+        [
+            candidate("PLAIN", {47}, "Plain", profile="3/6"),
+            candidate("HARMONIC", {47}, "Harmonic", profile="5/1"),
+        ],
+        source_profile="2/4",
+    )
+
+    assert [match.chart_uid for match in results] == ["HARMONIC", "PLAIN"]
+    assert results[0].profile_match == "fully harmonic profile"
+    assert results[0].profile_bonus == 2
+    assert results[0].score == results[1].score + 2
 
 def test_rank_uses_summed_channel_and_center_score():
     # Gate 64 can be completed by 47; gate 61 can be completed by 24.
