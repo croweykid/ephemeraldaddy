@@ -567,7 +567,9 @@ def _chart_trait_metadata_signature(chart: Any) -> str:
     """Fingerprint only the birth-data inputs that should invalidate predictions.
 
     Trait/Fantasy RPG/Enneagram Predictions are persisted per permanent chart UID and
-    should remain instantly reusable across Chart View opens.  Derived astrology
+    should remain instantly reusable across Chart View opens.  This is the full
+    staleness boundary for chart edits: only astro-data inputs belong here;
+    nonastral/subjective metadata must not invalidate Traits.  Derived astrology
     payloads (positions, aspects, HD/BaZi weights, etc.) are intentionally not
     part of this signature: those values are recalculated from the essential
     birth data elsewhere, and including them here makes harmless serialization or
@@ -787,6 +789,8 @@ def _metadata_from_vectors(
     stale_trait_definition: bool = False,
     stale_db_baseline: bool = False,
     updated_at: str = "",
+    stale_trait_names: set[str] | None = None,
+    full_staleness_reasons: list[str] | None = None,
 ) -> dict[str, Any]:
     deviations = {
         name: float(pct) - float(database_averages[name])
@@ -795,7 +799,18 @@ def _metadata_from_vectors(
     }
     above = {name for name, deviation in deviations.items() if deviation >= TRAIT_DEVIATION_ASSIGNMENT_THRESHOLD}
     below = {name for name, deviation in deviations.items() if deviation <= -TRAIT_DEVIATION_ASSIGNMENT_THRESHOLD}
-    stale = bool(stale_chart_vector or stale_trait_definition or stale_db_baseline)
+    stale = bool(stale_chart_vector or stale_trait_definition or stale_db_baseline or stale_trait_names)
+    stale_trait_names = set(stale_trait_names or set())
+    full_staleness_reasons = list(full_staleness_reasons or [])
+    if stale_chart_vector and "astro_data" not in full_staleness_reasons:
+        full_staleness_reasons.append("astro_data")
+    if stale_db_baseline and "database_norms" not in full_staleness_reasons:
+        full_staleness_reasons.append("database_norms")
+    if stale_trait_definition and not stale_trait_names and "all_traits" not in full_staleness_reasons:
+        full_staleness_reasons.append("all_traits")
+    staleness_kind = "fresh"
+    if stale:
+        staleness_kind = "full" if full_staleness_reasons else "partial"
     metadata: dict[str, Any] = {
         "above": above,
         "below": below,
@@ -805,6 +820,9 @@ def _metadata_from_vectors(
         "stale_chart_vector": bool(stale_chart_vector),
         "stale_trait_definition": bool(stale_trait_definition),
         "stale_db_baseline": bool(stale_db_baseline),
+        "staleness_kind": staleness_kind,
+        "stale_trait_names": sorted(stale_trait_names),
+        "full_staleness_reasons": full_staleness_reasons,
     }
     if stale:
         metadata["stale"] = True
@@ -1229,6 +1247,8 @@ def trait_metadata_for_chart(
     baseline_is_complete = bool(active_trait_names) and set(snapshot_database_averages) == active_trait_names
     cached_rows_by_name: dict[str, dict[str, Any]] = {}
     stale_rows_by_name: dict[str, dict[str, Any]] = {}
+    stale_chart_rows_by_name: dict[str, dict[str, Any]] = {}
+    stale_norm_rows_by_name: dict[str, dict[str, Any]] = {}
     cached_likelihood_rows_by_name: dict[str, dict[str, Any]] = {}
     stale_likelihood_rows_by_name: dict[str, dict[str, Any]] = {}
     stale_trait_definition_rows_by_name: dict[str, dict[str, Any]] = {}
@@ -1335,10 +1355,14 @@ def trait_metadata_for_chart(
                 cached_rows_by_name[name] = row
             elif valid_trait_signature:
                 # cached_only callers are trying to paint *something* immediately.
-                # If either chart birth data or DB norms changed, the row is stale,
-                # but it is still a better cached result than a misleading "no data"
-                # placeholder while the explicit recalculation path remains available.
+                # If either chart astro-data or DB norms changed, the row is fully
+                # stale, but it is still a better cached result than a misleading
+                # "no data" placeholder while explicit recalculation remains available.
                 stale_rows_by_name[name] = row
+                if str(row.get("chart_signature", "")) != chart_signature:
+                    stale_chart_rows_by_name[name] = row
+                if str(row.get("norm_signature", "")) != norm_signature:
+                    stale_norm_rows_by_name[name] = row
         if active_trait_names and set(cached_rows_by_name) == active_trait_names:
             _predictions_debug(owner, "Trait metadata DB row cache hit chart_uid=%s traits=%s", chart_uid, len(active_trait_names))
             above = {name for name, row in cached_rows_by_name.items() if row.get("direction") == "above"}
@@ -1387,16 +1411,21 @@ def trait_metadata_for_chart(
                 (str(row.get("updated_at", "") or "") for row in display_rows_by_name.values()),
                 default="",
             )
-            metadata = {
-                "above": above,
-                "below": below,
-                "deviations": {name: float(row.get("deviation", 0.0)) for name, row in display_rows_by_name.items()},
-                "likelihoods": {name: float(row.get("likelihood", 0.0)) for name, row in display_rows_by_name.items()},
-                "database_averages": {name: float(row.get("db_average", 0.0)) for name, row in display_rows_by_name.items()},
-                "updated_at": latest_updated_at,
-            }
-            if display_is_stale:
-                metadata["stale"] = True
+            stale_trait_names = active_trait_names - set(cached_rows_by_name)
+            full_reasons: list[str] = []
+            if active_trait_names and set(stale_chart_rows_by_name) >= active_trait_names:
+                full_reasons.append("astro_data")
+                stale_trait_names = set()
+            if active_trait_names and set(stale_norm_rows_by_name) >= active_trait_names:
+                full_reasons.append("database_norms")
+                stale_trait_names = set()
+            metadata = _metadata_from_vectors(
+                likelihoods={name: float(row.get("likelihood", 0.0)) for name, row in display_rows_by_name.items()},
+                database_averages={name: float(row.get("db_average", 0.0)) for name, row in display_rows_by_name.items()},
+                updated_at=latest_updated_at,
+                stale_trait_names=stale_trait_names if display_is_stale else set(),
+                full_staleness_reasons=full_reasons,
+            )
             return metadata
 
     if cached_only:
