@@ -12,6 +12,7 @@ from statistics import median
 from typing import Iterable
 
 from ephemeraldaddy.analysis.get_astro_twin import normalize_astro_twin_gender_category
+from ephemeraldaddy.analysis.human_design_reference import HD_HARMONIC_LINES
 from ephemeraldaddy.core.human_design_system import (
     defined_centers_from_active_gates,
     defined_channels_from_active_gates,
@@ -30,6 +31,7 @@ class HumanDesignSynastryCandidate:
     source: str | None = None
     chart_type: str | None = None
     relationship_types: tuple[str, ...] = ()
+    profile: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,6 +45,8 @@ class HumanDesignSynastryMatch:
     population_median: float
     percentile: float
     uses_houses: bool = True
+    profile_match: str | None = None
+    profile_bonus: int = 0
 
 
 HD_SYNASTRY_GENDER_FILTERS = frozenset({"all", "male", "female"})
@@ -56,6 +60,45 @@ HD_ELECTROCHEMISTRY_MAX_DEFINED_CENTERS = 9
 HD_ELECTROCHEMISTRY_MAX_SCORE = (
     HD_ELECTROCHEMISTRY_MAX_CROSS_CHANNELS + HD_ELECTROCHEMISTRY_MAX_DEFINED_CENTERS
 )
+
+
+def normalize_human_design_profile(value: object) -> tuple[int, int] | None:
+    """Return a profile as its two HD line numbers, or None when malformed."""
+    parts = str(value or "").strip().split("/")
+    if len(parts) != 2:
+        return None
+    try:
+        first, second = (int(part.strip()) for part in parts)
+    except ValueError:
+        return None
+    if first in HD_HARMONIC_LINES and second in HD_HARMONIC_LINES:
+        return first, second
+    return None
+
+
+def human_design_profile_relation(profile_a: object, profile_b: object) -> tuple[str | None, int]:
+    """Classify profile resonance/harmony and return its ranking bonus."""
+    normalized_a = normalize_human_design_profile(profile_a)
+    normalized_b = normalize_human_design_profile(profile_b)
+    if normalized_a is None or normalized_b is None:
+        return None, 0
+    resonance_count = int(normalized_a[0] == normalized_b[0]) + int(
+        normalized_a[1] == normalized_b[1]
+    )
+    harmonic_count = int(HD_HARMONIC_LINES[normalized_a[0]] == normalized_b[0]) + int(
+        HD_HARMONIC_LINES[normalized_a[1]] == normalized_b[1]
+    )
+    if resonance_count and harmonic_count:
+        return "resonant & harmonic profile", 2
+    if resonance_count == 2:
+        return "fully resonant profile", 2
+    if harmonic_count == 2:
+        return "fully harmonic profile", 2
+    if resonance_count == 1:
+        return "partially resonant profile", 1
+    if harmonic_count == 1:
+        return "partially harmonic profile", 1
+    return None, 0
 
 
 def normalize_hd_synastry_gender_filter(value: object) -> str:
@@ -147,9 +190,11 @@ def rank_human_design_synastry(
     gates: Iterable[object] | None,
     candidates: Iterable[HumanDesignSynastryCandidate],
     *,
+    source_profile: object | None = None,
     limit: int = 10,
 ) -> list[HumanDesignSynastryMatch]:
     """Rank candidates by summed electrochemistry score for this population."""
+    del source_profile
     normalized_uid = str(chart_uid or "").strip().upper()
     source_gates = normalize_gates(gates)
     matches: list[HumanDesignSynastryMatch] = []
@@ -195,6 +240,8 @@ def rank_human_design_synastry(
                 population_median=population_median,
                 percentile=percentile_by_score[match.score],
                 uses_houses=match.uses_houses,
+                profile_match=match.profile_match,
+                profile_bonus=match.profile_bonus,
             )
             for match in matches
         ]
@@ -214,6 +261,7 @@ def rank_human_design_synastry_ideal(
     gates: Iterable[object] | None,
     candidates: Iterable[HumanDesignSynastryCandidate],
     *,
+    source_profile: object | None = None,
     limit: int = 10,
 ) -> list[HumanDesignSynastryMatch]:
     """Rank candidates by ideal composite HD definition: 8/9 centers, then channels.
@@ -222,17 +270,68 @@ def rank_human_design_synastry_ideal(
     then prefers candidates that complete the most cross-chart channels. Nine
     centers are intentionally not treated as perfect for this mode.
     """
-    matches = rank_human_design_synastry(
+    candidate_list = list(candidates)
+    base_matches = rank_human_design_synastry(
         chart_uid,
         gates,
-        candidates,
+        candidate_list,
         limit=10**9,
     )
+    candidate_profiles = {
+        str(candidate.chart_uid or "").strip().upper(): candidate.profile
+        for candidate in candidate_list
+    }
+    matches = []
+    for match in base_matches:
+        profile_match, profile_bonus = human_design_profile_relation(
+            source_profile, candidate_profiles.get(match.chart_uid)
+        )
+        matches.append(
+            HumanDesignSynastryMatch(
+                chart_uid=match.chart_uid,
+                name=match.name,
+                alias=match.alias,
+                completed_channels=match.completed_channels,
+                defined_centers=match.defined_centers,
+                score=match.score + profile_bonus,
+                population_median=match.population_median,
+                percentile=match.percentile,
+                uses_houses=match.uses_houses,
+                profile_match=profile_match,
+                profile_bonus=profile_bonus,
+            )
+        )
+    if matches:
+        scores = [match.score for match in matches]
+        population_median = float(median(scores))
+        population_size = len(scores)
+        score_counts = Counter(scores)
+        cumulative_count = 0
+        percentile_by_score: dict[int, float] = {}
+        for score in sorted(score_counts):
+            cumulative_count += score_counts[score]
+            percentile_by_score[score] = 100.0 * cumulative_count / population_size
+        matches = [
+            HumanDesignSynastryMatch(
+                chart_uid=match.chart_uid,
+                name=match.name,
+                alias=match.alias,
+                completed_channels=match.completed_channels,
+                defined_centers=match.defined_centers,
+                score=match.score,
+                population_median=population_median,
+                percentile=percentile_by_score[match.score],
+                uses_houses=match.uses_houses,
+                profile_match=match.profile_match,
+                profile_bonus=match.profile_bonus,
+            )
+            for match in matches
+        ]
     matches.sort(
         key=lambda match: (
             abs(match.defined_centers - 8),
-            -match.completed_channels,
             -match.score,
+            -match.completed_channels,
             match.name.casefold(),
             match.chart_uid,
         )
