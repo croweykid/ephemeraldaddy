@@ -1414,7 +1414,7 @@ def setup_chart_view_emoji_portrait_section(owner: QWidget, layout: QVBoxLayout)
     """Build Chart View's Subjective Notes Emoji Portrait metadata input."""
     portrait_box = _build_subjective_notes_metric_section(
         owner,
-        title="Emoji Portrait",
+        title="💭Emoji Portrait",
         content_builder=lambda content_layout: _populate_emoji_portrait_section(owner, content_layout),
     )
     layout.addWidget(portrait_box)
