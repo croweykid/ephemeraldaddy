@@ -20075,6 +20075,26 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             if self._year_first_encountered_blank_checkbox is not None
             else QuadStateSlider.MODE_EMPTY
         )
+        current_relationship_state = (
+            self._current_relationship_filter_checkbox.mode()
+            if self._current_relationship_filter_checkbox is not None
+            else QuadStateSlider.MODE_EMPTY
+        )
+        last_encounter_earliest = self._parse_last_encounter_text(
+            self._last_encounter_earliest_input.text()
+            if self._last_encounter_earliest_input is not None
+            else ""
+        )
+        last_encounter_latest = self._parse_last_encounter_text(
+            self._last_encounter_latest_input.text()
+            if self._last_encounter_latest_input is not None
+            else ""
+        )
+        last_encounter_blank_state = (
+            self._last_encounter_blank_checkbox.mode()
+            if self._last_encounter_blank_checkbox is not None
+            else QuadStateSlider.MODE_EMPTY
+        )
         positive_sentiment_intensity_min = self._parse_integer_filter_text(
             self._positive_sentiment_intensity_min_input.text()
             if self._positive_sentiment_intensity_min_input is not None

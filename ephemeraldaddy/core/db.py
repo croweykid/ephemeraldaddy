@@ -3602,7 +3602,7 @@ def append_database(source: Path) -> dict[str, Any]:
                         (id, chart_uid, name, alias, from_whence, gender, birth_place, datetime_iso, tz_name,
                          lat, lon, used_utc_fallback, sentiments, relationship_types, tags, reminds_me_of, comments, emoji_portrait, quotes, rectification_notes, biography, chart_data_source, alternate_chart_uid,
                          positive_sentiment_intensity, negative_sentiment_intensity, familiarity,
-                         alignment_score, sexiness_score, matched_expectations, familiarity_factors, age_when_first_met, year_first_encountered, data_rating,
+                         alignment_score, sexiness_score, matched_expectations, familiarity_factors, age_when_first_met, year_first_encountered, current_relationship, last_encounter, data_rating,
                          social_score, birthtime_unknown, signs_unknown, unknown_signs, retcon_time_used, retcon_hour, retcon_minute,
                          rectification_range_used, rectification_range_start_minute, rectification_range_end_minute,
                          dominant_sign_weights, dominant_planet_weights, dominant_nakshatra_weights, dominant_element_weights, dominant_mode, modal_distribution,
@@ -3615,7 +3615,7 @@ def append_database(source: Path) -> dict[str, Any]:
                          is_placeholder, is_deceased, birth_month, birth_day, birth_year,
                          death_month, death_day, death_year, deathtime_unknown, death_hour, death_minute, death_place,
                          created_at, is_current)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         new_chart_id,
@@ -3650,6 +3650,8 @@ def append_database(source: Path) -> dict[str, Any]:
                         _row_value("familiarity_factors"),
                         max(0, int(_row_value("age_when_first_met") or 0)),
                         _normalize_year_first_encountered(_row_value("year_first_encountered")),
+                        1 if int(_row_value("current_relationship", 1) or 0) else 0,
+                        _normalize_last_encounter(_row_value("last_encounter")),
                         str(_row_value("data_rating") or "blank"),
                         int(social_score),
                         int(_row_value("birthtime_unknown") or 0),
