@@ -893,6 +893,12 @@ from ephemeraldaddy.gui.features.charts.collections import (
     normalize_collection_id,
     sanitize_collection_name,
 )
+from ephemeraldaddy.gui.features.database_view.collections import (
+    CollectionsListWidget,
+    chart_drag_mime_data,
+    prompt_chart_selection_for_collection_add,
+    show_collection_confirmation,
+)
 from ephemeraldaddy.gui.features.charts.aspect_popout_mixin import AspectPopoutMixin
 from ephemeraldaddy.gui.features.charts.duplicate_detection import (
     DuplicateLikelihood,
@@ -2225,7 +2231,7 @@ def _selected_chart_list_item_names(list_widget: QListWidget) -> list[str]:
 
 
 class ChartListWidget(QListWidget):
-    """List widget with single-letter navigation and open feedback."""
+    """List widget with single-letter navigation, drag support, and open feedback."""
 
     _OPEN_FEEDBACK_DURATION_MS = 360
     _OPEN_FEEDBACK_INTERVAL_MS = 30
@@ -2241,6 +2247,10 @@ class ChartListWidget(QListWidget):
         self._open_feedback_timer = QTimer(self)
         self._open_feedback_timer.setInterval(self._OPEN_FEEDBACK_INTERVAL_MS)
         self._open_feedback_timer.timeout.connect(self._advance_open_feedback)
+        self.setDragEnabled(True)
+
+    def mimeData(self, items: list[QListWidgetItem]):
+        return chart_drag_mime_data(super().mimeData(items), items)
 
     def keyPressEvent(self, event) -> None:
         if self._handle_letter_jump(event):
@@ -15862,8 +15872,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         detail_label.setWordWrap(True)
         panel_layout.addWidget(detail_label)
 
-        self.collections_list_widget = QListWidget()
+        self.collections_list_widget = CollectionsListWidget()
         self.collections_list_widget.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.collections_list_widget.drop_chart_uids_on_collection = self._on_drop_chart_uids_on_collection
         self.collections_list_widget.itemSelectionChanged.connect(
             self._update_collection_membership_buttons
         )
@@ -15941,6 +15952,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             return
 
         if not visible:
+            if getattr(self, "_active_right_panel", None) == "manage_collections":
+                self._clear_selected_collection()
             self._right_panel_sizes = self._normalize_content_splitter_sizes(
                 self._content_splitter.sizes()
             )
@@ -16322,6 +16335,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         return widget
 
     def _show_right_panel(self, panel_name: str) -> None:
+        previous_panel = getattr(self, "_active_right_panel", None)
+        if previous_panel == "manage_collections" and panel_name != "manage_collections":
+            self._clear_selected_collection()
         try:
             widget = self._right_panel_widgets[panel_name]
         except KeyError as exc:
@@ -16433,6 +16449,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
     def _refresh_collection_list_widget(self) -> None:
         if not hasattr(self, "collections_list_widget"):
             return
+        selected_collection_id = self._selected_custom_collection_id()
         self.collections_list_widget.clear()
         for collection_label, _collection_id in DEFAULT_COLLECTION_OPTIONS:
             item = QListWidgetItem(f"🔒 {collection_label} (default)")
@@ -16448,7 +16465,14 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             item.setData(Qt.UserRole, custom_collection.collection_id)
             item.setForeground(QBrush(QColor("#ffffff")))
             self.collections_list_widget.addItem(item)
+            if custom_collection.collection_id == selected_collection_id:
+                self.collections_list_widget.setCurrentItem(item)
         self._update_collection_membership_buttons()
+
+    def _clear_selected_collection(self) -> None:
+        if hasattr(self, "collections_list_widget"):
+            self.collections_list_widget.clearSelection()
+            self.collections_list_widget.setCurrentRow(-1)
 
     def _update_collection_membership_buttons(self) -> None:
         selected_count = len(self._selected_local_row_ids()) if hasattr(self, "list_widget") else 0
@@ -16585,10 +16609,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         return collection_id
 
     def _on_create_custom_collection(self) -> None:
-        selected_chart_ids = set(self._selected_local_row_ids())
+        selected_chart_uids = set(self._selected_chart_uids())
         include_selected_charts = False
-        if selected_chart_ids:
-            selected_count = len(selected_chart_ids)
+        if selected_chart_uids:
+            selected_count = len(selected_chart_uids)
             chart_label = "chart" if selected_count == 1 else "charts"
             answer = QMessageBox.question(
                 self,
@@ -16613,8 +16637,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._custom_collections[candidate] = CustomCollection(
             collection_id=candidate,
             name=clean_name,
-            chart_ids=frozenset(selected_chart_ids if include_selected_charts else ()),
-            chart_uids=frozenset(self._chart_uids_for_ids(selected_chart_ids) if include_selected_charts else ()),
+            chart_ids=frozenset(self._local_row_ids_for_uids(selected_chart_uids) if include_selected_charts else ()),
+            chart_uids=frozenset(selected_chart_uids if include_selected_charts else ()),
         )
         self._save_custom_collections_to_settings()
         self._refresh_collection_controls()
@@ -16681,15 +16705,21 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         if collection_id is None or collection_id not in self._custom_collections:
             QMessageBox.information(self, "Collections", "Select a custom collection first.")
             return
-        chart_ids = set(self._selected_local_row_ids())
-        if not chart_ids:
+        chart_uids = set(self._selected_chart_uids())
+        if not chart_uids:
             QMessageBox.information(self, "Collections", "Select one or more charts first.")
             return
         collection = self._custom_collections[collection_id]
-        updated_ids = set(collection.chart_ids)
-        updated_ids.update(chart_ids)
-        updated_uids = set(collection.chart_uids)
-        updated_uids.update(self._chart_uids_for_ids(chart_ids))
+        previous_uids = set(collection.chart_uids)
+        added_uids = chart_uids.difference(previous_uids)
+        if not added_uids:
+            show_collection_confirmation(
+                self,
+                f"All selected charts are already in '{collection.name}'."
+            )
+            return
+        updated_uids = previous_uids.union(added_uids)
+        updated_ids = set(self._local_row_ids_for_uids(updated_uids))
         self._custom_collections[collection_id] = CustomCollection(
             collection_id=collection.collection_id,
             name=collection.name,
@@ -16699,6 +16729,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._save_custom_collections_to_settings()
         self._refresh_collection_controls()
         self._populate_list()
+        show_collection_confirmation(
+            self,
+            f"{len(added_uids)} charts were added to '{collection.name}'!"
+        )
 
     def _on_remove_selection_from_collection(self) -> None:
         collection_id = self._selected_custom_collection_id()
@@ -16708,8 +16742,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         if collection_id is None or collection_id not in self._custom_collections:
             QMessageBox.information(self, "Collections", "Select a custom collection first.")
             return
-        chart_ids = set(self._selected_local_row_ids())
-        if not chart_ids:
+        chart_uids = set(self._selected_chart_uids())
+        if not chart_uids:
             QMessageBox.information(self, "Collections", "Select one or more charts first.")
             return
         hidden_count = self._hidden_selected_chart_count()
@@ -16718,7 +16752,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 self,
                 "Remove from collection",
                 (
-                    f"Remove {len(chart_ids)} selected chart(s) from this collection?"
+                    f"Remove {len(chart_uids)} selected chart(s) from this collection?"
                     f"\n\n{hidden_count} selected chart(s) are hidden by the current filters."
                 ),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
@@ -16727,11 +16761,16 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             if answer != QMessageBox.StandardButton.Yes:
                 return
         collection = self._custom_collections[collection_id]
-        updated_ids = {int(chart_id) for chart_id in collection.chart_ids}
-        updated_ids.difference_update(chart_ids)
-        removed_uids = self._chart_uids_for_ids(chart_ids)
-        updated_uids = set(collection.chart_uids)
-        updated_uids.difference_update(removed_uids)
+        previous_uids = set(collection.chart_uids)
+        removed_uids = previous_uids.intersection(chart_uids)
+        if not removed_uids:
+            show_collection_confirmation(
+                self,
+                f"None of the selected charts are in '{collection.name}'."
+            )
+            return
+        updated_uids = previous_uids.difference(removed_uids)
+        updated_ids = set(self._local_row_ids_for_uids(updated_uids))
         self._custom_collections[collection_id] = CustomCollection(
             collection_id=collection.collection_id,
             name=collection.name,
@@ -16741,6 +16780,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._save_custom_collections_to_settings()
         self._refresh_collection_controls()
         self._populate_list()
+        show_collection_confirmation(
+            self,
+            f"{len(removed_uids)} charts were removed from '{collection.name}'!"
+        )
 
     def _on_search_chart_to_add_to_collection(self) -> None:
         collection_id = self._selected_custom_collection_id()
@@ -16748,13 +16791,23 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             QMessageBox.information(self, "Collections", "Select a custom collection first.")
             return
         collection = self._custom_collections[collection_id]
-        chart_id = self._prompt_chart_selection_for_collection_add(collection.name)
-        if chart_id is None:
+        chart_rows = list_charts()
+        chart_uid_by_local_id = get_chart_uid_map([int(row[0]) for row in chart_rows])
+        selected_chart = prompt_chart_selection_for_collection_add(
+            self,
+            collection_name=collection.name,
+            chart_rows=chart_rows,
+            chart_uid_by_local_id=chart_uid_by_local_id,
+        )
+        if selected_chart is None:
             return
-        updated_ids = set(collection.chart_ids)
-        updated_ids.add(chart_id)
-        updated_uids = set(collection.chart_uids)
-        updated_uids.update(self._chart_uids_for_ids([chart_id]))
+        chart_uid, chart_name = selected_chart
+        previous_uids = set(collection.chart_uids)
+        if chart_uid in previous_uids:
+            show_collection_confirmation(self, f"{chart_name} is already in '{collection.name}'.")
+            return
+        updated_uids = previous_uids.union({chart_uid})
+        updated_ids = set(self._local_row_ids_for_uids(updated_uids))
         self._custom_collections[collection_id] = CustomCollection(
             collection_id=collection.collection_id,
             name=collection.name,
@@ -16764,82 +16817,38 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._save_custom_collections_to_settings()
         self._refresh_collection_controls()
         self._populate_list()
+        show_collection_confirmation(self, f"{chart_name} was added to '{collection.name}'!")
 
-    def _prompt_chart_selection_for_collection_add(self, collection_name: str) -> int | None:
-        dialog = QDialog(self)
-        dialog.setWindowTitle(f"Search Chart to Add • {collection_name}")
-        dialog.setModal(True)
-
-        layout = QVBoxLayout(dialog)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(8)
-
-        helper_label = QLabel("Search for a chart, then add it to this collection.")
-        helper_label.setWordWrap(True)
-        layout.addWidget(helper_label)
-
-        chart_lookup: dict[str, int] = {}
-        labels: list[str] = []
-        for row in list_charts():
-            chart_id, name, alias, *_rest = row
-            display_name = name.strip() if isinstance(name, str) and name.strip() else f"Chart {chart_id}"
-            if alias:
-                display_name = f"{display_name} ({alias})"
-            label = f"{display_name}  [#{chart_id}]"
-            labels.append(label)
-            chart_lookup[label] = int(chart_id)
-
-        chart_input = QLineEdit(dialog)
-        chart_input.setPlaceholderText("Search chart name")
-        completer = QCompleter(labels, chart_input)
-        completer.setCaseSensitivity(Qt.CaseInsensitive)
-        completer.setFilterMode(Qt.MatchContains)
-        chart_input.setCompleter(completer)
-        layout.addWidget(chart_input)
-
-        buttons_row = QHBoxLayout()
-        buttons_row.addStretch(1)
-        cancel_button = QPushButton("Never mind", dialog)
-        add_button = QPushButton(f"Add to {collection_name}", dialog)
-        buttons_row.addWidget(cancel_button)
-        buttons_row.addWidget(add_button)
-        layout.addLayout(buttons_row)
-
-        selected_chart_id: int | None = None
-
-        def _resolve_chart_id(raw_value: str) -> int | None:
-            query = raw_value.strip()
-            if not query:
-                return None
-            direct_match = chart_lookup.get(query)
-            if direct_match is not None:
-                return direct_match
-            for label, chart_id in chart_lookup.items():
-                if query.lower() == label.lower():
-                    return chart_id
-            return None
-
-        def _submit() -> None:
-            nonlocal selected_chart_id
-            chart_id = _resolve_chart_id(chart_input.text())
-            if chart_id is None:
-                QMessageBox.warning(
-                    dialog,
-                    "Collections",
-                    "Select a saved chart from autocomplete before adding.",
-                )
-                return
-            selected_chart_id = chart_id
-            dialog.accept()
-
-        add_button.clicked.connect(_submit)
-        cancel_button.clicked.connect(dialog.reject)
-        chart_input.returnPressed.connect(_submit)
-        QTimer.singleShot(0, chart_input.setFocus)
-
-        if dialog.exec() != QDialog.Accepted:
-            return None
-        return selected_chart_id
+    def _on_drop_chart_uids_on_collection(self, collection_id: str, chart_uids: list[str]) -> None:
+        if collection_id not in self._custom_collections:
+            return
+        collection = self._custom_collections[collection_id]
+        dropped_uids = {uid.strip().upper() for uid in chart_uids if uid.strip()}
+        if not dropped_uids:
+            return
+        previous_uids = set(collection.chart_uids)
+        added_uids = dropped_uids.difference(previous_uids)
+        if not added_uids:
+            show_collection_confirmation(
+                self,
+                f"Dropped charts are already in '{collection.name}'."
+            )
+            return
+        updated_uids = previous_uids.union(added_uids)
+        updated_ids = set(self._local_row_ids_for_uids(updated_uids))
+        self._custom_collections[collection_id] = CustomCollection(
+            collection_id=collection.collection_id,
+            name=collection.name,
+            chart_ids=frozenset(updated_ids),
+            chart_uids=frozenset(updated_uids),
+        )
+        self._save_custom_collections_to_settings()
+        self._refresh_collection_controls()
+        self._populate_list()
+        show_collection_confirmation(
+            self,
+            f"{len(added_uids)} charts were added to '{collection.name}'!"
+        )
 
     def _clear_batch_edits(self) -> None:
         if hasattr(self, "_batch_last_selection_uids"):

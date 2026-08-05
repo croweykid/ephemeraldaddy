@@ -2230,8 +2230,12 @@ class ManageMetadataLabelsDialog(QDialog):
             while iterator.value() is not None:
                 item = iterator.value()
                 if item is not None and item.childCount() == 0:
-                    item_label = str(item.data(0, Qt.UserRole + 2) or item.data(0, Qt.UserRole) or "").strip()
-                    if item_label == target_label:
+                    item_values = (
+                        item.data(0, Qt.UserRole + 2),
+                        item.data(0, Qt.UserRole + 1),
+                        item.data(0, Qt.UserRole),
+                    )
+                    if target_label in {str(value or "").strip() for value in item_values}:
                         for other_tree in self._selection_trees():
                             if other_tree is not tree:
                                 other_tree.clearSelection()
@@ -2930,7 +2934,7 @@ class ManageMetadataLabelsDialog(QDialog):
         if not key or not callable(action):
             return
         action(key)
-        self._queue_usage_reload(refresh_chart_context=True)
+        self._queue_usage_reload(refresh_chart_context=True, keep_selection_label=key)
 
     def _delete_selected_collection(self) -> None:
         key = self._selected_key()
@@ -2946,7 +2950,7 @@ class ManageMetadataLabelsDialog(QDialog):
         if not key or not callable(action):
             return
         action(key)
-        self._queue_usage_reload(refresh_chart_context=True)
+        self._queue_usage_reload(refresh_chart_context=True, keep_selection_label=key)
 
     def _remove_selected_from_collection(self) -> None:
         key = self._selected_key()
@@ -2954,7 +2958,7 @@ class ManageMetadataLabelsDialog(QDialog):
         if not key or not callable(action):
             return
         action(key)
-        self._queue_usage_reload(refresh_chart_context=True)
+        self._queue_usage_reload(refresh_chart_context=True, keep_selection_label=key)
 
     # def _delete_selected(self) -> None:
     #     old_label = self._selected_label()
