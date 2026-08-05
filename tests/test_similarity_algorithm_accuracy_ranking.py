@@ -56,6 +56,46 @@ def test_algorithm_accuracy_reads_mixed_historical_log(tmp_path):
     ]
 
 
+def test_algorithm_accuracy_v2_averages_ranked_top_and_bottom_user_scores(tmp_path):
+    path = tmp_path / "similarities_algorithm_log.txt"
+    for rank, perceived in enumerate([90, 80, 70, 60, 50, None], start=1):
+        append_similarity_accuracy_observation(
+            algorithm_mode="default",
+            predicted_percent=100 - rank,
+            perceived_similarity_score=perceived,
+            perceived_similarity_not_applicable=perceived is None,
+            ranking_position=rank,
+            chart_1_uid="A" * 14,
+            chart_2_uid=chr(65 + rank) * 14,
+            path=path,
+        )
+    for rank, perceived in enumerate([50, 60, 70, 80, 90], start=1):
+        append_similarity_accuracy_observation(
+            algorithm_mode="big_3",
+            predicted_percent=100 - rank,
+            perceived_similarity_score=perceived,
+            perceived_similarity_not_applicable=False,
+            ranking_position=rank,
+            chart_1_uid="A" * 14,
+            chart_2_uid=chr(75 + rank) * 14,
+            path=path,
+        )
+
+    rows = aggregate_similarity_algorithm_accuracy(path, include_v2=True)
+    by_mode = {row["algorithm_mode"]: row for row in rows}
+
+    assert by_mode["default"]["v2_top_25_average"] == 70.0
+    assert by_mode["default"]["v2_bottom_25_average"] == 70.0
+    assert by_mode["default"]["v2_top_25_chart_count"] == 1
+    assert by_mode["big_3"]["v2_top_25_average"] == 70.0
+    assert "Accuracy Scorer v2" in format_similarity_algorithm_accuracy_ranking_html(
+        rows, expanded_rows=set(), highlight_color="#abcdef"
+    )
+    assert "v1 legacy" in format_similarity_algorithm_accuracy_ranking_html(
+        rows, expanded_rows=set(), highlight_color="#abcdef"
+    )
+
+
 def test_accuracy_observation_is_appended_to_shared_algorithm_log(tmp_path):
     path = tmp_path / "similarities_algorithm_log.txt"
     _append(path, "big 3", 61.5, 70)

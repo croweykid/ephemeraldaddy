@@ -200,8 +200,18 @@ def aggregate_similarity_algorithm_accuracy(
     path: str | os.PathLike[str] | None = None,
     *,
     relationship_path: str | os.PathLike[str] | None = None,
+    include_v2: bool = False,
 ) -> list[dict[str, Any]]:
-    """Rank algorithms while retrofitting legacy log and relationship data in memory."""
+    """Rank algorithms while retrofitting legacy log and relationship data in memory.
+
+    The default return shape preserves the legacy v1 scorer: user-reported
+    perceived similarity is compared directly with the algorithm's predicted
+    percentage.  When ``include_v2`` is true, rows also include independent v2
+    top-25 and bottom-25 averages.  V2 ignores blank/n/a responses and scores
+    each algorithm by the user's average perceived similarity in its own top
+    and bottom 25 ranked results for each source chart; the two findings are
+    intentionally not combined.
+    """
     log_path = resolve_similarities_algorithm_log_path(path)
     try:
         content = log_path.read_text(encoding="utf-8")
@@ -209,7 +219,7 @@ def aggregate_similarity_algorithm_accuracy(
         return []
     relationship_scores = _current_relationship_scores(relationship_path)
     logged_snapshots = _logged_algorithm_snapshots(content)
-    observations: dict[tuple[str, str, str], tuple[float | None, float | None, dict[str, Any] | None]] = {}
+    observations: dict[tuple[str, str, str], tuple[float | None, float | None, dict[str, Any] | None, int | None, str | None]] = {}
     observations_by_pair: dict[str, set[tuple[str, str, str]]] = {}
     custom_variant_order: dict[str, int] = {}
     decoder = json.JSONDecoder()
@@ -272,7 +282,19 @@ def aggregate_similarity_algorithm_accuracy(
         pair_key = _accuracy_pair_key(payload)
         observation_key = pair_key or f"legacy-offset:{marker_index}"
         composite_key = (mode, variant_key, observation_key)
-        observations[composite_key] = (perceived, predicted, snapshot)
+        ranking_position = None
+        try:
+            if payload.get("ranking_position") is not None:
+                ranking_position = int(payload.get("ranking_position"))
+        except (TypeError, ValueError):
+            ranking_position = None
+        raw_uids = payload.get("chart_uids")
+        subject_uid = None
+        if isinstance(raw_uids, list) and raw_uids:
+            raw_subject_uid = str(raw_uids[0] or "").strip()
+            if raw_subject_uid:
+                subject_uid = raw_subject_uid.upper()
+        observations[composite_key] = (perceived, predicted, snapshot, ranking_position, subject_uid)
         if pair_key:
             observations_by_pair.setdefault(pair_key, set()).add(composite_key)
     # USER_FEEDBACK belongs to the chart pair, independently of every
@@ -289,11 +311,14 @@ def aggregate_similarity_algorithm_accuracy(
         for composite_key in composite_keys:
             if composite_key not in observations:
                 continue
-            _perceived, predicted, snapshot = observations[composite_key]
-            observations[composite_key] = (relationship_scores[pair_key], predicted, snapshot)
+            _perceived, predicted, snapshot, ranking_position, subject_uid = observations[composite_key]
+            observations[composite_key] = (relationship_scores[pair_key], predicted, snapshot, ranking_position, subject_uid)
     totals: dict[tuple[str, str], list[float]] = {}
     snapshots: dict[tuple[str, str], dict[str, Any] | None] = {}
-    for (mode, variant_key, _pair_key), (perceived, predicted, snapshot) in observations.items():
+    v2_groups: dict[tuple[str, str, str], list[tuple[int, float]]] = {}
+    for (mode, variant_key, observation_key), (perceived, predicted, snapshot, ranking_position, subject_uid) in observations.items():
+        if perceived is not None and ranking_position is not None and subject_uid:
+            v2_groups.setdefault((mode, variant_key, subject_uid), []).append((ranking_position, perceived))
         if perceived is not None and predicted is not None:
             accuracy = max(0.0, 100.0 - abs(predicted - perceived))
             key = (mode, variant_key)
@@ -310,6 +335,28 @@ def aggregate_similarity_algorithm_accuracy(
         }
         for (mode, variant_key), scores in totals.items()
     ]
+    if include_v2:
+        v2_totals: dict[tuple[str, str], dict[str, list[float] | int]] = {}
+        for (mode, variant_key, _subject_uid), ranked_scores in v2_groups.items():
+            ordered = [score for _position, score in sorted(ranked_scores, key=lambda item: item[0])]
+            top_scores = ordered[:25]
+            bottom_scores = ordered[-25:]
+            key = (mode, variant_key)
+            bucket = v2_totals.setdefault(key, {"top": [], "bottom": [], "charts": 0})
+            if top_scores:
+                bucket["top"].append(sum(top_scores) / len(top_scores))  # type: ignore[union-attr]
+            if bottom_scores:
+                bucket["bottom"].append(sum(bottom_scores) / len(bottom_scores))  # type: ignore[union-attr]
+            bucket["charts"] = int(bucket["charts"]) + 1
+        for row in ranked:
+            key = (row["algorithm_mode"], row["_variant_key"])
+            bucket = v2_totals.get(key, {"top": [], "bottom": [], "charts": 0})
+            top_values = list(bucket["top"])  # type: ignore[arg-type]
+            bottom_values = list(bucket["bottom"])  # type: ignore[arg-type]
+            row["v2_top_25_average"] = (sum(top_values) / len(top_values)) if top_values else None
+            row["v2_top_25_chart_count"] = len(top_values)
+            row["v2_bottom_25_average"] = (sum(bottom_values) / len(bottom_values)) if bottom_values else None
+            row["v2_bottom_25_chart_count"] = len(bottom_values)
     ranked.sort(key=lambda row: (-row["average_accuracy"], -row["sample_count"], row["algorithm_mode"], row["_variant_key"]))
     for row in ranked:
         if row["algorithm_mode"] == "custom":
@@ -366,7 +413,7 @@ def format_similarity_algorithm_accuracy_ranking(
     rows: list[Mapping[str, Any]] | None = None,
 ) -> str:
     """Return concise Research-tab text for aggregate algorithm results."""
-    ranked = aggregate_similarity_algorithm_accuracy() if rows is None else rows
+    ranked = aggregate_similarity_algorithm_accuracy(include_v2=True) if rows is None else rows
     if not ranked:
         return "Algorithm accuracy ranking\nNo algorithm-linked accuracy scores have been recorded yet."
     lines = ["Algorithm accuracy ranking", "Average accuracy across recorded chart-pair rankings:"]
@@ -374,7 +421,14 @@ def format_similarity_algorithm_accuracy_ranking(
         mode = str(row.get("display_name") or row.get("algorithm_mode", "unknown")).replace("_", " ").title()
         average = float(row.get("average_accuracy", 0.0))
         count = int(row.get("sample_count", 0))
-        lines.append(f"{index}. {mode} — {average:.1f}% average (n={count})")
+        top_average = row.get("v2_top_25_average")
+        bottom_average = row.get("v2_bottom_25_average")
+        v2_text = ""
+        if top_average is not None or bottom_average is not None:
+            top_text = "—" if top_average is None else f"{float(top_average):.1f}%"
+            bottom_text = "—" if bottom_average is None else f"{float(bottom_average):.1f}%"
+            v2_text = f"; v2 top 25 {top_text}; bottom 25 {bottom_text}"
+        lines.append(f"{index}. {mode} — {average:.1f}% average (n={count}) v1 legacy{v2_text}")
     return "\n".join(lines)
 
 
@@ -385,23 +439,40 @@ def format_similarity_algorithm_accuracy_ranking_html(
     highlight_color: str,
 ) -> str:
     """Return the interactive Research ranking as compact, safe rich text."""
-    ranked = aggregate_similarity_algorithm_accuracy() if rows is None else rows
+    ranked = aggregate_similarity_algorithm_accuracy(include_v2=True) if rows is None else rows
     expanded_rows = expanded_rows or set()
     parts = [
         f'<div style="font-weight:600; color:{html.escape(highlight_color)}; font-size:14px;">'
-        "Algorithm accuracy ranking</div>"
+        "Algorithm Accuracy Ranking</div>"
     ]
     if not ranked:
         parts.append("<div>No algorithm-linked accuracy scores have been recorded yet.</div>")
         return "".join(parts)
-    parts.append("<div>Average accuracy across recorded chart-pair rankings:</div>")
+    parts.append(
+        '<div style="margin:2px 0 6px 0;">Accuracy Scorer v2 compares each algorithm\'s '
+        'average user scores in the top 25 and bottom 25 results per source chart; '
+        'n/a and blank responses are ignored.</div>'
+    )
+    parts.append(
+        '<table cellspacing="0" cellpadding="3" style="width:100%; border-collapse:collapse;">'
+        '<tr><th align="left">Algorithm</th><th align="right">v1 legacy</th>'
+        '<th align="right">v2 top 25</th><th align="right">v2 bottom 25</th></tr>'
+    )
     for index, row in enumerate(ranked, start=1):
         name = str(row.get("display_name") or row.get("algorithm_mode", "unknown")).replace("_", " ").title()
         average = float(row.get("average_accuracy", 0.0))
         count = int(row.get("sample_count", 0))
+        top_average = row.get("v2_top_25_average")
+        bottom_average = row.get("v2_bottom_25_average")
+        top_count = int(row.get("v2_top_25_chart_count", 0))
+        bottom_count = int(row.get("v2_bottom_25_chart_count", 0))
+        top_text = "—" if top_average is None else f"{float(top_average):.1f}% (charts={top_count})"
+        bottom_text = "—" if bottom_average is None else f"{float(bottom_average):.1f}% (charts={bottom_count})"
         parts.append(
-            f'<div style="margin-top:4px;">{index}. <a href="algorithm:{index - 1}">{html.escape(name)}</a>'
-            f" — {average:.1f}% average (n={count})</div>"
+            f'<tr><td>{index}. <a href="algorithm:{index - 1}">{html.escape(name)}</a></td>'
+            f'<td align="right">{average:.1f}% (n={count})</td>'
+            f'<td align="right">{html.escape(top_text)}</td>'
+            f'<td align="right">{html.escape(bottom_text)}</td></tr>'
         )
         if index - 1 not in expanded_rows:
             continue
@@ -426,11 +497,12 @@ def format_similarity_algorithm_accuracy_ranking_html(
         if not detail_lines:
             detail_lines.append("Exact settings unavailable for this legacy observation.")
         parts.append(
-            '<div style="margin:3px 0 5px 18px; padding:5px 7px; border-left:2px solid '
+            '<tr><td colspan="4"><div style="margin:3px 0 5px 18px; padding:5px 7px; border-left:2px solid '
             f'{html.escape(highlight_color)}; font-size:11px;">'
             + "<br>".join(html.escape(line) for line in detail_lines)
-            + "</div>"
+            + "</div></td></tr>"
         )
+    parts.append("</table>")
     return "".join(parts)
 
 
