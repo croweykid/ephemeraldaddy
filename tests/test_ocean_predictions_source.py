@@ -65,3 +65,16 @@ def test_ocean_metric_popout_registry_is_wired():
     assert "def connect_ocean_popout_pick_handler" in ocean_source
     assert 'bar.set_gid(f"ocean:{trait}")' in ocean_source
     assert 'tick_label.set_gid(f"ocean:{trait}")' in ocean_source
+
+
+def test_clear_chart_displays_clears_ocean_layout_and_label():
+    source = Path("ephemeraldaddy/gui/app.py").read_text()
+
+    clear_start = source.index("def _clear_chart_displays")
+    clear_end = source.index("def _render_chart", clear_start)
+    clear_source = source[clear_start:clear_end]
+
+    assert "self.ocean_prediction_chart_layout" in clear_source
+    assert "self.ocean_prediction_canvas = None" in clear_source
+    assert "self.ocean_prediction_label.setText" in clear_source
+    assert "Loading OCEAN predictions" in clear_source

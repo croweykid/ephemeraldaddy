@@ -36787,6 +36787,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             self.gender_guesser_container_layout,
             self.planet_dynamics_container_layout,
             self.chart_type_container_layout,
+            self.ocean_prediction_chart_layout,
             self.enneagram_prediction_chart_layout,
             self.dnd_predictions_chart_layout,
             self.dnd_alignment_chart_layout,
@@ -36825,6 +36826,8 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.enneagram_prediction_canvas = None
         self.dnd_prediction_statblock_canvas = None
         self.dnd_prediction_alignment_canvas = None
+        if getattr(self, "ocean_prediction_label", None) is not None:
+            self.ocean_prediction_label.setText("Loading OCEAN predictions…")
         self.dnd_prediction_top_three_label = None
         if getattr(self, "dnd_prediction_species_label", None) is not None:
             self.dnd_prediction_species_label.setText("<b>Top 3 Species/Subspecies</b><br>—")
