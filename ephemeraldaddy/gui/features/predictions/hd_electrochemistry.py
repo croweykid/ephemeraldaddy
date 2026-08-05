@@ -124,6 +124,15 @@ def normalize_hd_electrochemistry_mode(value: object) -> str:
     )
 
 
+def hd_electrochemistry_ranker_for_mode(mode: object):
+    """Return the ranker matching the selected Predicted Synastry mode."""
+    return (
+        rank_human_design_electrochemistry_ideal
+        if normalize_hd_electrochemistry_mode(mode) == HD_ELECTROCHEMISTRY_MODE_IDEAL
+        else rank_human_design_electrochemistry
+    )
+
+
 def normalize_gendered_results_method(value: object) -> str:
     """Normalize the appwide gender grouping preference."""
     return (
@@ -301,13 +310,8 @@ def render_hd_electrochemistry_predictions(owner: object, chart: object | None) 
     )
     database_revision = int(getattr(owner, "_database_metrics_cache_revision", 0) or 0)
     request_human_design_electrochemistry_norms(database_revision)
-    mode = normalize_hd_electrochemistry_mode(
+    ranker = hd_electrochemistry_ranker_for_mode(
         getattr(owner, "hd_electrochemistry_prediction_mode", HD_ELECTROCHEMISTRY_MODE_STANDARD)
-    )
-    ranker = (
-        rank_human_design_electrochemistry_ideal
-        if mode == HD_ELECTROCHEMISTRY_MODE_IDEAL
-        else rank_human_design_electrochemistry
     )
     matches = ranker(
         chart_uid,
@@ -421,9 +425,12 @@ def hd_electrochemistry_match_collection_uids(
         return frozenset()
     candidates = _collection_scoped_hd_electrochemistry_candidates(owner)
     gender_method = load_gendered_results_method()
+    ranker = hd_electrochemistry_ranker_for_mode(
+        getattr(owner, "hd_electrochemistry_prediction_mode", HD_ELECTROCHEMISTRY_MODE_STANDARD)
+    )
     ranked_uids: set[str] = set()
     for gender_filter in ("male", "female"):
-        matches = rank_human_design_electrochemistry(
+        matches = ranker(
             chart_uid,
             gates,
             filter_hd_electrochemistry_candidates(

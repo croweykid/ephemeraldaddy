@@ -380,6 +380,54 @@ def test_match_collection_combines_top_ten_from_both_gender_groups(monkeypatch):
     assert len([uid for uid in chart_uids if uid.startswith("F")]) == 10
 
 
+
+def test_match_collection_honors_selected_ideal_mode(monkeypatch):
+    hd_electrochemistry = _hd_electrochemistry_module()
+    candidates = [gendered_candidate("M01", "M"), gendered_candidate("F01", "F")]
+    calls = []
+
+    def standard_ranker(*_args, **_kwargs):
+        calls.append("standard")
+        return []
+
+    def ideal_ranker(_chart_uid, _gates, filtered_candidates, **_kwargs):
+        calls.append("ideal")
+        return [
+            type(
+                "Match",
+                (),
+                {"chart_uid": candidate.chart_uid},
+            )()
+            for candidate in filtered_candidates
+        ]
+
+    monkeypatch.setattr(
+        hd_electrochemistry,
+        "list_human_design_electrochemistry_candidates",
+        lambda: candidates,
+    )
+    monkeypatch.setattr(
+        hd_electrochemistry,
+        "load_gendered_results_method",
+        lambda: HD_SYNASTRY_GENDER_METHOD_SEX,
+    )
+    monkeypatch.setattr(hd_electrochemistry, "rank_human_design_electrochemistry", standard_ranker)
+    monkeypatch.setattr(hd_electrochemistry, "rank_human_design_electrochemistry_ideal", ideal_ranker)
+    owner = type(
+        "Owner",
+        (),
+        {
+            "hd_electrochemistry_collection_filter": "all",
+            "hd_electrochemistry_prediction_mode": hd_electrochemistry.HD_ELECTROCHEMISTRY_MODE_IDEAL,
+        },
+    )()
+    chart = type("Chart", (), {"chart_uid": "SOURCE", "human_design_gates": [64]})()
+
+    chart_uids = hd_electrochemistry.hd_electrochemistry_match_collection_uids(owner, chart)
+
+    assert chart_uids == frozenset({"M01", "F01"})
+    assert calls == ["ideal", "ideal"]
+
 def test_match_collection_synchronizes_existing_database_view_dialog(monkeypatch):
     hd_electrochemistry = _hd_electrochemistry_module()
 
