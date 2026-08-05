@@ -207,3 +207,34 @@ def rank_human_design_synastry(
         )
     )
     return matches[: max(0, int(limit))]
+
+
+def rank_human_design_synastry_ideal(
+    chart_uid: str,
+    gates: Iterable[object] | None,
+    candidates: Iterable[HumanDesignSynastryCandidate],
+    *,
+    limit: int = 10,
+) -> list[HumanDesignSynastryMatch]:
+    """Rank candidates by ideal composite HD definition: 8/9 centers, then channels.
+
+    This variant treats exactly eight combined defined centers as the target and
+    then prefers candidates that complete the most cross-chart channels. Nine
+    centers are intentionally not treated as perfect for this mode.
+    """
+    matches = rank_human_design_synastry(
+        chart_uid,
+        gates,
+        candidates,
+        limit=10**9,
+    )
+    matches.sort(
+        key=lambda match: (
+            abs(match.defined_centers - 8),
+            -match.completed_channels,
+            -match.score,
+            match.name.casefold(),
+            match.chart_uid,
+        )
+    )
+    return matches[: max(0, int(limit))]

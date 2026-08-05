@@ -17,6 +17,7 @@ from ephemeraldaddy.analysis.human_design_synastry import (
     normalize_gates,
     normalize_hd_synastry_gender_filter as normalize_hd_electrochemistry_gender_filter,
     rank_human_design_synastry as rank_human_design_electrochemistry,
+    rank_human_design_synastry_ideal as rank_human_design_electrochemistry_ideal,
 )
 from ephemeraldaddy.core.db import (
     list_human_design_synastry_candidates as list_human_design_electrochemistry_candidates,
@@ -51,6 +52,8 @@ HD_ELECTROCHEMISTRY_SUBHEADER = (
 )
 
 SETTINGS_KEY_GENDERED_RESULTS_METHOD = "chart_calculation/gendered_results_method"
+HD_ELECTROCHEMISTRY_MODE_STANDARD = "hd_electrochemistry"
+HD_ELECTROCHEMISTRY_MODE_IDEAL = "hd_electrochemical_ideal"
 
 
 def reload_hd_electrochemistry_custom_collections(
@@ -109,6 +112,16 @@ def refresh_hd_electrochemistry_collections(owner: object) -> None:
         getattr(owner, "hd_electrochemistry_prediction_label", None), QLabel
     ):
         render_hd_electrochemistry_predictions(owner, chart)
+
+
+def normalize_hd_electrochemistry_mode(value: object) -> str:
+    """Return the supported predicted-synastry scoring mode."""
+    normalized = str(value or "").strip().casefold()
+    return (
+        HD_ELECTROCHEMISTRY_MODE_IDEAL
+        if normalized == HD_ELECTROCHEMISTRY_MODE_IDEAL
+        else HD_ELECTROCHEMISTRY_MODE_STANDARD
+    )
 
 
 def normalize_gendered_results_method(value: object) -> str:
@@ -179,6 +192,9 @@ def hd_electrochemistry_render_token(owner: object, chart: object | None) -> tup
         bool(chart is not None and chart_uses_houses(chart)),
         normalize_hd_electrochemistry_gender_filter(getattr(owner, "hd_electrochemistry_gender_filter", "all")),
         load_gendered_results_method(),
+        normalize_hd_electrochemistry_mode(
+            getattr(owner, "hd_electrochemistry_prediction_mode", HD_ELECTROCHEMISTRY_MODE_STANDARD)
+        ),
         collection_signature,
         int(getattr(owner, "_database_metrics_cache_revision", 0) or 0),
     )
@@ -285,7 +301,15 @@ def render_hd_electrochemistry_predictions(owner: object, chart: object | None) 
     )
     database_revision = int(getattr(owner, "_database_metrics_cache_revision", 0) or 0)
     request_human_design_electrochemistry_norms(database_revision)
-    matches = rank_human_design_electrochemistry(
+    mode = normalize_hd_electrochemistry_mode(
+        getattr(owner, "hd_electrochemistry_prediction_mode", HD_ELECTROCHEMISTRY_MODE_STANDARD)
+    )
+    ranker = (
+        rank_human_design_electrochemistry_ideal
+        if mode == HD_ELECTROCHEMISTRY_MODE_IDEAL
+        else rank_human_design_electrochemistry
+    )
+    matches = ranker(
         chart_uid,
         gates,
         candidates,
@@ -333,6 +357,19 @@ def on_hd_electrochemistry_gender_filter_changed(owner: object, gender_filter: s
     if not checked:
         return
     setattr(owner, "hd_electrochemistry_gender_filter", normalize_hd_electrochemistry_gender_filter(gender_filter))
+    setattr(owner, "_hd_electrochemistry_last_render_token", None)
+    chart = getattr(owner, "_latest_chart", None) or getattr(owner, "current_chart", None)
+    if chart is not None:
+        render_hd_electrochemistry_predictions(owner, chart)
+
+
+def on_hd_electrochemistry_mode_changed(owner: object, mode: object) -> None:
+    """Rerank the open chart when the predicted-synastry mode changes."""
+    setattr(
+        owner,
+        "hd_electrochemistry_prediction_mode",
+        normalize_hd_electrochemistry_mode(mode),
+    )
     setattr(owner, "_hd_electrochemistry_last_render_token", None)
     chart = getattr(owner, "_latest_chart", None) or getattr(owner, "current_chart", None)
     if chart is not None:

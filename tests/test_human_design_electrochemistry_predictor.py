@@ -6,6 +6,7 @@ from ephemeraldaddy.analysis.human_design_synastry import (
     human_design_electrochemistry_score,
     normalize_gates,
     rank_human_design_synastry,
+    rank_human_design_synastry_ideal,
 )
 
 
@@ -52,6 +53,44 @@ def test_electrochemistry_score_sums_cross_chart_channels_and_combined_centers()
     assert score == 3
     assert maximum == 37
 
+
+def test_ideal_rank_prefers_exactly_eight_defined_centers_over_nine():
+    source_gates = {64}
+    all_gates = set(range(1, 65))
+    head_gate_options = {47, 24, 4}
+    eight_center_gates = all_gates - head_gate_options
+
+    results = rank_human_design_synastry_ideal(
+        "SOURCE",
+        source_gates,
+        [
+            candidate("NINE", all_gates, "Nine centers"),
+            candidate("EIGHT", eight_center_gates, "Eight centers"),
+        ],
+    )
+
+    assert [match.chart_uid for match in results] == ["EIGHT", "NINE"]
+    assert results[0].defined_centers == 8
+    assert results[1].defined_centers == 9
+
+def test_ideal_rank_breaks_eight_center_ties_by_completed_channels():
+    source_gates = {1}
+    all_gates = set(range(1, 65))
+    eight_center_gates = all_gates - {64, 61, 63, 1, 8}
+
+    results = rank_human_design_synastry_ideal(
+        "SOURCE",
+        source_gates,
+        [
+            candidate("FEWER", eight_center_gates, "Fewer channels"),
+            candidate("MORE", eight_center_gates | {8}, "More channels"),
+        ],
+    )
+
+    assert [match.chart_uid for match in results] == ["MORE", "FEWER"]
+    assert results[0].defined_centers == 8
+    assert results[1].defined_centers == 8
+    assert results[0].completed_channels > results[1].completed_channels
 
 def test_rank_reports_population_median_and_empirical_percentile():
     results = rank_human_design_synastry(
@@ -298,7 +337,9 @@ def test_predicted_synastry_builds_gender_radios_with_refresh_callback():
         'title="Traits"', 1
     )[0]
 
-    assert 'addItem("🪷HD Electrochemistry", "hd_electrochemistry")' in synastry_branch
+    assert 'addItem("🪷HD Electrochemistry", HD_ELECTROCHEMISTRY_MODE_STANDARD)' in synastry_branch
+    assert 'addItem("🪷HD Electrochemical Ideal", HD_ELECTROCHEMISTRY_MODE_IDEAL)' in synastry_branch
+    assert "on_hd_electrochemistry_mode_changed" in synastry_branch
 
     assert '(("All", "all"), ("Male", "male"), ("Female", "female"))' in synastry_branch
     assert "QRadioButton(label)" in synastry_branch

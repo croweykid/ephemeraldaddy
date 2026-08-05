@@ -83,10 +83,13 @@ from ephemeraldaddy.gui.features.charts.euphonics import (
 from ephemeraldaddy.gui.features.charts.loading_overlay import ChartLoadingOverlay
 from ephemeraldaddy.gui.features.charts.prediction_loading_labels import start_prediction_loading_blink
 from ephemeraldaddy.gui.features.predictions.hd_electrochemistry import (
+    HD_ELECTROCHEMISTRY_MODE_IDEAL,
+    HD_ELECTROCHEMISTRY_MODE_STANDARD,
     HD_ELECTROCHEMISTRY_SUBHEADER,
     configure_hd_electrochemistry_label,
     make_hd_electrochemistry_matches_collection,
     on_hd_electrochemistry_gender_filter_changed,
+    on_hd_electrochemistry_mode_changed,
     on_hd_electrochemistry_collection_changed,
     populate_hd_electrochemistry_collection_combo,
     render_hd_electrochemistry_predictions,
@@ -1849,7 +1852,14 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     hd_electrochemistry_section_layout.addWidget(hd_electrochemistry_gender_row)
     hd_electrochemistry_mode_combo = QComboBox()
     apply_shared_dropdown_style(hd_electrochemistry_mode_combo)
-    hd_electrochemistry_mode_combo.addItem("🪷HD Electrochemistry", "hd_electrochemistry")
+    owner.hd_electrochemistry_prediction_mode = HD_ELECTROCHEMISTRY_MODE_STANDARD
+    hd_electrochemistry_mode_combo.addItem("🪷HD Electrochemistry", HD_ELECTROCHEMISTRY_MODE_STANDARD)
+    hd_electrochemistry_mode_combo.addItem("🪷HD Electrochemical Ideal", HD_ELECTROCHEMISTRY_MODE_IDEAL)
+    hd_electrochemistry_mode_combo.currentIndexChanged.connect(
+        lambda _index: on_hd_electrochemistry_mode_changed(
+            owner, hd_electrochemistry_mode_combo.currentData()
+        )
+    )
     hd_electrochemistry_section_layout.addWidget(hd_electrochemistry_mode_combo)
     hd_electrochemistry_subheader = add_prediction_subheader(
         hd_electrochemistry_section_layout,
