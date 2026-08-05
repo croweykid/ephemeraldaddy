@@ -1,4 +1,9 @@
-"""Euphonics rendering helpers for Chart View's ABC panel."""
+"""Euphonics rendering helpers for Chart View's Linguistics panel.
+
+The surrounding right-panel route still uses the legacy ``abc`` token for
+compatibility; user-facing copy should call the combined Anagrams + Euphonics
+area the Linguistics panel.
+"""
 
 from __future__ import annotations
 

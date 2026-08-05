@@ -444,9 +444,13 @@ def build_chart_right_panel_stack(
     subjective_notes_button = QPushButton("💭")
     subjective_notes_button.setObjectName("chart_view_toggle_subjective_notes_panel_button")
     subjective_notes_button.clicked.connect(on_show_subjective_notes)
+    # Linguistics panel naming note: internal keys still say "abc" because
+    # they are persisted in panel state and routing maps, but the user-facing
+    # panel is now the Linguistics panel. It contains the Anagrams and
+    # Euphonics linguistic analyses formerly surfaced as the ABC panel.
     abc_button = _AbcPanelButton("ABC")
     abc_button.setObjectName("chart_view_toggle_abc_panel_button")
-    abc_button.setToolTip("ABC: Anagrams and Euphonics")
+    abc_button.setToolTip("Linguistics panel")
     abc_button.setStyleSheet("padding: 1px 5px; font-size: 11px; font-weight: 700; color: #c7e8ff;")
     abc_button.clicked.connect(on_show_abc)
     material_facts_button = QPushButton("🗒️")
@@ -669,6 +673,8 @@ def _chart_right_panel_definitions(owner: object) -> dict[str, tuple[str, str]]:
         "analytics": ("chart_analytics_panel_scroll", "chart_analytics_panel_button"),
         "predictions": ("predictions_panel_scroll", "predictions_panel_button"),
         "subjective_notes": ("subjective_notes_panel_scroll", "subjective_notes_panel_button"),
+        # "abc" is the legacy route key for the Linguistics panel; keep it
+        # stable until persisted right-panel state has an explicit migration.
         "abc": ("abc_panel_scroll", "abc_panel_button"),
         "material_facts": ("material_facts_panel_scroll", "material_facts_panel_button"),
         "time_sensitivity": ("time_sensitivity_panel_scroll","time_sensitivity_panel_button"),
@@ -1378,6 +1384,9 @@ def schedule_chart_render_for_active_right_panel(owner: object) -> None:
         if callable(refresh):
             refresh()
         return
+    # The Linguistics panel still renders through the legacy "anagrams"
+    # section visibility because Euphonics does not yet have a separate
+    # persisted visibility key.
     if active_panel == "abc" and owner._is_chart_analysis_section_visible("anagrams"):
         owner._schedule_chart_render(chart, sections={"anagrams"})
 

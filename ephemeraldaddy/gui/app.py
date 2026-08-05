@@ -46,7 +46,6 @@ SETTINGS_KEY_SIMILAR_CALCULATOR = "similar_charts/similarities_calculator"
 SETTINGS_KEY_ENNEAGRAM_PREDICTOR_MODE = "enneagram_predictor/mode"
 SETTINGS_KEY_ENNEAGRAM_CATEGORY_WEIGHTS = "enneagram_predictor/category_weights"
 SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS = "enneagram_predictor/scoring_options"
-SETTINGS_KEY_PREDICTIONS_MANUAL_RECALCULATION_ONLY = "predictions/manual_recalculation_only"
 SETTINGS_KEY_ASTROTWIN_GRANULAR_EXPLANATION = "similar_charts/astrotwin_granular_explanation"
 SETTINGS_KEY_PREDICTIONS_ALIGNMENT_DEFAULT_ZERO = (
     "similar_charts/predictions_alignment_default_zero_when_unassigned"
@@ -55,7 +54,6 @@ SETTINGS_KEY_WIKIPEDIA_BACKUP_SEARCH = "astrotheme/wikipedia_backup_search_enabl
 SETTINGS_KEY_CHART_DATA_SHOW_CHART_UID = "developer_tools/chart_data_show_chart_uid"
 SETTINGS_KEY_DEFAULT_TRAITS_SOURCE_MONITOR = "developer_tools/default_traits_source_monitor"
 
-SETTINGS_KEY_DATABASE_VIEW_ROW_INFO = "manage_charts/database_view_row_info"
 SETTINGS_KEY_HIDE_HYPOTHETICAL_CHARTS = "manage_charts/hide_hypothetical_charts"
 from ephemeraldaddy.gui.settings_keys import (
     SETTINGS_KEY_HIDDEN_CHARTS_FILTER_MODE,
@@ -63,61 +61,6 @@ from ephemeraldaddy.gui.settings_keys import (
     SETTINGS_KEY_HIDE_PLACEHOLDER_CHARTS_FILTER,
     SETTINGS_KEY_SHOW_HIDDEN_CHARTS,
 )
-DATABASE_VIEW_ROW_INFO_OPTIONS: tuple[tuple[str, str], ...] = (
-    ("name", "Name"),
-    ("alias", "Alias"),
-    ("from_whence", "From"),
-    ("birth_date", "Birth date"),
-    ("birth_time", "Birth time"),
-    ("birth_place", "Birth place"),
-    ("current_age", "Current age"),
-    ("sign_glyphs", "Sun/Moon/Rising sign glyphs"),
-    ("gender", "Gender glyph"),
-)
-
-
-def _load_predictions_manual_recalculation_only(settings: QSettings, *, fallback: bool = True) -> bool:
-    value = settings.value(SETTINGS_KEY_PREDICTIONS_MANUAL_RECALCULATION_ONLY, int(fallback))
-    if isinstance(value, str):
-        return value.strip().lower() in {"1", "true", "yes", "on", "checked"}
-    return bool(value)
-DATABASE_VIEW_ROW_INFO_DEFAULTS: dict[str, bool] = {
-    key: True for key, _label in DATABASE_VIEW_ROW_INFO_OPTIONS
-}
-
-
-def _settings_bool(value: object, fallback: bool) -> bool:
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        normalized = value.strip().lower()
-        if normalized in {"1", "true", "yes", "on"}:
-            return True
-        if normalized in {"0", "false", "no", "off"}:
-            return False
-    if isinstance(value, (int, float)):
-        return bool(value)
-    return bool(fallback)
-
-
-def _load_database_view_row_info_visibility(settings) -> dict[str, bool]:
-    payload = settings.value(SETTINGS_KEY_DATABASE_VIEW_ROW_INFO, {})
-    if not isinstance(payload, dict):
-        payload = {}
-    return {
-        key: _settings_bool(payload.get(key, default), default)
-        for key, default in DATABASE_VIEW_ROW_INFO_DEFAULTS.items()
-    }
-
-
-def _save_database_view_row_info_visibility(settings, visibility: dict[str, bool]) -> None:
-    settings.setValue(
-        SETTINGS_KEY_DATABASE_VIEW_ROW_INFO,
-        {
-            key: bool(visibility.get(key, default))
-            for key, default in DATABASE_VIEW_ROW_INFO_DEFAULTS.items()
-        },
-    )
 
 
 def _load_chart_data_show_chart_uid(settings, *, fallback: bool = False) -> bool:
@@ -1449,6 +1392,20 @@ from ephemeraldaddy.gui.settings_widgets import (
     SettingsHeaderFlowLayout,
     SettingsHelpLabel,
     configure_settings_help_label,
+)
+from ephemeraldaddy.gui.settings.core import (
+    DATABASE_VIEW_ROW_INFO_DEFAULTS,
+    SETTINGS_KEY_PREDICTIONS_MANUAL_RECALCULATION_ONLY,
+    load_database_view_row_info_visibility as _load_database_view_row_info_visibility,
+    load_predictions_manual_recalculation_only as _load_predictions_manual_recalculation_only,
+    save_database_view_row_info_visibility as _save_database_view_row_info_visibility,
+    settings_bool as _settings_bool,
+)
+from ephemeraldaddy.gui.settings.modules.display_preferences import (
+    DisplayPreferencesConfig,
+    OptionalModulesConfig,
+    populate_display_preferences_section,
+    populate_optional_modules_section,
 )
 
 from ephemeraldaddy.gui.style import (
@@ -18357,7 +18314,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         section_layout.addWidget(manager_widget)
 
     def _show_settings_astro_twin_presets_manager(self) -> None:
-        tab_index = getattr(self, "_settings_section_title_to_index", {}).get("Property Manager")
+        tab_index = getattr(self, "_settings_section_title_to_index", {}).get("Property Managers")
         tab_stack = getattr(self, "_settings_tab_stack", None)
         if isinstance(tab_stack, QStackedWidget) and tab_index is not None:
             tab_stack.setCurrentIndex(int(tab_index))
@@ -19274,7 +19231,14 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 )
                 display_position = rendered_row_count + 1
                 display_name = name or "Unnamed"
-                chart = self._get_chart_for_filter(cid) if row_info_visibility.get("sign_glyphs", True) else None
+                chart = (
+                    self._get_chart_for_filter(cid)
+                    if (
+                        row_info_visibility.get("sign_glyphs", True)
+                        or row_info_visibility.get("human_design_profile", True)
+                    )
+                    else None
+                )
                 from_whence_text = ((from_whence or "")).strip()
                 from_whence_label = f"({from_whence_text})" if from_whence_text else ""
                 alias_text = (alias or "").strip()
@@ -19349,6 +19313,14 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                     visible_label_parts.append(from_whence_label)
                 if row_info_visibility.get("sign_glyphs", True) and chart_info_label:
                     visible_label_parts.append(chart_info_label)
+                if (
+                    row_info_visibility.get("human_design_profile", True)
+                    and chart is not None
+                    and _chart_uses_houses(chart)
+                ):
+                    hd_profile_label = self._chart_human_design_profile(chart)
+                    if hd_profile_label:
+                        visible_label_parts.append(hd_profile_label)
                 if row_info_visibility.get("birth_date", True):
                     visible_label_parts.append(date_label)
                 if row_info_visibility.get("birth_time", True):
@@ -19456,6 +19428,15 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                         "date": date_label if row_info_visibility.get("birth_date", True) else "",
                         "time": time_label if row_info_visibility.get("birth_time", True) else "",
                         "chart_info": chart_info_segments,
+                        "human_design_profile": (
+                            self._chart_human_design_profile(chart)
+                            if (
+                                row_info_visibility.get("human_design_profile", True)
+                                and chart is not None
+                                and _chart_uses_houses(chart)
+                            )
+                            else ""
+                        ),
                         "retcon_time": retcon_time_label if row_info_visibility.get("birth_time", True) else "",
                         "place": place if row_info_visibility.get("birth_place", True) else "",
                         "gender": gender_glyph if row_info_visibility.get("gender", True) else "",
@@ -22029,233 +22010,78 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._settings_footer_label = footer_label
         settings_tab_stack.currentChanged.connect(self._refresh_settings_footer_note)
 
-        visibility_section = self._add_settings_collapsible_section(
+        display_preferences_section = self._add_settings_collapsible_section(
             content_layout,
-            "Show/Hide Modules",
+            "Display Preferences",
+        )
+        display_preference_checkboxes = populate_display_preferences_section(
+            display_preferences_section,
+            DisplayPreferencesConfig(
+                visibility=self._visibility,
+                row_info_visibility=self._database_view_row_info_visibility,
+                show_hidden_charts=bool(getattr(self, "_show_hidden_charts", False)),
+                astrotwin_granular_explanation=bool(
+                    getattr(self, "_astrotwin_granular_explanation", False)
+                ),
+                build_subheader_label=self._build_settings_subheader_label,
+                build_help_label=self._build_settings_help_label,
+                set_row_info_visibility=self._set_database_view_row_info_visibility,
+                set_show_hidden_charts=self._on_show_hidden_charts_toggled,
+                set_chart_data_visibility=self._set_chart_data_visibility,
+                set_standard_deviation_indicators=(
+                    self._set_standard_deviation_indicator_visibility_from_settings
+                ),
+                set_astrotwin_granular_explanation=(
+                    self._on_astrotwin_granular_explanation_toggled
+                ),
+            ),
+        )
+        self._database_view_row_info_checkboxes = {
+            key: checkbox
+            for key, checkbox in display_preference_checkboxes.items()
+            if key in DATABASE_VIEW_ROW_INFO_DEFAULTS
+        }
+        self._astrotwin_granular_explanation_checkbox = display_preference_checkboxes.get(
+            "astrotwin_granular_explanation"
         )
 
-        visibility_section.addWidget(self._build_settings_subheader_label("Database View"))
-        database_view_help = self._build_settings_help_label(
-            "Choose which details appear in the middle-panel chart list. "
-            "Uncheck any field you want hidden from every Database View row."
+        optional_modules_section = self._add_settings_collapsible_section(
+            content_layout,
+            "Optional Modules",
         )
-        visibility_section.addWidget(database_view_help)
-        self._database_view_row_info_checkboxes = {}
-        for row_info_key, row_info_label in DATABASE_VIEW_ROW_INFO_OPTIONS:
-            checkbox = QCheckBox(f"Show {row_info_label}")
-            checkbox.setChecked(
-                bool(
-                    self._database_view_row_info_visibility.get(
-                        row_info_key,
-                        DATABASE_VIEW_ROW_INFO_DEFAULTS.get(row_info_key, True),
-                    )
-                )
-            )
-            checkbox.toggled.connect(
-                lambda checked, key=row_info_key: self._set_database_view_row_info_visibility(
-                    key,
-                    checked,
-                )
-            )
-            self._database_view_row_info_checkboxes[row_info_key] = checkbox
-            visibility_section.addWidget(checkbox)
-
-        show_hidden_checkbox = QCheckBox("Show Hidden Charts")
-        show_hidden_checkbox.setChecked(bool(getattr(self, "_show_hidden_charts", False)))
-        show_hidden_checkbox.setToolTip(
-            "Show charts hidden from the Database View middle-panel list."
+        optional_module_checkboxes = populate_optional_modules_section(
+            optional_modules_section,
+            OptionalModulesConfig(
+                visibility=self._visibility,
+                chart_analytics_section_visible=self._settings_chart_analytics_section_visible,
+                database_metric_section_visible=self._is_database_metrics_section_visible,
+                build_subheader_label=self._build_settings_subheader_label,
+                set_chart_data_visibility=self._set_chart_data_visibility,
+                set_prediction_section_visibility=(
+                    self._set_prediction_section_visibility_from_settings
+                ),
+                set_gender_predictor_visibility=(
+                    self._set_gender_guesser_visibility_from_settings
+                ),
+                set_chart_analytics_visibility=(
+                    self._set_chart_analytics_visibility_from_settings
+                ),
+                set_database_metric_visibility=(
+                    self._set_database_metric_section_visibility_from_settings
+                ),
+                set_popout_visibility=self._set_popout_visibility,
+                set_dnd_statblock_explainer_visibility=(
+                    self._set_dnd_statblock_explainer_visibility_from_settings
+                ),
+                set_sexiness_visibility=self._set_chart_view_sexiness_visibility_from_settings,
+                set_predictability_visibility=self._set_predictability_visibility_from_settings,
+            ),
         )
-        show_hidden_checkbox.toggled.connect(self._on_show_hidden_charts_toggled)
-        visibility_section.addWidget(show_hidden_checkbox)
-
-        visibility_section.addSpacing(8)
-        visibility_section.addWidget(self._build_settings_subheader_label("Chart Data Output"))
-
-        cursedness_checkbox = QCheckBox("Show 'Cursedness' score")
-        cursedness_checkbox.setChecked(self._visibility.get("chart_data.cursedness"))
-        cursedness_checkbox.toggled.connect(
-            lambda checked: self._set_chart_data_visibility("chart_data.cursedness", checked)
-        )
-        visibility_section.addWidget(cursedness_checkbox)
-
-        dnd_species_checkbox = QCheckBox("Show Fantasy RPG Card")
-        dnd_species_checkbox.setChecked(self._visibility.get("chart_data.dnd_output"))
-        dnd_species_checkbox.toggled.connect(
-            lambda checked: self._set_chart_data_visibility("chart_data.dnd_output", checked)
-        )
-        visibility_section.addWidget(dnd_species_checkbox)
-
-        human_design_alpha_checkbox = QCheckBox("Show Human Design gates/lines")
-        human_design_alpha_checkbox.setChecked(
-            self._visibility.get("chart_data.human_design")
-        )
-        human_design_alpha_checkbox.toggled.connect(
-            lambda checked: self._set_chart_data_visibility(
-                "chart_data.human_design",
-                checked,
-            )
-        )
-        visibility_section.addWidget(human_design_alpha_checkbox)
-
-        visibility_section.addSpacing(8)
-
-        visibility_section.addWidget(self._build_settings_subheader_label("Chart Analytics (Chart Editor)"))
-
-        planet_dynamics_checkbox = QCheckBox("Show Body Dynamics (Chart Analytics)")
-        parent = self._owner_window()
-        planet_dynamics_checkbox.setChecked(
-            isinstance(parent, MainWindow)
-            and parent._is_chart_analysis_section_visible("planet_dynamics")
-        )
-        planet_dynamics_checkbox.toggled.connect(
-            lambda checked: self._set_chart_analytics_visibility_from_settings(
-                "planet_dynamics",
-                checked,
-            )
-        )
-        visibility_section.addWidget(planet_dynamics_checkbox)
-
-        visibility_section.addSpacing(8)
-        visibility_section.addWidget(self._build_settings_subheader_label("Chart Editor"))
-
-        sexiness_checkbox = QCheckBox("Show Sexiness (Observations)")
-        sexiness_checkbox.setChecked(self._visibility.get("chart_view.sexiness"))
-        sexiness_checkbox.toggled.connect(
-            self._set_chart_view_sexiness_visibility_from_settings
-        )
-        visibility_section.addWidget(sexiness_checkbox)
-
-        gender_guesser_checkbox = QCheckBox("Show Gender Guesser")
-        gender_guesser_checkbox.setChecked(self._visibility.get("chart_view.gender_guesser"))
-        gender_guesser_checkbox.toggled.connect(
-            self._set_gender_guesser_visibility_from_settings
-        )
-        visibility_section.addWidget(gender_guesser_checkbox)
-
-        visibility_section.addSpacing(8)
-        anagrams_checkbox = QCheckBox("Show Anagrams (ABC)")
-        anagrams_checkbox.setChecked(
-            isinstance(parent, MainWindow)
-            and parent._is_chart_analysis_section_visible("anagrams")
-        )
-        anagrams_checkbox.toggled.connect(
-            lambda checked: self._set_chart_analytics_visibility_from_settings(
-                "anagrams",
-                checked,
-            )
-        )
-        visibility_section.addWidget(anagrams_checkbox)
-
-        predictability_checkbox = QCheckBox("Show Predictability (Observations)")
-        predictability_checkbox.setChecked(self._visibility.get("chart_view.predictability"))
-        predictability_checkbox.toggled.connect(
-            self._set_predictability_visibility_from_settings
-        )
-        self._predictability_module_checkbox = predictability_checkbox
-        visibility_section.addWidget(predictability_checkbox)
-
-        visibility_section.addSpacing(8)
-        visibility_section.addWidget(self._build_settings_subheader_label("Predictions (Chart Editor)"))
-
-        prediction_section_options = (
-            ("traits", "Show Traits predictions"),
-            ("ocean", "Show OCEAN Personality predictions"),
-            ("enneagram", "Show Enneagram predictions"),
-            ("dnd_statblock", "Show Fantasy RPG Statblock predictions"),
-            ("dnd_species", "Show Fantasy RPG Species predictions"),
-            ("dnd_class", "Show Fantasy RPG Class predictions"),
-            ("dnd_alignment", "Show Fantasy RPG Alignment predictions"),
-        )
-        for prediction_section_key, prediction_section_label in prediction_section_options:
-            prediction_section_checkbox = QCheckBox(prediction_section_label)
-            prediction_section_checkbox.setChecked(
-                self._visibility.get(f"predictions.{prediction_section_key}")
-            )
-            prediction_section_checkbox.toggled.connect(
-                lambda checked, key=prediction_section_key: self._set_prediction_section_visibility_from_settings(
-                    key,
-                    checked,
-                )
-            )
-            visibility_section.addWidget(prediction_section_checkbox)
-
-        dnd_statblock_explainers_checkbox = QCheckBox("Show Fantasy RPG Statblock explainers")
-        dnd_statblock_explainers_checkbox.setChecked(
-            self._visibility.get("analytics.dnd_statblock_explainers")
-        )
-        dnd_statblock_explainers_checkbox.toggled.connect(
-            self._set_dnd_statblock_explainer_visibility_from_settings
-        )
-        visibility_section.addWidget(dnd_statblock_explainers_checkbox)
-
-
-        visibility_section.addSpacing(8)
-        visibility_section.addWidget(self._build_settings_subheader_label("Database Analytics Panel (DB View)"))
-
-        species_distribution_checkbox = QCheckBox("Show Fantasy RPG Typing")
-        species_distribution_checkbox.setChecked(
-            self._is_database_metrics_section_visible("species_distribution")
-        )
-        species_distribution_checkbox.toggled.connect(
-            lambda checked: self._set_database_metric_section_visibility_from_settings(
-                "species_distribution",
-                checked,
-            )
-        )
-        visibility_section.addWidget(species_distribution_checkbox)
-
-        bazi_checkbox = QCheckBox("Show BaZi graphs")
-        bazi_checkbox.setChecked(
-            self._is_database_metrics_section_visible("bazi")
-        )
-        bazi_checkbox.toggled.connect(
-            lambda checked: self._set_database_metric_section_visibility_from_settings(
-                "bazi",
-                checked,
-            )
-        )
-        visibility_section.addWidget(bazi_checkbox)
-
-        visibility_section.addSpacing(8)
-        visibility_section.addWidget(self._build_settings_subheader_label("Data Visualization"))
-
-        standard_deviation_checkbox = QCheckBox("Show standard deviation indicator lines")
-        standard_deviation_checkbox.setChecked(
-            self._visibility.get("charts.standard_deviation_indicators")
-        )
-        standard_deviation_checkbox.toggled.connect(
-            self._set_standard_deviation_indicator_visibility_from_settings
-        )
-        visibility_section.addWidget(standard_deviation_checkbox)
-
-        visibility_section.addSpacing(8)
-        visibility_section.addWidget(self._build_settings_subheader_label("Synastry Charts"))
-
-        synastry_aspect_weights_checkbox = QCheckBox("Show Synastry Aspect Weights")
-        synastry_aspect_weights_checkbox.setChecked(self._visibility.get("popout.synastry_aspect_weights"))
-        synastry_aspect_weights_checkbox.toggled.connect(
-            lambda checked: self._set_popout_visibility("popout.synastry_aspect_weights", checked)
-        )
-        visibility_section.addWidget(synastry_aspect_weights_checkbox)
-
-        visibility_section.addSpacing(8)
-        visibility_section.addWidget(self._build_settings_subheader_label("Astro Twin window"))
-
-        granular_explanations_checkbox = QCheckBox(
-            "Astro Twin: show granular algorithmic breakdowns"
-        )
-        granular_explanations_checkbox.setChecked(
-            bool(getattr(self, "_astrotwin_granular_explanation", False))
-        )
-        granular_explanations_checkbox.toggled.connect(
-            self._on_astrotwin_granular_explanation_toggled
-        )
-        visibility_section.addWidget(granular_explanations_checkbox)
-        self._astrotwin_granular_explanation_checkbox = granular_explanations_checkbox
+        self._predictability_module_checkbox = optional_module_checkboxes.get("predictability")
 
         chart_calculation_section = self._add_settings_collapsible_section(
             content_layout,
-            "Chart Calculation Methods",
+            "Astrological Methods",
         )
         gendered_results_row = QHBoxLayout()
         gendered_results_row.addWidget(QLabel("For gendered results, use:"))
@@ -22336,6 +22162,163 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         )
         chart_calculation_section.addWidget(significance_help_label)
         self._settings_significance_correction_combo = significance_combo
+
+        similarity_calculator_section = self._add_settings_collapsible_section(
+            content_layout,
+            "Astro Twin Calculator",
+        )
+        similarity_controls = build_similarity_calculator_settings_section(
+            dialog=dialog,
+            section_layout=similarity_calculator_section,
+            subheader_style=SETTINGS_SECTION_SUBHEADER_STYLE,
+            on_mode_default_toggled=lambda checked: checked
+            and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_DEFAULT),
+            on_mode_generic_astro_toggled=lambda checked: checked
+            and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_GENERIC_ASTRO),
+            on_mode_comprehensive_toggled=lambda checked: checked
+            and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE),
+            on_mode_all_or_nothing_toggled=lambda checked: checked
+            and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING),
+            on_mode_big_3_toggled=lambda checked: checked
+            and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_BIG_3),
+            on_mode_custom_toggled=lambda checked: checked
+            and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_CUSTOM),
+            on_mode_database_distinction_toggled=lambda checked: checked
+            and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_DATABASE_DISTINCTION),
+            on_checkbox_toggled=self._on_similarity_calculator_checkbox_toggled,
+            on_weight_changed=self._on_similarity_calculator_weight_changed,
+            on_placement_weighting_mode_changed=self._on_similarity_calculator_placement_weighting_mode_changed,
+            on_all_or_nothing_criterion_changed=self._on_similarity_calculator_all_or_nothing_component_changed,
+            on_demographic_match_mode_changed=self._on_similarity_calculator_demographic_match_mode_changed,
+            on_reset_weights_clicked=self._reset_similarity_calculator_defaults,
+            on_calibrate_clicked=self._calibrate_similarity_norms,
+            on_save_thresholds_clicked=self._save_similarity_threshold_overrides,
+            on_reset_thresholds_clicked=self._reset_similarity_threshold_defaults,
+            perceived_accuracy_controls_enabled=bool(
+                getattr(
+                    self,
+                    "_similarity_perceived_accuracy_controls_enabled",
+                    SIMILARITY_PERCEIVED_ACCURACY_CONTROLS_DEFAULT,
+                )
+            ),
+            on_perceived_accuracy_controls_toggled=self._on_similarity_perceived_accuracy_controls_toggled,
+            on_show_high_similarity_clicked=self._show_high_similarity_chart_pairs,
+            on_manage_presets_clicked=self._show_settings_astro_twin_presets_manager,
+            threshold_rows=SIMILARITY_THRESHOLD_EDITOR_ROWS,
+        )
+        self._similarity_perceived_accuracy_controls_checkbox = similarity_controls[
+            "perceived_accuracy_checkbox"
+        ]
+        self._similarity_algorithm_accuracy_label = similarity_controls[
+            "algorithm_accuracy_label"
+        ]
+        self._similar_charts_algo_default_radio = similarity_controls["default_radio"]
+        self._similar_charts_algo_generic_astro_radio = similarity_controls["generic_astro_radio"]
+        self._similar_charts_algo_comprehensive_radio = similarity_controls["comprehensive_radio"]
+        self._similar_charts_algo_all_or_nothing_radio = similarity_controls["all_or_nothing_radio"]
+        self._similar_charts_algo_big_3_radio = similarity_controls["big_3_radio"]
+        self._similar_charts_algo_custom_radio = similarity_controls["custom_radio"]
+        self._similar_charts_algo_database_distinction_radio = similarity_controls["database_distinction_radio"]
+        self._similarity_calculator_custom_fields_frame = similarity_controls["custom_fields_frame"]
+        self._similarity_calculator_all_or_nothing_fields_frame = similarity_controls["all_or_nothing_fields_frame"]
+        self._similarity_calculator_checkboxes = similarity_controls["calculator_checkboxes"]
+        self._similarity_calculator_weights = similarity_controls["calculator_weights"]
+        self._similarity_calculator_total_label = similarity_controls["calculator_total_label"]
+        self._similarity_calculator_placement_weighting_mode_combo = similarity_controls["placement_weighting_mode_combo"]
+        self._similarity_calculator_all_or_nothing_component_combo = similarity_controls["all_or_nothing_criterion_combo"]
+        self._similarity_calculator_demographic_match_buttons = similarity_controls["demographic_match_buttons"]
+        self._similarity_threshold_spinboxes = similarity_controls["threshold_spinboxes"]
+        self._set_similar_charts_algorithm_mode(self._similar_charts_algorithm_mode)
+        self._load_similarity_calculator_controls()
+        self._load_similarity_thresholds_into_controls()
+
+        enneagram_section = self._add_settings_collapsible_section(content_layout, "Prediction Methods")
+        enneagram_controls = build_predictions_settings_section(
+            dialog=dialog,
+            section_layout=enneagram_section,
+            subheader_style=SETTINGS_SECTION_SUBHEADER_STYLE,
+            on_option_toggled=self._on_enneagram_scoring_option_toggled,
+            on_score_mode_changed=self._on_prediction_score_mode_changed,
+            on_scale_mode_changed=self._on_enneagram_type_signature_scale_changed,
+            on_dominance_normalization_mode_changed=self._on_prediction_dominance_normalization_changed,
+            on_manual_recalculation_toggled=self._on_predictions_manual_recalculation_toggled,
+        )
+        self._enneagram_predictor_checkboxes = enneagram_controls["checkboxes"]
+        self._predictions_manual_recalculation_checkbox = enneagram_controls["manual_recalculation_checkbox"]
+        self._prediction_score_mode_combo = enneagram_controls["score_mode_combo"]
+        self._enneagram_predictor_scale_combo = enneagram_controls["scale_combo"]
+        self._prediction_dominance_normalization_combo = enneagram_controls["dominance_combo"]
+        self._enneagram_predictor_weight_spinboxes = enneagram_controls["weight_spinboxes"]
+        self._enneagram_predictor_total_label = enneagram_controls["total_label"]
+        self._load_enneagram_predictor_controls()
+
+        add_traits_settings_section(self, content_layout)
+
+        property_manager_section = self._add_settings_collapsible_section(
+            content_layout,
+            "Property Managers",
+            fill_available_height=True,
+        )
+        self._populate_settings_property_manager_section(property_manager_section)
+
+        add_database_info_settings_section(self, content_layout)
+
+        custom_db_export_section = self._add_settings_collapsible_section(
+            content_layout,
+            "Export Database",
+        )
+        self._populate_settings_custom_db_export_section(custom_db_export_section)
+
+        plugins_section = self._add_settings_collapsible_section(content_layout, "Plugins")
+        plugins_section.addWidget(
+            self._build_settings_help_label(
+                "Install recognized local supplements. Installed plugins remain local and extend app-native descriptions when available."
+            )
+        )
+        self._plugins_upload_button = QPushButton("Upload Plugin File…")
+        self._plugins_upload_button.setStyleSheet("QPushButton { padding-top: 7px; }")
+        self._plugins_upload_button.clicked.connect(self._on_plugin_upload_clicked)
+        plugins_section.addWidget(self._plugins_upload_button, alignment=Qt.AlignLeft)
+        self._plugins_installed_label = QLabel("")
+        self._plugins_installed_label.setWordWrap(True)
+        plugins_section.addWidget(self._plugins_installed_label)
+        self._plugins_status_label = QLabel("")
+        self._plugins_status_label.setWordWrap(True)
+        self._plugins_status_label.setStyleSheet("color: #9a9a9a; font-style: italic; font-size: 7pt;")
+        self._plugins_status_label.hide()
+        self._refresh_plugins_status_labels()
+
+        age_tools_section = self._add_settings_collapsible_section(content_layout, "User Profile")
+        age_tools_section.addWidget(QLabel("Age inference tools."))
+
+        self._dev_user_age_label = QLabel("User Age: unavailable")
+        self._dev_user_age_label.setWordWrap(True)
+        age_tools_section.addWidget(self._dev_user_age_label)
+
+        age_predictor_header = QLabel("Age Distribution Predictor")
+        age_predictor_header.setStyleSheet(SETTINGS_SECTION_SUBHEADER_STYLE)
+        age_tools_section.addWidget(age_predictor_header)
+
+        refresh_predictor_button = QPushButton("Refresh Age Predictor")
+        refresh_predictor_button.clicked.connect(self._refresh_dev_age_predictor)
+        age_tools_section.addWidget(refresh_predictor_button, alignment=Qt.AlignLeft)
+
+        get_estimated_age_button = QPushButton("Get Estimated Age")
+        get_estimated_age_button.setToolTip(
+            "Force-estimate age from network ages, even if a self chart age exists."
+        )
+        get_estimated_age_button.clicked.connect(
+            lambda _checked=False: self._refresh_dev_age_predictor(force_guess=True)
+        )
+        age_tools_section.addWidget(get_estimated_age_button, alignment=Qt.AlignLeft)
+
+        predictor_figure = Figure(figsize=(5.2, 2.6), dpi=100)
+        predictor_figure.patch.set_facecolor("#1e1e1e")
+        self._dev_age_distribution_canvas = FigureCanvas(predictor_figure)
+        self._dev_age_distribution_canvas.setMinimumHeight(230)
+        age_tools_section.addWidget(self._dev_age_distribution_canvas)
+
+        self._refresh_dev_age_predictor()
 
         dev_tools_section = self._add_settings_collapsible_section(content_layout, "Developer Tools")
         dev_tools_section.addWidget(QLabel("Developer and maintenance utilities"))
@@ -22485,150 +22468,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         )
         dev_tools_section.addWidget(refresh_similar_charts_cache_button)
 
-        #should this be here or no?
-        add_database_info_settings_section(self, content_layout)
 
-        similarity_calculator_section = self._add_settings_collapsible_section(
-            content_layout,
-            "Astro Twin Calculator",
-        )
-        similarity_controls = build_similarity_calculator_settings_section(
-            dialog=dialog,
-            section_layout=similarity_calculator_section,
-            subheader_style=SETTINGS_SECTION_SUBHEADER_STYLE,
-            on_mode_default_toggled=lambda checked: checked
-            and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_DEFAULT),
-            on_mode_generic_astro_toggled=lambda checked: checked
-            and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_GENERIC_ASTRO),
-            on_mode_comprehensive_toggled=lambda checked: checked
-            and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE),
-            on_mode_all_or_nothing_toggled=lambda checked: checked
-            and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING),
-            on_mode_big_3_toggled=lambda checked: checked
-            and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_BIG_3),
-            on_mode_custom_toggled=lambda checked: checked
-            and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_CUSTOM),
-            on_mode_database_distinction_toggled=lambda checked: checked
-            and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_DATABASE_DISTINCTION),
-            on_checkbox_toggled=self._on_similarity_calculator_checkbox_toggled,
-            on_weight_changed=self._on_similarity_calculator_weight_changed,
-            on_placement_weighting_mode_changed=self._on_similarity_calculator_placement_weighting_mode_changed,
-            on_all_or_nothing_criterion_changed=self._on_similarity_calculator_all_or_nothing_component_changed,
-            on_demographic_match_mode_changed=self._on_similarity_calculator_demographic_match_mode_changed,
-            on_reset_weights_clicked=self._reset_similarity_calculator_defaults,
-            on_calibrate_clicked=self._calibrate_similarity_norms,
-            on_save_thresholds_clicked=self._save_similarity_threshold_overrides,
-            on_reset_thresholds_clicked=self._reset_similarity_threshold_defaults,
-            perceived_accuracy_controls_enabled=bool(
-                getattr(
-                    self,
-                    "_similarity_perceived_accuracy_controls_enabled",
-                    SIMILARITY_PERCEIVED_ACCURACY_CONTROLS_DEFAULT,
-                )
-            ),
-            on_perceived_accuracy_controls_toggled=self._on_similarity_perceived_accuracy_controls_toggled,
-            on_show_high_similarity_clicked=self._show_high_similarity_chart_pairs,
-            on_manage_presets_clicked=self._show_settings_astro_twin_presets_manager,
-            threshold_rows=SIMILARITY_THRESHOLD_EDITOR_ROWS,
-        )
-        self._similarity_perceived_accuracy_controls_checkbox = similarity_controls[
-            "perceived_accuracy_checkbox"
-        ]
-        self._similarity_algorithm_accuracy_label = similarity_controls[
-            "algorithm_accuracy_label"
-        ]
-        self._similar_charts_algo_default_radio = similarity_controls["default_radio"]
-        self._similar_charts_algo_generic_astro_radio = similarity_controls["generic_astro_radio"]
-        self._similar_charts_algo_comprehensive_radio = similarity_controls["comprehensive_radio"]
-        self._similar_charts_algo_all_or_nothing_radio = similarity_controls["all_or_nothing_radio"]
-        self._similar_charts_algo_big_3_radio = similarity_controls["big_3_radio"]
-        self._similar_charts_algo_custom_radio = similarity_controls["custom_radio"]
-        self._similar_charts_algo_database_distinction_radio = similarity_controls["database_distinction_radio"]
-        self._similarity_calculator_custom_fields_frame = similarity_controls["custom_fields_frame"]
-        self._similarity_calculator_all_or_nothing_fields_frame = similarity_controls["all_or_nothing_fields_frame"]
-        self._similarity_calculator_checkboxes = similarity_controls["calculator_checkboxes"]
-        self._similarity_calculator_weights = similarity_controls["calculator_weights"]
-        self._similarity_calculator_total_label = similarity_controls["calculator_total_label"]
-        self._similarity_calculator_placement_weighting_mode_combo = similarity_controls["placement_weighting_mode_combo"]
-        self._similarity_calculator_all_or_nothing_component_combo = similarity_controls["all_or_nothing_criterion_combo"]
-        self._similarity_calculator_demographic_match_buttons = similarity_controls["demographic_match_buttons"]
-        self._similarity_threshold_spinboxes = similarity_controls["threshold_spinboxes"]
-        self._set_similar_charts_algorithm_mode(self._similar_charts_algorithm_mode)
-        self._load_similarity_calculator_controls()
-        self._load_similarity_thresholds_into_controls()
-
-        enneagram_section = self._add_settings_collapsible_section(content_layout, "Predictions")
-        enneagram_controls = build_predictions_settings_section(
-            dialog=dialog,
-            section_layout=enneagram_section,
-            subheader_style=SETTINGS_SECTION_SUBHEADER_STYLE,
-            on_option_toggled=self._on_enneagram_scoring_option_toggled,
-            on_score_mode_changed=self._on_prediction_score_mode_changed,
-            on_scale_mode_changed=self._on_enneagram_type_signature_scale_changed,
-            on_dominance_normalization_mode_changed=self._on_prediction_dominance_normalization_changed,
-            on_manual_recalculation_toggled=self._on_predictions_manual_recalculation_toggled,
-        )
-        self._enneagram_predictor_checkboxes = enneagram_controls["checkboxes"]
-        self._predictions_manual_recalculation_checkbox = enneagram_controls["manual_recalculation_checkbox"]
-        self._prediction_score_mode_combo = enneagram_controls["score_mode_combo"]
-        self._enneagram_predictor_scale_combo = enneagram_controls["scale_combo"]
-        self._prediction_dominance_normalization_combo = enneagram_controls["dominance_combo"]
-        self._enneagram_predictor_weight_spinboxes = enneagram_controls["weight_spinboxes"]
-        self._enneagram_predictor_total_label = enneagram_controls["total_label"]
-        self._load_enneagram_predictor_controls()
-
-        add_traits_settings_section(self, content_layout)
-
-        plugins_section = self._add_settings_collapsible_section(content_layout, "Plugins")
-        plugins_section.addWidget(
-            self._build_settings_help_label(
-                "Install recognized local supplements. Installed plugins remain local and extend app-native descriptions when available."
-            )
-        )
-        self._plugins_upload_button = QPushButton("Upload Plugin File…")
-        self._plugins_upload_button.setStyleSheet("QPushButton { padding-top: 7px; }")
-        self._plugins_upload_button.clicked.connect(self._on_plugin_upload_clicked)
-        plugins_section.addWidget(self._plugins_upload_button, alignment=Qt.AlignLeft)
-        self._plugins_installed_label = QLabel("")
-        self._plugins_installed_label.setWordWrap(True)
-        plugins_section.addWidget(self._plugins_installed_label)
-        self._plugins_status_label = QLabel("")
-        self._plugins_status_label.setWordWrap(True)
-        self._plugins_status_label.setStyleSheet("color: #9a9a9a; font-style: italic; font-size: 7pt;")
-        self._plugins_status_label.hide()
-        self._refresh_plugins_status_labels()
-
-        age_tools_section = self._add_settings_collapsible_section(content_layout, "User Profile")
-        age_tools_section.addWidget(QLabel("Age inference tools."))
-
-        self._dev_user_age_label = QLabel("User Age: unavailable")
-        self._dev_user_age_label.setWordWrap(True)
-        age_tools_section.addWidget(self._dev_user_age_label)
-
-        age_predictor_header = QLabel("Age Distribution Predictor")
-        age_predictor_header.setStyleSheet(SETTINGS_SECTION_SUBHEADER_STYLE)
-        age_tools_section.addWidget(age_predictor_header)
-
-        refresh_predictor_button = QPushButton("Refresh Age Predictor")
-        refresh_predictor_button.clicked.connect(self._refresh_dev_age_predictor)
-        age_tools_section.addWidget(refresh_predictor_button, alignment=Qt.AlignLeft)
-
-        get_estimated_age_button = QPushButton("Get Estimated Age")
-        get_estimated_age_button.setToolTip(
-            "Force-estimate age from network ages, even if a self chart age exists."
-        )
-        get_estimated_age_button.clicked.connect(
-            lambda _checked=False: self._refresh_dev_age_predictor(force_guess=True)
-        )
-        age_tools_section.addWidget(get_estimated_age_button, alignment=Qt.AlignLeft)
-
-        predictor_figure = Figure(figsize=(5.2, 2.6), dpi=100)
-        predictor_figure.patch.set_facecolor("#1e1e1e")
-        self._dev_age_distribution_canvas = FigureCanvas(predictor_figure)
-        self._dev_age_distribution_canvas.setMinimumHeight(230)
-        age_tools_section.addWidget(self._dev_age_distribution_canvas)
-
-        self._refresh_dev_age_predictor()
 
         reset_section = self._add_settings_collapsible_section(content_layout, "Reset All to Defaults")
         reset_section.addWidget(QLabel("Reset the interface to first-launch defaults."))
@@ -22636,19 +22476,6 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         reset_interface_button = QPushButton("Reset interface to default")
         reset_interface_button.clicked.connect(self._reset_interface_to_defaults)
         reset_section.addWidget(reset_interface_button)
-
-        property_manager_section = self._add_settings_collapsible_section(
-            content_layout,
-            "Property Manager",
-            fill_available_height=True,
-        )
-        self._populate_settings_property_manager_section(property_manager_section)
-
-        custom_db_export_section = self._add_settings_collapsible_section(
-            content_layout,
-            "Export Database",
-        )
-        self._populate_settings_custom_db_export_section(custom_db_export_section)
         content_layout.addStretch(1)
 
         for stray_radio_button in tab_header_frame.findChildren(QRadioButton):
@@ -24080,6 +23907,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
     def _set_popout_visibility(self, key: str, checked: bool) -> None:
         self._visibility.set(key, checked)
+
+    def _settings_chart_analytics_section_visible(self, section_key: str) -> bool:
+        parent = self._owner_window()
+        return isinstance(parent, MainWindow) and parent._is_chart_analysis_section_visible(section_key)
 
     def _set_chart_analytics_visibility_from_settings(self, section_key: str, checked: bool) -> None:
         parent = self._owner_window()

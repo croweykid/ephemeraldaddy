@@ -1,6 +1,7 @@
 # LEGACY CHART ID WARNING: any chart_id reference in this file is transitional compatibility only; new code must use chart_uid/Chart UID and must not introduce new chart ID reliance.
 """Settings helpers for database-level dominant weight summaries."""
 
+
 from __future__ import annotations
 
 import html
@@ -39,6 +40,8 @@ from ephemeraldaddy.gui.features.charts.prediction_norms_snapshot import (
     prediction_norms_snapshot_path,
     refresh_prediction_norms_snapshot,
 )
+
+DATABASE_INFO_SETTINGS_SECTION_TITLE = "DB Stats"
 
 _DB_INFO_CACHE_KEY = "settings/database_info/cache_v3"
 _DB_INFO_EXPORT_EXTENSION_KEY = "settings/database_info/export_extension"
@@ -293,7 +296,7 @@ def _set_prediction_norms_status(owner: Any, text: str) -> None:
         status_label.setText(text)
     footer_writer = getattr(owner, "_set_settings_section_footer_note", None)
     if callable(footer_writer):
-        footer_writer("Database Statistics", text)
+        footer_writer(DATABASE_INFO_SETTINGS_SECTION_TITLE, text)
 
 
 def _refresh_prediction_norms(owner: Any) -> None:
@@ -513,7 +516,7 @@ def refresh_database_info(owner: Any, *, force_recompute: bool = False) -> None:
 
 
 def add_database_info_settings_section(owner: Any, content_layout) -> None:
-    section_layout = owner._add_settings_collapsible_section(content_layout, "Database Statistics")
+    section_layout = owner._add_settings_collapsible_section(content_layout, DATABASE_INFO_SETTINGS_SECTION_TITLE)
 
     top_row = QHBoxLayout()
     subheader_label = QLabel(

@@ -1548,7 +1548,13 @@ def _populate_sexiness_section(owner: QWidget, content_layout: QVBoxLayout) -> N
 
 
 def _build_abc_panel(owner: QWidget) -> tuple[QWidget, QVBoxLayout]:
-    """Build the ABC tab with Anagrams and Euphonics sections."""
+    """Build the Linguistics panel with Anagrams and Euphonics sections.
+
+    The function and attribute names retain the legacy ``abc`` token because
+    right-panel routing and saved state still use it. User-facing copy should
+    call this the Linguistics panel so future developers do not mistake
+    Anagrams for the whole panel.
+    """
     panel = QWidget()
     layout = QVBoxLayout()
     layout.setContentsMargins(6, 6, 6, 6)
@@ -1644,7 +1650,7 @@ def _build_euphonics_section(owner: QWidget, panel: QWidget, layout: QVBoxLayout
 
 
 def refresh_euphonics_for_chart(owner: QWidget, chart: Chart | None) -> None:
-    """Refresh the ABC tab's Euphonics list for the selected name source."""
+    """Refresh the Linguistics panel's Euphonics list for the selected name source."""
     owner._abc_current_chart = chart
     label = getattr(owner, "euphonics_label", None)
     if label is None:
@@ -2368,6 +2374,9 @@ def build_chart_view_right_panel(
     metrics_content.setLayout(owner.metrics_layout)
 
     subjective_notes_panel, subjective_notes_layout = _build_subjective_notes_panel(owner)
+    # The object names remain ``abc_*`` as a compatibility shim for existing
+    # right-panel routing. Treat the visible panel as Linguistics (Anagrams +
+    # Euphonics) in user-facing labels and new code comments.
     abc_panel, abc_layout = _build_abc_panel(owner)
     material_facts_panel = _build_material_facts_panel(owner)
     photo_gallery_panel = _build_photo_gallery_panel(owner)
@@ -2787,6 +2796,9 @@ def _set_chart_analysis_section_visible(self, section_key: str, visible: bool) -
     self._chart_analysis_section_visible[section_key] = visible
     self._visibility.set(f"chart_analytics.{section_key}", visible)
     self._sync_chart_analysis_section_visibility()
+    # "anagrams" is currently the persisted visibility key for the whole
+    # Linguistics panel. If Euphonics later gains its own key, this is one of
+    # the compatibility points that should be split deliberately.
     if section_key == "anagrams" and visible and self._latest_chart is not None:
         self._mark_chart_analytics_sections_lucy_goosey({"anagrams"})
         self._schedule_chart_render(self._latest_chart, sections={"anagrams"})

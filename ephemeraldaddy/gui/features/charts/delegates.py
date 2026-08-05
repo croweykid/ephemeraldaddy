@@ -34,6 +34,7 @@ class ChartRowDelegate(QStyledItemDelegate):
             "place": QColor(CHART_ROW_PLACE_COLOR),
             "gender": QColor(CHART_ROW_PLACE_COLOR),
             "current_age": QColor("#8a8a8a"),
+            "human_design_profile": QColor("#b68cff"),
         }
         self._duplicate_likelihood_colors = {
             "definite": QColor("#7CFF00"),
@@ -83,6 +84,7 @@ class ChartRowDelegate(QStyledItemDelegate):
         time_text = str(segment_data.get("time", "??:??"))
         retcon_time_text = str(segment_data.get("retcon_time", ""))
         place_text = str(segment_data.get("place", ""))
+        human_design_profile_text = str(segment_data.get("human_design_profile", "")).strip()
         gender_text = str(segment_data.get("gender", ""))
         current_age_text = str(segment_data.get("current_age", ""))
         status_text = "💀" if bool(segment_data.get("is_deceased", False)) else ""
@@ -98,6 +100,7 @@ class ChartRowDelegate(QStyledItemDelegate):
             {"key": "alias", "text": alias_text},
             {"key": "from_whence", "text": from_whence_text},
             *chart_info_segments,
+            {"key": "human_design_profile", "text": human_design_profile_text},
             {"key": "date", "text": date_text},
             {"key": "time", "text": time_text},
             {"key": "retcon_time", "text": retcon_time_text},
@@ -130,6 +133,7 @@ class ChartRowDelegate(QStyledItemDelegate):
                 "time",
                 "retcon_time",
                 "place",
+                "human_design_profile",
                 "gender",
                 "current_age",
             }:
