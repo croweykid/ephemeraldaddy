@@ -84,12 +84,12 @@ def test_chart_save_signature_remains_void_for_existing_callers():
     assert not method.rstrip().endswith("return True")
 
 
-def test_retcon_toggle_marks_dirty_before_deferred_autosave():
+def test_retcon_toggle_marks_dirty_before_timing_preview_policy():
     method = _method_source("_on_retcon_time_toggled")
     assert "self._mark_lucygoosey()" in method
-    assert "self._metadata_autosave_timer.start(2500)" in method
+    assert "self._queue_timing_preview_update()" in method
     assert "self._autosave_checkbox_state()" not in method
-    assert method.index("self._mark_lucygoosey()") < method.index("self._metadata_autosave_timer.start(2500)")
+    assert method.index("self._mark_lucygoosey()") < method.index("self._queue_timing_preview_update()")
 
 
 def test_subjective_checkbox_autosaves_use_batched_subjective_timer():
@@ -126,6 +126,8 @@ def test_leave_check_flushes_lightweight_autosave_before_prompting():
     assert flush in method
     assert method.index(timer_check) < method.index(flush) < method.index(dirty_check)
     assert method.index(flush) < method.index("self._flush_pending_metadata_save()")
+    assert "if self._metadata_autosave_requires_recalculation:" in method
+    assert "self._metadata_autosave_timer.stop()" in method
 
 
 def test_authoritative_birth_inputs_are_protected_from_lightweight_autosave():
@@ -155,11 +157,13 @@ def test_failed_timed_autosaves_are_reported_to_terminal():
     assert '"lightweight metadata"' in lightweight_method
 
 
-def test_retcon_time_edits_defer_autosave_so_leave_prompt_can_win():
+def test_retcon_time_edits_mark_dirty_without_starting_recalculating_autosave_directly():
     method = _method_source("_on_retcon_time_changed")
+    queue_method = _method_source("_queue_timing_preview_update")
     assert "self._mark_lucygoosey()" in method
-    assert "self._metadata_autosave_timer.start(2500)" in method
+    assert "self._queue_timing_preview_update()" in method
     assert "self._autosave_checkbox_state()" not in method
+    assert "timing_edits_should_start_recalculating_autosave()" in queue_method
 
 
 def test_save_update_caches_chart_view_entry_by_uid_not_row_id():

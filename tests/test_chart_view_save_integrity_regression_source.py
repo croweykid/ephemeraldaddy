@@ -74,7 +74,8 @@ def test_all_timing_inputs_request_a_full_recalculation():
 
     queue = _method(APP_SOURCE, "_queue_timing_preview_update")
     assert "self._metadata_autosave_requires_recalculation = True" in queue
-    assert "self._metadata_autosave_timer.start(2500)" in queue
+    assert "timing_edits_should_start_recalculating_autosave()" in queue
+    assert "self._metadata_autosave_timer.start(CHART_VIEW_TIMING_PREVIEW_DEBOUNCE_MS)" in queue
 
 
 def test_subjective_flush_defers_to_pending_birth_recalculation_without_losing_dirty_state():

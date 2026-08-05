@@ -989,6 +989,9 @@ from ephemeraldaddy.gui.dbv_search_panel import (
     snapshot_human_design_search_selections,
     weight_is_at_least_triple_next_highest,
 )
+from ephemeraldaddy.gui.features.chart_editor.timing_autosave import (
+    timing_edits_should_start_recalculating_autosave,
+)
 from ephemeraldaddy.gui.features.chart_editor.personal_relevance import (
     add_chart_editor_personal_relevance_rows,
     apply_chart_editor_last_encounter_metadata,
@@ -32549,10 +32552,16 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         # prompt is necessary when the user navigates immediately.
         if self._sentiment_metrics_autosave_timer.isActive():
             self._flush_pending_sentiment_metrics_save()
-        # A lightweight flush can promote itself when an authoritative field is
-        # also dirty. Flush that promoted save before deciding to prompt.
+        # Lightweight metadata autosaves are safe to flush before navigation,
+        # but timing edits require a full astronomical rebuild.  Do not perform
+        # that synchronous recalculation while the user is trying to leave Chart
+        # Editor; leave the draft dirty so the normal Save/Discard prompt lets
+        # them decide whether to pay that cost.
         if self._metadata_autosave_timer.isActive():
-            self._flush_pending_metadata_save()
+            if self._metadata_autosave_requires_recalculation:
+                self._metadata_autosave_timer.stop()
+            else:
+                self._flush_pending_metadata_save()
         if not self._lucygoosey:
             return True
 
@@ -35843,7 +35852,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._update_time_input_text_colors()
         if not self._suppress_lucygoosey:
             self._mark_lucygoosey()
-            # _queue_timing_preview_update defers self._metadata_autosave_timer.start(2500).
+            # _queue_timing_preview_update debounces the preview rebuild.
             self._queue_timing_preview_update()
 
     def _on_birth_time_changed(self, _time: QTime) -> None:
@@ -35865,7 +35874,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             self._mark_lucygoosey()
         self._update_time_input_text_colors()
         if should_refresh_retcon_preview:
-            # _queue_timing_preview_update defers self._metadata_autosave_timer.start(2500).
+            # _queue_timing_preview_update debounces the preview rebuild.
             self._queue_timing_preview_update()
 
     def _on_rectification_range_toggled(self, _checked: bool) -> None:
@@ -35965,12 +35974,15 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         # Rectified-time, rectified-range, and known birthtime edits change core
         # calculated chart data. Rebuild once after a real editing pause instead of on
         # each digit/checkbox signal.  The chart rebuild can take long enough to
-        # block typing, so keep this delay aligned with recalculating autosave
-        # instead of firing midway through manual HH:mm entry.
+        # block typing, so wait for a real editing pause instead of firing
+        # midway through manual HH:mm entry.
         self._timing_preview_update_timer.start(CHART_VIEW_TIMING_PREVIEW_DEBOUNCE_MS)
-        if self._can_autosave_current_chart():
-            self._metadata_autosave_requires_recalculation = True
-            self._metadata_autosave_timer.start(2500)
+        self._metadata_autosave_requires_recalculation = True
+        if (
+            timing_edits_should_start_recalculating_autosave()
+            and self._can_autosave_current_chart()
+        ):
+            self._metadata_autosave_timer.start(CHART_VIEW_TIMING_PREVIEW_DEBOUNCE_MS)
 
     def _flush_timing_preview_update(self) -> None:
         if self._suppress_lucygoosey:
