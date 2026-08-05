@@ -6,6 +6,7 @@ from ephemeraldaddy.analysis.human_design_synastry import (
     human_design_electrochemistry_score,
     normalize_gates,
     rank_human_design_synastry,
+    rank_human_design_synastry_ideal,
 )
 
 
@@ -52,6 +53,44 @@ def test_electrochemistry_score_sums_cross_chart_channels_and_combined_centers()
     assert score == 3
     assert maximum == 37
 
+
+def test_ideal_rank_prefers_exactly_eight_defined_centers_over_nine():
+    source_gates = {64}
+    all_gates = set(range(1, 65))
+    head_gate_options = {47, 24, 4}
+    eight_center_gates = all_gates - head_gate_options
+
+    results = rank_human_design_synastry_ideal(
+        "SOURCE",
+        source_gates,
+        [
+            candidate("NINE", all_gates, "Nine centers"),
+            candidate("EIGHT", eight_center_gates, "Eight centers"),
+        ],
+    )
+
+    assert [match.chart_uid for match in results] == ["EIGHT", "NINE"]
+    assert results[0].defined_centers == 8
+    assert results[1].defined_centers == 9
+
+def test_ideal_rank_breaks_eight_center_ties_by_completed_channels():
+    source_gates = {1}
+    all_gates = set(range(1, 65))
+    eight_center_gates = all_gates - {64, 61, 63, 1, 8}
+
+    results = rank_human_design_synastry_ideal(
+        "SOURCE",
+        source_gates,
+        [
+            candidate("FEWER", eight_center_gates, "Fewer channels"),
+            candidate("MORE", eight_center_gates | {8}, "More channels"),
+        ],
+    )
+
+    assert [match.chart_uid for match in results] == ["MORE", "FEWER"]
+    assert results[0].defined_centers == 8
+    assert results[1].defined_centers == 8
+    assert results[0].completed_channels > results[1].completed_channels
 
 def test_rank_reports_population_median_and_empirical_percentile():
     results = rank_human_design_synastry(
@@ -298,7 +337,9 @@ def test_predicted_synastry_builds_gender_radios_with_refresh_callback():
         'title="Traits"', 1
     )[0]
 
-    assert 'addItem("🪷HD Electrochemistry", "hd_electrochemistry")' in synastry_branch
+    assert 'addItem("🪷HD Electrochemistry", HD_ELECTROCHEMISTRY_MODE_STANDARD)' in synastry_branch
+    assert 'addItem("🪷HD Electrochemical Ideal", HD_ELECTROCHEMISTRY_MODE_IDEAL)' in synastry_branch
+    assert "on_hd_electrochemistry_mode_changed" in synastry_branch
 
     assert '(("All", "all"), ("Male", "male"), ("Female", "female"))' in synastry_branch
     assert "QRadioButton(label)" in synastry_branch
@@ -338,6 +379,54 @@ def test_match_collection_combines_top_ten_from_both_gender_groups(monkeypatch):
     assert len([uid for uid in chart_uids if uid.startswith("M")]) == 10
     assert len([uid for uid in chart_uids if uid.startswith("F")]) == 10
 
+
+
+def test_match_collection_honors_selected_ideal_mode(monkeypatch):
+    hd_electrochemistry = _hd_electrochemistry_module()
+    candidates = [gendered_candidate("M01", "M"), gendered_candidate("F01", "F")]
+    calls = []
+
+    def standard_ranker(*_args, **_kwargs):
+        calls.append("standard")
+        return []
+
+    def ideal_ranker(_chart_uid, _gates, filtered_candidates, **_kwargs):
+        calls.append("ideal")
+        return [
+            type(
+                "Match",
+                (),
+                {"chart_uid": candidate.chart_uid},
+            )()
+            for candidate in filtered_candidates
+        ]
+
+    monkeypatch.setattr(
+        hd_electrochemistry,
+        "list_human_design_electrochemistry_candidates",
+        lambda: candidates,
+    )
+    monkeypatch.setattr(
+        hd_electrochemistry,
+        "load_gendered_results_method",
+        lambda: HD_SYNASTRY_GENDER_METHOD_SEX,
+    )
+    monkeypatch.setattr(hd_electrochemistry, "rank_human_design_electrochemistry", standard_ranker)
+    monkeypatch.setattr(hd_electrochemistry, "rank_human_design_electrochemistry_ideal", ideal_ranker)
+    owner = type(
+        "Owner",
+        (),
+        {
+            "hd_electrochemistry_collection_filter": "all",
+            "hd_electrochemistry_prediction_mode": hd_electrochemistry.HD_ELECTROCHEMISTRY_MODE_IDEAL,
+        },
+    )()
+    chart = type("Chart", (), {"chart_uid": "SOURCE", "human_design_gates": [64]})()
+
+    chart_uids = hd_electrochemistry.hd_electrochemistry_match_collection_uids(owner, chart)
+
+    assert chart_uids == frozenset({"M01", "F01"})
+    assert calls == ["ideal", "ideal"]
 
 def test_match_collection_synchronizes_existing_database_view_dialog(monkeypatch):
     hd_electrochemistry = _hd_electrochemistry_module()
