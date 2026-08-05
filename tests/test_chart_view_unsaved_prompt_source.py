@@ -103,6 +103,58 @@ def test_subjective_checkbox_autosaves_use_batched_subjective_timer():
     assert "self._sentiment_metrics_autosave_timer.start(2000)" in queue_method
 
 
+def test_flavor_text_fields_queue_lightweight_autosaves():
+    for field_name in (
+        "comments_edit",
+        "rectification_edit",
+        "biography_edit",
+        "source_edit",
+    ):
+        assert (
+            f"self.{field_name}.textChanged.connect("
+            "\n            self._chart_editor_controller.on_lightweight_metadata_changed"
+        ) in APP_SOURCE
+    assert "def _on_lightweight_metadata_changed" not in APP_SOURCE
+
+
+def test_leave_check_flushes_lightweight_autosave_before_prompting():
+    method = _method_source("_confirm_discard_or_save")
+    timer_check = "if self._sentiment_metrics_autosave_timer.isActive():"
+    flush = "self._flush_pending_sentiment_metrics_save()"
+    dirty_check = "if not self._lucygoosey:"
+    assert timer_check in method
+    assert flush in method
+    assert method.index(timer_check) < method.index(flush) < method.index(dirty_check)
+    assert method.index(flush) < method.index("self._flush_pending_metadata_save()")
+
+
+def test_authoritative_birth_inputs_are_protected_from_lightweight_autosave():
+    birth_handler = _method_source("_on_birth_date_field_changed")
+    place_handler = _method_source("_on_place_text_changed")
+    assert (
+        "self._chart_editor_controller.on_authoritative_metadata_changed()"
+        in birth_handler
+    )
+    assert (
+        "self._chart_editor_controller.on_authoritative_metadata_changed()"
+        in place_handler
+    )
+
+
+def test_failed_timed_autosaves_are_reported_to_terminal():
+    metadata_method = _method_source("_autosave_checkbox_state")
+    lightweight_method = _method_source("_flush_pending_sentiment_metrics_save")
+    assert (
+        'self._chart_editor_controller.report_incomplete_autosave("metadata")'
+        in metadata_method
+    )
+    assert (
+        "self._chart_editor_controller.report_incomplete_autosave("
+        in lightweight_method
+    )
+    assert '"lightweight metadata"' in lightweight_method
+
+
 def test_retcon_time_edits_defer_autosave_so_leave_prompt_can_win():
     method = _method_source("_on_retcon_time_changed")
     assert "self._mark_lucygoosey()" in method
