@@ -216,6 +216,37 @@ OCEAN_ELEMENTS_THEORY = { #by dominance weights
         "description": "grounded, stabilizing, practical, patient, dependable",
     },
 }
+# Nakshatra scoring factors follow the traditional Vimshottari planetary lord
+# cycle, borrowing each lord's OCEAN body profile for dominance-by-theory scoring.
+OCEAN_NAKSHATRAS = {
+    "Ashwini": OCEAN_BODIES["Ketu"],
+    "Bharani": OCEAN_BODIES["Venus"],
+    "Krittika": OCEAN_BODIES["Sun"],
+    "Rohini": OCEAN_BODIES["Moon"],
+    "Mrigashira": OCEAN_BODIES["Mars"],
+    "Ardra": OCEAN_BODIES["Rahu"],
+    "Punarvasu": OCEAN_BODIES["Jupiter"],
+    "Pushya": OCEAN_BODIES["Saturn"],
+    "Ashlesha": OCEAN_BODIES["Mercury"],
+    "Magha": OCEAN_BODIES["Ketu"],
+    "Purva Phalguni": OCEAN_BODIES["Venus"],
+    "Uttara Phalguni": OCEAN_BODIES["Sun"],
+    "Hasta": OCEAN_BODIES["Moon"],
+    "Chitra": OCEAN_BODIES["Mars"],
+    "Swati": OCEAN_BODIES["Rahu"],
+    "Vishakha": OCEAN_BODIES["Jupiter"],
+    "Anuradha": OCEAN_BODIES["Saturn"],
+    "Jyestha": OCEAN_BODIES["Mercury"],
+    "Mula": OCEAN_BODIES["Ketu"],
+    "Purva Ashadha": OCEAN_BODIES["Venus"],
+    "Uttara Ashadha": OCEAN_BODIES["Sun"],
+    "Shravana": OCEAN_BODIES["Moon"],
+    "Dhanishta": OCEAN_BODIES["Mars"],
+    "Shatabhisha": OCEAN_BODIES["Rahu"],
+    "Purva Bhadrapada": OCEAN_BODIES["Jupiter"],
+    "Uttara Bhadrapada": OCEAN_BODIES["Saturn"],
+    "Revati": OCEAN_BODIES["Mercury"],
+}
 
 OCEAN_NAKSHATRAS_THEORY = {
 	"Ashwini": {
