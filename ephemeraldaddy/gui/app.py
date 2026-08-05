@@ -7753,29 +7753,15 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             chart_lookup=self._similarities_chart_lookup,
         )
 
-    def _calculate_pair_similarity_from_selection(self) -> None:
-        if self._similarities_pair_result_label is None:
-            return
-        resolution = self._resolve_similarity_pair_targets(
-            self._selected_local_row_ids()
-        )
+    def _pair_similarity_result_text(
+        self, resolution: SimilarityPairResolution
+    ) -> str | None:
         if resolution.first_chart_id is None or resolution.second_chart_id is None:
-            QMessageBox.warning(
-                self,
-                "Calculate Similarity",
-                resolution.guidance
-                or "Please enter chart name in checked input(s), or select chart(s) from Database.",
-            )
-            self._similarities_pair_result_label.setText(
-                resolution.guidance
-                or "Select 2 charts, or use chart inputs with “use this” checked."
-            )
-            return
+            return None
         first = self._get_chart_for_filter(resolution.first_chart_id)
         second = self._get_chart_for_filter(resolution.second_chart_id)
         if first is None or second is None:
-            self._similarities_pair_result_label.setText("Could not load both selected charts.")
-            return
+            return "Could not load both selected charts."
         algorithm_mode = _normalize_similar_charts_algorithm_mode(
             getattr(self, "_similar_charts_algorithm_mode", SIMILAR_CHARTS_ALGORITHM_DEFAULT)
         )
@@ -7798,13 +7784,36 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 similarity_settings=similarity_settings,
             ),
         )
-        self._similarities_pair_result_label.setText(
+        return (
             f"{first_name} ↔ {second_name}: "
             f'<span style="color: {band_color}; font-weight: 600;">'
             f"{similarity_percent:.1f}% ({band_label})"
             f"</span> "
             f"({component_summary})."
         )
+
+    def _calculate_pair_similarity_from_selection(self) -> None:
+        if self._similarities_pair_result_label is None:
+            return
+        resolution = self._resolve_similarity_pair_targets(
+            self._selected_local_row_ids()
+        )
+        if resolution.first_chart_id is None or resolution.second_chart_id is None:
+            QMessageBox.warning(
+                self,
+                "Calculate Similarity",
+                resolution.guidance
+                or "Please enter chart name in checked input(s), or select chart(s) from Database.",
+            )
+            self._similarities_pair_result_label.setText(
+                resolution.guidance
+                or "Select 2 charts, or use chart inputs with “use this” checked."
+            )
+            return
+        result_text = self._pair_similarity_result_text(resolution)
+        if result_text is None:
+            return
+        self._similarities_pair_result_label.setText(result_text)
         breakdown_chart_ids = similarity_breakdown_chart_ids(resolution)
         if breakdown_chart_ids is not None:
             self._update_similarities_analysis(breakdown_chart_ids)
@@ -8683,10 +8692,12 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             )
         if self._similarities_pair_result_label is not None:
             resolution = self._resolve_similarity_pair_targets(selected_non_placeholder_chart_ids)
-            if not resolution.allow_click:
-                self._similarities_pair_result_label.setText(
-                    resolution.guidance or "Select 2 charts to compare."
-                )
+            pair_result_text = self._pair_similarity_result_text(resolution)
+            self._similarities_pair_result_label.setText(
+                pair_result_text
+                or resolution.guidance
+                or "Select 2 charts to compare."
+            )
 
         if len(selected_non_placeholder_chart_ids) < 2:
             self.similarities_controller.set_export_sections([])
