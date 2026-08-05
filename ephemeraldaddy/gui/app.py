@@ -31861,6 +31861,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
 
         supplement_lines = humdes_gate_line_supplement_lines(gate_number, line_number, fixing, fixing_body)
         if supplement_lines:
+            # Use a real rich-text divider between app-native Gate info and the
+            # optional local plugin supplement. The legacy text divider token is
+            # intentionally empty, so inserting it here only produced blank space.
             cursor.insertText("\n", plain_fmt)
             cursor.insertHtml(CHART_INFO_GRAPHIC_DIVIDER_HTML)
             cursor.insertText("\n", plain_fmt)

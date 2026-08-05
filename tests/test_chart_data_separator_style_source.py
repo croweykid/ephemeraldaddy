@@ -85,5 +85,11 @@ def test_chart_data_separator_skips_padded_table_headers():
 def test_human_design_advanced_plugin_supplement_uses_graphic_divider():
     assert "CHART_INFO_GRAPHIC_DIVIDER_HTML = (" in STYLE_SOURCE
     assert "CHART_INFO_GRAPHIC_DIVIDER_HTML," in APP_SOURCE
-    assert 'cursor.insertText("\\n", plain_fmt)\n            cursor.insertHtml(CHART_INFO_GRAPHIC_DIVIDER_HTML)\n            cursor.insertText("\\n", plain_fmt)' in APP_SOURCE
+    assert (
+        'cursor.insertText("\\n", plain_fmt)\n'
+        '            cursor.insertHtml(CHART_INFO_GRAPHIC_DIVIDER_HTML)\n'
+        '            cursor.insertText("\\n", plain_fmt)'
+    ) in APP_SOURCE
+    assert "only produced blank space" in APP_SOURCE
     assert 'cursor.insertText("\\n\\n", plain_fmt)\n            cursor.insertText(CHART_DATA_DIVIDER, header_fmt)' not in APP_SOURCE
+    assert 'cursor.insertText("\\n\\n\\n", plain_fmt)' not in APP_SOURCE
