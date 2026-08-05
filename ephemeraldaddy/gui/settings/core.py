@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 SETTINGS_KEY_DATABASE_VIEW_ROW_INFO = "manage_charts/database_view_row_info"
+SETTINGS_KEY_PREDICTIONS_MANUAL_RECALCULATION_ONLY = "predictions/manual_recalculation_only"
 
 DATABASE_VIEW_ROW_INFO_OPTIONS: tuple[tuple[str, str], ...] = (
     ("name", "Name"),
@@ -56,3 +57,10 @@ def save_database_view_row_info_visibility(settings: Any, visibility: dict[str, 
             for key, default in DATABASE_VIEW_ROW_INFO_DEFAULTS.items()
         },
     )
+
+
+def load_predictions_manual_recalculation_only(settings: Any, *, fallback: bool = True) -> bool:
+    value = settings.value(SETTINGS_KEY_PREDICTIONS_MANUAL_RECALCULATION_ONLY, int(fallback))
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on", "checked"}
+    return bool(value)

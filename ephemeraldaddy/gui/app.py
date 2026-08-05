@@ -46,7 +46,6 @@ SETTINGS_KEY_SIMILAR_CALCULATOR = "similar_charts/similarities_calculator"
 SETTINGS_KEY_ENNEAGRAM_PREDICTOR_MODE = "enneagram_predictor/mode"
 SETTINGS_KEY_ENNEAGRAM_CATEGORY_WEIGHTS = "enneagram_predictor/category_weights"
 SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS = "enneagram_predictor/scoring_options"
-SETTINGS_KEY_PREDICTIONS_MANUAL_RECALCULATION_ONLY = "predictions/manual_recalculation_only"
 SETTINGS_KEY_ASTROTWIN_GRANULAR_EXPLANATION = "similar_charts/astrotwin_granular_explanation"
 SETTINGS_KEY_PREDICTIONS_ALIGNMENT_DEFAULT_ZERO = (
     "similar_charts/predictions_alignment_default_zero_when_unassigned"
@@ -1396,7 +1395,9 @@ from ephemeraldaddy.gui.settings_widgets import (
 )
 from ephemeraldaddy.gui.settings.core import (
     DATABASE_VIEW_ROW_INFO_DEFAULTS,
+    SETTINGS_KEY_PREDICTIONS_MANUAL_RECALCULATION_ONLY,
     load_database_view_row_info_visibility as _load_database_view_row_info_visibility,
+    load_predictions_manual_recalculation_only as _load_predictions_manual_recalculation_only,
     save_database_view_row_info_visibility as _save_database_view_row_info_visibility,
     settings_bool as _settings_bool,
 )
