@@ -156,6 +156,7 @@ CHART_EXPORT_DEFAULTS: dict[str, Any] = {
     "human_design_channels": "",
     "human_design_type": "",
     "human_design_authority": "",
+    "human_design_profile": "",
     "bazi_year_pillar": "",
     "bazi_month_pillar": "",
     "bazi_day_pillar": "",
@@ -576,6 +577,7 @@ def _create_charts_table(conn: sqlite3.Connection) -> None:
             human_design_channels TEXT,
             human_design_type TEXT,
             human_design_authority TEXT,
+            human_design_profile TEXT,
             bazi_year_pillar TEXT,
             bazi_month_pillar TEXT,
             bazi_day_pillar TEXT,
@@ -1695,6 +1697,13 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
             """
             ALTER TABLE charts
             ADD COLUMN human_design_authority TEXT
+            """
+        )
+    if "human_design_profile" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE charts
+            ADD COLUMN human_design_profile TEXT
             """
         )
     for bazi_column in (
@@ -4510,11 +4519,17 @@ def list_human_design_synastry_candidates():
     conn = _get_conn()
     with conn:
         _ensure_chart_uids(conn)
+    columns = _table_columns(conn, "charts")
+    profile_select = (
+        "human_design_profile"
+        if "human_design_profile" in columns
+        else "NULL AS human_design_profile"
+    )
     rows = conn.execute(
-        """
+        f"""
         SELECT chart_uid, name, alias, human_design_gates,
                birthtime_unknown, retcon_time_used, gender, source, chart_type,
-               relationship_types, derived_birth_data_signature, human_design_profile
+               relationship_types, derived_birth_data_signature, {profile_select}
         FROM charts
         WHERE COALESCE(is_placeholder, 0) = 0
           AND COALESCE(human_design_gates, '') != ''

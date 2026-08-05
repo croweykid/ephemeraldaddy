@@ -637,3 +637,48 @@ def test_settings_builder_call_sites_are_defined():
 
     assert settings_builder_calls <= settings_builder_definitions
     assert "_build_settings_header_label" not in settings_builder_calls
+
+
+def test_candidate_loader_tolerates_legacy_database_without_hd_profile(monkeypatch, tmp_path):
+    import sqlite3
+
+    from ephemeraldaddy.core import db
+
+    database_path = tmp_path / "legacy_hd_profile.sqlite"
+    conn = sqlite3.connect(database_path)
+    conn.execute(
+        """
+        CREATE TABLE charts (
+            id INTEGER PRIMARY KEY,
+            chart_uid TEXT,
+            name TEXT,
+            alias TEXT,
+            human_design_gates TEXT,
+            birthtime_unknown INTEGER,
+            retcon_time_used INTEGER,
+            gender TEXT,
+            source TEXT,
+            chart_type TEXT,
+            relationship_types TEXT,
+            derived_birth_data_signature TEXT,
+            is_placeholder INTEGER DEFAULT 0
+        )
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO charts (
+            chart_uid, name, human_design_gates, birthtime_unknown, retcon_time_used
+        ) VALUES ('0123456789ABCDEF', 'Legacy HD', '[1, 2, 3]', 0, 0)
+        """
+    )
+    conn.commit()
+    conn.close()
+    monkeypatch.setattr(db, "_get_conn", lambda: sqlite3.connect(database_path))
+
+    candidates = db.list_human_design_synastry_candidates()
+
+    assert len(candidates) == 1
+    assert candidates[0].chart_uid == "0123456789ABCDEF"
+    assert candidates[0].gates == frozenset({1, 2, 3})
+    assert candidates[0].profile is None
