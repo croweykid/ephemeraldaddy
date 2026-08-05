@@ -223,9 +223,12 @@ def populate_optional_modules_section(
         config.visibility.get("chart_view.sexiness"),
         config.set_sexiness_visibility,
     )
+    # The persisted section key remains "anagrams" for compatibility, but the
+    # user-facing panel is now the broader Linguistics (ABC) panel because the
+    # same visibility switch owns both Anagrams and Euphonics content.
     checkboxes["anagrams"] = _add_checkbox(
         section_layout,
-        "Show Anagrams",
+        "Show Linguistics (ABC) panel",
         config.chart_analytics_section_visible("anagrams"),
         lambda checked: config.set_chart_analytics_visibility("anagrams", checked),
     )

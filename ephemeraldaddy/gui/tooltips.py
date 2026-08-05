@@ -269,7 +269,7 @@ DEFAULT_TOOLTIP_OVERRIDES: dict[str, str] = {
     "database_view_button": "Close Chart Editor and return to Database View",
     "help_overlay_toggle": "Help",
     "chart_view_toggle_subjective_notes_panel_button": "Observations panel",
-    "chart_view_toggle_abc_panel_button": "ABC panel",
+    "chart_view_toggle_abc_panel_button": "Linguistics panel",
     "chart_view_toggle_analytics_panel_button": "Chart Analysis panel",
     "chart_view_toggle_predictions_panel_button": "Predictions panel",
     "chart_view_toggle_material_facts_panel_button": "Material Facts panel",
