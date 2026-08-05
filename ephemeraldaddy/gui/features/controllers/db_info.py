@@ -513,7 +513,7 @@ def refresh_database_info(owner: Any, *, force_recompute: bool = False) -> None:
 
 
 def add_database_info_settings_section(owner: Any, content_layout) -> None:
-    section_layout = owner._add_settings_collapsible_section(content_layout, "Database Statistics")
+    section_layout = owner._add_settings_collapsible_section(content_layout, "DB Stats")
 
     top_row = QHBoxLayout()
     subheader_label = QLabel(
