@@ -717,7 +717,7 @@ def sync_prediction_section_visibility(owner: object) -> None:
     widgets = getattr(owner, "_prediction_section_widgets", {})
     if not isinstance(widgets, dict):
         return
-    for key in ("traits", "enneagram", "dnd_statblock", "dnd_species", "dnd_class", "dnd_alignment"):
+    for key in ("traits", "ocean", "enneagram", "dnd_statblock", "dnd_species", "dnd_class", "dnd_alignment"):
         widget = widgets.get(key)
         if widget is not None and hasattr(widget, "setVisible"):
             widget.setVisible(_prediction_section_visible(owner, key))
@@ -1096,6 +1096,9 @@ def _finish_background_prediction_render(
     state = getattr(owner, "_chart_right_panel_state", None)
     if getattr(owner, "_latest_chart", None) is chart:
         sync_prediction_section_visibility(owner)
+        render_ocean = getattr(owner, "_render_ocean_predictions", None)
+        if callable(render_ocean) and _prediction_section_visible(owner, "ocean"):
+            render_ocean(chart)
         if _prediction_section_visible(owner, "enneagram"):
             owner._render_enneagram_predictions(chart)
         if any(_prediction_section_visible(owner, key) for key in ("dnd_statblock", "dnd_species", "dnd_class", "dnd_alignment")):
@@ -1339,6 +1342,9 @@ def schedule_chart_render_for_active_right_panel(owner: object) -> None:
         if callable(render_traits) and not traits_ready_for_chart and _prediction_section_visible(owner, "traits"):
             render_traits(chart)
             setattr(owner, "_traits_prediction_last_render_chart_token", render_token)
+        render_ocean = getattr(owner, "_render_ocean_predictions", None)
+        if callable(render_ocean) and _prediction_section_visible(owner, "ocean"):
+            render_ocean(chart)
         if _prediction_section_visible(owner, "enneagram"):
             owner._render_enneagram_predictions(chart)
         if any(_prediction_section_visible(owner, key) for key in ("dnd_statblock", "dnd_species", "dnd_class", "dnd_alignment")):

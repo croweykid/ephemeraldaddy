@@ -1935,6 +1935,30 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     configure_traits_prediction_table(owner, owner.traits_prediction_table)
     traits_section_layout.addWidget(owner.traits_prediction_table)
 
+    ocean_section_layout = owner._add_chart_analysis_collapsible_section(
+        panel=panel,
+        layout=layout,
+        title="OCEAN Personality",
+        expanded=True,
+    )
+    register_prediction_section("ocean", ocean_section_layout)
+    _install_prediction_header_action(owner, ocean_section_layout, "ocean")
+    add_prediction_subheader(ocean_section_layout, "ocean_prediction_subheader").setText(
+        "Dominance-by-theory OCEAN predictor based on sign/body weights, nakshatra factors when available, and house weights only when this chart's chart_uses_houses value is TRUE."
+    )
+    owner.ocean_prediction_chart_panel = QWidget()
+    owner.ocean_prediction_chart_layout = QVBoxLayout()
+    owner.ocean_prediction_chart_layout.setContentsMargins(0, 0, 0, 0)
+    owner.ocean_prediction_chart_layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+    owner.ocean_prediction_chart_panel.setLayout(owner.ocean_prediction_chart_layout)
+    ocean_section_layout.addWidget(owner.ocean_prediction_chart_panel)
+    owner.ocean_prediction_label = _make_predictions_loading_label(
+        "Loading OCEAN predictions…",
+        alignment=Qt.AlignLeft | Qt.AlignTop,
+    )
+    owner.ocean_prediction_label.setWordWrap(True)
+    ocean_section_layout.addWidget(owner.ocean_prediction_label)
+
     enneagram_section_layout = owner._add_chart_analysis_collapsible_section(
         panel=panel,
         layout=layout,
