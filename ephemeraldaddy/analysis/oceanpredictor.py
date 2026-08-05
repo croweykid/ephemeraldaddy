@@ -7,51 +7,51 @@
 
 OCEAN_SIGNS_THEORY = {
     "Aries": {
-        "O": 0, "C": -5, "E": 10, "A":-10, "N": 5,
+        "O": -5, "C": 0, "E": 10, "A":-10, "N": 5, #hesitant on assigning Aries less openness, because they ARE often receptive to factual explanations, if presented in terms they respect. "WHY ARE YOU LIKE THAT?!" they might demand, seeming conservative. But then, if you actually explain in terms they respect, they'll usually accept it and respect your frankness, then take you as you are.
         "description": "pioneering, direct, competitive, courageous, impatient",
     },
     "Taurus": {
-        "O":-10, "C": 5, "E": -5, "A": 0, "N": -5, 
+        "O":-10, "C": 5, "E": -5, "A": 0, "N": -5, #not sure about Taurus' conscientiousness score. Possibly should be higher.
         "description": "steady, practical, sensual, patient, resistant to change",
     },
     "Gemini": {
-        "O": 10, "C":-10, "E": 10, "A": 0, "N": 5,
+        "O": 10, "C":-5, "E": 5, "A": 5, "N": 10, #conscientiousness is bumped from -10 to -5 due to hyperfixations & obsessions.
         "description": "curious, verbal, adaptable, sociable, restless",
     },
     "Cancer": {
-        "O": 0, "C": 5, "E":-10, "A": 10, "N": 10,
+        "O": -5, "C": 5, "E":-10, "A": 5, "N": 10,
         "description": "protective, receptive, cautious, attached, changeable",
     },
     "Leo": {
-        "O": 5, "C": 0, "E": 10, "A": 0, "N": 5,
+        "O": 0, "C": 5, "E": 10, "A": 5, "N": 0, #wants/needs to be liked, so moderately high Agreeable, but also (unless mitigated by other elements) bossy af, so not TOO agreeable.
         "description": "expressive, confident, proud, generous, theatrical",
     },
     "Virgo": {
-        "O": 0, "C": 10, "E":-10, "A": 5, "N": 10,
+        "O": 0, "C": 10, "E":-10, "A": 0, "N": 10, #not sure about agreeableness for Virgo. They DO want to be useful. They ARE persnicketty.
         "description": "analytical, discriminating, methodical, helpful, worried",
     },
     "Libra": {
-        "O": 5, "C": -5, "E": 5, "A": 10, "N": 5,
+        "O": 5, "C": -5, "E": 10, "A": 10, "N": 5,#?, #female libras tend to be "A":10, male libras tend to be "A":-5. But even negging and contrarianism are possibly affected for social capital. >_>
         "description": "social, diplomatic, aesthetic, cooperative, indecisive",
     },
     "Scorpio": {
-        "O": 5, "C": 5, "E":-10, "A":-10, "N": 10,
+        "O": 0, "C": 5, "E":-10, "A":-10, "N": 10, #Lots of scorpios are super S not N. Re: "Agreeableness". Most Scorpios aren't aggro, they just want sovereignty. But I looked at the list of Scorpio dom & those are NOT agreeable people.
         "description": "probing, private, persistent, controlling, intense",
     },
     "Sagittarius": {
-        "O": 10, "C":-10, "E": 10, "A": 0, "N": 0,
+        "O": -5, "C":-10, "E": 5, "A": -10, "N": -10, #Most Sag are S not N. But while their intelligence is rarely abstract, they ARE often pretty tolerant / open minded.
         "description": "exploratory, philosophical, candid, exuberant, unrestrained",
     },
     "Capricorn": {
-        "O":-10, "C": 10, "E":-10, "A": -5, "N": 5,
+        "O":-10, "C": 10, "E":-5, "A": -5, "N": -10, #NOT inherently agreeable. STILL charming within their boundaries, when rules are observed. Mad charisma.
         "description": "disciplined, reserved, ambitious, pragmatic, cautious",
     },
     "Aquarius": {
-        "O": 10, "C": 0, "E": 0, "A": -5, "N": -5, 
+        "O": 10, "C": -10, "E": 5, "A": -10, "N": -5, 
         "description": "inventive, independent, principled, contrarian, detached",
     },
     "Pisces": {
-        "O": 10, "C":-10, "E":-10, "A": 10, "N": 10,
+        "O": 10, "C":-10, "E":-5, "A": 10, "N": 10, #Pisces are not always that agreeable. Feeling everything & being psychologically porous doesn't entail "agreeable"; sometimes you become reactive to the excess of inputs. But maybe that's just an Agreeable Person problem.
         "description": "imaginative, compassionate, yielding, impressionable, escapist",
     },
 }
@@ -248,7 +248,7 @@ OCEAN_NAKSHATRAS_THEORY = {
     "Revati": OCEAN_BODIES_THEORY["Mercury"],
 }
 
-OCEAN_NAKSHATRAS_THEORY = {
+OCEAN_NAKSHATRAS_THEORY2 = {
 	"Ashwini": {
         "O": 5, "C": -5, "E": 10, "A": 5, "N": -5, 
         "description": "swift, pioneering, restorative, youthful, impatient",
