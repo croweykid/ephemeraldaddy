@@ -250,7 +250,7 @@ class SimilaritiesController:
         pair_row.setLayout(pair_layout)
         self.pair_button = QPushButton("Calculate Similarities")
         self.pair_button.setStyleSheet(self.inactive_button_style)
-        self.pair_button.setToolTip("Select exactly 2 charts to compare.")
+        self.pair_button.setToolTip("Select charts to compare.")
         self.pair_button.clicked.connect(
             self.host._calculate_pair_similarity_from_selection
         )
@@ -258,7 +258,7 @@ class SimilaritiesController:
 
         self.dissimilarity_pair_button = QPushButton("Calculate Dissimilarities")
         self.dissimilarity_pair_button.setStyleSheet(self.inactive_button_style)
-        self.dissimilarity_pair_button.setToolTip("Select exactly 2 charts to compare.")
+        self.dissimilarity_pair_button.setToolTip("Select charts to compare.")
         self.dissimilarity_pair_button.clicked.connect(
             self.host._calculate_pair_dissimilarity_from_selection
         )

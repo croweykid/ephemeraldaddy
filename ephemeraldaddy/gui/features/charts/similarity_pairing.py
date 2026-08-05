@@ -83,7 +83,7 @@ def resolve_similarity_pair_targets(
         return SimilarityPairResolution(
             first_chart_id=None,
             second_chart_id=None,
-            guidance="Select exactly 2 charts to compare.",
+            guidance="Select charts to compare.",
             allow_click=False,
         )
 
@@ -99,7 +99,7 @@ def resolve_similarity_pair_targets(
             return SimilarityPairResolution(
                 first_chart_id=None,
                 second_chart_id=None,
-                guidance="Choose two different charts to compare.",
+                guidance="Choose charts to compare.",
                 allow_click=True,
             )
         return SimilarityPairResolution(
@@ -121,7 +121,7 @@ def resolve_similarity_pair_targets(
         return SimilarityPairResolution(
             first_chart_id=None,
             second_chart_id=None,
-            guidance="Select exactly 1 chart when using one checked input.",
+            guidance="Select exactly 1 additional chart when using one checked input.",
             allow_click=False,
         )
     selected_chart_id = selected_chart_ids[0]
@@ -129,7 +129,7 @@ def resolve_similarity_pair_targets(
         return SimilarityPairResolution(
             first_chart_id=None,
             second_chart_id=None,
-            guidance="Choose two different charts to compare.",
+            guidance="Choose charts to compare.",
             allow_click=True,
         )
     return SimilarityPairResolution(

@@ -7845,7 +7845,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         if len(selected_chart_ids) != 2:
             self.similarities_controller.set_export_sections([])
             self.similarities_status_label.setText(
-                "Select exactly 2 non-placeholder charts to calculate dissimilarities."
+                "Select non-placeholder charts to calculate dissimilarities."
             )
             return 0
 
@@ -28352,7 +28352,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         if len(selected_chart_ids) != 2:
             self._similarities_export_sections = []
             self.similarities_status_label.setText(
-                "Select exactly 2 non-placeholder charts to calculate dissimilarities."
+                "Select non-placeholder charts to calculate dissimilarities."
             )
             return 0
 
