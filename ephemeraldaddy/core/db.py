@@ -156,6 +156,7 @@ CHART_EXPORT_DEFAULTS: dict[str, Any] = {
     "human_design_channels": "",
     "human_design_type": "",
     "human_design_authority": "",
+    "human_design_profile": "",
     "bazi_year_pillar": "",
     "bazi_month_pillar": "",
     "bazi_day_pillar": "",
@@ -576,6 +577,7 @@ def _create_charts_table(conn: sqlite3.Connection) -> None:
             human_design_channels TEXT,
             human_design_type TEXT,
             human_design_authority TEXT,
+            human_design_profile TEXT,
             bazi_year_pillar TEXT,
             bazi_month_pillar TEXT,
             bazi_day_pillar TEXT,
@@ -1697,6 +1699,13 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
             ADD COLUMN human_design_authority TEXT
             """
         )
+    if "human_design_profile" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE charts
+            ADD COLUMN human_design_profile TEXT
+            """
+        )
     for bazi_column in (
         "bazi_year_pillar",
         "bazi_month_pillar",
@@ -2532,28 +2541,33 @@ def _resolve_unknown_sign_metadata(
     return bool(unknown_positions), list(unknown_positions)
 
 
-def _resolve_human_design_metadata(chart: Any) -> tuple[Optional[str], Optional[str]]:
+def _resolve_human_design_metadata(
+    chart: Any,
+) -> tuple[Optional[str], Optional[str], Optional[str]]:
     hd_type = str(getattr(chart, "human_design_type", "") or "").strip()
     hd_authority = str(getattr(chart, "human_design_authority", "") or "").strip()
-    if hd_type and hd_authority:
-        return hd_type, hd_authority
+    hd_profile = str(getattr(chart, "human_design_profile", "") or "").strip()
+    if hd_type and hd_authority and hd_profile:
+        return hd_type, hd_authority, hd_profile
     if not getattr(chart, "positions", None):
-        return hd_type or None, hd_authority or None
+        return hd_type or None, hd_authority or None, hd_profile or None
     try:
         from ephemeraldaddy.analysis.human_design import build_human_design_result
         from ephemeraldaddy.analysis.human_design_reference import canonicalize_hd_authority_label
 
         hd_result = build_human_design_result(chart)
     except Exception:
-        return hd_type or None, hd_authority or None
+        return hd_type or None, hd_authority or None, hd_profile or None
 
     resolved_type = str(getattr(hd_result, "hd_type", "") or "").strip() or hd_type
     resolved_authority = canonicalize_hd_authority_label(
         str(getattr(hd_result, "authority", "") or "").strip()
     ) or hd_authority
+    resolved_profile = str(getattr(hd_result, "profile", "") or "").strip() or hd_profile
     chart.human_design_type = resolved_type
     chart.human_design_authority = resolved_authority
-    return resolved_type or None, resolved_authority or None
+    chart.human_design_profile = resolved_profile
+    return resolved_type or None, resolved_authority or None, resolved_profile or None
 
 
 def _resolve_bazi_metadata(chart: Any) -> dict[str, Optional[str]]:
@@ -3608,14 +3622,14 @@ def append_database(source: Path) -> dict[str, Any]:
                          dominant_sign_weights, dominant_planet_weights, dominant_nakshatra_weights, dominant_element_weights, dominant_mode, modal_distribution,
                          body_dynamics_roles,
                          human_design_gates, human_design_lines, human_design_channels,
-                         human_design_type, human_design_authority,
+                         human_design_type, human_design_authority, human_design_profile,
                          bazi_year_pillar, bazi_month_pillar, bazi_day_pillar, bazi_hour_pillar,
                          bazi_year_element, bazi_month_element, bazi_day_element, bazi_hour_element,
                          chart_type, source,
                          is_placeholder, is_deceased, birth_month, birth_day, birth_year,
                          death_month, death_day, death_year, deathtime_unknown, death_hour, death_minute, death_place,
                          created_at, is_current)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         new_chart_id,
@@ -3675,6 +3689,7 @@ def append_database(source: Path) -> dict[str, Any]:
                         _row_value("human_design_channels"),
                         _row_value("human_design_type"),
                         _row_value("human_design_authority"),
+                        _row_value("human_design_profile"),
                         _row_value("bazi_year_pillar"),
                         _row_value("bazi_month_pillar"),
                         _row_value("bazi_day_pillar"),
@@ -3824,7 +3839,11 @@ def save_chart(
     )
     chart.signs_unknown = resolved_signs_unknown
     chart.unknown_signs = list(resolved_unknown_signs)
-    human_design_type, human_design_authority = _resolve_human_design_metadata(chart)
+    (
+        human_design_type,
+        human_design_authority,
+        human_design_profile,
+    ) = _resolve_human_design_metadata(chart)
     bazi_metadata = _resolve_bazi_metadata(chart)
     body_dynamics_roles = _resolve_body_dynamics_roles(chart)
     conn = _get_conn()
@@ -3850,7 +3869,7 @@ def save_chart(
                  dominant_sign_weights, dominant_planet_weights, dominant_nakshatra_weights, dominant_element_weights, enneagram_type_weights, dominant_enneagram_type, top_three_enneagram_types, dominant_mode, modal_distribution,
                  body_dynamics_roles,
                  human_design_gates, human_design_lines, human_design_channels,
-                 human_design_type, human_design_authority,
+                 human_design_type, human_design_authority, human_design_profile,
                  bazi_year_pillar, bazi_month_pillar, bazi_day_pillar, bazi_hour_pillar,
                  bazi_year_element, bazi_month_element, bazi_day_element, bazi_hour_element,
                  chart_type,
@@ -3868,7 +3887,7 @@ def save_chart(
                  death_minute,
                  death_place,
                  created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 chart.name,
@@ -3968,6 +3987,7 @@ def save_chart(
                 _serialize_string_list(getattr(chart, "human_design_channels", None)),
                 human_design_type,
                 human_design_authority,
+                human_design_profile,
                 bazi_metadata.get("bazi_year_pillar"),
                 bazi_metadata.get("bazi_month_pillar"),
                 bazi_metadata.get("bazi_day_pillar"),
@@ -4131,7 +4151,11 @@ def update_chart(
     )
     chart.signs_unknown = resolved_signs_unknown
     chart.unknown_signs = list(resolved_unknown_signs)
-    human_design_type, human_design_authority = _resolve_human_design_metadata(chart)
+    (
+        human_design_type,
+        human_design_authority,
+        human_design_profile,
+    ) = _resolve_human_design_metadata(chart)
     bazi_metadata = _resolve_bazi_metadata(chart)
     body_dynamics_roles = _resolve_body_dynamics_roles(chart)
     conn = _get_conn()
@@ -4205,6 +4229,7 @@ def update_chart(
                 human_design_channels = ?,
                 human_design_type = ?,
                 human_design_authority = ?,
+                human_design_profile = ?,
                 bazi_year_pillar = ?,
                 bazi_month_pillar = ?,
                 bazi_day_pillar = ?,
@@ -4327,6 +4352,7 @@ def update_chart(
                 _serialize_string_list(getattr(chart, "human_design_channels", None)),
                 human_design_type,
                 human_design_authority,
+                human_design_profile,
                 bazi_metadata.get("bazi_year_pillar"),
                 bazi_metadata.get("bazi_month_pillar"),
                 bazi_metadata.get("bazi_day_pillar"),
@@ -4510,11 +4536,17 @@ def list_human_design_synastry_candidates():
     conn = _get_conn()
     with conn:
         _ensure_chart_uids(conn)
+    columns = _table_columns(conn, "charts")
+    profile_select = (
+        "human_design_profile"
+        if "human_design_profile" in columns
+        else "NULL AS human_design_profile"
+    )
     rows = conn.execute(
-        """
+        f"""
         SELECT chart_uid, name, alias, human_design_gates,
                birthtime_unknown, retcon_time_used, gender, source, chart_type,
-               relationship_types, derived_birth_data_signature, human_design_profile
+               relationship_types, derived_birth_data_signature, {profile_select}
         FROM charts
         WHERE COALESCE(is_placeholder, 0) = 0
           AND COALESCE(human_design_gates, '') != ''
@@ -5665,6 +5697,11 @@ def _chart_row_projection(columns: set[str]) -> str:
     emoji_portrait_projection = "emoji_portrait" if "emoji_portrait" in columns else "NULL AS emoji_portrait"
     quotes_projection = "quotes" if "quotes" in columns else "NULL AS quotes"
     profile_pic_projection = "profile_pic" if "profile_pic" in columns else "NULL AS profile_pic"
+    human_design_profile_projection = (
+        "human_design_profile"
+        if "human_design_profile" in columns
+        else "NULL AS human_design_profile"
+    )
     current_relationship_projection = (
         "current_relationship"
         if "current_relationship" in columns
@@ -5685,7 +5722,7 @@ def _chart_row_projection(columns: set[str]) -> str:
                {derived_houses_projection}, {derived_houses_po_projection}, {derived_aspects_projection},
                dominant_sign_weights, dominant_planet_weights, dominant_nakshatra_weights, dominant_element_weights, {enneagram_type_weights_projection}, dominant_enneagram_type, top_three_enneagram_types, dominant_mode, modal_distribution, {body_dynamics_roles_projection},
                human_design_gates, human_design_lines, human_design_channels,
-               human_design_type, human_design_authority,
+               human_design_type, human_design_authority, {human_design_profile_projection},
                bazi_year_pillar, bazi_month_pillar, bazi_day_pillar, bazi_hour_pillar,
                bazi_year_element, bazi_month_element, bazi_day_element, bazi_hour_element,
                COALESCE(chart_type, source),
@@ -5764,6 +5801,7 @@ def _chart_from_row(chart_id: int, row):
         human_design_channels,
         human_design_type,
         human_design_authority,
+        human_design_profile,
         bazi_year_pillar,
         bazi_month_pillar,
         bazi_day_pillar,
@@ -5867,6 +5905,7 @@ def _chart_from_row(chart_id: int, row):
         placeholder.human_design_channels = _parse_string_list(human_design_channels)
         placeholder.human_design_type = str(human_design_type).strip() if human_design_type else ""
         placeholder.human_design_authority = str(human_design_authority).strip() if human_design_authority else ""
+        placeholder.human_design_profile = str(human_design_profile).strip() if human_design_profile else ""
         placeholder.bazi_year_pillar = str(bazi_year_pillar).strip() if bazi_year_pillar else ""
         placeholder.bazi_month_pillar = str(bazi_month_pillar).strip() if bazi_month_pillar else ""
         placeholder.bazi_day_pillar = str(bazi_day_pillar).strip() if bazi_day_pillar else ""
@@ -6031,6 +6070,7 @@ def _chart_from_row(chart_id: int, row):
     chart.human_design_channels = _parse_string_list(human_design_channels)
     chart.human_design_type = str(human_design_type).strip() if human_design_type else ""
     chart.human_design_authority = str(human_design_authority).strip() if human_design_authority else ""
+    chart.human_design_profile = str(human_design_profile).strip() if human_design_profile else ""
     chart.bazi_year_pillar = str(bazi_year_pillar).strip() if bazi_year_pillar else ""
     chart.bazi_month_pillar = str(bazi_month_pillar).strip() if bazi_month_pillar else ""
     chart.bazi_day_pillar = str(bazi_day_pillar).strip() if bazi_day_pillar else ""

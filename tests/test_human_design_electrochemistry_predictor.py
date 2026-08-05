@@ -637,3 +637,76 @@ def test_settings_builder_call_sites_are_defined():
 
     assert settings_builder_calls <= settings_builder_definitions
     assert "_build_settings_header_label" not in settings_builder_calls
+
+
+def test_candidate_loader_tolerates_legacy_database_without_hd_profile(monkeypatch, tmp_path):
+    import sqlite3
+
+    from ephemeraldaddy.core import db
+
+    database_path = tmp_path / "legacy_hd_profile.sqlite"
+    conn = sqlite3.connect(database_path)
+    conn.execute(
+        """
+        CREATE TABLE charts (
+            id INTEGER PRIMARY KEY,
+            chart_uid TEXT,
+            name TEXT,
+            alias TEXT,
+            human_design_gates TEXT,
+            birthtime_unknown INTEGER,
+            retcon_time_used INTEGER,
+            gender TEXT,
+            source TEXT,
+            chart_type TEXT,
+            relationship_types TEXT,
+            derived_birth_data_signature TEXT,
+            is_placeholder INTEGER DEFAULT 0
+        )
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO charts (
+            chart_uid, name, human_design_gates, birthtime_unknown, retcon_time_used
+        ) VALUES ('0123456789ABCDEF', 'Legacy HD', '[1, 2, 3]', 0, 0)
+        """
+    )
+    conn.commit()
+    conn.close()
+    monkeypatch.setattr(db, "_get_conn", lambda: sqlite3.connect(database_path))
+
+    candidates = db.list_human_design_synastry_candidates()
+
+    assert len(candidates) == 1
+    assert candidates[0].chart_uid == "0123456789ABCDEF"
+    assert candidates[0].gates == frozenset({1, 2, 3})
+    assert candidates[0].profile is None
+
+
+def test_database_persists_human_design_profile(monkeypatch, tmp_path):
+    from datetime import datetime, timezone
+
+    from ephemeraldaddy.core import db
+    from ephemeraldaddy.core.chart import Chart
+
+    database_path = tmp_path / "charts.db"
+    monkeypatch.setattr(db, "DB_PATH", database_path)
+    monkeypatch.setattr(db, "_SCHEMA_READY", False)
+    monkeypatch.setattr(db, "_SCHEMA_READY_DB_PATH", None)
+    db._TABLE_COLUMNS_CACHE.clear()
+    db.init_db_once(force=True)
+
+    chart = Chart("Profiled", datetime(2000, 1, 1, tzinfo=timezone.utc), 0.0, 0.0)
+    chart.human_design_type = "Generator"
+    chart.human_design_authority = "Sacral"
+    chart.human_design_profile = "2/4"
+    chart_id = db.save_chart(chart, birth_place="Null Island")
+
+    loaded = db.load_chart(chart_id)
+    assert loaded.human_design_profile == "2/4"
+
+    loaded.human_design_profile = "5/1"
+    db.update_chart(chart_id, loaded)
+
+    assert db.load_chart(chart_id).human_design_profile == "5/1"

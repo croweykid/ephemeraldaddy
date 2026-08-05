@@ -196,6 +196,20 @@ def ocean_scores_to_mbti(scores: dict[str, float]) -> str:
     return "".join(letters)
 
 
+def ocean_scores_to_mbti_with_neuroticism_prefix(scores: dict[str, float]) -> str:
+    """Translate OCEAN spectra into an MBTI-style code with N/stability context."""
+    mbti = ocean_scores_to_mbti(scores)
+    try:
+        neuroticism_score = float(scores.get("N", 0.0))
+    except (TypeError, ValueError):
+        return mbti
+    if neuroticism_score > 2.0:
+        return f"neurotic {mbti}"
+    if neuroticism_score < 2.0:
+        return f"stable {mbti}"
+    return mbti
+
+
 def draw_ocean_prediction_bars(
     ax: Any,
     chart: Any | None,
@@ -276,7 +290,7 @@ def build_ocean_trait_popout_info(chart: Any | None, trait: str) -> str:
     negative_label, positive_label = OCEAN_AXIS_LABELS[trait_key]
     direction = _score_direction(trait_key, score)
     band = _score_band(score)
-    mbti = ocean_scores_to_mbti(scores)
+    mbti = ocean_scores_to_mbti_with_neuroticism_prefix(scores)
     houses_text = "included" if chart is not None and chart_uses_houses(chart) else "excluded"
     return (
         f"<h2>{escape(OCEAN_TRAIT_NAMES[trait_key])} ({trait_key})</h2>"
@@ -298,7 +312,7 @@ def build_ocean_trait_popout_info(chart: Any | None, trait: str) -> str:
 def build_ocean_summary_popout_info(chart: Any | None) -> str:
     """Return the default OCEAN popout explainer before a specific bar is picked."""
     scores = calculate_ocean_scores(chart)
-    mbti = ocean_scores_to_mbti(scores)
+    mbti = ocean_scores_to_mbti_with_neuroticism_prefix(scores)
     rows = "".join(
         f"<li><b>{trait}</b>: {scores[trait]:+.2f} toward {escape(_score_direction(trait, scores[trait]))}</li>"
         for trait in OCEAN_TRAITS
@@ -351,7 +365,7 @@ class OceanPredictionPanelAdapter:
                 if chart is not None and chart_uses_houses(chart)
                 else "excluding house weights"
             )
-            mbti = ocean_scores_to_mbti(calculate_ocean_scores(chart))
+            mbti = ocean_scores_to_mbti_with_neuroticism_prefix(calculate_ocean_scores(chart))
             self.label.setText(
                 f"<b>MBTI: {mbti}</b><br>"
                 f"OCEAN dominance predictor ({houses_text}). Horizontal spectra run from -10 to +10 "
