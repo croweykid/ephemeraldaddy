@@ -13,7 +13,7 @@ from types import MethodType
 from typing import Callable
 
 from PySide6.QtCore import QEvent, QRect, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QAction, QColor, QDragEnterEvent, QDropEvent, QFont, QIcon, QKeySequence, QLinearGradient, QPainter, QPixmap, QShortcut
+from PySide6.QtGui import QAction, QColor, QDragEnterEvent, QDropEvent, QFont, QIcon, QIntValidator, QKeySequence, QLinearGradient, QPainter, QPixmap, QShortcut
 from PySide6.QtWidgets import (
     QAbstractButton,
     QApplication,
@@ -1419,6 +1419,100 @@ def setup_chart_view_emoji_portrait_section(owner: QWidget, layout: QVBoxLayout)
         content_builder=lambda content_layout: _populate_emoji_portrait_section(owner, content_layout),
     )
     layout.addWidget(portrait_box)
+
+
+def setup_chart_view_typology_section(owner: QWidget, layout: QVBoxLayout) -> None:
+    """Build the user-assigned Enneagram and MBTI metadata controls."""
+    section = _build_subjective_notes_metric_section(
+        owner,
+        title="Typology",
+        content_builder=lambda content_layout: _populate_typology_section(owner, content_layout),
+    )
+    layout.addWidget(section)
+
+
+def _populate_typology_section(owner: QWidget, layout: QVBoxLayout) -> None:
+    subheader = QLabel()
+    subheader.setObjectName("chart_view_typology_subheader")
+    subheader.setWordWrap(True)
+    subheader.setStyleSheet(COLLAPSIBLE_SECTION_SUBHEADER_STYLE)
+    owner.typology_subheader = subheader
+    layout.addWidget(subheader)
+
+    layout.addWidget(QLabel("Enneagram Type"))
+    grid = QGridLayout()
+    grid.setContentsMargins(0, 0, 0, 0)
+    primary_label = QLabel("Primary Type:")
+    primary_label.setToolTip("Leave blank if unsure")
+    grid.addWidget(primary_label, 0, 0)
+    owner.enneagram_primary_edit = _typology_digit_edit(owner)
+    grid.addWidget(owner.enneagram_primary_edit, 0, 1)
+    wing_label = QLabel("w")
+    wing_label.setToolTip("Leave blank if unsure")
+    grid.addWidget(wing_label, 0, 2)
+    owner.enneagram_wing_edit = _typology_digit_edit(owner)
+    grid.addWidget(owner.enneagram_wing_edit, 0, 3)
+    grid.addWidget(QLabel("Tri-Type:"), 1, 0)
+    owner.tritype_edits = [_typology_digit_edit(owner) for _ in range(3)]
+    for column, edit in enumerate(owner.tritype_edits, start=1):
+        grid.addWidget(edit, 1, column)
+    layout.addLayout(grid)
+
+    layout.addWidget(QLabel("MBTI"))
+    mbti_row = QHBoxLayout()
+    mbti_row.setContentsMargins(0, 0, 0, 0)
+    owner.mbti_combos = []
+    for options in (("?", "I", "i", "x", "e", "E"), ("?", "N", "n", "x", "s", "S"), ("?", "T", "t", "x", "f", "F"), ("?", "P", "p", "x", "j", "J")):
+        combo = QComboBox()
+        combo.addItems(options)
+        combo.currentIndexChanged.connect(owner._mark_lucygoosey)
+        owner.mbti_combos.append(combo)
+        mbti_row.addWidget(combo)
+    layout.addLayout(mbti_row)
+
+
+def _typology_digit_edit(owner: QWidget) -> QLineEdit:
+    edit = QLineEdit()
+    edit.setValidator(QIntValidator(1, 9, edit))
+    edit.setMaxLength(1)
+    edit.setFixedWidth(32)
+    edit.textChanged.connect(owner._mark_lucygoosey)
+    return edit
+
+
+def update_chart_view_typology_subheader(owner: QWidget, chart_name: str) -> None:
+    label = getattr(owner, "typology_subheader", None)
+    if label is not None:
+        label.setText(f"Indicate below what MBTI type and/or Enneagram type you believe {chart_name or 'this chart'} to be.")
+
+
+def get_chart_view_typology(owner: QWidget) -> tuple[list[str], list[int], list[str]]:
+    primary = getattr(owner, "enneagram_primary_edit").text() or "0"
+    wing = getattr(owner, "enneagram_wing_edit").text() or "0"
+    tritype = [int(edit.text() or 0) for edit in getattr(owner, "tritype_edits")]
+    mbti = [combo.currentText() or "?" for combo in getattr(owner, "mbti_combos")]
+    return [primary, wing], tritype, mbti
+
+
+def set_chart_view_typology_state(owner: QWidget, enneagram_type, tritype, mbti) -> None:
+    enneagram = ([str(value) for value in (enneagram_type or [])] + ["0", "0"])[:2]
+    raw_tritype = list(tritype or [])
+    tri: list[int] = []
+    for index in range(3):
+        value = raw_tritype[index] if index < len(raw_tritype) else 0
+        tri.append(
+            value
+            if isinstance(value, int)
+            and not isinstance(value, bool)
+            and 1 <= value <= 9
+            else 0
+        )
+    for edit, value in zip((owner.enneagram_primary_edit, owner.enneagram_wing_edit), enneagram):
+        edit.setText(value if value in "123456789" else "")
+    for edit, value in zip(owner.tritype_edits, tri):
+        edit.setText(str(value) if 1 <= value <= 9 else "")
+    for combo, value in zip(owner.mbti_combos, (list(mbti or []) + ["?", "?", "?", "?"])[:4]):
+        combo.setCurrentText(str(value))
 
 
 def _populate_emoji_portrait_section(owner: QWidget, content_layout: QVBoxLayout) -> None:

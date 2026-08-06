@@ -116,6 +116,9 @@ CHART_EXPORT_DEFAULTS: dict[str, Any] = {
     "tags": "",
     "comments": "",
     "emoji_portrait": "",
+    "enneagram_type": '["0", "0"]',
+    "tritype": "[0, 0, 0]",
+    "mbti": '["?", "?", "?", "?"]',
     "rectification_notes": "",
     "positive_sentiment_intensity": 0,
     "negative_sentiment_intensity": 0,
@@ -526,6 +529,9 @@ def _create_charts_table(conn: sqlite3.Connection) -> None:
             reminds_me_of     TEXT,
             comments          TEXT,
             emoji_portrait    TEXT,
+            enneagram_type    TEXT NOT NULL DEFAULT '["0", "0"]',
+            tritype           TEXT NOT NULL DEFAULT '[0, 0, 0]',
+            mbti              TEXT NOT NULL DEFAULT '["?", "?", "?", "?"]',
             quotes            TEXT,
             rectification_notes TEXT,
             biography         TEXT,
@@ -1348,6 +1354,12 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
             ADD COLUMN emoji_portrait TEXT
             """
         )
+    if "enneagram_type" not in columns:
+        conn.execute("ALTER TABLE charts ADD COLUMN enneagram_type TEXT NOT NULL DEFAULT '[\"0\", \"0\"]'")
+    if "tritype" not in columns:
+        conn.execute("ALTER TABLE charts ADD COLUMN tritype TEXT NOT NULL DEFAULT '[0, 0, 0]'")
+    if "mbti" not in columns:
+        conn.execute("ALTER TABLE charts ADD COLUMN mbti TEXT NOT NULL DEFAULT '[\"?\", \"?\", \"?\", \"?\"]'")
     if "quotes" not in columns:
         conn.execute(
             """
@@ -2381,11 +2393,22 @@ def _parse_int_list(value: Optional[str]) -> list[int]:
         return []
     if not isinstance(parsed, list):
         return []
-    values: list[int] = []
-    for item in parsed:
-        if isinstance(item, int):
-            values.append(int(item))
-    return values
+    return [item for item in parsed if isinstance(item, int)]
+
+
+def _normalize_user_enneagram_type(values) -> list[str]:
+    normalized = [str(value) if str(value) in "123456789" else "0" for value in (values or [])[:2]]
+    return (normalized + ["0", "0"])[:2]
+
+
+def _normalize_user_tritype(values) -> list[int]:
+    normalized = [int(value) if isinstance(value, int) and 1 <= value <= 9 else 0 for value in (values or [])[:3]]
+    return (normalized + [0, 0, 0])[:3]
+
+
+def _normalize_user_mbti(values) -> list[str]:
+    choices = ("?IixeE", "?NnxsS", "?TtxfF", "?PpxjJ")
+    return [str(values[index]) if index < len(values or []) and str(values[index]) in options else "?" for index, options in enumerate(choices)]
 
 
 def _serialize_string_list(values: Optional[list[str]]) -> Optional[str]:
@@ -3614,7 +3637,7 @@ def append_database(source: Path) -> dict[str, Any]:
                     """
                     INSERT INTO charts
                         (id, chart_uid, name, alias, from_whence, gender, birth_place, datetime_iso, tz_name,
-                         lat, lon, used_utc_fallback, sentiments, relationship_types, tags, reminds_me_of, comments, emoji_portrait, quotes, rectification_notes, biography, chart_data_source, alternate_chart_uid,
+                         lat, lon, used_utc_fallback, sentiments, relationship_types, tags, reminds_me_of, comments, emoji_portrait, enneagram_type, tritype, mbti, quotes, rectification_notes, biography, chart_data_source, alternate_chart_uid,
                          positive_sentiment_intensity, negative_sentiment_intensity, familiarity,
                          alignment_score, sexiness_score, matched_expectations, familiarity_factors, age_when_first_met, year_first_encountered, current_relationship, last_encounter, data_rating,
                          social_score, birthtime_unknown, signs_unknown, unknown_signs, retcon_time_used, retcon_hour, retcon_minute,
@@ -3629,7 +3652,7 @@ def append_database(source: Path) -> dict[str, Any]:
                          is_placeholder, is_deceased, birth_month, birth_day, birth_year,
                          death_month, death_day, death_year, deathtime_unknown, death_hour, death_minute, death_place,
                          created_at, is_current)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         new_chart_id,
@@ -3650,6 +3673,9 @@ def append_database(source: Path) -> dict[str, Any]:
                         serialize_reminds_me_of_uids(reminds_me_of_uids),
                         _row_value("comments"),
                         _row_value("emoji_portrait"),
+                        _row_value("enneagram_type", '["0", "0"]'),
+                        _row_value("tritype", "[0, 0, 0]"),
+                        _row_value("mbti", '["?", "?", "?", "?" ]'),
                         _row_value("quotes"),
                         _row_value("rectification_notes"),
                         _row_value("biography"),
@@ -3855,6 +3881,7 @@ def save_chart(
                  lat, lon, used_utc_fallback, sentiments, relationship_types, tags, reminds_me_of,
                  comments,
                  emoji_portrait,
+                 enneagram_type, tritype, mbti,
                  quotes,
                  rectification_notes,
                  biography,
@@ -3887,7 +3914,7 @@ def save_chart(
                  death_minute,
                  death_place,
                  created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 chart.name,
@@ -3914,6 +3941,9 @@ def save_chart(
                 getattr(chart, "reminds_me_of", None),
                 getattr(chart, "comments", None),
                 getattr(chart, "emoji_portrait", None),
+                _serialize_string_list(getattr(chart, "enneagram_type", ["0", "0"])),
+                _serialize_int_list(getattr(chart, "tritype", [0, 0, 0])),
+                _serialize_string_list(getattr(chart, "mbti", ["?", "?", "?", "?"])),
                 _serialize_quotes(getattr(chart, "quotes", [])),
                 getattr(chart, "rectification_notes", None),
                 getattr(chart, "biography", None),
@@ -4186,6 +4216,9 @@ def update_chart(
                 reminds_me_of = ?,
                 comments = ?,
                 emoji_portrait = ?,
+                enneagram_type = ?,
+                tritype = ?,
+                mbti = ?,
                 quotes = ?,
                 rectification_notes = ?,
                 biography = ?,
@@ -4279,6 +4312,9 @@ def update_chart(
                 getattr(chart, "reminds_me_of", None),
                 getattr(chart, "comments", None),
                 getattr(chart, "emoji_portrait", None),
+                _serialize_string_list(getattr(chart, "enneagram_type", ["0", "0"])),
+                _serialize_int_list(getattr(chart, "tritype", [0, 0, 0])),
+                _serialize_string_list(getattr(chart, "mbti", ["?", "?", "?", "?"])),
                 _serialize_quotes(getattr(chart, "quotes", [])),
                 getattr(chart, "rectification_notes", None),
                 getattr(chart, "biography", None),
@@ -4430,6 +4466,9 @@ def update_chart_lightweight_metadata(chart_id: int, chart) -> None:
                 reminds_me_of = ?,
                 comments = ?,
                 emoji_portrait = ?,
+                enneagram_type = ?,
+                tritype = ?,
+                mbti = ?,
                 quotes = ?,
                 rectification_notes = ?,
                 biography = ?,
@@ -4472,6 +4511,9 @@ def update_chart_lightweight_metadata(chart_id: int, chart) -> None:
                 getattr(chart, "reminds_me_of", None),
                 getattr(chart, "comments", None),
                 getattr(chart, "emoji_portrait", None),
+                _serialize_string_list(getattr(chart, "enneagram_type", ["0", "0"])),
+                _serialize_int_list(getattr(chart, "tritype", [0, 0, 0])),
+                _serialize_string_list(getattr(chart, "mbti", ["?", "?", "?", "?"])),
                 _serialize_quotes(getattr(chart, "quotes", [])),
                 getattr(chart, "rectification_notes", None),
                 getattr(chart, "biography", None),
@@ -5681,6 +5723,9 @@ def _new_chart_shell(
     chart.reminds_me_of = ""
     chart.comments = ""
     chart.emoji_portrait = ""
+    chart.enneagram_type = ["0", "0"]
+    chart.tritype = [0, 0, 0]
+    chart.mbti = ["?", "?", "?", "?"]
     chart.quotes = []
     chart.rectification_notes = ""
     chart.biography = ""
@@ -5795,6 +5840,9 @@ def _chart_row_projection(columns: set[str]) -> str:
         "derived_aspects" if "derived_aspects" in columns else "NULL AS derived_aspects"
     )
     emoji_portrait_projection = "emoji_portrait" if "emoji_portrait" in columns else "NULL AS emoji_portrait"
+    enneagram_type_projection = "enneagram_type" if "enneagram_type" in columns else "'[\"0\", \"0\"]' AS enneagram_type"
+    tritype_projection = "tritype" if "tritype" in columns else "'[0, 0, 0]' AS tritype"
+    mbti_projection = "mbti" if "mbti" in columns else "'[\"?\", \"?\", \"?\", \"?\"]' AS mbti"
     quotes_projection = "quotes" if "quotes" in columns else "NULL AS quotes"
     profile_pic_projection = "profile_pic" if "profile_pic" in columns else "NULL AS profile_pic"
     human_design_profile_projection = (
@@ -5813,7 +5861,7 @@ def _chart_row_projection(columns: set[str]) -> str:
     return f"""
         chart_uid, name, alias, from_whence, gender, birth_place, datetime_iso, tz_name, lat, lon,
                used_utc_fallback, sentiments, relationship_types,
-               tags, reminds_me_of, comments, {emoji_portrait_projection}, {quotes_projection}, rectification_notes, biography, chart_data_source, alternate_chart_uid,
+               tags, reminds_me_of, comments, {emoji_portrait_projection}, {enneagram_type_projection}, {tritype_projection}, {mbti_projection}, {quotes_projection}, rectification_notes, biography, chart_data_source, alternate_chart_uid,
                positive_sentiment_intensity, negative_sentiment_intensity,
                familiarity, alignment_score, sexiness_score, {"weirdness_score" if "weirdness_score" in columns else "NULL AS weirdness_score"}, matched_expectations, {familiarity_factors_projection}, age_when_first_met, year_first_encountered, {current_relationship_projection}, {last_encounter_projection}, data_rating, birthtime_unknown, signs_unknown, unknown_signs,
                retcon_time_used, retcon_hour, retcon_minute,
@@ -5853,6 +5901,9 @@ def _chart_from_row(chart_id: int, row):
         reminds_me_of,
         comments,
         emoji_portrait,
+        enneagram_type,
+        tritype,
+        mbti,
         quotes,
         rectification_notes,
         biography,
@@ -5945,6 +5996,9 @@ def _chart_from_row(chart_id: int, row):
         placeholder.reminds_me_of = reminds_me_of or ""
         placeholder.comments = comments or ""
         placeholder.emoji_portrait = emoji_portrait or ""
+        placeholder.enneagram_type = _normalize_user_enneagram_type(_parse_string_list(enneagram_type))
+        placeholder.tritype = _normalize_user_tritype(_parse_int_list(tritype))
+        placeholder.mbti = _normalize_user_mbti(_parse_string_list(mbti))
         placeholder.quotes = parse_quotes(quotes)
         placeholder.rectification_notes = rectification_notes or ""
         placeholder.biography = biography or ""
@@ -6113,6 +6167,9 @@ def _chart_from_row(chart_id: int, row):
     chart.reminds_me_of = reminds_me_of or ""
     chart.comments = comments or ""
     chart.emoji_portrait = emoji_portrait or ""
+    chart.enneagram_type = _normalize_user_enneagram_type(_parse_string_list(enneagram_type))
+    chart.tritype = _normalize_user_tritype(_parse_int_list(tritype))
+    chart.mbti = _normalize_user_mbti(_parse_string_list(mbti))
     chart.quotes = parse_quotes(quotes)
     chart.rectification_notes = rectification_notes or ""
     chart.biography = biography or ""
@@ -6277,6 +6334,9 @@ def update_charts_nonastral_fields_by_uid(
         "tags": _serialize_tags,
         "quotes": _serialize_quotes,
         "familiarity_factors": _serialize_familiarity_factors,
+        "enneagram_type": _serialize_string_list,
+        "tritype": _serialize_int_list,
+        "mbti": _serialize_string_list,
     }
     boolean_fields = {"is_placeholder", "is_deceased", "is_current"}
     protected_fields = {"id", "chart_uid", "created_at", "is_current"}
@@ -6347,6 +6407,9 @@ def update_charts_nonastral_patches_by_uid(
         "tags": _serialize_tags,
         "quotes": _serialize_quotes,
         "familiarity_factors": _serialize_familiarity_factors,
+        "enneagram_type": _serialize_string_list,
+        "tritype": _serialize_int_list,
+        "mbti": _serialize_string_list,
     }
     boolean_fields = {"is_placeholder", "is_deceased"}
     protected_fields = {"id", "chart_uid", "created_at", "is_current"}

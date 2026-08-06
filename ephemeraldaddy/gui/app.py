@@ -1309,6 +1309,7 @@ from ephemeraldaddy.gui.features.controllers.chart_view_window import (
     format_weight_distribution_html,
     format_unknown_positions_summary_html,
     get_chart_view_emoji_portrait,
+    get_chart_view_typology,
     get_chart_view_tags,
     install_chart_info_panel_content_observers,
     install_chart_view_right_panel_callbacks,
@@ -1321,8 +1322,11 @@ from ephemeraldaddy.gui.features.controllers.chart_view_window import (
     refresh_euphonics_for_chart,
     render_chart_view_tag_selection,
     set_chart_view_emoji_portrait_state,
+    set_chart_view_typology_state,
     set_chart_view_tag_state,
     setup_chart_view_emoji_portrait_section,
+    setup_chart_view_typology_section,
+    update_chart_view_typology_subheader,
     setup_chart_view_quotes_section,
     setup_chart_view_tags_section,
     get_chart_view_quotes,
@@ -25786,6 +25790,12 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         predictability_box.setVisible(self._visibility.get("chart_view.predictability"))
         sentiment_relation_layout.addWidget(predictability_box)
 
+        setup_chart_view_typology_section(self, sentiment_relation_layout)
+        update_chart_view_typology_subheader(self, self.name_edit.text())
+        self.name_edit.textChanged.connect(
+            lambda name: update_chart_view_typology_subheader(self, name)
+        )
+
         reminds_me_of_box = QFrame()
         reminds_me_of_box.setStyleSheet(
             "QFrame {"
@@ -25854,6 +25864,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         reminds_me_of_content_widget.setVisible(False)
         reminds_me_of_box_layout.addWidget(reminds_me_of_content_widget)
         sentiment_relation_layout.addWidget(reminds_me_of_box)
+        setup_chart_view_emoji_portrait_section(self, sentiment_relation_layout)
 
         sentiment_metrics_row = QWidget()
         sentiment_metrics_row.setSizePolicy(
@@ -26074,10 +26085,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             1,
         )
         add_chart_editor_personal_relevance_rows(self, sentiment_metrics_layout, first_row=3)
-        setup_chart_view_emoji_portrait_section(
-            self,
-            sentiment_metrics_container_layout,
-        )
         build_subjective_notes_alignment_sections(
             self,
             sentiment_metrics_container_layout,
@@ -33586,6 +33593,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         )
         placeholder.comments = self.comments_edit.toPlainText().strip()
         placeholder.emoji_portrait = get_chart_view_emoji_portrait(self)
+        placeholder.enneagram_type, placeholder.tritype, placeholder.mbti = get_chart_view_typology(self)
         placeholder.quotes = get_chart_view_quotes(self)
         placeholder.rectification_notes = self.rectification_edit.toPlainText().strip()
         placeholder.biography = self.biography_edit.toPlainText().strip()
@@ -33748,6 +33756,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         if hasattr(chart, "comments"):
             chart.comments = self.comments_edit.toPlainText().strip()
         chart.emoji_portrait = get_chart_view_emoji_portrait(self)
+        chart.enneagram_type, chart.tritype, chart.mbti = get_chart_view_typology(self)
         chart.quotes = get_chart_view_quotes(self)
         if hasattr(chart, "rectification_notes"):
             chart.rectification_notes = self.rectification_edit.toPlainText().strip()
@@ -34789,6 +34798,12 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._set_chart_tags_state([])
         self._set_reminds_me_of_state([])
         self.comments_edit.clear()
+        set_chart_view_typology_state(
+            self,
+            ["0", "0"],
+            [0, 0, 0],
+            ["?", "?", "?", "?"],
+        )
         set_chart_view_quote_state(self, [])
         self.rectification_edit.clear()
         self._clear_material_facts_fields()
@@ -35274,6 +35289,13 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._set_alternate_chart_state(getattr(chart, "alternate_chart_uid", ""))
         self.comments_edit.setPlainText(getattr(chart, "comments", "") or "")
         set_chart_view_emoji_portrait_state(self, getattr(chart, "emoji_portrait", "") or "")
+        set_chart_view_typology_state(
+            self,
+            getattr(chart, "enneagram_type", ["0", "0"]),
+            getattr(chart, "tritype", [0, 0, 0]),
+            getattr(chart, "mbti", ["?", "?", "?", "?"]),
+        )
+        update_chart_view_typology_subheader(self, chart.name or "")
         set_chart_view_quote_state(self, getattr(chart, "quotes", []) or [])
         self.rectification_edit.setPlainText(getattr(chart, "rectification_notes", "") or "")
         self.biography_edit.setPlainText(getattr(chart, "biography", "") or "")
