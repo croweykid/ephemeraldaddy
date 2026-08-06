@@ -45,3 +45,24 @@ def test_each_summary_target_resets_contrast_before_rendering() -> None:
     reset = method.index("set_chart_info_contrast_background(target_info_widget)")
     render = method.index("return callback()")
     assert reset < render
+
+
+def test_direct_chart_info_link_paths_prepare_default_surface() -> None:
+    helper = APP_SOURCE.split("    def _prepare_chart_info_replacement(", 1)[1].split(
+        "\n    def ", 1
+    )[0]
+    distinguishing_handler = APP_SOURCE.split(
+        "    def _on_distinguishing_factor_link_activated(", 1
+    )[1].split("\n    def ", 1)[0]
+    analysis_handler = APP_SOURCE.split(
+        "    def _on_chart_analysis_above_average_link_activated(", 1
+    )[1].split("\n    def ", 1)[0]
+
+    assert 'self._set_chart_info_panel_mode("chart_info")' in helper
+    assert "set_chart_info_contrast_background(self.chart_info_output)" in helper
+    assert distinguishing_handler.index("self._prepare_chart_info_replacement()") < (
+        distinguishing_handler.index('if kind == "planet"')
+    )
+    assert analysis_handler.index("self._prepare_chart_info_replacement()") < (
+        analysis_handler.index('if kind == "sign"')
+    )

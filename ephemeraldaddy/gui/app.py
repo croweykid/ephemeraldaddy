@@ -27131,6 +27131,8 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             dialog_reasoning_by_target = {}
         match = dialog_reasoning_by_target.get(target) or self._similar_charts_reasoning_by_target.get(target)
         popout_info_output = getattr(target_dialog, "_similar_chart_popout_info_output", None)
+        if popout_info_output is None:
+            self._prepare_chart_info_replacement()
         if match is None:
             if popout_info_output is not None and hasattr(popout_info_output, "setText"):
                 popout_info_output.setText("Could not locate similarity details for this chart.")
@@ -27142,8 +27144,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             compared_chart = load_chart(int(getattr(match, "chart_id", 0)))
         except Exception:
             compared_chart = None
-        if popout_info_output is None:
-            self._set_chart_info_panel_mode("chart_info")
         subject_name = (
             str(getattr(target_dialog, "_similar_chart_popout_subject_name", "") or "").strip()
             if target_dialog is not None
@@ -30819,6 +30819,11 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._refresh_chart_info_panel_toggle_buttons()
         self._update_get_bio_button_visibility()
 
+    def _prepare_chart_info_replacement(self) -> None:
+        """Show Chart Info and restore its default surface before new content."""
+        self._set_chart_info_panel_mode("chart_info")
+        set_chart_info_contrast_background(self.chart_info_output)
+
     def _update_get_bio_button_visibility(self) -> None:
         button = getattr(self, "get_bio_button", None)
         biography_edit = getattr(self, "biography_edit", None)
@@ -30996,7 +31001,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
 
             cursor_pos = cursor.positionInBlock()
             if targets_main_chart_info:
-                self._set_chart_info_panel_mode("chart_info")
+                self._prepare_chart_info_replacement()
             species_entries = species_info_map.get(block_number, [])
             if species_entries:
                 selected_species = None
@@ -37053,7 +37058,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         if len(parts) != 3 or parts[0] != "chart-analysis":
             return
         kind, raw_value = parts[1], parts[2]
-        self._set_chart_info_panel_mode("chart_info")
+        self._prepare_chart_info_replacement()
         if kind == "sign":
             self.chart_info_output.setHtml(self._build_sign_popout_info(self._latest_chart, raw_value))
         elif kind == "body":
@@ -38034,7 +38039,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         kind = parts[1]
         value = urllib.parse.unquote(parts[2])
 
-        self._set_chart_info_panel_mode("chart_info")
+        self._prepare_chart_info_replacement()
         if kind == "planet":
             self._show_planet_keyword_info(value)
             return
@@ -38212,7 +38217,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             species_label=getattr(self, "dnd_prediction_species_label", None),
             class_label=getattr(self, "dnd_prediction_class_label", None),
             info_panel=self.chart_info_output,
-            before_show=lambda: self._set_chart_info_panel_mode("chart_info"),
+            before_show=self._prepare_chart_info_replacement,
             chart_theme_colors=CHART_THEME_COLORS,
             apply_standard_bar_axes=self._apply_standard_ncv_bar_chart_axes,
             is_placeholder_chart=self._is_placeholder_chart,
