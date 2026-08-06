@@ -30,12 +30,28 @@ def gendered_candidate(uid, gender):
     return HumanDesignSynastryCandidate(uid, uid, None, frozenset({47}), gender=gender)
 
 
-def test_predicted_synastry_excludes_hidden_chart_uids():
+def test_predicted_synastry_excludes_hidden_hypothetical_and_placeholder_charts():
     hd_electrochemistry = _hd_electrochemistry_module()
     owner = type("Owner", (), {"_hidden_chart_uids": {" hidden "}})()
-    candidates = [candidate("VISIBLE", {1}), candidate("HIDDEN", {1})]
+    candidates = [
+        candidate("VISIBLE", {1}),
+        candidate("HIDDEN", {1}),
+        HumanDesignSynastryCandidate(
+            "HYPOTHETICAL", "Hypothetical", None, frozenset({1}), chart_type="hypothetical"
+        ),
+        HumanDesignSynastryCandidate(
+            "LEGACY-HYPOTHETICAL",
+            "Legacy hypothetical",
+            None,
+            frozenset({1}),
+            source="hypothetical",
+        ),
+        HumanDesignSynastryCandidate(
+            "PLACEHOLDER", "Placeholder", None, frozenset({1}), is_placeholder=True
+        ),
+    ]
 
-    filtered = hd_electrochemistry._exclude_hidden_hd_candidates(owner, candidates)
+    filtered = hd_electrochemistry._eligible_hd_candidates(owner, candidates)
 
     assert [item.chart_uid for item in filtered] == ["VISIBLE"]
 
@@ -791,6 +807,22 @@ def test_candidate_loader_tolerates_legacy_database_without_hd_profile(monkeypat
         INSERT INTO charts (
             chart_uid, name, human_design_gates, birthtime_unknown, retcon_time_used
         ) VALUES ('0123456789ABCDEF', 'Legacy HD', '[1, 2, 3]', 0, 0)
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO charts (
+            chart_uid, name, human_design_gates, birthtime_unknown,
+            retcon_time_used, chart_type
+        ) VALUES ('HYPOTHETICAL-UID', 'Hypothetical HD', '[1]', 0, 0, 'hypothetical')
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO charts (
+            chart_uid, name, human_design_gates, birthtime_unknown,
+            retcon_time_used, is_placeholder
+        ) VALUES ('PLACEHOLDER-UID', 'Placeholder HD', '[1]', 0, 0, 1)
         """
     )
     conn.commit()

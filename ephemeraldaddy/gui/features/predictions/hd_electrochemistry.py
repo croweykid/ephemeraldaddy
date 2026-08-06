@@ -141,19 +141,22 @@ def hd_electrochemistry_ranker_for_mode(mode: object):
     return rank_human_design_electrochemistry
 
 
-def _exclude_hidden_hd_candidates(owner: object, candidates: list) -> list:
-    """Exclude UID-identified hidden charts from Predicted Synastry."""
+def _eligible_hd_candidates(owner: object, candidates: list) -> list:
+    """Exclude hidden, hypothetical, and placeholder Predicted Synastry charts."""
     hidden_chart_uids = {
         str(chart_uid or "").strip().upper()
         for chart_uid in getattr(owner, "_hidden_chart_uids", set())
         if str(chart_uid or "").strip()
     }
-    if not hidden_chart_uids:
-        return candidates
     return [
         candidate
         for candidate in candidates
         if str(candidate.chart_uid or "").strip().upper() not in hidden_chart_uids
+        and str(getattr(candidate, "chart_type", "") or "").strip().casefold()
+        != "hypothetical"
+        and str(getattr(candidate, "source", "") or "").strip().casefold()
+        != "hypothetical"
+        and not bool(getattr(candidate, "is_placeholder", False))
     ]
 
 
@@ -378,7 +381,7 @@ def render_hd_electrochemistry_predictions(owner: object, chart: object | None) 
         if mode == HD_RESONANCE_MODE
         else list_human_design_electrochemistry_candidates()
     )
-    available_candidates = _exclude_hidden_hd_candidates(owner, available_candidates)
+    available_candidates = _eligible_hd_candidates(owner, available_candidates)
     collection_id = normalize_collection_id(
         getattr(owner, "hd_electrochemistry_collection_filter", DEFAULT_COLLECTION_ALL)
     )
@@ -497,7 +500,7 @@ def _collection_scoped_hd_electrochemistry_candidates(owner: object) -> list:
         if mode == HD_RESONANCE_MODE
         else list_human_design_electrochemistry_candidates()
     )
-    candidates = _exclude_hidden_hd_candidates(owner, candidates)
+    candidates = _eligible_hd_candidates(owner, candidates)
     collection_id = normalize_collection_id(
         getattr(owner, "hd_electrochemistry_collection_filter", DEFAULT_COLLECTION_ALL)
     )

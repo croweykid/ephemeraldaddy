@@ -33,6 +33,7 @@ class HumanDesignSynastryCandidate:
     relationship_types: tuple[str, ...] = ()
     profile: str | None = None
     gate_lines: frozenset[tuple[int, int]] = frozenset()
+    is_placeholder: bool = False
 
 
 @dataclass(frozen=True, slots=True)
