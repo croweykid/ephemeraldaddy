@@ -1112,8 +1112,16 @@ def _definite_summary_items_html(result: TimeSensitivityResult) -> list[str]:
     """Return every categorical and Human Design value stable for all samples."""
     items = [_color_code_text(item, sign_link_kind="ts-sign") for item in result.stable]
     hd = result.human_design if isinstance(result.human_design, dict) else {}
+
+    gates = hd.get("gates", {})
+    if isinstance(gates, dict) and gates.get("always"):
+        items.append(
+            "HD Gates: "
+            + ", ".join(_gate_anchor(value) for value in gates["always"])
+            + " all day"
+        )
+
     for key, singular_label in (
-        ("gates", "HD Gate"),
         ("lines", "HD Gate Line"),
         ("channels", "HD Channel"),
     ):
@@ -1126,10 +1134,13 @@ def _definite_summary_items_html(result: TimeSensitivityResult) -> list[str]:
         )
 
     centers = hd.get("centers", {})
-    if isinstance(centers, dict):
-        items.extend(
-            f"HD Defined Center: {_hd_center_anchor(str(value))} all day"
-            for value in centers.get("always", [])
+    if isinstance(centers, dict) and centers.get("always"):
+        items.append(
+            "HD Defined Centers: "
+            + ", ".join(
+                _hd_center_anchor(str(value)) for value in centers["always"]
+            )
+            + " all day"
         )
 
     for distribution_key, property_key, label in (
