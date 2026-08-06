@@ -478,6 +478,7 @@ from ephemeraldaddy.gui.features.chart_editor.metric_canvas_layout import (
     MetricCanvasLayoutController,
 )
 from ephemeraldaddy.gui.features.chart_editor.controller import ChartEditorController
+from ephemeraldaddy.gui.features.database_view.close_progress import DatabaseCloseProgress
 from matplotlib.figure import Figure
 from matplotlib.patches import Patch
 
@@ -17089,26 +17090,35 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         return had_pending_refresh
 
     def closeEvent(self, event) -> None:
+        if self._is_closing:
+            event.ignore()
+            return
         skip_metrics_cache_save = self._cancel_pending_database_metrics_before_close()
         self._is_closing = True
+        close_progress = DatabaseCloseProgress(self)
+        close_progress.update("Stopping background database work…", 12)
         self._database_metrics_preload_enabled = False
         self._database_metrics_background_preload_sections.clear()
         self._database_metrics_background_preload_scheduled = False
         self._deferred_database_metrics_refresh_scheduled = False
         self._deferred_database_metrics_update_similarities = False
         self._incremental_metrics_refresh_scheduled = False
+        close_progress.update("Saving Database Analytics cache…", 32)
         if not skip_metrics_cache_save:
             self._save_database_metrics_persistent_cache()
+        close_progress.update("Saving prediction and trait caches…", 48)
         save_traits_cache = getattr(self, "_save_traits_distribution_likelihood_cache", None)
         if callable(save_traits_cache) and getattr(self, "_traits_distribution_likelihood_cache_dirty", False):
             save_traits_cache()
         if hasattr(self, "_batch_refresh_timer"):
             self._batch_refresh_timer.stop()
+        close_progress.update("Closing temporary windows and tools…", 62)
         if self._help_overlay_active:
             self._disable_help_overlay()
         if self._size_checker_popup is not None:
             self._size_checker_popup.close()
             self._size_checker_popup = None
+        close_progress.update("Saving your Database View layout…", 76)
         self._settings.remove("manage_charts/geometry")
         self._settings.setValue(
             "manage_charts/splitter_sizes", self._content_splitter.sizes()
@@ -17129,6 +17139,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             if self._active_collection_id == DEFAULT_COLLECTION_POSSIBLE_DUPLICATES
             else self._active_collection_id
         )
+        close_progress.update("Saving collections and session state…", 90)
         self._settings.setValue("manage_charts/active_collection_id", persisted_collection_id)
         self._save_custom_collections_to_settings()
         self._settings.setValue("app/last_view", "database")
@@ -17137,6 +17148,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         if isinstance(parent, MainWindow):
             parent.allow_close_for_app_exit()
 
+        close_progress.update("Everything is saved. Closing now…", 100)
         super().closeEvent(event)
 
         #prevents ghost windows lingering
