@@ -66,6 +66,7 @@ from ephemeraldaddy.analysis.traits import (
     trait_sample_total,
     trait_uid_for_profile,
 )
+from ephemeraldaddy.analysis.weighted_chart_predictor import matched_weighted_criteria
 from ephemeraldaddy.core import db
 from ephemeraldaddy.core.chart import chart_uses_houses
 from ephemeraldaddy.gui.features.charts.database_norms_cache import (
@@ -374,11 +375,43 @@ def _trait_sample_count(trait: dict[str, Any]) -> int:
     return trait_sample_total(samples, trait_name=str(trait.get("name", "")))
 
 
-def _trait_info_html(trait: dict[str, Any]) -> str:
+def _trait_info_html(trait: dict[str, Any], chart: Any | None = None) -> str:
     name = str(trait.get("name", "")).strip() or "Trait"
     color = normalize_trait_color(str(trait.get("color", DEFAULT_TRAIT_COLOR)))
     description = str(trait.get("description", "")).strip() or "no description provided"
     sample_count = _trait_sample_count(trait)
+    evidence_html = ""
+    if chart is not None:
+        matches = matched_weighted_criteria(chart, trait.get("profile", {}))
+        positive = matches.get("positive", [])
+        negative = matches.get("negative", [])
+
+        def _factor_list(values: list[str], color: str) -> str:
+            return "".join(
+                f"<li style='margin:2px 0; color:{color};'>{html.escape(value)}</li>"
+                for value in values
+            )
+
+        evidence_html = (
+            "<div style='height:12px;'></div>"
+            "<div style='font-size:11px; font-weight:700; color:#f5f5f5;'>"
+            "Matching factors in this chart</div>"
+        )
+        if positive:
+            evidence_html += (
+                "<div style='margin-top:5px; font-size:9px; color:#9fd6aa;'>SUPPORTING</div>"
+                f"<ul style='margin:3px 0 5px 18px; padding:0;'>{_factor_list(positive, '#d9f2de')}</ul>"
+            )
+        if negative:
+            evidence_html += (
+                "<div style='margin-top:5px; font-size:9px; color:#e1a1a1;'>COUNTER-FACTORS</div>"
+                f"<ul style='margin:3px 0 5px 18px; padding:0;'>{_factor_list(negative, '#f0d3d3')}</ul>"
+            )
+        if not positive and not negative:
+            evidence_html += (
+                "<div style='margin-top:5px; font-size:10px; color:#b8b8b8;'>"
+                "No configured factors directly matched this chart.</div>"
+            )
     return (
         f"<div style='font-size:18px; font-weight:700; color:{html.escape(color)};'>"
         f"{html.escape(name)}</div>"
@@ -390,6 +423,7 @@ def _trait_info_html(trait: dict[str, Any]) -> str:
         "<div style='font-size:9px; color:#b8b8b8; font-variant:small-caps; letter-spacing:0.8px;'>"
         f"based on aggregated data from {sample_count}"
         "</div>"
+        f"{evidence_html}"
     )
 
 
@@ -403,7 +437,7 @@ def _show_trait_chart_info(owner: Any, trait_name: str) -> None:
         set_mode("chart_info")
     output = getattr(owner, "chart_info_output", None)
     if isinstance(output, QWidget) or hasattr(output, "setHtml") or hasattr(output, "setPlainText"):
-        set_chart_info_html(output, _trait_info_html(trait))
+        set_chart_info_html(output, _trait_info_html(trait, getattr(owner, "_traits_prediction_chart", None)))
 
 
 def _on_trait_prediction_link_activated(owner: Any, target: str) -> None:
@@ -2097,6 +2131,7 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
     if not isinstance(label, QLabel):
         return
     _configure_traits_prediction_label(owner, label)
+    owner._traits_prediction_chart = chart
     owner._traits_prediction_render_token = object()
     traits = list_traits(active_only=True)
     owner._traits_prediction_trait_lookup = {

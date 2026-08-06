@@ -1263,6 +1263,119 @@ def calculate_weighted_criteria_scores(
     return scores
 
 
+def matched_weighted_criteria(chart: Any, factors: Mapping[str, Any]) -> dict[str, list[str]]:
+    """Return the trait criteria that are actually present in ``chart``.
+
+    The result uses the same normalizers and house-availability rule as the
+    weighted scorer.  Positive and anti criteria are kept separate so callers
+    can explain both evidence for and evidence against a prediction.
+    """
+    use_houses = default_chart_uses_houses(chart)
+    sign_weights = normalize_weight_map_for_dominance_activation(
+        getattr(chart, "dominant_sign_weights", None) or calculate_dominant_sign_weights(chart),
+        DEFAULT_SCORING_OPTIONS.normalized_dominance_normalization_mode(),
+    )
+    body_weights = normalize_weight_map_for_dominance_activation(
+        getattr(chart, "dominant_planet_weights", None) or calculate_dominant_planet_weights(chart),
+        DEFAULT_SCORING_OPTIONS.normalized_dominance_normalization_mode(),
+    )
+    house_weights = (
+        normalize_weight_map_for_dominance_activation(
+            calculate_dominant_house_weights(chart),
+            DEFAULT_SCORING_OPTIONS.normalized_dominance_normalization_mode(),
+        )
+        if use_houses
+        else {}
+    )
+    nakshatra_weights = normalize_weight_map_for_dominance_activation(
+        getattr(chart, "dominant_nakshatra_weights", None) or calculate_dominant_nakshatra_weights(chart),
+        DEFAULT_SCORING_OPTIONS.normalized_dominance_normalization_mode(),
+    )
+    body_house_lookup: dict[str, int] = {}
+    if use_houses:
+        for raw_body, longitude in (getattr(chart, "positions", None) or {}).items():
+            try:
+                house = house_for_longitude(getattr(chart, "houses", None), float(longitude))
+            except (TypeError, ValueError):
+                continue
+            if house is not None:
+                body_house_lookup[normalize_factor_value(str(raw_body))] = house
+
+    active_gates = active_human_design_gates(chart) if factors.get("gates") or factors.get("antigates") else set()
+    active_channels = (
+        active_human_design_channels(chart) if factors.get("channels") or factors.get("antichannels") else set()
+    )
+    if any(
+        factors.get(key)
+        for key in ("hdtypes", "antihdtypes", "centers", "anticenters", "profiles", "antiprofiles", "authorities", "antiauthorities")
+    ):
+        hd_type, centers, hd_profile, authority = active_human_design_properties(chart)
+    else:
+        hd_type, centers, hd_profile, authority = "", set(), "", ""
+    bazi_weights = (
+        active_bazi_sign_weights(chart) if factors.get("bazisigns") or factors.get("antibazisigns") else {}
+    )
+
+    matches: dict[str, list[str]] = {"positive": [], "negative": []}
+
+    def add_entries(category: str, active: Mapping[Any, float] | set[Any], formatter: Callable[[Any], str] = str) -> None:
+        normalizers = {
+            "signs": weighted_string_entries,
+            "bodies": weighted_string_entries,
+            "nakshatras": weighted_string_entries,
+            "houses": weighted_house_entries,
+            "gates": weighted_gate_entries,
+            "channels": weighted_channel_entries,
+            "hdtypes": weighted_hd_type_entries,
+            "centers": weighted_hd_center_entries,
+            "profiles": weighted_hd_profile_entries,
+            "authorities": weighted_hd_authority_entries,
+            "bazisigns": weighted_bazi_sign_entries,
+        }
+        for polarity, key in (("positive", category), ("negative", f"anti{category}")):
+            entries = normalizers[category](factors.get(key, set()))
+            for criterion in entries:
+                if criterion in active and (not isinstance(active, Mapping) or float(active.get(criterion, 0.0)) > 0):
+                    matches[polarity].append(formatter(criterion))
+
+    add_entries("signs", sign_weights)
+    add_entries("bodies", body_weights)
+    add_entries("nakshatras", nakshatra_weights)
+    if use_houses:
+        add_entries("houses", house_weights, lambda value: f"House {value}")
+    add_entries("gates", active_gates, lambda value: f"Gate {value}")
+    add_entries("channels", active_channels, lambda value: f"Channel {value[0]}–{value[1]}")
+    add_entries("hdtypes", {hd_type} if hd_type else set(), lambda value: str(value).replace("_", " ").title())
+    add_entries("centers", centers, lambda value: f"{value} Center")
+    add_entries("profiles", {hd_profile} if hd_profile else set(), lambda value: f"Profile {value}")
+    add_entries("authorities", {authority} if authority else set(), lambda value: f"{value} Authority")
+    add_entries("bazisigns", bazi_weights, lambda value: f"BaZi {value}")
+
+    for polarity, key in (("positive", "positions"), ("negative", "antipositions")):
+        for spec in weighted_position_entries(factors.get(key, set())):
+            if not use_houses and position_spec_uses_houses(spec):
+                continue
+            if _position_match_weight(
+                spec, chart, use_houses, body_house_lookup, body_weights, sign_weights, house_weights,
+                use_dominance_weighting=DEFAULT_SCORING_OPTIONS.use_position_dominance_weighting,
+            ) > 0:
+                matches[polarity].append(spec)
+
+    chart_aspects = {
+        (frozenset((normalize_factor_value(str(item.get("p1", ""))), normalize_factor_value(str(item.get("p2", ""))))),
+         str(item.get("type", "")).strip().lower())
+        for item in (getattr(chart, "aspects", None) or [])
+    }
+    for polarity, key in (("positive", "aspects"), ("negative", "antiaspects")):
+        for spec in _weighted_text_entries(factors.get(key, set())):
+            if not use_houses and aspect_spec_uses_houses(spec):
+                continue
+            parsed = parse_aspect_spec(spec)
+            if parsed and (frozenset((parsed[0], parsed[2])), parsed[1]) in chart_aspects:
+                matches[polarity].append(spec)
+    return matches
+
+
 def _position_match_weight(
     raw_position: str,
     chart: Any,
