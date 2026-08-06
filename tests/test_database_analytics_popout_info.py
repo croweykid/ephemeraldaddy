@@ -9,9 +9,7 @@ from ephemeraldaddy.gui.features.charts.database_analytics import (
 )
 from ephemeraldaddy.gui.features.database_view.analytics.popout_chart_info import (
     DatabaseAnalyticsChartInfoTarget,
-    combine_database_analytics_chart_info_html,
     database_analytics_chart_info_target,
-    generic_database_analytics_chart_context,
 )
 from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR
 
@@ -55,26 +53,6 @@ def test_human_design_popout_modes_disambiguate_every_graph_family():
             chart_title="Human Design", label=label, chart_mode=mode
         )
         assert target == DatabaseAnalyticsChartInfoTarget(*expected)
-
-
-def test_database_summary_precedes_generic_chart_info():
-    combined = combine_database_analytics_chart_info_html(
-        "<h3>Aries</h3><p>Associated charts: Ada</p>",
-        "<h3>Aries reference</h3><p>At Best: courageous</p>",
-    )
-
-    assert combined.index("Associated charts") < combined.index("<hr>")
-    assert combined.index("<hr>") < combined.index("Aries reference")
-
-
-def test_generic_database_info_suppresses_and_restores_active_chart_context():
-    active_chart = object()
-    owner = type("Owner", (), {"_latest_chart": active_chart})()
-
-    with generic_database_analytics_chart_context(owner):
-        assert owner._latest_chart is None
-
-    assert owner._latest_chart is active_chart
 
 
 def test_database_analytics_popout_info_uses_focused_standard_template():

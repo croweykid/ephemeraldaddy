@@ -11,9 +11,7 @@ import html
 import math
 import re
 from collections.abc import Sequence
-from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Any, Iterator
 
 from ephemeraldaddy.analysis.enneagram import ENNEAGRAM
 from ephemeraldaddy.core.interpretations import (
@@ -35,27 +33,6 @@ class DatabaseAnalyticsChartInfoTarget:
 
     kind: str
     value: str
-
-
-@contextmanager
-def generic_database_analytics_chart_context(owner: Any) -> Iterator[None]:
-    """Suppress Chart Editor placement specificity while rendering DB info."""
-    had_latest_chart = hasattr(owner, "_latest_chart")
-    latest_chart = getattr(owner, "_latest_chart", None)
-    if had_latest_chart:
-        owner._latest_chart = None
-    try:
-        yield
-    finally:
-        if had_latest_chart:
-            owner._latest_chart = latest_chart
-
-
-def combine_database_analytics_chart_info_html(
-    analytics_html: str, generic_html: str
-) -> str:
-    """Place population statistics before the generic reference material."""
-    return f"{analytics_html}<hr>{generic_html}" if generic_html else analytics_html
 
 
 def database_analytics_chart_info_target(
