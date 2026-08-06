@@ -1536,6 +1536,7 @@ from ephemeraldaddy.gui.style import (
     set_collapsible_header_title,
     install_appwide_cursor_defaults,
     set_chart_info_text,
+    set_chart_info_contrast_background,
     format_chart_header,
     TRISTATE_SENTIMENT_STYLE,
 )
@@ -31232,6 +31233,10 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         original_chart_info_output = self.chart_info_output
         self.chart_info_output = target_info_widget
         try:
+            # Every newly opened target starts on the standard charcoal
+            # surface. Renderers with a known readability hazard can opt into
+            # the shared light contrast background below.
+            set_chart_info_contrast_background(target_info_widget)
             return callback()
         finally:
             self.chart_info_output = original_chart_info_output
@@ -31595,6 +31600,8 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
     ) -> None:
         sign_key = str(sign_name or "").strip().title()
         body_key = str(body_name or "").strip()
+        body_color = PLANET_COLORS.get(body_key) if body_key else None
+        set_chart_info_contrast_background(self.chart_info_output, body_color)
         sign_keywords = SIGN_KEYWORDS.get(sign_key, {})
         best_keywords = [
             str(item).strip() for item in sign_keywords.get("best", []) if str(item).strip()
@@ -31610,7 +31617,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         cursor.movePosition(QTextCursor.Start)
         title_fmt = QTextCharFormat()
         title_color = (
-            PLANET_COLORS.get(body_key)
+            body_color
             if body_key
             else SIGN_COLORS.get(sign_key)
         ) or CHART_THEME_COLORS.get("text", "#f5f5f5")
@@ -31621,7 +31628,10 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         header_fmt.setForeground(QColor(CHART_DATA_HIGHLIGHT_COLOR))
         header_fmt.setFontWeight(QFont.Bold)
         plain_fmt = QTextCharFormat()
-        plain_fmt.setForeground(QColor("#ffffff"))
+        # A sign clicked from a position describes that position's body. Let
+        # otherwise-unformatted body copy inherit its body color while keeping
+        # explicit sign and Chart Data highlight formats intact.
+        plain_fmt.setForeground(QColor(body_color or "#ffffff"))
         plain_fmt.setFontWeight(QFont.Normal)
         plain_fmt.setFontItalic(False)
 

@@ -1010,6 +1010,29 @@ PLANET_COLORS = {
     "Earth":"#049534", #was #339966 #slightly bluish green
 }
 
+# Text colors that need a lighter surface than the app's standard charcoal to
+# remain comfortably readable.  Derive this semantic appwide hazard flag from
+# the canonical body palette so color changes do not leave a duplicate hex list
+# out of sync.
+DARK_TEXT = frozenset(
+    PLANET_COLORS[body].lower()
+    for body in (
+        "Pluto",
+        "Saturn",
+        "Uranus",
+        "Rahu",
+        "Ketu",
+        "Chiron",
+        "Ceres",
+        "Pallas",
+        "Juno",
+        "Vesta",
+        "Lilith",
+        "Part of Fortune",
+        "Fortune",
+    )
+)
+
 # not used anywhere, as far as I can tell
 # PLANET_COLORS_EARTH = {
 #   "Sun": "#8A7A3B", # muted ochre
