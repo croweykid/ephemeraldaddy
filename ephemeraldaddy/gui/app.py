@@ -1604,6 +1604,10 @@ from ephemeraldaddy.gui.features.charts.chart_predictor_quiz import (
     create_chart_predictor_quiz_dialog,
 )
 from ephemeraldaddy.gui.features.settings.traits import add_traits_settings_section
+from ephemeraldaddy.gui.settings.modules.ocean_predictor import (
+    OceanPredictorSettingsController,
+    configure_ocean_predictor_from_settings,
+)
 from ephemeraldaddy.gui.features.charts.trait_predictions import (
     render_traits_predictions as _render_traits_predictions,
     stop_traits_prediction_refresh_workers as _stop_traits_prediction_refresh_workers,
@@ -2331,6 +2335,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self.setWindowFlag(Qt.WindowMaximizeButtonHint, True)
         self.setWindowFlag(Qt.WindowCloseButtonHint, True)
         self._settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
+        configure_ocean_predictor_from_settings(self._settings)
         self._applying_window_placement = False
         self._session_window_layout_adjusted = False
         self._visibility = VisibilityStore(self._settings)
@@ -22337,7 +22342,16 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._load_similarity_calculator_controls()
         self._load_similarity_thresholds_into_controls()
 
-        enneagram_section = self._add_settings_collapsible_section(content_layout, "Prediction Methods")
+        enneagram_section = self._add_settings_collapsible_section(content_layout, "Predictions")
+        owner = self._owner_window()
+        refresh_ocean_output = (
+            owner._refresh_ocean_predictions_after_settings_change
+            if isinstance(owner, MainWindow)
+            else None
+        )
+        ocean_settings_controller = OceanPredictorSettingsController(
+            self._settings, on_changed=refresh_ocean_output
+        )
         enneagram_controls = build_predictions_settings_section(
             dialog=dialog,
             section_layout=enneagram_section,
@@ -22347,6 +22361,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             on_scale_mode_changed=self._on_enneagram_type_signature_scale_changed,
             on_dominance_normalization_mode_changed=self._on_prediction_dominance_normalization_changed,
             on_manual_recalculation_toggled=self._on_predictions_manual_recalculation_toggled,
+            on_ocean_enabled_toggled=ocean_settings_controller.enabled_toggled,
+            on_ocean_weight_changed=ocean_settings_controller.weight_changed,
         )
         self._enneagram_predictor_checkboxes = enneagram_controls["checkboxes"]
         self._predictions_manual_recalculation_checkbox = enneagram_controls["manual_recalculation_checkbox"]
@@ -22356,6 +22372,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._enneagram_predictor_weight_spinboxes = enneagram_controls["weight_spinboxes"]
         self._enneagram_predictor_total_label = enneagram_controls["total_label"]
         self._load_enneagram_predictor_controls()
+        ocean_settings_controller.bind_controls(
+            enneagram_controls["ocean_checkboxes"], enneagram_controls["ocean_weight_spinboxes"]
+        )
 
         add_traits_settings_section(self, content_layout)
 
@@ -24871,6 +24890,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.setWindowFlag(Qt.WindowCloseButtonHint, True)
         self._apply_dark_theme()
         self._settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
+        configure_ocean_predictor_from_settings(self._settings)
         self._visibility = VisibilityStore(self._settings)
         self._lilith_calculation_method = _resolve_supported_lilith_calculation_method(
             self._settings.value(
@@ -38077,6 +38097,12 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
 
     def _render_ocean_predictions(self, chart: Chart | None) -> None:
         self._ocean_prediction_adapter().render(chart, self._render_metric_panel)
+
+    def _refresh_ocean_predictions_after_settings_change(self) -> None:
+        """Immediately redraw the current OCEAN bars and MBTI after a settings edit."""
+        chart = self._latest_chart
+        if chart is not None:
+            self._render_ocean_predictions(chart)
 
     def _draw_ocean_predictions(self, ax: Any, chart: Chart | None) -> None:
         self._ocean_prediction_adapter().draw(ax, chart)
