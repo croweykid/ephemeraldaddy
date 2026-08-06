@@ -298,9 +298,21 @@ def _format_hd_electrochemistry_matches(matches: tuple, warning_lines: tuple[str
         chart_top_decile = " · top 10% for this chart" if match.percentile >= 90.0 else ""
         profile_bonus = max(0, int(getattr(match, "profile_bonus", 0) or 0))
         if match.shared_gates is not None:
+            shared_gates = ", ".join(
+                str(gate) for gate in getattr(match, "shared_gate_numbers", ())
+            ) or "none"
+            shared_gate_lines = ", ".join(
+                f"{gate}.{line}"
+                for gate, line in getattr(match, "shared_gate_lines", ())
+            ) or "none"
+            gate_label = "gate" if match.shared_gates == 1 else "gates"
+            line_label = "line" if match.shared_lines == 1 else "lines"
             lines.append(
-                f'{index}. <a href="{href}">{html.escape(display_name)}</a> — '
-                f'{match.shared_gates} shared gates · {match.shared_lines} shared lines{uncertainty_html}'
+                f'{index}. <a href="{href}" style="color: #cdb7ff;">'
+                f"{html.escape(display_name)}</a>{uncertainty_html} "
+                f'<span style="color: #aaa;">({match.shared_gates} shared {gate_label}: '
+                f"{shared_gates}; {match.shared_lines} shared {line_label}: "
+                f"{shared_gate_lines})</span>"
             )
             continue
         electrochemistry_score = max(0, int(match.score) - profile_bonus)
