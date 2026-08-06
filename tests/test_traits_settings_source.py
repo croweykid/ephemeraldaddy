@@ -32,6 +32,16 @@ def test_traits_settings_list_fills_available_window_height():
     assert "_traits_list_widget.setMaximumHeight" not in settings_source
 
 
+def test_traits_settings_list_shows_descriptions_as_secondary_text():
+    settings_source = (ROOT / "ephemeraldaddy" / "gui" / "features" / "settings" / "traits.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'color: #9a9a9a; font-style: italic;' in settings_source
+    assert "escape(description)" in settings_source
+    assert "_trait_list_label(display_text, description, color)" in settings_source
+
+
 def test_trait_prediction_rendering_lives_outside_app_py():
     app_source = (ROOT / "ephemeraldaddy" / "gui" / "app.py").read_text(encoding="utf-8")
     predictions_source = (
