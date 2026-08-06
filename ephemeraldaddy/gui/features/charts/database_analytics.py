@@ -55,7 +55,9 @@ from ephemeraldaddy.gui.features.database_view.analytics.name_search import (
 )
 from ephemeraldaddy.gui.features.database_view.analytics.popout_chart_info import (
     build_database_analytics_popout_chart_info_html,
+    combine_database_analytics_chart_info_html,
     database_analytics_chart_info_target,
+    generic_database_analytics_chart_context,
 )
 
 DATABASE_METRICS_SECTION_ORDER: tuple[str, ...] = (
@@ -2143,6 +2145,11 @@ class DatabaseAnalyticsChartsMixin:
     def _tag_database_analytics_pick_targets(figure: Figure) -> None:
         """Make Database Analytics bars and labels clickable in copied popout figures."""
         for ax in figure.axes:
+            patch_orientations = {
+                id(patch): str(getattr(container, "orientation", "") or "")
+                for container in getattr(ax, "containers", [])
+                for patch in getattr(container, "patches", [])
+            }
             y_tick_lookup = [
                 (
                     float(tick),
@@ -2172,7 +2179,12 @@ class DatabaseAnalyticsChartsMixin:
                     continue
                 if abs(width) < 1e-12 and abs(height) < 1e-12:
                     continue
-                horizontal = abs(width) >= abs(height)
+                container_orientation = patch_orientations.get(id(patch))
+                horizontal = (
+                    container_orientation == "horizontal"
+                    if container_orientation in {"horizontal", "vertical"}
+                    else abs(width) >= abs(height)
+                )
                 if horizontal and y_tick_lookup:
                     center = float(patch.get_y()) + (height / 2.0)
                     label = min(y_tick_lookup, key=lambda item: abs(item[0] - center))[1]
@@ -2447,6 +2459,43 @@ class DatabaseAnalyticsChartsMixin:
                 chart_title=chart_title,
                 label=label,
                 chart_mode=frozen_chart_mode,
+            )
+            owner = self._owner_window() if hasattr(self, "_owner_window") else getattr(self, "_app_owner", None)
+            route_info = getattr(owner, "_on_distinguishing_factor_link_activated", None)
+            run_with_output = getattr(owner, "_run_with_chart_info_output", None)
+            if target is None or not callable(run_with_output):
+                info_panel.setHtml(analytics_html)
+                return
+
+            def _render_generic_info() -> None:
+                # Database Analytics describes a population, not Chart
+                # Editor's active chart.  Temporarily removing that context
+                # keeps the centralized presenters generic (for example, it
+                # suppresses "No chart placements in Aries").
+                with generic_database_analytics_chart_context(owner):
+                    if target.kind == "hd-line":
+                        show_line = getattr(owner, "_show_human_design_line_info", None)
+                        if callable(show_line):
+                            show_line(int(target.value))
+                        return
+                    if not callable(route_info):
+                        return
+                    if target.kind.startswith("hd-property:"):
+                        property_key = target.kind.split(":", 1)[1]
+                        route_info(
+                            f"distinguishing-factor:hd-property:{property_key}:"
+                            f"{quote(target.value, safe='')}"
+                        )
+                    else:
+                        route_info(
+                            f"distinguishing-factor:{target.kind}:"
+                            f"{quote(target.value, safe='')}"
+                        )
+
+            run_with_output(info_panel, _render_generic_info)
+            generic_html = info_panel.toHtml() if info_panel.toPlainText().strip() else ""
+            info_panel.setHtml(
+                combine_database_analytics_chart_info_html(analytics_html, generic_html)
             )
             owner = self._owner_window() if hasattr(self, "_owner_window") else getattr(self, "_app_owner", None)
             route_info = getattr(owner, "_on_distinguishing_factor_link_activated", None)
