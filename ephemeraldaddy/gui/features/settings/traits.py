@@ -7,10 +7,9 @@ from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import QTimer, Qt
-from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
-    QApplication,
     QColorDialog,
     QDialog,
     QDialogButtonBox,
@@ -24,9 +23,6 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QPushButton,
     QSizePolicy,
-    QStyle,
-    QStyledItemDelegate,
-    QStyleOptionViewItem,
     QVBoxLayout,
     QWidget,
 )
@@ -47,55 +43,6 @@ from ephemeraldaddy.analysis.traits import (
 
 
 TRAIT_RECOMMENDED_WORKING_SET_LIMIT = 100
-TRAIT_DESCRIPTION_ROLE = Qt.UserRole + 3
-
-
-class TraitListItemDelegate(QStyledItemDelegate):
-    """Draw a one-line trait description without changing the existing row layout."""
-
-    _description_color = QColor("#9a9a9a")
-
-    @staticmethod
-    def _single_line_description(index: Any) -> str:
-        return " ".join(str(index.data(TRAIT_DESCRIPTION_ROLE) or "").split())
-
-    def paint(self, painter: QPainter, option: QStyleOptionViewItem, index: Any) -> None:
-        display_text = str(index.data(Qt.DisplayRole) or "")
-        description = self._single_line_description(index)
-
-        background_option = QStyleOptionViewItem(option)
-        self.initStyleOption(background_option, index)
-        background_option.text = ""
-        style = background_option.widget.style() if background_option.widget else QApplication.style()
-        style.drawControl(QStyle.CE_ItemViewItem, background_option, painter, background_option.widget)
-
-        text_rect = style.subElementRect(QStyle.SE_ItemViewItemText, background_option, background_option.widget)
-        painter.save()
-        painter.setClipRect(text_rect)
-        painter.setFont(option.font)
-        painter.setPen(index.data(Qt.ForegroundRole) or option.palette.text().color())
-        alignment = Qt.AlignVCenter | Qt.AlignLeft
-        painter.drawText(text_rect, alignment, display_text)
-
-        if description:
-            name_width = option.fontMetrics.horizontalAdvance(display_text)
-            description_rect = text_rect.adjusted(name_width, 0, 0, 0)
-            italic_font = QFont(option.font)
-            italic_font.setItalic(True)
-            painter.setFont(italic_font)
-            painter.setPen(self._description_color)
-            painter.drawText(description_rect, alignment, f" | {description}")
-        painter.restore()
-
-    def sizeHint(self, option: QStyleOptionViewItem, index: Any):
-        size = super().sizeHint(option, index)
-        description = self._single_line_description(index)
-        if description:
-            italic_font = QFont(option.font)
-            italic_font.setItalic(True)
-            description_width = QFontMetrics(italic_font).horizontalAdvance(f" | {description}")
-            size.setWidth(size.width() + description_width)
-        return size
 
 
 def _settings_dialog_for(owner: Any) -> QWidget:
@@ -135,11 +82,6 @@ def add_traits_settings_section(owner: Any, content_layout: Any) -> None:
     owner._traits_list_widget.setMinimumHeight(0)
     owner._traits_list_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
     owner._traits_list_widget.setSelectionMode(QAbstractItemView.SingleSelection)
-    owner._traits_list_widget.setItemDelegate(TraitListItemDelegate(owner._traits_list_widget))
-    owner._traits_list_widget.setWordWrap(False)
-    owner._traits_list_widget.setTextElideMode(Qt.ElideNone)
-    owner._traits_list_widget.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-    owner._traits_list_widget.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
     traits_section.addWidget(owner._traits_list_widget, 1)
 
     traits_button_row = QHBoxLayout()
@@ -225,7 +167,7 @@ def refresh_traits_settings_list(owner: Any) -> None:
             item.setData(Qt.UserRole, str(trait["path"]))
             item.setData(Qt.UserRole + 1, color)
             item.setData(Qt.UserRole + 2, archived)
-            item.setData(TRAIT_DESCRIPTION_ROLE, str(trait.get("description", "")).strip())
+            item.setData(Qt.UserRole + 3, str(trait.get("description", "")).strip())
             item.setData(Qt.UserRole + 4, bundled)
             item.setData(Qt.UserRole + 5, name)
             item.setData(Qt.UserRole + 6, str(trait.get("uid") or trait.get("trait_uid") or "").strip())
@@ -477,7 +419,7 @@ def on_trait_description_clicked(owner: Any) -> None:
         QMessageBox.information(dialog_parent, "Default trait protected", "Bundled default trait descriptions are read-only.")
         return
     trait_name = _trait_display_name(item)
-    current_description = str(item.data(TRAIT_DESCRIPTION_ROLE) or "")
+    current_description = str(item.data(Qt.UserRole + 3) or "")
     description, accepted = QInputDialog.getMultiLineText(
         dialog_parent,
         "Add trait description",
