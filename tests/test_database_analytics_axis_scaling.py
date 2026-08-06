@@ -58,6 +58,20 @@ sys.modules.setdefault("PySide6.QtGui", qtgui)
 from ephemeraldaddy.gui.features.charts.database_analytics import DatabaseAnalyticsChartsMixin
 
 
+def test_short_horizontal_bars_and_labels_are_tagged_as_click_targets():
+    figure = Figure()
+    axis = figure.add_subplot(111)
+    bars = axis.barh([0, 1], [0.05, 0.8])
+    axis.set_yticks([0, 1], ["Aries", "Taurus"])
+
+    DatabaseAnalyticsChartsMixin._tag_database_analytics_pick_targets(figure)
+
+    assert bars[0].get_picker() is True
+    assert bars[0].get_gid().startswith("database_analytics_bar:Aries:")
+    assert bars[1].get_gid().startswith("database_analytics_bar:Taurus:")
+    assert all(label.get_picker() is True for label in axis.get_yticklabels())
+
+
 def test_database_analytics_top_gap_is_constant_when_figure_height_changes():
     gap_pixels = []
     for height_inches in (2.0, 12.0):
