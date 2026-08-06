@@ -107,10 +107,16 @@ def test_ocean_predictor_weight_defaults_match_settings_percentages():
 
 def test_ocean_predictor_payload_clamps_percentages_and_preserves_switches():
     config = ocean_predictor_weights_from_payload(
-        {"use_sign_weights": False, "sign_weight": 150, "body_weight": -2}
+        {
+            "use_sign_weights": "false",
+            "use_body_weights": "true",
+            "sign_weight": 150,
+            "body_weight": -2,
+        }
     )
 
     assert config.use_sign_weights is False
+    assert config.use_body_weights is True
     assert config.sign_weight == 100.0
     assert config.body_weight == 0.0
 
@@ -123,3 +129,15 @@ def test_ocean_scores_include_configurable_elemental_and_weighted_categories():
     assert "config.use_elemental_weights" in source
     assert "config.use_house_weights" in source
     assert "total_category_weight" in source
+
+
+def test_ocean_settings_orchestration_stays_outside_app_window():
+    app_source = Path("ephemeraldaddy/gui/app.py").read_text()
+    controller_source = Path(
+        "ephemeraldaddy/gui/settings/modules/ocean_predictor.py"
+    ).read_text()
+
+    assert "OceanPredictorSettingsController" in controller_source
+    assert "class SettingsAdapter(Protocol)" in controller_source
+    assert "def _update_ocean_predictor_setting" not in app_source
+    assert "ocean_settings_controller.bind_controls" in app_source

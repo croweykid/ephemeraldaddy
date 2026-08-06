@@ -38,6 +38,19 @@ OCEAN_WEIGHT_ROWS = (
 )
 
 
+def _coerce_bool(value: Any, default: bool) -> bool:
+    if isinstance(value, str):
+        normalized = value.strip().casefold()
+        if normalized in {"true", "1", "yes", "on"}:
+            return True
+        if normalized in {"false", "0", "no", "off"}:
+            return False
+        return default
+    if isinstance(value, (bool, int, float)):
+        return bool(value)
+    return default
+
+
 def ocean_predictor_weights_from_payload(payload: Any) -> OceanPredictorWeights:
     values = payload if isinstance(payload, dict) else {}
     defaults = OceanPredictorWeights()
@@ -45,8 +58,8 @@ def ocean_predictor_weights_from_payload(payload: Any) -> OceanPredictorWeights:
     for key, _label, _default in OCEAN_WEIGHT_ROWS:
         enabled_name = f"use_{key}_weights"
         weight_name = f"{key}_weight"
-        updates[enabled_name] = bool(
-            values.get(enabled_name, getattr(defaults, enabled_name))
+        updates[enabled_name] = _coerce_bool(
+            values.get(enabled_name), getattr(defaults, enabled_name)
         )
         try:
             updates[weight_name] = max(
