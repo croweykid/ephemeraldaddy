@@ -464,10 +464,10 @@ def test_overall_time_sensitivity_lists_all_definite_human_design_values():
         overall={},
         numeric_ranges={},
         human_design={
-            "gates": {"always": [1], "sometimes": [2]},
+            "gates": {"always": [1, 7], "sometimes": [2]},
             "lines": {"always": ["1.3"], "sometimes": []},
             "channels": {"always": ["1-8"], "sometimes": []},
-            "centers": {"always": ["G"], "sometimes": []},
+            "centers": {"always": ["G", "Sacral"], "sometimes": []},
             "type_distribution": {"Generator": 49},
             "profile_distribution": {"1/3": 49},
         },
@@ -478,10 +478,15 @@ def test_overall_time_sensitivity_lists_all_definite_human_design_values():
 
     html = panel_module._summary_html(result)
 
-    assert "HD Gate:" in html and "distinguishing-factor:gate:1" in html
+    assert "HD Gates:" in html and "distinguishing-factor:gate:1" in html
+    assert "distinguishing-factor:gate:7" in html
+    assert html.count("HD Gates:") == 1
     assert "HD Gate Line:" in html and "distinguishing-factor:gate-line:1:3" in html
     assert "HD Channel:" in html and "distinguishing-factor:hd-channel:1-8" in html
-    assert "HD Defined Center:" in html and "distinguishing-factor:hd-center:G" in html
+    assert "HD Defined Centers:" in html
+    assert "distinguishing-factor:hd-center:G" in html
+    assert "distinguishing-factor:hd-center:Sacral" in html
+    assert html.count("HD Defined Centers:") == 1
     assert html.count("HD Type: Generator all day") == 1
     assert (
         "HD Profile:" in html
@@ -961,6 +966,9 @@ def test_human_design_property_links_report_each_sampled_time_span():
     html = panel_module._human_design_html(result)
     assert "distinguishing-factor:ts-hd-property:type:Generator" in html
     assert "distinguishing-factor:ts-hd-property:profile:1/3" in html
+    assert "<ul" not in html and "<li" not in html
+    assert "margin:0; padding:0; text-align:left" in html
+    assert "<br>" in html
     assert (
         panel_module.human_design_property_time_range_text(result, "type", "Generator")
         == "from 00:00 to 06:00 and from 18:00 to 23:59"

@@ -1112,8 +1112,16 @@ def _definite_summary_items_html(result: TimeSensitivityResult) -> list[str]:
     """Return every categorical and Human Design value stable for all samples."""
     items = [_color_code_text(item, sign_link_kind="ts-sign") for item in result.stable]
     hd = result.human_design if isinstance(result.human_design, dict) else {}
+
+    gates = hd.get("gates", {})
+    if isinstance(gates, dict) and gates.get("always"):
+        items.append(
+            "HD Gates: "
+            + ", ".join(_gate_anchor(value) for value in gates["always"])
+            + " all day"
+        )
+
     for key, singular_label in (
-        ("gates", "HD Gate"),
         ("lines", "HD Gate Line"),
         ("channels", "HD Channel"),
     ):
@@ -1126,10 +1134,13 @@ def _definite_summary_items_html(result: TimeSensitivityResult) -> list[str]:
         )
 
     centers = hd.get("centers", {})
-    if isinstance(centers, dict):
-        items.extend(
-            f"HD Defined Center: {_hd_center_anchor(str(value))} all day"
-            for value in centers.get("always", [])
+    if isinstance(centers, dict) and centers.get("always"):
+        items.append(
+            "HD Defined Centers: "
+            + ", ".join(
+                _hd_center_anchor(str(value)) for value in centers["always"]
+            )
+            + " all day"
         )
 
     for distribution_key, property_key, label in (
@@ -1183,7 +1194,7 @@ def _summary_html(result: TimeSensitivityResult) -> str:
 
 
 def _human_design_html(result: TimeSensitivityResult) -> str:
-    """Return Human Design Time Sensitivity details with Chart Info links."""
+    """Return flush-left Human Design details with Chart Info links."""
     hd = result.human_design
     hd_items = []
     for key in ("gates", "lines", "channels"):
@@ -1225,7 +1236,11 @@ def _human_design_html(result: TimeSensitivityResult) -> str:
     ]
     hd_items.append("Possible Types: " + (", ".join(type_bits) or "none"))
     hd_items.append("Possible Profiles: " + (", ".join(profile_bits) or "none"))
-    return "<div style='white-space: normal;'>" + _list_html(hd_items) + "</div>"
+    return (
+        "<div style='white-space:normal; margin:0; padding:0; text-align:left;'>"
+        + "<br>".join(hd_items)
+        + "</div>"
+    )
 
 
 def _legacy_full_html(result: TimeSensitivityResult) -> str:
