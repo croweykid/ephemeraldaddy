@@ -12,17 +12,20 @@ else:
 
 from ephemeraldaddy.analysis.oceanpredictor import (
     OCEAN_BODIES_THEORY,
+    OCEAN_ELEMENTS_THEORY,
     OCEAN_HOUSES_THEORY,
     OCEAN_NAKSHATRAS_THEORY,
     OCEAN_SIGNS_THEORY,
 )
 from ephemeraldaddy.core.chart import chart_uses_houses
 from ephemeraldaddy.gui.features.charts.metrics import (
+    calculate_dominant_element_weights,
     calculate_dominant_house_weights,
     calculate_dominant_nakshatra_weights,
     calculate_dominant_planet_weights,
     calculate_dominant_sign_weights,
 )
+from ephemeraldaddy.gui.features.predictions.ocean_settings import OceanPredictorWeights
 from ephemeraldaddy.gui.features.charts.prediction_loading_labels import stop_prediction_loading_blink
 
 OCEAN_TRAITS = ("O", "C", "E", "A", "N")
@@ -125,6 +128,16 @@ def _weighted_trait_average(
         if not isinstance(factor, dict):
             factor = factors.get(str(key))
         if not isinstance(factor, dict):
+            normalized_key = str(key).strip().casefold()
+            factor = next(
+                (
+                    candidate
+                    for factor_key, candidate in factors.items()
+                    if str(factor_key).strip().casefold() == normalized_key
+                ),
+                None,
+            )
+        if not isinstance(factor, dict):
             continue
         try:
             weight = float(raw_weight)
@@ -143,30 +156,51 @@ def _weighted_trait_average(
     return {trait: totals[trait] / total_weight for trait in OCEAN_TRAITS}
 
 
+_ocean_predictor_weights = OceanPredictorWeights()
+
+
+def set_ocean_predictor_weights(config: OceanPredictorWeights) -> None:
+    """Set the process-wide OCEAN scoring configuration loaded by Settings."""
+    global _ocean_predictor_weights
+    _ocean_predictor_weights = config
+
+
 def calculate_ocean_scores(chart: Any | None) -> dict[str, float]:
     """Return centered -10..+10 OCEAN spectrum scores for a chart's dominance weights."""
     if chart is None:
         return {trait: 0.0 for trait in OCEAN_TRAITS}
-    category_scores = [
-        _weighted_trait_average(
+    config = _ocean_predictor_weights
+    category_scores: list[tuple[float, dict[str, float]]] = []
+    if config.use_sign_weights and config.sign_weight > 0:
+        category_scores.append((config.sign_weight, _weighted_trait_average(
             getattr(chart, "dominant_sign_weights", None) or calculate_dominant_sign_weights(chart),
             OCEAN_SIGNS_THEORY,
-        ),
-        _weighted_trait_average(
+        )))
+    if config.use_body_weights and config.body_weight > 0:
+        category_scores.append((config.body_weight, _weighted_trait_average(
             getattr(chart, "dominant_planet_weights", None) or calculate_dominant_planet_weights(chart),
             OCEAN_BODIES_THEORY,
-        ),
-    ]
-    category_scores.append(
-        _weighted_trait_average(
+        )))
+    if config.use_nakshatra_weights and config.nakshatra_weight > 0:
+        category_scores.append((config.nakshatra_weight, _weighted_trait_average(
             getattr(chart, "dominant_nakshatra_weights", None) or calculate_dominant_nakshatra_weights(chart),
             OCEAN_NAKSHATRAS_THEORY,
-        )
-    )
-    if chart_uses_houses(chart):
-        category_scores.append(_weighted_trait_average(calculate_dominant_house_weights(chart), OCEAN_HOUSES_THEORY))
+        )))
+    if config.use_elemental_weights and config.elemental_weight > 0:
+        category_scores.append((config.elemental_weight, _weighted_trait_average(
+            getattr(chart, "dominant_element_weights", None) or calculate_dominant_element_weights(chart),
+            OCEAN_ELEMENTS_THEORY,
+        )))
+    if config.use_house_weights and config.house_weight > 0 and chart_uses_houses(chart):
+        category_scores.append((config.house_weight, _weighted_trait_average(
+            calculate_dominant_house_weights(chart), OCEAN_HOUSES_THEORY
+        )))
+    total_category_weight = sum(weight for weight, _scores in category_scores)
     averaged = {
-        trait: sum(category[trait] for category in category_scores) / max(1, len(category_scores))
+        trait: (
+            sum(weight * category[trait] for weight, category in category_scores) / total_category_weight
+            if total_category_weight > 0 else 0.0
+        )
         for trait in OCEAN_TRAITS
     }
     return {trait: max(OCEAN_MIN_SCORE, min(OCEAN_MAX_SCORE, averaged[trait])) for trait in OCEAN_TRAITS}

@@ -68,6 +68,7 @@ from ephemeraldaddy.gui.features.charts.similarity_custom_presets import (
     save_custom_astro_twin_preset,
     update_custom_astro_twin_preset,
 )
+from ephemeraldaddy.gui.features.predictions.ocean_settings import OCEAN_WEIGHT_ROWS
 from ephemeraldaddy.core.diagnostics import (
     DEFAULT_ERROR_REPORTING_MODE,
     ErrorReportingMode,
@@ -3067,6 +3068,8 @@ def build_predictions_settings_section(
     on_scale_mode_changed: Callable[[str], None],
     on_dominance_normalization_mode_changed: Callable[[str], None],
     on_manual_recalculation_toggled: Callable[[bool], None] | None = None,
+    on_ocean_enabled_toggled: Callable[[str, bool], None] | None = None,
+    on_ocean_weight_changed: Callable[[str, float], None] | None = None,
 ) -> dict[str, object]:
     label = QLabel("Predictions")
     label.setStyleSheet(subheader_style)
@@ -3132,6 +3135,47 @@ def build_predictions_settings_section(
             lambda checked: on_manual_recalculation_toggled(bool(checked))
         )
     section_layout.addWidget(manual_recalculation_checkbox)
+
+    ocean_label = QLabel("OCEAN Predictor")
+    ocean_label.setStyleSheet(subheader_style)
+    section_layout.addWidget(ocean_label)
+    section_layout.addWidget(
+        _build_settings_help_label(
+            "Choose which astrological evidence contributes to OCEAN Prediction and adjust "
+            "each category's percentage weighting. Available enabled weights are normalized at calculation time."
+        )
+    )
+    ocean_grid = QGridLayout()
+    ocean_grid.addWidget(QLabel("Use"), 0, 0, alignment=Qt.AlignCenter)
+    ocean_grid.addWidget(QLabel("Scoring category"), 0, 1)
+    ocean_grid.addWidget(QLabel("Contribution"), 0, 2)
+    ocean_checkboxes: dict[str, QCheckBox] = {}
+    ocean_weight_spinboxes: dict[str, QDoubleSpinBox] = {}
+    for row, (key, title, default_weight) in enumerate(OCEAN_WEIGHT_ROWS, start=1):
+        checkbox = QCheckBox()
+        checkbox.setAccessibleName(title)
+        checkbox.setChecked(True)
+        checkbox.setStyleSheet(SIMILARITY_CALCULATOR_CHECKBOX_STYLE)
+        spinbox = QDoubleSpinBox()
+        spinbox.setRange(0.0, 100.0)
+        spinbox.setDecimals(1)
+        spinbox.setSingleStep(1.0)
+        spinbox.setSuffix("%")
+        spinbox.setValue(default_weight)
+        if on_ocean_enabled_toggled is not None:
+            checkbox.toggled.connect(
+                lambda checked, category=key: on_ocean_enabled_toggled(category, bool(checked))
+            )
+        if on_ocean_weight_changed is not None:
+            spinbox.valueChanged.connect(
+                lambda value, category=key: on_ocean_weight_changed(category, float(value))
+            )
+        ocean_grid.addWidget(checkbox, row, 0, alignment=Qt.AlignCenter)
+        ocean_grid.addWidget(QLabel(title), row, 1)
+        ocean_grid.addWidget(spinbox, row, 2)
+        ocean_checkboxes[key] = checkbox
+        ocean_weight_spinboxes[key] = spinbox
+    section_layout.addLayout(ocean_grid)
 
     advanced_label = QLabel("Advanced")
     advanced_label.setStyleSheet(subheader_style)
@@ -3201,6 +3245,8 @@ def build_predictions_settings_section(
         "dominance_combo": dominance_combo,
         "weight_spinboxes": {},
         "total_label": QLabel("disabled"),
+        "ocean_checkboxes": ocean_checkboxes,
+        "ocean_weight_spinboxes": ocean_weight_spinboxes,
     }
 
 

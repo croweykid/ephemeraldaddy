@@ -1604,6 +1604,14 @@ from ephemeraldaddy.gui.features.charts.chart_predictor_quiz import (
     create_chart_predictor_quiz_dialog,
 )
 from ephemeraldaddy.gui.features.settings.traits import add_traits_settings_section
+from ephemeraldaddy.gui.features.predictions.ocean import set_ocean_predictor_weights
+from ephemeraldaddy.gui.features.predictions.ocean_settings import (
+    OCEAN_WEIGHT_ROWS,
+    load_ocean_predictor_weights,
+    ocean_predictor_weights_from_payload,
+    ocean_predictor_weights_to_payload,
+    save_ocean_predictor_weights,
+)
 from ephemeraldaddy.gui.features.charts.trait_predictions import (
     render_traits_predictions as _render_traits_predictions,
     stop_traits_prediction_refresh_workers as _stop_traits_prediction_refresh_workers,
@@ -2331,6 +2339,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self.setWindowFlag(Qt.WindowMaximizeButtonHint, True)
         self.setWindowFlag(Qt.WindowCloseButtonHint, True)
         self._settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
+        self._ocean_predictor_weights = load_ocean_predictor_weights(self._settings)
+        save_ocean_predictor_weights(self._settings, self._ocean_predictor_weights)
+        set_ocean_predictor_weights(self._ocean_predictor_weights)
         self._applying_window_placement = False
         self._session_window_layout_adjusted = False
         self._visibility = VisibilityStore(self._settings)
@@ -22337,7 +22348,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._load_similarity_calculator_controls()
         self._load_similarity_thresholds_into_controls()
 
-        enneagram_section = self._add_settings_collapsible_section(content_layout, "Prediction Methods")
+        enneagram_section = self._add_settings_collapsible_section(content_layout, "Predictions")
         enneagram_controls = build_predictions_settings_section(
             dialog=dialog,
             section_layout=enneagram_section,
@@ -22347,6 +22358,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             on_scale_mode_changed=self._on_enneagram_type_signature_scale_changed,
             on_dominance_normalization_mode_changed=self._on_prediction_dominance_normalization_changed,
             on_manual_recalculation_toggled=self._on_predictions_manual_recalculation_toggled,
+            on_ocean_enabled_toggled=self._on_ocean_predictor_enabled_toggled,
+            on_ocean_weight_changed=self._on_ocean_predictor_weight_changed,
         )
         self._enneagram_predictor_checkboxes = enneagram_controls["checkboxes"]
         self._predictions_manual_recalculation_checkbox = enneagram_controls["manual_recalculation_checkbox"]
@@ -22355,7 +22368,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._prediction_dominance_normalization_combo = enneagram_controls["dominance_combo"]
         self._enneagram_predictor_weight_spinboxes = enneagram_controls["weight_spinboxes"]
         self._enneagram_predictor_total_label = enneagram_controls["total_label"]
+        self._ocean_predictor_checkboxes = enneagram_controls["ocean_checkboxes"]
+        self._ocean_predictor_weight_spinboxes = enneagram_controls["ocean_weight_spinboxes"]
         self._load_enneagram_predictor_controls()
+        self._load_ocean_predictor_controls()
 
         add_traits_settings_section(self, content_layout)
 
@@ -23509,6 +23525,42 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             del blocker
         self._update_enneagram_predictor_total_label()
         self._apply_enneagram_predictor_weights()
+
+    def _load_ocean_predictor_controls(self) -> None:
+        config = load_ocean_predictor_weights(self._settings)
+        self._ocean_predictor_weights = config
+        set_ocean_predictor_weights(config)
+        for key, _title, _default in OCEAN_WEIGHT_ROWS:
+            checkbox = getattr(self, "_ocean_predictor_checkboxes", {}).get(key)
+            spinbox = getattr(self, "_ocean_predictor_weight_spinboxes", {}).get(key)
+            if checkbox is not None:
+                blocker = QSignalBlocker(checkbox)
+                checkbox.setChecked(bool(getattr(config, f"use_{key}_weights")))
+                del blocker
+            if spinbox is not None:
+                blocker = QSignalBlocker(spinbox)
+                spinbox.setValue(float(getattr(config, f"{key}_weight")))
+                del blocker
+
+    def _update_ocean_predictor_setting(self, key: str, value: object) -> None:
+        config = getattr(self, "_ocean_predictor_weights", load_ocean_predictor_weights(self._settings))
+        payload = ocean_predictor_weights_to_payload(config)
+        payload[key] = value
+        config = ocean_predictor_weights_from_payload(payload)
+        self._ocean_predictor_weights = config
+        save_ocean_predictor_weights(self._settings, config)
+        set_ocean_predictor_weights(config)
+        parent = self._owner_window()
+        if isinstance(parent, MainWindow):
+            parent._ocean_predictor_weights = config
+            save_ocean_predictor_weights(parent._settings, config)
+        self._invalidate_database_metrics_cache()
+
+    def _on_ocean_predictor_enabled_toggled(self, category: str, enabled: bool) -> None:
+        self._update_ocean_predictor_setting(f"use_{category}_weights", bool(enabled))
+
+    def _on_ocean_predictor_weight_changed(self, category: str, weight: float) -> None:
+        self._update_ocean_predictor_setting(f"{category}_weight", float(weight))
 
     def _on_predictions_manual_recalculation_toggled(self, value: bool) -> None:
         self._predictions_manual_recalculation_only = bool(value)
@@ -24871,6 +24923,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.setWindowFlag(Qt.WindowCloseButtonHint, True)
         self._apply_dark_theme()
         self._settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
+        self._ocean_predictor_weights = load_ocean_predictor_weights(self._settings)
+        save_ocean_predictor_weights(self._settings, self._ocean_predictor_weights)
+        set_ocean_predictor_weights(self._ocean_predictor_weights)
         self._visibility = VisibilityStore(self._settings)
         self._lilith_calculation_method = _resolve_supported_lilith_calculation_method(
             self._settings.value(
