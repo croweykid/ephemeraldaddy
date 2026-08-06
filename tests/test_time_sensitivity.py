@@ -966,6 +966,9 @@ def test_human_design_property_links_report_each_sampled_time_span():
     html = panel_module._human_design_html(result)
     assert "distinguishing-factor:ts-hd-property:type:Generator" in html
     assert "distinguishing-factor:ts-hd-property:profile:1/3" in html
+    assert "<ul" not in html and "<li" not in html
+    assert "margin:0; padding:0; text-align:left" in html
+    assert "<br>" in html
     assert (
         panel_module.human_design_property_time_range_text(result, "type", "Generator")
         == "from 00:00 to 06:00 and from 18:00 to 23:59"

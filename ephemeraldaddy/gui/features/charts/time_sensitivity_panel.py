@@ -1194,7 +1194,7 @@ def _summary_html(result: TimeSensitivityResult) -> str:
 
 
 def _human_design_html(result: TimeSensitivityResult) -> str:
-    """Return Human Design Time Sensitivity details with Chart Info links."""
+    """Return flush-left Human Design details with Chart Info links."""
     hd = result.human_design
     hd_items = []
     for key in ("gates", "lines", "channels"):
@@ -1236,7 +1236,11 @@ def _human_design_html(result: TimeSensitivityResult) -> str:
     ]
     hd_items.append("Possible Types: " + (", ".join(type_bits) or "none"))
     hd_items.append("Possible Profiles: " + (", ".join(profile_bits) or "none"))
-    return "<div style='white-space: normal;'>" + _list_html(hd_items) + "</div>"
+    return (
+        "<div style='white-space:normal; margin:0; padding:0; text-align:left;'>"
+        + "<br>".join(hd_items)
+        + "</div>"
+    )
 
 
 def _legacy_full_html(result: TimeSensitivityResult) -> str:
