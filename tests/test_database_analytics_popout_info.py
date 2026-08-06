@@ -7,12 +7,74 @@ from ephemeraldaddy.core.interpretations import (
 from ephemeraldaddy.gui.features.charts.database_analytics import (
     DatabaseAnalyticsChartsMixin,
 )
+from ephemeraldaddy.gui.features.database_view.analytics.popout_chart_info import (
+    DatabaseAnalyticsChartInfoTarget,
+    combine_database_analytics_chart_info_html,
+    database_analytics_chart_info_target,
+    generic_database_analytics_chart_context,
+)
 from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR
 
 
 class _FakeAnalytics(DatabaseAnalyticsChartsMixin):
     def _standard_deviation_indicators_visible(self) -> bool:
         return False
+
+
+def test_astro_popout_labels_route_to_generic_chart_info_topics():
+    cases = [
+        ({"chart_title": "Sun Sign", "label": "Aries"}, ("sign", "Aries")),
+        ({"chart_title": "Dominant Bodies", "label": "Venus"}, ("planet", "Venus")),
+        ({"chart_title": "Houses", "label": "House 7"}, ("house", "7")),
+        ({"chart_title": "Nakshatras", "label": "Ashwini"}, ("nakshatra", "Ashwini")),
+        ({"chart_title": "Elements", "label": "Fire"}, ("element", "Fire")),
+        ({"chart_title": "Modes", "label": "Cardinal"}, ("mode", "Cardinal")),
+    ]
+    for arguments, expected in cases:
+        target = database_analytics_chart_info_target(**arguments)
+        assert target == DatabaseAnalyticsChartInfoTarget(*expected)
+
+
+def test_human_design_popout_modes_disambiguate_every_graph_family():
+    cases = [
+        ("hd_gates", "12", ("gate", "12")),
+        ("hd_lines", "4", ("hd-line", "4")),
+        ("hd_channels", "12-22", ("hd-channel", "12-22")),
+        ("hd_defined_centers", "Sacral", ("hd-center", "Sacral")),
+        ("hd_types", "MF Generator", ("hd-property:type", "Manifesting Generator")),
+        ("hd_profiles", "1/3", ("hd-property:profile", "1/3")),
+        ("hd_authorities", "Sacral", ("hd-property:authority", "Sacral")),
+        (
+            "hd_incarnation_crosses",
+            "Right Angle Cross of Eden",
+            ("hd-property:incarnation_cross", "Right Angle Cross of Eden"),
+        ),
+    ]
+    for mode, label, expected in cases:
+        target = database_analytics_chart_info_target(
+            chart_title="Human Design", label=label, chart_mode=mode
+        )
+        assert target == DatabaseAnalyticsChartInfoTarget(*expected)
+
+
+def test_database_summary_precedes_generic_chart_info():
+    combined = combine_database_analytics_chart_info_html(
+        "<h3>Aries</h3><p>Associated charts: Ada</p>",
+        "<h3>Aries reference</h3><p>At Best: courageous</p>",
+    )
+
+    assert combined.index("Associated charts") < combined.index("<hr>")
+    assert combined.index("<hr>") < combined.index("Aries reference")
+
+
+def test_generic_database_info_suppresses_and_restores_active_chart_context():
+    active_chart = object()
+    owner = type("Owner", (), {"_latest_chart": active_chart})()
+
+    with generic_database_analytics_chart_context(owner):
+        assert owner._latest_chart is None
+
+    assert owner._latest_chart is active_chart
 
 
 def test_database_analytics_popout_info_uses_focused_standard_template():

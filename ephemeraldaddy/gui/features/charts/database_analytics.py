@@ -20,6 +20,7 @@ import time
 import warnings
 from collections import Counter
 from typing import Any, Callable, Iterable, Mapping, Sequence
+from urllib.parse import quote
 
 from matplotlib import colors as mpl_colors
 from matplotlib import font_manager as mpl_font_manager
@@ -54,6 +55,9 @@ from ephemeraldaddy.gui.features.database_view.analytics.name_search import (
 )
 from ephemeraldaddy.gui.features.database_view.analytics.popout_chart_info import (
     build_database_analytics_popout_chart_info_html,
+    combine_database_analytics_chart_info_html,
+    database_analytics_chart_info_target,
+    generic_database_analytics_chart_context,
 )
 
 DATABASE_METRICS_SECTION_ORDER: tuple[str, ...] = (
@@ -2141,6 +2145,11 @@ class DatabaseAnalyticsChartsMixin:
     def _tag_database_analytics_pick_targets(figure: Figure) -> None:
         """Make Database Analytics bars and labels clickable in copied popout figures."""
         for ax in figure.axes:
+            patch_orientations = {
+                id(patch): str(getattr(container, "orientation", "") or "")
+                for container in getattr(ax, "containers", [])
+                for patch in getattr(container, "patches", [])
+            }
             y_tick_lookup = [
                 (
                     float(tick),
@@ -2170,7 +2179,12 @@ class DatabaseAnalyticsChartsMixin:
                     continue
                 if abs(width) < 1e-12 and abs(height) < 1e-12:
                     continue
-                horizontal = abs(width) >= abs(height)
+                container_orientation = patch_orientations.get(id(patch))
+                horizontal = (
+                    container_orientation == "horizontal"
+                    if container_orientation in {"horizontal", "vertical"}
+                    else abs(width) >= abs(height)
+                )
                 if horizontal and y_tick_lookup:
                     center = float(patch.get_y()) + (height / 2.0)
                     label = min(y_tick_lookup, key=lambda item: abs(item[0] - center))[1]
@@ -2384,7 +2398,7 @@ class DatabaseAnalyticsChartsMixin:
         info_panel.setReadOnly(True)
         info_panel.setOpenLinks(False)
         info_panel.setPlaceholderText(
-            "Click any bar or label to see its associated charts."
+            "Click any bar or label to learn about it and see its associated charts."
         )
         info_panel.setMinimumHeight(150)
         dialog.installEventFilter(chart_scroll)
@@ -2415,34 +2429,73 @@ class DatabaseAnalyticsChartsMixin:
                 _prefix, label = artist_gid.split(":", 1)
             else:
                 return
-            info_panel.setHtml(
-                self._build_database_analytics_popout_info_html(
-                    chart_title=chart_title,
-                    label=label,
-                    value=value,
-                    chart_key=detail_chart_key,
-                    chart_mode=frozen_chart_mode,
-                    analytics_rows=frozen_analytics_rows,
-                    chart_uids=frozen_chart_uids,
-                    bar_color=(
-                        mpl_colors.to_hex(artist.get_facecolor())
-                        if artist is not None and hasattr(artist, "get_facecolor")
-                        else None
-                    ),
-                )
+            _show_info_for_pick_target(
+                label,
+                value,
+                bar_color=(
+                    mpl_colors.to_hex(artist.get_facecolor())
+                    if artist is not None and hasattr(artist, "get_facecolor")
+                    else None
+                ),
             )
 
-        def _show_info_for_pick_target(label: str, value: float | None) -> None:
+        def _show_info_for_pick_target(
+            label: str,
+            value: float | None,
+            *,
+            bar_color: str | None = None,
+        ) -> None:
+            analytics_html = self._build_database_analytics_popout_info_html(
+                chart_title=chart_title,
+                label=label,
+                value=value,
+                chart_key=detail_chart_key,
+                chart_mode=frozen_chart_mode,
+                analytics_rows=frozen_analytics_rows,
+                chart_uids=frozen_chart_uids,
+                bar_color=bar_color,
+            )
+            target = database_analytics_chart_info_target(
+                chart_title=chart_title,
+                label=label,
+                chart_mode=frozen_chart_mode,
+            )
+            owner = self._owner_window() if hasattr(self, "_owner_window") else getattr(self, "_app_owner", None)
+            route_info = getattr(owner, "_on_distinguishing_factor_link_activated", None)
+            run_with_output = getattr(owner, "_run_with_chart_info_output", None)
+            if target is None or not callable(run_with_output):
+                info_panel.setHtml(analytics_html)
+                return
+
+            def _render_generic_info() -> None:
+                # Database Analytics describes a population, not Chart
+                # Editor's active chart.  Temporarily removing that context
+                # keeps the centralized presenters generic (for example, it
+                # suppresses "No chart placements in Aries").
+                with generic_database_analytics_chart_context(owner):
+                    if target.kind == "hd-line":
+                        show_line = getattr(owner, "_show_human_design_line_info", None)
+                        if callable(show_line):
+                            show_line(int(target.value))
+                        return
+                    if not callable(route_info):
+                        return
+                    if target.kind.startswith("hd-property:"):
+                        property_key = target.kind.split(":", 1)[1]
+                        route_info(
+                            f"distinguishing-factor:hd-property:{property_key}:"
+                            f"{quote(target.value, safe='')}"
+                        )
+                    else:
+                        route_info(
+                            f"distinguishing-factor:{target.kind}:"
+                            f"{quote(target.value, safe='')}"
+                        )
+
+            run_with_output(info_panel, _render_generic_info)
+            generic_html = info_panel.toHtml() if info_panel.toPlainText().strip() else ""
             info_panel.setHtml(
-                self._build_database_analytics_popout_info_html(
-                    chart_title=chart_title,
-                    label=label,
-                    value=value,
-                    chart_key=detail_chart_key,
-                    chart_mode=frozen_chart_mode,
-                    analytics_rows=frozen_analytics_rows,
-                    chart_uids=frozen_chart_uids,
-                )
+                combine_database_analytics_chart_info_html(analytics_html, generic_html)
             )
 
         info_panel.anchorClicked.connect(
@@ -2473,7 +2526,15 @@ class DatabaseAnalyticsChartsMixin:
                     value = float(raw_value)
                 except ValueError:
                     value = None
-                _show_info_for_pick_target(label, value)
+                _show_info_for_pick_target(
+                    label,
+                    value,
+                    bar_color=(
+                        mpl_colors.to_hex(artist.get_facecolor())
+                        if hasattr(artist, "get_facecolor")
+                        else None
+                    ),
+                )
                 return
             for tick_label in [
                 *event.inaxes.get_yticklabels(),
