@@ -971,6 +971,10 @@ from ephemeraldaddy.gui.dbv_batch_similarity import (
     build_batch_similarity_section,
     refresh_batch_similarity_chart_options,
 )
+from ephemeraldaddy.gui.features.database_view.batch_editor.typology_panel import (
+    BatchTypologyCallbacks,
+    BatchTypologyEditor,
+)
 from ephemeraldaddy.gui.dbv_search_panel import (
     active_body_dynamics_filters as get_active_body_dynamics_filters,
     apply_search_location_completer,
@@ -13809,6 +13813,20 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         layout.addWidget(build_batch_similarity_section(self, add_collapsible_section))
         layout.addWidget(build_batch_bio_section(self, add_collapsible_section, SOURCE_OPTIONS, GENDER_OPTIONS, QuadStateSlider))
 
+        typology_section, typology_section_layout = add_collapsible_section("💭Typology")
+        self.batch_typology_editor = BatchTypologyEditor(
+            BatchTypologyCallbacks(
+                selected_chart_uids=self._selected_chart_uids,
+                chart_for_uid=self._get_chart_for_filter_by_uid,
+                apply_patches=self._apply_batch_nonastral_patches,
+                confirm=self._confirm_batch_edit,
+                on_applied=self._on_batch_typology_applied,
+            ),
+            typology_section,
+        )
+        typology_section_layout.addWidget(self.batch_typology_editor)
+        layout.addWidget(typology_section)
+
         predictability_section, predictability_section_layout = add_collapsible_section("💭Predictability")
         self.batch_predictability_section = predictability_section
         predictability_section.setVisible(self._visibility.get("chart_view.predictability"))
@@ -13998,6 +14016,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         message_box.setEscapeButton(QMessageBox.No)
         response = message_box.exec()
         return response == QMessageBox.Yes
+
+    def _on_batch_typology_applied(self, changed_ids: set[int]) -> None:
+        self._update_batch_edit_state()
+        self._refresh_filters_after_batch_edit(changed_ids, refresh_metrics=False)
 
 
     @staticmethod
@@ -16926,6 +16948,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         if hasattr(self, "batch_tags_selection_label"):
             self.batch_tags_selection_label.setText("")
         clear_batch_from_whence_state(self)
+        if hasattr(self, "batch_typology_editor"):
+            self.batch_typology_editor.clear()
         self._batch_tags_lucygoosey = False
         self.batch_alignment_slider.blockSignals(True)
         self.batch_alignment_slider.setValue(0)
