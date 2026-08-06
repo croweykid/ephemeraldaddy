@@ -15,9 +15,11 @@ from ephemeraldaddy.analysis.human_design_synastry import (
     HD_SYNASTRY_GENDER_METHOD_SEX as HD_ELECTROCHEMISTRY_GENDER_METHOD_SEX,
     filter_hd_synastry_candidates as filter_hd_electrochemistry_candidates,
     normalize_gates,
+    normalize_lines,
     normalize_hd_synastry_gender_filter as normalize_hd_electrochemistry_gender_filter,
     rank_human_design_synastry as rank_human_design_electrochemistry,
     rank_human_design_synastry_ideal as rank_human_design_electrochemistry_ideal,
+    rank_human_design_resonance,
 )
 from ephemeraldaddy.core.db import (
     list_human_design_synastry_candidates as list_human_design_electrochemistry_candidates,
@@ -50,10 +52,14 @@ HD_ELECTROCHEMISTRY_SUBHEADER = (
     "Top 10 charts ranked by Human Design channel/center synastry alone. This says nothing of shared values, means "
     "or other lifestyle factors. Canonical HD lore even explicitly states that 'Authority' (gut hunch) is superior. lol"
 )
+HD_RESONANCE_SUBHEADER = (
+    "Top 10 charts with the most shared Human Design gates and activation lines."
+)
 
 SETTINGS_KEY_GENDERED_RESULTS_METHOD = "chart_calculation/gendered_results_method"
 HD_ELECTROCHEMISTRY_MODE_STANDARD = "hd_electrochemistry"
 HD_ELECTROCHEMISTRY_MODE_IDEAL = "hd_electrochemical_ideal"
+HD_RESONANCE_MODE = "hd_resonance"
 
 
 def reload_hd_electrochemistry_custom_collections(
@@ -117,20 +123,19 @@ def refresh_hd_electrochemistry_collections(owner: object) -> None:
 def normalize_hd_electrochemistry_mode(value: object) -> str:
     """Return the supported predicted-synastry scoring mode."""
     normalized = str(value or "").strip().casefold()
-    return (
-        HD_ELECTROCHEMISTRY_MODE_IDEAL
-        if normalized == HD_ELECTROCHEMISTRY_MODE_IDEAL
-        else HD_ELECTROCHEMISTRY_MODE_STANDARD
-    )
+    if normalized in {HD_ELECTROCHEMISTRY_MODE_IDEAL, HD_RESONANCE_MODE}:
+        return normalized
+    return HD_ELECTROCHEMISTRY_MODE_STANDARD
 
 
 def hd_electrochemistry_ranker_for_mode(mode: object):
     """Return the ranker matching the selected Predicted Synastry mode."""
-    return (
-        rank_human_design_electrochemistry_ideal
-        if normalize_hd_electrochemistry_mode(mode) == HD_ELECTROCHEMISTRY_MODE_IDEAL
-        else rank_human_design_electrochemistry
-    )
+    normalized = normalize_hd_electrochemistry_mode(mode)
+    if normalized == HD_RESONANCE_MODE:
+        return rank_human_design_resonance
+    if normalized == HD_ELECTROCHEMISTRY_MODE_IDEAL:
+        return rank_human_design_electrochemistry_ideal
+    return rank_human_design_electrochemistry
 
 
 def normalize_gendered_results_method(value: object) -> str:
@@ -173,6 +178,23 @@ def resolve_hd_electrochemistry_gates(chart: object | None) -> frozenset[int]:
     return gates
 
 
+def resolve_hd_resonance_lines(chart: object | None) -> frozenset[int]:
+    """Return cached HD activation lines, deriving them for older charts."""
+    if chart is None:
+        return frozenset()
+    lines = normalize_lines(getattr(chart, "human_design_lines", None))
+    if lines:
+        return lines
+    try:
+        _gates, derived_lines, _channels, _hd_type = derive_human_design_profile(chart)
+    except Exception:
+        return frozenset()
+    lines = normalize_lines(derived_lines)
+    if lines:
+        setattr(chart, "human_design_lines", sorted(lines))
+    return lines
+
+
 def hd_electrochemistry_subheader(chart: object | None) -> str:
     """Add the required reliability warning for unknown or rectified times."""
     if chart is None or not bool(getattr(chart, "birthtime_unknown", False)):
@@ -180,6 +202,19 @@ def hd_electrochemistry_subheader(chart: object | None) -> str:
     name = html.escape(str(getattr(chart, "name", "This chart") or "This chart"))
     return (
         HD_ELECTROCHEMISTRY_SUBHEADER
+        + f"<br><br>Since {name}'s birth time is hypothetical, results may be dodgier than usual."
+    )
+
+
+def hd_predicted_synastry_subheader(chart: object | None, mode: object) -> str:
+    """Return mode-specific explanatory copy with the time reliability warning."""
+    if normalize_hd_electrochemistry_mode(mode) != HD_RESONANCE_MODE:
+        return hd_electrochemistry_subheader(chart)
+    if chart is None or not bool(getattr(chart, "birthtime_unknown", False)):
+        return HD_RESONANCE_SUBHEADER
+    name = html.escape(str(getattr(chart, "name", "This chart") or "This chart"))
+    return (
+        HD_RESONANCE_SUBHEADER
         + f"<br><br>Since {name}'s birth time is hypothetical, results may be dodgier than usual."
     )
 
@@ -198,6 +233,7 @@ def hd_electrochemistry_render_token(owner: object, chart: object | None) -> tup
     return (
         str(getattr(chart, "chart_uid", "") or "").strip().upper(),
         tuple(sorted(resolve_hd_electrochemistry_gates(chart))),
+        tuple(sorted(resolve_hd_resonance_lines(chart))),
         bool(chart is not None and chart_uses_houses(chart)),
         str(getattr(chart, "human_design_profile", "") or "").strip(),
         normalize_hd_electrochemistry_gender_filter(getattr(owner, "hd_electrochemistry_gender_filter", "all")),
@@ -218,7 +254,10 @@ def _format_hd_electrochemistry_matches(matches: tuple, warning_lines: tuple[str
     """Format source-relative rankings alongside persistent database-wide norms."""
     norms = current_human_design_electrochemistry_norms()
     lines = list(warning_lines)
-    if norms is None:
+    resonance_results = bool(matches and matches[0].shared_gates is not None)
+    if resonance_results:
+        lines.append("Ranked by shared Human Design gates, then shared activation lines.")
+    elif norms is None:
         lines.append("Database-wide norms are being calculated in the background.")
     else:
         lines.append(
@@ -233,6 +272,12 @@ def _format_hd_electrochemistry_matches(matches: tuple, warning_lines: tuple[str
         uncertainty_html = " " + houses_unknown_note_html() if not match.uses_houses else ""
         chart_top_decile = " · top 10% for this chart" if match.percentile >= 90.0 else ""
         profile_bonus = max(0, int(getattr(match, "profile_bonus", 0) or 0))
+        if match.shared_gates is not None:
+            lines.append(
+                f'{index}. <a href="{href}">{html.escape(display_name)}</a> — '
+                f'{match.shared_gates} shared gates · {match.shared_lines} shared lines{uncertainty_html}'
+            )
+            continue
         electrochemistry_score = max(0, int(match.score) - profile_bonus)
         score_maximum = HD_ELECTROCHEMISTRY_MAX_SCORE + (2 if profile_bonus else 0)
         profile_reason = ""
@@ -290,7 +335,12 @@ def render_hd_electrochemistry_predictions(owner: object, chart: object | None) 
     gates = resolve_hd_electrochemistry_gates(chart)
     subheader = getattr(owner, "hd_electrochemistry_prediction_subheader", None)
     if isinstance(subheader, QLabel):
-        subheader.setText(hd_electrochemistry_subheader(chart))
+        subheader.setText(
+            hd_predicted_synastry_subheader(
+                chart,
+                getattr(owner, "hd_electrochemistry_prediction_mode", HD_ELECTROCHEMISTRY_MODE_STANDARD),
+            )
+        )
     if not chart_uid or not gates:
         label.setText("Human Design gate data is unavailable for this chart.")
         setattr(owner, "_hd_electrochemistry_last_render_token", render_token)
@@ -330,6 +380,7 @@ def render_hd_electrochemistry_predictions(owner: object, chart: object | None) 
         gates,
         candidates,
         source_profile=getattr(chart, "human_design_profile", None),
+        source_lines=resolve_hd_resonance_lines(chart),
     )
     if not matches:
         other_candidates_are_available = any(
@@ -450,6 +501,7 @@ def hd_electrochemistry_match_collection_uids(
                 candidates, gender_filter, gender_method
             ),
             source_profile=getattr(chart, "human_design_profile", None),
+            source_lines=resolve_hd_resonance_lines(chart),
             limit=10,
         )
         ranked_uids.update(

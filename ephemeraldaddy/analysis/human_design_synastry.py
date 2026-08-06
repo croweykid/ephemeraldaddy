@@ -32,6 +32,7 @@ class HumanDesignSynastryCandidate:
     chart_type: str | None = None
     relationship_types: tuple[str, ...] = ()
     profile: str | None = None
+    lines: frozenset[int] = frozenset()
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +48,8 @@ class HumanDesignSynastryMatch:
     uses_houses: bool = True
     profile_match: str | None = None
     profile_bonus: int = 0
+    shared_gates: int | None = None
+    shared_lines: int | None = None
 
 
 HD_SYNASTRY_GENDER_FILTERS = frozenset({"all", "male", "female"})
@@ -149,6 +152,66 @@ def normalize_gates(values: Iterable[object] | None) -> frozenset[int]:
     return frozenset(gates)
 
 
+def normalize_lines(values: Iterable[object] | None) -> frozenset[int]:
+    """Return valid Human Design line numbers, ignoring malformed cache data."""
+    lines: set[int] = set()
+    for value in values or ():
+        try:
+            line = int(value)
+        except (TypeError, ValueError):
+            continue
+        if 1 <= line <= 6:
+            lines.add(line)
+    return frozenset(lines)
+
+
+def rank_human_design_resonance(
+    chart_uid: str,
+    gates: Iterable[object] | None,
+    candidates: Iterable[HumanDesignSynastryCandidate],
+    *,
+    source_lines: Iterable[object] | None = None,
+    source_profile: object | None = None,
+    limit: int = 10,
+) -> list[HumanDesignSynastryMatch]:
+    """Rank charts by shared gates first, then shared activation lines."""
+    del source_profile
+    normalized_uid = str(chart_uid or "").strip().upper()
+    source_gates = normalize_gates(gates)
+    normalized_lines = normalize_lines(source_lines)
+    matches: list[HumanDesignSynastryMatch] = []
+    for candidate in candidates:
+        candidate_uid = str(candidate.chart_uid or "").strip().upper()
+        if not candidate_uid or candidate_uid == normalized_uid:
+            continue
+        shared_gates = len(source_gates & normalize_gates(candidate.gates))
+        shared_lines = len(normalized_lines & normalize_lines(candidate.lines))
+        matches.append(
+            HumanDesignSynastryMatch(
+                chart_uid=candidate_uid,
+                name=str(candidate.name or "Unnamed chart").strip() or "Unnamed chart",
+                alias=str(candidate.alias).strip() if candidate.alias else None,
+                completed_channels=0,
+                defined_centers=0,
+                score=shared_gates + shared_lines,
+                population_median=0.0,
+                percentile=0.0,
+                uses_houses=bool(candidate.uses_houses),
+                shared_gates=shared_gates,
+                shared_lines=shared_lines,
+            )
+        )
+    matches.sort(
+        key=lambda match: (
+            -match.shared_gates,
+            -match.shared_lines,
+            match.name.casefold(),
+            match.chart_uid,
+        )
+    )
+    return matches[: max(0, int(limit))]
+
+
 def human_design_electrochemistry_score(
     gates_a: Iterable[object] | None,
     gates_b: Iterable[object] | None,
@@ -191,10 +254,11 @@ def rank_human_design_synastry(
     candidates: Iterable[HumanDesignSynastryCandidate],
     *,
     source_profile: object | None = None,
+    source_lines: Iterable[object] | None = None,
     limit: int = 10,
 ) -> list[HumanDesignSynastryMatch]:
     """Rank candidates by summed electrochemistry score for this population."""
-    del source_profile
+    del source_profile, source_lines
     normalized_uid = str(chart_uid or "").strip().upper()
     source_gates = normalize_gates(gates)
     matches: list[HumanDesignSynastryMatch] = []
@@ -262,6 +326,7 @@ def rank_human_design_synastry_ideal(
     candidates: Iterable[HumanDesignSynastryCandidate],
     *,
     source_profile: object | None = None,
+    source_lines: Iterable[object] | None = None,
     limit: int = 10,
 ) -> list[HumanDesignSynastryMatch]:
     """Rank candidates by ideal composite HD definition: 8/9 centers, then channels.
@@ -271,6 +336,7 @@ def rank_human_design_synastry_ideal(
     centers are intentionally not treated as perfect for this mode.
     """
     candidate_list = list(candidates)
+    del source_lines
     base_matches = rank_human_design_synastry(
         chart_uid,
         gates,

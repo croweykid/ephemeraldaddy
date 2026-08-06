@@ -6,6 +6,8 @@ from ephemeraldaddy.analysis.human_design_synastry import (
     human_design_electrochemistry_score,
     human_design_profile_relation,
     normalize_gates,
+    normalize_lines,
+    rank_human_design_resonance,
     rank_human_design_synastry,
     rank_human_design_synastry_ideal,
 )
@@ -85,6 +87,30 @@ def test_rank_uses_summed_channel_and_center_score():
     assert results[0].completed_channels == 2
     assert results[0].defined_centers == 2
     assert results[0].score == 4
+
+
+def test_resonance_rank_prefers_shared_gates_then_lines():
+    results = rank_human_design_resonance(
+        "SOURCE",
+        {1, 2, 3},
+        [
+            HumanDesignSynastryCandidate(
+                "LINES", "More lines", None, frozenset({1}), lines=frozenset({1, 2, 3})
+            ),
+            HumanDesignSynastryCandidate(
+                "GATES", "More gates", None, frozenset({1, 2}), lines=frozenset({1})
+            ),
+        ],
+        source_lines={1, 2, 3},
+    )
+
+    assert [match.chart_uid for match in results] == ["GATES", "LINES"]
+    assert (results[0].shared_gates, results[0].shared_lines) == (2, 1)
+    assert (results[1].shared_gates, results[1].shared_lines) == (1, 3)
+
+
+def test_normalize_lines_accepts_only_human_design_lines():
+    assert normalize_lines([0, "1", 6, 7, "bad"]) == frozenset({1, 6})
 
 
 def test_electrochemistry_score_sums_cross_chart_channels_and_combined_centers():

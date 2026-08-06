@@ -4531,6 +4531,7 @@ def list_human_design_synastry_candidates():
     from ephemeraldaddy.analysis.human_design_synastry import (
         HumanDesignSynastryCandidate,
         normalize_gates,
+        normalize_lines,
     )
 
     conn = _get_conn()
@@ -4542,11 +4543,17 @@ def list_human_design_synastry_candidates():
         if "human_design_profile" in columns
         else "NULL AS human_design_profile"
     )
+    lines_select = (
+        "human_design_lines"
+        if "human_design_lines" in columns
+        else "NULL AS human_design_lines"
+    )
     rows = conn.execute(
         f"""
         SELECT chart_uid, name, alias, human_design_gates,
                birthtime_unknown, retcon_time_used, gender, source, chart_type,
-               relationship_types, derived_birth_data_signature, {profile_select}
+               relationship_types, derived_birth_data_signature, {profile_select},
+               {lines_select}
         FROM charts
         WHERE COALESCE(is_placeholder, 0) = 0
           AND COALESCE(human_design_gates, '') != ''
@@ -4565,6 +4572,7 @@ def list_human_design_synastry_candidates():
             relationship_types=tuple(_parse_string_list(row[9])),
             astro_data_signature=str(row[10]).strip() if row[10] else None, #was originally row[7], got moved, make sure this doesn't cause issues.
             profile=str(row[11]).strip() if row[11] else None,
+            lines=normalize_lines(_parse_int_list(row[12])),
         )
         for row in rows
         if str(row[0] or "").strip()
