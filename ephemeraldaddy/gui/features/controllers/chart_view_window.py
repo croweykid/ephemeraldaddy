@@ -86,6 +86,7 @@ from ephemeraldaddy.gui.features.predictions.hd_electrochemistry import (
     HD_ELECTROCHEMISTRY_MODE_IDEAL,
     HD_ELECTROCHEMISTRY_MODE_STANDARD,
     HD_ELECTROCHEMISTRY_SUBHEADER,
+    HD_RESONANCE_MODE,
     configure_hd_electrochemistry_label,
     make_hd_electrochemistry_matches_collection,
     on_hd_electrochemistry_gender_filter_changed,
@@ -1862,6 +1863,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     owner.hd_electrochemistry_prediction_mode = HD_ELECTROCHEMISTRY_MODE_STANDARD
     hd_electrochemistry_mode_combo.addItem("🪷HD Electrochemistry", HD_ELECTROCHEMISTRY_MODE_STANDARD)
     hd_electrochemistry_mode_combo.addItem("🪷HD Electrochemical Ideal", HD_ELECTROCHEMISTRY_MODE_IDEAL)
+    hd_electrochemistry_mode_combo.addItem("🪷HD Resonance", HD_RESONANCE_MODE)
     hd_electrochemistry_mode_combo.currentIndexChanged.connect(
         lambda _index: on_hd_electrochemistry_mode_changed(
             owner, hd_electrochemistry_mode_combo.currentData()

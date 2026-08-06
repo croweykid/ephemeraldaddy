@@ -4571,6 +4571,30 @@ def list_human_design_synastry_candidates():
     ]
 
 
+def list_human_design_resonance_candidates():
+    """Return HD candidates with canonical gate-line activations, loaded in one batch."""
+    from dataclasses import replace
+
+    from ephemeraldaddy.analysis.human_design import (
+        get_active_human_design_gates_and_lines,
+    )
+
+    candidates = list_human_design_synastry_candidates()
+    charts_by_uid = load_charts_by_uids(candidate.chart_uid for candidate in candidates)
+    enriched = []
+    for candidate in candidates:
+        chart = charts_by_uid.get(candidate.chart_uid)
+        if chart is None:
+            enriched.append(candidate)
+            continue
+        try:
+            _gates, gate_lines = get_active_human_design_gates_and_lines(chart)
+        except Exception:
+            gate_lines = set()
+        enriched.append(replace(candidate, gate_lines=frozenset(gate_lines)))
+    return enriched
+
+
 def list_charts() -> List[
     Tuple[
         int,
