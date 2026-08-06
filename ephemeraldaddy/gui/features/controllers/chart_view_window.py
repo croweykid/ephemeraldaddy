@@ -81,7 +81,11 @@ from ephemeraldaddy.gui.features.charts.euphonics import (
     render_euphonics_html,
 )
 from ephemeraldaddy.gui.features.charts.loading_overlay import ChartLoadingOverlay
-from ephemeraldaddy.gui.features.charts.prediction_loading_labels import start_prediction_loading_blink
+from ephemeraldaddy.gui.features.charts.prediction_loading_labels import (
+    start_prediction_loading_blink,
+    start_prediction_loading_ellipsis,
+)
+from ephemeraldaddy.semantics_formatting import THEY_THEM_THEIR, pronouns_for_gender
 from ephemeraldaddy.gui.features.predictions.hd_electrochemistry import (
     HD_ELECTROCHEMISTRY_MODE_IDEAL,
     HD_ELECTROCHEMISTRY_MODE_STANDARD,
@@ -1906,6 +1910,10 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         "color: #d8c8ff; background: rgba(129, 86, 255, 0.10); border: 1px solid rgba(180, 150, 255, 0.35); border-radius: 6px; padding: 6px;"
     )
     layout.addWidget(owner.predictions_background_status_label)
+    owner.predictions_panel_subheader = QLabel()
+    owner.predictions_panel_subheader.setWordWrap(True)
+    owner.predictions_panel_subheader.setStyleSheet(COLLAPSIBLE_SECTION_SUBHEADER_STYLE)
+    layout.addWidget(owner.predictions_panel_subheader)
     owner._set_prediction_header_action = MethodType(
         lambda self, section_key, state: _set_prediction_header_action(self, section_key, state),
         owner,
@@ -1932,81 +1940,6 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         setattr(owner, attribute_name, subheader)
         return subheader
 
-    hd_electrochemistry_section_layout = owner._add_chart_analysis_collapsible_section(
-        panel=panel,
-        layout=layout,
-        title="Predicted Synastry",
-        expanded=True,
-    )
-    register_prediction_section("hd_electrochemistry", hd_electrochemistry_section_layout)
-    hd_electrochemistry_gender_row = QWidget()
-    hd_electrochemistry_gender_layout = QHBoxLayout(hd_electrochemistry_gender_row)
-    hd_electrochemistry_gender_layout.setContentsMargins(0, 0, 0, 0)
-    hd_electrochemistry_gender_layout.setSpacing(10)
-    hd_electrochemistry_gender_layout.addWidget(QLabel("Results:"))
-    owner.hd_electrochemistry_gender_filter = "all"
-    owner.hd_electrochemistry_gender_filter_group = QButtonGroup(owner)
-    for label, value in (("All", "all"), ("Male", "male"), ("Female", "female")):
-        button = QRadioButton(label)
-        button.setChecked(value == "all")
-        button.toggled.connect(
-            lambda checked, selected=value: on_hd_electrochemistry_gender_filter_changed(owner, selected, checked)
-        )
-        owner.hd_electrochemistry_gender_filter_group.addButton(button)
-        hd_electrochemistry_gender_layout.addWidget(button)
-    hd_electrochemistry_gender_layout.addStretch(1)
-    hd_electrochemistry_section_layout.addWidget(hd_electrochemistry_gender_row)
-    hd_electrochemistry_mode_combo = QComboBox()
-    apply_shared_dropdown_style(hd_electrochemistry_mode_combo)
-    owner.hd_electrochemistry_prediction_mode = HD_ELECTROCHEMISTRY_MODE_STANDARD
-    hd_electrochemistry_mode_combo.addItem("🪷HD Electrochemistry", HD_ELECTROCHEMISTRY_MODE_STANDARD)
-    hd_electrochemistry_mode_combo.addItem("🪷HD Electrochemical Ideal", HD_ELECTROCHEMISTRY_MODE_IDEAL)
-    hd_electrochemistry_mode_combo.addItem("🪷HD Resonance", HD_RESONANCE_MODE)
-    hd_electrochemistry_mode_combo.currentIndexChanged.connect(
-        lambda _index: on_hd_electrochemistry_mode_changed(
-            owner, hd_electrochemistry_mode_combo.currentData()
-        )
-    )
-    hd_electrochemistry_section_layout.addWidget(hd_electrochemistry_mode_combo)
-    hd_electrochemistry_subheader = add_prediction_subheader(
-        hd_electrochemistry_section_layout,
-        "hd_electrochemistry_prediction_subheader",
-    )
-    hd_electrochemistry_subheader.setText(HD_ELECTROCHEMISTRY_SUBHEADER)
-    owner.hd_electrochemistry_prediction_label = QLabel("Open Predictions to calculate rankings.")
-    configure_hd_electrochemistry_label(owner, owner.hd_electrochemistry_prediction_label)
-    hd_electrochemistry_section_layout.addWidget(owner.hd_electrochemistry_prediction_label)
-    hd_electrochemistry_collection_row = QWidget()
-    hd_electrochemistry_collection_layout = QHBoxLayout(hd_electrochemistry_collection_row)
-    hd_electrochemistry_collection_layout.setContentsMargins(0, 0, 0, 0)
-    hd_electrochemistry_collection_layout.setSpacing(6)
-    hd_electrochemistry_collection_layout.addWidget(QLabel("Collection:"))
-    owner.hd_electrochemistry_collection_filter = "all"
-    owner.hd_electrochemistry_collection_combo = QComboBox()
-    apply_shared_dropdown_style(owner.hd_electrochemistry_collection_combo)
-    populate_hd_electrochemistry_collection_combo(owner, owner.hd_electrochemistry_collection_combo)
-    owner.hd_electrochemistry_collection_combo.currentIndexChanged.connect(
-        lambda _index: on_hd_electrochemistry_collection_changed(
-            owner, owner.hd_electrochemistry_collection_combo.currentData()
-        )
-    )
-    hd_electrochemistry_collection_layout.addWidget(owner.hd_electrochemistry_collection_combo, 1)
-    hd_electrochemistry_section_layout.addWidget(hd_electrochemistry_collection_row)
-    owner.hd_electrochemistry_make_collection_button = QPushButton(
-        "Make collection from matches"
-    )
-    owner.hd_electrochemistry_make_collection_button.clicked.connect(
-        lambda: make_hd_electrochemistry_matches_collection(owner)
-    )
-    hd_electrochemistry_section_layout.addWidget(
-        owner.hd_electrochemistry_make_collection_button
-    )
-    owner.hd_electrochemistry_prediction_mode_combo = hd_electrochemistry_mode_combo
-    owner._render_hd_electrochemistry_predictions = MethodType(
-        lambda self, chart: render_hd_electrochemistry_predictions(self, chart),
-        owner,
-    )
-
     traits_section_layout = owner._add_chart_analysis_collapsible_section(
         panel=panel,
         layout=layout,
@@ -2017,7 +1950,10 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     )
     register_prediction_section("traits", traits_section_layout)
     _install_prediction_header_action(owner, traits_section_layout, "traits")
-    add_prediction_subheader(traits_section_layout, "traits_prediction_subheader")
+    owner.traits_prediction_updated_label = QLabel("Current results have not been calculated yet.")
+    owner.traits_prediction_updated_label.setWordWrap(True)
+    owner.traits_prediction_updated_label.setStyleSheet(COLLAPSIBLE_SECTION_SUBHEADER_STYLE)
+    traits_section_layout.addWidget(owner.traits_prediction_updated_label)
     traits_header_row = QWidget()
     traits_header_layout = QHBoxLayout()
     traits_header_layout.setContentsMargins(0, 0, 0, 0)
@@ -2037,16 +1973,14 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     traits_header_layout.addWidget(owner.traits_prediction_mode_combo, alignment=Qt.AlignRight)
     traits_section_layout.addWidget(traits_header_row)
 
-    owner.traits_prediction_label = _make_predictions_loading_label(
-        "Loading trait predictions…",  #for this UID
-        alignment=Qt.AlignLeft | Qt.AlignTop,
-    )
+    owner.traits_prediction_label = QLabel("Loading trait predictions.")
     owner.traits_prediction_label.setTextFormat(Qt.RichText)
     owner.traits_prediction_label.setWordWrap(True)
-    owner.traits_prediction_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+    owner.traits_prediction_label.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
     owner.traits_prediction_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
     owner.traits_prediction_label.setMinimumHeight(owner.traits_prediction_label.sizeHint().height())
     traits_section_layout.addWidget(owner.traits_prediction_label)
+    start_prediction_loading_ellipsis(owner.traits_prediction_label, "Loading trait predictions")
 
     owner.traits_prediction_table = QTableView()
     owner.traits_prediction_table.setVisible(False)
@@ -2201,6 +2135,81 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         expanded=True,
         parent_layout=layout,
     )
+    hd_electrochemistry_section_layout = owner._add_chart_analysis_collapsible_section(
+        panel=panel,
+        layout=layout,
+        title="Predicted Synastry",
+        expanded=True,
+    )
+    register_prediction_section("hd_electrochemistry", hd_electrochemistry_section_layout)
+    hd_electrochemistry_gender_row = QWidget()
+    hd_electrochemistry_gender_layout = QHBoxLayout(hd_electrochemistry_gender_row)
+    hd_electrochemistry_gender_layout.setContentsMargins(0, 0, 0, 0)
+    hd_electrochemistry_gender_layout.setSpacing(10)
+    hd_electrochemistry_gender_layout.addWidget(QLabel("Results:"))
+    owner.hd_electrochemistry_gender_filter = "all"
+    owner.hd_electrochemistry_gender_filter_group = QButtonGroup(owner)
+    for label, value in (("All", "all"), ("Male", "male"), ("Female", "female")):
+        button = QRadioButton(label)
+        button.setChecked(value == "all")
+        button.toggled.connect(
+            lambda checked, selected=value: on_hd_electrochemistry_gender_filter_changed(owner, selected, checked)
+        )
+        owner.hd_electrochemistry_gender_filter_group.addButton(button)
+        hd_electrochemistry_gender_layout.addWidget(button)
+    hd_electrochemistry_gender_layout.addStretch(1)
+    hd_electrochemistry_section_layout.addWidget(hd_electrochemistry_gender_row)
+    hd_electrochemistry_mode_combo = QComboBox()
+    apply_shared_dropdown_style(hd_electrochemistry_mode_combo)
+    owner.hd_electrochemistry_prediction_mode = HD_ELECTROCHEMISTRY_MODE_STANDARD
+    hd_electrochemistry_mode_combo.addItem("🪷HD Electrochemistry", HD_ELECTROCHEMISTRY_MODE_STANDARD)
+    hd_electrochemistry_mode_combo.addItem("🪷HD Electrochemical Ideal", HD_ELECTROCHEMISTRY_MODE_IDEAL)
+    hd_electrochemistry_mode_combo.addItem("🪷HD Resonance", HD_RESONANCE_MODE)
+    hd_electrochemistry_mode_combo.currentIndexChanged.connect(
+        lambda _index: on_hd_electrochemistry_mode_changed(
+            owner, hd_electrochemistry_mode_combo.currentData()
+        )
+    )
+    hd_electrochemistry_section_layout.addWidget(hd_electrochemistry_mode_combo)
+    hd_electrochemistry_subheader = add_prediction_subheader(
+        hd_electrochemistry_section_layout,
+        "hd_electrochemistry_prediction_subheader",
+    )
+    hd_electrochemistry_subheader.setText(HD_ELECTROCHEMISTRY_SUBHEADER)
+    owner.hd_electrochemistry_prediction_label = QLabel("Open Predictions to calculate rankings.")
+    configure_hd_electrochemistry_label(owner, owner.hd_electrochemistry_prediction_label)
+    hd_electrochemistry_section_layout.addWidget(owner.hd_electrochemistry_prediction_label)
+    hd_electrochemistry_collection_row = QWidget()
+    hd_electrochemistry_collection_layout = QHBoxLayout(hd_electrochemistry_collection_row)
+    hd_electrochemistry_collection_layout.setContentsMargins(0, 0, 0, 0)
+    hd_electrochemistry_collection_layout.setSpacing(6)
+    hd_electrochemistry_collection_layout.addWidget(QLabel("Collection:"))
+    owner.hd_electrochemistry_collection_filter = "all"
+    owner.hd_electrochemistry_collection_combo = QComboBox()
+    apply_shared_dropdown_style(owner.hd_electrochemistry_collection_combo)
+    populate_hd_electrochemistry_collection_combo(owner, owner.hd_electrochemistry_collection_combo)
+    owner.hd_electrochemistry_collection_combo.currentIndexChanged.connect(
+        lambda _index: on_hd_electrochemistry_collection_changed(
+            owner, owner.hd_electrochemistry_collection_combo.currentData()
+        )
+    )
+    hd_electrochemistry_collection_layout.addWidget(owner.hd_electrochemistry_collection_combo, 1)
+    hd_electrochemistry_section_layout.addWidget(hd_electrochemistry_collection_row)
+    owner.hd_electrochemistry_make_collection_button = QPushButton(
+        "Make collection from matches"
+    )
+    owner.hd_electrochemistry_make_collection_button.clicked.connect(
+        lambda: make_hd_electrochemistry_matches_collection(owner)
+    )
+    hd_electrochemistry_section_layout.addWidget(
+        owner.hd_electrochemistry_make_collection_button
+    )
+    owner.hd_electrochemistry_prediction_mode_combo = hd_electrochemistry_mode_combo
+    owner._render_hd_electrochemistry_predictions = MethodType(
+        lambda self, chart: render_hd_electrochemistry_predictions(self, chart),
+        owner,
+    )
+
     owner._update_observations_relationship_subheaders()
     layout.addStretch(1)
     return panel
@@ -2787,11 +2796,14 @@ def _update_observations_relationship_subheaders(self, _text: str = "") -> None:
     )
     person_name = self.name_edit.text().strip() or "this person"
     prediction_name = self.name_edit.text().strip()
-    traits_subject = f"{prediction_name}'s" if prediction_name else "This chart's"
     prediction_subject = prediction_name or "this chart"
+    gender = self.gender_combo.currentData() if hasattr(self, "gender_combo") else ""
+    pronouns = pronouns_for_gender(gender, default=THEY_THEM_THEIR)
     contextual_copy = {
-        "traits_prediction_subheader": (
-            f"{traits_subject} predicted traits based on astrological data."
+        "predictions_panel_subheader": (
+            f"Fwiw, here are various factors about {prediction_subject}, predicted by "
+            f"{pronouns.possessive} astrological chart through the lens of the app "
+            "developer's interpretations."
         ),
         "dnd_species_prediction_subheader": (
             f"What fantasy creature {prediction_subject} would be, astrologically speaking, "

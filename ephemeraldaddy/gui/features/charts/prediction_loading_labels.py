@@ -10,6 +10,7 @@ from PySide6.QtCore import QTimer
 _LOADING_TIMER_ATTR = "_ephemeraldaddy_loading_blink_timer"
 _LOADING_STATE_ATTR = "_ephemeraldaddy_loading_blink_state"
 _LOADING_STYLE_ATTR = "_ephemeraldaddy_loading_blink_previous_style"
+_ELLIPSIS_TIMER_ATTR = "_ephemeraldaddy_loading_ellipsis_timer"
 
 
 def stop_prediction_loading_blink(label: Any) -> None:
@@ -64,5 +65,35 @@ def start_prediction_loading_blink(label: Any) -> None:
     timer = QTimer(label)
     timer.timeout.connect(_tick)
     label._ephemeraldaddy_loading_blink_timer = timer
+    _tick()
+    timer.start(450)
+
+
+def start_prediction_loading_ellipsis(label: Any, message: str) -> None:
+    """Animate a centered loading message with one through three periods."""
+    previous_timer = getattr(label, _ELLIPSIS_TIMER_ATTR, None)
+    if isinstance(previous_timer, QTimer):
+        previous_timer.stop()
+        previous_timer.deleteLater()
+
+    label._ephemeraldaddy_loading_ellipsis_state = 0
+
+    def _tick() -> None:
+        try:
+            current_text = str(label.text())
+        except RuntimeError:
+            timer.stop()
+            return
+        if current_text and not current_text.startswith(message):
+            timer.stop()
+            timer.deleteLater()
+            return
+        state = int(getattr(label, "_ephemeraldaddy_loading_ellipsis_state", 0))
+        label.setText(f"{message}{'.' * ((state % 3) + 1)}")
+        label._ephemeraldaddy_loading_ellipsis_state = state + 1
+
+    timer = QTimer(label)
+    timer.timeout.connect(_tick)
+    label._ephemeraldaddy_loading_ellipsis_timer = timer
     _tick()
     timer.start(450)

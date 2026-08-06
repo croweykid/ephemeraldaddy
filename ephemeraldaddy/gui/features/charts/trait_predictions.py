@@ -77,6 +77,7 @@ from ephemeraldaddy.gui.features.charts.database_norms_cache import (
 )
 from ephemeraldaddy.gui.features.charts.prediction_loading_labels import (
     start_prediction_loading_blink,
+    start_prediction_loading_ellipsis,
     stop_prediction_loading_blink,
 )
 from ephemeraldaddy.gui.style import (
@@ -1603,12 +1604,17 @@ def _trait_predictions_cache_key(
 
 
 def _trait_predictions_refresh_message(updated_at: str | None) -> str:
-    timestamp = html.escape(updated_at or "never")
-    return (
-        "<div style='color:#70d878; font-style:italic; padding-bottom:5px; text-align:center;'>"
-        f"Current results last updated: {timestamp} ♻️"
-        "</div>"
-    )
+    timestamp = html.escape((updated_at or "").replace("T", " "))
+    return f"Current results last updated on {timestamp}" if timestamp else ""
+
+
+def _set_traits_updated_label(owner: Any, updated_at: str | None) -> None:
+    label = getattr(owner, "traits_prediction_updated_label", None)
+    if isinstance(label, QLabel):
+        label.setText(
+            _trait_predictions_refresh_message(updated_at)
+            or "Current results have not been calculated yet."
+        )
 
 
 def _traits_calculate_prompt_html() -> str:
@@ -1751,12 +1757,12 @@ def _start_traits_prediction_calculation(owner: Any) -> None:
         return
     owner._traits_prediction_render_token = object()
     token = owner._traits_prediction_render_token
-    message = (
-        _trait_predictions_refresh_message(None)
-        + "<div style='color:#c77dff; font-weight:700; text-align:center;'>"
-        "● Loading trait predictions… ●</div>"  #for this UID
-    )
+    message = "Loading trait predictions."
     _apply_traits_prediction_view(owner, message, message)
+    label = getattr(owner, "traits_prediction_label", None)
+    if isinstance(label, QLabel):
+        label.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
+        start_prediction_loading_ellipsis(label, "Loading trait predictions")
     _start_traits_prediction_refresh_worker(
         owner,
         chart,
@@ -1993,6 +1999,7 @@ def _apply_traits_prediction_metadata(
     *,
     prefix_html: str = "",
 ) -> None:
+    _set_traits_updated_label(owner, str(metadata.get("updated_at", "") or ""))
     rows = _trait_prediction_rows_from_metadata(traits, metadata)
     table = getattr(owner, "traits_prediction_table", None)
     has_table = isinstance(table, QTableView)
