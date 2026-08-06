@@ -368,9 +368,9 @@ class OceanPredictionPanelAdapter:
             mbti = ocean_scores_to_mbti_with_neuroticism_prefix(calculate_ocean_scores(chart))
             self.label.setText(
                 f"<b>MBTI: {mbti}</b><br>"
-                f"OCEAN dominance predictor ({houses_text}). Horizontal spectra run from -10 to +10 "
-                "with 0 as neutral: Openness/Conventionality, Conscientiousness/Casualness, "
-                "Extraversion/Introversion, Agreeableness/Abrasiveness, Neuroticism/Stability. "
+                #f"OCEAN dominance predictor ({houses_text}). Horizontal spectra run from -10 to +10 "
+                #"with 0 as neutral: Openness/Conventionality, Conscientiousness/Casualness, "
+                #"Extraversion/Introversion, Agreeableness/Abrasiveness, Neuroticism/Stability. "
                 "MBTI translation uses E→E/I, O→N/S, A→F/T, and C→J/P; exact neutral is x, "
                 "and scores within 3 points of neutral are lowercase."
             )
