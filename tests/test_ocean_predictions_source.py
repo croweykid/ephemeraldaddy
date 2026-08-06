@@ -141,3 +141,16 @@ def test_ocean_settings_orchestration_stays_outside_app_window():
     assert "class SettingsAdapter(Protocol)" in controller_source
     assert "def _update_ocean_predictor_setting" not in app_source
     assert "ocean_settings_controller.bind_controls" in app_source
+
+
+def test_ocean_settings_refresh_current_prediction_without_database_cache_invalidation():
+    app_source = Path("ephemeraldaddy/gui/app.py").read_text()
+    settings_block = app_source.split(
+        'enneagram_section = self._add_settings_collapsible_section(content_layout, "Predictions")',
+        1,
+    )[1].split("add_traits_settings_section", 1)[0]
+
+    assert "owner._refresh_ocean_predictions_after_settings_change" in settings_block
+    assert "self._invalidate_database_metrics_cache" not in settings_block
+    assert "def _refresh_ocean_predictions_after_settings_change" in app_source
+    assert "self._render_ocean_predictions(chart)" in app_source

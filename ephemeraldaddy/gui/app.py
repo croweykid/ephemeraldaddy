@@ -22343,8 +22343,14 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._load_similarity_thresholds_into_controls()
 
         enneagram_section = self._add_settings_collapsible_section(content_layout, "Predictions")
+        owner = self._owner_window()
+        refresh_ocean_output = (
+            owner._refresh_ocean_predictions_after_settings_change
+            if isinstance(owner, MainWindow)
+            else None
+        )
         ocean_settings_controller = OceanPredictorSettingsController(
-            self._settings, on_changed=self._invalidate_database_metrics_cache
+            self._settings, on_changed=refresh_ocean_output
         )
         enneagram_controls = build_predictions_settings_section(
             dialog=dialog,
@@ -38091,6 +38097,12 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
 
     def _render_ocean_predictions(self, chart: Chart | None) -> None:
         self._ocean_prediction_adapter().render(chart, self._render_metric_panel)
+
+    def _refresh_ocean_predictions_after_settings_change(self) -> None:
+        """Immediately redraw the current OCEAN bars and MBTI after a settings edit."""
+        chart = self._latest_chart
+        if chart is not None:
+            self._render_ocean_predictions(chart)
 
     def _draw_ocean_predictions(self, ax: Any, chart: Chart | None) -> None:
         self._ocean_prediction_adapter().draw(ax, chart)
