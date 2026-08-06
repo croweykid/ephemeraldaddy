@@ -26822,6 +26822,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         panel_key: str,
         score: int | None,
         not_applicable: bool,
+        ranking_position: int,
     ) -> bool:
         subject_chart = getattr(dialog, "_similar_chart_popout_subject_chart", None)
         subject_name = (
@@ -26864,7 +26865,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 perceived_similarity_not_applicable=not_applicable,
                 chart_1_uid=chart_uid_map.get(subject_chart_id),
                 chart_2_uid=chart_uid_map.get(compared_chart_id),
-                ranking_position=getattr(match, "rank", None),
+                ranking_position=ranking_position,
             )
             self._refresh_similarity_algorithm_accuracy_label()
         except Exception:

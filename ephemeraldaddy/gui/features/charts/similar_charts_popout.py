@@ -3299,7 +3299,9 @@ def build_similar_charts_popout_dialog(
     show_perceived_accuracy_controls: bool = False,
     perceived_accuracy_states: Mapping[str, Mapping[str, Any]] | None = None,
     perceived_accuracy_uid_by_chart_id: Mapping[int, str] | None = None,
-    on_perceived_accuracy_changed: Callable[[QDialog, Any, str, int | None, bool], bool | None] | None = None,
+    on_perceived_accuracy_changed: (
+        Callable[[QDialog, Any, str, int | None, bool, int], bool | None] | None
+    ) = None,
     on_chart_info_target_requested: Callable[[QDialog, str], None] | None = None,
 ) -> QDialog:
     dialog = QDialog(parent)
@@ -3601,6 +3603,7 @@ def build_similar_charts_popout_dialog(
                 match: Any,
                 line_edit: QLineEdit,
                 na_checkbox: QCheckBox,
+                ranking_position: int,
             ) -> None:
                 if on_perceived_accuracy_changed is None:
                     return
@@ -3621,6 +3624,7 @@ def build_similar_charts_popout_dialog(
                     panel_key,
                     score,
                     bool(na_checkbox.isChecked()),
+                    ranking_position,
                 )
                 if recorded is False:
                     _set_perceived_accuracy_recorded_style(line_edit, na_checkbox, recorded=False, failed=True)
@@ -3633,15 +3637,17 @@ def build_similar_charts_popout_dialog(
                 match: Any,
                 line_edit: QLineEdit,
                 na_checkbox: QCheckBox,
+                ranking_position: int,
             ) -> None:
                 if na_checkbox.isChecked():
                     return
-                _emit_accuracy_change(match, line_edit, na_checkbox)
+                _emit_accuracy_change(match, line_edit, na_checkbox, ranking_position)
 
             def _on_na_checkbox_changed(
                 match: Any,
                 line_edit: QLineEdit,
                 na_checkbox: QCheckBox,
+                ranking_position: int,
             ) -> None:
                 if na_checkbox.isChecked():
                     if line_edit.text().strip():
@@ -3662,7 +3668,7 @@ def build_similar_charts_popout_dialog(
                     line_edit.setEnabled(False)
                 else:
                     line_edit.setEnabled(True)
-                _emit_accuracy_change(match, line_edit, na_checkbox)
+                _emit_accuracy_change(match, line_edit, na_checkbox, ranking_position)
 
             expanded_why_targets: set[str] = set()
 
@@ -3751,17 +3757,19 @@ def build_similar_charts_popout_dialog(
                     )
                 )
                 accuracy_input.editingFinished.connect(
-                    lambda match=match, line_edit=accuracy_input, checkbox=na_checkbox: _on_accuracy_edit_finished(
+                    lambda match=match, line_edit=accuracy_input, checkbox=na_checkbox, rank=rank: _on_accuracy_edit_finished(  # noqa: E501
                         match,
                         line_edit,
                         checkbox,
+                        rank,
                     )
                 )
                 na_checkbox.stateChanged.connect(
-                    lambda _state, match=match, line_edit=accuracy_input, checkbox=na_checkbox: _on_na_checkbox_changed(
+                    lambda _state, match=match, line_edit=accuracy_input, checkbox=na_checkbox, rank=rank: _on_na_checkbox_changed(  # noqa: E501
                         match,
                         line_edit,
                         checkbox,
+                        rank,
                     )
                 )
                 row_layout.addWidget(accuracy_input, 0, Qt.AlignTop | Qt.AlignRight)
