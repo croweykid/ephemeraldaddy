@@ -35,6 +35,9 @@ class ChartEditorDraftSummary:
     rectification_notes: str
     biography: str
     chart_data_source: str
+    enneagram_type: tuple[str, str]
+    tritype: tuple[int, int, int]
+    mbti: tuple[str, str, str, str]
 
 
 def _time_from_minutes(minutes: object) -> str:
@@ -62,6 +65,26 @@ def _normalized_tags(tags: Iterable[object] | None) -> tuple[str, ...]:
             normalized.append(tag)
             seen.add(tag.casefold())
     return tuple(normalized)
+
+
+def _enneagram_display(values: Iterable[object] | None) -> str:
+    normalized = [str(value or "0") for value in (values or ())]
+    primary, wing = (normalized + ["0", "0"])[:2]
+    if primary == "0":
+        return ""
+    return primary if wing == "0" else f"{primary}w{wing}"
+
+
+def _tritype_display(values: Iterable[object] | None) -> str:
+    normalized = [int(value or 0) for value in (values or ())]
+    populated = [str(value) for value in (normalized + [0, 0, 0])[:3] if value]
+    return "-".join(populated)
+
+
+def _mbti_display(values: Iterable[object] | None) -> str:
+    normalized = [str(value or "?") for value in (values or ())]
+    letters = (normalized + ["?", "?", "?", "?"])[:4]
+    return "" if all(letter == "?" for letter in letters) else "".join(letters)
 
 
 def summarize_chart_editor_draft_changes(
@@ -121,6 +144,21 @@ def summarize_chart_editor_draft_changes(
     add("Rectification notes", getattr(saved_chart, "rectification_notes", ""), draft.rectification_notes)
     add("Bio", getattr(saved_chart, "biography", ""), draft.biography)
     add("Source", getattr(saved_chart, "chart_data_source", ""), draft.chart_data_source)
+    add(
+        "Enneagram",
+        _enneagram_display(getattr(saved_chart, "enneagram_type", None)),
+        _enneagram_display(draft.enneagram_type),
+    )
+    add(
+        "Tri-Type",
+        _tritype_display(getattr(saved_chart, "tritype", None)),
+        _tritype_display(draft.tritype),
+    )
+    add(
+        "MBTI",
+        _mbti_display(getattr(saved_chart, "mbti", None)),
+        _mbti_display(draft.mbti),
+    )
     if recalculation_required:
         changes.insert(0, RECALCULATION_NOTICE)
     return changes

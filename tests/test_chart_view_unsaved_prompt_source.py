@@ -103,6 +103,23 @@ def test_subjective_checkbox_autosaves_use_batched_subjective_timer():
     assert "self._sentiment_metrics_autosave_timer.start(2000)" in queue_method
 
 
+def test_typology_fields_queue_lightweight_autosaves():
+    controller_source = (
+        Path(__file__).resolve().parents[1]
+        / "ephemeraldaddy/gui/features/controllers/chart_view_window.py"
+    ).read_text()
+    typology_start = controller_source.index("def _populate_typology_section")
+    typology_end = controller_source.index(
+        "def update_chart_view_typology_subheader", typology_start
+    )
+    typology_source = controller_source[typology_start:typology_end]
+
+    assert typology_source.count(
+        "owner._chart_editor_controller.on_lightweight_metadata_changed"
+    ) == 2
+    assert "connect(owner._mark_lucygoosey)" not in typology_source
+
+
 def test_flavor_text_fields_queue_lightweight_autosaves():
     for field_name in (
         "comments_edit",

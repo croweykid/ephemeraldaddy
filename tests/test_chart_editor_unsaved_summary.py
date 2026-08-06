@@ -49,7 +49,8 @@ def test_draft_comparison_is_owned_outside_app_and_reports_timing_changes():
         rectification_range_start_minute=660,
         rectification_range_end_minute=780, chart_type="Person", gender="",
         tags=[], comments="", rectification_notes="", biography="",
-        chart_data_source="",
+        chart_data_source="", enneagram_type=["9", "8"],
+        tritype=[9, 4, 5], mbti=["I", "N", "T", "P"],
     )
     draft = ChartEditorDraftSummary(
         name="Ada", alias="", from_whence="", birth_date="2000-01-02",
@@ -58,6 +59,8 @@ def test_draft_comparison_is_owned_outside_app_and_reports_timing_changes():
         rectification_range_used=True, rectification_range="11:30 to 13:30",
         chart_type="Person", gender="", tags=(), comments="",
         rectification_notes="", biography="", chart_data_source="",
+        enneagram_type=("9", "8"), tritype=(9, 4, 5),
+        mbti=("I", "N", "T", "P"),
     )
 
     changes = summarize_chart_editor_draft_changes(
@@ -68,3 +71,28 @@ def test_draft_comparison_is_owned_outside_app_and_reports_timing_changes():
     assert "Unknown birth time: no → yes" in changes
     assert "Use rectified time: no → yes" in changes
     assert "Rectified range: 11:00 to 13:00 → 11:30 to 13:30" in changes
+
+
+def test_draft_comparison_summarizes_typology_changes():
+    saved = SimpleNamespace(
+        enneagram_type=["9", "8"], tritype=[9, 4, 5],
+        mbti=["I", "N", "T", "P"],
+    )
+    draft = ChartEditorDraftSummary(
+        name="", alias="", from_whence="", birth_date="blank",
+        birth_place="", birthtime_unknown=False, birth_time="blank",
+        retcon_time_used=False, retcon_time="00:00",
+        rectification_range_used=False,
+        rectification_range="blank to blank", chart_type="", gender="",
+        tags=(), comments="", rectification_notes="", biography="",
+        chart_data_source="", enneagram_type=("4", "5"),
+        tritype=(4, 6, 9), mbti=("E", "N", "F", "J"),
+    )
+
+    changes = summarize_chart_editor_draft_changes(
+        saved, draft, recalculation_required=False
+    )
+
+    assert "Enneagram: 9w8 → 4w5" in changes
+    assert "Tri-Type: 9-4-5 → 4-6-9" in changes
+    assert "MBTI: INTP → ENFJ" in changes

@@ -32616,6 +32616,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             if all(date_parts)
             else "blank"
         )
+        enneagram_type, tritype, mbti = get_chart_view_typology(self)
         draft = ChartEditorDraftSummary(
             name=self.name_edit.text(), alias=self.alias_edit.text(),
             from_whence=self.from_whence_edit.text(), birth_date=birth_date,
@@ -32632,6 +32633,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             rectification_notes=self.rectification_edit.toPlainText(),
             biography=self.biography_edit.toPlainText(),
             chart_data_source=self.source_edit.toPlainText(),
+            enneagram_type=tuple(enneagram_type),
+            tritype=tuple(tritype),
+            mbti=tuple(mbti),
         )
         return summarize_chart_editor_draft_changes(
             saved_chart, draft,
