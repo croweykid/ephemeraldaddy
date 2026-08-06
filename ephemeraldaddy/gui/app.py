@@ -35,6 +35,7 @@ from importlib import resources as importlib_resources
 from zoneinfo import ZoneInfo
 
 from ephemeraldaddy.gui.crash_diagnostics import install_crash_diagnostics
+from ephemeraldaddy.core.position_descriptions import get_position_description
 
 
 logger = logging.getLogger(__name__)
@@ -31623,6 +31624,16 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         display_body = str(display_body_label or "").strip() or (_display_body_name(body_key) if body_key else "")
         title = f"{display_body} in {sign_key}" if display_body else sign_key
         cursor.insertText(f"{title}\n\n", title_fmt)
+        position_description = (
+            get_position_description(body_key, sign_key) if body_key else None
+        )
+        if position_description:
+            cursor.insertText(position_description, plain_fmt)
+            self.chart_info_output.setTextCursor(cursor)
+            reset_cursor = self.chart_info_output.textCursor()
+            reset_cursor.movePosition(QTextCursor.Start)
+            self.chart_info_output.setTextCursor(reset_cursor)
+            return
         theme = DOMINANT_BODY_MEANINGS.get(body_key, {}).get("core_theme", "")
         if theme:
             theme_color = PLANET_COLORS.get(body_key, CHART_THEME_COLORS.get("text", "#f5f5f5"))
