@@ -41,7 +41,7 @@ def test_property_manager_source_has_requested_preset_columns_and_placeholder():
     )
     manager = source.split("class ManageMetadataLabelsDialog", 1)[1]
 
-    assert '("Astro Twin Presets", self.FIELD_ASTRO_TWIN_PRESETS)' in manager
+    assert 'field_options = [("Astro Twin Presets", self.FIELD_ASTRO_TWIN_PRESETS)]' in manager
     assert 'QLabel("Astro Twin Presets Manager")' in manager
     assert 'setHeaderLabels(["Preset Name", "Algorithm", "Data Points"])' in manager
     assert '"select a preset to see its algorithmic weights"' in manager

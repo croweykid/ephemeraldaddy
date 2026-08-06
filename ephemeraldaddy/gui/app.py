@@ -384,6 +384,7 @@ from PySide6.QtWidgets import (
     QAbstractButton,
     QSlider,
     QToolTip,
+    QTabWidget,
 )
 from PySide6.QtCore import (
     Qt,
@@ -1155,9 +1156,6 @@ from ephemeraldaddy.analysis.hd_incarnation_crosses import (
 from ephemeraldaddy.core.human_design_system import MANDALA_GATE_ORDER, MANDALA_START_DEGREE
 from ephemeraldaddy.analysis.human_design_plugins import (
     humdes_gate_line_supplement_lines,
-    install_plugin_file,
-    installed_plugin_names,
-    recognized_plugin_names,
 )
 from ephemeraldaddy.analysis.human_design_reference import (
     HD_AUTHORITIES,
@@ -1604,6 +1602,7 @@ from ephemeraldaddy.gui.features.charts.chart_predictor_quiz import (
     create_chart_predictor_quiz_dialog,
 )
 from ephemeraldaddy.gui.features.settings.traits import add_traits_settings_section
+from ephemeraldaddy.gui.features.settings.plugins import add_plugins_settings_panels
 from ephemeraldaddy.gui.features.charts.trait_predictions import (
     render_traits_predictions as _render_traits_predictions,
     stop_traits_prediction_refresh_workers as _stop_traits_prediction_refresh_workers,
@@ -18372,21 +18371,42 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         if coordinator is None:
             coordinator = PropertyManagerCoordinator(self)
             self._property_manager_coordinator = coordinator
-        manager_widget = coordinator.create_widget(parent=self._settings_dialog or self, embedded=True)
+        tabs = QTabWidget(self._settings_dialog or self)
+        manager_widget = coordinator.create_widget(parent=tabs, embedded=True)
         manager_widget.finished.connect(lambda _result: coordinator.refresh_after_close())
         manager_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self._settings_property_manager_widget = manager_widget
-        section_layout.addWidget(manager_widget)
+        tabs.addTab(manager_widget, "Properties")
+        traits_widget = QWidget(tabs)
+        traits_layout = QVBoxLayout(traits_widget)
+        traits_layout.setContentsMargins(0, 0, 0, 0)
+        add_traits_settings_section(self, traits_layout)
+        tabs.addTab(traits_widget, "Traits")
+        section_layout.addWidget(tabs)
+
+    def _populate_settings_astro_twin_presets_section(self, section_layout: QVBoxLayout) -> None:
+        coordinator = getattr(self, "_property_manager_coordinator", None)
+        if coordinator is None:
+            coordinator = PropertyManagerCoordinator(self)
+            self._property_manager_coordinator = coordinator
+        manager_widget = coordinator.create_widget(
+            parent=self._settings_dialog or self,
+            initial_field=ManageMetadataLabelsDialog.FIELD_ASTRO_TWIN_PRESETS,
+            embedded=True,
+            lock_field=True,
+        )
+        manager_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self._settings_astro_twin_presets_widget = manager_widget
+        section_layout.addWidget(manager_widget, 1)
 
     def _show_settings_astro_twin_presets_manager(self) -> None:
-        tab_index = getattr(self, "_settings_section_title_to_index", {}).get("Property Managers")
-        tab_stack = getattr(self, "_settings_tab_stack", None)
-        if isinstance(tab_stack, QStackedWidget) and tab_index is not None:
-            tab_stack.setCurrentIndex(int(tab_index))
-        manager_widget = getattr(self, "_settings_property_manager_widget", None)
+        manager_widget = getattr(self, "_settings_astro_twin_presets_widget", None)
+        tabs = getattr(self, "_settings_astro_twin_tabs", None)
+        if isinstance(tabs, QTabWidget):
+            tabs.setCurrentIndex(1)
         if isinstance(manager_widget, ManageMetadataLabelsDialog):
             manager_widget.refresh_usage()
-            manager_widget.select_field(ManageMetadataLabelsDialog.FIELD_ASTRO_TWIN_PRESETS)
+            manager_widget.setFocus()
 
     def _on_custom_db_export(self) -> None:
         open_custom_db_export_dialog(self)
@@ -22271,10 +22291,22 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         similarity_calculator_section = self._add_settings_collapsible_section(
             content_layout,
             "Astro Twin Calculator",
+            fill_available_height=True,
         )
+        similarity_tabs = QTabWidget(dialog)
+        similarity_calculator_widget = QWidget(similarity_tabs)
+        similarity_calculator_layout = QVBoxLayout(similarity_calculator_widget)
+        similarity_calculator_layout.setContentsMargins(8, 8, 8, 8)
+        similarity_tabs.addTab(similarity_calculator_widget, "Calculator")
+        similarity_presets_widget = QWidget(similarity_tabs)
+        similarity_presets_layout = QVBoxLayout(similarity_presets_widget)
+        similarity_presets_layout.setContentsMargins(8, 8, 8, 8)
+        similarity_tabs.addTab(similarity_presets_widget, "Astro Twin Presets Manager")
+        similarity_calculator_section.addWidget(similarity_tabs)
+        self._settings_astro_twin_tabs = similarity_tabs
         similarity_controls = build_similarity_calculator_settings_section(
             dialog=dialog,
-            section_layout=similarity_calculator_section,
+            section_layout=similarity_calculator_layout,
             subheader_style=SETTINGS_SECTION_SUBHEADER_STYLE,
             on_mode_default_toggled=lambda checked: checked
             and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_DEFAULT),
@@ -22336,6 +22368,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._set_similar_charts_algorithm_mode(self._similar_charts_algorithm_mode)
         self._load_similarity_calculator_controls()
         self._load_similarity_thresholds_into_controls()
+        self._populate_settings_astro_twin_presets_section(similarity_presets_layout)
 
         enneagram_section = self._add_settings_collapsible_section(content_layout, "Prediction Methods")
         enneagram_controls = build_predictions_settings_section(
@@ -22357,11 +22390,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._enneagram_predictor_total_label = enneagram_controls["total_label"]
         self._load_enneagram_predictor_controls()
 
-        add_traits_settings_section(self, content_layout)
-
         property_manager_section = self._add_settings_collapsible_section(
             content_layout,
-            "Property Managers",
+            "Property Manager",
             fill_available_height=True,
         )
         self._populate_settings_property_manager_section(property_manager_section)
@@ -22375,23 +22406,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._populate_settings_custom_db_export_section(custom_db_export_section)
 
         plugins_section = self._add_settings_collapsible_section(content_layout, "Plugins")
-        plugins_section.addWidget(
-            self._build_settings_help_label(
-                "Install recognized local supplements. Installed plugins remain local and extend app-native descriptions when available."
-            )
-        )
-        self._plugins_upload_button = QPushButton("Upload Plugin File…")
-        self._plugins_upload_button.setStyleSheet("QPushButton { padding-top: 7px; }")
-        self._plugins_upload_button.clicked.connect(self._on_plugin_upload_clicked)
-        plugins_section.addWidget(self._plugins_upload_button, alignment=Qt.AlignLeft)
-        self._plugins_installed_label = QLabel("")
-        self._plugins_installed_label.setWordWrap(True)
-        plugins_section.addWidget(self._plugins_installed_label)
-        self._plugins_status_label = QLabel("")
-        self._plugins_status_label.setWordWrap(True)
-        self._plugins_status_label.setStyleSheet("color: #9a9a9a; font-style: italic; font-size: 7pt;")
-        self._plugins_status_label.hide()
-        self._refresh_plugins_status_labels()
+        add_plugins_settings_panels(self, plugins_section)
 
         age_tools_section = self._add_settings_collapsible_section(content_layout, "User Profile")
         age_tools_section.addWidget(QLabel("Age inference tools."))
@@ -22592,81 +22607,6 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._resize_and_center_settings_dialog(dialog)
         return dialog
 
-
-    def _refresh_plugins_status_labels(self) -> None:
-        recognized_plugins = recognized_plugin_names()
-        installed_plugins = installed_plugin_names()
-        available_plugins = [name for name in recognized_plugins if name not in installed_plugins]
-
-        upload_button = getattr(self, "_plugins_upload_button", None)
-        if isinstance(upload_button, QPushButton):
-            upload_button.setToolTip("Currently recognized plugins: " + ", ".join(recognized_plugins))
-
-        installed_label = getattr(self, "_plugins_installed_label", None)
-        if isinstance(installed_label, QLabel):
-            if installed_plugins:
-                installed_label.setText("✓ Currently installed: " + ", ".join(installed_plugins))
-                installed_label.setStyleSheet("color: #6ee07f; font-style: italic; font-size: 8pt;")
-                installed_label.show()
-            else:
-                installed_label.clear()
-                installed_label.hide()
-
-        status_label = getattr(self, "_plugins_status_label", None)
-        if not available_plugins and installed_plugins:
-            status_text = "All currently available plugins are installed."
-        elif installed_plugins:
-            status_text = "Plugins still available: " + ", ".join(available_plugins)
-        else:
-            status_text = "Currently recognized plugins: " + ", ".join(recognized_plugins)
-        footer_writer = getattr(self, "_set_settings_section_footer_note", None)
-        if callable(footer_writer):
-            footer_writer("Plugins", status_text)
-            if isinstance(status_label, QLabel):
-                status_label.hide()
-        elif isinstance(status_label, QLabel):
-            status_label.setText(status_text)
-            status_label.show()
-
-    def _on_plugin_upload_clicked(self) -> None:
-        file_path, _selected_filter = QFileDialog.getOpenFileName(
-            self,
-            "Upload Plugin File",
-            "",
-            "JSON files (*.json);;All files (*)",
-        )
-        if not file_path:
-            return
-        recognized_plugins = recognized_plugin_names()
-        if Path(file_path).name not in recognized_plugins:
-            QMessageBox.information(
-                self,
-                "Plugin not recognized",
-                "Plugin not recognized. Currently recognized plugins: "
-                + ", ".join(recognized_plugins),
-            )
-            return
-        try:
-            install_plugin_file(file_path)
-        except Exception as exc:
-            QMessageBox.warning(
-                self,
-                "Plugin install failed",
-                f"Plugin could not be installed: {exc}",
-            )
-            return
-        upload_button = getattr(self, "_plugins_upload_button", None)
-        if isinstance(upload_button, QPushButton):
-            upload_button.setStyleSheet(
-                "QPushButton { background-color: #1f7a3a; border: 1px solid #3fd06f; color: #ffffff; padding-top: 7px; }"
-                "QPushButton:hover { background-color: #268a45; }"
-            )
-        self._refresh_plugins_status_labels()
-        QMessageBox.information(
-            self,
-            "Plugin installed",
-            "Plugin installed! Advanced descriptions will now appear in Chart Info! panel when clicked.",
-        )
 
     def _set_lilith_calculation_method(self, method: str) -> None:
         normalized = _normalize_lilith_calculation_method(method)

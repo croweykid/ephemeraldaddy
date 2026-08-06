@@ -1783,8 +1783,9 @@ class ManageMetadataLabelsDialog(QDialog):
             ("Collections", self.FIELD_COLLECTIONS),
             ("Tags", self.FIELD_TAGS),
             ("Names", self.FIELD_NAMES),
-            ("Astro Twin Presets", self.FIELD_ASTRO_TWIN_PRESETS),
         ]
+        if initial_field == self.FIELD_ASTRO_TWIN_PRESETS:
+            field_options = [("Astro Twin Presets", self.FIELD_ASTRO_TWIN_PRESETS)]
         for label, field_value in field_options:
             self._field_selector.addItem(label, field_value)
         self._field_selector.currentIndexChanged.connect(self._refresh_list)

@@ -12,6 +12,7 @@ from typing import Any
 
 RECOGNIZED_PLUGIN_FILENAMES: tuple[str, ...] = ("humdes_gates.json",)
 PLUGIN_DIR = Path.home() / ".ephemeraldaddy" / "plugins"
+DISABLED_PLUGIN_DIR = PLUGIN_DIR / "disabled"
 HUMDES_GATES_PATH = PLUGIN_DIR / "humdes_gates.json"
 
 _OPTIONAL_GATE_KEYS = {"app_summary", "source_ref"}
@@ -24,8 +25,38 @@ def recognized_plugin_names() -> list[str]:
 
 
 def installed_plugin_names() -> list[str]:
-    """Return recognized plugin filenames that are currently installed locally."""
-    return [name for name in RECOGNIZED_PLUGIN_FILENAMES if (PLUGIN_DIR / name).exists()]
+    """Return recognized plugin filenames installed in either state."""
+    return [
+        name
+        for name in RECOGNIZED_PLUGIN_FILENAMES
+        if (PLUGIN_DIR / name).is_file() or (DISABLED_PLUGIN_DIR / name).is_file()
+    ]
+
+
+def plugin_installation_rows() -> list[dict[str, object]]:
+    """Describe installed plugins for the Settings plugin manager."""
+    rows: list[dict[str, object]] = []
+    for name in installed_plugin_names():
+        enabled_path = PLUGIN_DIR / name
+        enabled = enabled_path.is_file()
+        path = enabled_path if enabled else DISABLED_PLUGIN_DIR / name
+        rows.append({"name": name, "enabled": enabled, "path": path})
+    return rows
+
+
+def set_plugin_enabled(name: str, enabled: bool) -> Path:
+    """Enable or disable an installed plugin without deleting its local file."""
+    if name not in RECOGNIZED_PLUGIN_FILENAMES:
+        raise ValueError("Plugin filename is not recognized.")
+    source = (DISABLED_PLUGIN_DIR if enabled else PLUGIN_DIR) / name
+    destination = (PLUGIN_DIR if enabled else DISABLED_PLUGIN_DIR) / name
+    if not source.is_file():
+        if destination.is_file():
+            return destination
+        raise FileNotFoundError(f"Plugin is not installed: {name}")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    source.replace(destination)
+    return destination
 
 
 def _clean_text(value: Any) -> str:
@@ -110,6 +141,7 @@ def install_plugin_file(path: str | Path) -> Path:
     PLUGIN_DIR.mkdir(parents=True, exist_ok=True)
     destination = PLUGIN_DIR / source_path.name
     shutil.copyfile(source_path, destination)
+    (DISABLED_PLUGIN_DIR / source_path.name).unlink(missing_ok=True)
     return destination
 
 

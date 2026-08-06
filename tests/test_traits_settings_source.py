@@ -9,7 +9,7 @@ def test_traits_settings_ui_lives_outside_app_py():
         encoding="utf-8"
     )
 
-    assert "add_traits_settings_section(self, content_layout)" in app_source
+    assert "add_traits_settings_section(self, traits_layout)" in app_source
     assert "def _on_trait_upload_clicked" not in app_source
     assert "def add_traits_settings_section" in settings_source
     assert "def on_trait_upload_clicked" in settings_source
@@ -26,7 +26,7 @@ def test_traits_settings_list_fills_available_window_height():
         encoding="utf-8"
     )
 
-    assert '"Traits",\n        fill_available_height=True,' in settings_source
+    assert 'tabs.addTab(traits_widget, "Traits")' in (ROOT / "ephemeraldaddy" / "gui" / "app.py").read_text(encoding="utf-8")
     assert "setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)" in settings_source
     assert "traits_section.addWidget(owner._traits_list_widget, 1)" in settings_source
     assert "_traits_list_widget.setMaximumHeight" not in settings_source

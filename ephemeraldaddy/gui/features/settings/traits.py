@@ -68,12 +68,9 @@ def _keep_settings_dialog_foreground(owner: Any) -> None:
 
 
 def add_traits_settings_section(owner: Any, content_layout: Any) -> None:
-    """Add the Settings > Traits manager section to the settings dialog."""
-    traits_section = owner._add_settings_collapsible_section(
-        content_layout,
-        "Traits",
-        fill_available_height=True,
-    )
+    """Add Traits as a Property Manager sub-tab."""
+    traits_section = QVBoxLayout()
+    traits_section.setContentsMargins(8, 8, 8, 8)
     traits_section.addWidget(
         owner._build_settings_help_label(
             "Manage custom trait profiles exported from Similarities Analysis. Uploaded traits are saved locally in ~/.ephemeraldaddy/traits and scored in Chart Editor > Predictions."
@@ -124,6 +121,7 @@ def add_traits_settings_section(owner: Any, content_layout: Any) -> None:
     owner._traits_status_label.setWordWrap(True)
     owner._traits_status_label.setStyleSheet("color: #9a9a9a; font-style: italic; font-size: 7pt;")
     refresh_traits_settings_list(owner)
+    content_layout.addLayout(traits_section)
 
 
 def selected_trait_item(owner: Any) -> QListWidgetItem | None:
