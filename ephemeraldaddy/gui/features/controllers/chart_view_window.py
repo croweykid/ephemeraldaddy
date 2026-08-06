@@ -1965,7 +1965,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     register_prediction_section("ocean", ocean_section_layout)
     _install_prediction_header_action(owner, ocean_section_layout, "ocean")
     add_prediction_subheader(ocean_section_layout, "ocean_prediction_subheader").setText(
-        "Dominance-by-theory OCEAN predictor based on sign/body weights, nakshatra factors when available, and house weights only when this chart's chart_uses_houses value is TRUE."
+        "Dominance-by-theory OCEAN predictor based on sign/body weights, nakshatra factors when available, and house weights only when this birth time is known or rectified."
     )
     owner.ocean_prediction_chart_panel = QWidget()
     owner.ocean_prediction_chart_layout = QVBoxLayout()

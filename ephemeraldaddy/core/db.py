@@ -4572,7 +4572,7 @@ def list_human_design_synastry_candidates():
 
 
 def list_human_design_resonance_candidates():
-    """Return candidates with signature-keyed, lazily backfilled gate-line data.
+    """Return candidates with signature-keyed, lazily backfilled gate-line activations.
 
     Older databases did not persist gate identity alongside HD lines.  The
     cache below derives only missing or stale rows in one batch, then reuses
