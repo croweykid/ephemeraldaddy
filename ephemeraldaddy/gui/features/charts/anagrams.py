@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import html
+import re
 import urllib.parse
 from dataclasses import dataclass
 from functools import lru_cache
@@ -299,9 +300,37 @@ def render_definition_detail_html(word: str, definition: str) -> str:
     )
 
 
+def _wiktionary_definition(payload: object) -> str | None:
+    """Return the first usable English definition from Wiktionary REST data."""
+    if not isinstance(payload, dict):
+        return None
+    english_entries = payload.get("en")
+    if not isinstance(english_entries, list):
+        return None
+    for entry in english_entries:
+        definitions = entry.get("definitions") if isinstance(entry, dict) else None
+        if not isinstance(definitions, list):
+            continue
+        for definition_entry in definitions:
+            definition = (
+                definition_entry.get("definition")
+                if isinstance(definition_entry, dict)
+                else None
+            )
+            if not isinstance(definition, str):
+                continue
+            # This endpoint returns small HTML fragments containing links and
+            # semantic spans. The panel supplies its own escaped presentation.
+            plain_text = html.unescape(re.sub(r"<[^>]+>", "", definition))
+            compact = " ".join(plain_text.strip().split())
+            if compact:
+                return compact[:220]
+    return None
+
+
 @lru_cache(maxsize=512)
 def fetch_word_definition(word: str, *, timeout_seconds: float = 1.8) -> str:
-    """Fetch a short English definition for a word."""
+    """Fetch a short English definition, including rare-word fallback coverage."""
     cleaned = str(word or "").strip().casefold()
     if not cleaned.isalpha():
         return "Definition unavailable."
@@ -311,6 +340,10 @@ def fetch_word_definition(word: str, *, timeout_seconds: float = 1.8) -> str:
     )
     datamuse_endpoint = (
         f"https://api.datamuse.com/words?sp={urllib.parse.quote(cleaned)}&md=d&max=1"
+    )
+    wiktionary_endpoint = (
+        "https://en.wiktionary.org/api/rest_v1/page/definition/"
+        f"{urllib.parse.quote(cleaned)}"
     )
 
     saw_connectivity_error = False
@@ -392,6 +425,28 @@ def fetch_word_definition(word: str, *, timeout_seconds: float = 1.8) -> str:
                     if definition:
                         compact = " ".join(definition.split())
                         return compact[:220]
+
+    try:
+        response = _DEFINITION_HTTP_SESSION.get(
+            wiktionary_endpoint,
+            headers=DEFINITION_HTTP_HEADERS,
+            timeout=(0.9, timeout_seconds),
+        )
+    except requests.RequestException:
+        if saw_connectivity_error:
+            return "Definition unavailable (dictionary service unreachable)."
+        return "Definition unavailable."
+
+    if response.status_code in DEFINITION_CONNECTIVITY_ERROR_CODES:
+        saw_connectivity_error = True
+    elif response.status_code < 400:
+        try:
+            parsed = response.json()
+        except ValueError:
+            parsed = None
+        definition = _wiktionary_definition(parsed)
+        if definition:
+            return definition
 
     if saw_connectivity_error:
         return "Definition unavailable (dictionary service unreachable)."
