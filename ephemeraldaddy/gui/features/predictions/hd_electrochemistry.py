@@ -8,14 +8,16 @@ import urllib.parse
 from PySide6.QtCore import QSettings, QSignalBlocker, QTimer, Qt
 from PySide6.QtWidgets import QComboBox, QInputDialog, QLabel, QMessageBox
 
-from ephemeraldaddy.analysis.human_design import derive_human_design_profile
+from ephemeraldaddy.analysis.human_design import (
+    derive_human_design_profile,
+    get_active_human_design_gates_and_lines,
+)
 from ephemeraldaddy.analysis.human_design_synastry import (
     HD_ELECTROCHEMISTRY_MAX_SCORE,
     HD_SYNASTRY_GENDER_METHOD_IDENTITY as HD_ELECTROCHEMISTRY_GENDER_METHOD_IDENTITY,
     HD_SYNASTRY_GENDER_METHOD_SEX as HD_ELECTROCHEMISTRY_GENDER_METHOD_SEX,
     filter_hd_synastry_candidates as filter_hd_electrochemistry_candidates,
     normalize_gates,
-    normalize_lines,
     normalize_hd_synastry_gender_filter as normalize_hd_electrochemistry_gender_filter,
     rank_human_design_synastry as rank_human_design_electrochemistry,
     rank_human_design_synastry_ideal as rank_human_design_electrochemistry_ideal,
@@ -23,6 +25,7 @@ from ephemeraldaddy.analysis.human_design_synastry import (
 )
 from ephemeraldaddy.core.db import (
     list_human_design_synastry_candidates as list_human_design_electrochemistry_candidates,
+    list_human_design_resonance_candidates,
 )
 from ephemeraldaddy.core.chart import chart_uses_houses
 from ephemeraldaddy.gui.features.charts.collections import (
@@ -53,7 +56,7 @@ HD_ELECTROCHEMISTRY_SUBHEADER = (
     "or other lifestyle factors. Canonical HD lore even explicitly states that 'Authority' (gut hunch) is superior. lol"
 )
 HD_RESONANCE_SUBHEADER = (
-    "Top 10 charts with the most shared Human Design gates and activation lines."
+    "Top 10 charts with the most shared Human Design gate-line activations, then shared gates."
 )
 
 SETTINGS_KEY_GENDERED_RESULTS_METHOD = "chart_calculation/gendered_results_method"
@@ -178,21 +181,17 @@ def resolve_hd_electrochemistry_gates(chart: object | None) -> frozenset[int]:
     return gates
 
 
-def resolve_hd_resonance_lines(chart: object | None) -> frozenset[int]:
-    """Return cached HD activation lines, deriving them for older charts."""
+def resolve_hd_resonance_gate_lines(
+    chart: object | None,
+) -> frozenset[tuple[int, int]]:
+    """Return canonical HD activation pairs while preserving their gate identity."""
     if chart is None:
         return frozenset()
-    lines = normalize_lines(getattr(chart, "human_design_lines", None))
-    if lines:
-        return lines
     try:
-        _gates, derived_lines, _channels, _hd_type = derive_human_design_profile(chart)
+        _gates, gate_lines = get_active_human_design_gates_and_lines(chart)
     except Exception:
         return frozenset()
-    lines = normalize_lines(derived_lines)
-    if lines:
-        setattr(chart, "human_design_lines", sorted(lines))
-    return lines
+    return frozenset(gate_lines)
 
 
 def hd_electrochemistry_subheader(chart: object | None) -> str:
@@ -233,7 +232,7 @@ def hd_electrochemistry_render_token(owner: object, chart: object | None) -> tup
     return (
         str(getattr(chart, "chart_uid", "") or "").strip().upper(),
         tuple(sorted(resolve_hd_electrochemistry_gates(chart))),
-        tuple(sorted(resolve_hd_resonance_lines(chart))),
+        tuple(sorted(resolve_hd_resonance_gate_lines(chart))),
         bool(chart is not None and chart_uses_houses(chart)),
         str(getattr(chart, "human_design_profile", "") or "").strip(),
         normalize_hd_electrochemistry_gender_filter(getattr(owner, "hd_electrochemistry_gender_filter", "all")),
@@ -256,7 +255,7 @@ def _format_hd_electrochemistry_matches(matches: tuple, warning_lines: tuple[str
     lines = list(warning_lines)
     resonance_results = bool(matches and matches[0].shared_gates is not None)
     if resonance_results:
-        lines.append("Ranked by shared Human Design gates, then shared activation lines.")
+        lines.append("Ranked by exact gate-line matches, then shared gates.")
     elif norms is None:
         lines.append("Database-wide norms are being calculated in the background.")
     else:
@@ -348,7 +347,14 @@ def render_hd_electrochemistry_predictions(owner: object, chart: object | None) 
     gender_filter = normalize_hd_electrochemistry_gender_filter(
         getattr(owner, "hd_electrochemistry_gender_filter", "all")
     )
-    available_candidates = list_human_design_electrochemistry_candidates()
+    mode = normalize_hd_electrochemistry_mode(
+        getattr(owner, "hd_electrochemistry_prediction_mode", HD_ELECTROCHEMISTRY_MODE_STANDARD)
+    )
+    available_candidates = (
+        list_human_design_resonance_candidates()
+        if mode == HD_RESONANCE_MODE
+        else list_human_design_electrochemistry_candidates()
+    )
     collection_id = normalize_collection_id(
         getattr(owner, "hd_electrochemistry_collection_filter", DEFAULT_COLLECTION_ALL)
     )
@@ -380,7 +386,7 @@ def render_hd_electrochemistry_predictions(owner: object, chart: object | None) 
         gates,
         candidates,
         source_profile=getattr(chart, "human_design_profile", None),
-        source_lines=resolve_hd_resonance_lines(chart),
+        source_gate_lines=resolve_hd_resonance_gate_lines(chart),
     )
     if not matches:
         other_candidates_are_available = any(
@@ -459,7 +465,14 @@ def on_hd_electrochemistry_collection_changed(owner: object, collection_id: obje
 
 def _collection_scoped_hd_electrochemistry_candidates(owner: object) -> list:
     """Return HD candidates in the collection selected by the Predictions panel."""
-    candidates = list_human_design_electrochemistry_candidates()
+    mode = normalize_hd_electrochemistry_mode(
+        getattr(owner, "hd_electrochemistry_prediction_mode", HD_ELECTROCHEMISTRY_MODE_STANDARD)
+    )
+    candidates = (
+        list_human_design_resonance_candidates()
+        if mode == HD_RESONANCE_MODE
+        else list_human_design_electrochemistry_candidates()
+    )
     collection_id = normalize_collection_id(
         getattr(owner, "hd_electrochemistry_collection_filter", DEFAULT_COLLECTION_ALL)
     )
@@ -501,7 +514,7 @@ def hd_electrochemistry_match_collection_uids(
                 candidates, gender_filter, gender_method
             ),
             source_profile=getattr(chart, "human_design_profile", None),
-            source_lines=resolve_hd_resonance_lines(chart),
+            source_gate_lines=resolve_hd_resonance_gate_lines(chart),
             limit=10,
         )
         ranked_uids.update(
