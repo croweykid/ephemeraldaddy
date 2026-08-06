@@ -262,6 +262,8 @@ from ephemeraldaddy.analysis.human_design_reference import (
 )
 from ephemeraldaddy.gui.features.charts.presentation import (
     abbreviate_nakshatra_label as _abbreviate_nakshatra_label,
+    format_element_description_html,
+    format_nakshatra_description_html,
     format_percent as _format_percent,
     get_nakshatra,
 )
@@ -2474,6 +2476,12 @@ class DatabaseAnalyticsChartsMixin:
                 # keeps the centralized presenters generic (for example, it
                 # suppresses "No chart placements in Aries").
                 with generic_database_analytics_chart_context(owner):
+                    if target.kind == "nakshatra":
+                        info_panel.setHtml(format_nakshatra_description_html(target.value))
+                        return
+                    if target.kind == "element":
+                        info_panel.setHtml(format_element_description_html(target.value))
+                        return
                     if target.kind == "hd-line":
                         show_line = getattr(owner, "_show_human_design_line_info", None)
                         if callable(show_line):
@@ -2498,6 +2506,8 @@ class DatabaseAnalyticsChartsMixin:
                 info_panel.toHtml() if info_panel.toPlainText().strip() else "",
                 factor_name=target.value,
                 factor_kind=target.kind,
+                factor_color=bar_color
+                or self._database_analytics_color_for_label(target.value, chart_title),
             )
             info_panel.setHtml(
                 combine_database_analytics_chart_info_html(analytics_html, generic_html)

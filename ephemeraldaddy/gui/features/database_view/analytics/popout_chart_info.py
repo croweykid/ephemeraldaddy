@@ -28,6 +28,7 @@ from ephemeraldaddy.core.interpretations import (
 from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
     build_enneagram_popout_info_html,
 )
+from ephemeraldaddy.gui.features.charts.presentation import expand_nakshatra_label
 from ephemeraldaddy.gui.style import (
     CHART_DATA_HIGHLIGHT_COLOR,
     CHART_THEME_COLORS,
@@ -65,7 +66,7 @@ def combine_database_analytics_chart_info_html(
 
 
 def database_analytics_generic_reference_html(
-    generic_html: str, *, factor_name: str, factor_kind: str = ""
+    generic_html: str, *, factor_name: str, factor_kind: str = "", factor_color: str = ""
 ) -> str:
     """Remove Chart Editor context from generic Database Analytics reference HTML.
 
@@ -77,6 +78,19 @@ def database_analytics_generic_reference_html(
     """
     if not generic_html:
         return ""
+
+    body_match = re.search(r"<body\b[^>]*>(.*?)</body\s*>", generic_html, re.I | re.S)
+    if body_match:
+        generic_html = body_match.group(1)
+    if factor_color:
+        escaped_color = html.escape(factor_color, quote=True)
+        generic_html = re.sub(
+            r"color\s*:\s*(?:#fff(?:fff)?|white)\b",
+            f"color:{escaped_color}",
+            generic_html,
+            flags=re.IGNORECASE,
+        )
+        generic_html = f'<div style="color:{escaped_color};">{generic_html}</div>'
 
     expected_headings = {str(factor_name or "").strip().casefold()}
     if factor_kind == "house":
@@ -115,6 +129,7 @@ def database_analytics_chart_info_target(
     maps, keeping this routing independent from Qt and from Chart Editor state.
     """
     clean_label = re.sub(r"^\([^)]*\)\s*", "", str(label or "").strip())
+    canonical_nakshatra = expand_nakshatra_label(clean_label)
     mode = str(chart_mode or "").strip().casefold()
     if mode == "hd_gates" and clean_label.isdigit():
         return DatabaseAnalyticsChartInfoTarget("gate", clean_label)
@@ -143,8 +158,8 @@ def database_analytics_chart_info_target(
         return DatabaseAnalyticsChartInfoTarget("element", clean_label)
     if clean_label.casefold() in MODE_COLORS:
         return DatabaseAnalyticsChartInfoTarget("mode", clean_label)
-    if clean_label in NAKSHATRA_PLANET_COLOR:
-        return DatabaseAnalyticsChartInfoTarget("nakshatra", clean_label)
+    if canonical_nakshatra in NAKSHATRA_PLANET_COLOR:
+        return DatabaseAnalyticsChartInfoTarget("nakshatra", canonical_nakshatra)
 
     house_match = re.fullmatch(r"(?:house\s+)?(1[0-2]|[1-9])", clean_label, re.IGNORECASE)
     title = str(chart_title or "").casefold()
@@ -157,13 +172,15 @@ def database_analytics_chart_info_target(
 
 
 def _database_deviation_html(z_score: float | None) -> str:
+    label = (
+        f'<b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">Database deviation:</b>'
+    )
     if z_score is None or not math.isfinite(z_score):
-        return "Database deviation: unavailable"
-    deviation_color = "#70d68a" if z_score > 0 else "#ff7b7b" if z_score < 0 else "#d0d0d0"
+        return f'{label} <span style="color:#ffffff;">unavailable</span>'
     direction = "above" if z_score > 0 else "below" if z_score < 0 else "at"
     return (
-        f'Database deviation: <b style="color:{deviation_color};">'
-        f"{abs(z_score):.2f} standard deviations {direction} the database norm</b>"
+        f'{label} <span style="color:#ffffff;">'
+        f"{abs(z_score):.2f} standard deviations {direction} the database norm</span>"
     )
 
 

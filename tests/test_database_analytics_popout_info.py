@@ -9,6 +9,11 @@ from ephemeraldaddy.core.interpretations import (
 from ephemeraldaddy.gui.features.charts.database_analytics import (
     DatabaseAnalyticsChartsMixin,
 )
+from ephemeraldaddy.gui.features.charts.presentation import (
+    expand_nakshatra_label,
+    format_element_description_html,
+    format_nakshatra_description_html,
+)
 from ephemeraldaddy.gui.features.database_view.analytics.popout_chart_info import (
     DatabaseAnalyticsChartInfoTarget,
     combine_database_analytics_chart_info_html,
@@ -150,7 +155,8 @@ def test_database_analytics_popout_info_uses_focused_standard_template():
 
     assert f'color:{SIGN_COLORS["Aries"]}' in html
     assert f'<b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">Associated charts:</b>' in html
-    assert "Database deviation: unavailable" in html
+    assert f'color:{CHART_DATA_HIGHLIGHT_COLOR};">Database deviation:' in html
+    assert 'color:#ffffff;">unavailable' in html
     assert "Category:" not in html
     assert "What this measures:" not in html
     assert "Where it appears:" not in html
@@ -179,6 +185,26 @@ def test_database_analytics_popout_info_colors_elements_modes_and_nakshatras():
     assert f'color:{ELEMENT_COLORS["Fire"]}' in element_html
     assert f'color:{MODE_COLORS["cardinal"]}' in mode_html
     assert f'color:{NAKSHATRA_PLANET_COLOR["Ashwini"][1]}' in nakshatra_html
+
+
+def test_generic_factor_html_preserves_reference_styles_and_nakshatra_aliases():
+    assert expand_nakshatra_label("P. Bhad.") == "Purva Bhadrapada"
+    assert expand_nakshatra_label("Ut. Bhad.") == "Uttara Bhadrapada"
+    assert expand_nakshatra_label("P. Phal.") == "Purva Phalguni"
+    assert expand_nakshatra_label("U. Phal.") == "Uttara Phalguni"
+    assert expand_nakshatra_label("P. Ash.") == "Purva Ashadha"
+    assert expand_nakshatra_label("U. Ash.") == "Uttara Ashadha"
+
+    nakshatra_html = format_nakshatra_description_html("P. Bhad.")
+    assert "No nakshatra description is available" not in nakshatra_html
+    assert f"color: {CHART_DATA_HIGHLIGHT_COLOR}" in nakshatra_html
+    assert NAKSHATRA_PLANET_COLOR["Purva Bhadrapada"][1] in nakshatra_html
+
+    element_html = format_element_description_html("Fire")
+    for header in ("Greek:", "Qualities:", "Core function:", "Strengths:", "Verbs:"):
+        assert header in element_html
+    assert f"color:{CHART_DATA_HIGHLIGHT_COLOR}" in element_html
+    assert f"color:{ELEMENT_COLORS['Fire']}" in element_html
 
 class _FakeChartAnalyticsOwner:
     _latest_chart = object()
