@@ -56,6 +56,7 @@ from ephemeraldaddy.gui.features.database_view.analytics.name_search import (
 from ephemeraldaddy.gui.features.database_view.analytics.popout_chart_info import (
     build_database_analytics_popout_chart_info_html,
     combine_database_analytics_chart_info_html,
+    database_analytics_generic_reference_html,
     database_analytics_chart_info_target,
     generic_database_analytics_chart_context,
 )
@@ -2493,7 +2494,11 @@ class DatabaseAnalyticsChartsMixin:
                         )
 
             run_with_output(info_panel, _render_generic_info)
-            generic_html = info_panel.toHtml() if info_panel.toPlainText().strip() else ""
+            generic_html = database_analytics_generic_reference_html(
+                info_panel.toHtml() if info_panel.toPlainText().strip() else "",
+                factor_name=target.value,
+                factor_kind=target.kind,
+            )
             info_panel.setHtml(
                 combine_database_analytics_chart_info_html(analytics_html, generic_html)
             )
