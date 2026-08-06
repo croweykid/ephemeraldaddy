@@ -23,6 +23,7 @@ from ephemeraldaddy.analysis.human_design_synastry import (
     rank_human_design_synastry_ideal as rank_human_design_electrochemistry_ideal,
     rank_human_design_resonance,
 )
+from ephemeraldaddy.analysis.human_design_reference import GATE_COLORS, GATE_REFERENCE
 from ephemeraldaddy.core.db import (
     list_human_design_synastry_candidates as list_human_design_electrochemistry_candidates,
     list_human_design_resonance_candidates,
@@ -275,6 +276,18 @@ def hd_electrochemistry_predictions_are_current(owner: object, chart: object | N
     return getattr(owner, "_hd_electrochemistry_last_render_token", None) == hd_electrochemistry_render_token(owner, chart)
 
 
+def _hd_resonance_gate_link(gate: int) -> str:
+    """Return a named, color-coded gate link targeting Chart Info."""
+    gate_number = int(gate)
+    gate_name = str(GATE_REFERENCE.get(gate_number, {}).get("name", "Unknown Gate"))
+    color = str(GATE_COLORS.get(gate_number, "#cdb7ff"))
+    return (
+        f'<a href="distinguishing-factor:gate:{gate_number}" '
+        f'style="color: {html.escape(color, quote=True)};">'
+        f"Gate {gate_number} • {html.escape(gate_name)}</a>"
+    )
+
+
 def _format_hd_electrochemistry_matches(matches: tuple, warning_lines: tuple[str, ...]) -> str:
     """Format source-relative rankings alongside persistent database-wide norms."""
     norms = current_human_design_electrochemistry_norms()
@@ -299,7 +312,8 @@ def _format_hd_electrochemistry_matches(matches: tuple, warning_lines: tuple[str
         profile_bonus = max(0, int(getattr(match, "profile_bonus", 0) or 0))
         if match.shared_gates is not None:
             shared_gates = ", ".join(
-                str(gate) for gate in getattr(match, "shared_gate_numbers", ())
+                _hd_resonance_gate_link(gate)
+                for gate in getattr(match, "shared_gate_numbers", ())
             ) or "none"
             shared_gate_lines = ", ".join(
                 f"{gate}.{line}"
@@ -629,10 +643,16 @@ def on_gendered_results_method_changed(owner: object, gender_method: str, checke
 
 
 def on_hd_electrochemistry_link_activated(owner: object, href: str) -> None:
-    prefix = "chart-uid:"
-    if not str(href).startswith(prefix):
+    href = str(href or "")
+    if href.startswith("distinguishing-factor:gate:"):
+        show_chart_info = getattr(owner, "_show_distinguishing_factor_info", None)
+        if callable(show_chart_info):
+            show_chart_info(href)
         return
-    chart_uid = urllib.parse.unquote(str(href)[len(prefix):]).strip().upper()
+    prefix = "chart-uid:"
+    if not href.startswith(prefix):
+        return
+    chart_uid = urllib.parse.unquote(href[len(prefix):]).strip().upper()
     load_chart = getattr(owner, "load_chart_by_uid", None)
     if chart_uid and callable(load_chart):
         load_chart(chart_uid, from_chart_link=True)
