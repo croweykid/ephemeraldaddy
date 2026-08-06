@@ -12,14 +12,17 @@ from matplotlib import font_manager as mpl_font_manager
 from ephemeraldaddy.core.astrology import sign_for_longitude
 from ephemeraldaddy.core.hd import get_channels_for_gate, get_line
 from ephemeraldaddy.core.interpretations import (
+    ELEMENT_COLORS,
     NAKSHATRA_PLANET_COLOR,
     NAKSHATRA_DESCRIPTIONS,
     NAKSHATRA_RANGES,
+    GRECOROMAN_ELEMENTS,
     ZODIAC_NAMES,
 )
 from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR
 
 _NAKSHATRA_NAME_SET = {str(name) for name, *_ in NAKSHATRA_RANGES}
+_NAKSHATRA_ABBREVIATION_LOOKUP: dict[str, str] = {}
 
 
 def format_longitude(lon: float) -> str:
@@ -127,6 +130,30 @@ def abbreviate_body_label(body: str) -> str:
 def abbreviate_nakshatra_labels(labels: list[str]) -> list[str]:
     return [abbreviate_nakshatra_label(label) for label in labels]
 
+
+def expand_nakshatra_label(nakshatra: str) -> str:
+    """Resolve a compact chart label back to its canonical nakshatra name."""
+    if not _NAKSHATRA_ABBREVIATION_LOOKUP:
+        for canonical in _NAKSHATRA_NAME_SET:
+            abbreviated = abbreviate_nakshatra_label(canonical)
+            _NAKSHATRA_ABBREVIATION_LOOKUP[abbreviated.casefold()] = canonical
+            # Support older, narrower tick labels still present in saved figures.
+            _NAKSHATRA_ABBREVIATION_LOOKUP[
+                abbreviated.replace("Bha.", "Bhad.").replace("Pha.", "Phal.").casefold()
+            ] = canonical
+        _NAKSHATRA_ABBREVIATION_LOOKUP.update(
+            {
+                "p. bhad.": "Purva Bhadrapada",
+                "ut. bhad.": "Uttara Bhadrapada",
+                "p. phal.": "Purva Phalguni",
+                "u. phal.": "Uttara Phalguni",
+                "p. ash.": "Purva Ashadha",
+                "u. ash.": "Uttara Ashadha",
+            }
+        )
+    label = str(nakshatra or "").strip()
+    return _NAKSHATRA_ABBREVIATION_LOOKUP.get(label.casefold(), label)
+
 def format_hd_annotation(lon: float, active_channels: set[tuple[int, int]]) -> str:
     gate, line = get_line(lon)
     channels = get_channels_for_gate(gate, active_channels)
@@ -168,6 +195,7 @@ def format_nakshatra_description_text(nakshatra: str) -> str:
 
 
 def format_nakshatra_description_html(nakshatra: str) -> str:
+    nakshatra = expand_nakshatra_label(nakshatra)
     details = NAKSHATRA_DESCRIPTIONS.get(nakshatra)
     if not details:
         return (
@@ -217,9 +245,45 @@ def format_nakshatra_description_html(nakshatra: str) -> str:
     for label, value in sections:
         if not value:
             continue
-        lines.append(f"<div>{_header(label)} {value}</div>")
+        lines.append(
+            f"<div>{_header(label)} "
+            f"<span style='color: {title_color};'>{value}</span></div>"
+        )
     lines.append("</div>")
     return "".join(lines)
+
+
+def format_element_description_html(element: str) -> str:
+    """Format the generic element reference with appwide Chart Info styling."""
+    element_name = str(element or "").strip().title()
+    details = GRECOROMAN_ELEMENTS.get(element_name.casefold(), {})
+    color = ELEMENT_COLORS.get(element_name, "#f5f5f5")
+    if not details:
+        return f"<div>No element definition data available for {html.escape(element_name)}.</div>"
+
+    parts: list[str] = []
+    fields = (
+        ("Greek", "greek"), ("Qualities", "qualities"), ("Signs", "signs"),
+        ("Polarity", "polarity"), ("Temperament", "temperament"),
+        ("Core function", "core_function"), ("Basic function", "basic_function"),
+        ("Use", "use"), ("Object", "object"), ("Suit", "suit"),
+        ("Suit function", "suit_function"), ("Suit style", "suit_style"),
+        ("Basic style", "basic_style"), ("Strengths", "strengths"),
+        ("Distortions", "challenges"), ("Needs", "needs"), ("Fears", "fears"),
+        ("Verbs", "verbs"),
+    )
+    for label, key in fields:
+        value = details.get(key)
+        if isinstance(value, (list, tuple)):
+            value = ", ".join(str(item).strip() for item in value if str(item).strip())
+        value = str(value or "").strip()
+        if value:
+            parts.append(
+                f'<div><span style="font-weight:bold; color:{CHART_DATA_HIGHLIGHT_COLOR};">'
+                f'{html.escape(label)}:</span> <span style="color:{color};">'
+                f'{html.escape(value)}</span></div>'
+            )
+    return "".join(parts)
 
 
 def apply_nakshatra_tick_info_markers(ax: Any, nakshatras: list[str]) -> None:
