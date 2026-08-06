@@ -4308,6 +4308,44 @@ SENTIMENT_COLORS = {
     "boring": "#8f8f8f",
  }
 
+# User-facing meanings for subjective Observations categories.  These live with
+# the category definitions so tooltips and analytics Chart Info use one source
+# of truth.
+SENTIMENT_MEANINGS = {
+    "like": "friend",
+    "love": "love",
+    "lil crush": "you think they're cute",
+    "lust": "you're fixated",
+    "revere": "mentor",
+    "trust": "they seem trustworthy",
+    "respect": "they command respect beyond the average fellow being",
+    "protect": "you feel protective of them",
+    "intriguing": "you want to know them better",
+    "intellectually relatable": "regardless of the subject matter, your minds follow similar pathways toward answers.",
+    "emotionally relatable": "empathetic rapport; you seem to really connect with exactly how they feel, like them or not.",
+    "similar values": "everyone has a code. 'live, laugh, love'. 'carpe diem'. 'yolo'. 'only ever tie up bad guys & hang them upside down for the cops, while dressed as a bat'. you guys seem to have the same code.",
+    "similar interests": "this isn't 'you both watch Netflix'. this is 'you both collect cicada carapaces; you both also roll up tiny scrolls of Keats poems to stick inside said carapaces.'",
+    "similar mannerisms": "you both do ho-down arms when excited. nobody does ho-down arms. just you two.",
+    "similar background": "grew up on the same side of the track, where you both had a pony or sister named Princess",
+    "broadly relatable": "'idk, I just feel like they GET it'",
+    "hilarious": "comedy genius",
+    "ineffable": "wtf is going on with them?!",
+    "can't trust": "know or suspect their duplicity",
+    "can't respect": "they don't have enough pride or shame for your taste lol",
+    "can't forgive": "the hatchet too big or useful to bury",
+    "frustrating": "WHY ARE THEY LIKE THIS?!",
+    "unreachable": "can't get through to them, somehow; can't connect",
+    "power struggles": "clashing as both of you seek dominance",
+    "betrayal": "backstabby mofo",
+    "disappointing": "not as cool as you originally thought",
+    "disappointed by you": "you feel like you failed them or fell short in some essential way, whether that's definitively true or not.",
+    "annoying": "irksome",
+    "creepy": "they wig you out, maybe inexplicably, but yo lizard brain is a-firin'.",
+    "dislike": "enemy",
+    "despise": "archnemesis",
+    "boring": "exhaustingly tedious",
+}
+
 #Don't rename these or delete them without first taking remedial actions.
 #It'll mess up your existing database.
 RELATION_TYPE = [
@@ -4341,6 +4379,38 @@ RELATION_TYPE = [
     "place", #why does this require explanation? don't get philosophical on me.
     "event", #aren't we all an event, in a sense? NO. EVENTS ARE EVENTS. jk do whatever you're gonna, ya freak
 ]
+
+RELATIONSHIP_TYPE_MEANINGS = {
+    "self": "it's just you; there can be only one.",
+    "ride or die": "structurally intertwined, Heavenly Creatures type stuff",
+    "core posse": "inseparable, is/was woven into your life's very DNA at some point",
+    "homie": "your chum; may not be deep but you're around them by choice",
+    "accomplice": "partner/collaborator: you have/had mutual concrete goals",
+    "mentor": "helps you understand who/what you could be, and how",
+    "ward": "a human in your care; you look after them as their caregiver/provider",
+    "fascination": "dw, you're just stalking them",
+    "lover": "current or former hook-up",
+    "frenemy": "it's complicated",
+    "minor foe": "ya ain't cool with em",
+    "nemesis": "big problem",
+    "kin by marriage": "married into fam",
+    "kin by blood": "ancestors, cousins & siblings",
+    "colleague": "known through business or school in some way",
+    "authority": "in power; your fate is somehow in their hands",
+    "acquaintance": "just seem em around, kinda know about them a little",
+    "friend of family": "(they're just around)",
+    "friend of friend": "(they're just around)",
+    "family of friend": "(they're just around)",
+    "neighbor": "lives or lived next to you",
+    "your lover's ex": "(self-explanatory; here cos most people have feelings about it)",
+    "your friend's ex": "(self-explanatory; here cos some people have feelings about it)",
+    "pet": "a nonhuman creature in your care",
+    "only talk online": "you've only met online",
+    "parasocial": "never directly interacted with; known to you only by reputation or spectatorship",
+    "public figure": "icon, subject to projections",
+    "place": "why does this require explanation? don't get philosophical on me.",
+    "event": "aren't we all an event, in a sense? NO. EVENTS ARE EVENTS. jk do whatever you're gonna, ya freak",
+}
 
 SENTIMENT_SCALE = { #you likely see them as...
     "an archnemesis":{"min":-10,"max":-9,"emoji":"⚰️☠️","description":"a fatwa on this mofo","color":"#990033"},

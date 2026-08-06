@@ -3,6 +3,8 @@ from ephemeraldaddy.core.interpretations import (
     MODE_COLORS,
     NAKSHATRA_PLANET_COLOR,
     SIGN_COLORS,
+    RELATIONSHIP_TYPE_MEANINGS,
+    SENTIMENT_MEANINGS,
 )
 from ephemeraldaddy.gui.features.charts.database_analytics import (
     DatabaseAnalyticsChartsMixin,
@@ -65,6 +67,26 @@ def test_database_summary_precedes_generic_chart_info():
 
     assert combined.index("Associated charts") < combined.index("<hr>")
     assert combined.index("<hr>") < combined.index("Aries reference")
+
+
+def test_observations_popout_info_adds_centralized_meaning_subheader():
+    analytics = _FakeAnalytics()
+
+    sentiment_html = analytics._build_database_analytics_popout_info_html(
+        chart_title="Sentiment Prevalence", label="trust", value=0.5
+    )
+    relationship_html = analytics._build_database_analytics_popout_info_html(
+        chart_title="Relationship Prevalence", label="mentor", value=0.5
+    )
+
+    for rendered, label, meaning in (
+        (sentiment_html, "trust", SENTIMENT_MEANINGS["trust"]),
+        (relationship_html, "mentor", RELATIONSHIP_TYPE_MEANINGS["mentor"]),
+    ):
+        assert rendered.index(label) < rendered.index(f"Meaning: {meaning}")
+        assert rendered.index(f"Meaning: {meaning}") < rendered.index("Associated charts:")
+        assert "font-style: italic" in rendered
+        assert "color: #b8b8b8" in rendered
 
 
 def test_generic_database_info_suppresses_and_restores_active_chart_context():
