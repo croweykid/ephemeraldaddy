@@ -141,6 +141,22 @@ def hd_electrochemistry_ranker_for_mode(mode: object):
     return rank_human_design_electrochemistry
 
 
+def _exclude_hidden_hd_candidates(owner: object, candidates: list) -> list:
+    """Exclude UID-identified hidden charts from Predicted Synastry."""
+    hidden_chart_uids = {
+        str(chart_uid or "").strip().upper()
+        for chart_uid in getattr(owner, "_hidden_chart_uids", set())
+        if str(chart_uid or "").strip()
+    }
+    if not hidden_chart_uids:
+        return candidates
+    return [
+        candidate
+        for candidate in candidates
+        if str(candidate.chart_uid or "").strip().upper() not in hidden_chart_uids
+    ]
+
+
 def normalize_gendered_results_method(value: object) -> str:
     """Normalize the appwide gender grouping preference."""
     return (
@@ -241,6 +257,13 @@ def hd_electrochemistry_render_token(owner: object, chart: object | None) -> tup
             getattr(owner, "hd_electrochemistry_prediction_mode", HD_ELECTROCHEMISTRY_MODE_STANDARD)
         ),
         collection_signature,
+        tuple(
+            sorted(
+                str(uid or "").strip().upper()
+                for uid in getattr(owner, "_hidden_chart_uids", set())
+                if str(uid or "").strip()
+            )
+        ),
         int(getattr(owner, "_database_metrics_cache_revision", 0) or 0),
     )
 
@@ -355,6 +378,7 @@ def render_hd_electrochemistry_predictions(owner: object, chart: object | None) 
         if mode == HD_RESONANCE_MODE
         else list_human_design_electrochemistry_candidates()
     )
+    available_candidates = _exclude_hidden_hd_candidates(owner, available_candidates)
     collection_id = normalize_collection_id(
         getattr(owner, "hd_electrochemistry_collection_filter", DEFAULT_COLLECTION_ALL)
     )
@@ -473,6 +497,7 @@ def _collection_scoped_hd_electrochemistry_candidates(owner: object) -> list:
         if mode == HD_RESONANCE_MODE
         else list_human_design_electrochemistry_candidates()
     )
+    candidates = _exclude_hidden_hd_candidates(owner, candidates)
     collection_id = normalize_collection_id(
         getattr(owner, "hd_electrochemistry_collection_filter", DEFAULT_COLLECTION_ALL)
     )
