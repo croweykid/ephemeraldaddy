@@ -577,6 +577,15 @@ from ephemeraldaddy.gui.features.controllers.db_info import (
 )
 from ephemeraldaddy.gui.features.transits import TransitPanelController
 from ephemeraldaddy.gui.features.transits.export import build_transit_chart_export_text
+from ephemeraldaddy.gui.features.chart_editor.exit_performance import (
+    should_block_database_view_open_for_prediction_flush,
+    should_defer_prediction_flush_until_prediction_view,
+)
+from ephemeraldaddy.gui.features.chart_editor.unsaved_summary import (
+    ChartEditorDraftSummary,
+    build_unsaved_changes_prompt_details,
+    summarize_chart_editor_draft_changes,
+)
 from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import (
     apply_mode_pick_metadata,
     _chart_right_panel_prediction_render_token,
@@ -1381,7 +1390,7 @@ GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS: frozenset[str] = frozenset(
 )
 SIMILAR_CHARTS_EXPORT_FORMAT_KEY = "exports/similar_charts_format"
 CHART_VIEW_NAV_CACHE_LIMIT = 24
-CHART_VIEW_TIMING_PREVIEW_DEBOUNCE_MS = 2500
+CHART_VIEW_TIMING_PREVIEW_DEBOUNCE_MS = 2000
 DATABASE_METRICS_DEFERRED_REFRESH_DELAY_MS = 250
 DATABASE_METRICS_INCREMENTAL_REFRESH_DELAY_MS = 25
 CHART_RENDER_INTERACTIVE_DELAY_MS = 100
@@ -30014,11 +30023,13 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._aspect_info_map = aspect_info_map
         self._species_info_map = species_info_map
         state = getattr(self, "_chart_right_panel_state", None)
-        if getattr(state, "active_tab", None) == "predictions":
-            if bool(getattr(self, "_suppress_right_panel_refresh_for_timing_preview", False)):
-                self._suppress_right_panel_refresh_for_timing_preview = False
-            else:
-                self._schedule_chart_render_for_active_right_panel()
+        if (
+            getattr(state, "active_tab", None) == "predictions"
+            and not bool(
+                getattr(self, "_suppress_right_panel_refresh_for_timing_preview", False)
+            )
+        ):
+            self._schedule_chart_render_for_active_right_panel()
 
     def _build_chart_export_markdown(self, chart: Chart) -> str:
         date_label = chart.dt.strftime("%Y-%m-%d") if chart.dt else "Unknown"
@@ -32556,6 +32567,49 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
 
         return line_segments
 
+    def _current_unsaved_change_summary_lines(self) -> list[str]:
+        """Read the view boundary and delegate draft comparison to its workflow."""
+        if self.current_chart_uid is None:
+            return ["New chart has not been saved yet."]
+        try:
+            saved_chart = load_chart_by_uid(self.current_chart_uid)
+        except Exception:
+            return ["Saved chart could not be reloaded for comparison."]
+        def qtime(edit: QTimeEdit) -> str:
+            return edit.time().toString("HH:mm")
+
+        date_parts = (
+            self.birth_year_edit.text().strip(),
+            self.birth_month_edit.text().strip(),
+            self.birth_day_edit.text().strip(),
+        )
+        birth_date = (
+            f"{date_parts[0].zfill(4)}-{date_parts[1].zfill(2)}-{date_parts[2].zfill(2)}"
+            if all(date_parts)
+            else "blank"
+        )
+        draft = ChartEditorDraftSummary(
+            name=self.name_edit.text(), alias=self.alias_edit.text(),
+            from_whence=self.from_whence_edit.text(), birth_date=birth_date,
+            birth_place=self.place_edit.text(),
+            birthtime_unknown=self.time_unknown_checkbox.isChecked(),
+            birth_time=qtime(self.time_edit),
+            retcon_time_used=self.retcon_time_checkbox.isChecked(),
+            retcon_time=qtime(self.retcon_time_edit),
+            rectification_range_used=self._rectification_range_effective_from_inputs(),
+            rectification_range=f"{qtime(self.rectification_range_start_edit)} to {qtime(self.rectification_range_end_edit)}",
+            chart_type=self.chart_source_combo.currentData(),
+            gender=self.gender_combo.currentData(), tags=tuple(get_chart_view_tags(self)),
+            comments=self.comments_edit.toPlainText(),
+            rectification_notes=self.rectification_edit.toPlainText(),
+            biography=self.biography_edit.toPlainText(),
+            chart_data_source=self.source_edit.toPlainText(),
+        )
+        return summarize_chart_editor_draft_changes(
+            saved_chart, draft,
+            recalculation_required=self._metadata_autosave_requires_recalculation,
+        )
+
     def _confirm_discard_or_save(self) -> bool:
         # Debounced metadata changes (including Chart Type) are automatic
         # lucygoosey saves.  Flush them before deciding whether a manual-save
@@ -32574,6 +32628,11 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         dialog.setWindowTitle("Unsaved changes")
         dialog.setText(
             "You have unsaved changes. Save them before leaving Chart Editor?"
+        )
+        dialog.setInformativeText(
+            build_unsaved_changes_prompt_details(
+                self._current_unsaved_change_summary_lines()
+            )
         )
         dialog.setStandardButtons(
             QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel
@@ -33002,18 +33061,26 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         """Backward-compatible alias for _set_chart_right_panel_container_visible."""
         self._set_chart_right_panel_container_visible(visible)
 
-    def _set_chart_right_panel(self, panel_key: str) -> None:
+    def _set_chart_right_panel(
+        self,
+        panel_key: str,
+        *,
+        schedule_render: bool = True,
+    ) -> None:
         controller = getattr(self, "_chart_right_panel_controller", None)
         if controller is not None:
-            controller.set_active_panel(panel_key)
+            controller.set_active_panel(panel_key, schedule_render=schedule_render)
             return
-        set_chart_right_panel(self, panel_key)
+        set_chart_right_panel(self, panel_key, schedule_render=schedule_render)
 
-    def _schedule_chart_render_for_active_right_panel(self) -> None:
+    def _schedule_chart_render_for_active_right_panel(
+        self,
+        chart: Chart | None = None,
+    ) -> None:
         """Queue any now-renderable sections after right-panel tab switches."""
         controller = getattr(self, "_chart_right_panel_controller", None)
         if controller is not None:
-            controller.schedule_render_for_active_panel()
+            controller.schedule_render_for_active_panel(chart=chart)
             return
         schedule_chart_render_for_active_right_panel(self)
 
@@ -35598,13 +35665,22 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
     def _should_flush_predictions_before_database_view(self) -> bool:
         """Return whether Chart View exit should synchronously refresh Predictions caches.
 
-        Lightweight metadata edits (alias/from/notes/tags/etc.) should not make
-        the Database View button wait for Fantasy RPG/Enneagram prediction cache writes.
-        The dirty bit is accumulated across the whole open-chart session, so a
-        later lightweight autosave cannot erase an earlier structural edit that
-        still needs one final prediction cache flush.
+        Prediction metadata writes are intentionally demand-driven on Chart
+        Editor exit.  Recent performance logs show ``chart_editor_flush`` taking
+        34–38 seconds when this path eagerly refreshes Fantasy RPG/Enneagram
+        caches before Database View can open.  Preserve the stale-cache marker,
+        but only block navigation for an unclassifiable save while the user is
+        actively looking at Predictions.
         """
-        return bool(getattr(self, "_chart_view_prediction_flush_pending", False))
+        state = getattr(self, "_chart_right_panel_state", None)
+        active_panel = getattr(state, "active_tab", None)
+        return should_block_database_view_open_for_prediction_flush(
+            pending_prediction_flush=bool(
+                getattr(self, "_chart_view_prediction_flush_pending", False)
+            ),
+            changed_fields=getattr(self, "_last_chart_save_changed_fields", None),
+            active_right_panel=active_panel,
+        )
 
     def on_manage_charts(
         self,
@@ -35630,6 +35706,15 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         if self._should_flush_predictions_before_database_view():
             self._flush_stale_predictions_before_chart_exit()
             self._chart_view_prediction_flush_pending = False
+        elif should_defer_prediction_flush_until_prediction_view(
+            pending_prediction_flush=bool(
+                getattr(self, "_chart_view_prediction_flush_pending", False)
+            ),
+            changed_fields=getattr(self, "_last_chart_save_changed_fields", None),
+        ):
+            logger.info(
+                "Deferred Chart Editor prediction cache flush until Predictions are requested."
+            )
         database_view_open_timing.phase("chart_editor_flush")
         self._chart_view_history.clear()
         self._chart_view_history_index = -1
@@ -35972,18 +36057,21 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             self._time_input_text_colors["retcon"] = retcon_time_color
 
     def _queue_timing_preview_update(self) -> None:
-        """Debounce expensive chart recalculation while time fields are edited."""
+        """Debounce live Chart Data Output recalculation for timing edits."""
         if self._suppress_lucygoosey:
             return
-        # Rectified-time, rectified-range, and known birthtime edits change core
-        # calculated chart data. Rebuild once after a real editing pause instead of on
-        # each digit/checkbox signal.  The chart rebuild can take long enough to
-        # block typing, so keep this delay aligned with recalculating autosave
-        # instead of firing midway through manual HH:mm entry.
+        # Birth-time, rectified-time, and rectified-range edits change core
+        # calculated chart data. Keep the save/prompt state authoritative, but
+        # let the debounced preview rebuild only the live Chart Data Output /
+        # wheel path. Right-panel peripherals are gated when that preview render
+        # completes so hidden Predictions/Analytics work cannot wake in the
+        # background while the user is still editing HH:mm values.
+        self._metadata_autosave_requires_recalculation = True
+        self._mark_chart_analytics_sections_lucy_goosey()
+        state = getattr(self, "_chart_right_panel_state", None)
+        if getattr(state, "active_tab", None) == "predictions":
+            self._set_chart_right_panel("analytics", schedule_render=False)
         self._timing_preview_update_timer.start(CHART_VIEW_TIMING_PREVIEW_DEBOUNCE_MS)
-        if self._can_autosave_current_chart():
-            self._metadata_autosave_requires_recalculation = True
-            self._metadata_autosave_timer.start(2500)
 
     def _flush_timing_preview_update(self) -> None:
         if self._suppress_lucygoosey:
@@ -36047,8 +36135,8 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         # right-panel analytics for each minute/key change, which could stall the
         # GUI long before the user finished rectifying the time.  Keep the
         # play-by-play Chart Data Output and chart wheel current, and mark the
-        # analytics as stale so visible sections recalculate on an explicit save
-        # or tab/section refresh instead of during time entry.
+        # analytics as stale so the visible Analytics panel recalculates only
+        # after this debounced preview completes, rather than during time entry.
         self._mark_chart_analytics_sections_lucy_goosey()
         self._suppress_right_panel_refresh_for_timing_preview = True
         self._schedule_chart_render(
@@ -36335,6 +36423,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             self._render_flush_timer.start(CHART_RENDER_BACKGROUND_DELAY_MS)
             return
 
+        timing_preview_render = bool(
+            getattr(self, "_suppress_right_panel_refresh_for_timing_preview", False)
+        )
         self._suppress_right_panel_refresh_for_timing_preview = False
         self._pending_render_chart = None
         # draw() is synchronous for chart/metric canvases, so overlay shutdown can
@@ -36362,19 +36453,25 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             )
             self._chart_load_timing = None
         active_right_tab = getattr(self._chart_right_panel_state, "active_tab", None)
-        if active_right_tab == "predictions":
-            self._schedule_chart_render_for_active_right_panel()
-        elif active_right_tab == "analytics" and bool(
-            getattr(self, "_chart_analytics_distinguishing_factors_expanded", False)
-        ):
-            self._render_distinguishing_factors(chart)
-        preload_delay_ms = 700 if bool(getattr(self, "_chart_right_panel_fade_in_progress", False)) else 0
-        QTimer.singleShot(
-            preload_delay_ms,
-            lambda chart_snapshot=chart: self._schedule_passive_chart_analysis_preload_if_current(
-                chart_snapshot
-            ),
-        )
+        if timing_preview_render and active_right_tab == "analytics":
+            # The 2-second timing debounce has elapsed and Chart Data Output
+            # is current. Refresh only the visible Analytics panel now; hidden
+            # Predictions and passive peripheral preloads remain deferred.
+            self._schedule_chart_render_for_active_right_panel(chart)
+        elif not timing_preview_render:
+            if active_right_tab == "predictions":
+                self._schedule_chart_render_for_active_right_panel()
+            elif active_right_tab == "analytics" and bool(
+                getattr(self, "_chart_analytics_distinguishing_factors_expanded", False)
+            ):
+                self._render_distinguishing_factors(chart)
+            preload_delay_ms = 700 if bool(getattr(self, "_chart_right_panel_fade_in_progress", False)) else 0
+            QTimer.singleShot(
+                preload_delay_ms,
+                lambda chart_snapshot=chart: self._schedule_passive_chart_analysis_preload_if_current(
+                    chart_snapshot
+                ),
+            )
 
     def _chart_analysis_render_key_for_section(self, section_key: str) -> str | None:
         return {

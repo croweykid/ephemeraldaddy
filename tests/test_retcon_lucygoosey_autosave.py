@@ -43,8 +43,8 @@ def test_retcon_time_change_marks_lucygoosey_before_autosave():
     method = _method_source("_on_retcon_time_changed", end="_update_time_input_visibility")
 
     mark_index = method.index("self._mark_lucygoosey()")
-    autosave_index = method.index("self._metadata_autosave_timer.start(2500)")
-    assert mark_index < autosave_index
+    queue_index = method.index("self._queue_timing_preview_update()")
+    assert mark_index < queue_index
     assert "should_refresh_retcon_preview" in method
     assert "self.retcon_time_checkbox.isChecked()" in method
 
@@ -60,5 +60,7 @@ def test_timing_preview_debounce_waits_for_real_editing_pause():
     assert debounce_ms >= 2000
 
     method = _method_source("_queue_timing_preview_update", end="_flush_timing_preview_update")
-    assert "chart rebuild can take long enough to" in method
-    assert "self._metadata_autosave_timer.start(2500)" in method
+    assert "preview rebuild only the live Chart Data Output" in method
+    assert "self._metadata_autosave_requires_recalculation = True" in method
+    assert 'self._set_chart_right_panel("analytics", schedule_render=False)' in method
+    assert "self._metadata_autosave_timer.start(2500)" not in method

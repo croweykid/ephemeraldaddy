@@ -109,10 +109,22 @@ class ChartRightPanelController:
             if len(sizes) >= 3 and sizes[2] == 0:
                 configure_splitter()
 
-    def set_active_panel(self, panel_key: str) -> None:
-        """Activate one right-panel section and schedule only its needed renders."""
+    def set_active_panel(
+        self,
+        panel_key: str,
+        *,
+        schedule_render: bool = True,
+    ) -> None:
+        """Activate a panel, optionally deferring its stale-content render."""
         if self._stack is None and not hasattr(self._owner, "chart_right_panel_stack"):
-            set_chart_right_panel(self._owner, panel_key)
+            if schedule_render:
+                set_chart_right_panel(self._owner, panel_key)
+            else:
+                set_chart_right_panel(
+                    self._owner,
+                    panel_key,
+                    schedule_render=False,
+                )
             return
         self._install_expand_autoscroll()
         panel_key = self._resolve_panel_key(panel_key)
@@ -134,6 +146,8 @@ class ChartRightPanelController:
             self.set_section_visible("similar_charts", False)
         if panel_key in {"subjective_notes", "abc"}:
             self._scroll_panel_to_top(active_scroll)
+        if not schedule_render:
+            return
         if panel_key == "predictions":
             QTimer.singleShot(0, lambda panel_key=panel_key: self.schedule_render(panel_key))
         else:
@@ -158,16 +172,21 @@ class ChartRightPanelController:
                 if hasattr(widget, "setEnabled"):
                     widget.setEnabled(visible)
 
-    def schedule_render_for_active_panel(self) -> None:
+    def schedule_render_for_active_panel(self, chart: object | None = None) -> None:
         """Backward-compatible wrapper around schedule_render()."""
-        if self._chart is None and not hasattr(self._owner, "_latest_chart"):
+        if chart is None and self._chart is None and not hasattr(self._owner, "_latest_chart"):
             schedule_chart_render_for_active_right_panel(self._owner)
             return
-        self.schedule_render()
+        self.schedule_render(chart=chart)
 
-    def schedule_render(self, section: RightPanelSection | None = None) -> None:
+    def schedule_render(
+        self,
+        section: RightPanelSection | None = None,
+        *,
+        chart: object | None = None,
+    ) -> None:
         """Queue render work for one right-panel section if it is visible and stale."""
-        chart = self._chart or getattr(self._owner, "_latest_chart", None)
+        chart = chart or self._chart or getattr(self._owner, "_latest_chart", None)
         if chart is None:
             return
         state = getattr(self._owner, "_chart_right_panel_state", None)
