@@ -9,13 +9,82 @@ from __future__ import annotations
 
 import html
 import math
+import re
 from collections.abc import Sequence
+from dataclasses import dataclass
 
 from ephemeraldaddy.analysis.enneagram import ENNEAGRAM
+from ephemeraldaddy.core.interpretations import (
+    ELEMENT_COLORS,
+    MODE_COLORS,
+    NAKSHATRA_PLANET_COLOR,
+    PLANET_COLORS,
+    SIGN_COLORS,
+)
 from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
     build_enneagram_popout_info_html,
 )
 from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR, CHART_THEME_COLORS
+
+
+@dataclass(frozen=True, slots=True)
+class DatabaseAnalyticsChartInfoTarget:
+    """A generic Chart Info topic selected from an analytics graph."""
+
+    kind: str
+    value: str
+
+
+def database_analytics_chart_info_target(
+    *, chart_title: str, label: str, chart_mode: str | None = None
+) -> DatabaseAnalyticsChartInfoTarget | None:
+    """Map an analytics label to the appwide Chart Info topic vocabulary.
+
+    ``chart_mode`` is deliberately preferred for Human Design because its
+    numeric labels (gates and lines) are otherwise ambiguous.  The remaining
+    categories can be identified from their centralized interpretation color
+    maps, keeping this routing independent from Qt and from Chart Editor state.
+    """
+    clean_label = re.sub(r"^\([^)]*\)\s*", "", str(label or "").strip())
+    mode = str(chart_mode or "").strip().casefold()
+    if mode == "hd_gates" and clean_label.isdigit():
+        return DatabaseAnalyticsChartInfoTarget("gate", clean_label)
+    if mode == "hd_lines" and clean_label.isdigit():
+        return DatabaseAnalyticsChartInfoTarget("hd-line", clean_label)
+    if mode == "hd_channels" and re.fullmatch(r"\d{1,2}-\d{1,2}", clean_label):
+        return DatabaseAnalyticsChartInfoTarget("hd-channel", clean_label)
+    if mode == "hd_defined_centers":
+        return DatabaseAnalyticsChartInfoTarget("hd-center", clean_label)
+    hd_property_by_mode = {
+        "hd_types": "type",
+        "hd_profiles": "profile",
+        "hd_authorities": "authority",
+        "hd_incarnation_crosses": "incarnation_cross",
+    }
+    if mode in hd_property_by_mode:
+        if mode == "hd_types" and clean_label == "MF Generator":
+            clean_label = "Manifesting Generator"
+        return DatabaseAnalyticsChartInfoTarget(
+            f"hd-property:{hd_property_by_mode[mode]}", clean_label
+        )
+
+    if clean_label in SIGN_COLORS:
+        return DatabaseAnalyticsChartInfoTarget("sign", clean_label)
+    if clean_label in ELEMENT_COLORS:
+        return DatabaseAnalyticsChartInfoTarget("element", clean_label)
+    if clean_label.casefold() in MODE_COLORS:
+        return DatabaseAnalyticsChartInfoTarget("mode", clean_label)
+    if clean_label in NAKSHATRA_PLANET_COLOR:
+        return DatabaseAnalyticsChartInfoTarget("nakshatra", clean_label)
+
+    house_match = re.fullmatch(r"(?:house\s+)?(1[0-2]|[1-9])", clean_label, re.IGNORECASE)
+    title = str(chart_title or "").casefold()
+    if house_match and ("house" in title or "house" in clean_label.casefold()):
+        return DatabaseAnalyticsChartInfoTarget("house", house_match.group(1))
+
+    if clean_label in PLANET_COLORS:
+        return DatabaseAnalyticsChartInfoTarget("planet", clean_label)
+    return None
 
 
 def _database_deviation_html(z_score: float | None) -> str:
