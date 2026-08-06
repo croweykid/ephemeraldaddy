@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPlainTextEdit,
+    QPushButton,
     QSizePolicy,
     QToolButton,
     QVBoxLayout,
@@ -201,6 +202,7 @@ def build_popout_left_panel(
     awareness_stream_entries: list[dict[str, Any]] | None = None,
     circuit_entries: list[dict[str, Any]] | None = None,
     hd_placement_contexts: list[tuple[str, Any]] | None = None,
+    open_hd_synastry: Callable[[], None] | None = None,
 ) -> QPlainTextEdit:
     left_panel_layout = QVBoxLayout()
 
@@ -208,15 +210,15 @@ def build_popout_left_panel(
     analytics_header_layout.setContentsMargins(0, 0, 0, 0)
     analytics_header_layout.setSpacing(6)
     showing_human_design_streams = bool(awareness_stream_entries or circuit_entries)
-    analytics_label = QLabel("Awareness Streams" if showing_human_design_streams else "Aspect Distribution")
+    analytics_label = QLabel("Aspect Distribution")
     analytics_label.setStyleSheet(chart_data_info_label_style)
     analytics_header_layout.addWidget(analytics_label)
 
     analytics_view_dropdown = QComboBox()
     analytics_view_dropdown.setStyleSheet(database_analytics_dropdown_style)
     if showing_human_design_streams:
-        analytics_view_dropdown.addItem("AWARENESS STREAMS", "awareness_streams")
         analytics_view_dropdown.addItem("CIRCUITS", "circuits")
+        analytics_view_dropdown.addItem("AWARENESS STREAMS", "awareness_streams")
     else:
         analytics_view_dropdown.addItem("ASPECTS (WEIGHTED)", "aspects_weighted")
         analytics_view_dropdown.addItem("ASPECT TYPES (WEIGHTED)", "aspect_types_weighted")
@@ -225,6 +227,12 @@ def build_popout_left_panel(
         analytics_view_dropdown.addItem("ASPECT TYPES (PREVALENCE)", "aspect_types")
         analytics_view_dropdown.addItem("ASPECT FRICTION (PREVALENCE)", "aspect_friction")
     analytics_header_layout.addWidget(analytics_view_dropdown, 0, Qt.AlignLeft)
+
+    hd_synastry_button = QPushButton("Synastry Chart")
+    apply_button_cursor(hd_synastry_button)
+    if open_hd_synastry is not None:
+        hd_synastry_button.clicked.connect(lambda _checked=False: open_hd_synastry())
+    analytics_header_layout.addWidget(hd_synastry_button, 0, Qt.AlignLeft)
 
     analytics_header_layout.addStretch(1)
 
@@ -243,8 +251,9 @@ def build_popout_left_panel(
 
     show_legacy_aspect_controls = show_aspect_distribution and not showing_human_design_streams
     show_human_design_dropdown = showing_human_design_streams
-    analytics_label.setVisible(show_aspect_distribution or showing_human_design_streams)
+    analytics_label.setVisible(show_legacy_aspect_controls)
     analytics_view_dropdown.setVisible(show_legacy_aspect_controls or show_human_design_dropdown)
+    hd_synastry_button.setVisible(showing_human_design_streams and open_hd_synastry is not None)
     analytics_export_button.setVisible(show_legacy_aspect_controls)
 
     if aspect_subheader:

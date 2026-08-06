@@ -330,7 +330,7 @@ def test_human_design_output_shows_uncertain_variants_for_rectified_time_without
 
     assert captured_variant_results == [None]
     assert "UNCERTAIN TIME VARIANTS" in lines
-    assert lines.index("UNCERTAIN TIME VARIANTS") < lines.index("POSITIONS")
+    assert lines.index("UNCERTAIN TIME VARIANTS") > lines.index("AWARENESS STREAMS")
     variant_line_index = next(
         index
         for index, line in enumerate(lines)

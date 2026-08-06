@@ -38426,6 +38426,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             show_aspect_distribution=False,
             awareness_stream_entries=awareness_stream_entries,
             circuit_entries=circuit_entries,
+            open_hd_synastry=lambda: self._open_human_design_synastry_for_chart_uid(
+                str(getattr(source_chart, "chart_uid", "") or get_chart_uid(self.current_chart_id) or "")
+            ),
         )
 
         right_layout = QVBoxLayout()
@@ -38829,11 +38832,18 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         manage_dialog._generate_composite_chart_for_ids(*chart_ids)
 
     def on_get_human_design_synastry_chart(self) -> None:
+        self._open_human_design_synastry_for_chart_uid(None)
+
+    def _open_human_design_synastry_for_chart_uid(self, first_chart_uid: str | None) -> None:
         manage_dialog = self._get_or_create_manage_charts_dialog()
         selected_chart_ids = manage_dialog._selected_non_placeholder_chart_ids()
-        default_first_chart_id = self.current_chart_id
+        default_first_chart_id = (
+            get_chart_id_by_uid(first_chart_uid)
+            if first_chart_uid
+            else self.current_chart_id
+        )
         default_second_chart_id = None
-        if len(selected_chart_ids) == 2:
+        if first_chart_uid is None and len(selected_chart_ids) == 2:
             default_first_chart_id, default_second_chart_id = selected_chart_ids
         if default_first_chart_id is not None and manage_dialog._is_placeholder_local_row_id(default_first_chart_id):
             default_first_chart_id = None
