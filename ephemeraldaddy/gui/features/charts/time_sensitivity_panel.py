@@ -1087,6 +1087,45 @@ def format_time_sensitivity_result_html(result: TimeSensitivityResult) -> str:
     return _summary_html(result) + _human_design_html(result)
 
 
+def _definite_summary_items_html(result: TimeSensitivityResult) -> list[str]:
+    """Return every categorical and Human Design value stable for all samples."""
+    items = [_color_code_text(item, sign_link_kind="ts-sign") for item in result.stable]
+    hd = result.human_design if isinstance(result.human_design, dict) else {}
+    for key, singular_label in (
+        ("gates", "HD Gate"),
+        ("lines", "HD Gate Line"),
+        ("channels", "HD Channel"),
+    ):
+        summary = hd.get(key, {})
+        if not isinstance(summary, dict):
+            continue
+        items.extend(
+            f"{singular_label}: {_gate_anchor(value)} all day"
+            for value in summary.get("always", [])
+        )
+
+    centers = hd.get("centers", {})
+    if isinstance(centers, dict):
+        items.extend(
+            f"HD Defined Center: {_hd_center_anchor(str(value))} all day"
+            for value in centers.get("always", [])
+        )
+
+    for distribution_key, property_key, label in (
+        ("type_distribution", "type", "HD Type"),
+        ("profile_distribution", "profile", "HD Profile"),
+    ):
+        distribution = hd.get(distribution_key, {})
+        if not isinstance(distribution, dict) or len(distribution) != 1:
+            continue
+        value = str(next(iter(distribution)))
+        plain_text = f"{label}: {value} all day"
+        if plain_text not in result.stable:
+            items.append(f"{label}: {_hd_property_anchor(property_key, value)} all day")
+
+    return items or ["No all-day stable highlights found."]
+
+
 def _summary_html(result: TimeSensitivityResult) -> str:
     """Return the overview/stability summary HTML."""
     overall = result.overall
@@ -1096,23 +1135,16 @@ def _summary_html(result: TimeSensitivityResult) -> str:
     html_lines: list[str] = [
         # f"<div><strong>Overall stability:</strong> {float(overall.get('stability_percent', 0)):.0f}%</div>",
         f"<div><strong>Max possible change from {escape(baseline_label)}:</strong> {float(overall.get('max_total_change_from_baseline_percent', 0)):.0f}%</div>",
-        #"<div><strong>Most sensitive:</strong> "
-        #+ _color_code_text(", ".join(overall.get("most_sensitive", []) or ["n/a"]))
-        #+ "</div>",
-        #"<div><strong>Least sensitive:</strong> "
-        #+ _color_code_text(", ".join(overall.get("least_sensitive", []) or ["n/a"]))
-        #+ "</div>",
+        # "<div><strong>Most sensitive:</strong> "
+        # + _color_code_text(", ".join(overall.get("most_sensitive", []) or ["n/a"]))
+        # + "</div>",
+        # "<div><strong>Least sensitive:</strong> "
+        # + _color_code_text(", ".join(overall.get("least_sensitive", []) or ["n/a"]))
+        # + "</div>",
         f"<div><strong>Samples:</strong> {result.sample_count} hypothetical standard charts + {result.sample_count} Human Design charts</div>",
         _header_html("Definite:"),
     ]
-    html_lines.append(
-        _list_html(
-            [
-                _color_code_text(item, sign_link_kind="ts-sign")
-                for item in (result.stable or ["No all-day stable highlights found."])
-            ]
-        )
-    )
+    html_lines.append(_list_html(_definite_summary_items_html(result)))
     html_lines.append(_header_html("Variable:"))
     html_lines.append(
         _list_html(
@@ -1496,7 +1528,9 @@ class TimeSensitivityPanel(QWidget):
         if expanded:
             browser.setHtml(html)
         min_height = 80 if section_key == "human_design" else 48
-        max_height = 16777215 if section_key == "human_design" else 700
+        # These browsers are only document renderers; the containing panel owns
+        # scrolling. Never cap a section and silently clip its remaining rows.
+        max_height = 16777215
 
         adjusting_browser_height = False
         height_adjustment_pending = False
@@ -1530,9 +1564,7 @@ class TimeSensitivityPanel(QWidget):
             try:
                 scroll_area = containing_scroll_area()
                 scrollbar = (
-                    scroll_area.verticalScrollBar()
-                    if scroll_area is not None
-                    else None
+                    scroll_area.verticalScrollBar() if scroll_area is not None else None
                 )
                 keep_at_bottom = bool(
                     scrollbar is not None
@@ -1584,10 +1616,9 @@ class TimeSensitivityPanel(QWidget):
         toggle.toggled.connect(toggle_section)
         if expanded:
             schedule_browser_height_adjustments()
-        if section_key == "human_design":
-            browser.document().documentLayout().documentSizeChanged.connect(
-                lambda _size: schedule_browser_height_adjustments()
-            )
+        browser.document().documentLayout().documentSizeChanged.connect(
+            lambda _size: schedule_browser_height_adjustments()
+        )
         content_layout.addWidget(browser)
         self._charts_layout.addWidget(section)
         self._chart_sections[section_key] = section

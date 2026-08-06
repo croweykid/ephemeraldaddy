@@ -48,6 +48,15 @@ def test_time_sensitivity_html_sections_remeasure_browser_after_expansion():
     assert "if height_adjustment_pending:" in method
     assert "QTimer.singleShot(0, adjust_browser_height)" in method
     assert "recursively created an expanding" in method
+    assert "max_height = 16777215" in method
+    assert (
+        'max_height = 16777215 if section_key == "human_design" else 700' not in method
+    )
+    assert (
+        'if section_key == "human_design":\n'
+        "            browser.document().documentLayout().documentSizeChanged.connect"
+        not in method
+    )
 
 
 def test_time_sensitivity_height_changes_keep_bottom_section_in_view():
