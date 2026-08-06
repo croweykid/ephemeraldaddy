@@ -445,6 +445,50 @@ def test_time_sensitivity_html_color_codes_deltas_and_links_factors():
     assert "underline dotted" not in html
 
 
+def test_overall_time_sensitivity_lists_all_definite_human_design_values():
+    import pytest
+
+    panel_module = pytest.importorskip(
+        "ephemeraldaddy.gui.features.charts.time_sensitivity_panel",
+        exc_type=ImportError,
+    )
+    result = TimeSensitivityResult(
+        chart_uid="CHARTUID",
+        chart_name="Example",
+        birth_date_key="01-01-2000",
+        algorithm_version="time-sensitivity-v2",
+        computed_at="2026-08-06T00:00:00Z",
+        config=TimeSensitivityConfig().__dict__,
+        sample_count=49,
+        baseline_time="12:00",
+        overall={},
+        numeric_ranges={},
+        human_design={
+            "gates": {"always": [1], "sometimes": [2]},
+            "lines": {"always": ["1.3"], "sometimes": []},
+            "channels": {"always": ["1-8"], "sometimes": []},
+            "centers": {"always": ["G"], "sometimes": []},
+            "type_distribution": {"Generator": 49},
+            "profile_distribution": {"1/3": 49},
+        },
+        stable=["Sun sign: Leo all day", "HD Type: Generator all day"],
+        variable=[],
+        warnings=[],
+    )
+
+    html = panel_module._summary_html(result)
+
+    assert "HD Gate:" in html and "distinguishing-factor:gate:1" in html
+    assert "HD Gate Line:" in html and "distinguishing-factor:gate-line:1:3" in html
+    assert "HD Channel:" in html and "distinguishing-factor:hd-channel:1-8" in html
+    assert "HD Defined Center:" in html and "distinguishing-factor:hd-center:G" in html
+    assert html.count("HD Type: Generator all day") == 1
+    assert (
+        "HD Profile:" in html
+        and "distinguishing-factor:hd-property:profile:1/3" in html
+    )
+
+
 def test_time_sensitivity_html_colors_min_and_max_against_separate_peer_scales():
     import pytest
 
@@ -696,9 +740,7 @@ def test_time_sensitivity_weight_bars_float_between_sampled_minimum_and_maximum(
     )
     ax = Figure().subplots()
 
-    panel_module._draw_likelihood_chart(
-        ax, result, "dominant_planet_weights"
-    )
+    panel_module._draw_likelihood_chart(ax, result, "dominant_planet_weights")
 
     bars = ax.containers[0]
     assert [(bar.get_y(), bar.get_height()) for bar in bars] == [
