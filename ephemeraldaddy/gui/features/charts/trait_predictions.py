@@ -2138,6 +2138,10 @@ def render_traits_predictions(owner: Any, chart: Any | None) -> None:
     if not isinstance(label, QLabel):
         return
     _configure_traits_prediction_label(owner, label)
+    # A render may exit before cache metadata is available (no traits,
+    # placeholder chart, cache miss, or calculation failure). Never let the
+    # previously viewed chart's timestamp survive any of those paths.
+    _set_traits_updated_label(owner, None)
     owner._traits_prediction_chart = chart
     owner._traits_prediction_render_token = object()
     traits = list_traits(active_only=True)

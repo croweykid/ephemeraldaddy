@@ -2802,7 +2802,7 @@ def _update_observations_relationship_subheaders(self, _text: str = "") -> None:
     contextual_copy = {
         "predictions_panel_subheader": (
             f"Fwiw, here are various factors about {prediction_subject}, predicted by "
-            f"{pronouns.possessive} astrological chart through the lens of the app "
+            f"{pronouns.possessive_determiner} astrological chart through the lens of the app "
             "developer's interpretations."
         ),
         "dnd_species_prediction_subheader": (
