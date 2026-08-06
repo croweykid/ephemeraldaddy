@@ -66,7 +66,11 @@ from ephemeraldaddy.analysis.traits import (
     trait_sample_total,
     trait_uid_for_profile,
 )
-from ephemeraldaddy.analysis.weighted_chart_predictor import matched_weighted_criteria
+from ephemeraldaddy.analysis.weighted_chart_predictor import (
+    matched_weighted_criteria,
+    weighted_house_entries,
+    weighted_string_entries,
+)
 from ephemeraldaddy.core import db
 from ephemeraldaddy.core.chart import chart_uses_houses
 from ephemeraldaddy.gui.features.charts.database_norms_cache import (
@@ -80,6 +84,7 @@ from ephemeraldaddy.gui.features.charts.prediction_loading_labels import (
     stop_prediction_loading_blink,
 )
 from ephemeraldaddy.gui.style import (
+    CHART_DATA_HIGHLIGHT_COLOR,
     apply_chart_info_link_cursor,
     appwide_red_green_rgb_for_range,
     set_chart_info_html,
@@ -386,26 +391,42 @@ def _trait_info_html(trait: dict[str, Any], chart: Any | None = None) -> str:
         positive = matches.get("positive", [])
         negative = matches.get("negative", [])
 
-        def _factor_list(values: list[str], color: str) -> str:
+        def _dominance_labels(polarity: str) -> set[str]:
+            prefix = "anti" if polarity == "negative" else ""
+            labels = {
+                str(value)
+                for category in ("signs", "bodies", "nakshatras")
+                for value in weighted_string_entries(trait.get("profile", {}).get(f"{prefix}{category}", {}))
+            }
+            labels.update(
+                f"House {value}"
+                for value in weighted_house_entries(trait.get("profile", {}).get(f"{prefix}houses", {}))
+            )
+            return labels
+
+        def _factor_list(values: list[str], color: str, *, polarity: str) -> str:
+            dominance_labels = _dominance_labels(polarity)
             return "".join(
-                f"<li style='margin:2px 0; color:{color};'>{html.escape(value)}</li>"
+                f"<li style='margin:2px 0; color:{color};'>"
+                f"{html.escape(value)}{' dominant' if value in dominance_labels else ''}</li>"
                 for value in values
             )
 
         evidence_html = (
             "<div style='height:12px;'></div>"
-            "<div style='font-size:11px; font-weight:700; color:#f5f5f5;'>"
-            "Matching factors in this chart</div>"
+            f"<div style='font-size:12px; font-weight:700; color:{CHART_DATA_HIGHLIGHT_COLOR};'>"
+            "Matching factors in this chart:</div>"
+            "<div style='height:12px;'></div>"
         )
         if positive:
             evidence_html += (
-                "<div style='margin-top:5px; font-size:9px; color:#9fd6aa;'>SUPPORTING</div>"
-                f"<ul style='margin:3px 0 5px 18px; padding:0;'>{_factor_list(positive, '#d9f2de')}</ul>"
+                "<div style='font-size:12px; font-weight:700; color:#9fd6aa;'>Supporting:</div>"
+                f"<ul style='margin:3px 0 5px 18px; padding:0;'>{_factor_list(positive, '#d9f2de', polarity='positive')}</ul>"
             )
         if negative:
             evidence_html += (
                 "<div style='margin-top:5px; font-size:9px; color:#e1a1a1;'>COUNTER-FACTORS</div>"
-                f"<ul style='margin:3px 0 5px 18px; padding:0;'>{_factor_list(negative, '#f0d3d3')}</ul>"
+                f"<ul style='margin:3px 0 5px 18px; padding:0;'>{_factor_list(negative, '#f0d3d3', polarity='negative')}</ul>"
             )
         if not positive and not negative:
             evidence_html += (
@@ -421,7 +442,7 @@ def _trait_info_html(trait: dict[str, Any], chart: Any | None = None) -> str:
         "</div>"
         "<div style='height:8px;'></div>"
         "<div style='font-size:9px; color:#b8b8b8; font-variant:small-caps; letter-spacing:0.8px;'>"
-        f"based on aggregated data from {sample_count}"
+        f"based on aggregated data from {sample_count} charts"
         "</div>"
         f"{evidence_html}"
     )
