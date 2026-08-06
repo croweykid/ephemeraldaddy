@@ -1181,11 +1181,6 @@ def build_human_design_chart_data_output(
         motivation_line,
         digestion_line,
         "",
-        *(
-            [CHART_DATA_DIVIDER, *uncertain_time_variant_lines, ""]
-            if uncertain_time_variant_lines
-            else []
-        ),
         CHART_DATA_DIVIDER,
         *position_lines,
         "",
@@ -1203,6 +1198,11 @@ def build_human_design_chart_data_output(
         "AWARENESS STREAMS",
         CHART_DATA_DIVIDER,
         *awareness_lines,
+        *(
+            ["", CHART_DATA_DIVIDER, *uncertain_time_variant_lines]
+            if uncertain_time_variant_lines
+            else []
+        ),
     ]
     gates_lines_header_index = rendered_lines.index("GATES & LINES")
     gates_lines_block_start = gates_lines_header_index + 2

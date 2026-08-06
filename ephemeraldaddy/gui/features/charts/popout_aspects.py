@@ -67,6 +67,7 @@ def build_popout_left_panel(
     awareness_stream_entries: list[dict[str, Any]] | None = None,
     circuit_entries: list[dict[str, Any]] | None = None,
     hd_placement_contexts: list[tuple[str, "Chart"]] | None = None,
+    open_hd_synastry: Callable[[], None] | None = None,
 ) -> QPlainTextEdit:
     """Build the shared chart-data/aspect-distribution left panel."""
     return _build_popout_left_panel(
@@ -87,4 +88,5 @@ def build_popout_left_panel(
         awareness_stream_entries=awareness_stream_entries,
         circuit_entries=circuit_entries,
         hd_placement_contexts=hd_placement_contexts,
+        open_hd_synastry=open_hd_synastry,
     )
