@@ -1,4 +1,9 @@
-"""Reference descriptions for natal Moon signs."""
+"""Prose descriptions for specific natal body/sign placements.
+
+Use :func:`get_position_description` rather than reading the mappings directly.
+That gives callers one stable lookup as descriptions for bodies other than the
+Moon are added over time.
+"""
 
 MOON_SIGN_DESCRIPTIONS: dict[str, str] = {
     "aries": (
@@ -223,3 +228,22 @@ MOON_SIGN_DESCRIPTIONS: dict[str, str] = {
         "somewhere reliable to put everything they sense."
     ),
 }
+
+
+POSITION_DESCRIPTIONS: dict[str, dict[str, str]] = {
+    "moon": MOON_SIGN_DESCRIPTIONS,
+}
+
+
+def get_position_description(body: object, sign: object) -> str | None:
+    """Return the curated prose for a body/sign placement, when available.
+
+    Keys are normalized at this boundary so GUI display capitalization does not
+    leak into the reference data. Empty descriptions are treated as unavailable,
+    allowing an entry to be drafted without suppressing the generic fallback.
+    """
+
+    body_key = str(body or "").strip().casefold()
+    sign_key = str(sign or "").strip().casefold()
+    description = POSITION_DESCRIPTIONS.get(body_key, {}).get(sign_key, "").strip()
+    return description or None
