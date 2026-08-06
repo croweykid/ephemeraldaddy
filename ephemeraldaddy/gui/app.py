@@ -1384,7 +1384,7 @@ GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS: frozenset[str] = frozenset(
 )
 SIMILAR_CHARTS_EXPORT_FORMAT_KEY = "exports/similar_charts_format"
 CHART_VIEW_NAV_CACHE_LIMIT = 24
-CHART_VIEW_TIMING_PREVIEW_DEBOUNCE_MS = 2500
+CHART_VIEW_TIMING_PREVIEW_DEBOUNCE_MS = 2000
 DATABASE_METRICS_DEFERRED_REFRESH_DELAY_MS = 250
 DATABASE_METRICS_INCREMENTAL_REFRESH_DELAY_MS = 25
 CHART_RENDER_INTERACTIVE_DELAY_MS = 100
@@ -30013,11 +30013,13 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._aspect_info_map = aspect_info_map
         self._species_info_map = species_info_map
         state = getattr(self, "_chart_right_panel_state", None)
-        if getattr(state, "active_tab", None) == "predictions":
-            if bool(getattr(self, "_suppress_right_panel_refresh_for_timing_preview", False)):
-                self._suppress_right_panel_refresh_for_timing_preview = False
-            else:
-                self._schedule_chart_render_for_active_right_panel()
+        if (
+            getattr(state, "active_tab", None) == "predictions"
+            and not bool(
+                getattr(self, "_suppress_right_panel_refresh_for_timing_preview", False)
+            )
+        ):
+            self._schedule_chart_render_for_active_right_panel()
 
     def _build_chart_export_markdown(self, chart: Chart) -> str:
         date_label = chart.dt.strftime("%Y-%m-%d") if chart.dt else "Unknown"
@@ -33049,18 +33051,26 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         """Backward-compatible alias for _set_chart_right_panel_container_visible."""
         self._set_chart_right_panel_container_visible(visible)
 
-    def _set_chart_right_panel(self, panel_key: str) -> None:
+    def _set_chart_right_panel(
+        self,
+        panel_key: str,
+        *,
+        schedule_render: bool = True,
+    ) -> None:
         controller = getattr(self, "_chart_right_panel_controller", None)
         if controller is not None:
-            controller.set_active_panel(panel_key)
+            controller.set_active_panel(panel_key, schedule_render=schedule_render)
             return
-        set_chart_right_panel(self, panel_key)
+        set_chart_right_panel(self, panel_key, schedule_render=schedule_render)
 
-    def _schedule_chart_render_for_active_right_panel(self) -> None:
+    def _schedule_chart_render_for_active_right_panel(
+        self,
+        chart: Chart | None = None,
+    ) -> None:
         """Queue any now-renderable sections after right-panel tab switches."""
         controller = getattr(self, "_chart_right_panel_controller", None)
         if controller is not None:
-            controller.schedule_render_for_active_panel()
+            controller.schedule_render_for_active_panel(chart=chart)
             return
         schedule_chart_render_for_active_right_panel(self)
 
@@ -36050,7 +36060,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._mark_chart_analytics_sections_lucy_goosey()
         state = getattr(self, "_chart_right_panel_state", None)
         if getattr(state, "active_tab", None) == "predictions":
-            self._set_chart_right_panel("analytics")
+            self._set_chart_right_panel("analytics", schedule_render=False)
         self._timing_preview_update_timer.start(CHART_VIEW_TIMING_PREVIEW_DEBOUNCE_MS)
 
     def _flush_timing_preview_update(self) -> None:
@@ -36115,8 +36125,8 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         # right-panel analytics for each minute/key change, which could stall the
         # GUI long before the user finished rectifying the time.  Keep the
         # play-by-play Chart Data Output and chart wheel current, and mark the
-        # analytics as stale so visible sections recalculate on an explicit save
-        # or tab/section refresh instead of during time entry.
+        # analytics as stale so the visible Analytics panel recalculates only
+        # after this debounced preview completes, rather than during time entry.
         self._mark_chart_analytics_sections_lucy_goosey()
         self._suppress_right_panel_refresh_for_timing_preview = True
         self._schedule_chart_render(
@@ -36433,7 +36443,12 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             )
             self._chart_load_timing = None
         active_right_tab = getattr(self._chart_right_panel_state, "active_tab", None)
-        if not timing_preview_render:
+        if timing_preview_render and active_right_tab == "analytics":
+            # The 2-second timing debounce has elapsed and Chart Data Output
+            # is current. Refresh only the visible Analytics panel now; hidden
+            # Predictions and passive peripheral preloads remain deferred.
+            self._schedule_chart_render_for_active_right_panel(chart)
+        elif not timing_preview_render:
             if active_right_tab == "predictions":
                 self._schedule_chart_render_for_active_right_panel()
             elif active_right_tab == "analytics" and bool(

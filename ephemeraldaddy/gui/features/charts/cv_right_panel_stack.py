@@ -848,8 +848,13 @@ def _show_predictions_panel_pending_placeholders(owner: object, chart: object | 
     if _prediction_section_visible(owner, "dnd_alignment") and isinstance(alignment_debug_label, QLabel):
         alignment_debug_label.setText("<b>Alignment debug deviations from DB norm:</b> <span style='color:#c77dff;'>● Loading predictions… ●</span>") #for this UID
 
-def set_chart_right_panel(owner: object, panel_key: str) -> None:
-    """Activate a Chart View right-panel tab and synchronize toggle state."""
+def set_chart_right_panel(
+    owner: object,
+    panel_key: str,
+    *,
+    schedule_render: bool = True,
+) -> None:
+    """Activate a right-panel tab, optionally leaving stale work deferred."""
     _install_expand_autoscroll(owner)
     panel_stack = getattr(owner, "chart_right_panel_stack", None)
     if panel_stack is None:
@@ -894,7 +899,11 @@ def set_chart_right_panel(owner: object, panel_key: str) -> None:
     #             predictions_widget.setUpdatesEnabled(True)
     #             predictions_widget.update()
 
-    schedule = getattr(owner, "_schedule_chart_render_for_active_right_panel", None)
+    schedule = (
+        getattr(owner, "_schedule_chart_render_for_active_right_panel", None)
+        if schedule_render
+        else None
+    )
     if callable(schedule):
         if panel_key == "predictions":
             latest_chart = getattr(owner, "_latest_chart", None)
