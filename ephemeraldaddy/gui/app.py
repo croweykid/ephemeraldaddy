@@ -36,6 +36,7 @@ from zoneinfo import ZoneInfo
 
 from ephemeraldaddy.gui.crash_diagnostics import install_crash_diagnostics
 from ephemeraldaddy.core.position_descriptions import get_position_description
+from ephemeraldaddy.semantics_formatting import format_ordinal
 
 
 logger = logging.getLogger(__name__)
@@ -31783,8 +31784,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
 
     @staticmethod
     def _ordinal_house_header(house_num: int) -> str:
-        suffix = "th" if 10 <= house_num % 100 <= 20 else {1: "st", 2: "nd", 3: "rd"}.get(house_num % 10, "th")
-        return f"{house_num}-{suffix} House"
+        return f"{format_ordinal(house_num)} House"
 
     def _show_house_keyword_info(self, house_num: int, *, joy_body: str = "") -> None:
         house_keywords = HOUSE_DEFINITIONS.get(house_num, {}).get("core_domains", [])
