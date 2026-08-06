@@ -1044,10 +1044,13 @@ def _gate_anchor(gate: str) -> str:
     )
 
 
-def _hd_property_anchor(property_key: str, value: str) -> str:
+def _hd_property_anchor(
+    property_key: str, value: str, *, include_timing: bool = False
+) -> str:
     safe_value = escape(str(value), quote=True)
     href = (
-        f"distinguishing-factor:hd-property:{quote(property_key)}:{quote(str(value))}"
+        f"distinguishing-factor:{'ts-hd-property' if include_timing else 'hd-property'}:"
+        f"{quote(property_key)}:{quote(str(value))}"
     )
     return f"<a href='{href}' style='color:#d7b5ff; text-decoration:none;'>{safe_value}</a>"
 
@@ -1080,6 +1083,24 @@ def human_design_time_range_text(
     if spans:
         return f"{heading}: {'; '.join(str(span) for span in spans)} (rounded by sample interval)"
     return f"{heading}: not present in the saved sampled range."
+
+
+def human_design_property_time_range_text(
+    result: TimeSensitivityResult | None, property_key: str, value: str
+) -> str:
+    """Return all sampled daily spans for an HD type or profile."""
+    hd = getattr(result, "human_design", {}) if result is not None else {}
+    spans_by_value = (
+        hd.get(f"{str(property_key).strip().lower()}_spans", {})
+        if isinstance(hd, dict)
+        else {}
+    )
+    spans = (
+        spans_by_value.get(str(value), []) if isinstance(spans_by_value, dict) else []
+    )
+    if spans:
+        return _format_categorical_time_spans([str(span) for span in spans])
+    return "from n/a to n/a"
 
 
 def format_time_sensitivity_result_html(result: TimeSensitivityResult) -> str:
@@ -1193,12 +1214,12 @@ def _human_design_html(result: TimeSensitivityResult) -> str:
     hd_items.append(f"Definite Defined Centers: {definite_centers}")
     hd_items.append(f"Possible Defined Centers: {possible_centers}")
     type_bits = [
-        f"{_hd_property_anchor('type', str(k))} ({int(v)})"
+        f"{_hd_property_anchor('type', str(k), include_timing=True)} ({int(v)})"
         for k, v in hd.get("type_distribution", {}).items()
         if str(k)
     ]
     profile_bits = [
-        f"{_hd_property_anchor('profile', str(k))} ({int(v)})"
+        f"{_hd_property_anchor('profile', str(k), include_timing=True)} ({int(v)})"
         for k, v in hd.get("profile_distribution", {}).items()
         if str(k)
     ]

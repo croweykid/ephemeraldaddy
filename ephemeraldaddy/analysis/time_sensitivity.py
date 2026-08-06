@@ -20,7 +20,7 @@ from ephemeraldaddy.core.interpretations import (
     ZODIAC_NAMES,
 )
 
-TIME_SENSITIVITY_ALGORITHM_VERSION = "time-sensitivity-v10"
+TIME_SENSITIVITY_ALGORITHM_VERSION = "time-sensitivity-v11"
 TIME_SENSITIVITY_DB_PATH = DB_DIR / "time_sensitivity.db"
 NUMERIC_GROUPS = (
     "dominant_planet_weights",
@@ -431,6 +431,26 @@ def _distribution(samples: list[dict[str, Any]], key: str) -> dict[str, int]:
     return dict(sorted(counts.items(), key=lambda item: (-item[1], item[0])))
 
 
+def _human_design_value_spans(
+    samples: list[dict[str, Any]], key: str
+) -> dict[str, list[str]]:
+    """Return each sampled span occupied by an HD categorical property."""
+    values = dict.fromkeys(
+        str(sample["human_design"].get(key, "") or "") for sample in samples
+    )
+    return {
+        value: _matching_spans(
+            [
+                (sample["time"], str(sample["human_design"].get(key, "") or ""))
+                for sample in samples
+            ],
+            lambda candidate, expected=value: candidate == expected,
+        )
+        for value in values
+        if value
+    }
+
+
 def _cumulative_weight_likelihoods(
     samples: list[dict[str, Any]], group: str
 ) -> dict[str, dict[str, Any]]:
@@ -797,6 +817,8 @@ def compute_time_sensitivity(
         "centers": _presence_summary(samples, "centers"),
         "type_distribution": _distribution(samples, "type"),
         "profile_distribution": _distribution(samples, "profile"),
+        "type_spans": _human_design_value_spans(samples, "type"),
+        "profile_spans": _human_design_value_spans(samples, "profile"),
     }
     if len(hd["type_distribution"]) == 1:
         stable.append(f"HD Type: {next(iter(hd['type_distribution']))} all day")

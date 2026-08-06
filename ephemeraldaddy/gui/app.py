@@ -1091,6 +1091,7 @@ from ephemeraldaddy.gui.features.charts.presentation import (
 from ephemeraldaddy.gui.features.charts.time_sensitivity_panel import (
     build_time_sensitivity_ascendant_sign_info_text as _build_time_sensitivity_ascendant_sign_info_text,
     build_time_sensitivity_sign_info_text as _build_time_sensitivity_sign_info_text,
+    human_design_property_time_range_text as _human_design_property_time_range_text,
     human_design_time_range_text as _human_design_time_range_text,
 )
 from ephemeraldaddy.gui.features.charts.sign_distribution import (
@@ -38049,10 +38050,21 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         if kind == "hd-center":
             self._show_human_design_center_info(value)
             return
-        if kind == "hd-property" and len(parts) >= 4:
+        if kind in {"hd-property", "ts-hd-property"} and len(parts) >= 4:
             property_key = value
             property_value = urllib.parse.unquote(parts[3])
             self._show_human_design_property_info(property_key, property_value)
+            if kind == "ts-hd-property":
+                panel = getattr(self, "time_sensitivity_panel", None)
+                result = getattr(panel, "_last_result", None) if panel is not None else None
+                cursor = self.chart_info_output.textCursor()
+                cursor.movePosition(QTextCursor.Start)
+                cursor.insertText(
+                    _human_design_property_time_range_text(
+                        result, property_key, property_value
+                    )
+                    + "\n\n"
+                )
             return
 
     def _enneagram_prediction_adapter(self) -> EnneagramPredictionPanelAdapter:
