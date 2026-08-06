@@ -27,18 +27,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ephemeraldaddy.core.interpretations import BAZI_ZODIAC
 from ephemeraldaddy.gui.features.charts.db_info_panel import DBInfoPanel
 from ephemeraldaddy.gui.features.charts.similarities_analysis import (
     SimilaritiesDbBaselineCache,
 )
-from ephemeraldaddy.analysis.human_design_reference import (
-    HD_AUTHORITIES,
-    HD_AUTHORITY_COLORS,
-    HD_CENTERS,
-    HD_PROFILES,
-    normalize_hd_authority_key,
-)
-from ephemeraldaddy.core.interpretations import BAZI_ZODIAC
 
 
 class SimilaritiesController:
@@ -398,14 +391,15 @@ class SimilaritiesController:
         info_panel = self.db_info_panel
         if info_panel is None:
             return
-        normalized_target = str(target or "").strip().lower()
-        if not normalized_target:
+        normalized_target = str(target or "").strip()
+        target_key = normalized_target.casefold()
+        if not target_key:
             return
         self.set_db_info_panel_visible(True)
         target_output = info_panel.output
 
         def _render_target() -> None:
-            if normalized_target.startswith("gate_line:"):
+            if target_key.startswith("gate_line:"):
                 gate_line_text = normalized_target.split(":", 1)[1]
                 parts = gate_line_text.split(".", 1)
                 if len(parts) == 2 and all(part.isdigit() for part in parts):
@@ -420,7 +414,7 @@ class SimilaritiesController:
                             target_output, gate_number
                         )
                     return
-            if normalized_target.startswith("gate:"):
+            if target_key.startswith("gate:"):
                 gate_text = normalized_target.split(":", 1)[1]
                 if gate_text.isdigit():
                     gate_number = int(gate_text)
@@ -434,7 +428,7 @@ class SimilaritiesController:
                             target_output, gate_number
                         )
                     return
-            if normalized_target.startswith("house:"):
+            if target_key.startswith("house:"):
                 house_text = normalized_target.split(":", 1)[1]
                 if house_text.isdigit():
                     house_number = int(house_text)
@@ -447,7 +441,7 @@ class SimilaritiesController:
                             target_output, house_number
                         )
                     return
-            if normalized_target.startswith("channel:"):
+            if target_key.startswith("channel:"):
                 channel_text = normalized_target.split(":", 1)[1]
                 parts = channel_text.split("-")
                 if len(parts) == 2 and all(part.isdigit() for part in parts):
@@ -460,41 +454,33 @@ class SimilaritiesController:
                         "",
                     )
                     return
-            if normalized_target.startswith("center:"):
+            if target_key.startswith("center:"):
                 label = normalized_target.split(":", 1)[1].strip()
-                center = next(
-                    (data for name, data in HD_CENTERS.items() if name.casefold() == label.casefold()),
-                    None,
-                )
-                if center:
-                    target_output.setHtml(
-                        f'<h3 style="color:{center["color"]};">{center["center"]} Center</h3>'
-                        f'<p>{center["description"]}</p><p><b>When defined:</b> {center["defined"]}</p>'
-                    )
+                if self.host._invoke_db_info_renderer(
+                    "_show_human_design_center_info",
+                    target_output,
+                    label,
+                ):
                     return
-            if normalized_target.startswith("authority:"):
+            if target_key.startswith("authority:"):
                 label = normalized_target.split(":", 1)[1].strip()
-                key = normalize_hd_authority_key(
-                    label.removesuffix(" Authority").removesuffix(" authority")
-                )
-                description = HD_AUTHORITIES.get(key)
-                if description:
-                    color = HD_AUTHORITY_COLORS.get(key, "#cccccc")
-                    target_output.setHtml(
-                        f'<h3 style="color:{color};">{escape(label)} Authority</h3>'
-                        f"<p>{escape(description)}</p>"
-                    )
+                if self.host._invoke_db_info_renderer(
+                    "_show_human_design_property_info",
+                    target_output,
+                    "authority",
+                    label,
+                ):
                     return
-            if normalized_target.startswith("profile:"):
+            if target_key.startswith("profile:"):
                 label = normalized_target.split(":", 1)[1].strip()
-                description = HD_PROFILES.get(label)
-                if description:
-                    target_output.setHtml(
-                        f'<h3 style="color:#9c8fbc;">Profile {escape(label)}</h3>'
-                        f"<p>{escape(description)}</p>"
-                    )
+                if self.host._invoke_db_info_renderer(
+                    "_show_human_design_property_info",
+                    target_output,
+                    "profile",
+                    label,
+                ):
                     return
-            if normalized_target.startswith("bazi_sign:"):
+            if target_key.startswith("bazi_sign:"):
                 label = normalized_target.split(":", 1)[1].strip()
                 sign_name = label.split()[-1].casefold()
                 sign = BAZI_ZODIAC.get(sign_name)

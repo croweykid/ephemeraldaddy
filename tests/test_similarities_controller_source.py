@@ -32,6 +32,16 @@ def test_similarities_chart_info_is_a_static_sibling_below_analysis_scroll():
     assert "rail_layout.addWidget(self.db_info_panel, 1)" in controller_source
 
 
+def test_hd_similarity_targets_use_canonical_chart_info_renderers():
+    controller_source = CONTROLLER_SOURCE.read_text(encoding="utf-8")
+
+    assert '"_show_human_design_channel_info"' in controller_source
+    assert '"_show_human_design_center_info"' in controller_source
+    assert controller_source.count('"_show_human_design_property_info"') == 2
+    assert 'target_key = normalized_target.casefold()' in controller_source
+    assert 'label = normalized_target.split(":", 1)[1].strip()' in controller_source
+
+
 def test_manage_charts_routes_similarity_state_lifecycle_through_controller():
     app_source = APP_SOURCE.read_text(encoding="utf-8")
     manage_charts_source = app_source.split("class ManageChartsDialog", 1)[1].split(
