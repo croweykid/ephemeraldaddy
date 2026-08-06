@@ -13,7 +13,7 @@ SIGN_DISTRIBUTION_DROPDOWN_OPTIONS: list[tuple[str, str]] = [
     ("Uranus Sign", "Uranus"),
     ("Neptune Sign", "Neptune"),
     ("Pluto Sign", "Pluto"),
-    ("Rising Sign (Asc/1st)", "AS"),
+    ("Rising Sign (AS/1st)", "AS"),
     ("MC (10th)", "MC"),
 ]
 
