@@ -32,6 +32,27 @@ def test_traits_settings_list_fills_available_window_height():
     assert "_traits_list_widget.setMaximumHeight" not in settings_source
 
 
+def test_traits_settings_descriptions_render_inline_and_scroll_horizontally():
+    settings_source = (ROOT / "ephemeraldaddy" / "gui" / "features" / "settings" / "traits.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert "class TraitListItemDelegate" in settings_source
+    assert 'QColor("#9a9a9a")' in settings_source
+    assert "italic_font.setItalic(True)" in settings_source
+    assert 'painter.drawText(description_rect, alignment, f" | {description}")' in settings_source
+    assert "setWordWrap(False)" in settings_source
+    assert "setTextElideMode(Qt.ElideNone)" in settings_source
+    assert "setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)" in settings_source
+    assert "setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)" in settings_source
+    assert "size.setWidth(size.width() + description_width)" in settings_source
+    assert "size.setHeight" not in settings_source
+    assert "set_trait_description(item.data(Qt.UserRole), description)" in settings_source
+    assert "refresh_traits_settings_list(owner)" in settings_source[
+        settings_source.index("def on_trait_description_clicked") : settings_source.index("def on_trait_edit_clicked")
+    ]
+
+
 def test_trait_prediction_rendering_lives_outside_app_py():
     app_source = (ROOT / "ephemeraldaddy" / "gui" / "app.py").read_text(encoding="utf-8")
     predictions_source = (
