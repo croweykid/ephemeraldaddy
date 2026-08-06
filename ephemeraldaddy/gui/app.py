@@ -582,8 +582,9 @@ from ephemeraldaddy.gui.features.chart_editor.exit_performance import (
     should_defer_prediction_flush_until_prediction_view,
 )
 from ephemeraldaddy.gui.features.chart_editor.unsaved_summary import (
+    ChartEditorDraftSummary,
     build_unsaved_changes_prompt_details,
-    format_unsaved_change_line,
+    summarize_chart_editor_draft_changes,
 )
 from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import (
     apply_mode_pick_metadata,
@@ -32554,104 +32555,48 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
 
         return line_segments
 
-    @staticmethod
-    def _format_prompt_qtime(qtime: QTime) -> str:
-        return f"{qtime.hour():02d}:{qtime.minute():02d}"
-
-    @staticmethod
-    def _format_prompt_minutes(minutes: object) -> str:
-        if not isinstance(minutes, int):
-            return "blank"
-        return f"{minutes // 60:02d}:{minutes % 60:02d}"
-
-    @staticmethod
-    def _format_prompt_bool(value: object) -> str:
-        return "yes" if bool(value) else "no"
-
-    @staticmethod
-    def _prompt_date_from_chart(chart: Chart) -> str:
-        month = getattr(chart, "birth_month", None)
-        day = getattr(chart, "birth_day", None)
-        year = getattr(chart, "birth_year", None)
-        if month and day and year:
-            return f"{int(year):04d}-{int(month):02d}-{int(day):02d}"
-        dt = getattr(chart, "dt", None)
-        if dt is not None:
-            return dt.strftime("%Y-%m-%d")
-        return "blank"
-
-    def _prompt_birth_date_from_inputs(self) -> str:
-        month = self.birth_month_edit.text().strip()
-        day = self.birth_day_edit.text().strip()
-        year = self.birth_year_edit.text().strip()
-        if month and day and year:
-            return f"{year.zfill(4)}-{month.zfill(2)}-{day.zfill(2)}"
-        return "blank"
-
     def _current_unsaved_change_summary_lines(self) -> list[str]:
-        """Return a cheap user-facing summary for the leave prompt."""
-        if self.current_chart_id is None:
+        """Read the view boundary and delegate draft comparison to its workflow."""
+        if self.current_chart_uid is None:
             return ["New chart has not been saved yet."]
         try:
-            saved_chart = load_chart(self.current_chart_id)
+            saved_chart = load_chart_by_uid(self.current_chart_uid)
         except Exception:
             return ["Saved chart could not be reloaded for comparison."]
+        def qtime(edit: QTimeEdit) -> str:
+            return edit.time().toString("HH:mm")
 
-        changes: list[str] = []
-
-        def add_change(label: str, before: object, after: object) -> None:
-            before_text = "" if before is None else str(before).strip()
-            after_text = "" if after is None else str(after).strip()
-            if before_text != after_text:
-                changes.append(format_unsaved_change_line(label, before_text, after_text))
-
-        add_change("Name", getattr(saved_chart, "name", ""), self.name_edit.text())
-        add_change("Alias", getattr(saved_chart, "alias", ""), self.alias_edit.text())
-        add_change("From", getattr(saved_chart, "from_whence", ""), self.from_whence_edit.text())
-        add_change("Birth date", self._prompt_date_from_chart(saved_chart), self._prompt_birth_date_from_inputs())
-        add_change("Birth place", getattr(saved_chart, "birth_place", ""), self.place_edit.text())
-        add_change(
-            "Unknown birth time",
-            self._format_prompt_bool(getattr(saved_chart, "birthtime_unknown", False)),
-            self._format_prompt_bool(self.time_unknown_checkbox.isChecked()),
+        date_parts = (
+            self.birth_year_edit.text().strip(),
+            self.birth_month_edit.text().strip(),
+            self.birth_day_edit.text().strip(),
         )
-        if not self.time_unknown_checkbox.isChecked():
-            saved_dt = getattr(saved_chart, "dt", None)
-            saved_time = saved_dt.strftime("%H:%M") if saved_dt is not None else "blank"
-            add_change("Birth time", saved_time, self._format_prompt_qtime(self.time_edit.time()))
-        add_change(
-            "Use rectified time",
-            self._format_prompt_bool(getattr(saved_chart, "retcon_time_used", False)),
-            self._format_prompt_bool(self.retcon_time_checkbox.isChecked()),
+        birth_date = (
+            f"{date_parts[0].zfill(4)}-{date_parts[1].zfill(2)}-{date_parts[2].zfill(2)}"
+            if all(date_parts)
+            else "blank"
         )
-        add_change(
-            "Rectified time",
-            f"{int(getattr(saved_chart, 'retcon_hour', 0) or 0):02d}:{int(getattr(saved_chart, 'retcon_minute', 0) or 0):02d}",
-            self._format_prompt_qtime(self.retcon_time_edit.time()),
+        draft = ChartEditorDraftSummary(
+            name=self.name_edit.text(), alias=self.alias_edit.text(),
+            from_whence=self.from_whence_edit.text(), birth_date=birth_date,
+            birth_place=self.place_edit.text(),
+            birthtime_unknown=self.time_unknown_checkbox.isChecked(),
+            birth_time=qtime(self.time_edit),
+            retcon_time_used=self.retcon_time_checkbox.isChecked(),
+            retcon_time=qtime(self.retcon_time_edit),
+            rectification_range_used=self._rectification_range_effective_from_inputs(),
+            rectification_range=f"{qtime(self.rectification_range_start_edit)} to {qtime(self.rectification_range_end_edit)}",
+            chart_type=self.chart_source_combo.currentData(),
+            gender=self.gender_combo.currentData(), tags=tuple(get_chart_view_tags(self)),
+            comments=self.comments_edit.toPlainText(),
+            rectification_notes=self.rectification_edit.toPlainText(),
+            biography=self.biography_edit.toPlainText(),
+            chart_data_source=self.source_edit.toPlainText(),
         )
-        add_change(
-            "Use rectified range",
-            self._format_prompt_bool(getattr(saved_chart, "rectification_range_used", False)),
-            self._format_prompt_bool(self._rectification_range_effective_from_inputs()),
+        return summarize_chart_editor_draft_changes(
+            saved_chart, draft,
+            recalculation_required=self._metadata_autosave_requires_recalculation,
         )
-        add_change(
-            "Rectified range",
-            (
-                f"{self._format_prompt_minutes(getattr(saved_chart, 'rectification_range_start_minute', None))}"
-                f" to {self._format_prompt_minutes(getattr(saved_chart, 'rectification_range_end_minute', None))}"
-            ),
-            f"{self._format_prompt_qtime(self.rectification_range_start_edit.time())} to {self._format_prompt_qtime(self.rectification_range_end_edit.time())}",
-        )
-        add_change("Chart type", getattr(saved_chart, "chart_type", ""), self.chart_source_combo.currentData())
-        add_change("Gender", getattr(saved_chart, "gender", ""), self.gender_combo.currentData())
-        add_change("Tags", ", ".join(normalize_tag_list(getattr(saved_chart, "tags", []) or [])), ", ".join(get_chart_view_tags(self)))
-        add_change("Notes", getattr(saved_chart, "comments", ""), self.comments_edit.toPlainText())
-        add_change("Rectification notes", getattr(saved_chart, "rectification_notes", ""), self.rectification_edit.toPlainText())
-        add_change("Bio", getattr(saved_chart, "biography", ""), self.biography_edit.toPlainText())
-        add_change("Source", getattr(saved_chart, "chart_data_source", ""), self.source_edit.toPlainText())
-        if self._metadata_autosave_requires_recalculation:
-            changes.insert(0, "Birth/time calculation fields changed; chart recalculation is required.")
-        return changes
 
     def _confirm_discard_or_save(self) -> bool:
         # Debounced metadata changes (including Chart Type) are automatic
