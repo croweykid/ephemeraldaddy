@@ -108,7 +108,7 @@ class SimilarityAlgorithmAccuracyBrowser(QTextBrowser):
         self.refresh_ranking()
 
     def refresh_ranking(self) -> None:
-        rows = aggregate_similarity_algorithm_accuracy()
+        rows = aggregate_similarity_algorithm_accuracy(include_v2=True)
         self._expanded_rows.intersection_update(range(len(rows)))
         self.setHtml(
             format_similarity_algorithm_accuracy_ranking_html(

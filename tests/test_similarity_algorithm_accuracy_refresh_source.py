@@ -5,6 +5,13 @@ from pathlib import Path
 SOURCE = (Path(__file__).resolve().parents[1] / "ephemeraldaddy/gui/app.py").read_text(
     encoding="utf-8"
 )
+DEV_TOOLS_SOURCE = (
+    Path(__file__).resolve().parents[1] / "ephemeraldaddy/gui/dev_tools.py"
+).read_text(encoding="utf-8")
+POPOUT_SOURCE = (
+    Path(__file__).resolve().parents[1]
+    / "ephemeraldaddy/gui/features/charts/similar_charts_popout.py"
+).read_text(encoding="utf-8")
 
 
 def _class_methods(class_name: str) -> set[str]:
@@ -41,6 +48,22 @@ def test_saved_observation_refreshes_open_accuracy_ranking():
     assert "self._refresh_similarity_algorithm_accuracy_label()" in save_method
     assert 'getattr(match, "algorithm_settings_snapshot", None)' in save_method
     assert 'getattr(self, "_similarity_calculator_settings", None)' not in save_method
+    assert "ranking_position=ranking_position" in save_method
+
+
+def test_settings_browser_requests_v2_ranking_rows():
+    refresh_method = DEV_TOOLS_SOURCE.split("def refresh_ranking(self)", 1)[1].split(
+        "def _toggle_algorithm_details", 1
+    )[0]
+    assert "aggregate_similarity_algorithm_accuracy(include_v2=True)" in refresh_method
+
+
+def test_popout_passes_displayed_rank_to_accuracy_callback():
+    emit_method = POPOUT_SOURCE.split("def _emit_accuracy_change", 1)[1].split(
+        "def _on_accuracy_edit_finished", 1
+    )[0]
+    assert "ranking_position: int" in emit_method
+    assert "bool(na_checkbox.isChecked()),\n                    ranking_position," in emit_method
 
 
 def test_accuracy_ranking_label_is_retained_by_settings_owner():
