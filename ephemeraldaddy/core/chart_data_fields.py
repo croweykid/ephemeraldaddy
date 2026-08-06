@@ -28,6 +28,9 @@ class NonastralPatch(TypedDict, total=False):
     reminds_me_of: str
     comments: str
     emoji_portrait: str
+    enneagram_type: list[str]
+    tritype: list[int]
+    mbti: list[str]
     quotes: list[str]
     rectification_notes: str
     biography: str
@@ -147,6 +150,9 @@ NONASTRAL_DATA = frozenset(
         "reminds_me_of",
         "comments",
         "emoji_portrait",
+        "enneagram_type",
+        "tritype",
+        "mbti",
         "quotes",
         "rectification_notes",
         "biography",

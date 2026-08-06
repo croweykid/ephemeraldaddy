@@ -194,6 +194,9 @@ class Chart:
         self.reminds_me_of = ""
         self.comments = ""
         self.emoji_portrait = ""
+        self.enneagram_type = ["0", "0"]
+        self.tritype = [0, 0, 0]
+        self.mbti = ["?", "?", "?", "?"]
         self.quotes = []
         self.rectification_notes = ""
         self.biography = ""
@@ -307,6 +310,9 @@ class Chart:
             "tags": self.tags,
             "comments": self.comments,
             "emoji_portrait": self.emoji_portrait,
+            "enneagram_type": self.enneagram_type,
+            "tritype": self.tritype,
+            "mbti": self.mbti,
             "quotes": self.quotes,
             "rectification_notes": self.rectification_notes,
             "biography": self.biography,
