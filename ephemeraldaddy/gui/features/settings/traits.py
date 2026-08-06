@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import tempfile
+from html import escape
 from pathlib import Path
 from typing import Any
 
@@ -144,6 +145,20 @@ def _trait_display_name(item: QListWidgetItem) -> str:
     return text
 
 
+def _trait_list_label(text: str, description: str, color: str) -> QLabel:
+    """Return a list-row label with secondary trait copy visually subdued."""
+    label = QLabel()
+    label.setAttribute(Qt.WA_TransparentForMouseEvents)
+    label.setTextFormat(Qt.RichText)
+    description_html = (
+        f' | <span style="color: #9a9a9a; font-style: italic;">{escape(description)}</span>'
+        if description
+        else ""
+    )
+    label.setText(f'<span style="color: {escape(color)};">{escape(text)}</span>{description_html}')
+    return label
+
+
 def refresh_traits_settings_list(owner: Any) -> None:
     list_widget = getattr(owner, "_traits_list_widget", None)
     if isinstance(list_widget, QListWidget):
@@ -163,16 +178,19 @@ def refresh_traits_settings_list(owner: Any) -> None:
             if archived:
                 labels.append("archived")
             suffix = f" ({', '.join(labels)})" if labels else ""
-            item = QListWidgetItem(f"{name}{suffix}")
+            display_text = f"{name}{suffix}"
+            description = str(trait.get("description", "")).strip()
+            item = QListWidgetItem(display_text)
             item.setData(Qt.UserRole, str(trait["path"]))
             item.setData(Qt.UserRole + 1, color)
             item.setData(Qt.UserRole + 2, archived)
-            item.setData(Qt.UserRole + 3, str(trait.get("description", "")).strip())
+            item.setData(Qt.UserRole + 3, description)
             item.setData(Qt.UserRole + 4, bundled)
             item.setData(Qt.UserRole + 5, name)
             item.setData(Qt.UserRole + 6, str(trait.get("uid") or trait.get("trait_uid") or "").strip())
             item.setForeground(QColor(color))
             list_widget.addItem(item)
+            list_widget.setItemWidget(item, _trait_list_label(display_text, description, color))
             if str(trait["path"]) == current_path:
                 item.setSelected(True)
     status_label = getattr(owner, "_traits_status_label", None)
