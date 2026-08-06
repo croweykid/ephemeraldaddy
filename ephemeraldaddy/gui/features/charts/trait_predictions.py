@@ -415,7 +415,7 @@ def _trait_info_html(trait: dict[str, Any], chart: Any | None = None) -> str:
             dominance_labels = _dominance_labels(polarity)
             return "".join(
                 f"<li style='margin:2px 0; color:{color};'>"
-                f"{html.escape(value)}{' dominant' if value in dominance_labels else ''}</li>"
+                f"{html.escape(value)}{' above baseline in chart' if value in dominance_labels else ''}</li>" #note: above baseline doesn't mean "top 3 most dominant", nor does it mean "above average database wide" (i.e. 'a distinguishing factor'); would we get better trait results if we were scoring based on THAT, or matching 'dominance to dominance'?
                 for value in values
             )
 
