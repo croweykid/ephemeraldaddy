@@ -21,12 +21,18 @@ from ephemeraldaddy.core.interpretations import (
     MODE_COLORS,
     NAKSHATRA_PLANET_COLOR,
     PLANET_COLORS,
+    RELATIONSHIP_TYPE_MEANINGS,
+    SENTIMENT_MEANINGS,
     SIGN_COLORS,
 )
 from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
     build_enneagram_popout_info_html,
 )
-from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR, CHART_THEME_COLORS
+from ephemeraldaddy.gui.style import (
+    CHART_DATA_HIGHLIGHT_COLOR,
+    CHART_THEME_COLORS,
+    COLLAPSIBLE_SECTION_SUBHEADER_STYLE,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -154,6 +160,15 @@ def build_database_analytics_popout_chart_info_html(
     description_html = (
         f"<p><i>{html.escape(trait_description)}</i></p>" if trait_description else ""
     )
+    observation_meaning = SENTIMENT_MEANINGS.get(label)
+    if label in RELATIONSHIP_TYPE_MEANINGS:
+        observation_meaning = RELATIONSHIP_TYPE_MEANINGS[label]
+    meaning_html = (
+        f'<p style="{COLLAPSIBLE_SECTION_SUBHEADER_STYLE}">'
+        f"Meaning: {html.escape(observation_meaning)}</p>"
+        if observation_meaning
+        else ""
+    )
     detail_html = _section_detail_html(
         chart_title=chart_title,
         enneagram_type=enneagram_type,
@@ -161,6 +176,7 @@ def build_database_analytics_popout_chart_info_html(
     return (
         f'<h3 style="color:{html.escape(label_color)}; font-weight:800;">'
         f"{html.escape(label)}</h3>"
+        f"{meaning_html}"
         f"{description_html}"
         f'<p><b style="color:{CHART_DATA_HIGHLIGHT_COLOR};">Associated charts:</b> '
         f"{associated_html}</p>"

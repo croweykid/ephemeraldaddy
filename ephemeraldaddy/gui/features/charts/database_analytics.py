@@ -2497,36 +2497,6 @@ class DatabaseAnalyticsChartsMixin:
             info_panel.setHtml(
                 combine_database_analytics_chart_info_html(analytics_html, generic_html)
             )
-            owner = self._owner_window() if hasattr(self, "_owner_window") else getattr(self, "_app_owner", None)
-            route_info = getattr(owner, "_on_distinguishing_factor_link_activated", None)
-            run_with_output = getattr(owner, "_run_with_chart_info_output", None)
-            if target is None or not callable(run_with_output):
-                info_panel.setHtml(analytics_html)
-                return
-
-            def _render_generic_info() -> None:
-                if target.kind == "hd-line":
-                    show_line = getattr(owner, "_show_human_design_line_info", None)
-                    if callable(show_line):
-                        show_line(int(target.value))
-                    return
-                if not callable(route_info):
-                    return
-                if target.kind.startswith("hd-property:"):
-                    property_key = target.kind.split(":", 1)[1]
-                    route_info(
-                        f"distinguishing-factor:hd-property:{property_key}:"
-                        f"{quote(target.value, safe='')}"
-                    )
-                else:
-                    route_info(
-                        f"distinguishing-factor:{target.kind}:"
-                        f"{quote(target.value, safe='')}"
-                    )
-
-            run_with_output(info_panel, _render_generic_info)
-            generic_html = info_panel.toHtml() if info_panel.toPlainText().strip() else ""
-            info_panel.setHtml(f"{generic_html}<hr>{analytics_html}" if generic_html else analytics_html)
 
         info_panel.anchorClicked.connect(
             lambda target: self._on_database_analytics_chart_link_activated(target.toString())
