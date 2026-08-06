@@ -34,6 +34,7 @@ from PySide6.QtWidgets import (
 
 from ephemeraldaddy.core.interpretations import (
     ASPECT_COLORS,
+    DARK_TEXT,
     NAKSHATRA_PLANET_COLOR,
     PLANET_COLORS,
     SIGN_COLORS,
@@ -184,6 +185,9 @@ COLOR_ACCENT_SUCCESS = "#68d391"
 COLOR_ACCENT_DANGER = "#f87171"
 COLOR_ACCENT_WARNING = "#f6c85f"
 
+# Readability surface for semantic text colors flagged by ``DARK_TEXT``.
+LIGHT_CONTRAST_BG = "#cc9900"
+
 # Optional semantic colors for dropdowns whose choices need a visual category
 # distinction.  Keep these separate from the base dropdown stylesheet so
 # callers can opt into per-item coloring without changing every combo box.
@@ -233,6 +237,10 @@ QLineEdit, QDateEdit, QTimeEdit, QTextEdit, QPlainTextEdit {{
     background-color: {APPWIDE_TEXT_INPUT_BACKGROUND_COLOR};
     border: 1px solid {APPWIDE_TEXT_INPUT_BORDER_COLOR};
     padding: 4px;
+}}
+QTextEdit[eddLightContrastBackground="true"],
+QPlainTextEdit[eddLightContrastBackground="true"] {{
+    background-color: {LIGHT_CONTRAST_BG};
 }}
 QPushButton {{
     background-color: {APPWIDE_BUTTON_BACKGROUND_COLOR};
@@ -296,6 +304,18 @@ MIDDLE_PANEL_ACCENT_COLOR = COLOR_ACCENT_PRIMARY
 CHART_DATA_HIGHLIGHT_COLOR = MIDDLE_PANEL_ACCENT_COLOR
 CHART_INFO_POSITIVE_WEIGHT_COLOR = "#39ff6a"
 CHART_INFO_NEGATIVE_WEIGHT_COLOR = "#ff4d4d"
+
+
+def set_chart_info_contrast_background(widget: QWidget, text_color: str | None = None) -> None:
+    """Select a readable Chart Info surface for a semantic foreground color."""
+    normalized_color = str(text_color or "").strip().lower()
+    needs_light_background = normalized_color in DARK_TEXT
+    if bool(widget.property("eddLightContrastBackground")) == needs_light_background:
+        return
+    widget.setProperty("eddLightContrastBackground", needs_light_background)
+    widget.style().unpolish(widget)
+    widget.style().polish(widget)
+    widget.update()
 
 # Tags styling
 TAG_CHIP_BACKGROUND_COLOR = "#2d2d2d"

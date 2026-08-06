@@ -1536,6 +1536,7 @@ from ephemeraldaddy.gui.style import (
     set_collapsible_header_title,
     install_appwide_cursor_defaults,
     set_chart_info_text,
+    set_chart_info_contrast_background,
     format_chart_header,
     TRISTATE_SENTIMENT_STYLE,
 )
@@ -27130,6 +27131,8 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             dialog_reasoning_by_target = {}
         match = dialog_reasoning_by_target.get(target) or self._similar_charts_reasoning_by_target.get(target)
         popout_info_output = getattr(target_dialog, "_similar_chart_popout_info_output", None)
+        if popout_info_output is None:
+            self._prepare_chart_info_replacement()
         if match is None:
             if popout_info_output is not None and hasattr(popout_info_output, "setText"):
                 popout_info_output.setText("Could not locate similarity details for this chart.")
@@ -27141,8 +27144,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             compared_chart = load_chart(int(getattr(match, "chart_id", 0)))
         except Exception:
             compared_chart = None
-        if popout_info_output is None:
-            self._set_chart_info_panel_mode("chart_info")
         subject_name = (
             str(getattr(target_dialog, "_similar_chart_popout_subject_name", "") or "").strip()
             if target_dialog is not None
@@ -30818,6 +30819,11 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._refresh_chart_info_panel_toggle_buttons()
         self._update_get_bio_button_visibility()
 
+    def _prepare_chart_info_replacement(self) -> None:
+        """Show Chart Info and restore its default surface before new content."""
+        self._set_chart_info_panel_mode("chart_info")
+        set_chart_info_contrast_background(self.chart_info_output)
+
     def _update_get_bio_button_visibility(self) -> None:
         button = getattr(self, "get_bio_button", None)
         biography_edit = getattr(self, "biography_edit", None)
@@ -30995,7 +31001,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
 
             cursor_pos = cursor.positionInBlock()
             if targets_main_chart_info:
-                self._set_chart_info_panel_mode("chart_info")
+                self._prepare_chart_info_replacement()
             species_entries = species_info_map.get(block_number, [])
             if species_entries:
                 selected_species = None
@@ -31232,6 +31238,10 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         original_chart_info_output = self.chart_info_output
         self.chart_info_output = target_info_widget
         try:
+            # Every newly opened target starts on the standard charcoal
+            # surface. Renderers with a known readability hazard can opt into
+            # the shared light contrast background below.
+            set_chart_info_contrast_background(target_info_widget)
             return callback()
         finally:
             self.chart_info_output = original_chart_info_output
@@ -31595,6 +31605,8 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
     ) -> None:
         sign_key = str(sign_name or "").strip().title()
         body_key = str(body_name or "").strip()
+        body_color = PLANET_COLORS.get(body_key) if body_key else None
+        set_chart_info_contrast_background(self.chart_info_output, body_color)
         sign_keywords = SIGN_KEYWORDS.get(sign_key, {})
         best_keywords = [
             str(item).strip() for item in sign_keywords.get("best", []) if str(item).strip()
@@ -31610,7 +31622,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         cursor.movePosition(QTextCursor.Start)
         title_fmt = QTextCharFormat()
         title_color = (
-            PLANET_COLORS.get(body_key)
+            body_color
             if body_key
             else SIGN_COLORS.get(sign_key)
         ) or CHART_THEME_COLORS.get("text", "#f5f5f5")
@@ -31621,7 +31633,10 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         header_fmt.setForeground(QColor(CHART_DATA_HIGHLIGHT_COLOR))
         header_fmt.setFontWeight(QFont.Bold)
         plain_fmt = QTextCharFormat()
-        plain_fmt.setForeground(QColor("#ffffff"))
+        # A sign clicked from a position describes that position's body. Let
+        # otherwise-unformatted body copy inherit its body color while keeping
+        # explicit sign and Chart Data highlight formats intact.
+        plain_fmt.setForeground(QColor(body_color or "#ffffff"))
         plain_fmt.setFontWeight(QFont.Normal)
         plain_fmt.setFontItalic(False)
 
@@ -37043,7 +37058,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         if len(parts) != 3 or parts[0] != "chart-analysis":
             return
         kind, raw_value = parts[1], parts[2]
-        self._set_chart_info_panel_mode("chart_info")
+        self._prepare_chart_info_replacement()
         if kind == "sign":
             self.chart_info_output.setHtml(self._build_sign_popout_info(self._latest_chart, raw_value))
         elif kind == "body":
@@ -38024,7 +38039,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         kind = parts[1]
         value = urllib.parse.unquote(parts[2])
 
-        self._set_chart_info_panel_mode("chart_info")
+        self._prepare_chart_info_replacement()
         if kind == "planet":
             self._show_planet_keyword_info(value)
             return
@@ -38202,7 +38217,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             species_label=getattr(self, "dnd_prediction_species_label", None),
             class_label=getattr(self, "dnd_prediction_class_label", None),
             info_panel=self.chart_info_output,
-            before_show=lambda: self._set_chart_info_panel_mode("chart_info"),
+            before_show=self._prepare_chart_info_replacement,
             chart_theme_colors=CHART_THEME_COLORS,
             apply_standard_bar_axes=self._apply_standard_ncv_bar_chart_axes,
             is_placeholder_chart=self._is_placeholder_chart,
