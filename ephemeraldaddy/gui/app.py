@@ -979,6 +979,7 @@ from ephemeraldaddy.gui.dbv_search_panel import (
     build_dbv_search_panel,
     build_birthdate_filter_date,
     cached_top_three_species_for_filter,
+    chart_matches_typology_filters,
     chart_matches_body_dynamics_filters,
     collect_search_tag_filter_sets,
     collect_search_trait_filter_sets,
@@ -988,6 +989,7 @@ from ephemeraldaddy.gui.dbv_search_panel import (
     HumanDesignSearchSelectionSnapshot,
     has_active_chart_filters,
     has_active_search_tag_filters,
+    typology_filter_values,
     chart_matches_trait_filters,
     on_search_tag_category_logic_changed,
     on_search_tags_changed,
@@ -2572,10 +2574,14 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._matched_expectations_max_input = None
         self._matched_expectations_blank_checkbox = None
         self.search_predictability_section = None
+        self.search_enneagram_prediction_section = None
         self.search_alignment_section = None
         self.search_relationship_section = None
         self.search_notes_section = None
         self.enneagram_type_filter_checkboxes: dict[int, QuadStateSlider] = {}
+        self._typology_enneagram_inputs: list[QLineEdit] = []
+        self._typology_tritype_inputs: list[QLineEdit] = []
+        self._typology_mbti_combos: list[QComboBox] = []
         self._dnd_stat_filter_min_inputs: dict[str, QLineEdit] = {}
         self._dnd_stat_filter_max_inputs: dict[str, QLineEdit] = {}
         self._notes_comments_filter_checkbox = None
@@ -17467,6 +17473,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                     checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             for checkbox in getattr(self, "enneagram_type_filter_checkboxes", {}).values():
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
+            for edit in (*self._typology_enneagram_inputs, *self._typology_tritype_inputs):
+                edit.clear()
+            for combo in self._typology_mbti_combos:
+                combo.setCurrentIndex(0)
             for checkbox in getattr(self, "search_tag_category_checkboxes", {}).values():
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             for checkbox in self.sentiment_filter_checkboxes.values():
@@ -19860,6 +19870,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             for enneagram_type, checkbox in getattr(self, "enneagram_type_filter_checkboxes", {}).items()
             if checkbox.mode() == QuadStateSlider.MODE_FALSE
         }
+        assigned_enneagram_type, assigned_enneagram_wing, assigned_tritype, assigned_mbti = (
+            typology_filter_values(self)
+        )
         selected_chart_types = {
             source
             for source, checkbox in self.chart_type_filter_checkboxes.items()
@@ -20617,6 +20630,15 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 return False
             if excluded_enneagram_types and not dominant_enneagram_types.isdisjoint(excluded_enneagram_types):
                 return False
+
+        if not chart_matches_typology_filters(
+            chart,
+            enneagram_type=assigned_enneagram_type,
+            enneagram_wing=assigned_enneagram_wing,
+            tritype_types=assigned_tritype,
+            mbti_letters=assigned_mbti,
+        ):
+            return False
 
         chart_year_first_encountered = getattr(chart, "year_first_encountered", None)
         if not isinstance(chart_year_first_encountered, int):
@@ -24115,6 +24137,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
     def _set_prediction_section_visibility_from_settings(self, section_key: str, checked: bool) -> None:
         self._visibility.set(f"predictions.{section_key}", checked)
+        if section_key == "enneagram":
+            search_section = getattr(self, "search_enneagram_prediction_section", None)
+            if search_section is not None:
+                search_section.setVisible(bool(checked))
         parent = self._owner_window()
         if isinstance(parent, MainWindow):
             parent._visibility.set(f"predictions.{section_key}", checked)
