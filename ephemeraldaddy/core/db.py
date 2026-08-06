@@ -4572,7 +4572,12 @@ def list_human_design_synastry_candidates():
 
 
 def list_human_design_resonance_candidates():
-    """Return HD candidates with canonical gate-line activations, loaded in one batch."""
+    """Return candidates with signature-keyed, lazily backfilled gate-line activations.
+
+    Older databases did not persist gate identity alongside HD lines.  The
+    cache below derives only missing or stale rows in one batch, then reuses
+    them until the chart's astronomical-data signature changes.
+    """
     from dataclasses import replace
 
     from ephemeraldaddy.analysis.human_design import (
@@ -4580,19 +4585,85 @@ def list_human_design_resonance_candidates():
     )
 
     candidates = list_human_design_synastry_candidates()
-    charts_by_uid = load_charts_by_uids(candidate.chart_uid for candidate in candidates)
-    enriched = []
-    for candidate in candidates:
-        chart = charts_by_uid.get(candidate.chart_uid)
-        if chart is None:
-            enriched.append(candidate)
-            continue
-        try:
-            _gates, gate_lines = get_active_human_design_gates_and_lines(chart)
-        except Exception:
-            gate_lines = set()
-        enriched.append(replace(candidate, gate_lines=frozenset(gate_lines)))
-    return enriched
+    if not candidates:
+        return []
+
+    conn = _get_conn()
+    with conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS human_design_resonance_cache (
+                chart_uid TEXT PRIMARY KEY,
+                astro_data_signature TEXT NOT NULL,
+                gate_lines TEXT NOT NULL
+            )
+            """
+        )
+        cached_rows = conn.execute(
+            """
+            SELECT chart_uid, astro_data_signature, gate_lines
+            FROM human_design_resonance_cache
+            """
+        ).fetchall()
+
+    cached_by_uid = {
+        str(row[0] or "").strip().upper(): (str(row[1] or ""), str(row[2] or ""))
+        for row in cached_rows
+        if str(row[0] or "").strip()
+    }
+    candidates_by_uid = {candidate.chart_uid: candidate for candidate in candidates}
+    stale_uids = [
+        candidate.chart_uid
+        for candidate in candidates
+        if cached_by_uid.get(candidate.chart_uid, (None,))[0]
+        != str(candidate.astro_data_signature or "")
+    ]
+    if stale_uids:
+        charts_by_uid = load_charts_by_uids(stale_uids)
+        backfill_rows = []
+        for chart_uid in stale_uids:
+            chart = charts_by_uid.get(chart_uid)
+            try:
+                _gates, gate_lines = get_active_human_design_gates_and_lines(chart)
+            except Exception:
+                gate_lines = set()
+            serialized = _serialize_string_list(
+                f"{gate}.{line}" for gate, line in sorted(gate_lines)
+            )
+            signature = str(candidates_by_uid[chart_uid].astro_data_signature or "")
+            cached_by_uid[chart_uid] = (signature, serialized)
+            backfill_rows.append((chart_uid, signature, serialized))
+        with conn:
+            conn.executemany(
+                """
+                INSERT INTO human_design_resonance_cache (
+                    chart_uid, astro_data_signature, gate_lines
+                ) VALUES (?, ?, ?)
+                ON CONFLICT(chart_uid) DO UPDATE SET
+                    astro_data_signature = excluded.astro_data_signature,
+                    gate_lines = excluded.gate_lines
+                """,
+                backfill_rows,
+            )
+
+    def parse_gate_lines(serialized: str) -> frozenset[tuple[int, int]]:
+        gate_lines = set()
+        for value in _parse_string_list(serialized):
+            try:
+                gate, line = (int(part) for part in value.split(".", 1))
+            except (TypeError, ValueError):
+                continue
+            if 1 <= gate <= 64 and 1 <= line <= 6:
+                gate_lines.add((gate, line))
+        return frozenset(gate_lines)
+
+    return [
+        replace(
+            candidate,
+            gate_lines=parse_gate_lines(cached_by_uid[candidate.chart_uid][1]),
+        )
+        for candidate in candidates
+    ]
 
 
 def list_charts() -> List[

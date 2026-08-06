@@ -115,6 +115,42 @@ def test_normalize_gate_lines_preserves_gate_identity():
     )
 
 
+def test_resonance_candidate_gate_lines_are_backfilled_once_per_signature(monkeypatch):
+    import sqlite3
+    import sys
+    from types import ModuleType
+
+    from ephemeraldaddy.core import db
+
+    connection = sqlite3.connect(":memory:")
+    candidates = [
+        HumanDesignSynastryCandidate(
+            "CANDIDATE", "Candidate", None, frozenset({1}), astro_data_signature="sig-1"
+        )
+    ]
+    load_calls = []
+    monkeypatch.setattr(db, "_get_conn", lambda: connection)
+    monkeypatch.setattr(db, "list_human_design_synastry_candidates", lambda: candidates)
+    monkeypatch.setattr(
+        db,
+        "load_charts_by_uids",
+        lambda chart_uids: load_calls.append(tuple(chart_uids)) or {"CANDIDATE": object()},
+    )
+    human_design = ModuleType("ephemeraldaddy.analysis.human_design")
+    human_design.get_active_human_design_gates_and_lines = lambda _chart: ({1}, {(1, 2)})
+    monkeypatch.setitem(sys.modules, "ephemeraldaddy.analysis.human_design", human_design)
+
+    assert db.list_human_design_resonance_candidates()[0].gate_lines == frozenset({(1, 2)})
+    assert db.list_human_design_resonance_candidates()[0].gate_lines == frozenset({(1, 2)})
+    assert load_calls == [("CANDIDATE",)]
+
+    candidates[0] = HumanDesignSynastryCandidate(
+        "CANDIDATE", "Candidate", None, frozenset({1}), astro_data_signature="sig-2"
+    )
+    db.list_human_design_resonance_candidates()
+    assert load_calls == [("CANDIDATE",), ("CANDIDATE",)]
+
+
 def test_electrochemistry_score_sums_cross_chart_channels_and_combined_centers():
     score, maximum = human_design_electrochemistry_score(
         {64, 61, 24},
