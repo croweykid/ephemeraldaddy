@@ -124,12 +124,9 @@ class MetricCanvasLayoutController(QObject):
             self._dirty_canvases.add(canvas)
             return False
 
-        available_width = viewport_width
-        parent = canvas.parentWidget()
-        parent_layout = parent.layout() if parent is not None else None
-        if parent_layout is not None:
-            margins = parent_layout.contentsMargins()
-            available_width -= margins.left() + margins.right()
+        available_width = viewport_width - self._horizontal_insets_to_viewport(
+            canvas, scroll_area
+        )
         available_width = max(1, available_width - (self._side_gutter_px * 2))
 
         display_height = canvas.property("metric_display_height")
@@ -149,6 +146,33 @@ class MetricCanvasLayoutController(QObject):
         self._dirty_canvases.discard(canvas)
         self._redraw(canvas)
         return True
+
+    @staticmethod
+    def _horizontal_insets_to_viewport(
+        canvas: FigureCanvas, scroll_area: QScrollArea
+    ) -> int:
+        """Return every layout inset between a canvas and its scroll viewport.
+
+        A graph is commonly nested inside a zero-margin chart panel, which is
+        itself inside an eight-pixel collapsible-section content layout and a
+        padded tab page.  Subtracting only the canvas parent's margins made the
+        graph as wide as the *whole* viewport, so it necessarily crossed the
+        section's hard edge.  Derive the width from the viewport while walking
+        the explicit ancestor chain; do not sample ancestor widths or size
+        hints, which can still be stale while a stacked page is hidden.
+        """
+        total = 0
+        widget = canvas.parentWidget()
+        scroll_content = scroll_area.widget()
+        while widget is not None:
+            layout = widget.layout()
+            if layout is not None:
+                margins = layout.contentsMargins()
+                total += margins.left() + margins.right()
+            if widget is scroll_content:
+                break
+            widget = widget.parentWidget()
+        return total
 
     def _flush(self) -> None:
         self._flush_scheduled = False

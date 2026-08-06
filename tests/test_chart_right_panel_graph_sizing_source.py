@@ -26,7 +26,23 @@ def test_metric_graphs_delegate_to_single_viewport_layout_owner():
     assert "MetricCanvasLayoutController(" in source
     assert "viewport_width = scroll_area.viewport().width()" in controller
     assert "ancestor_width" not in controller
+    assert "_horizontal_insets_to_viewport" in controller
     assert "delays_ms: tuple[int, ...] = (0, 50, 150, 300)" not in source
+
+
+def test_tab_switch_reasserts_visible_canvas_layout_without_rerendering():
+    source = (
+        REPO_ROOT / "ephemeraldaddy/gui/features/charts/cv_right_panel_stack.py"
+    ).read_text()
+    method_start = source.index("def set_chart_right_panel(")
+    method = source[
+        method_start : source.index(
+            "def _predictions_panel_render_is_current", method_start
+        )
+    ]
+
+    assert 'getattr(owner, "_request_visible_metric_canvas_layouts", None)' in method
+    assert "QTimer.singleShot(0, request_metric_layouts)" in method
 
 
 def test_hidden_metric_canvas_width_is_not_guessed_from_stale_geometry():

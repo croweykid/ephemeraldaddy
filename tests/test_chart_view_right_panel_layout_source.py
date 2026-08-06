@@ -36,8 +36,9 @@ def test_metric_canvas_width_subtracts_scroll_content_margins():
     source = _source("ephemeraldaddy/gui/features/chart_editor/metric_canvas_layout.py")
 
     assert "viewport_width = scroll_area.viewport().width()" in source
-    assert "margins = parent_layout.contentsMargins()" in source
-    assert "available_width -= margins.left() + margins.right()" in source
+    assert "margins = layout.contentsMargins()" in source
+    assert "while widget is not None:" in source
+    assert "total += margins.left() + margins.right()" in source
 
 
 def test_prediction_graph_sections_use_extra_axis_label_height():
