@@ -51,6 +51,8 @@ class HumanDesignSynastryMatch:
     profile_bonus: int = 0
     shared_gates: int | None = None
     shared_lines: int | None = None
+    shared_gate_numbers: tuple[int, ...] = ()
+    shared_gate_lines: tuple[tuple[int, int], ...] = ()
 
 
 HD_SYNASTRY_GENDER_FILTERS = frozenset({"all", "male", "female"})
@@ -201,10 +203,11 @@ def rank_human_design_resonance(
             gate for gate, _line in candidate_gate_lines
         )
         common_gates = source_gates & candidate_gates
+        common_gate_lines = normalized_gate_lines & candidate_gate_lines
         shared_gates = len(common_gates)
         shared_lines = sum(
             1
-            for gate_line in normalized_gate_lines & candidate_gate_lines
+            for gate_line in common_gate_lines
             if gate_line[0] in common_gates
         )
         matches.append(
@@ -220,6 +223,14 @@ def rank_human_design_resonance(
                 uses_houses=bool(candidate.uses_houses),
                 shared_gates=shared_gates,
                 shared_lines=shared_lines,
+                shared_gate_numbers=tuple(sorted(common_gates)),
+                shared_gate_lines=tuple(
+                    sorted(
+                        gate_line
+                        for gate_line in common_gate_lines
+                        if gate_line[0] in common_gates
+                    )
+                ),
             )
         )
     matches.sort(

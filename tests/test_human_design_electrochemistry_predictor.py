@@ -133,6 +133,10 @@ def test_resonance_rank_prefers_exact_gate_lines_over_gate_only_matches():
     assert [match.chart_uid for match in results] == ["LINES", "GATES"]
     assert (results[0].shared_gates, results[0].shared_lines) == (1, 2)
     assert (results[1].shared_gates, results[1].shared_lines) == (2, 1)
+    assert results[0].shared_gate_numbers == (1,)
+    assert results[0].shared_gate_lines == ((1, 1), (1, 2))
+    assert results[1].shared_gate_numbers == (1, 2)
+    assert results[1].shared_gate_lines == ((1, 1),)
 
 
 def test_normalize_gate_lines_preserves_gate_identity():
@@ -186,6 +190,34 @@ def test_resonance_gate_lines_backfill_incomplete_gate_caches():
     )[0]
 
     assert (result.shared_gates, result.shared_lines) == (1, 1)
+
+
+def test_resonance_display_matches_ideal_styling_and_lists_shared_activations(monkeypatch):
+    hd_electrochemistry = _hd_electrochemistry_module()
+    monkeypatch.setattr(
+        hd_electrochemistry,
+        "current_human_design_electrochemistry_norms",
+        lambda: None,
+    )
+    match = rank_human_design_resonance(
+        "SOURCE",
+        {1, 2},
+        [
+            HumanDesignSynastryCandidate(
+                "MATCH",
+                "Resonant chart",
+                None,
+                frozenset({1, 2}),
+                gate_lines=frozenset({(1, 2), (2, 4)}),
+            )
+        ],
+        source_gate_lines={(1, 2), (2, 5)},
+    )[0]
+
+    rendered = hd_electrochemistry._format_hd_electrochemistry_matches((match,), ())
+
+    assert '<a href="chart-uid:MATCH" style="color: #cdb7ff;">Resonant chart</a>' in rendered
+    assert '<span style="color: #aaa;">(2 shared gates: 1, 2; 1 shared line: 1.2)</span>' in rendered
 
 
 def test_resonance_candidate_gate_lines_are_backfilled_once_per_signature(monkeypatch):
