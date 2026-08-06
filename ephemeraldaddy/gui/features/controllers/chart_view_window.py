@@ -1496,7 +1496,17 @@ def get_chart_view_typology(owner: QWidget) -> tuple[list[str], list[int], list[
 
 def set_chart_view_typology_state(owner: QWidget, enneagram_type, tritype, mbti) -> None:
     enneagram = ([str(value) for value in (enneagram_type or [])] + ["0", "0"])[:2]
-    tri = ([int(value) for value in (tritype or []) if isinstance(value, int)] + [0, 0, 0])[:3]
+    raw_tritype = list(tritype or [])
+    tri: list[int] = []
+    for index in range(3):
+        value = raw_tritype[index] if index < len(raw_tritype) else 0
+        tri.append(
+            value
+            if isinstance(value, int)
+            and not isinstance(value, bool)
+            and 1 <= value <= 9
+            else 0
+        )
     for edit, value in zip((owner.enneagram_primary_edit, owner.enneagram_wing_edit), enneagram):
         edit.setText(value if value in "123456789" else "")
     for edit, value in zip(owner.tritype_edits, tri):

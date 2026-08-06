@@ -43,3 +43,30 @@ def test_observations_layout_places_emoji_portrait_after_reminds_me_of():
     assert section.index("sentiment_relation_layout.addWidget(reminds_me_of_box)") < section.index(
         "setup_chart_view_emoji_portrait_section(self, sentiment_relation_layout)"
     )
+
+
+def test_typology_hydration_preserves_unknown_tritype_slots():
+    source = Path(
+        "ephemeraldaddy/gui/features/controllers/chart_view_window.py"
+    ).read_text(encoding="utf-8")
+    start = source.index("def set_chart_view_typology_state(")
+    end = source.index("\ndef _populate_emoji_portrait_section", start)
+    hydration = source[start:end]
+
+    assert "value = raw_tritype[index] if index < len(raw_tritype) else 0" in hydration
+    assert "for index in range(3)" in hydration
+    assert "if isinstance(value, int)]" not in hydration
+
+
+def test_new_chart_form_resets_typology_controls_to_defaults():
+    source = Path("ephemeraldaddy/gui/app.py").read_text(encoding="utf-8")
+    start = source.index("    def _reset_new_chart_form(self) -> None:")
+    end = source.index("\n    def _on_delete_this_chart", start)
+    reset = source[start:end]
+
+    assert '''set_chart_view_typology_state(
+            self,
+            ["0", "0"],
+            [0, 0, 0],
+            ["?", "?", "?", "?"],
+        )''' in reset

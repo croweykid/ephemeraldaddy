@@ -34798,6 +34798,12 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._set_chart_tags_state([])
         self._set_reminds_me_of_state([])
         self.comments_edit.clear()
+        set_chart_view_typology_state(
+            self,
+            ["0", "0"],
+            [0, 0, 0],
+            ["?", "?", "?", "?"],
+        )
         set_chart_view_quote_state(self, [])
         self.rectification_edit.clear()
         self._clear_material_facts_fields()
