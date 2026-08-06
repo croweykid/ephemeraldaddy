@@ -926,6 +926,51 @@ def test_time_sensitivity_ascendant_info_keeps_disjoint_midnight_spans():
     assert "from 00:00 to 23:59" not in text
 
 
+def test_human_design_property_links_report_each_sampled_time_span():
+    import pytest
+
+    panel_module = pytest.importorskip(
+        "ephemeraldaddy.gui.features.charts.time_sensitivity_panel",
+        exc_type=ImportError,
+    )
+    result = TimeSensitivityResult(
+        chart_uid="CHARTUID",
+        chart_name="Example",
+        birth_date_key="01-01-2000",
+        algorithm_version="time-sensitivity-v11",
+        computed_at="2026-08-06T00:00:00Z",
+        config=TimeSensitivityConfig().__dict__,
+        sample_count=5,
+        baseline_time="12:00",
+        overall={},
+        numeric_ranges={},
+        human_design={
+            "type_distribution": {"Generator": 3, "Manifesting Generator": 2},
+            "profile_distribution": {"1/3": 3, "1/4": 2},
+            "type_spans": {
+                "Generator": ["00:00–06:00", "18:00–23:59"],
+                "Manifesting Generator": ["06:00–18:00"],
+            },
+            "profile_spans": {"1/3": ["00:00–12:00"], "1/4": ["12:00–23:59"]},
+        },
+        stable=[],
+        variable=[],
+        warnings=[],
+    )
+
+    html = panel_module._human_design_html(result)
+    assert "distinguishing-factor:ts-hd-property:type:Generator" in html
+    assert "distinguishing-factor:ts-hd-property:profile:1/3" in html
+    assert (
+        panel_module.human_design_property_time_range_text(result, "type", "Generator")
+        == "from 00:00 to 06:00 and from 18:00 to 23:59"
+    )
+    assert (
+        panel_module.human_design_property_time_range_text(result, "profile", "1/4")
+        == "from 12:00 to 23:59"
+    )
+
+
 def test_human_design_cache_invalidates_when_rectified_time_changes(monkeypatch):
     from datetime import datetime, timezone
     from types import SimpleNamespace
