@@ -18,6 +18,15 @@ class PronounSet(NamedTuple):
         """Return pronouns in compact slash-delimited display form."""
         return "/".join(self)
 
+    @property
+    def possessive_determiner(self) -> str:
+        """Return the attributive possessive used before a noun."""
+        return {
+            "she": "her",
+            "he": "his",
+            "they": "their",
+        }.get(self.subject, self.possessive)
+
 
 SHE_HER_HERS = PronounSet("she", "her", "hers", "herself")
 HE_HIM_HIS = PronounSet("he", "him", "his", "himself")
