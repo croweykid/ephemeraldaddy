@@ -30,6 +30,32 @@ def gendered_candidate(uid, gender):
     return HumanDesignSynastryCandidate(uid, uid, None, frozenset({47}), gender=gender)
 
 
+def test_predicted_synastry_excludes_hidden_hypothetical_and_placeholder_charts():
+    hd_electrochemistry = _hd_electrochemistry_module()
+    owner = type("Owner", (), {"_hidden_chart_uids": {" hidden "}})()
+    candidates = [
+        candidate("VISIBLE", {1}),
+        candidate("HIDDEN", {1}),
+        HumanDesignSynastryCandidate(
+            "HYPOTHETICAL", "Hypothetical", None, frozenset({1}), chart_type="hypothetical"
+        ),
+        HumanDesignSynastryCandidate(
+            "LEGACY-HYPOTHETICAL",
+            "Legacy hypothetical",
+            None,
+            frozenset({1}),
+            source="hypothetical",
+        ),
+        HumanDesignSynastryCandidate(
+            "PLACEHOLDER", "Placeholder", None, frozenset({1}), is_placeholder=True
+        ),
+    ]
+
+    filtered = hd_electrochemistry._eligible_hd_candidates(owner, candidates)
+
+    assert [item.chart_uid for item in filtered] == ["VISIBLE"]
+
+
 
 def test_profile_relation_classifies_resonance_and_harmonics():
     assert human_design_profile_relation("2/4", "2/4") == ("fully resonant profile", 2)
@@ -113,6 +139,53 @@ def test_normalize_gate_lines_preserves_gate_identity():
     assert normalize_gate_lines([(1, 2), (2, 2), (0, 1), (64, 6), (65, 1)]) == frozenset(
         {(1, 2), (2, 2), (64, 6)}
     )
+
+
+def test_resonance_lines_match_only_as_gate_line_pairs():
+    results = rank_human_design_resonance(
+        "SOURCE",
+        {1},
+        [
+            HumanDesignSynastryCandidate(
+                "OTHER-GATE",
+                "Same line, other gate",
+                None,
+                frozenset({7}),
+                gate_lines=frozenset({(7, 5)}),
+            ),
+            HumanDesignSynastryCandidate(
+                "SAME-GATE",
+                "Same gate and line",
+                None,
+                frozenset({1}),
+                gate_lines=frozenset({(1, 5)}),
+            ),
+        ],
+        source_gate_lines={(1, 5)},
+    )
+
+    by_uid = {match.chart_uid: match for match in results}
+    assert (by_uid["OTHER-GATE"].shared_gates, by_uid["OTHER-GATE"].shared_lines) == (0, 0)
+    assert (by_uid["SAME-GATE"].shared_gates, by_uid["SAME-GATE"].shared_lines) == (1, 1)
+
+
+def test_resonance_gate_lines_backfill_incomplete_gate_caches():
+    result = rank_human_design_resonance(
+        "SOURCE",
+        set(),
+        [
+            HumanDesignSynastryCandidate(
+                "CANDIDATE",
+                "Candidate",
+                None,
+                frozenset(),
+                gate_lines=frozenset({(1, 5)}),
+            )
+        ],
+        source_gate_lines={(1, 5)},
+    )[0]
+
+    assert (result.shared_gates, result.shared_lines) == (1, 1)
 
 
 def test_resonance_candidate_gate_lines_are_backfilled_once_per_signature(monkeypatch):
@@ -734,6 +807,22 @@ def test_candidate_loader_tolerates_legacy_database_without_hd_profile(monkeypat
         INSERT INTO charts (
             chart_uid, name, human_design_gates, birthtime_unknown, retcon_time_used
         ) VALUES ('0123456789ABCDEF', 'Legacy HD', '[1, 2, 3]', 0, 0)
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO charts (
+            chart_uid, name, human_design_gates, birthtime_unknown,
+            retcon_time_used, chart_type
+        ) VALUES ('HYPOTHETICAL-UID', 'Hypothetical HD', '[1]', 0, 0, 'hypothetical')
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO charts (
+            chart_uid, name, human_design_gates, birthtime_unknown,
+            retcon_time_used, is_placeholder
+        ) VALUES ('PLACEHOLDER-UID', 'Placeholder HD', '[1]', 0, 0, 1)
         """
     )
     conn.commit()

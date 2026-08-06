@@ -33,6 +33,7 @@ class HumanDesignSynastryCandidate:
     relationship_types: tuple[str, ...] = ()
     profile: str | None = None
     gate_lines: frozenset[tuple[int, int]] = frozenset()
+    is_placeholder: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -177,19 +178,34 @@ def rank_human_design_resonance(
     source_profile: object | None = None,
     limit: int = 10,
 ) -> list[HumanDesignSynastryMatch]:
-    """Rank exact gate-line resonance ahead of gate-only similarity."""
+    """Rank exact gate-line resonance ahead of gate-only similarity.
+
+    Gate-line activations are also authoritative evidence that their gate is
+    active.  Folding those gate identities into the gate sets keeps the two
+    specificity levels consistent even when an older cached gate list is
+    incomplete.
+    """
     del source_profile
     normalized_uid = str(chart_uid or "").strip().upper()
-    source_gates = normalize_gates(gates)
     normalized_gate_lines = normalize_gate_lines(source_gate_lines)
+    source_gates = normalize_gates(gates) | frozenset(
+        gate for gate, _line in normalized_gate_lines
+    )
     matches: list[HumanDesignSynastryMatch] = []
     for candidate in candidates:
         candidate_uid = str(candidate.chart_uid or "").strip().upper()
         if not candidate_uid or candidate_uid == normalized_uid:
             continue
-        shared_gates = len(source_gates & normalize_gates(candidate.gates))
-        shared_lines = len(
-            normalized_gate_lines & normalize_gate_lines(candidate.gate_lines)
+        candidate_gate_lines = normalize_gate_lines(candidate.gate_lines)
+        candidate_gates = normalize_gates(candidate.gates) | frozenset(
+            gate for gate, _line in candidate_gate_lines
+        )
+        common_gates = source_gates & candidate_gates
+        shared_gates = len(common_gates)
+        shared_lines = sum(
+            1
+            for gate_line in normalized_gate_lines & candidate_gate_lines
+            if gate_line[0] in common_gates
         )
         matches.append(
             HumanDesignSynastryMatch(
