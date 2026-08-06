@@ -230,7 +230,11 @@ def test_resonance_gate_link_opens_chart_info():
     owner = type(
         "Owner",
         (),
-        {"_show_distinguishing_factor_info": lambda _self, href: shown.append(href)},
+        {
+            "_on_distinguishing_factor_link_activated": lambda _self, href: shown.append(
+                href
+            )
+        },
     )()
 
     hd_electrochemistry.on_hd_electrochemistry_link_activated(

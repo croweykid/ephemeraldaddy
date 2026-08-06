@@ -645,9 +645,11 @@ def on_gendered_results_method_changed(owner: object, gender_method: str, checke
 def on_hd_electrochemistry_link_activated(owner: object, href: str) -> None:
     href = str(href or "")
     if href.startswith("distinguishing-factor:gate:"):
-        show_chart_info = getattr(owner, "_show_distinguishing_factor_info", None)
-        if callable(show_chart_info):
-            show_chart_info(href)
+        route_chart_info = getattr(
+            owner, "_on_distinguishing_factor_link_activated", None
+        )
+        if callable(route_chart_info):
+            route_chart_info(href)
         return
     prefix = "chart-uid:"
     if not href.startswith(prefix):
