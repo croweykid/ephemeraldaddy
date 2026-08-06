@@ -258,6 +258,7 @@ def test_fetch_word_definition_ignores_dictionary_api_spelling_substitutions(mon
                 ],
             ),
             FakeDefinitionResponse(200, []),
+            FakeDefinitionResponse(404, {}),
         ]
     )
     monkeypatch.setattr(anagrams, "_DEFINITION_HTTP_SESSION", session)
@@ -277,11 +278,50 @@ def test_fetch_word_definition_ignores_datamuse_spelling_suggestions(monkeypatch
                 200,
                 [{"word": "antitumor", "defs": ["adj\tActing against tumors."]}],
             ),
+            FakeDefinitionResponse(404, {}),
         ]
     )
     monkeypatch.setattr(anagrams, "_DEFINITION_HTTP_SESSION", session)
 
     try:
         assert anagrams.fetch_word_definition("antirumor") == "Definition unavailable."
+    finally:
+        anagrams.fetch_word_definition.cache_clear()
+
+
+def test_fetch_word_definition_uses_wiktionary_for_rare_words(monkeypatch):
+    anagrams.fetch_word_definition.cache_clear()
+    session = FakeDefinitionSession(
+        [
+            FakeDefinitionResponse(404, {}),
+            FakeDefinitionResponse(200, []),
+            FakeDefinitionResponse(
+                200,
+                {
+                    "en": [
+                        {
+                            "partOfSpeech": "noun",
+                            "definitions": [
+                                {
+                                    "definition": (
+                                        "Divination by interpreting "
+                                        "<a href=\"/wiki/heat\">heat</a>."
+                                    )
+                                }
+                            ],
+                        }
+                    ]
+                },
+            ),
+        ]
+    )
+    monkeypatch.setattr(anagrams, "_DEFINITION_HTTP_SESSION", session)
+
+    try:
+        assert (
+            anagrams.fetch_word_definition("electrothermancy")
+            == "Divination by interpreting heat."
+        )
+        assert session.urls[-1].endswith("/page/definition/electrothermancy")
     finally:
         anagrams.fetch_word_definition.cache_clear()
