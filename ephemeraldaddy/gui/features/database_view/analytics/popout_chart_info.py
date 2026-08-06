@@ -64,6 +64,44 @@ def combine_database_analytics_chart_info_html(
     return f"{analytics_html}<hr>{generic_html}" if generic_html else analytics_html
 
 
+def database_analytics_generic_reference_html(
+    generic_html: str, *, factor_name: str, factor_kind: str = ""
+) -> str:
+    """Remove Chart Editor context from generic Database Analytics reference HTML.
+
+    The centralized factor presenters write their heading and, for some factors,
+    an active-chart placement summary before the reusable interpretation.  A
+    Database Analytics popout already supplies its own colored heading and is
+    describing a population rather than one chart, so neither block belongs in
+    its reference section.
+    """
+    if not generic_html:
+        return ""
+
+    expected_headings = {str(factor_name or "").strip().casefold()}
+    if factor_kind == "house":
+        expected_headings.add(f"house {factor_name}".strip().casefold())
+    saw_content_block = False
+    block_pattern = re.compile(
+        r"<(?P<tag>p|h[1-6])\b[^>]*>.*?</(?P=tag)\s*>",
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+
+    def _filter_block(match: re.Match[str]) -> str:
+        nonlocal saw_content_block
+        text = html.unescape(re.sub(r"<[^>]+>", "", match.group(0))).strip()
+        normalized = text.casefold()
+        if not text:
+            return match.group(0)
+        is_heading = not saw_content_block and normalized in expected_headings
+        saw_content_block = True
+        if is_heading or normalized.startswith("no chart placements in "):
+            return ""
+        return match.group(0)
+
+    return block_pattern.sub(_filter_block, generic_html)
+
+
 def database_analytics_chart_info_target(
     *, chart_title: str, label: str, chart_mode: str | None = None
 ) -> DatabaseAnalyticsChartInfoTarget | None:

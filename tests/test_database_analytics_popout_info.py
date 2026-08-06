@@ -12,6 +12,7 @@ from ephemeraldaddy.gui.features.charts.database_analytics import (
 from ephemeraldaddy.gui.features.database_view.analytics.popout_chart_info import (
     DatabaseAnalyticsChartInfoTarget,
     combine_database_analytics_chart_info_html,
+    database_analytics_generic_reference_html,
     database_analytics_chart_info_target,
     generic_database_analytics_chart_context,
 )
@@ -67,6 +68,44 @@ def test_database_summary_precedes_generic_chart_info():
 
     assert combined.index("Associated charts") < combined.index("<hr>")
     assert combined.index("<hr>") < combined.index("Aries reference")
+
+
+def test_generic_reference_omits_duplicate_factor_and_chart_placement_fallback():
+    generic = (
+        "<h3>Libra</h3><p>No chart placements in Libra</p>"
+        "<p><b>At Best:</b></p><ul><li>elegant</li></ul>"
+    )
+
+    rendered = database_analytics_generic_reference_html(
+        generic,
+        factor_name="Libra",
+    )
+
+    assert "No chart placements" not in rendered
+    assert rendered.count("Libra") == 0
+    assert "At Best:" in rendered
+    assert "elegant" in rendered
+
+
+def test_generic_reference_keeps_first_content_block_when_it_is_not_a_heading():
+    rendered = database_analytics_generic_reference_html(
+        "<p><b>At Best:</b></p><ul><li>strategic</li></ul>",
+        factor_name="Libra",
+    )
+
+    assert "At Best:" in rendered
+    assert "strategic" in rendered
+
+
+def test_generic_reference_omits_expanded_house_heading():
+    rendered = database_analytics_generic_reference_html(
+        "<h3>House 7</h3><p>Partnership and one-to-one bonds.</p>",
+        factor_name="7",
+        factor_kind="house",
+    )
+
+    assert "House 7" not in rendered
+    assert "Partnership and one-to-one bonds." in rendered
 
 
 def test_observations_popout_info_adds_centralized_meaning_subheader():
