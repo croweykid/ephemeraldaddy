@@ -15,7 +15,21 @@ def test_manage_charts_delegates_similarities_panel_construction_to_controller()
     )[0]
     assert "return self.similarities_controller.build_panel()" in app_panel_method
     assert "title = QLabel(\"Similarities Analysis\")" in controller_source
-    assert "DBInfoPanel(panel)" in controller_source
+    assert "self.db_info_panel = DBInfoPanel()" in controller_source
+
+
+def test_similarities_chart_info_is_a_static_sibling_below_analysis_scroll():
+    app_source = APP_SOURCE.read_text(encoding="utf-8")
+    controller_source = CONTROLLER_SOURCE.read_text(encoding="utf-8")
+
+    assert "build_left_rail(" in app_source
+    assert '"similarities": self.similarities_left_rail' in app_source
+    build_panel = controller_source.split("def build_panel", 1)[1].split(
+        "def set_panel_scroll", 1
+    )[0]
+    assert "layout.addWidget(self.db_info_panel)" not in build_panel
+    assert "rail_layout.addWidget(panel_scroll, 1)" in controller_source
+    assert "rail_layout.addWidget(self.db_info_panel, 1)" in controller_source
 
 
 def test_manage_charts_routes_similarity_state_lifecycle_through_controller():

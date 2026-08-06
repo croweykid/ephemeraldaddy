@@ -10,9 +10,10 @@ methods remain callable on the host during this extraction step.
 
 from __future__ import annotations
 
+from html import escape
 from typing import Any, Callable
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QCompleter,
@@ -30,6 +31,14 @@ from ephemeraldaddy.gui.features.charts.db_info_panel import DBInfoPanel
 from ephemeraldaddy.gui.features.charts.similarities_analysis import (
     SimilaritiesDbBaselineCache,
 )
+from ephemeraldaddy.analysis.human_design_reference import (
+    HD_AUTHORITIES,
+    HD_AUTHORITY_COLORS,
+    HD_CENTERS,
+    HD_PROFILES,
+    normalize_hd_authority_key,
+)
+from ephemeraldaddy.core.interpretations import BAZI_ZODIAC
 
 
 class SimilaritiesController:
@@ -78,6 +87,7 @@ class SimilaritiesController:
         self.panel_scroll: QWidget | None = None
         self.status_label: QLabel | None = None
         self.db_info_panel: QWidget | None = None
+        self.left_rail: QWidget | None = None
 
     def install_legacy_attributes(self) -> None:
         """Expose controller-owned state under historical host attr names.
@@ -311,10 +321,9 @@ class SimilaritiesController:
             setattr(self.host, f"similarities_{attr_name}_toggle", toggle)
             setattr(self.host, f"similarities_{attr_name}_list", section_list)
 
-        self.db_info_panel = DBInfoPanel(panel)
+        self.db_info_panel = DBInfoPanel()
         self.db_info_panel.setVisible(False)
         self.host.similarities_db_info_panel = self.db_info_panel
-        layout.addWidget(self.db_info_panel)
         layout.addStretch(1)
 
         self.panel = panel
@@ -323,6 +332,20 @@ class SimilaritiesController:
 
     def set_panel_scroll(self, panel_scroll: QWidget | None) -> None:
         self.panel_scroll = panel_scroll
+
+    def build_left_rail(self, panel_scroll: QWidget) -> QWidget:
+        """Stack the scrolling analysis and static Chart Info surfaces."""
+        self.panel_scroll = panel_scroll
+        rail = QWidget()
+        rail_layout = QVBoxLayout(rail)
+        rail_layout.setContentsMargins(0, 0, 0, 0)
+        rail_layout.setSpacing(8)
+        rail_layout.addWidget(panel_scroll, 1)
+        if self.db_info_panel is not None:
+            self.db_info_panel.setParent(rail)
+            rail_layout.addWidget(self.db_info_panel, 1)
+        self.left_rail = rail
+        return rail
 
     def set_export_sections(
         self, sections: list[tuple[str, list[tuple[Any, ...]]]]
@@ -362,17 +385,6 @@ class SimilaritiesController:
         if info_panel is None:
             return
         info_panel.setVisible(bool(visible))
-        if not visible:
-            return
-        panel_scroll = self.panel_scroll or getattr(
-            self.host, "similarities_analysis_panel_scroll", None
-        )
-        if panel_scroll is not None:
-            self.host._stabilize_left_scroll_panel_layout(panel_scroll)
-            scrollbar = panel_scroll.verticalScrollBar()
-            if scrollbar is not None:
-                QTimer.singleShot(0, lambda sb=scrollbar: sb.setValue(sb.maximum()))
-                QTimer.singleShot(120, lambda sb=scrollbar: sb.setValue(sb.maximum()))
 
     def toggle_db_info_panel(self) -> None:
         self.capture_legacy_attributes()
@@ -446,6 +458,50 @@ class SimilaritiesController:
                         gate_a,
                         gate_b,
                         "",
+                    )
+                    return
+            if normalized_target.startswith("center:"):
+                label = normalized_target.split(":", 1)[1].strip()
+                center = next(
+                    (data for name, data in HD_CENTERS.items() if name.casefold() == label.casefold()),
+                    None,
+                )
+                if center:
+                    target_output.setHtml(
+                        f'<h3 style="color:{center["color"]};">{center["center"]} Center</h3>'
+                        f'<p>{center["description"]}</p><p><b>When defined:</b> {center["defined"]}</p>'
+                    )
+                    return
+            if normalized_target.startswith("authority:"):
+                label = normalized_target.split(":", 1)[1].strip()
+                key = normalize_hd_authority_key(
+                    label.removesuffix(" Authority").removesuffix(" authority")
+                )
+                description = HD_AUTHORITIES.get(key)
+                if description:
+                    color = HD_AUTHORITY_COLORS.get(key, "#cccccc")
+                    target_output.setHtml(
+                        f'<h3 style="color:{color};">{escape(label)} Authority</h3>'
+                        f"<p>{escape(description)}</p>"
+                    )
+                    return
+            if normalized_target.startswith("profile:"):
+                label = normalized_target.split(":", 1)[1].strip()
+                description = HD_PROFILES.get(label)
+                if description:
+                    target_output.setHtml(
+                        f'<h3 style="color:#9c8fbc;">Profile {escape(label)}</h3>'
+                        f"<p>{escape(description)}</p>"
+                    )
+                    return
+            if normalized_target.startswith("bazi_sign:"):
+                label = normalized_target.split(":", 1)[1].strip()
+                sign_name = label.split()[-1].casefold()
+                sign = BAZI_ZODIAC.get(sign_name)
+                if sign:
+                    target_output.setHtml(
+                        f'<h3 style="color:{sign["color"]};">BaZi {escape(label)}</h3>'
+                        f'<p>{sign["one_liner"]}</p>'
                     )
                     return
             target_output.setPlainText(

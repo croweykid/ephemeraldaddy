@@ -2989,6 +2989,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self.similarities_controller.set_panel_scroll(
             self.similarities_analysis_panel_scroll
         )
+        self.similarities_left_rail = self.similarities_controller.build_left_rail(
+            self.similarities_analysis_panel_scroll
+        )
         self.perceived_similarity_predictors_panel = self._build_perceived_similarity_predictors_panel()
         self.perceived_similarity_predictors_panel_scroll = self._wrap_left_panel(
             self.perceived_similarity_predictors_panel
@@ -3000,7 +3003,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             "database_metrics": self.selection_sentiment_panel_scroll,
             "gen_pop_norms": self.selection_sentiment_panel_scroll,
             "rankings": self.rankings_panel_scroll,
-            "similarities": self.similarities_analysis_panel_scroll,
+            "similarities": self.similarities_left_rail,
             "perceived_similarity_predictors": self.perceived_similarity_predictors_panel_scroll,
         }
         for widget in self._left_panel_widgets.values():
