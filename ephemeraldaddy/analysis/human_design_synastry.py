@@ -48,6 +48,7 @@ class HumanDesignSynastryMatch:
     uses_houses: bool = True
     profile_match: str | None = None
     profile_bonus: int = 0
+    candidate_profile: str | None = None
     shared_gates: int | None = None
     shared_lines: int | None = None
 
@@ -92,15 +93,20 @@ def human_design_profile_relation(profile_a: object, profile_b: object) -> tuple
         HD_HARMONIC_LINES[normalized_a[1]] == normalized_b[1]
     )
     if resonance_count and harmonic_count:
-        return "resonant & harmonic profile", 2
+        relation = (
+            "resonant harmonic"
+            if normalized_a[0] == normalized_b[0]
+            else "harmonic resonant"
+        )
+        return relation, 2
     if resonance_count == 2:
-        return "fully resonant profile", 2
+        return "fully resonant", 2
     if harmonic_count == 2:
-        return "fully harmonic profile", 2
+        return "fully harmonic", 2
     if resonance_count == 1:
-        return "partially resonant profile", 1
+        return "partially resonant", 1
     if harmonic_count == 1:
-        return "partially harmonic profile", 1
+        return "partially harmonic", 1
     return None, 0
 
 
@@ -311,6 +317,7 @@ def rank_human_design_synastry(
                 uses_houses=match.uses_houses,
                 profile_match=match.profile_match,
                 profile_bonus=match.profile_bonus,
+                candidate_profile=match.candidate_profile,
             )
             for match in matches
         ]
@@ -370,6 +377,9 @@ def rank_human_design_synastry_ideal(
                 uses_houses=match.uses_houses,
                 profile_match=profile_match,
                 profile_bonus=profile_bonus,
+                candidate_profile=(
+                    str(candidate_profiles.get(match.chart_uid) or "").strip() or None
+                ),
             )
         )
     if matches:
@@ -395,6 +405,7 @@ def rank_human_design_synastry_ideal(
                 uses_houses=match.uses_houses,
                 profile_match=match.profile_match,
                 profile_bonus=match.profile_bonus,
+                candidate_profile=match.candidate_profile,
             )
             for match in matches
         ]

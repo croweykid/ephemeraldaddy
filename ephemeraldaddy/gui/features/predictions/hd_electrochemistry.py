@@ -278,12 +278,12 @@ def _format_hd_electrochemistry_matches(matches: tuple, warning_lines: tuple[str
             )
             continue
         electrochemistry_score = max(0, int(match.score) - profile_bonus)
-        score_maximum = HD_ELECTROCHEMISTRY_MAX_SCORE + (2 if profile_bonus else 0)
+        score_maximum = HD_ELECTROCHEMISTRY_MAX_SCORE
         profile_reason = ""
         if profile_bonus:
             profile_reason = (
-                f" + {profile_bonus} profile bonus "
-                f"({html.escape(str(match.profile_match or 'HD profile match'))})"
+                f" + {html.escape(str(match.profile_match or 'HD profile match'))}"
+                f" ({html.escape(str(match.candidate_profile or 'unknown profile'))})"
             )
         database_norms = ""
         if norms is not None and norms.sample_size:

@@ -32,11 +32,12 @@ def gendered_candidate(uid, gender):
 
 
 def test_profile_relation_classifies_resonance_and_harmonics():
-    assert human_design_profile_relation("2/4", "2/4") == ("fully resonant profile", 2)
-    assert human_design_profile_relation("2/4", "5/1") == ("fully harmonic profile", 2)
-    assert human_design_profile_relation("2/4", "5/4") == ("resonant & harmonic profile", 2)
-    assert human_design_profile_relation("2/4", "2/6") == ("partially resonant profile", 1)
-    assert human_design_profile_relation("2/4", "3/1") == ("partially harmonic profile", 1)
+    assert human_design_profile_relation("2/4", "2/4") == ("fully resonant", 2)
+    assert human_design_profile_relation("2/4", "5/1") == ("fully harmonic", 2)
+    assert human_design_profile_relation("2/4", "5/4") == ("harmonic resonant", 2)
+    assert human_design_profile_relation("2/4", "2/1") == ("resonant harmonic", 2)
+    assert human_design_profile_relation("2/4", "2/6") == ("partially resonant", 1)
+    assert human_design_profile_relation("2/4", "3/1") == ("partially harmonic", 1)
     assert human_design_profile_relation("2/4", "3/6") == (None, 0)
 
 
@@ -53,8 +54,9 @@ def test_ideal_rank_adds_profile_bonus_to_score_and_tiebreaking():
     )
 
     assert [match.chart_uid for match in results] == ["HARMONIC", "PLAIN"]
-    assert results[0].profile_match == "fully harmonic profile"
+    assert results[0].profile_match == "fully harmonic"
     assert results[0].profile_bonus == 2
+    assert results[0].candidate_profile == "5/1"
     assert results[0].score == results[1].score + 2
 
 
