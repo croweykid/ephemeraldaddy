@@ -387,6 +387,12 @@ def _trait_info_html(trait: dict[str, Any], chart: Any | None = None) -> str:
     sample_count = _trait_sample_count(trait)
     evidence_html = ""
     if chart is not None:
+        chart_name = str(getattr(chart, "name", "") or "").strip()
+        matching_factors_header = (
+            f"Matching factors in {html.escape(chart_name)}'s chart:"
+            if chart_name
+            else "Matching factors in this chart:"
+        )
         matches = matched_weighted_criteria(chart, trait.get("profile", {}))
         positive = matches.get("positive", [])
         negative = matches.get("negative", [])
@@ -415,7 +421,7 @@ def _trait_info_html(trait: dict[str, Any], chart: Any | None = None) -> str:
         evidence_html = (
             "<div style='height:12px;'></div>"
             f"<div style='font-size:12px; font-weight:700; color:{CHART_DATA_HIGHLIGHT_COLOR};'>"
-            "Matching factors in this chart:</div>"
+            f"{matching_factors_header}</div>"
             "<div style='height:12px;'></div>"
         )
         if positive:
