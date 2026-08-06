@@ -1465,7 +1465,9 @@ def _populate_typology_section(owner: QWidget, layout: QVBoxLayout) -> None:
     for options in (("?", "I", "i", "x", "e", "E"), ("?", "N", "n", "x", "s", "S"), ("?", "T", "t", "x", "f", "F"), ("?", "P", "p", "x", "j", "J")):
         combo = QComboBox()
         combo.addItems(options)
-        combo.currentIndexChanged.connect(owner._mark_lucygoosey)
+        combo.currentIndexChanged.connect(
+            owner._chart_editor_controller.on_lightweight_metadata_changed
+        )
         owner.mbti_combos.append(combo)
         mbti_row.addWidget(combo)
     layout.addLayout(mbti_row)
@@ -1476,7 +1478,9 @@ def _typology_digit_edit(owner: QWidget) -> QLineEdit:
     edit.setValidator(QIntValidator(1, 9, edit))
     edit.setMaxLength(1)
     edit.setFixedWidth(32)
-    edit.textChanged.connect(owner._mark_lucygoosey)
+    edit.textChanged.connect(
+        owner._chart_editor_controller.on_lightweight_metadata_changed
+    )
     return edit
 
 
