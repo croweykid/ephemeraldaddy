@@ -1368,6 +1368,9 @@ def update_tag_completers(
     from PySide6.QtWidgets import QLineEdit
 
     from ephemeraldaddy.gui.features.charts.tagging import apply_tag_completer
+    from ephemeraldaddy.gui.features.chart_editor.related_chart_completer import (
+        refresh_material_relatives_completer,
+    )
 
     known_tags = tag_completer_tags_for_session(window)
     window._known_chart_tags = known_tags
@@ -1382,6 +1385,10 @@ def update_tag_completers(
     update_reminds_me_of_completer = getattr(window, "_update_reminds_me_of_completer", None)
     if callable(update_reminds_me_of_completer):
         update_reminds_me_of_completer()
+    refresh_material_relatives_completer(
+        getattr(window, "material_facts_relative_search_edit", None),
+        current_chart_uid=getattr(window, "current_chart_uid", None),
+    )
     if refresh_location_completers:
         window._update_location_completers()
     if refresh_tag_lists:

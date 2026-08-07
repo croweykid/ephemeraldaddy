@@ -47,7 +47,6 @@ from PySide6.QtWidgets import (
 )
 
 from ephemeraldaddy.core.chart import Chart, apply_unknown_sign_metadata
-from ephemeraldaddy.core.db import get_chart_uid_map, list_charts
 from ephemeraldaddy.core.photo_gallery import (
     add_photo_file,
     add_photo_url,
@@ -59,6 +58,9 @@ from ephemeraldaddy.core.photo_gallery import (
     set_profile_photo,
 )
 from ephemeraldaddy.gui.features.charts.presentation import sign_for_longitude
+from ephemeraldaddy.gui.features.chart_editor.related_chart_completer import (
+    refresh_material_relatives_completer,
+)
 from ephemeraldaddy.gui.features.charts.metrics import chart_uses_houses as _chart_uses_houses
 from ephemeraldaddy.core.ephemeris import planetary_positions
 from ephemeraldaddy.core.interpretations import (
@@ -1347,24 +1349,9 @@ def _build_material_facts_panel(owner: QWidget) -> QWidget:
     relative_input_layout.setSpacing(4)
     relative_input = QLineEdit()
     relative_input.setPlaceholderText("Search database relatives by name")
-    relative_choices: list[str] = []
-    chart_rows = list_charts()
-    chart_uids = get_chart_uid_map(row[0] for row in chart_rows)
-    for row in chart_rows:
-        chart_id = int(row[0])
-        uid = chart_uids.get(chart_id, "")
-        for choice in (row[1] if len(row) > 1 else "", row[2] if len(row) > 2 else "", uid):
-            choice_text = str(choice or "").strip()
-            if choice_text and choice_text not in relative_choices:
-                relative_choices.append(choice_text)
-    completer = QCompleter(relative_choices, relative_input)
-    completer.setCaseSensitivity(Qt.CaseInsensitive)
-    completer.setFilterMode(Qt.MatchContains)
-    completer.popup().setFocusPolicy(Qt.NoFocus)
-    relative_input.setCompleter(completer)
+    refresh_material_relatives_completer(relative_input, current_chart_uid=None)
     relative_input.returnPressed.connect(owner._add_material_relative_from_input)
     setattr(owner, "material_facts_relative_search_edit", relative_input)
-    setattr(owner, "_material_facts_relative_completer", completer)
     relative_input_layout.addWidget(relative_input, 1)
     add_relative_button = QPushButton("✅")
     add_relative_button.setToolTip("Link this relative")

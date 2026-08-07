@@ -589,6 +589,9 @@ from ephemeraldaddy.gui.features.chart_editor.unsaved_summary import (
     build_unsaved_changes_prompt_details,
     summarize_chart_editor_draft_changes,
 )
+from ephemeraldaddy.gui.features.chart_editor.related_chart_completer import (
+    refresh_material_relatives_completer,
+)
 from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import (
     apply_mode_pick_metadata,
     _chart_right_panel_prediction_render_token,
@@ -32741,10 +32744,15 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             enneagram_type=tuple(enneagram_type),
             tritype=tuple(tritype),
             mbti=tuple(mbti),
+            reminds_me_of_uids=tuple(
+                parse_reminds_me_of_uids(getattr(self, "_reminds_me_of_current", []))
+            ),
+            relative_uids=tuple(self._material_relative_uids_for_save()),
         )
         return summarize_chart_editor_draft_changes(
             saved_chart, draft,
             recalculation_required=self._metadata_autosave_requires_recalculation,
+            saved_relative_uids=load_linked_relative_uids_by_uid(self.current_chart_uid),
         )
 
     def _confirm_discard_or_save(self) -> bool:
@@ -35381,6 +35389,10 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._set_chart_tags_state(normalize_tag_list(getattr(chart, "tags", [])))
         related_choices_started_at = perf_counter()
         self._update_reminds_me_of_completer()
+        refresh_material_relatives_completer(
+            self.material_facts_relative_search_edit,
+            current_chart_uid=self._current_chart_uid_for_navigation(),
+        )
         record_performance_metric(
             "chart_editor.load.related_choice_snapshot",
             (perf_counter() - related_choices_started_at) * 1000.0,
