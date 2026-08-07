@@ -256,6 +256,49 @@ def typology_filter_values(window) -> tuple[
     )
 
 
+def update_search_typology_from_charts(window, charts) -> None:
+    """Populate Search typology controls from the current chart selection."""
+    from PySide6.QtCore import Qt
+    from ephemeraldaddy.gui.features.database_view.typology_selection import (
+        MIXED,
+        summarize_typology_selection,
+    )
+
+    summary = summarize_typology_selection(charts)
+    line_edits = (
+        *getattr(window, "_typology_enneagram_inputs", ()),
+        *getattr(window, "_typology_tritype_inputs", ()),
+    )
+    values = (*summary.enneagram, *summary.tritype) if summary is not None else (None,) * 5
+    for edit, value in zip(line_edits, values):
+        edit.blockSignals(True)
+        edit.clear()
+        font = edit.font()
+        font.setItalic(value is MIXED)
+        edit.setFont(font)
+        edit.setPlaceholderText("mixed" if value is MIXED else "1–9")
+        if value is not None and value is not MIXED:
+            edit.setText(str(value))
+        edit.blockSignals(False)
+
+    mbti_values = summary.mbti if summary is not None else (None,) * 4
+    for combo, value in zip(getattr(window, "_typology_mbti_combos", ()), mbti_values):
+        combo.blockSignals(True)
+        mixed_index = combo.findText("mixed")
+        if mixed_index >= 0:
+            combo.removeItem(mixed_index)
+        if value is MIXED:
+            combo.insertItem(0, "mixed", None)
+            font = combo.font()
+            font.setItalic(True)
+            combo.setItemData(0, font, Qt.FontRole)
+            combo.setCurrentIndex(0)
+        else:
+            index = combo.findData(value) if value is not None else combo.findData(None)
+            combo.setCurrentIndex(max(0, index))
+        combo.blockSignals(False)
+
+
 def matched_expectations_value_for_chart(chart) -> int:
     """Return a clamped matched-expectations score for DBV search filters."""
     if chart is None:

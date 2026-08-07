@@ -997,6 +997,7 @@ from ephemeraldaddy.gui.dbv_search_panel import (
     has_active_chart_filters,
     has_active_search_tag_filters,
     typology_filter_values,
+    update_search_typology_from_charts,
     chart_matches_trait_filters,
     on_search_tag_category_logic_changed,
     on_search_tags_changed,
@@ -14256,6 +14257,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             preserve_lucygoosey=preserve_lucygoosey_metrics,
         )
         set_batch_from_whence_state(self, from_whence_values)
+        if hasattr(self, "batch_typology_editor"):
+            self.batch_typology_editor.update_from_charts(chart for _chart_id, chart in resolved_items)
         self._render_batch_selection_tag_summary(tag_counts, selected_count)
         self._set_batch_alignment_state(resolved_items)
         self._batch_last_selection_uids = chart_uid_set
@@ -17739,6 +17742,11 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
         if self._right_panel_visible and self._active_right_panel == "edit":
             self._update_batch_edit_state()
+        elif self._right_panel_visible and self._active_right_panel == "search":
+            update_search_typology_from_charts(
+                self,
+                (self._get_chart_for_filter_by_uid(uid) for uid in self._selected_chart_uids()),
+            )
         self._update_batch_edit_action_buttons()
         self._update_collection_membership_buttons()
         panel = getattr(self, "perceived_similarity_predictors_panel", None)
