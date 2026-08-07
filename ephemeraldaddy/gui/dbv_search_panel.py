@@ -1382,6 +1382,11 @@ def update_tag_completers(
     update_reminds_me_of_completer = getattr(window, "_update_reminds_me_of_completer", None)
     if callable(update_reminds_me_of_completer):
         update_reminds_me_of_completer()
+    update_material_relatives_completer = getattr(
+        window, "_update_material_relatives_completer", None
+    )
+    if callable(update_material_relatives_completer):
+        update_material_relatives_completer()
     if refresh_location_completers:
         window._update_location_completers()
     if refresh_tag_lists:

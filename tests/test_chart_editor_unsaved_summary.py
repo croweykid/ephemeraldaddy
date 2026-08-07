@@ -96,3 +96,28 @@ def test_draft_comparison_summarizes_typology_changes():
     assert "Enneagram: 9w8 → 4w5" in changes
     assert "Tri-Type: 9-4-5 → 4-6-9" in changes
     assert "MBTI: INTP → ENFJ" in changes
+
+
+def test_draft_comparison_summarizes_related_chart_changes():
+    saved = SimpleNamespace(reminds_me_of="REMINDOLD")
+    draft = ChartEditorDraftSummary(
+        name="", alias="", from_whence="", birth_date="blank",
+        birth_place="", birthtime_unknown=False, birth_time="blank",
+        retcon_time_used=False, retcon_time="00:00",
+        rectification_range_used=False,
+        rectification_range="blank to blank", chart_type="", gender="",
+        tags=(), comments="", rectification_notes="", biography="",
+        chart_data_source="", enneagram_type=("0", "0"),
+        tritype=(0, 0, 0), mbti=("?", "?", "?", "?"),
+        reminds_me_of_uids=("REMINDNEW",), relative_uids=("RELATIVE-NEW",),
+    )
+
+    changes = summarize_chart_editor_draft_changes(
+        saved,
+        draft,
+        recalculation_required=False,
+        saved_relative_uids=("RELATIVE-OLD",),
+    )
+
+    assert "Reminds me of: REMINDOLD → REMINDNEW" in changes
+    assert "Relatives: RELATIVE-OLD → RELATIVE-NEW" in changes
