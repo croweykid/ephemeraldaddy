@@ -554,7 +554,7 @@ def test_match_collection_updates_existing_database_view_state_source():
 def test_right_panel_checks_synastry_revision_before_reranking():
     from pathlib import Path
 
-    source = Path("ephemeraldaddy/gui/features/chart_editor/right_panel_controller.py").read_text()
+    source = Path("ephemeraldaddy/gui/features/controllers/chart_right_panel.py").read_text()
     predictions_branch = source.split('if active_panel == "predictions":', 1)[1].split(
         'if active_panel == "time_sensitivity":', 1
     )[0]

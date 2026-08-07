@@ -250,8 +250,8 @@ def test_schedule_render_for_active_tab_subjective_notes_when_anagrams_visible()
     assert calls == [(owner._latest_chart, {"anagrams"})]
 
 
-from ephemeraldaddy.gui.features.chart_editor.right_panel_controller import (  # noqa: E402
-    ChartEditorRightPanelController,
+from ephemeraldaddy.gui.features.controllers.chart_right_panel import (  # noqa: E402
+    ChartRightPanelController,
 )
 
 
@@ -262,11 +262,9 @@ def test_controller_methods_delegate_to_helper_functions():
         pass
 
     owner = _Owner()
-    controller = ChartEditorRightPanelController(
-        owner, request_visible_canvas_layouts=lambda: calls.append(("layout",))
-    )
+    controller = ChartRightPanelController(owner)
 
-    import ephemeraldaddy.gui.features.chart_editor.right_panel_controller as module
+    import ephemeraldaddy.gui.features.controllers.chart_right_panel as module
 
     original_set_visible = module.set_chart_right_panel_container_visible
     original_set_panel = module.set_chart_right_panel
