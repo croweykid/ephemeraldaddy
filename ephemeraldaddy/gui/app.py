@@ -942,6 +942,9 @@ from ephemeraldaddy.gui.features.charts.search_text import (
 )
 
 from ephemeraldaddy.gui.ranking_panel import RankingsPanelMixin
+from ephemeraldaddy.gui.features.database_view.analytics.optional_modules import (
+    database_analytics_section_is_visible,
+)
 from ephemeraldaddy.gui.features.charts.database_analytics import (
     DATABASE_METRICS_SECTION_ORDER,
     DatabaseAnalyticsChartsMixin,
@@ -3373,6 +3376,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         layout.addWidget(section)
         if section_key is not None:
             self._database_metrics_section_widgets[section_key] = section
+            section.setVisible(self._is_database_metrics_section_visible(section_key))
         return content_layout
 
     def _create_database_analytics_chart_container(self) -> tuple[QWidget, QVBoxLayout]:
@@ -3448,7 +3452,11 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         return self._database_metrics_section_expanded.get(section_key, False)
 
     def _is_database_metrics_section_visible(self, section_key: str) -> bool:
-        return self._database_metrics_section_visible.get(section_key, True)
+        return database_analytics_section_is_visible(
+            section_key,
+            configured_visible=self._database_metrics_section_visible.get(section_key, True),
+            visibility=self._visibility.get,
+        )
 
     def _set_database_metrics_section_visible(self, section_key: str, visible: bool) -> None:
         self._database_metrics_section_visible[section_key] = visible
@@ -24165,6 +24173,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             search_section = getattr(self, "search_enneagram_prediction_section", None)
             if search_section is not None:
                 search_section.setVisible(bool(checked))
+            if not checked:
+                self._set_database_metrics_section_expanded("enneagram", False)
+            self._sync_database_metrics_section_visibility()
         parent = self._owner_window()
         if isinstance(parent, MainWindow):
             parent._visibility.set(f"predictions.{section_key}", checked)
