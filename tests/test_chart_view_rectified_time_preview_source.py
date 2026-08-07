@@ -3,6 +3,8 @@ from pathlib import Path
 APP_SOURCE = Path("ephemeraldaddy/gui/app.py").read_text()
 RIGHT_PANEL_CONTROLLER_SOURCE = Path(
     "ephemeraldaddy/gui/features/controllers/chart_right_panel.py"
+).read_text() + Path(
+    "ephemeraldaddy/gui/features/chart_editor/right_panel_controller.py"
 ).read_text()
 RIGHT_PANEL_STACK_SOURCE = Path(
     "ephemeraldaddy/gui/features/charts/cv_right_panel_stack.py"

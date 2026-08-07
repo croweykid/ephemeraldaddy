@@ -24,7 +24,9 @@ def test_hidden_canvas_waits_for_its_visible_viewport_before_accepting_width():
     app = QApplication.instance() or QApplication([])
     stack = QStackedWidget()
     stack.resize(420, 500)
-    controller = MetricCanvasLayoutController(side_gutter_px=5, redraw=lambda _canvas: None)
+    controller = MetricCanvasLayoutController(
+        side_gutter_px=5, redraw=lambda _canvas: None
+    )
 
     pages = []
     canvases = []
@@ -122,3 +124,34 @@ def test_transient_missing_scroll_area_does_not_orphan_registered_canvas():
     margins = layout.contentsMargins()
     expected_width = scroll.viewport().width() - margins.left() - margins.right() - 10
     assert canvas.width() == expected_width
+
+
+def test_nested_section_margins_are_all_subtracted_from_viewport_width():
+    app = QApplication.instance() or QApplication([])
+    content = QWidget()
+    content_layout = QVBoxLayout(content)
+    content_layout.setContentsMargins(6, 0, 7, 0)
+    section = QWidget(content)
+    section_layout = QVBoxLayout(section)
+    section_layout.setContentsMargins(8, 0, 9, 0)
+    chart_panel = QWidget(section)
+    chart_layout = QVBoxLayout(chart_panel)
+    chart_layout.setContentsMargins(0, 0, 0, 0)
+    canvas = FigureCanvas(Figure(figsize=(8, 2.4)))
+    chart_layout.addWidget(canvas)
+    section_layout.addWidget(chart_panel)
+    content_layout.addWidget(section)
+    scroll = QScrollArea()
+    scroll.setWidgetResizable(True)
+    scroll.setWidget(content)
+    scroll.resize(420, 500)
+    scroll.show()
+    controller = MetricCanvasLayoutController(
+        side_gutter_px=5, redraw=lambda _canvas: None
+    )
+    controller.register(canvas, scroll)
+    _process_events(app)
+
+    expected_width = scroll.viewport().width() - 6 - 7 - 8 - 9 - 10
+    assert canvas.width() == expected_width
+    assert canvas.geometry().right() <= chart_panel.contentsRect().right()

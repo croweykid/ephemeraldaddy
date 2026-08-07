@@ -26,7 +26,49 @@ def test_metric_graphs_delegate_to_single_viewport_layout_owner():
     assert "MetricCanvasLayoutController(" in source
     assert "viewport_width = scroll_area.viewport().width()" in controller
     assert "ancestor_width" not in controller
+    assert "_horizontal_insets_to_viewport" in controller
     assert "delays_ms: tuple[int, ...] = (0, 50, 150, 300)" not in source
+
+
+def test_tab_switch_reasserts_visible_canvas_layout_without_rerendering():
+    source = (
+        REPO_ROOT
+        / "ephemeraldaddy/gui/features/chart_editor/right_panel_controller.py"
+    ).read_text()
+    method_start = source.index("    def set_active_panel(")
+    method = source[method_start:]
+
+    assert "QTimer.singleShot(0, self._request_visible_canvas_layouts)" in method
+    assert 'getattr(self._owner, "_request_visible_metric_canvas_layouts"' not in source
+
+
+def test_canvas_layout_dependency_is_explicit_and_chart_editor_owned():
+    controller = (
+        REPO_ROOT
+        / "ephemeraldaddy/gui/features/chart_editor/right_panel_controller.py"
+    ).read_text()
+    builder = (
+        REPO_ROOT
+        / "ephemeraldaddy/gui/features/controllers/chart_right_panel.py"
+    ).read_text()
+    legacy_stack = (
+        REPO_ROOT / "ephemeraldaddy/gui/features/charts/cv_right_panel_stack.py"
+    ).read_text()
+
+    assert "request_visible_canvas_layouts: Callable[[], None]" in controller
+    assert "self._request_visible_canvas_layouts = request_visible_canvas_layouts" in controller
+    assert "owner: object" not in controller
+    assert "getattr(" not in controller
+    assert "setattr(" not in controller
+    assert "def __init__(self, owner: object) -> None:" in builder
+    assert 'self._owner, "_request_visible_metric_canvas_layouts", lambda: None' in builder
+    assert "request_visible_canvas_layouts=request_layouts" in builder
+    legacy_navigation = legacy_stack[
+        legacy_stack.index("def set_chart_right_panel(") : legacy_stack.index(
+            "def _predictions_panel_render_is_current"
+        )
+    ]
+    assert 'getattr(owner, "_request_visible_metric_canvas_layouts"' not in legacy_navigation
 
 
 def test_hidden_metric_canvas_width_is_not_guessed_from_stale_geometry():
