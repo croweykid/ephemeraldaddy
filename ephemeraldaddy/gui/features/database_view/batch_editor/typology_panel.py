@@ -105,6 +105,9 @@ class BatchTypologyEditor(QWidget):
             edit.setPlaceholderText("unchanged")
             self._set_mixed_input(edit, False)
         for combo in self.mbti_combos:
+            mixed_index = combo.findText("mixed")
+            if mixed_index >= 0:
+                combo.removeItem(mixed_index)
             combo.setCurrentIndex(0)
 
     def update_from_charts(self, charts: Iterable[Any]) -> None:
