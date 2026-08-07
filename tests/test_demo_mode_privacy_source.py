@@ -57,7 +57,7 @@ def test_demo_mode_new_chart_paths_do_not_reopen_private_right_panel():
 
 
 def test_demo_mode_controller_path_does_not_fallback_to_observations():
-    controller = (REPO_ROOT / "ephemeraldaddy/gui/features/controllers/chart_right_panel.py").read_text()
+    controller = (REPO_ROOT / "ephemeraldaddy/gui/features/chart_editor/right_panel_controller.py").read_text()
     app = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
 
     assert 'demo_mode_enabled = self._demo_mode_enabled()' in controller

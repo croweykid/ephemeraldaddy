@@ -65,7 +65,7 @@ def test_dnd_prediction_summary_is_added_after_metric_panel_render_clears_layout
 
 
 def test_chart_right_panel_controller_delegates_predictions_to_background_scheduler():
-    source = (REPO_ROOT / "ephemeraldaddy/gui/features/controllers/chart_right_panel.py").read_text()
+    source = (REPO_ROOT / "ephemeraldaddy/gui/features/chart_editor/right_panel_controller.py").read_text()
     branch_start = source.index('        if active_panel == "predictions":')
     branch = source[
         branch_start : source.index('        if active_panel in {"abc", "anagrams"}', branch_start)
@@ -301,7 +301,7 @@ def test_predictions_sections_show_calculate_prompt_instead_of_auto_calculating(
     enneagram_source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/enneagram_predictions.py").read_text()
     dnd_source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/dnd_predictions.py").read_text()
     stack_source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/cv_right_panel_stack.py").read_text()
-    controller_source = (REPO_ROOT / "ephemeraldaddy/gui/features/controllers/chart_right_panel.py").read_text()
+    controller_source = (REPO_ROOT / "ephemeraldaddy/gui/features/chart_editor/right_panel_controller.py").read_text()
     view_source = (REPO_ROOT / "ephemeraldaddy/gui/features/controllers/chart_view_window.py").read_text()
     loading_source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/prediction_loading_labels.py").read_text()
     app_source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()

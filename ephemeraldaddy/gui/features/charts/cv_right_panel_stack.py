@@ -877,17 +877,6 @@ def set_chart_right_panel(
     panel_stack.setCurrentWidget(active_scroll)
     setattr(owner, "metrics_scroll", active_scroll)
 
-    # QStackedWidget can expose the page before its descendant layouts have
-    # consumed the new viewport geometry.  Reassert fit-to-section sizing on
-    # the next event-loop turn even when cached Predictions need no rerender.
-    # The layout controller ignores hidden canvases and uses this now-visible
-    # viewport as the sole width authority.
-    request_metric_layouts = getattr(
-        owner, "_request_visible_metric_canvas_layouts", None
-    )
-    if callable(request_metric_layouts):
-        QTimer.singleShot(0, request_metric_layouts)
-
     state = getattr(owner, "_chart_right_panel_state", None)
     if state is not None:
         state.active_tab = panel_key

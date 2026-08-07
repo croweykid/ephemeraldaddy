@@ -105,7 +105,7 @@ from ephemeraldaddy.gui.features.charts.trait_predictions import (
     start_traits_prediction_calculation,
     sync_traits_prediction_section_expansion,
 )
-from ephemeraldaddy.gui.features.controllers.chart_right_panel import ChartRightPanelController
+from ephemeraldaddy.gui.features.chart_editor.right_panel_controller import ChartEditorRightPanelController
 from ephemeraldaddy.gui.features.charts.section_availability import (
     is_chart_analysis_section_available,
 )
@@ -2494,7 +2494,10 @@ def build_chart_view_right_panel(
     time_sensitivity_panel = TimeSensitivityPanel(owner)
     owner.time_sensitivity_panel = time_sensitivity_panel
 
-    owner._chart_right_panel_controller = ChartRightPanelController(owner)
+    owner._chart_right_panel_controller = ChartEditorRightPanelController(
+        owner,
+        request_visible_canvas_layouts=owner._request_visible_metric_canvas_layouts,
+    )
 
     chart_right_panel = owner._chart_right_panel_controller.build_stack(
         analytics_content_widget=metrics_content,
