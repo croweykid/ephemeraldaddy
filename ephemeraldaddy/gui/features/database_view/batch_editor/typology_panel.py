@@ -6,6 +6,7 @@ from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QIntValidator
 from PySide6.QtWidgets import (
     QComboBox,
@@ -23,6 +24,10 @@ from PySide6.QtWidgets import (
 from ephemeraldaddy.gui.features.database_view.batch_editor.typology import (
     TypologyPatch,
     typology_patch_for_chart,
+)
+from ephemeraldaddy.gui.features.database_view.typology_selection import (
+    MIXED,
+    summarize_typology_selection,
 )
 
 
@@ -84,6 +89,7 @@ class BatchTypologyEditor(QWidget):
         edit = QLineEdit(self)
         edit.setValidator(QIntValidator(1, 9, edit))
         edit.setPlaceholderText("unchanged")
+        edit.textEdited.connect(lambda _text, field=edit: self._set_mixed_input(field, False))
         return edit
 
     def _mbti_combo(self, choices: tuple[str, str]) -> QComboBox:
@@ -96,8 +102,58 @@ class BatchTypologyEditor(QWidget):
     def clear(self) -> None:
         for edit in (*self.enneagram_inputs, *self.tritype_inputs):
             edit.clear()
+            edit.setPlaceholderText("unchanged")
+            self._set_mixed_input(edit, False)
         for combo in self.mbti_combos:
+            mixed_index = combo.findText("mixed")
+            if mixed_index >= 0:
+                combo.removeItem(mixed_index)
             combo.setCurrentIndex(0)
+
+    def update_from_charts(self, charts: Iterable[Any]) -> None:
+        """Display values shared by the selection and italic mixed placeholders."""
+        summary = summarize_typology_selection(charts)
+        if summary is None:
+            self.clear()
+            return
+        for edit, value in zip(
+            (*self.enneagram_inputs, *self.tritype_inputs),
+            (*summary.enneagram, *summary.tritype),
+        ):
+            edit.blockSignals(True)
+            edit.clear()
+            if value is MIXED:
+                edit.setPlaceholderText("mixed")
+                self._set_mixed_input(edit, True)
+            else:
+                edit.setPlaceholderText("unchanged")
+                self._set_mixed_input(edit, False)
+                if value is not None:
+                    edit.setText(str(value))
+            edit.blockSignals(False)
+        for combo, value in zip(self.mbti_combos, summary.mbti):
+            combo.blockSignals(True)
+            mixed_index = combo.findText("mixed")
+            if mixed_index >= 0:
+                combo.removeItem(mixed_index)
+            if value is MIXED:
+                combo.insertItem(0, "mixed", None)
+                font = combo.itemData(0, Qt.FontRole)
+                if font is None:
+                    font = combo.font()
+                font.setItalic(True)
+                combo.setItemData(0, font, Qt.FontRole)
+                combo.setCurrentIndex(0)
+            else:
+                index = combo.findData(value) if value is not None else combo.findData(None)
+                combo.setCurrentIndex(max(0, index))
+            combo.blockSignals(False)
+
+    @staticmethod
+    def _set_mixed_input(edit: QLineEdit, mixed: bool) -> None:
+        font = edit.font()
+        font.setItalic(mixed)
+        edit.setFont(font)
 
     def apply(self) -> None:
         chart_uids = tuple(dict.fromkeys(self._callbacks.selected_chart_uids()))
