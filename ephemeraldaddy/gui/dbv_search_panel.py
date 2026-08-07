@@ -175,6 +175,87 @@ def dominant_enneagram_types_for_search(chart) -> set[int]:
     return {dominant_type} if 1 <= dominant_type <= 9 else set()
 
 
+def chart_matches_typology_filters(
+    chart,
+    *,
+    enneagram_type: int | None = None,
+    enneagram_wing: int | None = None,
+    tritype_types: frozenset[int] = frozenset(),
+    mbti_letters: tuple[str | None, str | None, str | None, str | None] = (
+        None,
+        None,
+        None,
+        None,
+    ),
+) -> bool:
+    """Evaluate user-assigned typology metadata without reading Qt widgets."""
+    raw_enneagram = list(getattr(chart, "enneagram_type", None) or [])
+    assigned_type = _typology_int(raw_enneagram[0] if raw_enneagram else None)
+    assigned_wing = _typology_int(raw_enneagram[1] if len(raw_enneagram) > 1 else None)
+    if enneagram_type is not None and assigned_type != enneagram_type:
+        return False
+    if enneagram_wing is not None and assigned_wing != enneagram_wing:
+        return False
+
+    assigned_tritype = {
+        value
+        for raw_value in (getattr(chart, "tritype", None) or [])
+        if (value := _typology_int(raw_value)) is not None
+    }
+    if tritype_types and not tritype_types.issubset(assigned_tritype):
+        return False
+
+    assigned_mbti = tuple(
+        str(value or "").strip().upper()
+        for value in (getattr(chart, "mbti", None) or [])
+    )
+    return all(
+        expected is None
+        or (position < len(assigned_mbti) and assigned_mbti[position] == expected)
+        for position, expected in enumerate(mbti_letters)
+    )
+
+
+def _typology_int(value: object) -> int | None:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if 1 <= parsed <= 9 else None
+
+
+def typology_filter_values(window) -> tuple[
+    int | None,
+    int | None,
+    frozenset[int],
+    tuple[str | None, str | None, str | None, str | None],
+]:
+    """Normalize the Database View typology controls once per filter pass."""
+    type_inputs = getattr(window, "_typology_enneagram_inputs", ())
+    tritype_inputs = getattr(window, "_typology_tritype_inputs", ())
+    mbti_combos = getattr(window, "_typology_mbti_combos", ())
+    enneagram_values = tuple(
+        _typology_int(widget.text().strip()) if widget.text().strip() else None
+        for widget in type_inputs
+    )
+    tritype_types = frozenset(
+        parsed
+        for widget in tritype_inputs
+        if widget.text().strip()
+        if (parsed := _typology_int(widget.text().strip())) is not None
+    )
+    mbti_values = tuple(
+        str(combo.currentData()).upper() if combo.currentData() else None
+        for combo in mbti_combos
+    )
+    return (
+        enneagram_values[0] if enneagram_values else None,
+        enneagram_values[1] if len(enneagram_values) > 1 else None,
+        tritype_types,
+        (mbti_values + (None, None, None, None))[:4],
+    )
+
+
 def matched_expectations_value_for_chart(chart) -> int:
     """Return a clamped matched-expectations score for DBV search filters."""
     if chart is None:
@@ -741,6 +822,9 @@ def has_active_chart_filters(window) -> bool:
         for enneagram_type, checkbox in getattr(window, "enneagram_type_filter_checkboxes", {}).items()
         if checkbox.mode() == QuadStateSlider.MODE_FALSE
     }
+    assigned_enneagram_type, assigned_enneagram_wing, assigned_tritype, assigned_mbti = (
+        typology_filter_values(window)
+    )
     search_untagged_mode = (
         window.search_untagged_checkbox.mode()
         if hasattr(window, "search_untagged_checkbox")
@@ -1147,6 +1231,10 @@ def has_active_chart_filters(window) -> bool:
         and not excluded_absent_search_traits
         and not selected_enneagram_types
         and not excluded_enneagram_types
+        and assigned_enneagram_type is None
+        and assigned_enneagram_wing is None
+        and not assigned_tritype
+        and not any(assigned_mbti)
     )
 
 
@@ -1898,6 +1986,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     window.search_trait_filter_checkboxes = {}
 
     settings = getattr(window, "_settings", None)
+    visibility_store = getattr(window, "_visibility", None)
 
     incomplete_birthdate_row = QHBoxLayout()
     window.incomplete_birthdate_checkbox = QuadStateSlider("placeholder charts")
@@ -2072,6 +2161,9 @@ def build_dbv_search_panel(window) -> "QWidget":
     predictions_category_layout.addWidget(traits_absent_section)
 
     enneagram_section, enneagram_group_layout = add_collapsible_section("Enneagram", nested=True)
+    window.search_enneagram_prediction_section = enneagram_section
+    if visibility_store is not None and hasattr(visibility_store, "get"):
+        enneagram_section.setVisible(visibility_store.get("predictions.enneagram"))
     enneagram_layout = QGridLayout()
     enneagram_layout.setContentsMargins(0, 0, 0, 0)
     window.enneagram_type_filter_checkboxes = {}
@@ -2082,6 +2174,46 @@ def build_dbv_search_panel(window) -> "QWidget":
         enneagram_layout.addWidget(checkbox, idx // 3, idx % 3)
     enneagram_group_layout.addLayout(enneagram_layout)
     predictions_category_layout.addWidget(enneagram_section)
+
+    typology_section, typology_group_layout = add_collapsible_section("Typology", nested=True)
+    enneagram_assignment_layout = QGridLayout()
+    enneagram_assignment_layout.addWidget(QLabel("Enneagram type"), 0, 0)
+    enneagram_assignment_layout.addWidget(QLabel("Wing"), 0, 1)
+    window._typology_enneagram_inputs = []
+    for column in range(2):
+        edit = QLineEdit()
+        edit.setValidator(QIntValidator(1, 9, window))
+        edit.setPlaceholderText("1–9")
+        edit.textChanged.connect(window._on_filter_changed)
+        window._typology_enneagram_inputs.append(edit)
+        enneagram_assignment_layout.addWidget(edit, 1, column)
+    typology_group_layout.addLayout(enneagram_assignment_layout)
+
+    typology_group_layout.addWidget(QLabel("Enneagram tritype (any 1–3 types)"))
+    tritype_layout = QHBoxLayout()
+    window._typology_tritype_inputs = []
+    for _ in range(3):
+        edit = QLineEdit()
+        edit.setValidator(QIntValidator(1, 9, window))
+        edit.setPlaceholderText("1–9")
+        edit.textChanged.connect(window._on_filter_changed)
+        window._typology_tritype_inputs.append(edit)
+        tritype_layout.addWidget(edit)
+    typology_group_layout.addLayout(tritype_layout)
+
+    typology_group_layout.addWidget(QLabel("MBTI (choose any 1–4 letters)"))
+    mbti_layout = QHBoxLayout()
+    window._typology_mbti_combos = []
+    for choices in (("E", "I"), ("N", "S"), ("T", "F"), ("J", "P")):
+        combo = QComboBox()
+        combo.addItem("Any", None)
+        for letter in choices:
+            combo.addItem(letter, letter)
+        combo.currentIndexChanged.connect(window._on_filter_changed)
+        window._typology_mbti_combos.append(combo)
+        mbti_layout.addWidget(combo)
+    typology_group_layout.addLayout(mbti_layout)
+    interactions_category_layout.addWidget(typology_section)
 
     #Search: data completeness & accuracy
     birth_info_status_section, birth_info_status_layout = add_collapsible_section(
@@ -3353,7 +3485,6 @@ def build_dbv_search_panel(window) -> "QWidget":
         "💭Predictability",
     )
     window.search_predictability_section = predictability_section
-    visibility_store = getattr(window, "_visibility", None)
     if visibility_store is not None and hasattr(visibility_store, "get"):
         predictability_section.setVisible(visibility_store.get("chart_view.predictability"))
     predictability_range_layout = QGridLayout()

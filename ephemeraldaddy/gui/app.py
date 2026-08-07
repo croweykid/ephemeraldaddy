@@ -942,6 +942,9 @@ from ephemeraldaddy.gui.features.charts.search_text import (
 )
 
 from ephemeraldaddy.gui.ranking_panel import RankingsPanelMixin
+from ephemeraldaddy.gui.features.database_view.analytics.optional_modules import (
+    database_analytics_section_is_visible,
+)
 from ephemeraldaddy.gui.features.charts.database_analytics import (
     DATABASE_METRICS_SECTION_ORDER,
     DatabaseAnalyticsChartsMixin,
@@ -971,6 +974,10 @@ from ephemeraldaddy.gui.dbv_batch_similarity import (
     build_batch_similarity_section,
     refresh_batch_similarity_chart_options,
 )
+from ephemeraldaddy.gui.features.database_view.batch_editor.typology_panel import (
+    BatchTypologyCallbacks,
+    BatchTypologyEditor,
+)
 from ephemeraldaddy.gui.dbv_search_panel import (
     active_body_dynamics_filters as get_active_body_dynamics_filters,
     apply_search_location_completer,
@@ -979,6 +986,7 @@ from ephemeraldaddy.gui.dbv_search_panel import (
     build_dbv_search_panel,
     build_birthdate_filter_date,
     cached_top_three_species_for_filter,
+    chart_matches_typology_filters,
     chart_matches_body_dynamics_filters,
     collect_search_tag_filter_sets,
     collect_search_trait_filter_sets,
@@ -988,6 +996,7 @@ from ephemeraldaddy.gui.dbv_search_panel import (
     HumanDesignSearchSelectionSnapshot,
     has_active_chart_filters,
     has_active_search_tag_filters,
+    typology_filter_values,
     chart_matches_trait_filters,
     on_search_tag_category_logic_changed,
     on_search_tags_changed,
@@ -2572,10 +2581,14 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._matched_expectations_max_input = None
         self._matched_expectations_blank_checkbox = None
         self.search_predictability_section = None
+        self.search_enneagram_prediction_section = None
         self.search_alignment_section = None
         self.search_relationship_section = None
         self.search_notes_section = None
         self.enneagram_type_filter_checkboxes: dict[int, QuadStateSlider] = {}
+        self._typology_enneagram_inputs: list[QLineEdit] = []
+        self._typology_tritype_inputs: list[QLineEdit] = []
+        self._typology_mbti_combos: list[QComboBox] = []
         self._dnd_stat_filter_min_inputs: dict[str, QLineEdit] = {}
         self._dnd_stat_filter_max_inputs: dict[str, QLineEdit] = {}
         self._notes_comments_filter_checkbox = None
@@ -3366,6 +3379,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         layout.addWidget(section)
         if section_key is not None:
             self._database_metrics_section_widgets[section_key] = section
+            section.setVisible(self._is_database_metrics_section_visible(section_key))
         return content_layout
 
     def _create_database_analytics_chart_container(self) -> tuple[QWidget, QVBoxLayout]:
@@ -3441,7 +3455,11 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         return self._database_metrics_section_expanded.get(section_key, False)
 
     def _is_database_metrics_section_visible(self, section_key: str) -> bool:
-        return self._database_metrics_section_visible.get(section_key, True)
+        return database_analytics_section_is_visible(
+            section_key,
+            configured_visible=self._database_metrics_section_visible.get(section_key, True),
+            visibility=self._visibility.get,
+        )
 
     def _set_database_metrics_section_visible(self, section_key: str, visible: bool) -> None:
         self._database_metrics_section_visible[section_key] = visible
@@ -13806,6 +13824,20 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         layout.addWidget(build_batch_similarity_section(self, add_collapsible_section))
         layout.addWidget(build_batch_bio_section(self, add_collapsible_section, SOURCE_OPTIONS, GENDER_OPTIONS, QuadStateSlider))
 
+        typology_section, typology_section_layout = add_collapsible_section("💭Typology")
+        self.batch_typology_editor = BatchTypologyEditor(
+            BatchTypologyCallbacks(
+                selected_chart_uids=self._selected_chart_uids,
+                chart_for_uid=self._get_chart_for_filter_by_uid,
+                apply_patches=self._apply_batch_nonastral_patches,
+                confirm=self._confirm_batch_edit,
+                on_applied=self._on_batch_typology_applied,
+            ),
+            typology_section,
+        )
+        typology_section_layout.addWidget(self.batch_typology_editor)
+        layout.addWidget(typology_section)
+
         predictability_section, predictability_section_layout = add_collapsible_section("💭Predictability")
         self.batch_predictability_section = predictability_section
         predictability_section.setVisible(self._visibility.get("chart_view.predictability"))
@@ -13995,6 +14027,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         message_box.setEscapeButton(QMessageBox.No)
         response = message_box.exec()
         return response == QMessageBox.Yes
+
+    def _on_batch_typology_applied(self, changed_ids: set[int]) -> None:
+        self._update_batch_edit_state()
+        self._refresh_filters_after_batch_edit(changed_ids, refresh_metrics=False)
 
 
     @staticmethod
@@ -16923,6 +16959,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         if hasattr(self, "batch_tags_selection_label"):
             self.batch_tags_selection_label.setText("")
         clear_batch_from_whence_state(self)
+        if hasattr(self, "batch_typology_editor"):
+            self.batch_typology_editor.clear()
         self._batch_tags_lucygoosey = False
         self.batch_alignment_slider.blockSignals(True)
         self.batch_alignment_slider.setValue(0)
@@ -17470,6 +17508,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                     checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             for checkbox in getattr(self, "enneagram_type_filter_checkboxes", {}).values():
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
+            for edit in (*self._typology_enneagram_inputs, *self._typology_tritype_inputs):
+                edit.clear()
+            for combo in self._typology_mbti_combos:
+                combo.setCurrentIndex(0)
             for checkbox in getattr(self, "search_tag_category_checkboxes", {}).values():
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             for checkbox in self.sentiment_filter_checkboxes.values():
@@ -19863,6 +19905,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             for enneagram_type, checkbox in getattr(self, "enneagram_type_filter_checkboxes", {}).items()
             if checkbox.mode() == QuadStateSlider.MODE_FALSE
         }
+        assigned_enneagram_type, assigned_enneagram_wing, assigned_tritype, assigned_mbti = (
+            typology_filter_values(self)
+        )
         selected_chart_types = {
             source
             for source, checkbox in self.chart_type_filter_checkboxes.items()
@@ -20620,6 +20665,15 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 return False
             if excluded_enneagram_types and not dominant_enneagram_types.isdisjoint(excluded_enneagram_types):
                 return False
+
+        if not chart_matches_typology_filters(
+            chart,
+            enneagram_type=assigned_enneagram_type,
+            enneagram_wing=assigned_enneagram_wing,
+            tritype_types=assigned_tritype,
+            mbti_letters=assigned_mbti,
+        ):
+            return False
 
         chart_year_first_encountered = getattr(chart, "year_first_encountered", None)
         if not isinstance(chart_year_first_encountered, int):
@@ -24118,6 +24172,13 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
     def _set_prediction_section_visibility_from_settings(self, section_key: str, checked: bool) -> None:
         self._visibility.set(f"predictions.{section_key}", checked)
+        if section_key == "enneagram":
+            search_section = getattr(self, "search_enneagram_prediction_section", None)
+            if search_section is not None:
+                search_section.setVisible(bool(checked))
+            if not checked:
+                self._set_database_metrics_section_expanded("enneagram", False)
+            self._sync_database_metrics_section_visibility()
         parent = self._owner_window()
         if isinstance(parent, MainWindow):
             parent._visibility.set(f"predictions.{section_key}", checked)
