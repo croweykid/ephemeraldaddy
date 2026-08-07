@@ -1,3 +1,4 @@
+from pathlib import Path
 from types import SimpleNamespace
 
 from ephemeraldaddy.gui.features.database_view.batch_editor.typology import typology_patch_for_chart
@@ -75,3 +76,16 @@ def test_typology_selection_summarizes_shared_and_mixed_slots():
     assert summary.enneagram == (2, MIXED)
     assert summary.tritype == (2, MIXED, MIXED)
     assert summary.mbti == (MIXED, "S", MIXED, MIXED)
+
+
+def test_batch_typology_hydrates_only_when_selection_changes():
+    source = Path("ephemeraldaddy/gui/app.py").read_text()
+    start = source.index("    def _update_batch_edit_state")
+    end = source.index("    def _update_batch_tag_state", start)
+    method = source[start:end]
+
+    assert "typology_selection_changed = chart_uid_set != self._batch_last_selection_uids" in method
+    assert (
+        'if typology_selection_changed and hasattr(self, "batch_typology_editor"):'
+        in method
+    )

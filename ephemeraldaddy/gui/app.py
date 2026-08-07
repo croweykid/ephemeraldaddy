@@ -14048,6 +14048,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         selected_chart_ids = self._local_row_ids_for_uids(selected_chart_uids)
         chart_uid_set = set(selected_chart_uids)
         chart_id_set = set(selected_chart_ids)
+        typology_selection_changed = chart_uid_set != self._batch_last_selection_uids
         preserve_lucygoosey_metrics = (
             bool(chart_uid_set)
             and bool(self._batch_last_selection_uids)
@@ -14256,7 +14257,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             preserve_lucygoosey=preserve_lucygoosey_metrics,
         )
         set_batch_from_whence_state(self, from_whence_values)
-        if hasattr(self, "batch_typology_editor"):
+        if typology_selection_changed and hasattr(self, "batch_typology_editor"):
             self.batch_typology_editor.update_from_charts(chart for _chart_id, chart in resolved_items)
         self._render_batch_selection_tag_summary(tag_counts, selected_count)
         self._set_batch_alignment_state(resolved_items)
