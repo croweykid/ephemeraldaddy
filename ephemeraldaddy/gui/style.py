@@ -224,6 +224,14 @@ APPWIDE_NEGATION_BUTTON_HOVER_BACKGROUND_COLOR = "#5a5e6b"
 APPWIDE_NEGATION_BUTTON_BORDER_COLOR = "#747987"
 APPWIDE_PLAIN_TEXT_INPUT_BACKGROUND_COLOR = COLOR_BG_SURFACE
 
+# Collections Manager actions share a restrained violet interaction motif so
+# compact panel buttons remain visibly responsive without competing with the
+# appwide affirmative/negation semantics.
+COLLECTION_MANAGER_BUTTON_HOVER_BACKGROUND_COLOR = "#3a3048"
+COLLECTION_MANAGER_BUTTON_HOVER_BORDER_COLOR = "#8f63b8"
+COLLECTION_MANAGER_BUTTON_PRESSED_BACKGROUND_COLOR = "#241b30"
+COLLECTION_MANAGER_BUTTON_PRESSED_BORDER_COLOR = "#c77dff"
+
 APPWIDE_DARK_THEME_STYLESHEET = f"""
 QMainWindow {{
     background-color: {COLOR_BG_APP};
@@ -250,6 +258,16 @@ QPushButton {{
 QPushButton:hover {{
     background-color: {APPWIDE_BUTTON_HOVER_BACKGROUND_COLOR};
 }}
+QPushButton[eddCollectionManagerButton="true"]:hover {{
+    background-color: {COLLECTION_MANAGER_BUTTON_HOVER_BACKGROUND_COLOR};
+    border-color: {COLLECTION_MANAGER_BUTTON_HOVER_BORDER_COLOR};
+}}
+QPushButton[eddCollectionManagerButton="true"]:pressed {{
+    background-color: {COLLECTION_MANAGER_BUTTON_PRESSED_BACKGROUND_COLOR};
+    border-color: {COLLECTION_MANAGER_BUTTON_PRESSED_BORDER_COLOR};
+    padding-top: 7px;
+    padding-bottom: 5px;
+}}
 QPushButton[eddButtonTone="{APPWIDE_AFFIRMATIVE_BUTTON_TONE}"] {{
     background-color: {APPWIDE_AFFIRMATIVE_BUTTON_BACKGROUND_COLOR};
     border: 1px solid {APPWIDE_AFFIRMATIVE_BUTTON_BORDER_COLOR};
@@ -268,6 +286,15 @@ QPlainTextEdit {{
     background-color: {APPWIDE_PLAIN_TEXT_INPUT_BACKGROUND_COLOR};
 }}
 """
+
+
+def configure_collection_manager_button(button: QAbstractButton) -> None:
+    """Apply the shared hover, press, and cursor affordances for collection actions."""
+    button.setProperty("eddCollectionManagerButton", True)
+    apply_button_cursor(button)
+    button.style().unpolish(button)
+    button.style().polish(button)
+    button.update()
 
 DARK_THEME = {
     "background": COLOR_BG_APP,

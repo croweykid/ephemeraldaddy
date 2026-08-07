@@ -1509,6 +1509,7 @@ from ephemeraldaddy.gui.style import (
     apply_chart_info_link_cursor,
     apply_popout_cursor,
     apply_shared_dropdown_style,
+    configure_collection_manager_button,
     FAILSAFE_EXIT_TIMEOUT_MS,
     CHART_DATA_COLON_LABELS,
     CHART_AXES_STYLE,
@@ -15971,6 +15972,15 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         membership_row.addWidget(self.collection_add_selected_button)
         membership_row.addWidget(self.collection_remove_selected_button)
         panel_layout.addLayout(membership_row)
+        for button in (
+            self.collection_create_button,
+            self.collection_rename_button,
+            self.collection_delete_button,
+            self.collection_search_add_button,
+            self.collection_add_selected_button,
+            self.collection_remove_selected_button,
+        ):
+            configure_collection_manager_button(button)
         self._update_collection_membership_buttons()
 
         return panel
