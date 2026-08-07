@@ -589,6 +589,9 @@ from ephemeraldaddy.gui.features.chart_editor.unsaved_summary import (
     build_unsaved_changes_prompt_details,
     summarize_chart_editor_draft_changes,
 )
+from ephemeraldaddy.gui.features.chart_editor.related_chart_completer import (
+    refresh_material_relatives_completer,
+)
 from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import (
     apply_mode_pick_metadata,
     _chart_right_panel_prediction_render_token,
@@ -34161,34 +34164,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         line_edit.setCompleter(completer)
         line_edit._reminds_me_of_completer = completer
 
-    def _update_material_relatives_completer(self) -> None:
-        """Refresh Material Facts' database-relative autocomplete choices."""
-        line_edit = getattr(self, "material_facts_relative_search_edit", None)
-        completer = getattr(self, "_material_facts_relative_completer", None)
-        if not isinstance(line_edit, QLineEdit) or not isinstance(completer, QCompleter):
-            return
-
-        current_chart_uid = self._current_chart_uid_for_navigation()
-        chart_rows = list_charts()
-        chart_uids = get_chart_uid_map(row[0] for row in chart_rows)
-        choices: list[str] = []
-        seen: set[str] = set()
-        for row in chart_rows:
-            chart_uid = str(chart_uids.get(int(row[0]), "") or "").strip().upper()
-            if current_chart_uid and chart_uid == current_chart_uid:
-                continue
-            for raw_choice in (row[1], row[2], chart_uid):
-                choice = str(raw_choice or "").strip()
-                if choice and choice.casefold() not in seen:
-                    choices.append(choice)
-                    seen.add(choice.casefold())
-
-        model = completer.model()
-        if isinstance(model, QStringListModel):
-            model.setStringList(choices)
-        else:
-            completer.setModel(QStringListModel(choices, completer))
-
     def _render_reminds_me_of_selection(self) -> None:
         label = getattr(self, "reminds_me_of_selection_label", None)
         if not isinstance(label, QLabel):
@@ -35414,7 +35389,10 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._set_chart_tags_state(normalize_tag_list(getattr(chart, "tags", [])))
         related_choices_started_at = perf_counter()
         self._update_reminds_me_of_completer()
-        self._update_material_relatives_completer()
+        refresh_material_relatives_completer(
+            self.material_facts_relative_search_edit,
+            current_chart_uid=self._current_chart_uid_for_navigation(),
+        )
         record_performance_metric(
             "chart_editor.load.related_choice_snapshot",
             (perf_counter() - related_choices_started_at) * 1000.0,
