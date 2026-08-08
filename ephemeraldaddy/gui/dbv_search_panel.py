@@ -187,6 +187,7 @@ def chart_matches_typology_filters(
         None,
         None,
     ),
+    include_x_values: bool = False,
 ) -> bool:
     """Evaluate user-assigned typology metadata without reading Qt widgets."""
     raw_enneagram = list(getattr(chart, "enneagram_type", None) or [])
@@ -211,7 +212,13 @@ def chart_matches_typology_filters(
     )
     return all(
         expected is None
-        or (position < len(assigned_mbti) and assigned_mbti[position] == expected)
+        or (
+            position < len(assigned_mbti)
+            and (
+                assigned_mbti[position] == expected.upper()
+                or (include_x_values and assigned_mbti[position] == "X")
+            )
+        )
         for position, expected in enumerate(mbti_letters)
     )
 
@@ -229,6 +236,7 @@ def typology_filter_values(window) -> tuple[
     int | None,
     frozenset[int],
     tuple[str | None, str | None, str | None, str | None],
+    bool,
 ]:
     """Normalize the Database View typology controls once per filter pass."""
     type_inputs = getattr(window, "_typology_enneagram_inputs", ())
@@ -253,6 +261,10 @@ def typology_filter_values(window) -> tuple[
         enneagram_values[1] if len(enneagram_values) > 1 else None,
         tritype_types,
         (mbti_values + (None, None, None, None))[:4],
+        bool(
+            getattr(window, "_typology_mbti_include_x_checkbox", None)
+            and window._typology_mbti_include_x_checkbox.isChecked()
+        ),
     )
 
 
@@ -822,9 +834,13 @@ def has_active_chart_filters(window) -> bool:
         for enneagram_type, checkbox in getattr(window, "enneagram_type_filter_checkboxes", {}).items()
         if checkbox.mode() == QuadStateSlider.MODE_FALSE
     }
-    assigned_enneagram_type, assigned_enneagram_wing, assigned_tritype, assigned_mbti = (
-        typology_filter_values(window)
-    )
+    (
+        assigned_enneagram_type,
+        assigned_enneagram_wing,
+        assigned_tritype,
+        assigned_mbti,
+        _include_x_mbti_values,
+    ) = typology_filter_values(window)
     search_untagged_mode = (
         window.search_untagged_checkbox.mode()
         if hasattr(window, "search_untagged_checkbox")
@@ -2220,6 +2236,9 @@ def build_dbv_search_panel(window) -> "QWidget":
         window._typology_mbti_combos.append(combo)
         mbti_layout.addWidget(combo)
     typology_group_layout.addLayout(mbti_layout)
+    window._typology_mbti_include_x_checkbox = QCheckBox("include 'x' values")
+    window._typology_mbti_include_x_checkbox.toggled.connect(window._on_filter_changed)
+    typology_group_layout.addWidget(window._typology_mbti_include_x_checkbox)
     interactions_category_layout.addWidget(typology_section)
 
     #Search: data completeness & accuracy

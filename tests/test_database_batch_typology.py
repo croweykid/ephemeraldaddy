@@ -63,6 +63,23 @@ def test_batch_typology_patch_normalizes_missing_existing_metadata():
     }
 
 
+def test_batch_typology_patch_preserves_lowercase_and_x_mbti_slots():
+    chart = SimpleNamespace(
+        enneagram_type=None,
+        tritype=None,
+        mbti=["i", "x", "t", "p"],
+    )
+
+    patch = typology_patch_for_chart(
+        chart,
+        enneagram_values=(None, None),
+        tritype_values=(None, None, None),
+        mbti_values=(None, None, None, "J"),
+    )
+
+    assert patch == {"mbti": ["i", "x", "t", "J"]}
+
+
 def test_typology_selection_summarizes_shared_and_mixed_slots():
     charts = [
         SimpleNamespace(enneagram_type=[2, 1], tritype=[2, 5, 8], mbti=list("ESTJ")),

@@ -19921,9 +19921,13 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             for enneagram_type, checkbox in getattr(self, "enneagram_type_filter_checkboxes", {}).items()
             if checkbox.mode() == QuadStateSlider.MODE_FALSE
         }
-        assigned_enneagram_type, assigned_enneagram_wing, assigned_tritype, assigned_mbti = (
-            typology_filter_values(self)
-        )
+        (
+            assigned_enneagram_type,
+            assigned_enneagram_wing,
+            assigned_tritype,
+            assigned_mbti,
+            include_x_mbti_values,
+        ) = typology_filter_values(self)
         selected_chart_types = {
             source
             for source, checkbox in self.chart_type_filter_checkboxes.items()
@@ -20688,6 +20692,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             enneagram_wing=assigned_enneagram_wing,
             tritype_types=assigned_tritype,
             mbti_letters=assigned_mbti,
+            include_x_values=include_x_mbti_values,
         ):
             return False
 
