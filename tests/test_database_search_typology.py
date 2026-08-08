@@ -1,6 +1,11 @@
+import ast
+import inspect
 from types import SimpleNamespace
 
-from ephemeraldaddy.gui.dbv_search_panel import chart_matches_typology_filters
+from ephemeraldaddy.gui.dbv_search_panel import (
+    chart_matches_typology_filters,
+    has_active_chart_filters,
+)
 
 
 def _chart(**overrides):
@@ -74,3 +79,20 @@ def test_typology_filters_optionally_match_x_in_each_requested_position():
             mbti_letters=("I", "S", "T", "J"),
             include_x_values=True,
         )
+
+
+def test_active_filter_check_unpacks_every_typology_filter_value():
+    function = ast.parse(inspect.getsource(has_active_chart_filters)).body[0]
+    typology_assignments = [
+        node
+        for node in ast.walk(function)
+        if isinstance(node, ast.Assign)
+        and isinstance(node.value, ast.Call)
+        and isinstance(node.value.func, ast.Name)
+        and node.value.func.id == "typology_filter_values"
+    ]
+
+    assert len(typology_assignments) == 1
+    target = typology_assignments[0].targets[0]
+    assert isinstance(target, ast.Tuple)
+    assert len(target.elts) == 5

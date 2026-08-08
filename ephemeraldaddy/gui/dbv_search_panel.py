@@ -834,9 +834,13 @@ def has_active_chart_filters(window) -> bool:
         for enneagram_type, checkbox in getattr(window, "enneagram_type_filter_checkboxes", {}).items()
         if checkbox.mode() == QuadStateSlider.MODE_FALSE
     }
-    assigned_enneagram_type, assigned_enneagram_wing, assigned_tritype, assigned_mbti = (
-        typology_filter_values(window)
-    )
+    (
+        assigned_enneagram_type,
+        assigned_enneagram_wing,
+        assigned_tritype,
+        assigned_mbti,
+        _include_x_mbti_values,
+    ) = typology_filter_values(window)
     search_untagged_mode = (
         window.search_untagged_checkbox.mode()
         if hasattr(window, "search_untagged_checkbox")
