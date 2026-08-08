@@ -102,6 +102,9 @@ class BatchTypologyEditor(QWidget):
         combo.addItem("—", None)
         for choice in choices:
             combo.addItem(choice, choice)
+        combo.currentIndexChanged.connect(
+            lambda _index, field=combo: self._on_mbti_combo_changed(field)
+        )
         return combo
 
     def clear(self) -> None:
@@ -168,6 +171,11 @@ class BatchTypologyEditor(QWidget):
         font = combo.font()
         font.setItalic(mixed)
         combo.setFont(font)
+
+    def _on_mbti_combo_changed(self, combo: QComboBox) -> None:
+        """Clear stale mixed styling once the user chooses a concrete value."""
+        if combo.currentText() != "mixed":
+            self._set_mixed_combo(combo, False)
 
     def apply(self) -> None:
         chart_uids = tuple(dict.fromkeys(self._callbacks.selected_chart_uids()))

@@ -168,3 +168,14 @@ def test_chart_editor_lightweight_save_reads_typology_controls_before_persisting
         "                    chart.mbti,\n"
         "                ) = get_chart_view_typology(self)"
     ) in lightweight_path
+
+
+def test_batch_mbti_choice_clears_mixed_combo_styling():
+    source = Path(
+        "ephemeraldaddy/gui/features/database_view/batch_editor/typology_panel.py"
+    ).read_text()
+
+    assert "combo.currentIndexChanged.connect(" in source
+    assert "self._on_mbti_combo_changed(field)" in source
+    assert 'if combo.currentText() != "mixed":' in source
+    assert "self._set_mixed_combo(combo, False)" in source
