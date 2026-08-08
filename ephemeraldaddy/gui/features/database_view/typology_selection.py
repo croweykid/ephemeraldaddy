@@ -55,5 +55,9 @@ def _integer_value(value: object) -> int | None:
 
 
 def _mbti_value(value: object) -> str | None:
-    parsed = str(value or "").strip().upper()
-    return parsed if parsed in {"E", "I", "N", "S", "T", "F", "J", "P"} else None
+    parsed = str(value or "").strip()
+    allowed = {
+        "E", "e", "I", "i", "N", "n", "S", "s",
+        "T", "t", "F", "f", "J", "j", "P", "p", "x",
+    }
+    return parsed if parsed in allowed else None

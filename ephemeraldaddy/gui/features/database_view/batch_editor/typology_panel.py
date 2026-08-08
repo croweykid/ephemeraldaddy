@@ -70,7 +70,12 @@ class BatchTypologyEditor(QWidget):
         mbti_layout = QHBoxLayout()
         self.mbti_combos: tuple[QComboBox, ...] = tuple(
             self._mbti_combo(choices)
-            for choices in (("E", "I"), ("N", "S"), ("T", "F"), ("J", "P"))
+            for choices in (
+                ("I", "i", "x", "e", "E"),
+                ("S", "s", "x", "n", "N"),
+                ("T", "t", "x", "f", "F"),
+                ("J", "j", "x", "p", "P"),
+            )
         )
         for combo in self.mbti_combos:
             mbti_layout.addWidget(combo)
@@ -92,7 +97,7 @@ class BatchTypologyEditor(QWidget):
         edit.textEdited.connect(lambda _text, field=edit: self._set_mixed_input(field, False))
         return edit
 
-    def _mbti_combo(self, choices: tuple[str, str]) -> QComboBox:
+    def _mbti_combo(self, choices: tuple[str, ...]) -> QComboBox:
         combo = QComboBox(self)
         combo.addItem("—", None)
         for choice in choices:

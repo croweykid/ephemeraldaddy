@@ -52,9 +52,14 @@ def _normalized_int_slots(values: object, size: int) -> list[int]:
 
 def _normalized_mbti_slots(values: object) -> list[str]:
     raw_values = list(values or []) if isinstance(values, (list, tuple)) else []
-    allowed = (("E", "I"), ("N", "S"), ("T", "F"), ("J", "P"))
+    allowed = (
+        {"I", "i", "x", "e", "E"},
+        {"S", "s", "x", "n", "N"},
+        {"T", "t", "x", "f", "F"},
+        {"J", "j", "x", "p", "P"},
+    )
     result: list[str] = []
     for index, choices in enumerate(allowed):
-        value = str(raw_values[index] if index < len(raw_values) else "?").upper()
+        value = str(raw_values[index] if index < len(raw_values) else "?").strip()
         result.append(value if value in choices else "?")
     return result

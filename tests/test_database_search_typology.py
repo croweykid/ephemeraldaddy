@@ -51,3 +51,26 @@ def test_typology_filters_treat_placeholder_values_as_unassigned():
         chart,
         mbti_letters=("E", None, None, None),
     )
+
+
+def test_typology_filters_match_mbti_letters_case_insensitively():
+    chart = _chart(mbti=["i", "n", "t", "p"])
+
+    assert chart_matches_typology_filters(chart, mbti_letters=("I", "N", "T", "P"))
+
+
+def test_typology_filters_optionally_match_x_in_each_requested_position():
+    for mbti in (
+        ["I", "x", "T", "J"],
+        ["x", "S", "T", "J"],
+        ["I", "S", "x", "x"],
+    ):
+        chart = _chart(mbti=mbti)
+        assert not chart_matches_typology_filters(
+            chart, mbti_letters=("I", "S", "T", "J")
+        )
+        assert chart_matches_typology_filters(
+            chart,
+            mbti_letters=("I", "S", "T", "J"),
+            include_x_values=True,
+        )
