@@ -1,4 +1,5 @@
 import sqlite3
+from types import SimpleNamespace
 
 import pytest
 
@@ -117,6 +118,25 @@ def test_typology_patch_persists_and_round_trips_from_chart_metadata(tmp_path, m
     assert loaded.enneagram_type == ["5", "4"]
     assert loaded.tritype == [5, 9, 2]
     assert loaded.mbti == ["I", "S", "T", "J"]
+
+
+def test_chart_editor_lightweight_metadata_writer_persists_typology(
+    tmp_path, monkeypatch
+):
+    _database(tmp_path, monkeypatch)
+    chart = SimpleNamespace(
+        name="Before",
+        enneagram_type=["8", "7"],
+        tritype=[8, 3, 5],
+        mbti=["E", "N", "F", "P"],
+    )
+
+    db.update_chart_lightweight_metadata(1, chart)
+
+    loaded = db.load_chart(1)
+    assert loaded.enneagram_type == ["8", "7"]
+    assert loaded.tritype == [8, 3, 5]
+    assert loaded.mbti == ["E", "N", "F", "P"]
 
 
 def test_mortality_writer_marks_new_death_time_unknown(tmp_path, monkeypatch):

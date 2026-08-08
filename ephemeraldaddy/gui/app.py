@@ -34610,6 +34610,11 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                     else serialize_reminds_me_of_uids(getattr(self, "_reminds_me_of_current", []))
                 )
                 chart.comments = self.comments_edit.toPlainText().strip()
+                (
+                    chart.enneagram_type,
+                    chart.tritype,
+                    chart.mbti,
+                ) = get_chart_view_typology(self)
                 chart.quotes = get_chart_view_quotes(self)
                 chart.rectification_notes = self.rectification_edit.toPlainText().strip()
                 chart.biography = self.biography_edit.toPlainText().strip()

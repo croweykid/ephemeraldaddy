@@ -150,3 +150,21 @@ def test_batch_typology_selection_cache_is_independent_from_other_batch_fields()
 
     assert "_batch_last_typology_selection_uids" in comparison
     assert "_batch_last_selection_uids" not in comparison
+
+
+def test_chart_editor_lightweight_save_reads_typology_controls_before_persisting():
+    source = Path("ephemeraldaddy/gui/app.py").read_text()
+    start = source.index("    def on_update_chart")
+    lightweight_start = source.index("        if not recalculate_chart", start)
+    lightweight_end = source.index(
+        "        if chart is None and is_placeholder",
+        lightweight_start,
+    )
+    lightweight_path = source[lightweight_start:lightweight_end]
+
+    assert (
+        "chart.enneagram_type,\n"
+        "                    chart.tritype,\n"
+        "                    chart.mbti,\n"
+        "                ) = get_chart_view_typology(self)"
+    ) in lightweight_path
