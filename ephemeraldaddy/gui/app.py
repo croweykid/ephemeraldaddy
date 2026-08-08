@@ -14033,6 +14033,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         return response == QMessageBox.Yes
 
     def _on_batch_typology_applied(self, changed_ids: set[int]) -> None:
+        self._batch_last_typology_selection_uids = set()
         self._update_batch_edit_state()
         self._refresh_filters_after_batch_edit(changed_ids, refresh_metrics=False)
 
@@ -14052,7 +14053,11 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         selected_chart_ids = self._local_row_ids_for_uids(selected_chart_uids)
         chart_uid_set = set(selected_chart_uids)
         chart_id_set = set(selected_chart_ids)
-        typology_selection_changed = chart_uid_set != self._batch_last_selection_uids
+        typology_selection_changed = chart_uid_set != getattr(
+            self,
+            "_batch_last_typology_selection_uids",
+            set(),
+        )
         preserve_lucygoosey_metrics = (
             bool(chart_uid_set)
             and bool(self._batch_last_selection_uids)
@@ -14263,6 +14268,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         set_batch_from_whence_state(self, from_whence_values)
         if typology_selection_changed and hasattr(self, "batch_typology_editor"):
             self.batch_typology_editor.update_from_charts(chart for _chart_id, chart in resolved_items)
+            self._batch_last_typology_selection_uids = set(chart_uid_set)
         self._render_batch_selection_tag_summary(tag_counts, selected_count)
         self._set_batch_alignment_state(resolved_items)
         self._batch_last_selection_uids = chart_uid_set
@@ -16931,6 +16937,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
     def _clear_batch_edits(self) -> None:
         if hasattr(self, "_batch_last_selection_uids"):
             self._batch_last_selection_uids = set()
+        self._batch_last_typology_selection_uids = set()
         if hasattr(self, "_batch_selection_uid_order"):
             self._batch_selection_uid_order = []
         for checkbox in self.batch_sentiment_checkboxes.values():
@@ -34603,6 +34610,11 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                     else serialize_reminds_me_of_uids(getattr(self, "_reminds_me_of_current", []))
                 )
                 chart.comments = self.comments_edit.toPlainText().strip()
+                (
+                    chart.enneagram_type,
+                    chart.tritype,
+                    chart.mbti,
+                ) = get_chart_view_typology(self)
                 chart.quotes = get_chart_view_quotes(self)
                 chart.rectification_notes = self.rectification_edit.toPlainText().strip()
                 chart.biography = self.biography_edit.toPlainText().strip()
