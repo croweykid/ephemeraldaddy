@@ -92,6 +92,33 @@ def test_general_nonastral_patch_chunks_large_uid_selection(tmp_path, monkeypatc
         ).fetchone() == ("female",)
 
 
+def test_typology_patch_persists_and_round_trips_from_chart_metadata(tmp_path, monkeypatch):
+    path = _database(tmp_path, monkeypatch)
+
+    changed = db.update_charts_nonastral_patches_by_uid(
+        {
+            "NONASTRAL0000001": {
+                "enneagram_type": [5, 4],
+                "tritype": [5, 9, 2],
+                "mbti": ["I", "S", "T", "J"],
+            }
+        }
+    )
+
+    assert changed == {"NONASTRAL0000001"}
+    with sqlite3.connect(path) as connection:
+        stored = connection.execute(
+            "SELECT enneagram_type, tritype, mbti FROM charts WHERE chart_uid = ?",
+            ("NONASTRAL0000001",),
+        ).fetchone()
+    assert stored == ('["5", "4"]', "[5, 9, 2]", '["I", "S", "T", "J"]')
+
+    loaded = db.load_chart_by_uid("NONASTRAL0000001")
+    assert loaded.enneagram_type == ["5", "4"]
+    assert loaded.tritype == [5, 9, 2]
+    assert loaded.mbti == ["I", "S", "T", "J"]
+
+
 def test_mortality_writer_marks_new_death_time_unknown(tmp_path, monkeypatch):
     path = _database(tmp_path, monkeypatch)
 

@@ -130,8 +130,23 @@ def test_batch_typology_hydrates_only_when_selection_changes():
     end = source.index("    def _update_batch_tag_state", start)
     method = source[start:end]
 
-    assert "typology_selection_changed = chart_uid_set != self._batch_last_selection_uids" in method
+    assert '"_batch_last_typology_selection_uids"' in method
     assert (
         'if typology_selection_changed and hasattr(self, "batch_typology_editor"):'
         in method
     )
+    assert "self._batch_last_typology_selection_uids = set(chart_uid_set)" in method
+
+
+def test_batch_typology_selection_cache_is_independent_from_other_batch_fields():
+    source = Path("ephemeraldaddy/gui/app.py").read_text()
+    start = source.index("    def _update_batch_edit_state")
+    end = source.index("    def _update_batch_tag_state", start)
+    method = source[start:end]
+
+    comparison_start = method.index("typology_selection_changed =")
+    comparison_end = method.index("preserve_lucygoosey_metrics", comparison_start)
+    comparison = method[comparison_start:comparison_end]
+
+    assert "_batch_last_typology_selection_uids" in comparison
+    assert "_batch_last_selection_uids" not in comparison
