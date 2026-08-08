@@ -113,6 +113,7 @@ class BatchTypologyEditor(QWidget):
             mixed_index = combo.findText("mixed")
             if mixed_index >= 0:
                 combo.removeItem(mixed_index)
+            self._set_mixed_combo(combo, False)
             combo.setCurrentIndex(0)
 
     def update_from_charts(self, charts: Iterable[Any]) -> None:
@@ -141,6 +142,7 @@ class BatchTypologyEditor(QWidget):
             mixed_index = combo.findText("mixed")
             if mixed_index >= 0:
                 combo.removeItem(mixed_index)
+            self._set_mixed_combo(combo, value is MIXED)
             if value is MIXED:
                 combo.insertItem(0, "mixed", None)
                 font = combo.itemData(0, Qt.FontRole)
@@ -159,6 +161,13 @@ class BatchTypologyEditor(QWidget):
         font = edit.font()
         font.setItalic(mixed)
         edit.setFont(font)
+
+    @staticmethod
+    def _set_mixed_combo(combo: QComboBox, mixed: bool) -> None:
+        """Style the collapsed value as well as the mixed popup item."""
+        font = combo.font()
+        font.setItalic(mixed)
+        combo.setFont(font)
 
     def apply(self) -> None:
         chart_uids = tuple(dict.fromkeys(self._callbacks.selected_chart_uids()))

@@ -95,6 +95,35 @@ def test_typology_selection_summarizes_shared_and_mixed_slots():
     assert summary.mbti == (MIXED, "S", MIXED, MIXED)
 
 
+def test_typology_selection_summarizes_blank_and_populated_mbti_slots():
+    charts = [
+        SimpleNamespace(mbti=["?", "?", "F", "J"]),
+        SimpleNamespace(mbti=["?", "S", "F", "J"]),
+    ]
+
+    summary = summarize_typology_selection(charts)
+
+    assert summary is not None
+    assert summary.mbti == (None, MIXED, "F", "J")
+
+
+def test_typology_selection_summarizes_all_requested_mbti_combinations():
+    charts = [
+        SimpleNamespace(mbti=list("ISTJ")),
+        SimpleNamespace(mbti=list("ESTJ")),
+        SimpleNamespace(mbti=["?", "?", "F", "J"]),
+        SimpleNamespace(mbti=["?", "S", "F", "J"]),
+    ]
+
+    two_populated = summarize_typology_selection(charts[:2])
+    all_four = summarize_typology_selection(charts)
+
+    assert two_populated is not None
+    assert two_populated.mbti == (MIXED, "S", "T", "J")
+    assert all_four is not None
+    assert all_four.mbti == (MIXED, MIXED, MIXED, "J")
+
+
 def test_batch_typology_hydrates_only_when_selection_changes():
     source = Path("ephemeraldaddy/gui/app.py").read_text()
     start = source.index("    def _update_batch_edit_state")
