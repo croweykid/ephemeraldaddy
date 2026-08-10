@@ -38,6 +38,12 @@ from ephemeraldaddy.analysis.time_sensitivity import (
     save_time_sensitivity_result,
 )
 from ephemeraldaddy.analysis.human_design_reference import GATE_COLORS, HD_CENTERS
+from ephemeraldaddy.gui.features.chart_editor.time_sensitivity import (
+    FineTuneHourlyScanController,
+    FineTuneHourlyScanRequest,
+    FineTuneHourlyScanResult,
+    format_fine_tune_hourly_scan_html,
+)
 from ephemeraldaddy.core.interpretations import (
     DOMINANT_BODY_MEANINGS,
     ELEMENT_COLORS,
@@ -56,6 +62,7 @@ from ephemeraldaddy.gui.style import (
     DATABASE_ANALYTICS_COLLAPSIBLE_TOGGLE_STYLE,
     DATABASE_ANALYTICS_CONTENT_MARGINS,
     DATABASE_ANALYTICS_CONTENT_SPACING,
+    apply_shared_dropdown_style,
     configure_collapsible_header_toggle,
 )
 
@@ -1077,7 +1084,7 @@ def human_design_time_range_text(
         if isinstance(summary, dict)
         else []
     )
-    heading = f"Timing: "  # for HD Gate {gate}
+    heading = "Timing: "  # for HD Gate {gate}
     if line is not None:
         heading += f".{line}"
     if spans:
@@ -1330,6 +1337,7 @@ class TimeSensitivityPanel(QWidget):
         super().__init__()
         self._owner = owner
         self._last_result: TimeSensitivityResult | None = None
+        self._fine_tune_result: FineTuneHourlyScanResult | None = None
         self._chart_refresh_key: tuple[str, str, tuple[tuple[str, object], ...]] = (
             "",
             "",
@@ -1355,6 +1363,49 @@ class TimeSensitivityPanel(QWidget):
         )
         description.setWordWrap(True)
         layout.addWidget(description)
+
+        self.fine_tune_module = QWidget()
+        fine_tune_layout = QVBoxLayout(self.fine_tune_module)
+        fine_tune_layout.setContentsMargins(0, 0, 0, 0)
+        fine_tune_layout.setSpacing(4)
+        fine_tune_controls = QHBoxLayout()
+        fine_tune_controls.setContentsMargins(0, 0, 0, 0)
+        self.fine_tune_mode_combo = QComboBox()
+        self.fine_tune_mode_combo.addItem("Fine Tune Hourly Scan", None)
+        self.fine_tune_mode_combo.addItem("5-minute steps", 5)
+        self.fine_tune_mode_combo.addItem("1-minute steps", 1)
+        self.fine_tune_mode_combo.setToolTip(
+            "Scan one selected hour for sign, house, aspect, nakshatra, and Human Design gate/line changes."
+        )
+        apply_shared_dropdown_style(self.fine_tune_mode_combo)
+        self.fine_tune_hour_combo = QComboBox()
+        for hour in range(24):
+            self.fine_tune_hour_combo.addItem(
+                f"{hour:02d}:00–{(hour + 1) % 24:02d}:00", hour
+            )
+        self.fine_tune_hour_combo.setToolTip("Hour to examine in local chart time.")
+        apply_shared_dropdown_style(self.fine_tune_hour_combo)
+        self.fine_tune_run_button = QPushButton("Run")
+        self.fine_tune_run_button.setEnabled(False)
+        self.fine_tune_mode_combo.currentIndexChanged.connect(
+            self._fine_tune_mode_changed
+        )
+        self.fine_tune_run_button.clicked.connect(self._run_fine_tune_scan)
+        fine_tune_controls.addWidget(self.fine_tune_mode_combo, 1)
+        fine_tune_controls.addWidget(self.fine_tune_hour_combo)
+        fine_tune_controls.addWidget(self.fine_tune_run_button)
+        fine_tune_layout.addLayout(fine_tune_controls)
+        self.fine_tune_status = QLabel("")
+        self.fine_tune_status.setWordWrap(True)
+        self.fine_tune_status.hide()
+        fine_tune_layout.addWidget(self.fine_tune_status)
+        self.fine_tune_module.hide()
+        layout.addWidget(self.fine_tune_module)
+
+        self._fine_tune_controller = FineTuneHourlyScanController(parent=self)
+        self._fine_tune_controller.started.connect(self._fine_tune_started)
+        self._fine_tune_controller.result_ready.connect(self._fine_tune_completed)
+        self._fine_tune_controller.failed.connect(self._fine_tune_failed)
 
         self.compute_module = QWidget()
         compute_module_layout = QVBoxLayout()
@@ -1452,6 +1503,9 @@ class TimeSensitivityPanel(QWidget):
             self._set_confidence_for_result(self._last_result)
             return
         self._chart_refresh_key = refresh_key
+        self._fine_tune_controller.invalidate()
+        self._fine_tune_result = None
+        self._set_fine_tune_available(None)
         self._last_result = None
         if chart is None:
             self.compute_module.setVisible(False)
@@ -1465,6 +1519,7 @@ class TimeSensitivityPanel(QWidget):
             self._set_confidence_for_result(saved)
             self.output.setHtml(format_time_sensitivity_result_html(saved))
             self._render_weight_sections(saved)
+            self._set_fine_tune_available(saved)
             self.compute_module.setVisible(False)
             return
         self._set_confidence_for_result(None)
@@ -1500,6 +1555,7 @@ class TimeSensitivityPanel(QWidget):
             self._set_confidence_for_result(self._last_result)
             self.output.setHtml(format_time_sensitivity_result_html(self._last_result))
             self._render_weight_sections(self._last_result)
+            self._set_fine_tune_available(self._last_result)
             self.compute_module.setVisible(False)
         except Exception as exc:
             self._last_result = None
@@ -1510,6 +1566,91 @@ class TimeSensitivityPanel(QWidget):
             self._clear_weight_sections()
         finally:
             self.compute_button.setEnabled(True)
+
+    def _set_fine_tune_available(
+        self, broad_result: TimeSensitivityResult | None
+    ) -> None:
+        available = broad_result is not None and self._current_chart() is not None
+        self.fine_tune_module.setVisible(available)
+        if not available:
+            self.fine_tune_mode_combo.setCurrentIndex(0)
+            self.fine_tune_status.clear()
+            self.fine_tune_status.hide()
+            return
+        try:
+            baseline_hour = int(str(broad_result.baseline_time).split(":", 1)[0])
+        except (TypeError, ValueError):
+            baseline_hour = 0
+        hour_index = self.fine_tune_hour_combo.findData(baseline_hour)
+        if hour_index >= 0:
+            self.fine_tune_hour_combo.setCurrentIndex(hour_index)
+
+    def _fine_tune_mode_changed(self, _index: int) -> None:
+        resolution = self.fine_tune_mode_combo.currentData()
+        self.fine_tune_run_button.setEnabled(
+            self.fine_tune_module.isVisible() and resolution in (1, 5)
+        )
+
+    def _run_fine_tune_scan(self) -> None:
+        chart = self._current_chart()
+        if chart is None:
+            return
+        chart_uid = str(getattr(chart, "chart_uid", "") or "").strip()
+        resolution = self.fine_tune_mode_combo.currentData()
+        hour = self.fine_tune_hour_combo.currentData()
+        if not chart_uid or resolution not in (1, 5) or not isinstance(hour, int):
+            self.fine_tune_status.setText(
+                "Select 5-minute or 1-minute steps before running the hourly scan."
+            )
+            self.fine_tune_status.show()
+            return
+        request = FineTuneHourlyScanRequest(
+            chart_uid=chart_uid,
+            start_hour=hour,
+            resolution_minutes=resolution,
+            refine_changed_brackets=True,
+        )
+        self._fine_tune_controller.start(chart, request)
+
+    def _fine_tune_started(self, request: FineTuneHourlyScanRequest) -> None:
+        self.fine_tune_run_button.setEnabled(False)
+        self.fine_tune_status.setText(
+            f"Scanning {request.start_hour:02d}:00–{(request.start_hour + 1) % 24:02d}:00…"
+        )
+        self.fine_tune_status.show()
+
+    def _fine_tune_completed(self, result: FineTuneHourlyScanResult) -> None:
+        chart = self._current_chart()
+        current_uid = str(getattr(chart, "chart_uid", "") or "").strip()
+        if result.chart_uid != current_uid:
+            return
+        self._fine_tune_result = result
+        self.fine_tune_status.setText(
+            f"Scan complete: {result.displayed_sample_count} scheduled samples"
+            + (
+                f" plus {result.refined_sample_count} refinement samples."
+                if result.refined_sample_count
+                else "."
+            )
+        )
+        self.fine_tune_status.show()
+        old_section = self._chart_sections.pop("fine_tune_hourly", None)
+        if old_section is not None:
+            old_section.setParent(None)
+            old_section.deleteLater()
+        self._add_html_section(
+            "fine_tune_hourly",
+            "Fine Tune Hourly Scan",
+            format_fine_tune_hourly_scan_html(result),
+            expanded=True,
+            position=1,
+        )
+        self._fine_tune_mode_changed(self.fine_tune_mode_combo.currentIndex())
+
+    def _fine_tune_failed(self, message: str) -> None:
+        self.fine_tune_status.setText(f"Unable to run Fine Tune Hourly Scan: {message}")
+        self.fine_tune_status.show()
+        self._fine_tune_mode_changed(self.fine_tune_mode_combo.currentIndex())
 
     def _open_chart_info_link(self, url: QUrl) -> None:
         target = url.toString()
@@ -1529,7 +1670,13 @@ class TimeSensitivityPanel(QWidget):
         self.output.show()
 
     def _add_html_section(
-        self, section_key: str, title: str, html: str, *, expanded: bool = True
+        self,
+        section_key: str,
+        title: str,
+        html: str,
+        *,
+        expanded: bool = True,
+        position: int | None = None,
     ) -> QWidget:
         section = QWidget()
         section_layout = QVBoxLayout(section)
@@ -1656,7 +1803,10 @@ class TimeSensitivityPanel(QWidget):
             lambda _size: schedule_browser_height_adjustments()
         )
         content_layout.addWidget(browser)
-        self._charts_layout.addWidget(section)
+        if position is None:
+            self._charts_layout.addWidget(section)
+        else:
+            self._charts_layout.insertWidget(position, section)
         self._chart_sections[section_key] = section
         return section
 

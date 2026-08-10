@@ -1,7 +1,12 @@
 from types import MappingProxyType
+from types import SimpleNamespace
 
 import pytest
+from PySide6.QtCore import QCoreApplication
 
+from ephemeraldaddy.gui.features.chart_editor.time_sensitivity.controller import (
+    FineTuneHourlyScanController,
+)
 from ephemeraldaddy.gui.features.chart_editor.time_sensitivity.formatting import (
     format_fine_tune_hourly_scan_html,
 )
@@ -106,3 +111,39 @@ def test_formatter_renders_every_section_and_relevance_language():
     assert "01:03" in html
     assert "moved out of relevance" in html
     assert "does not use houses" in html
+
+
+class HoldingThreadPool:
+    def __init__(self):
+        self.workers = []
+
+    def start(self, worker):
+        self.workers.append(worker)
+
+
+def test_controller_discards_result_from_superseded_request():
+    QCoreApplication.instance() or QCoreApplication([])
+    pool = HoldingThreadPool()
+
+    def compute(_chart, request):
+        return FineTuneHourlyScanResult(
+            chart_uid=request.chart_uid,
+            start_hour=request.start_hour,
+            resolution_minutes=request.resolution_minutes,
+            displayed_sample_count=60,
+            refined_sample_count=0,
+            uses_houses=True,
+            transitions=(),
+        )
+
+    controller = FineTuneHourlyScanController(thread_pool=pool, compute=compute)
+    received = []
+    controller.result_ready.connect(received.append)
+    chart = SimpleNamespace(chart_uid="chart-uid")
+    controller.start(chart, FineTuneHourlyScanRequest("chart-uid", 1, 1))
+    controller.start(chart, FineTuneHourlyScanRequest("chart-uid", 2, 1))
+
+    pool.workers[1].run()
+    pool.workers[0].run()
+
+    assert [result.start_hour for result in received] == [2]
