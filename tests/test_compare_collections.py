@@ -19,13 +19,28 @@ def chart(*, unknown_signs=(), **positions):
     )
 
 
-def test_aggregate_norms_requires_half_of_usable_collection():
+def test_aggregate_norms_uses_similarities_analysis_two_chart_rule():
     norms = aggregate_collection_norms(
-        [chart(Sun=1, Moon=31), chart(Sun=2, Moon=61), chart(Sun=35, Moon=91)]
+        [
+            chart(Sun=1, Moon=31),
+            chart(Sun=2, Moon=61),
+            chart(Sun=35, Moon=91),
+            chart(Sun=65, Moon=121),
+            chart(Sun=95, Moon=151),
+        ]
     )
 
     assert CollectionNorm("Placements", "Sun in Aries") in norms
     assert CollectionNorm("Placements", "Moon in Taurus") not in norms
+
+
+def test_minimum_occurrences_can_be_overridden_for_stricter_callers():
+    norms = aggregate_collection_norms(
+        [chart(Sun=1), chart(Sun=2), chart(Sun=35)],
+        minimum_occurrences=3,
+    )
+
+    assert CollectionNorm("Placements", "Sun in Aries") not in norms
 
 
 def test_contrast_partitions_collection_norms_into_three_columns():
