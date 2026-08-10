@@ -62,12 +62,21 @@ def _chart_norms(chart: object) -> set[CollectionNorm]:
     return norms
 
 
-def aggregate_collection_norms(charts: Iterable[object], *, minimum_fraction: float = 0.5) -> set[CollectionNorm]:
-    """Find factual features shared by at least half of usable charts."""
+def aggregate_collection_norms(
+    charts: Iterable[object], *, minimum_occurrences: int = 2
+) -> set[CollectionNorm]:
+    """Find factual features recurring across usable charts.
+
+    Similarities Analysis treats a feature as shared once it occurs in at
+    least two selected charts.  Collection comparison intentionally uses the
+    same rule instead of requiring a feature to appear in half of an entire
+    collection: the latter silently becomes much stricter as collections grow
+    and hides patterns that the existing analysis panel reports.
+    """
     usable = [chart for chart in charts if getattr(chart, "positions", None)]
     if not usable:
         return set()
-    required = max(1, int(len(usable) * minimum_fraction + 0.999999))
+    required = min(len(usable), max(1, int(minimum_occurrences)))
     counts: Counter[CollectionNorm] = Counter()
     for chart in usable:
         counts.update(_chart_norms(chart))

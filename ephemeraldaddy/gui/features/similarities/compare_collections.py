@@ -50,7 +50,10 @@ class CompareCollectionsDialog(QDialog):
         self.resize(1050, 650)
         layout = QVBoxLayout(self)
         intro = QLabel(
-            "Choose two different collections. A norm is a factual chart feature shared by at least half of the usable charts in its collection."
+            "Choose two different collections. As in Similarities Analysis, a norm is a "
+            "factual chart feature shared by at least two usable charts in its collection. "
+            "The outer columns show norms exclusive to that collection; norms found on "
+            "both sides appear only in the middle."
         )
         intro.setWordWrap(True)
         layout.addWidget(intro)
