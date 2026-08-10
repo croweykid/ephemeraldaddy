@@ -39,9 +39,13 @@ from ephemeraldaddy.analysis.time_sensitivity import (
 )
 from ephemeraldaddy.analysis.human_design_reference import GATE_COLORS, HD_CENTERS
 from ephemeraldaddy.gui.features.chart_editor.time_sensitivity import (
-    FineTuneHourlyScanController,
     FineTuneHourlyScanRequest,
     FineTuneHourlyScanResult,
+)
+from ephemeraldaddy.gui.features.chart_editor.time_sensitivity.controller import (
+    FineTuneHourlyScanController,
+)
+from ephemeraldaddy.gui.features.chart_editor.time_sensitivity.formatting import (
     format_fine_tune_hourly_scan_html,
 )
 from ephemeraldaddy.core.interpretations import (

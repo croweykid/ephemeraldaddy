@@ -25,3 +25,11 @@ def test_fine_tune_output_is_inserted_above_broad_detail_sections():
     assert '"fine_tune_hourly"' in SOURCE
     assert 'format_fine_tune_hourly_scan_html(result)' in SOURCE
     assert 'position=1' in SOURCE
+
+
+def test_pure_package_does_not_reexport_qt_controller():
+    package_source = Path(
+        "ephemeraldaddy/gui/features/chart_editor/time_sensitivity/__init__.py"
+    ).read_text(encoding="utf-8")
+    assert "from .controller import" not in package_source
+    assert "from .formatting import" not in package_source

@@ -66,6 +66,19 @@ def format_fine_tune_hourly_scan_html(result: FineTuneHourlyScanResult) -> str:
             "<div style='color:#aaa;'><i>House and angle changes are unavailable "
             "because this chart does not use houses.</i></div>"
         )
+    if result.warnings:
+        visible_warnings = result.warnings[:10]
+        lines.append("<h4 style='margin:8px 0 3px 0;'>Warnings</h4>")
+        lines.extend(
+            f"<div style='color:#d9a066;'>{escape(warning)}</div>"
+            for warning in visible_warnings
+        )
+        if len(result.warnings) > len(visible_warnings):
+            lines.append(
+                "<div style='color:#d9a066;'>"
+                f"{len(result.warnings) - len(visible_warnings)} additional warnings omitted."
+                "</div>"
+            )
     by_section = {
         section: [item for item in result.transitions if item.section is section]
         for section in TransitionSection

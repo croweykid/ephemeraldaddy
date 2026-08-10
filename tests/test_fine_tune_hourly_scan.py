@@ -1,5 +1,6 @@
 from types import MappingProxyType
 from types import SimpleNamespace
+from datetime import datetime
 
 import pytest
 from PySide6.QtCore import QCoreApplication
@@ -19,6 +20,7 @@ from ephemeraldaddy.gui.features.chart_editor.time_sensitivity.hourly_scan impor
     fine_tune_hour_sample_minutes,
     transitions_between,
 )
+from ephemeraldaddy.gui.features.chart_editor.time_sensitivity import hourly_scan
 
 
 EMPTY = MappingProxyType({})
@@ -147,3 +149,70 @@ def test_controller_discards_result_from_superseded_request():
     pool.workers[0].run()
 
     assert [result.start_hour for result in received] == [2]
+
+
+def test_human_design_failure_keeps_astrological_snapshot(monkeypatch):
+    def fail_human_design(_chart):
+        raise RuntimeError("ephemeris unavailable")
+
+    monkeypatch.setattr(hourly_scan, "calculate_human_design", fail_human_design)
+    warnings = []
+    chart = SimpleNamespace(
+        dt=datetime(2000, 1, 1, 1, 3),
+        positions={"Moon": 31.0},
+        aspects=[],
+        houses=[],
+    )
+
+    result = hourly_scan._snapshot(chart, 3, uses_houses=False, warnings=warnings)
+
+    assert result.body_signs["Moon"] == "Taurus"
+    assert result.hd_gate_lines == {}
+    assert warnings == ["01:03 Human Design skipped: ephemeris unavailable"]
+
+
+def test_hour_end_sentinel_crosses_to_next_date_at_midnight(monkeypatch):
+    moments = []
+
+    def variant_factory(_chart, moment):
+        moments.append(moment)
+        return SimpleNamespace(dt=moment)
+
+    def empty_snapshot(chart, offset, *, uses_houses, warnings):
+        del uses_houses, warnings
+        return snapshot(offset, time_label=chart.dt.strftime("%H:%M"))
+
+    monkeypatch.setattr(hourly_scan, "_snapshot", empty_snapshot)
+    chart = SimpleNamespace(
+        chart_uid="chart-uid",
+        dt=datetime(2000, 1, 1, 12, 0),
+        birthtime_unknown=False,
+    )
+
+    hourly_scan.compute_fine_tune_hourly_scan(
+        chart,
+        FineTuneHourlyScanRequest("chart-uid", 23, 5),
+        variant_factory=variant_factory,
+    )
+
+    assert moments[-1] == datetime(2000, 1, 2, 0, 0)
+
+
+def test_formatter_limits_but_reports_repeated_warnings():
+    result = FineTuneHourlyScanResult(
+        chart_uid="chart-uid",
+        start_hour=1,
+        resolution_minutes=1,
+        displayed_sample_count=60,
+        refined_sample_count=0,
+        uses_houses=True,
+        transitions=(),
+        warnings=tuple(f"warning {index}" for index in range(12)),
+    )
+
+    html = format_fine_tune_hourly_scan_html(result)
+
+    assert "warning 0" in html
+    assert "warning 9" in html
+    assert "warning 10" not in html
+    assert "2 additional warnings omitted" in html

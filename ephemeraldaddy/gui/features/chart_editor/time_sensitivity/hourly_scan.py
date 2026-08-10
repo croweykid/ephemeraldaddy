@@ -117,6 +117,7 @@ def _snapshot(
     minute_offset: int,
     *,
     uses_houses: bool,
+    warnings: list[str],
 ) -> FineTuneSnapshot:
     positions = getattr(chart, "positions", {}) or {}
     angle_names = frozenset({"AS", "DS", "MC", "IC"})
@@ -156,11 +157,19 @@ def _snapshot(
         for body in body_signs
         if body in positions
     }
-    hd = calculate_human_design(chart)
-    hd_gate_lines = {
-        (activation.side, activation.body): (int(activation.gate), int(activation.line))
-        for activation in (*hd.personality_activations, *hd.design_activations)
-    }
+    try:
+        hd = calculate_human_design(chart)
+    except Exception as exc:
+        warnings.append(f"{_time_label(chart)} Human Design skipped: {exc}")
+        hd_gate_lines = {}
+    else:
+        hd_gate_lines = {
+            (activation.side, activation.body): (
+                int(activation.gate),
+                int(activation.line),
+            )
+            for activation in (*hd.personality_activations, *hd.design_activations)
+        }
     return FineTuneSnapshot(
         minute_offset=minute_offset,
         time_label=_time_label(chart),
@@ -338,7 +347,12 @@ def compute_fine_tune_hourly_scan(
             return cache[offset]
         moment = hour_start + timedelta(minutes=offset)
         variant = variant_factory(chart, moment)
-        cache[offset] = _snapshot(variant, offset, uses_houses=uses_houses)
+        cache[offset] = _snapshot(
+            variant,
+            offset,
+            uses_houses=uses_houses,
+            warnings=warnings,
+        )
         return cache[offset]
 
     displayed_offsets = fine_tune_hour_sample_minutes(request.resolution_minutes)
