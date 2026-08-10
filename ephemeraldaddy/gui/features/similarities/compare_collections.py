@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from html import escape
-from typing import Iterable, Mapping
+from collections import Counter
+from typing import Mapping
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -13,7 +13,8 @@ from PySide6.QtWidgets import (
     QLabel,
     QMessageBox,
     QPushButton,
-    QTextBrowser,
+    QListWidget,
+    QListWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -26,8 +27,12 @@ from ephemeraldaddy.gui.features.charts.collections import (
 )
 from ephemeraldaddy.gui.features.similarities.collection_contrast import (
     CollectionNorm,
+    collection_norm_counts,
     contrast_collection_norms,
+    filter_aggregable_charts,
 )
+from ephemeraldaddy.gui.features.charts.db_info_panel import add_similarity_match_row
+from ephemeraldaddy.gui.features.charts.similarities_db_norm import similarity_delta_rgb
 
 
 class CompareCollectionsDialog(QDialog):
@@ -44,7 +49,9 @@ class CompareCollectionsDialog(QDialog):
         self._syncing_selectors = False
         self._options = list(DEFAULT_COLLECTION_OPTIONS) + [
             (item.name, item.collection_id)
-            for item in sorted(self._custom_collections.values(), key=lambda item: item.name.casefold())
+            for item in sorted(
+                self._custom_collections.values(), key=lambda item: item.name.casefold()
+            )
         ]
         self.setWindowTitle("Compare-Contrast Collections")
         self.resize(1050, 650)
@@ -71,11 +78,15 @@ class CompareCollectionsDialog(QDialog):
         self.compare_button = QPushButton("Compare & Contrast!", self)
         self.compare_button.clicked.connect(self._compare)
         layout.addWidget(self.compare_button, alignment=Qt.AlignHCenter)
+        self.omission_notice = QLabel(self)
+        self.omission_notice.setWordWrap(True)
+        self.omission_notice.setVisible(False)
+        layout.addWidget(self.omission_notice)
         self._populate_combos()
         columns = QHBoxLayout()
-        self.result_browsers: list[QTextBrowser] = []
+        self.result_browsers: list[QListWidget] = []
         for _ in range(3):
-            browser = QTextBrowser(self)
+            browser = QListWidget(self)
             self.result_browsers.append(browser)
             columns.addWidget(browser, 1)
         layout.addLayout(columns, 1)
@@ -88,7 +99,9 @@ class CompareCollectionsDialog(QDialog):
         self._rebuild_selector(self.collection_b_combo, second_id, excluded_id=first_id)
         self.compare_button.setEnabled(bool(first_id and second_id))
 
-    def _rebuild_selector(self, combo: QComboBox, selected_id: str, *, excluded_id: str) -> None:
+    def _rebuild_selector(
+        self, combo: QComboBox, selected_id: str, *, excluded_id: str
+    ) -> None:
         combo.blockSignals(True)
         combo.clear()
         selected_index = -1
@@ -107,10 +120,16 @@ class CompareCollectionsDialog(QDialog):
         self._syncing_selectors = True
         selected_a = str(self.collection_a_combo.currentData() or "")
         selected_b = str(self.collection_b_combo.currentData() or "")
-        self._rebuild_selector(self.collection_a_combo, selected_a, excluded_id=selected_b)
-        self._rebuild_selector(self.collection_b_combo, selected_b, excluded_id=selected_a)
+        self._rebuild_selector(
+            self.collection_a_combo, selected_a, excluded_id=selected_b
+        )
+        self._rebuild_selector(
+            self.collection_b_combo, selected_b, excluded_id=selected_a
+        )
         self._syncing_selectors = False
-        self.compare_button.setEnabled(bool(selected_a and selected_b and selected_a != selected_b))
+        self.compare_button.setEnabled(
+            bool(selected_a and selected_b and selected_a != selected_b)
+        )
 
     def _load_chart_population(self) -> dict[str, object]:
         """Hydrate the UID-keyed database population once for one comparison."""
@@ -128,7 +147,6 @@ class CompareCollectionsDialog(QDialog):
             chart
             for chart_uid, chart in charts_by_uid.items()
             if chart is not None
-            and not bool(getattr(chart, "is_placeholder", False))
             and chart_belongs_to_collection(
                 collection_id,
                 chart=chart,
@@ -142,48 +160,202 @@ class CompareCollectionsDialog(QDialog):
         collection_a = str(self.collection_a_combo.currentData() or "")
         collection_b = str(self.collection_b_combo.currentData() or "")
         if not collection_a or not collection_b or collection_a == collection_b:
-            QMessageBox.information(self, self.windowTitle(), "Choose two different collections.")
+            QMessageBox.information(
+                self, self.windowTitle(), "Choose two different collections."
+            )
             return
         charts_by_uid = self._load_chart_population()
-        charts_a = self._charts_for_collection(
+        collection_members_a = self._charts_for_collection(
             collection_a, charts_by_uid=charts_by_uid
         )
-        charts_b = self._charts_for_collection(
+        collection_members_b = self._charts_for_collection(
             collection_b, charts_by_uid=charts_by_uid
         )
+        charts_a, omitted_a = filter_aggregable_charts(collection_members_a)
+        charts_b, omitted_b = filter_aggregable_charts(collection_members_b)
+        database_population, omitted_database = filter_aggregable_charts(
+            charts_by_uid.values()
+        )
+        self._show_omission_notice(
+            omitted_a,
+            omitted_b,
+            omitted_database,
+        )
         if not charts_a or not charts_b:
-            QMessageBox.information(self, self.windowTitle(), "Both collections need at least one usable chart.")
+            QMessageBox.information(
+                self,
+                self.windowTitle(),
+                "Both collections need at least one usable chart.",
+            )
             return
         result = contrast_collection_norms(charts_a, charts_b)
+        counts_a, known_a, total_a = collection_norm_counts(charts_a)
+        counts_b, known_b, total_b = collection_norm_counts(charts_b)
+        database_counts, database_known, _database_total = collection_norm_counts(
+            database_population
+        )
         labels = (
             f"Only {self.collection_a_combo.currentText()}",
             "Shared norms",
             f"Only {self.collection_b_combo.currentText()}",
         )
-        for browser, heading, norms in zip(
-            self.result_browsers, labels, (result.only_a, result.overlap, result.only_b), strict=True
+        self._render_norms(
+            self.result_browsers[0],
+            labels[0],
+            result.only_a,
+            counts_a,
+            known_a,
+            total_a,
+            database_counts,
+            database_known,
+        )
+        shared_rows = tuple(
+            (norm, counts_a, known_a, total_a, "A") for norm in result.overlap
+        ) + tuple((norm, counts_b, known_b, total_b, "B") for norm in result.overlap)
+        self._render_shared_norms(
+            self.result_browsers[1],
+            labels[1],
+            shared_rows,
+            database_counts,
+            database_known,
+        )
+        self._render_norms(
+            self.result_browsers[2],
+            labels[2],
+            result.only_b,
+            counts_b,
+            known_b,
+            total_b,
+            database_counts,
+            database_known,
+        )
+
+    def _show_omission_notice(
+        self, omitted_a: int, omitted_b: int, omitted_db: int
+    ) -> None:
+        notices = []
+        for label, count in (
+            ("Collection A", omitted_a),
+            ("Collection B", omitted_b),
+            ("Database baseline", omitted_db),
         ):
-            browser.setHtml(self._norms_html(heading, norms))
+            if count:
+                noun = "chart was" if count == 1 else "charts were"
+                notices.append(
+                    f"{label}: {count} placeholder/hypothetical {noun} omitted from analysis."
+                )
+        self.omission_notice.setText(" ".join(notices))
+        self.omission_notice.setVisible(bool(notices))
 
     @staticmethod
-    def _norms_html(heading: str, norms: Iterable[CollectionNorm]) -> str:
-        grouped: dict[str, list[str]] = {}
+    def _add_heading(browser: QListWidget, text: str) -> None:
+        item = QListWidgetItem(text)
+        font = item.font()
+        font.setBold(True)
+        item.setFont(font)
+        browser.addItem(item)
+
+    def _render_norms(
+        self,
+        browser: QListWidget,
+        heading: str,
+        norms: tuple[CollectionNorm, ...],
+        counts: Counter[CollectionNorm],
+        known_totals: Counter[CollectionNorm],
+        selection_total: int,
+        database_counts: Counter[CollectionNorm],
+        database_known_totals: Counter[CollectionNorm],
+        *,
+        label_prefix: str = "",
+    ) -> None:
+        browser.clear()
+        self._add_heading(browser, heading)
+        if not norms:
+            browser.addItem("No aggregate norms.")
+            return
+        category = None
         for norm in norms:
-            grouped.setdefault(norm.category, []).append(norm.label)
-        parts = [f"<h2>{escape(heading)}</h2>"]
-        if not grouped:
-            parts.append("<p><i>No aggregate norms.</i></p>")
-        for category, labels in grouped.items():
-            parts.append(f"<h3>{escape(category)}</h3><ul>")
-            parts.extend(f"<li>{escape(label)}</li>" for label in labels)
-            parts.append("</ul>")
-        return "".join(parts)
+            if norm.category != category:
+                category = norm.category
+                self._add_heading(browser, category)
+            match_count = counts[norm]
+            known_total = known_totals[norm]
+            percent = round(match_count / known_total * 100) if known_total else 0
+            database_known_total = database_known_totals[norm]
+            db_percent = (
+                round(database_counts[norm] / database_known_total * 100)
+                if database_known_total
+                else 0
+            )
+            add_similarity_match_row(
+                section_list=browser,
+                section_title=norm.category,
+                label=f"{label_prefix}{norm.label}",
+                match_count=match_count,
+                percent_value=percent,
+                db_percent_value=db_percent,
+                selection_total_count=selection_total,
+                total_count=known_total,
+                similarity_rgb=similarity_delta_rgb(percent, db_percent, known_total),
+                selection_label="collection",
+                database_label="database",
+            )
+
+    def _render_shared_norms(
+        self,
+        browser: QListWidget,
+        heading: str,
+        rows: tuple[
+            tuple[
+                CollectionNorm,
+                Counter[CollectionNorm],
+                Counter[CollectionNorm],
+                int,
+                str,
+            ],
+            ...,
+        ],
+        database_counts: Counter[CollectionNorm],
+        database_known_totals: Counter[CollectionNorm],
+    ) -> None:
+        browser.clear()
+        self._add_heading(browser, heading)
+        if not rows:
+            browser.addItem("No aggregate norms.")
+            return
+        for norm, counts, known_totals, selection_total, collection_label in rows:
+            match_count = counts[norm]
+            known_total = known_totals[norm]
+            percent = round(match_count / known_total * 100) if known_total else 0
+            database_known_total = database_known_totals[norm]
+            db_percent = (
+                round(database_counts[norm] / database_known_total * 100)
+                if database_known_total
+                else 0
+            )
+            add_similarity_match_row(
+                section_list=browser,
+                section_title=norm.category,
+                label=f"{collection_label}: {norm.label}",
+                match_count=match_count,
+                percent_value=percent,
+                db_percent_value=db_percent,
+                selection_total_count=selection_total,
+                total_count=known_total,
+                similarity_rgb=similarity_delta_rgb(percent, db_percent, known_total),
+                selection_label="collection",
+                database_label="database",
+            )
 
     def _render_empty(self) -> None:
         for browser, heading in zip(
-            self.result_browsers, ("Only Collection A", "Shared norms", "Only Collection B"), strict=True
+            self.result_browsers,
+            ("Only Collection A", "Shared norms", "Only Collection B"),
+            strict=True,
         ):
-            browser.setHtml(f"<h2>{heading}</h2><p>Run a comparison to see results.</p>")
+            browser.clear()
+            self._add_heading(browser, heading)
+            browser.addItem("Run a comparison to see results.")
 
 
 def show_compare_collections_dialog(

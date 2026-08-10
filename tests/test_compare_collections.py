@@ -4,7 +4,9 @@ from types import SimpleNamespace
 from ephemeraldaddy.gui.features.similarities.collection_contrast import (
     CollectionNorm,
     aggregate_collection_norms,
+    collection_norm_counts,
     contrast_collection_norms,
+    filter_aggregable_charts,
 )
 
 
@@ -66,14 +68,94 @@ def test_unknown_signs_are_not_counted_as_factual_collection_norms():
     assert CollectionNorm("Placements", "Moon in Taurus") not in norms
 
 
+def test_collection_norm_counts_reports_factor_and_usable_chart_totals():
+    counts, known_totals, total = collection_norm_counts(
+        [chart(Sun=1, Moon=31), chart(Sun=2, Moon=61), SimpleNamespace(positions={})]
+    )
+
+    assert total == 2
+    assert counts[CollectionNorm("Placements", "Sun in Aries")] == 2
+    assert counts[CollectionNorm("Placements", "Moon in Taurus")] == 1
+    assert known_totals[CollectionNorm("Placements", "Sun in Aries")] == 2
+
+
+def test_collection_norm_counts_uses_factor_specific_known_denominators():
+    counts, known_totals, total = collection_norm_counts(
+        [
+            chart(Sun=1, Moon=31),
+            chart(unknown_signs={"Moon"}, Sun=2, Moon=32),
+            chart(Sun=3),
+        ]
+    )
+
+    moon = CollectionNorm("Placements", "Moon in Taurus")
+    assert total == 3
+    assert counts[moon] == 1
+    assert known_totals[moon] == 1
+
+
+def test_house_norm_denominator_includes_only_charts_with_usable_house_data():
+    timed = [
+        SimpleNamespace(
+            positions={"Sun": 1},
+            houses=[1] * 12,
+            birthtime_unknown=False,
+            retcon_time_used=False,
+            human_design_gates=[],
+            human_design_channels=[],
+            unknown_signs=(),
+        )
+        for _ in range(2)
+    ]
+    untimed = [chart(Sun=index) for index in range(8)]
+
+    counts, known_totals, total = collection_norm_counts(timed + untimed)
+
+    house_one = CollectionNorm("House Signs", "House 1: Aries")
+    assert total == 10
+    assert counts[house_one] == 2
+    assert known_totals[house_one] == 2
+
+
+def test_filter_aggregable_charts_reports_placeholder_and_hypothetical_omissions():
+    included = chart(Sun=1)
+    hypothetical = chart(Sun=2)
+    hypothetical.source = "hypothetical"
+    placeholder = chart(Sun=3)
+    placeholder.is_placeholder = True
+
+    aggregable, omitted = filter_aggregable_charts(
+        [included, hypothetical, placeholder, None]
+    )
+
+    assert aggregable == [included]
+    assert omitted == 2
+
+
+def test_compare_dialog_imports_shared_similarity_indicator_template():
+    source = Path(
+        "ephemeraldaddy/gui/features/similarities/compare_collections.py"
+    ).read_text(encoding="utf-8")
+
+    assert (
+        "from ephemeraldaddy.gui.features.charts.db_info_panel import add_similarity_match_row"
+        in source
+    )
+    assert "similarity_delta_rgb(percent, db_percent, known_total)" in source
+    assert 'selection_label="collection"' in source
+    assert 'database_label="database"' in source
+    assert "filter_aggregable_charts" in source
+    assert "placeholder/hypothetical" in source
+
+
 def test_dialog_initializes_button_before_populating_and_loads_population_once():
     source = Path(
         "ephemeraldaddy/gui/features/similarities/compare_collections.py"
     ).read_text(encoding="utf-8")
 
-    assert source.index('self.compare_button = QPushButton("Compare & Contrast!", self)') < source.index(
-        "self._populate_combos()"
-    )
+    assert source.index(
+        'self.compare_button = QPushButton("Compare & Contrast!", self)'
+    ) < source.index("self._populate_combos()")
     compare_body = source.split("    def _compare(self) -> None:", 1)[1].split(
         "    @staticmethod", 1
     )[0]
