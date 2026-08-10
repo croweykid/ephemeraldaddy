@@ -1,6 +1,7 @@
 from types import MappingProxyType
 from types import SimpleNamespace
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import pytest
 from PySide6.QtCore import QCoreApplication
@@ -18,6 +19,7 @@ from ephemeraldaddy.gui.features.chart_editor.time_sensitivity.hourly_scan impor
     FineTuneTransition,
     TransitionSection,
     fine_tune_hour_sample_minutes,
+    fine_tune_calculation_signature,
     transitions_between,
 )
 from ephemeraldaddy.gui.features.chart_editor.time_sensitivity import hourly_scan
@@ -54,6 +56,10 @@ def test_request_is_uid_first_and_rejects_unsupported_resolution():
         FineTuneHourlyScanRequest("", 1, 1)
     with pytest.raises(ValueError, match="resolution"):
         FineTuneHourlyScanRequest("chart-uid", 1, 2)  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="earlier or later"):
+        FineTuneHourlyScanRequest(
+            "chart-uid", 1, 1, ambiguous_time_policy="both"  # type: ignore[arg-type]
+        )
 
 
 def test_transitions_are_grouped_into_requested_sections():
@@ -151,6 +157,58 @@ def test_controller_discards_result_from_superseded_request():
     assert [result.start_hour for result in received] == [2]
 
 
+def test_controller_discards_result_when_chart_metadata_changes_during_scan():
+    QCoreApplication.instance() or QCoreApplication([])
+    pool = HoldingThreadPool()
+
+    def compute(_chart, request):
+        return FineTuneHourlyScanResult(
+            chart_uid=request.chart_uid,
+            start_hour=request.start_hour,
+            resolution_minutes=request.resolution_minutes,
+            displayed_sample_count=60,
+            refined_sample_count=0,
+            uses_houses=True,
+            transitions=(),
+        )
+
+    chart = SimpleNamespace(
+        chart_uid="chart-uid",
+        dt=datetime(2000, 1, 1, 1, 0),
+        lat=40.0,
+        lon=-74.0,
+        birthtime_unknown=False,
+    )
+    controller = FineTuneHourlyScanController(thread_pool=pool, compute=compute)
+    received = []
+    controller.result_ready.connect(received.append)
+    controller.start(chart, FineTuneHourlyScanRequest("chart-uid", 1, 1))
+    chart.lat = 41.0
+
+    pool.workers[0].run()
+
+    assert received == []
+
+
+def test_calculation_signature_tracks_authoritative_and_house_metadata():
+    chart = SimpleNamespace(
+        chart_uid="chart-uid",
+        dt=datetime(2000, 1, 1, 1, 0, tzinfo=ZoneInfo("America/New_York")),
+        dt_local=datetime(2000, 1, 1, 1, 0),
+        lat=40.0,
+        lon=-74.0,
+        birthtime_unknown=False,
+        retcon_time_used=False,
+        retcon_hour=None,
+        retcon_minute=None,
+    )
+    original = fine_tune_calculation_signature(chart)
+    chart.retcon_time_used = True
+    chart.retcon_hour = 2
+
+    assert fine_tune_calculation_signature(chart) != original
+
+
 def test_human_design_failure_keeps_astrological_snapshot(monkeypatch):
     def fail_human_design(_chart):
         raise RuntimeError("ephemeris unavailable")
@@ -196,6 +254,80 @@ def test_hour_end_sentinel_crosses_to_next_date_at_midnight(monkeypatch):
     )
 
     assert moments[-1] == datetime(2000, 1, 2, 0, 0)
+
+
+def test_nonexistent_dst_hour_is_rejected_before_sampling():
+    chart = SimpleNamespace(
+        chart_uid="chart-uid",
+        dt=datetime(2024, 3, 10, 12, 0, tzinfo=ZoneInfo("America/New_York")),
+        birthtime_unknown=False,
+    )
+
+    with pytest.raises(ValueError, match="does not exist.*daylight-saving"):
+        hourly_scan.compute_fine_tune_hourly_scan(
+            chart,
+            FineTuneHourlyScanRequest("chart-uid", 2, 1),
+            variant_factory=lambda _chart, _moment: pytest.fail("must not sample"),
+        )
+
+
+def test_sampling_recovers_geographic_timezone_from_fixed_offset_datetime():
+    chart = SimpleNamespace(lat=40.7128, lon=-74.0060)
+    source_dt = datetime(
+        2024,
+        11,
+        3,
+        12,
+        0,
+        tzinfo=timezone(timedelta(hours=-5)),
+    )
+
+    sampling_timezone = hourly_scan._sampling_timezone(chart, source_dt)
+
+    assert getattr(sampling_timezone, "key", None) == "America/New_York"
+
+
+@pytest.mark.parametrize(
+    ("policy", "expected_start_utc", "expected_end_utc", "expected_end_label"),
+    (
+        ("earlier", "2024-11-03T05:00:00+00:00", "2024-11-03T06:00:00+00:00", "01:00"),
+        ("later", "2024-11-03T06:00:00+00:00", "2024-11-03T07:00:00+00:00", "02:00"),
+    ),
+)
+def test_ambiguous_dst_hour_uses_monotonic_real_instants(
+    monkeypatch, policy, expected_start_utc, expected_end_utc, expected_end_label
+):
+    moments = []
+
+    def variant_factory(_chart, moment):
+        moments.append(moment)
+        return SimpleNamespace(dt=moment)
+
+    def empty_snapshot(chart, offset, *, uses_houses, warnings):
+        del uses_houses, warnings
+        return snapshot(offset, time_label=hourly_scan._time_label(chart))
+
+    monkeypatch.setattr(hourly_scan, "_snapshot", empty_snapshot)
+    chart = SimpleNamespace(
+        chart_uid="chart-uid",
+        dt=datetime(2024, 11, 3, 12, 0, tzinfo=ZoneInfo("America/New_York")),
+        birthtime_unknown=False,
+    )
+
+    result = hourly_scan.compute_fine_tune_hourly_scan(
+        chart,
+        FineTuneHourlyScanRequest(
+            "chart-uid", 1, 1, ambiguous_time_policy=policy
+        ),
+        variant_factory=variant_factory,
+    )
+
+    utc_moments = [moment.astimezone(ZoneInfo("UTC")) for moment in moments]
+    assert utc_moments[0].isoformat() == expected_start_utc
+    assert utc_moments[-1].isoformat() == expected_end_utc
+    assert utc_moments == sorted(utc_moments)
+    assert moments[-1].strftime("%H:%M") == expected_end_label
+    assert any(f"the {policy} occurrence was scanned" in warning for warning in result.warnings)
 
 
 def test_formatter_limits_but_reports_repeated_warnings():

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Any, Literal
 
@@ -18,6 +18,7 @@ from ephemeraldaddy.core.aspect_display import display_aspect_key
 from ephemeraldaddy.core.chart import Chart, chart_uses_houses
 from ephemeraldaddy.core.human_design_system import calculate_human_design
 from ephemeraldaddy.core.interpretations import PLANET_ORDER, ZODIAC_NAMES, aspect_orb_factor
+from ephemeraldaddy.core.timeutils import timezone_from_latlon
 
 
 class TransitionSection(StrEnum):
@@ -36,6 +37,7 @@ class FineTuneHourlyScanRequest:
     start_hour: int
     resolution_minutes: Literal[1, 5]
     refine_changed_brackets: bool = True
+    ambiguous_time_policy: Literal["earlier", "later"] = "earlier"
 
     def __post_init__(self) -> None:
         if not self.chart_uid.strip():
@@ -44,6 +46,8 @@ class FineTuneHourlyScanRequest:
             raise ValueError("Fine Tune Hourly Scan hour must be between 0 and 23.")
         if self.resolution_minutes not in (1, 5):
             raise ValueError("Fine Tune Hourly Scan resolution must be 1 or 5 minutes.")
+        if self.ambiguous_time_policy not in ("earlier", "later"):
+            raise ValueError("Ambiguous local times must use the earlier or later occurrence.")
 
 
 AspectKey = tuple[tuple[str, str], str]
@@ -90,6 +94,99 @@ def fine_tune_hour_sample_minutes(resolution_minutes: Literal[1, 5]) -> tuple[in
     if resolution_minutes not in (1, 5):
         raise ValueError("Fine Tune Hourly Scan resolution must be 1 or 5 minutes.")
     return tuple(range(0, 60, resolution_minutes))
+
+
+def fine_tune_calculation_signature(chart: Any) -> tuple[object, ...]:
+    """Return every chart input that can change an hourly scan calculation."""
+    dt = getattr(chart, "dt", None)
+    dt_local = getattr(chart, "dt_local", None)
+    timezone = getattr(dt, "tzinfo", None) if isinstance(dt, datetime) else None
+    timezone_key = getattr(timezone, "key", None) or str(timezone or "")
+    explicit_timezone = getattr(chart, "_explicit_tz", None)
+    explicit_timezone_key = getattr(explicit_timezone, "key", None) or str(
+        explicit_timezone or ""
+    )
+    return (
+        str(getattr(chart, "chart_uid", "") or "").strip(),
+        dt.isoformat() if isinstance(dt, datetime) else repr(dt),
+        int(getattr(dt, "fold", 0)) if isinstance(dt, datetime) else 0,
+        dt_local.isoformat() if isinstance(dt_local, datetime) else repr(dt_local),
+        repr(getattr(chart, "lat", None)),
+        repr(getattr(chart, "lon", None)),
+        timezone_key,
+        explicit_timezone_key,
+        str(getattr(chart, "birth_place", "") or ""),
+        bool(getattr(chart, "birthtime_unknown", False)),
+        bool(getattr(chart, "retcon_time_used", False)),
+        getattr(chart, "retcon_hour", None),
+        getattr(chart, "retcon_minute", None),
+        bool(getattr(chart, "rectification_range_used", False)),
+        getattr(chart, "rectification_range_start_minute", None),
+        getattr(chart, "rectification_range_end_minute", None),
+        bool(chart_uses_houses(chart)),
+    )
+
+
+def _sampling_timezone(chart: Any, source_dt: datetime) -> Any:
+    """Prefer a geographic timezone over a stored fixed-offset timezone."""
+    for candidate in (getattr(chart, "_explicit_tz", None), source_dt.tzinfo):
+        if getattr(candidate, "key", None):
+            return candidate
+    lat = getattr(chart, "lat", None)
+    lon = getattr(chart, "lon", None)
+    if lat is not None and lon is not None:
+        timezone, inferred_ok = timezone_from_latlon(float(lat), float(lon))
+        if inferred_ok:
+            return timezone
+    return source_dt.tzinfo
+
+
+def _valid_local_candidates(naive: datetime, timezone: Any) -> tuple[datetime, ...]:
+    """Return distinct aware instants that round-trip to a local wall time."""
+    candidates: list[datetime] = []
+    utc_instants: set[datetime] = set()
+    for fold in (0, 1):
+        candidate = naive.replace(tzinfo=timezone, fold=fold)
+        utc_instant = candidate.astimezone(UTC)
+        round_trip = utc_instant.astimezone(timezone)
+        if round_trip.replace(tzinfo=None) != naive:
+            continue
+        if utc_instant in utc_instants:
+            continue
+        utc_instants.add(utc_instant)
+        candidates.append(candidate)
+    return tuple(sorted(candidates, key=lambda value: value.astimezone(UTC)))
+
+
+def _hour_start_instant(
+    source_dt: datetime,
+    start_hour: int,
+    ambiguous_time_policy: Literal["earlier", "later"],
+) -> tuple[datetime, str | None]:
+    """Resolve a selected wall-clock hour to a real, unambiguous instant."""
+    naive_start = source_dt.replace(
+        hour=start_hour,
+        minute=0,
+        second=0,
+        microsecond=0,
+        tzinfo=None,
+    )
+    timezone = source_dt.tzinfo
+    if timezone is None:
+        return naive_start, None
+    candidates = _valid_local_candidates(naive_start, timezone)
+    if not candidates:
+        raise ValueError(
+            f"{naive_start:%Y-%m-%d %H:%M} does not exist in {timezone} because of a daylight-saving transition."
+        )
+    if len(candidates) == 1:
+        return candidates[0], None
+    selected = candidates[0] if ambiguous_time_policy == "earlier" else candidates[-1]
+    warning = (
+        f"{naive_start:%Y-%m-%d %H:%M} occurs twice in {timezone}; "
+        f"the {ambiguous_time_policy} occurrence was scanned."
+    )
+    return selected, warning
 
 
 def _sign(longitude: float) -> str:
@@ -189,7 +286,18 @@ def _time_label(chart: Any) -> str:
         value = getattr(chart, "dt_local", None)
     if not isinstance(value, datetime):
         raise ValueError("Fine Tune Hourly Scan requires chart datetime metadata.")
-    return value.strftime("%H:%M")
+    label = value.strftime("%H:%M")
+    if value.tzinfo is None:
+        return label
+    candidates = _valid_local_candidates(value.replace(tzinfo=None), value.tzinfo)
+    if len(candidates) < 2:
+        return label
+    occurrence = (
+        "earlier"
+        if value.astimezone(UTC) == candidates[0].astimezone(UTC)
+        else "later"
+    )
+    return f"{label} ({occurrence})"
 
 
 def _variant_at(source: Any, moment: datetime) -> Chart:
@@ -340,12 +448,28 @@ def compute_fine_tune_hourly_scan(
         source_dt = getattr(chart, "dt_local", None)
     if not isinstance(source_dt, datetime):
         raise ValueError("Fine Tune Hourly Scan requires a chart with a datetime.")
-    hour_start = source_dt.replace(hour=request.start_hour, minute=0, second=0, microsecond=0)
+    sampling_timezone = _sampling_timezone(chart, source_dt)
+    if sampling_timezone is not None and source_dt.tzinfo is not None:
+        source_dt = source_dt.astimezone(sampling_timezone)
+    elif sampling_timezone is not None:
+        source_dt = source_dt.replace(tzinfo=sampling_timezone)
+    hour_start, dst_warning = _hour_start_instant(
+        source_dt,
+        request.start_hour,
+        request.ambiguous_time_policy,
+    )
+    if dst_warning:
+        warnings.append(dst_warning)
 
     def sample(offset: int) -> FineTuneSnapshot:
         if offset in cache:
             return cache[offset]
-        moment = hour_start + timedelta(minutes=offset)
+        if hour_start.tzinfo is None:
+            moment = hour_start + timedelta(minutes=offset)
+        else:
+            moment = (hour_start.astimezone(UTC) + timedelta(minutes=offset)).astimezone(
+                hour_start.tzinfo
+            )
         variant = variant_factory(chart, moment)
         cache[offset] = _snapshot(
             variant,

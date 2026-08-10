@@ -41,6 +41,7 @@ from ephemeraldaddy.analysis.human_design_reference import GATE_COLORS, HD_CENTE
 from ephemeraldaddy.gui.features.chart_editor.time_sensitivity import (
     FineTuneHourlyScanRequest,
     FineTuneHourlyScanResult,
+    fine_tune_calculation_signature,
 )
 from ephemeraldaddy.gui.features.chart_editor.time_sensitivity.controller import (
     FineTuneHourlyScanController,
@@ -1342,7 +1343,7 @@ class TimeSensitivityPanel(QWidget):
         self._owner = owner
         self._last_result: TimeSensitivityResult | None = None
         self._fine_tune_result: FineTuneHourlyScanResult | None = None
-        self._chart_refresh_key: tuple[str, str, tuple[tuple[str, object], ...]] = (
+        self._chart_refresh_key: tuple[object, ...] = (
             "",
             "",
             (),
@@ -1502,7 +1503,10 @@ class TimeSensitivityPanel(QWidget):
             else ""
         )
         config_items = tuple(sorted(asdict(self._current_config()).items()))
-        refresh_key = (chart_uid, date_key, config_items)
+        calculation_signature = (
+            fine_tune_calculation_signature(chart) if chart is not None else ()
+        )
+        refresh_key = (chart_uid, date_key, config_items, calculation_signature)
         if refresh_key == self._chart_refresh_key:
             self._set_confidence_for_result(self._last_result)
             return
@@ -1554,7 +1558,12 @@ class TimeSensitivityPanel(QWidget):
             chart_uid = str(getattr(chart, "chart_uid", "") or "").strip()
             date_key = birth_date_key_for_chart(chart)
             config_items = tuple(sorted(asdict(config).items()))
-            self._chart_refresh_key = (chart_uid, date_key, config_items)
+            self._chart_refresh_key = (
+                chart_uid,
+                date_key,
+                config_items,
+                fine_tune_calculation_signature(chart),
+            )
             save_time_sensitivity_result(self._last_result)
             self._set_confidence_for_result(self._last_result)
             self.output.setHtml(format_time_sensitivity_result_html(self._last_result))

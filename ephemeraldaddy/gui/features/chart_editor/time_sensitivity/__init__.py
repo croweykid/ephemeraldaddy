@@ -11,6 +11,7 @@ from .hourly_scan import (
     FineTuneTransition,
     TransitionSection,
     compute_fine_tune_hourly_scan,
+    fine_tune_calculation_signature,
     fine_tune_hour_sample_minutes,
 )
 
@@ -21,5 +22,6 @@ __all__ = [
     "FineTuneTransition",
     "TransitionSection",
     "compute_fine_tune_hourly_scan",
+    "fine_tune_calculation_signature",
     "fine_tune_hour_sample_minutes",
 ]

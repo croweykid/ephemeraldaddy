@@ -11,6 +11,7 @@ from .hourly_scan import (
     FineTuneHourlyScanRequest,
     FineTuneHourlyScanResult,
     compute_fine_tune_hourly_scan,
+    fine_tune_calculation_signature,
 )
 
 
@@ -65,12 +66,14 @@ class FineTuneHourlyScanController(QObject):
         self._compute = compute
         self._generation = 0
         self._active_chart_uid = ""
+        self._active_calculation_signature: tuple[object, ...] = ()
         self._workers: set[_FineTuneWorker] = set()
 
     def start(self, chart: Any, request: FineTuneHourlyScanRequest) -> int:
         self._generation += 1
         token = self._generation
         self._active_chart_uid = request.chart_uid
+        self._active_calculation_signature = fine_tune_calculation_signature(chart)
         worker = _FineTuneWorker(token, chart, request, self._compute)
         self._workers.add(worker)
         worker.signals.completed.connect(
@@ -91,12 +94,15 @@ class FineTuneHourlyScanController(QObject):
         """Make every outstanding result stale without blocking its worker."""
         self._generation += 1
         self._active_chart_uid = ""
+        self._active_calculation_signature = ()
 
     def _complete(
         self, worker: _FineTuneWorker, token: int, result: FineTuneHourlyScanResult
     ) -> None:
         self._workers.discard(worker)
         if token != self._generation or result.chart_uid != self._active_chart_uid:
+            return
+        if fine_tune_calculation_signature(worker.chart) != self._active_calculation_signature:
             return
         self.result_ready.emit(result)
 

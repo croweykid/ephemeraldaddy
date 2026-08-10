@@ -11,6 +11,8 @@ def test_fine_tune_controls_appear_only_after_a_broad_result():
     assert 'self._set_fine_tune_available(saved)' in SOURCE
     assert 'self._set_fine_tune_available(self._last_result)' in SOURCE
     assert 'self.fine_tune_module.setVisible(available)' in SOURCE
+    assert 'fine_tune_calculation_signature(chart)' in SOURCE
+    assert 'refresh_key = (chart_uid, date_key, config_items, calculation_signature)' in SOURCE
 
 
 def test_fine_tune_panel_uses_chart_editor_controller_and_requested_options():
