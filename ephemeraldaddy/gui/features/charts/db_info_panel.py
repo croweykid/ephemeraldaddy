@@ -39,9 +39,9 @@ class SimilarityPercentBar(QProgressBar):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._standard_deviation_guides: tuple[tuple[float, int], ...] = ()
-        self._norm_delta_overlay: (
-            tuple[float, float, tuple[int, int, int]] | None
-        ) = None
+        self._norm_delta_overlay: tuple[float, float, tuple[int, int, int]] | None = (
+            None
+        )
 
     def set_norm_delta_overlay(
         self,
@@ -64,9 +64,7 @@ class SimilarityPercentBar(QProgressBar):
             self.update()
             return
 
-        normalized_rgb = tuple(
-            max(0, min(255, int(channel))) for channel in delta_rgb
-        )
+        normalized_rgb = tuple(max(0, min(255, int(channel))) for channel in delta_rgb)
         self._norm_delta_overlay = (
             max(0.0, min(100.0, selection_value)),
             max(0.0, min(100.0, db_norm_value)),
@@ -93,8 +91,7 @@ class SimilarityPercentBar(QProgressBar):
     ) -> float:
         distances = [abs(selection_percent - db_norm_percent), 1.0]
         distances.extend(
-            abs(guide_percent - db_norm_percent)
-            for guide_percent, _ in guide_percents
+            abs(guide_percent - db_norm_percent) for guide_percent, _ in guide_percents
         )
         return min(100.0, max(distances) * 1.15)
 
@@ -334,6 +331,8 @@ def add_similarity_match_row(
     similarity_rgb: tuple[int, int, int],
     on_info_target_requested: Callable[[str], None] | None = None,
     show_standard_deviation_guides: bool = True,
+    selection_label: str = "selection",
+    database_label: str = "DB",
 ) -> None:
     """Render one similarities list row, with optional clickable info target."""
     similarity_red, similarity_green, similarity_blue = similarity_rgb
@@ -394,7 +393,9 @@ def add_similarity_match_row(
     direction_label = (
         "above DB norm"
         if delta_points > 0
-        else "below DB norm" if delta_points < 0 else "at DB norm"
+        else "below DB norm"
+        if delta_points < 0
+        else "at DB norm"
     )
     if total_count < SIMILARITY_DELTA_MIN_GUIDE_SAMPLE_SIZE:
         z_score_text = (
@@ -403,9 +404,7 @@ def add_similarity_match_row(
         )
     else:
         z_score_text = (
-            ""
-            if z_score is None
-            else f" ({z_score:+.2f} standard-error units)"
+            "" if z_score is None else f" ({z_score:+.2f} standard-error units)"
         )
     percent_bar.setToolTip(
         f"Database norm is centered; the green selection rectangle extends "
@@ -429,7 +428,7 @@ def add_similarity_match_row(
         )
         unknown_suffix = f" | {unknown_percent_value}% unknown"
 
-    selection_percent_text = f"{percent_value}% of selection"
+    selection_percent_text = f"{percent_value}% of {selection_label}"
     delta_suffix = ""
     if delta_points != 0.0:
         delta_suffix = f" | {delta_points:+.0f}% pts {direction_label}"
@@ -445,7 +444,9 @@ def add_similarity_match_row(
         )
 
     tiny_label = QLabel(
-        f"{selection_percent_text} | {db_percent_value}% of DB{delta_suffix}{unknown_suffix}"
+        f"{match_count}/{total_count} in {selection_label} | "
+        f"{selection_percent_text} | {db_percent_value}% of {database_label}"
+        f"{delta_suffix}{unknown_suffix}"
     )
     tiny_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
     tiny_label.setTextFormat(Qt.RichText)

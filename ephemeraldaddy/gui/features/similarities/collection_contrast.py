@@ -10,8 +10,18 @@ from ephemeraldaddy.core.aspect_display import ASPECT_DISPLAY_ANGLE_BODIES
 from ephemeraldaddy.core.chart import chart_uses_houses
 
 _SIGNS = (
-    "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
-    "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces",
+    "Aries",
+    "Taurus",
+    "Gemini",
+    "Cancer",
+    "Leo",
+    "Virgo",
+    "Libra",
+    "Scorpio",
+    "Sagittarius",
+    "Capricorn",
+    "Aquarius",
+    "Pisces",
 )
 
 
@@ -48,7 +58,9 @@ def _chart_norms(chart: object) -> set[CollectionNorm]:
             or (not timed and body in ASPECT_DISPLAY_ANGLE_BODIES)
         ):
             continue
-        norms.add(CollectionNorm("Placements", f"{body} in {_sign_for_longitude(longitude)}"))
+        norms.add(
+            CollectionNorm("Placements", f"{body} in {_sign_for_longitude(longitude)}")
+        )
     for gate in getattr(chart, "human_design_gates", ()) or ():
         if gate_text := str(gate).strip():
             norms.add(CollectionNorm("Human Design Gates", f"Gate {gate_text}"))
@@ -58,7 +70,12 @@ def _chart_norms(chart: object) -> set[CollectionNorm]:
     if timed:
         houses = list(getattr(chart, "houses", ()) or ())
         for house_number, longitude in enumerate(houses[:12], 1):
-            norms.add(CollectionNorm("House Signs", f"House {house_number}: {_sign_for_longitude(longitude)}"))
+            norms.add(
+                CollectionNorm(
+                    "House Signs",
+                    f"House {house_number}: {_sign_for_longitude(longitude)}",
+                )
+            )
     return norms
 
 
@@ -83,7 +100,20 @@ def aggregate_collection_norms(
     return {norm for norm, count in counts.items() if count >= required}
 
 
-def contrast_collection_norms(charts_a: Iterable[object], charts_b: Iterable[object]) -> CollectionContrast:
+def collection_norm_counts(
+    charts: Iterable[object],
+) -> tuple[Counter[CollectionNorm], int]:
+    """Return per-feature chart counts and the usable collection population."""
+    usable = [chart for chart in charts if getattr(chart, "positions", None)]
+    counts: Counter[CollectionNorm] = Counter()
+    for chart in usable:
+        counts.update(_chart_norms(chart))
+    return counts, len(usable)
+
+
+def contrast_collection_norms(
+    charts_a: Iterable[object], charts_b: Iterable[object]
+) -> CollectionContrast:
     norms_a = aggregate_collection_norms(charts_a)
     norms_b = aggregate_collection_norms(charts_b)
     return CollectionContrast(

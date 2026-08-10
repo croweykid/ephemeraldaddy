@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from ephemeraldaddy.gui.features.similarities.collection_contrast import (
     CollectionNorm,
     aggregate_collection_norms,
+    collection_norm_counts,
     contrast_collection_norms,
 )
 
@@ -66,14 +67,38 @@ def test_unknown_signs_are_not_counted_as_factual_collection_norms():
     assert CollectionNorm("Placements", "Moon in Taurus") not in norms
 
 
+def test_collection_norm_counts_reports_factor_and_usable_chart_totals():
+    counts, total = collection_norm_counts(
+        [chart(Sun=1, Moon=31), chart(Sun=2, Moon=61), SimpleNamespace(positions={})]
+    )
+
+    assert total == 2
+    assert counts[CollectionNorm("Placements", "Sun in Aries")] == 2
+    assert counts[CollectionNorm("Placements", "Moon in Taurus")] == 1
+
+
+def test_compare_dialog_imports_shared_similarity_indicator_template():
+    source = Path(
+        "ephemeraldaddy/gui/features/similarities/compare_collections.py"
+    ).read_text(encoding="utf-8")
+
+    assert (
+        "from ephemeraldaddy.gui.features.charts.db_info_panel import add_similarity_match_row"
+        in source
+    )
+    assert "similarity_delta_rgb(percent, db_percent, total)" in source
+    assert 'selection_label="collection"' in source
+    assert 'database_label="database"' in source
+
+
 def test_dialog_initializes_button_before_populating_and_loads_population_once():
     source = Path(
         "ephemeraldaddy/gui/features/similarities/compare_collections.py"
     ).read_text(encoding="utf-8")
 
-    assert source.index('self.compare_button = QPushButton("Compare & Contrast!", self)') < source.index(
-        "self._populate_combos()"
-    )
+    assert source.index(
+        'self.compare_button = QPushButton("Compare & Contrast!", self)'
+    ) < source.index("self._populate_combos()")
     compare_body = source.split("    def _compare(self) -> None:", 1)[1].split(
         "    @staticmethod", 1
     )[0]
