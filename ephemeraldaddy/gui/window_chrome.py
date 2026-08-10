@@ -32,6 +32,7 @@ class WindowChromeCommands:
 
     open_settings: Callable[[], None]
     open_rectification_engine: Callable[[], None]
+    open_compare_collections: Callable[[], None]
 
 
 def _show_about_close_sparkles(target_rect) -> None:
@@ -354,6 +355,7 @@ def configure_main_window_chrome(
         )
 
     tools_menu = menu_bar.addMenu("Tools")
+    _bind_menu_callback(tools_menu, "Compare-Contrast Collections", commands.open_compare_collections)
     _bind_menu_action(
         tools_menu,
         "👯 Astro Twin",
@@ -432,6 +434,7 @@ def configure_manage_dialog_chrome(
         )
 
     tools_menu = menu_bar.addMenu("Tools")
+    _bind_menu_callback(tools_menu, "Compare-Contrast Collections", commands.open_compare_collections)
     _bind_menu_action(
         tools_menu,
         "👯 Astro Twin",

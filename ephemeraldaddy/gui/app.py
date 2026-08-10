@@ -572,6 +572,9 @@ from ephemeraldaddy.gui.window_chrome import (
     configure_splitter_handle_resize_cursor,
     update_main_window_title,
 )
+from ephemeraldaddy.gui.features.similarities.compare_collections import (
+    show_compare_collections_dialog,
+)
 from ephemeraldaddy.gui.features.controllers.window_lifecycle import (
     configure_initial_window_state,
 )
@@ -7159,6 +7162,13 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         return WindowChromeCommands(
             open_settings=self.open_settings,
             open_rectification_engine=self._on_retcon_engine,
+            open_compare_collections=self._open_compare_collections,
+        )
+
+    def _open_compare_collections(self) -> None:
+        """Open collection comparison with Database View's current collection state."""
+        self._compare_collections_dialog = show_compare_collections_dialog(
+            self, custom_collections=self._custom_collections
         )
 
     def __getattr__(self, name: str):
@@ -24981,7 +24991,12 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         return WindowChromeCommands(
             open_settings=self._open_settings_from_chart_editor,
             open_rectification_engine=self.on_retcon_engine,
+            open_compare_collections=self._open_compare_collections_from_chart_editor,
         )
+
+    def _open_compare_collections_from_chart_editor(self) -> None:
+        """Route the shared comparison window through live Database View state."""
+        self._get_or_create_manage_charts_dialog()._open_compare_collections()
 
     def _open_settings_from_chart_editor(self) -> None:
         """Route shared Settings until appwide window coordination owns it."""
