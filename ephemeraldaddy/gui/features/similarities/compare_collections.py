@@ -64,11 +64,11 @@ class CompareCollectionsDialog(QDialog):
         layout.addLayout(selectors)
         self.collection_a_combo.currentIndexChanged.connect(self._selection_changed)
         self.collection_b_combo.currentIndexChanged.connect(self._selection_changed)
-        self._populate_combos()
 
         self.compare_button = QPushButton("Compare & Contrast!", self)
         self.compare_button.clicked.connect(self._compare)
         layout.addWidget(self.compare_button, alignment=Qt.AlignHCenter)
+        self._populate_combos()
         columns = QHBoxLayout()
         self.result_browsers: list[QTextBrowser] = []
         for _ in range(3):
@@ -109,10 +109,18 @@ class CompareCollectionsDialog(QDialog):
         self._syncing_selectors = False
         self.compare_button.setEnabled(bool(selected_a and selected_b and selected_a != selected_b))
 
-    def _charts_for_collection(self, collection_id: str) -> list[object]:
+    def _load_chart_population(self) -> dict[str, object]:
+        """Hydrate the UID-keyed database population once for one comparison."""
         rows = db.list_charts()
         uid_by_row = db.get_chart_uid_map(row[0] for row in rows)
-        charts_by_uid = db.load_charts_by_uids(uid_by_row.values())
+        return dict(db.load_charts_by_uids(uid_by_row.values()))
+
+    def _charts_for_collection(
+        self,
+        collection_id: str,
+        *,
+        charts_by_uid: Mapping[str, object],
+    ) -> list[object]:
         return [
             chart
             for chart_uid, chart in charts_by_uid.items()
@@ -133,8 +141,13 @@ class CompareCollectionsDialog(QDialog):
         if not collection_a or not collection_b or collection_a == collection_b:
             QMessageBox.information(self, self.windowTitle(), "Choose two different collections.")
             return
-        charts_a = self._charts_for_collection(collection_a)
-        charts_b = self._charts_for_collection(collection_b)
+        charts_by_uid = self._load_chart_population()
+        charts_a = self._charts_for_collection(
+            collection_a, charts_by_uid=charts_by_uid
+        )
+        charts_b = self._charts_for_collection(
+            collection_b, charts_by_uid=charts_by_uid
+        )
         if not charts_a or not charts_b:
             QMessageBox.information(self, self.windowTitle(), "Both collections need at least one usable chart.")
             return

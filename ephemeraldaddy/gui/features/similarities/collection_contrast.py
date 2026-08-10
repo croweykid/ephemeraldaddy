@@ -36,8 +36,17 @@ def _chart_norms(chart: object) -> set[CollectionNorm]:
     norms: set[CollectionNorm] = set()
     positions = getattr(chart, "positions", {}) or {}
     timed = chart_uses_houses(chart)
+    uncertain_bodies = {
+        str(body).strip().casefold()
+        for body in (getattr(chart, "unknown_signs", ()) or ())
+        if str(body).strip()
+    }
     for body, longitude in positions.items():
-        if longitude is None or (not timed and body in ASPECT_DISPLAY_ANGLE_BODIES):
+        if (
+            longitude is None
+            or str(body).strip().casefold() in uncertain_bodies
+            or (not timed and body in ASPECT_DISPLAY_ANGLE_BODIES)
+        ):
             continue
         norms.add(CollectionNorm("Placements", f"{body} in {_sign_for_longitude(longitude)}"))
     for gate in getattr(chart, "human_design_gates", ()) or ():
