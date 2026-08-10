@@ -29,6 +29,7 @@ from ephemeraldaddy.gui.features.similarities.collection_contrast import (
     CollectionNorm,
     collection_norm_counts,
     contrast_collection_norms,
+    filter_aggregable_charts,
 )
 from ephemeraldaddy.gui.features.charts.db_info_panel import add_similarity_match_row
 from ephemeraldaddy.gui.features.charts.similarities_db_norm import similarity_delta_rgb
@@ -77,6 +78,10 @@ class CompareCollectionsDialog(QDialog):
         self.compare_button = QPushButton("Compare & Contrast!", self)
         self.compare_button.clicked.connect(self._compare)
         layout.addWidget(self.compare_button, alignment=Qt.AlignHCenter)
+        self.omission_notice = QLabel(self)
+        self.omission_notice.setWordWrap(True)
+        self.omission_notice.setVisible(False)
+        layout.addWidget(self.omission_notice)
         self._populate_combos()
         columns = QHBoxLayout()
         self.result_browsers: list[QListWidget] = []
@@ -142,7 +147,6 @@ class CompareCollectionsDialog(QDialog):
             chart
             for chart_uid, chart in charts_by_uid.items()
             if chart is not None
-            and not bool(getattr(chart, "is_placeholder", False))
             and chart_belongs_to_collection(
                 collection_id,
                 chart=chart,
@@ -161,11 +165,21 @@ class CompareCollectionsDialog(QDialog):
             )
             return
         charts_by_uid = self._load_chart_population()
-        charts_a = self._charts_for_collection(
+        collection_members_a = self._charts_for_collection(
             collection_a, charts_by_uid=charts_by_uid
         )
-        charts_b = self._charts_for_collection(
+        collection_members_b = self._charts_for_collection(
             collection_b, charts_by_uid=charts_by_uid
+        )
+        charts_a, omitted_a = filter_aggregable_charts(collection_members_a)
+        charts_b, omitted_b = filter_aggregable_charts(collection_members_b)
+        database_population, omitted_database = filter_aggregable_charts(
+            charts_by_uid.values()
+        )
+        self._show_omission_notice(
+            omitted_a,
+            omitted_b,
+            omitted_database,
         )
         if not charts_a or not charts_b:
             QMessageBox.information(
@@ -175,9 +189,11 @@ class CompareCollectionsDialog(QDialog):
             )
             return
         result = contrast_collection_norms(charts_a, charts_b)
-        counts_a, total_a = collection_norm_counts(charts_a)
-        counts_b, total_b = collection_norm_counts(charts_b)
-        database_counts, database_total = collection_norm_counts(charts_by_uid.values())
+        counts_a, known_a, total_a = collection_norm_counts(charts_a)
+        counts_b, known_b, total_b = collection_norm_counts(charts_b)
+        database_counts, database_known, _database_total = collection_norm_counts(
+            database_population
+        )
         labels = (
             f"Only {self.collection_a_combo.currentText()}",
             "Shared norms",
@@ -188,29 +204,48 @@ class CompareCollectionsDialog(QDialog):
             labels[0],
             result.only_a,
             counts_a,
+            known_a,
             total_a,
             database_counts,
-            database_total,
+            database_known,
         )
         shared_rows = tuple(
-            (norm, counts_a, total_a, "A") for norm in result.overlap
-        ) + tuple((norm, counts_b, total_b, "B") for norm in result.overlap)
+            (norm, counts_a, known_a, total_a, "A") for norm in result.overlap
+        ) + tuple((norm, counts_b, known_b, total_b, "B") for norm in result.overlap)
         self._render_shared_norms(
             self.result_browsers[1],
             labels[1],
             shared_rows,
             database_counts,
-            database_total,
+            database_known,
         )
         self._render_norms(
             self.result_browsers[2],
             labels[2],
             result.only_b,
             counts_b,
+            known_b,
             total_b,
             database_counts,
-            database_total,
+            database_known,
         )
+
+    def _show_omission_notice(
+        self, omitted_a: int, omitted_b: int, omitted_db: int
+    ) -> None:
+        notices = []
+        for label, count in (
+            ("Collection A", omitted_a),
+            ("Collection B", omitted_b),
+            ("Database baseline", omitted_db),
+        ):
+            if count:
+                noun = "chart was" if count == 1 else "charts were"
+                notices.append(
+                    f"{label}: {count} placeholder/hypothetical {noun} omitted from analysis."
+                )
+        self.omission_notice.setText(" ".join(notices))
+        self.omission_notice.setVisible(bool(notices))
 
     @staticmethod
     def _add_heading(browser: QListWidget, text: str) -> None:
@@ -226,9 +261,10 @@ class CompareCollectionsDialog(QDialog):
         heading: str,
         norms: tuple[CollectionNorm, ...],
         counts: Counter[CollectionNorm],
-        total: int,
+        known_totals: Counter[CollectionNorm],
+        selection_total: int,
         database_counts: Counter[CollectionNorm],
-        database_total: int,
+        database_known_totals: Counter[CollectionNorm],
         *,
         label_prefix: str = "",
     ) -> None:
@@ -243,10 +279,12 @@ class CompareCollectionsDialog(QDialog):
                 category = norm.category
                 self._add_heading(browser, category)
             match_count = counts[norm]
-            percent = round(match_count / total * 100) if total else 0
+            known_total = known_totals[norm]
+            percent = round(match_count / known_total * 100) if known_total else 0
+            database_known_total = database_known_totals[norm]
             db_percent = (
-                round(database_counts[norm] / database_total * 100)
-                if database_total
+                round(database_counts[norm] / database_known_total * 100)
+                if database_known_total
                 else 0
             )
             add_similarity_match_row(
@@ -256,9 +294,9 @@ class CompareCollectionsDialog(QDialog):
                 match_count=match_count,
                 percent_value=percent,
                 db_percent_value=db_percent,
-                selection_total_count=total,
-                total_count=total,
-                similarity_rgb=similarity_delta_rgb(percent, db_percent, total),
+                selection_total_count=selection_total,
+                total_count=known_total,
+                similarity_rgb=similarity_delta_rgb(percent, db_percent, known_total),
                 selection_label="collection",
                 database_label="database",
             )
@@ -267,21 +305,32 @@ class CompareCollectionsDialog(QDialog):
         self,
         browser: QListWidget,
         heading: str,
-        rows: tuple[tuple[CollectionNorm, Counter[CollectionNorm], int, str], ...],
+        rows: tuple[
+            tuple[
+                CollectionNorm,
+                Counter[CollectionNorm],
+                Counter[CollectionNorm],
+                int,
+                str,
+            ],
+            ...,
+        ],
         database_counts: Counter[CollectionNorm],
-        database_total: int,
+        database_known_totals: Counter[CollectionNorm],
     ) -> None:
         browser.clear()
         self._add_heading(browser, heading)
         if not rows:
             browser.addItem("No aggregate norms.")
             return
-        for norm, counts, total, collection_label in rows:
+        for norm, counts, known_totals, selection_total, collection_label in rows:
             match_count = counts[norm]
-            percent = round(match_count / total * 100) if total else 0
+            known_total = known_totals[norm]
+            percent = round(match_count / known_total * 100) if known_total else 0
+            database_known_total = database_known_totals[norm]
             db_percent = (
-                round(database_counts[norm] / database_total * 100)
-                if database_total
+                round(database_counts[norm] / database_known_total * 100)
+                if database_known_total
                 else 0
             )
             add_similarity_match_row(
@@ -291,9 +340,9 @@ class CompareCollectionsDialog(QDialog):
                 match_count=match_count,
                 percent_value=percent,
                 db_percent_value=db_percent,
-                selection_total_count=total,
-                total_count=total,
-                similarity_rgb=similarity_delta_rgb(percent, db_percent, total),
+                selection_total_count=selection_total,
+                total_count=known_total,
+                similarity_rgb=similarity_delta_rgb(percent, db_percent, known_total),
                 selection_label="collection",
                 database_label="database",
             )

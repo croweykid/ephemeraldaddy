@@ -8,6 +8,7 @@ from typing import Iterable
 
 from ephemeraldaddy.core.aspect_display import ASPECT_DISPLAY_ANGLE_BODIES
 from ephemeraldaddy.core.chart import chart_uses_houses
+from ephemeraldaddy.gui.features.charts.provenance import chart_is_non_aggregable
 
 _SIGNS = (
     "Aries",
@@ -40,6 +41,19 @@ class CollectionContrast:
     only_a: tuple[CollectionNorm, ...]
     overlap: tuple[CollectionNorm, ...]
     only_b: tuple[CollectionNorm, ...]
+
+
+def filter_aggregable_charts(charts: Iterable[object]) -> tuple[list[object], int]:
+    """Return aggregation candidates and the placeholder/hypothetical omission count."""
+    candidates = list(charts)
+    omitted = sum(
+        chart is not None and chart_is_non_aggregable(chart) for chart in candidates
+    )
+    return [
+        chart
+        for chart in candidates
+        if chart is not None and not chart_is_non_aggregable(chart)
+    ], omitted
 
 
 def _chart_norms(chart: object) -> set[CollectionNorm]:
@@ -102,13 +116,47 @@ def aggregate_collection_norms(
 
 def collection_norm_counts(
     charts: Iterable[object],
-) -> tuple[Counter[CollectionNorm], int]:
-    """Return per-feature chart counts and the usable collection population."""
+) -> tuple[Counter[CollectionNorm], Counter[CollectionNorm], int]:
+    """Return factor counts, factor-specific known totals, and usable population."""
     usable = [chart for chart in charts if getattr(chart, "positions", None)]
     counts: Counter[CollectionNorm] = Counter()
     for chart in usable:
         counts.update(_chart_norms(chart))
-    return counts, len(usable)
+    known_totals: Counter[CollectionNorm] = Counter()
+    for norm in counts:
+        known_totals[norm] = sum(_chart_knows_norm(chart, norm) for chart in usable)
+    return counts, known_totals, len(usable)
+
+
+def _chart_knows_norm(chart: object, norm: CollectionNorm) -> bool:
+    """Return whether ``chart`` has usable data for a norm's underlying factor."""
+    if norm.category == "Placements":
+        body, separator, _sign = norm.label.partition(" in ")
+        if not separator:
+            return False
+        positions = getattr(chart, "positions", {}) or {}
+        uncertain_bodies = {
+            str(value).strip().casefold()
+            for value in (getattr(chart, "unknown_signs", ()) or ())
+        }
+        return (
+            body in positions
+            and positions[body] is not None
+            and body.casefold() not in uncertain_bodies
+            and (body not in ASPECT_DISPLAY_ANGLE_BODIES or chart_uses_houses(chart))
+        )
+    if norm.category == "House Signs":
+        house_token = norm.label.partition(":")[0].removeprefix("House ").strip()
+        if not house_token.isdigit() or not chart_uses_houses(chart):
+            return False
+        houses = list(getattr(chart, "houses", ()) or ())
+        house_index = int(house_token) - 1
+        return 0 <= house_index < len(houses) and houses[house_index] is not None
+    attribute = {
+        "Human Design Gates": "human_design_gates",
+        "Human Design Channels": "human_design_channels",
+    }.get(norm.category)
+    return attribute is not None and getattr(chart, attribute, None) is not None
 
 
 def contrast_collection_norms(
