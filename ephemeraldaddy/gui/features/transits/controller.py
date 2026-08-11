@@ -57,6 +57,9 @@ from ephemeraldaddy.gui.style import (
     apply_popout_cursor,
 )
 from ephemeraldaddy.gui.features.transits.cache import TransitWindowCache
+from ephemeraldaddy.gui.features.transits.diagnostics import (
+    log_natal_saturn_position_diagnostic,
+)
 from ephemeraldaddy.io.geocode import LocationLookupError, geocode_location
 
 logger = logging.getLogger(__name__)
@@ -561,6 +564,7 @@ class TransitPanelController:
         except ValueError as exc:
             QMessageBox.warning(h, "Generate Personal Transit", str(exc))
             return
+        log_natal_saturn_position_diagnostic(natal_chart)
         try:
             h._personal_transit_generation_in_progress = True
             transit_datetime_utc, include_time = self.selected_datetime_utc()
