@@ -48,6 +48,7 @@ from ephemeraldaddy.gui.tooltips import (
 )
 from ephemeraldaddy.gui.tag_categories import TAG_CATEGORY_OPTIONS, TAG_CATEGORY_PREFIXES
 from ephemeraldaddy.gui.style import (
+    apply_button_cursor,
     apply_shared_dropdown_style,
     CHART_DATA_INFO_LABEL_STYLE,
     CHART_DATA_HIGHLIGHT_COLOR,
