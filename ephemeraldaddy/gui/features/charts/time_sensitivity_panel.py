@@ -108,6 +108,29 @@ class TimeSensitivityFigureCanvas(FigureCanvas):
         return None
 
 
+class _SectionTextBrowser(QTextBrowser):
+    """Notify a section when its viewport width changes and text must reflow."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.width_changed_callback: Any = None
+
+    def resizeEvent(self, event: object) -> None:  # noqa: N802 - Qt API
+        super().resizeEvent(event)
+        if callable(self.width_changed_callback):
+            self.width_changed_callback()
+
+
+def _set_document_width_to_viewport(browser: QTextBrowser) -> None:
+    """Constrain rich text to the visible viewport, including document margins."""
+    document = browser.document()
+    available_width = max(
+        1.0, browser.viewport().width() - (2.0 * document.documentMargin())
+    )
+    if abs(float(document.textWidth()) - available_width) >= 1.0:
+        document.setTextWidth(available_width)
+
+
 _TIME_SENSITIVITY_CHART_TITLES = {
     "dominant_planet_weights": "Dominant Body Weight Distribution",
     "dominant_sign_weights": "Dominant Sign Weight Distribution",
@@ -1133,16 +1156,17 @@ def _definite_summary_items_html(result: TimeSensitivityResult) -> list[str]:
             + " all day"
         )
 
-    for key, singular_label in (
-        ("lines", "HD Gate Line"),
-        ("channels", "HD Channel"),
+    for key, label in (
+        ("lines", "HD Gate Lines"),
+        ("channels", "HD Channels"),
     ):
         summary = hd.get(key, {})
-        if not isinstance(summary, dict):
+        if not isinstance(summary, dict) or not summary.get("always"):
             continue
-        items.extend(
-            f"{singular_label}: {_gate_anchor(value)} all day"
-            for value in summary.get("always", [])
+        items.append(
+            f"{label}: "
+            + ", ".join(_gate_anchor(value) for value in summary["always"])
+            + " all day"
         )
 
     centers = hd.get("centers", {})
@@ -1710,7 +1734,7 @@ class TimeSensitivityPanel(QWidget):
         content.setVisible(expanded)
         section_layout.addWidget(toggle)
         section_layout.addWidget(content)
-        browser = QTextBrowser(content)
+        browser = _SectionTextBrowser(content)
         browser.setReadOnly(True)
         browser.setOpenExternalLinks(False)
         browser.setOpenLinks(False)
@@ -1720,6 +1744,7 @@ class TimeSensitivityPanel(QWidget):
         browser.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         browser.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         browser.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)
+        browser.setLineWrapMode(QTextEdit.WidgetWidth)
         html_loaded = expanded
         if expanded:
             browser.setHtml(html)
@@ -1768,9 +1793,7 @@ class TimeSensitivityPanel(QWidget):
                     <= max(16, scrollbar.pageStep() // 20)
                 )
                 document = browser.document()
-                text_width = max(1, browser.viewport().width())
-                if int(document.textWidth()) != text_width:
-                    document.setTextWidth(text_width)
+                _set_document_width_to_viewport(browser)
                 document.adjustSize()
                 height = int(document.size().height()) + 18
                 fixed_height = max(min_height, min(max_height, height))
@@ -1815,6 +1838,7 @@ class TimeSensitivityPanel(QWidget):
         browser.document().documentLayout().documentSizeChanged.connect(
             lambda _size: schedule_browser_height_adjustments()
         )
+        browser.width_changed_callback = schedule_browser_height_adjustments
         content_layout.addWidget(browser)
         if position is None:
             self._charts_layout.addWidget(section)
@@ -1882,7 +1906,7 @@ class TimeSensitivityPanel(QWidget):
                 )
                 content_layout.addWidget(canvas)
 
-            table = QTextBrowser(content)
+            table = _SectionTextBrowser(content)
             table.setReadOnly(True)
             table.setOpenExternalLinks(False)
             table.setOpenLinks(False)
@@ -1892,11 +1916,22 @@ class TimeSensitivityPanel(QWidget):
             table.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
             table.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
             table.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)
+            table.setLineWrapMode(QTextEdit.WidgetWidth)
             table.setHtml(_header_html(_group_title(group_key)) + table_html)
-            table.document().setTextWidth(max(1, table.viewport().width()))
-            table.document().adjustSize()
-            table_height = int(table.document().size().height()) + 14
-            table.setFixedHeight(max(82, min(900, table_height)))
+
+            def adjust_table_height(browser: QTextBrowser = table) -> None:
+                try:
+                    _set_document_width_to_viewport(browser)
+                    browser.document().adjustSize()
+                    table_height = int(browser.document().size().height()) + 14
+                    browser.setFixedHeight(max(82, table_height))
+                except RuntimeError:
+                    return
+
+            table.width_changed_callback = lambda: QTimer.singleShot(
+                0, adjust_table_height
+            )
+            adjust_table_height()
             content_layout.addWidget(table)
 
             self._charts_layout.addWidget(section)
