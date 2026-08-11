@@ -22506,6 +22506,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         ocean_settings_controller.bind_controls(
             enneagram_controls["ocean_checkboxes"], enneagram_controls["ocean_weight_spinboxes"]
         )
+        enneagram_controls["update_ocean_weight_constraints"]()
 
         add_traits_settings_section(self, content_layout)
 
