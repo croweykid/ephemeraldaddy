@@ -141,6 +141,20 @@ def fetch_wikipedia_blurb(
     )
 
 
+def fetch_wikipedia_biography_by_name(
+    chart_name: str,
+    *,
+    paragraph_limit: int = 3,
+) -> str:
+    """Return Wikipedia lead text for Chart Editor biography imports."""
+    blurb = fetch_wikipedia_blurb(chart_name, paragraph_limit=paragraph_limit)
+    if not blurb.text:
+        raise WikipediaError(
+            f"Wikipedia did not provide biography text for {blurb.title!r}."
+        )
+    return blurb.text
+
+
 def populate_wikipedia_biography(
     profile_data: MutableMapping[str, Any],
     *,

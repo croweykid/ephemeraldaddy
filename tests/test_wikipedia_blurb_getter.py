@@ -48,6 +48,36 @@ def test_fetch_wikipedia_blurb_refuses_disambiguation_pages():
         )
 
 
+def test_fetch_wikipedia_biography_by_name_returns_api_extract(monkeypatch):
+    monkeypatch.setattr(
+        subject,
+        "fetch_wikipedia_blurb",
+        lambda *_args, **_kwargs: subject.WikipediaBlurb(
+            title="Example Person",
+            paragraphs=["First paragraph.", "Second paragraph."],
+            page_url="https://en.wikipedia.org/wiki/Example_Person",
+            page_id=42,
+        ),
+    )
+
+    assert subject.fetch_wikipedia_biography_by_name("Example Person") == (
+        "First paragraph.\n\nSecond paragraph."
+    )
+
+
+def test_fetch_wikipedia_biography_by_name_refuses_empty_extract(monkeypatch):
+    monkeypatch.setattr(
+        subject,
+        "fetch_wikipedia_blurb",
+        lambda *_args, **_kwargs: subject.WikipediaBlurb(
+            title="Example Person", paragraphs=[], page_url="", page_id=42
+        ),
+    )
+
+    with pytest.raises(subject.WikipediaError, match="did not provide biography"):
+        subject.fetch_wikipedia_biography_by_name("Example Person")
+
+
 def test_populate_wikipedia_biography_uses_ephemeraldaddy_metadata_name(monkeypatch):
     profile_data = {"name": "Imported Person", "biography": "Old biography"}
     expected = subject.WikipediaBlurb(
