@@ -42,6 +42,17 @@ def test_clearing_navigation_search_preserves_tag_filter_widgets():
     assert "_advanced_tag_search_scroll_value" in helper
 
 
+def test_expansion_state_prefers_full_tag_path_over_duplicate_labels():
+    capture = SOURCE.split("def _tree_expanded_state", 1)[1].split(
+        "def _tag_tree_signature", 1
+    )[0]
+    restore = SOURCE.split("if not needle and previous_needle:", 1)[1].split(
+        "window._advanced_tag_search_query", 1
+    )[0]
+    assert "item.data(0, Qt.UserRole + 1)" in capture
+    assert "item.data(0, Qt.UserRole + 1)" in restore
+
+
 def test_nested_dot_tags_build_each_parent_level():
     refresh = SOURCE.split("def refresh_search_tags_list", 1)[1].split(
         "def has_active_chart_filters", 1
@@ -116,3 +127,33 @@ def test_clearing_navigation_filter_retains_controls_and_restores_view(qt_app):
     assert reputation.isExpanded()
     assert window.search_tag_filter_checkboxes["occupation.writer.novelist"] is checkbox
     assert window.search_tag_filter_logic_buttons["occupation.writer.novelist"] is logic
+
+
+def test_same_label_tag_parents_restore_expansion_independently(qt_app):
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QTreeWidget, QTreeWidgetItem
+
+    from ephemeraldaddy.gui.dbv_search_panel import filter_advanced_tag_tree
+
+    tree = QTreeWidget()
+    occupation = QTreeWidgetItem(tree, ["Occupation"])
+    occupation_writer = QTreeWidgetItem(occupation, ["Writer"])
+    occupation_writer.setData(0, Qt.UserRole + 1, "occupation.writer")
+    occupation_writer.setExpanded(True)
+    QTreeWidgetItem(occupation_writer, ["Novelist"]).setData(
+        0, Qt.UserRole + 1, "occupation.writer.novelist"
+    )
+    hobby = QTreeWidgetItem(tree, ["Hobby"])
+    hobby_writer = QTreeWidgetItem(hobby, ["Writer"])
+    hobby_writer.setData(0, Qt.UserRole + 1, "hobby.writer")
+    hobby_writer.setExpanded(False)
+    QTreeWidgetItem(hobby_writer, ["Screenwriter"]).setData(
+        0, Qt.UserRole + 1, "hobby.writer.screenwriter"
+    )
+    window = SimpleNamespace(search_tags_list_widget=tree)
+
+    filter_advanced_tag_tree(window, "writer")
+    filter_advanced_tag_tree(window, "")
+
+    assert occupation_writer.isExpanded()
+    assert not hobby_writer.isExpanded()

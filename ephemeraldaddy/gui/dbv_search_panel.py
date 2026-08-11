@@ -458,7 +458,15 @@ def _tree_expanded_state(tree) -> dict[str, bool]:
     def capture(item) -> None:
         if item is None:
             return
-        key = str(item.data(0, Qt.UserRole) or item.text(0) or "")
+        # Leaf tags can also be expandable parents. Prefer their complete tag
+        # path so identically labelled rows in separate branches do not share
+        # expansion state (for example occupation.writer and hobby.writer).
+        key = str(
+            item.data(0, Qt.UserRole + 1)
+            or item.data(0, Qt.UserRole)
+            or item.text(0)
+            or ""
+        )
         if key:
             expanded_state[key.casefold()] = item.isExpanded()
         for child_index in range(item.childCount()):
@@ -556,7 +564,12 @@ def filter_advanced_tag_tree(window, query: str) -> None:
         expanded = getattr(window, "_advanced_tag_search_expanded_state", {})
 
         def restore(item) -> None:
-            key = str(item.data(0, Qt.UserRole) or item.text(0) or "").casefold()
+            key = str(
+                item.data(0, Qt.UserRole + 1)
+                or item.data(0, Qt.UserRole)
+                or item.text(0)
+                or ""
+            ).casefold()
             item.setExpanded(bool(expanded.get(key, False)))
             for child_index in range(item.childCount()):
                 restore(item.child(child_index))
