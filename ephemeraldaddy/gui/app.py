@@ -508,6 +508,10 @@ from ephemeraldaddy.gui.wikipedia_blurb_getter import (
     fetch_wikipedia_biography_by_name,
     populate_wikipedia_biography,
 )
+from ephemeraldaddy.gui.features.chart_editor.wikipedia_biography import (
+    fetch_wikipedia_biography_with_dialogs,
+    parse_chart_birth_date,
+)
 from ephemeraldaddy.analysis.traits import set_default_traits_source_monitor_enabled
 from ephemeraldaddy.core.performance_metrics import (
     configure_performance_metrics_logging,
@@ -13569,9 +13573,19 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             QMessageBox.information(self, "Get Bio", "Please enter or load a chart name first.")
             return
         try:
-            biography_text = fetch_wikipedia_biography_by_name(chart_name)
+            biography_text = fetch_wikipedia_biography_with_dialogs(
+                self,
+                chart_name=chart_name,
+                chart_birth_date=parse_chart_birth_date(
+                    self.birth_year_edit.text(),
+                    self.birth_month_edit.text(),
+                    self.birth_day_edit.text(),
+                ),
+            )
         except Exception as exc:
             QMessageBox.warning(self, "Get Bio", f"Could not import biography:\n{exc}")
+            return
+        if biography_text is None:
             return
         self.biography_edit.setPlainText(biography_text)
         self._update_get_bio_button_visibility()
@@ -30949,9 +30963,19 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             QMessageBox.information(self, "Get Bio", "Please enter or load a chart name first.")
             return
         try:
-            biography_text = fetch_wikipedia_biography_by_name(chart_name)
+            biography_text = fetch_wikipedia_biography_with_dialogs(
+                self,
+                chart_name=chart_name,
+                chart_birth_date=parse_chart_birth_date(
+                    self.birth_year_edit.text(),
+                    self.birth_month_edit.text(),
+                    self.birth_day_edit.text(),
+                ),
+            )
         except Exception as exc:
             QMessageBox.warning(self, "Get Bio", f"Could not import biography:\n{exc}")
+            return
+        if biography_text is None:
             return
         self.biography_edit.setPlainText(biography_text)
         if self._latest_chart is not None:

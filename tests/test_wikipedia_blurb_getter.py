@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 import pytest
 
 from ephemeraldaddy.gui import wikipedia_blurb_getter as subject
@@ -51,6 +52,11 @@ def test_fetch_wikipedia_blurb_refuses_disambiguation_pages():
 def test_fetch_wikipedia_biography_by_name_returns_api_extract(monkeypatch):
     monkeypatch.setattr(
         subject,
+        "resolve_wikipedia_page_options",
+        lambda _name: {"status": "single", "title": "Example Person"},
+    )
+    monkeypatch.setattr(
+        subject,
         "fetch_wikipedia_blurb",
         lambda *_args, **_kwargs: subject.WikipediaBlurb(
             title="Example Person",
@@ -68,6 +74,11 @@ def test_fetch_wikipedia_biography_by_name_returns_api_extract(monkeypatch):
 def test_fetch_wikipedia_biography_by_name_refuses_empty_extract(monkeypatch):
     monkeypatch.setattr(
         subject,
+        "resolve_wikipedia_page_options",
+        lambda _name: {"status": "single", "title": "Example Person"},
+    )
+    monkeypatch.setattr(
+        subject,
         "fetch_wikipedia_blurb",
         lambda *_args, **_kwargs: subject.WikipediaBlurb(
             title="Example Person", paragraphs=[], page_url="", page_id=42
@@ -76,6 +87,36 @@ def test_fetch_wikipedia_biography_by_name_refuses_empty_extract(monkeypatch):
 
     with pytest.raises(subject.WikipediaError, match="did not provide biography"):
         subject.fetch_wikipedia_biography_by_name("Example Person")
+
+
+def test_fetch_wikipedia_biography_by_name_reports_ambiguous_search(monkeypatch):
+    monkeypatch.setattr(
+        subject,
+        "resolve_wikipedia_page_options",
+        lambda _name: {
+            "status": "multiple",
+            "options": ["Example Person", "Example Person (writer)"],
+        },
+    )
+
+    with pytest.raises(subject.WikipediaAmbiguousPageError) as error:
+        subject.fetch_wikipedia_biography_by_name("Example")
+
+    assert error.value.options == ["Example Person", "Example Person (writer)"]
+
+
+def test_unique_title_matching_birth_date_requires_one_factual_match():
+    chart_date = datetime.date(1990, 4, 5)
+    candidates = [
+        ("Alex Example", datetime.date(1980, 2, 3)),
+        ("Alex Example (artist)", chart_date),
+        ("Alex Example (writer)", None),
+    ]
+
+    assert subject.unique_title_matching_birth_date(candidates, chart_date) == (
+        "Alex Example (artist)"
+    )
+    assert subject.unique_title_matching_birth_date(candidates, None) is None
 
 
 def test_populate_wikipedia_biography_uses_ephemeraldaddy_metadata_name(monkeypatch):
