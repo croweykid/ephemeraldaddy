@@ -2,6 +2,26 @@
 
 This is the practical "first EXE build" guide for EphemeralDaddy.
 
+## Application name in the Dock/taskbar
+
+The bootstrap configures the Qt display name before it creates the loading
+window. This is sufficient for normal Linux desktop integration when the
+provided `.desktop` file is installed, and is a best effort for launches made
+directly with `python -m ephemeraldaddy.gui.bootstrap`.
+
+macOS assigns reliable Dock identity to an application **bundle**, not to a
+Python script. A Terminal launch can therefore still be labelled `Python` on
+some macOS/Qt combinations even though the window and Qt application names are
+set. Build `EphemeralDaddy.app` for release-quality naming:
+
+```bash
+python tools/build_desktop_app.py --icon path/to/EphemeralDaddy.icns
+```
+
+The build helper gives that bundle the EphemeralDaddy bundle identifier and
+display name. A `.dmg` is optional distribution packaging around the `.app`;
+it is not what supplies the Dock identity.
+
 ## 1) Prepare a clean build environment (Windows)
 
 From PowerShell in the repo root:
