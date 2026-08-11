@@ -13,10 +13,6 @@ from PySide6.QtCore import QObject, QThread, Signal
 
 from ephemeraldaddy.analysis.country_lookup import resolve_country
 from ephemeraldaddy.analysis.us_state_lookup import normalize_us_state
-from ephemeraldaddy.gui.astrotheme_search import (
-    parse_astrotheme_profile,
-    search_astrotheme_profile_url,
-)
 from ephemeraldaddy.io.geocode import search_locations
 
 HTTP_URL_PATTERN = re.compile(r"Astrotheme profile: https://\S+", re.IGNORECASE)
@@ -218,20 +214,6 @@ def cleanup_biography_text(chart: Any) -> bool:
     if hasattr(chart, "bio"):
         chart.bio = cleaned_value
     return True
-
-
-def fetch_astrotheme_biography_by_name(chart_name: str) -> str:
-    normalized_name = str(chart_name or "").strip()
-    if not normalized_name:
-        raise ValueError("Chart has no name to search.")
-    profile_url = search_astrotheme_profile_url(normalized_name)
-    if not profile_url:
-        raise ValueError("No matching Astrotheme profile was found.")
-    profile_data = parse_astrotheme_profile(profile_url)
-    biography_text = str(profile_data.get("biography", "") or "").strip()
-    if not biography_text:
-        raise ValueError("Astrotheme profile did not include biography text.")
-    return biography_text
 
 
 def import_biography_from_lookup(

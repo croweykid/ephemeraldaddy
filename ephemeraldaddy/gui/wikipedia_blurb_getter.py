@@ -1,11 +1,15 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+import datetime
 from collections.abc import Callable, Mapping, MutableMapping
+from dataclasses import dataclass
 from typing import Any
 from urllib.parse import unquote, urlparse
 
-from ephemeraldaddy.gui.wikipedia_search import _wikipedia_api_query
+from ephemeraldaddy.gui.wikipedia_search import (
+    _wikipedia_api_query,
+    resolve_wikipedia_page_options,
+)
 
 
 class WikipediaError(RuntimeError):
@@ -20,6 +24,17 @@ class WikipediaDisambiguationError(WikipediaError):
     pass
 
 
+class WikipediaAmbiguousPageError(WikipediaError):
+    """Raised when a name search needs a person to choose among candidates."""
+
+    def __init__(self, chart_name: str, options: list[str]) -> None:
+        self.options = options
+        super().__init__(
+            f"Wikipedia found multiple pages for {chart_name!r}; choose one: "
+            + ", ".join(options)
+        )
+
+
 @dataclass(frozen=True)
 class WikipediaBlurb:
     title: str
@@ -30,6 +45,19 @@ class WikipediaBlurb:
     @property
     def text(self) -> str:
         return "\n\n".join(self.paragraphs)
+
+
+def unique_title_matching_birth_date(
+    candidates: list[tuple[str, datetime.date | None]],
+    chart_birth_date: datetime.date | None,
+) -> str | None:
+    """Return a candidate only when exactly one birthday is a factual match."""
+    if chart_birth_date is None:
+        return None
+    matches = [
+        title for title, birth_date in candidates if birth_date == chart_birth_date
+    ]
+    return matches[0] if len(matches) == 1 else None
 
 
 def _title_from_name_or_url(value: str) -> str:
@@ -139,6 +167,39 @@ def fetch_wikipedia_blurb(
         page_url=str(page.get("fullurl") or ""),
         page_id=int(page.get("pageid") or 0),
     )
+
+
+def fetch_wikipedia_biography_by_name(
+    chart_name: str,
+    *,
+    paragraph_limit: int = 3,
+) -> str:
+    """Resolve a chart name through Wikipedia search and return its lead text."""
+    resolution = resolve_wikipedia_page_options(chart_name)
+    status = str(resolution.get("status") or "")
+    if status == "not_found":
+        raise WikipediaPageNotFound(
+            f"No Wikipedia page was found for {chart_name!r}."
+        )
+    if status == "multiple":
+        options = [
+            str(option).strip()
+            for option in resolution.get("options", [])
+            if str(option).strip()
+        ]
+        raise WikipediaAmbiguousPageError(chart_name, options)
+
+    resolved_title = str(resolution.get("title") or "").strip()
+    if not resolved_title:
+        raise WikipediaPageNotFound(
+            f"No Wikipedia page was found for {chart_name!r}."
+        )
+    blurb = fetch_wikipedia_blurb(resolved_title, paragraph_limit=paragraph_limit)
+    if not blurb.text:
+        raise WikipediaError(
+            f"Wikipedia did not provide biography text for {blurb.title!r}."
+        )
+    return blurb.text
 
 
 def populate_wikipedia_biography(

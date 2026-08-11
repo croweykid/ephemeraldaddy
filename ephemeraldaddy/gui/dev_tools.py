@@ -1396,7 +1396,7 @@ class MetadataMigrationPanel(QDialog):
         layout.addWidget(get_bio_button)
 
         get_bio_caption = QLabel(
-            "Imports biography from Astrotheme for selected chart(s). "
+            "Imports biography from Wikipedia for selected chart(s). "
             "When multiple charts are selected, requests are delayed 1–6 seconds each."
         )
         get_bio_caption.setWordWrap(True)
