@@ -1396,11 +1396,37 @@ class TimeSensitivityPanel(QWidget):
         self.fine_tune_module = QWidget()
         fine_tune_layout = QVBoxLayout(self.fine_tune_module)
         fine_tune_layout.setContentsMargins(0, 0, 0, 0)
-        fine_tune_layout.setSpacing(4)
+        fine_tune_layout.setSpacing(0)
+        self.fine_tune_toggle = QToolButton(self.fine_tune_module)
+        configure_collapsible_header_toggle(
+            self.fine_tune_toggle,
+            title="Fine Tune Hourly Scan",
+            expanded=False,
+            style_sheet=DATABASE_ANALYTICS_COLLAPSIBLE_TOGGLE_STYLE,
+        )
+        fine_tune_layout.addWidget(self.fine_tune_toggle)
+
+        self.fine_tune_content = QWidget(self.fine_tune_module)
+        fine_tune_content_layout = QVBoxLayout(self.fine_tune_content)
+        fine_tune_content_layout.setContentsMargins(
+            *DATABASE_ANALYTICS_CONTENT_MARGINS
+        )
+        fine_tune_content_layout.setSpacing(DATABASE_ANALYTICS_CONTENT_SPACING)
+        self.fine_tune_content.setStyleSheet(COLLAPSIBLE_SECTION_CONTENT_STYLE)
+        self.fine_tune_content.hide()
+        self.fine_tune_toggle.toggled.connect(
+            lambda checked: (
+                self.fine_tune_content.setVisible(checked),
+                self.fine_tune_toggle.setArrowType(
+                    Qt.DownArrow if checked else Qt.RightArrow
+                ),
+            )
+        )
+        fine_tune_layout.addWidget(self.fine_tune_content)
+
         fine_tune_controls = QHBoxLayout()
         fine_tune_controls.setContentsMargins(0, 0, 0, 0)
         self.fine_tune_mode_combo = QComboBox()
-        self.fine_tune_mode_combo.addItem("Fine Tune Hourly Scan", None)
         self.fine_tune_mode_combo.addItem("5-minute steps", 5)
         self.fine_tune_mode_combo.addItem("1-minute steps", 1)
         self.fine_tune_mode_combo.setToolTip(
@@ -1423,13 +1449,12 @@ class TimeSensitivityPanel(QWidget):
         fine_tune_controls.addWidget(self.fine_tune_mode_combo, 1)
         fine_tune_controls.addWidget(self.fine_tune_hour_combo)
         fine_tune_controls.addWidget(self.fine_tune_run_button)
-        fine_tune_layout.addLayout(fine_tune_controls)
+        fine_tune_content_layout.addLayout(fine_tune_controls)
         self.fine_tune_status = QLabel("")
         self.fine_tune_status.setWordWrap(True)
         self.fine_tune_status.hide()
-        fine_tune_layout.addWidget(self.fine_tune_status)
+        fine_tune_content_layout.addWidget(self.fine_tune_status)
         self.fine_tune_module.hide()
-        layout.addWidget(self.fine_tune_module)
 
         self._fine_tune_controller = FineTuneHourlyScanController(parent=self)
         self._fine_tune_controller.started.connect(self._fine_tune_started)
@@ -1680,7 +1705,7 @@ class TimeSensitivityPanel(QWidget):
             "Fine Tune Hourly Scan",
             format_fine_tune_hourly_scan_html(result),
             expanded=True,
-            position=1,
+            position=2,
         )
         self._fine_tune_mode_changed(self.fine_tune_mode_combo.currentIndex())
 
@@ -1853,6 +1878,7 @@ class TimeSensitivityPanel(QWidget):
         self._add_html_section(
             "summary", "Overall Time Sensitivity", _summary_html(result), expanded=True
         )
+        self._charts_layout.insertWidget(1, self.fine_tune_module)
         for group_key in (
             "dominant_planet_weights",
             "dominant_sign_weights",
