@@ -454,6 +454,7 @@ def _tree_expanded_state(tree) -> dict[str, bool]:
     expanded_state: dict[str, bool] = {}
     if not hasattr(tree, "topLevelItemCount"):
         return expanded_state
+
     def capture(item) -> None:
         if item is None:
             return
@@ -533,6 +534,7 @@ def filter_advanced_tag_tree(window, query: str) -> None:
     previous_needle = str(getattr(window, "_advanced_tag_search_query", ""))
     if needle and not previous_needle:
         window._advanced_tag_search_expanded_state = _tree_expanded_state(tree)
+        window._advanced_tag_search_scroll_value = _tree_scroll_value(tree)
 
     def filter_item(item) -> bool:
         child_matches = [filter_item(item.child(i)) for i in range(item.childCount())]
@@ -552,6 +554,7 @@ def filter_advanced_tag_tree(window, query: str) -> None:
 
     if not needle and previous_needle:
         expanded = getattr(window, "_advanced_tag_search_expanded_state", {})
+
         def restore(item) -> None:
             key = str(item.data(0, Qt.UserRole) or item.text(0) or "").casefold()
             item.setExpanded(bool(expanded.get(key, False)))
@@ -560,7 +563,12 @@ def filter_advanced_tag_tree(window, query: str) -> None:
 
         for index in range(tree.topLevelItemCount()):
             restore(tree.topLevelItem(index))
+        _restore_tree_scroll_value(
+            tree,
+            getattr(window, "_advanced_tag_search_scroll_value", 0),
+        )
     window._advanced_tag_search_query = needle
+
 
 def refresh_search_tags_list(window, known_tags: list[str]) -> None:
     """Refresh the Database View tag-filter tree for ``window``."""
@@ -715,7 +723,7 @@ def refresh_search_tags_list(window, known_tags: list[str]) -> None:
 
     add_untagged_item()
 
-    def add_tag_item(parent_item, tag: str, value: str) -> None:
+    def add_tag_item(parent_item, tag: str, value: str):
         display = _tag_value_display_name(value)
         item = QTreeWidgetItemClass([display])
         item.setData(0, Qt.UserRole + 1, tag)
@@ -731,6 +739,7 @@ def refresh_search_tags_list(window, known_tags: list[str]) -> None:
         window.search_tag_filter_checkboxes[tag] = checkbox
         window.search_tag_filter_logic_buttons[tag] = logic
         tree.setItemWidget(item, 0, make_row(checkbox, logic, tag))
+        return item
 
     for prefix in sorted(grouped, key=lambda key: tag_category_display_name(key).casefold()):
         category_items: dict[str, object] = {}
@@ -769,7 +778,12 @@ def refresh_search_tags_list(window, known_tags: list[str]) -> None:
             parent = root
             if len(value_parts) > 1:
                 parent = category_item_for([prefix, *value_parts[:-1]])
-            add_tag_item(parent, tag, value_parts[-1] if value_parts else value)
+            tag_item = add_tag_item(parent, tag, value_parts[-1] if value_parts else value)
+            # An existing tag may also be the parent of more-specific tags
+            # (for example, occupation.writer and occupation.writer.novelist).
+            # Reuse its interactive row as the expandable parent rather than
+            # showing a duplicate category row with different filter semantics.
+            category_items[tag.casefold()] = tag_item
     for tag, value in sorted(uncategorized, key=lambda item: _tag_value_display_name(item[1]).casefold()):
         root_item = QTreeWidgetItemClass([_tag_value_display_name(value)])
         root_item.setData(0, Qt.UserRole + 1, tag)
