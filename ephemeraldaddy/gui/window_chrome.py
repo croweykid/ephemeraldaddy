@@ -9,6 +9,10 @@ from typing import TYPE_CHECKING, Any
 
 from ephemeraldaddy.gui.about import ABOUT_ONBOARDING_MARKDOWN
 from ephemeraldaddy.gui.about_sparkle import AboutCloseSparkleOverlay
+from ephemeraldaddy.gui.application_identity import (
+    APP_DISPLAY_NAME,
+    configure_qapplication_identity,
+)
 from ephemeraldaddy.gui.galaxy_explainer import show_guide_to_the_galaxy
 from ephemeraldaddy.gui.style import (
     ABOUT_DIALOG_ACCENT_BUTTON_COLOR,
@@ -19,9 +23,6 @@ from ephemeraldaddy.gui.style import (
 
 if TYPE_CHECKING:
     from PySide6.QtWidgets import QApplication, QLayout, QMainWindow, QWidget
-
-APP_DISPLAY_NAME = "Ephemeral Daddy"
-
 
 _ACTIVE_ABOUT_SPARKLES: list[AboutCloseSparkleOverlay] = []
 
@@ -307,9 +308,7 @@ def configure_splitter_handle_resize_cursor(splitter) -> None:
 
 def configure_application_identity(app: "QApplication") -> None:
     """Set a consistent application identity shown by the OS shell and Qt."""
-    app.setApplicationName(APP_DISPLAY_NAME)
-    app.setApplicationDisplayName(APP_DISPLAY_NAME)
-    app.setOrganizationName(APP_DISPLAY_NAME)
+    configure_qapplication_identity(app)
 
 
 def configure_main_window_chrome(

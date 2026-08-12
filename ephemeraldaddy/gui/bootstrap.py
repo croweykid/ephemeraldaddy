@@ -8,18 +8,24 @@ from __future__ import annotations
 
 import sys
 
-if sys.platform == "win32":
-    import ctypes
-
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QGuiApplication, QIcon
 from PySide6.QtWidgets import QApplication
 
+from ephemeraldaddy.gui.application_identity import (
+    APP_DISPLAY_NAME,
+    configure_pre_qapplication_identity,
+    configure_qapplication_identity,
+)
 from ephemeraldaddy.gui.icons import get_app_icon_path
 from ephemeraldaddy.gui.startup import StartupLoadingWidget
 
 
 def main() -> None:
+    # Native shells determine identity when QApplication (and, on some Linux
+    # desktops, its first window) is created. Configure it before the splash.
+    configure_pre_qapplication_identity()
+
     # Must be set before creating QApplication; otherwise Qt prints a runtime warning.
     try:
         QGuiApplication.setHighDpiScaleFactorRoundingPolicy(
@@ -29,17 +35,10 @@ def main() -> None:
         # Best-effort guard for older Qt/PySide versions.
         pass
 
-    if sys.platform == "win32":
-        try:
-            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(  # type: ignore[attr-defined]
-                "ephemeraldaddy.desktop"
-            )
-        except Exception:
-            pass
-
     app = QApplication.instance()
     if app is None:
-        app = QApplication(sys.argv)
+        app = QApplication([APP_DISPLAY_NAME, *sys.argv[1:]])
+    configure_qapplication_identity(app)
 
     icon_path = get_app_icon_path()
     if icon_path:
