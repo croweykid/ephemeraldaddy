@@ -68,6 +68,18 @@ network. The result distinguishes:
   old for the supported patch path; and
 - a platform for which the manifest has no artifact.
 
+## User-facing stable-release language
+
+Every update prompt, update settings surface, release dialog, and rollback
+screen must use the canonical `STABLE_RELEASE_ASSURANCE` copy from
+`ephemeraldaddy/updates/messaging.py`:
+
+> This isn't a new and exciting invasion of privacy or a monetization step. It's
+> just a bug fix and/or feature update I'm gonna go ahead and call 'a stable
+> release'. With any luck, it will improve function without disrupting anything
+> you currently enjoy. If you notice something amiss or yearn for something from
+> a prior version, you can roll back safely & communicate with me on Github.
+
 ## Security boundary
 
 The shared JSON manifest is discovery metadata, not authority to execute code.
@@ -76,6 +88,55 @@ native signatures. The application must only accept an HTTPS production
 manifest URL, and release CI must sign/notarize artifacts before publishing the
 manifest that refers to them.
 
+## Release acceptance and rollback contract
+
+Discovery alone does **not** make a machine eligible. Before a native updater
+is allowed to install, `UpdateAcceptanceCoordinator` runs all adapter-provided
+preflight checks. A failed check cancels before backup or installation. The
+minimum preflight set is:
+
+- installed version is on a supported update path;
+- complete artifact download;
+- native signature verification;
+- artifact checksum verification;
+- sufficient free disk space; and
+- application process is closed before replacement.
+
+After preflight passes, the coordinator requires a verified full user-data
+backup before invoking the platform adapter. After installation it runs the
+adapter's post-install probes. These must cover application launch, bundled
+resources, chart creation, database writes, database integrity/migration, and
+the survival of settings, photos, and chart data.
+
+If installation raises (including an interrupted download/install), or any
+post-install probe fails, the coordinator invokes the platform adapter's native
+rollback and restores the pre-update user-data package. The candidate release
+is accepted only if every post-install probe passes. Platform adapters must be
+atomic and must retain the prior signed application until acceptance completes;
+Python never replaces application binaries itself.
+
+### Required release-pipeline scenarios
+
+The shared simulated acceptance suite is in
+`tests/test_update_release_acceptance.py`. Native Windows, macOS, and Linux CI
+jobs must exercise the same scenarios against real packages before publishing:
+
+- fresh installation;
+- update from the immediately preceding and oldest supported releases;
+- update with an existing charts database;
+- interrupted installation;
+- invalid signature and corrupted artifact;
+- insufficient disk space and application still running;
+- successful launch after upgrade;
+- successful database backup and migration;
+- failed-migration recovery; and
+- unchanged user settings, photos, and databases after rollback.
+
+The Python suite proves the shared cancellation/rollback policy. It does not
+claim to verify MSIX, Sparkle, Flatpak, or AppImage behavior: each native release
+job remains responsible for real install, signature, interruption, relaunch,
+and rollback acceptance tests on its target operating system.
+
 ## Next integration steps
 
 1. Select and configure the production HTTPS manifest host.
@@ -83,7 +144,8 @@ manifest that refers to them.
    `gui/app.py`; it should call `UpdateChecker` asynchronously.
 3. Add platform adapters that hand off to MSIX App Installer, Sparkle, Flatpak,
    or AppImageUpdate rather than replacing files from Python.
-4. Add signing, manifest publication, and upgrade-from-previous-version jobs to
-   the release pipeline.
-5. Back up user data before database migrations that accompany an update.
-
+4. Connect the existing full-app backup package to `create_backup` and
+   `restore_backup`, then provide launch/database/data-survival post-install
+   probes.
+5. Add signing, manifest publication, and native acceptance jobs to the release
+   pipeline. Publishing must remain blocked until every platform job passes.
