@@ -20,6 +20,8 @@ from ephemeraldaddy.gui.style import (
     ABOUT_DIALOG_MARKDOWN_STYLESHEET,
     WINDOW_CHROME_MENU_STYLE,
 )
+from ephemeraldaddy.gui.support_content import SUPPORT_ACTION_LABEL
+from ephemeraldaddy.gui.support_development import show_support_development_dialog
 
 if TYPE_CHECKING:
     from PySide6.QtWidgets import QApplication, QLayout, QMainWindow, QWidget
@@ -326,6 +328,12 @@ def configure_main_window_chrome(
     app_menu = menu_bar.addMenu(APP_DISPLAY_NAME)
     _bind_menu_callback(app_menu, "Settings", commands.open_settings)
     _keep_action_in_window_menu(app_menu.addAction("About", lambda: _show_about_from_onboarding(window)))
+    _keep_action_in_window_menu(
+        app_menu.addAction(
+            SUPPORT_ACTION_LABEL,
+            lambda: show_support_development_dialog(window),
+        )
+    )
     _keep_action_in_window_menu(app_menu.addAction("Minimize", lambda: _minimize_window(window)))
     app_menu.addSeparator()
     _keep_action_in_window_menu(app_menu.addAction(f"Exit", _quit_application))
@@ -399,6 +407,13 @@ def configure_manage_dialog_chrome(
 
     app_menu = menu_bar.addMenu(APP_DISPLAY_NAME)
     _bind_menu_callback(app_menu, "Settings", commands.open_settings)
+    _keep_action_in_window_menu(app_menu.addAction("About", lambda: _show_about_from_onboarding(dialog)))
+    _keep_action_in_window_menu(
+        app_menu.addAction(
+            SUPPORT_ACTION_LABEL,
+            lambda: show_support_development_dialog(dialog),
+        )
+    )
     _keep_action_in_window_menu(app_menu.addAction("Minimize", lambda: _minimize_window(dialog)))
     app_menu.addSeparator()
     _keep_action_in_window_menu(app_menu.addAction(f"Exit", _quit_application))

@@ -168,6 +168,10 @@ documented in `docs/update_service.md`. The current application version has one
 authoritative source in `ephemeraldaddy/version.py`; packaging metadata derives
 from it rather than maintaining independent handwritten version numbers.
 
+The privacy-conscious external support-link design is documented in
+`docs/support_development.md`; the application itself never handles payment or
+billing identity data.
+
 ### Offline location search (optional)
 By default, ephemeraldaddy will build the database from the bundled `tools/cities15000.txt` file when available, or automatically download a small GeoNames dataset if the bundled file is missing. 
 
