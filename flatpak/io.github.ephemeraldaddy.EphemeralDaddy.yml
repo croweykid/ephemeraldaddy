@@ -9,13 +9,13 @@ finish-args:
   - --socket=wayland
   - --device=dri
   - --share=network
-  - --filesystem=home
+  - --filesystem=~/.ephemeraldaddy:create
 modules:
   - name: ephemeraldaddy-bundle
     buildsystem: simple
     build-commands:
       - install -d /app/lib/ephemeraldaddy
-      - cp -a ../dist/EphemeralDaddy/. /app/lib/ephemeraldaddy/
+      - cp -a dist/EphemeralDaddy/. /app/lib/ephemeraldaddy/
       - install -d /app/bin
       - install -Dm755 flatpak/ephemeraldaddy-launcher.sh /app/bin/ephemeraldaddy
       - install -Dm644 packaging/linux/io.github.ephemeraldaddy.EphemeralDaddy.desktop /app/share/applications/io.github.ephemeraldaddy.EphemeralDaddy.desktop

@@ -5,6 +5,7 @@
 #include "packaging\windows\version.iss"
 
 [Setup]
+AppId=io.github.ephemeraldaddy.EphemeralDaddy
 AppName=EphemeralDaddy
 AppVersion={#MyAppVersion}
 DefaultDirName={autopf}\EphemeralDaddy
@@ -16,6 +17,8 @@ SolidCompression=yes
 WizardStyle=modern
 ArchitecturesInstallIn64BitMode=x64
 UninstallDisplayIcon={app}\EphemeralDaddy.exe
+CloseApplications=yes
+RestartApplications=no
 
 [Files]
 Source: "dist\EphemeralDaddy.exe"; DestDir: "{app}"; DestName: "EphemeralDaddy.exe"

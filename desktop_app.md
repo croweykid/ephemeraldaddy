@@ -53,6 +53,18 @@ python -m ephemeraldaddy.gui.bootstrap
 
 If this fails in Python, fix that first before trying to package.
 
+Run the deterministic repository preflight as well:
+
+```powershell
+python tools\check_release_readiness.py --target windows
+```
+
+`ISCC.exe` is reported as a warning when Inno Setup is installed outside
+`PATH`; that does not block the PyInstaller build. The installer scripts now use
+the permanent application ID `io.github.ephemeraldaddy.EphemeralDaddy`, so do
+not change that value between releases. They also request that Windows close a
+running EphemeralDaddy process rather than replacing in-use application files.
+
 ## 3) Build EXE 
 
 ### Single-file EXE (easy to share)
@@ -69,6 +81,10 @@ Notes:
 - On Windows, if `--icon` points to PNG, the helper auto-converts it to `.ico` (requires Pillow).
 - Output: `dist/EphemeralDaddy.exe`.
 - The helper now writes `EphemeralDaddy.spec` and runs `python -m PyInstaller EphemeralDaddy.spec` so Windows command length stays short.
+- The helper relies on PyInstaller's Qt hooks to collect only imported PySide6
+  modules. Do not restore `collect_all("PySide6")`: it bundles unrelated Qt 3D,
+  WebEngine, multimedia, designer, and development modules, dramatically
+  increasing installer and update sizes and adding unused native dependencies.
 
 ### Folder build (faster startup, easier troubleshooting)
 
@@ -146,6 +162,10 @@ If you run it from another directory, pass an absolute path to the script instea
 
 MSIX is excellent for managed Windows fleets, but requires extra signing/setup overhead.
 For first release, most indie apps start with Inno Setup + code signing.
+
+The current release path remains **PyInstaller onedir + Inno Setup**. MSIX and
+other updater formats are future optional channels, not prerequisites for the
+3.0.0 Windows build.
 
 ## 5) Smoke-test the packaged app
 

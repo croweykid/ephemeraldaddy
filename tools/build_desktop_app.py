@@ -144,16 +144,11 @@ def _write_spec(args: argparse.Namespace) -> Path:
     ]
     icon_literal = repr(str(icon_path)) if icon_path else "None"
     spec = f"""# -*- mode: python ; coding: utf-8 -*-
-from PyInstaller.utils.hooks import collect_all
-
 block_cipher = None
 
-pyside_datas, pyside_binaries, pyside_hidden = collect_all("PySide6")
-shiboken_datas, shiboken_binaries, shiboken_hidden = collect_all("shiboken6")
-
-datas = {pprint.pformat(datas, width=120)} + pyside_datas + shiboken_datas
-binaries = pyside_binaries + shiboken_binaries
-hiddenimports = {pprint.pformat(hiddenimports, width=120)} + pyside_hidden + shiboken_hidden
+datas = {pprint.pformat(datas, width=120)}
+binaries = []
+hiddenimports = {pprint.pformat(hiddenimports, width=120)}
 excludes = {pprint.pformat(excludes, width=120)}
 
 a = Analysis(
@@ -163,7 +158,7 @@ a = Analysis(
     datas=datas,
     hiddenimports=hiddenimports,
     hookspath=[],
-    hooksconfig={{}},
+    hooksconfig={{"matplotlib": {{"backends": ["QtAgg"]}}}},
     runtime_hooks=[],
     excludes=excludes,
     win_no_prefer_redirects=False,

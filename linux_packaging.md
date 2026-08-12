@@ -21,6 +21,21 @@ python -m pip install pyinstaller
 Use the existing build helper:
 
 ```bash
+python tools/check_release_readiness.py --target linux
+```
+
+Missing `appimagetool` or `flatpak-builder` is reported as a warning because
+each tool is required only for its respective packaging target. Missing bundled
+application data or Python freezer dependencies is a blocking failure.
+
+The host used for an AppImage build determines its minimum glibc compatibility;
+produce public AppImages in the oldest supported Linux CI/container image, not
+an arbitrary current developer workstation. Install the standard Qt/X11/OpenGL
+build dependencies there and smoke-test the frozen executable before invoking
+`appimagetool`. Flatpak instead receives its native libraries from the selected
+runtime.
+
+```bash
 python tools/build_desktop_app.py --icon ephemeraldaddy/graphics/ephemeraldaddy.png
 ```
 
@@ -96,6 +111,10 @@ flatpak run io.github.ephemeraldaddy.EphemeralDaddy
 - Keep Linux app metadata in `packaging/linux/`.
 - If the icon path changes, update both AppImage and Flatpak metadata.
 - For releases, run AppImage and Flatpak jobs in Linux CI on tag pushes.
+- The Flatpak build copies `dist/EphemeralDaddy` from the manifest source root.
+  Keep that onedir build in place before invoking `flatpak-builder`.
+- Flatpak receives only the persistent `~/.ephemeraldaddy` data-directory
+  filesystem permission rather than unrestricted access to the user's home.
 - Taskbar matching comes from the shared application/desktop ID
   `io.github.ephemeraldaddy.EphemeralDaddy`. Install and launch the provided
   `.desktop` entry for consistent naming and icon grouping. Flatpak or AppImage
