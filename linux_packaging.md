@@ -95,6 +95,7 @@ flatpak run io.github.ephemeraldaddy.EphemeralDaddy
 
 - Keep Linux app metadata in `packaging/linux/`.
 - If the icon path changes, update both AppImage and Flatpak metadata.
+<<<<<<< Updated upstream
 - For releases, run AppImage and Flatpak jobs in Linux CI on tag pushes.
 - Taskbar matching comes from the shared application/desktop ID
   `io.github.ephemeraldaddy.EphemeralDaddy`. Install and launch the provided
@@ -129,3 +130,6 @@ another issue: Settings>Predictions>OCEAN Predictor scoring percentiles need to 
 
 =================
 another issue: The Linux taskbar onhover label says "bootstrap.py" rather than "EphemeralDaddy" as it should.
+=======
+- For releases, run AppImage and Flatpak jobs in Linux CI on tag pushes.
+>>>>>>> Stashed changes
