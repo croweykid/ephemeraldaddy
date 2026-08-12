@@ -37,3 +37,6 @@ ephemeraldaddy/.DS_Store
 ephemeraldaddy/graphics/.DS_Store
 /notes
 ephemeraldaddy/.DS_Store
+
+# Generated Python package metadata
+*.egg-info/

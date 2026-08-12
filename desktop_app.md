@@ -92,7 +92,7 @@ A raw `.exe` works, but a true installer gives the most "double-click and done" 
 ```ini
 [Setup]
 AppName=EphemeralDaddy
-AppVersion=1.0.0
+AppVersion={#MyAppVersion}
 DefaultDirName={autopf}\EphemeralDaddy
 DefaultGroupName=EphemeralDaddy
 OutputDir=dist

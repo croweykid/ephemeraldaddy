@@ -1,2 +1,0 @@
-[console_scripts]
-ephemeraldaddy = ephemeraldaddy.gui.bootstrap:main

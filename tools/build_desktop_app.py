@@ -243,6 +243,10 @@ def main() -> None:
     args = parse_args()
     _ensure_pyinstaller()
 
+    # Keep generated installer metadata aligned with the authoritative Python
+    # version whenever a release artifact is built.
+    _run_python(["tools/sync_release_version.py"])
+
     spec_path = _write_spec(args)
     cmd = _build_pyinstaller_command(spec_path)
     print(f"[build] Platform: {platform.system()} {platform.release()}")

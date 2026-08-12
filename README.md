@@ -163,6 +163,11 @@ For first-time Windows EXE build steps (clean venv, build, smoke-test, signing n
 
 For Linux packaging targets (AppImage + Flatpak), see `linux_packaging.md`.
 
+Release versioning and the cross-platform update-discovery architecture are
+documented in `docs/update_service.md`. The current application version has one
+authoritative source in `ephemeraldaddy/version.py`; packaging metadata derives
+from it rather than maintaining independent handwritten version numbers.
+
 ### Offline location search (optional)
 By default, ephemeraldaddy will build the database from the bundled `tools/cities15000.txt` file when available, or automatically download a small GeoNames dataset if the bundled file is missing. 
 

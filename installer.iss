@@ -2,9 +2,11 @@
 ; Run from repo root:
 ;   & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" .\installer.iss
 
+#include "packaging\windows\version.iss"
+
 [Setup]
 AppName=EphemeralDaddy
-AppVersion=3.0.0
+AppVersion={#MyAppVersion}
 DefaultDirName={autopf}\EphemeralDaddy
 DefaultGroupName=EphemeralDaddy
 OutputDir=dist

@@ -1,6 +1,6 @@
 [project]
 name = "ephemeraldaddy"
-version = "0.1.0"
+dynamic = ["version"]
 description = "A modular, research-ready astrology toolkit."
 authors = [{name="Your Name"}]
 dependencies = [
@@ -26,6 +26,12 @@ ephemeraldaddy = "ephemeraldaddy.gui.bootstrap:main"
 [tool.setuptools.package-data]
 "ephemeraldaddy.analysis" = ["default_traits.json"]
 "ephemeraldaddy.gui" = ["fonts/*.ttf", "fonts/*.otf", "fonts/*.ttc", "fonts/*.md"]
+
+[tool.setuptools.packages.find]
+include = ["ephemeraldaddy*"]
+
+[tool.setuptools.dynamic]
+version = {attr = "ephemeraldaddy.version.__version__"}
 
 [build-system]
 requires = ["setuptools", "wheel"]
