@@ -13,7 +13,7 @@ from PySide6.QtGui import QGuiApplication, QIcon
 from PySide6.QtWidgets import QApplication
 
 from ephemeraldaddy.gui.application_identity import (
-    APP_SHELL_DISPLAY_NAME,
+    APP_DISPLAY_NAME,
     configure_pre_qapplication_identity,
     configure_qapplication_identity,
 )
@@ -37,7 +37,7 @@ def main() -> None:
 
     app = QApplication.instance()
     if app is None:
-        app = QApplication([APP_SHELL_DISPLAY_NAME, *sys.argv[1:]])
+        app = QApplication([APP_DISPLAY_NAME, *sys.argv[1:]])
     configure_qapplication_identity(app)
 
     icon_path = get_app_icon_path()

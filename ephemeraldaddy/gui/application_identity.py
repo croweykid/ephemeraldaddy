@@ -8,6 +8,8 @@ import sys
 from PySide6.QtCore import QCoreApplication
 
 
+# Keep this value stable: default-constructed QSettings uses the Qt
+# organization/application-name pair as its persistent namespace.
 APP_DISPLAY_NAME = "Ephemeral Daddy"
 APP_SHELL_DISPLAY_NAME = "EphemeralDaddy"
 APP_DESKTOP_ID = "io.github.ephemeraldaddy.EphemeralDaddy"
@@ -20,7 +22,7 @@ def configure_pre_qapplication_identity() -> None:
     Calling the equivalent setters after the startup splash has been created is
     too late for several Linux shells and for parts of macOS's Cocoa bridge.
     """
-    QCoreApplication.setApplicationName(APP_SHELL_DISPLAY_NAME)
+    QCoreApplication.setApplicationName(APP_DISPLAY_NAME)
     QCoreApplication.setOrganizationName(APP_DISPLAY_NAME)
     QCoreApplication.setDesktopFileName(APP_DESKTOP_ID)
 
@@ -47,7 +49,10 @@ def configure_pre_qapplication_identity() -> None:
 
 def configure_qapplication_identity(app) -> None:
     """Apply identity properties exposed by a constructed QApplication."""
-    app.setApplicationName(APP_SHELL_DISPLAY_NAME)
+    # applicationName is persistence identity as well as Qt metadata. Do not
+    # compact it for shell presentation: doing so would orphan existing users'
+    # default QSettings values under a new backing-store namespace.
+    app.setApplicationName(APP_DISPLAY_NAME)
     app.setApplicationDisplayName(APP_SHELL_DISPLAY_NAME)
     app.setOrganizationName(APP_DISPLAY_NAME)
     app.setDesktopFileName(APP_DESKTOP_ID)
