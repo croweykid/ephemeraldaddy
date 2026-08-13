@@ -33835,7 +33835,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 QMessageBox.warning(
                     self,
                     "Invalid 🐣Date",
-                    f"Come on. Birth date must be a real calendar date in MM. DD. YYYY format, and the year must be between {NATAL_CHART_MIN_YEAR} and {NATAL_CHART_MAX_YEAR}. Don't make up silly stuff.",
+                    f"Come on. That's not a real date. Did you enter it in MM. DD. YYYY format? The year must be between {NATAL_CHART_MIN_YEAR} and {NATAL_CHART_MAX_YEAR}, also, ya silly goose.",
                 )
             return
         if not self._validate_rectification_range_inputs(show_feedback=show_feedback):
