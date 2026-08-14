@@ -30,6 +30,16 @@ ephemeraldaddy = "ephemeraldaddy.gui.bootstrap:main"
 "ephemeraldaddy.analysis" = ["default_traits.json"]
 "ephemeraldaddy.gui" = ["fonts/*.ttf", "fonts/*.otf", "fonts/*.ttc", "fonts/*.md"]
 
+[tool.setuptools.packages.find]
+include = ["ephemeraldaddy*"]
+exclude = [
+  "ephemeraldaddy.data.compiled",
+  "ephemeraldaddy.graphics.alternate icons",
+  "ephemeraldaddy.graphics.chartwheel_components",
+  "ephemeraldaddy.graphics.emoji",
+  "ephemeraldaddy.help",
+]
+
 [tool.pytest.ini_options]
 pythonpath = ["."]
 
