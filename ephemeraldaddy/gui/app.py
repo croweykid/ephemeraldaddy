@@ -13522,7 +13522,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             return
         set_current_chart_by_uid(getattr(chart, "chart_uid", None) or get_chart_uid(chart_id))
         parent._set_current_chart_uid(chart.chart_uid)
-        parent._record_manage_charts_pending_change(chart_id, refresh_metrics=True)
+        parent._record_manage_charts_pending_change(chart.chart_uid, refresh_metrics=True)
         parent._loaded_birth_place = place
         parent._loaded_lat = chart.lat
         parent._loaded_lon = chart.lon
@@ -25296,6 +25296,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._help_marker_buttons: list[QToolButton] = []
         self._size_checker_popup: SizeCheckerPopup | None = None
         self._manage_charts_pending_changed_uids: dict[str, bool] = {}
+        self._manage_charts_full_refresh_pending = False
         self._prediction_norms_revision = 0
         self._charts_controller = ChartsController(
             confirm_discard_or_save=self._confirm_discard_or_save,
@@ -34588,7 +34589,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                             )
                             return
                         self._on_charts_deleted({chart_id}, chart_uids=chart_uids)
-                        self._record_manage_charts_pending_change(chart_id, refresh_metrics=True)
+                        self._record_manage_charts_pending_change(chart_uid, refresh_metrics=True, deleted=True)
                     else:
                         self._reset_new_chart_form()
                     self.on_manage_charts()
@@ -34800,6 +34801,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             set_current_chart_by_uid(getattr(chart, "chart_uid", None) or get_chart_uid(chart_id))
             self._invalidate_chart_view_navigation_cache({getattr(chart, "chart_uid", None) or get_chart_uid(chart_id)})
 
+        # The chart object is now a hydrated persistence record. Retain its local
+        # row ID only on that boundary object so UI hot paths do not query SQLite.
+        chart.id = int(chart_id)
         self._set_current_chart_uid(chart.chart_uid)
         if not subjective_notes_autosave:
             old_alternate_uid = get_alternate_chart_uid(chart_id)
@@ -34878,7 +34882,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 ),
             )
         else:
-            self._record_manage_charts_pending_change(chart_id, refresh_metrics=False)
+            self._record_manage_charts_pending_change(chart.chart_uid, refresh_metrics=False)
         self._refresh_manage_charts_in_background(
             {chart_id},
             refresh_metrics=refresh_database_metrics,
@@ -35055,7 +35059,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             return
 
         self._on_charts_deleted({chart_id}, chart_uids=chart_uids)
-        self._record_manage_charts_pending_change(chart_id, refresh_metrics=True)
+        self._record_manage_charts_pending_change(chart_uid, refresh_metrics=True, deleted=True)
         self.on_manage_charts()
 
 
@@ -35678,16 +35682,29 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self.on_manage_charts()
 
 
-    def _record_manage_charts_pending_change(self, chart_id: int | None, *, refresh_metrics: bool) -> None:
-        """Track pending Database View refreshes by chart UID whenever possible."""
-        if chart_id is None:
+    def _record_manage_charts_pending_change(
+        self,
+        chart_uid: str | None,
+        *,
+        refresh_metrics: bool,
+        deleted: bool = False,
+    ) -> None:
+        """Track a UID-owned Database View refresh, including deletion tombstones."""
+        normalized_uid = self._normalized_chart_uid_key(chart_uid)
+        if normalized_uid is None:
             return
-        chart_uid = self._normalized_chart_uid_key(get_chart_uid(int(chart_id)))
-        if chart_uid:
-            previous_requires_metrics = bool(self._manage_charts_pending_changed_uids.get(chart_uid, False))
-            self._manage_charts_pending_changed_uids[chart_uid] = previous_requires_metrics or bool(refresh_metrics)
+        previous_requires_metrics = bool(
+            self._manage_charts_pending_changed_uids.get(normalized_uid, False)
+        )
+        self._manage_charts_pending_changed_uids[normalized_uid] = (
+            previous_requires_metrics or bool(refresh_metrics)
+        )
+        if deleted:
+            # Deleted UIDs cannot resolve to local row IDs. Force Database View to
+            # rehydrate its rows and analytics instead of leaving a stale row.
+            self._manage_charts_full_refresh_pending = True
 
-    def _pending_manage_chart_refreshes(self) -> tuple[set[int], set[int]]:
+    def _pending_manage_chart_refreshes(self) -> tuple[set[int], set[int], bool]:
         """Return pending Database View refresh IDs split by metrics requirements.
 
         Pending state is stored by UID because Chart UIDs are the stable source
@@ -35706,10 +35723,11 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             else:
                 lightweight_ids.add(int(chart_id))
         lightweight_ids.difference_update(metric_ids)
-        return metric_ids, lightweight_ids
+        return metric_ids, lightweight_ids, bool(self._manage_charts_full_refresh_pending)
 
     def _clear_pending_manage_chart_refreshes(self) -> None:
         self._manage_charts_pending_changed_uids.clear()
+        self._manage_charts_full_refresh_pending = False
 
     def _get_or_create_manage_charts_dialog(self) -> ManageChartsDialog:
         # Be tolerant of partially initialized/restored MainWindow instances;
@@ -35733,7 +35751,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         """Refresh Database View analytics from Chart View without requiring dialog state."""
         if changed_ids:
             for changed_id in changed_ids:
-                self._record_manage_charts_pending_change(changed_id, refresh_metrics=True)
+                self._record_manage_charts_pending_change(get_chart_uid(changed_id), refresh_metrics=True)
 
         manage_dialog = getattr(self, "_manage_charts_dialog", None)
         if manage_dialog is None or not manage_dialog.isVisible():

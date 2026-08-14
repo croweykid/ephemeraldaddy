@@ -305,3 +305,36 @@ def test_saved_chart_right_panel_consumers_use_uid_identity():
     assert 'getattr(owner, "current_chart_uid", None) is not None' in fallback_source
     assert "current_chart_id" not in controller_source
     assert "current_chart_id" not in fallback_source
+
+
+def test_deleted_chart_uid_is_queued_as_full_refresh_tombstone():
+    delete_method = _method_source("_on_delete_this_chart")
+    discard_branch = _method_source("on_update_chart")
+    record_method = _method_source("_record_manage_charts_pending_change")
+    pending_method = _method_source("_pending_manage_chart_refreshes")
+    clear_method = _method_source("_clear_pending_manage_chart_refreshes")
+    controller_source = Path(
+        "ephemeraldaddy/gui/features/controllers/main_window.py"
+    ).read_text()
+
+    assert "chart_uid = self._current_chart_uid_for_navigation()" in delete_method
+    assert "delete_charts_by_uids([chart_uid])" in delete_method
+    assert "self._record_manage_charts_pending_change(chart_uid, refresh_metrics=True, deleted=True)" in delete_method
+    assert "self._record_manage_charts_pending_change(chart_uid, refresh_metrics=True, deleted=True)" in discard_branch
+    assert "get_chart_uid" not in record_method
+    assert "if deleted:" in record_method
+    assert "self._manage_charts_full_refresh_pending = True" in record_method
+    assert "bool(self._manage_charts_full_refresh_pending)" in pending_method
+    assert "self._manage_charts_full_refresh_pending = False" in clear_method
+    assert "if force_full_refresh:" in controller_source
+    assert 'refresh_reason = "deleted_chart"' in controller_source
+
+
+def test_persisted_chart_object_caches_local_row_id_before_hot_path_use():
+    method = _method_source("on_update_chart")
+    assign_index = method.index("chart.id = int(chart_id)")
+
+    assert method.index("chart_id = save_chart(") < assign_index
+    assert method.index("self._set_current_chart_uid(chart.chart_uid)") > assign_index
+    assert method.index("self._cache_chart_view_navigation_entry(self.current_chart_uid, chart)") > assign_index
+    assert method.index("self._latest_chart = chart") > assign_index

@@ -536,7 +536,7 @@ class ChartsController:
         raise_manage_dialog: Callable[[], None],
         get_pending_changed_ids: Callable[[], set[int]] | None = None,
         clear_pending_changed_ids: Callable[[], None] | None = None,
-        get_pending_changed_refreshes: Callable[[], tuple[set[int], set[int]]] | None = None,
+        get_pending_changed_refreshes: Callable[[], tuple[set[int], set[int], bool]] | None = None,
         clear_pending_changed_refreshes: Callable[[], None] | None = None,
     ) -> None:
         self._confirm_discard_or_save = confirm_discard_or_save
@@ -569,10 +569,11 @@ class ChartsController:
         dialog = self._get_or_create_manage_dialog()
         open_timing.phase("dialog_shell")
         if self._get_pending_changed_refreshes is not None:
-            pending_metric_ids, pending_lightweight_ids = self._get_pending_changed_refreshes()
+            pending_metric_ids, pending_lightweight_ids, force_full_refresh = self._get_pending_changed_refreshes()
         else:
             pending_metric_ids = set(self._get_pending_changed_ids())
             pending_lightweight_ids = set()
+            force_full_refresh = False
         pending_ids = set(pending_metric_ids) | set(pending_lightweight_ids)
         pending_refresh_metrics = bool(pending_metric_ids)
         was_visible = dialog.isVisible()
@@ -585,7 +586,16 @@ class ChartsController:
 
         refresh_after_show: Callable[[], None] | None = None
         refresh_reason = "none"
-        if pending_ids:
+        if force_full_refresh:
+            refresh_reason = "deleted_chart"
+            def refresh_after_show() -> None:
+                dialog._refresh_charts(
+                    refresh_metrics=True,
+                    defer_metrics_refresh=progress_callback is None,
+                    refresh_tag_completers=True,
+                    progress_callback=progress_callback,
+                )
+        elif pending_ids:
             refresh_reason = "pending_changes"
             def refresh_after_show() -> None:
                 dialog._refresh_charts(
