@@ -56,3 +56,27 @@ def test_inline_rename_identity_is_uid_owned():
     assert "_inline_rename_chart_id" not in source
     assert "self._apply_batch_nonastral_patch({chart_uid}" in source
     assert "self._refresh_filters_after_batch_edit(chart_uids={chart_uid})" in source
+
+
+def test_possible_duplicate_controller_state_is_uid_keyed():
+    source = _class_source("ManageChartsDialog", "MainWindow")
+
+    assert "_possible_duplicate_chart_uids" in source
+    assert "_possible_duplicate_related_names_by_uid" in source
+    assert "_possible_duplicate_likelihoods_by_uid" in source
+    assert "_possible_duplicate_sort_keys_by_uid" in source
+    assert "_possible_duplicate_group_by_uid" in source
+    assert "_possible_duplicate_chart_ids" not in source
+    assert "_excluded_duplicate_pairs" not in source
+
+
+def test_trait_ranking_selection_state_is_uid_owned():
+    source = Path(
+        "ephemeraldaddy/gui/features/charts/database_analytics.py"
+    ).read_text(encoding="utf-8")
+
+    assert "_traits_distribution_manual_rank_chart_uids" in source
+    assert "_traits_distribution_latest_selected_chart_uids" in source
+    assert "_traits_distribution_manual_rank_chart_ids" not in source
+    assert "_traits_distribution_latest_selected_local_row_ids" not in source
+    assert "hidden_chart_uids: set[str]" in source

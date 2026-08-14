@@ -2643,12 +2643,11 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._syncing_visible_selection = False
         self._custom_collections: dict[str, CustomCollection] = {}
         self._active_collection_id = DEFAULT_COLLECTION_ALL
-        self._possible_duplicate_chart_ids: set[int] = set()
-        self._possible_duplicate_related_names: dict[int, dict[str, list[str]]] = {}
-        self._possible_duplicate_likelihoods: dict[int, DuplicateLikelihood] = {}
-        self._possible_duplicate_sort_keys: dict[int, tuple[int, int, str]] = {}
-        self._possible_duplicate_group_ids: dict[int, int] = {}
-        self._excluded_duplicate_pairs: set[tuple[int, int]] = list_duplicate_exclusions()
+        self._possible_duplicate_chart_uids: set[str] = set()
+        self._possible_duplicate_related_names_by_uid: dict[str, dict[str, list[str]]] = {}
+        self._possible_duplicate_likelihoods_by_uid: dict[str, DuplicateLikelihood] = {}
+        self._possible_duplicate_sort_keys_by_uid: dict[str, tuple[int, int, str]] = {}
+        self._possible_duplicate_group_by_uid: dict[str, int] = {}
         self._show_possible_duplicates_collection = False
         self._active_collection_total_count = 0
         self._database_total_count = 0
@@ -16635,7 +16634,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._populate_list()
 
     def _on_check_for_duplicates(self) -> None:
-        self._excluded_duplicate_pairs = list_duplicate_exclusions()
+        excluded_duplicate_pairs = list_duplicate_exclusions()
         rows = [
             normalized
             for row in self._chart_rows
@@ -16646,14 +16645,14 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             load_chart=self._get_chart_for_filter,
             similarity_threshold_percent=65.0,
             similarity_ceiling_percent=100.0,
-            excluded_pairs=self._excluded_duplicate_pairs,
+            excluded_pairs=excluded_duplicate_pairs,
         )
         if not duplicate_result.duplicate_ids:
-            self._possible_duplicate_chart_ids = set()
-            self._possible_duplicate_related_names = {}
-            self._possible_duplicate_likelihoods = {}
-            self._possible_duplicate_sort_keys = {}
-            self._possible_duplicate_group_ids = {}
+            self._possible_duplicate_chart_uids = set()
+            self._possible_duplicate_related_names_by_uid = {}
+            self._possible_duplicate_likelihoods_by_uid = {}
+            self._possible_duplicate_sort_keys_by_uid = {}
+            self._possible_duplicate_group_by_uid = {}
             self._show_possible_duplicates_collection = False
             if self._active_collection_id == DEFAULT_COLLECTION_POSSIBLE_DUPLICATES:
                 self._active_collection_id = DEFAULT_COLLECTION_ALL
@@ -16665,11 +16664,32 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 "No possible duplicates were found from names, exact birth dates, or 65–100% chart similarity.",
             )
             return
-        self._possible_duplicate_chart_ids = duplicate_result.duplicate_ids
-        self._possible_duplicate_related_names = duplicate_result.related_names
-        self._possible_duplicate_likelihoods = duplicate_result.likelihood_by_chart_id
-        self._possible_duplicate_sort_keys = duplicate_result.duplicate_sort_key_by_chart_id
-        self._possible_duplicate_group_ids = duplicate_result.duplicate_group_by_chart_id
+        uid_by_id = get_chart_uid_map(duplicate_result.duplicate_ids)
+        self._possible_duplicate_chart_uids = {
+            uid_by_id[chart_id]
+            for chart_id in duplicate_result.duplicate_ids
+            if chart_id in uid_by_id
+        }
+        self._possible_duplicate_related_names_by_uid = {
+            uid_by_id[chart_id]: value
+            for chart_id, value in duplicate_result.related_names.items()
+            if chart_id in uid_by_id
+        }
+        self._possible_duplicate_likelihoods_by_uid = {
+            uid_by_id[chart_id]: value
+            for chart_id, value in duplicate_result.likelihood_by_chart_id.items()
+            if chart_id in uid_by_id
+        }
+        self._possible_duplicate_sort_keys_by_uid = {
+            uid_by_id[chart_id]: value
+            for chart_id, value in duplicate_result.duplicate_sort_key_by_chart_id.items()
+            if chart_id in uid_by_id
+        }
+        self._possible_duplicate_group_by_uid = {
+            uid_by_id[chart_id]: value
+            for chart_id, value in duplicate_result.duplicate_group_by_chart_id.items()
+            if chart_id in uid_by_id
+        }
         self._show_possible_duplicates_collection = True
         self._active_collection_id = DEFAULT_COLLECTION_POSSIBLE_DUPLICATES
         self._clear_persistent_selection()
@@ -16686,7 +16706,6 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             )
             return
         inserted = save_duplicate_exclusions_by_uids(selected_uids)
-        self._excluded_duplicate_pairs = list_duplicate_exclusions()
         self._on_check_for_duplicates()
         QMessageBox.information(
             self,
@@ -19284,8 +19303,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             )
         elif self._sort_mode == "duplicate_sets":
             rows.sort(
-                key=lambda r: self._possible_duplicate_sort_keys.get(
-                    r[0],
+                key=lambda r: self._possible_duplicate_sort_keys_by_uid.get(
+                    str(r[30] or "").strip().upper(),
                     (10_000_000, 9, (r[1] or "").casefold()),
                 ),
                 reverse=self._sort_descending,
@@ -19533,7 +19552,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                     hypothetical_font.setItalic(True)
                     item.setFont(hypothetical_font)
                 if self._active_collection_id == DEFAULT_COLLECTION_POSSIBLE_DUPLICATES:
-                    related_names = self._possible_duplicate_related_names.get(cid, {})
+                    related_names = self._possible_duplicate_related_names_by_uid.get(item_chart_uid, {})
                     if related_names:
                         tooltip_sections: list[str] = []
                         name_matches = related_names.get("name_exact", [])
@@ -19568,7 +19587,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                             tooltip_sections.append(f"Likely similar spelling to: {tooltip_names}")
                         if tooltip_sections:
                             item.setToolTip("; ".join(tooltip_sections))
-                    group_id = self._possible_duplicate_group_ids.get(cid)
+                    group_id = self._possible_duplicate_group_by_uid.get(item_chart_uid)
                     if group_id is not None:
                         group_palette = (
                             QColor("#1f2b22"),
@@ -19608,7 +19627,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                         "is_placeholder": bool(is_placeholder),
                         "is_hypothetical": bool(is_hypothetical),
                         "is_deceased": bool(is_deceased),
-                        "duplicate_likelihood": self._possible_duplicate_likelihoods.get(cid, ""),
+                        "duplicate_likelihood": self._possible_duplicate_likelihoods_by_uid.get(item_chart_uid, ""),
                     },
                 )
                 self.list_widget.addItem(item)
@@ -19847,7 +19866,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._save_hidden_chart_uids_to_settings()
         refresh_rankings = getattr(self, "_refresh_traits_distribution_rankings_after_hidden_chart_change", None)
         if callable(refresh_rankings):
-            refresh_rankings(normalized_ids)
+            refresh_rankings(changed_chart_uids)
         refresh_rankings_panel = getattr(self, "_refresh_rankings_after_hidden_chart_change", None)
         if callable(refresh_rankings_panel):
             refresh_rankings_panel(changed_chart_uids)
@@ -21426,15 +21445,14 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             int | None,
         ],
     ) -> bool:
-        chart_id = normalized_row[0]
+        chart_uid = str(normalized_row[30] or "").strip().upper() if len(normalized_row) > 30 else ""
         active_collection_id = self._active_collection_id
         if active_collection_id == DEFAULT_COLLECTION_ALL:
             return True
         if active_collection_id == DEFAULT_COLLECTION_POSSIBLE_DUPLICATES:
-            return chart_id in self._possible_duplicate_chart_ids
+            return chart_uid in self._possible_duplicate_chart_uids
 
         chart_source = normalized_row[14]
-        chart_uid = str(normalized_row[30] or "").strip() if len(normalized_row) > 30 else ""
         if active_collection_id in {
             DEFAULT_COLLECTION_EVENT,
             DEFAULT_COLLECTION_SYNASTRY,
@@ -34113,14 +34131,13 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         if manage_dialog is None:
             return
         manage_dialog._hidden_chart_uids = set(self._hidden_chart_uids)
-        changed_chart_id = get_chart_id_by_uid(changed_chart_uid)
         refresh_trait_rankings = getattr(
             manage_dialog,
             "_refresh_traits_distribution_rankings_after_hidden_chart_change",
             None,
         )
-        if callable(refresh_trait_rankings) and changed_chart_id is not None:
-            refresh_trait_rankings({int(changed_chart_id)})
+        if callable(refresh_trait_rankings):
+            refresh_trait_rankings({changed_chart_uid})
         refresh_rankings_panel = getattr(manage_dialog, "_refresh_rankings_after_hidden_chart_change", None)
         if callable(refresh_rankings_panel):
             refresh_rankings_panel({changed_chart_uid})
