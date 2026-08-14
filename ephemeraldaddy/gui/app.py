@@ -5743,6 +5743,11 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             f"synastry_{self._sanitize_export_token(base_chart.name)}_x_{self._sanitize_export_token(overlay_chart.name)}"
         )
         summary_share_button = self._attach_popout_share_button(summary_output, synastry_file_stem)
+        from ephemeraldaddy.gui.features.popouts.synastry_explainer import (
+            attach_synastry_explainer_button,
+        )
+
+        attach_synastry_explainer_button(dialog, summary_share_button)
 
         popout_context_key = summary_output.viewport()
         popout_context: dict[str, object] = {
