@@ -1645,15 +1645,15 @@ def _set_traits_updated_label(owner: Any, updated_at: str | None) -> None:
 
 
 def _traits_calculate_prompt_html() -> str:
-    return ""
+    return "No prior data. Calculate (can take awhile)?"
 
 
 def _traits_recalculate_prompt_html(updated_at: str | None) -> str:
-    return ""
+    return f"Cached trait predictions shown (updated {html.escape(str(updated_at or 'unknown'))}). Recalculate to refresh.<br>"
 
 
 def _traits_stale_recalculate_prompt_html(updated_at: str | None) -> str:
-    return ""
+    return f"Cached trait predictions shown (updated {html.escape(str(updated_at or 'unknown'))}); birth data or norms changed. Recalculate to refresh.<br>"
 
 
 def _set_traits_header_action(owner: Any, state: str) -> None:

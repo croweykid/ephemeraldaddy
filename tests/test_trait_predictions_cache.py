@@ -41,6 +41,16 @@ class _TraitsCacheOwner(DatabaseAnalyticsChartsMixin):
         return row
 
 
+def _chart_row(chart_id: int, name: str, chart_uid: str, *, datetime_iso: str = "") -> tuple:
+    """Build the subset of a list_charts row needed by the UID-first cache."""
+    row = [None] * 31
+    row[0] = chart_id
+    row[1] = name
+    row[4] = datetime_iso
+    row[30] = chart_uid
+    return tuple(row)
+
+
 def test_stale_trait_norm_cache_remains_usable_until_background_refresh(tmp_path, monkeypatch):
     cache_path = tmp_path / "trait_db_norms.json"
     monkeypatch.setattr(trait_predictions, "TRAIT_DB_NORMS_CACHE_PATH", cache_path)
@@ -127,11 +137,12 @@ def test_forced_trait_norm_refresh_recomputes_stale_cache(tmp_path, monkeypatch)
         (item["name"], "#ffffff", repr(item.get("profile", {}))) for item in traits
     )
 
-    def collect(_chart_ids, *, trait_items, trait_signature):
+    def collect(_chart_uids, *, trait_items, trait_signature):
+        assert set(_chart_uids) == {"UID1", "UID2"}
         assert [item["name"] for item in trait_items] == ["Creative"]
         return {"trait_names": ["Creative"], "totals": {"Creative": 1.7}, "chart_count": 2}
 
-    owner._collect_traits_distribution_analytics = collect
+    owner._collect_traits_distribution_analytics_by_uids = collect
 
     assert trait_predictions._database_trait_averages(owner, [trait], force_refresh_stale=True) == {"Creative": 85.0}
 
@@ -189,17 +200,23 @@ def test_traits_distribution_likelihood_cache_persists_across_matching_sessions(
 
     monkeypatch.setattr(db, "DB_DIR", tmp_path)
     trait_signature = (("Creative", "#ffffff", "{}"),)
-    first_session = _TraitsCacheOwner((("uid:one", "row"),))
+    first_session = _TraitsCacheOwner(
+        (("uid:one", "row"),),
+        chart_rows=[_chart_row(101, "One", "UID101")],
+    )
     first_session._traits_distribution_chart_likelihood_cache = {
-        (0, trait_signature, 101): {"Creative": 87.5}
+        (0, trait_signature, "UID101"): {"Creative": 87.5}
     }
 
     first_session._save_traits_distribution_likelihood_cache()
 
-    next_session = _TraitsCacheOwner((("uid:one", "row"),))
+    next_session = _TraitsCacheOwner(
+        (("uid:one", "row"),),
+        chart_rows=[_chart_row(101, "One", "UID101")],
+    )
     assert next_session._load_traits_distribution_likelihood_cache() is True
     assert next_session._traits_distribution_individual_profile_likelihood_cache == {
-        ("{}", 101): 87.5
+        ("{}", "UID101"): 87.5
     }
 
 
@@ -209,30 +226,39 @@ def test_traits_distribution_likelihood_cache_rejects_changed_chart_rows_only(tm
     monkeypatch.setattr(db, "DB_DIR", tmp_path)
     first_session = _TraitsCacheOwner(
         (("uid:one", "row"),),
-        chart_rows=[(101, "Original"), (202, "Unchanged")],
+        chart_rows=[
+            _chart_row(101, "Original", "UID101", datetime_iso="2000-01-01T00:00:00"),
+            _chart_row(202, "Unchanged", "UID202", datetime_iso="2000-01-01T00:00:00"),
+        ],
     )
     trait_signature = (("Creative", "#ffffff", "{}"),)
     first_session._traits_distribution_chart_likelihood_cache = {
-        (0, trait_signature, 101): {"Creative": 87.5},
-        (0, trait_signature, 202): {"Creative": 42.0},
+        (0, trait_signature, "UID101"): {"Creative": 87.5},
+        (0, trait_signature, "UID202"): {"Creative": 42.0},
     }
     first_session._save_traits_distribution_likelihood_cache()
 
     next_session = _TraitsCacheOwner(
         (("uid:two", "row"),),
-        chart_rows=[(101, "Changed"), (202, "Unchanged")],
+        chart_rows=[
+            _chart_row(101, "Changed", "UID101", datetime_iso="2001-01-01T00:00:00"),
+            _chart_row(202, "Unchanged", "UID202", datetime_iso="2000-01-01T00:00:00"),
+        ],
     )
 
     assert next_session._load_traits_distribution_likelihood_cache() is True
     assert next_session._traits_distribution_chart_likelihood_cache == {}
     assert next_session._traits_distribution_individual_likelihood_cache == {}
     assert next_session._traits_distribution_individual_profile_likelihood_cache == {
-        ("{}", 202): 42.0
+        ("{}", "UID202"): 42.0
     }
 
 
 def test_traits_distribution_collection_stops_after_time_budget(monkeypatch):
-    owner = _TraitsCacheOwner((("uid:one", "row"),))
+    owner = _TraitsCacheOwner(
+        (("uid:one", "row"),),
+        chart_rows=[_chart_row(index, str(index), f"UID{index}") for index in (1, 2, 3)],
+    )
     owner._traits_distribution_chart_likelihood_cache = {}
     owner._get_chart_for_filter = lambda chart_id: {"id": chart_id}
     owner._is_placeholder_chart = lambda _chart: False
@@ -256,8 +282,8 @@ def test_traits_distribution_collection_stops_after_time_budget(monkeypatch):
         fake_likelihoods,
     )
 
-    result = owner._collect_traits_distribution_analytics(
-        [1, 2, 3],
+    result = owner._collect_traits_distribution_analytics_by_uids(
+        ["UID1", "UID2", "UID3"],
         trait_items=[{"name": "Creative", "profile": {}}],
         trait_signature=(("Creative", "#ffffff", "{}"),),
         time_budget_seconds=0.5,
@@ -270,19 +296,22 @@ def test_traits_distribution_collection_stops_after_time_budget(monkeypatch):
 
 
 def test_traits_distribution_collection_uses_warm_cache_past_time_budget(monkeypatch):
-    owner = _TraitsCacheOwner((("uid:one", "row"),))
+    owner = _TraitsCacheOwner(
+        (("uid:one", "row"),),
+        chart_rows=[_chart_row(index, str(index), f"UID{index}") for index in (1, 2)],
+    )
     signature = (("Creative", "#ffffff", "{}"),)
     owner._traits_distribution_chart_likelihood_cache = {
-        (0, signature, 1): {"Creative": 80.0},
-        (0, signature, 2): {"Creative": 60.0},
+        (0, signature, "UID1"): {"Creative": 80.0},
+        (0, signature, "UID2"): {"Creative": 60.0},
     }
     owner._get_chart_for_filter = lambda chart_id: {"id": chart_id}
     owner._is_placeholder_chart = lambda _chart: False
 
     monkeypatch.setattr("ephemeraldaddy.gui.features.charts.database_analytics.time.monotonic", lambda: 10_000.0)
 
-    result = owner._collect_traits_distribution_analytics(
-        [1, 2],
+    result = owner._collect_traits_distribution_analytics_by_uids(
+        ["UID1", "UID2"],
         trait_items=[{"name": "Creative", "profile": {}}],
         trait_signature=signature,
         time_budget_seconds=0.0,
@@ -294,10 +323,10 @@ def test_traits_distribution_collection_uses_warm_cache_past_time_budget(monkeyp
 
 
 def test_traits_distribution_collection_scores_only_new_trait_when_existing_trait_cached(monkeypatch):
-    owner = _TraitsCacheOwner((("uid:one", "row"),))
+    owner = _TraitsCacheOwner((("uid:one", "row"),), chart_rows=[_chart_row(1, "1", "UID1")])
     owner._traits_distribution_chart_likelihood_cache = {}
     owner._traits_distribution_individual_likelihood_cache = {
-        (("Creative", "#ffffff", "{}"), 1): 80.0,
+        (("Creative", "#ffffff", "{}"), "UID1"): 80.0,
     }
     owner._get_chart_for_filter = lambda chart_id: {"id": chart_id}
     owner._is_placeholder_chart = lambda _chart: False
@@ -318,8 +347,8 @@ def test_traits_distribution_collection_scores_only_new_trait_when_existing_trai
         ("Creative", "#ffffff", "{}"),
         ("Analytical", "#ffffff", "{}"),
     )
-    result = owner._collect_traits_distribution_analytics(
-        [1],
+    result = owner._collect_traits_distribution_analytics_by_uids(
+        ["UID1"],
         trait_items=[{"name": "Creative", "profile": {}}, {"name": "Analytical", "profile": {}}],
         trait_signature=signature,
         time_budget_seconds=None,
@@ -328,22 +357,22 @@ def test_traits_distribution_collection_scores_only_new_trait_when_existing_trai
     assert scored_trait_batches == [["Analytical"]]
     assert result["partial"] is False
     assert result["totals"] == {"Creative": 0.8, "Analytical": 0.65}
-    assert owner._traits_distribution_chart_likelihood_cache[(0, signature, 1)] == {
+    assert owner._traits_distribution_chart_likelihood_cache[(0, signature, "UID1")] == {
         "Creative": 80.0,
         "Analytical": 65.0,
     }
 
 
 def test_traits_distribution_collection_reuses_cache_after_trait_rename(monkeypatch):
-    owner = _TraitsCacheOwner((("uid:one", "row"),))
+    owner = _TraitsCacheOwner((("uid:one", "row"),), chart_rows=[_chart_row(1, "1", "UID1")])
     old_signature = (("Old Name", "#ffffff", '{"signs":{"Leo":1}}'),)
     new_signature = (("New Name", "#123456", '{"signs":{"Leo":1}}'),)
     owner._traits_distribution_chart_likelihood_cache = {}
     owner._traits_distribution_individual_likelihood_cache = {
-        (old_signature[0], 1): 82.0,
+        (old_signature[0], "UID1"): 82.0,
     }
     owner._traits_distribution_individual_profile_likelihood_cache = {
-        ('{"signs":{"Leo":1}}', 1): 82.0,
+        ('{"signs":{"Leo":1}}', "UID1"): 82.0,
     }
     owner._get_chart_for_filter = lambda chart_id: {"id": chart_id}
     owner._is_placeholder_chart = lambda _chart: False
@@ -356,8 +385,8 @@ def test_traits_distribution_collection_reuses_cache_after_trait_rename(monkeypa
         fail_likelihoods,
     )
 
-    result = owner._collect_traits_distribution_analytics(
-        [1],
+    result = owner._collect_traits_distribution_analytics_by_uids(
+        ["UID1"],
         trait_items=[{"name": "New Name", "color": "#123456", "profile": {"signs": {"Leo": 1}}}],
         trait_signature=new_signature,
         time_budget_seconds=None,
@@ -365,11 +394,17 @@ def test_traits_distribution_collection_reuses_cache_after_trait_rename(monkeypa
 
     assert result["partial"] is False
     assert result["totals"] == {"New Name": 0.82}
-    assert owner._traits_distribution_chart_likelihood_cache[(0, new_signature, 1)] == {"New Name": 82.0}
+    assert owner._traits_distribution_chart_likelihood_cache[(0, new_signature, "UID1")] == {"New Name": 82.0}
 
 
 def test_traits_distribution_collection_passively_persists_uid_trait_metadata(monkeypatch):
-    owner = _TraitsCacheOwner((("uid:one", "row"),))
+    owner = _TraitsCacheOwner(
+        (("uid:one", "row"),),
+        chart_rows=[
+            _chart_row(1, "1", "UIDTRAIT0001"),
+            _chart_row(2, "2", "UIDTRAIT0002"),
+        ],
+    )
     owner._traits_distribution_chart_likelihood_cache = {}
     owner._traits_distribution_individual_likelihood_cache = {}
     charts = {
@@ -394,8 +429,8 @@ def test_traits_distribution_collection_passively_persists_uid_trait_metadata(mo
     )
     monkeypatch.setattr("ephemeraldaddy.gui.features.charts.database_analytics.db.upsert_chart_trait_metadata", fake_upsert)
 
-    result = owner._collect_traits_distribution_analytics(
-        [1, 2],
+    result = owner._collect_traits_distribution_analytics_by_uids(
+        ["UIDTRAIT0001", "UIDTRAIT0002"],
         trait_items=[{"name": "Creative", "profile": {}}],
         trait_signature=(("Creative", "#ffffff", "{}"),),
         time_budget_seconds=None,

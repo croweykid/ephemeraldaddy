@@ -1,6 +1,9 @@
 from pathlib import Path
+import importlib
 import sys
 import types
+
+import pytest
 
 from ephemeraldaddy.analysis.hd_incarnation_crosses import (
     HD_INCARNATION_CROSSES,
@@ -10,6 +13,36 @@ from ephemeraldaddy.analysis.hd_incarnation_crosses import (
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _lightweight_distinguishing_factor_imports():
+    """Keep GUI-heavy dependencies isolated without replacing HD references."""
+    module_names = (
+        "ephemeraldaddy.analysis.human_design",
+        "ephemeraldaddy.gui.style",
+    )
+    original_modules = {name: sys.modules.get(name) for name in module_names}
+    hd_module = types.ModuleType(module_names[0])
+    hd_module.build_human_design_result = lambda _chart: None
+    style_module = types.ModuleType(module_names[1])
+    style_module.CHART_DATA_HIGHLIGHT_COLOR = "#fff"
+    sys.modules[module_names[0]] = hd_module
+    sys.modules[module_names[1]] = style_module
+    sys.modules.pop("ephemeraldaddy.gui.features.charts.distinguishing_factors", None)
+    charts_package = importlib.import_module("ephemeraldaddy.gui.features.charts")
+    charts_package.__dict__.pop("distinguishing_factors", None)
+    module = importlib.import_module("ephemeraldaddy.gui.features.charts.distinguishing_factors")
+    try:
+        yield module
+    finally:
+        sys.modules.pop("ephemeraldaddy.gui.features.charts.distinguishing_factors", None)
+        charts_package.__dict__.pop("distinguishing_factors", None)
+        for name, original in original_modules.items():
+            if original is None:
+                sys.modules.pop(name, None)
+            else:
+                sys.modules[name] = original
 
 
 def test_distinguishing_factor_html_does_not_truncate_significant_factors():
@@ -46,21 +79,11 @@ def test_all_incarnation_cross_themes_have_descriptions():
     assert missing == []
 
 
-def test_database_distinction_repeated_gate_score_weights_extra_repetitions(monkeypatch):
+def test_database_distinction_repeated_gate_score_weights_extra_repetitions(
+    monkeypatch, _lightweight_distinguishing_factor_imports
+):
     from types import SimpleNamespace
-
-    hd_module = types.ModuleType("ephemeraldaddy.analysis.human_design")
-    hd_module.build_human_design_result = lambda _chart: None
-    sys.modules.setdefault("ephemeraldaddy.analysis.human_design", hd_module)
-    hd_reference_module = types.ModuleType("ephemeraldaddy.analysis.human_design_reference")
-    hd_reference_module.GATE_COLORS = {}
-    hd_reference_module.HD_LINE_COLORS = {}
-    sys.modules.setdefault("ephemeraldaddy.analysis.human_design_reference", hd_reference_module)
-    style_module = types.ModuleType("ephemeraldaddy.gui.style")
-    style_module.CHART_DATA_HIGHLIGHT_COLOR = "#fff"
-    sys.modules.setdefault("ephemeraldaddy.gui.style", style_module)
-
-    from ephemeraldaddy.gui.features.charts import distinguishing_factors
+    distinguishing_factors = _lightweight_distinguishing_factor_imports
 
     query_profile = distinguishing_factors.DatabaseDistinctionProfile(
         factors=(),
@@ -93,10 +116,9 @@ def test_database_distinction_repeated_gate_score_weights_extra_repetitions(monk
     assert triple_score > double_score
 
 
-def test_distinguishing_factors_include_raw_weight_outliers(monkeypatch):
+def test_distinguishing_factors_include_raw_weight_outliers(monkeypatch, _lightweight_distinguishing_factor_imports):
     from types import SimpleNamespace
-
-    from ephemeraldaddy.gui.features.charts import distinguishing_factors
+    distinguishing_factors = _lightweight_distinguishing_factor_imports
 
     metric_group = distinguishing_factors._MetricGroup(
         "demo",
@@ -121,10 +143,9 @@ def test_distinguishing_factors_include_raw_weight_outliers(monkeypatch):
     assert raw_factor.raw_z_score >= distinguishing_factors.DISTINGUISHING_Z_THRESHOLD
 
 
-def test_distinguishing_metric_payload_persists_raw_weights(monkeypatch):
+def test_distinguishing_metric_payload_persists_raw_weights(monkeypatch, _lightweight_distinguishing_factor_imports):
     from types import SimpleNamespace
-
-    from ephemeraldaddy.gui.features.charts import distinguishing_factors
+    distinguishing_factors = _lightweight_distinguishing_factor_imports
 
     metric_group = distinguishing_factors._MetricGroup(
         "demo",
@@ -140,10 +161,9 @@ def test_distinguishing_metric_payload_persists_raw_weights(monkeypatch):
     assert payload["groups"]["demo"]["alpha"]["raw"] == 25.0
 
 
-def test_weirdness_score_uses_distinguishing_factor_count_multiplier(monkeypatch):
+def test_weirdness_score_uses_distinguishing_factor_count_multiplier(monkeypatch, _lightweight_distinguishing_factor_imports):
     from types import SimpleNamespace
-
-    from ephemeraldaddy.gui.features.charts import distinguishing_factors
+    distinguishing_factors = _lightweight_distinguishing_factor_imports
 
     metric_group = distinguishing_factors._MetricGroup(
         "demo",
@@ -167,8 +187,8 @@ def test_weirdness_score_uses_distinguishing_factor_count_multiplier(monkeypatch
     assert score == 91.2
 
 
-def test_weirdness_scale_label_uses_interpretation_scale():
-    from ephemeraldaddy.gui.features.charts import distinguishing_factors
+def test_weirdness_scale_label_uses_interpretation_scale(_lightweight_distinguishing_factor_imports):
+    distinguishing_factors = _lightweight_distinguishing_factor_imports
 
     assert "standard weirdness" in distinguishing_factors.weirdness_scale_label(250.0)
     assert "𝓁𝒾𝓁" in distinguishing_factors.weirdness_scale_label(325.0)

@@ -4,13 +4,28 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QTimer, Qt
+from PySide6.QtWidgets import QLabel, QSizePolicy
+
+
+PREDICTION_CALCULATE_PROMPT = "No prior data. Calculate (can take awhile)?"
 
 
 _LOADING_TIMER_ATTR = "_ephemeraldaddy_loading_blink_timer"
 _LOADING_STATE_ATTR = "_ephemeraldaddy_loading_blink_state"
 _LOADING_STYLE_ATTR = "_ephemeraldaddy_loading_blink_previous_style"
 _ELLIPSIS_TIMER_ATTR = "_ephemeraldaddy_loading_ellipsis_timer"
+
+
+def add_prediction_calculate_prompt(layout: Any) -> QLabel:
+    """Add the standard centered, expanding no-cache prompt to a section."""
+    label = QLabel(PREDICTION_CALCULATE_PROMPT)
+    label.setAlignment(Qt.AlignCenter)
+    label.setWordWrap(True)
+    label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
+    label.setStyleSheet("color: #b8b8b8; padding: 18px 8px;")
+    layout.addWidget(label)
+    return label
 
 
 def stop_prediction_loading_blink(label: Any) -> None:
