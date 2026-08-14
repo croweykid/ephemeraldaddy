@@ -9,7 +9,10 @@ application. From the repository root, the master test runner executes the
 complete suite and displays progress in the terminal:
 
 ```bash
-python -m pip install --user --no-cache-dir -r requirements-test.txt
+py -V:3.11 -m venv venv
+venv\Scripts\activate
+python -m pip install --upgrade pip
+python -m pip install --no-cache-dir -r requirements-test.txt
 python tools/run_tests.py
 ```
 
