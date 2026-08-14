@@ -480,7 +480,6 @@ from ephemeraldaddy.gui.features.chart_editor.metric_canvas_layout import (
     MetricCanvasLayoutController,
 )
 from ephemeraldaddy.gui.features.chart_editor.controller import ChartEditorController
-from ephemeraldaddy.gui.features.chart_editor.session import ChartEditSession
 from ephemeraldaddy.gui.features.database_view.close_progress import DatabaseCloseProgress
 from matplotlib.figure import Figure
 from matplotlib.patches import Patch
@@ -5434,25 +5433,27 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self.transit_panel_controller.generate_personal_transit()
 
     def _on_generate_composite_chart(self) -> None:
-        selected_chart_ids = self._selected_local_row_ids()
-        if len(selected_chart_ids) != 2:
-            chart_ids = self._prompt_composite_chart_selection()
-            if chart_ids is None:
+        selected_chart_uids = self._selected_chart_uids()
+        if len(selected_chart_uids) != 2:
+            chart_uids = self._prompt_composite_chart_selection()
+            if chart_uids is None:
                 return
-            self._generate_composite_chart_for_ids(*chart_ids)
+            self._generate_composite_chart_for_uids(*chart_uids)
             return
 
-        self._generate_composite_chart_for_ids(selected_chart_ids[0], selected_chart_ids[1])
+        self._generate_composite_chart_for_uids(
+            selected_chart_uids[0], selected_chart_uids[1]
+        )
 
     def _prompt_composite_chart_selection(
         self,
-        default_first_chart_id: int | None = None,
-        default_second_chart_id: int | None = None,
+        default_first_chart_uid: str | None = None,
+        default_second_chart_uid: str | None = None,
         focus_second_input: bool = False,
         dialog_title: str = "Generate Composite Chart",
         submit_button_label: str = "Synastrize!",
         disallow_placeholder_charts: bool = False,
-    ) -> tuple[int, int] | None:
+    ) -> tuple[str, str] | None:
         dialog = QDialog(self)
         dialog.setWindowTitle(dialog_title)
         dialog.setModal(True)
@@ -5461,19 +5462,32 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(8)
 
-        chart_lookup: dict[str, int] = {}
+        rows = list(list_charts())
+        uid_by_local_row = get_chart_uid_map(row[0] for row in rows)
+        chart_lookup: dict[str, str] = {}
         labels: list[str] = []
-        for row in list_charts():
-            chart_id, name, alias, *_rest = row
-            chart_id = int(chart_id)
-            if disallow_placeholder_charts and self._is_placeholder_local_row_id(chart_id):
+        for row in rows:
+            local_row_id, name, alias, *_rest = row
+            chart_uid = str(uid_by_local_row.get(int(local_row_id)) or "").strip().upper()
+            if not chart_uid:
                 continue
-            display_name = name.strip() if isinstance(name, str) and name.strip() else f"Chart {chart_id}"
+            if disallow_placeholder_charts:
+                active_row = self._active_chart_rows_by_uid.get(chart_uid)
+                if active_row is not None:
+                    is_placeholder = _chart_row_is_non_aggregable(active_row)
+                else:
+                    try:
+                        is_placeholder = self._is_placeholder_chart(load_chart_by_uid(chart_uid))
+                    except ValueError:
+                        continue
+                if is_placeholder:
+                    continue
+            display_name = name.strip() if isinstance(name, str) and name.strip() else "Unnamed Chart"
             if alias:
                 display_name = f"{display_name} ({alias})"
-            label = f"{display_name}  [#{chart_id}]"
+            label = f"{display_name}  [UID {chart_uid}]"
             labels.append(label)
-            chart_lookup[label] = chart_id
+            chart_lookup[label] = chart_uid
 
         first_chart_input = QLineEdit(dialog)
         first_chart_input.setPlaceholderText("Select first chart")
@@ -5488,14 +5502,16 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         second_chart_input = QLineEdit(dialog)
         second_chart_input.setPlaceholderText("Select second chart")
 
-        if default_first_chart_id is not None:
-            for label, chart_id in chart_lookup.items():
-                if chart_id == default_first_chart_id:
+        normalized_first_uid = str(default_first_chart_uid or "").strip().upper()
+        normalized_second_uid = str(default_second_chart_uid or "").strip().upper()
+        if normalized_first_uid:
+            for label, chart_uid in chart_lookup.items():
+                if chart_uid == normalized_first_uid:
                     first_chart_input.setText(label)
                     break
-        if default_second_chart_id is not None:
-            for label, chart_id in chart_lookup.items():
-                if chart_id == default_second_chart_id:
+        if normalized_second_uid:
+            for label, chart_uid in chart_lookup.items():
+                if chart_uid == normalized_second_uid:
                     second_chart_input.setText(label)
                     break
         second_completer = QCompleter(labels, second_chart_input)
@@ -5507,39 +5523,39 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         synastrize_button = QPushButton(submit_button_label, dialog)
         layout.addWidget(synastrize_button)
 
-        selected_chart_ids: tuple[int, int] | None = None
+        selected_chart_uids: tuple[str, str] | None = None
 
-        def _resolve_chart_id(raw_value: str) -> int | None:
+        def _resolve_chart_uid(raw_value: str) -> str | None:
             query = raw_value.strip()
             if not query:
                 return None
             direct_match = chart_lookup.get(query)
             if direct_match is not None:
                 return direct_match
-            for label, chart_id in chart_lookup.items():
-                if query.lower() == label.lower():
-                    return chart_id
+            for label, chart_uid in chart_lookup.items():
+                if query.casefold() == label.casefold():
+                    return chart_uid
             return None
 
         def _submit() -> None:
-            nonlocal selected_chart_ids
-            base_chart_id = _resolve_chart_id(first_chart_input.text())
-            overlay_chart_id = _resolve_chart_id(second_chart_input.text())
-            if base_chart_id is None or overlay_chart_id is None:
+            nonlocal selected_chart_uids
+            base_chart_uid = _resolve_chart_uid(first_chart_input.text())
+            overlay_chart_uid = _resolve_chart_uid(second_chart_input.text())
+            if base_chart_uid is None or overlay_chart_uid is None:
                 QMessageBox.warning(
                     dialog,
                     dialog_title,
                     "Select two saved charts from autocomplete before generating.",
                 )
                 return
-            if base_chart_id == overlay_chart_id:
+            if base_chart_uid == overlay_chart_uid:
                 QMessageBox.warning(
                     dialog,
                     dialog_title,
                     "Select two different charts.",
                 )
                 return
-            selected_chart_ids = (base_chart_id, overlay_chart_id)
+            selected_chart_uids = (base_chart_uid, overlay_chart_uid)
             dialog.accept()
 
         synastrize_button.clicked.connect(_submit)
@@ -5552,26 +5568,20 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
         if dialog.exec() != QDialog.Accepted:
             return None
-        return selected_chart_ids
+        return selected_chart_uids
 
-    def _generate_composite_chart_for_ids(self, base_chart_id: int, overlay_chart_id: int) -> None:
+    def _generate_composite_chart_for_uids(
+        self, base_chart_uid: str, overlay_chart_uid: str
+    ) -> None:
         try:
-            base_chart = load_chart(base_chart_id)
-            overlay_chart = load_chart(overlay_chart_id)
+            base_chart = load_chart_by_uid(base_chart_uid)
+            overlay_chart = load_chart_by_uid(overlay_chart_uid)
         except ValueError as exc:
             QMessageBox.warning(self, "Generate Composite Chart", str(exc))
             return
 
-        base_normalized = normalize_chart(
-            base_chart,
-            chart_id=base_chart_id,
-            chart_type="natal",
-        )
-        overlay_normalized = normalize_chart(
-            overlay_chart,
-            chart_id=overlay_chart_id,
-            chart_type="natal",
-        )
+        base_normalized = normalize_chart(base_chart, chart_type="natal")
+        overlay_normalized = normalize_chart(overlay_chart, chart_type="natal")
         overlay_in_base = assign_houses(
             overlay_normalized.bodies,
             base_normalized.houses,
@@ -7405,15 +7415,16 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             return
 
         if tool_key == "synastry":
-            chart_ids = self._prompt_composite_chart_selection(
-                default_first_chart_id=chart_id,
+            chart_uid = get_chart_uid(chart_id)
+            chart_uids = self._prompt_composite_chart_selection(
+                default_first_chart_uid=chart_uid,
                 focus_second_input=True,
                 dialog_title="Synastry Chart",
                 submit_button_label="Synastrize!",
             )
-            if chart_ids is None:
+            if chart_uids is None:
                 return
-            self._generate_composite_chart_for_ids(*chart_ids)
+            self._generate_composite_chart_for_uids(*chart_uids)
             return
 
         try:
@@ -25206,7 +25217,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         # - Chart Editor Window: current_chart_uid is None (blank fields/new chart).
         # - Chart Edit Window: current_chart_uid is set (editing existing chart).
         self.current_chart_uid: str | None = None
-        self._chart_edit_session = ChartEditSession()
         self._hidden_chart_uids = self._load_hidden_chart_uids_from_settings()
         self._loaded_birth_place = None
         self._loaded_lat = None
@@ -30191,27 +30201,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             top=0.90,
             right=STANDARD_NCV_HORIZONTAL_BAR_CHART["right"],
         )
-
-    @property
-    def _lucygoosey(self) -> bool:
-        """Compatibility name backed by the migrating ChartEditSession."""
-        return self._chart_edit_session.is_dirty
-
-    @_lucygoosey.setter
-    def _lucygoosey(self, is_lucygoosey: bool) -> None:
-        if is_lucygoosey:
-            self._chart_edit_session.mark_dirty()
-        else:
-            self._chart_edit_session.mark_clean()
-
-    @property
-    def _metadata_autosave_requires_recalculation(self) -> bool:
-        """Compatibility name backed by the migrating ChartEditSession."""
-        return self._chart_edit_session.recalculation_required
-
-    @_metadata_autosave_requires_recalculation.setter
-    def _metadata_autosave_requires_recalculation(self, required: bool) -> None:
-        self._chart_edit_session.recalculation_required = bool(required)
 
     def _set_lucygoosey(self, is_lucygoosey: bool) -> None:
         self._lucygoosey = is_lucygoosey
@@ -35306,12 +35295,10 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         if normalized_uid is None:
             raise ValueError("A persisted chart must have a non-empty chart UID")
         self.current_chart_uid = normalized_uid
-        self._chart_edit_session.active_chart_uid = normalized_uid
 
     def _clear_current_chart_uid(self) -> None:
         """Return the Chart Editor to its unsaved, identity-free state."""
         self.current_chart_uid = None
-        self._chart_edit_session.active_chart_uid = None
 
     def _current_chart_uid_for_navigation(self) -> str | None:
         """Return the UID-owned navigation identity without an ID round trip."""
@@ -39078,43 +39065,37 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
 
     def on_get_synastry_chart(self) -> None:
         manage_dialog = self._get_or_create_manage_charts_dialog()
-        chart_ids = manage_dialog._prompt_composite_chart_selection(
-            default_first_chart_id=self._current_local_row_id(),
+        chart_uids = manage_dialog._prompt_composite_chart_selection(
+            default_first_chart_uid=self.current_chart_uid,
             focus_second_input=True,
         )
-        if chart_ids is None:
+        if chart_uids is None:
             return
-        manage_dialog._generate_composite_chart_for_ids(*chart_ids)
+        manage_dialog._generate_composite_chart_for_uids(*chart_uids)
 
     def on_get_human_design_synastry_chart(self) -> None:
         self._open_human_design_synastry_for_chart_uid(None)
 
     def _open_human_design_synastry_for_chart_uid(self, first_chart_uid: str | None) -> None:
         manage_dialog = self._get_or_create_manage_charts_dialog()
-        selected_chart_ids = manage_dialog._selected_non_placeholder_chart_ids()
-        default_first_chart_id = (
-            get_chart_id_by_uid(first_chart_uid)
-            if first_chart_uid
-            else self._current_local_row_id()
-        )
-        default_second_chart_id = None
-        if first_chart_uid is None and len(selected_chart_ids) == 2:
-            default_first_chart_id, default_second_chart_id = selected_chart_ids
-        if default_first_chart_id is not None and manage_dialog._is_placeholder_local_row_id(default_first_chart_id):
-            default_first_chart_id = None
-        chart_ids = manage_dialog._prompt_composite_chart_selection(
-            default_first_chart_id=default_first_chart_id,
-            default_second_chart_id=default_second_chart_id,
+        selected_chart_uids = manage_dialog._selected_chart_uids()
+        default_first_chart_uid = first_chart_uid or self.current_chart_uid
+        default_second_chart_uid = None
+        if first_chart_uid is None and len(selected_chart_uids) == 2:
+            default_first_chart_uid, default_second_chart_uid = selected_chart_uids
+        chart_uids = manage_dialog._prompt_composite_chart_selection(
+            default_first_chart_uid=default_first_chart_uid,
+            default_second_chart_uid=default_second_chart_uid,
             focus_second_input=True,
             dialog_title="Human Design Synastry Chart",
             submit_button_label="Open Human Design Synastry Chart",
             disallow_placeholder_charts=True,
         )
-        if chart_ids is None:
+        if chart_uids is None:
             return
         try:
-            first_chart = load_chart(chart_ids[0])
-            second_chart = load_chart(chart_ids[1])
+            first_chart = load_chart_by_uid(chart_uids[0])
+            second_chart = load_chart_by_uid(chart_uids[1])
         except Exception as exc:
             QMessageBox.warning(
                 self,
