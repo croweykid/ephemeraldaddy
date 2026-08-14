@@ -9,9 +9,15 @@ application. From the repository root, the master test runner executes the
 complete suite and displays progress in the terminal:
 
 ```bash
-python -m pip install -e ".[test]"
+python -m pip install --user --no-cache-dir -r requirements-test.txt
 python tools/run_tests.py
 ```
+
+The test setup intentionally installs only the test runner dependencies. It
+does not perform an editable application install or reinstall the application's
+runtime dependencies. The `--no-cache-dir` option also avoids failures caused
+by an unreadable or corrupted pip wheel cache. If `python -m pytest --version`
+already works, the installation command can be skipped.
 
 Every run also creates a timestamped, human-readable debug log and a JUnit XML
 report under `results/test-runs/`. The runner returns pytest's exit status, so

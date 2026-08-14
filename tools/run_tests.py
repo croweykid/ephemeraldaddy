@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import os
 import platform
 import subprocess
@@ -55,6 +56,15 @@ def _write_line(log_file, message: str = "") -> None:
 
 def main() -> int:
     args = _arguments()
+    if importlib.util.find_spec("pytest") is None:
+        print("pytest is not installed for this Python interpreter.", file=sys.stderr)
+        print(
+            "Install it with: python -m pip install --user --no-cache-dir "
+            "-r requirements-test.txt",
+            file=sys.stderr,
+        )
+        return 2
+
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     log_directory = args.log_dir.expanduser().resolve()
     log_directory.mkdir(parents=True, exist_ok=True)
