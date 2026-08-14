@@ -1259,7 +1259,7 @@ from ephemeraldaddy.gui.features.charts.similarity_pairing import (
     SimilarityPairResolution,
     build_chart_lookup,
     resolve_similarity_pair_targets,
-    similarity_breakdown_chart_ids,
+    similarity_breakdown_chart_uids,
 )
 from ephemeraldaddy.gui.features.charts.similar_charts_worker import SimilarChartsWorker
 from ephemeraldaddy.gui.features.charts.similar_charts_popout import (
@@ -7735,7 +7735,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             if (normalized := self._normalize_chart_row(row)) is not None
             and _chart_row_is_similarity_participant(normalized)
         ]
-        chart_lookup, choices = build_chart_lookup(similarity_rows)
+        chart_lookup, choices = build_chart_lookup(
+            similarity_rows,
+            get_chart_uid_map(row[0] for row in similarity_rows),
+        )
         self.similarities_controller.set_chart_lookup(chart_lookup)
         self._batch_similarity_chart_lookup = chart_lookup
 
@@ -7751,11 +7754,11 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             field.setCompleter(completer)
         refresh_batch_similarity_chart_options(self, choices)
 
-    def _is_placeholder_local_row_id(self, chart_id: int) -> bool:
-        row = self._active_chart_rows_by_uid.get(str(get_chart_uid(chart_id) or "").strip().upper())
+    def _is_placeholder_local_row_id(self, local_row_id: int) -> bool:
+        row = self._active_chart_rows_by_uid.get(str(get_chart_uid(local_row_id) or "").strip().upper())
         if row is not None and _chart_row_is_non_aggregable(row):
             return True
-        chart = self._get_chart_for_filter(int(chart_id))
+        chart = self._get_chart_for_filter(int(local_row_id))
         return self._is_placeholder_chart(chart)
 
     def _is_placeholder_chart(self, chart: Any | None) -> bool:
@@ -7764,32 +7767,48 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         # be excluded from metric snapshots and database-wide totals.
         return _chart_is_non_aggregable(chart)
 
-    def _exclude_placeholder_local_row_ids(self, chart_ids: list[int]) -> list[int]:
+    def _exclude_placeholder_local_row_ids(self, local_row_ids: list[int]) -> list[int]:
         return [
-            int(chart_id)
-            for chart_id in chart_ids
-            if not self._is_placeholder_local_row_id(int(chart_id))
+            int(local_row_id)
+            for local_row_id in local_row_ids
+            if not self._is_placeholder_local_row_id(int(local_row_id))
         ]
 
-    def _is_similarities_placeholder_local_row_id(self, chart_id: int) -> bool:
-        row = self._active_chart_rows_by_uid.get(str(get_chart_uid(chart_id) or "").strip().upper())
+    def _is_similarities_placeholder_local_row_id(self, local_row_id: int) -> bool:
+        row = self._active_chart_rows_by_uid.get(str(get_chart_uid(local_row_id) or "").strip().upper())
         if row is not None and _chart_row_is_placeholder(row):
             return True
-        chart = self._get_chart_for_filter(int(chart_id))
+        chart = self._get_chart_for_filter(int(local_row_id))
         return not _chart_is_similarity_participant(chart)
 
-    def _exclude_similarities_placeholder_local_row_ids(self, chart_ids: list[int]) -> list[int]:
+    def _exclude_similarities_placeholder_local_row_ids(self, local_row_ids: list[int]) -> list[int]:
         return [
-            int(chart_id)
-            for chart_id in chart_ids
-            if not self._is_similarities_placeholder_local_row_id(int(chart_id))
+            int(local_row_id)
+            for local_row_id in local_row_ids
+            if not self._is_similarities_placeholder_local_row_id(int(local_row_id))
         ]
 
+    def _is_similarity_participant_uid(self, chart_uid: str) -> bool:
+        normalized_uid = str(chart_uid or "").strip().upper()
+        if not normalized_uid:
+            return False
+        row = self._active_chart_rows_by_uid.get(normalized_uid)
+        if row is not None:
+            return _chart_row_is_similarity_participant(row)
+        try:
+            return _chart_is_similarity_participant(load_chart_by_uid(normalized_uid))
+        except ValueError:
+            return False
+
     def _resolve_similarity_pair_targets(
-        self, selected_chart_ids: list[int]
+        self, selected_chart_uids: list[str]
     ) -> SimilarityPairResolution:
         input_state = SimilarityInputState(
-            selected_chart_ids=self._exclude_similarities_placeholder_local_row_ids(selected_chart_ids),
+            selected_chart_uids=[
+                chart_uid
+                for chart_uid in selected_chart_uids
+                if self._is_similarity_participant_uid(chart_uid)
+            ],
             first_checked=bool(
                 self._similarities_first_use_checkbox
                 and self._similarities_first_use_checkbox.isChecked()
@@ -7818,9 +7837,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         if self._similarities_pair_result_label is None:
             return
         resolution = self._resolve_similarity_pair_targets(
-            self._selected_local_row_ids()
+            self._selected_chart_uids()
         )
-        if resolution.first_chart_id is None or resolution.second_chart_id is None:
+        if resolution.first_chart_uid is None or resolution.second_chart_uid is None:
             QMessageBox.warning(
                 self,
                 "Calculate Similarity",
@@ -7832,8 +7851,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 or "Select 2 charts, or use chart inputs with “use this” checked."
             )
             return
-        first = self._get_chart_for_filter(resolution.first_chart_id)
-        second = self._get_chart_for_filter(resolution.second_chart_id)
+        first = load_chart_by_uid(resolution.first_chart_uid)
+        second = load_chart_by_uid(resolution.second_chart_uid)
         if first is None or second is None:
             self._similarities_pair_result_label.setText("Could not load both selected charts.")
             return
@@ -7848,8 +7867,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             algorithm_mode=algorithm_mode,
             custom_settings=similarity_settings,
         )
-        first_name = str(getattr(first, "name", "") or f"#{resolution.first_chart_id}")
-        second_name = str(getattr(second, "name", "") or f"#{resolution.second_chart_id}")
+        first_name = str(getattr(first, "name", "") or f"UID {resolution.first_chart_uid}")
+        second_name = str(getattr(second, "name", "") or f"UID {resolution.second_chart_uid}")
         similarity_percent = pair_result.score * 100.0
         band_label, band_color = self._similarity_band_for_percent(similarity_percent)
         component_summary = format_similarity_component_summary(
@@ -7866,15 +7885,17 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             f"</span> "
             f"({component_summary})."
         )
-        breakdown_chart_ids = similarity_breakdown_chart_ids(resolution)
-        if breakdown_chart_ids is not None:
-            self._update_similarities_analysis(breakdown_chart_ids)
+        breakdown_chart_uids = similarity_breakdown_chart_uids(resolution)
+        if breakdown_chart_uids is not None:
+            self._update_similarities_analysis(
+                self._local_row_ids_for_uids(breakdown_chart_uids)
+            )
 
     def _calculate_pair_dissimilarity_from_selection(self) -> None:
         if self._similarities_pair_result_label is None:
             return
-        resolution = self._resolve_similarity_pair_targets(self._selected_local_row_ids())
-        if resolution.first_chart_id is None or resolution.second_chart_id is None:
+        resolution = self._resolve_similarity_pair_targets(self._selected_chart_uids())
+        if resolution.first_chart_uid is None or resolution.second_chart_uid is None:
             QMessageBox.warning(
                 self,
                 "Calculate Dissimilarity",
@@ -7886,17 +7907,19 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 or "Select 2 charts, or use chart inputs with “use this” checked."
             )
             return
-        first = self._get_chart_for_filter(resolution.first_chart_id)
-        second = self._get_chart_for_filter(resolution.second_chart_id)
+        first = load_chart_by_uid(resolution.first_chart_uid)
+        second = load_chart_by_uid(resolution.second_chart_uid)
         if first is None or second is None:
             self._similarities_pair_result_label.setText("Could not load both selected charts.")
             return
-        breakdown_chart_ids = similarity_breakdown_chart_ids(resolution)
-        if breakdown_chart_ids is None:
+        breakdown_chart_uids = similarity_breakdown_chart_uids(resolution)
+        if breakdown_chart_uids is None:
             return
-        total_contrasts = self._update_dissimilarities_analysis(breakdown_chart_ids)
-        first_name = str(getattr(first, "name", "") or f"#{resolution.first_chart_id}")
-        second_name = str(getattr(second, "name", "") or f"#{resolution.second_chart_id}")
+        total_contrasts = self._update_dissimilarities_analysis(
+            self._local_row_ids_for_uids(breakdown_chart_uids)
+        )
+        first_name = str(getattr(first, "name", "") or f"UID {resolution.first_chart_uid}")
+        second_name = str(getattr(second, "name", "") or f"UID {resolution.second_chart_uid}")
         self._similarities_pair_result_label.setText(
             _format_pair_dissimilarity_summary(first_name, second_name, total_contrasts)
         )
@@ -8727,7 +8750,12 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             and not _chart_row_is_non_aggregable(normalized)
         ]
         db_total_count = len(db_chart_ids)
-        resolution = self._resolve_similarity_pair_targets(selected_non_placeholder_chart_ids)
+        selected_non_placeholder_chart_uids = list(
+            get_chart_uid_map(selected_non_placeholder_chart_ids).values()
+        )
+        resolution = self._resolve_similarity_pair_targets(
+            selected_non_placeholder_chart_uids
+        )
         for button, active_tooltip in (
             (self._similarities_pair_button, "Calculate similarity between the selected/input charts."),
             (self._dissimilarities_pair_button, "Calculate dissimilarity between the selected/input charts."),
@@ -8743,7 +8771,9 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 active_tooltip if resolution.allow_click else (resolution.guidance or "Select 2 charts to compare.")
             )
         if self._similarities_pair_result_label is not None:
-            resolution = self._resolve_similarity_pair_targets(selected_non_placeholder_chart_ids)
+            resolution = self._resolve_similarity_pair_targets(
+                selected_non_placeholder_chart_uids
+            )
             if not resolution.allow_click:
                 self._similarities_pair_result_label.setText(
                     resolution.guidance or "Select 2 charts to compare."
@@ -28471,8 +28501,8 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
     def _calculate_pair_dissimilarity_from_selection(self) -> None:
         if self._similarities_pair_result_label is None:
             return
-        resolution = self._resolve_similarity_pair_targets(self._selected_local_row_ids())
-        if resolution.first_chart_id is None or resolution.second_chart_id is None:
+        resolution = self._resolve_similarity_pair_targets(self._selected_chart_uids())
+        if resolution.first_chart_uid is None or resolution.second_chart_uid is None:
             QMessageBox.warning(
                 self,
                 "Calculate Dissimilarity",
@@ -28484,17 +28514,19 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 or "Select 2 charts, or use chart inputs with “use this” checked."
             )
             return
-        first = self._get_chart_for_filter(resolution.first_chart_id)
-        second = self._get_chart_for_filter(resolution.second_chart_id)
+        first = load_chart_by_uid(resolution.first_chart_uid)
+        second = load_chart_by_uid(resolution.second_chart_uid)
         if first is None or second is None:
             self._similarities_pair_result_label.setText("Could not load both selected charts.")
             return
-        breakdown_chart_ids = similarity_breakdown_chart_ids(resolution)
-        if breakdown_chart_ids is None:
+        breakdown_chart_uids = similarity_breakdown_chart_uids(resolution)
+        if breakdown_chart_uids is None:
             return
-        total_contrasts = self._update_dissimilarities_analysis(breakdown_chart_ids)
-        first_name = str(getattr(first, "name", "") or f"#{resolution.first_chart_id}")
-        second_name = str(getattr(second, "name", "") or f"#{resolution.second_chart_id}")
+        total_contrasts = self._update_dissimilarities_analysis(
+            self._local_row_ids_for_uids(breakdown_chart_uids)
+        )
+        first_name = str(getattr(first, "name", "") or f"UID {resolution.first_chart_uid}")
+        second_name = str(getattr(second, "name", "") or f"UID {resolution.second_chart_uid}")
         self._similarities_pair_result_label.setText(
             _format_pair_dissimilarity_summary(first_name, second_name, total_contrasts)
         )

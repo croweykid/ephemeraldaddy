@@ -70,7 +70,7 @@ class SimilaritiesController:
         self.pair_button: QPushButton | None = None
         self.dissimilarity_pair_button: QPushButton | None = None
         self.pair_result_label: QLabel | None = None
-        self.chart_lookup: dict[str, int] = {}
+        self.chart_lookup: dict[str, str] = {}
         self.first_chart_input: QLineEdit | None = None
         self.second_chart_input: QLineEdit | None = None
         self.first_use_checkbox: QCheckBox | None = None
@@ -346,7 +346,7 @@ class SimilaritiesController:
         self.export_sections = sections
         self.host._similarities_export_sections = self.export_sections
 
-    def set_chart_lookup(self, chart_lookup: dict[str, int]) -> None:
+    def set_chart_lookup(self, chart_lookup: dict[str, str]) -> None:
         self.chart_lookup = chart_lookup
         self.host._similarities_chart_lookup = self.chart_lookup
 

@@ -1,4 +1,3 @@
-# LEGACY CHART ID WARNING: any chart_id reference in this file is transitional compatibility only; new code must use chart_uid/Chart UID and must not introduce new chart ID reliance.
 """Similarity batch-edit helpers for Database View's right-side Batch Editor panel."""
 
 from __future__ import annotations
@@ -10,10 +9,15 @@ from typing import Any, Callable
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QCompleter, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QSpinBox, QVBoxLayout, QWidget
 
-from ephemeraldaddy.core.db import get_chart_uid_map, list_charts
+from ephemeraldaddy.core.db import (
+    get_chart_ids_by_uid,
+    get_chart_uid_map,
+    list_charts,
+    load_chart_by_uid,
+)
 from ephemeraldaddy.gui.features.charts.chart_similarity_relationships import save_chart_similarity_relationship
 from ephemeraldaddy.gui.features.charts.provenance import chart_row_is_similarity_participant
-from ephemeraldaddy.gui.features.charts.similarity_pairing import build_chart_lookup, resolve_chart_id
+from ephemeraldaddy.gui.features.charts.similarity_pairing import build_chart_lookup, resolve_chart_uid
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +78,10 @@ def refresh_batch_similarity_chart_options(owner: Any, choices: list[str] | None
             if (normalized := owner._normalize_chart_row(row)) is not None
             and chart_row_is_similarity_participant(normalized)
         ]
-        chart_lookup, choices = build_chart_lookup(similarity_rows)
+        chart_lookup, choices = build_chart_lookup(
+            similarity_rows,
+            get_chart_uid_map(row[0] for row in similarity_rows),
+        )
     else:
         chart_lookup = getattr(owner, "_batch_similarity_chart_lookup", {})
     owner._batch_similarity_chart_lookup = chart_lookup
@@ -82,11 +89,13 @@ def refresh_batch_similarity_chart_options(owner: Any, choices: list[str] | None
 
 
 def apply_batch_similarity(owner: Any) -> None:
-    """Persist one perceived similarity percentage from selected chart(s) to a target chart."""
-    selected_chart_ids = owner._exclude_similarities_placeholder_local_row_ids(
-        owner._selected_local_row_ids()
-    )
-    if not selected_chart_ids:
+    """Persist perceived similarity from selected chart UIDs to a target UID."""
+    selected_chart_uids = [
+        chart_uid
+        for chart_uid in owner._selected_chart_uids()
+        if owner._is_similarity_participant_uid(chart_uid)
+    ]
+    if not selected_chart_uids:
         QMessageBox.information(
             owner,
             "Batch similarity",
@@ -99,11 +108,11 @@ def apply_batch_similarity(owner: Any) -> None:
         refresh_batch_similarity_chart_options(owner)
         lookup = getattr(owner, "_batch_similarity_chart_lookup", {})
 
-    target_chart_id = resolve_chart_id(
+    target_chart_uid = resolve_chart_uid(
         owner.batch_similarity_chart_input.text(),
         lookup if isinstance(lookup, dict) else {},
     )
-    if target_chart_id is None:
+    if target_chart_uid is None:
         QMessageBox.warning(
             owner,
             "Batch similarity",
@@ -111,8 +120,9 @@ def apply_batch_similarity(owner: Any) -> None:
         )
         return
 
-    target_chart = owner._get_chart_for_filter(int(target_chart_id))
-    if target_chart is None:
+    try:
+        target_chart = load_chart_by_uid(target_chart_uid)
+    except ValueError:
         QMessageBox.warning(
             owner,
             "Batch similarity",
@@ -120,9 +130,11 @@ def apply_batch_similarity(owner: Any) -> None:
         )
         return
 
-    changed_chart_ids = [chart_id for chart_id in selected_chart_ids if int(chart_id) != int(target_chart_id)]
-    skipped_self_count = len(selected_chart_ids) - len(changed_chart_ids)
-    if not changed_chart_ids:
+    changed_chart_uids = [
+        chart_uid for chart_uid in selected_chart_uids if chart_uid != target_chart_uid
+    ]
+    skipped_self_count = len(selected_chart_uids) - len(changed_chart_uids)
+    if not changed_chart_uids:
         QMessageBox.warning(
             owner,
             "Batch similarity",
@@ -130,43 +142,52 @@ def apply_batch_similarity(owner: Any) -> None:
         )
         return
 
-    target_display_name = getattr(target_chart, "name", "") or f"Chart #{target_chart_id}"
+    target_display_name = getattr(target_chart, "name", "") or f"UID {target_chart_uid}"
     if not owner._confirm_batch_edit(
         f"assign {owner.batch_similarity_percent_spin.value()}% perceived similarity to "
         f"{target_display_name} for",
-        len(changed_chart_ids),
+        len(changed_chart_uids),
     ):
         return
 
-    chart_uid_map = get_chart_uid_map([*changed_chart_ids, int(target_chart_id)])
+    local_rows_by_uid = get_chart_ids_by_uid([*changed_chart_uids, target_chart_uid])
+    target_local_row_id = local_rows_by_uid.get(target_chart_uid)
+    if target_local_row_id is None:
+        QMessageBox.warning(owner, "Batch similarity", "The target chart is no longer available.")
+        return
     target_name = str(target_display_name).strip()
     score = int(owner.batch_similarity_percent_spin.value())
     saved_count = 0
     failures: list[str] = []
     relationship_path: Path | None = None
 
-    for chart_id in changed_chart_ids:
-        chart = owner._get_chart_for_filter(int(chart_id))
-        if chart is None:
-            failures.append(f"Chart #{chart_id}")
+    for chart_uid in changed_chart_uids:
+        local_row_id = local_rows_by_uid.get(chart_uid)
+        if local_row_id is None:
+            failures.append(f"UID {chart_uid}")
             continue
-        chart_name = str(getattr(chart, "name", "") or f"Chart #{chart_id}").strip()
+        try:
+            chart = load_chart_by_uid(chart_uid)
+        except ValueError:
+            failures.append(f"UID {chart_uid}")
+            continue
+        chart_name = str(getattr(chart, "name", "") or f"UID {chart_uid}").strip()
         try:
             relationship_path = save_chart_similarity_relationship(
-                chart_1_id=int(chart_id),
+                chart_1_id=local_row_id,
                 chart_1_name=chart_name,
-                chart_2_id=int(target_chart_id),
+                chart_2_id=target_local_row_id,
                 chart_2_name=target_name,
-                chart_1_uid=chart_uid_map.get(int(chart_id)),
-                chart_2_uid=chart_uid_map.get(int(target_chart_id)),
+                chart_1_uid=chart_uid,
+                chart_2_uid=target_chart_uid,
                 user_reported_accuracy=score,
                 not_applicable=False,
             )
         except Exception:
             logger.exception(
-                "Failed to save batch perceived similarity relationship for chart %s to %s.",
-                chart_id,
-                target_chart_id,
+                "Failed to save batch perceived similarity relationship for UID %s to %s.",
+                chart_uid,
+                target_chart_uid,
             )
             failures.append(chart_name)
             continue
