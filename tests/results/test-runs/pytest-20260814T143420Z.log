@@ -195,7 +195,7 @@ tests\test_retcon_lucygoosey_autosave.py ....                            [ 71%]
 tests\test_retcon_search.py ..........                                   [ 72%]
 tests\test_search_panel_isolated_factors.py ...                          [ 72%]
 tests\test_selection_header.py .........                                 [ 73%]
-tests\test_semantics_formating.py ............F                          [ 74%]
+tests\test_semantics_formatting.py ............F                          [ 74%]
 tests\test_sign_keyword_info_spacing.py .                                [ 74%]
 tests\test_similar_charts_candidate_batch_loading.py .                   [ 74%]
 tests\test_similar_charts_collection_scope_source.py .........           [ 75%]
@@ -1511,10 +1511,10 @@ tests\test_redundancy_consolidation.py:188: KeyError
 _____________ test_historical_semantics_module_remains_compatible _____________
 
     def test_historical_semantics_module_remains_compatible():
->       from ephemeraldaddy.semantics_formating import format_ordinal as legacy_format_ordinal
-E       ModuleNotFoundError: No module named 'ephemeraldaddy.semantics_formating'
+>       from ephemeraldaddy.semantics_formatting import format_ordinal as legacy_format_ordinal
+E       ModuleNotFoundError: No module named 'ephemeraldaddy.semantics_formatting'
 
-tests\test_semantics_formating.py:54: ModuleNotFoundError
+tests\test_semantics_formatting.py:54: ModuleNotFoundError
 _ test_similar_charts_app_passes_current_hidden_chart_visibility_to_candidates _
 
     def test_similar_charts_app_passes_current_hidden_chart_visibility_to_candidates():
@@ -2516,7 +2516,7 @@ FAILED tests/test_predictions_settings_source.py::test_gender_guesser_render_rou
 FAILED tests/test_property_manager_settings_height_source.py::test_property_manager_tab_fills_the_available_settings_height
 FAILED tests/test_rectification_engine_views_source.py::test_house_refinement_is_scoped_to_current_results
 FAILED tests/test_redundancy_consolidation.py::test_human_design_channel_records_preserve_all_circuit_topology_and_metadata
-FAILED tests/test_semantics_formating.py::test_historical_semantics_module_remains_compatible
+FAILED tests/test_semantics_formatting.py::test_historical_semantics_module_remains_compatible
 FAILED tests/test_similar_charts_hidden_visibility_source.py::test_similar_charts_app_passes_current_hidden_chart_visibility_to_candidates
 FAILED tests/test_similar_charts_hidden_visibility_source.py::test_chart_view_similar_charts_worker_receives_hidden_chart_visibility
 FAILED tests/test_similar_charts_hidden_visibility_source.py::test_trait_rankings_are_moved_to_rankings_panel

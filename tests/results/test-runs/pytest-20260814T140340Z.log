@@ -735,7 +735,7 @@ collected 732 items / 62 errors
       <Function test_isolated_factor_threshold_is_loosened_by_fifteen_percent>
       <Function test_isolated_factor_threshold_still_rejects_non_isolated_weights>
       <Function test_isolated_factor_any_uses_loosened_threshold>
-    <Module test_semantics_formating.py>
+    <Module test_semantics_formatting.py>
       <Function test_pronouns_for_gender_supported_chart_codes>
       <Function test_pronouns_for_chart_reads_gender_attribute>
       <Function test_pronouns_for_gender_unknown_uses_default>

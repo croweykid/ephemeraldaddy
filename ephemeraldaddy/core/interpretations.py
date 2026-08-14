@@ -2327,7 +2327,7 @@ SIGN_KEYWORDS = {
             "inauthentically", "perfectionistically", "rigidly",
         ],
         "profile":"kesmet",
-        "verbs": ["controlling", "formating", "refining", "directing", "calculating", "curating", "stylizing", "asserting", "maneuvering", "correcting", "modulating", "maintaining",],
+        "verbs": ["controlling", "formatting", "refining", "directing", "calculating", "curating", "stylizing", "asserting", "maneuvering", "correcting", "modulating", "maintaining",],
         "core":"Identity through structure. Adult-in-the-room energy. Controls reality by refining it. Overmanaged persona. Rejects mess. Enforces systems that may no longer serve.",
         "strategy":"Orchestrates style, tone, and consequence with sharp calibration.",
         "function":"Keeps the room functional. Enforces standards. Aesthetic is justice in disguise.",

@@ -1122,7 +1122,7 @@ collected 1267 items
       <Function test_custom_collection_name_is_used_and_counts_are_hardened>
       <Function test_all_collection_filtered_shows_hidden_selection_count>
       <Function test_non_all_collection_filtered_shows_hidden_selection_count>
-    <Module test_semantics_formating.py>
+    <Module test_semantics_formatting.py>
       <Function test_pronouns_for_gender_supported_chart_codes>
       <Function test_pronouns_for_chart_reads_gender_attribute>
       <Function test_pronouns_for_gender_unknown_uses_default>

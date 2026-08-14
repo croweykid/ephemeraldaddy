@@ -445,7 +445,7 @@ tests/test_retcon_lucygoosey_autosave.py
 tests/test_retcon_search.py
 tests/test_search_panel_isolated_factors.py
 tests/test_selection_header.py
-tests/test_semantics_formating.py
+tests/test_semantics_formatting.py
 tests/test_sign_keyword_info_spacing.py
 tests/test_similar_charts_candidate_batch_loading.py
 tests/test_similar_charts_collection_scope_source.py

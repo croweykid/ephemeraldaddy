@@ -51,6 +51,6 @@ def test_format_ordinal_applies_english_numeric_suffix_rules(number, expected):
 
 
 def test_historical_semantics_module_remains_compatible():
-    from ephemeraldaddy.semantics_formating import format_ordinal as legacy_format_ordinal
+    from ephemeraldaddy.semantics_formatting import format_ordinal as legacy_format_ordinal
 
     assert legacy_format_ordinal(8) == "8th"
