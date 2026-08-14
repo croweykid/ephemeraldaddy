@@ -7439,7 +7439,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
         if tool_key == "chart_predictor_quiz":
             parent._latest_chart = chart
-            parent._set_current_chart_identity(chart_id, chart)
+            parent._set_current_chart_identity(chart=chart)
             parent.on_open_chart_predictor_quiz()
             return
 
@@ -7447,7 +7447,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             parent._open_bazi_window(chart)
         elif tool_key == "human_design":
             parent._latest_chart = chart
-            parent._set_current_chart_identity(chart_id, chart)
+            parent._set_current_chart_identity(chart=chart)
             parent.on_get_human_design_info()
         elif tool_key == "personal_transit":
             parent._generate_current_transits_for_chart(chart, chart_id)
@@ -13521,7 +13521,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             )
             return
         set_current_chart_by_uid(getattr(chart, "chart_uid", None) or get_chart_uid(chart_id))
-        parent._set_current_chart_identity(chart_id, chart)
+        parent._set_current_chart_identity(chart=chart)
         parent._record_manage_charts_pending_change(chart_id, refresh_metrics=True)
         parent._loaded_birth_place = place
         parent._loaded_lat = chart.lat
@@ -25295,7 +25295,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._help_overlay_active = False
         self._help_marker_buttons: list[QToolButton] = []
         self._size_checker_popup: SizeCheckerPopup | None = None
-        self._manage_charts_pending_changed_ids: set[int] = set()
         self._manage_charts_pending_changed_uids: dict[str, bool] = {}
         self._prediction_norms_revision = 0
         self._charts_controller = ChartsController(
@@ -34801,7 +34800,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             set_current_chart_by_uid(getattr(chart, "chart_uid", None) or get_chart_uid(chart_id))
             self._invalidate_chart_view_navigation_cache({getattr(chart, "chart_uid", None) or get_chart_uid(chart_id)})
 
-        self._set_current_chart_identity(chart_id, chart)
+        self._set_current_chart_identity(chart=chart)
         if not subjective_notes_autosave:
             old_alternate_uid = get_alternate_chart_uid(chart_id)
             new_alternate_uid = self._current_alternate_chart_uid_for_save(getattr(chart, "chart_type", None))
@@ -35206,48 +35205,38 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         return normalized_uid or None
 
     def _current_local_row_id(self) -> int | None:
-        """Resolve the UID-owned edit session identity at the SQLite boundary."""
-        return get_chart_id_by_uid(self.current_chart_uid)
+        """Resolve UID-owned edit identity only when a SQLite row ID is required."""
+        current_uid = self._normalized_chart_uid_key(self.current_chart_uid)
+        if current_uid is None:
+            return None
+
+        # Loaded Chart records originate at the persistence boundary and already
+        # carry their local row ID. Reuse it when it represents this UID instead
+        # of issuing another UID-to-ID query on every autosave or refresh check.
+        latest_chart = getattr(self, "_latest_chart", None)
+        latest_uid = self._normalized_chart_uid_key(getattr(latest_chart, "chart_uid", None))
+        if latest_uid == current_uid:
+            try:
+                local_row_id = int(getattr(latest_chart, "id", 0) or 0)
+            except (TypeError, ValueError):
+                local_row_id = 0
+            if local_row_id > 0:
+                return local_row_id
+        return get_chart_id_by_uid(current_uid)
 
     def _set_current_chart_identity(
         self,
-        chart_id: int | None,
-        chart: Chart | None = None,
         chart_uid: str | None = None,
+        chart: Chart | None = None,
     ) -> None:
-        resolved_uid = self._normalized_chart_uid_key(
-            chart_uid or getattr(chart, "chart_uid", None) or get_chart_uid(chart_id)
+        """Set Chart Editor identity without accepting a legacy integer ID."""
+        self.current_chart_uid = self._normalized_chart_uid_key(
+            chart_uid or getattr(chart, "chart_uid", None)
         )
-        self.current_chart_uid = resolved_uid
 
     def _current_chart_uid_for_navigation(self) -> str | None:
-        stored_chart_uid = self._normalized_chart_uid_key(getattr(self, "current_chart_uid", None))
-        current_chart_id = int(self._current_local_row_id()) if self._current_local_row_id() is not None else None
-        latest_chart = getattr(self, "_latest_chart", None)
-        latest_chart_uid = self._normalized_chart_uid_key(getattr(latest_chart, "chart_uid", None))
-        latest_chart_id = getattr(latest_chart, "id", None)
-        try:
-            latest_chart_id = int(latest_chart_id) if latest_chart_id is not None else None
-        except (TypeError, ValueError):
-            latest_chart_id = None
-
-        if (
-            current_chart_id is not None
-            and latest_chart_uid
-            and latest_chart_id == current_chart_id
-        ):
-            if stored_chart_uid != latest_chart_uid:
-                self.current_chart_uid = latest_chart_uid
-            return latest_chart_uid
-
-        if current_chart_id is not None:
-            resolved_chart_uid = self._normalized_chart_uid_key(get_chart_uid(current_chart_id))
-            if resolved_chart_uid:
-                if stored_chart_uid != resolved_chart_uid:
-                    self.current_chart_uid = resolved_chart_uid
-                return resolved_chart_uid
-
-        return stored_chart_uid
+        """Return the UID-owned navigation identity without an ID round trip."""
+        return self._normalized_chart_uid_key(self.current_chart_uid)
 
     def _cache_chart_view_navigation_entry(self, chart_uid: str | None, chart: Chart | None) -> None:
         if chart is None:
@@ -35423,7 +35412,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._species_info_map = {}
 
         # Chart Edit Window: an existing chart is identified by stable chart UID.
-        self._set_current_chart_identity(chart_id, chart, normalized_chart_uid)
+        self._set_current_chart_identity(normalized_chart_uid, chart)
 
         # Update input fields from loaded chart
         form_hydration_started_at = perf_counter()
@@ -35696,8 +35685,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         if chart_uid:
             previous_requires_metrics = bool(self._manage_charts_pending_changed_uids.get(chart_uid, False))
             self._manage_charts_pending_changed_uids[chart_uid] = previous_requires_metrics or bool(refresh_metrics)
-        if refresh_metrics:
-            self._manage_charts_pending_changed_ids.add(int(chart_id))
 
     def _pending_manage_chart_refreshes(self) -> tuple[set[int], set[int]]:
         """Return pending Database View refresh IDs split by metrics requirements.
@@ -35707,7 +35694,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         so this method resolves UIDs at the boundary and separates lightweight
         row-only refreshes from analytics/metrics refreshes.
         """
-        metric_ids: set[int] = set(self._manage_charts_pending_changed_ids)
+        metric_ids: set[int] = set()
         lightweight_ids: set[int] = set()
         for chart_uid, requires_metrics in list(self._manage_charts_pending_changed_uids.items()):
             chart_id = get_chart_id_by_uid(chart_uid)
@@ -35721,7 +35708,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         return metric_ids, lightweight_ids
 
     def _clear_pending_manage_chart_refreshes(self) -> None:
-        self._manage_charts_pending_changed_ids.clear()
         self._manage_charts_pending_changed_uids.clear()
 
     def _get_or_create_manage_charts_dialog(self) -> ManageChartsDialog:
@@ -35764,7 +35750,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             sections_to_refresh=sections_to_refresh,
         )
         if changed_ids:
-            self._manage_charts_pending_changed_ids.difference_update(changed_ids)
             for changed_id in changed_ids:
                 chart_uid = self._normalized_chart_uid_key(get_chart_uid(int(changed_id)))
                 if chart_uid:
@@ -35825,7 +35810,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         )
         if refresh_metrics:
             self._prediction_norms_revision = int(getattr(self, "_prediction_norms_revision", 0) or 0) + 1
-        self._manage_charts_pending_changed_ids.difference_update(changed_ids)
         for changed_id in changed_ids:
             chart_uid = self._normalized_chart_uid_key(get_chart_uid(int(changed_id)))
             if chart_uid:
@@ -37999,7 +37983,9 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             row_tokens.append((chart_id, self._stable_traits_metadata_hash(payload)))
         pending_ids = sorted(
             int(chart_id)
-            for chart_id in (getattr(self, "_manage_charts_pending_changed_ids", set()) or set())
+            for chart_id in get_chart_ids_by_uid(
+                getattr(self, "_manage_charts_pending_changed_uids", {}).keys()
+            ).values()
             if int(chart_id) not in visible_chart_ids
         )
         dirty_ids = sorted(
