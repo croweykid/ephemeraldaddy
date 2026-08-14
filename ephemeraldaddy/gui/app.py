@@ -5414,8 +5414,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
     def _selected_transit_datetime_utc(self) -> tuple[datetime.datetime, bool]:
         return self.transit_panel_controller.selected_datetime_utc()
 
-    def _resolve_personal_transit_chart_id(self) -> int | None:
-        return self.transit_panel_controller.resolve_personal_transit_chart_id()
+    def _resolve_personal_transit_chart_uid(self) -> str | None:
+        return self.transit_panel_controller.resolve_personal_transit_chart_uid()
 
     def _matching_personal_transit_labels(self, raw: str) -> list[str]:
         return self.transit_panel_controller.matching_personal_transit_labels(raw)
@@ -24985,28 +24985,19 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             )
             return
 
-        chart_id_value = self._item_local_row_id(item)
-        if chart_id_value is None:
+        chart_uid = self._normalized_item_chart_uid(item)
+        if chart_uid is None:
             QMessageBox.warning(
                 self,
                 "Personal Transit Chart",
                 "The selected row does not reference a saved chart.",
             )
             return
-        try:
-            chart_id = int(chart_id_value)
-        except (TypeError, ValueError):
-            QMessageBox.warning(
-                self,
-                "Personal Transit Chart",
-                "The selected row does not reference a valid chart id.",
-            )
-            return
 
         self._refresh_personal_transit_chart_options()
         selected_label = None
-        for label, candidate_id in self._personal_transit_chart_lookup.items():
-            if candidate_id == chart_id:
+        for label, candidate_uid in self._personal_transit_chart_lookup.items():
+            if candidate_uid == chart_uid:
                 selected_label = label
                 break
         if selected_label is None:
