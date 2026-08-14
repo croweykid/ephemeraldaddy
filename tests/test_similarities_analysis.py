@@ -45,12 +45,16 @@ def _install_pyside_stubs():
     qtwidgets.QApplication = _QApplication
     qtwidgets.QAbstractButton = _Widget
     qtwidgets.QComboBox = _Widget
+    qtwidgets.QDialog = _Widget
     qtwidgets.QListView = _Widget
     qtwidgets.QListWidget = _Widget
+    qtwidgets.QMessageBox = _Widget
     qtwidgets.QProgressDialog = _Widget
     qtwidgets.QPushButton = _Widget
     qtwidgets.QSizePolicy = _Widget
     qtwidgets.QToolButton = _Widget
+    qtwidgets.QTextBrowser = _Widget
+    qtwidgets.QVBoxLayout = _Widget
     qtwidgets.QWidget = _Widget
     sys.modules.setdefault("PySide6", pyside)
     sys.modules.setdefault("PySide6.QtCore", qtcore)
@@ -69,6 +73,7 @@ style_stub.DARK_THEME = {
 }
 style_stub.CHART_DATA_HIGHLIGHT_COLOR = "#c8945c"
 style_stub.CHART_DATA_DIVIDER = "────────────────"
+style_stub.ARROW_STYLES = {"classic": "→"}
 style_stub.blend_hex_colors = lambda first, second, ratio=0.5: first
 style_stub.format_chart_header = lambda *_args, **_kwargs: ""
 sys.modules.setdefault("ephemeraldaddy.gui.style", style_stub)

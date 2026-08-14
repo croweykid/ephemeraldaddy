@@ -1,3 +1,7 @@
+import pytest
+
+pytest.importorskip("PySide6.QtWidgets", exc_type=ImportError)
+
 from PySide6.QtWidgets import QApplication, QCheckBox, QDoubleSpinBox, QLabel
 
 from ephemeraldaddy.gui.settings.percentage_weights import (

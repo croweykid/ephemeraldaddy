@@ -1,4 +1,7 @@
+import pytest
 from matplotlib.figure import Figure
+
+pytest.importorskip("PySide6.QtWidgets", exc_type=ImportError)
 
 from ephemeraldaddy.gui.features.charts.database_analytics import (
     DatabaseAnalyticsChartsMixin,
