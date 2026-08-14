@@ -331,11 +331,14 @@ class RankingsPanelMixin:
         ):
             return False
 
-        hidden_chart_ids = {int(chart_id) for chart_id in getattr(self, "_hidden_chart_ids", set())}
+        hidden_chart_uids = {
+            self._normalize_rankings_chart_uid(chart_uid)
+            for chart_uid in getattr(self, "_hidden_chart_uids", set())
+        }
         chart_tokens = self._traits_distribution_chart_tokens()
         for chart_id, chart_uid in sorted(chart_uids_by_id.items()):
             chart_uid = self._normalize_rankings_chart_uid(chart_uid)
-            if not chart_uid or chart_id in hidden_chart_ids:
+            if not chart_uid or chart_uid in hidden_chart_uids:
                 continue
             chart = self._get_chart_for_filter(chart_id)
             if chart is None or self._is_placeholder_chart(chart):

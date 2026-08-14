@@ -33,7 +33,10 @@ from ephemeraldaddy.gui.features.charts.metrics import (
     calculate_dominant_sign_weights,
     house_for_longitude,
 )
-from ephemeraldaddy.gui.features.charts.prediction_loading_labels import stop_prediction_loading_blink
+from ephemeraldaddy.gui.features.charts.prediction_loading_labels import (
+    add_prediction_calculate_prompt,
+    stop_prediction_loading_blink,
+)
 from ephemeraldaddy.gui.features.charts.presentation import sign_for_longitude
 from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR
 from ephemeraldaddy.analysis.human_design import derive_human_design_profile
@@ -1085,6 +1088,7 @@ class EnneagramPredictionPanelAdapter:
             self.clear_layout_widgets(layout)
         if callable(self.reset_canvas_callback):
             self.reset_canvas_callback("enneagram_prediction_canvas")
+        add_prediction_calculate_prompt(layout)
         if self.tritype_label is not None:
             stop_prediction_loading_blink(self.tritype_label)
             self.tritype_label.setText("<b>Predicted Tritype:</b> No prior data")

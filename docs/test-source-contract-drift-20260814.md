@@ -23,6 +23,25 @@ issue fixed separately. The historical `semantics_formating` failure is also
 excluded because it was an import compatibility failure, not a source-contract
 assertion, and its typo correction is being handled separately.
 
+## Resolution update
+
+The Chart View Predictions/right-panel and hidden-chart/Astro Twin/rankings
+clusters were reconciled in the follow-up UID and render-scheduling pass:
+
+- no-cache Prediction sections now share one visible, centered Calculate prompt;
+- stale trait results remain visible with an explicit recalculation notice;
+- a current render token no longer causes redundant Enneagram/D&D redraws when
+  the optional Traits renderer is absent;
+- Anagrams are routed only through the dedicated Linguistics (`abc`) panel;
+- ranking scopes, hidden membership, navigation links, and worker inputs use
+  chart UIDs, with numeric row IDs limited to explicit persistence adapters;
+- source assertions in these clusters now inspect the extracted/current owner
+  instead of requiring obsolete app.py placement or numeric-ID state.
+
+The checklist below remains the historical review inventory. Items addressed
+by that pass should be read together with this resolution note rather than as
+still-open implementation requests.
+
 ## 1. Chart View and Predictions (13)
 
 - [ ] `test_chart_view_right_panel_layout_source::test_dnd_prediction_summary_is_added_after_metric_panel_render_clears_layout`

@@ -1343,9 +1343,11 @@ def schedule_chart_render_for_active_right_panel(owner: object) -> None:
         return
     if active_panel == "predictions":
         render_token = _chart_right_panel_prediction_render_token(owner, chart)
+        render_traits = getattr(owner, "_render_traits_predictions", None)
+        traits_required = callable(render_traits) and _prediction_section_visible(owner, "traits")
         traits_ready = _traits_predictions_have_rendered_content(owner)
         traits_render_token = str(getattr(owner, "_traits_prediction_last_render_chart_token", "") or "")
-        traits_ready_for_chart = traits_ready and traits_render_token == render_token
+        traits_ready_for_chart = not traits_required or (traits_ready and traits_render_token == render_token)
         if (
             state is not None
             and state.last_render_chart_token == render_token
@@ -1354,8 +1356,7 @@ def schedule_chart_render_for_active_right_panel(owner: object) -> None:
         ):
             return
         sync_prediction_section_visibility(owner)
-        render_traits = getattr(owner, "_render_traits_predictions", None)
-        if callable(render_traits) and not traits_ready_for_chart and _prediction_section_visible(owner, "traits"):
+        if traits_required and not traits_ready_for_chart:
             render_traits(chart)
             setattr(owner, "_traits_prediction_last_render_chart_token", render_token)
         render_ocean = getattr(owner, "_render_ocean_predictions", None)

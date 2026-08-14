@@ -4687,7 +4687,7 @@ class DatabaseAnalyticsChartsMixin:
         if not isinstance(context, dict) or not isinstance(rank_label, QLabel):
             return
         rankings = self._traits_distribution_chart_rankings(
-            chart_ids=context.get("chart_ids", ()),
+            chart_uids=context.get("chart_uids", ()),
             trait_signature=context.get("trait_signature", ()),
             selected_trait_name=str(context.get("selected_trait_name", "") or ""),
             database_values=context.get("database_values", {}),
@@ -4794,7 +4794,7 @@ class DatabaseAnalyticsChartsMixin:
     def _traits_distribution_chart_rankings(
         self,
         *,
-        chart_ids: list[int] | set[int],
+        chart_uids: list[str] | set[str] | tuple[str, ...],
         trait_signature: tuple[tuple[str, str, str], ...],
         selected_trait_name: str,
         database_values: Mapping[str, float],
@@ -4802,23 +4802,33 @@ class DatabaseAnalyticsChartsMixin:
         """Return cached top chart matches for a trait without a second all-traits pass."""
         if not selected_trait_name:
             return []
-        normalized_chart_ids = tuple(sorted({int(chart_id) for chart_id in chart_ids}))
+        normalized_chart_uids = tuple(
+            sorted({str(chart_uid or "").strip().upper() for chart_uid in chart_uids if str(chart_uid or "").strip()})
+        )
+        chart_ids_by_uid = db.get_chart_ids_by_uid(normalized_chart_uids)
         cache_revision = int(getattr(self, "_database_metrics_cache_revision", 0))
         likelihood_cache = getattr(self, "_traits_distribution_chart_likelihood_cache", None)
         if not isinstance(likelihood_cache, dict):
             return []
         rows: list[dict[str, Any]] = []
-        hidden_chart_ids = {int(chart_id) for chart_id in getattr(self, "_hidden_chart_ids", set())}
+        hidden_chart_uids = {
+            str(chart_uid or "").strip().upper()
+            for chart_uid in getattr(self, "_hidden_chart_uids", set())
+            if str(chart_uid or "").strip()
+        }
         db_average_pct = float(database_values.get(selected_trait_name, 0.0)) * 100.0
         chart_uid_by_id = self._traits_distribution_chart_uid_by_id()
-        for chart_id in normalized_chart_ids:
-            if int(chart_id) in hidden_chart_ids:
+        for chart_uid in normalized_chart_uids:
+            if chart_uid in hidden_chart_uids:
+                continue
+            chart_id = chart_ids_by_uid.get(chart_uid)
+            if chart_id is None:
                 continue
             chart = self._get_chart_for_filter(int(chart_id))
             if chart is None or self._is_placeholder_chart(chart):
                 continue
-            chart_uid = chart_uid_by_id.get(int(chart_id), "")
-            if not chart_uid:
+            resolved_chart_uid = chart_uid_by_id.get(int(chart_id), "")
+            if not resolved_chart_uid or resolved_chart_uid != chart_uid:
                 continue
             chart_cache_key = (cache_revision, trait_signature, chart_uid)
             likelihoods = likelihood_cache.get(chart_cache_key)
@@ -5733,7 +5743,7 @@ class DatabaseAnalyticsChartsMixin:
                 sorted(db.get_chart_uid_map(chart_ids).values())
             ) if loaded_charts > 0 else ()
             self._traits_distribution_rank_context = {
-                "chart_ids": (),
+                "chart_uids": (),
                 "trait_signature": trait_signature,
                 "selected_trait_name": "",
                 "database_values": {},
@@ -5836,11 +5846,12 @@ class DatabaseAnalyticsChartsMixin:
             name: (float(database_totals.get(name, 0.0)) / float(database_count) if database_count else 0.0)
             for name in trait_names
         }
-        if manual_rank_ids:
-            ranking_scope_ids: list[int] | set[int] = list(manual_rank_ids)
+        database_rank_uids = tuple(sorted(db.get_chart_uid_map(database_chart_ids).values()))
+        if manual_rank_uids:
+            ranking_scope_uids = manual_rank_uids
             ranking_scope_label = "the manually ranked selection"
         else:
-            ranking_scope_ids = database_chart_ids
+            ranking_scope_uids = database_rank_uids
             ranking_scope_label = "the database"
         rank_selected_button = getattr(self, "traits_distribution_rank_selected_button", None)
         if isinstance(rank_selected_button, QPushButton):
@@ -5851,7 +5862,7 @@ class DatabaseAnalyticsChartsMixin:
             )
         rank_label = getattr(self, "traits_distribution_rank_label", None)
         self._traits_distribution_rank_context = {
-            "chart_ids": tuple(sorted({int(chart_id) for chart_id in ranking_scope_ids})),
+            "chart_uids": tuple(ranking_scope_uids),
             "trait_signature": trait_signature,
             "selected_trait_name": selected_trait_name or "",
             "database_values": dict(database_values),
@@ -5861,7 +5872,7 @@ class DatabaseAnalyticsChartsMixin:
         }
         if isinstance(rank_label, QLabel):
             rankings = self._traits_distribution_chart_rankings(
-                chart_ids=ranking_scope_ids,
+                chart_uids=ranking_scope_uids,
                 trait_signature=trait_signature,
                 selected_trait_name=selected_trait_name or "",
                 database_values=database_values,
