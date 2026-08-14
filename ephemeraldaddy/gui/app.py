@@ -1565,6 +1565,7 @@ from ephemeraldaddy.gui.style import (
 from ephemeraldaddy.core.timeutils import localize_naive_datetime
 from ephemeraldaddy.gui.ui_helpers import EmojiTiledPanel, handle_list_letter_jump as _handle_list_letter_jump
 from ephemeraldaddy.gui.widgets.quad_state import QuadStateSlider, TriStateCheckBox
+from ephemeraldaddy.gui.appwide_input import install_appwide_input_focus_policy
 
 DISSIMILARITY_CHART_1_RGB = (255, 215, 80)
 DISSIMILARITY_CHART_2_RGB = (80, 170, 255)
@@ -2116,6 +2117,7 @@ def _get_qapp():
     _apply_global_dropdown_and_menu_styles(app)
     install_app_tooltip_style(app)
     install_appwide_cursor_defaults(app)
+    install_appwide_input_focus_policy(app)
     return app
 
 
@@ -14883,9 +14885,11 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
     @staticmethod
     def _bind_batch_enter_apply(widget: QWidget, callback: Callable[[], None]) -> None:
         shortcut = QShortcut(QKeySequence("Return"), widget)
+        shortcut.setContext(Qt.WidgetWithChildrenShortcut)
         shortcut.activated.connect(callback)
         widget._batch_apply_enter_shortcut = shortcut
         shortcut2 = QShortcut(QKeySequence("Enter"), widget)
+        shortcut2.setContext(Qt.WidgetWithChildrenShortcut)
         shortcut2.activated.connect(callback)
         widget._batch_apply_enter_shortcut2 = shortcut2
         widget._batch_enter_apply_callback = callback

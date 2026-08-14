@@ -1,0 +1,74 @@
+import os
+from pathlib import Path
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QKeySequence, QShortcut
+from PySide6.QtTest import QTest
+from PySide6.QtWidgets import QApplication, QLineEdit, QTextEdit, QVBoxLayout, QWidget
+
+from ephemeraldaddy.gui.appwide_input import install_appwide_input_focus_policy
+
+
+def _application() -> QApplication:
+    return QApplication.instance() or QApplication([])
+
+
+def test_enter_submits_focused_line_edit_instead_of_other_panel_shortcut():
+    app = _application()
+    install_appwide_input_focus_policy(app)
+    window = QWidget()
+    layout = QVBoxLayout(window)
+    search_input = QLineEdit()
+    other_panel = QWidget()
+    layout.addWidget(search_input)
+    layout.addWidget(other_panel)
+
+    submissions: list[str] = []
+    stolen_shortcuts: list[bool] = []
+    search_input.returnPressed.connect(lambda: submissions.append(search_input.text()))
+    shortcut = QShortcut(QKeySequence("Return"), window)
+    shortcut.setContext(Qt.WidgetWithChildrenShortcut)
+    shortcut.activated.connect(lambda: stolen_shortcuts.append(True))
+
+    window.show()
+    search_input.setText("Ada Lovelace")
+    search_input.setFocus()
+    QTest.keyClick(search_input, Qt.Key_Return)
+
+    assert submissions == ["Ada Lovelace"]
+    assert stolen_shortcuts == []
+    window.close()
+
+
+def test_enter_remains_a_newline_in_multiline_editor():
+    app = _application()
+    install_appwide_input_focus_policy(app)
+    window = QWidget()
+    layout = QVBoxLayout(window)
+    editor = QTextEdit()
+    layout.addWidget(editor)
+    window.show()
+    editor.setFocus()
+    editor.setPlainText("first line")
+    editor.moveCursor(editor.textCursor().MoveOperation.End)
+    QTest.keyClick(editor, Qt.Key_Return)
+
+    assert editor.toPlainText() == "first line\n"
+    window.close()
+
+
+def test_batch_editor_enter_shortcuts_are_limited_to_their_own_inputs():
+    source = (
+        Path(__file__).resolve().parents[1] / "ephemeraldaddy/gui/app.py"
+    ).read_text()
+    method_start = source.index("    def _bind_batch_enter_apply(")
+    method_end = source.index("    def _set_batch_metric_spin_state(", method_start)
+
+    assert source[method_start:method_end].count(
+        "shortcut.setContext(Qt.WidgetWithChildrenShortcut)"
+    ) == 1
+    assert source[method_start:method_end].count(
+        "shortcut2.setContext(Qt.WidgetWithChildrenShortcut)"
+    ) == 1
