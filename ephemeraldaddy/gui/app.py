@@ -7439,7 +7439,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
 
         if tool_key == "chart_predictor_quiz":
             parent._latest_chart = chart
-            parent._set_current_chart_identity(chart=chart)
+            parent._set_current_chart_uid(chart.chart_uid)
             parent.on_open_chart_predictor_quiz()
             return
 
@@ -7447,7 +7447,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             parent._open_bazi_window(chart)
         elif tool_key == "human_design":
             parent._latest_chart = chart
-            parent._set_current_chart_identity(chart=chart)
+            parent._set_current_chart_uid(chart.chart_uid)
             parent.on_get_human_design_info()
         elif tool_key == "personal_transit":
             parent._generate_current_transits_for_chart(chart, chart_id)
@@ -13521,7 +13521,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             )
             return
         set_current_chart_by_uid(getattr(chart, "chart_uid", None) or get_chart_uid(chart_id))
-        parent._set_current_chart_identity(chart=chart)
+        parent._set_current_chart_uid(chart.chart_uid)
         parent._record_manage_charts_pending_change(chart_id, refresh_metrics=True)
         parent._loaded_birth_place = place
         parent._loaded_lat = chart.lat
@@ -32873,7 +32873,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         return True
 
     def _orphan_current_chart_reference(self) -> None:
-        self._set_current_chart_identity(None)
+        self._clear_current_chart_uid()
         set_current_chart_by_uid(None)
         self.update_button.setText("Save Chart")
         self._set_lucygoosey(False)
@@ -34800,7 +34800,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             set_current_chart_by_uid(getattr(chart, "chart_uid", None) or get_chart_uid(chart_id))
             self._invalidate_chart_view_navigation_cache({getattr(chart, "chart_uid", None) or get_chart_uid(chart_id)})
 
-        self._set_current_chart_identity(chart=chart)
+        self._set_current_chart_uid(chart.chart_uid)
         if not subjective_notes_autosave:
             old_alternate_uid = get_alternate_chart_uid(chart_id)
             new_alternate_uid = self._current_alternate_chart_uid_for_save(getattr(chart, "chart_type", None))
@@ -34938,7 +34938,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
     def _reset_new_chart_form(self) -> None:
         self._chart_view_history.clear()
         self._chart_view_history_index = -1
-        self._set_current_chart_identity(None)
+        self._clear_current_chart_uid()
         set_current_chart_by_uid(None)
         self._loaded_birth_place = None
         self._loaded_lat = None
@@ -35224,15 +35224,16 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                 return local_row_id
         return get_chart_id_by_uid(current_uid)
 
-    def _set_current_chart_identity(
-        self,
-        chart_uid: str | None = None,
-        chart: Chart | None = None,
-    ) -> None:
-        """Set Chart Editor identity without accepting a legacy integer ID."""
-        self.current_chart_uid = self._normalized_chart_uid_key(
-            chart_uid or getattr(chart, "chart_uid", None)
-        )
+    def _set_current_chart_uid(self, chart_uid: str) -> None:
+        """Set the Chart Editor's sole identity from an explicit persisted UID."""
+        normalized_uid = self._normalized_chart_uid_key(chart_uid)
+        if normalized_uid is None:
+            raise ValueError("A persisted chart must have a non-empty chart UID")
+        self.current_chart_uid = normalized_uid
+
+    def _clear_current_chart_uid(self) -> None:
+        """Return the Chart Editor to its unsaved, identity-free state."""
+        self.current_chart_uid = None
 
     def _current_chart_uid_for_navigation(self) -> str | None:
         """Return the UID-owned navigation identity without an ID round trip."""
@@ -35412,7 +35413,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         self._species_info_map = {}
 
         # Chart Edit Window: an existing chart is identified by stable chart UID.
-        self._set_current_chart_identity(normalized_chart_uid, chart)
+        self._set_current_chart_uid(normalized_chart_uid)
 
         # Update input fields from loaded chart
         form_hydration_started_at = perf_counter()

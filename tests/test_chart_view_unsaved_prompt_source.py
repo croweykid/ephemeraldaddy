@@ -181,7 +181,7 @@ def test_retcon_time_edits_defer_autosave_so_leave_prompt_can_win():
 
 def test_save_update_caches_chart_view_entry_by_uid_not_row_id():
     method = _method_source("on_update_chart")
-    assert "self._set_current_chart_identity(chart=chart)" in method
+    assert "self._set_current_chart_uid(chart.chart_uid)" in method
     assert "self._cache_chart_view_navigation_entry(self.current_chart_uid, chart)" in method
     assert "self._cache_chart_view_navigation_entry(chart_id, chart)" not in method
 
@@ -271,15 +271,19 @@ def test_chart_editor_retains_only_uid_current_chart_identity():
     init_start = class_source.index("    def __init__")
     init_end = class_source.index("\n    def ", init_start + 1)
     init_source = class_source[init_start:init_end]
-    identity_source = _method_source("_set_current_chart_identity")
+    identity_source = _method_source("_set_current_chart_uid")
     adapter_start = class_source.index("    def _current_local_row_id")
     adapter_end = class_source.index("\n    def ", adapter_start + 1)
     adapter_source = class_source[adapter_start:adapter_end]
 
     assert "self.current_chart_uid: str | None = None" in init_source
     assert "self.current_chart_id" not in class_source
-    assert "chart_id:" not in identity_source
-    assert "self.current_chart_uid = self._normalized_chart_uid_key" in identity_source
+    assert "chart_id" not in identity_source
+    assert "chart:" not in identity_source
+    assert "normalized_uid = self._normalized_chart_uid_key(chart_uid)" in identity_source
+    assert "if normalized_uid is None:" in identity_source
+    assert "self.current_chart_uid = normalized_uid" in identity_source
+    assert "def _clear_current_chart_uid" in class_source
     assert "latest_uid == current_uid" in adapter_source
     assert "return get_chart_id_by_uid(current_uid)" in adapter_source
 
