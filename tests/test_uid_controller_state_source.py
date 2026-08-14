@@ -80,3 +80,42 @@ def test_trait_ranking_selection_state_is_uid_owned():
     assert "_traits_distribution_manual_rank_chart_ids" not in source
     assert "_traits_distribution_latest_selected_local_row_ids" not in source
     assert "hidden_chart_uids: set[str]" in source
+
+
+def test_database_metrics_dirty_and_snapshot_state_is_uid_keyed():
+    source = _class_source("ManageChartsDialog", "MainWindow")
+
+    assert "_database_metric_snapshots_by_uid: dict[str" in source
+    assert "_database_metrics_lucy_goosey_uids: set[str]" in source
+    assert "_database_metric_snapshots:" not in source
+    assert "_database_metrics_lucy_goosey_ids" not in source
+    assert "DATABASE_METRICS_PERSISTENT_CACHE_VERSION = 3" in APP_SOURCE
+
+
+def test_active_and_displayed_row_caches_are_uid_keyed():
+    source = _class_source("ManageChartsDialog", "MainWindow")
+
+    assert "_active_chart_rows_by_uid: dict[str" in source
+    assert "_displayed_chart_rows_by_uid: dict[str" in source
+    assert "_active_chart_rows_by_id" not in source
+    assert "_displayed_chart_rows_by_id" not in source
+
+
+def test_similar_chart_candidate_exclusions_are_uid_owned():
+    source = _class_source("MainWindow")
+
+    assert "_similar_charts_candidate_excluded_chart_uids" in source
+    assert "_similar_charts_candidate_excluded_chart_ids" not in source
+    assert "get_chart_ids_by_uid" in source
+
+
+def test_charts_controller_has_no_legacy_pending_id_callbacks():
+    source = Path(
+        "ephemeraldaddy/gui/features/controllers/main_window.py"
+    ).read_text(encoding="utf-8")
+    controller = source[source.index("class ChartsController"):]
+
+    assert "get_pending_changed_refreshes" in controller
+    assert "clear_pending_changed_refreshes" in controller
+    assert "get_pending_changed_ids" not in controller
+    assert "clear_pending_changed_ids" not in controller
