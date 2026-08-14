@@ -766,7 +766,7 @@ from ephemeraldaddy.core.db import (
     find_self_tagged_chart,
     clear_self_tag_from_other_charts,
     resolve_user_age_details,
-    list_duplicate_exclusions,
+    list_duplicate_exclusion_uids,
     save_duplicate_exclusions_by_uids,
     delete_charts_by_uids,
 )
@@ -16717,20 +16717,22 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._populate_list()
 
     def _on_check_for_duplicates(self) -> None:
-        excluded_duplicate_pairs = list_duplicate_exclusions()
         rows = [
             normalized
             for row in self._chart_rows
             if (normalized := self._normalize_chart_row(row)) is not None
         ]
+        uid_by_local_row = get_chart_uid_map(row[0] for row in rows)
+        excluded_duplicate_pairs = list_duplicate_exclusion_uids()
         duplicate_result = find_possible_duplicate_charts(
             rows,
-            load_chart=self._get_chart_for_filter,
+            chart_uids_by_local_row=uid_by_local_row,
+            load_chart_by_uid=self._get_chart_for_filter_by_uid,
             similarity_threshold_percent=65.0,
             similarity_ceiling_percent=100.0,
             excluded_pairs=excluded_duplicate_pairs,
         )
-        if not duplicate_result.duplicate_ids:
+        if not duplicate_result.duplicate_uids:
             self._possible_duplicate_chart_uids = set()
             self._possible_duplicate_related_names_by_uid = {}
             self._possible_duplicate_likelihoods_by_uid = {}
@@ -16747,32 +16749,17 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 "No possible duplicates were found from names, exact birth dates, or 65–100% chart similarity.",
             )
             return
-        uid_by_id = get_chart_uid_map(duplicate_result.duplicate_ids)
-        self._possible_duplicate_chart_uids = {
-            uid_by_id[chart_id]
-            for chart_id in duplicate_result.duplicate_ids
-            if chart_id in uid_by_id
-        }
-        self._possible_duplicate_related_names_by_uid = {
-            uid_by_id[chart_id]: value
-            for chart_id, value in duplicate_result.related_names.items()
-            if chart_id in uid_by_id
-        }
-        self._possible_duplicate_likelihoods_by_uid = {
-            uid_by_id[chart_id]: value
-            for chart_id, value in duplicate_result.likelihood_by_chart_id.items()
-            if chart_id in uid_by_id
-        }
-        self._possible_duplicate_sort_keys_by_uid = {
-            uid_by_id[chart_id]: value
-            for chart_id, value in duplicate_result.duplicate_sort_key_by_chart_id.items()
-            if chart_id in uid_by_id
-        }
-        self._possible_duplicate_group_by_uid = {
-            uid_by_id[chart_id]: value
-            for chart_id, value in duplicate_result.duplicate_group_by_chart_id.items()
-            if chart_id in uid_by_id
-        }
+        self._possible_duplicate_chart_uids = set(duplicate_result.duplicate_uids)
+        self._possible_duplicate_related_names_by_uid = duplicate_result.related_names
+        self._possible_duplicate_likelihoods_by_uid = (
+            duplicate_result.likelihood_by_chart_uid
+        )
+        self._possible_duplicate_sort_keys_by_uid = (
+            duplicate_result.duplicate_sort_key_by_chart_uid
+        )
+        self._possible_duplicate_group_by_uid = (
+            duplicate_result.duplicate_group_by_chart_uid
+        )
         self._show_possible_duplicates_collection = True
         self._active_collection_id = DEFAULT_COLLECTION_POSSIBLE_DUPLICATES
         self._clear_persistent_selection()
@@ -34414,7 +34401,12 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         on_chart_view_tag_remove_link(self, link)
 
     def _confirm_duplicate_chart_save(self, chart: Chart) -> bool:
-        warning = build_duplicate_save_warning(chart, list_charts())
+        duplicate_rows = list(list_charts())
+        warning = build_duplicate_save_warning(
+            chart,
+            duplicate_rows,
+            get_chart_uid_map(row[0] for row in duplicate_rows),
+        )
         if warning is None:
             return True
 
