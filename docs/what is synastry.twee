@@ -234,11 +234,190 @@ There is a real possibility that some if not many people will come to Synastry c
 [[What exactly are you trying to answer?->Synastry Definition]]
 
 
+:: On Compatibility {"position":"837.5,875","size":"100,100"}
+There is probably a relatively small set of human needs underneath an enormous variety of romantic preferences. The interesting part is that **the needs are not the same thing as their preferred implementations**.
+
+Everyone may want something analogous to shelter, but one person wants a stone cottage, another wants a Manhattan apartment, another wants a house in the woods, another wants a sailboat and considers the entire concept of a fixed dwelling spiritually offensive. The underlying functions overlap; the *phenotype* differs dramatically.
+
+Romance is rather like that.
+
+<h3>The underlying needs are surprisingly repetitive:</h3>
+
+You could probably reduce a huge proportion of romantic desire to a handful of dimensions:
+
+- **Attachment:** *Will you stay?*
+- **Desirability:** *Do you want me?*
+- **Recognition:** *Do you actually perceive me?*
+- **Belonging:** *Are we a unit of some kind?*
+- **Autonomy:** *Can I remain myself?*
+- **Stimulation:** *Are you interesting to me?*
+- **Affection:** *Do we enjoy physical and emotional closeness?*
+- **Admiration:** *Do I respect you?*
+- **Cooperation:** *Can we function together?*
+- **Meaning:** *Does this relationship matter to us?*
+
+But then the combinatorics explode.
+
+Someone can satisfy **attachment** through extraordinary consistency, while someone else experiences consistency as suffocating because their stronger requirement is autonomy. Someone experiences intense intellectual debate as intimacy; another experiences it as conflict. Someone experiences constant physical affection as love; another experiences it as intrusive. Someone wants a partner who challenges them; someone else wants their romantic relationship to be the one place in life where they don't have to defend a position.
+
+So even the phrase **“emotional safety”** is insufficiently granular. Safety for one person may mean predictability. For another it may mean freedom from control. For another it may mean being permitted to be eccentric without ridicule. For another it may mean knowing that disagreements won't threaten the relationship.
+
+Same underlying requirement, radically different architecture.
+
+<h3>And this creates a fascinating problem for synastry</h3>
+
+If you were actually trying to construct an astrological synastry calculator, I wouldn't make the central question:
+
+> **“Are these two people compatible?”**
+
+That's almost uselessly coarse.
+
+I'd instead ask something more like:
+
+> **“What kinds of relational experiences is Person A likely to elicit from Person B, and vice versa?”**
+
+That is a much more interesting object.
+
+Because two people don't possess a fixed quantity called **compatibility**. They create particular *interaction patterns*.
+
+One could theoretically model synastry as several different layers:
+
+**1. Attraction**  
+What makes A erotically or aesthetically compelling to B?
+
+**2. Recognition**  
+What makes B feel unusually *seen* by A?
+
+**3. Activation**  
+What psychological machinery does each person stimulate in the other?
+
+**4. Regulation**  
+Does contact tend to settle, energize, agitate, destabilize, or overwhelm the person?
+
+**5. Complementarity**  
+Where do their differences actually produce useful division of labor?
+
+**6. Friction**  
+Where do their default operating systems repeatedly collide?
+
+**7. Development**  
+What qualities does the relationship tend to draw out of each person?
+
+**8. Longevity**  
+Can the attraction and stimulation coexist with the mundane requirements of actually maintaining a relationship?
+
+And crucially, **none of those is synonymous with “good.”**
+
+A relationship can have extraordinarily high attraction and extraordinarily poor longevity.
+
+Another can have astonishing psychological recognition but relatively little sexual chemistry.
+
+Another can be extremely peaceful but insufficiently stimulating.
+
+Another can be enormously developmental while being rather exhausting.
+
+Another can be almost absurdly functional and yet leave both people wondering why they aren't writing poetry about each other.
+
+That would make a synastry calculator considerably more interesting than a giant **“87% compatible”** meter.
+
+<h3>Astrology actually lends itself surprisingly well to this kind of model</h3>
+
+If you're treating astrology as a symbolic system rather than an empirically validated predictive technology, the interesting question isn't really whether a Venus–Mars conjunction *causes* attraction.
+
+It's what **category of relationship experience the symbolism is being used to describe**.
+
+For example, traditional astrological synastry already has an implicit taxonomy:
+
+- **Sun contacts** → recognition, identity, vitality
+- **Moon contacts** → emotional familiarity, care, regulation
+- **Venus contacts** → affection, pleasure, aesthetic/romantic appreciation
+- **Mars contacts** → erotic activation, assertion, conflict
+- **Mercury contacts** → cognition, conversation, interpretation
+- **Saturn contacts** → durability, obligation, inhibition, structure
+- **Jupiter contacts** → expansion, generosity, enthusiasm
+- **Uranus contacts** → novelty, independence, disruption
+- **Neptune contacts** → idealization, imagination, permeability
+- **Pluto contacts** → intensity, psychological significance, power
+
+Then you have houses, which could theoretically represent **where the interaction becomes salient**, while aspects describe **how the two functions interact**.
+
+That's already much closer to a multidimensional model than "compatible/not compatible."
+
+And there's an even more interesting wrinkle:
+
+<h3>The same synastry configuration could be desirable to one person and intolerable to another.</h3>
+
+
+:: On Universality {"position":"712.5,875","size":"100,100"}
+''What do you think most people are looking for in a romantic partner?''
+
+Probably some combination of **attachment, attraction, compatibility, and psychological safety**—but the weighting varies enormously by person.
+
+If you strip away dating-app vocabulary and cultural scripts, I think most people are looking for something roughly like this:
+
+1. **“I want this person to want me.”**  
+   Reciprocal desire is unusually important. People generally don't merely want a good partner; they want to feel *chosen* by that particular person. This is partly sexual, but not exclusively. Being someone's preferred person carries considerable psychological weight.
+
+2. **Companionship.**  
+   Someone with whom ordinary existence is more enjoyable: eating, wandering around town, watching something ridiculous, doing chores, traveling, sitting around doing absolutely nothing. A romantic relationship is often partly an attempt to acquire a permanent teammate for mundane life.
+
+3. **Emotional safety.**  
+   Not necessarily someone who is perpetually soothing or agreeable. More fundamentally: *I can be myself around this person without constantly calculating whether their affection will disappear.* Reliability, honesty, non-cruelty, and reasonable conflict resolution matter enormously here.
+
+4. **Affection and intimacy.**  
+   Physical affection, sex, tenderness, cuddling, kissing, little rituals, private jokes, etc. Humans have a rather absurd number of ways of saying "I like you and you are mine and I am yours," apparently because one method was insufficient.
+
+5. **Compatibility.**  
+   Shared values, compatible lifestyles, compatible levels of sociability, money attitudes, cleanliness, ambition, sexuality, family expectations, intellectual interests, and so forth. People can tolerate surprisingly large differences when the underlying machinery of daily life works.
+
+6. **Admiration.**  
+   This one gets underplayed. Many people want a partner they can genuinely respect: intelligent, competent, beautiful, funny, creative, principled, interesting, capable, whatever *their* currency happens to be. Desire without admiration often becomes rather thin.
+
+7. **Someone who makes life feel larger rather than smaller.**  
+   A good partner can provide novelty, perspective, encouragement, resources, social connection, intellectual stimulation, adventure, or simply a different way of seeing things. The relationship becomes additive rather than merely protective.
+
+8. **Practical partnership.**  
+   Especially as people age, romance becomes entangled with the very prosaic question: *Can we run a household together without one of us becoming the unpaid parent of the other?* Financial cooperation, domestic labor, illness, aging, bureaucracy, pets, family crises—the unglamorous machinery matters.
+
+9. **A coherent future.**  
+   Not necessarily marriage, children, house in the suburbs, and matching towels. But most people eventually need some answer to *“What are we building?”* Even highly independent people generally want to know whether the relationship has somewhere to go.
+
+10. **A particular emotional atmosphere.**  
+    This may actually be the deepest category. People often select partners less according to an explicit checklist than according to the *state they enter when they're with that person*. One person makes you feel playful; another makes you feel intellectually alive; another makes you feel desired; another makes you feel calm; another makes you feel adventurous; another makes you feel unusually understood.
+
+And there is an important distinction between **what people say they want** and **what their behavior reveals that they want**.
+
+Someone may say, "I want a kind, emotionally available, communicative partner," while repeatedly becoming fascinated by people who are mysterious, difficult, extremely charismatic, or emotionally unavailable. That isn't necessarily hypocrisy. The person may genuinely value kindness while having a separate attraction system that responds to novelty, status, intensity, uncertainty, physicality, etc.
+
+So I would divide romantic selection into at least three partially independent systems:
+
+**“Do I want you?”** → attraction, chemistry, erotic interest, fascination  
+**“Do I like you?”** → companionship, admiration, intellectual/emotional affinity  
+**“Can I build a life with you?”** → reliability, compatibility, cooperation, shared direction
+
+The rare and highly desirable partner is someone for whom **all three converge**.
+
+And that's probably why people have such difficulty finding partners. It isn't enough for someone to be objectively wonderful. They have to be wonderful **in a way that activates the particular person's attraction system**, while also being someone that person's practical and emotional systems can actually tolerate.
+
+Human mating preferences: an impressively elaborate mechanism for answering *“yes, but do I like this particular idiot?”*
+
+It seems like, at a glance, we more or less want the same things, but the same basic desire can take many forms. 
+
+Maybe we pretty much all want some kind of shelter and most shelter has at least 2-4 walls and usually a roof but beyond that the specifics wildly vary…
+
+[[So then, in what ways do our desires differ?->On Compatibility]]
+
+
 :: Prediction {"position":"712.5,750","size":"100,100"}
+''You:'' I'm trying to prevent future heartache and misplaced hopes in fellow man.
 
+''Me:'' Yeah.
+Let's take a step back and look at some fundamental grounding elements of how we can pursue/evaluate that end in any given relational situation:
 
+[[What are most people broadly looking for in relationships?->On Universality]]
+[[In what ways do people's compatibility factors differ from one another?->On Compatibility]]
 
-:: Science {"position":"900,625","size":"100,100"}
+And now, if you want, let's look at [[what Synastry might supply->Synastry Definition]] to your ultimate ends here.
 
 
 
@@ -316,7 +495,7 @@ I think if there is any validity to it (and I now believe there is some), that w
 :: Theories {"position":"1100,875","size":"100,100"}
 ''In that case, let's consider a model of how Synastry could actually work in the real world:''
 
-I think the fundamental problem pertains to assumptions in astrology's basic model of Synastry as [[dyadic]].
+Astrology's basic model of Synastry is a [[dyadic]] model, and that is--in my opinion--its biggest flaw.
 Like so many elements of astrological lore (and most pop metaphysics / 'new age' / 'woOo' frameworks), the common model of synastry is a really shallow, diluted conceptualization of reality.
 
 Realistically, relationships are made up of many more components than the dynamic between two natal charts. To really understand what impacts a relationship (even just astrologically), we should be examining:
@@ -337,7 +516,7 @@ If you've made a synastry chart, I'm curious to know exactly what you hoped to f
 [[No. It's none of your business.->Nunya]]
 
 ''Why did you check these two particular charts?''
-[[Science!->Science]]
+[[Science!->Theories]]
 [[I'm wondering what they see in each other.->why is this a thing]]
 
 
@@ -383,12 +562,33 @@ This may seem like a clever 'unfalsifiable claim' by astrology that prevents it 
 [[🔙->Theories]]
 
 
-:: idk {"position":"587.5,1250","size":"100,100"}
+:: idk {"position":"600,1250","size":"100,100"}
+That's legit.
 
+Shall we consider it through [[a Synastric lens, in that case?->Synastry Definition]]
 
 
 :: parasocial obsession {"position":"525,1125","size":"100,100"}
+Listen, bud...
 
+It might be useful to look into something called "psychological projection". 
+It is literally impossible to truly and completely know someone you've never personally interacted with. Even if you managed to spy on them on uncurated, unguarded, unauthorized private moments for days or months or years on end, that would only supply you with a part of the puzzle, and never fully secure an answer to how they would perceive you, or how your chemistry and self-presentation would interact with their subconscious biases and conscious preferences/values in such a way that would make "love at first sight" anything approaching a sustainable or mutually rewarding relationship.
+
+And that said, the vast majority of parasocial relationships are //highly// curated, based on someone's public/contextual persona, which turns out to be a very limited working knowledge of the individual's actual makeup, in most circumstances.
+
+Perhaps this grants you access to a facet of them which you appreciate, but it's always useful to bear in mind that the curated self is often designed explicitly with the goal to be charming/attractive to others. The target audience may be broad or narrow, but regardless, the person is generally aware of some audience and is targeting their affections as a performance.
+
+The performance of the self is not the self. It is not not-the-self, but merely a facet. And not always continuously sustainable in the day to day life one tends to experience in a long term intimate relationship with someone.
+
+There's also the combined possibility that a person may project an excess of 'kismet'-coded feelings onto another they barely know out of:
+* loneliness, a yearning for companionship, intimacy
+* an affection for the idea of love, and/or 'romance' as a personal ideal/goal
+* the desire to feel cared for, and that person was kind to you
+* the desire to be kind to someone, and this person makes you feel especially sympathetic
+
+Any of these things can feel like some version of 'love' but none of them are 'love' in the conventional sense. They are no less valid for that. They are simply something else that ought not be conflated. The confusion can be disappointing and frustrating.
+
+[[Want to analyze it through a synastry lens, anyway?->Synastry Definition]]
 
 
 :: transits {"position":"1100,1250","size":"100,100"}
@@ -433,7 +633,7 @@ I've been trying to figure that out. It seems to track pretty well, but that's s
 [[🔙->Theories]]
 
 
-:: what is love {"position":"587.5,1000","size":"100,100"}
+:: what is love {"position":"600,1000","size":"100,100"}
 ''You:'' No, I mean love. You know how you just love someone from the first moment you ever meet them?
 
 ''Me: ''Meet them or 'see them across a crowded room' or...on TV?
