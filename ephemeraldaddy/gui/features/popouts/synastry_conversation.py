@@ -5,6 +5,7 @@ from __future__ import annotations
 import html
 import re
 from html.parser import HTMLParser
+from importlib import resources
 from pathlib import Path
 from urllib.parse import quote
 
@@ -47,13 +48,22 @@ class _TwinePassageParser(HTMLParser):
 
 
 def load_synastry_conversation(source_path: Path | None = None) -> tuple[str, dict[str, str]]:
-    """Load passage text from the checked-in Twine HTML export."""
-    path = source_path or Path(__file__).resolve().parents[4] / "docs" / "what is synastry.html"
+    """Load passage text from the packaged Twine HTML export."""
+    if source_path is None:
+        story_text = (
+            resources.files("ephemeraldaddy.gui.features.popouts")
+            .joinpath("assets", "what_is_synastry.html")
+            .read_text(encoding="utf-8")
+        )
+        source_description = "bundled what_is_synastry.html"
+    else:
+        story_text = source_path.read_text(encoding="utf-8")
+        source_description = str(source_path)
     parser = _TwinePassageParser()
-    parser.feed(path.read_text(encoding="utf-8"))
+    parser.feed(story_text)
     parser.close()
     if not parser.passages or not parser.start_name:
-        raise ValueError(f"No Twine passages found in {path}")
+        raise ValueError(f"No Twine passages found in {source_description}")
     return parser.start_name, parser.passages
 
 

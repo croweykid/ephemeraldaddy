@@ -1,3 +1,4 @@
+from importlib import resources
 from pathlib import Path
 
 from ephemeraldaddy.gui.features.popouts.synastry_conversation import (
@@ -13,6 +14,19 @@ def test_bundled_synastry_twine_conversation_is_loadable() -> None:
     assert "What is Synastry?" in passages[start_name]
     assert "Synastry Definition" in passages
     assert len(passages) > 10
+
+
+def test_packaged_story_matches_the_editable_twine_export() -> None:
+    packaged_story = (
+        resources.files("ephemeraldaddy.gui.features.popouts")
+        .joinpath("assets", "what_is_synastry.html")
+        .read_text(encoding="utf-8")
+    )
+    repository_story = (
+        Path(__file__).resolve().parents[1] / "docs" / "what is synastry.html"
+    ).read_text(encoding="utf-8")
+
+    assert packaged_story == repository_story
 
 
 def test_passage_renderer_preserves_nonlinear_links_and_lists() -> None:
