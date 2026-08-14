@@ -25,6 +25,8 @@ class _FocusedInputEnterFilter(QObject):
             and isinstance(watched, QLineEdit)
             and watched.hasFocus()
             and event.key() in (Qt.Key_Return, Qt.Key_Enter)
+            and not event.modifiers()
+            & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier)
         ):
             event.accept()
             return True

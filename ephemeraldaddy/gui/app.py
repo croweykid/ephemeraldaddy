@@ -14904,7 +14904,15 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             if callable(line_edit_getter):
                 inner_line_edit = line_edit_getter()
                 if isinstance(inner_line_edit, QLineEdit):
-                    inner_line_edit.returnPressed.connect(callback)
+                    def _submit_composite_input() -> None:
+                        # Commit typed spin-box text before an Apply callback
+                        # reads the composite widget's value.
+                        interpret_text = getattr(widget, "interpretText", None)
+                        if callable(interpret_text):
+                            interpret_text()
+                        callback()
+
+                    inner_line_edit.returnPressed.connect(_submit_composite_input)
 
     def _set_batch_metric_spin_state(
         self,

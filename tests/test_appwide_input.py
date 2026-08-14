@@ -6,7 +6,13 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QLineEdit, QTextEdit, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QApplication,
+    QLineEdit,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
 
 from ephemeraldaddy.gui.appwide_input import install_appwide_input_focus_policy
 
@@ -59,6 +65,26 @@ def test_enter_remains_a_newline_in_multiline_editor():
     window.close()
 
 
+def test_modified_enter_shortcut_is_not_reserved_for_line_edit():
+    app = _application()
+    install_appwide_input_focus_policy(app)
+    window = QWidget()
+    layout = QVBoxLayout(window)
+    search_input = QLineEdit()
+    layout.addWidget(search_input)
+    shortcut_hits: list[bool] = []
+    shortcut = QShortcut(QKeySequence("Ctrl+Return"), window)
+    shortcut.setContext(Qt.WidgetWithChildrenShortcut)
+    shortcut.activated.connect(lambda: shortcut_hits.append(True))
+
+    window.show()
+    search_input.setFocus()
+    QTest.keyClick(search_input, Qt.Key_Return, Qt.ControlModifier)
+
+    assert shortcut_hits == [True]
+    window.close()
+
+
 def test_batch_editor_enter_bindings_are_scoped_and_use_native_submit_signals():
     source = (
         Path(__file__).resolve().parents[1] / "ephemeraldaddy/gui/app.py"
@@ -73,6 +99,9 @@ def test_batch_editor_enter_bindings_are_scoped_and_use_native_submit_signals():
         "shortcut2.setContext(Qt.WidgetWithChildrenShortcut)"
     ) == 1
     assert "widget.returnPressed.connect(callback)" in source[method_start:method_end]
-    assert "inner_line_edit.returnPressed.connect(callback)" in source[
+    assert "inner_line_edit.returnPressed.connect(_submit_composite_input)" in source[
+        method_start:method_end
+    ]
+    assert 'interpret_text = getattr(widget, "interpretText", None)' in source[
         method_start:method_end
     ]
