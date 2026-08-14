@@ -2637,7 +2637,6 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         # at persistence adapters and are never retained as parallel controller state.
         self._selected_chart_uid_order: list[str] = []
         self._selected_chart_uids_set: set[str] = set()
-        self._visible_local_row_ids: set[int] = set()
         self._filter_navigation_anchor_chart_uid: str | None = None
         self._selection_update_mode = "replace"
         self._prior_deselected_selection: list[str] = []
@@ -2670,7 +2669,6 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             int(self._show_hidden_charts),
         )
         self._hidden_chart_uids = self._load_hidden_chart_uids_from_settings()
-        self._hidden_local_row_ids = set(get_chart_ids_by_uid(self._hidden_chart_uids).values())
         self._analysis_chart_export_rows: dict[str, list[tuple[Any, ...]]] = {}
         self._analysis_chart_filenames: dict[str, str] = {}
         self._analysis_chart_dropdowns: dict[str, QComboBox] = {}
@@ -7518,6 +7516,10 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
     def _current_local_row_id(self) -> int | None:
         """Resolve the UID-owned current chart at the SQLite boundary."""
         return get_chart_id_by_uid(self.current_chart_uid)
+
+    def _hidden_local_row_ids_for_persistence(self) -> set[int]:
+        """Resolve UID-owned hidden state for legacy row-based persistence APIs."""
+        return set(get_chart_ids_by_uid(self._hidden_chart_uids).values())
 
     @staticmethod
     def _normalized_item_chart_uid(item: QListWidgetItem | None) -> str | None:
@@ -14936,11 +14938,8 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             selected_chart_uids.update(self._chart_uids_for_ids(chart_ids))
         if not selected_chart_uids:
             selected_chart_uids = set(self._selected_chart_uids())
-        selected_chart_ids = set(self._local_row_ids_for_uids(selected_chart_uids))
         if not hasattr(self, "_pending_batch_refresh_uids"):
             self._pending_batch_refresh_uids: set[str] = set()
-        if not hasattr(self, "_pending_batch_refresh_ids"):
-            self._pending_batch_refresh_ids: set[int] = set()
         if not hasattr(self, "_batch_refresh_in_progress"):
             self._batch_refresh_in_progress = False
         if not hasattr(self, "_pending_batch_refresh_metrics"):
@@ -14949,7 +14948,6 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             self._pending_batch_refresh_selection_state = False
 
         self._pending_batch_refresh_uids.update(selected_chart_uids)
-        self._pending_batch_refresh_ids.update(selected_chart_ids)
         self._pending_batch_refresh_metrics = bool(
             self._pending_batch_refresh_metrics or refresh_metrics
         )
@@ -14977,14 +14975,12 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 return
             if getattr(self, "_is_closing", False):
                 self._pending_batch_refresh_uids.clear()
-                self._pending_batch_refresh_ids.clear()
                 self._pending_batch_refresh_metrics = False
                 self._pending_batch_refresh_selection_state = False
                 self._batch_tagging_debug_log("phase2_timer_abort_dialog_closing")
                 return
             if not self.isVisible():
                 self._pending_batch_refresh_uids.clear()
-                self._pending_batch_refresh_ids.clear()
                 self._pending_batch_refresh_metrics = False
                 self._pending_batch_refresh_selection_state = False
                 self._batch_tagging_debug_log("phase2_timer_abort_dialog_hidden")
@@ -15004,7 +15000,6 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 getattr(self, "_pending_batch_refresh_selection_state", True)
             )
             self._pending_batch_refresh_uids.clear()
-            self._pending_batch_refresh_ids.clear()
             self._pending_batch_refresh_metrics = False
             self._pending_batch_refresh_selection_state = False
             self._batch_refresh_in_progress = True
@@ -17944,13 +17939,13 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._start_inline_chart_rename(selected_items[0])
 
     def _start_inline_chart_rename(self, item: QListWidgetItem) -> None:
-        chart_id = self._item_local_row_id(item)
-        if chart_id is None:
+        chart_uid = self._normalized_item_chart_uid(item)
+        if chart_uid is None:
             return
 
-        active_chart_id = getattr(self, "_inline_rename_chart_id", None)
+        active_chart_uid = getattr(self, "_inline_rename_chart_uid", None)
         active_editor = getattr(self, "_inline_rename_editor", None)
-        if active_chart_id == chart_id and isinstance(active_editor, QLineEdit):
+        if active_chart_uid == chart_uid and isinstance(active_editor, QLineEdit):
             active_editor.setFocus()
             active_editor.selectAll()
             return
@@ -18001,7 +17996,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self.list_widget.scrollToItem(item, QAbstractItemView.ScrollHint.EnsureVisible)
 
         self._inline_rename_item = item
-        self._inline_rename_chart_id = int(chart_id)
+        self._inline_rename_chart_uid = chart_uid
         self._inline_rename_original_text = original_text
         self._inline_rename_editor = inline_editor
 
@@ -18021,14 +18016,14 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                 pass
 
         self._inline_rename_item = None
-        self._inline_rename_chart_id = None
+        self._inline_rename_chart_uid = None
         self._inline_rename_original_text = None
         self._inline_rename_editor = None
 
     def _commit_inline_chart_rename(self) -> None:
-        chart_id = getattr(self, "_inline_rename_chart_id", None)
+        chart_uid = getattr(self, "_inline_rename_chart_uid", None)
         editor = getattr(self, "_inline_rename_editor", None)
-        if chart_id is None or not isinstance(editor, QLineEdit):
+        if chart_uid is None or not isinstance(editor, QLineEdit):
             return
 
         new_name = editor.text().strip()
@@ -18039,9 +18034,6 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             return
 
         try:
-            chart_uid = get_chart_uid(int(chart_id))
-            if not chart_uid:
-                raise ValueError("The selected chart has no UID")
             self._apply_batch_nonastral_patch({chart_uid}, {"name": new_name})
         except Exception as exc:
             QMessageBox.critical(
@@ -18052,7 +18044,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             return
 
         self._cancel_inline_chart_rename()
-        self._refresh_filters_after_batch_edit({int(chart_id)})
+        self._refresh_filters_after_batch_edit(chart_uids={chart_uid})
 
     def _reset_filters(self) -> None:
         self._clear_filters(refresh=False)
@@ -19231,7 +19223,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         self._database_total_count = len(display_database_rows)
         rows = [row for row in display_database_rows if self._chart_in_active_collection(row)]
         if not getattr(self, "_show_hidden_charts", False):
-            hidden_chart_ids = set(getattr(self, "_hidden_local_row_ids", set()))
+            hidden_chart_ids = set(self._hidden_local_row_ids_for_persistence())
             rows = [row for row in rows if int(row[0]) not in hidden_chart_ids]
         self._active_chart_rows_by_id = {int(row[0]): row for row in rows}
         self._displayed_chart_rows_by_id = {}
@@ -19631,7 +19623,6 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
                     item.setSelected(True)
         finally:
             del list_signal_blocker
-        self._visible_local_row_ids = visible_chart_ids
         if refresh_metrics:
             if defer_metrics_refresh:
                 if progress_callback:
@@ -19795,7 +19786,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         if not selected_ids:
             return
         menu = QMenu(self.list_widget)
-        hidden_chart_ids = set(getattr(self, "_hidden_local_row_ids", set()))
+        hidden_chart_ids = set(self._hidden_local_row_ids_for_persistence())
         selected_hidden_ids = [chart_id for chart_id in selected_ids if chart_id in hidden_chart_ids]
         selected_visible_ids = [chart_id for chart_id in selected_ids if chart_id not in hidden_chart_ids]
         rename_action = None
@@ -19852,7 +19843,6 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         if not normalized_ids:
             return
         changed_chart_uids = self._chart_uids_for_ids(normalized_ids)
-        self._hidden_local_row_ids.update(normalized_ids)
         self._hidden_chart_uids.update(changed_chart_uids)
         self._save_hidden_chart_uids_to_settings()
         refresh_rankings = getattr(self, "_refresh_traits_distribution_rankings_after_hidden_chart_change", None)
@@ -19870,7 +19860,6 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         if not normalized_ids:
             return
         changed_chart_uids = self._chart_uids_for_ids(normalized_ids)
-        self._hidden_local_row_ids.difference_update(normalized_ids)
         self._hidden_chart_uids.difference_update(changed_chart_uids)
         self._save_hidden_chart_uids_to_settings()
         refresh_rankings_panel = getattr(self, "_refresh_rankings_after_hidden_chart_change", None)
@@ -20580,7 +20569,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             return False
 
         if hidden_charts_state != QuadStateSlider.MODE_EMPTY:
-            is_hidden_chart = int(chart_id) in getattr(self, "_hidden_local_row_ids", set())
+            is_hidden_chart = int(chart_id) in self._hidden_local_row_ids_for_persistence()
             if hidden_charts_state == QuadStateSlider.MODE_TRUE and not is_hidden_chart:
                 return False
             if hidden_charts_state == QuadStateSlider.MODE_FALSE and is_hidden_chart:
@@ -23349,7 +23338,7 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
             load_charts_by_id=load_charts,
             algorithm_mode=getattr(self, "_similar_charts_algorithm_mode", SIMILAR_CHARTS_ALGORITHM_DEFAULT),
             custom_settings=copy.deepcopy(getattr(self, "_similarity_calculator_settings", None)),
-            hidden_chart_ids=set(getattr(self, "_hidden_local_row_ids", set())),
+            hidden_chart_uids=set(self._hidden_chart_uids),
             include_hidden_charts=bool(getattr(self, "_show_hidden_charts", False)),
             open_chart_uid=self._open_high_similarity_chart_uid,
         )
@@ -25170,7 +25159,6 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         # - Chart Edit Window: current_chart_uid is set (editing existing chart).
         self.current_chart_uid: str | None = None
         self._hidden_chart_uids = self._load_hidden_chart_uids_from_settings()
-        self._hidden_local_row_ids = set(get_chart_ids_by_uid(self._hidden_chart_uids).values())
         self._loaded_birth_place = None
         self._loaded_lat = None
         self._loaded_lon = None
@@ -26537,7 +26525,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             current_chart_id=self._current_local_row_id() if current_chart_id is None else current_chart_id,
             load_chart_by_id=load_chart,
             load_charts_by_ids=load_charts,
-            hidden_chart_ids=set(getattr(self, "_hidden_local_row_ids", set())),
+            hidden_chart_ids=set(self._hidden_local_row_ids_for_persistence()),
             include_hidden_charts=bool(getattr(self, "_show_hidden_charts", False)),
             excluded_chart_ids=set(getattr(self, "_similar_charts_candidate_excluded_chart_ids", set())),
         )
@@ -26545,7 +26533,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
     def _similar_charts_visible_candidate_rows(self, rows: list[tuple[Any, ...]]) -> list[tuple[Any, ...]]:
         if getattr(self, "_show_hidden_charts", False):
             return list(rows)
-        hidden_chart_ids = set(getattr(self, "_hidden_local_row_ids", set()))
+        hidden_chart_ids = set(self._hidden_local_row_ids_for_persistence())
         if not hidden_chart_ids:
             return list(rows)
         visible_rows: list[tuple[Any, ...]] = []
@@ -27430,11 +27418,11 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         worker = SimilarChartsWorker(
             request_id=request_id,
             chart=chart,
-            current_chart_id=self._current_local_row_id(),
+            current_chart_uid=self._current_chart_uid_for_navigation(),
             least_similar=least_similar,
             algorithm_mode=algorithm_mode,
             custom_settings=copy.deepcopy(getattr(self, "_similarity_calculator_settings", None)),
-            hidden_chart_ids=set(getattr(self, "_hidden_local_row_ids", set())),
+            hidden_chart_ids=set(self._hidden_local_row_ids_for_persistence()),
             include_hidden_charts=bool(getattr(self, "_show_hidden_charts", False)),
         )
         worker.moveToThread(thread)
@@ -27818,7 +27806,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                     least_similar=False,
                     algorithm_mode=algorithm_mode,
                     custom_settings=getattr(self, "_similarity_calculator_settings", None),
-                    hidden_chart_ids=set(getattr(self, "_hidden_local_row_ids", set())),
+                    hidden_chart_ids=set(self._hidden_local_row_ids_for_persistence()),
                     include_hidden_charts=False,
                 )
             )
@@ -28123,7 +28111,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                         least_similar=False,
                         algorithm_mode=algorithm_mode,
                         custom_settings=getattr(self, "_similarity_calculator_settings", None),
-                        hidden_chart_ids=set(getattr(self, "_hidden_local_row_ids", set())),
+                        hidden_chart_ids=set(self._hidden_local_row_ids_for_persistence()),
                         include_hidden_charts=False,
                     )
                     if self._similar_charts_can_derive_least_from_full_similarity_ranking(algorithm_mode):
@@ -28137,7 +28125,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                             least_similar=True,
                             algorithm_mode=algorithm_mode,
                             custom_settings=getattr(self, "_similarity_calculator_settings", None),
-                            hidden_chart_ids=set(getattr(self, "_hidden_local_row_ids", set())),
+                            hidden_chart_ids=set(self._hidden_local_row_ids_for_persistence()),
                             include_hidden_charts=False,
                         )
                     most_similar_matches.extend(refreshed_most)
@@ -28214,7 +28202,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                             algorithm_mode=algorithm_mode,
                             custom_settings=getattr(self, "_similarity_calculator_settings", None),
                             should_cancel=lambda p=progress: bool(p.wasCanceled() or p.property("operation_canceled")),
-                            hidden_chart_ids=set(getattr(self, "_hidden_local_row_ids", set())),
+                            hidden_chart_ids=set(self._hidden_local_row_ids_for_persistence()),
                             include_hidden_charts=False,
                             progress_callback=_score_progress,
                         )
@@ -28241,7 +28229,7 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
                                 algorithm_mode=algorithm_mode,
                                 custom_settings=getattr(self, "_similarity_calculator_settings", None),
                                 should_cancel=lambda p=progress: bool(p.wasCanceled() or p.property("operation_canceled")),
-                                hidden_chart_ids=set(getattr(self, "_hidden_local_row_ids", set())),
+                                hidden_chart_ids=set(self._hidden_local_row_ids_for_persistence()),
                                 include_hidden_charts=False,
                                 progress_callback=lambda done, total: _score_progress(done, total, start=82, end=90),
                             )
@@ -34084,24 +34072,22 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
         checkbox.blockSignals(False)
 
     def _sync_chart_view_hide_checkbox(self) -> None:
-        chart_id = self._current_local_row_id()
-        is_hidden = chart_id is not None and int(chart_id) in getattr(self, "_hidden_local_row_ids", set())
-        self._set_chart_view_hide_checkbox_checked(is_hidden)
+        chart_uid = self._current_chart_uid_for_navigation()
+        self._set_chart_view_hide_checkbox_checked(
+            chart_uid is not None and chart_uid in self._hidden_chart_uids
+        )
 
     def _on_chart_view_hide_chart_toggled(self, checked: bool) -> None:
-        chart_id = self._current_local_row_id()
-        if chart_id is None:
+        chart_uid = self._current_chart_uid_for_navigation()
+        if chart_uid is None:
             self._set_chart_view_hide_checkbox_checked(False)
             return
-        normalized_id = int(chart_id)
         if checked:
-            self._hidden_local_row_ids.add(normalized_id)
-            self._hidden_chart_uids.update(self._chart_uids_for_ids([normalized_id]))
+            self._hidden_chart_uids.add(chart_uid)
         else:
-            self._hidden_local_row_ids.discard(normalized_id)
-            self._hidden_chart_uids.difference_update(self._chart_uids_for_ids([normalized_id]))
+            self._hidden_chart_uids.discard(chart_uid)
         self._save_hidden_chart_uids_to_settings()
-        self._refresh_database_view_after_chart_hidden_toggle(normalized_id)
+        self._refresh_database_view_after_chart_hidden_toggle(chart_uid)
 
     def _load_hidden_chart_uids_from_settings(self) -> set[str]:
         raw_value = self._settings.value(SETTINGS_KEY_HIDDEN_CHART_UIDS, "[]")
@@ -34122,23 +34108,28 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             json.dumps(sorted(getattr(self, "_hidden_chart_uids", set()))),
         )
 
-    def _refresh_database_view_after_chart_hidden_toggle(self, changed_chart_id: int) -> None:
+    def _refresh_database_view_after_chart_hidden_toggle(self, changed_chart_uid: str) -> None:
         manage_dialog = getattr(self, "_manage_charts_dialog", None)
         if manage_dialog is None:
             return
-        manage_dialog._hidden_local_row_ids = set(getattr(self, "_hidden_local_row_ids", set()))
-        manage_dialog._hidden_chart_uids = set(getattr(self, "_hidden_chart_uids", set()))
-        refresh_rankings = getattr(manage_dialog, "_refresh_traits_distribution_rankings_after_hidden_chart_change", None)
-        if callable(refresh_rankings):
-            refresh_rankings({int(changed_chart_id)})
+        manage_dialog._hidden_chart_uids = set(self._hidden_chart_uids)
+        changed_chart_id = get_chart_id_by_uid(changed_chart_uid)
+        refresh_trait_rankings = getattr(
+            manage_dialog,
+            "_refresh_traits_distribution_rankings_after_hidden_chart_change",
+            None,
+        )
+        if callable(refresh_trait_rankings) and changed_chart_id is not None:
+            refresh_trait_rankings({int(changed_chart_id)})
         refresh_rankings_panel = getattr(manage_dialog, "_refresh_rankings_after_hidden_chart_change", None)
         if callable(refresh_rankings_panel):
-            refresh_rankings_panel(self._chart_uids_for_ids([int(changed_chart_id)]))
+            refresh_rankings_panel({changed_chart_uid})
         if manage_dialog.isVisible() and getattr(manage_dialog, "_chart_rows", None):
-            selected_ids = set(manage_dialog._selected_local_row_ids())
-            if int(changed_chart_id) not in manage_dialog._hidden_local_row_ids:
-                selected_ids.add(int(changed_chart_id))
-            manage_dialog._populate_list(selected_ids=selected_ids, refresh_metrics=False)
+            selected_uids = set(manage_dialog._selected_chart_uids())
+            if changed_chart_uid not in manage_dialog._hidden_chart_uids:
+                selected_uids.add(changed_chart_uid)
+            manage_dialog._replace_persistent_selection_by_uids(selected_uids)
+            manage_dialog._populate_list(refresh_metrics=False)
             manage_dialog._on_selection_changed(sync_persistent_selection=False)
 
     def _show_death_chart_popout(self) -> None:
@@ -35227,6 +35218,10 @@ class MainWindow(AspectPopoutMixin, QMainWindow):
             if local_row_id > 0:
                 return local_row_id
         return get_chart_id_by_uid(current_uid)
+
+    def _hidden_local_row_ids_for_persistence(self) -> set[int]:
+        """Resolve UID-owned hidden state for legacy row-based persistence APIs."""
+        return set(get_chart_ids_by_uid(self._hidden_chart_uids).values())
 
     def _set_current_chart_uid(self, chart_uid: str) -> None:
         """Set the Chart Editor's sole identity from an explicit persisted UID."""
