@@ -219,6 +219,12 @@ ephemeraldaddy/gui/features/import_export/
 
 ### 6.4 `DatabaseSearchQuery`
 
+The complete staged performance, persistence-projection, virtualization, and
+similarity plan for this workflow is defined in
+`agents/database_search_scalability_manifesto.md`. This section establishes the
+architectural boundary; the dedicated manifesto defines how that boundary must
+produce measured database-scale improvements.
+
 Target:
 
 ```text
