@@ -14894,6 +14894,18 @@ class ManageChartsDialog(AspectPopoutMixin, RankingsPanelMixin, DatabaseAnalytic
         widget._batch_apply_enter_shortcut2 = shortcut2
         widget._batch_enter_apply_callback = callback
 
+        # The appwide focus policy reserves Enter for a focused QLineEdit, so
+        # submit through the input's native signal rather than relying only on
+        # QShortcuts.  Spin boxes receive the key in their internal line edit.
+        if isinstance(widget, QLineEdit):
+            widget.returnPressed.connect(callback)
+        else:
+            line_edit_getter = getattr(widget, "lineEdit", None)
+            if callable(line_edit_getter):
+                inner_line_edit = line_edit_getter()
+                if isinstance(inner_line_edit, QLineEdit):
+                    inner_line_edit.returnPressed.connect(callback)
+
     def _set_batch_metric_spin_state(
         self,
         field_key: str,

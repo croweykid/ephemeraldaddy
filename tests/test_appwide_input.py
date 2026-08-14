@@ -59,7 +59,7 @@ def test_enter_remains_a_newline_in_multiline_editor():
     window.close()
 
 
-def test_batch_editor_enter_shortcuts_are_limited_to_their_own_inputs():
+def test_batch_editor_enter_bindings_are_scoped_and_use_native_submit_signals():
     source = (
         Path(__file__).resolve().parents[1] / "ephemeraldaddy/gui/app.py"
     ).read_text()
@@ -72,3 +72,7 @@ def test_batch_editor_enter_shortcuts_are_limited_to_their_own_inputs():
     assert source[method_start:method_end].count(
         "shortcut2.setContext(Qt.WidgetWithChildrenShortcut)"
     ) == 1
+    assert "widget.returnPressed.connect(callback)" in source[method_start:method_end]
+    assert "inner_line_edit.returnPressed.connect(callback)" in source[
+        method_start:method_end
+    ]
