@@ -40,6 +40,7 @@ from ephemeraldaddy.analysis.weighted_chart_predictor import canonical_position_
 from ephemeraldaddy.gui.features.charts.human_design_shared import HumanDesignSharedAggregates
 from ephemeraldaddy.core.aspect_display import ASPECT_DISPLAY_ANGLE_BODIES, aspect_is_displayable
 from ephemeraldaddy.core.chart import Chart
+from ephemeraldaddy.core.db import get_chart_ids_by_uid
 from ephemeraldaddy.core.interpretations import NATAL_WEIGHT, PLANET_ORDER
 from ephemeraldaddy.gui.features.charts.metrics import (
     calculate_dominant_element_weights,
@@ -750,7 +751,7 @@ def show_high_similarity_chart_pairs(
     load_charts_by_id: HighSimilarityLoadCharts,
     algorithm_mode: str = SIMILAR_CHARTS_ALGORITHM_DEFAULT,
     custom_settings: SimilarityCalculatorSettings | None = None,
-    hidden_chart_ids: set[int] | None = None,
+    hidden_chart_uids: set[str] | None = None,
     include_hidden_charts: bool = False,
     open_chart_uid: HighSimilarityOpenCallback,
 ) -> None:
@@ -787,7 +788,7 @@ def show_high_similarity_chart_pairs(
     valid_pairs: list[tuple[float, int, int]] = []
     progress.setLabelText("Calculating 90-100% Astro Twin pairs…")
     progress.setMaximum(max(1, len(id_chart_pairs)))
-    hidden_ids = {int(chart_id) for chart_id in (hidden_chart_ids or set())}
+    hidden_ids = set(get_chart_ids_by_uid(hidden_chart_uids or set()).values())
     for index, (chart_id, chart) in enumerate(id_chart_pairs):
         if progress.wasCanceled():
             progress.close()

@@ -1,6 +1,5 @@
 from types import SimpleNamespace
 
-<<<<<<< Updated upstream
 import pytest
 
 from ephemeraldaddy.semantics_formatting import (
@@ -9,9 +8,6 @@ from ephemeraldaddy.semantics_formatting import (
     pronouns_for_chart,
     pronouns_for_gender,
 )
-=======
-from ephemeraldaddy.semantics_formatting import pronouns_for_chart, pronouns_for_gender
->>>>>>> Stashed changes
 
 
 def test_pronouns_for_gender_supported_chart_codes():

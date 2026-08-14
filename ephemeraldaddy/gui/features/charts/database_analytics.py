@@ -1445,17 +1445,17 @@ class DatabaseAnalyticsChartsMixin:
         normalized = float(longitude) % 360.0
         return ZODIAC_NAMES[int(normalized // 30) % 12]
 
-    def _display_name_for_chart_id(self, chart_id: int) -> str:
-        # Integer chart IDs are a Database Analytics row/sort adapter only;
-        # app-wide identity and persisted metadata should be keyed by UID.
-        row = self._active_chart_rows_by_id.get(int(chart_id))
+    def _display_name_for_chart_uid(self, chart_uid: str) -> str:
+        normalized_uid = str(chart_uid or "").strip().upper()
+        row = self._active_chart_rows_by_uid.get(normalized_uid)
         if row is not None and len(row) > 1:
             name = str(row[1] or "").strip()
             if name:
                 return name
-        chart = self._get_chart_for_filter(int(chart_id))
+        get_chart_by_uid = getattr(self, "_get_chart_for_filter_by_uid", None)
+        chart = get_chart_by_uid(normalized_uid) if callable(get_chart_by_uid) and normalized_uid else None
         chart_name = str(getattr(chart, "name", "") or "").strip() if chart is not None else ""
-        return chart_name or f"Chart {int(chart_id)}"
+        return chart_name or normalized_uid or "Unknown chart"
 
     def _analysis_matching_charts(
         self,
@@ -1754,8 +1754,8 @@ class DatabaseAnalyticsChartsMixin:
                     uid_map = db.get_chart_uid_map({int(chart_key_value)})
                     chart_uid = str(uid_map.get(int(chart_key_value), "") or "").strip()
                 chart_name = str(getattr(chart, "name", "") or "").strip()
-                if not chart_name and not selected_uids:
-                    chart_name = self._display_name_for_chart_id(int(chart_key_value))
+                if not chart_name and chart_uid:
+                    chart_name = self._display_name_for_chart_uid(chart_uid)
                 if chart_uid:
                     matching_charts.append((chart_uid, chart_name or chart_uid))
         return matching_charts
@@ -4707,11 +4707,11 @@ class DatabaseAnalyticsChartsMixin:
             )
         )
 
-    def _refresh_traits_distribution_rankings_after_hidden_chart_change(self, hidden_chart_ids: set[int]) -> None:
+    def _refresh_traits_distribution_rankings_after_hidden_chart_change(self, hidden_chart_uids: set[str]) -> None:
         current_ranked_uids = getattr(self, "_traits_distribution_current_ranked_chart_uids", set())
         hidden_uids = {
             str(uid).strip().upper()
-            for uid in db.get_chart_uid_map({int(chart_id) for chart_id in hidden_chart_ids}).values()
+            for uid in hidden_chart_uids
             if str(uid or "").strip()
         }
         if not hidden_uids or not current_ranked_uids or not (hidden_uids & set(current_ranked_uids)):
@@ -4745,17 +4745,9 @@ class DatabaseAnalyticsChartsMixin:
     def _on_traits_distribution_rank_selected_clicked(self) -> None:
         """Manually switch Trait Rankings to the current Database View selection."""
         current_selection = tuple(
-            sorted(
-                {
-                    int(chart_id)
-                    for chart_id in getattr(self, "_traits_distribution_latest_selected_local_row_ids", ())
-                }
-            )
+            sorted(getattr(self, "_traits_distribution_latest_selected_chart_uids", ()))
         )
-        if current_selection:
-            self._traits_distribution_manual_rank_chart_ids = current_selection
-        else:
-            self._traits_distribution_manual_rank_chart_ids = ()
+        self._traits_distribution_manual_rank_chart_uids = current_selection
         update = getattr(self, "_update_sentiment_tally", None)
         if callable(update):
             update(
@@ -5716,8 +5708,8 @@ class DatabaseAnalyticsChartsMixin:
         selected_trait_name = self._sync_traits_distribution_rank_combo(trait_items)
         rankings_mode = self._traits_distribution_display_mode() == "trait_rankings"
         if rankings_mode and not selected_trait_name:
-            self._traits_distribution_latest_selected_local_row_ids = tuple(
-                sorted({int(chart_id) for chart_id in chart_ids})
+            self._traits_distribution_latest_selected_chart_uids = tuple(
+                sorted(db.get_chart_uid_map(chart_ids).values())
             ) if loaded_charts > 0 else ()
             self._traits_distribution_rank_context = {
                 "chart_ids": (),
@@ -5734,7 +5726,7 @@ class DatabaseAnalyticsChartsMixin:
             self._analysis_chart_export_rows["traits_distribution"] = []
             rank_selected_button = getattr(self, "traits_distribution_rank_selected_button", None)
             if isinstance(rank_selected_button, QPushButton):
-                has_current_selection = bool(getattr(self, "_traits_distribution_latest_selected_local_row_ids", ()))
+                has_current_selection = bool(getattr(self, "_traits_distribution_latest_selected_chart_uids", ()))
                 rank_selected_button.setEnabled(has_current_selection)
                 rank_selected_button.setText("rank selected" if has_current_selection else "show database")
             rank_label = getattr(self, "traits_distribution_rank_label", None)
@@ -5783,13 +5775,15 @@ class DatabaseAnalyticsChartsMixin:
                 trait_items=trait_items,
                 trait_signature=trait_signature,
             )
-        self._traits_distribution_latest_selected_local_row_ids = tuple(
-            sorted({int(chart_id) for chart_id in chart_ids})
+        self._traits_distribution_latest_selected_chart_uids = tuple(
+            sorted(db.get_chart_uid_map(chart_ids).values())
         ) if loaded_charts > 0 else ()
-        manual_rank_ids = tuple(
-            int(chart_id)
-            for chart_id in getattr(self, "_traits_distribution_manual_rank_chart_ids", ())
+        manual_rank_uids = tuple(
+            str(chart_uid).strip().upper()
+            for chart_uid in getattr(self, "_traits_distribution_manual_rank_chart_uids", ())
+            if str(chart_uid).strip()
         )
+        manual_rank_ids = tuple(db.get_chart_ids_by_uid(manual_rank_uids).values())
         if rankings_mode and manual_rank_ids:
             selection_analytics = self._collect_traits_distribution_analytics(
                 list(manual_rank_ids),
@@ -5829,7 +5823,7 @@ class DatabaseAnalyticsChartsMixin:
             ranking_scope_label = "the database"
         rank_selected_button = getattr(self, "traits_distribution_rank_selected_button", None)
         if isinstance(rank_selected_button, QPushButton):
-            has_current_selection = bool(getattr(self, "_traits_distribution_latest_selected_local_row_ids", ()))
+            has_current_selection = bool(getattr(self, "_traits_distribution_latest_selected_chart_uids", ()))
             rank_selected_button.setEnabled(has_current_selection or bool(manual_rank_ids))
             rank_selected_button.setText(
                 "rank selected" if has_current_selection else "show database"

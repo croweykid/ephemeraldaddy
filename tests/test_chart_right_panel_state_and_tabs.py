@@ -132,7 +132,7 @@ def _owner():
     owner._schedule_chart_render_for_active_right_panel = lambda: None
     owner._collapse_similar_charts_section = lambda: None
     owner._is_placeholder_chart = lambda chart: bool(getattr(chart, "is_placeholder", False))
-    owner.current_chart_id = 1
+    owner.current_chart_uid = "SAVEDCHARTUID001"
     return owner
 
 
@@ -170,6 +170,21 @@ def test_sync_placeholder_state_hides_analytics_and_predictions_for_placeholder_
     assert owner.predictions_panel_button.enabled is False
     assert owner._chart_right_panel_state.active_tab == "subjective_notes"
 
+
+
+def test_sync_placeholder_state_keeps_saved_uid_chart_tabs_available():
+    owner = _owner()
+    owner.time_sensitivity_panel_button = _FakeButton(enabled=False)
+    saved_chart = SimpleNamespace(is_placeholder=False, chart_uid=owner.current_chart_uid)
+
+    sync_chart_right_panel_placeholder_state(owner, saved_chart)
+
+    assert owner.chart_analytics_panel_button.visible is True
+    assert owner.chart_analytics_panel_button.enabled is True
+    assert owner.predictions_panel_button.visible is True
+    assert owner.predictions_panel_button.enabled is True
+    assert owner.time_sensitivity_panel_button.visible is True
+    assert owner.time_sensitivity_panel_button.enabled is True
 
 def test_schedule_render_for_active_tab_analytics():
     owner = _owner()
