@@ -14,7 +14,7 @@ from pathlib import Path
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_LOG_DIRECTORY = REPOSITORY_ROOT / "results" / "test-runs"
+DEFAULT_LOG_DIRECTORY = REPOSITORY_ROOT / "tests" / "results" / "test-runs"
 
 
 def _arguments() -> argparse.Namespace:
