@@ -160,8 +160,10 @@ def test_rankings_links_use_chart_uids_for_navigation_targets():
     )[0]
 
     assert 'target_chart_uid = self._normalized_chart_uid_key(normalized_target)' in app_link_method
-    assert 'trait_uid_map = get_chart_uid_map(row.get("chart_id") for row in trait_rankings)' in rankings_refresh
-    assert 'row["chart_uid"] = chart_uid' in rankings_refresh
+    assert 'database_chart_uids = tuple(' in rankings_refresh
+    assert 'get_chart_uid_map(database_chart_ids).values()' in rankings_refresh
+    assert 'chart_uids=database_chart_uids' in rankings_refresh
+    assert 'chart_ids=database_chart_ids' not in rankings_refresh
     assert 'chart_uid = str(row.get("chart_uid", "") or "").strip()' in renderer
     assert 'chart_target = chart_uid' in renderer
     assert 'open_link(normalized_target, transition_to_chart_view=True)' in link_handler
